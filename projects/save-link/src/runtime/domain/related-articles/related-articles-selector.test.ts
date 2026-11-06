@@ -1,12 +1,24 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { articleDestinationUrl } from "@packages/domain/article";
 import type { CreateAiMessage } from "@packages/ai-message";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
 import {
 	RELATED_REASON_MAX_CHARS,
 	RELATED_RESULTS_MAX,
 } from "./related-articles-limits";
-import { initSelectRelatedArticles } from "./related-articles-selector";
+import {
+	buildRelatedArticlesRequest,
+	initSelectRelatedArticles,
+	type SelectionAttempt,
+} from "./related-articles-selector";
+
+const ATTEMPT: SelectionAttempt = {
+	userId: UserIdSchema.parse("user-1"),
+	trigger: "save",
+	messageId: "message-1",
+	receiveCount: 1,
+};
 
 const target = {
 	destinationUrl: articleDestinationUrl({ url: "https://example.com/target", displayUrl: undefined }),
@@ -75,6 +87,7 @@ describe("initSelectRelatedArticles", () => {
 		] }));
 		const result = await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: [
 				{ destinationUrl: articleDestinationUrl({ url: "https://example.com/astronomy", displayUrl: undefined }), url: "https://example.com/astronomy", title: "Astronomy", description: "Stellar spectra", siteName: "Example" },
 				...groundedCandidates(3),
@@ -92,7 +105,7 @@ describe("initSelectRelatedArticles", () => {
 
 	it("drops a pick with an empty reason under the reason check", async () => {
 		const { selectRelatedArticles } = selectorReturning(JSON.stringify({ related: [{ index: 0, reason: "" }] }));
-		expect(await selectRelatedArticles({ target, unreadCandidates: groundedCandidates(1), readCandidates: [] }))
+		expect(await selectRelatedArticles({ target, attempt: ATTEMPT, unreadCandidates: groundedCandidates(1), readCandidates: [] }))
 			.toMatchObject({ kind: "ready", related: [], droppedNoSharedWord: 0, droppedReasonNotAboutPick: 1 });
 	});
 
@@ -100,6 +113,7 @@ describe("initSelectRelatedArticles", () => {
 		const { selectRelatedArticles } = selectorReturning(JSON.stringify({ related: [{ index: 0, reason: "Astronomy" }] }));
 		expect(await selectRelatedArticles({
 			target: { ...target, siteName: "Astronomy" },
+			attempt: ATTEMPT,
 			unreadCandidates: [{ destinationUrl: articleDestinationUrl({ url: "https://example.com/astronomy", displayUrl: undefined }), url: "https://example.com/astronomy", title: "Astronomy", description: "Stellar spectra", siteName: "Astronomy" }],
 			readCandidates: [],
 		})).toMatchObject({ kind: "ready", related: [], droppedNoSharedWord: 1, droppedReasonNotAboutPick: 0 });
@@ -107,15 +121,37 @@ describe("initSelectRelatedArticles", () => {
 
 	it("grounds only the separately clipped title, description and stored reason", async () => {
 		const { selectRelatedArticles } = selectorReturning(JSON.stringify({ related: [{ index: 0, reason: `${"Astronomy ".repeat(20)}queues` }] }));
-		expect(await selectRelatedArticles({ target, unreadCandidates: groundedCandidates(1), readCandidates: [] }))
+		expect(await selectRelatedArticles({ target, attempt: ATTEMPT, unreadCandidates: groundedCandidates(1), readCandidates: [] }))
 			.toMatchObject({ kind: "ready", related: [], droppedNoSharedWord: 0, droppedReasonNotAboutPick: 1 });
 		const { selectRelatedArticles: clipped } = selectorReturning(JSON.stringify({ related: [{ index: 0, reason: "Queues" }] }));
 		expect(await clipped({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: [{ destinationUrl: articleDestinationUrl({ url: "https://example.com/astronomy", displayUrl: undefined }), url: "https://example.com/astronomy", title: `${"Astronomy ".repeat(40)}queues`, description: `${"Stars ".repeat(60)}queues`, siteName: "Example" }],
 			readCandidates: [],
 		})).toMatchObject({ kind: "ready", related: [], droppedNoSharedWord: 1, droppedReasonNotAboutPick: 0 });
 	});
+	it.each(["nextRead", "pastReads"] as const)("sends exactly the request the %s builder renders", async (selection) => {
+		const sent: Parameters<CreateAiMessage>[0][] = [];
+		const { selectRelatedArticles } = initSelectRelatedArticles({
+			nowMs: () => 100,
+			createMessage: async (request) => {
+				sent.push(request);
+				return {
+					content: [{ type: "text", text: JSON.stringify({ related: [] }) }],
+					usage: { input_tokens: 1, output_tokens: 1 },
+				};
+			},
+			selection,
+			logger: noopLogger,
+		});
+		const params = { target, attempt: ATTEMPT, unreadCandidates: candidates(2), readCandidates: candidates(1) };
+
+		await selectRelatedArticles(params);
+
+		expect(sent).toEqual([buildRelatedArticlesRequest({ selection, params })]);
+	});
+
 	it("numbers each candidate so the model answers with positions rather than urls", async () => {
 		const { selectRelatedArticles, captured } = selectorReturning(
 			JSON.stringify({ related: [] }),
@@ -123,6 +159,7 @@ describe("initSelectRelatedArticles", () => {
 
 		await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: candidates(2),
 			readCandidates: [],
 		});
@@ -154,6 +191,7 @@ describe("initSelectRelatedArticles", () => {
 
 		await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: [],
 			readCandidates: candidates(1),
 		});
@@ -167,6 +205,7 @@ describe("initSelectRelatedArticles", () => {
 
 		await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: candidates(1),
 			readCandidates: [],
 		});
@@ -182,6 +221,7 @@ describe("initSelectRelatedArticles", () => {
 
 		await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: candidates(2),
 			readCandidates: [],
 		});
@@ -199,6 +239,7 @@ describe("initSelectRelatedArticles", () => {
 
 		await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: candidates(2),
 			readCandidates: [
 				{
@@ -224,6 +265,7 @@ describe("initSelectRelatedArticles", () => {
 
 		await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: candidates(1),
 			readCandidates: [],
 		});
@@ -241,6 +283,7 @@ describe("initSelectRelatedArticles", () => {
 
 		await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: [],
 			readCandidates: candidates(2),
 		});
@@ -259,6 +302,7 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: groundedCandidates(2),
 			readCandidates: [
 				{
@@ -291,6 +335,7 @@ describe("initSelectRelatedArticles", () => {
 
 		await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: candidates(1),
 			readCandidates: [],
 		});
@@ -307,6 +352,7 @@ describe("initSelectRelatedArticles", () => {
 
 		await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: candidates(1),
 			readCandidates: [],
 		});
@@ -327,6 +373,7 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: groundedCandidates(5),
 			readCandidates: [],
 		});
@@ -360,6 +407,7 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: groundedCandidates(3),
 			readCandidates: [],
 		});
@@ -389,6 +437,7 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: groundedCandidates(3),
 			readCandidates: [],
 		});
@@ -417,6 +466,7 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: groundedCandidates(RELATED_RESULTS_MAX + 5),
 			readCandidates: [],
 		});
@@ -432,6 +482,7 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: groundedCandidates(1),
 			readCandidates: [],
 		});
@@ -452,6 +503,7 @@ describe("initSelectRelatedArticles", () => {
 
 		const result = await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: groundedCandidates(1),
 			readCandidates: [],
 		});
@@ -466,11 +518,23 @@ describe("initSelectRelatedArticles", () => {
 
 		expect(await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: candidates(3),
 			readCandidates: [],
 		})).toEqual({
 			kind: "no-text-block",
 		});
+	});
+
+	it("throws an answer that is not the JSON shape asked for so the worker retries", async () => {
+		const { selectRelatedArticles } = selectorReturning("not json");
+
+		await expect(selectRelatedArticles({
+			target,
+			attempt: ATTEMPT,
+			unreadCandidates: candidates(3),
+			readCandidates: [],
+		})).rejects.toThrow(SyntaxError);
 	});
 
 	it("reports an answer that carried no text block at all", async () => {
@@ -487,6 +551,7 @@ describe("initSelectRelatedArticles", () => {
 
 		expect(await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: candidates(3),
 			readCandidates: [],
 		})).toEqual({
@@ -501,6 +566,7 @@ describe("initSelectRelatedArticles", () => {
 
 		await selectRelatedArticles({
 			target,
+			attempt: ATTEMPT,
 			unreadCandidates: candidates(1),
 			readCandidates: [],
 		});

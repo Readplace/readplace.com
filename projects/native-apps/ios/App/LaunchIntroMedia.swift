@@ -151,7 +151,7 @@ struct LaunchIntroOverlayView: View {
 }
 
 @MainActor
-func makeLaunchIntroModel(reduceMotion: Bool) -> LaunchIntroModel {
+func makeLaunchIntroModel(reduceMotion: Bool, isLoggedIn: Bool) -> LaunchIntroModel {
 	let group = TokenStore.resolvedAppGroupId
 	guard let defaults = UserDefaults(suiteName: group) else {
 		preconditionFailure("App Group \(group) is required for the launch intro")
@@ -161,6 +161,6 @@ func makeLaunchIntroModel(reduceMotion: Bool) -> LaunchIntroModel {
 		music: .system,
 		mutePreference: IntroMutePreference(defaults: defaults),
 		reduceMotion: reduceMotion,
-		isLoggedIn: TokenStore().isLoggedIn
+		isLoggedIn: isLoggedIn
 	)
 }

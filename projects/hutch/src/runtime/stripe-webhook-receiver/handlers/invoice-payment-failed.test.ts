@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
-import { SendTrialFeedbackEmailCommand } from "@packages/hutch-infra-components";
+import { Logger, noopLogger } from "@packages/logger";
+import { SendTrialFeedbackEmailCommand } from "@packages/infra-components";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import type { StripeEvent } from "../verify-stripe-signature";
 import { initHandleInvoicePaymentFailed } from "./invoice-payment-failed";
@@ -44,7 +44,7 @@ describe("initHandleInvoicePaymentFailed", () => {
 
 		await handle({
 			stripeEvent: buildInvoiceEvent({ subscription: "sub_dunning_1" }),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 1);
@@ -67,7 +67,7 @@ describe("initHandleInvoicePaymentFailed", () => {
 			stripeEvent: buildInvoiceEvent({
 				parent: { subscription_details: { subscription: "sub_dunning_2" } },
 			}),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 1);
@@ -86,7 +86,7 @@ describe("initHandleInvoicePaymentFailed", () => {
 				subscription: "sub_incomplete",
 				billing_reason: "subscription_create",
 			}),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 0);
@@ -105,7 +105,7 @@ describe("initHandleInvoicePaymentFailed", () => {
 				subscription: "sub_final",
 				next_payment_attempt: null,
 			}),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 0);
@@ -120,7 +120,7 @@ describe("initHandleInvoicePaymentFailed", () => {
 
 		await handle({
 			stripeEvent: buildInvoiceEvent({}),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 0);
@@ -135,7 +135,7 @@ describe("initHandleInvoicePaymentFailed", () => {
 
 		await handle({
 			stripeEvent: buildInvoiceEvent({ subscription: 123 }),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 0);
@@ -150,7 +150,7 @@ describe("initHandleInvoicePaymentFailed", () => {
 
 		await handle({
 			stripeEvent: buildInvoiceEvent({ subscription: "sub_gone" }),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 0);
@@ -170,7 +170,7 @@ describe("initHandleInvoicePaymentFailed", () => {
 
 		await handle({
 			stripeEvent: buildInvoiceEvent({ subscription: "sub_dunning_3" }),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 0);
@@ -187,7 +187,7 @@ describe("initHandleInvoicePaymentFailed", () => {
 			async () => {
 				await handle({
 					stripeEvent: buildInvoiceEvent({ subscription: "sub_dunning_4" }),
-					logger: HutchLogger.from(noopLogger),
+					logger: Logger.from(noopLogger),
 				});
 			},
 			{ message: "EventBridge down" },

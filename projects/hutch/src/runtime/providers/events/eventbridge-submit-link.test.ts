@@ -1,7 +1,7 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
-import { SubmitLinkCommand } from "@packages/hutch-infra-components";
+import { SubmitLinkCommand } from "@packages/infra-components";
 import { initEventBridgeSubmitLink } from "./eventbridge-submit-link";
 
 describe("initEventBridgeSubmitLink", () => {

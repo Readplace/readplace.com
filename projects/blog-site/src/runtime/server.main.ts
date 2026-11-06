@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { MAX_PORT_ATTEMPTS, findAvailablePort } from "@packages/find-available-port";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import { GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import { initResolveLogin } from "@packages/web-session";
 import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
@@ -9,7 +9,7 @@ import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { createBlogApp, PORT } from "./app";
 import { getEnv, requireEnv } from "@packages/require-env";
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 /** Local dev needs no AWS: an in-memory auth resolver (no sessions, so every
  * request resolves to guest); the production lambda wires the DynamoDB session
@@ -26,7 +26,7 @@ const app = createBlogApp(
 	},
 	{
 		resolveLogin,
-		analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+		analyticsLogger: Logger.fromJSON<AnalyticsEvent>(),
 		salt: requireEnv("ANALYTICS_SALT"),
 		now: () => new Date(),
 		generateVisitorId: randomUUID,

@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initRecordAudienceEvent } from "./record-audience-event";
 
 const BROWSER_USER_AGENT =
@@ -11,11 +11,11 @@ interface RecordedEvent {
 }
 
 function createCapturingLogger(): {
-	logger: HutchLogger.Typed<RecordedEvent>;
+	logger: Logger.Typed<RecordedEvent>;
 	captured: RecordedEvent[];
 } {
 	const captured: RecordedEvent[] = [];
-	const logger: HutchLogger.Typed<RecordedEvent> = {
+	const logger: Logger.Typed<RecordedEvent> = {
 		info: (data) => { captured.push(data); },
 		error: () => {},
 		warn: () => {},

@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { RenderProxy, ResidentialEgress } from "./render-page.types";
+import type { RenderProxy, ResidentialEgress } from "../../domain/render-crawl/render-page.types";
 
 const SESSION_PARAMETER = "-session-";
 

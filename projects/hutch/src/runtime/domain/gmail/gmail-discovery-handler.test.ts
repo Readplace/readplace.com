@@ -3,9 +3,9 @@ import type { Handler, SQSEvent, SQSBatchResponse } from "aws-lambda";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { DiscoverGmailSendersPageCommand, GmailSenderDiscoveryProgressedEvent, StartGmailSenderDiscoveryCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { DiscoverGmailSendersPageCommand, GmailSenderDiscoveryProgressedEvent, StartGmailSenderDiscoveryCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -40,7 +40,7 @@ function harness() {
 		discovery, discover,
 		dispatchPage: async (input: GmailDiscoveryPage) => { dispatched.push(input); },
 		publishEvent: (async (event, detail) => { published.push({ event, detail }); }) as PublishEvent,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	};
 	const startState = () => discovery.startDiscovery({ checkedMessageCount: 0, userId: USER, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gatewayAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"), generation: "run-1", mode: "full", historyId: "100" });
 	return { ...deps, deps, published, started, pages, dispatched, startState };

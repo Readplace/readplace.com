@@ -1,4 +1,4 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbFindItemOwner } from "./dynamodb-find-item-owner";
 

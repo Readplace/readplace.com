@@ -1,5 +1,5 @@
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { LogCrawlOutcome } from "@packages/hutch-infra-components";
+import type { Logger } from "@packages/logger";
+import type { LogCrawlOutcome } from "@packages/infra-components";
 import type { ReadTierSnapshot, TierSnapshot } from "./read-tier-snapshot";
 
 export type EmitTier1FailureOutcome = (params: { url: string }) => Promise<void>;
@@ -7,7 +7,7 @@ export type EmitTier1FailureOutcome = (params: { url: string }) => Promise<void>
 export function initEmitTier1FailureOutcome(deps: {
 	readTierSnapshot: ReadTierSnapshot;
 	logCrawlOutcome: LogCrawlOutcome;
-	logger: HutchLogger;
+	logger: Logger;
 	logPrefix: string;
 }): { emitTier1FailureOutcome: EmitTier1FailureOutcome } {
 	const emitTier1FailureOutcome: EmitTier1FailureOutcome = async ({ url }) => {

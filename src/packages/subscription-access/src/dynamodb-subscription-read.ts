@@ -3,7 +3,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import type {
 	FindSubscriptionBySubscriptionId,

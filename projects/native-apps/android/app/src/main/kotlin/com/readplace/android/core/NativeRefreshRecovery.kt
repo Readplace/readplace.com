@@ -16,10 +16,10 @@ import java.util.UUID
 
 @Serializable
 data class NativeAuthEvent(
-	val event_id: String, val event: String, val occurred_at: String,
-	val client: String, val surface: String, val context_id: String, val client_version: String,
+	val event_id: String, val event: AuthEvent, val occurred_at: String,
+	val client: String, val surface: AuthSurface, val context_id: String, val client_version: String,
 	val operation_id: String? = null, val attempt_id: String? = null,
-	val http_status: Int? = null, val outcome: String? = null, val reason: String? = null,
+	val http_status: Int? = null, val outcome: AuthOutcome? = null, val reason: AuthReason? = null,
 	val dropped_events: Int? = null,
 )
 
@@ -30,9 +30,9 @@ data class NativeProofInput(val url: String, val body: ByteArray, val operation:
 fun interface NativeProof { fun sign(input: NativeProofInput): String }
 
 class NativeRefreshRecovery(
-	private val baseUrl: String, private val records: NativeAuthRecords,
+	private val endpoints: ServerEndpoints, private val records: NativeAuthRecords,
 	http: OkHttpClient, private val proof: NativeProof,
-	private val version: String, private val surface: String,
+	private val version: String, private val surface: AuthSurface,
 ) {
 	private val http = http.newBuilder().followRedirects(false).followSslRedirects(false)
 		.callTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build()
@@ -46,7 +46,7 @@ class NativeRefreshRecovery(
 		"X-Readplace-Client-Version" to version, "X-Readplace-Installation-Id" to records.read().installationId,
 	)
 
-	fun record(event: String, outcome: String? = null, reason: String? = null,
+	fun record(event: AuthEvent, outcome: AuthOutcome? = null, reason: AuthReason? = null,
 		operation: String? = null, attempt: String? = null, status: Int? = null, owner: NativeRefreshOperation? = null) {
 		val entry = NativeAuthEvent(UUID.randomUUID().toString(), event, Instant.now().toString(), "android", surface,
 			context, version, operation, attempt, status, outcome, reason)
@@ -54,15 +54,15 @@ class NativeRefreshRecovery(
 			val earliest = Instant.now().minusSeconds(7 * 86400).toString()
 			val identity = owner?.diagnosticIdentity ?: state.diagnosticIdentity
 			val permit = if (identity == state.diagnosticIdentity) state.diagnosticsPermit else owner?.diagnosticsPermit
-			var dropped = state.diagnostics.lastOrNull { it.identity == identity && it.event.event == "journal_health" }?.event?.dropped_events ?: 0
-			val previous = state.diagnostics.filterNot { it.identity == identity && it.event.event == "journal_health" }
+			var dropped = state.diagnostics.lastOrNull { it.identity == identity && it.event.event == AuthEvent.JOURNAL_HEALTH }?.event?.dropped_events ?: 0
+			val previous = state.diagnostics.filterNot { it.identity == identity && it.event.event == AuthEvent.JOURNAL_HEALTH }
 			var events = previous.filter { it.event.occurred_at >= earliest }
 			dropped += previous.size - events.size
 			events = events + NativeAuthJournalEntry(entry, identity, permit)
 			val healthId = UUID.randomUUID().toString()
 			fun checkpoint() = if (dropped == 0) emptyList() else listOf(NativeAuthJournalEntry(
-				entry.copy(event_id = healthId, event = "journal_health", operation_id = null, attempt_id = null,
-					http_status = null, outcome = "success", reason = "journal_overflow", dropped_events = dropped), identity, permit))
+				entry.copy(event_id = healthId, event = AuthEvent.JOURNAL_HEALTH, operation_id = null, attempt_id = null,
+					http_status = null, outcome = AuthOutcome.SUCCESS, reason = AuthReason.JOURNAL_OVERFLOW, dropped_events = dropped), identity, permit))
 			while (events.size + checkpoint().size > 512 || Json.encodeToString(events + checkpoint()).toByteArray().size > 256 * 1024) {
 				events = events.drop(1); dropped++
 			}
@@ -75,14 +75,14 @@ class NativeRefreshRecovery(
 		if (current.tokens != failed) return@withContext current.tokens ?: throw OAuthError.NoRefreshToken()
 		if (!current.bound && current.pending == null && !isSupported()) return@withContext null
 		val operation = records.prepare(failed)
-		record("refresh_prepared", operation = operation.id, owner = operation)
+		record(AuthEvent.REFRESH_PREPARED, operation = operation.id, owner = operation)
 		val answer = exchange(operation)
 		if (answer.second <= Instant.now()) exchange(records.prepare(answer.first)).first else answer.first
 	}
 
 	private fun isSupported(): Boolean {
 		supported?.let { return it }
-		http.newCall(Request.Builder().url("$baseUrl/.well-known/oauth-authorization-server").build()).execute().use { response ->
+		http.newCall(Request.Builder().url(endpoints.authorizationServerMetadata).build()).execute().use { response ->
 			if (response.code != 200) throw OAuthError.RefreshFailed()
 			val metadata = json.parseToJsonElement(response.body.string()).jsonObject
 			val enabled = metadata["readplace_refresh_protocols_supported"]?.jsonArray?.any { it.jsonPrimitive.intOrNull == 1 } == true &&
@@ -97,7 +97,7 @@ class NativeRefreshRecovery(
 			.add("client_id", AppConfig.CLIENT_ID).add("readplace_refresh_protocol", "1")
 			.add("readplace_refresh_operation_id", operation.id).build()
 		val body = Buffer().also { form.writeTo(it) }.readByteArray()
-		val answer = send(body, "/oauth/token", "application/x-www-form-urlencoded", operation)
+		val answer = send(body, url = endpoints.token, contentType = "application/x-www-form-urlencoded", owner = operation)
 		val parsed = runCatching { json.parseToJsonElement(answer.body).jsonObject }.getOrNull()
 		if (answer.status != 200) {
 			val reason = parsed?.get("readplace_reason")?.jsonPrimitive?.contentOrNull
@@ -108,10 +108,10 @@ class NativeRefreshRecovery(
 					if (state.generation != operation.generation || state.pending != operation) throw OAuthError.SessionChanged()
 					state.generation++; state.access = null; state.refresh = null; state.pending = null
 				}
-				record("credentials_cleared", "failure", reason, operation.id, owner = operation)
+				record(AuthEvent.CREDENTIALS_CLEARED, AuthOutcome.FAILURE, json.decodeFromJsonElement(AuthReason.serializer(), JsonPrimitive(reason)), operation.id, owner = operation)
 				throw OAuthError.NoRefreshToken()
 			}
-			record("refresh_failed", "preserved", "http_error", operation.id, owner = operation)
+			record(AuthEvent.REFRESH_FAILED, AuthOutcome.PRESERVED, AuthReason.HTTP_ERROR, operation.id, owner = operation)
 			throw OAuthError.RefreshFailed()
 		}
 		val receipt = parsed?.get("readplace")?.jsonObject ?: throw OAuthError.MalformedResponse()
@@ -120,16 +120,16 @@ class NativeRefreshRecovery(
 		val refresh = parsed["refresh_token"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotEmpty() } ?: throw OAuthError.MalformedResponse()
 		val expiry = runCatching { Instant.parse(receipt["access_expires_at"]?.jsonPrimitive?.content) }.getOrNull() ?: throw OAuthError.MalformedResponse()
 		val tokens = OAuthTokens(AccessToken(access), RefreshToken(refresh))
-		record("refresh_parsed", "success", operation = operation.id, owner = operation)
-		record("storage_started", operation = operation.id, owner = operation)
+		record(AuthEvent.REFRESH_PARSED, AuthOutcome.SUCCESS, operation = operation.id, owner = operation)
+		record(AuthEvent.STORAGE_STARTED, operation = operation.id, owner = operation)
 		try { records.commit(tokens, operation, receipt["diagnostics_permit"]?.jsonPrimitive?.contentOrNull) }
 		catch (changed: OAuthError.SessionChanged) { return (records.read().tokens ?: throw changed) to Instant.MAX }
 		catch (error: Exception) {
-			record("storage_failed", "preserved", "storage_write_failed", operation.id, owner = operation)
+			record(AuthEvent.STORAGE_FAILED, AuthOutcome.PRESERVED, AuthReason.STORAGE_WRITE_FAILED, operation.id, owner = operation)
 			throw error
 		}
-		record("storage_completed", "success", operation = operation.id, owner = operation)
-		record(if (receipt["recovered"]?.jsonPrimitive?.booleanOrNull == true) "refresh_recovered" else "refresh_completed", "success", operation = operation.id, owner = operation)
+		record(AuthEvent.STORAGE_COMPLETED, AuthOutcome.SUCCESS, operation = operation.id, owner = operation)
+		record(if (receipt["recovered"]?.jsonPrimitive?.booleanOrNull == true) AuthEvent.REFRESH_RECOVERED else AuthEvent.REFRESH_COMPLETED, AuthOutcome.SUCCESS, operation = operation.id, owner = operation)
 		return tokens to expiry
 	}
 
@@ -140,29 +140,29 @@ class NativeRefreshRecovery(
 			put("token", token); put("client_id", AppConfig.CLIENT_ID)
 			put("readplace_refresh_protocol", 1); put("readplace_refresh_operation_id", operation)
 		}.toString().toByteArray(Charsets.UTF_8)
-		send(body, "/oauth/revoke", "application/json", NativeRefreshOperation(operation, previous.generation,
+		send(body, url = endpoints.revoke, contentType = "application/json", owner = NativeRefreshOperation(operation, previous.generation,
 			previous.access ?: "", token, previous.diagnosticIdentity, previous.diagnosticsPermit))
 		Unit
 	}
 
 	private data class Answer(val status: Int, val body: String)
-	private fun send(body: ByteArray, path: String, type: String, owner: NativeRefreshOperation): Answer {
+	private fun send(body: ByteArray, url: String, contentType: String, owner: NativeRefreshOperation): Answer {
 		val operation = owner.id
 		var nonce: String? = null
 		var challenge = 0
 		while (true) {
 			val state = records.read()
-			if (path == "/oauth/token" && state.pending?.id != operation) throw OAuthError.SessionChanged()
+			if (url == endpoints.token && state.pending?.id != operation) throw OAuthError.SessionChanged()
 			val attempt = UUID.randomUUID().toString()
-			val request = Request.Builder().url("$baseUrl$path").post(body.toRequestBody(type.toMediaType()))
-				.header("DPoP", proof.sign(NativeProofInput("$baseUrl$path", body, operation, nonce, state.installationId)))
+			val request = Request.Builder().url(url).post(body.toRequestBody(contentType.toMediaType()))
+				.header("DPoP", proof.sign(NativeProofInput(url, body, operation, nonce, state.installationId)))
 				.header("X-Readplace-Auth-Attempt-Id", attempt).header("X-Readplace-Auth-Context-Id", context)
 				.header("X-Readplace-Client-Version", version).header("X-Readplace-Installation-Id", state.installationId).build()
-			record("refresh_request_started", operation = operation, attempt = attempt, owner = owner)
+			record(AuthEvent.REFRESH_REQUEST_STARTED, operation = operation, attempt = attempt, owner = owner)
 			try {
 				http.newCall(request).execute().use { response ->
 					val text = response.body.string()
-					record("refresh_response_received", operation = operation, attempt = attempt, status = response.code, owner = owner)
+					record(AuthEvent.REFRESH_RESPONSE_RECEIVED, operation = operation, attempt = attempt, status = response.code, owner = owner)
 					val error = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull()
 					val next = response.header("DPoP-Nonce")
 					if (challenge < 2 && next != null && (error?.get("error")?.jsonPrimitive?.contentOrNull == "use_dpop_nonce" || error?.get("readplace_reason")?.jsonPrimitive?.contentOrNull == "proof_replayed")) {
@@ -171,7 +171,7 @@ class NativeRefreshRecovery(
 					} else return Answer(response.code, text)
 				}
 			} catch (error: java.io.IOException) {
-				record("refresh_failed", "preserved", "network_error", operation, attempt, owner = owner)
+				record(AuthEvent.REFRESH_FAILED, AuthOutcome.PRESERVED, AuthReason.NETWORK_ERROR, operation, attempt, owner = owner)
 				throw error
 			}
 		}
@@ -186,7 +186,7 @@ class NativeRefreshRecovery(
 			var events = state.diagnostics.filter { it.permit == permit }.take(64).map { it.event }
 			fun body() = buildJsonObject { put("schema_version", 1); put("events", Json.encodeToJsonElement(events)) }.toString().toByteArray()
 			while (events.size > 1 && body().size > 32 * 1024) events = events.dropLast(1)
-			val request = Request.Builder().url("$baseUrl/diagnostics/auth").post(body().toRequestBody("application/json".toMediaType()))
+			val request = Request.Builder().url(endpoints.authDiagnostics).post(body().toRequestBody("application/json".toMediaType()))
 				.header("Authorization", "Bearer $permit").build()
 			http.newCall(request).execute().use { response ->
 				if (response.code != 202) return@use

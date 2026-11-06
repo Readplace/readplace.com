@@ -32,12 +32,12 @@ import {
 	DEFAULT_READLIST_SLUG,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
-import { type UserId, UserIdSchema } from "@packages/domain/user";
+import type { UserId } from "@packages/domain/user";
 import {
 	type EmailReceivedDetail,
 	EmailReceivedEvent,
-} from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
 import { resolveWriteAccess } from "@packages/subscription-access";
@@ -155,7 +155,7 @@ export function initExtractEmailLinksHandler(deps: {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	now: () => Date;
 	triageEmailLinks: TriageEmailLinks;
-	logger: HutchLogger;
+	logger: Logger;
 	maxLinks: number;
 	appOrigin: string;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -218,7 +218,7 @@ export function initExtractEmailLinksHandler(deps: {
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
-				const userId = UserIdSchema.parse(parsed.data.userId);
+				const userId = parsed.data.userId;
 				const { receivedAtMessageId, origin, recipientAddress, routing } =
 					parsed.data;
 
@@ -355,11 +355,7 @@ export function initExtractEmailLinksHandler(deps: {
 					customReadlists.size > 0
 						? await listReadlistDefinitions(userId)
 						: [];
-				const inboxDefinition =
-					routing.kind === "inbox"
-						? definitions.find((definition) => definition.slug === routedReadlist)
-						: undefined;
-				const fanOut = resolveEmailFanOut({ routing, inboxReadlist: inboxDefinition });
+				const fanOut = resolveEmailFanOut({ routing });
 				const triagedLinks: {
 					ordinal: EmailLinkOrdinal;
 					url: string;
@@ -397,15 +393,6 @@ export function initExtractEmailLinksHandler(deps: {
 				if (canSubmit && fanOut.issue && writeAccess !== "full") {
 					noticePublished = true;
 					await publishSaveHeldNotice({
-						userId,
-						receivedAtMessageId,
-						inboxAddress: recipientAddress,
-					});
-				}
-				if (canSubmit && routing.kind === "inbox" && fanOut.issue && writeAccess === "full") {
-					await saveIssue(undefined);
-					firstInboxNoticePublished = true;
-					await publishFirstInboxEmailNotice({
 						userId,
 						receivedAtMessageId,
 						inboxAddress: recipientAddress,

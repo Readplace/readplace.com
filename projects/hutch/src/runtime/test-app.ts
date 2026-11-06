@@ -1,6 +1,7 @@
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
+import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
 import express, { type Express } from "express";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { type Logger, noopLogger } from "@packages/logger";
 import { initRefreshWithSaveIdentity, initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget, type ResolveSaveIdentity } from "@packages/save-article";
 import type { GetSessionUserId } from "@packages/provider-contracts/auth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
@@ -29,6 +30,7 @@ import type {
 	WrapperTargetBundle,
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
+import { initReadArticleImageByIdentity } from "./providers/read-article-image-by-identity";
 import { createApp } from "./server";
 import { initFetchFirefoxDownloadUrl, type FetchFirefoxDownloadUrl } from "./web/pages/install";
 import { batchFromSingular } from "./batch-from-singular";
@@ -44,7 +46,7 @@ import type {
 	SubscriptionLogEvent,
 	SubscriptionLogEventView,
 } from "./observability/subscription-events";
-import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
+import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 
 export type {
@@ -80,6 +82,7 @@ export type {
 } from "@packages/web-test-harness";
 
 export const TEST_EDGE_SECRET = "test-edge-secret";
+export const TEST_KEEP_OFFER_COUPON_ID = "coupon_test_keep_offer";
 export { loginAgent } from "@packages/web-test-harness";
 export { TEST_APP_ORIGIN } from "@packages/test-fixtures";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
@@ -89,6 +92,7 @@ interface TestAppOverrides {
 	getSessionUserId?: GetSessionUserId;
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
 	fetchFirefoxDownloadUrl?: FetchFirefoxDownloadUrl;
+	keepOfferEndsAt?: Date;
 }
 
 export const TEST_FIREFOX_XPI_FILENAME = "abc123-1.0.0.xpi";
@@ -100,17 +104,17 @@ export function fakeFirefoxPointerFetch(body: string, status = 200): typeof fetc
 }
 
 export interface AnalyticsBundle {
-	logger: HutchLogger.Typed<AnalyticsEvent>;
+	logger: Logger.Typed<AnalyticsEvent>;
 	events: AnalyticsEvent[];
 }
 
 export interface SubscriptionEventsBundle {
-	logger: HutchLogger.Typed<SubscriptionLogEvent>;
+	logger: Logger.Typed<SubscriptionLogEvent>;
 	events: SubscriptionLogEventView[];
 }
 
 export interface FunnelEventsBundle {
-	logger: HutchLogger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
+	logger: Logger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
 	events: (ActivationThresholdReachedEvent | LifecycleEmailSentEvent)[];
 }
 
@@ -186,6 +190,8 @@ function flattenFixtureToAppDependencies(
 		markAccountDeleted: fixture.auth.markAccountDeleted,
 		countUsers: fixture.auth.countUsers,
 		countEarlyIntentionalSave: fixture.auth.countEarlyIntentionalSave,
+		markActivationThresholdReached: fixture.auth.markActivationThresholdReached,
+		setKeepOfferDismissed: fixture.auth.setKeepOfferDismissed,
 		markEmailVerified: fixture.auth.markEmailVerified,
 		markSessionEmailVerified: fixture.auth.markSessionEmailVerified,
 		setSessionReadlistFilter: fixture.auth.setSessionReadlistFilter,
@@ -230,7 +236,6 @@ function flattenFixtureToAppDependencies(
 		listReadlistDefinitions: fixture.articleStore.listReadlistDefinitions,
 		renameReadlistDefinition: fixture.articleStore.renameReadlistDefinition,
 		setReadlistDefinitionPurpose: fixture.articleStore.setReadlistDefinitionPurpose,
-		setReadlistDefinitionEmailDelivery: fixture.articleStore.setReadlistDefinitionEmailDelivery,
 		clearReadlistDefinitionPurpose: fixture.articleStore.clearReadlistDefinitionPurpose,
 		createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
 		deleteReadlistDefinition: fixture.articleStore.deleteReadlistDefinition,
@@ -242,7 +247,10 @@ function flattenFixtureToAppDependencies(
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,
 		readArticleContent: fixture.articleStore.readArticleContent,
 		findItemOwner: fixture.articleStore.findItemOwner,
-		readArticleImage: fixture.articleStore.readArticleImage,
+		readArticleImage: initReadArticleImageByIdentity({
+			shared: fixture.articleStore.readArticleImage,
+			private: fixture.articleStore.readArticleImage,
+		}),
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(fixture.articleCrawl.findArticleCrawlStatus),
 		markCrawlPending: fixture.articleCrawl.markCrawlPending,
@@ -400,6 +408,8 @@ function flattenFixtureToAppDependencies(
 		analytics: analyticsBundle.logger,
 		authDiagnosticsLogger: noopLogger,
 		salt: "test-analytics-salt",
+		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
+		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
 		}),

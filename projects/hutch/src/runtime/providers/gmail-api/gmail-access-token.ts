@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { type GmailCredentialsStore, hasGmailScope } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { GetGmailAccessToken, GmailApiResult } from "@packages/provider-contracts/gmail-filters";
 import type {
 	GetGmailReadonlyAccessToken,
@@ -34,7 +34,7 @@ interface AccessTokenDependencies {
 	credentials: GmailCredentialsStore;
 	fetch: typeof globalThis.fetch;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 interface RequestedScope<TScopeRefusal> {

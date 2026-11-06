@@ -36,7 +36,7 @@ import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/pr
 import type { FindCanaryReport, SaveCanaryReport } from "@packages/provider-contracts/canary-report";
 import type { MintBrowserHandoffCode, RedeemBrowserHandoffCode } from "@packages/provider-contracts/browser-handoff";
 import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { ClaimResolutionOnView } from "@packages/provider-contracts/article-resolution-on-view";
 import type { PublishResolveArticleOnView } from "@packages/provider-contracts/events";
 import type {
@@ -50,6 +50,7 @@ import type { ReadlistSlug } from "@packages/domain/readlist";
 import type {
 	FindPastReads,
 	FindRelatedArticles,
+	MarkPastReadsBudgetBlocked,
 	MarkPastReadsReady,
 	MarkRelatedPassesRequested,
 	MarkRelatedPassesRequestedOutcome,
@@ -59,15 +60,22 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type {
+	ClaimMediaUpload,
+	CreateAnyMediaUploadSession,
 	CreateMediaUploadSession,
 	FailMediaUpload,
+	FindMediaUploadByCapability,
 	FindMediaUploadSession,
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
+	MarkMediaUploadInspecting,
 	MediaUploadSession,
 	MintMediaPendingPost,
+	PresignMediaImage,
 	PublishMediaUploadCommitted,
+	PublishMediaUploadStaged,
 	ReadMediaPendingPrefix,
+	RecordMediaInspection,
 } from "@packages/domain";
 import type {
 	InboxAddressStore,
@@ -89,6 +97,8 @@ import type {
 	ConversionEvent,
 	CountArticlesByUser,
 	CountEarlyIntentionalSave,
+	MarkActivationThresholdReached,
+	SetKeepOfferDismissed,
 	CountUsers,
 	CreateAppleUser,
 	CreateChargeReminderSchedule,
@@ -156,7 +166,6 @@ import type {
 	DeleteReadlistArticleByUrl,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
-	SetReadlistDefinitionEmailDelivery,
 	SetReadlistDefinitionPurpose,
 	ClearReadlistDefinitionPurpose,
 	FindUserArticlesByUrl,
@@ -298,6 +307,8 @@ export interface AuthBundle {
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
+	markActivationThresholdReached: MarkActivationThresholdReached;
+	setKeepOfferDismissed: SetKeepOfferDismissed;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
@@ -325,6 +336,7 @@ export interface HostedCheckoutBundle {
 		id: CheckoutSessionId;
 		priceId: string;
 		customerEmail: string;
+		coupon: string | null;
 	}>;
 }
 
@@ -472,7 +484,6 @@ export interface ArticleStoreBundle {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
-	setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
 		lastSummaryOpenedAt?: Date;
@@ -692,7 +703,7 @@ export interface GmailIntegrationBundle {
 	publishSubmitNewsletterSender: (input: { senderEmail: ForwardableSender }) => Promise<void>;
 	newGmailHistoryImportJobId: () => GmailHistoryImportJobId;
 	newGmailHistoryImportGeneration: () => string;
-	diagnosticsLogger: HutchLogger;
+	diagnosticsLogger: Logger;
 }
 
 export interface NewsletterCatalogBundle {
@@ -732,12 +743,21 @@ export interface MediaUploadBundle {
 	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	failMediaUpload: FailMediaUpload;
+	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
+	markMediaUploadInspecting: MarkMediaUploadInspecting;
+	recordMediaInspection: RecordMediaInspection;
+	claimMediaUpload: ClaimMediaUpload;
+	findMediaUploadByCapability: FindMediaUploadByCapability;
 	mintMediaPendingPost: MintMediaPendingPost;
 	headMediaPendingOriginal: HeadMediaPendingOriginal;
 	readMediaPendingPrefix: ReadMediaPendingPrefix;
 	receivePendingOriginal: (params: { uploadId: MediaUploadSession["uploadId"]; bytes: Uint8Array }) => void;
+	presignMediaImage: PresignMediaImage;
+	presignedMediaImages: Parameters<PresignMediaImage>[0][];
 	publishMediaUploadCommitted: PublishMediaUploadCommitted;
 	publishedMediaUploadCommitted: Parameters<PublishMediaUploadCommitted>[0][];
+	publishMediaUploadStaged: PublishMediaUploadStaged;
+	publishedMediaUploadStaged: Parameters<PublishMediaUploadStaged>[0][];
 	mintUploadId: () => MediaUploadSession["uploadId"];
 }
 
@@ -759,12 +779,12 @@ export interface InboxEmailBundle {
 }
 
 export interface BotDefenseBundle {
-	logger: HutchLogger.Typed<BotDefenseEvent>;
+	logger: Logger.Typed<BotDefenseEvent>;
 	events: BotDefenseEvent[];
 }
 
 export interface ConversionsBundle {
-	logger: HutchLogger.Typed<ConversionEvent>;
+	logger: Logger.Typed<ConversionEvent>;
 	events: ConversionEvent[];
 }
 
@@ -800,7 +820,11 @@ export interface TestAppFixture {
 	pendingUpload: PendingUploadBundle;
 	summary: SummaryBundle;
 	relatedArticles: RelatedArticlesBundle;
-	pastReads: { findPastReads: FindPastReads; markPastReadsReady: MarkPastReadsReady };
+	pastReads: {
+		findPastReads: FindPastReads;
+		markPastReadsReady: MarkPastReadsReady;
+		markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked;
+	};
 	freshness: FreshnessBundle;
 	oauth: OAuthBundle;
 	email: EmailBundle;

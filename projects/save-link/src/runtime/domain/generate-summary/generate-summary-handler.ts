@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import {
 	isCanonicalCandidateRevoked,
@@ -16,8 +16,8 @@ import { GenerateSummaryCommand } from "./index";
 import type { SummarizeArticle, SummarizeResult } from "./link-summariser";
 import type { RunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { GENERATE_SUMMARY_TIMEOUTS } from "./timeouts";
-import type { FindArticleContent } from "../../providers/article-store/find-article-content";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import type { FindArticleContent } from "../save-link/article-content.types";
+import { computeCanonicalContentHash } from "./compute-canonical-content-hash";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "./max-receive-count";
 
 interface GenerateSummaryHandlerDeps {
@@ -27,8 +27,8 @@ interface GenerateSummaryHandlerDeps {
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
 	now: () => Date;
-	logger: HutchLogger;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 }
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
@@ -234,12 +234,10 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 							input: { reason: { kind: "exhausted-retries" as const, receiveCount }, receiveCount },
 						});
 					} catch (markError) {
-						logger.error(formatErrorLogLine({
-							message: `[GenerateSummary] exhausted-mark record failed on receive ${receiveCount} (messageId ${record.messageId})`,
-							url,
-							error: markError instanceof Error ? markError : new Error(String(markError)),
-							now,
-						}));
+						logger.error(
+							`[GenerateSummary] exhausted-mark record failed on receive ${receiveCount} (messageId ${record.messageId})`,
+							{ url, error: markError },
+						);
 					}
 				}
 				batchItemFailures.push({ itemIdentifier: record.messageId });

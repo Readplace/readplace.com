@@ -1,33 +1,12 @@
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";
+import type { MarkCrawlStage } from "../../domain/crawl-article-state/crawl-stage.types";
 
-/**
- * Worker-side stage strings. The
- * stage union is duplicated as a literal here rather than imported so this
- * package takes no cross-project dependency on the stage → percentage table.
- * The worker only writes the stage name; the reader maps stage → pct at render
- * time. Terminal stages are omitted because by the time the worker would write
- * them the row's status attribute has already flipped to a terminal value,
- * which the reader respects ahead of any stage write.
- */
-export type CrawlStage =
-	| "crawl-fetching"
-	| "crawl-fetched"
-	| "comprehensive-fetching"
-	| "comprehensive-extracting"
-	| "comprehensive-cleaning"
-	| "crawl-parsed"
-	| "crawl-metadata-written"
-	| "crawl-content-uploaded";
-
-export type MarkCrawlStage = (params: {
-	url: string;
-	stage: CrawlStage;
-}) => Promise<void>;
+export type { CrawlStage, MarkCrawlStage } from "../../domain/crawl-article-state/crawl-stage.types";
 
 const CrawlStageRow = z.object({ url: z.string() });
 

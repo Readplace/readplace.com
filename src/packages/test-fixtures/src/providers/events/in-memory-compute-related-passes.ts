@@ -1,5 +1,5 @@
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishComputeRelatedPasses } from "@packages/provider-contracts/events";
 
 export interface ComputeRelatedPassesRecord {
@@ -8,7 +8,7 @@ export interface ComputeRelatedPassesRecord {
 }
 
 export function initInMemoryComputeRelatedPasses(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): {
 	publishComputeRelatedPasses: PublishComputeRelatedPasses;
 	publishedComputeRelatedPasses: ComputeRelatedPassesRecord[];

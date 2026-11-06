@@ -1,11 +1,14 @@
 import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
+import { consoleLogger, Logger } from "@packages/logger";
 import { initPdfDocumentDiffReviewHandler } from "./domain/pdf-document-diff-review/pdf-document-diff-review-handler";
 import { initReviewDocumentWithDeepseek } from "./domain/pdf-document-diff-review/init-review-document-with-deepseek";
 import { OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS } from "./domain/pdf-document-diff-review/timeouts";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { PDF_DOCUMENT_DIFF_REVIEW_ENV } from "./pdf-document-diff-review.env";
 
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
+const env = readEnv(PDF_DOCUMENT_DIFF_REVIEW_ENV);
+
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
 
 const deepseekClient = initDeepseekClient({
 	apiKey: deepseekApiKey,
@@ -15,7 +18,7 @@ const deepseekClient = initDeepseekClient({
 	logLevel: "warn",
 	callTimeoutMs: null,
 	fetch: globalThis.fetch,
-	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	logUsage: Logger.fromJSON<DeepseekUsageLine>().info,
 	now: () => new Date(),
 });
 
@@ -26,5 +29,5 @@ const reviewDocumentWithLlm = initReviewDocumentWithDeepseek({
 export const handler = initPdfDocumentDiffReviewHandler({
 	reviewDocumentWithLlm,
 	logger: consoleLogger,
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 });

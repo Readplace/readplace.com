@@ -7,16 +7,19 @@ import {
 	initS3DeleteContentObjects,
 	initS3ListContentKeys,
 } from "@packages/article-store";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { requireEnv } from "@packages/require-env";
+import { Logger, consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { readEnv } from "@packages/require-env";
+import { MEDIA_RELEASE_ENV } from "./media-release.env";
 import { initMediaReleaseHandler } from "./media-release/media-release-handler";
 import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "./media-release/private-item-release-steps";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const mediaBucketName = requireEnv("MEDIA_BUCKET_NAME");
+const env = readEnv(MEDIA_RELEASE_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const mediaBucketName = env.MEDIA_BUCKET_NAME;
 
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});
@@ -31,6 +34,7 @@ const releasePrivateItem = initReleasePrivateItem({
 	steps: initPrivateItemReleaseSteps({
 		purgeArticleContent,
 		deleteMediaObjects: initS3DeleteContentObjects({ client: s3Client, bucketName: mediaBucketName }).deleteContentObjects,
+		listMediaKeys: initS3ListContentKeys({ client: s3Client, bucketName: mediaBucketName }).listContentKeys,
 		deleteArticleRow: initDeleteArticleRow({ client: dynamoClient, tableName: articlesTable }).deleteArticleRow,
 		deleteUserArticleLinks: initDeleteUserArticleLinks({ client: dynamoClient, tableName: userArticlesTable })
 			.deleteUserArticleLinks,
@@ -39,5 +43,5 @@ const releasePrivateItem = initReleasePrivateItem({
 
 export const handler = initMediaReleaseHandler({
 	releasePrivateItem,
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 });

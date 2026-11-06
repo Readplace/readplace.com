@@ -1,8 +1,8 @@
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
-} from "@packages/hutch-storage-client";
+	writeIfCondition,
+} from "@packages/storage-client";
 import { z } from "zod";
 import {
 	fixedWindowRetryAfterSeconds,
@@ -35,8 +35,8 @@ export function initDynamoDbRateLimit(deps: {
 			nowMs,
 			windowSeconds: rule.windowSeconds,
 		});
-		try {
-			await table.update({
+		const outcome = await writeIfCondition(() =>
+			table.update({
 				Key: { pk: `${bucket}#${key}#${windowStartSeconds}` },
 				UpdateExpression:
 					"ADD #count :one SET expiresAt = if_not_exists(expiresAt, :expiresAt)",
@@ -50,20 +50,18 @@ export function initDynamoDbRateLimit(deps: {
 					// counter mid-window.
 					":expiresAt": windowStartSeconds + 2 * rule.windowSeconds,
 				},
-			});
-			return { allowed: true };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return {
-					allowed: false,
-					retryAfterSeconds: fixedWindowRetryAfterSeconds({
-						nowMs,
-						windowSeconds: rule.windowSeconds,
-					}),
-				};
-			}
-			throw error;
+			}),
+		);
+		if (outcome.kind === "condition-failed") {
+			return {
+				allowed: false,
+				retryAfterSeconds: fixedWindowRetryAfterSeconds({
+					nowMs,
+					windowSeconds: rule.windowSeconds,
+				}),
+			};
 		}
+		return { allowed: true };
 	};
 
 	return { consumeRateLimit };

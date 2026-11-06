@@ -10,7 +10,7 @@ import XCTest
 final class WebAuthFlowTests: XCTestCase {
 	private func makeRequest() -> AuthorizationRequest {
 		OAuthService(
-			baseURL: AppConfig.serverBaseURL,
+			endpoints: AppConfig.serverEndpoints,
 			store: TestSupport.loggedInStore(),
 			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration()

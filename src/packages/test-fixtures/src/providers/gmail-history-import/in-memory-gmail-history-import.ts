@@ -1,4 +1,4 @@
-import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException } from "@packages/storage-client";
 import {
 	canRestartGmailHistoryImport,
 	GMAIL_HISTORY_IMPORT_OUTCOME_COUNT,

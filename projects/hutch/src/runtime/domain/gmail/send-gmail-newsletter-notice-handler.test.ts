@@ -5,9 +5,9 @@ import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { NewsletterNameSchema, type DetectNewsletters } from "@packages/domain/newsletter-catalog";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
-import { GmailNewsletterNoticeProcessedEvent, SendGmailNewsletterNoticeCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { GmailNewsletterNoticeProcessedEvent, SendGmailNewsletterNoticeCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
 import type { EmailMessage } from "@packages/provider-contracts/email";
@@ -16,7 +16,8 @@ import { initInMemoryGmailMonitoring } from "@packages/test-fixtures/providers/g
 import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
-import { initSendGmailNewsletterNoticeHandler } from "./send-gmail-newsletter-notice-handler";
+import { GmailNewsletterNoticeEmail } from "../../web/auth/gmail-newsletter-notice-email";
+import { initSendGmailNewsletterNoticeHandler, type RenderNewsletterNotice } from "./send-gmail-newsletter-notice-handler";
 
 const USER = UserIdSchema.parse("reader");
 const SENDER = ForwardableSenderSchema.parse("letter@example.com");
@@ -26,7 +27,7 @@ const ACCOUNT = GmailAccountEmailSchema.parse("gmail-user@gmail.com");
 const GATEWAY = InboxAddressSchema.parse("gmail-reader@read.place");
 const NOW = Date.parse("2026-10-04T00:00:00Z");
 const DAY_MS = 24 * 60 * 60 * 1_000;
-const WORK: ReadlistDefinitionData = { slug: ReadlistSlugSchema.parse("work"), label: "Work", emailDelivery: "links", createdAt: new Date(NOW) };
+const WORK: ReadlistDefinitionData = { slug: ReadlistSlugSchema.parse("work"), label: "Work", createdAt: new Date(NOW) };
 
 function recognizing(newsletters: [ForwardableSender, string | undefined][]): DetectNewsletters {
 	return async () => ({
@@ -49,7 +50,7 @@ async function harness() {
 	await observe(SENDER);
 	const published: { event: unknown; detail: unknown }[] = [];
 	const sent: EmailMessage[] = [];
-	const deps = { connections, monitoring, mappings, detectNewsletters: recognizing([[SENDER, "Example Letter"], [SECOND, "Another Digest"], [THIRD, undefined]]), listReadlistDefinitions: async (): Promise<ReadlistDefinitionData[]> => [WORK], findEmailByUserId: async (): Promise<string | null> => "readplace-account@example.com", sendEmail: async (message: EmailMessage) => { sent.push(message); }, founderAvatarUrl: "https://static.test/fayner.jpg", appOrigin: "https://readplace.test", now, publishEvent: (async (event, detail) => { published.push({ event, detail }); }) as PublishEvent, logger: HutchLogger.from(noopLogger) };
+	const deps = { connections, monitoring, mappings, detectNewsletters: recognizing([[SENDER, "Example Letter"], [SECOND, "Another Digest"], [THIRD, undefined]]), listReadlistDefinitions: async (): Promise<ReadlistDefinitionData[]> => [WORK], findEmailByUserId: async (): Promise<string | null> => "readplace-account@example.com", sendEmail: async (message: EmailMessage) => { sent.push(message); }, founderAvatarUrl: "https://static.test/fayner.jpg", gmailPageUrl: "https://readplace.test/newsletters/gmail", renderNewsletterNotice: GmailNewsletterNoticeEmail, now, publishEvent: (async (event, detail) => { published.push({ event, detail }); }) as PublishEvent, logger: Logger.from(noopLogger) };
 	async function run(records = [{ messageId: "notice", body: JSON.stringify({ detail: { userId: USER } }) }]) {
 		const response = await initSendGmailNewsletterNoticeHandler(deps)(buildSqsEvent(records), buildLambdaContext(), () => {}); assert(response); return response;
 	}
@@ -372,5 +373,29 @@ describe("provider acceptance and receipt retries", () => {
 		assert.equal(requests, 2);
 		assert.equal(accepted.size, 1);
 		assert.equal(await h.status(SENDER), "sent");
+	});
+});
+
+describe("notice rendering", () => {
+	it("hands the renderer choice links built from the given Gmail page URL and sends what it renders", async () => {
+		const h = await harness();
+		const rendered: Parameters<RenderNewsletterNotice>[0][] = [];
+		const fake: RenderNewsletterNotice = (input) => {
+			rendered.push(input);
+			return { subject: "fake", to: (mediaType) => mediaType === "text/html" ? "<p>fake</p>" : "fake" };
+		};
+		const deps = { ...h.deps, gmailPageUrl: "https://other.test/x/gmail", renderNewsletterNotice: fake };
+		const response = await initSendGmailNewsletterNoticeHandler(deps)(buildSqsEvent([{ messageId: "notice", body: JSON.stringify({ detail: { userId: USER } }) }]), buildLambdaContext(), () => {});
+		assert.deepEqual(response, { batchItemFailures: [] });
+		assert.equal(rendered.length, 1);
+		const [input] = rendered;
+		assert.ok(input.gmailUrl.startsWith("https://other.test/x/gmail?"));
+		assert.ok(input.newsletters.length > 0);
+		for (const newsletter of input.newsletters) assert.ok(newsletter.choiceUrl.startsWith("https://other.test/x/gmail?"));
+		assert.equal(new URL(input.newsletters[0].choiceUrl).searchParams.get("readlist_choice_for"), SENDER);
+		assert.equal(h.sent.length, 1);
+		assert.equal(h.sent[0].subject, "fake");
+		assert.equal(h.sent[0].html, "<p>fake</p>");
+		assert.equal(h.sent[0].text, "fake");
 	});
 });

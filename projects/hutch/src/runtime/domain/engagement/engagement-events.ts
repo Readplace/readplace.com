@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type {
 	EngagementStarterState,
 	RecordEngagementActivity,
@@ -36,7 +36,7 @@ export interface EngagementEvent {
 }
 
 export function initEngagementEvents(deps: {
-	logger: HutchLogger.Typed<EngagementEvent>;
+	logger: Logger.Typed<EngagementEvent>;
 	now: () => Date;
 }) {
 	return (input: {
@@ -68,7 +68,7 @@ export function initEngagementEvents(deps: {
 
 export function initRecordEngagementActivity(deps: {
 	state: EngagementStarterState;
-	logger: HutchLogger.Typed<EngagementEvent>;
+	logger: Logger.Typed<EngagementEvent>;
 }): RecordEngagementActivity {
 	return async (input) => {
 		await deps.state.recordEngagementActivity(input);

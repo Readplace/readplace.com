@@ -17,6 +17,9 @@ const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
 const PURPOSE =
 	"Long-form essays about how teams actually ship software, kept here so I can reread them before a planning round.";
+const PURPOSE_PREVIEW =
+	"Long-form essays about how teams actually ship software, kept here so I can reread them before a view more …";
+const EDITED_PURPOSE = "Weekend reading only.";
 
 const DESKTOP = { width: 1280, height: 900 };
 const DESKTOP_TALL = { width: 1280, height: 1700 };
@@ -52,25 +55,21 @@ const INLINE_FIELD = `${INLINE} [data-test-field="purpose"]`;
 const INLINE_ERROR = `${INLINE} [data-test-wizard-error]`;
 const INLINE_SAVE = `${INLINE} [data-test-action="readlist-preferences-save-fallback"]`;
 const INLINE_CANCEL = `${INLINE} [data-test-action="readlist-preferences-cancel-fallback"]`;
-const DELETE_PANEL = '[data-test-confirm-popover="readlist-purpose-delete"]';
-const DELETE_HEADER = `${DELETE_PANEL} .confirm-popover__header`;
-const DELETE_TITLE = `${DELETE_PANEL} .confirm-popover__title`;
-const DELETE_BODY = `${DELETE_PANEL} .confirm-popover__body`;
-const DELETE_CANCEL = `${DELETE_PANEL} [data-test-action="readlist-purpose-delete-cancel"]`;
-const DELETE_COMMIT = `${DELETE_PANEL} [data-test-action="readlist-purpose-delete-confirm"]`;
 const PREFERENCES = "[data-test-readlist-preferences]";
 const PREFERENCES_TAB = '[data-test-filter="preferences"]';
 const SETUP_TRIGGER = '[data-test-action="readlist-preferences-setup"]';
 const UNSET_CARD = "[data-test-preferences-empty]";
 const UNSET_ART = `${UNSET_CARD} [data-test-illustration="book-lightbulb"]`;
 const UNSET_TEXT = `${UNSET_CARD} .readlist-empty__text`;
-const MENU = "[data-test-preferences-menu]";
-const MENU_TOGGLE = '[data-test-action="readlist-preferences-menu"]';
-const MENU_GLYPH = `${MENU_TOGGLE} svg`;
-const MENU_PANEL = `${MENU} .menu__panel`;
-const EDIT_TRIGGER = '[data-test-action="readlist-preferences-edit"]';
-const DELETE_TRIGGER = '[data-test-action="readlist-preferences-delete"]';
-const PURPOSE_TEXT = "[data-test-preferences-purpose]";
+const PURPOSE_CARD = "[data-test-readlist-purpose]";
+const EDIT_TRIGGER = '[data-test-action="readlist-purpose-edit"]';
+const PENCIL = `${EDIT_TRIGGER} .readlist-purpose__pencil svg`;
+const PURPOSE_TEXT = "[data-test-readlist-purpose-text]";
+const PURPOSE_HEADING = `${PURPOSE_CARD} .readlist-purpose__heading`;
+const BROWSE = ".readlist__browse";
+const TABS_BAR = ".readlist__tabs-bar";
+const TO_READ_TAB = '[data-test-filter="unread"]';
+const READ_TAB = '[data-test-filter="read"]';
 const INBOXES = "[data-test-readlist-inboxes]";
 const INBOX_ROWS = "[data-test-preferences-inbox]";
 const INBOXES_DESCRIPTION = "[data-test-inboxes-description]";
@@ -217,42 +216,24 @@ async function unsetShown(page: Page): Promise<void> {
 
 async function purposeShown(page: Page): Promise<void> {
 	await expect(page.locator(PREFERENCES)).toHaveAttribute("data-test-preferences-state", "set");
-	await expect(page.locator(PURPOSE_TEXT)).toHaveText(PURPOSE);
+	await expect(page.locator(PURPOSE_TEXT)).toHaveText(PURPOSE_PREVIEW);
 	await waitForBrandFonts(page, ["Inter"]);
 	await page.mouse.move(0, 0);
 }
 
-async function openPurposeMenu(page: Page): Promise<void> {
-	await page.click(MENU_TOGGLE);
-	await expect(page.locator(MENU)).toHaveAttribute("open", "");
-	await expect(page.locator(EDIT_TRIGGER)).toBeVisible();
-	await expect(page.locator(DELETE_TRIGGER)).toBeVisible();
-}
-
-async function menuOpenSettled(page: Page): Promise<void> {
+async function editFocusedSettled(page: Page): Promise<void> {
 	await purposeShown(page);
 	await expect(page.locator(SETUP_GUIDE)).toBeVisible();
 	await page.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
-	await openPurposeMenu(page);
+	await page.locator(EDIT_TRIGGER).focus();
 	await page.mouse.move(0, 0);
 }
 
 async function editDialogOpen(page: Page): Promise<void> {
 	await purposeShown(page);
-	await openPurposeMenu(page);
 	await page.click(EDIT_TRIGGER);
 	await wizardOpen(page);
 	await expect(page.locator(PANEL_FIELD)).toHaveValue(PURPOSE);
-	await page.mouse.move(0, 0);
-}
-
-async function deleteConfirmOpen(page: Page): Promise<void> {
-	await purposeShown(page);
-	await openPurposeMenu(page);
-	await page.click(DELETE_TRIGGER);
-	await page.waitForSelector(`${DELETE_PANEL}:popover-open`);
-	await expect(page.locator(`${DELETE_PANEL} [data-test-action="readlist-purpose-delete-confirm"]`)).toBeFocused();
-	await waitForBrandFonts(page, ["Inter"]);
 	await page.mouse.move(0, 0);
 }
 
@@ -357,19 +338,6 @@ async function editTitlesTheTaskAboveTheQuestion(page: Page): Promise<void> {
 	await questionLeadsTheFieldThenTheChoiceRow(page);
 }
 
-async function deleteAsksThenOffersTheChoiceRow(page: Page): Promise<void> {
-	const panel = await measuredBox(page, DELETE_PANEL);
-	assert.ok(near({ actual: panel.width, expected: 600, within: 1 }), `the dialog must be 600px wide, measured ${panel.width}px`);
-	await headerHoldsOnlyTheTitle(page, DELETE_HEADER);
-	const [body, cancel] = [await measuredBox(page, DELETE_BODY), await measuredBox(page, DELETE_CANCEL)];
-	stackedInOrder([
-		["question", await measuredBox(page, DELETE_TITLE)],
-		["consequence", body],
-		["choices", cancel],
-	]);
-	await choiceRowEndsAtTheField(page, { cancel: DELETE_CANCEL, save: DELETE_COMMIT, field: DELETE_BODY });
-}
-
 async function errorRowStaysOneLine(page: Page): Promise<void> {
 	await choiceRowEndsAtTheField(page, { cancel: INLINE_CANCEL, save: INLINE_SAVE, field: INLINE_FIELD });
 }
@@ -417,40 +385,75 @@ async function unsetCardComposition(page: Page): Promise<void> {
 	);
 }
 
-async function purposeCardSitsUnderTheTabs(page: Page): Promise<void> {
-	await expect(page.locator(SETUP_TRIGGER)).toBeHidden();
-	const [main, tabs, panel, inboxes, purpose, glyph] = [
-		await measuredBox(page, MAIN_COLUMN),
-		await measuredBox(page, TABS),
-		await measuredBox(page, PREFERENCES),
-		await measuredBox(page, INBOXES),
+async function purposeCardInsets(page: Page): Promise<void> {
+	const [card, heading, purpose, glyph] = [
+		await measuredBox(page, PURPOSE_CARD),
+		await measuredBox(page, PURPOSE_HEADING),
 		await measuredBox(page, PURPOSE_TEXT),
-		await measuredBox(page, MENU_GLYPH),
+		await measuredBox(page, PENCIL),
 	];
 	assert.ok(
-		near({ actual: tabs.y - main.y, expected: 0, within: 1 }),
-		`the tabs must lead the main column, measured ${tabs.y - main.y}px under its top`,
+		near({ actual: heading.x - card.x, expected: 17, within: 1 }),
+		`the Purpose title must start 17px inside the card, measured ${heading.x - card.x}px`,
 	);
 	assert.ok(
-		near({ actual: panel.y - (tabs.y + tabs.height), expected: 32, within: 1 }),
-		`the purpose card must sit 32px under the tabs, measured ${panel.y - (tabs.y + tabs.height)}px`,
+		near({ actual: purpose.x, expected: heading.x, within: 1 }),
+		`the purpose must start where its title starts, measured ${purpose.x - heading.x}px apart`,
+	);
+	assert.ok(purpose.y >= heading.y + heading.height, "the purpose must sit under its title");
+	assert.ok(
+		near({ actual: card.x + card.width - (glyph.x + glyph.width), expected: 17, within: 1 }),
+		`the pencil must end 17px inside the card's right edge, measured ${card.x + card.width - (glyph.x + glyph.width)}px`,
 	);
 	assert.ok(
-		near({ actual: inboxes.y - (panel.y + panel.height), expected: 32, within: 1 }),
-		`the inboxes must sit 32px under the purpose card, measured ${inboxes.y - (panel.y + panel.height)}px`,
+		near({ actual: glyph.y + glyph.height / 2, expected: heading.y + heading.height / 2, within: 1 }),
+		"the pencil must sit level with the Purpose title",
 	);
+}
+
+async function purposeCardLeadsTheTabs(page: Page, tabs: string): Promise<void> {
+	const [main, card] = [await measuredBox(page, MAIN_COLUMN), await measuredBox(page, PURPOSE_CARD)];
 	assert.ok(
-		near({ actual: purpose.x - panel.x, expected: 25, within: 1 }),
-		`the purpose must start 25px inside the card, measured ${purpose.x - panel.x}px`,
+		near({ actual: card.y - main.y, expected: 0, within: 1 }),
+		`the Purpose card must lead the main column, measured ${card.y - main.y}px under its top`,
 	);
+	await purposeCardSitsOverTheTabs(page, tabs);
+}
+
+async function purposeCardSitsOverTheTabs(page: Page, tabs: string): Promise<void> {
+	const [card, bar] = [await measuredBox(page, PURPOSE_CARD), await measuredBox(page, tabs)];
 	assert.ok(
-		near({ actual: panel.x + panel.width - (glyph.x + glyph.width), expected: 25, within: 1 }),
-		`the kebab must end 25px inside the card's right edge, measured ${panel.x + panel.width - (glyph.x + glyph.width)}px`,
+		near({ actual: bar.y - (card.y + card.height), expected: 32, within: 1 }),
+		`the tabs must sit 32px under the Purpose card, measured ${bar.y - (card.y + card.height)}px`,
 	);
+	await purposeCardInsets(page);
+}
+
+async function purposeCardSitsAboveTheTabs(page: Page): Promise<void> {
+	await expect(page.locator(PREFERENCES)).toBeHidden();
+	await purposeCardLeadsTheTabs(page, TABS);
+	const [tabs, inboxes] = [await measuredBox(page, TABS), await measuredBox(page, INBOXES)];
 	assert.ok(
-		near({ actual: glyph.y - panel.y, expected: 25, within: 1 }),
-		`the kebab must sit 25px inside the card's top edge, measured ${glyph.y - panel.y}px`,
+		near({ actual: inboxes.y - (tabs.y + tabs.height), expected: 32, within: 1 }),
+		`the inboxes must sit 32px under the tabs, measured ${inboxes.y - (tabs.y + tabs.height)}px`,
 	);
+}
+
+async function listingPurposeLeadsTheTabs(page: Page): Promise<void> {
+	await neverScrollsSideways(page);
+	await purposeCardLeadsTheTabs(page, TABS_BAR);
+}
+
+async function phoneListingPurposeLeadsTheTabs(page: Page): Promise<void> {
+	await neverScrollsSideways(page);
+	await purposeCardSitsOverTheTabs(page, TABS_BAR);
+}
+
+async function listingPurposeShown(page: Page): Promise<void> {
+	await expect(page.locator(PURPOSE_TEXT)).toHaveText(PURPOSE_PREVIEW);
+	await expect(page.locator(`${BROWSE} .readlist-empty`)).toBeVisible();
+	await waitForBrandFonts(page, ["Inter"]);
+	await page.mouse.move(0, 0);
 }
 
 async function neverScrollsSideways(page: Page): Promise<void> {
@@ -479,36 +482,27 @@ async function pageFitsTheClip(page: Page): Promise<void> {
 	);
 }
 
-async function menuOpensUnderItsKebab(page: Page): Promise<void> {
+async function editShowsItsFocusRing(page: Page): Promise<void> {
 	await railBesideMainBesideSide(page);
 	await pageFitsTheClip(page);
-	const [toggle, panel, edit, remove] = [
-		await measuredBox(page, MENU_TOGGLE),
-		await measuredBox(page, MENU_PANEL),
-		await measuredBox(page, EDIT_TRIGGER),
-		await measuredBox(page, DELETE_TRIGGER),
-	];
-	assert.ok(
-		near({ actual: panel.x + panel.width, expected: toggle.x + toggle.width, within: 1 }),
-		`the menu must end at its kebab's right edge, measured ${panel.x + panel.width}px and ${toggle.x + toggle.width}px`,
-	);
-	assert.ok(panel.y >= toggle.y + toggle.height, "the menu must open below its kebab");
-	for (const [name, item] of [["Edit", edit], ["Delete", remove]] as const) {
-		assert.ok(near({ actual: item.height, expected: 44, within: 0.5 }), `${name} must be a 44px row, measured ${item.height}px`);
-	}
+	const ring = await page.locator(EDIT_TRIGGER).evaluate((edit) => ({
+		focusVisible: edit.matches(":focus-visible"),
+		outline: getComputedStyle(edit).outlineWidth,
+	}));
+	assert.deepEqual(ring, { focusVisible: true, outline: "2px" }, "the focused purpose must draw its 2px focus ring")
 }
 
 async function phoneGuideSitsBetweenRailAndTabs(page: Page): Promise<void> {
 	await neverScrollsSideways(page);
-	const [rail, guide, tabs, panel] = [
+	const [rail, guide, card, tabs] = [
 		await measuredBox(page, RAIL),
 		await measuredBox(page, SETUP_GUIDE),
+		await measuredBox(page, PURPOSE_CARD),
 		await measuredBox(page, TABS),
-		await measuredBox(page, PREFERENCES),
 	];
 	assert.ok(rail.y + rail.height <= guide.y, "the setup guide must follow the readlist rail on a phone");
-	assert.ok(guide.y + guide.height <= tabs.y, "the setup guide must lead the tabs on a phone");
-	assert.ok(tabs.y + tabs.height <= panel.y, "the purpose card must sit under the tabs on a phone");
+	assert.ok(guide.y + guide.height <= card.y, "the setup guide must lead the Purpose card on a phone");
+	assert.ok(card.y + card.height <= tabs.y, "the Purpose card must lead the tabs on a phone");
 }
 
 async function unsetBodyWrapsOnAPhone(page: Page): Promise<void> {
@@ -549,15 +543,15 @@ const UNSET: Omit<VisualCheckpoint, "name"> = {
 
 const SET: Omit<VisualCheckpoint, "name"> = {
 	settled: purposeShown,
-	geometry: purposeCardSitsUnderTheTabs,
-	target: PREFERENCES,
+	geometry: purposeCardSitsAboveTheTabs,
+	target: PURPOSE_CARD,
 	capture: "element",
 	pinnedText: [],
 };
 
-const MENU_OPEN: Omit<VisualCheckpoint, "name"> = {
-	settled: menuOpenSettled,
-	geometry: menuOpensUnderItsKebab,
+const EDIT_FOCUSED: Omit<VisualCheckpoint, "name"> = {
+	settled: editFocusedSettled,
+	geometry: editShowsItsFocusRing,
 	target: MAIN,
 	capture: "page-from-top",
 	pinnedText: [],
@@ -575,14 +569,6 @@ const EDIT: Omit<VisualCheckpoint, "name"> = {
 	settled: editDialogOpen,
 	geometry: editTitlesTheTaskAboveTheQuestion,
 	target: PANEL,
-	capture: "element",
-	pinnedText: [],
-};
-
-const DELETE_CONFIRM: Omit<VisualCheckpoint, "name"> = {
-	settled: deleteConfirmOpen,
-	geometry: deleteAsksThenOffersTheChoiceRow,
-	target: DELETE_PANEL,
 	capture: "element",
 	pinnedText: [],
 };
@@ -620,6 +606,14 @@ const SET_PHONE: VisualCheckpoint = {
 	...SET,
 	name: "readlist-preferences-set-phone",
 	geometry: phoneGuideSitsBetweenRailAndTabs,
+};
+
+const LISTING_PURPOSE: Omit<VisualCheckpoint, "name"> = {
+	settled: listingPurposeShown,
+	geometry: listingPurposeLeadsTheTabs,
+	target: BROWSE,
+	capture: "element",
+	pinnedText: [],
 };
 
 const WIZARD_PHONE: VisualCheckpoint = {
@@ -676,23 +670,23 @@ async function inboxesListed(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function eachInboxLeadsWithItsNameAndEndsWithItsMove(page: Page): Promise<void> {
+async function eachInboxLeadsWithItsNameAndEndsWithItsRoute(page: Page): Promise<void> {
 	await inboxesSectionSitsUnderThePurposePanel(page);
 	let above = await measuredBox(page, INBOXES_DESCRIPTION);
 	for (let position = 1; position <= PINNED_INBOX_ADDRESSES.length; position++) {
 		const row = `${INBOX_ROWS}:nth-child(${position})`;
-		const [box, name, destination, move] = [
+		const [box, name, destination, route] = [
 			await measuredBox(page, row),
 			await measuredBox(page, `${row} [data-test-inbox-name]`),
 			await measuredBox(page, `${row} [data-test-inbox-destination]`),
-			await measuredBox(page, `${row} button`),
+			await measuredBox(page, `${row} .readlist-inboxes__route`),
 		];
 		assert.ok(box.y >= above.y + above.height, `inbox ${position} must sit below what comes before it`);
 		assert.ok(
-			move.y >= destination.y + destination.height,
-			`inbox ${position}'s button must sit under where the inbox goes`,
+			route.y >= destination.y + destination.height,
+			`inbox ${position}'s checkbox must sit under where the inbox goes`,
 		);
-		assert.equal(move.x, name.x, `inbox ${position}'s button must line up with its name`);
+		assert.equal(route.x, name.x, `inbox ${position}'s checkbox must line up with its name`);
 		above = box;
 	}
 }
@@ -704,7 +698,7 @@ function inboxesListedCheckpoint(input: {
 	return {
 		name: input.name,
 		settled: inboxesListed,
-		geometry: eachInboxLeadsWithItsNameAndEndsWithItsMove,
+		geometry: eachInboxLeadsWithItsNameAndEndsWithItsRoute,
 		target: INBOXES,
 		capture: "element",
 		pinnedText: input.addresses.map((address, index) => ({
@@ -752,7 +746,8 @@ const INBOX_UNAVAILABLE_LIGHT: VisualCheckpoint = {
 const GMAIL_SENDERS = "[data-test-readlist-gmail-senders]";
 const GMAIL_CONNECT = `${GMAIL_SENDERS} [data-test-action="connect-gmail"]`;
 const GMAIL_CHECKLIST_ROWS = `${GMAIL_SENDERS} [data-test-gmail-checklist-row]`;
-const GMAIL_SAVE = `${GMAIL_SENDERS} [data-test-action="save-gmail-newsletters"]`;
+const GMAIL_AUTOSAVE = `${GMAIL_SENDERS} [data-gmail-autosave]`;
+const STATUS_TOAST_MESSAGE = "#status-toast [data-test-toast-message]";
 
 async function gmailSendersIn(page: Page, state: "connect" | "picker"): Promise<void> {
 	await expect(page.locator(GMAIL_SENDERS)).toHaveAttribute("data-test-gmail-senders-state", state);
@@ -768,7 +763,7 @@ async function gmailPickerListed(page: Page): Promise<void> {
 	await gmailSendersIn(page, "picker");
 	await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 	await expect(page.locator(GMAIL_CHECKLIST_ROWS)).toHaveCount(2);
-	await expect(page.locator(GMAIL_SAVE)).toBeVisible();
+	await expect(page.locator(GMAIL_AUTOSAVE)).toBeAttached();
 }
 
 async function gmailSendersFollowTheInboxes(page: Page): Promise<void> {
@@ -851,7 +846,7 @@ test.describe("Readlist preferences panel", () => {
 			await captureCheckpoint(page, themed(WIZARD, `readlist-preferences-wizard-${theme}`));
 		});
 
-		test(`shows the saved purpose as plain text with its options menu (${theme})`, async ({ page }, testInfo) => {
+		test(`shows the saved purpose with a pencil to edit it (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			await savePurpose(page, `set-${theme}-${testInfo.workerIndex}-${Date.now()}`);
 			await captureCheckpoint(page, themed(SET, `readlist-preferences-set-${theme}`));
@@ -861,12 +856,6 @@ test.describe("Readlist preferences panel", () => {
 			await page.emulateMedia({ colorScheme: theme });
 			await openSetPreferences(page, `edit-${theme}-${testInfo.workerIndex}-${Date.now()}`);
 			await captureCheckpoint(page, themed(EDIT, `readlist-preferences-edit-${theme}`));
-		});
-
-		test(`asks before deleting the purpose (${theme})`, async ({ page }, testInfo) => {
-			await page.emulateMedia({ colorScheme: theme });
-			await openSetPreferences(page, `delete-confirm-${theme}-${testInfo.workerIndex}-${Date.now()}`);
-			await captureCheckpoint(page, themed(DELETE_CONFIRM, `readlist-preferences-delete-confirm-${theme}`));
 		});
 
 		test(`refuses a blank purpose in the dialog (${theme})`, async ({ page }, testInfo) => {
@@ -894,12 +883,10 @@ test.describe("Readlist preferences page", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
 	for (const theme of THEMES) {
-		test(`opens the purpose menu under its kebab, in the readlist's own page (${theme})`, async ({
-			page,
-		}, testInfo) => {
+		test(`rings the focused purpose, in the readlist's own page (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
-			await openSetPreferences(page, `menu-open-${theme}-${testInfo.workerIndex}-${Date.now()}`);
-			await captureCheckpoint(page, themed(MENU_OPEN, `readlist-preferences-menu-open-${theme}`));
+			await openSetPreferences(page, `edit-focused-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await captureCheckpoint(page, themed(EDIT_FOCUSED, `readlist-preferences-edit-focused-${theme}`));
 		});
 	}
 });
@@ -927,6 +914,58 @@ test.describe("Readlist preferences on a phone", () => {
 		await openPreferencesByRequest(page, `wizard-phone-${testInfo.workerIndex}-${Date.now()}`);
 		await page.click(SETUP_TRIGGER);
 		await captureCheckpoint(page, WIZARD_PHONE);
+	});
+});
+
+async function openListingWithPurpose(page: Page, input: { stamp: string; tab: string }): Promise<void> {
+	const slug = await openPreferencesByRequest(page, input.stamp);
+	await seedPurpose(page, slug);
+	await clickAndWaitForPageReload(page, page.locator(input.tab));
+	await expect(page.locator(`${input.tab}[aria-current="page"]`)).toHaveCount(1);
+	await page.mouse.move(5, 5);
+}
+
+test.describe("Readlist purpose on the listing tabs", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`shows the purpose above To read's tabs (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openListingWithPurpose(page, { stamp: `to-read-${theme}-${testInfo.workerIndex}-${Date.now()}`, tab: TO_READ_TAB });
+			await captureCheckpoint(page, themed(LISTING_PURPOSE, `readlist-purpose-to-read-${theme}`));
+		});
+	}
+
+	test("shows the purpose above Read's tabs (light)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openListingWithPurpose(page, { stamp: `read-light-${testInfo.workerIndex}-${Date.now()}`, tab: READ_TAB });
+		await captureCheckpoint(page, themed(LISTING_PURPOSE, "readlist-purpose-read-light"));
+	});
+
+	test("edits the purpose from To read and lands back on To read", async ({ page }, testInfo) => {
+		await openListingWithPurpose(page, { stamp: `to-read-edit-${testInfo.workerIndex}-${Date.now()}`, tab: TO_READ_TAB });
+		await page.click(EDIT_TRIGGER);
+		await wizardOpen(page);
+		await expect(page.locator(PANEL_FIELD)).toHaveValue(PURPOSE);
+		await page.locator(PANEL_FIELD).fill(EDITED_PURPOSE);
+		await clickAndWaitForPageReload(page, page.locator(PANEL_SAVE));
+
+		await expect(page.locator(PURPOSE_TEXT)).toHaveText(EDITED_PURPOSE);
+		await expect(page.locator(`${TO_READ_TAB}[aria-current="page"]`)).toHaveCount(1);
+		await expect(page.locator(PREFERENCES)).toHaveCount(0);
+	});
+});
+
+test.describe("Readlist purpose on a phone's listing", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("shows the purpose above To read's tabs on a phone (light)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openListingWithPurpose(page, { stamp: `to-read-phone-${testInfo.workerIndex}-${Date.now()}`, tab: TO_READ_TAB });
+		await captureCheckpoint(page, {
+			...themed(LISTING_PURPOSE, "readlist-purpose-to-read-phone"),
+			geometry: phoneListingPurposeLeadsTheTabs,
+		});
 	});
 });
 
@@ -1077,5 +1116,23 @@ test.describe("Readlist preferences Gmail newsletters", () => {
 		await seedGmailSenders(page, { userId, namespace: `readlist-preferences-visual-${stamp}` });
 		await reopenPreferences(page, { slug });
 		await captureCheckpoint(page, GMAIL_PICKER_LIGHT);
+		await page.locator(`${GMAIL_SENDERS} [id="gmail-sender-dan@tldr.tech"]`).check();
+		await expect(page.locator(STATUS_TOAST_MESSAGE)).toHaveText("Preferences saved");
+	});
+
+	test("keeps both senders ticked in quick succession once the page is reopened", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const stamp = `gmail-autosave-${testInfo.workerIndex}-${Date.now()}`;
+		const { userId, slug } = await openPreferences(page, stamp);
+		await seedGmailSenders(page, { userId, namespace: `readlist-preferences-visual-${stamp}` });
+		await reopenPreferences(page, { slug });
+		await gmailPickerListed(page);
+		await page.locator(`${GMAIL_SENDERS} [id="gmail-sender-dan@tldr.tech"]`).check();
+		await page.locator(`${GMAIL_SENDERS} [id="gmail-sender-crew@morningbrew.com"]`).check();
+		await expect(page.locator(STATUS_TOAST_MESSAGE)).toHaveText("Preferences saved");
+		await reopenPreferences(page, { slug });
+		await gmailPickerListed(page);
+		await expect(page.locator(`${GMAIL_SENDERS} [id="gmail-sender-dan@tldr.tech"]`)).toBeChecked();
+		await expect(page.locator(`${GMAIL_SENDERS} [id="gmail-sender-crew@morningbrew.com"]`)).toBeChecked();
 	});
 });

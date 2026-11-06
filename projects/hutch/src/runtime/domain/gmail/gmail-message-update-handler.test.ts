@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailMessageIdSchema, type GmailMessageOrigin } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
-import type { GmailEmailUpdateFailedLine } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import type { GmailEmailUpdateFailedLine } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryGmailMessageUpdate } from "@packages/test-fixtures/providers/gmail-history-import";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -44,7 +44,7 @@ function handlerWith(outcome: () => Promise<MarkGmailEmailImportedOutcome>) {
 		listPendingByAccount: updates.listPendingByAccount,
 		publishEvent,
 		metricLog: { info: () => {}, warn: () => {}, debug: () => {}, error: (line) => { metricLines.push(line); } },
-		logger: HutchLogger.from({ info: record("info"), warn: record("warn"), error: record("error"), debug: record("debug") }),
+		logger: Logger.from({ info: record("info"), warn: record("warn"), error: record("error"), debug: record("debug") }),
 	});
 	return { updates, published, metricLines, logs, handler };
 }
@@ -148,7 +148,7 @@ describe("initGmailMessageUpdateDlqHandler", () => {
 			markFailed: updates.markFailed,
 			publishEvent,
 			metricLog: { info: () => {}, warn: () => {}, debug: () => {}, error: (line) => { metricLines.push(line); } },
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			now: () => NOW,
 		});
 		return { updates, published, metricLines, handler };

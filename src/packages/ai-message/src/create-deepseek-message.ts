@@ -1,6 +1,7 @@
 import assert from "node:assert";
-import type { CreateAiMessage, DocumentBlock } from "./create-ai-message.types";
-import type { DeepseekClient, DeepseekMessage, DeepseekWireRequest } from "./deepseek-chat.types";
+import type { CreateAiMessage } from "./create-ai-message.types";
+import { toDeepseekMessages } from "./deepseek-chat-prompt";
+import type { DeepseekClient, DeepseekWireRequest } from "./deepseek-chat.types";
 import {
 	DEEPSEEK_MODEL,
 	DEEPSEEK_NON_THINKING,
@@ -14,11 +15,6 @@ import {
 // summaries never need more, and clamping keeps output cost bounded.
 const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
 
-function extractTextContent(content: string | Array<DocumentBlock>): string {
-	if (typeof content === "string") return content;
-	return content.map((block) => block.source.data).join("\n");
-}
-
 // DeepSeek does not support output_config (structured output) or document
 // content blocks, so the adapter extracts plain text from document blocks and
 // asks DeepSeek to emit a JSON object via response_format. The raw JSON string
@@ -30,23 +26,18 @@ function initCreateDeepseekChatMessage(deps: {
 	maxOutputTokens: number;
 }): CreateAiMessage {
 	return async (params) => {
-		const messages: DeepseekMessage[] = [
-			{ role: "system", content: params.system },
-			...params.messages.map((msg) => ({ ...msg, content: extractTextContent(msg.content) })),
-		];
 		const response = await deps.client.createChatCompletion({
 			feature: params.feature,
 			model: deps.model,
 			thinking: deps.thinking,
 			max_tokens: Math.min(params.max_tokens, deps.maxOutputTokens),
 			response_format: { type: "json_object" },
-			messages,
+			messages: toDeepseekMessages(params),
 		});
 		const text = response.choices[0]?.message?.content?.trim();
-		assert(text, "DeepSeek response missing message content");
 		assert(response.usage, "DeepSeek response missing usage data");
 		return {
-			content: [{ type: "text", text }],
+			content: text ? [{ type: "text", text }] : [],
 			usage: {
 				input_tokens: response.usage.prompt_tokens,
 				output_tokens: response.usage.completion_tokens,

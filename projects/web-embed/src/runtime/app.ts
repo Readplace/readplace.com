@@ -2,7 +2,7 @@ import express, { type Express } from "express";
 import cookieParser from "cookie-parser";
 import type { RenderBase } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	type AnalyticsEvent,
 	createAnalyticsMiddleware,
@@ -17,7 +17,7 @@ export function createEmbedApp(deps: {
 	appOrigin: string;
 	base: RenderBase;
 	resolveLogin: ResolveLogin;
-	analyticsLogger: HutchLogger.Typed<AnalyticsEvent>;
+	analyticsLogger: Logger.Typed<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
 	generateVisitorId: () => string;

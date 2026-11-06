@@ -1,4 +1,4 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initGetSessionUserId } from "./get-session-user-id";
 
 /** Returns the given row as the GetItem result, or an empty result (no Item)

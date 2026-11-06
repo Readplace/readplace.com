@@ -53,6 +53,7 @@ export function initStripeCheckout(deps: {
 		successUrl,
 		cancelUrl,
 		trialEndsAt,
+		coupon,
 	}) => {
 		const body = new URLSearchParams({
 			mode: "subscription",
@@ -62,8 +63,12 @@ export function initStripeCheckout(deps: {
 			success_url: successUrl,
 			cancel_url: cancelUrl,
 			"payment_method_types[0]": "card",
-			allow_promotion_codes: "true",
 		});
+		if (coupon === null) {
+			body.set("allow_promotion_codes", "true");
+		} else {
+			body.set("discounts[0][coupon]", coupon);
+		}
 		if (trialEndsAt) {
 			body.set(
 				"subscription_data[trial_end]",

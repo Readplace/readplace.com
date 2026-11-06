@@ -3,16 +3,17 @@ import type { NextFunction, Request, Response } from "express";
 import type { FindUserByEmail } from "@packages/provider-contracts/auth";
 import type { RefuseAdminAccess } from "./admin-forbidden.page";
 
+export type ServiceTokenPolicy = { kind: "refused" } | { kind: "accepted"; token: string };
+
+export function serviceTokenPolicy(token: string): ServiceTokenPolicy {
+	if (token === "") return { kind: "refused" };
+	return { kind: "accepted", token };
+}
+
 export interface RequireAdminDeps {
 	findUserByEmail: FindUserByEmail;
 	adminEmails: readonly string[];
-	/**
-	 * Shared secret accepted via the `x-service-token` header for server-to-
-	 * server callers (e.g. the Tier 1+ crawl pipeline health workflow). Empty
-	 * string disables this auth path entirely so a misconfigured env cannot
-	 * silently accept header-less requests.
-	 */
-	serviceToken: string;
+	serviceToken: ServiceTokenPolicy;
 	refuse: RefuseAdminAccess;
 }
 
@@ -28,8 +29,7 @@ function constantTimeEquals(a: string, b: string): boolean {
  *      allowlisted emails.
  *
  * Session-less human requests → 303 /login. Authenticated non-admin → 403.
- * An empty `serviceToken` disables the S2S path (fail-closed); an unmatched
- * header falls through to the session check.
+ * An unmatched header falls through to the session check.
  */
 export function initRequireAdmin(deps: RequireAdminDeps) {
 	return async (
@@ -39,9 +39,9 @@ export function initRequireAdmin(deps: RequireAdminDeps) {
 	): Promise<void> => {
 		const headerToken = req.headers["x-service-token"];
 		if (
+			deps.serviceToken.kind === "accepted" &&
 			typeof headerToken === "string" &&
-			deps.serviceToken.length > 0 &&
-			constantTimeEquals(headerToken, deps.serviceToken)
+			constantTimeEquals(headerToken, deps.serviceToken.token)
 		) {
 			next();
 			return;

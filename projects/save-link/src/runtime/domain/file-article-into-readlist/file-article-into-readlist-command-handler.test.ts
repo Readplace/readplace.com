@@ -7,9 +7,9 @@ import {
 	ArticleFiledIntoReadlistEvent,
 	FileArticleIntoReadlistCommand,
 	type FileArticleIntoReadlistDetail,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { initFileArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
@@ -48,12 +48,11 @@ function harness(opts: { fileArticleIntoReadlist?: Parameters<typeof initFileArt
 		}),
 		fileArticleIntoReadlist: opts.fileArticleIntoReadlist ?? initFileArticleIntoReadlist(store),
 		publishEvent,
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			...noopLogger,
 			info: (...args) => infos.push(args),
 			error: (...args) => errors.push(args),
 		}),
-		now: () => NOW,
 	});
 	const run = async (detail: unknown) => {
 		const event = buildSqsEvent([{ messageId: "m-1", body: JSON.stringify({ detail }) }]);
@@ -180,7 +179,7 @@ describe("initFileArticleIntoReadlistCommandHandler", () => {
 		expect(h.published).toEqual([]);
 	});
 
-	it("writes one ERROR JSON line with no URL when the filing fails", async () => {
+	it("logs one error naming no URL when the filing fails", async () => {
 		const h = harness({
 			fileArticleIntoReadlist: async () => {
 				throw new Error("DynamoDB unavailable");
@@ -190,19 +189,12 @@ describe("initFileArticleIntoReadlistCommandHandler", () => {
 
 		expect(await h.run(command())).toEqual({ batchItemFailures: [{ itemIdentifier: "m-1" }] });
 
-		expect(h.errors).toHaveLength(1);
-		const line = JSON.parse(String(h.errors[0]?.[0]));
-		expect(line).toEqual(
-			expect.objectContaining({
-				level: "ERROR",
-				message: "[file-article-into-readlist] record failed on receive 1 (messageId m-1)",
-			}),
-		);
-		expect(line).not.toHaveProperty("url");
-		expect(String(h.errors[0]?.[0])).not.toContain("example.com");
+		expect(h.errors).toEqual([
+			["[file-article-into-readlist] record failed on receive 1 (messageId m-1)", { error: new Error("DynamoDB unavailable") }],
+		]);
 	});
 
-	it("writes the same ERROR line when a string is thrown", async () => {
+	it("logs the thrown string as the error", async () => {
 		const h = harness({
 			fileArticleIntoReadlist: async () => {
 				throw "boom";
@@ -212,9 +204,9 @@ describe("initFileArticleIntoReadlistCommandHandler", () => {
 
 		await h.run(command());
 
-		const line = JSON.parse(String(h.errors[0]?.[0]));
-		expect(line.stack).toContain("boom");
-		expect(String(h.errors[0]?.[0])).not.toContain("example.com");
+		expect(h.errors).toEqual([
+			["[file-article-into-readlist] record failed on receive 1 (messageId m-1)", { error: "boom" }],
+		]);
 	});
 });
 

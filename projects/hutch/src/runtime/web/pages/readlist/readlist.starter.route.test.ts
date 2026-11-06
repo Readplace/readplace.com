@@ -13,7 +13,7 @@ import { buildOwnerReaderPath } from "./owner-reader-link";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type { EmailMessage } from "@packages/provider-contracts/email";
 import { initReadArticleContentOrThrow } from "@packages/article-store";
-import { initSendStarter } from "../../../domain/engagement/send-starter";
+import { initSendStarterWithDigestEmail as initSendStarter } from "../../../send-starter-with-digest-email";
 import { initBuildQueueDigestBook } from "../../queue-digest-book";
 import { initBuildBookEpub } from "../../shared/epub/book-epub";
 import { initQueueDigestUnsubscribeToken } from "../../../domain/email/queue-digest-unsubscribe-token";

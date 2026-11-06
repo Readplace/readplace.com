@@ -1,5 +1,5 @@
 import { hasFastlyChallengeMarkers, isAwsWafChallenge, isBlockClassStatus } from "@packages/crawl-article";
-import type { ClassifiedDocument } from "./render-page.types";
+import type { ClassifiedDocument } from "../../domain/render-crawl/render-page.types";
 
 export type RenderedDocument = {
 	httpStatus: number;

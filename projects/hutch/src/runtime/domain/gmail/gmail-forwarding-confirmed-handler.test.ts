@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import type { SQSEvent } from "aws-lambda";
-import { RewriteGmailFilterCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { RewriteGmailFilterCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import { AliasNameSchema, GMAIL_FORWARDING_ALIAS, type InboxAddress } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -39,7 +39,7 @@ function makeHarness(options: { failWrite?: boolean } = {}) {
 		publishEvent: (async (event, detail) => {
 			published.push({ event, detail });
 		}) as PublishEvent,
-		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
+		logger: Logger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
 	const run = async (event: SQSEvent) => {
 		const response = await handler(event, buildLambdaContext(), () => {});

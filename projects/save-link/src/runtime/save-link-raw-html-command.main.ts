@@ -2,10 +2,11 @@ import { neverResolveChallengedTracker } from "@packages/save-article";
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { consoleLogger } from "@packages/hutch-logger";
-import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { requireEnv } from "@packages/require-env";
+import { consoleLogger } from "@packages/logger";
+import { EventBridgeClient } from "@packages/infra-components/runtime";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { readEnv } from "@packages/require-env";
+import { SAVE_LINK_RAW_HTML_COMMAND_ENV } from "./save-link-raw-html-command.env";
 import { initReadPendingHtml } from "./providers/article-store/read-pending-html";
 import { initSaveLinkRawHtmlCommandHandler } from "./domain/save-link-raw-html/save-link-raw-html-command-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
@@ -17,12 +18,14 @@ import { initCrawlAndFinalizeDepBundle } from "./dep-bundles/crawl-and-finalize"
 import { initEventsDepBundle } from "./dep-bundles/events";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
-const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const env = readEnv(SAVE_LINK_RAW_HTML_COMMAND_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const pendingHtmlBucketName = env.PENDING_HTML_BUCKET_NAME;
+const imagesCdnBaseUrl = env.IMAGES_CDN_BASE_URL;
+const eventBusName = env.EVENT_BUS_NAME;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});

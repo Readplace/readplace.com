@@ -17,6 +17,7 @@ interface StoredSession {
 	created: number;
 	subscriptionId: string;
 	customerId: string;
+	coupon: string | null;
 }
 
 export function initInMemoryHostedCheckout(opts: {
@@ -32,6 +33,7 @@ export function initInMemoryHostedCheckout(opts: {
 		id: CheckoutSessionId;
 		priceId: string;
 		customerEmail: string;
+		coupon: string | null;
 	}>;
 } {
 	const sessions = new Map<CheckoutSessionId, StoredSession>();
@@ -41,6 +43,7 @@ export function initInMemoryHostedCheckout(opts: {
 		customerEmail,
 		priceId,
 		successUrl,
+		coupon,
 	}) => {
 		const id = CheckoutSessionIdSchema.parse(`cs_test_${randomBytes(12).toString("hex")}`);
 		const sessionSuffix = randomBytes(8).toString("hex");
@@ -53,6 +56,7 @@ export function initInMemoryHostedCheckout(opts: {
 			created: Math.floor(opts.now().getTime() / 1000),
 			subscriptionId: `sub_test_${sessionSuffix}`,
 			customerId: `cus_test_${sessionSuffix}`,
+			coupon,
 		});
 		const url = `${opts.checkoutBaseUrl}/${id}?next=${encodeURIComponent(successUrl)}`;
 		urls.set(id, url);
@@ -99,6 +103,7 @@ export function initInMemoryHostedCheckout(opts: {
 			id,
 			priceId: session.priceId,
 			customerEmail: session.customerEmail,
+			coupon: session.coupon,
 		}));
 
 	return {

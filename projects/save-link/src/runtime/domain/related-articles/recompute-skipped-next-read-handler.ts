@@ -1,12 +1,7 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
-import { CanonicalContentChangedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { Logger } from "@packages/logger";
+import { CanonicalContentChangedEvent } from "@packages/infra-components";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	FindRelatedTargetArticle,
 	FindSkippedNextReadSaves,
@@ -53,7 +48,7 @@ export function initRecomputeSkippedNextReadHandler(deps: {
 	replaceSkippedRelatedArticlesWithSkip: MarkRelatedArticlesSkipped;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { findRelatedTargetArticle, findSkippedNextReadSaves, logger } = deps;
 	const { computeNextRead } = initNextReadComputation({
@@ -66,50 +61,18 @@ export function initRecomputeSkippedNextReadHandler(deps: {
 		logger,
 	});
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-			try {
-				const envelope = JSON.parse(record.body);
-				const { url } = CanonicalContentChangedEvent.detailSchema.parse(envelope.detail);
-
-				const recompute = recomputeTargetOf(
-					await findRelatedTargetArticle(url, { consistentRead: true }),
-				);
-				if (recompute.kind === "ruled-out") {
-					logger.info("[ComputeRelatedArticles] content changed", {
-						url,
-						recomputing: 0,
-						reason: recompute.reason,
-					});
-					continue;
-				}
-
-				const readableAtMs = recompute.readerAvailableAt.getTime();
-				const eligible = (await findSkippedNextReadSaves(url)).filter(
-					(save) => save.skippedAt.getTime() < readableAtMs,
-				);
-				logger.info("[ComputeRelatedArticles] content changed", {
-					url,
-					recomputing: eligible.length,
-				});
-
-				for (const save of eligible) {
-					await computeNextRead({
-						save: { userId: save.userId, url, receiveCount, trigger: TRIGGER },
-						target: recompute.target,
-					});
-				}
-			} catch (error) {
+	return initSqsRecordHandler({
+		definition: CanonicalContentChangedEvent,
+		logger,
+		failure: {
+			report: ({ record, error }) => {
 				if (error instanceof MetadataNotReadyError) {
 					logger.info(
 						"[ComputeRelatedArticles] waiting for crawl metadata; redelivery scheduled",
 						{
 							url: error.url,
 							messageId: record.messageId,
-							receiveCount,
+							receiveCount: record.receiveCount,
 							crawlStatus: error.crawlStatus,
 							trigger: TRIGGER,
 						},
@@ -121,10 +84,37 @@ export function initRecomputeSkippedNextReadHandler(deps: {
 						trigger: TRIGGER,
 					});
 				}
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+			},
+		},
+		malformed: { policy: "retry" },
+		handle: async ({ url }, record) => {
+			const recompute = recomputeTargetOf(
+				await findRelatedTargetArticle(url, { consistentRead: true }),
+			);
+			if (recompute.kind === "ruled-out") {
+				logger.info("[ComputeRelatedArticles] content changed", {
+					url,
+					recomputing: 0,
+					reason: recompute.reason,
+				});
+				return;
 			}
-		}
 
-		return { batchItemFailures };
-	};
+			const readableAtMs = recompute.readerAvailableAt.getTime();
+			const eligible = (await findSkippedNextReadSaves(url)).filter(
+				(save) => save.skippedAt.getTime() < readableAtMs,
+			);
+			logger.info("[ComputeRelatedArticles] content changed", {
+				url,
+				recomputing: eligible.length,
+			});
+
+			for (const save of eligible) {
+				await computeNextRead({
+					save: { userId: save.userId, url, receiveCount: record.receiveCount, messageId: record.messageId, trigger: TRIGGER },
+					target: recompute.target,
+				});
+			}
+		},
+	});
 }

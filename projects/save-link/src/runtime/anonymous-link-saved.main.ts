@@ -1,17 +1,20 @@
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { consoleLogger } from "@packages/hutch-logger";
+import { consoleLogger } from "@packages/logger";
 import {
 	GenerateSummaryCommand,
-} from "@packages/hutch-infra-components";
-import { initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
-import { requireEnv } from "@packages/require-env";
+} from "@packages/infra-components";
+import { initSqsCommandDispatcher } from "@packages/infra-components/runtime";
+import { readEnv } from "@packages/require-env";
+import { ANONYMOUS_LINK_SAVED_ENV } from "./anonymous-link-saved.env";
 import { initFindArticleContent } from "./providers/article-store/find-article-content";
 import { initAnonymousLinkSavedHandler } from "./domain/save-link/anonymous-link-saved-handler";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const env = readEnv(ANONYMOUS_LINK_SAVED_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});

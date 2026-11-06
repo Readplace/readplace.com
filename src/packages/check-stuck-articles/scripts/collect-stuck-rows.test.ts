@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import {
 	CRAWL_MIN_AGE_MS,
 	SUMMARY_MIN_AGE_MS,

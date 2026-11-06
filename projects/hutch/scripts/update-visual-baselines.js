@@ -9,10 +9,10 @@ const {
   getFreePort,
   playwrightImage,
 } = require('@packages/test-phase-runner');
-const { HutchLogger, consoleLogger } = require('@packages/hutch-logger');
+const { Logger, consoleLogger } = require('@packages/logger');
 const { devDependencies } = require('../package.json');
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const WORKSPACE_ROOT = path.resolve(PROJECT_ROOT, '..', '..');

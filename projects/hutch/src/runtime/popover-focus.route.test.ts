@@ -211,7 +211,6 @@ describe("every popup opens on its first decision", () => {
 			"readlist-create-move",
 			"readlist-delete",
 			"readlist-preferences",
-			"readlist-purpose-delete",
 			"readlist-rename",
 			"save-tip",
 			"share",

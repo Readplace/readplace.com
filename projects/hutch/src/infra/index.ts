@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { z } from "zod";
-import { curlImpersonateLayerArnFromPlatformStack, HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSharedDlq, HutchSQS, HutchSQSBackedLambda, HutchDLQEventHandler, HutchStripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/hutch-infra-components/infra";
+import { curlImpersonateLayerArnFromPlatformStack, Lambda, APIGateway, DynamoDBAccess, EventBus, S3ReadWrite, SharedDlq, Sqs, SqsBackedLambda, DLQEventHandler, StripeWebhookReceiver, ssrEdgeSecretFromPlatformStack } from "@packages/infra-components/infra";
 import {
 	type EvaluateOAuthRefreshCommand,
 	FORWARD_ANALYTICS_LAMBDA_NAME,
@@ -46,8 +46,10 @@ import {
 	SubscriptionChargeSucceededEvent,
 	SubscriptionStartRequestCommand,
 	LinkDequeuedEvent,
+	MediaInspectedEvent,
 	MediaProcessingFailedEvent,
-} from "@packages/hutch-infra-components";
+	MediaRejectedEvent,
+} from "@packages/infra-components";
 import { PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
@@ -69,6 +71,31 @@ import { HutchStaticAssets } from "./hutch-static-assets";
 import { HutchSsrCdn } from "./hutch-ssr-cdn";
 import { CloudFrontInvalidation } from "./cloudfront-invalidation";
 import { OutboundMailAuth } from "./outbound-mail-auth";
+import { COUNT_GMAIL_CONNECTIONS_ENV } from "../runtime/count-gmail-connections.env";
+import { STRIPE_WEBHOOK_RECEIVER_ENV } from "../runtime/stripe-webhook-receiver.env";
+import { REWRITE_GMAIL_FILTER_ENV } from "../runtime/rewrite-gmail-filter.env";
+import { GMAIL_NEWSLETTER_NOTICE_ENV } from "../runtime/gmail-newsletter-notice.env";
+import { GMAIL_NEWSLETTER_MONITOR_ENV } from "../runtime/gmail-newsletter-monitor.env";
+import { GMAIL_DISCOVERY_ENV } from "../runtime/gmail-discovery.env";
+import { GMAIL_DISCOVERY_DLQ_ENV } from "../runtime/gmail-discovery-dlq.env";
+import { NEWSLETTER_CATALOG_SUGGESTIONS_ENV } from "../runtime/newsletter-catalog-suggestions.env";
+import { GMAIL_HISTORY_IMPORT_ENV } from "../runtime/gmail-history-import.env";
+import { GMAIL_HISTORY_IMPORT_OUTCOMES_ENV } from "../runtime/gmail-history-import-outcomes.env";
+import { GMAIL_MESSAGE_UPDATE_ENV } from "../runtime/gmail-message-update.env";
+import { GMAIL_MARK_BACKFILL_ENV } from "../runtime/gmail-mark-backfill.env";
+import { GMAIL_HISTORY_IMPORT_DLQ_ENV } from "../runtime/gmail-history-import-dlq.env";
+import { HUTCH_HANDLER_ENV } from "../runtime/lambda.env";
+import { RECORD_MEDIA_INSPECTION_ENV } from "../runtime/record-media-inspection.env";
+import { USER_DATA_JOBS_ENV } from "../runtime/user-data-jobs.env";
+import { SEND_USER_DIGEST_ENV } from "../runtime/send-user-digest.env";
+import { DIGEST_SCAN_ENV } from "../runtime/digest-scan.env";
+import { MEDIA_RELEASE_ENV } from "../runtime/media-release.env";
+import { SETTLE_MEDIA_FAILURE_ENV } from "../runtime/settle-media-failure.env";
+import { SUBSCRIPTION_EVENTS_ENV } from "../runtime/subscription-events.env";
+import { SEND_TRIAL_FEEDBACK_EMAIL_ENV } from "../runtime/send-trial-feedback-email.env";
+import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "../runtime/send-first-inbox-email-notice.env";
+import { FORWARD_ANALYTICS_ENV } from "../runtime/forward-analytics.env";
+import { EVALUATE_OAUTH_REFRESH_ENV } from "../runtime/evaluate-oauth-refresh.env";
 import { requireEnv } from "@packages/require-env";
 
 const config = new pulumi.Config();
@@ -110,7 +137,7 @@ const readlistCapWarnThreshold = config.getNumber("readlistCapWarnThreshold");
 const mcpScanListingWindowHours = config.getNumber("mcpScanListingWindowHours");
 const analyticsSaltGeneration = config.requireNumber("analyticsSaltGeneration");
 const analyticsSalt = checkedAnalyticsSalt({
-	functionName: HutchLambda.handlerFunctionName(LAMBDA_NAMES.hutchHandler),
+	functionName: Lambda.handlerFunctionName(LAMBDA_NAMES.hutchHandler),
 	stack: pulumi.getStack(),
 	next: { salt: requireEnv("ANALYTICS_SALT"), generation: analyticsSaltGeneration },
 });
@@ -173,6 +200,7 @@ const rateLimitRules = {
 	browserHandoff: config.require("rateLimitBrowserHandoff"),
 	import: config.require("rateLimitImport"),
 	importFromUrl: config.require("rateLimitImportFromUrl"),
+	uploadStage: config.require("rateLimitUploadStage"),
 } satisfies Record<keyof RateLimitRules, string>;
 
 /* Blunt TOTAL-rate ceiling (all clients combined) applied by API Gateway before
@@ -189,7 +217,7 @@ const storage = new HutchStorage("hutch", {
 	tableNames,
 });
 
-const newsletterCatalogBucket = new HutchS3ReadWrite("newsletter-catalog-bucket", {
+const newsletterCatalogBucket = new S3ReadWrite("newsletter-catalog-bucket", {
 	bucketName: newsletterCatalogBucketName,
 });
 
@@ -199,7 +227,7 @@ const redirectSubdomains = config.getObject<Array<{ host: string; zoneName: stri
 /**
  * Ordering convention:
  *   domains[0]           — legacy primary; keeps the original Pulumi resource names
- *                          ("hutch-domain", HutchAPIGateway's internal custom-domain wiring)
+ *                          ("hutch-domain", APIGateway's internal custom-domain wiring)
  *                          so existing deployments see a no-op.
  *   domains[1..]         — additional canonicals added during migration; each gets its own
  *                          DomainRegistration and API Gateway wiring with suffixed names.
@@ -259,14 +287,13 @@ const staticAssets = new HutchStaticAssets("hutch-static", {
 	sourceDir: resolve(__dirname, "../../static-assets"),
 });
 
-const eventBus = HutchEventBus.fromPlatformStack(config);
+const eventBus = EventBus.fromPlatformStack(config);
 const ssrEdgeSecret = ssrEdgeSecretFromPlatformStack(config);
 
 // The web Lambda builds initCrawlFetch (article/thumbnail crawls, stale-check
 // refresh), whose last-resort leg spawns curl_chrome131 from this layer; without
 // it a crawl that falls through to curl dies on `spawn curl_chrome131 ENOENT`.
 const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
-
 
 const oauthOutcomes = new aws.dynamodb.Table("oauth-refresh-outcomes", {
 	name: config.require("dynamodbOAuthOutcomesTable"),
@@ -277,12 +304,12 @@ const oauthOutcomes = new aws.dynamodb.Table("oauth-refresh-outcomes", {
 	attributes: [{ name: "day", type: "S" }, { name: "order", type: "S" }],
 	ttl: { attributeName: "expiresAt", enabled: true },
 });
-const oauthOutcomesWrite = new HutchDynamoDBAccess("oauth-outcomes-write", {
+const oauthOutcomesWrite = new DynamoDBAccess("oauth-outcomes-write", {
 	tables: [{ arn: oauthOutcomes.arn, includeIndexes: false }],
 	actions: ["dynamodb:UpdateItem"],
 });
 
-const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
+const dynamodb = new DynamoDBAccess("hutch-dynamodb-access", {
 	tables: [
 		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
 		{ arn: storage.articlesTable.arn, includeIndexes: true },
@@ -318,17 +345,17 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 	],
 });
 
-const webUsersScan = new HutchDynamoDBAccess("hutch-web-users-scan", {
+const webUsersScan = new DynamoDBAccess("hutch-web-users-scan", {
 	tables: [{ arn: storage.usersTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:Scan"],
 });
 
-const oauthConditions = new HutchDynamoDBAccess("hutch-oauth-conditions", {
+const oauthConditions = new DynamoDBAccess("hutch-oauth-conditions", {
 	tables: [{ arn: storage.oauthTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:ConditionCheckItem"],
 });
 
-const webIssueLinksRead = new HutchDynamoDBAccess("hutch-web-issue-links-read", {
+const webIssueLinksRead = new DynamoDBAccess("hutch-web-issue-links-read", {
 	tables: [
 		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.inboxSavedLinks), includeIndexes: false },
@@ -336,7 +363,7 @@ const webIssueLinksRead = new HutchDynamoDBAccess("hutch-web-issue-links-read", 
 	actions: ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query"],
 });
 
-const webCanaryReportsRead = new HutchDynamoDBAccess("hutch-web-canary-reports-read", {
+const webCanaryReportsRead = new DynamoDBAccess("hutch-web-canary-reports-read", {
 	tables: [{ arn: storage.canaryReportsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:Query"],
 });
@@ -432,7 +459,7 @@ const userDataJobsSchedulerManagePolicy = {
 	policy: trialSchedulerManagePolicyDoc,
 };
 
-const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
+const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 	priorLogGroupLogicalName: "hutch-log-analytics",
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/hutch-api",
@@ -441,9 +468,9 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	timeout: WEB_LAMBDA_TIMEOUT_SECONDS,
 	architectures: ["x86_64"],
 	layers: [curlImpersonateLayerArn],
+	environmentNames: HUTCH_HANDLER_ENV,
 	environment: {
 		NODE_ENV: config.require("nodeEnv"),
-		PERSISTENCE: "prod",
 		/** The app reads PORT at module load via requireEnv, which has no default,
 		 * so it must be present even though serverless-http does not bind a port. */
 		PORT: "3000",
@@ -508,6 +535,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 		FOUNDING_MEMBER_LIMIT: config.require("foundingMemberLimit"),
+		STRIPE_KEEP_OFFER_COUPON_ID: config.require("stripeKeepOfferCouponId"),
 	},
 	policies: [
 		...dynamodb.policies,
@@ -516,13 +544,13 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		...webUsersScan.policies,
 		...webIssueLinksRead.policies,
 		...webCanaryReportsRead.policies,
-		...HutchS3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
-		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
-		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-pdf", pendingPdfBucketName),
+		...S3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
+		...S3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
+		...S3ReadWrite.writePoliciesForBucket("hutch-pending-pdf", pendingPdfBucketName),
 		// Read access so the save-content completion step can HeadObject (size +
 		// mtime) and GetObject the %PDF- magic prefix of a client-uploaded object.
-		...HutchS3ReadWrite.readPoliciesForBucket("hutch-pending-html-read", pendingHtmlBucketName),
-		...HutchS3ReadWrite.readPoliciesForBucket("hutch-pending-pdf-read", pendingPdfBucketName),
+		...S3ReadWrite.readPoliciesForBucket("hutch-pending-html-read", pendingHtmlBucketName),
+		...S3ReadWrite.readPoliciesForBucket("hutch-pending-pdf-read", pendingPdfBucketName),
 		...newsletterCatalogBucket.readPolicies("hutch-newsletter-catalog"),
 		...newsletterCatalogBucket.writePolicies("hutch-newsletter-catalog"),
 		{
@@ -539,6 +567,19 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 						Effect: "Allow",
 						Action: ["s3:ListBucket"],
 						Resource: `arn:aws:s3:::${mediaBucketName}`,
+					},
+				],
+			}),
+		},
+		{
+			name: "web-media-images-read",
+			policy: JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [
+					{
+						Effect: "Allow",
+						Action: ["s3:GetObject"],
+						Resource: `arn:aws:s3:::${mediaBucketName}/images/*`,
 					},
 				],
 			}),
@@ -598,7 +639,7 @@ const ssrCdnDnsAlias =
 			}
 		: undefined;
 
-const gateway = new HutchAPIGateway("hutch", {
+const gateway = new APIGateway("hutch", {
 	api,
 	lambda: lambda,
 	stage,
@@ -667,7 +708,7 @@ for (const [i, domain] of additionalDomains.entries()) {
 // same cadence as the presigned URL TTL — both numbers move together via a
 // shared constant.
 
-const userExportBucket = new HutchS3ReadWrite("user-export-bucket", {
+const userExportBucket = new S3ReadWrite("user-export-bucket", {
 	bucketName: userExportBucketName,
 });
 
@@ -706,7 +747,7 @@ if (googleWorkspaceMail) {
 // store. Runs behind SQS at-least-once with an email alert on the DLQ so a
 // stuck erasure is never silent.
 
-const userDataJobsDynamodb = new HutchDynamoDBAccess("user-data-jobs-dynamodb", {
+const userDataJobsDynamodb = new DynamoDBAccess("user-data-jobs-dynamodb", {
 	tables: [
 		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
 		{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false },
@@ -780,23 +821,28 @@ const userDataJobsMediaPendingDeletePolicy = {
 			{
 				Effect: "Allow",
 				Action: ["s3:DeleteObject"],
-				Resource: [`arn:aws:s3:::${mediaBucketName}/pending/*`],
+				Resource: [`arn:aws:s3:::${mediaBucketName}/pending/*`, `arn:aws:s3:::${mediaBucketName}/images/*`],
+			},
+			{
+				Effect: "Allow",
+				Action: ["s3:ListBucket"],
+				Resource: [`arn:aws:s3:::${mediaBucketName}`],
 			},
 		],
 	}),
 };
 
-const userDataJobsGmailHistoryDynamodb = new HutchDynamoDBAccess("user-data-jobs-gmail-history-dynamodb", {
+const userDataJobsGmailHistoryDynamodb = new DynamoDBAccess("user-data-jobs-gmail-history-dynamodb", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
 });
 
-const userDataJobsEmailIdentitiesDynamodb = new HutchDynamoDBAccess("user-data-jobs-email-identities-dynamodb", {
+const userDataJobsEmailIdentitiesDynamodb = new DynamoDBAccess("user-data-jobs-email-identities-dynamodb", {
 	tables: [{ arn: inboxTableArn(tableNames.emailIdentities), includeIndexes: true }],
 	actions: ["dynamodb:Query", "dynamodb:DeleteItem"],
 });
 
-const userDataJobsQueue = new HutchSQS("user-data-jobs", {
+const userDataJobsQueue = new Sqs("user-data-jobs", {
 	// Matches the worker Lambda timeout so a single in-flight job cannot be
 	// redelivered while still running.
 	visibilityTimeoutSeconds: 900,
@@ -807,12 +853,13 @@ const userDataJobsQueue = new HutchSQS("user-data-jobs", {
 	dlqMaxReceiveCount: 12,
 });
 
-const userDataJobsLambda = new HutchLambda("user-data-jobs", {
+const userDataJobsLambda = new Lambda("user-data-jobs", {
 	entryPoint: "./src/runtime/user-data-jobs.main.ts",
 	outputDir: ".lib/user-data-jobs",
 	assetDir: "./src/runtime",
 	memorySize: 1024,
 	timeout: 900,
+	environmentNames: USER_DATA_JOBS_ENV,
 	environment: {
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
@@ -869,7 +916,7 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 
 eventBus.grantPublish(userDataJobsLambda);
 
-const userDataJobsWithSQS = new HutchSQSBackedLambda("user-data-jobs", {
+const userDataJobsWithSQS = new SqsBackedLambda("user-data-jobs", {
 	lambda: userDataJobsLambda,
 	queue: userDataJobsQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -885,11 +932,11 @@ eventBus.subscribeAll(
 // --- Reader-ready digest (6h flush + send) ---
 
 // send-user-digest queue is created first so digest-scan can address it.
-const sendUserDigestQueue = new HutchSQS("send-user-digest", {
+const sendUserDigestQueue = new Sqs("send-user-digest", {
 	visibilityTimeoutSeconds: 120,
 });
 
-const sendUserDigestDynamodb = new HutchDynamoDBAccess("send-user-digest-dynamodb", {
+const sendUserDigestDynamodb = new DynamoDBAccess("send-user-digest-dynamodb", {
 	tables: [
 		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.articlesTable.arn, includeIndexes: true },
@@ -912,17 +959,18 @@ const sendUserDigestDynamodb = new HutchDynamoDBAccess("send-user-digest-dynamod
 	],
 });
 
-const sendUserDigestSubscriptionsDynamodb = new HutchDynamoDBAccess("send-user-digest-subscriptions", {
+const sendUserDigestSubscriptionsDynamodb = new DynamoDBAccess("send-user-digest-subscriptions", {
 	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const sendUserDigestLambda = new HutchLambda("send-user-digest", {
+const sendUserDigestLambda = new Lambda("send-user-digest", {
 	entryPoint: "./src/runtime/send-user-digest.main.ts",
 	outputDir: ".lib/send-user-digest",
 	assetDir: "./src/runtime",
 	memorySize: 512,
 	timeout: 60,
+	environmentNames: SEND_USER_DIGEST_ENV,
 	environment: {
 		APP_ORIGIN: appOrigin,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -937,11 +985,25 @@ const sendUserDigestLambda = new HutchLambda("send-user-digest", {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		ANALYTICS_SALT: analyticsSalt,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		MEDIA_BUCKET_NAME: mediaBucketName,
 	},
 	policies: [
 		...sendUserDigestDynamodb.policies,
-		...HutchS3ReadWrite.readPoliciesForBucket("send-user-digest-content", contentBucketName),
+		...S3ReadWrite.readPoliciesForBucket("send-user-digest-content", contentBucketName),
 		...sendUserDigestSubscriptionsDynamodb.policies,
+		{
+			name: "send-user-digest-media-images-read",
+			policy: JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [
+					{
+						Effect: "Allow",
+						Action: ["s3:GetObject"],
+						Resource: `arn:aws:s3:::${mediaBucketName}/images/*`,
+					},
+				],
+			}),
+		},
 	],
 });
 
@@ -949,18 +1011,18 @@ eventBus.grantPublish(sendUserDigestLambda);
 
 // Direct-SQS source (digest-scan dispatches SendUserDigestCommand here) — no
 // eventBus.subscribe. Bare statement for its EventSourceMapping + DLQ alarm.
-new HutchSQSBackedLambda("send-user-digest", {
+new SqsBackedLambda("send-user-digest", {
 	lambda: sendUserDigestLambda,
 	queue: sendUserDigestQueue,
 	alertEmailDLQEntry: alertEmail,
 	batchSize: 1,
 });
 
-const digestScanQueue = new HutchSQS("digest-scan", {
+const digestScanQueue = new Sqs("digest-scan", {
 	visibilityTimeoutSeconds: 120,
 });
 
-const digestScanDynamodb = new HutchDynamoDBAccess("digest-scan-dynamodb", {
+const digestScanDynamodb = new DynamoDBAccess("digest-scan-dynamodb", {
 	tables: [
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.articlesTable.arn, includeIndexes: true },
@@ -968,7 +1030,7 @@ const digestScanDynamodb = new HutchDynamoDBAccess("digest-scan-dynamodb", {
 	actions: ["dynamodb:Query", "dynamodb:GetItem"],
 });
 
-const digestScanStarterReportDynamodb = new HutchDynamoDBAccess("digest-scan-starter-report", {
+const digestScanStarterReportDynamodb = new DynamoDBAccess("digest-scan-starter-report", {
 	tables: [
 		{ arn: storage.onboardingTable.arn, includeIndexes: true },
 		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
@@ -976,17 +1038,18 @@ const digestScanStarterReportDynamodb = new HutchDynamoDBAccess("digest-scan-sta
 	actions: ["dynamodb:Query", "dynamodb:BatchGetItem"],
 });
 
-const digestScanArticlesWrite = new HutchDynamoDBAccess("digest-scan-articles-write", {
+const digestScanArticlesWrite = new DynamoDBAccess("digest-scan-articles-write", {
 	tables: [{ arn: storage.articlesTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
-const digestScanLambda = new HutchLambda("digest-scan", {
+const digestScanLambda = new Lambda("digest-scan", {
 	entryPoint: "./src/runtime/digest-scan.main.ts",
 	outputDir: ".lib/digest-scan",
 	assetDir: "./src/runtime",
 	memorySize: 512,
 	timeout: 60,
+	environmentNames: DIGEST_SCAN_ENV,
 	environment: {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1003,7 +1066,7 @@ const digestScanLambda = new HutchLambda("digest-scan", {
 		...digestScanDynamodb.policies,
 		...digestScanArticlesWrite.policies,
 		...digestScanStarterReportDynamodb.policies,
-		...HutchS3ReadWrite.readPoliciesForBucket("digest-scan-content", contentBucketName),
+		...S3ReadWrite.readPoliciesForBucket("digest-scan-content", contentBucketName),
 		{
 			name: "digest-scan-manifests-write",
 			policy: JSON.stringify({
@@ -1024,7 +1087,7 @@ const digestScanLambda = new HutchLambda("digest-scan", {
 
 eventBus.grantPublish(digestScanLambda);
 
-new HutchSQSBackedLambda("digest-scan", {
+new SqsBackedLambda("digest-scan", {
 	lambda: digestScanLambda,
 	queue: digestScanQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1081,28 +1144,29 @@ new aws.scheduler.Schedule("hutch-digest-flush", {
 // error screen the app cannot intercept, so an hourly tick emits the
 // current connected count as one JSON line, a metric filter turns it
 // into a gauge, and the alarm pages at the configured threshold.
-const countGmailConnectionsQueue = new HutchSQS("count-gmail-connections", {
+const countGmailConnectionsQueue = new Sqs("count-gmail-connections", {
 	visibilityTimeoutSeconds: 120,
 });
 
-const countGmailConnectionsDynamodb = new HutchDynamoDBAccess("count-gmail-connections-dynamodb", {
+const countGmailConnectionsDynamodb = new DynamoDBAccess("count-gmail-connections-dynamodb", {
 	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true }],
 	actions: ["dynamodb:Query"],
 });
 
-const countGmailConnectionsLambda = new HutchLambda("count-gmail-connections", {
+const countGmailConnectionsLambda = new Lambda("count-gmail-connections", {
 	entryPoint: "./src/runtime/count-gmail-connections.main.ts",
 	outputDir: ".lib/count-gmail-connections",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: COUNT_GMAIL_CONNECTIONS_ENV,
 	environment: {
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 	},
 	policies: [...countGmailConnectionsDynamodb.policies],
 });
 
-new HutchSQSBackedLambda("count-gmail-connections", {
+new SqsBackedLambda("count-gmail-connections", {
 	lambda: countGmailConnectionsLambda,
 	queue: countGmailConnectionsQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1197,11 +1261,12 @@ new aws.cloudwatch.MetricAlarm("gmail-connection-cap-alarm", {
 // component's CloudWatch alarm. The shared StripeEventType union ties this
 // array to the runtime composition root at the type level.
 
-new HutchStripeWebhookReceiver("stripe-webhook-receiver", {
+new StripeWebhookReceiver("stripe-webhook-receiver", {
 	apiGatewayId: api.id,
 	apiGatewayExecutionArn: api.executionArn,
 	routeKey: "POST /webhooks/stripe",
 	eventBus,
+	environmentNames: STRIPE_WEBHOOK_RECEIVER_ENV,
 	subscriptionProvidersTable: {
 		arn: storage.subscriptionProvidersTable.arn,
 		name: storage.subscriptionProvidersTable.name,
@@ -1217,23 +1282,24 @@ new HutchStripeWebhookReceiver("stripe-webhook-receiver", {
 // land in a DLQ with an email alarm so operators can redrive without relying on
 // Stripe retries.
 
-const subscriptionEventsDynamodb = new HutchDynamoDBAccess("subscription-events-dynamodb", {
+const subscriptionEventsDynamodb = new DynamoDBAccess("subscription-events-dynamodb", {
 	tables: [
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const subscriptionEventsQueue = new HutchSQS("subscription-events", {
+const subscriptionEventsQueue = new Sqs("subscription-events", {
 	visibilityTimeoutSeconds: 30,
 });
 
-const subscriptionEventsLambda = new HutchLambda(LAMBDA_NAMES.subscriptionEvents, {
+const subscriptionEventsLambda = new Lambda(LAMBDA_NAMES.subscriptionEvents, {
 	entryPoint: "./src/runtime/subscription-events.main.ts",
 	outputDir: ".lib/subscription-events",
 	assetDir: "./src/runtime",
 	memorySize: 128,
 	timeout: 30,
+	environmentNames: SUBSCRIPTION_EVENTS_ENV,
 	environment: {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
@@ -1253,7 +1319,7 @@ const subscriptionEventsLambda = new HutchLambda(LAMBDA_NAMES.subscriptionEvents
 
 eventBus.grantPublish(subscriptionEventsLambda);
 
-const subscriptionEventsWithSQS = new HutchSQSBackedLambda("subscription-events", {
+const subscriptionEventsWithSQS = new SqsBackedLambda("subscription-events", {
 	lambda: subscriptionEventsLambda,
 	queue: subscriptionEventsQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1287,7 +1353,7 @@ eventBus.subscribeAll(
 // dunning email (kind='payment_failed' — published per failed Stripe dunning
 // attempt, re-checks the user is still active).
 
-const sendTrialFeedbackEmailDynamodb = new HutchDynamoDBAccess(
+const sendTrialFeedbackEmailDynamodb = new DynamoDBAccess(
 	"send-trial-feedback-email-dynamodb",
 	{
 		tables: [
@@ -1305,11 +1371,11 @@ const sendTrialFeedbackEmailDynamodb = new HutchDynamoDBAccess(
 	},
 );
 
-const sendTrialFeedbackEmailQueue = new HutchSQS("send-trial-feedback-email", {
+const sendTrialFeedbackEmailQueue = new Sqs("send-trial-feedback-email", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const sendTrialFeedbackEmailLambda = new HutchLambda(
+const sendTrialFeedbackEmailLambda = new Lambda(
 	LAMBDA_NAMES.sendTrialFeedbackEmail,
 	{
 		priorLogGroupLogicalName: "send-trial-feedback-email-log-group",
@@ -1318,6 +1384,7 @@ const sendTrialFeedbackEmailLambda = new HutchLambda(
 		assetDir: "./src/runtime",
 		memorySize: 256,
 		timeout: 60,
+		environmentNames: SEND_TRIAL_FEEDBACK_EMAIL_ENV,
 		environment: {
 			ANALYTICS_SALT: analyticsSalt,
 			DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
@@ -1333,7 +1400,7 @@ const sendTrialFeedbackEmailLambda = new HutchLambda(
 	},
 );
 
-const sendTrialFeedbackEmailWithSQS = new HutchSQSBackedLambda(
+const sendTrialFeedbackEmailWithSQS = new SqsBackedLambda(
 	"send-trial-feedback-email",
 	{
 		lambda: sendTrialFeedbackEmailLambda,
@@ -1345,7 +1412,7 @@ const sendTrialFeedbackEmailWithSQS = new HutchSQSBackedLambda(
 
 eventBus.subscribe(SendTrialFeedbackEmailCommand, sendTrialFeedbackEmailWithSQS);
 
-const mediaReleaseDynamodb = new HutchDynamoDBAccess("media-release-dynamodb", {
+const mediaReleaseDynamodb = new DynamoDBAccess("media-release-dynamodb", {
 	tables: [
 		{ arn: storage.articlesTable.arn, includeIndexes: false },
 		{ arn: storage.userArticlesTable.arn, includeIndexes: true },
@@ -1361,27 +1428,32 @@ const mediaReleaseS3Policy = {
 			{
 				Effect: "Allow",
 				Action: ["s3:DeleteObject"],
-				Resource: [`arn:aws:s3:::${contentBucketName}/*`, `arn:aws:s3:::${mediaBucketName}/pending/*`],
+				Resource: [
+					`arn:aws:s3:::${contentBucketName}/*`,
+					`arn:aws:s3:::${mediaBucketName}/pending/*`,
+					`arn:aws:s3:::${mediaBucketName}/images/*`,
+				],
 			},
 			{
 				Effect: "Allow",
 				Action: ["s3:ListBucket"],
-				Resource: [`arn:aws:s3:::${contentBucketName}`],
+				Resource: [`arn:aws:s3:::${contentBucketName}`, `arn:aws:s3:::${mediaBucketName}`],
 			},
 		],
 	}),
 };
 
-const mediaReleaseQueue = new HutchSQS("media-release", {
+const mediaReleaseQueue = new Sqs("media-release", {
 	visibilityTimeoutSeconds: 2 * 60,
 });
 
-const mediaReleaseLambda = new HutchLambda("media-release", {
+const mediaReleaseLambda = new Lambda("media-release", {
 	entryPoint: "./src/runtime/media-release.main.ts",
 	outputDir: ".lib/media-release",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: MEDIA_RELEASE_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
@@ -1391,7 +1463,7 @@ const mediaReleaseLambda = new HutchLambda("media-release", {
 	policies: [...mediaReleaseDynamodb.policies, mediaReleaseS3Policy],
 });
 
-const mediaReleaseWithSQS = new HutchSQSBackedLambda("media-release", {
+const mediaReleaseWithSQS = new SqsBackedLambda("media-release", {
 	lambda: mediaReleaseLambda,
 	queue: mediaReleaseQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1403,7 +1475,7 @@ eventBus.subscribe(LinkDequeuedEvent, mediaReleaseWithSQS, {
 	detail: { url: [{ prefix: `https://${PRIVATE_ITEM_HOST}/` }] },
 });
 
-const settleMediaFailureDynamodb = new HutchDynamoDBAccess("settle-media-failure-dynamodb", {
+const settleMediaFailureDynamodb = new DynamoDBAccess("settle-media-failure-dynamodb", {
 	tables: [
 		{ arn: storage.articlesTable.arn, includeIndexes: false },
 		{ arn: storage.mediaUploadSessionsTable.arn, includeIndexes: false },
@@ -1411,16 +1483,17 @@ const settleMediaFailureDynamodb = new HutchDynamoDBAccess("settle-media-failure
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const settleMediaFailureQueue = new HutchSQS("settle-media-failure", {
+const settleMediaFailureQueue = new Sqs("settle-media-failure", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const settleMediaFailureLambda = new HutchLambda("settle-media-failure", {
+const settleMediaFailureLambda = new Lambda("settle-media-failure", {
 	entryPoint: "./src/runtime/settle-media-failure.main.ts",
 	outputDir: ".lib/settle-media-failure",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: SETTLE_MEDIA_FAILURE_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
@@ -1429,7 +1502,7 @@ const settleMediaFailureLambda = new HutchLambda("settle-media-failure", {
 	policies: [...settleMediaFailureDynamodb.policies],
 });
 
-const settleMediaFailureWithSQS = new HutchSQSBackedLambda("settle-media-failure", {
+const settleMediaFailureWithSQS = new SqsBackedLambda("settle-media-failure", {
 	lambda: settleMediaFailureLambda,
 	queue: settleMediaFailureQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1438,9 +1511,42 @@ const settleMediaFailureWithSQS = new HutchSQSBackedLambda("settle-media-failure
 
 eventBus.subscribe(MediaProcessingFailedEvent, settleMediaFailureWithSQS);
 
+const recordMediaInspectionDynamodb = new DynamoDBAccess("record-media-inspection-dynamodb", {
+	tables: [{ arn: storage.mediaUploadSessionsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
+const recordMediaInspectionQueue = new Sqs("record-media-inspection", {
+	visibilityTimeoutSeconds: 30,
+});
+
+const recordMediaInspectionLambda = new Lambda("record-media-inspection", {
+	entryPoint: "./src/runtime/record-media-inspection.main.ts",
+	outputDir: ".lib/record-media-inspection",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 30,
+	environmentNames: RECORD_MEDIA_INSPECTION_ENV,
+	environment: {
+		DYNAMODB_MEDIA_UPLOAD_SESSIONS_TABLE: storage.mediaUploadSessionsTable.name,
+	},
+	policies: [...recordMediaInspectionDynamodb.policies],
+});
+
+const recordMediaInspectionWithSQS = new SqsBackedLambda("record-media-inspection", {
+	lambda: recordMediaInspectionLambda,
+	queue: recordMediaInspectionQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribeAll([MediaInspectedEvent, MediaRejectedEvent], recordMediaInspectionWithSQS, {
+	name: "hutch-record-media-inspection",
+});
+
 // --- Send First Inbox Email Notice ---
 
-const sendFirstInboxEmailNoticeDynamodb = new HutchDynamoDBAccess(
+const sendFirstInboxEmailNoticeDynamodb = new DynamoDBAccess(
 	"send-first-inbox-email-notice-dynamodb",
 	{
 		tables: [
@@ -1452,16 +1558,17 @@ const sendFirstInboxEmailNoticeDynamodb = new HutchDynamoDBAccess(
 	},
 );
 
-const sendFirstInboxEmailNoticeQueue = new HutchSQS("send-first-inbox-email-notice", {
+const sendFirstInboxEmailNoticeQueue = new Sqs("send-first-inbox-email-notice", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const sendFirstInboxEmailNoticeLambda = new HutchLambda("send-first-inbox-email-notice", {
+const sendFirstInboxEmailNoticeLambda = new Lambda("send-first-inbox-email-notice", {
 	entryPoint: "./src/runtime/send-first-inbox-email-notice.main.ts",
 	outputDir: ".lib/send-first-inbox-email-notice",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: SEND_FIRST_INBOX_EMAIL_NOTICE_ENV,
 	environment: {
 		ANALYTICS_SALT: analyticsSalt,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
@@ -1475,7 +1582,7 @@ const sendFirstInboxEmailNoticeLambda = new HutchLambda("send-first-inbox-email-
 	policies: [...sendFirstInboxEmailNoticeDynamodb.policies],
 });
 
-const sendFirstInboxEmailNoticeWithSQS = new HutchSQSBackedLambda("send-first-inbox-email-notice", {
+const sendFirstInboxEmailNoticeWithSQS = new SqsBackedLambda("send-first-inbox-email-notice", {
 	lambda: sendFirstInboxEmailNoticeLambda,
 	queue: sendFirstInboxEmailNoticeQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1486,7 +1593,7 @@ eventBus.subscribe(SendFirstInboxEmailNoticeCommand, sendFirstInboxEmailNoticeWi
 
 // --- Gmail forwarding filter worker ---
 
-const rewriteGmailFilterDynamodb = new HutchDynamoDBAccess("hutch-rewrite-gmail-filter-tables", {
+const rewriteGmailFilterDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filter-tables", {
 	tables: [
 		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
@@ -1504,21 +1611,22 @@ const rewriteGmailFilterDynamodb = new HutchDynamoDBAccess("hutch-rewrite-gmail-
 	],
 });
 
-const rewriteGmailFilterGmailHistoryDynamodb = new HutchDynamoDBAccess("hutch-rewrite-gmail-filter-gmail-history", {
+const rewriteGmailFilterGmailHistoryDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filter-gmail-history", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:Query", "dynamodb:UpdateItem"],
 });
 
-const rewriteGmailFilterQueue = new HutchSQS("rewrite-gmail-filter", {
+const rewriteGmailFilterQueue = new Sqs("rewrite-gmail-filter", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const rewriteGmailFilterLambda = new HutchLambda("rewrite-gmail-filter", {
+const rewriteGmailFilterLambda = new Lambda("rewrite-gmail-filter", {
 	entryPoint: "./src/runtime/rewrite-gmail-filter.main.ts",
 	outputDir: ".lib/rewrite-gmail-filter",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: REWRITE_GMAIL_FILTER_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
@@ -1536,7 +1644,7 @@ const rewriteGmailFilterLambda = new HutchLambda("rewrite-gmail-filter", {
 
 eventBus.grantPublish(rewriteGmailFilterLambda);
 
-const rewriteGmailFilterWithSQS = new HutchSQSBackedLambda("rewrite-gmail-filter", {
+const rewriteGmailFilterWithSQS = new SqsBackedLambda("rewrite-gmail-filter", {
 	lambda: rewriteGmailFilterLambda,
 	queue: rewriteGmailFilterQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1591,11 +1699,11 @@ new aws.cloudwatch.MetricAlarm("gmail-filter-rewrite-failed-alarm", {
 	alarmActions: [gmailFilterRewriteFailedTopic.arn],
 });
 
-const gmailNewsletterMonitoringAccess = new HutchDynamoDBAccess("hutch-gmail-newsletter-monitoring-tables", {
+const gmailNewsletterMonitoringAccess = new DynamoDBAccess("hutch-gmail-newsletter-monitoring-tables", {
 	tables: [{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem", "dynamodb:TransactWriteItems"],
 });
-const gmailNewsletterAccountRead = new HutchDynamoDBAccess("hutch-gmail-newsletter-account-read", {
+const gmailNewsletterAccountRead = new DynamoDBAccess("hutch-gmail-newsletter-account-read", {
 	tables: [
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: true },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
@@ -1604,11 +1712,11 @@ const gmailNewsletterAccountRead = new HutchDynamoDBAccess("hutch-gmail-newslett
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
-const gmailNewsletterConnectionUpdate = new HutchDynamoDBAccess("hutch-gmail-newsletter-connection-update", {
+const gmailNewsletterConnectionUpdate = new DynamoDBAccess("hutch-gmail-newsletter-connection-update", {
 	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:UpdateItem"],
 });
-const gmailNewsletterNoticeAccountRead = new HutchDynamoDBAccess("hutch-gmail-newsletter-notice-account-read", {
+const gmailNewsletterNoticeAccountRead = new DynamoDBAccess("hutch-gmail-newsletter-notice-account-read", {
 	tables: [
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
@@ -1617,13 +1725,14 @@ const gmailNewsletterNoticeAccountRead = new HutchDynamoDBAccess("hutch-gmail-ne
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
-const gmailNewsletterNoticeQueue = new HutchSQS("gmail-newsletter-notice", { visibilityTimeoutSeconds: 180, dlqMaxReceiveCount: 12 });
-const gmailNewsletterNoticeLambda = new HutchLambda("gmail-newsletter-notice", {
+const gmailNewsletterNoticeQueue = new Sqs("gmail-newsletter-notice", { visibilityTimeoutSeconds: 180, dlqMaxReceiveCount: 12 });
+const gmailNewsletterNoticeLambda = new Lambda("gmail-newsletter-notice", {
 	entryPoint: "./src/runtime/gmail-newsletter-notice.main.ts",
 	outputDir: ".lib/gmail-newsletter-notice",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: GMAIL_NEWSLETTER_NOTICE_ENV,
 	environment: {
 		ANALYTICS_SALT: analyticsSalt,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1645,7 +1754,7 @@ const gmailNewsletterNoticeLambda = new HutchLambda("gmail-newsletter-notice", {
 	],
 });
 eventBus.grantPublish(gmailNewsletterNoticeLambda);
-const gmailNewsletterNoticeWithSqs = new HutchSQSBackedLambda("gmail-newsletter-notice", {
+const gmailNewsletterNoticeWithSqs = new SqsBackedLambda("gmail-newsletter-notice", {
 	lambda: gmailNewsletterNoticeLambda,
 	queue: gmailNewsletterNoticeQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1653,13 +1762,14 @@ const gmailNewsletterNoticeWithSqs = new HutchSQSBackedLambda("gmail-newsletter-
 });
 eventBus.subscribe(SendGmailNewsletterNoticeCommand, gmailNewsletterNoticeWithSqs, { name: "hutch-gmail-newsletter-notice" });
 
-const gmailNewsletterMonitorQueue = new HutchSQS("gmail-newsletter-monitor", { visibilityTimeoutSeconds: 180, dlqMaxReceiveCount: 12 });
-const gmailNewsletterMonitorLambda = new HutchLambda("gmail-newsletter-monitor", {
+const gmailNewsletterMonitorQueue = new Sqs("gmail-newsletter-monitor", { visibilityTimeoutSeconds: 180, dlqMaxReceiveCount: 12 });
+const gmailNewsletterMonitorLambda = new Lambda("gmail-newsletter-monitor", {
 	entryPoint: "./src/runtime/gmail-newsletter-monitor.main.ts",
 	outputDir: ".lib/gmail-newsletter-monitor",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: GMAIL_NEWSLETTER_MONITOR_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_NEWSLETTER_MONITOR_QUEUE_URL: gmailNewsletterMonitorQueue.queueUrl,
@@ -1684,7 +1794,7 @@ const gmailNewsletterMonitorLambda = new HutchLambda("gmail-newsletter-monitor",
 	recursiveLoop: "Allow",
 });
 eventBus.grantPublish(gmailNewsletterMonitorLambda);
-const gmailNewsletterMonitorWithSqs = new HutchSQSBackedLambda("gmail-newsletter-monitor", {
+const gmailNewsletterMonitorWithSqs = new SqsBackedLambda("gmail-newsletter-monitor", {
 	lambda: gmailNewsletterMonitorLambda,
 	queue: gmailNewsletterMonitorQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1721,28 +1831,29 @@ new aws.scheduler.Schedule("hutch-gmail-newsletter-monitor", {
 	},
 });
 
-const gmailDiscoveryAccess = new HutchDynamoDBAccess("hutch-gmail-discovery-tables", {
+const gmailDiscoveryAccess = new DynamoDBAccess("hutch-gmail-discovery-tables", {
 	tables: [{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem"],
 });
-const gmailDiscoveryAccountRead = new HutchDynamoDBAccess("hutch-gmail-discovery-account-read", {
+const gmailDiscoveryAccountRead = new DynamoDBAccess("hutch-gmail-discovery-account-read", {
 	tables: [
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem"],
 });
-const gmailDiscoveryConnectionUpdate = new HutchDynamoDBAccess("hutch-gmail-discovery-connection-update", {
+const gmailDiscoveryConnectionUpdate = new DynamoDBAccess("hutch-gmail-discovery-connection-update", {
 	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:UpdateItem"],
 });
-const gmailDiscoveryQueue = new HutchSQS("gmail-discovery", { visibilityTimeoutSeconds: 90, dlqMaxReceiveCount: 5 });
-const gmailDiscoveryLambda = new HutchLambda("gmail-discovery", {
+const gmailDiscoveryQueue = new Sqs("gmail-discovery", { visibilityTimeoutSeconds: 90, dlqMaxReceiveCount: 5 });
+const gmailDiscoveryLambda = new Lambda("gmail-discovery", {
 	entryPoint: "./src/runtime/gmail-discovery.main.ts",
 	outputDir: ".lib/gmail-discovery",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: GMAIL_DISCOVERY_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_DISCOVERY_QUEUE_URL: gmailDiscoveryQueue.queueUrl,
@@ -1756,7 +1867,7 @@ const gmailDiscoveryLambda = new HutchLambda("gmail-discovery", {
 	recursiveLoop: "Allow",
 });
 eventBus.grantPublish(gmailDiscoveryLambda);
-const gmailDiscoveryWithSqs = new HutchSQSBackedLambda("gmail-discovery", {
+const gmailDiscoveryWithSqs = new SqsBackedLambda("gmail-discovery", {
 	lambda: gmailDiscoveryLambda,
 	queue: gmailDiscoveryQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1765,23 +1876,24 @@ const gmailDiscoveryWithSqs = new HutchSQSBackedLambda("gmail-discovery", {
 eventBus.subscribeAll([StartGmailSenderDiscoveryCommand, GmailSenderDiscoveryProgressedEvent], gmailDiscoveryWithSqs, { name: "hutch-gmail-discovery" });
 const gmailDiscoveryOwnDlq = gmailDiscoveryWithSqs.ownDlq;
 assert(gmailDiscoveryOwnDlq, "gmail-discovery owns its DLQ, so its arrival alarm has a topic to page");
-new HutchDLQEventHandler("gmail-discovery-dlq", {
+new DLQEventHandler("gmail-discovery-dlq", {
 	deadLetterQueue: gmailDiscoveryOwnDlq,
 	tableArn: storage.gmailDiscoveryTable.arn,
-	tableName: storage.gmailDiscoveryTable.name,
-	tableNameEnvVar: "DYNAMODB_GMAIL_DISCOVERY_TABLE",
+	environmentNames: GMAIL_DISCOVERY_DLQ_ENV,
+	environment: { DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name, EVENT_BUS_NAME: eventBus.eventBusName },
 	eventBus,
 	batchSize: 1,
 	additionalDynamoActions: ["dynamodb:GetItem"],
 });
 
-const newsletterCatalogSuggestionsQueue = new HutchSQS("newsletter-catalog-suggestions", { visibilityTimeoutSeconds: 90 });
-const newsletterCatalogSuggestionsLambda = new HutchLambda("newsletter-catalog-suggestions", {
+const newsletterCatalogSuggestionsQueue = new Sqs("newsletter-catalog-suggestions", { visibilityTimeoutSeconds: 90 });
+const newsletterCatalogSuggestionsLambda = new Lambda("newsletter-catalog-suggestions", {
 	entryPoint: "./src/runtime/newsletter-catalog-suggestions.main.ts",
 	outputDir: ".lib/newsletter-catalog-suggestions",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: NEWSLETTER_CATALOG_SUGGESTIONS_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
@@ -1792,7 +1904,7 @@ const newsletterCatalogSuggestionsLambda = new HutchLambda("newsletter-catalog-s
 	],
 });
 eventBus.grantPublish(newsletterCatalogSuggestionsLambda);
-const newsletterCatalogSuggestionsWithSqs = new HutchSQSBackedLambda("newsletter-catalog-suggestions", {
+const newsletterCatalogSuggestionsWithSqs = new SqsBackedLambda("newsletter-catalog-suggestions", {
 	lambda: newsletterCatalogSuggestionsLambda,
 	queue: newsletterCatalogSuggestionsQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1800,8 +1912,8 @@ const newsletterCatalogSuggestionsWithSqs = new HutchSQSBackedLambda("newsletter
 });
 eventBus.subscribe(SubmitNewsletterSenderCommand, newsletterCatalogSuggestionsWithSqs, { name: "hutch-submit-newsletter-sender" });
 
-const gmailHistoryImportFailuresDlq = new HutchSharedDlq("gmail-history-import-failures", { alertEmailDLQEntry: alertEmail });
-const gmailHistoryImportAccess = new HutchDynamoDBAccess("hutch-gmail-history-import-tables", {
+const gmailHistoryImportFailuresDlq = new SharedDlq("gmail-history-import-failures", { alertEmailDLQEntry: alertEmail });
+const gmailHistoryImportAccess = new DynamoDBAccess("hutch-gmail-history-import-tables", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
 	actions: [
 		"dynamodb:GetItem",
@@ -1812,7 +1924,7 @@ const gmailHistoryImportAccess = new HutchDynamoDBAccess("hutch-gmail-history-im
 		"dynamodb:ConditionCheckItem",
 	],
 });
-const gmailHistoryImportAccountRead = new HutchDynamoDBAccess("hutch-gmail-history-import-account-read", {
+const gmailHistoryImportAccountRead = new DynamoDBAccess("hutch-gmail-history-import-account-read", {
 	tables: [
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
@@ -1820,7 +1932,7 @@ const gmailHistoryImportAccountRead = new HutchDynamoDBAccess("hutch-gmail-histo
 	],
 	actions: ["dynamodb:GetItem"],
 });
-const gmailHistoryImportConnectionUpdate = new HutchDynamoDBAccess("hutch-gmail-history-import-connection-update", {
+const gmailHistoryImportConnectionUpdate = new DynamoDBAccess("hutch-gmail-history-import-connection-update", {
 	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:UpdateItem"],
 });
@@ -1831,17 +1943,18 @@ const gmailHistoryImportRawWrite = {
 		Statement: [{ Effect: "Allow", Action: ["s3:PutObject"], Resource: `arn:aws:s3:::${rawEmailBucketName}/gmail-import/*` }],
 	}),
 };
-const gmailHistoryImportQueue = new HutchSQS(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.pages, {
+const gmailHistoryImportQueue = new Sqs(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.pages, {
 	visibilityTimeoutSeconds: 120,
 	dlqMaxReceiveCount: 5,
 	sharedDlq: gmailHistoryImportFailuresDlq,
 });
-const gmailHistoryImportLambda = new HutchLambda("gmail-history-import", {
+const gmailHistoryImportLambda = new Lambda("gmail-history-import", {
 	entryPoint: "./src/runtime/gmail-history-import.main.ts",
 	outputDir: ".lib/gmail-history-import",
 	assetDir: "./src/runtime",
 	memorySize: 512,
 	timeout: 60,
+	environmentNames: GMAIL_HISTORY_IMPORT_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_HISTORY_IMPORT_QUEUE_URL: gmailHistoryImportQueue.queueUrl,
@@ -1863,7 +1976,7 @@ const gmailHistoryImportLambda = new HutchLambda("gmail-history-import", {
 	recursiveLoop: "Allow",
 });
 eventBus.grantPublish(gmailHistoryImportLambda);
-const gmailHistoryImportWithSqs = new HutchSQSBackedLambda("gmail-history-import", {
+const gmailHistoryImportWithSqs = new SqsBackedLambda("gmail-history-import", {
 	lambda: gmailHistoryImportLambda,
 	queue: gmailHistoryImportQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1878,20 +1991,21 @@ eventBus.subscribeAll(
 	{ name: "hutch-gmail-history-import" },
 );
 
-const gmailHistoryImportOutcomesAccess = new HutchDynamoDBAccess("hutch-gmail-history-import-outcomes-tables", {
+const gmailHistoryImportOutcomesAccess = new DynamoDBAccess("hutch-gmail-history-import-outcomes-tables", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"],
 });
-const gmailHistoryImportOutcomesQueue = new HutchSQS(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.outcomes, {
+const gmailHistoryImportOutcomesQueue = new Sqs(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.outcomes, {
 	visibilityTimeoutSeconds: 90,
 	sharedDlq: gmailHistoryImportFailuresDlq,
 });
-const gmailHistoryImportOutcomesLambda = new HutchLambda("gmail-history-import-outcomes", {
+const gmailHistoryImportOutcomesLambda = new Lambda("gmail-history-import-outcomes", {
 	entryPoint: "./src/runtime/gmail-history-import-outcomes.main.ts",
 	outputDir: ".lib/gmail-history-import-outcomes",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: GMAIL_HISTORY_IMPORT_OUTCOMES_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
@@ -1899,7 +2013,7 @@ const gmailHistoryImportOutcomesLambda = new HutchLambda("gmail-history-import-o
 	policies: [...gmailHistoryImportOutcomesAccess.policies],
 });
 eventBus.grantPublish(gmailHistoryImportOutcomesLambda);
-const gmailHistoryImportOutcomesWithSqs = new HutchSQSBackedLambda("gmail-history-import-outcomes", {
+const gmailHistoryImportOutcomesWithSqs = new SqsBackedLambda("gmail-history-import-outcomes", {
 	lambda: gmailHistoryImportOutcomesLambda,
 	queue: gmailHistoryImportOutcomesQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1907,11 +2021,11 @@ const gmailHistoryImportOutcomesWithSqs = new HutchSQSBackedLambda("gmail-histor
 });
 eventBus.subscribe(GmailHistoryImportMessageIngestedEvent, gmailHistoryImportOutcomesWithSqs, { name: "hutch-gmail-history-import-outcomes" });
 
-const gmailMessageUpdatesAccess = new HutchDynamoDBAccess("hutch-gmail-message-updates-tables", {
+const gmailMessageUpdatesAccess = new DynamoDBAccess("hutch-gmail-message-updates-tables", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query"],
 });
-const gmailMessageUpdatesAccountRead = new HutchDynamoDBAccess("hutch-gmail-message-updates-account-read", {
+const gmailMessageUpdatesAccountRead = new DynamoDBAccess("hutch-gmail-message-updates-account-read", {
 	tables: [
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
@@ -1920,17 +2034,18 @@ const gmailMessageUpdatesAccountRead = new HutchDynamoDBAccess("hutch-gmail-mess
 	actions: ["dynamodb:GetItem"],
 });
 const GMAIL_MESSAGE_UPDATES_TIMEOUT_SECONDS = 60;
-const gmailMessageUpdatesQueue = new HutchSQS(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.messageUpdates, {
+const gmailMessageUpdatesQueue = new Sqs(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.messageUpdates, {
 	visibilityTimeoutSeconds: GMAIL_MESSAGE_UPDATES_TIMEOUT_SECONDS * 2,
 	dlqMaxReceiveCount: 5,
 	sharedDlq: gmailHistoryImportFailuresDlq,
 });
-const gmailMessageUpdatesLambda = new HutchLambda("gmail-message-updates", {
+const gmailMessageUpdatesLambda = new Lambda("gmail-message-updates", {
 	entryPoint: "./src/runtime/gmail-message-update.main.ts",
 	outputDir: ".lib/gmail-message-updates",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: GMAIL_MESSAGE_UPDATES_TIMEOUT_SECONDS,
+	environmentNames: GMAIL_MESSAGE_UPDATE_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
@@ -1943,7 +2058,7 @@ const gmailMessageUpdatesLambda = new HutchLambda("gmail-message-updates", {
 	policies: [...gmailMessageUpdatesAccess.policies, ...gmailMessageUpdatesAccountRead.policies],
 });
 eventBus.grantPublish(gmailMessageUpdatesLambda);
-const gmailMessageUpdatesWithSqs = new HutchSQSBackedLambda("gmail-message-updates", {
+const gmailMessageUpdatesWithSqs = new SqsBackedLambda("gmail-message-updates", {
 	lambda: gmailMessageUpdatesLambda,
 	queue: gmailMessageUpdatesQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1958,11 +2073,11 @@ eventBus.subscribeAll(
 	{ name: "hutch-gmail-message-updates" },
 );
 
-const gmailMarkBackfillAccess = new HutchDynamoDBAccess("hutch-gmail-mark-backfill-tables", {
+const gmailMarkBackfillAccess = new DynamoDBAccess("hutch-gmail-mark-backfill-tables", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
-const gmailMarkBackfillAccountRead = new HutchDynamoDBAccess("hutch-gmail-mark-backfill-account-read", {
+const gmailMarkBackfillAccountRead = new DynamoDBAccess("hutch-gmail-mark-backfill-account-read", {
 	tables: [
 		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
@@ -1971,25 +2086,26 @@ const gmailMarkBackfillAccountRead = new HutchDynamoDBAccess("hutch-gmail-mark-b
 	],
 	actions: ["dynamodb:GetItem"],
 });
-const gmailMarkBackfillConnectionUpdate = new HutchDynamoDBAccess("hutch-gmail-mark-backfill-connection-update", {
+const gmailMarkBackfillConnectionUpdate = new DynamoDBAccess("hutch-gmail-mark-backfill-connection-update", {
 	tables: [{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:UpdateItem"],
 });
-const gmailMarkBackfillInboxEmailsRead = new HutchDynamoDBAccess("hutch-gmail-mark-backfill-inbox-emails-read", {
+const gmailMarkBackfillInboxEmailsRead = new DynamoDBAccess("hutch-gmail-mark-backfill-inbox-emails-read", {
 	tables: [{ arn: inboxTableArn(tableNames.inboxEmails), includeIndexes: false }],
 	actions: ["dynamodb:Query"],
 });
-const gmailMarkBackfillQueue = new HutchSQS(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.markBackfill, {
+const gmailMarkBackfillQueue = new Sqs(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.markBackfill, {
 	visibilityTimeoutSeconds: 120,
 	dlqMaxReceiveCount: 5,
 	sharedDlq: gmailHistoryImportFailuresDlq,
 });
-const gmailMarkBackfillLambda = new HutchLambda("gmail-mark-backfill", {
+const gmailMarkBackfillLambda = new Lambda("gmail-mark-backfill", {
 	entryPoint: "./src/runtime/gmail-mark-backfill.main.ts",
 	outputDir: ".lib/gmail-mark-backfill",
 	assetDir: "./src/runtime",
 	memorySize: 512,
 	timeout: 60,
+	environmentNames: GMAIL_MARK_BACKFILL_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_MARK_BACKFILL_QUEUE_URL: gmailMarkBackfillQueue.queueUrl,
@@ -2012,7 +2128,7 @@ const gmailMarkBackfillLambda = new HutchLambda("gmail-mark-backfill", {
 	recursiveLoop: "Allow",
 });
 eventBus.grantPublish(gmailMarkBackfillLambda);
-const gmailMarkBackfillWithSqs = new HutchSQSBackedLambda("gmail-mark-backfill", {
+const gmailMarkBackfillWithSqs = new SqsBackedLambda("gmail-mark-backfill", {
 	lambda: gmailMarkBackfillLambda,
 	queue: gmailMarkBackfillQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -2027,11 +2143,11 @@ eventBus.subscribeAll(
 	{ name: "hutch-gmail-mark-backfill" },
 );
 
-const gmailHistoryImportDlqHandler = new HutchDLQEventHandler("gmail-history-import-dlq", {
+const gmailHistoryImportDlqHandler = new DLQEventHandler("gmail-history-import-dlq", {
 	deadLetterQueue: gmailHistoryImportFailuresDlq,
 	tableArn: storage.gmailHistoryImportsTable.arn,
-	tableName: storage.gmailHistoryImportsTable.name,
-	tableNameEnvVar: "DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE",
+	environmentNames: GMAIL_HISTORY_IMPORT_DLQ_ENV,
+	environment: { DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name, EVENT_BUS_NAME: eventBus.eventBusName },
 	eventBus,
 	batchSize: 1,
 	additionalDynamoActions: ["dynamodb:GetItem", "dynamodb:TransactWriteItems"],
@@ -2307,16 +2423,17 @@ const analyticsFailurePolicy = {
 	),
 };
 
-const oauthHistoryRead = new HutchDynamoDBAccess("oauth-history-read", {
+const oauthHistoryRead = new DynamoDBAccess("oauth-history-read", {
 	tables: [{ arn: storage.oauthTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem"],
 });
-const forwardAnalyticsLambda = new HutchLambda(FORWARD_ANALYTICS_LAMBDA_NAME, {
+const forwardAnalyticsLambda = new Lambda(FORWARD_ANALYTICS_LAMBDA_NAME, {
 	entryPoint: "./src/runtime/forward-analytics.main.ts",
 	outputDir: ".lib/forward-analytics",
 	assetDir: "./src/runtime",
 	memorySize: 128,
 	timeout: 30,
+	environmentNames: FORWARD_ANALYTICS_ENV,
 	environment: {
 		DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name,
 		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
@@ -2407,7 +2524,7 @@ new aws.cloudwatch.MetricAlarm("forward-analytics-destination-delivery-alarm", {
 });
 
 // One wildcard grant rather than a statement per source group. Now that
-// HutchLambda attaches a filter to every log group it creates, enumerating the
+// Lambda attaches a filter to every log group it creates, enumerating the
 // sources here would mean ~53 statements in one function policy — approaching the
 // 20KB policy limit — and would put concurrent AddPermission calls on a single
 // policy document across a parallel, fail-fast:false deploy matrix, which is a
@@ -2426,10 +2543,10 @@ new aws.lambda.Permission("forward-analytics-invoke-any-log-group", {
 });
 
 // The per-group subscription filters that used to live here are gone: every
-// HutchLambda now attaches its own, so the list, its drift guard, and the
+// Lambda now attaches its own, so the list, its drift guard, and the
 // blog-site special case all had nothing left to guard.
 
-// Each subscription Lambda now owns its log group (HutchLambda), but those
+// Each subscription Lambda now owns its log group (Lambda), but those
 // Lambdas only run after a trial ends — so until the first trial-end charge
 // fires in a stack, AWS has never written to those groups. Depending on the
 // Lambdas orders their managed groups ahead of this dashboard, so its Logs
@@ -2471,7 +2588,6 @@ new aws.cloudwatch.Dashboard("readplace-related-past-reads", {
 	),
 }, { dependsOn: [analyticsLogGroup] });
 
-
 // --- Exports ---
 
 export const apiUrl: pulumi.Input<string> = canonicalDomain ? `https://${canonicalDomain}` : gateway.apiUrl;
@@ -2482,19 +2598,19 @@ export const apiGatewayExecutionArn = gateway.apiGatewayExecutionArn;
 export const staticBaseUrl = staticAssets.baseUrl;
 export const _dependencies = [gateway.defaultRoute];
 
-
-const evaluateRefreshQueue = new HutchSQS("evaluate-oauth-refresh", { visibilityTimeoutSeconds: 180 });
-const evaluateRefreshRead = new HutchDynamoDBAccess("evaluate-oauth-refresh-read", {
+const evaluateRefreshQueue = new Sqs("evaluate-oauth-refresh", { visibilityTimeoutSeconds: 180 });
+const evaluateRefreshRead = new DynamoDBAccess("evaluate-oauth-refresh-read", {
 	tables: [{ arn: oauthOutcomes.arn, includeIndexes: false }], actions: ["dynamodb:Query"],
 });
-const evaluateRefreshLambda = new HutchLambda("evaluate-oauth-refresh", {
+const evaluateRefreshLambda = new Lambda("evaluate-oauth-refresh", {
 	entryPoint: "./src/runtime/evaluate-oauth-refresh.main.ts", outputDir: ".lib/evaluate-oauth-refresh", assetDir: "./src/runtime",
 	memorySize: 256, timeout: 30,
+	environmentNames: EVALUATE_OAUTH_REFRESH_ENV,
 	environment: { EVENT_BUS_NAME: eventBus.eventBusName, DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name, OAUTH_TEST_GRANTS: JSON.stringify(config.requireObject("oauthTestGrants")) },
 	policies: [...evaluateRefreshRead.policies, { name: "oauth-refresh-metrics", policy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "cloudwatch:PutMetricData", Resource: "*", Condition: { StringEquals: { "cloudwatch:namespace": "Readplace/OAuth" } } }] }) }],
 });
 eventBus.grantPublish(evaluateRefreshLambda);
-new HutchSQSBackedLambda("evaluate-oauth-refresh", { lambda: evaluateRefreshLambda, queue: evaluateRefreshQueue, alertEmailDLQEntry: alertEmail, batchSize: 1 });
+new SqsBackedLambda("evaluate-oauth-refresh", { lambda: evaluateRefreshLambda, queue: evaluateRefreshQueue, alertEmailDLQEntry: alertEmail, batchSize: 1 });
 const evaluateRefreshRole = new aws.iam.Role("evaluate-oauth-refresh-scheduler", {
 	assumeRolePolicy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Principal: { Service: "scheduler.amazonaws.com" }, Action: "sts:AssumeRole" }] }),
 });

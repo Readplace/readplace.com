@@ -1,7 +1,7 @@
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import { type AnalyticsEvent, MCP_UA_CLIENTS, type RecordUngatedEvent } from "@packages/web-analytics";
 import { initRecordMcpHandshake, initRecordMcpToolCall } from "./mcp-analytics";
-import type { McpToolCallRecord } from "./mcp-server";
+import type { McpToolCallRecord } from "./mcp-ports.types";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 

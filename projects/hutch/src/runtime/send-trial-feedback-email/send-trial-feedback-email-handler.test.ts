@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import type { MarkAutomationSavesHeldEmailSent } from "@packages/provider-contracts/subscription-providers";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryEmail } from "@packages/test-fixtures/providers/email";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import type { FindArticlesByUser } from "@packages/test-fixtures/providers/article-store";
@@ -73,7 +73,7 @@ interface SubjectOverrides {
 	articlesTotal?: number;
 	now?: Date;
 	markAutomationSavesHeldEmailSent?: MarkAutomationSavesHeldEmailSent;
-	logger?: HutchLogger;
+	logger?: Logger;
 	sendEmail?: SendTrialFeedbackEmailDeps["sendEmail"];
 }
 
@@ -104,7 +104,7 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		appOrigin: "https://readplace.com",
 		now: () => now,
-		logger: overrides.logger ?? HutchLogger.from(noopLogger),
+		logger: overrides.logger ?? Logger.from(noopLogger),
 		emitLifecycleEmailSent: initEmitLifecycleEmailSent({
 			logger: { info: captureLifecycleEvent, error: captureLifecycleEvent, warn: captureLifecycleEvent, debug: captureLifecycleEvent },
 			now: () => now,
@@ -468,7 +468,7 @@ describe("send-trial-feedback-email handler", () => {
 			founderAvatarUrl: FOUNDER_AVATAR_URL,
 			appOrigin: "https://readplace.com",
 			now: () => SENT_AT,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			emitLifecycleEmailSent: () => {},
 		});
 
@@ -637,7 +637,7 @@ describe("send-trial-feedback-email handler", () => {
 			const subject = buildSubject({
 				articlesTotal: 3,
 				now: new Date("2026-06-18T00:00:00.000Z"),
-				logger: HutchLogger.from({ ...noopLogger, info }),
+				logger: Logger.from({ ...noopLogger, info }),
 			});
 			await seedFutureTrial(subject.providers);
 			const claim = await subject.providers.claimPayDigest({
@@ -1110,7 +1110,7 @@ describe("trial nudge dispatch", () => {
 	for (const kind of ["trial_day3", "trial_day7"]) {
 		it(`routes ${kind} to its own sender`, async () => {
 			const info = jest.fn();
-			const subject = buildSubject({ logger: HutchLogger.from({ ...noopLogger, info }) });
+			const subject = buildSubject({ logger: Logger.from({ ...noopLogger, info }) });
 
 			await subject.handler(
 				buildSqsEvent([{ messageId: "msg-nudge", body: JSON.stringify({ detail: { userId: USER_ID, kind } }) }]),

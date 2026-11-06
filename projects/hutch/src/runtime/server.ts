@@ -1,6 +1,7 @@
 import type { RequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
+import { initKeepOffer } from "./domain/engagement/keep-offer";
 import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
-import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
+import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 import { initAuthDiagnosticMiddleware } from "./auth-diagnostics/middleware";
@@ -8,7 +9,6 @@ import { initIngestAuthDiagnostics } from "./auth-diagnostics/ingest";
 import { initRecordImportRequest } from "./domain/engagement/record-import-request";
 import { captureOAuthBody } from "./oauth-refresh/request-body";
 import { refreshContext } from "./oauth-refresh/evidence";
-import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -17,6 +17,7 @@ import cors from "cors";
 import type { Express, NextFunction, Request, Response } from "express";
 import express from "express";
 import { isbot } from "isbot";
+import { ignoreLogLine } from "./web/ignore-log-line";
 import type { ClientNameInGroup } from "@packages/supported-clients";
 import type {
 	CountEarlyIntentionalSave,
@@ -41,6 +42,8 @@ import type {
 	FindSessionOAuthGrant,
 	SetSessionReadlistFilter,
 	SaveAppleRefreshToken,
+	MarkActivationThresholdReached,
+	SetKeepOfferDismissed,
 	SetQueueDigestOptOut,
 	SetUserAppearance,
 	SetUserDisplayName,
@@ -136,7 +139,6 @@ import type {
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
-	SetReadlistDefinitionEmailDelivery,
 	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
@@ -219,7 +221,7 @@ import type {
 	ValidateAccessToken,
 	ValidateOAuthRedirectUri,
 } from "@packages/provider-contracts/oauth";
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 import {
 	type AnalyticsEvent,
 	createClickAttributionMiddleware,
@@ -247,10 +249,6 @@ import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initBrowserHandoffRoutes } from "./web/auth/browser-handoff.page";
 import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
 import { initUnrouteInboxesOnReadlistDelete } from "./domain/readlist/unroute-inboxes-on-readlist-delete";
-import {
-	ChromelessReader,
-	WebReader,
-} from "./web/shared/article-body/reader-actions/reader-actions.component";
 import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import { initUploadRouter, UPLOAD_OUTCOME_HTML } from "./web/pages/upload/upload.page";
@@ -263,6 +261,7 @@ import type {
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
 	MintMediaPendingPost,
+	PresignMediaImage,
 	PublishMediaUploadCommitted,
 	ReadMediaPendingPrefix,
 } from "@packages/domain";
@@ -272,11 +271,9 @@ import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
-import { newSaveAttemptId, type ValidateSaveableUrl, withNewSavePreparation, withPrivateItemRefusal } from "@packages/domain/article";
+import { type ValidateSaveableUrl, withNewSavePreparation, withPrivateItemRefusal } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
-import { initAdminExtendTrialRoutes } from "./web/pages/admin/extend-trial.page";
-import { initAdminFounderNotesRoutes } from "./web/pages/admin/founder-notes.page";
-import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
+import { initAdminRoutes } from "./web/pages/admin/admin.routes";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initQueueDigestUnsubscribeRoutes } from "./web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page";
 import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
@@ -287,18 +284,21 @@ import { initAccountPasswordRoutes } from "./web/pages/account/account-password.
 import { ACCOUNT_PASSWORD_URL, ACCOUNT_PLANS_URL } from "./web/pages/account/account.url";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
-import { initRecordMcpHandshake, initRecordMcpToolCall } from "./web/mcp/mcp-analytics";
-import { initMcpArticleOperations } from "./web/mcp/article-operations";
+import { mcpServerDependenciesFrom } from "./web/mcp/mcp.wiring";
+import { readlistDependenciesFrom } from "./web/pages/readlist/readlist.wiring";
+import { importSessionDependenciesFrom } from "./web/pages/import/import.wiring";
+import { viewDependenciesFrom } from "./web/pages/view/view.wiring";
+import { accountDependenciesFrom } from "./web/pages/account/account.wiring";
 import { initResolveOwnedArticle } from "./web/mcp/article-lookup";
 import { initResolveReadlistMembership } from "./web/mcp/readlist-membership";
 import { initMcpReadlistOperations } from "./web/mcp/readlist-operations";
-import { DEFAULT_READLIST_SLUG, generateReadlistSlug } from "@packages/domain/readlist";
+import { generateReadlistSlug } from "@packages/domain/readlist";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
 import { MCP_RESOURCE_METADATA_PATH, MCP_RESOURCE_PATH } from "./web/mcp/protocol";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { initResolveToolAccess } from "./web/mcp/tool-access";
-import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl, withSyntacticUnwrap, type ResolveSaveIdentity, type ResolveWrapperTarget } from "@packages/save-article";
+import { initAddArticleToReadlist, initFileArticleIntoReadlist, initUpsertReadlist, initSaveArticleAtReadlistTop, initSaveArticleFromUrl, type ResolveSaveIdentity, type ResolveWrapperTarget } from "@packages/save-article";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkdownBearerAuth } from "./web/markdown-bearer-auth.middleware";
@@ -347,26 +347,13 @@ import { UPLOAD_ENTRY_HREFS } from "./web/pages/upload/upload-entry-ctas";
 import { isAppShell, nativeSurfaceOf } from "./web/onboarding/native-client";
 import { APP_BACK_LINK } from "./web/shared/native-app-links";
 import { initResolveMcpSaveProvenance } from "./web/shared/save-provenance";
-import {
-	initResolveReaderProvenance,
-	initResolveReaderProvenances,
-} from "./web/shared/article-body/article-header/resolve-reader-provenance";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes, type FetchFirefoxDownloadUrl } from "./web/pages/install";
 import { initIntegrationsRoutes } from "./web/pages/integrations";
 import type { GmailIntegrationProviders } from "./web/pages/integrations/gmail-integration.types";
-import { initAdminIndexHandlers } from "./web/pages/admin/admin-index.page";
-import { initAdminNewslettersRoutes } from "./web/pages/admin/admin-newsletters.page";
-import { initAdminCanaryReportRoutes } from "./web/pages/admin/canary-report.page";
-import { initAdminDashboardsRoutes } from "./web/pages/admin/admin-dashboards.page";
-import { ADMIN_DASHBOARDS_PATH } from "./web/pages/admin/admin-dashboards.url";
-import { buildAdminDashboards } from "./observability/admin-dashboards";
-import { ANALYTICS_LOG_GROUP } from "./observability/events";
-import { AUTH_DIAGNOSTICS_LOG_GROUP } from "./auth-diagnostics/dashboard";
 import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import { initMoveGmailMappingsOnReadlistDelete } from "./domain/gmail/move-gmail-mappings-on-readlist-delete";
-import { initUpdateNewsletterCatalog } from "./domain/newsletter-catalog/update-newsletter-catalog";
 import { initListConnectedOAuthClients } from "./domain/oauth/connected-oauth-clients";
 import {
 	type NewsletterCatalogSeed,
@@ -374,7 +361,7 @@ import {
 	initNewsletterDetectorChain,
 } from "@packages/domain/newsletter-catalog";
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
-import { CANARY_REPORTS_PATH, type FindCanaryReport } from "@packages/provider-contracts/canary-report";
+import type { FindCanaryReport } from "@packages/provider-contracts/canary-report";
 import { LANDING_PAGE_CONTENT, LandingPage, landingPageLastModified } from "./web/pages/landing-pages";
 import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { NotFoundPage } from "./web/pages/not-found";
@@ -387,9 +374,7 @@ import "./web/session.types";
 
 export const PORT = requireEnv("PORT");
 
-const noop = () => {};
-
-interface AppDependencies {
+export interface AppDependencies {
 	recordEngagementActivity: RecordEngagementActivity;
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
@@ -418,6 +403,10 @@ interface AppDependencies {
 	findSessionOAuthGrant: FindSessionOAuthGrant;
 	findUserById: FindUserById;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
+	markActivationThresholdReached: MarkActivationThresholdReached;
+	setKeepOfferDismissed: SetKeepOfferDismissed;
+	keepOfferCouponId: string;
+	keepOfferEndsAt: Date;
 	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
@@ -474,7 +463,6 @@ interface AppDependencies {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
-	setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
@@ -575,6 +563,7 @@ interface AppDependencies {
 	mintMediaPendingPost: MintMediaPendingPost;
 	headMediaPendingOriginal: HeadMediaPendingOriginal;
 	readMediaPendingPrefix: ReadMediaPendingPrefix;
+	presignMediaImage: PresignMediaImage;
 	publishMediaUploadCommitted: PublishMediaUploadCommitted;
 	mintUploadId: () => UploadId;
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
@@ -620,12 +609,12 @@ interface AppDependencies {
 	};
 	resolvePriceId: ResolvePriceId;
 	stripePublishableKey: string | undefined;
-	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
-	conversionLogger: HutchLogger.Typed<ConversionEvent>;
-	subscriptionLogger: HutchLogger.Typed<SubscriptionLogEvent>;
-	funnelLogger: HutchLogger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
-	authDiagnosticsLogger: HutchLogger.Typed<Record<string, unknown>>;
+	botDefenseLogger: Logger.Typed<BotDefenseEvent>;
+	conversionLogger: Logger.Typed<ConversionEvent>;
+	subscriptionLogger: Logger.Typed<SubscriptionLogEvent>;
+	funnelLogger: Logger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
+	analytics: Logger.Typed<AnalyticsEvent>;
+	authDiagnosticsLogger: Logger.Typed<Record<string, unknown>>;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
@@ -716,7 +705,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findUserById: deps.findUserById,
 		now: deps.now,
 	});
-	const resolveToolAccess = initResolveToolAccess({ getEffectiveAccess });
+	const resolveToolAccess = initResolveToolAccess({ getEffectiveAccess, appOrigin });
 	const resolveMcpSaveProvenance = initResolveMcpSaveProvenance({
 		findOAuthClient: deps.findOAuthClient,
 	});
@@ -771,94 +760,19 @@ export function createApp(dependencies: AppDependencies): Express {
 		resolveOwnedArticle,
 		resolveReadlistMembership,
 	});
-	const mcpServer = initMcpServer({
+	const mcpServer = initMcpServer(mcpServerDependenciesFrom(deps, {
 		appOrigin,
 		resolveToolAccess,
-		listReadlists: readlistOperations.listReadlists,
-		createReadlist: async (params) => {
-			const access = await resolveSaveAccess(params.userId);
-			if (!access.allowed) return { status: "access_denied", message: access.message };
-			return readlistOperations.createReadlist(params);
-		},
-		addToReadlist: async (params) => {
-			const access = await resolveSaveAccess(params.userId);
-			if (!access.allowed) return { status: "access_denied", message: access.message };
-			return readlistOperations.addToReadlist(params);
-		},
-		recordToolCall: initRecordMcpToolCall({
-			recordUngatedAnalyticsEvent,
-			now: deps.now,
-		}),
-		recordHandshake: initRecordMcpHandshake({
-			recordUngatedAnalyticsEvent,
-			now: deps.now,
-		}),
-		logError: deps.logError,
-		saveLink: async ({ userId, url, readlists, oauthClientId }) => {
-			const access = await resolveSaveAccess(userId);
-			if (!access.allowed) {
-				return { ok: false, message: access.message };
-			}
-			const validation = validateNewSaveUrl(url);
-			if (validation.status === "ERROR") {
-				return { ok: false, message: validation.error.message };
-			}
-			try {
-				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				const provenance = await resolveMcpSaveProvenance(oauthClientId);
-				const saveAttemptId = newSaveAttemptId();
-				if (freshness.action === "unresolved") {
-					for (const readlist of new Set([DEFAULT_READLIST_SLUG, ...readlists])) {
-						await deps.publishSubmitLink({ userId, url: validation.url, readlist, provenance, saveTrigger: "manual", saveAttemptId });
-					}
-					return { ok: true, pending: true };
-				}
-				const { saved } = await saveArticleAtReadlistTop({
-					saveAttemptId,
-					userId,
-					url: validation.url,
-					freshness,
-					provenance,
-					saveTrigger: "manual",
-				});
-				for (const readlist of readlists) {
-					if (readlist === DEFAULT_READLIST_SLUG) continue;
-					await fileArticleIntoReadlist({ userId, readlist, article: saved, provenance });
-				}
-				const membership = await resolveReadlistMembership({ userId, urls: [saved.url] });
-				const filedInto = membership.get(saved.url);
-				assert(filedInto, "a saved article must have readlist membership");
-				return {
-					ok: true,
-					id: saved.id.value,
-					title: saved.metadata.title,
-					filedInto,
-				};
-			} catch (error) {
-				deps.logError(
-					"MCP save_link failed",
-					error instanceof Error ? error : undefined,
-				);
-				return {
-					ok: false,
-					message: `Could not save the link — something went wrong on Readplace's side. Try again in a moment, or save it from your readlist at ${dependencies.baseUrl}/queue.`,
-				};
-			}
-		},
-		...initMcpArticleOperations({
-			resolveOwnedArticle,
-			resolveReadlistMembership,
-			findReadlistArticles: deps.findReadlistArticles,
-			findArticlesByUser: deps.findArticlesByUser,
-			findArticlesAcrossReadlists: deps.findArticlesAcrossReadlists,
-			readArticleContent: deps.readArticleContent,
-			findGeneratedSummary: deps.findGeneratedSummary,
-			findRelatedArticles: deps.findRelatedArticles,
-			updateArticleStatusAcrossReadlists: deps.updateArticleStatusAcrossReadlists,
-			recordEngagementActivity: deps.recordEngagementActivity,
-			now: deps.now,
-		}),
-	});
+		readlistOperations,
+		resolveSaveAccess,
+		recordUngatedAnalyticsEvent,
+		validateNewSaveUrl,
+		resolveMcpSaveProvenance,
+		saveArticleAtReadlistTop,
+		fileArticleIntoReadlist,
+		resolveReadlistMembership,
+		resolveOwnedArticle,
+	}));
 
 	const secureCookies = isHttpsOrigin(appOrigin);
 
@@ -906,10 +820,10 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(contentSignalMiddleware);
 	app.use(linkHeaderMiddleware);
 
-	const sessionLogger = HutchLogger.from({
-		info: noop,
-		warn: noop,
-		debug: noop,
+	const sessionLogger = Logger.from({
+		info: ignoreLogLine,
+		warn: ignoreLogLine,
+		debug: ignoreLogLine,
 		error: (...args) => deps.logError(String(args[0])),
 	});
 	const resolveLogin = initResolveLogin({ getSessionUserId, logger: sessionLogger });
@@ -939,7 +853,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use(resolveVerificationStatus);
 
-	const markExtensionInstalled = initMarkExtensionInstalled();
+	const markExtensionInstalled = initMarkExtensionInstalled({ secureCookies });
 	app.use(markExtensionInstalled);
 
 	const requireWriteAccess = initRequireWriteAccess({
@@ -1531,121 +1445,30 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	const readerProvenanceNewsletters = initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog });
 
-	const queueRouter = initReadlistRoutes({
-		setSessionReadlistFilter: deps.setSessionReadlistFilter,
-		findSessionReadlistFilter: deps.findSessionReadlistFilter,
-		validateSaveableUrl: deps.validateSaveableUrl,
+	const keepOffer = initKeepOffer({ findUserById: deps.findUserById, getEffectiveAccess, now: deps.now, endsAt: deps.keepOfferEndsAt });
+
+	const queueRouter = initReadlistRoutes(readlistDependenciesFrom(deps, {
+		keepOffer,
 		validateNewSaveUrl,
 		appOrigin,
 		secureCookies,
-		findUserById: deps.findUserById,
-		findArticlesByUser: deps.findArticlesByUser,
-		countArticlesByUser: deps.countArticlesByUser,
-		findArticleById: deps.findArticleById,
-		findArticleByUrl: deps.findArticleByUrl,
-		findItemOwner: deps.findItemOwner,
-		findArticleFreshness: deps.findArticleFreshness,
-		findArticleCrawlVersions: deps.findArticleCrawlVersions,
-		findArticleUrlById: deps.findArticleUrlById,
-		saveArticle: deps.saveArticle,
 		saveArticleWithoutActivity: providers.saveArticle,
-		saveArticleKeepingPosition: deps.saveArticleKeepingPosition,
-		deleteArticle: deps.deleteArticle,
-		updateArticleStatus: deps.updateArticleStatus,
-		markArticleViewed: deps.markArticleViewed,
-		findReadlistArticles: deps.findReadlistArticles,
-		countReadlistArticles: deps.countReadlistArticles,
-		findReadlistArticleById: deps.findReadlistArticleById,
-		updateArticleStatusAcrossReadlists: deps.updateArticleStatusAcrossReadlists,
-		deleteReadlistArticle: deps.deleteReadlistArticle,
-		markReadlistArticleViewed: deps.markReadlistArticleViewed,
-		listUserSavesForUrl: deps.listUserSavesForUrl,
-		listUserSavesForUrls: deps.listUserSavesForUrls,
 		addArticleToReadlist,
 		fileArticleIntoReadlist,
 		upsertReadlist,
-		moveReadlistArticles: deps.moveReadlistArticles,
-		listReadlistDefinitions: deps.listReadlistDefinitions,
-		renameReadlistDefinition: deps.renameReadlistDefinition,
-		setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
-		setReadlistDefinitionEmailDelivery: deps.setReadlistDefinitionEmailDelivery,
-		clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 		deleteReadlistDefinition,
-		purgeReadlistFitOverrides: deps.purgeReadlistFitOverrides,
-		listReadlistFitOverrides: deps.listReadlistFitOverrides,
-		deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
-		listInboxAddresses: deps.listInboxAddresses,
-		setInboxAddressReadlist: deps.setInboxAddressReadlist,
-		markSummaryToggled: deps.markSummaryToggled,
-		recordEngagementActivity: deps.recordEngagementActivity,
-		markRelatedDismissed: deps.markRelatedDismissed,
-		publishLinkSaved: deps.publishLinkSaved,
-		publishLinkQueued: deps.publishLinkQueued,
-		publishLinkDequeued: deps.publishLinkDequeued,
-		publishQueueEntryCreated: deps.publishQueueEntryCreated,
-		publishComputeRelatedPastReads: deps.publishComputeRelatedPastReads,
-		publishComputeRelatedPasses: deps.publishComputeRelatedPasses,
-		requestResolutionOnView: deps.requestResolutionOnView,
-		readRelatedPassRequestState: deps.readRelatedPassRequestState,
-		markRelatedPassesRequested: deps.markRelatedPassesRequested,
-		findRelatedArticles: deps.findRelatedArticles,
-		findPastReads: deps.findPastReads,
-		listIssueLinks: deps.listIssueLinks,
-		findIssueLink: deps.findIssueLink,
-		findIssueLinkSaveStates: deps.findIssueLinkSaveStates,
-		resolveReaderProvenance: initResolveReaderProvenance({ detectNewsletters: readerProvenanceNewsletters }),
-		resolveReaderProvenances: initResolveReaderProvenances({ detectNewsletters: readerProvenanceNewsletters }),
-		publishRemoveMyContent: deps.publishRemoveMyContent,
-		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
-		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,
-		putPendingHtml: deps.putPendingHtml,
-		putPendingPdf: deps.putPendingPdf,
-		createUploadSlot: deps.createUploadSlot,
-		statPendingUpload: deps.statPendingUpload,
-		readPendingUploadPrefix: deps.readPendingUploadPrefix,
-		findGeneratedSummary: deps.findGeneratedSummary,
-		findGeneratedSummaries: deps.findGeneratedSummaries,
-		markSummaryPending: deps.markSummaryPending,
-		findArticleCrawlStatus: deps.findArticleCrawlStatus,
-		findArticleCrawlStatuses: deps.findArticleCrawlStatuses,
-		markCrawlPending: deps.markCrawlPending,
-		refreshArticleIfStale: deps.refreshArticleIfStale,
-		refreshArticleIfStaleStored: deps.refreshArticleIfStaleStored,
-		publishSubmitLink: deps.publishSubmitLink,
-		allocateSavedAt: deps.allocateSavedAt,
-		allocateSavedAtSequence: deps.allocateSavedAtSequence,
-		findSavedUrls: deps.findSavedUrls,
-		resolveSaveIdentity: deps.resolveFirstVisitIdentity,
-		pinContentSource: deps.pinContentSource,
-		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
-		readArticleContent: deps.readArticleContent,
-		webReader: WebReader,
-		chromelessReader: ChromelessReader,
-		httpErrorMessageMapping: deps.httpErrorMessageMapping,
-		getOnboardingSignals: deps.getOnboardingSignals,
-		recordNativeAppAnyActivity: deps.recordNativeAppAnyActivity,
-		recordNativeAppSavedArticle: deps.recordNativeAppSavedArticle,
-		recordNextReadMinimumReached: deps.recordNextReadMinimumReached,
-		recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
-		recordGmailStepDismissed: deps.recordGmailStepDismissed,
-		findGmailConnectionByUserId: gmailIntegration?.gmailConnectionStore.findConnectionByUserId,
-		gmail: gmailIntegration,
-		recordOnboardingOutstandingVersion: deps.recordOnboardingOutstandingVersion,
-		recordMarkReadAcrossQueuesAcknowledged: deps.recordMarkReadAcrossQueuesAcknowledged,
-		recordDeleteArticleAcknowledged: deps.recordDeleteArticleAcknowledged,
-		dualAuth: dualAuthMiddleware,
+		readerProvenanceNewsletters,
+		gmailIntegration,
+		dualAuthMiddleware,
 		markdownBearerAuth,
 		resolveOwnedArticle,
 		resolveVerificationStatus,
 		requireWriteAccess,
 		getEffectiveAccess,
 		buildBannerState,
-		logError: deps.logError,
 		recordAnalyticsEvent,
 		recordUngatedAnalyticsEvent,
-		salt: deps.salt,
-		now: deps.now,
-	});
+	}));
 	/** `dualAuthMiddleware` is applied INSIDE the queue router rather than at this
 	 * mount so that `GET /queue/:id/view` (and its legacy `/read` redirect) can
 	 * stay publicly reachable. Shared reader permalinks (people copy them from
@@ -1653,36 +1476,16 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * `/view/<url>` instead of bouncing them to /login. */
 	app.use(READLIST_PATH, stampOfflineOwner, extensionCors, queueRouter);
 
-	const importRouter = initImportSessionRoutes({
+	const importRouter = initImportSessionRoutes(importSessionDependenciesFrom(deps, {
 		validateNewSaveUrl,
 		secureCookies,
-		importSessionStore: deps.importSessionStore,
-		extractLinksFromPageUrl: deps.extractLinksFromPageUrl,
-		saveArticle: providers.saveArticle,
-		recordEngagementActivity: deps.recordEngagementActivity,
-		updateArticleStatus: deps.updateArticleStatus,
-		markCrawlPending: deps.markCrawlPending,
-		markSummaryPending: deps.markSummaryPending,
-		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
-		publishLinkSaved: deps.publishLinkSaved,
-		publishLinkQueued: deps.publishLinkQueued,
-		publishQueueEntryCreated: deps.publishQueueEntryCreated,
-		refreshArticleIfStale: deps.refreshArticleIfStaleStored,
-		publishSubmitLink: deps.publishSubmitLink,
-		allocateSavedAtSequence: deps.allocateSavedAtSequence,
-		pinContentSource: deps.pinContentSource,
-		logError: deps.logError,
+		saveArticleWithoutActivity: providers.saveArticle,
 		recordAnalyticsEvent,
 		recordUngatedAnalyticsEvent,
-		salt: deps.salt,
-		now: deps.now,
 		buildBannerState,
 		requireNotLocked,
 		requireWriteAccess,
-		consumeRateLimit: deps.consumeRateLimit,
-		importRateLimit: deps.rateLimitRules.import,
-		importFromUrlRateLimit: deps.rateLimitRules.importFromUrl,
-	});
+	}));
 	/** Public on purpose: a logged-out visitor can upload, review, and toggle a
 	 * selection before being asked to sign up. Auth is enforced only at commit
 	 * (the sole content-creating route), where `redirectAnonymousToSignup` and the
@@ -1715,136 +1518,16 @@ export function createApp(dependencies: AppDependencies): Express {
 	const saveRouter = initSaveRoutes({ buildBannerState, recordAnalyticsEvent, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID, ownHost });
 	app.use("/save", saveRouter);
 
-	const viewRouter = initViewRoutes({
-		validateSaveableUrl: deps.validateSaveableUrl,
+	const viewRouter = initViewRoutes(viewDependenciesFrom(deps, {
 		appOrigin,
 		ownHost,
 		secureCookies,
-		findArticleByUrl: deps.findArticleByUrl,
-		findItemOwner: deps.findItemOwner,
-		findArticleFreshness: deps.findArticleFreshness,
-		findArticleCrawlVersions: deps.findArticleCrawlVersions,
-		readArticleContent: deps.readArticleContent,
-		readArticleImage: deps.readArticleImage,
-		logError: deps.logError,
-		findGeneratedSummary: deps.findGeneratedSummary,
-		markSummaryPending: deps.markSummaryPending,
-		findArticleCrawlStatus: deps.findArticleCrawlStatus,
-		markCrawlPending: deps.markCrawlPending,
-		saveArticleGlobally: deps.saveArticleGlobally,
-		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
-		findIdentityRow: deps.findIdentityRow,
-		resolveSaveIdentity: deps.resolveFirstVisitIdentity,
-		pinContentSource: deps.pinContentSource,
-		findContentSourceUrl: deps.findContentSourceUrl,
-		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
-		publishStaleCheckRequested: deps.publishStaleCheckRequested,
-		consumeRateLimit: deps.consumeRateLimit,
-		viewCrawlRateLimit: deps.rateLimitRules.viewCrawl,
-		viewCrawlSignedInRateLimit: deps.rateLimitRules.viewCrawlSignedIn,
-		now: deps.now,
 		buildBannerState,
 		recordAnalyticsEvent,
-		salt: deps.salt,
-	});
+	}));
 	app.use("/view", viewRouter);
 
-	const adminRecrawlRouter = initAdminRecrawlRoutes({
-		appOrigin,
-		findArticleByUrl: deps.findArticleByUrl,
-		findItemOwner: deps.findItemOwner,
-		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
-		resolveWrapperTarget: withSyntacticUnwrap(deps.resolveWrapperTarget),
-		findArticleFreshness: deps.findArticleFreshness,
-		findArticleCrawlVersions: deps.findArticleCrawlVersions,
-		readArticleContent: deps.readArticleContent,
-		findGeneratedSummary: deps.findGeneratedSummary,
-		findArticleCrawlStatus: deps.findArticleCrawlStatus,
-		markCrawlPending: deps.markCrawlPending,
-		forceMarkCrawlPending: deps.forceMarkCrawlPending,
-		publishRecrawlLinkInitiated: deps.publishRecrawlLinkInitiated,
-		findUserByEmail: deps.findUserByEmail,
-		adminEmails: deps.adminEmails,
-		serviceToken: deps.recrawlServiceToken,
-		buildBannerState,
-		now: deps.now,
-	});
-	app.use("/admin/recrawl", adminRecrawlRouter);
-
-	const adminExtendTrialRouter = initAdminExtendTrialRoutes({
-		findUserByEmail: deps.findUserByEmail,
-		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
-		upsertTrialing: deps.subscriptionProviders.upsertTrialing,
-		trialScheduler: deps.trialScheduler,
-		adminEmails: deps.adminEmails,
-		serviceToken: deps.recrawlServiceToken,
-		logError: deps.logError,
-		now: deps.now,
-		buildBannerState,
-	});
-	app.use("/admin/extend-trial", adminExtendTrialRouter);
-
-	app.use(
-		"/admin/founder-notes",
-		initAdminFounderNotesRoutes({
-			findUserByEmail: deps.findUserByEmail,
-			findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
-			recordFounderNote: deps.subscriptionProviders.recordFounderNote,
-			emitLifecycleEmailSent,
-			adminEmails: deps.adminEmails,
-			serviceToken: deps.recrawlServiceToken,
-			now: deps.now,
-			buildBannerState,
-		}),
-	);
-
-	app.use(
-		"/admin/newsletters",
-		initAdminNewslettersRoutes({
-			findUserByEmail: deps.findUserByEmail,
-			adminEmails: deps.adminEmails,
-			readNewsletterCatalog: deps.readNewsletterCatalog,
-			updateNewsletterCatalog: initUpdateNewsletterCatalog({
-				readCatalog: deps.readNewsletterCatalog,
-				writeCatalog: deps.writeNewsletterCatalog,
-				maxAttempts: 3,
-			}),
-			newsletterCatalogSeed: deps.newsletterCatalogSeed,
-			now: deps.now,
-			logError: deps.logError,
-			buildBannerState,
-		}),
-	);
-	app.use(
-		CANARY_REPORTS_PATH,
-		initAdminCanaryReportRoutes({
-			findUserByEmail: deps.findUserByEmail,
-			adminEmails: deps.adminEmails,
-			findCanaryReport: deps.findCanaryReport,
-			buildBannerState,
-		}),
-	);
-	app.use(
-		ADMIN_DASHBOARDS_PATH,
-		initAdminDashboardsRoutes({
-			findUserByEmail: deps.findUserByEmail,
-			adminEmails: deps.adminEmails,
-			buildBannerState,
-			dashboards: buildAdminDashboards({
-				analyticsLogGroupName: ANALYTICS_LOG_GROUP,
-				authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP,
-			}),
-			...deps.adminDashboards,
-		}),
-	);
-	app.get(
-		"/admin",
-		...initAdminIndexHandlers({
-			findUserByEmail: deps.findUserByEmail,
-			adminEmails: deps.adminEmails,
-			buildBannerState,
-		}),
-	);
+	app.use(initAdminRoutes(deps, { appOrigin, buildBannerState, emitLifecycleEmailSent }));
 
 	const exportRouter = initExportRoutes({
 		publishExportUserDataCommand: deps.publishExportUserDataCommand,
@@ -1881,59 +1564,15 @@ export function createApp(dependencies: AppDependencies): Express {
 		findOAuthClient: deps.findOAuthClient,
 	});
 
-	const accountRouter = initAccountRoutes({
+	const accountRouter = initAccountRoutes(accountDependenciesFrom(deps, {
+		keepOffer,
 		getEffectiveAccess,
-		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
-		upsertActiveSubscription: deps.subscriptionProviders.upsertActive,
-		upsertTrialingSubscription: deps.subscriptionProviders.upsertTrialing,
-		markActiveSubscription: deps.subscriptionProviders.markActive,
-		findEmailByUserId: deps.findEmailByUserId,
-		findUserById: deps.findUserById,
-		findUserPasswordStatus: deps.findUserPasswordStatus,
-		setUserAppearance: deps.setUserAppearance,
-		setUserDisplayName: deps.setUserDisplayName,
-		destroyUserSessions: deps.destroyUserSessions,
-		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
 		listConnectedOAuthClients,
-		revokeUserOAuthClient: deps.revokeUserOAuthClient,
-		markAccountDeleted: deps.markAccountDeleted,
-		publishDeleteAccountCommand: deps.publishDeleteAccountCommand,
-		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,
-		publishSubscriptionReactivated: deps.publishSubscriptionReactivated,
-		createCheckoutSession: deps.createCheckoutSession,
-		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
-		findSubscriptionNextCharge: deps.findSubscriptionNextCharge,
-		listInvoices: deps.listInvoices,
-		setSubscriptionNextCharge: deps.subscriptionProviders.setNextCharge,
-		reverseScheduledCancellation: deps.reverseScheduledCancellation,
-		listCards: deps.paymentMethods.listCards,
-		beginAddCard: deps.paymentMethods.beginAddCard,
-		getCardSetupResult: deps.paymentMethods.getCardSetupResult,
-		removeCard: deps.paymentMethods.removeCard,
-		setPrimaryCard: deps.paymentMethods.setPrimaryCard,
-		stripePublishableKey: deps.stripePublishableKey,
-		trialScheduler: deps.trialScheduler,
-		createChargeReminderSchedule: deps.trialScheduler.createChargeReminderSchedule,
-		deleteDeferredCancellationSchedule:
-			deps.trialScheduler.deleteDeferredCancellationSchedule,
-		storePendingSignup: deps.storePendingSignup,
-		resolvePriceId: deps.resolvePriceId,
-		buildCheckoutSuccessUrl: (sessionIdPlaceholder) =>
-			`${appOrigin}/auth/checkout/success?session_id=${sessionIdPlaceholder}`,
 		appOrigin,
-		logger: HutchLogger.from({
-			info: noop,
-			error: (...args) => {
-				deps.logError(String(args[0]), args[1] instanceof Error ? args[1] : undefined);
-			},
-			warn: noop,
-			debug: noop,
-		}),
-		now: deps.now,
 		buildBannerState,
 		recordSubscriptionEvent,
 		recordAnalyticsEvent,
-	});
+	}));
 	const accountPasswordRouter = initAccountPasswordRoutes({
 		findUserById: deps.findUserById,
 		findUserPasswordStatus: deps.findUserPasswordStatus,

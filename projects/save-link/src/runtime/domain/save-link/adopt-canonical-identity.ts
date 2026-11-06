@@ -5,7 +5,7 @@ import type {
 } from "@packages/article-store";
 import { isWrapperUrl } from "@packages/domain/article";
 import { parseHttpUrl } from "@packages/domain/inbox";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { matchingSiteRuleUrl, type SiteRules } from "@packages/site-rules";
 
 /** A crawl that never produced content has no word count to judge, which is why
@@ -78,7 +78,7 @@ export function initAdoptCanonicalIdentity(deps: {
 	reconcileStubMetadata: ReconcileStubMetadata;
 	isSiteRuleUrl: (url: string) => boolean;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): AdoptCanonicalIdentity {
 	const { adoptDestination, reconcileStubMetadata, isSiteRuleUrl, now, logger } = deps;
 	return async (params) => {

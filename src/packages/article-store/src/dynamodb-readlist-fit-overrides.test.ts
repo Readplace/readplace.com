@@ -5,7 +5,7 @@ import type { UserId } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import type { ReadlistFitOverride } from "@packages/provider-contracts/article-store";
 import { initDynamoDbReadlistFitOverrides } from "./dynamodb-readlist-fit-overrides";
 

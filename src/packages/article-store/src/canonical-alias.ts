@@ -2,13 +2,13 @@ import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { stubMetadataFor } from "@packages/domain/article";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	TransactionCanceledException,
 	TransactWriteCommand,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import type {
 	ClaimCanonicalAlias,
 	FindIdentityRow,
@@ -92,23 +92,18 @@ export function initCanonicalAliasStore(deps: {
 	});
 
 	const claimAlias: ClaimCanonicalAlias = async ({ aliasUrl, targetOriginalUrl, now, sourceBinding }) => {
-		try {
-			await table.update({
-				Key: { url: ArticleResourceUniqueId.parse(aliasUrl).value },
-				UpdateExpression: `SET rowKind = :alias, aliasTargetUrl = :target, aliasCreatedAt = :now${sourceBinding === undefined ? "" : ", contentSourceUrl = :source, sourceOriginalUrl = :original"}`,
-				ConditionExpression: sourceBinding === undefined ? "attribute_not_exists(#url)" : "attribute_not_exists(#url) OR (rowKind = :alias AND aliasTargetUrl = :target)",
-				ExpressionAttributeNames: { "#url": "url" },
-				ExpressionAttributeValues: {
-					":alias": "alias",
-					":target": targetOriginalUrl,
-					":now": now.toISOString(),
-					...(sourceBinding === undefined ? {} : { ":source": sourceBinding.contentSourceUrl, ":original": sourceBinding.sourceOriginalUrl }),
-				},
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+		await writeIfCondition(() => table.update({
+			Key: { url: ArticleResourceUniqueId.parse(aliasUrl).value },
+			UpdateExpression: `SET rowKind = :alias, aliasTargetUrl = :target, aliasCreatedAt = :now${sourceBinding === undefined ? "" : ", contentSourceUrl = :source, sourceOriginalUrl = :original"}`,
+			ConditionExpression: sourceBinding === undefined ? "attribute_not_exists(#url)" : "attribute_not_exists(#url) OR (rowKind = :alias AND aliasTargetUrl = :target)",
+			ExpressionAttributeNames: { "#url": "url" },
+			ExpressionAttributeValues: {
+				":alias": "alias",
+				":target": targetOriginalUrl,
+				":now": now.toISOString(),
+				...(sourceBinding === undefined ? {} : { ":source": sourceBinding.contentSourceUrl, ":original": sourceBinding.sourceOriginalUrl }),
+			},
+		}));
 	};
 
 	const resolveAlias: ResolveCanonicalAlias = async (url) => {
@@ -136,52 +131,40 @@ export function initCanonicalAliasStore(deps: {
 			ConditionExpression: "attribute_exists(routeId) AND (displayUrl = :sourceOriginalUrl OR (attribute_not_exists(displayUrl) AND originalUrl = :sourceOriginalUrl))",
 			ExpressionAttributeValues: { ":contentSourceUrl": contentSourceUrl, ":sourceOriginalUrl": sourceOriginalUrl },
 		};
-		try {
-			await table.update({
-				...pin,
-				UpdateExpression: `${pin.UpdateExpression}, directContentBeforePin = :true`,
-				ConditionExpression: `${pin.ConditionExpression} AND attribute_not_exists(contentSourceUrl) AND attribute_not_exists(canonicalCandidateId) AND (contentSourceTier IN (:tier0, :tier1) OR (attribute_not_exists(contentSourceTier) AND wordCount > :zero))`,
-				ExpressionAttributeValues: { ...pin.ExpressionAttributeValues, ":true": true, ":tier0": "tier-0", ":tier1": "tier-1", ":zero": 0 },
-			});
-		} catch (error) {
-			if (!(error instanceof ConditionalCheckFailedException)) throw error;
+		const outcome = await writeIfCondition(() => table.update({
+			...pin,
+			UpdateExpression: `${pin.UpdateExpression}, directContentBeforePin = :true`,
+			ConditionExpression: `${pin.ConditionExpression} AND attribute_not_exists(contentSourceUrl) AND attribute_not_exists(canonicalCandidateId) AND (contentSourceTier IN (:tier0, :tier1) OR (attribute_not_exists(contentSourceTier) AND wordCount > :zero))`,
+			ExpressionAttributeValues: { ...pin.ExpressionAttributeValues, ":true": true, ":tier0": "tier-0", ":tier1": "tier-1", ":zero": 0 },
+		}));
+		if (outcome.kind === "condition-failed") {
 			await table.update(pin);
 		}
 	};
 
 	const setDisplayUrl: SetArticleDisplayUrl = async ({ articleUrl, displayUrl }) => {
-		try {
-			await table.update({
-				Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
-				UpdateExpression: "SET displayUrl = :displayUrl",
-				ConditionExpression: "attribute_exists(routeId)",
-				ExpressionAttributeValues: { ":displayUrl": displayUrl },
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+		await writeIfCondition(() => table.update({
+			Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
+			UpdateExpression: "SET displayUrl = :displayUrl",
+			ConditionExpression: "attribute_exists(routeId)",
+			ExpressionAttributeValues: { ":displayUrl": displayUrl },
+		}));
 	};
 
 	const reconcileStubMetadata: ReconcileStubMetadata = async ({ articleUrl, displayUrl }) => {
 		const destinationStub = stubMetadataFor(new URL(displayUrl).hostname);
 		const originStub = stubMetadataFor(new URL(articleUrl).hostname);
-		try {
-			await table.update({
-				Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
-				UpdateExpression: "SET title = :title, siteName = :siteName, excerpt = :excerpt",
-				ConditionExpression: "attribute_exists(routeId) AND title = :originStubTitle",
-				ExpressionAttributeValues: {
-					":title": destinationStub.title,
-					":siteName": destinationStub.siteName,
-					":excerpt": destinationStub.excerpt,
-					":originStubTitle": originStub.title,
-				},
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+		await writeIfCondition(() => table.update({
+			Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
+			UpdateExpression: "SET title = :title, siteName = :siteName, excerpt = :excerpt",
+			ConditionExpression: "attribute_exists(routeId) AND title = :originStubTitle",
+			ExpressionAttributeValues: {
+				":title": destinationStub.title,
+				":siteName": destinationStub.siteName,
+				":excerpt": destinationStub.excerpt,
+				":originStubTitle": originStub.title,
+			},
+		}));
 	};
 
 	const findAdoptedFetchUrl: FindAdoptedFetchUrl = async (url) => {
@@ -222,28 +205,20 @@ export function initCanonicalAliasStore(deps: {
 			if (articleReason?.Code === "ConditionalCheckFailed") return "declined";
 			if (aliasReason?.Code !== "ConditionalCheckFailed") throw error;
 		}
-		try {
-			await table.update(pinDestination);
-			return "adopted";
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "declined";
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => table.update(pinDestination));
+		if (outcome.kind === "condition-failed") return "declined";
+		return "adopted";
 	};
 
 	const repairWrapperIdentity: RepairWrapperIdentity = async ({ articleUrl, expectedOriginalUrl, originalUrl, contentSourceUrl }) => {
-		try {
-			await table.update({
-				Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
-				UpdateExpression: contentSourceUrl === undefined ? "SET displayUrl = :original REMOVE contentSourceUrl, sourceOriginalUrl" : "SET displayUrl = :original, contentSourceUrl = :source, sourceOriginalUrl = :original",
-				ConditionExpression: "attribute_exists(routeId) AND (displayUrl = :expected OR (attribute_not_exists(displayUrl) AND originalUrl = :expected)) AND (attribute_not_exists(sourceOriginalUrl) OR sourceOriginalUrl = :original)",
-				ExpressionAttributeValues: { ":original": originalUrl, ":expected": expectedOriginalUrl, ...(contentSourceUrl === undefined ? {} : { ":source": contentSourceUrl }) },
-			});
-			return true;
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return false;
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => table.update({
+			Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
+			UpdateExpression: contentSourceUrl === undefined ? "SET displayUrl = :original REMOVE contentSourceUrl, sourceOriginalUrl" : "SET displayUrl = :original, contentSourceUrl = :source, sourceOriginalUrl = :original",
+			ConditionExpression: "attribute_exists(routeId) AND (displayUrl = :expected OR (attribute_not_exists(displayUrl) AND originalUrl = :expected)) AND (attribute_not_exists(sourceOriginalUrl) OR sourceOriginalUrl = :original)",
+			ExpressionAttributeValues: { ":original": originalUrl, ":expected": expectedOriginalUrl, ...(contentSourceUrl === undefined ? {} : { ":source": contentSourceUrl }) },
+		}));
+		if (outcome.kind === "condition-failed") return false;
+		return true;
 	};
 
 	return {

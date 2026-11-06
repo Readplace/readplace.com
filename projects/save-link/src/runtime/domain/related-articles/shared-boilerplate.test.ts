@@ -1,9 +1,18 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { articleDestinationUrl } from "@packages/domain/article";
 import type {
+	SelectionAttempt,
 	SelectRelatedArticlesParams,
 	SelectRelatedResult,
 } from "./related-articles-selector";
 import { initSelectRelatedArticlesWithoutSharedBoilerplate } from "./shared-boilerplate";
+
+const ATTEMPT: SelectionAttempt = {
+	userId: UserIdSchema.parse("user-1"),
+	trigger: "save",
+	messageId: "message-1",
+	receiveCount: 1,
+};
 
 const BLOCK_PAGE_TEXT = {
 	title: "Client Challenge",
@@ -59,6 +68,7 @@ describe("initSelectRelatedArticlesWithoutSharedBoilerplate", () => {
 		const { selectRelatedArticles, calls, answer } = build();
 		const params: SelectRelatedArticlesParams = {
 			target: article({ title: "How queues decay", siteName: "example.com" }),
+			attempt: ATTEMPT,
 			unreadCandidates: [candidate({ title: "Queue theory", siteName: "example.com" })],
 			readCandidates: [candidate({ title: "Little's law", siteName: "another.com" })],
 		};
@@ -74,6 +84,7 @@ describe("initSelectRelatedArticlesWithoutSharedBoilerplate", () => {
 
 		const result = await selectRelatedArticles({
 			target: article({ siteName: "www.nature.com", ...BLOCK_PAGE_TEXT }),
+			attempt: ATTEMPT,
 			unreadCandidates: [
 				candidate({ siteName: "www.slideshare.net", ...BLOCK_PAGE_TEXT }),
 			],
@@ -89,6 +100,7 @@ describe("initSelectRelatedArticlesWithoutSharedBoilerplate", () => {
 
 		await selectRelatedArticles({
 			target: article({ siteName: "example.com", ...BLOCK_PAGE_TEXT }),
+			attempt: ATTEMPT,
 			unreadCandidates: [candidate({ siteName: "example.com", ...BLOCK_PAGE_TEXT })],
 			readCandidates: [],
 		});
@@ -101,6 +113,7 @@ describe("initSelectRelatedArticlesWithoutSharedBoilerplate", () => {
 
 		await selectRelatedArticles({
 			target: article({ title: "How queues decay", siteName: "example.com" }),
+			attempt: ATTEMPT,
 			unreadCandidates: [
 				candidate({ siteName: "www.nature.com", ...BLOCK_PAGE_TEXT }),
 				candidate({ title: "Queue theory", siteName: "example.com" }),
@@ -115,6 +128,7 @@ describe("initSelectRelatedArticlesWithoutSharedBoilerplate", () => {
 			"Queue theory",
 		]);
 		expect(seen?.readCandidates).toEqual([]);
+		expect(seen?.attempt).toBe(ATTEMPT);
 	});
 
 	it("collapses whitespace and case before comparing texts", async () => {
@@ -126,6 +140,7 @@ describe("initSelectRelatedArticlesWithoutSharedBoilerplate", () => {
 				siteName: "www.nature.com",
 				description: "A required  part of this site couldn't load.",
 			}),
+			attempt: ATTEMPT,
 			unreadCandidates: [
 				candidate({ siteName: "www.slideshare.net", ...BLOCK_PAGE_TEXT }),
 			],

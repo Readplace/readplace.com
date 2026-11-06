@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { CaptureTrigger, TabContent } from "../reading-list/reading-list.types";
 import { initReaderRescue } from "./reader-rescue";
 import type { RescueCaptureResult } from "./rescue-capture";
@@ -42,7 +42,7 @@ function createHarness(
 			events.push(`tell tab ${openerTabId} nothing was copied for ${articleId} (${trigger})`);
 			return options.tellOpener ? options.tellOpener() : undefined;
 		},
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			...noopLogger,
 			info: (...args) => infos.push(String(args[0])),
 			error: (...args) => errors.push(String(args[0])),

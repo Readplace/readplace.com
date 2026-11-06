@@ -1,7 +1,7 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { SendEmail } from "@packages/provider-contracts/email";
 
-export function initLogEmail(deps: { logger: HutchLogger }): { sendEmail: SendEmail } {
+export function initLogEmail(deps: { logger: Logger }): { sendEmail: SendEmail } {
 	const { logger } = deps;
 	const sendEmail: SendEmail = async (message) => {
 		logger.info("[Email]", {

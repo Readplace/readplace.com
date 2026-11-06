@@ -1,6 +1,6 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent } from "./select-content";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { type Article, type TransitionAndPersist, markCrawlExhausted, promoteTier, recrawlPromoteTier, refreshContent } from "@packages/domain/article-aggregate";

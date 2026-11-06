@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response, Router } from "express";
+import type { Request, Response, Router } from "express";
 import express from "express";
 import { sendComponent } from "@packages/web-shell";
 import {
@@ -17,7 +17,6 @@ import {
 	rejectRecord,
 	withdrawRecord,
 } from "@packages/domain/newsletter-catalog";
-import type { FindUserByEmail } from "@packages/provider-contracts/auth";
 import type { ReadNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
 import type { UpdateNewsletterCatalog, UpdateNewsletterCatalogResult } from "../../../domain/newsletter-catalog/update-newsletter-catalog";
 import { flattenZodErrors } from "../../auth/flatten-zod-errors";
@@ -46,12 +45,8 @@ import {
 	parseAdminNewslettersListState,
 } from "./admin-newsletters.url";
 import { type AdminNewsletterFormState, findCatalogRecord, toAdminNewslettersViewModel } from "./admin-newsletters.viewmodel";
-import { initRefuseAdminAccess } from "./admin-forbidden.page";
-import { initRequireAdmin } from "./require-admin.middleware";
 
 export interface AdminNewslettersDependencies {
-	findUserByEmail: FindUserByEmail;
-	adminEmails: readonly string[];
 	readNewsletterCatalog: ReadNewsletterCatalog;
 	updateNewsletterCatalog: UpdateNewsletterCatalog;
 	newsletterCatalogSeed: NewsletterCatalogSeed;
@@ -104,11 +99,6 @@ const FROM_CHECK_LINES: Record<NewsletterFromRefusal, string> = {
 	invalid: "",
 };
 
-function noStore(_req: Request, res: Response, next: NextFunction): void {
-	res.setHeader("Cache-Control", "no-store");
-	next();
-}
-
 function queryText(value: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined;
 }
@@ -151,16 +141,6 @@ function reviewedForm(input: {
 
 export function initAdminNewslettersRoutes(deps: AdminNewslettersDependencies): Router {
 	const router = express.Router();
-
-	router.use(noStore);
-	router.use(
-		initRequireAdmin({
-			findUserByEmail: deps.findUserByEmail,
-			adminEmails: deps.adminEmails,
-			serviceToken: "",
-			refuse: initRefuseAdminAccess({ buildBannerState: deps.buildBannerState }),
-		}),
-	);
 
 	async function respond(req: Request, res: Response, input: RespondInput): Promise<void> {
 		const read = await deps.readNewsletterCatalog();

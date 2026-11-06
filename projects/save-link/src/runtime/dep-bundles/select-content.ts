@@ -5,8 +5,8 @@ import { initFindArticleContent, type FindArticleContent } from "../providers/ar
 import type { VerifyWrapperSource } from "@packages/save-article";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { CreateDeepseekChatCompletion, DeepseekCallFailedLogLine } from "@packages/ai-message";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { Logger } from "@packages/logger";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import {
 	initReadTierSource,
 	type ReadTierSource,
@@ -38,7 +38,7 @@ export type SelectContentDepBundle = {
 	writeCanonicalContent: WriteCanonicalContent;
 	recordCrawlVersion: RecordCrawlVersion;
 	readCanonicalContent: FindArticleContent;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 };
 
 export function initSelectContentDepBundle(deps: {
@@ -47,8 +47,8 @@ export function initSelectContentDepBundle(deps: {
 	contentBucketName: string;
 	articlesTable: string;
 	createChatCompletion: CreateDeepseekChatCompletion;
-	logger: HutchLogger;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 	now: () => Date;
 }): SelectContentDepBundle {
 	const { readTierSource } = initReadTierSource({

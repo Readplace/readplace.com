@@ -1,13 +1,13 @@
 import type { GmailDiscoveryStore } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { type DiscoverGmailSenders, GMAIL_DISCOVERY_PAUSED_MESSAGE, initRunGmailDiscovery } from "./discover-gmail-senders";
 
 export function initRunGmailDiscoveryLocally(deps: {
 	discover: DiscoverGmailSenders;
 	discovery: GmailDiscoveryStore;
 	waitForNextPage: () => Promise<void>;
-	logger: HutchLogger;
+	logger: Logger;
 }): (input: { userId: UserId }) => Promise<void> {
 	const run = initRunGmailDiscovery({ discover: deps.discover, waitForNextPage: deps.waitForNextPage });
 	return async ({ userId }) => {

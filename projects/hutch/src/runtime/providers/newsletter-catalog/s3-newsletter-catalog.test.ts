@@ -1,7 +1,7 @@
 import { NoSuchKey, S3ServiceException, type S3Client } from "@aws-sdk/client-s3";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import type { NewsletterCatalogDocument } from "@packages/domain/newsletter-catalog";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initS3NewsletterCatalog } from "./s3-newsletter-catalog";
 
 type SendFn = S3Client["send"];
@@ -43,7 +43,7 @@ function stored(document: unknown, etag = '"etag-1"') {
 function harness(reply: (command: SentCommand) => unknown) {
 	const commands: SentCommand[] = [];
 	const errors: unknown[][] = [];
-	const logger: HutchLogger = { info: () => {}, warn: () => {}, debug: () => {}, error: (...args) => { errors.push(args); } };
+	const logger: Logger = { info: () => {}, warn: () => {}, debug: () => {}, error: (...args) => { errors.push(args); } };
 	const send = async (command: { constructor: { name: string }; input: SentCommand["input"] }) => {
 		const sent = { name: command.constructor.name, input: command.input };
 		commands.push(sent);

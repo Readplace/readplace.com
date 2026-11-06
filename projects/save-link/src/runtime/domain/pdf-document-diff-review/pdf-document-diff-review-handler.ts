@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { applyDecisions } from "./apply-decisions";
 import { buildDiffEntries } from "./build-diff-entries";
 import {
@@ -56,8 +56,8 @@ const ResponseSchema = z.object({
 
 export function initPdfDocumentDiffReviewHandler(deps: {
 	reviewDocumentWithLlm: ReviewDocumentWithLlm;
-	logger: HutchLogger;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 }): (rawInput: unknown) => Promise<PdfDocumentDiffReviewOutput> {
 	const { reviewDocumentWithLlm, logger, deepseekCallFailedLog } = deps;
 

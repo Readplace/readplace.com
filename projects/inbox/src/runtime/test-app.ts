@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import type { Express } from "express";
 import request from "supertest";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initFindSavedArticleForLink } from "@packages/article-store";
 import type { ReadlistFitOverriddenLogLine } from "@packages/domain/readlist";
-import type { FileArticleIntoReadlistDetail } from "@packages/hutch-infra-components";
+import type { FileArticleIntoReadlistDetail } from "@packages/infra-components";
 import { initResolveCanonicalIdentity } from "@packages/save-article";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import type {
@@ -19,7 +19,7 @@ import { initResolveLogin, SESSION_COOKIE_NAME } from "@packages/web-session";
 import { createInboxApp } from "./app";
 
 export interface AnalyticsBundle {
-	logger: HutchLogger.Typed<AnalyticsEvent>;
+	logger: Logger.Typed<AnalyticsEvent>;
 	events: AnalyticsEvent[];
 }
 
@@ -47,7 +47,7 @@ export function createInboxTestApp(
 ): TestAppResult {
 	const resolveLogin = initResolveLogin({
 		getSessionUserId: fixture.auth.getSessionUserId,
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			...noopLogger,
 			error: (...args) => fixture.shared.logError(String(args[0])),
 		}),

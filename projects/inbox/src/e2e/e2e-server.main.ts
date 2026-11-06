@@ -2,7 +2,7 @@ import assert from "node:assert";
 import cookieParser from "cookie-parser";
 import express from "express";
 import { z } from "zod";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import {
 	EmailLinkOrdinalSchema,
 	EmailLinkStatusSchema,
@@ -23,7 +23,7 @@ import { createInboxTestApp } from "../runtime/test-app";
 
 const PORT = Number(requireEnv("E2E_PORT"));
 const origin = `http://127.0.0.1:${PORT}`;
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 const fixture = createDefaultTestAppFixture(origin);
 // Stands in for the deployed round trip — publish, save-link accepts, LinkQueued

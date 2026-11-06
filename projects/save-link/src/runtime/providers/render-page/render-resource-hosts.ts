@@ -1,4 +1,4 @@
-import type { RenderResourceHostBucket, RenderResourceHosts, RenderResourceRoute } from "./render-page.types";
+import type { RenderResourceHostBucket, RenderResourceHosts, RenderResourceRoute } from "../../domain/render-crawl/render-page.types";
 import { siteOfHost } from "./render-site";
 
 export type RenderRequestOutcome = { kind: "response"; status: number } | { kind: "failed" };

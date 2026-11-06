@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { ForwardableSenderSchema, GmailMessageIdSchema } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type {
 	GetGmailReadonlyAccessToken,
 	GmailHistory,
@@ -148,7 +148,7 @@ async function readonlyTokenProvider(input: { refreshToken: string; clientSecret
 			return reachedAt({ url: TOKEN_ENDPOINT, redirected: false, response: next });
 		},
 		now: tickingClock(3),
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return { accessToken, sent };
 }

@@ -15,10 +15,10 @@ import {
 	EmailReceivedEvent,
 	GmailForwardingConfirmedEvent,
 	type GmailForwardingConfirmFailedLine,
-	type HutchEvent,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+	type EventDefinition,
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
@@ -50,7 +50,7 @@ const RECEIVED_AT = "2026-08-27T00:00:00.000Z";
 const VERIFY_PATH =
 	"/mail/vf-%5BANGjdJ_HBdB9U6XGMf6d_lgGyXVy3LZxppBS1h68jxB5p0fvJA3XVbwLd5xcY68i30P2TCd3aE%5D-M8fzAOTZVlVJYOhyQMmbMDWQVks";
 
-type Published = { event: HutchEvent<z.ZodTypeAny>; detail: unknown };
+type Published = { event: EventDefinition<z.ZodTypeAny>; detail: unknown };
 
 function makeInbox() {
 	const now = () => new Date(RECEIVED_AT);
@@ -62,7 +62,7 @@ function makeInbox() {
 	const senders = initInMemoryGmailSender({ now });
 	const heldMail = initInMemoryGmailHeldMail();
 	const rawMap = new Map<string, Buffer>();
-	const logger = HutchLogger.from(noopLogger);
+	const logger = Logger.from(noopLogger);
 
 	// The join point: every publish is validated against its own detailSchema
 	// exactly as initEventBridgePublisher does before it hits the wire.
@@ -135,7 +135,7 @@ function makeInbox() {
 			timeoutMs: 5_000,
 		}),
 		publishEvent,
-		metricLog: HutchLogger.fromJSON<GmailForwardingConfirmFailedLine>(),
+		metricLog: Logger.fromJSON<GmailForwardingConfirmFailedLine>(),
 		logger,
 	});
 

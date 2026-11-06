@@ -5,7 +5,7 @@ import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/doma
 import type { ForwardableSender, GmailAccountEmail } from "@packages/domain/gmail";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
 import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
@@ -89,7 +89,7 @@ function captureErrorWrites(gmail: InMemoryGmailIntegration): string[] {
 	const errorWrites: string[] = [];
 	gmail.bundle.diagnosticsLogger = {
 		...capture,
-		error: (...parts: unknown[]) => {
+		error: (...parts: Parameters<typeof capture.error>) => {
 			errorWrites.push(parts.map(String).join(" "));
 			capture.error(...parts);
 		},
@@ -857,7 +857,7 @@ describe("Gmail OAuth diagnostics", () => {
 			const unavailable = () => {
 				throw new Error("diagnostics sink unavailable");
 			};
-			const throwingLogger: HutchLogger = { info: unavailable, error: unavailable, warn: unavailable, debug: unavailable };
+			const throwingLogger: Logger = { info: unavailable, error: unavailable, warn: unavailable, debug: unavailable };
 			fixture.gmailIntegration.diagnosticsLogger = throwingLogger;
 		}
 		const harness = useApp(fixture);

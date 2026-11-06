@@ -1,6 +1,6 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { UserIdSchema } from "@packages/domain/user";
-import { type DynamoDBDocumentClient, defineDynamoTable, dynamoField } from "@packages/hutch-storage-client";
+import { type DynamoDBDocumentClient, defineDynamoTable, dynamoField } from "@packages/storage-client";
 import type { FindItemOwner } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
 

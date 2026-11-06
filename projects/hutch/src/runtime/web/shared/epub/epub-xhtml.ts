@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
-import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { imageFilenameOf } from "./image-filename-of";
 
 const NODE_ELEMENT = 1;
 const NODE_TEXT = 3;
@@ -24,44 +24,19 @@ const VOID_ELEMENTS = new Set([
 
 const DROP_ELEMENTS = ["script", "style", "iframe"];
 const DROP_IMAGE_ATTRIBUTES = ["srcset", "sizes", "loading", "decoding"];
-const SAFE_IMAGE_FILENAME = /^[A-Za-z0-9._-]+\.(jpg|jpeg|png|gif|webp|avif|svg)$/i;
-const OWNED_IMAGE_FILENAME = /^attempts\/(?:[a-f0-9]{64}\/[a-f0-9]{64}|[a-f0-9]{32}\/[a-f0-9]{32})\.(jpg|jpeg|png|gif|webp|avif|svg)$/;
-
-export function embeddableImageFilename(params: {
-	src: string;
-	imagePrefix: string;
-}): string | undefined {
-	let pathname: string;
-	try {
-		pathname = new URL(params.src).pathname;
-	} catch {
-		return undefined;
-	}
-	let decoded: string;
-	try {
-		decoded = decodeURIComponent(pathname);
-	} catch {
-		return undefined;
-	}
-	const prefix = `/${params.imagePrefix}`;
-	if (!decoded.startsWith(prefix)) return undefined;
-	const filename = decoded.slice(prefix.length);
-	if (!SAFE_IMAGE_FILENAME.test(filename) && !OWNED_IMAGE_FILENAME.test(filename)) return undefined;
-	return filename;
-}
 
 export function collectArticleImages(params: {
 	contentHtml: string;
 	articleUrl: string;
 }): { filename: string; src: string }[] {
-	const imagePrefix = ArticleResourceUniqueId.parse(params.articleUrl).toS3ImagePrefix();
+	const filenameOf = imageFilenameOf(params.articleUrl);
 	const { document } = parseHTML(`<div id="epub-root">${params.contentHtml}</div>`);
 	const images: { filename: string; src: string }[] = [];
 	const seen = new Set<string>();
 	for (const img of document.querySelectorAll("img")) {
 		const src = img.getAttribute("src");
 		if (!src) continue;
-		const filename = embeddableImageFilename({ src, imagePrefix });
+		const filename = filenameOf(src);
 		if (!filename) continue;
 		if (seen.has(filename)) continue;
 		seen.add(filename);
@@ -90,7 +65,7 @@ export function chapterEpubXhtml(params: {
 	articleUrl: string;
 	imageHrefs: ReadonlyMap<string, string>;
 }): string {
-	const imagePrefix = ArticleResourceUniqueId.parse(params.articleUrl).toS3ImagePrefix();
+	const filenameOf = imageFilenameOf(params.articleUrl);
 	const { document } = parseHTML(`<div id="epub-root">${params.contentHtml}</div>`);
 	const root = document.querySelector("#epub-root");
 	assert(root, "epub content root must parse");
@@ -104,7 +79,7 @@ export function chapterEpubXhtml(params: {
 	for (const img of root.querySelectorAll("img")) {
 		for (const attribute of DROP_IMAGE_ATTRIBUTES) img.removeAttribute(attribute);
 		const src = img.getAttribute("src");
-		const filename = src === null ? undefined : embeddableImageFilename({ src, imagePrefix });
+		const filename = src === null ? undefined : filenameOf(src);
 		const href = filename === undefined ? undefined : params.imageHrefs.get(filename);
 		if (href) img.setAttribute("src", href);
 		else img.remove();

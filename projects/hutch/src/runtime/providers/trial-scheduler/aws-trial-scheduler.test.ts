@@ -5,7 +5,7 @@ import {
 	type SchedulerClient,
 } from "@aws-sdk/client-scheduler";
 import { UserIdSchema } from "@packages/domain/user";
-import { SendTrialFeedbackEmailCommand } from "@packages/hutch-infra-components";
+import { SendTrialFeedbackEmailCommand } from "@packages/infra-components";
 import { initAwsTrialScheduler } from "./aws-trial-scheduler";
 
 const USER_ID = UserIdSchema.parse("a".repeat(32));

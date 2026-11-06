@@ -1,8 +1,8 @@
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type Logger } from "@packages/logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
-import { RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import { initComprehensiveCrawlDlqHandler } from "./comprehensive-crawl-dlq-handler";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -98,7 +98,7 @@ describe("initComprehensiveCrawlDlqHandler", () => {
 		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
 			calls.push(["transition"]);
 		});
-		const logger: HutchLogger = {
+		const logger: Logger = {
 			...noopLogger,
 			error: (...args) => {
 				calls.push(args);
@@ -115,13 +115,7 @@ describe("initComprehensiveCrawlDlqHandler", () => {
 
 		expect(calls).toHaveLength(2);
 		expect(calls[0]).toEqual(["transition"]);
-		expect(calls[1]).toHaveLength(1);
-		expect(JSON.parse(String(calls[1]?.[0]))).toEqual({
-			level: "ERROR",
-			timestamp: "2026-10-15T04:43:01.000Z",
-			message: "[ComprehensiveCrawlDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted",
-			url: "https://example.com/failed",
-		});
+		expect(calls[1]).toEqual(["[ComprehensiveCrawlDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted", { url: "https://example.com/failed" }]);
 	});
 
 	it("a throwing transition logs only the record-failed line", async () => {
@@ -129,7 +123,7 @@ describe("initComprehensiveCrawlDlqHandler", () => {
 		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
 			throw new Error("ddb down");
 		});
-		const logger: HutchLogger = {
+		const logger: Logger = {
 			...noopLogger,
 			error: (...args) => {
 				calls.push(args);
@@ -186,7 +180,7 @@ describe("initComprehensiveCrawlDlqHandler with stored candidates", () => {
 			},
 		}]);
 		expect(transitionAndPersist.mock.calls).toEqual([]);
-		expect(logged.map((args) => JSON.parse(String(args[0])).message)).toEqual([
+		expect(logged.map((args) => args[0])).toEqual([
 			"[ComprehensiveCrawlDlq] dead-lettered after 1 receives (messageId msg-1); selecting over stored candidates",
 		]);
 	});

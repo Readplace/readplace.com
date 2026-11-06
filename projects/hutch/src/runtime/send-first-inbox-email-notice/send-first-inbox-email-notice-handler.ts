@@ -1,13 +1,7 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
-import { SendFirstInboxEmailNoticeCommand } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
+import { SendFirstInboxEmailNoticeCommand } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { MarkFirstInboxEmailNoticeSent } from "@packages/provider-contracts/onboarding-signals";
@@ -31,7 +25,7 @@ export interface SendFirstInboxEmailNoticeDeps {
 	founderAvatarUrl: string;
 	appOrigin: string;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 function trackedUrl(input: { appOrigin: string; path: string }): string {
@@ -46,81 +40,67 @@ function trackedUrl(input: { appOrigin: string; path: string }): string {
 export function initSendFirstInboxEmailNoticeHandler(
 	deps: SendFirstInboxEmailNoticeDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
+	return initSqsRecordHandler({
+		definition: SendFirstInboxEmailNoticeCommand,
+		logger: deps.logger,
+		failure: { message: "[send-first-inbox-email-notice] record failed" },
+		malformed: { policy: "retry" },
+		handle: async (detail) => {
+			const { userId } = detail;
 
-		for (const record of event.Records) {
-			try {
-				const envelope = z
-					.object({ detail: z.unknown() })
-					.parse(JSON.parse(record.body));
-				const detail = SendFirstInboxEmailNoticeCommand.detailSchema.parse(
-					envelope.detail,
+			const row = await deps.findSubscriptionByUserId(userId);
+			if (resolveWriteAccess(row, deps.now()) !== "full") {
+				deps.logger.info(
+					"[send-first-inbox-email-notice] reader cannot save — the held notice speaks instead — noop",
+					{ userId, status: row?.status },
 				);
-				const userId = UserIdSchema.parse(detail.userId);
-
-				const row = await deps.findSubscriptionByUserId(userId);
-				if (resolveWriteAccess(row, deps.now()) !== "full") {
-					deps.logger.info(
-						"[send-first-inbox-email-notice] reader cannot save — the held notice speaks instead — noop",
-						{ userId, status: row?.status },
-					);
-					continue;
-				}
-
-				const email = await deps.findEmailByUserId(userId);
-				if (!email) {
-					deps.logger.info(
-						"[send-first-inbox-email-notice] no email on file — noop",
-						{ userId },
-					);
-					continue;
-				}
-
-				const sentAt = deps.now().toISOString();
-				const claim = await deps.markFirstInboxEmailNoticeSent({ userId, sentAt });
-				if (claim === "already-sent") {
-					deps.logger.info(
-						"[send-first-inbox-email-notice] already sent — noop",
-						{ userId },
-					);
-					continue;
-				}
-
-				const component = InboxFirstArrivalEmail({
-					founderAvatarUrl: deps.founderAvatarUrl,
-					inboxAddress: detail.inboxAddress,
-					inboxUrl: trackedUrl({
-						appOrigin: deps.appOrigin,
-						path: buildInboxHighlightUrl({
-							receivedAtMessageId: detail.receivedAtMessageId,
-						}),
-					}),
-				});
-
-				await deps.sendEmail({
-					from: EMAIL_FROM,
-					to: email,
-					bcc: EMAIL_BCC,
-					replyTo: EMAIL_REPLY_TO,
-					subject: INBOX_FIRST_ARRIVAL_EMAIL_SUBJECT,
-					html: component.to("text/html"),
-					text: component.to("text/plain"),
-				});
-
-				deps.logger.info("[send-first-inbox-email-notice] sent", {
-					userId,
-					sentAt,
-				});
-			} catch (error) {
-				deps.logger.error("[send-first-inbox-email-notice] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+				return;
 			}
-		}
 
-		return { batchItemFailures };
-	};
+			const email = await deps.findEmailByUserId(userId);
+			if (!email) {
+				deps.logger.info(
+					"[send-first-inbox-email-notice] no email on file — noop",
+					{ userId },
+				);
+				return;
+			}
+
+			const sentAt = deps.now().toISOString();
+			const claim = await deps.markFirstInboxEmailNoticeSent({ userId, sentAt });
+			if (claim === "already-sent") {
+				deps.logger.info(
+					"[send-first-inbox-email-notice] already sent — noop",
+					{ userId },
+				);
+				return;
+			}
+
+			const component = InboxFirstArrivalEmail({
+				founderAvatarUrl: deps.founderAvatarUrl,
+				inboxAddress: detail.inboxAddress,
+				inboxUrl: trackedUrl({
+					appOrigin: deps.appOrigin,
+					path: buildInboxHighlightUrl({
+						receivedAtMessageId: detail.receivedAtMessageId,
+					}),
+				}),
+			});
+
+			await deps.sendEmail({
+				from: EMAIL_FROM,
+				to: email,
+				bcc: EMAIL_BCC,
+				replyTo: EMAIL_REPLY_TO,
+				subject: INBOX_FIRST_ARRIVAL_EMAIL_SUBJECT,
+				html: component.to("text/html"),
+				text: component.to("text/plain"),
+			});
+
+			deps.logger.info("[send-first-inbox-email-notice] sent", {
+				userId,
+				sentAt,
+			});
+		},
+	});
 }

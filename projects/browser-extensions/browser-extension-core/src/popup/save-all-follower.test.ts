@@ -1,4 +1,4 @@
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { type BulkSaveRun, type BulkSaveRunId, BulkSaveRunIdSchema } from "../bulk-save-run/bulk-save-run";
 import type { FollowSaveAllReply } from "../bulk-save-run/save-all-messages";
 import { WindowIdSchema } from "../domain/window-id";
@@ -46,7 +46,7 @@ function createFollower(replies: (FollowSaveAllReply | Lost)[] = []) {
 		showFailure: () => events.push("failure"),
 		showLogin: () => events.push("login"),
 		mark: () => events.push("mark"),
-		logger: HutchLogger.from({ ...noopLogger, error: (...args: unknown[]) => errors.push(args) }),
+		logger: Logger.from({ ...noopLogger, error: (...args: unknown[]) => errors.push(args) }),
 	});
 	return {
 		follower,

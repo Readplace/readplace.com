@@ -5,12 +5,12 @@ import {
 	type GmailFilterRewriteFailedLine,
 	GmailFilterRewrittenEvent,
 	GmailForwardingConfirmedEvent,
-	type HutchEvent,
+	type EventDefinition,
 	RewriteGmailFilterCommand,
-} from "@packages/hutch-infra-components";
-import { initHandleByDetailType, type PublishEvent } from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components";
+import { initHandleByDetailType, type PublishEvent } from "@packages/infra-components/runtime";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -36,7 +36,7 @@ const CONNECT = "/newsletters/gmail/connect";
 const CALLBACK = "/integrations/gmail/callback";
 const GMAIL_PAGE = "/newsletters/gmail";
 
-type Published = { event: HutchEvent<z.ZodTypeAny>; detail: unknown };
+type Published = { event: EventDefinition<z.ZodTypeAny>; detail: unknown };
 
 describe("gmail forwarding chain (hutch half)", () => {
 	it("connects, confirms, and writes the forwarding filter for the first mapped sender", async () => {
@@ -50,7 +50,7 @@ describe("gmail forwarding chain (hutch half)", () => {
 			now: () => NOW,
 		});
 		const gmailFilters = initInMemoryGmailFilters();
-		const logger = HutchLogger.from(noopLogger);
+		const logger = Logger.from(noopLogger);
 
 		const published: Published[] = [];
 		const publishEvent = (async (event, detail) => {
@@ -79,7 +79,7 @@ describe("gmail forwarding chain (hutch half)", () => {
 					initRewriteGmailFilterHandler({
 						rewriteGmailFilter,
 						publishEvent,
-						metricLog: HutchLogger.fromJSON<GmailFilterRewriteFailedLine>(),
+						metricLog: Logger.fromJSON<GmailFilterRewriteFailedLine>(),
 						logger,
 					}),
 				],

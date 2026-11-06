@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { MinutesSchema, type SaveProvenance, type SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { FindArticlesByUser } from "@packages/provider-contracts/article-store";
 import type { UserContact } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
@@ -67,7 +67,7 @@ function buildSubject(options: { contact?: UserContact; readAtOf?: Record<string
 		founderAvatarUrl: "https://static.readplace.com/fayner-brack.jpg",
 		appOrigin: APP_ORIGIN,
 		now: () => FIRED_AT,
-		logger: HutchLogger.from({ ...noopLogger, info: (...line: unknown[]) => { infoLines.push(line); } }),
+		logger: Logger.from({ ...noopLogger, info: (...line: unknown[]) => { infoLines.push(line); } }),
 		emitLifecycleEmailSent: initEmitLifecycleEmailSent({
 			logger: { info: captureLifecycleEvent, error: captureLifecycleEvent, warn: captureLifecycleEvent, debug: captureLifecycleEvent },
 			now: () => FIRED_AT,

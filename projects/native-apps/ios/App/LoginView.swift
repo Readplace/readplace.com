@@ -105,7 +105,7 @@ struct LoginView: View {
 			.preferredColorScheme(.light)
 		}
 		.task(id: reduceMotion) { await runSlogans(reduceMotion: reduceMotion) }
-		.task { await session.makeOAuth().recordAuthEvent("login_prompt_shown", reason: "no_credentials") }
+		.task { await session.makeOAuth().recordAuthEvent(.loginPromptShown, reason: .noCredentials) }
 	}
 
 	private var paused: Bool { scenePhase != .active }
@@ -223,12 +223,12 @@ struct LoginView: View {
 	private func authenticate(with request: AuthorizationRequest) async {
 		authErrorText = nil
 		isAuthenticating = true
-		await session.makeOAuth().recordAuthEvent("login_started")
+		await session.makeOAuth().recordAuthEvent(.loginStarted)
 		let outcome = await makeFlow(session).start(request)
 		isAuthenticating = false
-		if outcome == nil { await session.makeOAuth().recordAuthEvent("login_cancelled", outcome: "cancelled", reason: "user_cancelled") }
+		if outcome == nil { await session.makeOAuth().recordAuthEvent(.loginCancelled, outcome: .cancelled, reason: .userCancelled) }
 		guard case .failure(let error)? = outcome else { return }
-		await session.makeOAuth().recordAuthEvent("login_failed", outcome: "failure", reason: "unknown")
+		await session.makeOAuth().recordAuthEvent(.loginFailed, outcome: .failure, reason: .unknown)
 		authErrorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 	}
 

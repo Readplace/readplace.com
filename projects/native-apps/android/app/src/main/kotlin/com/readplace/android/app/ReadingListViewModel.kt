@@ -499,8 +499,12 @@ class ReadingListViewModel(
 			val holdsFetchedHref = current.articles.any { it.id == polled.id && it.processing?.refreshHref == fetchedHref }
 			if (holdsFetchedHref) {
 				current.copy(
-					articles = current.articles.map { if (it.id == polled.id) polled else it },
-					processingReceivedAt = current.processingReceivedAt - polled.id + received,
+					articles = current.articles.map { if (it.id == polled.id) polled.keepingEstimate(shownBy = it) else it },
+					processingReceivedAt = if (polled.processing == null) {
+						current.processingReceivedAt - polled.id
+					} else {
+						current.processingReceivedAt + received
+					},
 				)
 			} else {
 				current
@@ -510,7 +514,7 @@ class ReadingListViewModel(
 
 	private fun stamped(articles: List<Article>): Map<String, Instant> {
 		val received = now()
-		return articles.filter { it.processing != null }.associate { it.id to received }
+		return articles.filter { it.processing?.estimate != null }.associate { it.id to received }
 	}
 
 	/**
@@ -793,8 +797,11 @@ class ReadingListViewModel(
 			// Remember a readlist only when the server confirms it as current — never a
 			// mere menu tap, and never fabricated when the collection names none.
 			page.currentReadlistHref?.let { lastViewed.remember(it) }
+			val shown = current.articles.associateBy { it.id }
+			val articles = page.articles.map { it.keepingEstimate(shownBy = shown[it.id]) }
+			val stillProcessing = articles.filter { it.processing != null }.map { it.id }.toSet()
 			reconciled = current.copy(
-				articles = page.articles,
+				articles = articles,
 				// A fresh successful collection reconciles transient banners: a stale
 				// write-refusal (e.g. a since-verified locked account) or error is cleared
 				// here, re-surfacing only if a later write is refused.
@@ -812,7 +819,7 @@ class ReadingListViewModel(
 				selectedTabHref = page.currentTabHref ?: current.selectedTabHref,
 				selectedReadlistHref = page.currentReadlistHref ?: current.selectedReadlistHref,
 				shareTargetHrefs = shareTarget.hrefs,
-				processingReceivedAt = stamped(page.articles),
+				processingReceivedAt = current.processingReceivedAt.filterKeys { it in stillProcessing } + stamped(page.articles),
 			)
 		} else {
 			val existing = current.articles.map { it.id }.toSet()
@@ -907,4 +914,11 @@ class ReadingListViewModel(
 			),
 		)
 	}
+}
+
+private fun Article.keepingEstimate(shownBy: Article?): Article {
+	val answer = processing ?: return this
+	if (answer.estimate != null) return this
+	val estimate = shownBy?.processing?.estimate ?: return this
+	return copy(processing = answer.copy(estimate = estimate))
 }

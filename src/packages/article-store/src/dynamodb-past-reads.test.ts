@@ -5,7 +5,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { initDynamoDbPastReads } from "./dynamodb-past-reads";
 
 type SendFn = DynamoDBDocumentClient["send"];
@@ -68,7 +68,7 @@ function tableOf(command: SentCommand): string {
 
 describe("initDynamoDbPastReads", () => {
 	describe("markPastReadsReady", () => {
-		it("writes the matches, fingerprint, timestamp and tokens under a recompute-safe guard", async () => {
+		it("writes the matches, fingerprint, timestamp and tokens under a recompute-safe guard and leaves any budget block in place", async () => {
 			const { sent, store } = build(() => ({}));
 
 			const outcome = await store.markPastReadsReady({
@@ -90,6 +90,9 @@ describe("initDynamoDbPastReads", () => {
 			expect(update.input.Key).toEqual({ userId: USER_ID, url: "example.com/target" });
 			expect(String(update.input.ConditionExpression)).toContain("attribute_exists(savedAt)");
 			expect(String(update.input.ConditionExpression)).toContain("pastReadsComputedAt < :at");
+			expect(update.input.UpdateExpression).toBe(
+				"SET pastReadsArticles = :articles, pastReadsFingerprint = :fingerprint, pastReadsComputedAt = :at, pastReadsInputTokens = :inputTokens, pastReadsOutputTokens = :outputTokens",
+			);
 			expect(update.input.ExpressionAttributeValues).toEqual({
 				":articles": [
 					{ url: "example.com/a", reason: "Same subject", readlist: "work" },
@@ -140,6 +143,90 @@ describe("initDynamoDbPastReads", () => {
 		});
 	});
 
+	describe("markPastReadsBudgetBlocked", () => {
+		const SAVED_AT = new Date("2026-09-10T08:00:00.000Z");
+		const UNTIL = new Date("2026-09-13T00:00:00.000Z");
+
+		it("records the block on a row no computation has settled yet", async () => {
+			const { sent, store } = build(() => ({}));
+
+			const outcome = await store.markPastReadsBudgetBlocked({
+				userId: USER_ID,
+				url: TARGET_URL,
+				blockedUntil: UNTIL,
+				observed: { savedAt: SAVED_AT },
+			});
+
+			const update = sent[0];
+			assert(update, "an update must have been issued");
+			expect(update.input.TableName).toBe(USER_ARTICLES_TABLE);
+			expect(update.input.Key).toEqual({ userId: USER_ID, url: "example.com/target" });
+			expect(update.input.UpdateExpression).toBe("SET pastReadsBudgetBlockedUntil = :until");
+			expect(update.input.ConditionExpression).toBe(
+				"savedAt = :savedAt AND attribute_not_exists(pastReadsComputedAt)",
+			);
+			expect(update.input.ExpressionAttributeValues).toEqual({
+				":until": UNTIL.toISOString(),
+				":savedAt": SAVED_AT.toISOString(),
+			});
+			expect(outcome).toBe("stored");
+		});
+
+		it("records the block only while the observed computation is still the stored one", async () => {
+			const { sent, store } = build(() => ({}));
+
+			const outcome = await store.markPastReadsBudgetBlocked({
+				userId: USER_ID,
+				url: TARGET_URL,
+				blockedUntil: UNTIL,
+				observed: { savedAt: SAVED_AT, computedAt: AT },
+			});
+
+			const update = sent[0];
+			assert(update, "an update must have been issued");
+			expect(update.input.UpdateExpression).toBe("SET pastReadsBudgetBlockedUntil = :until");
+			expect(update.input.ConditionExpression).toBe(
+				"savedAt = :savedAt AND pastReadsComputedAt = :computedAt",
+			);
+			expect(update.input.ExpressionAttributeValues).toEqual({
+				":until": UNTIL.toISOString(),
+				":savedAt": SAVED_AT.toISOString(),
+				":computedAt": AT.toISOString(),
+			});
+			expect(outcome).toBe("stored");
+		});
+
+		it("reports a row that changed since it was observed as superseded", async () => {
+			const { store } = build(() => {
+				throw new ConditionalCheckFailedException({ $metadata: {}, message: "changed" });
+			});
+
+			await expect(
+				store.markPastReadsBudgetBlocked({
+					userId: USER_ID,
+					url: TARGET_URL,
+					blockedUntil: UNTIL,
+					observed: { savedAt: SAVED_AT },
+				}),
+			).resolves.toBe("superseded");
+		});
+
+		it("propagates any other write failure", async () => {
+			const { store } = build(() => {
+				throw new Error("throttled");
+			});
+
+			await expect(
+				store.markPastReadsBudgetBlocked({
+					userId: USER_ID,
+					url: TARGET_URL,
+					blockedUntil: UNTIL,
+					observed: { savedAt: SAVED_AT },
+				}),
+			).rejects.toThrow("throttled");
+		});
+	});
+
 	describe("readPastReadsState", () => {
 		it("returns the last fingerprint and computed timestamp", async () => {
 			const { store } = build(() => ({
@@ -154,6 +241,22 @@ describe("initDynamoDbPastReads", () => {
 			expect(await store.readPastReadsState({ userId: USER_ID, url: TARGET_URL })).toEqual({
 				fingerprint: "fp-9",
 				computedAt: AT,
+			});
+		});
+
+		it("returns when the article was saved and until when the budget blocked it", async () => {
+			const { store } = build(() => ({
+				Item: {
+					userId: USER_ID,
+					url: "example.com/target",
+					savedAt: "2026-09-10T08:00:00.000Z",
+					pastReadsBudgetBlockedUntil: "2026-09-13T00:00:00.000Z",
+				},
+			}));
+
+			expect(await store.readPastReadsState({ userId: USER_ID, url: TARGET_URL })).toEqual({
+				savedAt: new Date("2026-09-10T08:00:00.000Z"),
+				budgetBlockedUntil: new Date("2026-09-13T00:00:00.000Z"),
 			});
 		});
 
@@ -483,6 +586,117 @@ describe("initDynamoDbPastReads", () => {
 
 			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
 				status: "pending",
+			});
+		});
+
+		it("reports pending for a save that has no row", async () => {
+			const { store } = build(() => ({ Item: undefined }));
+
+			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+				status: "pending",
+			});
+		});
+
+		it("reports the budget limit when a block was recorded before anything was computed", async () => {
+			const { store } = build(() => ({
+				Item: {
+					userId: USER_ID,
+					url: "example.com/target",
+					pastReadsBudgetBlockedUntil: "2026-09-13T00:00:00.000Z",
+				},
+			}));
+
+			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+				status: "budget-limited",
+				until: new Date("2026-09-13T00:00:00.000Z"),
+			});
+		});
+
+		it("keeps a cached empty result visible alongside a recorded budget block", async () => {
+			const { store } = build(() => ({
+				Item: {
+					userId: USER_ID,
+					url: "example.com/target",
+					pastReadsComputedAt: AT.toISOString(),
+					pastReadsArticles: [],
+					pastReadsBudgetBlockedUntil: "2026-09-13T00:00:00.000Z",
+				},
+			}));
+
+			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+				status: "ready",
+				items: [],
+				budgetBlockedUntil: new Date("2026-09-13T00:00:00.000Z"),
+			});
+		});
+
+		it("keeps cached matches visible alongside a recorded budget block", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							pastReadsComputedAt: AT.toISOString(),
+							pastReadsArticles: [{ url: "example.com/kept", reason: "Same subject" }],
+							pastReadsBudgetBlockedUntil: "2026-09-13T00:00:00.000Z",
+						},
+					};
+				}
+				if (command.constructorName === "QueryCommand") return { Items: [] };
+				if (tableOf(command) === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [{ userId: USER_ID, url: "example.com/kept", status: "read" }],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: "example.com/kept",
+								originalUrl: "https://example.com/kept",
+								routeId: "0123456789abcdef0123456789abcdef",
+								title: "Kept",
+								siteName: "Example",
+								excerpt: "",
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.budgetBlockedUntil).toEqual(new Date("2026-09-13T00:00:00.000Z"));
+			expect(result.items.map((item) => item.title)).toEqual(["Kept"]);
+		});
+
+		it("keeps a now-empty cached result visible alongside a recorded budget block", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							pastReadsComputedAt: AT.toISOString(),
+							pastReadsArticles: [{ url: "example.com/gone", reason: "Same subject" }],
+							pastReadsBudgetBlockedUntil: "2026-09-13T00:00:00.000Z",
+						},
+					};
+				}
+				if (command.constructorName === "QueryCommand") return { Items: [] };
+				return { Responses: { [USER_ARTICLES_TABLE]: [] }, UnprocessedKeys: {} };
+			});
+
+			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+				status: "ready",
+				items: [],
+				budgetBlockedUntil: new Date("2026-09-13T00:00:00.000Z"),
 			});
 		});
 

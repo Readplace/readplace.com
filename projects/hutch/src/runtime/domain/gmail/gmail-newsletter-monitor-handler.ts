@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
-import { CheckGmailNewslettersCommand, GmailNewsletterAccountsCheckedEvent, MonitorGmailNewslettersCommand, GmailNewsletterMonitoringProgressedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { CheckGmailNewslettersCommand, GmailNewsletterAccountsCheckedEvent, MonitorGmailNewslettersCommand, GmailNewsletterMonitoringProgressedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { ListConnectedGmailAccounts } from "@packages/provider-contracts/gmail-account";
 import type { Handler, SQSEvent, SQSBatchResponse, SQSBatchItemFailure } from "aws-lambda";
 import type { MonitorGmailNewsletters } from "./monitor-gmail-newsletters";
@@ -27,7 +27,7 @@ export function initGmailNewsletterMonitorHandler(deps: {
 	dispatchMonitor: (input: { userId: UserId; continuation?: { generation: string; page: number } }) => Promise<void>;
 	dispatchNotice: (input: { userId: UserId }) => Promise<void>;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -44,12 +44,12 @@ export function initGmailNewsletterMonitorHandler(deps: {
 					if (detail.nextAccountsPageToken !== undefined) await deps.dispatchCheck({ accountsPageToken: detail.nextAccountsPageToken });
 				} else if (envelope["detail-type"] === MonitorGmailNewslettersCommand.detailType) {
 					const detail = MonitorGmailNewslettersCommand.detailSchema.parse(envelope.detail);
-					const userId = UserIdSchema.parse(detail.userId);
+					const { userId } = detail;
 					const result = detail.continuation === undefined ? await deps.monitor.start(userId) : await deps.monitor.page({ userId, ...detail.continuation });
 					await deps.publishEvent(GmailNewsletterMonitoringProgressedEvent, { userId, nextPage: result.nextPage, notices: result.notices });
 				} else {
 					const detail = GmailNewsletterMonitoringProgressedEvent.detailSchema.parse(envelope.detail);
-					const userId = UserIdSchema.parse(detail.userId);
+					const { userId } = detail;
 					if (detail.notices.length > 0) await deps.dispatchNotice({ userId });
 					if (detail.nextPage !== undefined) await deps.dispatchMonitor({ userId, continuation: detail.nextPage });
 				}

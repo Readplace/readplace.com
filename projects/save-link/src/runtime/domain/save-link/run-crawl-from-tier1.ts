@@ -1,12 +1,12 @@
 import type { SaveAttemptId } from "@packages/domain/article";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
-import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
+import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "@packages/tier-source";
 import type { VerifyWrapperSource } from "@packages/save-article";
-import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
+import type { MarkCrawlStage } from "../crawl-article-state/crawl-stage.types";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
@@ -26,7 +26,7 @@ export type RunCrawlFromTier1Deps = {
 	isSiteRuleUrl: (url: string) => boolean;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;

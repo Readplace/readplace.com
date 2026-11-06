@@ -1,6 +1,6 @@
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 
-export interface Logger {
+export interface WebLogger {
 	info: (message: string) => void;
 	error: (message: string, error?: Error) => void;
 }
@@ -12,8 +12,8 @@ interface LogLine {
 	stack?: string;
 }
 
-export const logger = (): Logger => {
-	const sink = HutchLogger.fromJSON<LogLine>();
+export const logger = (): WebLogger => {
+	const sink = Logger.fromJSON<LogLine>();
 	return {
 		info: (message: string) => {
 			sink.info({

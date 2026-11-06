@@ -1,9 +1,9 @@
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import type { ListConnectedGmailAccounts } from "@packages/provider-contracts/gmail-account";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";
@@ -174,23 +174,19 @@ export function initDynamoDbGmailConnection(deps: {
 			});
 		},
 		markRevokedIfCurrent: async ({ userId, gatewayAddress, connectedAt, reason }) => {
-			try {
-				await table.update({
-					Key: { userId },
-					UpdateExpression: "SET revokedAt = :now, revokedReason = :reason REMOVE connected",
-					ConditionExpression: "gatewayAddress = :gateway AND connectedAt = :connectedAt AND attribute_not_exists(disconnectRequestedAt)",
-					ExpressionAttributeValues: {
-						":gateway": gatewayAddress,
-						":connectedAt": connectedAt,
-						":now": deps.now().toISOString(),
-						":reason": reason,
-					},
-				});
-				return true;
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return false;
-				throw error;
-			}
+			const outcome = await writeIfCondition(() => table.update({
+				Key: { userId },
+				UpdateExpression: "SET revokedAt = :now, revokedReason = :reason REMOVE connected",
+				ConditionExpression: "gatewayAddress = :gateway AND connectedAt = :connectedAt AND attribute_not_exists(disconnectRequestedAt)",
+				ExpressionAttributeValues: {
+					":gateway": gatewayAddress,
+					":connectedAt": connectedAt,
+					":now": deps.now().toISOString(),
+					":reason": reason,
+				},
+			}));
+			if (outcome.kind === "condition-failed") return false;
+			return true;
 		},
 		clearRevoked: async ({ userId }) => {
 			const connectedAt = deps.now().toISOString();

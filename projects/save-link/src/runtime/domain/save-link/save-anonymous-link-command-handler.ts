@@ -1,16 +1,16 @@
 import assert from "node:assert";
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { Logger } from "@packages/logger";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	SaveAnonymousLinkCommand,
 	TierContentExtractedEvent,
-} from "@packages/hutch-infra-components";
-import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
+} from "@packages/infra-components";
+import type { MarkCrawlStage } from "../../domain/crawl-article-state/crawl-stage.types";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
-import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
+import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { ClassifiedCrawlError, initSaveLinkWork, logRecordFailure } from "./save-link-work";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
@@ -32,7 +32,7 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 	isSiteRuleUrl: (url: string) => boolean;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
@@ -75,86 +75,79 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 
 	const crawlSaveCandidates = initCrawlSaveCandidates({ crawlArchiveCapture, saveLinkWork, emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported });
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
+	return initSqsRecordHandler({
+		definition: SaveAnonymousLinkCommand,
+		logger,
+		failure: { report: ({ record, error }) => logRecordFailure({ logger, logPrefix, record, error }) },
+		malformed: { policy: "retry" },
+		handle: async (detail, record) => {
+			const { saveAttemptId } = detail;
+			const identity = await deps.prepareArticleIdentity(detail.url);
+			assert(identity.status === "resolved", "queued article original is unresolved");
 			try {
-				const envelope = JSON.parse(record.body);
-				const detail = SaveAnonymousLinkCommand.detailSchema.parse(envelope.detail);
-				const { saveAttemptId } = detail;
-				const identity = await deps.prepareArticleIdentity(detail.url);
-				assert(identity.status === "resolved", "queued article original is unresolved");
-				try {
-					const captureUrl = detail.captureUrl ?? identity.contentSourceUrl;
+				const captureUrl = detail.captureUrl ?? identity.contentSourceUrl;
 
-					if (captureUrl !== undefined) {
-						const result = await crawlSaveCandidates({
-							url: detail.url,
-							captureUrl,
-							saveAttemptId,
-							sourceOriginalUrl: detail.sourceOriginalUrl ?? identity.sourceOriginalUrl,
-						});
-						if ("deferredTo" in result) {
-							logger.info("[SaveAnonymousLinkCommand] tier-1 deferred to comprehensive Lambda", { url: detail.url, carriedCandidates: result.carriedCandidates });
-							continue;
-						}
-						await publishEvent(TierContentExtractedEvent, {
-							url: detail.url,
-							saveAttemptId,
-							...result,
-							extractedAt: deps.now().toISOString(),
-						});
-						continue;
+				if (captureUrl !== undefined) {
+					const result = await crawlSaveCandidates({
+						url: detail.url,
+						captureUrl,
+						saveAttemptId,
+						sourceOriginalUrl: detail.sourceOriginalUrl ?? identity.sourceOriginalUrl,
+					});
+					if ("deferredTo" in result) {
+						logger.info("[SaveAnonymousLinkCommand] tier-1 deferred to comprehensive Lambda", { url: detail.url, carriedCandidates: result.carriedCandidates });
+						return;
 					}
-
-					logger.info("[SaveAnonymousLinkCommand] processing", { url: detail.url });
-
-					const result = await saveLinkWork(detail.url, { saveAttemptId });
-					if (typeof result === "object" && "deferred" in result) {
-						logger.info("[SaveAnonymousLinkCommand] tier-1 deferred to comprehensive Lambda", {
-							url: detail.url,
-							unsupportedReason: result.deferred,
-						});
-						continue;
-					}
-					if (result === "tier-1-terminal") {
-						logger.info("[SaveAnonymousLinkCommand] tier-1 terminal — origin no longer serves the page", {
-							url: detail.url,
-						});
-						continue;
-					}
-
 					await publishEvent(TierContentExtractedEvent, {
 						url: detail.url,
 						saveAttemptId,
-						candidates: [result.candidate],
+						...result,
 						extractedAt: deps.now().toISOString(),
 					});
-					logger.info("[SaveAnonymousLinkCommand] emitted TierContentExtractedEvent", {
-						url: detail.url,
-						tier: "tier-1",
-					});
-				} catch (error) {
-					if (!(error instanceof ClassifiedCrawlError)) throw error;
-					logger.warn("[SaveAnonymousLinkCommand] crawl failed — terminalising in-process", {
-						url: detail.url,
-						error: String(error),
-					});
-					await deps.transitionAndPersist(markCrawlExhausted, {
-						url: detail.url,
-						input: {
-							reason: error.crawlFailureReason,
-							receiveCount: Number(record.attributes.ApproximateReceiveCount),
-						},
-					});
+					return;
 				}
-			} catch (error) {
-				logRecordFailure({ logger, logPrefix, record, error });
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
 
-		return { batchItemFailures };
-	};
+				logger.info("[SaveAnonymousLinkCommand] processing", { url: detail.url });
+
+				const result = await saveLinkWork(detail.url, { saveAttemptId });
+				if (typeof result === "object" && "deferred" in result) {
+					logger.info("[SaveAnonymousLinkCommand] tier-1 deferred to comprehensive Lambda", {
+						url: detail.url,
+						unsupportedReason: result.deferred,
+					});
+					return;
+				}
+				if (result === "tier-1-terminal") {
+					logger.info("[SaveAnonymousLinkCommand] tier-1 terminal — origin no longer serves the page", {
+						url: detail.url,
+					});
+					return;
+				}
+
+				await publishEvent(TierContentExtractedEvent, {
+					url: detail.url,
+					saveAttemptId,
+					candidates: [result.candidate],
+					extractedAt: deps.now().toISOString(),
+				});
+				logger.info("[SaveAnonymousLinkCommand] emitted TierContentExtractedEvent", {
+					url: detail.url,
+					tier: "tier-1",
+				});
+			} catch (error) {
+				if (!(error instanceof ClassifiedCrawlError)) throw error;
+				logger.warn("[SaveAnonymousLinkCommand] crawl failed — terminalising in-process", {
+					url: detail.url,
+					error: String(error),
+				});
+				await deps.transitionAndPersist(markCrawlExhausted, {
+					url: detail.url,
+					input: {
+						reason: error.crawlFailureReason,
+						receiveCount: record.receiveCount,
+					},
+				});
+			}
+		},
+	});
 }

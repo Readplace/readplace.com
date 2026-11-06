@@ -8,7 +8,7 @@ import { buildForwardingFilterQuery } from "@packages/domain/gmail";
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { GmailApiFailure, GmailFilter, GmailFilters } from "@packages/provider-contracts/gmail-filters";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 
 export type RewriteGmailFilterOutcome =
 	| { ok: true; filterCount: number; senderCount: number }
@@ -51,7 +51,7 @@ export function initRewriteGmailFilter(deps: {
 	mappings: Pick<GmailMappingStore, "listMappings">;
 	addresses: InboxAddressStore;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): RewriteGmailFilter {
 	const { filters, connections, mappings, addresses, now, logger } = deps;
 

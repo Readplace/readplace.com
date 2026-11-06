@@ -6,7 +6,7 @@ import {
 	type IsBlockedAddress,
 	type ResolveAll,
 } from "@packages/crawl-article";
-import type { RenderRequestTally, RenderResourceHosts } from "./render-page.types";
+import type { RenderRequestTally, RenderResourceHosts } from "../../domain/render-crawl/render-page.types";
 import { createRenderRequestCounts } from "./render-request-counts";
 import { createRenderResourceHosts, type SettleRenderRequest } from "./render-resource-hosts";
 

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
-import type { StripeEventType } from "@packages/hutch-infra-components";
+import { Logger, noopLogger } from "@packages/logger";
+import type { StripeEventType } from "@packages/infra-components";
 import {
 	type StripeEventHandler,
 	initStripeWebhookReceiverHandler,
@@ -72,7 +72,7 @@ describe("stripe-webhook-receiver-handler", () => {
 	it("returns 400 when Stripe-Signature header is missing", async () => {
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			now: () => new Date(),
 			eventHandlers: buildEventHandlers(),
 		});
@@ -87,7 +87,7 @@ describe("stripe-webhook-receiver-handler", () => {
 	it("returns 400 (not a 5xx that fires the operator alarm) when the body is missing", async () => {
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			now: () => new Date(),
 			eventHandlers: buildEventHandlers(),
 		});
@@ -105,7 +105,7 @@ describe("stripe-webhook-receiver-handler", () => {
 	it("returns 400 when the signature does not match", async () => {
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			now: () => new Date(),
 			eventHandlers: buildEventHandlers(),
 		});
@@ -129,7 +129,7 @@ describe("stripe-webhook-receiver-handler", () => {
 		const calls: Array<{ subscriptionId: string }> = [];
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			now: () => new Date(),
 			eventHandlers: buildEventHandlers({
 				"customer.subscription.deleted": async ({ stripeEvent }) => {
@@ -154,7 +154,7 @@ describe("stripe-webhook-receiver-handler", () => {
 	it("throws UnconfiguredStripeEventError for unknown Stripe event types so API Gateway returns 5xx and the operator alarm fires", async () => {
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			now: () => new Date(),
 			eventHandlers: buildEventHandlers(),
 		});
@@ -181,7 +181,7 @@ describe("stripe-webhook-receiver-handler", () => {
 	it("propagates downstream handler failures so API Gateway returns 5xx and Stripe retries", async () => {
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			now: () => new Date(),
 			eventHandlers: buildEventHandlers({
 				"customer.subscription.deleted": async () => { throw new Error("EventBridge down"); },
@@ -207,7 +207,7 @@ describe("stripe-webhook-receiver-handler", () => {
 		const calls: Array<{ subscriptionId: string }> = [];
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			now: () => new Date(),
 			eventHandlers: buildEventHandlers({
 				"customer.subscription.deleted": async ({ stripeEvent }) => {

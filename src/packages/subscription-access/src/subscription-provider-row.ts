@@ -1,4 +1,4 @@
-import { dynamoField } from "@packages/hutch-storage-client";
+import { dynamoField } from "@packages/storage-client";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionNextChargeSchema } from "@packages/provider-contracts/subscription-billing";

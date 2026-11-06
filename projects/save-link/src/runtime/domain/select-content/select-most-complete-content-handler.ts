@@ -1,4 +1,4 @@
-import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { TierContentExtractedEvent } from "@packages/infra-components";
 import { initSelectionQueueHandler } from "./select-content-work";
 
 export const initSelectMostCompleteContentHandler = initSelectionQueueHandler({

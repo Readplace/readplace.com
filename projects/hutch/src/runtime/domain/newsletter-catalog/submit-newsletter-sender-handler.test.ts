@@ -7,10 +7,10 @@ import {
 	NewsletterNameSchema,
 	mergeSubmittedSender,
 } from "@packages/domain/newsletter-catalog";
-import { NewsletterSenderSubmittedEvent, SubmitNewsletterSenderCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { NewsletterSenderSubmittedEvent, SubmitNewsletterSenderCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -49,7 +49,7 @@ function harness(initial: NewsletterCatalogDocument | undefined) {
 			published.push({ event, detail });
 		}) as PublishEvent,
 		now: () => NOW,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return { catalog, published, handler };
 }
@@ -157,7 +157,7 @@ describe("initSubmitNewsletterSenderHandler", () => {
 				published.push({ event, detail });
 			}) as PublishEvent,
 			now: () => NOW,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const response = await run(handler, [{ messageId: "raced", body: submission(TLDR) }]);

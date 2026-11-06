@@ -20,7 +20,7 @@ import { AliasNameSchema, type InboxAddress, InboxAddressSchema } from "@package
 import { type NewsletterCatalogDocument, NewsletterCatalogDocumentSchema } from "@packages/domain/newsletter-catalog";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
@@ -943,10 +943,29 @@ describe("GMail Newsletters page", () => {
 		expect(stopped.querySelector("#gmail-load-senders-button")?.textContent).toBe("Load senders");
 	});
 
+	const autoLoads = (doc: Document) => Array.from(doc.querySelectorAll("[data-test-gmail-auto-load-senders]"), (autoLoad) =>
+		[autoLoad.getAttribute("data-test-gmail-auto-load-senders"), autoLoad.getAttribute("hx-post"), autoLoad.getAttribute("hx-trigger")]);
+
+	it("serves the senders discovered earlier from the cache without starting another discovery", async () => {
+		const { agent, gmail } = await connectedAgent();
+		expect(autoLoads(load((await agent.get(GMAIL)).text))).toEqual([]);
+		const opened = load((await agent.get(`${GMAIL}?add=1`)).text);
+		expect(autoLoads(opened)).toEqual([]);
+		expect(opened.querySelector("[data-test-gmail-discovery-status]")?.textContent).toBe("2 senders discovered · Checked 2 messages");
+		expect(senderStatus(opened).hasAttribute("hx-get")).toBe(false);
+		expect(opened.querySelector("#gmail-load-senders-button")?.textContent).toBe("Load senders");
+		expect(gmail.discoveryRequests).toEqual([]);
+	});
+
+	it("auto-loads senders only when the connected mailbox has no discovery yet", async () => {
+		const { agent, gmail, userId } = await connectedAgent({ discovered: false });
+		expect(autoLoads(load((await agent.get(GMAIL)).text))).toEqual([["page", "/newsletters/gmail/discovery/start", "load"]]);
+		await seedDiscovery({ gmail, userId, gatewayAddress: InboxAddressSchema.parse("gmail-other-abc123@read.place"), senders: DISCOVERED, generation: "other-mailbox", state: "complete" });
+		expect(autoLoads(load((await agent.get(GMAIL)).text))).toEqual([["page", "/newsletters/gmail/discovery/start", "load"]]);
+	});
+
 	it("auto-loads senders through an untracked request and keeps the tracked load-senders action for the reader's own submit", async () => {
-		const { agent } = await connectedAgent();
-		const autoLoads = (doc: Document) => Array.from(doc.querySelectorAll("[data-test-gmail-auto-load-senders]"), (autoLoad) =>
-			[autoLoad.getAttribute("data-test-gmail-auto-load-senders"), autoLoad.getAttribute("hx-post"), autoLoad.getAttribute("hx-trigger")]);
+		const { agent } = await connectedAgent({ discovered: false });
 		expect(autoLoads(load((await agent.get(GMAIL)).text))).toEqual([["page", "/newsletters/gmail/discovery/start", "load"]]);
 		const page = load((await agent.get(`${GMAIL}?add=1`)).text);
 		expect(autoLoads(page)).toEqual([["dialog", "/newsletters/gmail/discovery/start", "load"]]);
@@ -1901,7 +1920,7 @@ describe("Your newsletters", () => {
 			removeGmailFilter: async () => ({ ok: true, filterCount: 0, senderCount: 0 }),
 			revokeGmailGrant: async () => ({ ok: true }),
 			cancelGmailHistoryImports: gmail.bundle.cancelGmailHistoryImports,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 		gmail.bundle.publishDisconnectGmail = async (input) => {
 			await disconnectGmail(input);

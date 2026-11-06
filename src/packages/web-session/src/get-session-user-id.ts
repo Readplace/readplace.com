@@ -1,4 +1,4 @@
-import { type DynamoDBDocumentClient, defineDynamoTable } from "@packages/hutch-storage-client";
+import { type DynamoDBDocumentClient, defineDynamoTable } from "@packages/storage-client";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { GetSessionUserId, ObserveSession } from "@packages/provider-contracts/auth";
 import { SessionRow } from "./session-row";

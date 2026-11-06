@@ -6,12 +6,13 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { LambdaClient } from "@aws-sdk/client-lambda";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
-import { consoleLogger } from "@packages/hutch-logger";
-import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { consoleLogger } from "@packages/logger";
+import { EventBridgeClient } from "@packages/infra-components/runtime";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { extractPdfMetadata } from "@packages/crawl-article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { COMPREHENSIVE_CRAWL_COMMAND_ENV } from "./comprehensive-crawl-command.env";
 import { initCanonicalAliasStore, initDynamoDbMeteredLegLedger } from "@packages/article-store";
 import { initRunMeteredLeg } from "./domain/metered-leg/run-metered-leg";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
@@ -32,17 +33,19 @@ import { initEventsDepBundle } from "./dep-bundles/events";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
-const pdfPageOcrFunctionName = requireEnv("PDF_PAGE_OCR_FUNCTION_NAME");
-const pdfPageLlmCleanupFunctionName = requireEnv("PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME");
-const pdfDocumentDiffReviewFunctionName = requireEnv("PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME");
-const pdfPageHtmlConvertFunctionName = requireEnv("PDF_PAGE_HTML_CONVERT_FUNCTION_NAME");
-const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
-const paidCrawlBudget = parseRateLimitRule(requireEnv("PAID_CRAWL_BUDGET"));
+const env = readEnv(COMPREHENSIVE_CRAWL_COMMAND_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const imagesCdnBaseUrl = env.IMAGES_CDN_BASE_URL;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
+const pdfPageOcrFunctionName = env.PDF_PAGE_OCR_FUNCTION_NAME;
+const pdfPageLlmCleanupFunctionName = env.PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME;
+const pdfDocumentDiffReviewFunctionName = env.PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME;
+const pdfPageHtmlConvertFunctionName = env.PDF_PAGE_HTML_CONVERT_FUNCTION_NAME;
+const rateLimitsTable = env.DYNAMODB_RATE_LIMITS_TABLE;
+const paidCrawlBudget = parseRateLimitRule(env.PAID_CRAWL_BUDGET);
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
@@ -82,7 +85,7 @@ const extractPdf = initSaveLinkPdfExtract({
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
 const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const parser = initComprehensiveParserDepBundle({
-	egress: { kind: "direct-then-proxy", proxyUrl: requireEnv("CRAWL_EGRESS_PROXY_URL") },
+	egress: { kind: "direct-then-proxy", proxyUrl: env.CRAWL_EGRESS_PROXY_URL },
 	logError: observability.logError,
 	logInfo: observability.logInfo,
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,

@@ -1,10 +1,10 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import {
 	markSummaryPending,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import { initCanonicalContentChangedHandler } from "./canonical-content-changed-handler";
-import type { FindArticleContent } from "../../providers/article-store/find-article-content";
+import type { FindArticleContent } from "./article-content.types";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 

@@ -1,5 +1,5 @@
 import { type CaptureTrigger, type SaveAttemptId, SaveAttemptIdSchema } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { type Article, type TransitionAndPersist, markCrawlAwaitingReader, promoteTier } from "@packages/domain/article-aggregate";
@@ -13,7 +13,7 @@ import { labelForIndex } from "./select-content-prompt";
 import { markNoReadableArticle } from "./mark-no-readable-article";
 import { COMPARISON_COMPLETED } from "./comparison-log";
 import type { PreparedContentSelection } from "./prepare-content-selection";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 
 const URL = "https://example.com/article";
 const NOW = "2026-10-13T00:00:00.000Z";

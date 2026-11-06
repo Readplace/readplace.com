@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@packages/article-resource-unique-id": "workspace:*",
-    "@packages/hutch-infra-components": "workspace:*",
+    "@packages/infra-components": "workspace:*",
     "@packages/provider-contracts": "workspace:*"
   },
   "peerDependencies": {

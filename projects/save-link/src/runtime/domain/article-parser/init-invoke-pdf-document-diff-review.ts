@@ -1,7 +1,7 @@
 /* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import { InvokeCommand, type LambdaClient } from "@aws-sdk/client-lambda";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { normalizeUnknownError } from "./normalize-error";
 import type {
 	InvokePdfDocumentDiffReview,
@@ -28,7 +28,7 @@ const OutputSchema = z.object({
 export function initInvokePdfDocumentDiffReview(deps: {
 	client: LambdaClient;
 	functionName: string;
-	logger: HutchLogger;
+	logger: Logger;
 }): { invokeDocumentDiffReview: InvokePdfDocumentDiffReview } {
 	const { client, functionName, logger } = deps;
 

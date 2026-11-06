@@ -1,5 +1,5 @@
-import { ResolveArticleOnViewCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { ResolveArticleOnViewCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { PublishResolveArticleOnView } from "@packages/provider-contracts/events";
 
 export function initEventBridgeResolveArticleOnView(deps: {

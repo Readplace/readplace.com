@@ -1,6 +1,6 @@
 /* c8 ignore start -- thin SDK wrapper, only used in prod path */
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { UpdateFetchTimestampCommand } from "@packages/hutch-infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { UpdateFetchTimestampCommand } from "@packages/infra-components";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 
 export function initEventBridgeUpdateFetchTimestamp(deps: {

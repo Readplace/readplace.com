@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { UploadIdSchema } from "@packages/media-contracts";
 import { initDynamoDbMediaUploadSessions } from "./dynamodb-media-upload-sessions";
 

@@ -54,6 +54,7 @@ import { isNativeSurface } from "../../onboarding/native-client";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen, saveTipState, type SaveTipState } from "../../shared/save-tip/save-tip";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
+import { offersSaveTip, readerContentUnavailable, readerNoticeOf } from "../../shared/article-reader/reader-view";
 import { NO_CAPTURE_WATCH } from "../../shared/article-reader/capture-watch";
 import type {
 	ArticleReaderDeps,
@@ -566,13 +567,13 @@ function handleViewArticle(
 						saveAction({
 							articleUrl,
 							utmParams,
-							saveTipState: state.readerViewFailed ? saveTip.state : undefined,
+							saveTipState: offersSaveTip(state.readerView) ? saveTip.state : undefined,
 						}),
 					]),
 		];
 
 		const showExtensionSuggestionBanner =
-			state.readerContentUnavailable && canOfferExtensionInstall(req);
+			readerContentUnavailable(state.readerView) && canOfferExtensionInstall(req);
 
 		res.vary("User-Agent");
 		sendComponent(
@@ -596,7 +597,7 @@ function handleViewArticle(
 					saveTip,
 					extensionInstallUrl: readerPublicInstallUrl(req),
 					crawlVersions: state.crawlVersions,
-					readerNotice: state.notice,
+					readerNotice: readerNoticeOf(state.readerView),
 					backLink: req.userId === undefined ? undefined : PUBLIC_VIEW_BACK_LINK,
 					endCta,
 					now: deps.now(),

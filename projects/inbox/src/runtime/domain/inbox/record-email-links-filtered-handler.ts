@@ -8,8 +8,8 @@ import { type UserId, UserIdSchema } from "@packages/domain/user";
 import {
 	EmailLinksFilteredEvent,
 	EmailLinksFilterFailedEvent,
-} from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type {
 	Handler,
 	SQSBatchItemFailure,
@@ -33,7 +33,7 @@ const FilterFailedFactSchema = z.object({
 export function initRecordEmailLinksFilteredHandler(deps: {
 	putReadlistOutcome: InboxEmailLinkStore["putReadlistOutcome"];
 	listLinksByEmail: InboxEmailLinkStore["listLinksByEmail"];
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { putReadlistOutcome, listLinksByEmail, logger } = deps;
 

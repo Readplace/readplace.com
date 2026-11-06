@@ -5,7 +5,7 @@ import type { Response as SupertestResponse } from "supertest";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import { GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { AnalyticsClick, AnalyticsEvent, AnalyticsPageview } from "@packages/web-analytics";
 import { createBlogApp } from "./app";
 import { drawFigure } from "./web/pages/blog/blog-figure";
@@ -15,7 +15,7 @@ import { initBlogPosts } from "./web/pages/blog/blog.posts";
 const serve = useLoopbackServer();
 
 const events: AnalyticsEvent[] = [];
-const capture: HutchLogger.Typed<AnalyticsEvent> = {
+const capture: Logger.Typed<AnalyticsEvent> = {
 	info: (e) => events.push(e),
 	error: (e) => events.push(e),
 	warn: (e) => events.push(e),

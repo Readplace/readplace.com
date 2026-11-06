@@ -1,12 +1,12 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2, Handler } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { StripeEventType } from "@packages/hutch-infra-components";
+import type { Logger } from "@packages/logger";
+import type { StripeEventType } from "@packages/infra-components";
 import { UnconfiguredStripeEventError } from "./unconfigured-stripe-event-error";
 import { type StripeEvent, verifyStripeSignature } from "./verify-stripe-signature";
 
 export type StripeEventHandler = (input: {
 	stripeEvent: StripeEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }) => Promise<void>;
 
 function isWiredEventType(
@@ -18,7 +18,7 @@ function isWiredEventType(
 
 export function initStripeWebhookReceiverHandler(deps: {
 	webhookSecret: string;
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 	eventHandlers: Record<StripeEventType, StripeEventHandler>;
 }): Handler<APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2> {

@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import express from "express";
 import request from "supertest";
 import { useLoopbackServer } from "@packages/web-test-harness";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { logAndRespondOnError } from "./error-handler";
 
 const serve = useLoopbackServer();
@@ -10,7 +10,7 @@ const serve = useLoopbackServer();
 const NOW = new Date("2026-08-31T22:14:33.000Z");
 const REQUEST_PATH = "/client-dist/htmx.client.js.map";
 
-function capturingLogger(errorCalls: string[]): HutchLogger {
+function capturingLogger(errorCalls: string[]): Logger {
 	return {
 		info: () => {},
 		error: (...args) => {

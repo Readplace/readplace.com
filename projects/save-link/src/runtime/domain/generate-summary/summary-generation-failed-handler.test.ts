@@ -1,5 +1,5 @@
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
-import type { ParseErrorEvent } from "@packages/hutch-infra-components";
+import { noopLogger, type Logger } from "@packages/logger";
+import type { ParseErrorEvent } from "@packages/infra-components";
 import { initSummaryGenerationFailedHandler } from "./summary-generation-failed-handler";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -30,7 +30,7 @@ function createSqsEvent(detail: { url: string; reason: string; receiveCount: num
 describe("initSummaryGenerationFailedHandler", () => {
 	it("logs a parse-error record with source=generate-summary", async () => {
 		const infoSpy = jest.fn();
-		const parseErrorLogger: HutchLogger.Typed<ParseErrorEvent> = {
+		const parseErrorLogger: Logger.Typed<ParseErrorEvent> = {
 			info: infoSpy,
 			error: jest.fn(),
 			warn: jest.fn(),
@@ -62,7 +62,7 @@ describe("initSummaryGenerationFailedHandler", () => {
 
 	it("appends receiveCount exactly once for the exhausted-retries reason (no doubled (receiveCount=N))", async () => {
 		const infoSpy = jest.fn();
-		const parseErrorLogger: HutchLogger.Typed<ParseErrorEvent> = {
+		const parseErrorLogger: Logger.Typed<ParseErrorEvent> = {
 			info: infoSpy,
 			error: jest.fn(),
 			warn: jest.fn(),
@@ -91,7 +91,7 @@ describe("initSummaryGenerationFailedHandler", () => {
 
 	it("reports invalid envelopes as a batch failure without logging the parse-error stream", async () => {
 		const infoSpy = jest.fn();
-		const parseErrorLogger: HutchLogger.Typed<ParseErrorEvent> = {
+		const parseErrorLogger: Logger.Typed<ParseErrorEvent> = {
 			info: infoSpy,
 			error: jest.fn(),
 			warn: jest.fn(),

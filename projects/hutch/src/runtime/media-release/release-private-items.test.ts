@@ -43,6 +43,7 @@ async function buildSubject() {
 		deleteMediaObjects: async (keys) => {
 			calls.push(`media:${keys.join(",")}`);
 		},
+		listMediaKeys: async (prefix) => [`${prefix}cover.png`, `${prefix}figure-1.jpg`],
 		deleteArticleRow: async (url) => {
 			calls.push(`row:${url}`);
 		},
@@ -60,6 +61,7 @@ async function buildSubject() {
 const OWN_ITEM_RELEASE = [
 	`content:${OWN_PRIVATE_URL}`,
 	`media:pending/${OWN_UPLOAD_ID}/original`,
+	`media:images/${OWN_UPLOAD_ID}/cover.png,images/${OWN_UPLOAD_ID}/figure-1.jpg`,
 	`row:${OWN_PRIVATE_URL}`,
 	`links:${OWN_PRIVATE_URL}`,
 ];

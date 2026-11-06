@@ -1,4 +1,4 @@
-import type { InboxAddress } from "../inbox/inbox-address.schema";
+import type { InboxAddress } from "../mail-identity/inbox-address.schema";
 import type { UserId } from "../user";
 import type { ForwardableSender } from "./build-forwarding-filter-query";
 import type { GmailAccountEmail } from "./gmail-account-email.schema";

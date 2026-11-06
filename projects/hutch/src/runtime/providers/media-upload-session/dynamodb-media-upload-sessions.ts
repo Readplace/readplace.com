@@ -7,15 +7,15 @@ import type {
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+	writeIfCondition,
+} from "@packages/storage-client";
 import { MediaKindNameSchema, UploadIdSchema } from "@packages/media-contracts";
 import { z } from "zod";
 
-const MEDIA_UPLOAD_SESSION_TTL_SECONDS = 24 * 60 * 60;
+export const MEDIA_UPLOAD_SESSION_TTL_SECONDS = 24 * 60 * 60;
 
 const SessionRow = z.object({
 	uploadId: UploadIdSchema,
@@ -45,19 +45,16 @@ export function initDynamoDbMediaUploadSessions(deps: {
 		values: Record<string, unknown>;
 		to: T;
 	}): Promise<T | "refused"> => {
-		try {
-			await table.update({
+		const outcome = await writeIfCondition(() =>
+			table.update({
 				Key: { uploadId: update.uploadId },
 				UpdateExpression: "SET #status = :to",
 				ConditionExpression: update.condition,
 				ExpressionAttributeNames: { "#status": "status" },
 				ExpressionAttributeValues: { ...update.values, ":to": update.to },
-			});
-			return update.to;
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "refused";
-			throw error;
-		}
+			}),
+		);
+		return outcome.kind === "written" ? update.to : "refused";
 	};
 
 	return {

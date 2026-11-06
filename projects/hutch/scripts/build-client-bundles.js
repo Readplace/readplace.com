@@ -341,7 +341,10 @@ const BUNDLES = [
     footer: [
       "CrawlEstimate.initCrawlEstimate({",
       "  document: window.document,",
-      "  everySecond: function (cb) { window.setInterval(cb, 1000); }",
+      "  everySecond: function (cb) { window.setInterval(cb, 1000); },",
+      "  afterPageChange: function (cb) {",
+      "    new MutationObserver(cb).observe(window.document.body, { childList: true, subtree: true });",
+      "  }",
       "});",
     ].join("\n"),
   },

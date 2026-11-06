@@ -48,3 +48,30 @@ export function deepseekCostUsd(input: {
 		input.outputTokens * price.output
 	) / 1e6;
 }
+
+export function deepseekPeakNanodollarsPerToken(model: DeepseekModel): {
+	cacheHitInput: number;
+	cacheMissInput: number;
+	output: number;
+} {
+	const price = DEEPSEEK_PRICE_TABLE.usdPerMillionTokens[model].peak;
+	return {
+		cacheHitInput: Math.round(price.cacheHitInput * 1000),
+		cacheMissInput: Math.round(price.cacheMissInput * 1000),
+		output: Math.round(price.output * 1000),
+	};
+}
+
+export function deepseekCostNanodollars(input: {
+	model: DeepseekModel;
+	cacheHitInputTokens: number;
+	cacheMissInputTokens: number;
+	outputTokens: number;
+}): number {
+	const price = deepseekPeakNanodollarsPerToken(input.model);
+	return (
+		input.cacheHitInputTokens * price.cacheHitInput +
+		input.cacheMissInputTokens * price.cacheMissInput +
+		input.outputTokens * price.output
+	);
+}

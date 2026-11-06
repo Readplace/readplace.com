@@ -2,11 +2,11 @@ import { z } from "zod";
 import type { ForwardableSender } from "../gmail/build-forwarding-filter-query";
 import { GmailAccountEmailSchema } from "../gmail/gmail-account-email.schema";
 import { GmailHistoryImportJobIdSchema, GmailMessageIdSchema } from "../gmail/gmail-history-import.schema";
+import { type NormalizedMessageId, NormalizedMessageIdSchema } from "../mail-identity/normalized-message-id";
 import type { UserId } from "../user";
 import type { MessageId } from "./inbox-email.schema";
 
-export const NormalizedMessageIdSchema = z.string().min(1).brand<"NormalizedMessageId">();
-export type NormalizedMessageId = z.infer<typeof NormalizedMessageIdSchema>;
+export { NormalizedMessageIdSchema, type NormalizedMessageId } from "../mail-identity/normalized-message-id";
 
 export function normalizeMessageId(messageId: MessageId): NormalizedMessageId | undefined {
 	if (messageId.startsWith("sha256:")) return undefined;

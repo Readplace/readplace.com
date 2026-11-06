@@ -4,10 +4,10 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import {
 	SaveAnonymousLinkCommand,
 	UpdateFetchTimestampCommand,
-} from "@packages/hutch-infra-components";
-import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
-import { consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+} from "@packages/infra-components";
+import { EventBridgeClient } from "@packages/infra-components/runtime";
+import { consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import type {
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
@@ -26,18 +26,21 @@ import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initEmitSimpleCrawlUnsupported, initEventsDepBundle } from "./dep-bundles/events";
 import { initEventBridgeRefreshArticleContent, initPutRefreshHtml } from "@packages/refresh-article-content";
 import { initFindArticleFreshness } from "./providers/article-crawl/find-article-freshness";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { STALE_CHECK_ENV } from "./stale-check.env";
+
+const env = readEnv(STALE_CHECK_ENV);
 
 // Must match the staleness TTL the reading path applies. Reads of an article older than this
 // trigger a conditional GET against the source (304 → noop, 200 → re-extract).
 const STALE_TTL_MS = 86_400_000;
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
-const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const imagesCdnBaseUrl = env.IMAGES_CDN_BASE_URL;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
+const pendingHtmlBucketName = env.PENDING_HTML_BUCKET_NAME;
 
 const dynamoClient = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});

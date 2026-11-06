@@ -1,5 +1,5 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initArticleStoreDepBundle } from "./article-store";
 import { initCrawlAndFinalizeDepBundle } from "./crawl-and-finalize";
 import { initMediaDepBundle } from "./media";

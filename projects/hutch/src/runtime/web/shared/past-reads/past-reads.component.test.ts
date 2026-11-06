@@ -329,6 +329,47 @@ describe("renderPastReadsSection", () => {
 		expect(slot.querySelector("form.past-reads__request")).toBeNull();
 		expect(html).not.toContain("<noscript>");
 	});
+
+	it("hides a budget-limited selection without polling even when a poll url is supplied", () => {
+		const html = renderPastReadsSection({
+			pastReads: { status: "budget-limited", until: new Date("2026-09-16T00:00:00.000Z") },
+			placement: { kind: "rail", pollUrl: "/queue/x/topic-reads?poll=2" },
+			sourceArticleId: SOURCE_ID,
+			now: NOW,
+			readerPathForReadlist,
+		});
+		const slot = parse(html).querySelector("[data-test-reader-topic-reads]");
+		assert(slot, "the slot renders");
+
+		expect(slot.getAttribute("data-topic-reads-status")).toBe("budget-limited");
+		expect(slot.className).toContain("past-reads--hidden");
+		expect(slot.getAttribute("hx-get")).toBe(null);
+		expect(slot.querySelectorAll("[data-test-topic-read-item]")).toHaveLength(0);
+		expect(slot.querySelector("form.past-reads__request")).toBeNull();
+		expect(html).not.toContain("<noscript>");
+	});
+
+	it("renders a ready selection carrying a budget block exactly as a ready one", () => {
+		const items = [
+			{ id: IN_WORK, title: "In a custom list", siteName: siteLabel("Example"), reason: "Same subject", readAt: READ_THREE_DAYS_AGO, readlist: WORK },
+		];
+		const renderWith = (pastReads: PastReads) =>
+			renderPastReadsSection({
+				pastReads,
+				placement: { kind: "rail", pollUrl: "/queue/x/topic-reads?poll=2" },
+				sourceArticleId: SOURCE_ID,
+				now: NOW,
+				readerPathForReadlist,
+			});
+
+		const blocked = renderWith({ status: "ready", items, budgetBlockedUntil: new Date("2026-09-16T00:00:00.000Z") });
+
+		expect(blocked).toBe(renderWith({ status: "ready", items }));
+		const slot = parse(blocked).querySelector("[data-test-reader-topic-reads]");
+		assert(slot, "the slot renders");
+		expect(slot.className).toContain("past-reads--ready");
+		expect(slot.querySelectorAll("[data-test-topic-read-item]")).toHaveLength(1);
+	});
 });
 
 describe("renderPastReadsSection inline placement", () => {

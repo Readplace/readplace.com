@@ -6,7 +6,7 @@ import {
 	type FinalizeArticle,
 	initCrawlAndFinalizeArticle,
 } from "@packages/finalize-article";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { EmailLinkOrdinalSchema, type InboxEmailLinkStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -75,7 +75,7 @@ function makeHandler(deps: {
 	const handler = initCrawlEmailLinkPreviewHandler({
 		crawlAndFinalize: deps.crawlAndFinalize,
 		setLinkOutcome: deps.setLinkOutcome,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return (body: string) => handler(buildSqsEvent([{ messageId: "rec-1", body }]), buildLambdaContext(), () => {});
 }

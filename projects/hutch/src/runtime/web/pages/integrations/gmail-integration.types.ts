@@ -18,7 +18,7 @@ import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 import type { DetectNewsletters } from "@packages/domain/newsletter-catalog";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
@@ -61,7 +61,7 @@ export interface GmailIntegrationProviders {
 	publishSubmitNewsletterSender: (input: { senderEmail: ForwardableSender }) => Promise<void>;
 	newGmailHistoryImportJobId: () => GmailHistoryImportJobId;
 	newGmailHistoryImportGeneration: () => string;
-	diagnosticsLogger: HutchLogger;
+	diagnosticsLogger: Logger;
 }
 
 export interface GmailIntegrationDependencies extends GmailIntegrationProviders {

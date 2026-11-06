@@ -1,6 +1,6 @@
 import { MAX_IMAGE_BYTES } from "@packages/crawl-article";
 import type { CrawlFetch } from "@packages/crawl-article";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initDownloadEmailImages } from "./download-email-images";
 
 function bodyStream(body: Buffer): ReadableStream<Uint8Array> {
@@ -39,7 +39,7 @@ function fakeImageFetch(options: {
 }
 
 function initSubject(crawlFetch: CrawlFetch) {
-	return initDownloadEmailImages({ crawlFetch, logger: HutchLogger.from(noopLogger) });
+	return initDownloadEmailImages({ crawlFetch, logger: Logger.from(noopLogger) });
 }
 
 describe("initDownloadEmailImages", () => {

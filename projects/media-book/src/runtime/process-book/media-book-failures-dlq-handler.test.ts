@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { MediaUploadCommittedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { MediaUploadCommittedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initProcessBookDlqHandler } from "./media-book-failures-dlq-handler";
@@ -21,7 +21,7 @@ function setUp() {
 	const publishEvent: PublishEvent = async (event, detail) => {
 		published.push({ event: event.detailType, detail });
 	};
-	const handler = initProcessBookDlqHandler({ publishEvent, logger: HutchLogger.from(noopLogger) });
+	const handler = initProcessBookDlqHandler({ publishEvent, logger: Logger.from(noopLogger) });
 	const run = (body: string) =>
 		handler(buildSqsEvent([{ messageId: "m-1", body }]), buildLambdaContext(), () => {});
 	return { run, published };

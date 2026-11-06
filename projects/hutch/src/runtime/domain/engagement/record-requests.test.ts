@@ -1,13 +1,13 @@
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { MinutesSchema, type SaveProvenance } from "@packages/domain/article";
 import { OAuthClientIdSchema } from "@packages/domain/oauth";
-import type { CountEarlyIntentionalSave } from "@packages/provider-contracts/auth";
+import type { CountEarlyIntentionalSave, MarkActivationThresholdReached } from "@packages/provider-contracts/auth";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { initRecordPersonalSaves } from "./record-personal-saves";
 import { initRecordImportRequest } from "./record-import-request";
-import type { ActivationThresholdReachedEvent } from "../../observability/funnel-events";
+import type { ActivationThresholdReachedEvent } from "./funnel-events";
 import { ANALYTICS_EVENTS, STREAMS } from "../../observability/events";
 
 const userId = UserIdSchema.parse("reader");
@@ -18,7 +18,9 @@ const activationNotObserved = {
 	logError: () => {},
 	countEarlyIntentionalSave: async () => ({ inWindow: false as const }),
 	recordActivationThresholdReached: () => {},
+	markActivationThresholdReached: async () => {},
 };
+const intentionalProvenance: SaveProvenance = { kind: "web" };
 const saveParams = (url: string, provenance: SaveProvenance) => ({
 	userId,
 	url,
@@ -27,12 +29,16 @@ const saveParams = (url: string, provenance: SaveProvenance) => ({
 	provenance,
 	savedAt: NOW,
 });
-function activationHarness(counter?: CountEarlyIntentionalSave) {
+function activationHarness(
+	counter?: CountEarlyIntentionalSave,
+	markFailure?: Error,
+) {
 	const store = initInMemoryArticleStore();
 	const activity: Parameters<RecordEngagementActivity>[0][] = [];
 	const events: ActivationThresholdReachedEvent[] = [];
 	const errors: { message: string; error: Error | undefined }[] = [];
 	const counterCalls: Parameters<CountEarlyIntentionalSave>[0][] = [];
+	const crossings: Parameters<MarkActivationThresholdReached>[0][] = [];
 	let count = 0;
 	const wrapped = initRecordPersonalSaves({
 		...store,
@@ -52,8 +58,12 @@ function activationHarness(counter?: CountEarlyIntentionalSave) {
 		recordActivationThresholdReached: (event) => {
 			events.push(event);
 		},
+		markActivationThresholdReached: async (input) => {
+			if (markFailure) throw markFailure;
+			crossings.push(input);
+		},
 	});
-	return { store, wrapped, activity, events, errors, counterCalls };
+	return { store, wrapped, activity, events, errors, counterCalls, crossings };
 }
 describe("deliberate requests", () => {
 	it("records personal saves and imports, while preserving attribution and excluding background seeds and ingestion", async () => {
@@ -241,6 +251,38 @@ describe("the second intentional save", () => {
 		await wrapped.saveArticleKeepingPosition(saveParams("https://publisher.com/excluded-2", provenance));
 
 		expect(counterCalls).toEqual([]);
+	});
+
+	it("marks the crossing on the row on the second created save only", async () => {
+		const { wrapped, crossings } = activationHarness();
+
+		await wrapped.saveArticle(saveParams("https://publisher.com/one", intentionalProvenance));
+		expect(crossings).toEqual([]);
+		await wrapped.saveArticleKeepingPosition(saveParams("https://publisher.com/two", intentionalProvenance));
+		expect(crossings).toEqual([{ userId, at: NOW }]);
+		await wrapped.saveArticle(saveParams("https://publisher.com/three", intentionalProvenance));
+		expect(crossings).toEqual([{ userId, at: NOW }]);
+	});
+
+	it("marks no crossing outside the window", async () => {
+		const { wrapped, crossings } = activationHarness(async () => ({ inWindow: false }));
+
+		await wrapped.saveArticle(saveParams("https://publisher.com/one", intentionalProvenance));
+		await wrapped.saveArticle(saveParams("https://publisher.com/two", intentionalProvenance));
+
+		expect(crossings).toEqual([]);
+	});
+
+	it("keeps the save and the activation event when marking the crossing fails, and logs the failure", async () => {
+		const unavailable = new Error("Users table unavailable");
+		const { wrapped, events, errors } = activationHarness(undefined, unavailable);
+
+		await wrapped.saveArticle(saveParams("https://publisher.com/one", intentionalProvenance));
+		const second = await wrapped.saveArticle(saveParams("https://publisher.com/two", intentionalProvenance));
+
+		expect(second.createdUserArticle).toBe(true);
+		expect(events).toHaveLength(1);
+		expect(errors).toEqual([{ message: "Failed to count early intentional save", error: unavailable }]);
 	});
 
 	it("does not count a re-save", async () => {

@@ -1,15 +1,15 @@
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/infra-components/runtime";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbGmailDiscovery, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbInboxAddress } from "@packages/inbox-store";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
 import {
 	DisconnectGmailCommand,
 	type GmailFilterRewriteFailedLine,
 	GmailForwardingConfirmFailedEvent,
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { initCancelGmailHistoryImports } from "./domain/gmail/cancel-gmail-history-imports";
 import { initDisconnectGmail } from "./domain/gmail/disconnect-gmail";
 import { initDisconnectGmailHandler } from "./domain/gmail/disconnect-gmail-handler";
@@ -20,51 +20,54 @@ import { initRewriteGmailFilterHandler } from "./domain/gmail/rewrite-gmail-filt
 import { initGmailAccessToken } from "./providers/gmail-api/gmail-access-token";
 import { initGmailFilters } from "./providers/gmail-api/gmail-filters";
 import { initRevokeGmailGrant } from "./providers/gmail-api/gmail-revoke";
+import { REWRITE_GMAIL_FILTER_ENV } from "./rewrite-gmail-filter.env";
 
-const logger = HutchLogger.from(consoleLogger);
+const env = readEnv(REWRITE_GMAIL_FILTER_ENV);
+
+const logger = Logger.from(consoleLogger);
 const client = createDynamoDocumentClient();
 const now = () => new Date();
 
 const credentials = initDynamoDbGmailCredentials({
 	client,
-	tableName: requireEnv("DYNAMODB_GMAIL_CREDENTIALS_TABLE"),
+	tableName: env.DYNAMODB_GMAIL_CREDENTIALS_TABLE,
 	now,
 });
 
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
-	eventBusName: requireEnv("EVENT_BUS_NAME"),
+	eventBusName: env.EVENT_BUS_NAME,
 });
 
 const connections = initDynamoDbGmailConnection({
 	client,
-	tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"),
+	tableName: env.DYNAMODB_GMAIL_CONNECTIONS_TABLE,
 	now,
 });
 
 const senders = initDynamoDbGmailSender({
 	client,
-	tableName: requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE"),
+	tableName: env.DYNAMODB_GMAIL_SENDERS_TABLE,
 	now,
 });
 
 const addresses = initDynamoDbInboxAddress({
 	client,
-	tableName: requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE"),
+	tableName: env.DYNAMODB_INBOX_ADDRESSES_TABLE,
 	now,
 });
 
 const mappings = initDynamoDbGmailMapping({
 	client,
-	tableName: requireEnv("DYNAMODB_GMAIL_MAPPINGS_TABLE"),
+	tableName: env.DYNAMODB_GMAIL_MAPPINGS_TABLE,
 	now,
 });
 
 const filterDeps = {
 	filters: initGmailFilters({
 		accessToken: initGmailAccessToken({
-			clientId: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-			clientSecret: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+			clientId: env.GMAIL_INTEGRATION_CLIENT_ID,
+			clientSecret: env.GMAIL_INTEGRATION_CLIENT_SECRET,
 			credentials,
 			fetch: globalThis.fetch,
 			now,
@@ -83,7 +86,7 @@ const rewriteGmailFilter = initRewriteGmailFilter({ ...filterDeps, mappings });
 const rewriteHandler = initRewriteGmailFilterHandler({
 	rewriteGmailFilter,
 	publishEvent,
-	metricLog: HutchLogger.fromJSON<GmailFilterRewriteFailedLine>(),
+	metricLog: Logger.fromJSON<GmailFilterRewriteFailedLine>(),
 	logger,
 });
 
@@ -102,12 +105,12 @@ export const handler = initHandleByDetailType({
 					connections,
 					credentials,
 					senders,
-					discovery: initDynamoDbGmailDiscovery({ client, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now }),
+					discovery: initDynamoDbGmailDiscovery({ client, tableName: env.DYNAMODB_GMAIL_DISCOVERY_TABLE, now }),
 					addresses,
 					removeGmailFilter: initRewriteGmailFilter({ ...filterDeps, mappings: { listMappings: async () => [] } }),
 					revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
 					cancelGmailHistoryImports: initCancelGmailHistoryImports({
-						imports: initDynamoDbGmailHistoryImport({ client, tableName: requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE") }),
+						imports: initDynamoDbGmailHistoryImport({ client, tableName: env.DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE }),
 						now,
 					}),
 					logger,

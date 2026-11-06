@@ -1,5 +1,6 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
-import { RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import { initPublishArchiveComparison } from "./publish-archive-comparison";
 
 const wrapper = { id: CandidateIdSchema.parse("wrapper-candidate"), tier: "tier-2" as const };
@@ -20,7 +21,7 @@ describe("initPublishArchiveComparison", () => {
 	it("publishes a save's selection over the stored candidates as a no-body live attempt", async () => {
 		const { published, publishArchiveComparison } = setup();
 
-		const termination = await publishArchiveComparison({ url: "https://example.com/post", userId: "user-1", saveAttemptId, candidates: [wrapper] });
+		const termination = await publishArchiveComparison({ url: "https://example.com/post", userId: UserIdSchema.parse("user-1"), saveAttemptId, candidates: [wrapper] });
 
 		expect(termination).toEqual({ via: "deferred-to-event" });
 		expect(published).toEqual([{

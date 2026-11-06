@@ -2,7 +2,7 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecor
 import { type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
 import { isBlockClassStatus } from "@packages/crawl-article";
-import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import {
@@ -18,9 +18,9 @@ import {
 } from "@packages/domain/article-aggregate";
 import type { ListAvailableTierSources, CandidateReference } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
-import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
-import type { RecordCrawlVersion } from "../../providers/article-store/record-crawl-version";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import type { WriteCanonicalContent } from "./tier-source-access.types";
+import type { RecordCrawlVersion } from "./crawl-versions";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
 import { resolveCanonicalPublishedOn } from "./resolve-canonical-published-on";
 import { type LiveAttempt, type PreparedContentSelection, initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
@@ -29,7 +29,7 @@ import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { SELECT_CONTENT_TIMEOUTS } from "./timeouts";
 import { initJudgeUnderLedger } from "./judge-under-ledger";
 import type { RunMeteredLeg } from "../metered-leg/run-metered-leg";
-import type { FindArticleContent } from "../../providers/article-store/find-article-content";
+import type { FindArticleContent } from "../save-link/article-content.types";
 
 export interface SelectContentDependencies {
 	listAvailableTierSources: ListAvailableTierSources;
@@ -43,7 +43,7 @@ export interface SelectContentDependencies {
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	verifyWrapperSource: VerifyWrapperSource;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 type SelectContentRequest = {
@@ -139,7 +139,7 @@ export function initSelectionQueueHandler(queue: {
 	feature: "select-most-complete-content" | "recrawl-content-extracted" | "refresh-content-extracted" | "reselect-after-removal";
 	toRequest: (detail: unknown, record: SQSRecord) => SelectContentRequest;
 	onExhaustion: "mark-crawl-exhausted" | "keep-row";
-}): (deps: SelectContentDependencies & { deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine> }) => Handler<SQSEvent, SQSBatchResponse> {
+}): (deps: SelectContentDependencies & { deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine> }) => Handler<SQSEvent, SQSBatchResponse> {
 	return (deps) => {
 		const selectContent = initSelectContentWork(deps);
 		return async (event) => {

@@ -6,9 +6,9 @@ import {
 	GmailForwardingConfirmedEvent,
 	GmailForwardingConfirmFailedEvent,
 	METERED_GMAIL_FORWARDING_CONFIRM_REASONS,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { ConfirmForwardingAddressResult } from "./confirm-forwarding-address";
@@ -49,7 +49,7 @@ function makeHarness(result: ConfirmForwardingAddressResult | (() => never)) {
 			published.push({ event, detail });
 		}) as PublishEvent,
 		metricLog: { info: metricCapture, error: metricCapture, warn: metricCapture, debug: metricCapture },
-		logger: HutchLogger.from({ info: logCapture, warn: logCapture, error: logCapture, debug: logCapture }),
+		logger: Logger.from({ info: logCapture, warn: logCapture, error: logCapture, debug: logCapture }),
 	});
 	const run = async (event: SQSEvent) => {
 		const response = await handler(event, buildLambdaContext(), () => {});

@@ -1,12 +1,10 @@
 import baseConfig from "../../../knip.config.base";
 import type { KnipConfig } from "knip";
 
-const { workspaces: _workspaces, ...base } = baseConfig;
-
 export default {
-	...base,
+	...baseConfig,
 	ignore: [
-		...(base.ignore ?? []),
+		...(baseConfig.ignore ?? []),
 		// CLI scripts (not entry points)
 		"scripts/sync-signed-extension.js",
 		"scripts/submit-to-amo.js",
@@ -17,11 +15,11 @@ export default {
 		// Workspace dependency — knip can't trace through esbuild-bundled entry points
 		"@packages/onboarding-extension-signal",
 		"@packages/supported-clients",
-		// Type-only dependency — needed for TypeScript inference of HutchS3PublicRead properties, not directly imported
+		// Type-only dependency — needed for TypeScript inference of S3PublicRead properties, not directly imported
 		"@pulumi/aws",
 	],
 	ignoreBinaries: [
-		...(base.ignoreBinaries ?? []),
+		...(baseConfig.ignoreBinaries ?? []),
 		// Used via check script to delegate to Nx
 		"nx",
 		// Used via check-infra script

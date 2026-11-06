@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine, estimateOutputTokens } from "@packages/ai-message";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { evaluateGuardrails } from "./guardrails";
 import type {
 	CleanupPageWithLlm,
@@ -24,8 +24,8 @@ const CLEANUP_TOKEN_HEADROOM = 2;
 
 export function initPdfPageLlmCleanupHandler(deps: {
 	cleanupPageWithLlm: CleanupPageWithLlm;
-	logger: HutchLogger;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 }): (rawInput: unknown) => Promise<PdfPageLlmCleanupOutput> {
 	const { cleanupPageWithLlm, logger, deepseekCallFailedLog } = deps;
 

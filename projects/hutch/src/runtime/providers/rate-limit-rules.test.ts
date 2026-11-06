@@ -14,6 +14,7 @@ const RULES = {
 	browserHandoff: "600/3600",
 	import: "10/3600",
 	importFromUrl: "5/3600",
+	uploadStage: "20/3600",
 };
 
 describe("parseRateLimitRules", () => {
@@ -22,6 +23,7 @@ describe("parseRateLimitRules", () => {
 
 		assert.deepEqual(rules.browserHandoff, { limit: 600, windowSeconds: 3600 });
 		assert.deepEqual(rules.loginAccount, { limit: 5, windowSeconds: 900 });
+		assert.deepEqual(rules.uploadStage, { limit: 20, windowSeconds: 3600 });
 		assert.deepEqual(Object.keys(rules).sort(), Object.keys(RULES).sort());
 	});
 

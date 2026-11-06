@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { ENGAGEMENT_EVENTS } from "./engagement-events";
 import type { ArmCounts, StarterReport } from "./starter-report";
 
@@ -28,7 +28,7 @@ function percentagePoints(proportion: number): number {
 
 export function initLogStarterReport(deps: {
 	getStarterReport: () => Promise<StarterReport | undefined>;
-	logger: HutchLogger.Typed<StarterReportLine>;
+	logger: Logger.Typed<StarterReportLine>;
 	now: () => Date;
 }) {
 	return async () => {

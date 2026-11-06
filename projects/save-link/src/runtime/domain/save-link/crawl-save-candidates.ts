@@ -1,5 +1,5 @@
 import type { SaveAttemptId } from "@packages/domain/article";
-import type { CrawlFailureReason } from "@packages/article-state-types";
+import type { CrawlFailureReason, UserId } from "@packages/article-state-types";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
 import type { CrawlArchiveCapture } from "./crawl-archive-capture";
@@ -27,7 +27,7 @@ export function initCrawlSaveCandidates(deps: {
 		captureUrl: string;
 		saveAttemptId: SaveAttemptId;
 		sourceOriginalUrl?: string;
-		userId?: string;
+		userId?: UserId;
 		recrawl?: boolean;
 	}): Promise<SaveCandidates | DeferredSaveCandidates> => {
 		const [live, wrapper] = await Promise.allSettled([

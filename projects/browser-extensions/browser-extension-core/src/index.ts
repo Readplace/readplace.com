@@ -1,6 +1,6 @@
 export { BrowserExtensionCore } from "./core";
 export { resolveCanonicalUrlFromDocument } from "./resolve-canonical-url-from-document";
-export type { Core, CoreError, ResultCallbacks, ReadingList } from "./core";
+export type { Core, ReadingList } from "./core";
 export type { BrowserShell } from "./shell.types";
 export type { SetIcon } from "./icon-status";
 export type {
@@ -28,24 +28,24 @@ export { initRecoverableOAuthAuth } from "./auth/recoverable-oauth";
 export { initIndexedDbAuthState } from "./auth/indexed-db-auth-state.browser";
 export { initRefreshProof } from "./auth/refresh-proof";
 export { UnauthorizedError } from "./auth/unauthorized-error";
+export { initSirenReadingList } from "./reading-list/siren-reading-list";
+export { initExtension } from "./reading-list/siren-walker";
 export {
-	initSirenReadingList,
-	initExtension,
 	initSaveArticleUnderstanding,
 	initSaveArticlesUnderstanding,
 	initSaveContentUnderstanding,
 	initListArticlesUnderstanding,
 	genericEntityAction,
 	groupOf,
-	httpCacheable,
-} from "./reading-list/siren-reading-list";
+} from "./reading-list/siren-understandings";
+export { httpCacheable } from "./reading-list/siren-fetch";
+export type { SirenReadingListDeps } from "./reading-list/siren-reading-list";
+export type { ExtensionDeps } from "./reading-list/siren-walker";
 export type {
-	SirenReadingListDeps,
-	ExtensionDeps,
 	NavigationResult,
 	ArticleItem,
 	BoundAction,
-} from "./reading-list/siren-reading-list";
+} from "./reading-list/siren-navigation.types";
 export type { ContentBodyBuilder } from "./reading-list/content-body-parsers";
 export { capturedContentBody } from "./reading-list/content-body-parsers";
 export type { SaveUrl, UploadContent, UploadContentResult, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, PageRel, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
@@ -70,7 +70,10 @@ export type {
 	UploadQueue,
 	WakeScheduler,
 } from "./upload-queue/upload-queue.types";
-export type { PopupMessage } from "./popup-message.types";
+export { PopupMessageSchema } from "./popup-protocol";
+export type { PopupMessage, PopupReplyFor } from "./popup-protocol";
+export { initAnswerPopupMessage } from "./answer-popup-message";
+export type { AnswerPopupMessage } from "./answer-popup-message";
 export { initPopup } from "./popup/popup.browser";
 export { SAVE_RENDERED_MARK, POPUP_FIRST_FRAME_MARK } from "./popup/saved-view";
 export { isAppUrl } from "./popup/is-app-url";

@@ -4,7 +4,7 @@ import { JSDOM } from "jsdom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId, shownSummary, type Viewer, viewerFor } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { ReaderReadyEmailSentEvent } from "@packages/hutch-infra-components";
+import { ReaderReadyEmailSentEvent } from "@packages/infra-components";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { DigestPageCursorSchema } from "@packages/provider-contracts/article-store";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";

@@ -1,6 +1,6 @@
 import { NoSuchKey, S3ServiceException, type S3Client } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initResolveAuthoredContentKeys } from "./resolve-authored-content-keys";
 
 /**

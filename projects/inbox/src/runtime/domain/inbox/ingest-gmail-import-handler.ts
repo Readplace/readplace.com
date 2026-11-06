@@ -14,21 +14,15 @@ import {
 	normalizeMessageId,
 	type ParseEmailResult,
 } from "@packages/domain/inbox";
-import { UserIdSchema } from "@packages/domain/user";
 import {
 	type GmailHistoryImportMessageFetchedDetail,
 	GmailHistoryImportMessageFetchedEvent,
 	type GmailHistoryImportMessageIngestedDetail,
 	GmailHistoryImportMessageIngestedEvent,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
+} from "@packages/infra-components";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { RecordDuplicateGmailOrigin } from "../gmail-import-completion/record-gmail-origin";
 import type { DownloadEmailImages } from "./download-email-images";
 import type { IngestParsedEmail } from "./ingest-parsed-email";
@@ -55,7 +49,7 @@ export function initIngestGmailImportHandler(deps: {
 	recordDuplicateGmailOrigin: RecordDuplicateGmailOrigin;
 	publishEvent: PublishEvent;
 	maxEmailBytes: number;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		readRawEmail,
@@ -74,7 +68,7 @@ export function initIngestGmailImportHandler(deps: {
 	const ingestFetchedMessage = async (
 		detail: GmailHistoryImportMessageFetchedDetail,
 	): Promise<IngestionOutcome> => {
-		const userId = UserIdSchema.parse(detail.userId);
+		const { userId } = detail;
 		const jobId = GmailHistoryImportJobIdSchema.parse(detail.jobId);
 		const job = await findImportJob({ userId, jobId });
 		if (job === undefined) return { outcome: "cancelled", receivedAtMessageId: undefined };
@@ -182,35 +176,25 @@ export function initIngestGmailImportHandler(deps: {
 		};
 	};
 
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-		for (const record of event.Records) {
-			try {
-				const detail = GmailHistoryImportMessageFetchedEvent.detailSchema.parse(
-					JSON.parse(record.body).detail,
-				);
-				const { outcome, receivedAtMessageId } =
-					await ingestFetchedMessage(detail);
-				await publishEvent(GmailHistoryImportMessageIngestedEvent, {
-					userId: detail.userId,
-					jobId: detail.jobId,
-					generation: detail.generation,
-					gmailMessageId: detail.gmailMessageId,
-					outcome,
-					receivedAtMessageId,
-				});
-				logger.info("[ingest-gmail-import] ingested", {
-					jobId: detail.jobId,
-					outcome,
-				});
-			} catch (error) {
-				logger.error("[ingest-gmail-import] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-		return { batchItemFailures };
-	};
+	return initSqsRecordHandler({
+		definition: GmailHistoryImportMessageFetchedEvent,
+		logger,
+		failure: { message: "[ingest-gmail-import] record failed" },
+		malformed: { policy: "retry" },
+		handle: async (detail) => {
+			const { outcome, receivedAtMessageId } = await ingestFetchedMessage(detail);
+			await publishEvent(GmailHistoryImportMessageIngestedEvent, {
+				userId: detail.userId,
+				jobId: detail.jobId,
+				generation: detail.generation,
+				gmailMessageId: detail.gmailMessageId,
+				outcome,
+				receivedAtMessageId,
+			});
+			logger.info("[ingest-gmail-import] ingested", {
+				jobId: detail.jobId,
+				outcome,
+			});
+		},
+	});
 }

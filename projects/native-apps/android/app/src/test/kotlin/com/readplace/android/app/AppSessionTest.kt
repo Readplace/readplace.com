@@ -14,6 +14,7 @@ import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.Pkce
 import com.readplace.android.core.PurgeableUploadQueue
 import com.readplace.android.core.RefreshToken
+import com.readplace.android.core.ServerEndpoints
 import com.readplace.android.core.ShareArtifacts
 import com.readplace.android.core.SloganDiagnostics
 import com.readplace.android.core.TokenKey
@@ -125,7 +126,7 @@ class AppSessionTest {
 		AppSession(
 			baseUrl = baseUrl,
 			store = store,
-			oauth = OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = NATIVE_USER_AGENT),
+			oauth = OAuth(endpoints = ServerEndpoints(baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = NATIVE_USER_AGENT),
 			newClientBuilder = newClientBuilder,
 			nativeUserAgent = NATIVE_USER_AGENT,
 			ioDispatcher = ioDispatcher,

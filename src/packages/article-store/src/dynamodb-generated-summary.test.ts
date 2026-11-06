@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ANONYMOUS_VIEWER, viewerFor } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
@@ -157,7 +157,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		});
 
 		await expect(findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).rejects.toThrow(
-			"summaryStatus=ready row must carry a summary",
+			"\"summary\"",
 		);
 	});
 
@@ -245,7 +245,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		});
 
 		await expect(findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).rejects.toThrow(
-			"summaryStatus=failed row must carry a summaryFailureReason",
+			"summaryFailureReason",
 		);
 	});
 

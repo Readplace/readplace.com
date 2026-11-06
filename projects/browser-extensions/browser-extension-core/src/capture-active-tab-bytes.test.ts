@@ -1,4 +1,4 @@
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { captureActiveTabBytes } from "./capture-active-tab-bytes";
 
 function fakeFetch(body: ArrayBuffer, headers: Record<string, string> = {}, status = 200): typeof fetch {
@@ -11,10 +11,10 @@ function fakeFetch(body: ArrayBuffer, headers: Record<string, string> = {}, stat
 		}) as Response;
 }
 
-function recordingLogger(): { logger: HutchLogger; warnings: string[]; debugs: string[] } {
+function recordingLogger(): { logger: Logger; warnings: string[]; debugs: string[] } {
 	const warnings: string[] = [];
 	const debugs: string[] = [];
-	const logger = HutchLogger.from({
+	const logger = Logger.from({
 		...noopLogger,
 		warn: (message: unknown) => warnings.push(String(message)),
 		debug: (message: unknown) => debugs.push(String(message)),
@@ -23,7 +23,7 @@ function recordingLogger(): { logger: HutchLogger; warnings: string[]; debugs: s
 }
 
 const PDF_HEADER = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
-const logger = HutchLogger.from(noopLogger);
+const logger = Logger.from(noopLogger);
 
 describe("captureActiveTabBytes", () => {
 	it("returns bytes and mediaType for application/pdf", async () => {

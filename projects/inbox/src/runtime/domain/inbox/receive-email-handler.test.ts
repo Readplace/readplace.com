@@ -1,4 +1,4 @@
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import { initResumeAcceptedGmailEmail } from "./resume-accepted-gmail-email";
 import assert from "node:assert/strict";
 import {
@@ -22,7 +22,7 @@ import {
 } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -163,7 +163,7 @@ function makeHarness(opts?: {
 			getEmail: emailStore.getEmail,
 			addGmailOrigins: completion.addGmailOrigins,
 			publishEvent,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		}),
 		interceptGmailConfirmation:
 			opts?.interceptGmailConfirmation ??
@@ -177,7 +177,7 @@ function makeHarness(opts?: {
 				routings.push({ recipientAddress, purpose });
 				return { destinationAddresses: [recipientAddress], deliveryMode: "links" };
 			}),
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 		maxEmailBytes: opts?.maxEmailBytes ?? 20 * 1024 * 1024,
 	});
 

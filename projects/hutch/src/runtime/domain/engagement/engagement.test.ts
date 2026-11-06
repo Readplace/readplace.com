@@ -4,17 +4,21 @@ import { JSDOM } from "jsdom";
 import { UserIdSchema } from "@packages/domain/user";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import type { UserContact } from "@packages/provider-contracts/auth";
 import type { EmailMessage } from "@packages/provider-contracts/email";
+import type { RenderStarterEmail } from "./digest-email.types";
 import type { StarterPick } from "@packages/provider-contracts/engagement-starter";
 import { resolveEffectiveAccess } from "@packages/subscription-access";
 import { initReadArticleContentOrThrow } from "@packages/article-store";
 import { initBuildQueueDigestBook } from "../../web/queue-digest-book";
+import { QueueDigestEmail } from "../../web/queue-digest-email";
+import { buildDigestPreview } from "../../web/digest-preview";
+import { initSendStarterWithDigestEmail } from "../../send-starter-with-digest-email";
 import { initBuildBookEpub } from "../../web/shared/epub/book-epub";
 import { initEnrollStarter } from "./enroll-starter";
 import { initSendStarter } from "./send-starter";
@@ -99,6 +103,9 @@ async function subject(
 			registeredAt: "2026-10-01T00:00:00.000Z",
 			displayName: undefined,
 			signupOAuthClientId: null,
+			activationThresholdReachedAt: undefined,
+			keepOfferDismissedAt: undefined,
+			earlyIntentionalSaves: 0,
 		}),
 		findUserContactByUserId: async () => contact,
 		getEffectiveAccess: async () =>
@@ -134,6 +141,8 @@ async function subject(
 		buildQueueDigestBook: initBuildQueueDigestBook({
 			buildBookEpub: initBuildBookEpub({ readArticleImage: library.readArticleImage, maxImageBytes: 1_000_000 }),
 		}),
+		renderStarterEmail: (input) => QueueDigestEmail({ kind: "starter", ...input }),
+		previewSummary: buildDigestPreview,
 		sendEmail: async (message) => {
 			sent.push(message);
 		},
@@ -238,6 +247,9 @@ describe("starter eligibility and insertion", () => {
 					registeredAt,
 					displayName: undefined,
 					signupOAuthClientId: null,
+					activationThresholdReachedAt: undefined,
+					keepOfferDismissedAt: undefined,
+					earlyIntentionalSaves: 0,
 				}),
 			},
 		});
@@ -264,6 +276,9 @@ describe("starter eligibility and insertion", () => {
 					emailVerified: true,
 					displayName: undefined,
 					signupOAuthClientId: null,
+					activationThresholdReachedAt: undefined,
+					keepOfferDismissedAt: undefined,
+					earlyIntentionalSaves: 0,
 				}),
 			},
 		],
@@ -315,6 +330,9 @@ describe("starter eligibility and insertion", () => {
 					deletedAt: NOW.toISOString(),
 					displayName: undefined,
 					signupOAuthClientId: null,
+					activationThresholdReachedAt: undefined,
+					keepOfferDismissedAt: undefined,
+					earlyIntentionalSaves: 0,
 				}),
 			},
 		],
@@ -331,7 +349,6 @@ describe("starter eligibility and insertion", () => {
 					Array.from({ length: 7 }, (_, i) => ({
 						slug: ReadlistSlugSchema.parse(`list-${i}`),
 						label: `List ${i}`,
-						emailDelivery: "links",
 						createdAt: NOW,
 					})),
 			},
@@ -352,7 +369,6 @@ describe("starter eligibility and insertion", () => {
 					Array.from({ length: 6 }, (_, i) => ({
 						slug: ReadlistSlugSchema.parse(`list-${i}`),
 						label: `List ${i}`,
-						emailDelivery: "links",
 						createdAt: NOW,
 					})),
 			},
@@ -998,6 +1014,72 @@ describe("starter EPUB attachment", () => {
 
 		expect(app.sent[0]?.html).toBe("<p>winner</p>");
 		expect(chapterTitlesOf(app.sent[0])).toEqual(["HN 1", "HN 2"]);
+	});
+
+	it("sends the email its renderer gives for the pack, the unread picks and the reader's links", async () => {
+		const rendered: Parameters<RenderStarterEmail>[0][] = [];
+		const app = await subject({
+			send: {
+				renderStarterEmail: (input) => {
+					rendered.push(input);
+					return {
+						subject: "fake subject",
+						headers: { "X-Fake": "1" },
+						to: (mediaType) => (mediaType === "text/html" ? "<p>fake</p>" : "fake"),
+					};
+				},
+			},
+		});
+		await app.enroll(app.id);
+		const pack = await app.state.findStarterPack(app.id);
+		assert(pack);
+
+		await app.send(app.id);
+
+		const [input] = rendered;
+		assert(input);
+		assert.deepEqual(input.starter, { readlist: pack.readlist, campaignId: pack.campaignId });
+		const expectedItems = await Promise.all(
+			app.picks.map(async (pick) => {
+				const article = await app.library.findArticleByUrl(pick.url);
+				assert(article);
+				return {
+					articleId: article.id,
+					title: `HN ${pick.rank}`,
+					siteName: "Example",
+					preview: "A useful summary of this article.",
+				};
+			}),
+		);
+		assert.deepEqual(input.items, expectedItems);
+		assert.equal(input.links.appOrigin, "https://readplace.com");
+		assert.match(input.links.sendId, /^starter-/);
+		assert.equal(input.links.unsubscribeToken, "unsubscribe-token");
+		const [message] = app.sent;
+		assert(message);
+		assert.equal(message.subject, "fake subject");
+		assert.equal(message.html, "<p>fake</p>");
+		assert.equal(message.text, "fake");
+		assert.deepEqual(message.headers, { "X-Fake": "1" });
+	});
+
+	it("sends through the digest email wrapper the same message as the digest email renderer", async () => {
+		const direct = await subject();
+		await direct.enroll(direct.id);
+		await direct.send(direct.id);
+		const wrapped = await subject();
+		await wrapped.enroll(wrapped.id);
+		const { renderStarterEmail: _render, previewSummary: _preview, ...rest } = wrapped.sendDeps;
+
+		await initSendStarterWithDigestEmail(rest)(wrapped.id);
+
+		const [expected] = direct.sent;
+		const [actual] = wrapped.sent;
+		assert(expected && actual);
+		assert.deepEqual(
+			{ subject: actual.subject, html: actual.html, text: actual.text, headers: actual.headers },
+			{ subject: expected.subject, html: expected.html, text: expected.text, headers: expected.headers },
+		);
 	});
 });
 

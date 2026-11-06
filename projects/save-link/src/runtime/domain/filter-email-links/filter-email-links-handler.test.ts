@@ -9,8 +9,8 @@ import {
 	readlistPurposeVersion,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { type Logger, noopLogger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { ReadlistDefinitionData, ReadlistFitOverride } from "@packages/provider-contracts/article-store";
 import type { DecideReadlistFit, ReadlistFitResult } from "@packages/readlist-fit";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -42,7 +42,6 @@ function workDefinition(purpose: string | undefined): ReadlistDefinitionData {
 	return {
 		slug: WORK,
 		label: "Work",
-		emailDelivery: "links",
 		createdAt: new Date("2026-09-01T00:00:00.000Z"),
 		...(purpose === undefined ? {} : { purpose }),
 	};
@@ -93,7 +92,7 @@ function captureLines<T>() {
 	const write = (line: T) => {
 		lines.push(line);
 	};
-	const log: HutchLogger.Typed<T> = { info: write, error: write, warn: write, debug: write };
+	const log: Logger.Typed<T> = { info: write, error: write, warn: write, debug: write };
 	return { lines, log };
 }
 

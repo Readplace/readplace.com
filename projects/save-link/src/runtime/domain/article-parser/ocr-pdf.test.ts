@@ -1,4 +1,4 @@
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { type Logger, noopLogger } from "@packages/logger";
 import { escapeHtmlText, type ExtractPdfMetadata } from "@packages/crawl-article";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
@@ -217,7 +217,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	it("logs the page-cap refusal at info, not error", async () => {
 		const infos: string[] = [];
 		const errors: string[] = [];
-		const capturingLogger: HutchLogger = {
+		const capturingLogger: Logger = {
 			info: (msg) => { infos.push(String(msg)); },
 			error: (msg) => { errors.push(String(msg)); },
 			warn: () => {},
@@ -409,7 +409,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 	it("does not emit a retry warning under PAGE_OCR_MAX_ATTEMPTS=1 (no retries happen)", async () => {
 		const warnings: string[] = [];
-		const capturingLogger: HutchLogger = {
+		const capturingLogger: Logger = {
 			info: () => {},
 			error: () => {},
 			warn: (msg) => { warnings.push(String(msg)); },
@@ -485,7 +485,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 	it("logs the failed page list when accepting a partial result", async () => {
 		const warnings: string[] = [];
-		const capturingLogger: HutchLogger = {
+		const capturingLogger: Logger = {
 			info: () => {},
 			error: () => {},
 			warn: (msg) => { warnings.push(String(msg)); },
@@ -577,7 +577,7 @@ describe("initOcrPdf — stage 1 LLM cleanup", () => {
 
 	it("falls back to the Tesseract text when the cleanup Lambda invoke fails", async () => {
 		const warnings: string[] = [];
-		const capturingLogger: HutchLogger = {
+		const capturingLogger: Logger = {
 			info: () => {},
 			error: () => {},
 			warn: (msg) => { warnings.push(String(msg)); },
@@ -695,7 +695,7 @@ describe("initOcrPdf — stage 2 document diff review", () => {
 
 	it("falls back to stage-1 cleaned text when the diff-review Lambda invoke fails", async () => {
 		const warnings: string[] = [];
-		const capturingLogger: HutchLogger = {
+		const capturingLogger: Logger = {
 			info: () => {},
 			error: () => {},
 			warn: (msg) => { warnings.push(String(msg)); },
@@ -793,7 +793,7 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 
 	it("falls back to <p class=\"ocr-tesseract\"> wrap of the Stage 2 final text when the html-convert invoke fails", async () => {
 		const warnings: string[] = [];
-		const capturingLogger: HutchLogger = {
+		const capturingLogger: Logger = {
 			info: () => {},
 			error: () => {},
 			warn: (msg) => { warnings.push(String(msg)); },

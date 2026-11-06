@@ -1,6 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
-import { HutchS3ReadWrite } from "@packages/hutch-infra-components/infra";
+import { S3ReadWrite } from "@packages/infra-components/infra";
 
 /**
  * AWS SES inbound email receiving for the forwarding-address feature. Provisions
@@ -108,7 +108,7 @@ export class InboxMail extends pulumi.ComponentResource {
 		// Immutable raw-email store. No expiration rules => kept forever (our
 		// durability, our audit artifact). The body is parsed/sanitized into the
 		// content bucket separately; this bucket is the single source of truth.
-		const rawBucket = new HutchS3ReadWrite(
+		const rawBucket = new S3ReadWrite(
 			`${name}-raw`,
 			{ bucketName: args.rawEmailBucketName },
 			{ parent: this },

@@ -36,6 +36,7 @@ enum AppConfig {
 	static let serverEnvironment: ServerEnvironment = .production
 	#endif
 	static let serverBaseURL = serverEnvironment.baseURL
+	static let serverEndpoints = ServerEndpoints(origin: URL(string: serverBaseURL)!)
 
 	/// The one host whose links are opened Chrome-first (see `chromeURLFor`).
 	/// Force-unwrap is safe: both operands are compile-time constants.

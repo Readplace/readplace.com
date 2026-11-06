@@ -1,13 +1,13 @@
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import type { Article } from "@packages/domain/article-aggregate";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { initJudgeUnderLedger } from "./judge-under-ledger";
 import { candidateProvenance, type TierSource, type VerifiedTierSource } from "@packages/tier-source";
 import { initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import type { SelectMostCompleteContent } from "./select-content";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 
 const URL = "https://example.com/resource";
 const ARCHIVE = "https://archive.ph/abc12";

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { condenseCandidateHtml } from "./condense-candidate-html";
 import { DEEPSEEK_CONTEXT_TOKENS, DEEPSEEK_MAX_OUTPUT_TOKENS } from "./deepseek-limits";
 import type { CandidateId } from "@packages/domain/article";
@@ -60,7 +60,7 @@ export function perCandidateHtmlCap(candidateCount: number): number {
 export function buildSelectContentUserMessage(params: {
 	url: string;
 	candidates: readonly SelectorCandidate[];
-	logger: HutchLogger;
+	logger: Logger;
 }): string {
 	const cap = perCandidateHtmlCap(params.candidates.length);
 	const lines: string[] = [`URL: ${params.url}`, ""];

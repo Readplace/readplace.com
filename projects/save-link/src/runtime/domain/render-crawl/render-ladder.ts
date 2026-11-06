@@ -1,4 +1,4 @@
-import type { RenderCrawlDetail } from "@packages/hutch-infra-components";
+import type { RenderCrawlDetail } from "@packages/infra-components";
 import type { MeteredLeg, PaidLegPermit } from "@packages/provider-contracts/metered-leg-ledger";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
 import type {
@@ -6,7 +6,7 @@ import type {
 	RenderPage,
 	ResidentialEgress,
 	WebUnlockerEgress,
-} from "../../providers/render-page/render-page.types";
+} from "./render-page.types";
 import { RENDER_CRAWL_TIMEOUTS } from "./timeouts";
 
 export type RenderedThrough =

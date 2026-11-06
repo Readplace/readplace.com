@@ -1,12 +1,11 @@
-import assert from "node:assert";
 import { CrawlStatusSchema } from "@packages/article-state-types";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+	writeIfCondition,
+} from "@packages/storage-client";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
@@ -18,6 +17,7 @@ import type {
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
 import { LEGACY_PENDING_SINCE } from "./dynamodb-article-store";
+import { decodeCrawlColumns } from "./status-columns";
 
 export const ArticleCrawlRow = z.object({
 	url: z.string(),
@@ -48,25 +48,18 @@ type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
 
 function crawlOf(row: ArticleCrawlRowShape | undefined): ArticleCrawl | undefined {
 	if (!row) return undefined;
-	if (row.crawlStatus === "failed") {
-		assert(
-			row.crawlFailureReason,
-			"crawlStatus=failed row must carry a crawlFailureReason",
-		);
+	const columns = decodeCrawlColumns(row);
+	if (columns.crawlStatus === "failed") {
 		return {
 			status: "failed",
-			reason: row.crawlFailureReason,
+			reason: columns.crawlFailureReason,
 			outcomeRevision: row.crawlOutcomeRevision ?? 0,
 		};
 	}
-	if (row.crawlStatus === "unsupported") {
-		assert(
-			row.crawlUnsupportedReason,
-			"crawlStatus=unsupported row must carry a crawlUnsupportedReason",
-		);
-		return { status: "unsupported", reason: row.crawlUnsupportedReason };
+	if (columns.crawlStatus === "unsupported") {
+		return { status: "unsupported", reason: columns.crawlUnsupportedReason };
 	}
-	if (row.crawlStatus === "pending") {
+	if (columns.crawlStatus === "pending") {
 		const parts =
 			row.crawlPartCurrent !== undefined && row.crawlPartTotal !== undefined
 				? { current: row.crawlPartCurrent, total: row.crawlPartTotal }
@@ -79,7 +72,7 @@ function crawlOf(row: ArticleCrawlRowShape | undefined): ArticleCrawl | undefine
 		if (parts) pending.parts = parts;
 		return pending;
 	}
-	if (row.crawlStatus === "ready") return { status: "ready" };
+	if (columns.crawlStatus === "ready") return { status: "ready" };
 	// Legacy row (status attribute missing). Return undefined so the caller
 	// defers to whether S3 content exists — pre-S3-migration content lived in
 	// the row, but post-migration rows have empty `content` while S3 holds the
@@ -183,8 +176,8 @@ export function initDynamoDbArticleCrawl(deps: {
 			? "SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince)"
 			: "SET crawlStatus = :pending, crawlPendingSince = :pendingSince";
 		const pendingSince = deps.now().toISOString();
-		try {
-			await table.update(
+		const outcome = await writeIfCondition(() =>
+			table.update(
 				meteredLegs === "deferred"
 					? {
 							Key: { url: articleResourceUniqueId.value },
@@ -211,18 +204,16 @@ export function initDynamoDbArticleCrawl(deps: {
 							},
 							ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 						},
-			);
-			return { kind: "marked" };
-		} catch (err) {
-			if (!(err instanceof ConditionalCheckFailedException)) throw err;
-			if (meteredLegs === "run") {
-				await table.update({
-					Key: { url: articleResourceUniqueId.value },
-					UpdateExpression: "REMOVE meteredLegsDeferredSince",
-				});
-			}
-			return refusedCrawlPendingMark(err.Item);
+			),
+		);
+		if (outcome.kind === "written") return { kind: "marked" };
+		if (meteredLegs === "run") {
+			await table.update({
+				Key: { url: articleResourceUniqueId.value },
+				UpdateExpression: "REMOVE meteredLegsDeferredSince",
+			});
 		}
+		return refusedCrawlPendingMark(outcome.oldItem);
 	};
 
 	const forceMarkCrawlPending: ForceMarkCrawlPending = async ({ url }) => {

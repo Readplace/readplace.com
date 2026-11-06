@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response, Router } from "express";
+import type { Request, Response, Router } from "express";
 import express from "express";
 import { sendComponent } from "@packages/web-shell";
 import type { FindUserByEmail } from "@packages/provider-contracts/auth";
@@ -24,38 +24,19 @@ import {
 	toDateTimeLocalInput,
 	toExtendTrialViewModel,
 } from "./extend-trial.view-model";
-import { initRefuseAdminAccess } from "./admin-forbidden.page";
-import { initRequireAdmin } from "./require-admin.middleware";
 
 export interface AdminExtendTrialDependencies {
 	findUserByEmail: FindUserByEmail;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	upsertTrialing: UpsertTrialingSubscription;
 	trialScheduler: TrialSchedulerPort;
-	adminEmails: readonly string[];
-	serviceToken: string;
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 }
 
-function noStore(_req: Request, res: Response, next: NextFunction): void {
-	res.setHeader("Cache-Control", "no-store");
-	next();
-}
-
 export function initAdminExtendTrialRoutes(deps: AdminExtendTrialDependencies): Router {
 	const router = express.Router();
-
-	router.use(noStore);
-	router.use(
-		initRequireAdmin({
-			findUserByEmail: deps.findUserByEmail,
-			adminEmails: deps.adminEmails,
-			serviceToken: deps.serviceToken,
-			refuse: initRefuseAdminAccess({ buildBannerState: deps.buildBannerState }),
-		}),
-	);
 
 	async function respond(
 		req: Request,

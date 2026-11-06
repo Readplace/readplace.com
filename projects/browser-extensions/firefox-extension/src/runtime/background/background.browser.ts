@@ -13,6 +13,8 @@ import {
 	initBulkSaveRunRecord,
 	initSaveAllRuns,
 	SaveAllMessageSchema,
+	PopupMessageSchema,
+	initAnswerPopupMessage,
 	initSyncContextMenus,
 	initUploadQueue,
 	initOpenHiddenTab,
@@ -29,25 +31,20 @@ import {
 	commandBindingsFromGetAll,
 	type AdvertisedCapabilityStore,
 	type BrowserShell,
-	type PopupMessage,
 	captureActiveTabBytes,
-	type LoadPageResult,
-	type SaveUrlResult,
-	type InvokeActionResult,
 	type ReaderRescueAnswer,
 	type ReaderRescueEnded,
 	type RescueAttemptStore,
 	type Timers,
 	type UploadJobStore,
-	type UploadQueue,
 	type WakeScheduler,
 } from "browser-extension-core";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import type { BuiltInOAuthClientId } from "@packages/supported-clients";
 import { createBrowserSetIcon } from "./tinted-icon.browser";
 import { initCreateContextMenus } from "./create-context-menus";
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 const STORAGE_KEY = "hutch_oauth_tokens";
 const UPLOAD_JOBS_KEY = "hutch_upload_jobs";
@@ -106,7 +103,7 @@ const wakeScheduler: WakeScheduler = {
 			wake = undefined;
 			appPromise
 				.then(({ uploadQueue }) => uploadQueue.resume())
-				.catch((err) => logger.error("Failed to resume deferred uploads", err));
+				.catch((err) => logger.error("Failed to resume deferred uploads", { error: err }));
 		}, Math.max(0, timestamp - Date.now()));
 	},
 	async cancel(): Promise<void> {
@@ -125,7 +122,7 @@ const bulkSaveWakeScheduler: WakeScheduler = {
 			bulkSaveWake = undefined;
 			appPromise
 				.then(({ runs }) => runs.resumeAll())
-				.catch((err) => logger.error("Failed to resume deferred bulk saves", err));
+				.catch((err) => logger.error("Failed to resume deferred bulk saves", { error: err }));
 		}, Math.max(0, timestamp - Date.now()));
 	},
 	async cancel(): Promise<void> {
@@ -156,7 +153,7 @@ const shell: BrowserShell = {
 		void browser.storage.session.set({ pendingTarget: { url, title, tabId } });
 		browser.browserAction.openPopup().catch(async (err) => {
 			await browser.storage.session.remove("pendingTarget").catch(() => {});
-			logger.error(err);
+			logger.error("Failed to open the popup", { error: err });
 		});
 	},
 
@@ -166,7 +163,7 @@ const shell: BrowserShell = {
 		void browser.storage.session.set({ pendingBulkSave: true });
 		browser.browserAction.openPopup().catch(async (err) => {
 			await browser.storage.session.remove("pendingBulkSave").catch(() => {});
-			logger.error(err);
+			logger.error("Failed to open the save-all popup", { error: err });
 		});
 	},
 
@@ -285,7 +282,7 @@ async function initCore() {
 		onAdvertisedActions: (names) => {
 			syncContextMenus
 				.capabilitiesDiscovered(names)
-				.catch((err) => logger.error("Failed to sync context menus", err));
+				.catch((err) => logger.error("Failed to sync context menus", { error: err }));
 		},
 	});
 
@@ -346,23 +343,31 @@ async function initCore() {
 	core.on("pre-init", () => {
 		syncContextMenus
 			.applyCached()
-			.catch((err) => logger.error("Failed to restore context menus", err));
+			.catch((err) => logger.error("Failed to restore context menus", { error: err }));
 	});
 
 	core.init();
 
-	return { core, uploadQueue, runs, auth, readerRescue };
+	const answerPopupMessage = initAnswerPopupMessage({
+		core,
+		reportLoginPrompt: auth.reportLoginPrompt,
+		uploadQueue,
+		forgetRuns: runs.forget,
+		keepAlive: (work) => work,
+	});
+
+	return { answerPopupMessage, uploadQueue, runs, auth, readerRescue };
 }
 
 const appPromise = initCore();
 
 appPromise
 	.then(({ uploadQueue }) => uploadQueue.resume())
-	.catch((err) => logger.error("Failed to resume deferred uploads", err));
+	.catch((err) => logger.error("Failed to resume deferred uploads", { error: err }));
 
 appPromise
 	.then(({ runs }) => runs.resumeAll())
-	.catch((err) => logger.error("Failed to resume deferred bulk saves", err));
+	.catch((err) => logger.error("Failed to resume deferred bulk saves", { error: err }));
 
 function refreshCommandBindings(): void {
 	browser.commands
@@ -372,7 +377,7 @@ function refreshCommandBindings(): void {
 				[COMMAND_BINDINGS_STORAGE_KEY]: commandBindingsFromGetAll(commands),
 			}),
 		)
-		.catch((err) => logger.error("Failed to read command shortcuts", err));
+		.catch((err) => logger.error("Failed to read command shortcuts", { error: err }));
 }
 
 refreshCommandBindings();
@@ -381,15 +386,6 @@ browser.commands.onChanged?.addListener(() => refreshCommandBindings());
 browser.commands.onCommand.addListener((command) => {
 	if (command === SAVE_ALL_TABS_COMMAND) shell.openSaveAllTabsPopup();
 });
-
-/** The job carries the tab URL verbatim: substituting anything else would land
- * the bytes on a different article than the one the reader just saw appear. */
-function readlistContentUpload(
-	uploadQueue: UploadQueue,
-	target: { url: string; title: string; tabId?: number },
-): void {
-	void uploadQueue.enqueue(target);
-}
 
 const CAPTURE_HTML_TIMEOUT_MS = 5000;
 const RESCUE_LOAD_TIMEOUT_MS = 30_000;
@@ -422,17 +418,6 @@ async function captureTabContent(tab: { url: string; tabId?: number }): Promise<
 	return captureActiveTabBytes({ tabUrl: tab.url, fetchFn: fetch, logger });
 }
 
-const POPUP_MESSAGE_TYPES = new Set([
-	"save-current-tab",
-	"invoke-action",
-	"get-all-items",
-	"load-page",
-	"load-sort",
-	"login",
-	"login-prompt-shown",
-	"logout",
-]);
-
 function hasStringType(value: unknown): value is { type: string } {
 	return (
 		typeof value === "object" &&
@@ -440,10 +425,6 @@ function hasStringType(value: unknown): value is { type: string } {
 		"type" in value &&
 		typeof value.type === "string"
 	);
-}
-
-function isPopupMessage(value: unknown): value is PopupMessage {
-	return hasStringType(value) && POPUP_MESSAGE_TYPES.has(value.type);
 }
 
 function showBulkSaveNotification(notification: {
@@ -457,12 +438,12 @@ function showBulkSaveNotification(notification: {
 			title: notification.title,
 			message: notification.message,
 		})
-		.catch((err) => logger.error("Failed to show bulk save notification", err));
+		.catch((err) => logger.error("Failed to show bulk save notification", { error: err }));
 }
 
 browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 	if (hasStringType(raw) && raw.type === "shortcut-pressed") {
-		browser.browserAction.openPopup().catch((err) => logger.error(err));
+		browser.browserAction.openPopup().catch((err) => logger.error("Failed to open the popup from the shortcut", { error: err }));
 		return;
 	}
 
@@ -486,7 +467,7 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 				sendResponse(answer);
 				await completion;
 			})
-			.catch((err) => logger.error("Failed to rescue the reader's article", err));
+			.catch((err) => logger.error("Failed to rescue the reader's article", { error: err }));
 		return true;
 	}
 
@@ -495,95 +476,20 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 		appPromise
 			.then(({ runs }) => runs.handle(saveAll.data))
 			.catch((err) => {
-				logger.error("Failed to handle a save-all message", err);
+				logger.error("Failed to handle a save-all message", { error: err });
 				return { ok: false, reason: "error" };
 			})
 			.then(sendResponse);
 		return true;
 	}
 
-	if (!isPopupMessage(raw)) return;
-	const message = raw;
+	const popup = PopupMessageSchema.safeParse(raw);
+	if (!popup.success) return;
 
 	appPromise
-		.then(({ core, uploadQueue, runs, auth }) => {
-			switch (message.type) {
-				case "login-prompt-shown": {
-					auth.reportLoginPrompt().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
-					break;
-				}
-				case "login": {
-					const pending = new Promise<unknown>((resolve) => {
-						core.once("logged-in", {
-							success: () => resolve({ ok: true }),
-							failure: (err) => resolve({ ok: false, ...err }),
-						});
-					});
-					core.login();
-					pending.then(sendResponse);
-					break;
-				}
-				case "logout": {
-					/** Page bytes captured for a signed-in reader must not outlive the
-					 * session that authorised capturing them. */
-					const purged = Promise.all([uploadQueue.purge(), runs.forget()]);
-					core.logout();
-					purged.then(() => sendResponse({ ok: true }));
-					break;
-				}
-				case "save-current-tab": {
-					const target = {
-						url: message.url,
-						title: message.title,
-						tabId: message.tabId,
-					};
-					const pending = new Promise<unknown>((resolve) => {
-						core.once("saved-current-tab", {
-							success: (value: SaveUrlResult) => {
-								if (value.ok) readlistContentUpload(uploadQueue, target);
-								resolve({ ok: true, value });
-							},
-							failure: (err) => resolve({ ok: false, ...err }),
-						});
-					});
-					core.save("current-tab", target);
-					pending.then(sendResponse);
-					break;
-				}
-				case "invoke-action": {
-					const pending = new Promise<unknown>((resolve) => {
-						core.once("invoked-item-action", {
-							success: (value: InvokeActionResult) =>
-								resolve({ ok: true, value }),
-							failure: (err) => resolve({ ok: false, ...err }),
-						});
-					});
-					core.invoke("item-action", { id: message.id, name: message.name });
-					pending.then(sendResponse);
-					break;
-				}
-				case "get-all-items":
-				case "load-page":
-				case "load-sort": {
-					const pending = new Promise<unknown>((resolve) => {
-						core.once("fetched-reading-list", {
-							success: (value: LoadPageResult) =>
-								resolve({ ok: true, value }),
-							failure: (err) => resolve({ ok: false, ...err }),
-						});
-					});
-					if (message.type === "load-page") {
-						core.fetch("reading-list", { page: message.index });
-					} else if (message.type === "load-sort") {
-						core.fetch("reading-list", { sort: message.index });
-					} else {
-						core.fetch("reading-list");
-					}
-					pending.then(sendResponse);
-					break;
-				}
-			}
-		});
+		.then(({ answerPopupMessage }) => answerPopupMessage(popup.data))
+		.then(sendResponse)
+		.catch((error) => logger.error("Failed to answer a popup message", { error }));
 
 	return true;
 });

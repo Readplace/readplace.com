@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult } from "@packages/finalize-article";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";

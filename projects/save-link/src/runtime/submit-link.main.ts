@@ -1,11 +1,12 @@
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { consoleLogger } from "@packages/hutch-logger";
-import { EventBridgeClient, initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
-import { ResolveArticleOnViewCommand, StaleCheckRequestedEvent, SubmitLinkCommand } from "@packages/hutch-infra-components";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { requireEnv } from "@packages/require-env";
+import { consoleLogger } from "@packages/logger";
+import { EventBridgeClient, initHandleByDetailType } from "@packages/infra-components/runtime";
+import { ResolveArticleOnViewCommand, StaleCheckRequestedEvent, SubmitLinkCommand } from "@packages/infra-components";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { readEnv } from "@packages/require-env";
+import { SUBMIT_LINK_ENV } from "./submit-link.env";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, initCrawlFetch, initResolveThroughUnlocker } from "@packages/crawl-article";
 import {
@@ -33,14 +34,16 @@ import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
 import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const onboardingTable = requireEnv("DYNAMODB_ONBOARDING_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
-const crawlEgressProxyUrl = requireEnv("CRAWL_EGRESS_PROXY_URL");
+const env = readEnv(SUBMIT_LINK_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
+const onboardingTable = env.DYNAMODB_ONBOARDING_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const imagesCdnBaseUrl = env.IMAGES_CDN_BASE_URL;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
+const crawlEgressProxyUrl = env.CRAWL_EGRESS_PROXY_URL;
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});

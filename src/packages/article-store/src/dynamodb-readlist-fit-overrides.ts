@@ -9,11 +9,11 @@ import {
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import type {
 	DeleteReadlistArticleByUrl,
 	DeleteReadlistFitOverride,
@@ -144,19 +144,15 @@ export function initDynamoDbReadlistFitOverrides(deps: {
 	};
 
 	const deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl = async ({ userId, readlist, url }) => {
-		try {
-			await keys.delete({
-				Key: {
-					userId: readlistPartitionValue({ userId, readlist }),
-					url: ArticleResourceUniqueId.parse(url).value,
-				},
-				ConditionExpression: "attribute_exists(savedAt)",
-			});
-			return true;
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return false;
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => keys.delete({
+			Key: {
+				userId: readlistPartitionValue({ userId, readlist }),
+				url: ArticleResourceUniqueId.parse(url).value,
+			},
+			ConditionExpression: "attribute_exists(savedAt)",
+		}));
+		if (outcome.kind === "condition-failed") return false;
+		return true;
 	};
 
 	return {

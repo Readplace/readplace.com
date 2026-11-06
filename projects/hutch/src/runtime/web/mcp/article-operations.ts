@@ -23,14 +23,7 @@ import type {
 	FindRelatedArticles,
 	RelatedArticles,
 } from "@packages/provider-contracts/related-articles";
-import type {
-	ArticleRelatedResult,
-	ArticleStatusResult,
-	ArticleSummaryResult,
-	McpArticle,
-	McpReadlist,
-	McpServerDeps,
-} from "./mcp-server";
+import type { ArticleRelatedResult, ArticleStatusResult, ArticleSummaryResult, McpArticle, McpReadlist, McpServerDeps } from "./mcp-ports.types";
 
 import type { ResolveOwnedArticle } from "./article-lookup";
 import type { ResolveReadlistMembership } from "./readlist-membership";

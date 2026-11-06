@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { EmailOutputSavedToAllEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { EmailOutputSavedToAllEvent, TierContentExtractedEvent } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { PutTierSource } from "@packages/tier-source";
@@ -43,7 +43,7 @@ function makeHarness(opts: {
 	const log = (level: string) => (message: unknown) => {
 		logged.push({ level, message: String(message) });
 	};
-	const logger: HutchLogger = { info: log("info"), warn: log("warn"), error: log("error"), debug: log("debug") };
+	const logger: Logger = { info: log("info"), warn: log("warn"), error: log("error"), debug: log("debug") };
 	const handler = initSaveEmailIssueCommandHandler({
 		readEmailBody: async (id: ArticleResourceUniqueId) => {
 			reads.push(id.value);

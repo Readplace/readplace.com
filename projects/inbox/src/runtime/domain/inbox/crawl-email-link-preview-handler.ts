@@ -1,13 +1,8 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { CrawlEmailLinkPreview } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import { CrawlEmailLinkPreview } from "@packages/infra-components";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import { EmailLinkOrdinalSchema, type InboxEmailLinkStore } from "@packages/domain/inbox";
-import { UserIdSchema } from "@packages/domain/user";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import { toResolvedUrl } from "./to-resolved-url";
 
@@ -24,73 +19,55 @@ import { toResolvedUrl } from "./to-resolved-url";
 export function initCrawlEmailLinkPreviewHandler(deps: {
 	crawlAndFinalize: CrawlAndFinalizeArticle;
 	setLinkOutcome: InboxEmailLinkStore["setLinkOutcome"];
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { crawlAndFinalize, setLinkOutcome, logger } = deps;
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
+	return initSqsRecordHandler({
+		definition: CrawlEmailLinkPreview,
+		logger,
+		failure: { message: "[crawl-email-link-preview] record failed" },
+		malformed: { policy: "retry", message: "[crawl-email-link-preview] malformed command" },
+		handle: async (detail) => {
+			const ordinal = EmailLinkOrdinalSchema.parse(detail.ordinal);
+			const { userId, receivedAtMessageId, url } = detail;
 
-		for (const record of event.Records) {
-			try {
-				const envelope = JSON.parse(record.body);
-				const parsed = CrawlEmailLinkPreview.detailSchema.safeParse(envelope.detail);
-				if (!parsed.success) {
-					logger.error("[crawl-email-link-preview] malformed command", {
-						messageId: record.messageId,
-					});
-					batchItemFailures.push({ itemIdentifier: record.messageId });
-					continue;
-				}
-				const userId = UserIdSchema.parse(parsed.data.userId);
-				const ordinal = EmailLinkOrdinalSchema.parse(parsed.data.ordinal);
-				const { receivedAtMessageId, url } = parsed.data;
-
-				const result = await crawlAndFinalize({ url });
-				if (result.status === "fetched") {
-					const { metadata } = result.article;
-					await setLinkOutcome({
-						userId,
-						receivedAtMessageId,
-						ordinal,
-						outcome: {
-							status: "crawled",
-							title: metadata.title,
-							excerpt: metadata.excerpt,
-							siteName: metadata.siteName,
-							imageUrl: metadata.imageUrl,
-							resolvedUrl: toResolvedUrl({ url, finalUrl: result.finalUrl }),
-						},
-					});
-					logger.info("[crawl-email-link-preview] crawled", { receivedAtMessageId, ordinal });
-					continue;
-				}
-				const failureReason =
-					result.status === "not-modified" ||
-					result.status === "not-found" ||
-					result.status === "blocked"
-						? result.status
-						: result.reason;
+			const result = await crawlAndFinalize({ url });
+			if (result.status === "fetched") {
+				const { metadata } = result.article;
 				await setLinkOutcome({
 					userId,
 					receivedAtMessageId,
 					ordinal,
-					outcome: { status: "failed", failureReason },
+					outcome: {
+						status: "crawled",
+						title: metadata.title,
+						excerpt: metadata.excerpt,
+						siteName: metadata.siteName,
+						imageUrl: metadata.imageUrl,
+						resolvedUrl: toResolvedUrl({ url, finalUrl: result.finalUrl }),
+					},
 				});
-				logger.info("[crawl-email-link-preview] preview unavailable", {
-					receivedAtMessageId,
-					ordinal,
-					failureReason,
-				});
-			} catch (error) {
-				logger.error("[crawl-email-link-preview] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+				logger.info("[crawl-email-link-preview] crawled", { receivedAtMessageId, ordinal });
+				return;
 			}
-		}
-
-		return { batchItemFailures };
-	};
+			const failureReason =
+				result.status === "not-modified" ||
+				result.status === "not-found" ||
+				result.status === "blocked"
+					? result.status
+					: result.reason;
+			await setLinkOutcome({
+				userId,
+				receivedAtMessageId,
+				ordinal,
+				outcome: { status: "failed", failureReason },
+			});
+			logger.info("[crawl-email-link-preview] preview unavailable", {
+				receivedAtMessageId,
+				ordinal,
+				failureReason,
+			});
+		},
+	});
 }

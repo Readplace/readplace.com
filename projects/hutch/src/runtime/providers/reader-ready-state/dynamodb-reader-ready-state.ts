@@ -1,9 +1,9 @@
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+	writeIfCondition,
+} from "@packages/storage-client";
 import { z } from "zod";
 import assert from "node:assert";
 import { UserIdSchema } from "@packages/domain/user";
@@ -49,10 +49,10 @@ export function initDynamoDbReaderReadyState(deps: {
 		urls,
 	}) => {
 		const cutoff = new Date(now.getTime() - cooldownMs).toISOString();
-		try {
-			/* The claim and the effect it guards are the same item, so one conditional
-			 * UpdateItem is atomic on its own — no transaction needed. */
-			await table.update({
+		/* The claim and the effect it guards are the same item, so one conditional
+		 * UpdateItem is atomic on its own — no transaction needed. */
+		const outcome = await writeIfCondition(() =>
+			table.update({
 				Key: { userId },
 				UpdateExpression:
 					"SET lastReaderReadyEmailAt = :now, lastReaderReadyEmailMessageId = :messageId, lastReaderReadyEmailUrls = :urls",
@@ -64,11 +64,9 @@ export function initDynamoDbReaderReadyState(deps: {
 					":messageId": messageId,
 					":urls": urls,
 				},
-			});
-			return { claimed: true, redelivery: false };
-		} catch (error) {
-			if (!(error instanceof ConditionalCheckFailedException)) throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "written") return { claimed: true, redelivery: false };
 
 		/* The slot is held and still inside its cooldown. Reading it decides whose:
 		 * this message's own earlier receive, or another message's live claim. The
@@ -98,8 +96,8 @@ export function initDynamoDbReaderReadyState(deps: {
 		claimedAt,
 		messageId,
 	}) => {
-		try {
-			await table.update({
+		await writeIfCondition(() =>
+			table.update({
 				Key: { userId },
 				UpdateExpression: "REMOVE lastReaderReadyEmailAt, lastReaderReadyEmailMessageId, lastReaderReadyEmailUrls",
 				ConditionExpression:
@@ -108,11 +106,8 @@ export function initDynamoDbReaderReadyState(deps: {
 					":claimedAt": claimedAt.toISOString(),
 					":messageId": messageId,
 				},
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+			}),
+		);
 	};
 
 	const findReaderReadyEmailState: FindReaderReadyEmailState = async (userId) => {

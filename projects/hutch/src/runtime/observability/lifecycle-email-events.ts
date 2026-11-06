@@ -1,5 +1,5 @@
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { LIFECYCLE_EMAIL_EVENTS, STREAMS } from "./events";
 
 export const LIFECYCLE_EMAIL_KINDS = [
@@ -39,7 +39,7 @@ export type EmitLifecycleEmailSent = (params: {
 }) => void;
 
 export function initEmitLifecycleEmailSent(deps: {
-	logger: HutchLogger.Typed<LifecycleEmailSentEvent>;
+	logger: Logger.Typed<LifecycleEmailSentEvent>;
 	now: () => Date;
 }): EmitLifecycleEmailSent {
 	return (params) => {

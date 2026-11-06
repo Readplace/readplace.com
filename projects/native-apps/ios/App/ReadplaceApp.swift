@@ -9,15 +9,15 @@ struct ReadplaceApp: App {
 	private static func makeSession() -> AppSession {
 		let store = TokenStore()
 		let configuration = readlistCachingConfiguration()
-		let recovery = NativeRefreshRecovery(baseURL: AppConfig.serverBaseURL, records: store.authRecords,
-			configuration: configuration, surface: "app", version: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown")
-		Task { await recovery.record("context_started"); await recovery.flush() }
-		return AppSession(store: store, nativeUserAgent: AppSession.processNativeUserAgent(), sessionConfiguration: configuration, recovery: recovery)
+		let recovery = NativeRefreshRecovery(endpoints: AppConfig.serverEndpoints, records: store.authRecords,
+			configuration: configuration, surface: .app, version: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown")
+		Task { await recovery.record(.contextStarted); await recovery.flush() }
+		return AppSession(store: store, nativeUserAgent: processNativeUserAgent(), sessionConfiguration: configuration, recovery: recovery)
 	}
 
 	var body: some Scene {
 		WindowGroup {
-			RootView()
+			RootView(launchedLoggedIn: session.isLoggedIn)
 				.environmentObject(session)
 		}
 	}
@@ -35,13 +35,17 @@ struct RootView: View {
 	@EnvironmentObject private var session: AppSession
 	@State private var authErrorText: String?
 	@Environment(\.scenePhase) private var scenePhase
-	@StateObject private var intro = makeLaunchIntroModel(reduceMotion: UIAccessibility.isReduceMotionEnabled)
+	@StateObject private var intro: LaunchIntroModel
 	@StateObject private var sloganRotation = SloganRotation(
 		fallback: AppConfig.fallbackSlogan,
 		seed: UInt64.random(in: .min ... .max),
 		intervalNanoseconds: 12_000_000_000,
 		startedAt: Date()
 	)
+
+	init(launchedLoggedIn: Bool) {
+		_intro = StateObject(wrappedValue: makeLaunchIntroModel(reduceMotion: UIAccessibility.isReduceMotionEnabled, isLoggedIn: launchedLoggedIn))
+	}
 
 	var body: some View {
 		Group {

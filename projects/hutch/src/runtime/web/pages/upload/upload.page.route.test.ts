@@ -69,6 +69,15 @@ describe("Upload routes", () => {
 		expect(doc.querySelector('[data-test-upload-start] input[type="file"]')).toBeNull();
 	});
 
+	it("describes the accepted books without saying their images are not shown", async () => {
+		const { agent } = await signedIn();
+		const response = await agent.get("/upload");
+		const doc = documentOf(response.text);
+		expect(doc.querySelector("[data-test-upload-description]")?.textContent).toBe(
+			"EPUB, DRM-free, Book: up to 200 MB; MOBI and AZW3 are not supported.",
+		);
+	});
+
 	it("answers upload_unsupported_type for a type no kind accepts", async () => {
 		const { agent } = await signedIn();
 		const response = await agent.post("/upload").type("form").send({ contentType: "application/x-mobipocket-ebook" });

@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import type { ExtractPdf, ExtractPdfMetadata, PdfExtractResult } from "@packages/crawl-article";
 import { deriveTitleFromUrl, escapeHtmlText, MAX_PDF_BYTES, MAX_PDF_PAGES } from "@packages/crawl-article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { retriable } from "@packages/retriable";
 import { normalizeUnknownError } from "./normalize-error";
 import { sanitizeFragment } from "./sanitize-fragment";
@@ -94,7 +94,7 @@ export function initOcrPdf(deps: {
 	invokePageLlmCleanup: InvokePdfPageLlmCleanup;
 	invokeDocumentDiffReview: InvokePdfDocumentDiffReview;
 	invokePageHtmlConvert: InvokePdfPageHtmlConvert;
-	logger: HutchLogger;
+	logger: Logger;
 	concurrency?: number;
 	cleanupConcurrency?: number;
 	htmlConvertConcurrency?: number;

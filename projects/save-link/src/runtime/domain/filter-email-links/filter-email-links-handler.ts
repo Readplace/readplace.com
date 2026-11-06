@@ -4,12 +4,7 @@ import {
 	deepseekCallFailedLogLine,
 	describeAiProviderError,
 } from "@packages/ai-message";
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
 import { type EmailLinkOrdinal, EmailLinkOrdinalSchema } from "@packages/domain/inbox";
 import {
@@ -28,9 +23,9 @@ import {
 	EmailLinksTriagedEvent,
 	FileArticleIntoReadlistCommand,
 	type FileArticleIntoReadlistDetail,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type {
 	ListReadlistDefinitions,
 	ListReadlistFitOverrides,
@@ -47,7 +42,7 @@ import { FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type { ReadlistFitDecidedLine, ReadlistFitUnsureLine } from "./readlist-fit-log-lines.types";
 
 const FailedTriageIds = z.object({
-	detail: z.object({ userId: z.string(), receivedAtMessageId: z.string(), readlist: z.string() }),
+	detail: z.object({ userId: UserIdSchema, receivedAtMessageId: z.string(), readlist: z.string() }),
 });
 
 function failedTriageIds(body: string) {
@@ -89,10 +84,10 @@ export function initFilterEmailLinksHandler(deps: {
 	listReadlistFitOverrides: ListReadlistFitOverrides;
 	decideReadlistFit: DecideReadlistFit;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
-	fitDecidedLog: HutchLogger.Typed<ReadlistFitDecidedLine>;
-	fitUnsureLog: HutchLogger.Typed<ReadlistFitUnsureLine>;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	fitDecidedLog: Logger.Typed<ReadlistFitDecidedLine>;
+	fitUnsureLog: Logger.Typed<ReadlistFitUnsureLine>;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 	now: () => Date;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
@@ -224,82 +219,31 @@ export function initFilterEmailLinksHandler(deps: {
 		};
 	};
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			let failureIds: { userId: string; receivedAtMessageId: string; readlist: string } | undefined;
-			try {
-				const envelope = JSON.parse(record.body);
-				const detail = EmailLinksTriagedEvent.detailSchema.parse(envelope.detail);
-				const userId = UserIdSchema.parse(detail.userId);
-				const readlist = ReadlistSlugSchema.parse(detail.readlist);
-				assert(readlist !== DEFAULT_READLIST_SLUG, "All takes every link and is never filtered");
-				const links = detail.links.map((link) => ({
-					...link,
-					ordinal: EmailLinkOrdinalSchema.parse(link.ordinal),
-				}));
-				failureIds = { userId, receivedAtMessageId: detail.receivedAtMessageId, readlist };
-
-				const definition = (await listReadlistDefinitions(userId)).find(
-					(candidate) => candidate.slug === readlist,
-				);
-				const outcome = await decideFor({
-					userId,
-					receivedAtMessageId: detail.receivedAtMessageId,
-					readlist,
-					definition,
-					subject: detail.subject,
-					senderEmail: detail.senderEmail,
-					links,
-				});
-
-				for (const filing of outcome.filings) {
-					await publishEvent(FileArticleIntoReadlistCommand, {
-						url: filing.url,
-						userId,
-						readlist,
-						provenance: { kind: "email", senderEmail: detail.senderEmail },
-						fit: filing.fit,
-					});
-				}
-				await publishEvent(EmailLinksFilteredEvent, {
-					userId,
-					receivedAtMessageId: detail.receivedAtMessageId,
-					readlist,
-					readlistLabel: outcome.readlistLabel,
-					decision: outcome.decision,
-					fit: outcome.fit,
-					purposeVersion: outcome.purposeVersion,
-					engine: outcome.engine,
-					model: outcome.model,
-					inputTokens: outcome.inputTokens,
-					outputTokens: outcome.outputTokens,
-					reasoningTokens: outcome.reasoningTokens,
-				});
-				logger.info("[filter-email-links] filtered", {
-					receivedAtMessageId: detail.receivedAtMessageId,
-					decision: outcome.decision,
-					kept: outcome.filings.length,
-					dropped: countVerdict({ fit: outcome.fit, verdict: "drop" }),
-					unsure: countVerdict({ fit: outcome.fit, verdict: "unsure" }),
-				});
-			} catch (error) {
-				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+	return initSqsRecordHandler({
+		definition: EmailLinksTriagedEvent,
+		logger,
+		malformed: { policy: "retry" },
+		failure: {
+			report: async ({ record, error, detail }) => {
+				const { messageId, receiveCount } = record;
 				logger.error("[filter-email-links] record failed", {
-					messageId: record.messageId,
+					messageId,
 					error,
 				});
 				const failure = describeAiProviderError(error);
 				if (failure.kind !== "unknown") {
-					assert(failureIds, "a provider error comes only after the record parsed");
+					assert(detail, "a provider error comes only after the record parsed");
 					deepseekCallFailedLog.error(
 						deepseekCallFailedLogLine({
 							feature: "filter-email-links",
 							failure,
 							receiveCount,
-							messageId: record.messageId,
-							ids: failureIds,
+							messageId,
+							ids: {
+								userId: detail.userId,
+								receivedAtMessageId: detail.receivedAtMessageId,
+								readlist: detail.readlist,
+							},
 						}),
 					);
 				}
@@ -311,10 +255,60 @@ export function initFilterEmailLinksHandler(deps: {
 						receiveCount,
 					});
 				}
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
+			},
+		},
+		handle: async (detail) => {
+			const { userId } = detail;
+			const readlist = ReadlistSlugSchema.parse(detail.readlist);
+			assert(readlist !== DEFAULT_READLIST_SLUG, "All takes every link and is never filtered");
+			const links = detail.links.map((link) => ({
+				...link,
+				ordinal: EmailLinkOrdinalSchema.parse(link.ordinal),
+			}));
 
-		return { batchItemFailures };
-	};
+			const definition = (await listReadlistDefinitions(userId)).find(
+				(candidate) => candidate.slug === readlist,
+			);
+			const outcome = await decideFor({
+				userId,
+				receivedAtMessageId: detail.receivedAtMessageId,
+				readlist,
+				definition,
+				subject: detail.subject,
+				senderEmail: detail.senderEmail,
+				links,
+			});
+
+			for (const filing of outcome.filings) {
+				await publishEvent(FileArticleIntoReadlistCommand, {
+					url: filing.url,
+					userId,
+					readlist,
+					provenance: { kind: "email", senderEmail: detail.senderEmail },
+					fit: filing.fit,
+				});
+			}
+			await publishEvent(EmailLinksFilteredEvent, {
+				userId,
+				receivedAtMessageId: detail.receivedAtMessageId,
+				readlist,
+				readlistLabel: outcome.readlistLabel,
+				decision: outcome.decision,
+				fit: outcome.fit,
+				purposeVersion: outcome.purposeVersion,
+				engine: outcome.engine,
+				model: outcome.model,
+				inputTokens: outcome.inputTokens,
+				outputTokens: outcome.outputTokens,
+				reasoningTokens: outcome.reasoningTokens,
+			});
+			logger.info("[filter-email-links] filtered", {
+				receivedAtMessageId: detail.receivedAtMessageId,
+				decision: outcome.decision,
+				kept: outcome.filings.length,
+				dropped: countVerdict({ fit: outcome.fit, verdict: "drop" }),
+				unsure: countVerdict({ fit: outcome.fit, verdict: "unsure" }),
+			});
+		},
+	});
 }

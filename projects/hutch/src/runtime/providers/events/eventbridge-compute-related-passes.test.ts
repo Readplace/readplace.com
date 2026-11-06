@@ -1,5 +1,5 @@
 import { UserIdSchema } from "@packages/domain/user";
-import { ComputeRelatedPassesCommand } from "@packages/hutch-infra-components";
+import { ComputeRelatedPassesCommand } from "@packages/infra-components";
 import { initEventBridgeComputeRelatedPasses } from "./eventbridge-compute-related-passes";
 
 describe("initEventBridgeComputeRelatedPasses", () => {

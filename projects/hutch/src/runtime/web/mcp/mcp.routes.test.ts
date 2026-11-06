@@ -7,7 +7,8 @@ import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import { initMcpRoutes } from "./mcp.routes";
-import { initMcpServer, type McpHandshakeRecord, type McpServerDeps } from "./mcp-server";
+import { initMcpServer } from "./mcp-server";
+import type { McpHandshakeRecord, McpServerDeps } from "./mcp-ports.types";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
 
 const serve = useLoopbackServer();

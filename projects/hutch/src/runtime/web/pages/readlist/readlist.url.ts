@@ -154,16 +154,23 @@ export function readlistPreferencesPath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/preferences`;
 }
 
+export const PURPOSE_ORIGINS = [...TAB_IDS, "preferences"] as const;
+
+export type PurposeOrigin = (typeof PURPOSE_ORIGINS)[number];
+
+export function readlistPurposeActionPath(input: { readlist: ReadlistSlug; from: PurposeOrigin }): string {
+	const path = readlistPreferencesPath(input.readlist);
+	return input.from === "preferences" ? path : `${path}?from=${input.from}`;
+}
+
+export function readlistPurposeLandingPath(input: { readlist: ReadlistSlug; from: PurposeOrigin }): string {
+	return input.from === "preferences"
+		? readlistPreferencesPath(input.readlist)
+		: buildReadlistUrl({ readlist: input.readlist, tab: input.from });
+}
+
 export function readlistPreferencesInboxesPath(readlist: ReadlistSlug): string {
 	return `${readlistPreferencesPath(readlist)}/inboxes`;
-}
-
-export function readlistPreferencesEmailDeliveryPath(readlist: ReadlistSlug): string {
-	return `${readlistPreferencesPath(readlist)}/email-delivery`;
-}
-
-export function readlistPurposeDeletePath(readlist: ReadlistSlug): string {
-	return `${readlistPreferencesPath(readlist)}/purpose/delete`;
 }
 
 export function readlistFitOverrideDeletePath(readlist: ReadlistSlug, id: ReadlistFitOverrideId): string {

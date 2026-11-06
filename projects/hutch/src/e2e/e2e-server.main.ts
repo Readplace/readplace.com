@@ -2,7 +2,7 @@ import assert from 'node:assert'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import express from 'express'
 import { z } from 'zod'
-import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
+import { Logger, consoleLogger, noopLogger } from '@packages/logger'
 import {
 	calculateReadTime,
 	CRAWL_STAGES,
@@ -90,9 +90,9 @@ const PORT = Number(requireEnv('E2E_PORT'))
 // http://127.0.0.1:${PORT} (built with HUTCH_SERVER_URL=127.0.0.1:port), and a
 // "localhost" appOrigin would cause CORS rejections on the OAuth/Siren routes.
 const origin = `http://127.0.0.1:${PORT}`
-const logger = HutchLogger.from(consoleLogger)
+const logger = Logger.from(consoleLogger)
 
-const logError = (message: string, error?: Error) => logger.error(message, error)
+const logError = (message: string, error?: Error) => logger.error(message, { error })
 const logInfo = (message: string) => logger.info(message)
 /** The e2e harness crawls its own fixtures, all served from the loopback server
  * below, so block nothing — otherwise the SSRF guard refuses every loopback
@@ -135,7 +135,7 @@ const extractPdf: ExtractPdf = async () => ({
 	html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
 })
 const { siteRules } = initArticleSiteRules({ crawlFetch, logError })
-const logThumbnailNotDelivered = HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn
+const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().warn
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, readabilityAdditions, logError })
 const images = initInMemoryArticleImages()
@@ -427,7 +427,7 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		logError,
 		now: fixture.shared.now,
 	},
-})
+}, { keepOfferEndsAt: new Date('2099-01-01T00:00:00.000Z') })
 
 const server = express().use(images.router)
 
@@ -1263,6 +1263,20 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 	if (invoices !== undefined) {
 		fixture.subscriptionBilling.seedInvoices({ customerId, invoices: e2eInvoices(invoices) })
 	}
+	res.status(201).json({ ok: true })
+})
+
+const SeedKeepOfferBody = z.object({
+	userId: UserIdSchema,
+	saves: z.number().int().positive(),
+})
+server.post('/e2e/seed-keep-offer', async (req, res) => {
+	const { userId, saves } = SeedKeepOfferBody.parse(req.body)
+	const at = fixture.shared.now()
+	for (let save = 0; save < saves; save += 1) {
+		await auth.countEarlyIntentionalSave({ userId, at })
+	}
+	await auth.markActivationThresholdReached({ userId, at })
 	res.status(201).json({ ok: true })
 })
 

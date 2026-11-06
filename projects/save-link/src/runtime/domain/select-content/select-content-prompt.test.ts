@@ -1,5 +1,5 @@
 import { CandidateIdSchema } from "@packages/domain/article";
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type Logger } from "@packages/logger";
 import {
 	CHARS_PER_INPUT_TOKEN,
 	INPUT_TOKEN_BUDGET,
@@ -56,7 +56,7 @@ describe("buildSelectContentUserMessage", () => {
 	it("logs at INFO when it truncates: the budget cap is designed behaviour, not a failure", () => {
 		const info = jest.fn();
 		const error = jest.fn();
-		const logger: HutchLogger = { ...noopLogger, info, error };
+		const logger: Logger = { ...noopLogger, info, error };
 		const cap = perCandidateHtmlCap(2);
 
 		buildSelectContentUserMessage({
@@ -79,7 +79,7 @@ describe("buildSelectContentUserMessage", () => {
 	it("logs nothing when every candidate fits", () => {
 		const info = jest.fn();
 		const error = jest.fn();
-		const logger: HutchLogger = { ...noopLogger, info, error };
+		const logger: Logger = { ...noopLogger, info, error };
 
 		buildSelectContentUserMessage({
 			url: "https://example.com/a",

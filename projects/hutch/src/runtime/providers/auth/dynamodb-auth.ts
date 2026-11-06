@@ -1,15 +1,14 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	TransactWriteCommand,
 	TransactionCanceledException,
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+	writeIfCondition,
+} from "@packages/storage-client";
 import { z } from "zod";
 import {
 	UserIdSchema,
@@ -52,6 +51,8 @@ import type {
 	MarkSessionEmailVerified,
 	ObserveSession,
 	SaveAppleRefreshToken,
+	MarkActivationThresholdReached,
+	SetKeepOfferDismissed,
 	SetQueueDigestOptOut,
 	SetSessionReadlistFilter,
 	SetUserAppearance,
@@ -91,6 +92,8 @@ const UserRow = z.object({
 	signupOAuthClientId: dynamoField(OAuthClientIdSchema),
 	queueDigestOptOutAt: dynamoField(z.string()),
 	earlyIntentionalSaves: dynamoField(z.number()),
+	activationThresholdReachedAt: dynamoField(z.string()),
+	keepOfferDismissedAt: dynamoField(z.string()),
 });
 
 const EARLY_INTENTIONAL_SAVE_WINDOW_MS = 72 * 3_600_000;
@@ -143,6 +146,8 @@ export function initDynamoDbAuth(deps: {
 	setUserAppearance: SetUserAppearance;
 	setUserDisplayName: SetUserDisplayName;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
+	markActivationThresholdReached: MarkActivationThresholdReached;
+	setKeepOfferDismissed: SetKeepOfferDismissed;
 } {
 	const users = defineDynamoTable({
 		client: deps.client,
@@ -170,39 +175,38 @@ export function initDynamoDbAuth(deps: {
 		gmailClaimKey: CanonicalEmail | null;
 	}): Promise<{ ok: true } | { ok: false; reason: "email-already-exists" }> => {
 		const { userRow, userId, gmailClaimKey } = params;
-		try {
-			if (gmailClaimKey === null) {
-				await users.put({
+		if (gmailClaimKey === null) {
+			const outcome = await writeIfCondition(() =>
+				users.put({
 					Item: userRow,
 					ConditionExpression: "attribute_not_exists(email)",
-				});
-			} else {
-				await deps.client.send(
-					new TransactWriteCommand({
-						TransactItems: [
-							{
-								Put: {
-									TableName: deps.usersTableName,
-									Item: userRow,
-									ConditionExpression: "attribute_not_exists(email)",
-								},
+				}),
+			);
+			return outcome.kind === "written" ? { ok: true } : { ok: false, reason: "email-already-exists" };
+		}
+		try {
+			await deps.client.send(
+				new TransactWriteCommand({
+					TransactItems: [
+						{
+							Put: {
+								TableName: deps.usersTableName,
+								Item: userRow,
+								ConditionExpression: "attribute_not_exists(email)",
 							},
-							{
-								Put: {
-									TableName: deps.usersTableName,
-									Item: { email: `${CLAIM_PK_PREFIX}${gmailClaimKey}`, ownerUserId: userId },
-									ConditionExpression: "attribute_not_exists(email)",
-								},
+						},
+						{
+							Put: {
+								TableName: deps.usersTableName,
+								Item: { email: `${CLAIM_PK_PREFIX}${gmailClaimKey}`, ownerUserId: userId },
+								ConditionExpression: "attribute_not_exists(email)",
 							},
-						],
-					}),
-				);
-			}
+						},
+					],
+				}),
+			);
 			return { ok: true };
 		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return { ok: false, reason: "email-already-exists" };
-			}
 			if (error instanceof TransactionCanceledException) {
 				// Both puts in the Gmail two-key commit are conditioned on
 				// attribute_not_exists, so a lost race on either the delivery email or
@@ -371,20 +375,19 @@ export function initDynamoDbAuth(deps: {
 
 	const renewSession: RenewSession = async ({ sessionId, oauthGrantId }) => {
 		const now = Math.floor(Date.now() / 1000);
-		try {
-			const previous = await sessions.update({
+		const outcome = await writeIfCondition(() =>
+			sessions.update({
 				Key: { sessionId },
 				UpdateExpression: oauthGrantId === undefined ? "SET expiresAt = :expiresAt" : "SET expiresAt = :expiresAt, oauthGrantId = :grant",
 				ReturnValues: "ALL_OLD",
 				ConditionExpression: "attribute_exists(sessionId) AND expiresAt >= :now",
 				ExpressionAttributeValues: { ":expiresAt": now + SESSION_TTL_SECONDS, ":now": now, ...(oauthGrantId === undefined ? {} : { ":grant": oauthGrantId }) },
-			});
-			deps.observeSession({ event: "session_renewed", sessionId, userId: previous.Attributes?.userId, previousExpiresAt: previous.Attributes?.expiresAt, expiresAt: now + SESSION_TTL_SECONDS });
-			return "renewed";
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "session-gone";
-			throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "condition-failed") return "session-gone";
+		const previous = outcome.result;
+		deps.observeSession({ event: "session_renewed", sessionId, userId: previous.Attributes?.userId, previousExpiresAt: previous.Attributes?.expiresAt, expiresAt: now + SESSION_TTL_SECONDS });
+		return "renewed";
 	};
 
 	const getSessionUserId: GetSessionUserId = initGetSessionUserId({
@@ -422,18 +425,17 @@ export function initDynamoDbAuth(deps: {
 			},
 			async (rows) => {
 				await Promise.all(rows.map(async (row) => {
-					try {
-						const previous = await sessions.delete({
+					const outcome = await writeIfCondition(() =>
+						sessions.delete({
 							Key: { sessionId: row.sessionId },
 							ConditionExpression: "oauthGrantId = :grant",
 							ExpressionAttributeValues: { ":grant": oauthGrantId },
 							ReturnValues: "ALL_OLD",
-						});
-						deps.observeSession({ event: "session_deleted", sessionId: row.sessionId, userId: previous.Attributes?.userId, expiresAt: previous.Attributes?.expiresAt });
-					} catch (error) {
-						if (error instanceof ConditionalCheckFailedException) return;
-						throw error;
-					}
+						}),
+					);
+					if (outcome.kind === "condition-failed") return;
+					const previous = outcome.result;
+					deps.observeSession({ event: "session_deleted", sessionId: row.sessionId, userId: previous.Attributes?.userId, expiresAt: previous.Attributes?.expiresAt });
 				}));
 			},
 		);
@@ -476,17 +478,14 @@ export function initDynamoDbAuth(deps: {
 
 	const setSessionReadlistFilter: SetSessionReadlistFilter = async ({ sessionId, filter }) => {
 		const empty = filter.time.length === 0 && filter.saved.length === 0;
-		try {
-			await sessions.update({
+		await writeIfCondition(() =>
+			sessions.update({
 				Key: { sessionId },
 				UpdateExpression: empty ? "REMOVE readlistFilter" : "SET readlistFilter = :filter",
 				ConditionExpression: "attribute_exists(sessionId)",
 				...(empty ? {} : { ExpressionAttributeValues: { ":filter": filter } }),
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+			}),
+		);
 	};
 
 	const findSessionReadlistFilter: FindSessionReadlistFilter = async (sessionId) => {
@@ -591,6 +590,9 @@ export function initDynamoDbAuth(deps: {
 			displayName: row.displayName,
 			signupOAuthClientId: row.signupOAuthClientId ?? null,
 			deletedAt: row.deletedAt,
+			activationThresholdReachedAt: row.activationThresholdReachedAt,
+			keepOfferDismissedAt: row.keepOfferDismissedAt,
+			earlyIntentionalSaves: row.earlyIntentionalSaves ?? 0,
 		};
 	};
 
@@ -603,8 +605,8 @@ export function initDynamoDbAuth(deps: {
 		});
 		const row = items[0];
 		if (!row) return { inWindow: false };
-		try {
-			const { Attributes } = await users.update({
+		const outcome = await writeIfCondition(() =>
+			users.update({
 				Key: { email: row.email },
 				UpdateExpression: "ADD earlyIntentionalSaves :one",
 				ConditionExpression: "registeredAt >= :windowStart",
@@ -613,20 +615,19 @@ export function initDynamoDbAuth(deps: {
 					":windowStart": new Date(at.getTime() - EARLY_INTENTIONAL_SAVE_WINDOW_MS).toISOString(),
 				},
 				ReturnValues: "ALL_NEW",
-			});
-			assert(Attributes, "an update with ReturnValues ALL_NEW always returns the item");
-			assert(Attributes.earlyIntentionalSaves, "ADD always leaves the counter on the row");
-			assert(Attributes.registeredAt, "the window condition only passes on a row with registeredAt");
-			return {
-				inWindow: true,
-				count: Attributes.earlyIntentionalSaves,
-				registeredAt: Attributes.registeredAt,
-				signupOAuthClientId: Attributes.signupOAuthClientId ?? null,
-			};
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return { inWindow: false };
-			throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "condition-failed") return { inWindow: false };
+		const { Attributes } = outcome.result;
+		assert(Attributes, "an update with ReturnValues ALL_NEW always returns the item");
+		assert(Attributes.earlyIntentionalSaves, "ADD always leaves the counter on the row");
+		assert(Attributes.registeredAt, "the window condition only passes on a row with registeredAt");
+		return {
+			inWindow: true,
+			count: Attributes.earlyIntentionalSaves,
+			registeredAt: Attributes.registeredAt,
+			signupOAuthClientId: Attributes.signupOAuthClientId ?? null,
+		};
 	};
 
 	const findUserPasswordStatus: FindUserPasswordStatus = async (userId) => {
@@ -691,6 +692,28 @@ export function initDynamoDbAuth(deps: {
 		});
 	};
 
+	const markActivationThresholdReached: MarkActivationThresholdReached = async ({ userId, at }) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return;
+		await users.update({
+			Key: { email },
+			UpdateExpression: "SET activationThresholdReachedAt = :at",
+			ConditionExpression: "attribute_exists(email)",
+			ExpressionAttributeValues: { ":at": at.toISOString() },
+		});
+	};
+
+	const setKeepOfferDismissed: SetKeepOfferDismissed = async ({ userId, dismissedAt }) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return;
+		await users.update({
+			Key: { email },
+			UpdateExpression: "SET keepOfferDismissedAt = :dismissedAt",
+			ConditionExpression: "attribute_exists(email)",
+			ExpressionAttributeValues: { ":dismissedAt": dismissedAt.toISOString() },
+		});
+	};
+
 	const updatePassword: UpdatePassword = async ({ email, password, updatedAt }) => {
 		const normalizedEmail = normalizeEmail(email);
 		const passwordHash = await hashPassword(password);
@@ -735,6 +758,7 @@ export function initDynamoDbAuth(deps: {
 		setUserAppearance,
 		setUserDisplayName,
 		setQueueDigestOptOut,
+		markActivationThresholdReached,
+		setKeepOfferDismissed,
 	};
 }
-/* c8 ignore stop */

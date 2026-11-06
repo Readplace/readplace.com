@@ -30,9 +30,9 @@
     "@packages/dead-letter-routing": "workspace:*",
     "@packages/domain": "workspace:*",
     "@packages/finalize-article": "workspace:*",
-    "@packages/hutch-infra-components": "workspace:*",
-    "@packages/hutch-logger": "workspace:*",
-    "@packages/hutch-storage-client": "workspace:*",
+    "@packages/infra-components": "workspace:*",
+    "@packages/logger": "workspace:*",
+    "@packages/storage-client": "workspace:*",
     "@packages/onboarding-signals": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
     "@packages/readlist-fit": "workspace:*",
@@ -51,6 +51,7 @@
     "posthtml": "0.16.7",
     "puppeteer-core": "25.11.0",
     "tldts": "6.1.86",
+    "tokenizers": "0.23.2",
     "zod": "4.4.3"
   },
   "devDependencies": {

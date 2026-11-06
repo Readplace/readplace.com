@@ -1,24 +1,19 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import { initHandleByDetailType, initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import {
 	LinkQueueFailedEvent,
 	ResolveArticleOnViewCommand,
 	SubmitLinkCommand,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import {
 	type LoadArticle,
 	type TransitionAndPersist,
 	markCrawlExhausted,
 	markSummaryExhausted,
 } from "@packages/domain/article-aggregate";
+import { UserIdSchema } from "@packages/domain/user";
 
 const REASON = "accept-retries-exhausted";
 
@@ -29,7 +24,7 @@ const REASON = "accept-retries-exhausted";
  * one outcome this handler exists to prevent. */
 const DeadLetteredSubmission = z.object({
 	url: z.string(),
-	userId: z.string().optional(),
+	userId: UserIdSchema.optional(),
 });
 
 /**
@@ -53,48 +48,36 @@ const DeadLetteredSubmission = z.object({
  */
 function initSubmissionDlqHandler(deps: {
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, logger } = deps;
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = JSON.parse(record.body);
-				const command = DeadLetteredSubmission.parse(envelope.detail);
-				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-
-				if (command.userId === undefined) {
-					logger.error("[SubmitLinkDlq] dead letter with no userId", {
-						url: command.url,
-						receiveCount,
-					});
-					continue;
-				}
-
-				logger.info("[SubmitLinkDlq] publishing save failure", {
+	return initSqsRecordHandler({
+		definition: { detailSchema: DeadLetteredSubmission },
+		logger,
+		failure: { message: "[SubmitLinkDlq] record failed" },
+		malformed: { policy: "retry" },
+		handle: async (command, { receiveCount }) => {
+			if (command.userId === undefined) {
+				logger.error("[SubmitLinkDlq] dead letter with no userId", {
 					url: command.url,
 					receiveCount,
 				});
-				await publishEvent(LinkQueueFailedEvent, {
-					url: command.url,
-					userId: command.userId,
-					reason: REASON,
-					receiveCount,
-				});
-			} catch (error) {
-				logger.error("[SubmitLinkDlq] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+				return;
 			}
-		}
 
-		return { batchItemFailures };
-	};
+			logger.info("[SubmitLinkDlq] publishing save failure", {
+				url: command.url,
+				receiveCount,
+			});
+			await publishEvent(LinkQueueFailedEvent, {
+				url: command.url,
+				userId: command.userId,
+				reason: REASON,
+				receiveCount,
+			});
+		},
+	});
 }
 
 const DeadLetteredResolution = ResolveArticleOnViewCommand.detailSchema.pick({ url: true });
@@ -102,46 +85,36 @@ const DeadLetteredResolution = ResolveArticleOnViewCommand.detailSchema.pick({ u
 function initResolutionDlqHandler(deps: {
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { loadArticle, transitionAndPersist, logger } = deps;
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const { url } = DeadLetteredResolution.parse(JSON.parse(record.body).detail);
-				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-				const reason = { kind: "exhausted-retries", receiveCount } as const;
-				const article = await loadArticle(url);
-				if (article?.crawl.kind === "pending") {
-					await transitionAndPersist(markCrawlExhausted, { url, input: { reason, receiveCount } });
-				} else if (article?.summary.kind === "pending") {
-					await transitionAndPersist(markSummaryExhausted, { url, input: { reason, receiveCount } });
-				}
-				logger.error(`[SubmitLinkDlq] resolve-on-view dead-lettered after ${receiveCount} receives`, {
-					url,
-					messageId: record.messageId,
-				});
-			} catch (error) {
-				logger.error("[SubmitLinkDlq] resolve-on-view record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+	return initSqsRecordHandler({
+		definition: { detailSchema: DeadLetteredResolution },
+		logger,
+		failure: { message: "[SubmitLinkDlq] resolve-on-view record failed" },
+		malformed: { policy: "retry" },
+		handle: async ({ url }, { messageId, receiveCount }) => {
+			const reason = { kind: "exhausted-retries", receiveCount } as const;
+			const article = await loadArticle(url);
+			if (article?.crawl.kind === "pending") {
+				await transitionAndPersist(markCrawlExhausted, { url, input: { reason, receiveCount } });
+			} else if (article?.summary.kind === "pending") {
+				await transitionAndPersist(markSummaryExhausted, { url, input: { reason, receiveCount } });
 			}
-		}
-
-		return { batchItemFailures };
-	};
+			logger.error(`[SubmitLinkDlq] resolve-on-view dead-lettered after ${receiveCount} receives`, {
+				url,
+				messageId,
+			});
+		},
+	});
 }
 
 export function initSubmitLinkDlqHandler(deps: {
 	publishEvent: PublishEvent;
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return initHandleByDetailType({
 		routes: {

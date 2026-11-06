@@ -1,10 +1,10 @@
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initLogEmail } from "./log-email";
 
 describe("initLogEmail", () => {
 	it("logs the email message through the injected logger", async () => {
 		const infoSpy = jest.fn();
-		const logger = HutchLogger.from({ ...noopLogger, info: infoSpy });
+		const logger = Logger.from({ ...noopLogger, info: infoSpy });
 		const { sendEmail } = initLogEmail({ logger });
 
 		await sendEmail({
@@ -27,7 +27,7 @@ describe("initLogEmail", () => {
 
 	it("logs the custom headers so a local run shows what the provider would receive", async () => {
 		const infoSpy = jest.fn();
-		const logger = HutchLogger.from({ ...noopLogger, info: infoSpy });
+		const logger = Logger.from({ ...noopLogger, info: infoSpy });
 		const { sendEmail } = initLogEmail({ logger });
 
 		await sendEmail({

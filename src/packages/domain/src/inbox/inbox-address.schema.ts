@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import { z } from "zod";
+import { type InboxAddress, InboxAddressSchema } from "../mail-identity/inbox-address.schema";
 import { UserIdSchema } from "../user";
 
 /** Mail that can't be delivered to an active user — a guessed/mistyped forwarding
@@ -33,16 +34,7 @@ export const AliasNameSchema = z
 
 export type AliasName = z.infer<typeof AliasNameSchema>;
 
-/** A full forwarding address, `<alias>-<token>@<domain>`. Branded so a raw
- * string can't stand in for one without passing through the parser. The trailing
- * `-<token>` is the six-char random suffix by construction, so an address is a
- * strict generalization of the legacy `in-<token>` form (alias = `in`). */
-export const InboxAddressSchema = z
-	.string()
-	.regex(/^[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-z]{6}@[a-z0-9.-]+$/)
-	.brand<"InboxAddress">();
-
-export type InboxAddress = z.infer<typeof InboxAddressSchema>;
+export { InboxAddressSchema, type InboxAddress } from "../mail-identity/inbox-address.schema";
 
 export const INBOX_TOKEN_LENGTH = 6;
 const INBOX_TOKEN_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";

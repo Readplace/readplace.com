@@ -1,4 +1,4 @@
-import { ReaderViewLoadingSucceeded, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { ReaderViewLoadingSucceeded, TierContentExtractedEvent } from "@packages/infra-components";
 import { KNOWN_TIERS } from "@packages/article-state-types";
 
 describe("content tiers on the wire", () => {

@@ -17,7 +17,7 @@ import type {
 	StarterPick,
 } from "@packages/provider-contracts/engagement-starter";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	STARTER_CAMPAIGN_ID,
 	STARTER_SNAPSHOT_MAX_AGE_MS,
@@ -25,7 +25,7 @@ import {
 	starterArm,
 	type StarterRollout,
 } from "./starter-policy";
-import { reservedDomainOf } from "../../providers/email/skip-reserved-domain";
+import { reservedDomainOf } from "../email/reserved-domain";
 
 export function initEnrollStarter(deps: {
 	state: EngagementStarterState;
@@ -42,7 +42,7 @@ export function initEnrollStarter(deps: {
 	findRollout: () => Promise<StarterRollout | undefined>;
 	excludedUserIds: string[];
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	emit: (input: {
 		userId: UserId;
 		event: "assigned" | "inserted" | "failure";

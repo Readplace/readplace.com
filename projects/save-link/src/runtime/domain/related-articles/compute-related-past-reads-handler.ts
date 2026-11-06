@@ -1,23 +1,26 @@
-import type { SelectionSample } from "./related-articles-selector";
+import assert from "node:assert";
+import type { RecommendationTrigger, SelectionSample } from "./related-articles-selector";
 import type {
 	Handler,
 	SQSBatchItemFailure,
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	FindReadCandidatesAcrossReadlists,
 	FindRelatedTargetArticle,
+	MarkPastReadsBudgetBlocked,
 	MarkPastReadsReady,
 	PastReadLink,
 	ReadPastReadsState,
 } from "@packages/provider-contracts/related-articles";
 import {
+	ComputeRelatedPassesCommand,
 	ComputeRelatedPastReadsCommand,
+	QueueEntryCreatedEvent,
 	RelatedPastReadsComputedEvent,
 } from "./index";
 import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
@@ -31,10 +34,11 @@ interface ComputeRelatedPastReadsHandlerDeps {
 	readPastReadsState: ReadPastReadsState;
 	selectPastReads: SelectRelatedArticles;
 	markPastReadsReady: MarkPastReadsReady;
+	markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 }
 
 class MetadataNotReadyError extends Error {
@@ -44,6 +48,12 @@ class MetadataNotReadyError extends Error {
 		this.url = url;
 	}
 }
+
+const TRIGGER_BY_DETAIL_TYPE: Record<string, RecommendationTrigger> = {
+	[QueueEntryCreatedEvent.detailType]: "save",
+	[ComputeRelatedPassesCommand.detailType]: "reader-request",
+	[ComputeRelatedPastReadsCommand.detailType]: "reader-request",
+};
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComputeRelatedPastReadsHandler(
@@ -55,6 +65,7 @@ export function initComputeRelatedPastReadsHandler(
 		readPastReadsState,
 		selectPastReads,
 		markPastReadsReady,
+		markPastReadsBudgetBlocked,
 		publishEvent,
 		now,
 		logger,
@@ -70,7 +81,10 @@ export function initComputeRelatedPastReadsHandler(
 				const entry = ComputeRelatedPastReadsCommand.detailSchema.parse(
 					envelope.detail,
 				);
-				const userId = UserIdSchema.parse(entry.userId);
+				const { userId } = entry;
+				const trigger = TRIGGER_BY_DETAIL_TYPE[envelope["detail-type"]];
+				assert(trigger, `[ComputeRelatedPastReads] unexpected detail-type ${envelope["detail-type"]}`);
+				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
 				const store = async (
 					pastReads: readonly PastReadLink[],
@@ -132,7 +146,7 @@ export function initComputeRelatedPastReadsHandler(
 				}
 				const target = lookup.article;
 				if (target.crawlStatus === "pending") {
-					if (Number(record.attributes.ApproximateReceiveCount) < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
+					if (receiveCount < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
 						throw new MetadataNotReadyError(entry.url);
 					}
 					logger.info("[ComputeRelatedPastReads] skipped; crawl still pending after the wait", {
@@ -173,6 +187,7 @@ export function initComputeRelatedPastReadsHandler(
 				}
 
 				const result = await selectPastReads({
+					attempt: { userId, trigger, messageId: record.messageId, receiveCount },
 					target,
 					unreadCandidates: [],
 					readCandidates: candidates,
@@ -188,6 +203,31 @@ export function initComputeRelatedPastReadsHandler(
 						candidateCount: result.candidateCount,
 					});
 					await store([], fingerprint, { samples: [], inputTokens: 0, outputTokens: 0, droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0 });
+					continue;
+				}
+				if (result.kind === "budget-limited") {
+					if (state.savedAt === undefined) {
+						logger.info("[ComputeRelatedPastReads] superseded", { url: entry.url });
+						continue;
+					}
+					const outcome = await markPastReadsBudgetBlocked({
+						userId,
+						url: entry.url,
+						blockedUntil: result.resetsAt,
+						observed: {
+							savedAt: state.savedAt,
+							...(state.computedAt !== undefined ? { computedAt: state.computedAt } : {}),
+						},
+					});
+					if (outcome === "superseded") {
+						logger.info("[ComputeRelatedPastReads] superseded", { url: entry.url });
+						continue;
+					}
+					logger.info("[ComputeRelatedPastReads] budget-limited", {
+						url: entry.url,
+						resetsAt: result.resetsAt,
+						receiveCount,
+					});
 					continue;
 				}
 				if (result.kind === "no-text-block") {

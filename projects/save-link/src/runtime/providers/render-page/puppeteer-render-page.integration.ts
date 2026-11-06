@@ -6,7 +6,7 @@ import chromium from "@sparticuz/chromium";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { classifyRenderedDocument } from "./classify-rendered-document";
 import { initPuppeteerRenderPage } from "./puppeteer-render-page";
-import type { RenderOutcome, RenderProxy } from "./render-page.types";
+import type { RenderOutcome, RenderProxy } from "../../domain/render-crawl/render-page.types";
 import { type CreateRenderRequestFilter, initRenderRequestFilter, type RejectRenderRequest } from "./render-request-filter";
 
 const PROXY_USERNAME = "render-zone-user";

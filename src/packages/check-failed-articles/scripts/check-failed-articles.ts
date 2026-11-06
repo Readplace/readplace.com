@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
 import { test } from "node:test";
 import { initDynamoDbCanaryReports } from "@packages/article-store";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import {
 	type CanaryReportKey,
 	CanaryReportSourceSchema,

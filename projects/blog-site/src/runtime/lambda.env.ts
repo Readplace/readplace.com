@@ -1,0 +1,8 @@
+export const BLOG_SITE_ENV = [
+	"ANALYTICS_SALT",
+	"DYNAMODB_SESSIONS_TABLE",
+	"STATIC_BASE_URL",
+	"APP_ORIGIN",
+	"SSR_EDGE_SECRET",
+	"NODE_ENV",
+] as const;

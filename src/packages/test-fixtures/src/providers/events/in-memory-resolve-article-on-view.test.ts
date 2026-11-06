@@ -1,5 +1,5 @@
 import { newSaveAttemptId } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initInMemoryResolveArticleOnView } from "./in-memory-resolve-article-on-view";
 
 describe("initInMemoryResolveArticleOnView", () => {

@@ -2,8 +2,8 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/storage-client";
+import type { Logger } from "@packages/logger";
 import { z } from "zod";
 import { UserIdSchema, normalizeEmail } from "@packages/domain/user";
 import {
@@ -53,7 +53,7 @@ const ScrubScanRow = z.object({
 export function initDynamoDbPendingSignup(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
-	logger: HutchLogger;
+	logger: Logger;
 }): {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;

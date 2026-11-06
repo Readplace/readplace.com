@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	type FetchRedirectHop,
 	type FetchTrackerHop,
@@ -18,7 +18,7 @@ function redirect(location: string | undefined, status = 302): Response {
 	return new Response(null, { status, headers: location === undefined ? {} : { location } });
 }
 
-function capturingLogger(): { logger: HutchLogger; lines: Array<{ level: string; line: string }> } {
+function capturingLogger(): { logger: Logger; lines: Array<{ level: string; line: string }> } {
 	const lines: Array<{ level: string; line: string }> = [];
 	const record = (level: string) => (line: unknown) => {
 		lines.push({ level, line: String(line) });

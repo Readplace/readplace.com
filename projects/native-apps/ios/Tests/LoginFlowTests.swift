@@ -17,7 +17,7 @@ final class LoginFlowTests: XCTestCase {
 
 	private func makeService(store: TokenStore) -> OAuthService {
 		OAuthService(
-			baseURL: AppConfig.serverBaseURL,
+			endpoints: AppConfig.serverEndpoints,
 			store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration()
@@ -111,8 +111,8 @@ final class LoginFlowTests: XCTestCase {
 
 		guard case .success = result else { return XCTFail("Expected .success, got \(result)") }
 		XCTAssertTrue(session.isLoggedIn, "RootView keys off isLoggedIn to show the reading list")
-		XCTAssertEqual(store.tokens?.accessToken, "fresh-access", "token must be persisted for the share extension")
-		XCTAssertEqual(store.tokens?.refreshToken, "fresh-refresh")
+		XCTAssertEqual(store.tokens?.accessToken.raw, "fresh-access", "token must be persisted for the share extension")
+		XCTAssertEqual(store.tokens?.refreshToken.raw, "fresh-refresh")
 
 		let body = TestSupport.formFields(try XCTUnwrap(StubURLProtocol.records(path: "/oauth/token").first).body)
 		XCTAssertEqual(body["grant_type"], "authorization_code")

@@ -8,5 +8,19 @@ export type {
 	MintMediaPendingPost,
 	HeadMediaPendingOriginal,
 	ReadMediaPendingPrefix,
+	PresignMediaImage,
 	PublishMediaUploadCommitted,
 } from "./media-upload-session.types";
+export type {
+	AnonymousMediaUploadSessionState,
+	AnonymousMediaUploadSession,
+	AnyMediaUploadSession,
+	ClaimedMediaUpload,
+	MediaInspectionVerdict,
+	CreateAnyMediaUploadSession,
+	MarkMediaUploadInspecting,
+	RecordMediaInspection,
+	ClaimMediaUpload,
+	FindMediaUploadByCapability,
+	PublishMediaUploadStaged,
+} from "./anonymous-media-upload-session.types";

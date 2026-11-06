@@ -38,7 +38,8 @@
       {{{widgetHtml}}}
     </div>
     <div class="readlist-gmail__save">
-      <button class="btn btn--primary gmail__submit" form="gmail-readlist-selection" type="submit" formmethod="post" formaction="{{saveAction}}" data-test-action="save-gmail-newsletters"><span class="gmail__submit-label">Save newsletters</span>{{{saveLoader}}}</button>
+      <button form="gmail-readlist-selection" type="submit" formmethod="post" formaction="{{saveAction}}" hidden tabindex="-1" data-gmail-autosave></button>
+      <noscript><button class="btn btn--primary gmail__submit" form="gmail-readlist-selection" type="submit" formmethod="post" formaction="{{saveAction}}" data-test-action="save-gmail-newsletters"><span class="gmail__submit-label">Save</span></button></noscript>
     </div>
     <script src="/client-dist/gmail-picker.client.js" defer></script>
     {{/each}}

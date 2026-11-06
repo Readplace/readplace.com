@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { CandidateIdSchema, isArchiveHost, isWrapperUrl } from "@packages/domain/article";
 import { ContentTierSchema } from "@packages/article-state-types";
 import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
-import { dynamoField } from "@packages/hutch-storage-client";
+import { dynamoField } from "@packages/storage-client";
 import { z } from "zod";
 
 export const VerificationFields = {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { initInMemorySubscriptionBilling } from "@packages/test-fixtures/providers/subscription-billing";
 import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
@@ -61,7 +61,7 @@ function buildSubject(opts?: { scheduleCancellationAtPeriodEndReturns?: string }
 		deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
 		publishSubscriptionCancellationScheduled,
 		publishSubscriptionCancelled,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return {
 		handler,
@@ -342,7 +342,7 @@ describe("cancel-subscription handler", () => {
 			deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
 			publishSubscriptionCancellationScheduled: async () => {},
 			publishSubscriptionCancelled: async () => {},
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(

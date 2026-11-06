@@ -1,7 +1,13 @@
 package com.readplace.android.app
 
 import android.security.keystore.KeyGenParameterSpec
+import com.readplace.android.core.AccessToken
+import com.readplace.android.core.NativeAuthRecords
 import com.readplace.android.core.NativeProofInput
+import com.readplace.android.core.OAuthTokens
+import com.readplace.android.core.RefreshToken
+import com.readplace.android.core.TokenKey
+import com.readplace.android.core.TokenStorage
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
 import org.junit.Before
@@ -70,6 +76,12 @@ class NativeTestEC : KeyPairGeneratorSpi() {
 	}
 }
 
+private class NoLegacyTokens : TokenStorage {
+	override fun readValue(key: TokenKey) = Result.success<String?>(null)
+	override fun setValue(key: TokenKey, value: String) = Unit
+	override fun removeValue(key: TokenKey) = Unit
+}
+
 @RunWith(RobolectricTestRunner::class)
 class NativeAuthStorageTest {
 	@Before fun keys() {
@@ -95,6 +107,16 @@ class NativeAuthStorageTest {
 		assertFalse(java.io.File(directory, "oauth-auth-record").readBytes().contentEquals("replacement".toByteArray()))
 		java.io.File(directory, "oauth-auth-record").writeBytes(byteArrayOf(1))
 		assertTrue(runCatching { first.read() }.isFailure)
+	}
+
+	@Test fun `a record persisted by an installed build still decodes and re-encodes byte for byte`() {
+		val persistedRecord = """{"generation":5,"accountEpoch":"epoch-7","installationId":"55555555-5555-4555-8555-555555555555","access":"access-token","refresh":"refresh-token","pending":{"id":"operation-2","generation":6,"access":"pending-access","refresh":"pending-refresh","diagnosticIdentity":"identity-2","diagnosticsPermit":"permit-2"},"bound":true,"diagnosticsPermit":"permit-1","diagnosticIdentity":"11111111-1111-4111-8111-111111111111","diagnostics":[{"event":{"event_id":"33333333-3333-4333-8333-333333333333","event":"login_started","occurred_at":"2026-10-16T00:00:00Z","client":"android","surface":"app","context_id":"22222222-2222-4222-8222-222222222222","client_version":"117","operation_id":"operation-1","attempt_id":"attempt-1","http_status":200},"identity":"identity-1","permit":"permit-1"},{"event":{"event_id":"44444444-4444-4444-8444-444444444444","event":"journal_health","occurred_at":"2026-10-16T00:00:01Z","client":"android","surface":"share","context_id":"22222222-2222-4222-8222-222222222222","client_version":"117","outcome":"success","reason":"journal_overflow","dropped_events":3},"identity":"identity-1","permit":null}]}"""
+		val storage = AtomicAuthRecordStorage(kotlin.io.path.createTempDirectory().toFile())
+		storage.locked { storage.write(persistedRecord) }
+		val records = NativeAuthRecords(storage, NoLegacyTokens())
+		assertEquals(OAuthTokens(AccessToken("access-token"), RefreshToken("refresh-token")), records.read().tokens)
+		records.update { }
+		assertEquals(persistedRecord, storage.read())
 	}
 
 	@Test fun `proof uses the persisted installation key and binds the exact request bytes`() {

@@ -1,4 +1,4 @@
-import { ConditionalCheckFailedException, TransactionCanceledException, TransactWriteCommand, defineDynamoTable, dynamoField, forEachQueryPage, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { transactIfConditions, writeIfCondition, TransactWriteCommand, defineDynamoTable, dynamoField, forEachQueryPage, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { z } from "zod";
 import { ForwardableSenderSchema, GmailAccountEmailSchema, type DiscoveredGmailSender } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
@@ -27,14 +27,6 @@ const NoticeBatch = z.discriminatedUnion("status", [z.object({ userId: UserIdSch
 const NOTICE_BATCH_KEY = "NOTICE_BATCH";
 const Cursor = z.object({ userId: z.string(), key: z.string() });
 
-async function conditional(write: () => Promise<unknown>): Promise<boolean> {
-	try { await write(); return true; } catch (error) {
-		if (error instanceof ConditionalCheckFailedException) return false;
-		if (error instanceof TransactionCanceledException && error.CancellationReasons?.some((reason) => reason.Code === "ConditionalCheckFailed")) return false;
-		throw error;
-	}
-}
-
 export function initDynamoDbGmailMonitoring(deps: { client: DynamoDBDocumentClient; tableName: string; now: () => Date }): GmailMonitoringStore {
 	const checkpoints = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: CheckpointRow });
 	const observations = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: ObservationRow });
@@ -55,24 +47,24 @@ export function initDynamoDbGmailMonitoring(deps: { client: DynamoDBDocumentClie
 	const token = (key: Record<string, unknown> | undefined) => key === undefined ? undefined : Buffer.from(JSON.stringify(key)).toString("base64url");
 	return {
 		findCheckpoint: async (userId) => checkpoints.get({ userId, key: "STATE" }, { consistentRead: true }),
-		startRun: async ({ checkpoint, previous }) => conditional(() => checkpoints.put({
+		startRun: async ({ checkpoint, previous }) => (await writeIfCondition(() => checkpoints.put({
 			Item: { ...checkpoint, key: "STATE" },
 			...(previous === undefined ? { ConditionExpression: "attribute_not_exists(userId)" } : fence(previous)),
-		})),
-		claimPage: async ({ userId, generation, page }) => conditional(() => checkpoints.update({
+		}))).kind === "written",
+		claimPage: async ({ userId, generation, page }) => (await writeIfCondition(() => checkpoints.update({
 			Key: { userId, key: "STATE" },
 			UpdateExpression: "SET claimUntil = :until",
 			ConditionExpression: "generation = :generation AND #page = :page AND #mode <> :complete AND (attribute_not_exists(claimUntil) OR claimUntil <= :now)",
 			ExpressionAttributeNames: { "#page": "page", "#mode": "mode" },
 			ExpressionAttributeValues: { ":generation": generation, ":page": page, ":complete": "complete", ":now": deps.now().getTime(), ":until": deps.now().getTime() + 120_000 },
-		})),
-		saveCheckpoint: async ({ previous, next }) => conditional(() => checkpoints.put({ Item: { ...next, key: "STATE" }, ...fence(previous) })),
+		}))).kind === "written",
+		saveCheckpoint: async ({ previous, next }) => (await writeIfCondition(() => checkpoints.put({ Item: { ...next, key: "STATE" }, ...fence(previous) }))).kind === "written",
 		findObservation: async ({ userId, mailboxId, senderEmail }) => observations.get({ userId, key: `OBS#${mailboxId}#${senderEmail}` }, { consistentRead: true }),
 		observeSender: async ({ checkpoint, observation, notify }) => {
 			const previousNotice = notify ? await notices.get({ userId: checkpoint.userId, key: `NOTICE#${observation.email}` }, { consistentRead: true }) : undefined;
 			const replacePending = previousNotice?.status === "pending" && (previousNotice.mailboxId !== checkpoint.mailboxId || previousNotice.accountEmail !== checkpoint.accountEmail || previousNotice.gatewayAddress !== checkpoint.gatewayAddress);
 			const createNotice = notify && (previousNotice === undefined || previousNotice.status === "cancelled" || replacePending);
-			return conditional(() => deps.client.send(new TransactWriteCommand({ TransactItems: [
+			return (await transactIfConditions(() => deps.client.send(new TransactWriteCommand({ TransactItems: [
 				{ ConditionCheck: { TableName: deps.tableName, Key: { userId: checkpoint.userId, key: "STATE" }, ...fence(checkpoint) } },
 				{ Put: { TableName: deps.tableName, Item: { userId: checkpoint.userId, key: `OBS#${checkpoint.mailboxId}#${observation.email}`, ...observation } } },
 				...(createNotice ? [{ Put: {
@@ -81,7 +73,7 @@ export function initDynamoDbGmailMonitoring(deps: { client: DynamoDBDocumentClie
 					ConditionExpression: replacePending ? "#status = :pending AND mailboxId = :mailbox AND gatewayAddress = :gateway AND accountEmail = :account" : "attribute_not_exists(userId) OR #status = :cancelled",
 					ExpressionAttributeNames: { "#status": "status" }, ExpressionAttributeValues: replacePending ? { ":pending": "pending", ":mailbox": previousNotice.mailboxId, ":gateway": previousNotice.gatewayAddress, ":account": previousNotice.accountEmail } : { ":cancelled": "cancelled" },
 				} }] : []),
-			] })));
+			] })))).kind === "written";
 		},
 		listObservations: async ({ userId, mailboxId, pageToken }) => {
 			const page = await observations.query(query({ userId, prefix: `OBS#${mailboxId}#`, pageToken }));
@@ -102,37 +94,37 @@ export function initDynamoDbGmailMonitoring(deps: { client: DynamoDBDocumentClie
 		},
 		findNotice: async ({ userId, senderEmail }) => notices.get({ userId, key: `NOTICE#${senderEmail}` }, { consistentRead: true }),
 		claimNotice: async ({ notice, message }) => {
-			const acquired = await conditional(() => notices.update({
+			const acquired = (await writeIfCondition(() => notices.update({
 				Key: { userId: notice.userId, key: `NOTICE#${notice.senderEmail}` },
 				UpdateExpression: "SET #status = :sending, #message = if_not_exists(#message, :message), firstAttemptAt = if_not_exists(firstAttemptAt, :now), claimUntil = :until",
 				ConditionExpression: "mailboxId = :mailbox AND gatewayAddress = :gateway AND accountEmail = :account AND (#status = :pending OR #status = :sending) AND (attribute_not_exists(claimUntil) OR claimUntil <= :now)",
 				ExpressionAttributeNames: { "#status": "status", "#message": "message" },
 				ExpressionAttributeValues: { ":mailbox": notice.mailboxId, ":gateway": notice.gatewayAddress, ":account": notice.accountEmail, ":pending": "pending", ":sending": "sending", ":message": message, ":now": deps.now().getTime(), ":until": deps.now().getTime() + 120_000 },
-			}));
+			}))).kind === "written";
 			return acquired ? notices.get({ userId: notice.userId, key: `NOTICE#${notice.senderEmail}` }, { consistentRead: true }) : undefined;
 		},
 		markNoticeSent: async ({ userId, senderEmail }) => {
-			await conditional(() => notices.update({
+			await writeIfCondition(() => notices.update({
 				Key: { userId, key: `NOTICE#${senderEmail}` }, UpdateExpression: "SET #status = :sent REMOVE claimUntil",
 				ConditionExpression: "#status = :pending OR #status = :sending", ExpressionAttributeNames: { "#status": "status" }, ExpressionAttributeValues: { ":pending": "pending", ":sending": "sending", ":sent": "sent" },
 			}));
 		},
 		cancelNotice: async ({ userId, senderEmail }) => {
-			await conditional(() => notices.update({ Key: { userId, key: `NOTICE#${senderEmail}` }, UpdateExpression: "SET #status = :cancelled", ConditionExpression: "#status = :pending", ExpressionAttributeNames: { "#status": "status" }, ExpressionAttributeValues: { ":pending": "pending", ":cancelled": "cancelled" } }));
+			await writeIfCondition(() => notices.update({ Key: { userId, key: `NOTICE#${senderEmail}` }, UpdateExpression: "SET #status = :cancelled", ConditionExpression: "#status = :pending", ExpressionAttributeNames: { "#status": "status" }, ExpressionAttributeValues: { ":pending": "pending", ":cancelled": "cancelled" } }));
 		},
 		findNoticeBatch: async (userId) => NoticeBatch.optional().parse(await batches.get({ userId, key: NOTICE_BATCH_KEY }, { consistentRead: true })),
 		claimNoticeBatch: async ({ userId, senders, message, lastSentBefore }) => {
-			const acquired = await conditional(() => batches.update({
+			const acquired = (await writeIfCondition(() => batches.update({
 				Key: { userId, key: NOTICE_BATCH_KEY },
 				UpdateExpression: "SET #status = :sending, senders = if_not_exists(senders, :senders), #message = if_not_exists(#message, :message), firstAttemptAt = if_not_exists(firstAttemptAt, :now), claimUntil = :until",
 				ConditionExpression: "attribute_not_exists(userId) OR (#status = :idle AND lastSentAt <= :lastSentBefore) OR (#status = :sending AND claimUntil <= :now)",
 				ExpressionAttributeNames: { "#status": "status", "#message": "message" },
 				ExpressionAttributeValues: { ":idle": "idle", ":sending": "sending", ":senders": senders, ":message": message, ":lastSentBefore": lastSentBefore, ":now": deps.now().getTime(), ":until": deps.now().getTime() + 120_000 },
-			}));
+			}))).kind === "written";
 			return acquired ? ClaimedNoticeBatch.parse(await batches.get({ userId, key: NOTICE_BATCH_KEY }, { consistentRead: true })) : undefined;
 		},
 		finishNoticeBatch: async (userId) => {
-			await conditional(() => batches.update({
+			await writeIfCondition(() => batches.update({
 				Key: { userId, key: NOTICE_BATCH_KEY },
 				UpdateExpression: "SET #status = :idle, lastSentAt = :now REMOVE senders, #message, firstAttemptAt, claimUntil",
 				ConditionExpression: "#status = :sending",

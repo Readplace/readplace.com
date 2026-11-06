@@ -1,23 +1,22 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { EmailDeliveryMode, InboxAddressEntry } from "@packages/domain/inbox";
+import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { ReadlistSlug } from "@packages/domain/readlist";
-import type { IconName } from "@packages/ui-icons";
 import {
 	CONFIRM_POPOVER_STYLES,
 	render,
 	renderAlert,
 	renderIllustration,
-	withInternalTracking,
+	renderToast,
 } from "@packages/web-shell";
 import type { AlertContent, CspNonce, PageBody } from "@packages/web-shell";
 
 import { ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
 import { type UpgradeOffer, renderedLockFor, standingOf } from "../../shared/upgrade-offer/upgrade-offer";
-import { WIZARD_STYLES, type WizardRender, renderWizard } from "../../shared/wizard/wizard.component";
-import type { WizardHeading } from "../../shared/wizard/wizard.types";
+import { WIZARD_STYLES, type WizardRender } from "../../shared/wizard/wizard.component";
 import { GMAIL_SENDER_WIDGET_STYLES } from "../integrations/gmail.styles";
 import { readlistAlertFor } from "./readlist-alerts";
+import { STATUS_TOAST_DISMISS_MS } from "./readlist-mutation-fragments";
 import { type ReadlistFitChoices, renderReadlistFitChoices } from "./readlist-fit-choices.component";
 import { READLIST_GMAIL_SENDERS_STYLES, renderReadlistGmailSenders } from "./readlist-gmail-senders.component";
 import type { ReadlistGmailSendersViewModel } from "./readlist-gmail-senders.viewmodel";
@@ -39,27 +38,24 @@ import {
 } from "./readlist.component";
 import { READLIST_STYLES } from "./readlist.styles";
 import {
-	READLIST_PREFERENCES_STEPS,
 	READLIST_PREFERENCES_WIZARD_ID,
-	READLIST_PREFERENCES_WIZARD_KEY,
 	type ReadlistPreferencesWizardViewModel,
 } from "./readlist-preferences-wizard.component";
-import { READLIST_PREFERENCES_STYLES } from "./readlist-preferences.styles";
 import {
-	READLIST_PURPOSE_DELETE_ID,
-	renderPurposeDeleteConfirm,
-} from "./readlist-purpose-delete-confirm.component";
+	READLIST_PURPOSE_CARD_STYLES,
+	type PurposeState,
+	purposeStateOf,
+	renderReadlistPurposeCard,
+	renderReadlistPurposeWizard,
+} from "./readlist-purpose-card.component";
+import { READLIST_PREFERENCES_STYLES } from "./readlist-preferences.styles";
 import type { ReadlistRailViewModel } from "./readlist-rail";
-import { readlistReturnQuery, readlistPreferencesPath, readlistPurposeDeletePath } from "./readlist.url";
+import { readlistReturnQuery } from "./readlist.url";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-preferences.template.html"), "utf-8");
 
 const PREFERENCES_SOURCE = "queue-preferences";
-
-const PURPOSE_FAILURE_MESSAGE = "Couldn't save the purpose.";
-
-type PurposeState = "unset" | "set";
 
 const PANEL_CLASS: Record<PurposeState, string> = {
 	unset: "readlist-preferences readlist-preferences--unset",
@@ -70,86 +66,28 @@ const WIZARD_OPEN_CLASS = "readlist-preferences--wizard-open";
 
 const READ_ONLY_CLASS = "readlist-preferences--read-only";
 
-const WIZARD_HEADING: Record<PurposeState, WizardHeading> = {
-	unset: { kind: "step" },
-	set: { kind: "task", title: "Edit readlist purpose" },
-};
-
-interface SetupAction {
+interface PopoverControl {
 	popoverId: string;
-}
-
-interface PurposeMenuTrigger {
-	iconName: IconName;
-	text: string;
-	popoverId: string;
-	testAction: string;
-}
-
-interface PurposeMenuAction {
-	iconName: IconName;
-	text: string;
-	url: string;
-	testAction: string;
-}
-
-interface PurposeMenu {
-	triggers: readonly PurposeMenuTrigger[];
-	actions: readonly PurposeMenuAction[];
 }
 
 interface PanelControls {
 	modifierClasses: readonly string[];
-	setupActions: readonly SetupAction[];
-	menus: readonly PurposeMenu[];
+	setupActions: readonly PopoverControl[];
 	inlineWizards: readonly string[];
 	wizardPopoverHtml: string;
-	purposeDeleteConfirmHtml: string;
 	setupLocks: readonly string[];
-	lockedMenus: readonly { menuLocks: readonly string[] }[];
 }
 
 interface PanelControlsInput {
-	readlist: { slug: ReadlistSlug; label: string };
 	wizard: WizardRender;
 	wizardOpenClasses: readonly string[];
 	state: PurposeState;
 	offer: UpgradeOffer | undefined;
 }
 
-function purposeMenu(input: PanelControlsInput): PurposeMenu {
-	return {
-		triggers: [
-			{
-				iconName: "pencil",
-				text: "Edit",
-				popoverId: READLIST_PREFERENCES_WIZARD_ID,
-				testAction: "readlist-preferences-edit",
-			},
-			{
-				iconName: "trash",
-				text: "Delete",
-				popoverId: READLIST_PURPOSE_DELETE_ID,
-				testAction: "readlist-preferences-delete",
-			},
-		],
-		actions: [
-			{
-				iconName: "trash",
-				text: "Delete",
-				url: withInternalTracking(
-					readlistPurposeDeletePath(input.readlist.slug),
-					{ source: PREFERENCES_SOURCE, content: "delete-purpose-fallback" },
-				),
-				testAction: "readlist-preferences-delete-fallback",
-			},
-		],
-	};
-}
-
-const PURPOSE_LOCKS: Record<PurposeState, (offer: UpgradeOffer | undefined) => Pick<PanelControls, "setupLocks" | "lockedMenus">> = {
-	unset: (offer) => ({
-		setupLocks: renderedLockFor({
+const SETUP_LOCKS: Record<PurposeState, (offer: UpgradeOffer | undefined) => readonly string[]> = {
+	unset: (offer) =>
+		renderedLockFor({
 			offer,
 			gated: true,
 			key: "set-up-readlist",
@@ -157,93 +95,42 @@ const PURPOSE_LOCKS: Record<PurposeState, (offer: UpgradeOffer | undefined) => P
 			controlClass: "btn btn--neutral readlist-empty__cta",
 			source: PREFERENCES_SOURCE,
 		}),
-		lockedMenus: [],
-	}),
-	set: (offer) => ({
-		setupLocks: [],
-		lockedMenus: [{
-			menuLocks: [
-				...renderedLockFor({ offer, gated: true, key: "edit-purpose", label: "Edit", controlClass: "menu__item", source: PREFERENCES_SOURCE }),
-				...renderedLockFor({ offer, gated: true, key: "delete-purpose", label: "Delete", controlClass: "menu__item", source: PREFERENCES_SOURCE }),
-			],
-		}],
-	}),
+	set: () => [],
 };
 
 const PANEL_CONTROLS: Record<PurposeState | "needs-upgrade" | "withheld", (input: PanelControlsInput) => PanelControls> = {
 	unset: (input) => ({
 		modifierClasses: input.wizardOpenClasses,
 		setupActions: [{ popoverId: READLIST_PREFERENCES_WIZARD_ID }],
-		menus: [],
 		inlineWizards: [input.wizard.inlineHtml],
 		wizardPopoverHtml: input.wizard.popoverHtml,
-		purposeDeleteConfirmHtml: "",
 		setupLocks: [],
-		lockedMenus: [],
 	}),
 	set: (input) => ({
 		modifierClasses: input.wizardOpenClasses,
 		setupActions: [],
-		menus: [purposeMenu(input)],
 		inlineWizards: [input.wizard.inlineHtml],
 		wizardPopoverHtml: input.wizard.popoverHtml,
-		purposeDeleteConfirmHtml: renderPurposeDeleteConfirm({
-			label: input.readlist.label,
-			action: withInternalTracking(
-				readlistPurposeDeletePath(input.readlist.slug),
-				{ source: PREFERENCES_SOURCE, content: "delete-purpose" },
-			),
-		}),
 		setupLocks: [],
-		lockedMenus: [],
 	}),
 	"needs-upgrade": (input) => ({
 		modifierClasses: [READ_ONLY_CLASS],
 		setupActions: [],
-		menus: [],
 		inlineWizards: [],
 		wizardPopoverHtml: "",
-		purposeDeleteConfirmHtml: "",
-		...PURPOSE_LOCKS[input.state](input.offer),
+		setupLocks: SETUP_LOCKS[input.state](input.offer),
 	}),
 	withheld: () => ({
 		modifierClasses: [READ_ONLY_CLASS],
 		setupActions: [],
-		menus: [],
 		inlineWizards: [],
 		wizardPopoverHtml: "",
-		purposeDeleteConfirmHtml: "",
 		setupLocks: [],
-		lockedMenus: [],
 	}),
 };
 
-function purposeStateOf(readlist: { purpose?: string }): PurposeState {
-	return readlist.purpose === undefined ? "unset" : "set";
-}
-
-export function renderReadlistPurposeWizard(input: {
-	readlist: { slug: ReadlistSlug; purpose?: string };
-	values: Partial<ReadlistPreferencesWizardViewModel>;
-	error?: string;
-}): WizardRender {
-	const preferencesHref = readlistPreferencesPath(input.readlist.slug);
-	return renderWizard({
-		id: READLIST_PREFERENCES_WIZARD_ID,
-		key: READLIST_PREFERENCES_WIZARD_KEY,
-		steps: READLIST_PREFERENCES_STEPS,
-		values: input.values,
-		action: withInternalTracking(preferencesHref, { source: PREFERENCES_SOURCE, content: "save-purpose" }),
-		cancelHref: withInternalTracking(preferencesHref, { source: PREFERENCES_SOURCE, content: "cancel" }),
-		submitLabel: "Save",
-		heading: WIZARD_HEADING[purposeStateOf(input.readlist)],
-		failureMessage: PURPOSE_FAILURE_MESSAGE,
-		error: input.error,
-	});
-}
-
 export interface ReadlistPreferencesViewModel {
-	readlist: { slug: ReadlistSlug; label: string; purpose?: string; emailDelivery: EmailDeliveryMode };
+	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
 	rail: ReadlistRailViewModel;
 	values: Partial<ReadlistPreferencesWizardViewModel>;
 	wizardOpen: boolean;
@@ -251,6 +138,7 @@ export interface ReadlistPreferencesViewModel {
 	inboxes: readonly InboxAddressEntry[];
 	choices: ReadlistFitChoices;
 	alert?: AlertContent;
+	saved: boolean;
 	gmailSenders: ReadlistGmailSendersViewModel | undefined;
 	accessIsReadOnly: boolean;
 	subscriptionBanner: SubscriptionBannerState;
@@ -265,10 +153,10 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 	const controls = PANEL_CONTROLS[standing === "open" ? state : standing]({
 		state,
 		offer: vm.rail.offer,
-		readlist: vm.readlist,
 		wizard: renderReadlistPurposeWizard({
 			readlist: vm.readlist,
 			values: vm.values,
+			from: "preferences",
 			error: vm.purposeError,
 		}),
 		wizardOpenClasses: vm.wizardOpen ? [WIZARD_OPEN_CLASS] : [],
@@ -293,6 +181,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: vm.alert ?? readlistAlertFor(vm.query) }),
+		purposeCardHtml: renderReadlistPurposeCard({ purpose: vm.readlist.purpose, standing, offer: vm.rail.offer }),
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: "preferences",
@@ -305,9 +194,6 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		setupIllustrationHtml: renderIllustration("book-lightbulb"),
 		setupActions: controls.setupActions,
 		setupLocks: controls.setupLocks,
-		purposeText: vm.readlist.purpose,
-		menus: controls.menus,
-		lockedMenus: controls.lockedMenus,
 		inlineWizards: controls.inlineWizards,
 		inboxesHtml: renderReadlistInboxes(
 			buildReadlistInboxes({
@@ -321,13 +207,15 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			readlist: vm.readlist,
 			choices: vm.choices,
 		}),
+		statusToastHtml: vm.saved
+			? renderToast({ message: "Preferences saved", dismissMs: STATUS_TOAST_DISMISS_MS, actions: [] })
+			: "",
 		subscriptionHtml: side.subscriptionHtml,
 		onboardingHtml: side.onboardingHtml,
 		readlistRenamesHtml: panels.renames,
 		readlistCreateHtml: panels.create,
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
 		wizardPopoverHtml: controls.wizardPopoverHtml,
-		purposeDeleteConfirmHtml: controls.purposeDeleteConfirmHtml,
 	});
 
 	return {
@@ -343,6 +231,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			READLIST_STYLES,
 			WIZARD_STYLES,
 			READLIST_PREFERENCES_STYLES,
+			READLIST_PURPOSE_CARD_STYLES,
 			GMAIL_SENDER_WIDGET_STYLES,
 			READLIST_GMAIL_SENDERS_STYLES,
 		].join("\n"),

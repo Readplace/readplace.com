@@ -1,4 +1,4 @@
-import { type DynamoDBDocumentClient, defineDynamoTable } from "@packages/hutch-storage-client";
+import { type DynamoDBDocumentClient, defineDynamoTable } from "@packages/storage-client";
 import { z } from "zod";
 import type { GmailCredentialsStore } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";

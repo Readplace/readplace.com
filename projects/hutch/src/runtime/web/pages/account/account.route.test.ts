@@ -10,7 +10,7 @@ import {
 	describeUntrackedCtas,
 	findUntrackedCtas,
 } from "@packages/web-test-harness";
-import { useTestServer, loginAgent } from "../../../test-app";
+import { TEST_KEEP_OFFER_COUPON_ID, useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -4548,5 +4548,151 @@ describe("Account appearance preference", () => {
 		const response = await agent.get("/account");
 		const doc = new JSDOM(response.text).window.document;
 		expect(appearanceOption(doc, "system").getAttribute("aria-pressed")).toBe("true");
+	});
+});
+
+describe("POST /account/subscribe from the Keep Readplace panel", () => {
+	const BEFORE_OFFER_ENDS = new Date("2027-01-15T00:00:00.000Z");
+	const AFTER_OFFER_ENDS = new Date("2027-02-15T00:00:00.000Z");
+	const KEEP_PANEL_SUBSCRIBE = "/account/subscribe?utm_source=keep-panel&utm_content=keep";
+
+	async function trialReaderAt(input: { email: string; now: Date; crossed: boolean }) {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.shared.now = () => input.now;
+		const harness = useApp(fixture);
+		const { agent, userId } = await loginUser(harness, input.email);
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(input.now.getTime() + 20 * ONE_DAY_MS).toISOString(),
+		});
+		if (input.crossed) {
+			await harness.auth.markActivationThresholdReached({ userId, at: input.now });
+		}
+		return { harness, agent, userId };
+	}
+
+	function keepOfferClicks(harness: { analytics: { events: readonly { event: string }[] } }) {
+		return harness.analytics.events.filter((event) => event.event === "keep_offer_clicked");
+	}
+
+	it("records the click and opens a checkout with the coupon, attributed to the panel and the offer", async () => {
+		const { harness, agent, userId } = await trialReaderAt({
+			email: "keep-click@example.com",
+			now: BEFORE_OFFER_ENDS,
+			crossed: true,
+		});
+
+		const response = await agent
+			.post(KEEP_PANEL_SUBSCRIBE)
+			.type("form")
+			.send({ plan: "yearly", offer: "first-year-49" });
+
+		expect(response.status).toBe(303);
+		expect(keepOfferClicks(harness)).toEqual([
+			expect.objectContaining({
+				event: "keep_offer_clicked",
+				user_id: userId,
+				surface: "readlist-panel",
+			}),
+		]);
+		const started = harness.subscriptionEvents.events.filter((event) => event.event === "checkout_started");
+		expect(started).toEqual([
+			expect.objectContaining({ entry_source: "keep-panel", offer: "first-year-49" }),
+		]);
+		expect(harness.hostedCheckout.createdCheckoutSessions().map((session) => session.coupon)).toEqual([
+			TEST_KEEP_OFFER_COUPON_ID,
+		]);
+	});
+
+	it("sends a reader who is no longer eligible to the plans page without opening a full-price checkout", async () => {
+		const { harness, agent } = await trialReaderAt({
+			email: "keep-ineligible@example.com",
+			now: BEFORE_OFFER_ENDS,
+			crossed: false,
+		});
+
+		const response = await agent
+			.post(KEEP_PANEL_SUBSCRIBE)
+			.type("form")
+			.send({ plan: "yearly", offer: "first-year-49" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account/plans?utm_source=keep-panel");
+		expect(harness.hostedCheckout.createdCheckoutSessions()).toEqual([]);
+		expect(keepOfferClicks(harness)).toEqual([]);
+	});
+
+	it("sends a panel opened before the offer ended to the plans page rather than applying the coupon after it", async () => {
+		const { harness, agent } = await trialReaderAt({
+			email: "keep-stale-offer@example.com",
+			now: AFTER_OFFER_ENDS,
+			crossed: true,
+		});
+
+		const response = await agent
+			.post(KEEP_PANEL_SUBSCRIBE)
+			.type("form")
+			.send({ plan: "yearly", offer: "first-year-49" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account/plans?utm_source=keep-panel");
+		expect(harness.hostedCheckout.createdCheckoutSessions()).toEqual([]);
+	});
+
+	it("opens a plain checkout from the panel's plain variant, with no coupon and no recorded click", async () => {
+		const { harness, agent } = await trialReaderAt({
+			email: "keep-plain@example.com",
+			now: AFTER_OFFER_ENDS,
+			crossed: true,
+		});
+
+		const response = await agent.post(KEEP_PANEL_SUBSCRIBE).type("form").send({ plan: "yearly", offer: "none" });
+
+		expect(response.status).toBe(303);
+		expect(harness.hostedCheckout.createdCheckoutSessions().map((session) => session.coupon)).toEqual([null]);
+		expect(keepOfferClicks(harness)).toEqual([]);
+	});
+
+	it("applies the coupon for an eligible reader but records no panel click when the post did not come from the panel", async () => {
+		const { harness, agent } = await trialReaderAt({
+			email: "keep-other-source@example.com",
+			now: BEFORE_OFFER_ENDS,
+			crossed: true,
+		});
+
+		await agent.post("/account/subscribe").type("form").send({ plan: "yearly", offer: "first-year-49" });
+
+		expect(harness.hostedCheckout.createdCheckoutSessions().map((session) => session.coupon)).toEqual([
+			TEST_KEEP_OFFER_COUPON_ID,
+		]);
+		expect(keepOfferClicks(harness)).toEqual([]);
+	});
+
+	it("keeps a plans-page post at no offer and no coupon, so the promotion-code field stays available", async () => {
+		const { harness, agent } = await trialReaderAt({
+			email: "keep-plans-page@example.com",
+			now: BEFORE_OFFER_ENDS,
+			crossed: true,
+		});
+
+		await agent.post("/account/subscribe?utm_source=plans-page").type("form").send({ plan: "yearly" });
+
+		const started = harness.subscriptionEvents.events.filter((event) => event.event === "checkout_started");
+		expect(started).toEqual([expect.objectContaining({ entry_source: "plans-page", offer: "none" })]);
+		expect(harness.hostedCheckout.createdCheckoutSessions().map((session) => session.coupon)).toEqual([null]);
+		expect(keepOfferClicks(harness)).toEqual([]);
+	});
+
+	it("rejects an offer it does not know", async () => {
+		const { harness, agent } = await trialReaderAt({
+			email: "keep-unknown-offer@example.com",
+			now: BEFORE_OFFER_ENDS,
+			crossed: true,
+		});
+
+		const response = await agent.post(KEEP_PANEL_SUBSCRIBE).type("form").send({ offer: "free-forever" });
+
+		expect(response.status).toBe(400);
+		expect(harness.hostedCheckout.createdCheckoutSessions()).toEqual([]);
 	});
 });

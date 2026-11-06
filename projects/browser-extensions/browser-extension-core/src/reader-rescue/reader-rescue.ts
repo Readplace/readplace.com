@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { CaptureTrigger } from "../reading-list/reading-list.types";
 import type { UploadQueue } from "../upload-queue/upload-queue.types";
 import type { ReaderRescueAnswer } from "./reader-rescue-message.types";
@@ -12,7 +12,7 @@ export function initReaderRescue(deps: {
 	capture: RescueCapture;
 	enqueueCaptured: UploadQueue["enqueueCaptured"];
 	tellOpenerNothingCopied: (params: { articleId: string; trigger: CaptureTrigger; openerTabId: number }) => Promise<unknown>;
-	logger: HutchLogger;
+	logger: Logger;
 }): (request: RescueRequest) => Promise<{ answer: ReaderRescueAnswer; completion: Promise<void> }> {
 	async function copy(request: RescueRequest): Promise<"copied" | "nothing-copied"> {
 		try {
@@ -29,7 +29,7 @@ export function initReaderRescue(deps: {
 			});
 			return "copied";
 		} catch (error) {
-			deps.logger.error(`[reader-rescue] the rescue of ${request.url} failed`, error);
+			deps.logger.error(`[reader-rescue] the rescue of ${request.url} failed`, { error: error });
 			return "nothing-copied";
 		}
 	}

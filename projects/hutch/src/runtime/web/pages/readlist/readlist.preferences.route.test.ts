@@ -99,18 +99,8 @@ function refusedWizardForm(response: { text: string }) {
 	};
 }
 
-function purposeDeletePath(slug: string): string {
-	return `${preferencesPath(slug)}/purpose/delete`;
-}
-
-function deletePurpose(agent: TestAgent, slug: string) {
-	return agent.post(purposeDeletePath(slug));
-}
-
-function inboxesDescription(doc: Document): string | null {
-	const description = doc.querySelector("[data-test-inboxes-description]");
-	assert(description, "the inboxes section must describe where newsletters go");
-	return description.textContent;
+function inboxesDescription(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll("[data-test-inboxes-description]"), (line) => line.textContent);
 }
 
 function panel(doc: Document): Element {
@@ -175,7 +165,11 @@ function inboxesPath(slug: string): string {
 	return `${preferencesPath(slug)}/inboxes`;
 }
 
-function routeInbox(agent: TestAgent, slug: string, body: { address?: string; destination?: string }) {
+function savedInboxesPath(slug: string): string {
+	return `${preferencesPath(slug)}?preferences_saved=1#readlist-inboxes`;
+}
+
+function routeInbox(agent: TestAgent, slug: string, body: { address?: string; send_here?: "1" }) {
 	return agent.post(inboxesPath(slug)).type("form").send(body);
 }
 
@@ -189,7 +183,7 @@ function inboxRows(doc: Document) {
 	return Array.from(doc.querySelectorAll("[data-test-preferences-inbox]"), (row) => ({
 		name: row.querySelector("[data-test-inbox-name]")?.textContent,
 		destination: row.querySelector("[data-test-inbox-destination]")?.textContent,
-		button: row.querySelector("button")?.textContent,
+		routed: row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked,
 	}));
 }
 
@@ -309,19 +303,26 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("set");
-		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
-		const menu = panel(doc).querySelector("[data-test-preferences-menu]");
-		assert(menu, "the set state must offer the purpose's options menu");
-		expect(
-			Array.from(menu.querySelectorAll("[data-test-action]"), (control) => control.getAttribute("data-test-action")),
-		).toEqual([
-			"readlist-preferences-menu",
-			"readlist-preferences-edit",
-			"readlist-preferences-delete",
-			"readlist-preferences-delete-fallback",
-		]);
+		const edit = doc.querySelector('[data-test-action="readlist-purpose-edit"]');
+		assert(edit, "the set state must make the Purpose card the edit control");
+		expect(edit.getAttribute("popovertarget")).toBe("readlist-preferences-wizard");
+		expect(edit.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
+		expect(panel(doc).querySelectorAll("[data-test-preferences-menu]")).toHaveLength(0);
 		expect(field(doc, "popover").textContent).toBe(PURPOSE);
 		expect(field(doc, "inline").textContent).toBe(PURPOSE);
+		expect(field(doc, "popover").hasAttribute("required")).toBe(false);
+		expect(field(doc, "inline").hasAttribute("required")).toBe(false);
+	});
+
+	it("requires a purpose in the setup dialog, where there is nothing to remove", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		expect(field(doc, "popover").hasAttribute("required")).toBe(true);
+		expect(field(doc, "inline").hasAttribute("required")).toBe(true);
 	});
 
 	it("keeps the wizard closed until something asks for it", async () => {
@@ -345,7 +346,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 
 		expect(panel(doc).className).toContain("readlist-preferences--wizard-open");
 		expect(field(doc, "popover").textContent).toBe("Drafting");
-		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
 	});
 
 	it("names the third tab and marks it the one being read", async () => {
@@ -421,11 +422,11 @@ describe("GET /queue/queues/:slug/preferences", () => {
 
 		const doc = parse((await agent.get(`${preferencesPath(slug)}?platform=ios`)).text);
 
-		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
 		expect(panel(doc).classList.contains("readlist-preferences--read-only")).toBe(true);
 		expect(
 			doc.querySelectorAll(
-				'[data-test-action="readlist-preferences-setup"], [data-test-preferences-menu], [data-test-wizard], [data-test-confirm-popover="readlist-purpose-delete"]',
+				'[data-test-action="readlist-preferences-setup"], [data-test-action="readlist-purpose-edit"], [data-test-wizard]',
 			),
 		).toHaveLength(0);
 	});
@@ -463,7 +464,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		expect(doc.querySelectorAll('[data-test-action="readlist-preferences-setup"], [data-test-wizard]')).toHaveLength(0);
 	});
 
-	it("locks the set purpose's Edit and Delete for a read-only reader on the web", async () => {
+	it("locks the set purpose's edit for a read-only reader on the web", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
@@ -472,20 +473,17 @@ describe("GET /queue/queues/:slug/preferences", () => {
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
-		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
-		const menu = panel(doc).querySelector('[data-test-preferences-menu][data-test-menu-standing="locked"]');
-		assert(menu, "a set purpose must carry the locked menu");
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
 		expect(
-			Array.from(menu.querySelectorAll('[data-test-action="upgrade-open"]'), (lock) => [
+			Array.from(doc.querySelectorAll('[data-test-readlist-purpose] [data-test-action="upgrade-open"]'), (lock) => [
 				lock.getAttribute("data-test-needs-upgrade"),
 				lock.getAttribute("popovertarget"),
 			]),
-		).toEqual([
-			["edit-purpose", "subscribe-plans"],
-			["delete-purpose", "subscribe-plans"],
-		]);
+		).toEqual([["edit-purpose", "subscribe-plans"]]);
 		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
-		expect(doc.querySelectorAll('[data-test-wizard], [data-test-confirm-popover="readlist-purpose-delete"]')).toHaveLength(0);
+		expect(
+			doc.querySelectorAll('[data-test-preferences-menu], [data-test-action="readlist-purpose-edit"], [data-test-wizard]'),
+		).toHaveLength(0);
 	});
 
 	it("shows an active trial reader today's purpose controls, with no lock on them", async () => {
@@ -534,7 +532,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(preferencesPath(slug));
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
-		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
 	});
 
 	it("replaces the purpose when the reader edits it", async () => {
@@ -546,7 +544,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		await savePurpose(agent, slug, "Weekend reading only.");
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
-		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(
 			"Weekend reading only.",
 		);
 	});
@@ -758,7 +756,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 			swap: "outerHTML show:none",
 		});
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
-		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
 	});
 
 	it("keeps the feature on the dialog's landing, so the saved purpose lands on a page that still has the tab", async () => {
@@ -811,53 +809,135 @@ describe("POST /queue/queues/:slug/preferences", () => {
 	});
 });
 
-describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
-	it("clears the purpose and lands the reader on the tab, ready to set one up again", async () => {
+describe("POST /queue/queues/:slug/preferences from a listing tab", () => {
+	async function slugWithPurpose(agent: TestAgent): Promise<string> {
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+		return slug;
+	}
+
+	it.each([
+		["To read", "", ""],
+		["Read", "&tab=done", "&tab=done"],
+	])("shows the purpose on %s with a dialog that saves back to it", async (_tab, tabQuery, landingQuery) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await slugWithPurpose(agent);
+		const listing = `/queue?queue=${slug}${tabQuery}`;
+
+		const doc = parse((await agent.get(listing)).text);
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
+		const action = await wizardAction(agent, listing);
+		const response = await savePurposeFromDialog(agent, { action, purpose: "Weekend reading only." });
+
+		expect(response.status).toBe(204);
+		expect(hxLocation(response).path).toBe(`/queue?queue=${slug}${landingQuery}`);
+		const landed = parse((await agent.get(hxLocation(response).path)).text);
+		expect(landed.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Weekend reading only.");
+	});
+
+	it("clears the purpose from the Read tab's dialog and lands back on Read, with no card left", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await slugWithPurpose(agent);
+		const action = await wizardAction(agent, `/queue?queue=${slug}&tab=done`);
+
+		const response = await savePurposeFromDialog(agent, { action, purpose: "  " });
+
+		expect(hxLocation(response).path).toBe(`/queue?queue=${slug}&tab=done`);
+		const landed = parse((await agent.get(hxLocation(response).path)).text);
+		expect(landed.querySelectorAll("[data-test-readlist-purpose]")).toHaveLength(0);
+	});
+
+	it("lands a form post from To read back on To read", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await slugWithPurpose(agent);
+
+		const response = await agent.post(`${preferencesPath(slug)}?from=queue`).type("form").send({ purpose: PURPOSE });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`/queue?queue=${slug}`);
+	});
+
+	it("lands an origin it does not know on Preferences", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await slugWithPurpose(agent);
+
+		const response = await agent.post(`${preferencesPath(slug)}?from=elsewhere`).type("form").send({ purpose: PURPOSE });
+
+		expect(response.headers.location).toBe(preferencesPath(slug));
+	});
+
+	it("sends a refused purpose from a tab to Preferences with the reason shown", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await slugWithPurpose(agent);
+
+		const response = await agent
+			.post(`${preferencesPath(slug)}?from=done`)
+			.type("form")
+			.send({ purpose: "x".repeat(READLIST_PURPOSE_MAX_LENGTH + 1) });
+
+		expect(response.status).toBe(303);
+		expect(new URL(response.headers.location, TEST_APP_ORIGIN).pathname).toBe(preferencesPath(slug));
+		expect(new URL(response.headers.location, TEST_APP_ORIGIN).searchParams.get("preferences_error")).toBe("invalid-purpose");
+	});
+
+	it("shows no Purpose card on a listing tab while the purpose is unset", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const doc = parse((await agent.get(`/queue?queue=${slug}`)).text);
+
+		expect(doc.querySelectorAll("[data-test-readlist-purpose], #readlist-preferences-wizard")).toHaveLength(0);
+	});
+});
+
+describe("POST /queue/queues/:slug/preferences with the purpose emptied", () => {
+	it.each([
+		["an empty purpose", ""],
+		["a whitespace-only purpose", "  \n  "],
+	])("clears the purpose on %s and lands the reader on the tab, ready to set one up again", async (_case, purpose) => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
 
-		const response = await deletePurpose(agent, slug);
+		const response = await savePurpose(agent, slug, purpose);
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(preferencesPath(slug));
 		const doc = parse((await agent.get(response.headers.location)).text);
 		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("unset");
 		expect(field(doc, "popover").textContent).toBe("");
+		expect(filterTabs(doc)).toEqual(["unread", "read", "preferences"]);
 	});
 
-	it("keeps the feature on the redirect, so the cleared purpose lands on a page that still has the tab", async () => {
+	it("clears the purpose from the dialog and lands back on the tab without moving the page", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
+		const action = await wizardAction(agent, preferencesPath(slug));
 
-		const response = await agent.post(purposeDeletePath(slug));
+		const response = await savePurposeFromDialog(agent, { action, purpose: "   " });
 
-		expect(response.headers.location).toBe(preferencesPath(slug));
-		expect(filterTabs(parse((await agent.get(response.headers.location)).text))).toEqual([
-			"unread",
-			"read",
-			"preferences",
-		]);
+		expect(response.status).toBe(204);
+		expect(hxLocation(response)).toEqual({
+			path: preferencesPath(slug),
+			source: "#readlist-preferences-wizard",
+			target: "main",
+			select: "main",
+			swap: "outerHTML show:none",
+		});
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("unset");
 	});
 
-	it.each([
-		["the built-in readlist, which has no purpose to clear", "default"],
-		["a readlist the reader does not have", "a1b2c3d4"],
-		["a malformed readlist id", "Not A Slug"],
-	])("refuses %s", async (_case, slug) => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await deletePurpose(agent, slug);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
-	});
-
-	it("refuses a readlist that disappears between the check and the write", async () => {
+	it("refuses a readlist that disappears between the check and the clear", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,
@@ -868,8 +948,9 @@ describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
 		});
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
 
-		const response = await deletePurpose(agent, slug);
+		const response = await savePurpose(agent, slug, "");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
@@ -882,21 +963,12 @@ describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
 		await savePurpose(agent, slug, PURPOSE);
 		await makeReadOnly(harness);
 
-		const response = await deletePurpose(agent, slug);
+		const response = await savePurpose(agent, slug, "");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?inactive=1");
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
-		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
-	});
-
-	it("asks a signed-out visitor to log in rather than clearing anything", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		const response = await request(harness.server).post(purposeDeletePath("a1b2c3d4"));
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toContain("/login");
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
 	});
 
 	it("leaves another readlist's purpose in place", async () => {
@@ -907,11 +979,11 @@ describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
 		await savePurpose(agent, cleared, PURPOSE);
 		await savePurpose(agent, kept, "Weekend reading only.");
 
-		await deletePurpose(agent, cleared);
+		await savePurpose(agent, cleared, "");
 
 		const doc = parse((await agent.get(preferencesPath(kept))).text);
 		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("set");
-		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe("Weekend reading only.");
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Weekend reading only.");
 	});
 
 	it("stops promising its inboxes a filter once the purpose is gone", async () => {
@@ -921,15 +993,24 @@ describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 		await mintInbox(fixture, { userId: await readerId(harness), name: "news", readlist: slug });
 		await savePurpose(agent, slug, PURPOSE);
-		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toBe(
-			"Send a custom email here and every article each email links to is saved to All. The ones that fit are also saved to New Readlist.",
-		);
 
-		await deletePurpose(agent, slug);
+		await savePurpose(agent, slug, "");
 
-		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toBe(
-			"Send a custom email here and the articles each email links to are saved to All and New Readlist.",
-		);
+		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toEqual([
+			"Send a custom email here and every article each email links to is saved to 'All' and 'New Readlist'.",
+		]);
+	});
+
+	it("no longer answers the old delete route", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+
+		await agent.post(`${preferencesPath(slug)}/purpose/delete`);
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
 	});
 });
 
@@ -1143,10 +1224,10 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(inboxRows(doc)).toEqual([
-			{ name: "deals", destination: "Saves to All", button: "Send here ('New Readlist' readlist)" },
-			{ name: "news", destination: "Saves to All and New Readlist", button: "Stop sending emails from 'news' inbox to this readlist" },
-			{ name: "old", destination: "Saves to All", button: "Send here ('New Readlist' readlist)" },
-			{ name: "tech", destination: "Saves to All and New Readlist 2", button: "Send here ('New Readlist' readlist)" },
+			{ name: "deals", destination: "Saves to All", routed: false },
+			{ name: "news", destination: "Saves to All and New Readlist", routed: true },
+			{ name: "old", destination: "Saves to All", routed: false },
+			{ name: "tech", destination: "Saves to All and New Readlist 2", routed: false },
 		]);
 	});
 
@@ -1188,8 +1269,12 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
-		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and every article each email links to is saved to All. The ones that fit are also saved to New Readlist.",
+		expect(inboxesDescription(doc)).toEqual([
+			"Send a custom email here and every article each email links to is saved to 'All'.",
+			"Only the ones who match your preferences will be saved to 'New Readlist'",
+		]);
+		expect(doc.querySelector("[data-test-email-delivery-label]")?.textContent).toBe(
+			"The articles it links to that matches this readlist preferences",
 		);
 	});
 
@@ -1217,13 +1302,13 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
 
-		const response = await routeInbox(agent, slug, { address, destination: slug });
+		const response = await routeInbox(agent, slug, { address, send_here: "1" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(preferencesPath(slug));
+		expect(response.headers.location).toBe(savedInboxesPath(slug));
 		expect(await routingOf(fixture, address)).toBe(slug);
 		expect(inboxRows(parse((await agent.get(response.headers.location)).text))).toEqual([
-			{ name: "news", destination: "Saves to All and New Readlist", button: "Stop sending emails from 'news' inbox to this readlist" },
+			{ name: "news", destination: "Saves to All and New Readlist", routed: true },
 		]);
 	});
 
@@ -1239,7 +1324,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 			readlist: other,
 		});
 
-		await routeInbox(agent, slug, { address, destination: slug });
+		await routeInbox(agent, slug, { address, send_here: "1" });
 
 		expect(await routingOf(fixture, address)).toBe(slug);
 	});
@@ -1255,12 +1340,12 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 			readlist: slug,
 		});
 
-		const response = await routeInbox(agent, slug, { address, destination: "default" });
+		const response = await routeInbox(agent, slug, { address });
 
-		expect(response.headers.location).toBe(preferencesPath(slug));
+		expect(response.headers.location).toBe(savedInboxesPath(slug));
 		expect(await routingOf(fixture, address)).toBeUndefined();
 		expect(inboxRows(parse((await agent.get(response.headers.location)).text))).toEqual([
-			{ name: "news", destination: "Saves to All", button: "Send here ('New Readlist' readlist)" },
+			{ name: "news", destination: "Saves to All", routed: false },
 		]);
 	});
 
@@ -1288,7 +1373,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 				),
 			);
 
-		expect(response.headers.location).toBe(preferencesPath(slug));
+		expect(response.headers.location).toBe(savedInboxesPath(slug));
 		expect(await routingOf(fixture, address)).toBe(slug);
 	});
 
@@ -1323,7 +1408,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const slug = await createReadlist(agent, "New Readlist 2");
 		const address = await unavailable(fixture, await readerId(harness));
 
-		const response = await routeInbox(agent, slug, { address, destination: slug });
+		const response = await routeInbox(agent, slug, { address, send_here: "1" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
@@ -1346,25 +1431,9 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 			name: "theirs",
 		});
 
-		await routeInbox(agent, slug, { address: theirs, destination: slug });
+		await routeInbox(agent, slug, { address: theirs, send_here: "1" });
 
 		expect(await routingOf(fixture, theirs)).toBeUndefined();
-	});
-
-	it("refuses to send an inbox anywhere but this readlist or All", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		const other = await createReadlist(agent, "New Readlist 2");
-		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
-
-		const response = await routeInbox(agent, slug, { address, destination: other });
-
-		expect(response.headers.location).toBe(
-			`${preferencesPath(slug)}?preferences_error=unknown-inbox`,
-		);
-		expect(await routingOf(fixture, address)).toBeUndefined();
 	});
 
 	it("refuses a submit that names no inbox at all", async () => {
@@ -1390,9 +1459,9 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const response = await agent
 			.post(inboxesPath(slug))
 			.type("form")
-			.send({ address, destination: slug });
+			.send({ address, send_here: "1" });
 
-		expect(response.headers.location).toBe(preferencesPath(slug));
+		expect(response.headers.location).toBe(savedInboxesPath(slug));
 		expect(filterTabs(parse((await agent.get(response.headers.location)).text))).toEqual([
 			"unread",
 			"read",
@@ -1408,7 +1477,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const response = await agent
 			.post(inboxesPath(slug))
 			.type("form")
-			.send({ address: "ghost-a1b2c3@read.place", destination: slug });
+			.send({ address: "ghost-a1b2c3@read.place", send_here: "1" });
 
 		expect(response.headers.location).toBe(
 			`${preferencesPath(slug)}?preferences_error=unknown-inbox`,
@@ -1421,7 +1490,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
 
-		const response = await routeInbox(agent, "default", { address, destination: "default" });
+		const response = await routeInbox(agent, "default", { address });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
@@ -1433,7 +1502,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
 
-		const response = await routeInbox(agent, "a1b2c3d4", { address, destination: "a1b2c3d4" });
+		const response = await routeInbox(agent, "a1b2c3d4", { address, send_here: "1" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
@@ -1446,7 +1515,6 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 
 		const response = await routeInbox(agent, "Not A Slug", {
 			address: "news-a1b2c3@read.place",
-			destination: "default",
 		});
 
 		expect(response.status).toBe(303);
@@ -1461,7 +1529,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
 		await makeReadOnly(harness);
 
-		const response = await routeInbox(agent, slug, { address, destination: slug });
+		const response = await routeInbox(agent, slug, { address, send_here: "1" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?inactive=1");
@@ -1474,152 +1542,47 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const response = await request(harness.server)
 			.post(inboxesPath("a1b2c3d4"))
 			.type("form")
-			.send({ address: "news-a1b2c3@read.place", destination: "a1b2c3d4" });
+			.send({ address: "news-a1b2c3@read.place", send_here: "1" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toContain("/login");
 	});
 });
 
-function emailDeliveryPath(slug: string): string {
-	return `${preferencesPath(slug)}/email-delivery`;
-}
+describe("GET /queue/queues/:slug/preferences after a save", () => {
+	function toastMessage(doc: Document): string | undefined {
+		return doc.querySelector("#status-toast [data-test-toast-message]")?.textContent ?? undefined;
+	}
 
-function setDelivery(agent: TestAgent, slug: string, body: { delivery?: string }) {
-	return agent.post(emailDeliveryPath(slug)).type("form").send(body);
-}
-
-async function deliveryOf(harness: TestHarness, slug: string): Promise<string | undefined> {
-	const definitions = await harness.articleStore.listReadlistDefinitions(await readerId(harness));
-	return definitions.find((definition) => definition.slug === slug)?.emailDelivery;
-}
-
-function deliveryOptions(doc: Document) {
-	return Array.from(doc.querySelectorAll<HTMLInputElement>("[data-test-email-delivery-option]"), (radio) => ({
-		value: radio.value,
-		checked: radio.checked,
-	}));
-}
-
-describe("GET /queue/queues/:slug/preferences email delivery", () => {
-	it("offers the email itself, the articles it links to, and both, with the articles checked for a readlist that never chose", async () => {
+	it("confirms the save with a toast", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
+		const response = await agent.get(`${preferencesPath(slug)}?preferences_saved=1`);
 
-		expect(deliveryOptions(doc)).toEqual([
-			{ value: "issue", checked: false },
-			{ value: "links", checked: true },
-			{ value: "both", checked: false },
-		]);
+		expect(toastMessage(parse(response.text))).toBe("Preferences saved");
+		expect(response.headers["hx-replace-url"]).toBeUndefined();
 	});
 
-	it("checks the choice the reader saved", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await setDelivery(agent, slug, { delivery: "issue" });
-
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
-
-		expect(deliveryOptions(doc)).toEqual([
-			{ value: "issue", checked: true },
-			{ value: "links", checked: false },
-			{ value: "both", checked: false },
-		]);
-	});
-
-	it.each([
-		["issue", "Send a custom email here and each email is saved as one article to All and New Readlist."],
-		[
-			"both",
-			"Send a custom email here and each email is saved as one article, with the articles it links to, to All and New Readlist.",
-		],
-		["links", "Send a custom email here and the articles each email links to are saved to All and New Readlist."],
-	])("describes what a custom email sent here saves once the readlist chose %s", async (delivery, lede) => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await setDelivery(agent, slug, { delivery });
-
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
-
-		expect(inboxesDescription(doc)).toBe(lede);
-	});
-});
-
-describe("POST /queue/queues/:slug/preferences/email-delivery", () => {
-	it("stores the choice and returns the reader to the readlist's preferences", async () => {
+	it("drops the one-shot flag from the address bar of a boosted save", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
-		const response = await setDelivery(agent, slug, { delivery: "both" });
+		const response = await agent.get(`${preferencesPath(slug)}?preferences_saved=1`).set("HX-Request", "true");
 
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(preferencesPath(slug));
-		expect(await deliveryOf(harness, slug)).toBe("both");
+		expect(response.headers["hx-replace-url"]).toBe(preferencesPath(slug));
 	});
 
-	it.each([
-		["a readlist the reader does not have", "a1b2c3d4"],
-		["the built-in readlist, which receives no email", "default"],
-		["a malformed readlist id", "Not A Slug"],
-	])("refuses %s", async (_case, slug) => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await setDelivery(agent, slug, { delivery: "issue" });
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
-	});
-
-	it.each([
-		["a choice Readplace does not offer", { delivery: "everything" }],
-		["no choice at all", {}],
-	])("sends back %s with an alert, keeping the stored choice", async (_case, body) => {
+	it("shows no toast on a plain visit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
-		const response = await setDelivery(agent, slug, body);
+		const response = await agent.get(preferencesPath(slug)).set("HX-Request", "true");
 
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(`${preferencesPath(slug)}?preferences_error=invalid-email-delivery`);
-		expect(await deliveryOf(harness, slug)).toBe("links");
-		const doc = parse((await agent.get(response.headers.location)).text);
-		expect(alertOf(doc)).toEqual({
-			visible: true,
-			title: "That choice isn't one Readplace offers",
-			body: "Pick what to save from each email and try again.",
-		});
-	});
-
-	it("turns a read-only reader away, keeping the stored choice", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-		await makeReadOnly(harness);
-
-		const response = await setDelivery(agent, slug, { delivery: "issue" });
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
-		expect(await deliveryOf(harness, slug)).toBe("links");
-	});
-
-	it("asks a signed-out visitor to log in", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		const response = await request(harness.server)
-			.post(emailDeliveryPath("a1b2c3d4"))
-			.type("form")
-			.send({ delivery: "issue" });
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toContain("/login");
+		expect(toastMessage(parse(response.text))).toBeUndefined();
+		expect(response.headers["hx-replace-url"]).toBeUndefined();
 	});
 });

@@ -488,7 +488,7 @@ struct Article: Identifiable, Hashable {
 	/// navigable `read` link (the row's primary tap target), distinct from the
 	/// action controls iterated above.
 	let readHref: String?
-	let processing: ArticleProcessing?
+	var processing: ArticleProcessing?
 	let notice: String?
 }
 

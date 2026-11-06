@@ -6,8 +6,8 @@ import {
 	type LogCrawlOutcome,
 	type RefreshContentExtractedDetail,
 	type TierContentExtractedDetail,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { TierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
 import { candidateProvenance, type PutTierSource, type TierSourceMetadata } from "@packages/tier-source";

@@ -3,7 +3,7 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	initEngagementEvents,
 	initRecordEngagementActivity,
@@ -19,7 +19,7 @@ describe("account activity measurement", () => {
 		const capture = (event: EngagementEvent) => {
 			events.push(event);
 		};
-		const logger: HutchLogger.Typed<EngagementEvent> = {
+		const logger: Logger.Typed<EngagementEvent> = {
 			info: capture,
 			warn: capture,
 			error: capture,

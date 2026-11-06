@@ -1,5 +1,5 @@
 import type { CandidateId } from "@packages/domain/article";
-import type { ReadTierSource } from "../../providers/article-store/read-tier-source";
+import type { ReadTierSource } from "./tier-source-access.types";
 import { KNOWN_TIERS } from "@packages/article-state-types";
 import type { TierSource, Tier } from "@packages/tier-source";
 

@@ -1,25 +1,25 @@
 import assert from "node:assert";
 import { createHash } from "node:crypto";
-import { z } from "zod";
 import type { ForwardableSender, GmailConnectionStore, GmailMappingStore } from "@packages/domain/gmail";
 import type { DetectNewsletters } from "@packages/domain/newsletter-catalog";
-import { UserIdSchema, type UserId } from "@packages/domain/user";
-import { SendGmailNewsletterNoticeCommand, GmailNewsletterNoticeProcessedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { UserId } from "@packages/domain/user";
+import { SendGmailNewsletterNoticeCommand, GmailNewsletterNoticeProcessedEvent } from "@packages/infra-components";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
 import type { EmailMessage, SendEmail } from "@packages/provider-contracts/email";
 import type { GmailMonitoringStore, GmailNewsletterNotice, GmailNewsletterNoticeBatch } from "@packages/provider-contracts/gmail-monitoring";
-import type { Handler, SQSEvent, SQSBatchResponse, SQSBatchItemFailure } from "aws-lambda";
-import { GMAIL_PATH } from "../../web/pages/integrations/gmail.url";
-import { GmailNewsletterNoticeEmail } from "../../web/auth/gmail-newsletter-notice-email";
+import type { Handler, SQSEvent, SQSBatchResponse } from "aws-lambda";
 import { GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS } from "./gmail-newsletter-notice-cadence";
 import { selectGmailNewsletterNotices } from "./gmail-newsletter-notice-selection";
 
 const RETRY_WINDOW_MS = 24 * 60 * 60 * 1_000 - 5 * 60 * 1_000;
 const NOTICE_INTERVAL_MS = GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS * 24 * 60 * 60 * 1_000;
-const Envelope = z.object({ "detail-type": z.literal(SendGmailNewsletterNoticeCommand.detailType).optional(), detail: SendGmailNewsletterNoticeCommand.detailSchema });
+
+export type RenderedNotice = { subject: string; to: (mediaType: "text/html" | "text/plain") => string };
+
+export type RenderNewsletterNotice = (input: { founderAvatarUrl: string; newsletters: readonly { newsletterName: string | undefined; senderEmail: string; choiceUrl: string }[]; gmailUrl: string; waiting: number }) => RenderedNotice;
 
 type EligibleNewsletter = { senderEmail: ForwardableSender; newsletterName: string | undefined; pendingSince: number | undefined };
 
@@ -32,15 +32,16 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 	findEmailByUserId: FindEmailByUserId;
 	sendEmail: SendEmail;
 	founderAvatarUrl: string;
-	appOrigin: string;
+	gmailPageUrl: string;
+	renderNewsletterNotice: RenderNewsletterNotice;
 	now: () => Date;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const publish = (input: { userId: UserId; senderEmail: ForwardableSender; outcome: "sent" | "suppressed" }) => deps.publishEvent(GmailNewsletterNoticeProcessedEvent, input);
 
 	function gmailUrl(senderEmail: ForwardableSender | undefined): string {
-		const url = new URL(GMAIL_PATH, deps.appOrigin);
+		const url = new URL(deps.gmailPageUrl);
 		if (senderEmail !== undefined) {
 			url.searchParams.set("sender", senderEmail);
 			url.searchParams.set("notification", "1");
@@ -107,7 +108,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 	function noticeMessage(input: { userId: UserId; email: string; eligible: EligibleNewsletter[]; waiting: number }): { senders: ForwardableSender[]; message: EmailMessage } {
 		const ordered = [...input.eligible].sort((a, b) => (a.newsletterName ?? a.senderEmail).localeCompare(b.newsletterName ?? b.senderEmail));
 		const senders = ordered.map((newsletter) => newsletter.senderEmail);
-		const component = GmailNewsletterNoticeEmail({
+		const component = deps.renderNewsletterNotice({
 			founderAvatarUrl: deps.founderAvatarUrl,
 			newsletters: ordered.map((newsletter) => ({ ...newsletter, choiceUrl: gmailUrl(newsletter.senderEmail) })),
 			gmailUrl: gmailUrl(undefined),
@@ -163,22 +164,17 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 		await publish({ userId, senderEmail: notice.senderEmail, outcome: "sent" });
 	}
 
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-		for (const record of event.Records) {
-			try {
-				const { detail } = Envelope.parse(JSON.parse(record.body));
-				const userId = UserIdSchema.parse(detail.userId);
-				const notices = await listAllNotices(userId);
-				await notifyPending(userId, notices, await deps.monitoring.findNoticeBatch(userId));
-				for (const notice of notices) {
-					if (notice.status === "sending") await resendUngroupedClaim(userId, notice);
-				}
-			} catch (error) {
-				deps.logger.error("[gmail-newsletter-notice] record failed", { messageId: record.messageId, error });
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+	return initSqsRecordHandler({
+		definition: SendGmailNewsletterNoticeCommand,
+		logger: deps.logger,
+		failure: { message: "[gmail-newsletter-notice] record failed" },
+		malformed: { policy: "retry" },
+		handle: async ({ userId }) => {
+			const notices = await listAllNotices(userId);
+			await notifyPending(userId, notices, await deps.monitoring.findNoticeBatch(userId));
+			for (const notice of notices) {
+				if (notice.status === "sending") await resendUngroupedClaim(userId, notice);
 			}
-		}
-		return { batchItemFailures };
-	};
+		},
+	});
 }

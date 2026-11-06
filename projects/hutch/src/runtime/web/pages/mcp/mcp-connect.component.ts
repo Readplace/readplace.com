@@ -8,6 +8,7 @@ import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
 import { mcpOperationsWithEffect } from "@packages/domain/mcp";
 
 import { MCP_CONNECT_STYLES } from "./mcp-connect.styles";
+import { GEMINI_MCP_ADD_COMMAND } from "../../shared/mcp-connect-commands";
 
 const MCP_CONNECT_TEMPLATE = readFileSync(join(__dirname, "mcp-connect.template.html"), "utf-8");
 
@@ -36,7 +37,7 @@ const MCP_SETUP = {
 			"No paid plan required — the Gemini CLI connects for free. The Gemini app only takes custom connectors inside Gemini Spark, which needs a Google AI Ultra subscription.",
 		steps: [
 			"Install the Gemini CLI and sign in with your Google account.",
-			"Run “gemini mcp add --transport http --scope user readplace https://readplace.com/mcp”.",
+			`Run “${GEMINI_MCP_ADD_COMMAND}”.`,
 			"Start Gemini and run “/mcp auth readplace”. The CLI discovers the OAuth login and registers itself, so there is no client ID or secret to configure.",
 			"Complete the browser sign-in to authorize Gemini, then run “/mcp list” to confirm Readplace is connected.",
 		],

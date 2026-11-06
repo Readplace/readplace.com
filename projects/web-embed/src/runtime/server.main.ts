@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import express from "express";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initBase, GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import { initResolveLogin } from "@packages/web-session";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
@@ -12,7 +12,7 @@ import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-pro
 
 const PORT = Number(requireEnv("E2E_PORT"));
 const appOrigin = `http://127.0.0.1:${PORT}`;
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 /** Local/e2e composition root needs no AWS: the shell renders against an empty
  * static-asset origin (favicons/fonts are irrelevant to the snippet rendering
@@ -39,7 +39,7 @@ app.use(
 		appOrigin,
 		base,
 		resolveLogin,
-		analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+		analyticsLogger: Logger.fromJSON<AnalyticsEvent>(),
 		salt: requireEnv("ANALYTICS_SALT"),
 		now: () => new Date(),
 		generateVisitorId: randomUUID,

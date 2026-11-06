@@ -4,7 +4,7 @@ import type { KnipConfig } from "knip";
 export default {
 	...baseConfig,
 	entry: [
-		// Lambda entry points referenced by Pulumi infra (HutchLambda's `entryPoint`)
+		// Lambda entry points referenced by Pulumi infra (Lambda's `entryPoint`)
 		// — knip can't follow those references, so list the convention here.
 		"src/runtime/*.main.ts",
 		// Client-side scripts loaded via HTML script tags.

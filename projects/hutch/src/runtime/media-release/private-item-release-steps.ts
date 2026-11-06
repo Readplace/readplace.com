@@ -2,6 +2,7 @@ import type {
 	DeleteArticleRow,
 	DeleteContentObjects,
 	DeleteUserArticleLinks,
+	ListContentKeys,
 	PurgeArticleContent,
 } from "@packages/article-store";
 import type { UserId } from "@packages/domain/user";
@@ -16,15 +17,21 @@ export function pendingOriginalKey(url: string): string {
 	return `pending/${uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url))}/original`;
 }
 
+export function bookImagesPrefix(url: string): string {
+	return `images/${uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url))}/`;
+}
+
 export function initPrivateItemReleaseSteps(deps: {
 	purgeArticleContent: PurgeArticleContent;
 	deleteMediaObjects: DeleteContentObjects;
+	listMediaKeys: ListContentKeys;
 	deleteArticleRow: DeleteArticleRow;
 	deleteUserArticleLinks: DeleteUserArticleLinks;
 }): readonly ReleaseStep[] {
 	return [
 		({ url }) => deps.purgeArticleContent(url),
 		({ url }) => deps.deleteMediaObjects([pendingOriginalKey(url)]),
+		({ url }) => deps.listMediaKeys(bookImagesPrefix(url)).then(deps.deleteMediaObjects),
 		({ url }) => deps.deleteArticleRow(url),
 		({ url }) => deps.deleteUserArticleLinks(url),
 	];

@@ -3,14 +3,14 @@ import type { CandidateReference } from "../select-content/list-available-tier-s
 import { type CandidateAnnouncement, initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import { initPublishArchiveComparison } from "../crawl-leg/publish-archive-comparison";
 import type { PutTierSource, TierSourceMetadata } from "@packages/tier-source";
-import { blockedCauseForStatus } from "@packages/article-state-types";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { blockedCauseForStatus, type UserId } from "@packages/article-state-types";
+import type { Logger } from "@packages/logger";
 import type { ThumbnailCascade } from "@packages/crawl-article";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlBlocked, markCrawlFailed } from "@packages/domain/article-aggregate";
-import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
-import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
+import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
+import type { MarkCrawlStage } from "./crawl-stage.types";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { ReadTierSnapshot } from "./read-tier-snapshot";
 import { initEmitTier1FailureOutcome } from "./emit-tier-1-failure-outcome";
@@ -43,7 +43,7 @@ export type DeferredCrawlContext = {
 	candidates?: CandidateReference[];
 	refresh?: boolean;
 	recrawl?: boolean;
-	userId?: string;
+	userId?: UserId;
 	previousBodyHash?: string;
 };
 
@@ -59,7 +59,7 @@ export function initCommitDeferredCrawl(deps: {
 	adoptCanonicalIdentity: AdoptCanonicalIdentity;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
@@ -105,7 +105,7 @@ export function initCommitDeferredCrawl(deps: {
 		url: string;
 		refresh?: boolean;
 		recrawl?: boolean;
-		userId?: string;
+		userId?: UserId;
 		saveAttemptId: SaveAttemptId;
 		candidates?: CandidateReference[];
 	}): Promise<CrawlTermination> => {

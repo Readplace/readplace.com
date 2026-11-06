@@ -1,13 +1,8 @@
-import type { EmailAttachment } from "@packages/provider-contracts/email";
 import { formatLocalInstant } from "@packages/web-shell";
-import type { BookChapter, BuildBookEpub } from "./shared/epub/book-epub";
+import type { BuildBookEpub } from "./shared/epub/book-epub";
+import type { BuildQueueDigestBook } from "../domain/engagement/digest-email.types";
 
-export type BuildQueueDigestBook = (input: {
-	subject: string;
-	sendId: string;
-	sentAt: Date;
-	chapters: readonly BookChapter[];
-}) => Promise<EmailAttachment>;
+export type { BuildQueueDigestBook } from "../domain/engagement/digest-email.types";
 
 export function initBuildQueueDigestBook(deps: { buildBookEpub: BuildBookEpub }): BuildQueueDigestBook {
 	return async ({ subject, sendId, sentAt, chapters }) => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -42,7 +42,7 @@ function buildSubject() {
 		createTrialFeedbackEmailSchedule: trialScheduler.createTrialFeedbackEmailSchedule,
 		deleteTrialFeedbackEmailSchedule: trialScheduler.deleteTrialFeedbackEmailSchedule,
 		now: () => NOW,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return { handler, trialScheduler };
 }
@@ -218,7 +218,7 @@ describe("schedule-trial-feedback-email handler", () => {
 			deleteTrialFeedbackEmailSchedule:
 				trialScheduler.deleteTrialFeedbackEmailSchedule,
 			now: () => NOW,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(

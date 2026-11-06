@@ -8,8 +8,8 @@ import {
 	LinkDequeuedEvent,
 	LinkQueueFailedEvent,
 	LinkQueuedEvent,
-} from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { InboxSavedLinkStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { z } from "zod";
@@ -37,7 +37,7 @@ export function initRecordLinkQueuedHandler(deps: {
 	markLinkSaved: InboxSavedLinkStore["markLinkSaved"];
 	markLinkSaveFailed: InboxSavedLinkStore["markLinkSaveFailed"];
 	retractLinkSaved: InboxSavedLinkStore["retractLinkSaved"];
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { markLinkSaved, markLinkSaveFailed, retractLinkSaved, logger } = deps;
 

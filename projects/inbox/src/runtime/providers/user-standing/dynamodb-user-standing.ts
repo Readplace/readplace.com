@@ -2,7 +2,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { AppearancePreferenceSchema, DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
 import { OAuthClientIdSchema } from "@packages/domain/oauth";
@@ -23,6 +23,9 @@ const UserStandingRow = z.object({
 	appearance: dynamoField(AppearancePreferenceSchema),
 	displayName: dynamoField(DisplayNameSchema),
 	signupOAuthClientId: dynamoField(OAuthClientIdSchema),
+	activationThresholdReachedAt: dynamoField(z.string()),
+	keepOfferDismissedAt: dynamoField(z.string()),
+	earlyIntentionalSaves: dynamoField(z.number()),
 });
 
 /** Read/heal access to the user and session rows hutch owns. */
@@ -46,7 +49,7 @@ export function initDynamoDbUserStanding(deps: {
 			IndexName: "userId-index",
 			KeyConditionExpression: "userId = :userId",
 			ExpressionAttributeValues: { ":userId": userId },
-			ProjectionExpression: "userId, email, emailVerified, registeredAt, appearance, displayName, signupOAuthClientId",
+			ProjectionExpression: "userId, email, emailVerified, registeredAt, appearance, displayName, signupOAuthClientId, activationThresholdReachedAt, keepOfferDismissedAt, earlyIntentionalSaves",
 			Limit: 1,
 		});
 		const row = items[0];
@@ -59,6 +62,9 @@ export function initDynamoDbUserStanding(deps: {
 			appearance: row.appearance,
 			displayName: row.displayName,
 			signupOAuthClientId: row.signupOAuthClientId ?? null,
+			activationThresholdReachedAt: row.activationThresholdReachedAt,
+			keepOfferDismissedAt: row.keepOfferDismissedAt,
+			earlyIntentionalSaves: row.earlyIntentionalSaves ?? 0,
 		};
 	};
 

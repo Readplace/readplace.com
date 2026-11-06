@@ -26,7 +26,7 @@ import {
 	SUITE_FAILSAFE_MS,
 } from "browser-extension-core/e2e-actions";
 import { initSirenReadingList } from "browser-extension-core";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 import { getFreePort } from "@packages/test-phase-runner";
 
@@ -267,7 +267,7 @@ async function assertSavedContentIsPageA(): Promise<void> {
 		onUnauthorized: async () => {
 			throw new Error("Unauthorized while walking the saved readlist");
 		},
-		logger: HutchLogger.from(consoleLogger),
+		logger: Logger.from(consoleLogger),
 		onAdvertisedActions: () => {},
 	});
 

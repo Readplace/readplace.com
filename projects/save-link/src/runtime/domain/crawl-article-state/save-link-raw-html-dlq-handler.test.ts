@@ -1,4 +1,4 @@
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type Logger } from "@packages/logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import { initSaveLinkRawHtmlDlqHandler } from "./save-link-raw-html-dlq-handler";
@@ -42,7 +42,6 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 		const handler = initSaveLinkRawHtmlDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		await handler(
@@ -67,7 +66,6 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 		const handler = initSaveLinkRawHtmlDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		const invalidEvent: SQSEvent = {
@@ -97,7 +95,6 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 		const handler = initSaveLinkRawHtmlDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		const result = await handler(
@@ -114,7 +111,7 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
 			calls.push(["transition"]);
 		});
-		const logger: HutchLogger = {
+		const logger: Logger = {
 			...noopLogger,
 			error: (...args) => {
 				calls.push(args);
@@ -123,20 +120,13 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 		const handler = initSaveLinkRawHtmlDlqHandler({
 			transitionAndPersist,
 			logger,
-			now: () => new Date("2026-10-15T04:43:01.000Z"),
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/failed", userId: "user-1" }, 4), buildLambdaContext(), () => {});
 
 		expect(calls).toHaveLength(2);
 		expect(calls[0]).toEqual(["transition"]);
-		expect(calls[1]).toHaveLength(1);
-		expect(JSON.parse(String(calls[1]?.[0]))).toEqual({
-			level: "ERROR",
-			timestamp: "2026-10-15T04:43:01.000Z",
-			message: "[SaveLinkRawHtmlDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted",
-			url: "https://example.com/failed",
-		});
+		expect(calls[1]).toEqual(["[SaveLinkRawHtmlDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted", { url: "https://example.com/failed" }]);
 	});
 
 	it("a throwing transition logs only the record-failed line", async () => {
@@ -144,7 +134,7 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
 			throw new Error("ddb down");
 		});
-		const logger: HutchLogger = {
+		const logger: Logger = {
 			...noopLogger,
 			error: (...args) => {
 				calls.push(args);
@@ -153,7 +143,6 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 		const handler = initSaveLinkRawHtmlDlqHandler({
 			transitionAndPersist,
 			logger,
-			now: () => new Date("2026-10-15T04:43:01.000Z"),
 		});
 
 		const result = await handler(createSqsEvent({ url: "https://example.com/failed", userId: "user-1" }, 4), buildLambdaContext(), () => {});

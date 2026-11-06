@@ -1,5 +1,5 @@
 import * as aws from "@pulumi/aws";
-import { HutchCertificate } from "@packages/hutch-infra-components/infra";
+import { Certificate } from "@packages/infra-components/infra";
 
 export class DomainRedirect {
 	constructor(
@@ -24,7 +24,7 @@ export class DomainRedirect {
 			const safeName = domain.replace(/\./g, "-");
 			const resourcePrefix = `${name}-${safeName}`;
 
-			const cert = new HutchCertificate(resourcePrefix, {
+			const cert = new Certificate(resourcePrefix, {
 				primaryDomain: domain,
 				altDomains: [],
 				zoneId,

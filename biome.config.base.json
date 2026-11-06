@@ -41,8 +41,8 @@
           "level": "error",
           "options": {
             "paths": {
-              "@aws-sdk/lib-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
-              "@aws-sdk/client-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling.",
+              "@aws-sdk/lib-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
+              "@aws-sdk/client-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling.",
               "openai": "Import from @packages/ai-message instead — it is the one door to DeepSeek: every request names its feature and is priced for the cost chart.",
               "@packages/domain/user": {
                 "importNames": ["authenticatedUserIdFrom"],
@@ -55,6 +55,101 @@
     }
   },
   "overrides": [
+    {
+      "includes": [
+        "**/runtime/domain/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@aws-sdk/lib-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
+                  "@aws-sdk/client-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling.",
+                  "openai": "Import from @packages/ai-message instead — it is the one door to DeepSeek: every request names its feature and is priced for the cost chart.",
+                  "@packages/domain/user": {
+                    "importNames": ["authenticatedUserIdFrom"],
+                    "message": "authenticatedUserIdFrom mints the request principal (AuthenticatedUserId) and must be called only where a validated session cookie or OAuth bearer token becomes the principal — never on a row field, event payload, or tool argument. New auth boundary? Add the file to the noRestrictedImports override in biome.config.base.json."
+                  }
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "**/providers/**",
+                      "**/web/**",
+                      "**/infra/**",
+                      "**/observability/**"
+                    ],
+                    "message": "runtime/domain must not import providers, web, infra or observability. Declare the port type or pure helper under domain/ and let the adapter import it; pass runtime adapters in through the init* deps from the composition root."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "**/src/gmail/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@aws-sdk/lib-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
+                  "@aws-sdk/client-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling.",
+                  "openai": "Import from @packages/ai-message instead — it is the one door to DeepSeek: every request names its feature and is priced for the cost chart.",
+                  "@packages/domain/user": {
+                    "importNames": ["authenticatedUserIdFrom"],
+                    "message": "authenticatedUserIdFrom mints the request principal (AuthenticatedUserId) and must be called only where a validated session cookie or OAuth bearer token becomes the principal — never on a row field, event payload, or tool argument. New auth boundary? Add the file to the noRestrictedImports override in biome.config.base.json."
+                  }
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "../inbox",
+                      "../inbox/**"
+                    ],
+                    "message": "@packages/domain gmail must not import inbox: inbox already imports gmail. Shared mail brands live in ../mail-identity."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "**/*.test-helper.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@aws-sdk/lib-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
+                  "@aws-sdk/client-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling.",
+                  "openai": "Import from @packages/ai-message instead — it is the one door to DeepSeek: every request names its feature and is priced for the cost chart.",
+                  "@packages/domain/user": {
+                    "importNames": ["authenticatedUserIdFrom"],
+                    "message": "authenticatedUserIdFrom mints the request principal (AuthenticatedUserId) and must be called only where a validated session cookie or OAuth bearer token becomes the principal — never on a row field, event payload, or tool argument. New auth boundary? Add the file to the noRestrictedImports override in biome.config.base.json."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "includes": [
         "**/*.test.ts",
@@ -70,8 +165,8 @@
               "level": "error",
               "options": {
                 "paths": {
-                  "@aws-sdk/lib-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
-                  "@aws-sdk/client-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling.",
+                  "@aws-sdk/lib-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
+                  "@aws-sdk/client-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling.",
                   "openai": "Import from @packages/ai-message instead — it is the one door to DeepSeek: every request names its feature and is priced for the cost chart."
                 }
               }

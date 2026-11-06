@@ -1,7 +1,7 @@
 /* c8 ignore start -- composition root, no logic to test */
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/infra-components/runtime";
 import {
 	CancelSubscriptionCommand,
 	SubscriptionCancellationScheduledEvent,
@@ -9,8 +9,8 @@ import {
 	SubscriptionChargeFailedEvent,
 	SubscriptionChargeSucceededEvent,
 	SubscriptionStartRequestCommand,
-} from "@packages/hutch-infra-components";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
 import { initStripePrices } from "./providers/stripe-prices/stripe-prices";
@@ -28,41 +28,44 @@ import { initSubscriptionChargeFailedHandler } from "./subscription-charge-faile
 import { initSubscriptionChargeSucceededHandler } from "./subscription-charge-succeeded/subscription-charge-succeeded-handler";
 import { initSubscriptionStartRequestHandler } from "./subscription-start-request/subscription-start-request-handler";
 import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "./observability/subscription-events";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { SUBSCRIPTION_EVENTS_ENV } from "./subscription-events.env";
 
-const logger = HutchLogger.from(consoleLogger);
+const env = readEnv(SUBSCRIPTION_EVENTS_ENV);
+
+const logger = Logger.from(consoleLogger);
 const now = () => new Date();
 
 const subscriptionProviders = initDynamoDbSubscriptionProviders({
 	client: createDynamoDocumentClient(),
-	tableName: requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE"),
+	tableName: env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE,
 	now,
 });
 
 const stripeSubscriptions = initStripeSubscriptions({
-	apiKey: requireEnv("STRIPE_SECRET_KEY"),
+	apiKey: env.STRIPE_SECRET_KEY,
 	fetch: globalThis.fetch,
 });
 
 const stripePrices = initStripePrices({
-	apiKey: requireEnv("STRIPE_SECRET_KEY"),
+	apiKey: env.STRIPE_SECRET_KEY,
 	fetch: globalThis.fetch,
 });
 
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
-	eventBusName: requireEnv("EVENT_BUS_NAME"),
+	eventBusName: env.EVENT_BUS_NAME,
 });
 
 const trialScheduler = initAwsTrialScheduler({
 	client: new SchedulerClient({}),
-	scheduleGroupName: requireEnv("TRIAL_SCHEDULER_GROUP_NAME"),
-	schedulerRoleArn: requireEnv("TRIAL_SCHEDULER_ROLE_ARN"),
-	eventBusArn: requireEnv("EVENT_BUS_ARN"),
+	scheduleGroupName: env.TRIAL_SCHEDULER_GROUP_NAME,
+	schedulerRoleArn: env.TRIAL_SCHEDULER_ROLE_ARN,
+	eventBusArn: env.EVENT_BUS_ARN,
 });
 
 const emit = initEmitSubscriptionEvent({
-	logger: HutchLogger.fromJSON<SubscriptionLogEvent>(),
+	logger: Logger.fromJSON<SubscriptionLogEvent>(),
 	now,
 });
 

@@ -66,6 +66,9 @@ assert(
 );
 
 const registeredOverrides = [
+	{ includes: ["**/runtime/domain/**"], withheld: [] },
+	{ includes: ["**/src/gmail/**"], withheld: [] },
+	{ includes: ["**/*.test-helper.ts"], withheld: [] },
 	{
 		includes: [
 			"**/*.test.ts",

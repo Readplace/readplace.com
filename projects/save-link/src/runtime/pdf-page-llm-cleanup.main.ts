@@ -1,11 +1,14 @@
 import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
+import { consoleLogger, Logger } from "@packages/logger";
 import { initCleanupPageWithDeepseek } from "./domain/pdf-page-llm-cleanup/init-cleanup-page-with-deepseek";
 import { initPdfPageLlmCleanupHandler } from "./domain/pdf-page-llm-cleanup/pdf-page-llm-cleanup-handler";
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "./domain/pdf-page-llm-cleanup/timeouts";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { PDF_PAGE_LLM_CLEANUP_ENV } from "./pdf-page-llm-cleanup.env";
 
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
+const env = readEnv(PDF_PAGE_LLM_CLEANUP_ENV);
+
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
 
 const deepseekClient = initDeepseekClient({
 	apiKey: deepseekApiKey,
@@ -15,7 +18,7 @@ const deepseekClient = initDeepseekClient({
 	logLevel: "warn",
 	callTimeoutMs: null,
 	fetch: globalThis.fetch,
-	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	logUsage: Logger.fromJSON<DeepseekUsageLine>().info,
 	now: () => new Date(),
 });
 
@@ -26,5 +29,5 @@ const cleanupPageWithLlm = initCleanupPageWithDeepseek({
 export const handler = initPdfPageLlmCleanupHandler({
 	cleanupPageWithLlm,
 	logger: consoleLogger,
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 });

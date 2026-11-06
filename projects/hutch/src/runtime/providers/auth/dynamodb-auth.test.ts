@@ -4,9 +4,9 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	TransactionCanceledException,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { OAuthClientIdSchema, OAuthGrantIdSchema } from "@packages/domain/oauth";
-import { DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
+import { AppearancePreferenceSchema, DisplayNameSchema, UserIdSchema, hashPassword } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./dynamodb-auth";
 
 /** Fake that honours the GetCommand projection so a row with fields missing from it round-trips as real DynamoDB would. */
@@ -396,6 +396,72 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("markActivationThresholdReached", () => {
+		it("stores the crossing instant conditionally on the user's row, so a deleted account cannot be resurrected", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).markActivationThresholdReached({
+				userId: USER,
+				at: new Date("2026-12-08T10:00:00.000Z"),
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET activationThresholdReachedAt = :at",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":at": "2026-12-08T10:00:00.000Z" },
+			});
+		});
+
+		it("no-ops when the user row is already gone", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).markActivationThresholdReached({
+				userId: USER,
+				at: new Date("2026-12-08T10:00:00.000Z"),
+			});
+
+			expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
+		});
+	});
+
+	describe("setKeepOfferDismissed", () => {
+		it("stores the dismissal instant conditionally on the user's row, so a deleted account cannot be resurrected", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).setKeepOfferDismissed({
+				userId: USER,
+				dismissedAt: new Date("2026-12-09T10:00:00.000Z"),
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET keepOfferDismissedAt = :dismissedAt",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":dismissedAt": "2026-12-09T10:00:00.000Z" },
+			});
+		});
+
+		it("no-ops when the user row is already gone", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).setKeepOfferDismissed({
+				userId: USER,
+				dismissedAt: new Date("2026-12-09T10:00:00.000Z"),
+			});
+
+			expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
+		});
+	});
+
 	describe("setUserDisplayName", () => {
 		it("sets the display name conditionally on the user's row, so a deleted account cannot be resurrected", async () => {
 			const { client, commands } = createQueryFakeClient({
@@ -541,8 +607,31 @@ describe("initDynamoDbAuth", () => {
 				emailVerified: true,
 				registeredAt: "2026-04-20T00:00:00.000Z",
 				signupOAuthClientId: null,
+				earlyIntentionalSaves: 0,
 			});
 			expect(commands.find((c) => c.name === "QueryCommand")?.input.IndexName).toBe("userId-index");
+		});
+
+		it("carries the keep-offer state the row holds", async () => {
+			const { client } = createQueryFakeClient({
+				row: {
+					email: "user@example.com",
+					userId: "abc123",
+					emailVerified: true,
+					registeredAt: "2026-04-20T00:00:00.000Z",
+					activationThresholdReachedAt: "2026-04-21T00:00:00.000Z",
+					keepOfferDismissedAt: "2026-04-22T00:00:00.000Z",
+					earlyIntentionalSaves: 3,
+				},
+			});
+
+			const user = await initAuth(client).findUserById(USER);
+
+			expect(user).toMatchObject({
+				activationThresholdReachedAt: "2026-04-21T00:00:00.000Z",
+				keepOfferDismissedAt: "2026-04-22T00:00:00.000Z",
+				earlyIntentionalSaves: 3,
+			});
 		});
 
 		it("returns the OAuth client the user signed up through", async () => {
@@ -606,6 +695,7 @@ describe("initDynamoDbAuth", () => {
 				registeredAt: "2026-04-20T00:00:00.000Z",
 				displayName: "James Davis",
 				signupOAuthClientId: null,
+				earlyIntentionalSaves: 0,
 			});
 		});
 	});
@@ -1302,6 +1392,166 @@ describe("initDynamoDbAuth", () => {
 			const auth = initAuth(sessionRowClient(undefined));
 
 			expect(await auth.findSessionOAuthGrant("sid")).toBe(undefined);
+		});
+	});
+
+	describe("verifyCredentials", () => {
+		async function verifyAgainstStoredPassword(password: string) {
+			const storedRow = {
+				email: "user@example.com",
+				userId: "abc123",
+				passwordHash: await hashPassword("password123"),
+				emailVerified: true,
+			};
+			const client = {
+				send: (async () => ({ Item: storedRow })) as DynamoDBDocumentClient["send"],
+			};
+			return initAuth(client as typeof client & DynamoDBDocumentClient).verifyCredentials({
+				email: "User@Example.com",
+				password,
+			});
+		}
+
+		it("accepts the password the row was stored with", async () => {
+			expect(await verifyAgainstStoredPassword("password123")).toEqual({
+				ok: true,
+				userId: "abc123",
+				emailVerified: true,
+			});
+		});
+
+		it("refuses any other password", async () => {
+			expect(await verifyAgainstStoredPassword("wrong-password")).toEqual({
+				ok: false,
+				reason: "invalid-credentials",
+			});
+		});
+	});
+
+	describe("markEmailVerified", () => {
+		it("marks the normalized email's row verified only while the row exists", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).markEmailVerified("User@Example.com");
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET emailVerified = :val",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":val": true },
+			});
+		});
+	});
+
+	describe("markSessionEmailVerified", () => {
+		it("marks the session verified", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).markSessionEmailVerified("sess-1");
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "sessions",
+				Key: { sessionId: "sess-1" },
+				UpdateExpression: "SET emailVerified = :val",
+				ExpressionAttributeValues: { ":val": true },
+			});
+		});
+	});
+
+	describe("closeUserAccount", () => {
+		it("writes nothing when no user has the id", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).closeUserAccount(USER);
+
+			expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
+		});
+
+		it("deletes the user row of a non-Gmail account", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).closeUserAccount(USER);
+
+			const del = commands.find((c) => c.name === "DeleteCommand");
+			expect(del?.input).toStrictEqual({ TableName: "users", Key: { email: "user@example.com" } });
+		});
+
+		it("deletes a Gmail account's user row and canonical claim in one transaction", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "john.doe+promo@gmail.com", userId: "abc123" },
+			});
+
+			await initAuth(client).closeUserAccount(USER);
+
+			const tx = commands.find((c) => c.name === "TransactWriteCommand");
+			expect(tx?.input).toStrictEqual({
+				TransactItems: [
+					{ Delete: { TableName: "users", Key: { email: "john.doe+promo@gmail.com" } } },
+					{ Delete: { TableName: "users", Key: { email: "canonical#johndoe@gmail.com" } } },
+				],
+			});
+		});
+	});
+
+	describe("setUserAppearance", () => {
+		it("writes nothing when no user has the id", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).setUserAppearance({ userId: USER, appearance: AppearancePreferenceSchema.parse("dark") });
+
+			expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
+		});
+
+		it("sets the appearance conditionally on the user's row, so a deleted account cannot be resurrected", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).setUserAppearance({ userId: USER, appearance: AppearancePreferenceSchema.parse("dark") });
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET appearance = :appearance",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":appearance": "dark" },
+			});
+		});
+	});
+
+	describe("signup on an email that already has an account", () => {
+		const exists = () => new ConditionalCheckFailedException({ $metadata: {}, message: "exists" });
+
+		it("refuses a password-hash signup", async () => {
+			const { client } = createWriteFakeClient({ fail: exists() });
+
+			const result = await initAuth(client).createUserWithPasswordHash({
+				email: "user@example.com",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
+			});
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+
+		it("refuses an Apple signup", async () => {
+			const { client } = createWriteFakeClient({ fail: exists() });
+
+			const result = await initAuth(client).createAppleUser({
+				email: "user@example.com",
+				userId: USER,
+				appleRefreshToken: "apple-refresh-1",
+				signupOAuthClientId: null,
+			});
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
 		});
 	});
 });

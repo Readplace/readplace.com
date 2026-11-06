@@ -1,14 +1,9 @@
 import assert from "node:assert";
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
-import { CancelSubscriptionCommand } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { z } from "zod";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
+import { CancelSubscriptionCommand } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type {
 	FindSubscriptionByUserId,
 	SubscriptionRecord,
@@ -41,7 +36,7 @@ interface HandlerDeps {
 	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
 	publishSubscriptionCancellationScheduled: PublishSubscriptionCancellationScheduled;
 	publishSubscriptionCancelled: PublishSubscriptionCancelled;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 /** 1 hour after the cancellation-effective instant — gives Stripe's
@@ -139,10 +134,10 @@ export function initCancelSubscriptionHandler(
 ): Handler<SQSEvent, SQSBatchResponse> {
 	const branches = buildBranches(deps);
 
-	async function processRecord(body: string): Promise<void> {
-		const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(body));
-		const detail = CancelSubscriptionCommand.detailSchema.parse(envelope.detail);
-		const userId = UserIdSchema.parse(detail.userId);
+	async function processRecord(
+		detail: z.infer<typeof CancelSubscriptionCommand.detailSchema>,
+	): Promise<void> {
+		const { userId } = detail;
 		const row = await deps.findSubscriptionByUserId(userId);
 		if (!row) {
 			deps.logger.warn("[cancel-subscription] no row for user — noop", { userId });
@@ -151,21 +146,11 @@ export function initCancelSubscriptionHandler(
 		await branches[row.status](row, detail.reason);
 	}
 
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				await processRecord(record.body);
-			} catch (error) {
-				deps.logger.error("[cancel-subscription] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+	return initSqsRecordHandler({
+		definition: CancelSubscriptionCommand,
+		logger: deps.logger,
+		failure: { message: "[cancel-subscription] record failed" },
+		malformed: { policy: "retry" },
+		handle: processRecord,
+	});
 }

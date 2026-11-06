@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { MarkFirstInboxEmailNoticeSent } from "@packages/provider-contracts/onboarding-signals";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryEmail } from "@packages/test-fixtures/providers/email";
 import { initInMemoryOnboardingSignals } from "@packages/test-fixtures/providers/onboarding-signals";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
@@ -24,7 +24,7 @@ const EXPECTED_INBOX_URL =
 
 const EXPECTED_TEXT = [
 	"The first email to your custom email in-3f9a2c@read.place just came through.",
-	"From here on, every email sent to that custom email shows up in your Inbox, and Readplace saves the articles it links to — or the email itself, when its readlist asks for that — to All, your main readlist, so you can read them later.",
+	"From here on, every email sent to that custom email shows up in your Inbox, and Readplace saves the articles it links to into All, your main readlist, so you can read them later.",
 	`See it in your Inbox: ${EXPECTED_INBOX_URL}`,
 	"If you have any questions, please reply to this email",
 	"— Fayner Brack, Founder & CEO",
@@ -68,7 +68,7 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		appOrigin: "https://readplace.com",
 		now: () => SENT_AT,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	};
 	const handler = initSendFirstInboxEmailNoticeHandler(deps);
 	return { handler, providers, onboarding, email };

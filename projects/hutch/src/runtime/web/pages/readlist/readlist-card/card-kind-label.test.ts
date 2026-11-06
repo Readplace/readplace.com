@@ -1,5 +1,6 @@
+import assert from "node:assert/strict";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
-import { cardKindOf, hoursAndMinutesRead } from "./card-kind-label";
+import { type CardKind, cardKindLabel, cardKindOf, hoursAndMinutesRead } from "./card-kind-label";
 
 const minutes = (value: number) => MinutesSchema.parse(value);
 
@@ -26,27 +27,62 @@ describe("hoursAndMinutesRead", () => {
 	});
 });
 
-describe("cardKindOf", () => {
+function bookLabel(input: { wordCount: number; estimatedReadTime: number; sectionCount: number | undefined }) {
+	const article = book(input);
+	const cardKind = cardKindOf(article);
+	assert(cardKind, "a book has a card kind");
+	return cardKindLabel({
+		kind: cardKind.kind,
+		estimatedReadTime: article.estimatedReadTime,
+		wordCount: article.metadata.wordCount,
+		sectionCount: article.media.sectionCount,
+		readTime: undefined,
+	});
+}
+
+const AUDIO_KIND: CardKind = { name: "audio", label: "Audio", noun: "audio", icon: "file" };
+
+describe("cardKindLabel", () => {
 	it("labels a book with its chapters and its read time", () => {
-		expect(cardKindOf(book({ wordCount: 139_200, estimatedReadTime: 580, sectionCount: 23 }))?.kindLabel).toBe(
+		expect(bookLabel({ wordCount: 139_200, estimatedReadTime: 580, sectionCount: 23 })).toBe(
 			"Book · 23 chapters · 9 h 40 min read",
 		);
 	});
 
 	it("leaves the chapters out before they are counted", () => {
-		expect(cardKindOf(book({ wordCount: 139_200, estimatedReadTime: 580, sectionCount: undefined }))?.kindLabel).toBe(
+		expect(bookLabel({ wordCount: 139_200, estimatedReadTime: 580, sectionCount: undefined })).toBe(
 			"Book · 9 h 40 min read",
 		);
 	});
 
 	it("counts a single chapter in the singular", () => {
-		expect(cardKindOf(book({ wordCount: 0, estimatedReadTime: 0, sectionCount: 1 }))?.kindLabel).toBe("Book · 1 chapter");
+		expect(bookLabel({ wordCount: 0, estimatedReadTime: 0, sectionCount: 1 })).toBe("Book · 1 chapter");
 	});
 
 	it("leaves the read time out before the words are counted", () => {
-		expect(cardKindOf(book({ wordCount: 0, estimatedReadTime: 0, sectionCount: 23 }))?.kindLabel).toBe("Book · 23 chapters");
+		expect(bookLabel({ wordCount: 0, estimatedReadTime: 0, sectionCount: 23 })).toBe("Book · 23 chapters");
 	});
 
+	it("labels audio with its listen time", () => {
+		expect(
+			cardKindLabel({
+				kind: AUDIO_KIND,
+				estimatedReadTime: minutes(0),
+				wordCount: 0,
+				sectionCount: undefined,
+				readTime: { value: "47", label: "47 min listen" },
+			}),
+		).toBe("Audio · 47 min listen");
+	});
+
+	it("labels audio by its kind alone before its listen time is known", () => {
+		expect(
+			cardKindLabel({ kind: AUDIO_KIND, estimatedReadTime: minutes(0), wordCount: 0, sectionCount: undefined, readTime: undefined }),
+		).toBe("Audio");
+	});
+});
+
+describe("cardKindOf", () => {
 	it("names the book kind with its badge icon", () => {
 		expect(cardKindOf(book({ wordCount: 0, estimatedReadTime: 0, sectionCount: undefined }))?.kind).toEqual({
 			name: "book",
@@ -57,7 +93,6 @@ describe("cardKindOf", () => {
 	});
 
 	it("gives an ordinary article no kind", () => {
-		const { media: _media, ...article } = book({ wordCount: 10, estimatedReadTime: 1, sectionCount: undefined });
-		expect(cardKindOf(article)).toBeUndefined();
+		expect(cardKindOf({ media: undefined })).toBeUndefined();
 	});
 });

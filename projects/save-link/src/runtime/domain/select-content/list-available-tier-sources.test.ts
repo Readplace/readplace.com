@@ -1,6 +1,6 @@
 import { CandidateIdSchema } from "@packages/domain/article";
 import { initListAvailableTierSources } from "./list-available-tier-sources";
-import type { ReadTierSource } from "../../providers/article-store/read-tier-source";
+import type { ReadTierSource } from "./tier-source-access.types";
 import type { TierSource } from "@packages/tier-source";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);

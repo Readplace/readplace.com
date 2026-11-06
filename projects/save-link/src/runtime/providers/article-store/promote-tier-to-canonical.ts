@@ -1,9 +1,9 @@
 import assert from "node:assert";
 import type { S3Client } from "@aws-sdk/client-s3";
-import type { CanonicalCommit } from "@packages/domain/article-aggregate";
-import { initPersistCandidateArtifact, type CandidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
+import { initPersistCandidateArtifact, type CandidateProvenance } from "@packages/tier-source";
+import type { WriteCanonicalContent } from "../../domain/select-content/tier-source-access.types";
 
-export type WriteCanonicalContent = (params: { url: string; source: VerifiedTierSource }) => Promise<Omit<CanonicalCommit, "expected" | "originalUrl">>;
+export type { WriteCanonicalContent } from "../../domain/select-content/tier-source-access.types";
 
 export function initWriteCanonicalContent(deps: { s3Client: Pick<S3Client, "send">; bucketName: string }): { writeCanonicalContent: WriteCanonicalContent } {
 	const persistCandidateArtifact = initPersistCandidateArtifact({ client: deps.s3Client, bucketName: deps.bucketName });

@@ -1,13 +1,13 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
+	transactIfConditions,
+	writeIfCondition,
 	TransactWriteCommand,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { ForwardableSenderSchema, GmailAccountEmailSchema, type DiscoveredGmailSender, type GmailDiscovery, type GmailDiscoveryStore } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
@@ -40,17 +40,6 @@ const SenderRow = z.object({
 });
 
 const SenderCursor = z.object({ userId: UserIdSchema, recordKey: z.string().startsWith("SENDER#") });
-
-async function conditionalWrite(write: () => Promise<unknown>): Promise<boolean> {
-	try {
-		await write();
-		return true;
-	} catch (error) {
-		if (error instanceof ConditionalCheckFailedException) return false;
-		if (error instanceof TransactionCanceledException && error.CancellationReasons?.some((reason) => reason.Code === "ConditionalCheckFailed")) return false;
-		throw error;
-	}
-}
 
 export function initDynamoDbGmailDiscovery(deps: {
 	client: DynamoDBDocumentClient;
@@ -97,7 +86,7 @@ export function initDynamoDbGmailDiscovery(deps: {
 			});
 			return found;
 		},
-		startDiscovery: async ({ resume, ...input }) => conditionalWrite(() => states.put({
+		startDiscovery: async ({ resume, ...input }) => (await writeIfCondition(() => states.put({
 			Item: {
 				...input,
 				recordKey: "STATE",
@@ -113,8 +102,8 @@ export function initDynamoDbGmailDiscovery(deps: {
 			ConditionExpression: "attribute_not_exists(userId) OR #state <> :running",
 			ExpressionAttributeNames: { "#state": "state" },
 			ExpressionAttributeValues: { ":running": "running" },
-		})),
-		claimPage: async ({ userId, generation, page }) => conditionalWrite(() => states.update({
+		}))).kind === "written",
+		claimPage: async ({ userId, generation, page }) => (await writeIfCondition(() => states.update({
 			Key: { userId, recordKey: "STATE" },
 			UpdateExpression: "SET claimUntil = :until",
 			ConditionExpression: "generation = :generation AND #page = :page AND #state = :running AND (attribute_not_exists(claimUntil) OR claimUntil <= :now)",
@@ -126,7 +115,7 @@ export function initDynamoDbGmailDiscovery(deps: {
 				":now": deps.now().getTime(),
 				":until": deps.now().getTime() + 60_000,
 			},
-		})),
+		}))).kind === "written",
 		savePage: async ({ previous, senders: pageSenders, mode, pageToken, historyId, state, scannedMessages, estimatedTotalMessages, oldestScannedAt }) => {
 			const updated: GmailDiscovery = {
 				...previous,
@@ -146,7 +135,7 @@ export function initDynamoDbGmailDiscovery(deps: {
 			const uniqueSenders = new Map(pageSenders.map((sender) => [sender.email, sender]));
 			const senderWrites = [...uniqueSenders.values()].map((sender) => senderWrite(previous.userId, sender));
 			while (senderWrites.length > 99) {
-				const committed = await conditionalWrite(() => deps.client.send(new TransactWriteCommand({
+				const committed = (await transactIfConditions(() => deps.client.send(new TransactWriteCommand({
 					TransactItems: [
 						{
 							ConditionCheck: {
@@ -159,10 +148,10 @@ export function initDynamoDbGmailDiscovery(deps: {
 						},
 						...senderWrites.splice(0, 99),
 					],
-				})));
+				})))).kind === "written";
 				if (!committed) return false;
 			}
-			return conditionalWrite(() => deps.client.send(new TransactWriteCommand({
+			return (await transactIfConditions(() => deps.client.send(new TransactWriteCommand({
 				TransactItems: [
 					{
 						Put: {
@@ -175,10 +164,10 @@ export function initDynamoDbGmailDiscovery(deps: {
 					},
 					...senderWrites,
 				],
-			})));
+			})))).kind === "written";
 		},
 		failDiscovery: async ({ userId, generation, error, requiresReconnect = false }) => {
-			await conditionalWrite(() => states.update({
+			await writeIfCondition(() => states.update({
 				Key: { userId, recordKey: "STATE" },
 				UpdateExpression: "SET #state = :failed, #error = :error, requiresReconnect = :requiresReconnect, updatedAt = :now REMOVE claimUntil",
 				ConditionExpression: "generation = :generation AND #state = :running",
@@ -187,7 +176,7 @@ export function initDynamoDbGmailDiscovery(deps: {
 			}));
 		},
 		clearRequiresReconnect: async ({ userId, generation }) => {
-			await conditionalWrite(() => states.update({
+			await writeIfCondition(() => states.update({
 				Key: { userId, recordKey: "STATE" },
 				UpdateExpression: "SET requiresReconnect = :off, generation = :generation REMOVE claimUntil",
 				ConditionExpression: "attribute_exists(userId)",

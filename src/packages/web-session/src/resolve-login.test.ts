@@ -1,11 +1,11 @@
 import { authenticatedUserIdFrom } from "@packages/domain/user";
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type Logger } from "@packages/logger";
 import type { GetSessionUserId } from "@packages/provider-contracts/auth";
 import { initResolveLogin } from "./resolve-login";
 
 const USER = authenticatedUserIdFrom("user-1");
 
-function resolverWith(getSessionUserId: GetSessionUserId, logger: HutchLogger = noopLogger) {
+function resolverWith(getSessionUserId: GetSessionUserId, logger: Logger = noopLogger) {
 	return initResolveLogin({ getSessionUserId, logger });
 }
 
@@ -57,7 +57,7 @@ describe("initResolveLogin", () => {
 
 	it("degrades to guest and logs when the lookup throws", async () => {
 		const errors: unknown[][] = [];
-		const logger: HutchLogger = {
+		const logger: Logger = {
 			...noopLogger,
 			error: (...args: unknown[]) => errors.push(args),
 		};

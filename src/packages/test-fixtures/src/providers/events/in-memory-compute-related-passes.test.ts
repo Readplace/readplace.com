@@ -1,5 +1,5 @@
 import { UserIdSchema } from "@packages/domain/user";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initInMemoryComputeRelatedPasses } from "./in-memory-compute-related-passes";
 
 describe("initInMemoryComputeRelatedPasses", () => {

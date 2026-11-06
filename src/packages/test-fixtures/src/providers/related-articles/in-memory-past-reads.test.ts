@@ -22,14 +22,14 @@ function build() {
 		findItemOwner: articleStore.findItemOwner,
 	});
 
-	async function save(params: { url: string; title: string }) {
+	async function save(params: { url: string; title: string; savedAt?: Date }) {
 		const { saved } = await articleStore.saveArticle({
 			userId: USER_ID,
 			url: params.url,
 			metadata: { title: params.title, siteName: "Example", excerpt: "An excerpt", wordCount: 400 },
 			estimatedReadTime: MinutesSchema.parse(2),
 			provenance: { kind: "web" },
-			savedAt: new Date(),
+			savedAt: params.savedAt ?? new Date(),
 		});
 		return saved;
 	}
@@ -236,5 +236,153 @@ describe("initInMemoryPastReads", () => {
 
 		assert(result.status === "ready", "the computation is settled");
 		expect(result.items.map((item) => item.reason)).toEqual(["The open article, read before", "First read copy"]);
+	});
+
+	describe("budget blocks", () => {
+		const SAVED_AT = new Date("2026-09-10T00:00:00.000Z");
+		const UNTIL = new Date("2026-09-13T00:00:00.000Z");
+
+		async function buildSaved() {
+			const built = build();
+			await built.save({ url: URL, title: "Target", savedAt: SAVED_AT });
+			return built;
+		}
+
+		async function settle(store: ReturnType<typeof build>["store"]) {
+			await store.markPastReadsReady({
+				userId: USER_ID,
+				url: URL,
+				pastReads: [],
+				fingerprint: "fp",
+				inputTokens: 1,
+				outputTokens: 1,
+				at: AT,
+			});
+		}
+
+		it("reports the budget limit when a block is recorded before anything was computed", async () => {
+			const { store } = await buildSaved();
+
+			const outcome = await store.markPastReadsBudgetBlocked({
+				userId: USER_ID,
+				url: URL,
+				blockedUntil: UNTIL,
+				observed: { savedAt: SAVED_AT },
+			});
+
+			expect(outcome).toBe("stored");
+			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+				status: "budget-limited",
+				until: UNTIL,
+			});
+			expect(await store.readPastReadsState({ userId: USER_ID, url: URL })).toEqual({
+				savedAt: SAVED_AT,
+				budgetBlockedUntil: UNTIL,
+			});
+		});
+
+		it("keeps a settled result visible alongside a block recorded against it", async () => {
+			const { store } = await buildSaved();
+			await settle(store);
+
+			const outcome = await store.markPastReadsBudgetBlocked({
+				userId: USER_ID,
+				url: URL,
+				blockedUntil: UNTIL,
+				observed: { savedAt: SAVED_AT, computedAt: AT },
+			});
+
+			expect(outcome).toBe("stored");
+			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+				status: "ready",
+				items: [],
+				budgetBlockedUntil: UNTIL,
+			});
+			expect(await store.readPastReadsState({ userId: USER_ID, url: URL })).toEqual({
+				fingerprint: "fp",
+				computedAt: AT,
+				savedAt: SAVED_AT,
+				budgetBlockedUntil: UNTIL,
+			});
+		});
+
+		it("reports a block observed against a different computation as superseded", async () => {
+			const { store } = await buildSaved();
+			await settle(store);
+
+			const outcome = await store.markPastReadsBudgetBlocked({
+				userId: USER_ID,
+				url: URL,
+				blockedUntil: UNTIL,
+				observed: { savedAt: SAVED_AT },
+			});
+
+			expect(outcome).toBe("superseded");
+			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+				status: "ready",
+				items: [],
+			});
+		});
+
+		it("keeps a block recorded before the computation settled", async () => {
+			const { store } = await buildSaved();
+			await store.markPastReadsBudgetBlocked({
+				userId: USER_ID,
+				url: URL,
+				blockedUntil: UNTIL,
+				observed: { savedAt: SAVED_AT },
+			});
+
+			await settle(store);
+
+			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+				status: "ready",
+				items: [],
+				budgetBlockedUntil: UNTIL,
+			});
+		});
+
+		it("forgets the block with the row", async () => {
+			const { store } = await buildSaved();
+			await store.markPastReadsBudgetBlocked({
+				userId: USER_ID,
+				url: URL,
+				blockedUntil: UNTIL,
+				observed: { savedAt: SAVED_AT },
+			});
+
+			store.forgetRow({ userId: USER_ID, url: URL });
+
+			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({ status: "pending" });
+			expect(await store.readPastReadsState({ userId: USER_ID, url: URL })).toEqual({ savedAt: SAVED_AT });
+		});
+
+		it("reports a block observed against a different save as superseded", async () => {
+			const { store } = await buildSaved();
+
+			const outcome = await store.markPastReadsBudgetBlocked({
+				userId: USER_ID,
+				url: URL,
+				blockedUntil: UNTIL,
+				observed: { savedAt: new Date("2026-09-11T00:00:00.000Z") },
+			});
+
+			expect(outcome).toBe("superseded");
+			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({ status: "pending" });
+		});
+
+		it("reports a block on a link the reader has not saved as superseded", async () => {
+			const { store } = build();
+
+			const outcome = await store.markPastReadsBudgetBlocked({
+				userId: USER_ID,
+				url: URL,
+				blockedUntil: UNTIL,
+				observed: { savedAt: SAVED_AT },
+			});
+
+			expect(outcome).toBe("superseded");
+			expect(await store.readPastReadsState({ userId: USER_ID, url: URL })).toEqual({});
+		});
 	});
 });

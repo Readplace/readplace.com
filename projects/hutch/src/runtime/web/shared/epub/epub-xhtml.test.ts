@@ -1,86 +1,30 @@
 import { DOMParser } from "linkedom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { articleEpubXhtml, chapterEpubXhtml, collectArticleImages, embeddableImageFilename } from "./epub-xhtml";
+import { ReaderArticleHashId } from "@packages/domain/article";
+import { articleEpubXhtml, chapterEpubXhtml, collectArticleImages } from "./epub-xhtml";
 
 const ARTICLE_URL = "https://example.com/article";
 const ID = ArticleResourceUniqueId.parse(ARTICLE_URL);
-const IMAGE_PREFIX = ID.toS3ImagePrefix();
 
 function embeddedSrc(filename: string): string {
 	return ID.toImageCdnUrl({ baseUrl: "https://cdn.readplace.test", filename });
 }
 
-describe("embeddableImageFilename", () => {
-	it("returns the filename for an image hosted under this article's prefix", () => {
-		expect(
-			embeddableImageFilename({ src: embeddedSrc("abcdef0123456789.jpg"), imagePrefix: IMAGE_PREFIX }),
-		).toBe("abcdef0123456789.jpg");
-	});
-
-	it.each(["jpg", "jpeg", "png", "gif", "webp", "avif", "svg"].flatMap((extension) => [64, 32].map((digestLength) => ({ extension, digestLength }))))("accepts an owned image with the supported $extension extension and $digestLength-character digests", ({ extension, digestLength }) => {
-		const filename = `attempts/${"a".repeat(digestLength)}/${"b".repeat(digestLength)}.${extension}`;
-		expect(embeddableImageFilename({ src: embeddedSrc(filename), imagePrefix: IMAGE_PREFIX })).toBe(filename);
-		const otherSrc = ArticleResourceUniqueId.parse("https://example.com/other").toImageCdnUrl({ baseUrl: "https://cdn.readplace.test", filename });
-		expect(embeddableImageFilename({ src: otherSrc, imagePrefix: IMAGE_PREFIX })).toBeUndefined();
-	});
-
-	it.each([
-		`attempts/short/${"b".repeat(64)}.png`,
-		`attempts/${"a".repeat(64)}/short.png`,
-		`attempts/${"a".repeat(64)}/${"b".repeat(32)}.png`,
-		`attempts/${"a".repeat(32)}/${"b".repeat(64)}.png`,
-		`attempts/${"a".repeat(36)}/${"b".repeat(36)}.png`,
-		`attempts/${"a".repeat(32)}/${"b".repeat(32)}.png.metadata.json`,
-		`attempts/${"a".repeat(64)}/${"b".repeat(64)}.png.metadata.json`,
-		`attempts/${"a".repeat(64)}/${"b".repeat(64)}.html`,
-		`attempts/${"a".repeat(64)}/../${"b".repeat(64)}.png`,
-		`attempts/${"a".repeat(64)}/..%2f${"b".repeat(64)}.png`,
-		`attempts/${"a".repeat(64)}/%252e%252e%252f${"b".repeat(64)}.png`,
-	])("rejects malformed or traversing owned image path %s", (filename) => {
-		expect(embeddableImageFilename({ src: embeddedSrc(filename), imagePrefix: IMAGE_PREFIX })).toBeUndefined();
-	});
-
-	it("returns undefined for an image on a foreign path", () => {
-		expect(
-			embeddableImageFilename({ src: "https://origin.example/photo.jpg", imagePrefix: IMAGE_PREFIX }),
-		).toBeUndefined();
-	});
-
-	it("returns undefined for another article's prefix", () => {
-		const otherSrc = ArticleResourceUniqueId.parse("https://example.com/other").toImageCdnUrl({
-			baseUrl: "https://cdn.readplace.test",
-			filename: "abcdef0123456789.jpg",
-		});
-		expect(embeddableImageFilename({ src: otherSrc, imagePrefix: IMAGE_PREFIX })).toBeUndefined();
-	});
-
-	it.each(["0123456789abcdef.bin", "0123456789abcdef.ico", "0123456789abcdef.bmp", "0123456789abcdef"])("returns undefined for a stored image %s whose format an EPUB cannot carry", (filename) => {
-		expect(embeddableImageFilename({ src: embeddedSrc(filename), imagePrefix: IMAGE_PREFIX })).toBeUndefined();
-	});
-
-	it("returns the filename for an image whose extension is upper case", () => {
-		expect(embeddableImageFilename({ src: embeddedSrc("0123456789abcdef.JPG"), imagePrefix: IMAGE_PREFIX })).toBe(
-			"0123456789abcdef.JPG",
-		);
-	});
-
-	it("returns undefined for a non-absolute URL", () => {
-		expect(embeddableImageFilename({ src: "images/local.jpg", imagePrefix: IMAGE_PREFIX })).toBeUndefined();
-	});
-
-	it("returns undefined when the filename would traverse out of the images folder", () => {
-		const traversal = ID.toImageCdnUrl({ baseUrl: "https://cdn.readplace.test", filename: "sub/evil.jpg" });
-		expect(embeddableImageFilename({ src: traversal, imagePrefix: IMAGE_PREFIX })).toBeUndefined();
-	});
-
-	it("returns undefined for a malformed percent-encoding", () => {
-		expect(
-			embeddableImageFilename({ src: "https://cdn.readplace.test/%E0%A4%A", imagePrefix: IMAGE_PREFIX }),
-		).toBeUndefined();
-	});
-});
+const PRIVATE_ITEM_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const PRIVATE_FILE = `${"ab".repeat(32)}.png`;
+const PRIVATE_SRC = `/queue/${ReaderArticleHashId.from(PRIVATE_ITEM_URL).value}/media/${PRIVATE_FILE}`;
+const OTHER_ITEM_SRC = `/queue/${ReaderArticleHashId.from("https://uploads.readplace.invalid/fedcba9876543210fedcba9876543210").value}/media/${PRIVATE_FILE}`;
 
 describe("collectArticleImages", () => {
+	it("collects a private item's own media route image and leaves out another item's", () => {
+		expect(
+			collectArticleImages({
+				contentHtml: `<img src="${PRIVATE_SRC}"><img src="${OTHER_ITEM_SRC}">`,
+				articleUrl: PRIVATE_ITEM_URL,
+			}),
+		).toEqual([{ filename: PRIVATE_FILE, src: PRIVATE_SRC }]);
+	});
+
 	it("collects hosted images in document order and dedups repeats", () => {
 		const contentHtml = `
 			<p><img src="${embeddedSrc("1111111111111111.jpg")}"></p>
@@ -229,6 +173,18 @@ describe("articleEpubXhtml", () => {
 });
 
 describe("chapterEpubXhtml", () => {
+	it("points a private item's media route image at its mapped href and drops another item's", () => {
+		const xhtml = chapterEpubXhtml({
+			contentHtml: `<img src="${PRIVATE_SRC}"><img src="${OTHER_ITEM_SRC}">`,
+			title: "Book",
+			articleUrl: PRIVATE_ITEM_URL,
+			imageHrefs: new Map([[PRIVATE_FILE, `images/${PRIVATE_FILE}`]]),
+		});
+
+		const document = new DOMParser().parseFromString(xhtml, "text/xml");
+		expect(Array.from(document.querySelectorAll("img"), (img) => img.getAttribute("src"))).toEqual([`images/${PRIVATE_FILE}`]);
+	});
+
 	it("points each embedded image at its mapped href and drops the images it has no href for", () => {
 		const xhtml = chapterEpubXhtml({
 			contentHtml: `<p><img src="${embeddedSrc("abcdef0123456789.jpg")}" alt="Kept"><img src="${embeddedSrc("0123456789abcdef.jpg")}" alt="Dropped"></p>`,

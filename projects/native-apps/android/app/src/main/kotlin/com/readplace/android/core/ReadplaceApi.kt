@@ -300,7 +300,7 @@ class ReadplaceApi(
 		if (answer.status !in 200..299) throw apiError(answer)
 		val cookies = sessionCookies(answer, url, priorCookies)
 		if (cookies.isEmpty()) throw ApiError.Decoding()
-		oauth.recordAuthEvent("session_bridge_completed", "success", "oauth_bridge")
+		oauth.recordAuthEvent(AuthEvent.SESSION_BRIDGE_COMPLETED, AuthOutcome.SUCCESS, AuthReason.OAUTH_BRIDGE)
 		return cookies
 	}
 

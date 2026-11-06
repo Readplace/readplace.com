@@ -1,10 +1,10 @@
 import { initDeadLetterRouter } from "@packages/dead-letter-routing";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES, type GmailEmailUpdateFailedLine } from "@packages/hutch-infra-components";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES, type GmailEmailUpdateFailedLine } from "@packages/infra-components";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbGmailHistoryImport, initDynamoDbGmailMarkBackfill, initDynamoDbGmailMessageUpdate } from "@packages/inbox-store";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
 import {
 	initGmailHistoryImportOutcomeDlqHandler,
 	initGmailHistoryImportPageDlqHandler,
@@ -12,12 +12,15 @@ import {
 import { initGmailMarkBackfillDlqHandler } from "./domain/gmail/gmail-mark-backfill";
 import { initGmailMessageUpdateDlqHandler } from "./domain/gmail/gmail-message-update-handler";
 import { initRecordGmailDiagnostic } from "./observability/gmail-diagnostics";
+import { GMAIL_HISTORY_IMPORT_DLQ_ENV } from "./gmail-history-import-dlq.env";
 
-const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClient({}), eventBusName: requireEnv("EVENT_BUS_NAME") });
+const env = readEnv(GMAIL_HISTORY_IMPORT_DLQ_ENV);
+
+const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClient({}), eventBusName: env.EVENT_BUS_NAME });
 const now = () => new Date();
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const client = createDynamoDocumentClient();
-const tableName = requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE");
+const tableName = env.DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE;
 const dependencies = {
 	imports: initDynamoDbGmailHistoryImport({ client, tableName }),
 	publishEvent,
@@ -33,7 +36,7 @@ export const handler = initDeadLetterRouter({
 		[GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES.messageUpdates]: initGmailMessageUpdateDlqHandler({
 			markFailed: initDynamoDbGmailMessageUpdate({ client, tableName }).markFailed,
 			publishEvent,
-			metricLog: HutchLogger.fromJSON<GmailEmailUpdateFailedLine>(),
+			metricLog: Logger.fromJSON<GmailEmailUpdateFailedLine>(),
 			logger,
 			now,
 		}),

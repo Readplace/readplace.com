@@ -7,8 +7,8 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 	override func setUp() { super.setUp(); StubURLProtocol.reset() }
 
 	private func recovery(_ store: TokenStore) -> NativeRefreshRecovery {
-		NativeRefreshRecovery(baseURL: AppConfig.serverBaseURL, records: store.authRecords,
-			configuration: TestSupport.stubbedConfiguration(), surface: "app", version: "117")
+		NativeRefreshRecovery(endpoints: AppConfig.serverEndpoints, records: store.authRecords,
+			configuration: TestSupport.stubbedConfiguration(), surface: .app, version: "117")
 	}
 
 	private func success(operation: String, access: String = "new-access", refresh: String = "new-refresh", expiry: String = "2099-01-01T00:00:00.000Z", recovered: Bool = false) -> StubURLProtocol.Stub {
@@ -53,7 +53,7 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 			return self.success(operation: id)
 		}
 		let restored = try await recovery(store).refresh(after: try XCTUnwrap(store.tokens))
-		XCTAssertEqual(restored, OAuthTokens(accessToken: "new-access", refreshToken: "new-refresh"))
+		XCTAssertEqual(restored, OAuthTokens(accessToken: AccessToken(raw: "new-access"), refreshToken: RefreshToken(raw: "new-refresh")))
 		XCTAssertEqual(requests, 3)
 		XCTAssertEqual(Set(attempts).count, 3)
 		XCTAssertEqual(Set(proofs).count, 3)
@@ -64,7 +64,7 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 	func testLostResponseKeepsOperationAcrossNewProcessAndNeverFallsBackToLegacy() async throws {
 		let defaults = TestSupport.ephemeralDefaults()
 		let store = TokenStore(defaults: defaults)
-		let old = OAuthTokens(accessToken: "old", refreshToken: "parent")
+		let old = OAuthTokens(accessToken: AccessToken(raw: "old"), refreshToken: RefreshToken(raw: "parent"))
 		store.save(old)
 		StubURLProtocol.setHandler { request, _ in
 			if request.url?.path == "/.well-known/oauth-authorization-server" { return self.enabled() }
@@ -79,7 +79,7 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 			return self.success(operation: operation.id, recovered: true)
 		}
 		let restored = try await recovery(restarted).refresh(after: old)
-		XCTAssertEqual(restored?.refreshToken, "new-refresh")
+		XCTAssertEqual(restored?.refreshToken.raw, "new-refresh")
 		XCTAssertEqual(store.tokens, restored)
 	}
 
@@ -87,11 +87,11 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		let pending = try store.authRecords.prepare(after: XCTUnwrap(store.tokens))
 		store.clear()
-		XCTAssertThrowsError(try store.authRecords.commit(OAuthTokens(accessToken: "late", refreshToken: "late"), operation: pending, permit: nil))
+		XCTAssertThrowsError(try store.authRecords.commit(OAuthTokens(accessToken: AccessToken(raw: "late"), refreshToken: RefreshToken(raw: "late")), operation: pending, permit: nil))
 		XCTAssertEqual(store.tokens, nil)
-		store.save(OAuthTokens(accessToken: "other-user", refreshToken: "other-refresh"))
-		XCTAssertThrowsError(try store.authRecords.commit(OAuthTokens(accessToken: "late", refreshToken: "late"), operation: pending, permit: nil))
-		XCTAssertEqual(store.tokens?.accessToken, "other-user")
+		store.save(OAuthTokens(accessToken: AccessToken(raw: "other-user"), refreshToken: RefreshToken(raw: "other-refresh")))
+		XCTAssertThrowsError(try store.authRecords.commit(OAuthTokens(accessToken: AccessToken(raw: "late"), refreshToken: RefreshToken(raw: "late")), operation: pending, permit: nil))
+		XCTAssertEqual(store.tokens?.accessToken.raw, "other-user")
 	}
 
 	func testExpiredRecoveredAccessCommitsThenRotatesItsReplacement() async throws {
@@ -104,12 +104,12 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 			operations.append(operation)
 			if operations.count == 1 { return self.success(operation: operation, access: "expired", refresh: "child", expiry: "2000-01-01T00:00:00Z", recovered: true) }
 			XCTAssertEqual(fields["refresh_token"], "child")
-			XCTAssertEqual(store.tokens?.refreshToken, "child")
+			XCTAssertEqual(store.tokens?.refreshToken.raw, "child")
 			return self.success(operation: operation)
 		}
 		_ = try await recovery(store).refresh(after: XCTUnwrap(store.tokens))
 		XCTAssertEqual(Set(operations).count, 2)
-		XCTAssertEqual(store.tokens?.accessToken, "new-access")
+		XCTAssertEqual(store.tokens?.accessToken.raw, "new-access")
 	}
 
 	func testUnknownRefusalPreservesCredentialsButExplicitRevocationClearsThem() async throws {
@@ -140,7 +140,7 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 		let original = try XCTUnwrap(store.tokens)
 		let pending = try store.authRecords.prepare(after: original)
 		let client = recovery(store)
-		let oauth = OAuthService(baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
+		let oauth = OAuthService(endpoints: AppConfig.serverEndpoints, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration(), recovery: client)
 		StubURLProtocol.setHandler { request, _ in
 			if request.url?.path == "/oauth/token" { return self.success(operation: pending.id) }
@@ -148,7 +148,7 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 		}
 		let refreshed = try await oauth.refresh()
 		XCTAssertEqual(refreshed, "new-access")
-		await oauth.recordAuthEvent("login_prompt_shown", reason: "no_credentials")
+		await oauth.recordAuthEvent(.loginPromptShown, reason: .noCredentials)
 		await oauth.revoke()
 		XCTAssertEqual(store.tokens, nil)
 		let revocation = try XCTUnwrap(StubURLProtocol.records(path: "/oauth/revoke").first)
@@ -159,7 +159,7 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 	}
 
 	func testCommitObservesOtherProcessLogoutOrNewerTokens() async throws {
-		for replacement in [nil, OAuthTokens(accessToken: "other", refreshToken: "other")] {
+		for replacement in [nil, OAuthTokens(accessToken: AccessToken(raw: "other"), refreshToken: RefreshToken(raw: "other"))] {
 			let store = TestSupport.loggedInStore()
 			let old = try XCTUnwrap(store.tokens)
 			let operation = try store.authRecords.prepare(after: old)
@@ -178,7 +178,7 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 	func testAlreadyChangedSharedStateIsAdoptedWithoutNetwork() async throws {
 		let store = TestSupport.loggedInStore()
 		let old = try XCTUnwrap(store.tokens)
-		let new = OAuthTokens(accessToken: "other", refreshToken: "other")
+		let new = OAuthTokens(accessToken: AccessToken(raw: "other"), refreshToken: RefreshToken(raw: "other"))
 		store.save(new)
 		let answer = try await recovery(store).refresh(after: old)
 		XCTAssertEqual(answer, new)
@@ -191,14 +191,14 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		let client = recovery(store)
 		let operation = try store.authRecords.prepare(after: XCTUnwrap(store.tokens))
-		await client.record("refresh_prepared", operation: operation.id)
+		await client.record(.refreshPrepared, operation: operation.id)
 		try store.authRecords.commit(XCTUnwrap(store.tokens), operation: operation, permit: "old-permit")
 		let owned = try store.authRecords.prepare(after: XCTUnwrap(store.tokens))
 		store.clear()
-		await client.record("logout_completed")
+		await client.record(.logoutCompleted)
 		try store.authRecords.update { $0.diagnosticIdentity = UUID().uuidString; $0.diagnosticsPermit = nil }
-		await client.record("login_started")
-		await client.record("refresh_response_received", operation: owned.id, owner: owned)
+		await client.record(.loginStarted)
+		await client.record(.refreshResponseReceived, operation: owned.id, owner: owned)
 		StubURLProtocol.setHandler { request, data in
 			XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer old-permit")
 			let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -208,20 +208,20 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 			return .init(status: 202, body: try JSONSerialization.data(withJSONObject: ["accepted_event_ids": ids]))
 		}
 		await client.flush()
-		XCTAssertEqual(try store.authRecords.read().diagnostics.map(\.event.event), ["login_started"])
+		XCTAssertEqual(try store.authRecords.read().diagnostics.map(\.event.event), [.loginStarted])
 	}
 
 	func testJournalBoundsDoNotDiscardPendingRecovery() async throws {
 		let store = TestSupport.loggedInStore()
 		let operation = try store.authRecords.prepare(after: XCTUnwrap(store.tokens))
 		let client = recovery(store)
-		for _ in 0..<513 { await client.record("context_started") }
+		for _ in 0..<513 { await client.record(.contextStarted) }
 		XCTAssertEqual(try store.authRecords.read().diagnostics.count, 512)
 		XCTAssertEqual(try store.authRecords.read().pending, operation)
-		XCTAssertEqual(try store.authRecords.read().diagnostics.last?.event.event, "journal_health")
+		XCTAssertEqual(try store.authRecords.read().diagnostics.last?.event.event, .journalHealth)
 		XCTAssertEqual(try store.authRecords.read().diagnostics.last?.event.dropped_events, 2)
-		await client.record("context_started")
-		XCTAssertEqual(try store.authRecords.read().diagnostics.filter { $0.event.event == "journal_health" }.count, 1)
+		await client.record(.contextStarted)
+		XCTAssertEqual(try store.authRecords.read().diagnostics.filter { $0.event.event == .journalHealth }.count, 1)
 		XCTAssertEqual(try store.authRecords.read().diagnostics.last?.event.dropped_events, 3)
 	}
 
@@ -255,12 +255,12 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 
 	func testAnOldRequestCannotAdoptAnotherAccountsCredentials() async throws {
 		let store = TestSupport.loggedInStore()
-		let oauth = OAuthService(baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
+		let oauth = OAuthService(endpoints: AppConfig.serverEndpoints, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration(), recovery: recovery(store))
 		let original = try await oauth.snapshot()
 		try store.authRecords.update {
 			$0.accountEpoch = UUID().uuidString
-			$0.tokens = OAuthTokens(accessToken: "other-account", refreshToken: "other-account")
+			$0.tokens = OAuthTokens(accessToken: AccessToken(raw: "other-account"), refreshToken: RefreshToken(raw: "other-account"))
 		}
 		do { _ = try await oauth.refresh(after: original); XCTFail("old request must not cross account boundaries") }
 		catch OAuthError.sessionChanged {} catch { XCTFail("unexpected error: \(error)") }
@@ -278,24 +278,24 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 			func removeValue(for key: TokenKey) { values.removeValue(forKey: key) }
 		}
 		let store = TokenStore(storage: Storage())
-		let old = OAuthTokens(accessToken: "old", refreshToken: "old")
+		let old = OAuthTokens(accessToken: AccessToken(raw: "old"), refreshToken: RefreshToken(raw: "old"))
 		store.save(old)
 		let operation = try store.authRecords.prepare(after: old)
 		StubURLProtocol.setHandler { _, _ in self.success(operation: operation.id) }
 		do { _ = try await recovery(store).refresh(after: old); XCTFail("failed commit must stay retryable") } catch {}
 		XCTAssertEqual(try store.authRecords.read().pending, operation)
 		XCTAssertEqual(store.tokens, old)
-		XCTAssertEqual(try store.authRecords.read().diagnostics.last?.event.reason, "storage_write_failed")
+		XCTAssertEqual(try store.authRecords.read().diagnostics.last?.event.reason, .storageWriteFailed)
 		XCTAssertEqual(try store.authRecords.read().diagnostics.last?.event.storage_status, errSecIO)
 		StubURLProtocol.setHandler { _, _ in .json(200, "{\"unexpected\":true}") }
 		do { _ = try await recovery(store).refresh(after: old); XCTFail("malformed response must stay retryable") } catch {}
-		XCTAssertEqual(try store.authRecords.read().diagnostics.last?.event.reason, "malformed_response")
+		XCTAssertEqual(try store.authRecords.read().diagnostics.last?.event.reason, .malformedResponse)
 	}
 
 	func testInitialLoginHasCorrelationHeadersAndUploadsWithItsIssuedPermit() async throws {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
 		let client = recovery(store)
-		let oauth = OAuthService(baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
+		let oauth = OAuthService(endpoints: AppConfig.serverEndpoints, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration(), recovery: client)
 		let uploaded = expectation(description: "initial login diagnostics upload before any refresh")
 		StubURLProtocol.setHandler { request, data in
@@ -317,8 +317,8 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 			uploaded.fulfill()
 			return .json(503, "{}")
 		}
-		await oauth.recordAuthEvent("login_prompt_shown", reason: "no_credentials")
-		await oauth.recordAuthEvent("login_started")
+		await oauth.recordAuthEvent(.loginPromptShown, reason: .noCredentials)
+		await oauth.recordAuthEvent(.loginStarted)
 		_ = try await oauth.exchangeCode("code", verifier: "verifier", redirectURI: "readplace://oauth-callback/ios")
 		await fulfillment(of: [uploaded], timeout: 2)
 		XCTAssertEqual(try store.authRecords.read().diagnosticsPermit, "login-permit")
@@ -335,16 +335,16 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 			func removeValue(for key: TokenKey) { values.removeValue(forKey: key) }
 		}
 		let store = TokenStore(storage: Storage())
-		store.save(OAuthTokens(accessToken: "old", refreshToken: "old"))
-		let oauth = OAuthService(baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
+		store.save(OAuthTokens(accessToken: AccessToken(raw: "old"), refreshToken: RefreshToken(raw: "old")))
+		let oauth = OAuthService(endpoints: AppConfig.serverEndpoints, store: store, nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration(), recovery: recovery(store))
 		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
 		await oauth.revoke()
 		XCTAssertNotNil(store.tokens)
 		let completed = try XCTUnwrap(store.authRecords.read().diagnostics.last?.event)
-		XCTAssertEqual(completed.event, "logout_completed")
-		XCTAssertEqual(completed.outcome, "failure")
-		XCTAssertEqual(completed.reason, "storage_write_failed")
+		XCTAssertEqual(completed.event, .logoutCompleted)
+		XCTAssertEqual(completed.outcome, .failure)
+		XCTAssertEqual(completed.reason, .storageWriteFailed)
 	}
 
 	private func encode(_ data: Data) -> String { data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }

@@ -1,4 +1,4 @@
-import type { BrowserEgress } from "./render-page.types";
+import type { BrowserEgress } from "../../domain/render-crawl/render-page.types";
 
 const LAUNCH_ARGS = ["--block-new-web-contents"];
 

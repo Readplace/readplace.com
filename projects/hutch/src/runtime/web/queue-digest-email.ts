@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ReaderArticleHashId } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { EMAIL_CLICK_MEDIUM, type QueueDigestKind } from "@packages/web-analytics";
 import { formatLocalInstant, render } from "@packages/web-shell";
+import type { QueueDigestEmailItem } from "../domain/engagement/digest-email.types";
 import { QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "../domain/email/queue-digest-cadence";
 import { payCutoff } from "../domain/stripe/stripe-trial-config";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "./email-colors";
@@ -59,12 +59,7 @@ export function listUnsubscribeHeaders(oneClickUnsubscribeUrl: URL): Record<stri
 	};
 }
 
-export interface QueueDigestEmailItem {
-	articleId: ReaderArticleHashId;
-	title: string;
-	siteName: string;
-	preview: string;
-}
+export type { QueueDigestEmailItem } from "../domain/engagement/digest-email.types";
 
 export interface QueueDigestLinks {
 	appOrigin: string;

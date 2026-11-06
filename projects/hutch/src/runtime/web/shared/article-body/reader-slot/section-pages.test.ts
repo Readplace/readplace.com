@@ -93,6 +93,32 @@ describe("pageReaderSections", () => {
 		expect(h2Ids(page.html)).toEqual(["section-ch-1"]);
 	});
 
+	it("splits a body that one wrapper holds entirely, as Readability wraps every crawled page", () => {
+		const page = pageReaderSections({
+			html: `\n<div class="page" id="readability-page-1"><div>\n${BOOK}</div></div>\n`,
+			section: { requested: 3, readerPath: READER_PATH },
+			split: "chapter-headings",
+			thresholdBytes: 10,
+		});
+
+		if (page.kind !== "paged") throw new Error(`expected a paged body, got ${page.kind}`);
+		expect(page.pager.total).toBe(3);
+		expect(h2Ids(page.html)).toEqual(["section-ch-3"]);
+	});
+
+	it("does not treat a wrapper with text beside it as holding the whole body", () => {
+		const html = `<div>${BOOK}</div><!-- note -->Trailing words`;
+
+		expect(
+			pageReaderSections({
+				html,
+				section: { requested: undefined, readerPath: READER_PATH },
+				split: "chapter-headings",
+				thresholdBytes: 1,
+			}),
+		).toEqual({ kind: "whole", html });
+	});
+
 	it("maps each anchor to its page", () => {
 		expect(Object.fromEntries(paged({ requested: 1 }).pageOfAnchor)).toEqual({
 			"section-ch-1": 1,

@@ -24,8 +24,8 @@
   },
   "dependencies": {
     "browser-extension-core": "workspace:*",
-    "@packages/hutch-infra-components": "workspace:*",
-    "@packages/hutch-logger": "workspace:*",
+    "@packages/infra-components": "workspace:*",
+    "@packages/logger": "workspace:*",
     "@packages/onboarding-extension-signal": "workspace:*",
     "@packages/supported-clients": "workspace:*"
   },

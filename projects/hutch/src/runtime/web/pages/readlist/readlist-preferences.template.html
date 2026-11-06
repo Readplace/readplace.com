@@ -8,6 +8,7 @@
             {{{alertHtml}}}
           </div>
           <div class="readlist__browse">
+            {{{purposeCardHtml}}}
             {{{tabsHtml}}}
             <section class="readlist-listing {{panelClass}}" aria-labelledby="readlist-preferences-title" data-test-readlist-preferences data-test-preferences-state="{{state}}">
               <h2 class="sr-only" id="readlist-preferences-title">Preferences for {{readlistLabel}}</h2>
@@ -23,37 +24,6 @@
                   {{{this}}}
                   {{/each}}
                 </div>
-              </div>
-              <div class="readlist-preferences__set">
-                <p class="readlist-preferences__purpose" data-test-preferences-purpose>{{purposeText}}</p>
-                {{#each menus}}
-                <details class="menu readlist-preferences__menu" data-test-preferences-menu>
-                  <summary class="menu__toggle" data-test-action="readlist-preferences-menu">{{icon "ellipsis"}}<span class="sr-only">More options for this purpose</span></summary>
-                  <div class="menu__panel">
-                    {{#each triggers}}
-                    <button class="menu__item readlist-preferences__menu-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="{{testAction}}">{{icon iconName}}<span>{{text}}</span></button>
-                    {{/each}}
-                    {{#each actions}}
-                    <form class="readlist-preferences__menu-fallback" method="POST" action="{{url}}" hx-boost="false">
-                      <button class="menu__item" type="submit" data-test-action="{{testAction}}">{{icon iconName}}<span>{{text}}</span></button>
-                    </form>
-                    {{/each}}
-                  </div>
-                </details>
-                {{/each}}
-                {{#each lockedMenus}}
-                <details class="menu readlist-preferences__menu" data-test-preferences-menu data-test-menu-standing="locked">
-                  <summary class="menu__toggle" data-test-action="readlist-preferences-menu">
-                    {{icon "ellipsis"}}
-                    <span class="sr-only">More options for this purpose</span>
-                  </summary>
-                  <div class="menu__panel">
-                    {{#each menuLocks}}
-                    {{{this}}}
-                    {{/each}}
-                  </div>
-                </details>
-                {{/each}}
               </div>
               {{#each inlineWizards}}
               <div class="readlist-preferences__fallback">
@@ -71,9 +41,9 @@
           {{{onboardingHtml}}}
         </div>
       </div>
+      <div id="status-toast">{{{statusToastHtml}}}</div>
       {{{readlistRenamesHtml}}}
       {{{readlistCreateHtml}}}
       {{{readlistDeleteConfirmHtml}}}
       {{{wizardPopoverHtml}}}
-      {{{purposeDeleteConfirmHtml}}}
     </main>

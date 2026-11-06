@@ -1,0 +1,34 @@
+{
+  "name": "@packages/storage-client",
+  "version": "1.0.0",
+  "description": "DynamoDB gateway — the only module allowed to import @aws-sdk/lib-dynamodb. Forces schema-driven null handling on every row.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "private": true,
+  "scripts": {
+    "compile": "rm -rf dist && tsc",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
+    "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
+    "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
+    "check": "nx run @packages/storage-client:check",
+    "check-infra": "echo 'No infrastructure — shared library'"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1057.0",
+    "@aws-sdk/lib-dynamodb": "3.1057.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/jest": "30.0.0",
+    "c8": "11.0.0",
+    "concurrently": "10.0.0",
+    "jest": "30.4.2",
+    "typescript": "6.0.3"
+  }
+}

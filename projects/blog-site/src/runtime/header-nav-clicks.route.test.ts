@@ -1,6 +1,6 @@
 import request from "supertest";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { AnalyticsClick, AnalyticsEvent } from "@packages/web-analytics";
 import { GlobalNav, HtmxOmitted, type NavItem, buildGuestNavGroups, buildNavGroups } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
@@ -34,7 +34,7 @@ const BLOG_ITEMS = [
 	.filter((item) => new URL(item.href, OWN_ORIGIN).pathname.startsWith("/blog"));
 
 function makeApp(events: AnalyticsEvent[]) {
-	const capture: HutchLogger.Typed<AnalyticsEvent> = {
+	const capture: Logger.Typed<AnalyticsEvent> = {
 		info: (event) => events.push(event),
 		error: (event) => events.push(event),
 		warn: (event) => events.push(event),

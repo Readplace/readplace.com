@@ -1,6 +1,6 @@
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type Logger } from "@packages/logger";
 import type { GmailConnectionsCountLine } from "../observability/events";
 import {
 	initCountGmailConnectionsHandler,
@@ -11,7 +11,7 @@ const TRIGGER = JSON.stringify({ trigger: "count-gmail-connections" });
 
 function createMetricLog() {
 	const lines: GmailConnectionsCountLine[] = [];
-	const metricLog: HutchLogger.Typed<GmailConnectionsCountLine> = {
+	const metricLog: Logger.Typed<GmailConnectionsCountLine> = {
 		info: (data) => lines.push(data),
 		error: () => {},
 		warn: () => {},

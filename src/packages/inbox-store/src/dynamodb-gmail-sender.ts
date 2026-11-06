@@ -3,7 +3,7 @@ import {
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import type { GmailSenderEntry, GmailSenderStore } from "@packages/domain/gmail";

@@ -43,7 +43,7 @@ function page(overrides: {
 	query?: Record<string, unknown>;
 }) {
 	return ReadlistPreferencesPage({
-		readlist: { slug: WORK, label: "Work Reading", purpose: overrides.purpose, emailDelivery: "links" },
+		readlist: { slug: WORK, label: "Work Reading", purpose: overrides.purpose },
 		rail: {
 			readlists: [DEFAULT_READLIST, { slug: WORK, label: "Work Reading" }, { slug: LATER, label: "Later" }],
 			activeReadlist: { slug: WORK, label: "Work Reading" },
@@ -60,6 +60,7 @@ function page(overrides: {
 		inboxes: overrides.inboxes ?? [],
 		choices: overrides.choices ?? [],
 		alert: overrides.alert,
+		saved: false,
 		gmailSenders: undefined,
 		accessIsReadOnly: overrides.accessIsReadOnly ?? false,
 		subscriptionBanner: overrides.subscriptionBanner ?? { state: "none" },
@@ -93,12 +94,6 @@ function purposePanel(doc: Document): Element {
 	return panel;
 }
 
-function testActionsOf(root: ParentNode, selector: string): (string | null)[] {
-	return Array.from(root.querySelectorAll(selector), (control) => control.getAttribute("data-test-action"));
-}
-
-const PURPOSE_DELETE_ACTION = `/queue/queues/${WORK}/preferences/purpose/delete?utm_source=queue-preferences&utm_medium=internal`;
-
 describe("ReadlistPreferencesPage", () => {
 	it("titles the tab with the readlist, so the inline rename keeps rewriting a title it recognises", () => {
 		expect(page({}).seo.title).toBe("Work Reading — Readplace");
@@ -123,11 +118,11 @@ describe("ReadlistPreferencesPage", () => {
 			".menu__panel",
 			".confirm-popover",
 			".wizard__title",
-			".readlist-preferences__purpose",
+			".readlist-purpose",
 			".readlist-inboxes__row",
 			".readlist-empty",
 			".setup-guide",
-			".readlist-preferences__set",
+			".readlist-preferences__fallback",
 		]) {
 			expect(styles).toContain(selector);
 		}
@@ -295,23 +290,27 @@ describe("ReadlistPreferencesPage", () => {
 		expect(panel.querySelectorAll("[data-test-preferences-menu]")).toHaveLength(0);
 	});
 
-	it("shows a set purpose as plain text with its options menu: Edit and Delete, and a direct Delete without popovers", () => {
-		const panel = purposePanel(documentOf(page({ purpose: "Shipping essays." }).content.html));
-		const menu = panel.querySelector("[data-test-preferences-menu]");
-		assert(menu, "the set state must offer the purpose's options menu");
-		const fallback = menu.querySelector(".readlist-preferences__menu-fallback");
-		assert(fallback, "the menu must carry a delete that works without popovers");
+	it("shows a set purpose in the Purpose card above the tabs, opening the edit dialog", () => {
+		const doc = documentOf(page({ purpose: "Shipping essays." }).content.html);
+		const card = doc.querySelector('.readlist__browse > [data-test-action="readlist-purpose-edit"]');
+		assert(card, "the set state must render the Purpose card");
 
-		expect(panel.querySelector("[data-test-preferences-purpose]")?.textContent).toBe("Shipping essays.");
-		expect(testActionsOf(menu, ".readlist-preferences__menu-trigger")).toEqual([
-			"readlist-preferences-edit",
-			"readlist-preferences-delete",
-		]);
-		expect(testActionsOf(menu, ".readlist-preferences__menu-fallback [data-test-action]")).toEqual([
-			"readlist-preferences-delete-fallback",
-		]);
-		expect(fallback.getAttribute("action")).toBe(`${PURPOSE_DELETE_ACTION}&utm_content=delete-purpose-fallback`);
-		expect(fallback.getAttribute("hx-boost")).toBe("false");
+		expect(card.nextElementSibling?.matches("[data-test-filters]")).toBe(true);
+		expect(card.getAttribute("popovertarget")).toBe("readlist-preferences-wizard");
+		expect(card.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
+		expect(purposePanel(doc).querySelectorAll("[data-test-preferences-menu]")).toHaveLength(0);
+	});
+
+	it("shows no Purpose card while the purpose is unset", () => {
+		expect(documentOf(page({}).content.html).querySelectorAll("[data-test-readlist-purpose]")).toHaveLength(0);
+	});
+
+	it("posts the purpose from Preferences without naming an origin, so the save lands back on Preferences", () => {
+		const doc = documentOf(page({ purpose: "Shipping essays." }).content.html);
+
+		expect(doc.querySelector("[data-test-wizard]")?.getAttribute("action")).toBe(
+			`/queue/queues/${WORK}/preferences?utm_source=queue-preferences&utm_medium=internal&utm_content=save-purpose`,
+		);
 	});
 
 	it.each([
@@ -327,24 +326,10 @@ describe("ReadlistPreferencesPage", () => {
 		expect(targets.filter((target) => target === null || doc.getElementById(target) === null)).toEqual([]);
 	});
 
-	it("asks before deleting a set purpose, posting the clear with its own tag", () => {
-		const doc = documentOf(page({ purpose: "Shipping essays." }).content.html);
-		const confirm = doc.querySelector('[data-test-confirm-popover="readlist-purpose-delete"]');
-		assert(confirm, "the set state must carry the purpose delete confirmation");
+	it("carries no purpose delete confirmation in any state", () => {
+		const docs = [page({}), page({ purpose: "Shipping essays." })].map((rendered) => documentOf(rendered.content.html));
 
-		expect(confirm.querySelector(".confirm-popover__title")?.textContent).toBe("Delete this purpose?");
-		expect(confirm.querySelector(".confirm-popover__body")?.textContent).toBe(
-			"The readlist and its articles stay. Newsletters saved to it will keep every link until you set a new purpose.",
-		);
-		expect(confirm.querySelector("form")?.getAttribute("action")).toBe(
-			`${PURPOSE_DELETE_ACTION}&utm_content=delete-purpose`,
-		);
-	});
-
-	it("carries no purpose delete confirmation while there is no purpose to delete", () => {
-		const doc = documentOf(page({}).content.html);
-
-		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-purpose-delete"]')).toHaveLength(0);
+		expect(docs.map((doc) => doc.querySelectorAll('[data-test-confirm-popover="readlist-purpose-delete"]').length)).toEqual([0, 0]);
 	});
 
 	it("asks the setup question in the dialog's title while the purpose is unset", () => {
@@ -392,10 +377,10 @@ describe("ReadlistPreferencesPage", () => {
 		expect(panel.className).toBe(
 			"readlist-listing readlist-preferences readlist-preferences--set readlist-preferences--read-only",
 		);
-		expect(panel.querySelector("[data-test-preferences-purpose]")?.textContent).toBe("Shipping essays.");
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
 		expect(
 			doc.querySelectorAll(
-				'[data-test-action="readlist-preferences-setup"], [data-test-preferences-menu], [data-test-wizard], .readlist-preferences__fallback, [data-test-confirm-popover="readlist-preferences"], [data-test-confirm-popover="readlist-purpose-delete"]',
+				'[data-test-action="readlist-preferences-setup"], [data-test-action="readlist-purpose-edit"], [data-test-wizard], .readlist-preferences__fallback, [data-test-confirm-popover="readlist-preferences"]',
 			),
 		).toHaveLength(0);
 	});
@@ -429,36 +414,29 @@ describe("ReadlistPreferencesPage", () => {
 		);
 		expect(
 			doc.querySelectorAll(
-				'[data-test-action="readlist-preferences-setup"], [data-test-preferences-menu], [data-test-wizard], .readlist-preferences__fallback',
+				'[data-test-action="readlist-preferences-setup"], [data-test-wizard], .readlist-preferences__fallback',
 			),
 		).toHaveLength(0);
 	});
 
-	it("locks Edit and Delete in the options menu of a set purpose for a read-only reader who can upgrade", () => {
+	it("locks the set purpose's edit for a read-only reader who can upgrade, with no wizard behind it", () => {
 		const doc = documentOf(page({ purpose: "Shipping essays.", accessIsReadOnly: true, offer: OFFER }).content.html);
-		const menu = purposePanel(doc).querySelector('[data-test-preferences-menu][data-test-menu-standing="locked"]');
-		assert(menu, "a set purpose must carry the locked menu");
+		const panel = doc.querySelector("[data-test-readlist-purpose]");
+		assert(panel, "the set purpose must render its card");
 
-		expect(menu.classList.contains("readlist-preferences__menu")).toBe(true);
+		expect(panel.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
 		expect(
-			Array.from(menu.querySelectorAll('[data-test-action="upgrade-open"]'), (lock) => [
+			Array.from(panel.querySelectorAll('[data-test-action="upgrade-open"]'), (lock) => [
 				lock.getAttribute("data-test-needs-upgrade"),
 				lock.querySelector(".needs-upgrade__label")?.textContent,
-				lock.classList.contains("menu__item"),
 			]),
-		).toEqual([
-			["edit-purpose", "Edit", true],
-			["delete-purpose", "Delete", true],
-		]);
+		).toEqual([["edit-purpose", "Edit"]]);
 		expect(
-			Array.from(menu.querySelectorAll('[data-test-action="upgrade-fallback"]'), (link) => link.getAttribute("href")),
-		).toEqual([
-			"/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-edit-purpose",
-			"/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-delete-purpose",
-		]);
+			Array.from(panel.querySelectorAll('[data-test-action="upgrade-fallback"]'), (link) => link.getAttribute("href")),
+		).toEqual(["/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-edit-purpose"]);
 		expect(
 			doc.querySelectorAll(
-				'[data-test-action="readlist-preferences-edit"], [data-test-action="readlist-preferences-delete"], [data-test-action="readlist-preferences-delete-fallback"], [data-test-confirm-popover="readlist-purpose-delete"], [data-test-wizard]',
+				'[data-test-action="readlist-purpose-edit"], [data-test-preferences-menu], [data-test-wizard]',
 			),
 		).toHaveLength(0);
 	});
@@ -470,7 +448,6 @@ describe("ReadlistPreferencesPage", () => {
 		const panel = purposePanel(documentOf(page({ purpose, offer: OFFER }).content.html));
 
 		expect(panel.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
-		expect(panel.querySelectorAll('[data-test-menu-standing="locked"]')).toHaveLength(0);
 	});
 
 	it("stacks the readlist's inboxes under its purpose panel", () => {

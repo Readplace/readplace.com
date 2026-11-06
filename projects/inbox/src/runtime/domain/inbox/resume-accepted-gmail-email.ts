@@ -2,8 +2,8 @@ import type { GmailMessageOrigin } from "@packages/domain/gmail";
 import type { EmailImportCompletionStore, InboxEmailStore } from "@packages/domain/inbox";
 import { acceptedGmailRouting } from "./accepted-gmail-routing";
 import type { UserId } from "@packages/domain/user";
-import { type EmailReceivedDetail, EmailReceivedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { type EmailReceivedDetail, EmailReceivedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 
 export type ResumeAcceptedGmailEmail = (input: {
 	userId: UserId;

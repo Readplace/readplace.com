@@ -1,9 +1,23 @@
 import Foundation
 
+struct AccessToken: Equatable, Codable {
+	let raw: String
+	init(raw: String) { self.raw = raw }
+	init(from decoder: Decoder) throws { raw = try decoder.singleValueContainer().decode(String.self) }
+	func encode(to encoder: Encoder) throws { var container = encoder.singleValueContainer(); try container.encode(raw) }
+}
+
+struct RefreshToken: Equatable, Codable {
+	let raw: String
+	init(raw: String) { self.raw = raw }
+	init(from decoder: Decoder) throws { raw = try decoder.singleValueContainer().decode(String.self) }
+	func encode(to encoder: Encoder) throws { var container = encoder.singleValueContainer(); try container.encode(raw) }
+}
+
 /// The OAuth token pair persisted for the app and share extension.
 struct OAuthTokens: Equatable, Codable {
-	let accessToken: String
-	let refreshToken: String
+	let accessToken: AccessToken
+	let refreshToken: RefreshToken
 }
 
 /// The two persisted token strings, addressed by a stable account key.

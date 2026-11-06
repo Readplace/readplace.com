@@ -616,7 +616,7 @@ describe("GET /install", () => {
 		).toBe("Run this once");
 		expect(
 			doc.querySelector('[data-test-section="ai-prompt"] .install-page__copy-value')?.textContent,
-		).toBe("gemini mcp add --transport http readplace https://readplace.com/mcp");
+		).toBe("gemini mcp add --transport http --scope user readplace https://readplace.com/mcp");
 	});
 
 	it("should land client=ai on the Claude tab as a convenience alias", async () => {

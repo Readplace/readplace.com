@@ -417,7 +417,7 @@ describe("initArticleReader", () => {
 			expect(result.readerPollUrl).toBe("/test/reader?poll=1");
 		});
 
-		it("flags readerViewFailed and readerContentUnavailable when the crawl has failed", async () => {
+		it("derives a failed reader view with unavailable content when the crawl has failed", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 				summary: { status: "pending" },
@@ -430,11 +430,10 @@ describe("initArticleReader", () => {
 				pollUrlBuilder: makePollUrlBuilder(),
 			});
 
-			expect(result.readerViewFailed).toBe(true);
-			expect(result.readerContentUnavailable).toBe(true);
+			expect(result.readerView).toEqual({ kind: "failed", contentUnavailable: true });
 		});
 
-		it("flags readerViewFailed but not readerContentUnavailable when only the summary has failed on a ready crawl — the article rendered", async () => {
+		it("derives a failed reader view with available content when only the summary has failed on a ready crawl — the article rendered", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "failed", reason: "model timeout" },
@@ -448,11 +447,10 @@ describe("initArticleReader", () => {
 				pollUrlBuilder: makePollUrlBuilder(),
 			});
 
-			expect(result.readerViewFailed).toBe(true);
-			expect(result.readerContentUnavailable).toBe(false);
+			expect(result.readerView).toEqual({ kind: "failed", contentUnavailable: false });
 		});
 
-		it("flags neither readerViewFailed nor readerContentUnavailable while the crawl and summary are still pending", async () => {
+		it("derives a loading reader view while the crawl and summary are still pending", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				summary: { status: "pending" },
@@ -465,11 +463,10 @@ describe("initArticleReader", () => {
 				pollUrlBuilder: makePollUrlBuilder(),
 			});
 
-			expect(result.readerViewFailed).toBe(false);
-			expect(result.readerContentUnavailable).toBe(false);
+			expect(result.readerView).toEqual({ kind: "loading" });
 		});
 
-		it("flags neither readerViewFailed nor readerContentUnavailable once the reader view has succeeded", async () => {
+		it("derives a succeeded reader view once the crawl and summary are ready", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "ready", summary: "TL;DR" },
@@ -483,8 +480,53 @@ describe("initArticleReader", () => {
 				pollUrlBuilder: makePollUrlBuilder(),
 			});
 
-			expect(result.readerViewFailed).toBe(false);
-			expect(result.readerContentUnavailable).toBe(false);
+			expect(result.readerView).toEqual({ kind: "succeeded" });
+		});
+
+		it("derives a loading reader view when the crawl and summary have no status yet", async () => {
+			const { deps } = initFakeDeps({});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				viewer: ANONYMOUS_VIEWER,
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			expect(result.readerView).toEqual({ kind: "loading" });
+		});
+
+		it("derives a succeeded reader view when the crawl is ready and the summary was skipped", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "skipped" },
+				content: "<p>body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				viewer: ANONYMOUS_VIEWER,
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			expect(result.readerView).toEqual({ kind: "succeeded" });
+		});
+
+		it("derives a failed reader view with unavailable content when the crawl is unsupported", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "unsupported", reason: "non-html" },
+				summary: { status: "pending" },
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				viewer: ANONYMOUS_VIEWER,
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			expect(result.readerView).toEqual({ kind: "failed", contentUnavailable: true });
 		});
 	});
 
@@ -2273,9 +2315,7 @@ describe("initArticleReader", () => {
 				summaryPollUrl: undefined,
 				capturePollUrls: undefined,
 				crawlVersions: [],
-				readerViewFailed: false,
-				readerContentUnavailable: true,
-				notice: "not-an-article",
+				readerView: { kind: "not-an-article" },
 			});
 		});
 
@@ -2499,7 +2539,7 @@ describe("resolveReaderStateFrom", () => {
 			{ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, summary: undefined },
 		);
 
-		expect(state.notice).toBe("not-an-article");
+		expect(state.readerView).toEqual({ kind: "not-an-article" });
 	});
 });
 

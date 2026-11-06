@@ -2,7 +2,7 @@ import assert from "node:assert";
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import { z } from "zod";
-import { analyticsSaltRotation, isLambdaFunctionNotFound } from "@packages/hutch-infra-components/infra";
+import { analyticsSaltRotation, isLambdaFunctionNotFound } from "@packages/infra-components/infra";
 
 const DeployedSaltSchema = z.object({
 	ANALYTICS_SALT: z.string().min(1),

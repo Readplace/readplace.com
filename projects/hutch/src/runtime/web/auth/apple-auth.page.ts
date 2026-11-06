@@ -28,10 +28,9 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { oauthClientIdFrom } from "./oauth-client-id";
-import { baseCookieOptions } from "@packages/web-analytics";
+import { defineCookie } from "@packages/web-analytics";
 import type { AnalyticsEvent, RecordAudienceEvent } from "@packages/web-analytics";
-import { SESSION_COOKIE_NAME } from "@packages/web-session";
-import { persistentSessionCookieOptions } from "./session-cookie-options";
+import { sessionCookie } from "../session-cookie";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { ClickAttributionSchema, readClickAttribution } from "@packages/web-analytics";
@@ -69,6 +68,10 @@ const StatePayloadSchema = z.object({
 
 const STATE_COOKIE = "hutch_astate";
 const STATE_TTL_MS = 5 * 60 * 1000;
+// The state cookie must survive the cross-site form_post callback, where a
+// SameSite=Lax cookie would not be sent — so it is SameSite=None (implying
+// Secure). Clearing it later uses the matching sameSite/secure attributes.
+const appleStateCookie = defineCookie({ name: STATE_COOKIE, maxAgeMs: STATE_TTL_MS, sameSite: "none", httpOnly: true, schema: z.string() });
 
 interface AppleAuthDependencies {
 	appleClientId: string;
@@ -100,18 +103,10 @@ interface AppleAuthDependencies {
 
 export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 	const router = express.Router();
-	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
 	const signIn = (res: Response, sessionId: string): void => {
-		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		sessionCookie.set({ res, value: sessionId, secure: deps.secureCookies });
 		res.set("Clear-Site-Data", '"storage"');
 		setLastAuthProvider({ res, secure: deps.secureCookies }, "apple");
-	};
-	// The state cookie must survive the cross-site form_post callback, where a
-	// SameSite=Lax cookie would not be sent — so it is SameSite=None (implying
-	// Secure). Clearing it later uses the matching sameSite/secure attributes.
-	const stateCookieOptions = {
-		...baseCookieOptions(deps.secureCookies),
-		sameSite: "none" as const,
 	};
 	const redirectUri = `${deps.appOrigin}/auth/apple/callback`;
 	const fetchUserCount = initFetchUserCount({
@@ -154,10 +149,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			secret: deps.stateSigningSecret,
 		});
 
-		res.cookie(STATE_COOKIE, signedState, {
-			...stateCookieOptions,
-			maxAge: STATE_TTL_MS,
-		});
+		appleStateCookie.set({ res, value: signedState, secure: deps.secureCookies });
 
 		const params = new URLSearchParams({
 			client_id: deps.appleClientId,

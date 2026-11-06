@@ -161,7 +161,7 @@ describe("initBuildBannerState", () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "dark", displayName: undefined, signupOAuthClientId: null }),
+			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "dark", displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, earlyIntentionalSaves: 0 }),
 		});
 
 		const result = await build({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE });
@@ -180,6 +180,9 @@ describe("initBuildBannerState", () => {
 				emailVerified: true,
 				displayName: DisplayNameSchema.parse("James Davis"),
 				signupOAuthClientId: null,
+				activationThresholdReachedAt: undefined,
+				keepOfferDismissedAt: undefined,
+				earlyIntentionalSaves: 0,
 			}),
 		});
 
@@ -203,7 +206,7 @@ describe("initBuildBannerState", () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, displayName: undefined, signupOAuthClientId: null }),
+			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, earlyIntentionalSaves: 0 }),
 		});
 
 		const result = await build({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE });
@@ -221,7 +224,7 @@ describe("initBuildBannerState", () => {
 
 		const result = await build(
 			{ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE },
-			{ preFetchedAccess: access, preFetchedUser: { userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "light", displayName: undefined, signupOAuthClientId: null } },
+			{ preFetchedAccess: access, preFetchedUser: { userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "light", displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, earlyIntentionalSaves: 0 } },
 		);
 
 		expect(result.appearance).toBe("light");

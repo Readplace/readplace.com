@@ -1,9 +1,9 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
-} from "@packages/hutch-storage-client";
+	writeIfCondition,
+} from "@packages/storage-client";
 import {
 	type ClaimMeteredLeg,
 	type MeteredLeg,
@@ -36,8 +36,8 @@ export function initDynamoDbMeteredLegLedger(deps: {
 	});
 
 	const claimMeteredLeg: ClaimMeteredLeg = async ({ url, leg, inputHash, claimId, expiresAt }) => {
-		try {
-			await table.update({
+		const written = await writeIfCondition(() =>
+			table.update({
 				Key: { url: ArticleResourceUniqueId.parse(url).value },
 				UpdateExpression: "SET #claim = :claim",
 				ConditionExpression:
@@ -50,10 +50,10 @@ export function initDynamoDbMeteredLegLedger(deps: {
 					":hash": inputHash,
 				},
 				ReturnValuesOnConditionCheckFailure: "ALL_OLD",
-			});
-		} catch (error) {
-			if (!(error instanceof ConditionalCheckFailedException)) throw error;
-			return classifyRefusedClaim(error.Item, { leg, hash: inputHash });
+			}),
+		);
+		if (written.kind === "condition-failed") {
+			return classifyRefusedClaim(written.oldItem, { leg, hash: inputHash });
 		}
 		return { kind: "granted", permit: PaidLegPermitSchema.parse({ leg, claimId, inputHash }) };
 	};
@@ -72,17 +72,15 @@ export function initDynamoDbMeteredLegLedger(deps: {
 	};
 
 	const releaseMeteredLeg: ReleaseMeteredLeg = async ({ url, permit }) => {
-		try {
-			await table.update({
+		await writeIfCondition(() =>
+			table.update({
 				Key: { url: ArticleResourceUniqueId.parse(url).value },
 				UpdateExpression: "REMOVE #claim",
 				ConditionExpression: "#claim.claimId = :claimId",
 				ExpressionAttributeNames: { "#claim": `claim_${permit.leg}` },
 				ExpressionAttributeValues: { ":claimId": permit.claimId },
-			});
-		} catch (error) {
-			if (!(error instanceof ConditionalCheckFailedException)) throw error;
-		}
+			}),
+		);
 	};
 
 	return { claimMeteredLeg, settleMeteredLeg, releaseMeteredLeg };

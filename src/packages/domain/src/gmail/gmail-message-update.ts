@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NormalizedMessageIdSchema } from "../inbox/email-identity";
+import { NormalizedMessageIdSchema } from "../mail-identity/normalized-message-id";
 import type { UserId } from "../user";
 import { ForwardableSenderSchema } from "./build-forwarding-filter-query";
 import { type GmailAccountEmail, GmailAccountEmailSchema } from "./gmail-account-email.schema";

@@ -6,17 +6,17 @@ import { z } from "zod";
 import { buildMediaRobotsTxt } from "@packages/domain/crawler-policy";
 import {
 	curlImpersonateLayerArnFromPlatformStack,
-	HutchEventBus,
-	HutchLambda,
-	HutchDynamoDBAccess,
-	HutchDLQEventHandler,
-	HutchSharedDlq,
-	HutchSQS,
-	HutchSQSBackedLambda,
-	HutchS3ReadWrite,
-	HutchS3ContentMediaCDN,
+	EventBus,
+	Lambda,
+	DynamoDBAccess,
+	DLQEventHandler,
+	SharedDlq,
+	Sqs,
+	SqsBackedLambda,
+	S3ReadWrite,
+	S3ContentMediaCDN,
 	type LambdaPolicy,
-} from "@packages/hutch-infra-components/infra";
+} from "@packages/infra-components/infra";
 import {
 	SaveLinkCommand,
 	SaveEmailIssueCommand,
@@ -50,7 +50,7 @@ import {
 	SAVE_LINK_DLQ_SOURCES,
 	SAVE_LINK_LAMBDA_NAMES,
 	CRAWL_SETTLED_METRIC,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
 import { RENDER_CRAWL_TIMEOUTS } from "../runtime/domain/render-crawl/timeouts";
@@ -67,6 +67,38 @@ import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeou
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "../runtime/domain/pdf-page-llm-cleanup/timeouts";
 import { OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS } from "../runtime/domain/pdf-document-diff-review/timeouts";
 import { OCR_HTML_CONVERT_TIMEOUTS } from "../runtime/domain/pdf-page-html-convert/timeouts";
+import { SAVE_LINK_FAILURES_DLQ_ENV } from "../runtime/save-link-failures-dlq.env";
+import { SAVE_LINK_COMMAND_ENV } from "../runtime/save-link-command.env";
+import { SUBMIT_LINK_ENV } from "../runtime/submit-link.env";
+import { SAVE_EMAIL_ISSUE_COMMAND_ENV } from "../runtime/save-email-issue-command.env";
+import { SAVE_LINK_RAW_HTML_COMMAND_ENV } from "../runtime/save-link-raw-html-command.env";
+import { SAVE_ANONYMOUS_LINK_COMMAND_ENV } from "../runtime/save-anonymous-link-command.env";
+import { SIMPLE_CRAWL_UNSUPPORTED_POLICY_ENV } from "../runtime/simple-crawl-unsupported-policy.env";
+import { PDF_PAGE_LLM_CLEANUP_ENV } from "../runtime/pdf-page-llm-cleanup.env";
+import { PDF_PAGE_HTML_CONVERT_ENV } from "../runtime/pdf-page-html-convert.env";
+import { PDF_DOCUMENT_DIFF_REVIEW_ENV } from "../runtime/pdf-document-diff-review.env";
+import { COMPREHENSIVE_CRAWL_COMMAND_ENV } from "../runtime/comprehensive-crawl-command.env";
+import { SAVE_LINK_RAW_PDF_COMMAND_ENV } from "../runtime/save-link-raw-pdf-command.env";
+import { STALE_CHECK_ENV } from "../runtime/stale-check.env";
+import { SELECT_MOST_COMPLETE_CONTENT_ENV } from "../runtime/select-most-complete-content.env";
+import { PDF_PAGE_OCR_ENV } from "../runtime/pdf-page-ocr.env";
+import { RENDER_CRAWL_COMMAND_ENV } from "../runtime/render-crawl-command.env";
+import { REMOVE_MY_CONTENT_COMMAND_ENV } from "../runtime/remove-my-content-command.env";
+import { RESELECT_AFTER_REMOVAL_ENV } from "../runtime/reselect-after-removal.env";
+import { GENERATE_SUMMARY_ENV } from "../runtime/generate-summary.env";
+import { LINK_SAVED_ENV } from "../runtime/link-saved.env";
+import { ANONYMOUS_LINK_SAVED_ENV } from "../runtime/anonymous-link-saved.env";
+import { CANONICAL_CONTENT_CHANGED_ENV } from "../runtime/canonical-content-changed.env";
+import { COMPUTE_RELATED_ARTICLES_ENV } from "../runtime/compute-related-articles.env";
+import { FILTER_EMAIL_LINKS_ENV } from "../runtime/filter-email-links.env";
+import { FILE_ARTICLE_INTO_READLIST_ENV } from "../runtime/file-article-into-readlist.env";
+import { RECRAWL_LINK_INITIATED_ENV } from "../runtime/recrawl-link-initiated.env";
+import { RECRAWL_CONTENT_EXTRACTED_ENV } from "../runtime/recrawl-content-extracted.env";
+import { SUMMARY_GENERATED_ENV } from "../runtime/summary-generated.env";
+import { SUMMARY_GENERATION_FAILED_ENV } from "../runtime/summary-generation-failed.env";
+import { REFRESH_ARTICLE_CONTENT_ENV } from "../runtime/refresh-article-content.env";
+import { REFRESH_CONTENT_EXTRACTED_ENV } from "../runtime/refresh-content-extracted.env";
+import { UPDATE_FETCH_TIMESTAMP_ENV } from "../runtime/update-fetch-timestamp.env";
 
 /* Pulumi requires unique resource names per stack. Two Lambdas that attach
  * the same shared queue's send-policy would collide on the policy's name,
@@ -128,13 +160,13 @@ const ocrImageTags = z
 const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
 // The proxy URL carries embedded credentials, so it is a secret like
 // deepseekApiKey below — pulumi.secret keeps it encrypted in state.
-const crawlEgressProxyEnvironment: Record<string, pulumi.Input<string>> = {
+const crawlEgressProxyEnvironment = {
 	CRAWL_EGRESS_PROXY_URL: pulumi.secret(requireEnv("CRAWL_EGRESS_PROXY_URL")),
-};
+} satisfies Record<string, pulumi.Input<string>>;
 
 // --- Content S3 Bucket ---
 
-const contentBucket = new HutchS3ReadWrite("content-bucket", {
+const contentBucket = new S3ReadWrite("content-bucket", {
 	bucketName: contentBucketName,
 });
 
@@ -166,7 +198,7 @@ new aws.s3.BucketLifecycleConfigurationV2("content-bucket-pdf-staging-lifecycle"
 // Browser extensions upload large captures straight to these buckets via a
 // presigned PUT (bypassing the API Gateway 6 MB payload limit), so the buckets
 // must allow the cross-origin PUT. The presigned signature is the authorisation
-// — see HutchS3ReadWrite.corsRules for why `["*"]` origins are safe.
+// — see S3ReadWrite.corsRules for why `["*"]` origins are safe.
 const UPLOAD_CORS_RULES = [
 	{
 		allowedMethods: ["PUT"],
@@ -176,7 +208,7 @@ const UPLOAD_CORS_RULES = [
 	},
 ];
 
-const pendingHtmlBucket = new HutchS3ReadWrite("pending-html-bucket", {
+const pendingHtmlBucket = new S3ReadWrite("pending-html-bucket", {
 	bucketName: pendingHtmlBucketName,
 	expirationRules: [
 		{
@@ -193,7 +225,7 @@ const pendingHtmlBucket = new HutchS3ReadWrite("pending-html-bucket", {
 // Lambda's PutObject and the save-link-raw-pdf-command worker's GetObject
 // (pending-pdf/ prefix). Same 1-day expiration as pending-html so staged
 // uploads never linger.
-const pendingPdfBucket = new HutchS3ReadWrite("pending-pdf-bucket", {
+const pendingPdfBucket = new S3ReadWrite("pending-pdf-bucket", {
 	bucketName: pendingPdfBucketName,
 	expirationRules: [
 		{
@@ -220,7 +252,7 @@ const contentMedia = contentMediaCdnDomain
 	})()
 	: { customDomain: undefined, corsAllowedOrigins: ["*"] };
 
-const contentMediaCdn = new HutchS3ContentMediaCDN("content-media", {
+const contentMediaCdn = new S3ContentMediaCDN("content-media", {
 	contentBucket,
 	customDomain: contentMedia.customDomain,
 	corsAllowedOrigins: contentMedia.corsAllowedOrigins,
@@ -235,20 +267,20 @@ new aws.s3.BucketObject("content-media-robots-txt", {
 
 const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));
 
-const eventBus = HutchEventBus.fromPlatformStack(config);
+const eventBus = EventBus.fromPlatformStack(config);
 
 // --- Queues ---
 
-const failuresDlq = new HutchSharedDlq(SAVE_LINK_FAILURES_DLQ, {
+const failuresDlq = new SharedDlq(SAVE_LINK_FAILURES_DLQ, {
 	alertEmailDLQEntry: alertEmail,
 });
 
-const generateSummaryQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.generateSummary, {
+const generateSummaryQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.generateSummary, {
 	visibilityTimeoutSeconds: GENERATE_SUMMARY_TIMEOUTS.sqsVisibilitySeconds,
 	dlqMaxReceiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT,
 });
 
-const linkSavedQueue = new HutchSQS("link-saved", {
+const linkSavedQueue = new Sqs("link-saved", {
 	visibilityTimeoutSeconds: 60,
 });
 
@@ -268,7 +300,7 @@ const linkSavedQueue = new HutchSQS("link-saved", {
 // can become canonical instead. Trade-off: a genuinely transient tier-1 blip
 // (503/timeout) does not self-heal at the SQS layer; the user re-saving (or
 // /admin/recrawl) is the retry.
-const saveLinkCommandQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.saveLinkCommand, {
+const saveLinkCommandQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.saveLinkCommand, {
 	visibilityTimeoutSeconds: 480,
 	dlqMaxReceiveCount: 1,
 	sharedDlq: failuresDlq,
@@ -283,7 +315,7 @@ const saveLinkCommandQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.saveLinkCommand,
 //
 // Now simple-only — PDFs go through the comprehensive Lambda — so the
 // timeout/visibility shrink to match save-link-command above.
-const saveAnonymousLinkCommandQueue = new HutchSQS(
+const saveAnonymousLinkCommandQueue = new Sqs(
 	SAVE_LINK_DLQ_SOURCES.saveAnonymousLinkCommand,
 	{
 		visibilityTimeoutSeconds: 480,
@@ -292,7 +324,7 @@ const saveAnonymousLinkCommandQueue = new HutchSQS(
 	},
 );
 
-const saveLinkRawHtmlCommandQueue = new HutchSQS(
+const saveLinkRawHtmlCommandQueue = new Sqs(
 	SAVE_LINK_DLQ_SOURCES.saveLinkRawHtmlCommand,
 	{
 		visibilityTimeoutSeconds: 480,
@@ -303,7 +335,7 @@ const saveLinkRawHtmlCommandQueue = new HutchSQS(
 // OCR path: 1800s visibility = 2x the
 // 900s Lambda timeout; dlqMaxReceiveCount=1 because a retry re-OCRs every page
 // from scratch, so an automatic redrive is expensive and rarely succeeds.
-const saveLinkRawPdfCommandQueue = new HutchSQS(
+const saveLinkRawPdfCommandQueue = new Sqs(
 	SAVE_LINK_DLQ_SOURCES.saveLinkRawPdfCommand,
 	{
 		visibilityTimeoutSeconds: 1800,
@@ -312,15 +344,15 @@ const saveLinkRawPdfCommandQueue = new HutchSQS(
 	},
 );
 
-const anonymousLinkSavedQueue = new HutchSQS("anonymous-link-saved", {
+const anonymousLinkSavedQueue = new Sqs("anonymous-link-saved", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const summaryGeneratedQueue = new HutchSQS("summary-generated", {
+const summaryGeneratedQueue = new Sqs("summary-generated", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const summaryGenerationFailedQueue = new HutchSQS("summary-generation-failed", {
+const summaryGenerationFailedQueue = new Sqs("summary-generation-failed", {
 	visibilityTimeoutSeconds: 60,
 });
 
@@ -331,7 +363,7 @@ const summaryGenerationFailedQueue = new HutchSQS("summary-generation-failed", {
 // only delay giving up. Fail once so the row stops sitting in "fetching" for
 // ~24 min and a tier-0 (extension) save can be picked up instead of the doomed
 // server crawl.
-const recrawlLinkInitiatedQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.recrawlLinkInitiated, {
+const recrawlLinkInitiatedQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.recrawlLinkInitiated, {
 	visibilityTimeoutSeconds: 480,
 	dlqMaxReceiveCount: 1,
 	sharedDlq: failuresDlq,
@@ -339,11 +371,11 @@ const recrawlLinkInitiatedQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.recrawlLink
 
 // Simple-only — PDF refreshes dispatch the comprehensive-crawl-command with
 // refresh=true so the comprehensive Lambda emits RefreshContentExtractedEvent.
-const staleCheckRequestedQueue = new HutchSQS("stale-check-requested", {
+const staleCheckRequestedQueue = new Sqs("stale-check-requested", {
 	visibilityTimeoutSeconds: 480,
 });
 
-const recrawlContentExtractedQueue = new HutchSQS(
+const recrawlContentExtractedQueue = new Sqs(
 	SAVE_LINK_DLQ_SOURCES.recrawlContentExtracted,
 	{
 		visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
@@ -351,24 +383,25 @@ const recrawlContentExtractedQueue = new HutchSQS(
 	},
 );
 
-const removeMyContentCommandQueue = new HutchSQS("remove-my-content-command", {
+const removeMyContentCommandQueue = new Sqs("remove-my-content-command", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const reselectAfterRemovalQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.reselectAfterRemoval, {
+const reselectAfterRemovalQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.reselectAfterRemoval, {
 	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
 	dlqMaxReceiveCount: SELECT_CONTENT_MAX_RECEIVE_COUNT,
 });
 
-new HutchDLQEventHandler(SAVE_LINK_FAILURES_DLQ_CONSUMER, {
+new DLQEventHandler(SAVE_LINK_FAILURES_DLQ_CONSUMER, {
 	deadLetterQueue: failuresDlq,
 	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	tableNameEnvVar: "DYNAMODB_ARTICLES_TABLE",
 	eventBus,
 	batchSize: 1,
 	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
+	environmentNames: SAVE_LINK_FAILURES_DLQ_ENV,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	additionalPolicies: renamePolicies(
@@ -379,12 +412,12 @@ new HutchDLQEventHandler(SAVE_LINK_FAILURES_DLQ_CONSUMER, {
 
 // --- SaveLinkCommand handler ---
 
-const saveLinkCommandDynamodb = new HutchDynamoDBAccess("save-link-command-dynamodb", {
+const saveLinkCommandDynamodb = new DynamoDBAccess("save-link-command-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCommand, {
+const saveLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCommand, {
 	priorLogGroupLogicalName: "saveLinkCommand-log-group",
 	entryPoint: "./src/runtime/save-link-command.main.ts",
 	outputDir: ".lib/save-link-command",
@@ -396,6 +429,7 @@ const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCom
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: SAVE_LINK_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -414,7 +448,7 @@ const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCom
 
 eventBus.grantPublish(saveLinkCommandLambda);
 
-const saveLinkCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-command", {
+const saveLinkCommandLambdaWithSQS = new SqsBackedLambda("save-link-command", {
 	lambda: saveLinkCommandLambda,
 	queue: saveLinkCommandQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -431,13 +465,13 @@ eventBus.subscribe(SaveLinkCommand, saveLinkCommandLambdaWithSQS);
 // not "nothing was queued" (the accept phase writes the queue row before several
 // calls that can still throw), so its consumer lets an accepted save outrank it.
 // The DLQ alarm stays wired alongside it.
-const submitLinkQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.submitLink, {
+const submitLinkQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.submitLink, {
 	visibilityTimeoutSeconds: 480,
 	dlqMaxReceiveCount: SUBMIT_LINK_MAX_RECEIVE_COUNT,
 	sharedDlq: failuresDlq,
 });
 
-const submitLinkArticlesDynamodb = new HutchDynamoDBAccess("submit-link-articles-dynamodb", {
+const submitLinkArticlesDynamodb = new DynamoDBAccess("submit-link-articles-dynamodb", {
 	// routeId-index Query: updateArticleStatus resolves the row for the
 	// read-to-unread resurface by reader hash id.
 	tables: [{ arn: articlesTableArn, includeIndexes: true }],
@@ -449,7 +483,7 @@ const submitLinkArticlesDynamodb = new HutchDynamoDBAccess("submit-link-articles
 	],
 });
 
-const submitLinkUserArticlesDynamodb = new HutchDynamoDBAccess(
+const submitLinkUserArticlesDynamodb = new DynamoDBAccess(
 	"submit-link-user-articles-dynamodb",
 	{
 		tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
@@ -457,18 +491,19 @@ const submitLinkUserArticlesDynamodb = new HutchDynamoDBAccess(
 	},
 );
 
-const submitLinkOnboardingDynamodb = new HutchDynamoDBAccess("submit-link-onboarding-dynamodb", {
+const submitLinkOnboardingDynamodb = new DynamoDBAccess("submit-link-onboarding-dynamodb", {
 	tables: [{ arn: onboardingTableArn, includeIndexes: false }],
 	actions: ["dynamodb:UpdateItem"],
 });
 
-const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
+const submitLinkLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	entryPoint: "./src/runtime/submit-link.main.ts",
 	outputDir: ".lib/submit-link",
 	assetDir: "./src",
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: SUBMIT_LINK_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
@@ -491,7 +526,7 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 
 eventBus.grantPublish(submitLinkLambda);
 
-const submitLinkLambdaWithSQS = new HutchSQSBackedLambda("submit-link", {
+const submitLinkLambdaWithSQS = new SqsBackedLambda("submit-link", {
 	lambda: submitLinkLambda,
 	queue: submitLinkQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -500,11 +535,11 @@ const submitLinkLambdaWithSQS = new HutchSQSBackedLambda("submit-link", {
 
 eventBus.subscribeAll([SubmitLinkCommand, ResolveArticleOnViewCommand], submitLinkLambdaWithSQS, { name: SubmitLinkCommand.name });
 
-const saveEmailIssueQueue = new HutchSQS("save-email-issue-command", {
+const saveEmailIssueQueue = new Sqs("save-email-issue-command", {
 	visibilityTimeoutSeconds: 120,
 });
 
-const saveEmailIssueArticlesDynamodb = new HutchDynamoDBAccess("save-email-issue-articles-dynamodb", {
+const saveEmailIssueArticlesDynamodb = new DynamoDBAccess("save-email-issue-articles-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: true }],
 	actions: [
 		"dynamodb:GetItem",
@@ -514,22 +549,23 @@ const saveEmailIssueArticlesDynamodb = new HutchDynamoDBAccess("save-email-issue
 	],
 });
 
-const saveEmailIssueUserArticlesDynamodb = new HutchDynamoDBAccess("save-email-issue-user-articles-dynamodb", {
+const saveEmailIssueUserArticlesDynamodb = new DynamoDBAccess("save-email-issue-user-articles-dynamodb", {
 	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
 });
 
-const saveEmailIssueOnboardingDynamodb = new HutchDynamoDBAccess("save-email-issue-onboarding-dynamodb", {
+const saveEmailIssueOnboardingDynamodb = new DynamoDBAccess("save-email-issue-onboarding-dynamodb", {
 	tables: [{ arn: onboardingTableArn, includeIndexes: false }],
 	actions: ["dynamodb:UpdateItem"],
 });
 
-const saveEmailIssueLambda = new HutchLambda("save-email-issue-command", {
+const saveEmailIssueLambda = new Lambda("save-email-issue-command", {
 	entryPoint: "./src/runtime/save-email-issue-command.main.ts",
 	outputDir: ".lib/save-email-issue-command",
 	assetDir: "./src",
 	memorySize: 512,
 	timeout: 60,
+	environmentNames: SAVE_EMAIL_ISSUE_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
@@ -548,7 +584,7 @@ const saveEmailIssueLambda = new HutchLambda("save-email-issue-command", {
 
 eventBus.grantPublish(saveEmailIssueLambda);
 
-const saveEmailIssueLambdaWithSQS = new HutchSQSBackedLambda("save-email-issue-command", {
+const saveEmailIssueLambdaWithSQS = new SqsBackedLambda("save-email-issue-command", {
 	lambda: saveEmailIssueLambda,
 	queue: saveEmailIssueQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -559,12 +595,12 @@ eventBus.subscribe(SaveEmailIssueCommand, saveEmailIssueLambdaWithSQS);
 
 // --- SaveLinkRawHtmlCommand handler ---
 
-const saveLinkRawHtmlCommandDynamodb = new HutchDynamoDBAccess("save-link-raw-html-command-dynamodb", {
+const saveLinkRawHtmlCommandDynamodb = new DynamoDBAccess("save-link-raw-html-command-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawHtmlCommand, {
+const saveLinkRawHtmlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawHtmlCommand, {
 	priorLogGroupLogicalName: "saveLinkRawHtmlCommand-log-group",
 	entryPoint: "./src/runtime/save-link-raw-html-command.main.ts",
 	outputDir: ".lib/save-link-raw-html-command",
@@ -573,6 +609,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: SAVE_LINK_RAW_HTML_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -595,7 +632,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 
 eventBus.grantPublish(saveLinkRawHtmlCommandLambda);
 
-const saveLinkRawHtmlCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-raw-html-command", {
+const saveLinkRawHtmlCommandLambdaWithSQS = new SqsBackedLambda("save-link-raw-html-command", {
 	lambda: saveLinkRawHtmlCommandLambda,
 	queue: saveLinkRawHtmlCommandQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -606,12 +643,12 @@ eventBus.subscribe(SaveLinkRawHtmlCommand, saveLinkRawHtmlCommandLambdaWithSQS);
 
 // --- SaveAnonymousLinkCommand handler ---
 
-const saveAnonymousLinkCommandDynamodb = new HutchDynamoDBAccess("save-anonymous-link-command-dynamodb", {
+const saveAnonymousLinkCommandDynamodb = new DynamoDBAccess("save-anonymous-link-command-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveAnonymousLinkCommand, {
+const saveAnonymousLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveAnonymousLinkCommand, {
 	priorLogGroupLogicalName: "saveAnonymousLinkCommand-log-group",
 	entryPoint: "./src/runtime/save-anonymous-link-command.main.ts",
 	outputDir: ".lib/save-anonymous-link-command",
@@ -620,6 +657,7 @@ const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.sa
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: SAVE_ANONYMOUS_LINK_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -638,7 +676,7 @@ const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.sa
 
 eventBus.grantPublish(saveAnonymousLinkCommandLambda);
 
-const saveAnonymousLinkCommandLambdaWithSQS = new HutchSQSBackedLambda("save-anonymous-link-command", {
+const saveAnonymousLinkCommandLambdaWithSQS = new SqsBackedLambda("save-anonymous-link-command", {
 	lambda: saveAnonymousLinkCommandLambda,
 	queue: saveAnonymousLinkCommandQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -654,7 +692,7 @@ eventBus.subscribe(SaveAnonymousLinkCommand, saveAnonymousLinkCommandLambdaWithS
 // Lambda. This intermediate event decouples the Command → Command dispatch
 // that would otherwise violate the Command → System → Event(s) pattern.
 // 60s visibility = 2× the 30s Lambda timeout.
-const simpleCrawlUnsupportedPolicyQueue = new HutchSQS(
+const simpleCrawlUnsupportedPolicyQueue = new Sqs(
 	SAVE_LINK_DLQ_SOURCES.simpleCrawlUnsupportedPolicy,
 	{
 		visibilityTimeoutSeconds: 60,
@@ -662,12 +700,13 @@ const simpleCrawlUnsupportedPolicyQueue = new HutchSQS(
 	},
 );
 
-const simpleCrawlUnsupportedPolicyLambda = new HutchLambda("simple-crawl-unsupported-policy", {
+const simpleCrawlUnsupportedPolicyLambda = new Lambda("simple-crawl-unsupported-policy", {
 	entryPoint: "./src/runtime/simple-crawl-unsupported-policy.main.ts",
 	outputDir: ".lib/simple-crawl-unsupported-policy",
 	assetDir: "./src",
 	memorySize: 128,
 	timeout: 30,
+	environmentNames: SIMPLE_CRAWL_UNSUPPORTED_POLICY_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
@@ -676,7 +715,7 @@ const simpleCrawlUnsupportedPolicyLambda = new HutchLambda("simple-crawl-unsuppo
 
 eventBus.grantPublish(simpleCrawlUnsupportedPolicyLambda);
 
-const simpleCrawlUnsupportedPolicyLambdaWithSQS = new HutchSQSBackedLambda("simple-crawl-unsupported-policy", {
+const simpleCrawlUnsupportedPolicyLambdaWithSQS = new SqsBackedLambda("simple-crawl-unsupported-policy", {
 	lambda: simpleCrawlUnsupportedPolicyLambda,
 	queue: simpleCrawlUnsupportedPolicyQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -695,7 +734,7 @@ eventBus.subscribe(SimpleCrawlUnsupportedEvent, simpleCrawlUnsupportedPolicyLamb
 // returns the HTML fragment. Wall-time collapses to ~max(per_page) +
 // dispatch overhead instead of summing the sequential rasterisation cost.
 //
-// No HutchSQSBackedLambda wrapper / no DLQ on this Lambda: it is a
+// No SqsBackedLambda wrapper / no DLQ on this Lambda: it is a
 // synchronous request/response Lambda (the documented exception in
 // .claude/skills/infrastructure-design/SKILL.md). The orchestrator is the
 // queue analogue — per-page failures propagate to the orchestrator's catch,
@@ -713,7 +752,7 @@ const pdfPageOcrStagingRead: LambdaPolicy = {
 	})),
 };
 
-const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
+const pdfPageOcrLambda = new Lambda("pdf-page-ocr", {
 	// 1769 MB lands one vCPU per Lambda for CPU-bound pdftoppm + Tesseract.
 	// 900 s timeout is AWS Lambda's hard ceiling — overprovisioned versus
 	// observed per-page wall clocks (Tesseract finishes the heaviest CIA
@@ -727,6 +766,7 @@ const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
 	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["pdf-page-ocr"] },
+	environmentNames: PDF_PAGE_OCR_ENV,
 	environment: {
 		CONTENT_BUCKET_NAME: contentBucketName,
 	},
@@ -741,17 +781,18 @@ const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
 // network call (DeepSeek chat-completion); no rasterisation, no Tesseract
 // binary, no S3 access. Sized small accordingly.
 //
-// No DLQ / no HutchSQSBackedLambda wrapper for the same reason as
+// No DLQ / no SqsBackedLambda wrapper for the same reason as
 // pdf-page-ocr: sync request/response Lambda, exception documented in
 // .claude/skills/infrastructure-design/SKILL.md. Cleanup failures fall back
 // to the original Tesseract text inside the orchestrator, so a Lambda-level
 // failure here never strands the article — Tesseract output ships unchanged.
-const pdfPageLlmCleanupLambda = new HutchLambda("pdf-page-llm-cleanup", {
+const pdfPageLlmCleanupLambda = new Lambda("pdf-page-llm-cleanup", {
 	memorySize: 512,
 	timeout: OCR_LLM_CLEANUP_TIMEOUTS.lambdaSeconds,
 	entryPoint: "./src/runtime/pdf-page-llm-cleanup.main.ts",
 	outputDir: ".lib/pdf-page-llm-cleanup",
 	assetDir: "./src",
+	environmentNames: PDF_PAGE_LLM_CLEANUP_ENV,
 	environment: {
 		DEEPSEEK_API_KEY: deepseekApiKey,
 	},
@@ -768,19 +809,20 @@ const pdfPageLlmCleanupLambda = new HutchLambda("pdf-page-llm-cleanup", {
 // reader view with headings, lists, code blocks, blockquotes, and tables
 // instead of a wall of paragraphs.
 //
-// No DLQ / no HutchSQSBackedLambda wrapper for the same reason as
+// No DLQ / no SqsBackedLambda wrapper for the same reason as
 // pdf-page-ocr / pdf-page-llm-cleanup: sync request/response Lambda,
 // the documented exception in .claude/skills/infrastructure-design/SKILL.md.
 // HTML-convert failures fall back to a `<p class="ocr-tesseract">` wrap
 // inside the Stage 3 handler (and again inside the orchestrator if the
 // invoke itself fails), so a Lambda-level failure never strands the
 // article — the reader still gets the Stage 2 text.
-const pdfPageHtmlConvertLambda = new HutchLambda("pdf-page-html-convert", {
+const pdfPageHtmlConvertLambda = new Lambda("pdf-page-html-convert", {
 	memorySize: 512,
 	timeout: OCR_HTML_CONVERT_TIMEOUTS.lambdaSeconds,
 	entryPoint: "./src/runtime/pdf-page-html-convert.main.ts",
 	outputDir: ".lib/pdf-page-html-convert",
 	assetDir: "./src",
+	environmentNames: PDF_PAGE_HTML_CONVERT_ENV,
 	environment: {
 		DEEPSEEK_API_KEY: deepseekApiKey,
 	},
@@ -799,12 +841,13 @@ const pdfPageHtmlConvertLambda = new HutchLambda("pdf-page-html-convert", {
 // in memory across diff construction, the LLM call, and decision
 // application. Longer timeout for the same reason — a 75-page document
 // hits multiple chunked DeepSeek calls.
-const pdfDocumentDiffReviewLambda = new HutchLambda("pdf-document-diff-review", {
+const pdfDocumentDiffReviewLambda = new Lambda("pdf-document-diff-review", {
 	memorySize: 1024,
 	timeout: OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS.lambdaSeconds,
 	entryPoint: "./src/runtime/pdf-document-diff-review.main.ts",
 	outputDir: ".lib/pdf-document-diff-review",
 	assetDir: "./src",
+	environmentNames: PDF_DOCUMENT_DIFF_REVIEW_ENV,
 	environment: {
 		DEEPSEEK_API_KEY: deepseekApiKey,
 	},
@@ -828,7 +871,7 @@ const pdfDocumentDiffReviewLambda = new HutchLambda("pdf-document-diff-review", 
 // the cost of an automatic redrive is high and the success rate of a literal
 // re-run without changed inputs is low. The DLQ → SNS alarm is the operator
 // signal; /admin/recrawl is the manual retry.
-const comprehensiveCrawlCommandQueue = new HutchSQS(
+const comprehensiveCrawlCommandQueue = new Sqs(
 	SAVE_LINK_DLQ_SOURCES.comprehensiveCrawlCommand,
 	{
 		visibilityTimeoutSeconds: COMPREHENSIVE_CRAWL_TIMEOUTS.sqsVisibilitySeconds,
@@ -837,7 +880,7 @@ const comprehensiveCrawlCommandQueue = new HutchSQS(
 	},
 );
 
-const comprehensiveCrawlCommandDynamodb = new HutchDynamoDBAccess("comprehensive-crawl-command-dynamodb", {
+const comprehensiveCrawlCommandDynamodb = new DynamoDBAccess("comprehensive-crawl-command-dynamodb", {
 	tables: [
 		{ arn: articlesTableArn, includeIndexes: false },
 		// Paid-crawl budget counter (conditional UpdateItem per crawl).
@@ -890,7 +933,7 @@ const comprehensiveCrawlCommandStagingDelete: LambdaPolicy = {
 	})),
 };
 
-const comprehensiveCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.comprehensiveCrawlCommand, {
+const comprehensiveCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.comprehensiveCrawlCommand, {
 	priorLogGroupLogicalName: "comprehensiveCrawlCommand-log-group",
 	// The orchestrator buffers the whole PDF (the AWS SDK stream collector alone
 	// peaks ~3× the file transiently) and writes it to /tmp for pdfinfo + S3
@@ -900,6 +943,7 @@ const comprehensiveCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.c
 	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
+	environmentNames: COMPREHENSIVE_CRAWL_COMMAND_ENV,
 	environment: {
 		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
@@ -930,7 +974,7 @@ const comprehensiveCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.c
 
 eventBus.grantPublish(comprehensiveCrawlCommandLambda);
 
-const comprehensiveCrawlCommandLambdaWithSQS = new HutchSQSBackedLambda("comprehensive-crawl-command", {
+const comprehensiveCrawlCommandLambdaWithSQS = new SqsBackedLambda("comprehensive-crawl-command", {
 	lambda: comprehensiveCrawlCommandLambda,
 	queue: comprehensiveCrawlCommandQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -939,7 +983,7 @@ const comprehensiveCrawlCommandLambdaWithSQS = new HutchSQSBackedLambda("compreh
 
 eventBus.subscribe(ComprehensiveCrawlCommand, comprehensiveCrawlCommandLambdaWithSQS);
 
-const renderCrawlCommandQueue = new HutchSQS(
+const renderCrawlCommandQueue = new Sqs(
 	SAVE_LINK_DLQ_SOURCES.renderCrawlCommand,
 	{
 		visibilityTimeoutSeconds: RENDER_CRAWL_TIMEOUTS.sqsVisibilitySeconds,
@@ -948,7 +992,7 @@ const renderCrawlCommandQueue = new HutchSQS(
 	},
 );
 
-const renderCrawlCommandDynamodb = new HutchDynamoDBAccess("render-crawl-command-dynamodb", {
+const renderCrawlCommandDynamodb = new DynamoDBAccess("render-crawl-command-dynamodb", {
 	tables: [
 		{ arn: articlesTableArn, includeIndexes: false },
 		{ arn: rateLimitsTableArn, includeIndexes: false },
@@ -956,11 +1000,12 @@ const renderCrawlCommandDynamodb = new HutchDynamoDBAccess("render-crawl-command
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const renderCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCommand, {
+const renderCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCommand, {
 	memorySize: 3008,
 	ephemeralStorageSize: 1024,
 	timeout: RENDER_CRAWL_TIMEOUTS.lambdaSeconds,
 	containerImage: { imageUri: ocrImageTags["render-crawl-command"] },
+	environmentNames: RENDER_CRAWL_COMMAND_ENV,
 	environment: {
 		...crawlEgressProxyEnvironment,
 		CRAWL_RESIDENTIAL_PROXY_URL: pulumi.secret(requireEnv("CRAWL_RESIDENTIAL_PROXY_URL")),
@@ -984,7 +1029,7 @@ const renderCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.renderCr
 
 eventBus.grantPublish(renderCrawlCommandLambda);
 
-const renderCrawlCommandLambdaWithSQS = new HutchSQSBackedLambda("render-crawl-command", {
+const renderCrawlCommandLambdaWithSQS = new SqsBackedLambda("render-crawl-command", {
 	lambda: renderCrawlCommandLambda,
 	queue: renderCrawlCommandQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1000,7 +1045,7 @@ eventBus.subscribe(RenderCrawlCommand, renderCrawlCommandLambdaWithSQS);
 // staging, per-page OCR fan-out, LLM cleanup, diff review, semantic-HTML
 // convert), writes the tier-0 source, and emits the downstream event.
 
-const saveLinkRawPdfCommandDynamodb = new HutchDynamoDBAccess("save-link-raw-pdf-command-dynamodb", {
+const saveLinkRawPdfCommandDynamodb = new DynamoDBAccess("save-link-raw-pdf-command-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
@@ -1049,7 +1094,7 @@ const saveLinkRawPdfCommandStagingDelete: LambdaPolicy = {
 	})),
 };
 
-const saveLinkRawPdfCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawPdfCommand, {
+const saveLinkRawPdfCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawPdfCommand, {
 	priorLogGroupLogicalName: "saveLinkRawPdfCommand-log-group",
 	// Reads the whole staged PDF into memory (SDK stream collector peaks ~3× the
 	// file) and writes it to /tmp for pdfinfo + S3 staging before per-page fan-out.
@@ -1058,6 +1103,7 @@ const saveLinkRawPdfCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveL
 	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["save-link-raw-pdf-command"] },
+	environmentNames: SAVE_LINK_RAW_PDF_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1086,7 +1132,7 @@ const saveLinkRawPdfCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveL
 
 eventBus.grantPublish(saveLinkRawPdfCommandLambda);
 
-const saveLinkRawPdfCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-raw-pdf-command", {
+const saveLinkRawPdfCommandLambdaWithSQS = new SqsBackedLambda("save-link-raw-pdf-command", {
 	lambda: saveLinkRawPdfCommandLambda,
 	queue: saveLinkRawPdfCommandQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1107,12 +1153,12 @@ eventBus.subscribe(SaveLinkRawPdfCommand, saveLinkRawPdfCommandLambdaWithSQS);
 // the row already has whatever state the upstream pipeline produced, and the
 // user can still read it.
 
-const staleCheckRequestedDynamodb = new HutchDynamoDBAccess("stale-check-requested-dynamodb", {
+const staleCheckRequestedDynamodb = new DynamoDBAccess("stale-check-requested-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCheckRequested, {
+const staleCheckRequestedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.staleCheckRequested, {
 	priorLogGroupLogicalName: "staleCheckRequested-log-group",
 	entryPoint: "./src/runtime/stale-check.main.ts",
 	outputDir: ".lib/stale-check-requested",
@@ -1121,6 +1167,7 @@ const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCh
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: STALE_CHECK_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1143,7 +1190,7 @@ const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCh
 
 eventBus.grantPublish(staleCheckRequestedLambda);
 
-const staleCheckRequestedLambdaWithSQS = new HutchSQSBackedLambda("stale-check-requested", {
+const staleCheckRequestedLambdaWithSQS = new SqsBackedLambda("stale-check-requested", {
 	lambda: staleCheckRequestedLambda,
 	queue: staleCheckRequestedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1158,7 +1205,7 @@ eventBus.subscribe(StaleCheckRequestedEvent, staleCheckRequestedLambdaWithSQS);
 // selector when there is competition, short-circuits when only one tier is
 // present. Emits CrawlArticleCompletedEvent (every successful selection).
 
-const selectMostCompleteContentQueue = new HutchSQS(
+const selectMostCompleteContentQueue = new Sqs(
 	SAVE_LINK_DLQ_SOURCES.selectMostCompleteContent,
 	{
 		visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
@@ -1166,12 +1213,12 @@ const selectMostCompleteContentQueue = new HutchSQS(
 	},
 );
 
-const selectMostCompleteContentDynamodb = new HutchDynamoDBAccess(`${SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent}-dynamodb`, {
+const selectMostCompleteContentDynamodb = new DynamoDBAccess(`${SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent}-dynamodb`, {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const selectMostCompleteContentLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent, {
+const selectMostCompleteContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent, {
 	priorLogGroupLogicalName: "selectMostCompleteContent-log-group",
 			entryPoint: "./src/runtime/select-most-complete-content.main.ts",
 		outputDir: ".lib/select-most-complete-content",
@@ -1182,6 +1229,7 @@ const selectMostCompleteContentLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.s
 		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environmentNames: SELECT_MOST_COMPLETE_CONTENT_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1199,7 +1247,7 @@ const selectMostCompleteContentLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.s
 
 eventBus.grantPublish(selectMostCompleteContentLambda);
 
-const selectMostCompleteContentLambdaWithSQS = new HutchSQSBackedLambda(SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent, {
+const selectMostCompleteContentLambdaWithSQS = new SqsBackedLambda(SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent, {
 	lambda: selectMostCompleteContentLambda,
 	queue: selectMostCompleteContentQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1285,7 +1333,7 @@ new aws.cloudwatch.MetricAlarm("crawl-settled-latency-alarm", {
 // still holding the URL, or purges every stored object and tombstones the row.
 // Idempotent throughout so an at-least-once redelivery converges.
 
-const removeMyContentCommandDynamodb = new HutchDynamoDBAccess("remove-my-content-command-dynamodb", {
+const removeMyContentCommandDynamodb = new DynamoDBAccess("remove-my-content-command-dynamodb", {
 	tables: [
 		{ arn: articlesTableArn, includeIndexes: false },
 		// url-index GSI: countSaversByUrl reads it to decide purge vs re-crawl.
@@ -1294,12 +1342,13 @@ const removeMyContentCommandDynamodb = new HutchDynamoDBAccess("remove-my-conten
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"],
 });
 
-const removeMyContentCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.removeMyContentCommand, {
+const removeMyContentCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.removeMyContentCommand, {
 	entryPoint: "./src/runtime/remove-my-content-command.main.ts",
 	outputDir: ".lib/remove-my-content-command",
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: REMOVE_MY_CONTENT_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
@@ -1315,7 +1364,7 @@ const removeMyContentCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.remo
 
 eventBus.grantPublish(removeMyContentCommandLambda);
 
-const removeMyContentCommandLambdaWithSQS = new HutchSQSBackedLambda("remove-my-content-command", {
+const removeMyContentCommandLambdaWithSQS = new SqsBackedLambda("remove-my-content-command", {
 	lambda: removeMyContentCommandLambda,
 	queue: removeMyContentCommandQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1330,17 +1379,18 @@ eventBus.subscribe(RemoveMyContentCommand, removeMyContentCommandLambdaWithSQS);
 // remover. Same shape as select-most-complete-content (3008 MB to hold full
 // tier-source HTML from S3).
 
-const reselectAfterRemovalDynamodb = new HutchDynamoDBAccess("reselect-after-removal-dynamodb", {
+const reselectAfterRemovalDynamodb = new DynamoDBAccess("reselect-after-removal-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const reselectAfterRemovalLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.reselectAfterRemoval, {
+const reselectAfterRemovalLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.reselectAfterRemoval, {
 	entryPoint: "./src/runtime/reselect-after-removal.main.ts",
 	outputDir: ".lib/reselect-after-removal",
 	assetDir: "./src",
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environmentNames: RESELECT_AFTER_REMOVAL_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1358,7 +1408,7 @@ const reselectAfterRemovalLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.resele
 
 eventBus.grantPublish(reselectAfterRemovalLambda);
 
-const reselectAfterRemovalLambdaWithSQS = new HutchSQSBackedLambda("reselect-after-removal", {
+const reselectAfterRemovalLambdaWithSQS = new SqsBackedLambda("reselect-after-removal", {
 	lambda: reselectAfterRemovalLambda,
 	queue: reselectAfterRemovalQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1369,12 +1419,12 @@ eventBus.subscribe(ReselectAfterRemovalEvent, reselectAfterRemovalLambdaWithSQS)
 
 // --- GenerateSummary handler ---
 
-const generateSummaryDynamodb = new HutchDynamoDBAccess("generate-summary-dynamodb", {
+const generateSummaryDynamodb = new DynamoDBAccess("generate-summary-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const generateSummaryLambda = new HutchLambda("generate-summary", {
+const generateSummaryLambda = new Lambda("generate-summary", {
 	entryPoint: "./src/runtime/generate-summary.main.ts",
 	outputDir: ".lib/generate-summary",
 	assetDir: "./src",
@@ -1383,6 +1433,7 @@ const generateSummaryLambda = new HutchLambda("generate-summary", {
 	// input is also char-capped in link-summariser so the model call can't overflow).
 	memorySize: 1769,
 	timeout: GENERATE_SUMMARY_TIMEOUTS.lambdaSeconds,
+	environmentNames: GENERATE_SUMMARY_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
@@ -1398,7 +1449,7 @@ const generateSummaryLambda = new HutchLambda("generate-summary", {
 
 eventBus.grantPublish(generateSummaryLambda);
 
-new HutchSQSBackedLambda("generate-summary", {
+new SqsBackedLambda("generate-summary", {
 	lambda: generateSummaryLambda,
 	queue: generateSummaryQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1407,17 +1458,18 @@ new HutchSQSBackedLambda("generate-summary", {
 
 // --- LinkSaved handler ---
 
-const linkSavedDynamodb = new HutchDynamoDBAccess("link-saved-dynamodb", {
+const linkSavedDynamodb = new DynamoDBAccess("link-saved-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem"],
 });
 
-const linkSavedLambda = new HutchLambda("link-saved", {
+const linkSavedLambda = new Lambda("link-saved", {
 	entryPoint: "./src/runtime/link-saved.main.ts",
 	outputDir: ".lib/link-saved",
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: LINK_SAVED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
@@ -1429,7 +1481,7 @@ const linkSavedLambda = new HutchLambda("link-saved", {
 	],
 });
 
-const linkSavedLambdaWithSQS = new HutchSQSBackedLambda("link-saved", {
+const linkSavedLambdaWithSQS = new SqsBackedLambda("link-saved", {
 	lambda: linkSavedLambda,
 	queue: linkSavedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1440,17 +1492,18 @@ eventBus.subscribe(LinkSavedEvent, linkSavedLambdaWithSQS);
 
 // --- AnonymousLinkSaved handler ---
 
-const anonymousLinkSavedDynamodb = new HutchDynamoDBAccess("anonymous-link-saved-dynamodb", {
+const anonymousLinkSavedDynamodb = new DynamoDBAccess("anonymous-link-saved-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem"],
 });
 
-const anonymousLinkSavedLambda = new HutchLambda("anonymous-link-saved", {
+const anonymousLinkSavedLambda = new Lambda("anonymous-link-saved", {
 	entryPoint: "./src/runtime/anonymous-link-saved.main.ts",
 	outputDir: ".lib/anonymous-link-saved",
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: ANONYMOUS_LINK_SAVED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
@@ -1464,7 +1517,7 @@ const anonymousLinkSavedLambda = new HutchLambda("anonymous-link-saved", {
 	],
 });
 
-const anonymousLinkSavedLambdaWithSQS = new HutchSQSBackedLambda("anonymous-link-saved", {
+const anonymousLinkSavedLambdaWithSQS = new SqsBackedLambda("anonymous-link-saved", {
 	lambda: anonymousLinkSavedLambda,
 	queue: anonymousLinkSavedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1482,24 +1535,25 @@ eventBus.subscribe(AnonymousLinkSavedEvent, anonymousLinkSavedLambdaWithSQS);
 // embeddings) attach as new eventBus.subscribe(CanonicalContentChangedEvent, …)
 // without touching the publisher. No dedicated DLQ event handler — the crawl has
 // already succeeded, so there is no terminal row state to flip on the rare
-// read-your-writes lag; the HutchSQSBackedLambda DLQ + email alarm is the
+// read-your-writes lag; the SqsBackedLambda DLQ + email alarm is the
 	// operator signal.
 
-const canonicalContentChangedQueue = new HutchSQS("canonical-content-changed", {
+const canonicalContentChangedQueue = new Sqs("canonical-content-changed", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const canonicalContentChangedDynamodb = new HutchDynamoDBAccess("canonical-content-changed-dynamodb", {
+const canonicalContentChangedDynamodb = new DynamoDBAccess("canonical-content-changed-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const canonicalContentChangedLambda = new HutchLambda("canonical-content-changed", {
+const canonicalContentChangedLambda = new Lambda("canonical-content-changed", {
 	entryPoint: "./src/runtime/canonical-content-changed.main.ts",
 	outputDir: ".lib/canonical-content-changed",
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: CANONICAL_CONTENT_CHANGED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1514,7 +1568,7 @@ const canonicalContentChangedLambda = new HutchLambda("canonical-content-changed
 
 eventBus.grantPublish(canonicalContentChangedLambda);
 
-const canonicalContentChangedLambdaWithSQS = new HutchSQSBackedLambda("canonical-content-changed", {
+const canonicalContentChangedLambdaWithSQS = new SqsBackedLambda("canonical-content-changed", {
 	lambda: canonicalContentChangedLambda,
 	queue: canonicalContentChangedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1527,17 +1581,17 @@ eventBus.subscribe(CanonicalContentChangedEvent, canonicalContentChangedLambdaWi
 // Waits (throw → SQS retry) while crawl metadata is still landing, so the model
 // never compares against the stub title a fresh save starts with.
 
-const computeRelatedArticlesQueue = new HutchSQS("compute-related-articles", {
+const computeRelatedArticlesQueue = new Sqs("compute-related-articles", {
 	visibilityTimeoutSeconds: RELATED_ARTICLES_TIMEOUTS.sqsVisibilitySeconds,
 	dlqMaxReceiveCount: COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT,
 });
 
-const computeRelatedArticlesArticlesDynamodb = new HutchDynamoDBAccess("compute-related-articles-articles-dynamodb", {
+const computeRelatedArticlesArticlesDynamodb = new DynamoDBAccess("compute-related-articles-articles-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:BatchGetItem"],
 });
 
-const computeRelatedArticlesUserArticlesDynamodb = new HutchDynamoDBAccess("compute-related-articles-user-articles-dynamodb", {
+const computeRelatedArticlesUserArticlesDynamodb = new DynamoDBAccess("compute-related-articles-user-articles-dynamodb", {
 	tables: [{ arn: userArticlesTableArn, includeIndexes: true }],
 	actions: [
 		"dynamodb:GetItem",
@@ -1547,27 +1601,36 @@ const computeRelatedArticlesUserArticlesDynamodb = new HutchDynamoDBAccess("comp
 	],
 });
 
-const computeRelatedArticlesLambda = new HutchLambda("compute-related-articles", {
+const computeRelatedArticlesRateLimitsDynamodb = new DynamoDBAccess("compute-related-articles-rate-limits-dynamodb", {
+	tables: [{ arn: rateLimitsTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+});
+
+const computeRelatedArticlesLambda = new Lambda("compute-related-articles", {
 	entryPoint: "./src/runtime/compute-related-articles.main.ts",
 	outputDir: ".lib/compute-related-articles",
 	assetDir: "./src",
-	memorySize: 256,
+	memorySize: 1024,
+	external: ["tokenizers"],
 	timeout: RELATED_ARTICLES_TIMEOUTS.lambdaSeconds,
+	environmentNames: COMPUTE_RELATED_ARTICLES_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
 	policies: [
 		...computeRelatedArticlesArticlesDynamodb.policies,
 		...computeRelatedArticlesUserArticlesDynamodb.policies,
+		...computeRelatedArticlesRateLimitsDynamodb.policies,
 	],
 });
 
 eventBus.grantPublish(computeRelatedArticlesLambda);
 
-const computeRelatedArticlesLambdaWithSQS = new HutchSQSBackedLambda("compute-related-articles", {
+const computeRelatedArticlesLambdaWithSQS = new SqsBackedLambda("compute-related-articles", {
 	lambda: computeRelatedArticlesLambda,
 	queue: computeRelatedArticlesQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1585,22 +1648,23 @@ eventBus.subscribeAll(
 	{ name: "compute-related-articles" },
 );
 
-const filterEmailLinksQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.filterEmailLinks, {
+const filterEmailLinksQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.filterEmailLinks, {
 	visibilityTimeoutSeconds: FILTER_EMAIL_LINKS_TIMEOUTS.sqsVisibilitySeconds,
 	dlqMaxReceiveCount: FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT,
 });
 
-const filterEmailLinksUserArticlesDynamodb = new HutchDynamoDBAccess("filter-email-links-user-articles-dynamodb", {
+const filterEmailLinksUserArticlesDynamodb = new DynamoDBAccess("filter-email-links-user-articles-dynamodb", {
 	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:Query"],
 });
 
-const filterEmailLinksLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.filterEmailLinks, {
+const filterEmailLinksLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.filterEmailLinks, {
 	entryPoint: "./src/runtime/filter-email-links.main.ts",
 	outputDir: ".lib/filter-email-links",
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: FILTER_EMAIL_LINKS_TIMEOUTS.lambdaSeconds,
+	environmentNames: FILTER_EMAIL_LINKS_ENV,
 	environment: {
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
@@ -1612,7 +1676,7 @@ const filterEmailLinksLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.filterEmai
 
 eventBus.grantPublish(filterEmailLinksLambda);
 
-const filterEmailLinksLambdaWithSQS = new HutchSQSBackedLambda("filter-email-links", {
+const filterEmailLinksLambdaWithSQS = new SqsBackedLambda("filter-email-links", {
 	lambda: filterEmailLinksLambda,
 	queue: filterEmailLinksQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1621,27 +1685,28 @@ const filterEmailLinksLambdaWithSQS = new HutchSQSBackedLambda("filter-email-lin
 
 eventBus.subscribe(EmailLinksTriagedEvent, filterEmailLinksLambdaWithSQS);
 
-const fileArticleIntoReadlistQueue = new HutchSQS("file-article-into-readlist", {
+const fileArticleIntoReadlistQueue = new Sqs("file-article-into-readlist", {
 	visibilityTimeoutSeconds: 300,
 	dlqMaxReceiveCount: 5,
 });
 
-const fileArticleIntoReadlistArticlesDynamodb = new HutchDynamoDBAccess("file-article-into-readlist-articles-dynamodb", {
+const fileArticleIntoReadlistArticlesDynamodb = new DynamoDBAccess("file-article-into-readlist-articles-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: true }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"],
 });
 
-const fileArticleIntoReadlistUserArticlesDynamodb = new HutchDynamoDBAccess("file-article-into-readlist-user-articles-dynamodb", {
+const fileArticleIntoReadlistUserArticlesDynamodb = new DynamoDBAccess("file-article-into-readlist-user-articles-dynamodb", {
 	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
 });
 
-const fileArticleIntoReadlistLambda = new HutchLambda("file-article-into-readlist", {
+const fileArticleIntoReadlistLambda = new Lambda("file-article-into-readlist", {
 	entryPoint: "./src/runtime/file-article-into-readlist.main.ts",
 	outputDir: ".lib/file-article-into-readlist",
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: FILE_ARTICLE_INTO_READLIST_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
@@ -1655,7 +1720,7 @@ const fileArticleIntoReadlistLambda = new HutchLambda("file-article-into-readlis
 
 eventBus.grantPublish(fileArticleIntoReadlistLambda);
 
-const fileArticleIntoReadlistLambdaWithSQS = new HutchSQSBackedLambda("file-article-into-readlist", {
+const fileArticleIntoReadlistLambdaWithSQS = new SqsBackedLambda("file-article-into-readlist", {
 	lambda: fileArticleIntoReadlistLambda,
 	queue: fileArticleIntoReadlistQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1666,12 +1731,12 @@ eventBus.subscribe(FileArticleIntoReadlistCommand, fileArticleIntoReadlistLambda
 
 // --- RecrawlLinkInitiated handler ---
 
-const recrawlLinkInitiatedDynamodb = new HutchDynamoDBAccess("recrawl-link-initiated-dynamodb", {
+const recrawlLinkInitiatedDynamodb = new DynamoDBAccess("recrawl-link-initiated-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recrawlLinkInitiated, {
+const recrawlLinkInitiatedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.recrawlLinkInitiated, {
 	priorLogGroupLogicalName: "recrawlLinkInitiated-log-group",
 	entryPoint: "./src/runtime/recrawl-link-initiated.main.ts",
 	outputDir: ".lib/recrawl-link-initiated",
@@ -1680,6 +1745,7 @@ const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recraw
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: RECRAWL_LINK_INITIATED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1698,7 +1764,7 @@ const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recraw
 
 eventBus.grantPublish(recrawlLinkInitiatedLambda);
 
-const recrawlLinkInitiatedLambdaWithSQS = new HutchSQSBackedLambda("recrawl-link-initiated", {
+const recrawlLinkInitiatedLambdaWithSQS = new SqsBackedLambda("recrawl-link-initiated", {
 	lambda: recrawlLinkInitiatedLambda,
 	queue: recrawlLinkInitiatedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1711,12 +1777,12 @@ eventBus.subscribe(RecrawlLinkInitiatedEvent, recrawlLinkInitiatedLambdaWithSQS)
 // Always dispatches GenerateSummaryCommand regardless of canonical change —
 // recrawl is the operator opting out of the user-save dedup gate.
 
-const recrawlContentExtractedDynamodb = new HutchDynamoDBAccess("recrawl-content-extracted-dynamodb", {
+const recrawlContentExtractedDynamodb = new DynamoDBAccess("recrawl-content-extracted-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const recrawlContentExtractedLambda = new HutchLambda("recrawl-content-extracted", {
+const recrawlContentExtractedLambda = new Lambda("recrawl-content-extracted", {
 			entryPoint: "./src/runtime/recrawl-content-extracted.main.ts",
 		outputDir: ".lib/recrawl-content-extracted",
 		assetDir: "./src",
@@ -1726,6 +1792,7 @@ const recrawlContentExtractedLambda = new HutchLambda("recrawl-content-extracted
 		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environmentNames: RECRAWL_CONTENT_EXTRACTED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1743,7 +1810,7 @@ const recrawlContentExtractedLambda = new HutchLambda("recrawl-content-extracted
 
 eventBus.grantPublish(recrawlContentExtractedLambda);
 
-const recrawlContentExtractedLambdaWithSQS = new HutchSQSBackedLambda("recrawl-content-extracted", {
+const recrawlContentExtractedLambdaWithSQS = new SqsBackedLambda("recrawl-content-extracted", {
 	lambda: recrawlContentExtractedLambda,
 	queue: recrawlContentExtractedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1754,17 +1821,18 @@ eventBus.subscribe(RecrawlContentExtractedEvent, recrawlContentExtractedLambdaWi
 
 // --- SummaryGenerated handler ---
 
-const summaryGeneratedLambda = new HutchLambda("summary-generated", {
+const summaryGeneratedLambda = new Lambda("summary-generated", {
 	entryPoint: "./src/runtime/summary-generated.main.ts",
 	outputDir: ".lib/summary-generated",
 	assetDir: "./src",
 	memorySize: 128,
 	timeout: 10,
+	environmentNames: SUMMARY_GENERATED_ENV,
 	environment: {},
 	policies: [],
 });
 
-const summaryGeneratedLambdaWithSQS = new HutchSQSBackedLambda("summary-generated", {
+const summaryGeneratedLambdaWithSQS = new SqsBackedLambda("summary-generated", {
 	lambda: summaryGeneratedLambda,
 	queue: summaryGeneratedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1775,18 +1843,19 @@ eventBus.subscribe(SummaryGeneratedEvent, summaryGeneratedLambdaWithSQS);
 
 // --- SummaryGenerationFailed handler ---
 
-const summaryGenerationFailedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.summaryGenerationFailed, {
+const summaryGenerationFailedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.summaryGenerationFailed, {
 	priorLogGroupLogicalName: "summaryGenerationFailed-log-group",
 	entryPoint: "./src/runtime/summary-generation-failed.main.ts",
 	outputDir: ".lib/summary-generation-failed",
 	assetDir: "./src",
 	memorySize: 128,
 	timeout: 10,
+	environmentNames: SUMMARY_GENERATION_FAILED_ENV,
 	environment: {},
 	policies: [],
 });
 
-const summaryGenerationFailedLambdaWithSQS = new HutchSQSBackedLambda("summary-generation-failed", {
+const summaryGenerationFailedLambdaWithSQS = new SqsBackedLambda("summary-generation-failed", {
 	lambda: summaryGenerationFailedLambda,
 	queue: summaryGenerationFailedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1800,13 +1869,13 @@ eventBus.subscribe(SummaryGenerationFailedEvent, summaryGenerationFailedLambdaWi
 // RefreshContentExtractedEvent; the selector + transition step lives in the
 // refresh-content-extracted handler below (same shape as the recrawl path).
 
-const refreshArticleContentQueue = new HutchSQS("refresh-article-content", {
+const refreshArticleContentQueue = new Sqs("refresh-article-content", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const refreshArticleContentDynamodb = new HutchDynamoDBAccess("refresh-article-content-dynamodb", { tables: [{ arn: articlesTableArn, includeIndexes: false }], actions: ["dynamodb:GetItem"] });
+const refreshArticleContentDynamodb = new DynamoDBAccess("refresh-article-content-dynamodb", { tables: [{ arn: articlesTableArn, includeIndexes: false }], actions: ["dynamodb:GetItem"] });
 
-const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
+const refreshArticleContentLambda = new Lambda("refresh-article-content", {
 	entryPoint: "./src/runtime/refresh-article-content.main.ts",
 	outputDir: ".lib/refresh-article-content",
 	assetDir: "./src",
@@ -1814,6 +1883,7 @@ const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 	// HTML staged under refresh-html/) plus the same bytes passed to putTierSource.
 	memorySize: 512,
 	timeout: 30,
+	environmentNames: REFRESH_ARTICLE_CONTENT_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
@@ -1830,7 +1900,7 @@ const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 
 eventBus.grantPublish(refreshArticleContentLambda);
 
-const refreshArticleContentWithSQS = new HutchSQSBackedLambda("refresh-article-content", {
+const refreshArticleContentWithSQS = new SqsBackedLambda("refresh-article-content", {
 	lambda: refreshArticleContentLambda,
 	queue: refreshArticleContentQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1841,16 +1911,16 @@ eventBus.subscribe(RefreshArticleContentCommand, refreshArticleContentWithSQS);
 
 // --- RefreshContentExtracted handler ---
 
-const refreshContentExtractedQueue = new HutchSQS("refresh-content-extracted", {
+const refreshContentExtractedQueue = new Sqs("refresh-content-extracted", {
 	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
 });
 
-const refreshContentExtractedDynamodb = new HutchDynamoDBAccess("refresh-content-extracted-dynamodb", {
+const refreshContentExtractedDynamodb = new DynamoDBAccess("refresh-content-extracted-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const refreshContentExtractedLambda = new HutchLambda("refresh-content-extracted", {
+const refreshContentExtractedLambda = new Lambda("refresh-content-extracted", {
 			entryPoint: "./src/runtime/refresh-content-extracted.main.ts",
 		outputDir: ".lib/refresh-content-extracted",
 		assetDir: "./src",
@@ -1860,6 +1930,7 @@ const refreshContentExtractedLambda = new HutchLambda("refresh-content-extracted
 		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environmentNames: REFRESH_CONTENT_EXTRACTED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1877,7 +1948,7 @@ const refreshContentExtractedLambda = new HutchLambda("refresh-content-extracted
 
 eventBus.grantPublish(refreshContentExtractedLambda);
 
-const refreshContentExtractedLambdaWithSQS = new HutchSQSBackedLambda("refresh-content-extracted", {
+const refreshContentExtractedLambdaWithSQS = new SqsBackedLambda("refresh-content-extracted", {
 	lambda: refreshContentExtractedLambda,
 	queue: refreshContentExtractedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -1888,21 +1959,22 @@ eventBus.subscribe(RefreshContentExtractedEvent, refreshContentExtractedLambdaWi
 
 // --- UpdateFetchTimestamp handler ---
 
-const updateFetchTimestampQueue = new HutchSQS("update-fetch-timestamp", {
+const updateFetchTimestampQueue = new Sqs("update-fetch-timestamp", {
 	visibilityTimeoutSeconds: 60,
 });
 
-const updateFetchTimestampDynamodb = new HutchDynamoDBAccess("update-fetch-timestamp-dynamodb", {
+const updateFetchTimestampDynamodb = new DynamoDBAccess("update-fetch-timestamp-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:UpdateItem"],
 });
 
-const updateFetchTimestampLambda = new HutchLambda("update-fetch-timestamp", {
+const updateFetchTimestampLambda = new Lambda("update-fetch-timestamp", {
 	entryPoint: "./src/runtime/update-fetch-timestamp.main.ts",
 	outputDir: ".lib/update-fetch-timestamp",
 	assetDir: "./src",
 	memorySize: 128,
 	timeout: 10,
+	environmentNames: UPDATE_FETCH_TIMESTAMP_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 	},
@@ -1911,7 +1983,7 @@ const updateFetchTimestampLambda = new HutchLambda("update-fetch-timestamp", {
 	],
 });
 
-const updateFetchTimestampWithSQS = new HutchSQSBackedLambda("update-fetch-timestamp", {
+const updateFetchTimestampWithSQS = new SqsBackedLambda("update-fetch-timestamp", {
 	lambda: updateFetchTimestampLambda,
 	queue: updateFetchTimestampQueue,
 	alertEmailDLQEntry: alertEmail,

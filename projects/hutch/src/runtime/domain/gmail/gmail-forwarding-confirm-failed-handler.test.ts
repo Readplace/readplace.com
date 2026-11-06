@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { SQSEvent } from "aws-lambda";
 import { type InboxAddress, InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -33,7 +33,7 @@ function makeHarness(options: { failWrite?: boolean } = {}) {
 				}
 			: connections,
 		now: () => NOW,
-		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
+		logger: Logger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
 	const run = async (event: SQSEvent) => {
 		const response = await handler(event, buildLambdaContext(), () => {});

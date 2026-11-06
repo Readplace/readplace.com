@@ -5,13 +5,13 @@ import { join } from "node:path";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import chromium from "@sparticuz/chromium";
-import { consoleLogger } from "@packages/hutch-logger";
-import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { consoleLogger } from "@packages/logger";
+import { EventBridgeClient } from "@packages/infra-components/runtime";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { CRAWL_PERSONAS, defaultResolveAll, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
 import { z } from "zod";
 import { initCanonicalAliasStore, initDynamoDbMeteredLegLedger } from "@packages/article-store";
 import { initRenderCrawlHandler } from "./domain/render-crawl/render-crawl-handler";
@@ -33,17 +33,20 @@ import { initCrawlAndFinalizeDepBundle } from "./dep-bundles/crawl-and-finalize"
 import { initEventsDepBundle } from "./dep-bundles/events";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
+import { RENDER_CRAWL_COMMAND_ROOT_ENV } from "./render-crawl-command.env";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
-const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
-const renderCrawlBudget = parseRateLimitRule(requireEnv("RENDER_CRAWL_BUDGET"));
-const crawlEgressProxyUrl = requireEnv("CRAWL_EGRESS_PROXY_URL");
-const crawlResidentialProxyUrl = requireEnv("CRAWL_RESIDENTIAL_PROXY_URL");
-const renderRequestDiagnostics = z.enum(["off", "hosts"]).parse(requireEnv<RenderRequestDiagnostics>("RENDER_REQUEST_DIAGNOSTICS"));
+const env = readEnv(RENDER_CRAWL_COMMAND_ROOT_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const imagesCdnBaseUrl = env.IMAGES_CDN_BASE_URL;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
+const rateLimitsTable = env.DYNAMODB_RATE_LIMITS_TABLE;
+const renderCrawlBudget = parseRateLimitRule(env.RENDER_CRAWL_BUDGET);
+const crawlEgressProxyUrl = env.CRAWL_EGRESS_PROXY_URL;
+const crawlResidentialProxyUrl = env.CRAWL_RESIDENTIAL_PROXY_URL;
+const renderRequestDiagnostics: RenderRequestDiagnostics = z.enum(["off", "hosts"]).parse(env.RENDER_REQUEST_DIAGNOSTICS);
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});

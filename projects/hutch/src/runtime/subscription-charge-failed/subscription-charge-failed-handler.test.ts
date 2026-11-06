@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { PublishCancelSubscriptionCommand } from "@packages/test-fixtures/providers/events";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initSubscriptionChargeFailedHandler } from "./subscription-charge-failed-handler";
@@ -38,7 +38,7 @@ describe("subscription-charge-failed handler", () => {
 		const handler = initSubscriptionChargeFailedHandler({
 			publishCancelSubscriptionCommand,
 			emit,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -76,7 +76,7 @@ describe("subscription-charge-failed handler", () => {
 				published.push({ userId: params.userId, reason: params.reason });
 			},
 			emit,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -104,7 +104,7 @@ describe("subscription-charge-failed handler", () => {
 		const handler = initSubscriptionChargeFailedHandler({
 			publishCancelSubscriptionCommand: async () => {},
 			emit,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -123,7 +123,7 @@ describe("subscription-charge-failed handler", () => {
 		const handler = initSubscriptionChargeFailedHandler({
 			publishCancelSubscriptionCommand: async () => {},
 			emit,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -148,7 +148,7 @@ describe("subscription-charge-failed handler", () => {
 				throw new Error("EventBridge unavailable");
 			},
 			emit,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(

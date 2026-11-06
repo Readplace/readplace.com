@@ -1,12 +1,12 @@
 import type { SaveAttemptId } from "@packages/domain/article";
-import type { CrawlFailureReason } from "@packages/article-state-types";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import type { CrawlFailureReason, UserId } from "@packages/article-state-types";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
 
 export type PublishArchiveComparison = (ctx: {
 	url: string;
-	userId?: string;
+	userId?: UserId;
 	recrawl?: boolean;
 	saveAttemptId: SaveAttemptId;
 	candidates: CandidateReference[];

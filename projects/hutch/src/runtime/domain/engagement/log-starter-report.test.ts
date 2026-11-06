@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initLogStarterReport, type StarterReportLine } from "./log-starter-report";
 import type { ArmCounts, StarterReport } from "./starter-report";
 
@@ -54,7 +54,7 @@ function useLogStarterReport(report: StarterReport | undefined) {
 	const capture = (line: StarterReportLine) => {
 		lines.push(line);
 	};
-	const logger: HutchLogger.Typed<StarterReportLine> = {
+	const logger: Logger.Typed<StarterReportLine> = {
 		info: capture,
 		warn: capture,
 		error: capture,

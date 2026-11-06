@@ -42,6 +42,8 @@ import type {
 	UpdatePassword,
 	UserAcquisitionAttribution,
 	UserExistsByEmail,
+	MarkActivationThresholdReached,
+	SetKeepOfferDismissed,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
 import { SESSION_TTL_SECONDS } from "@packages/web-session";
@@ -60,6 +62,8 @@ interface StoredUser {
 	displayName?: DisplayName;
 	signupOAuthClientId: OAuthClientId | null;
 	queueDigestOptOutAt?: string;
+	activationThresholdReachedAt?: string;
+	keepOfferDismissedAt?: string;
 }
 
 interface StoredSession {
@@ -113,6 +117,8 @@ export function initInMemoryAuth(opts: {
 	setUserAppearance: SetUserAppearance;
 	setUserDisplayName: SetUserDisplayName;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
+	markActivationThresholdReached: MarkActivationThresholdReached;
+	setKeepOfferDismissed: SetKeepOfferDismissed;
 	deleteUser: (email: string) => Promise<void>;
 	/** Test-only accessor for the attribution persisted at signup, so signup
 	 * tests can assert the raw utm/referrer/landing fields reached the row. */
@@ -406,6 +412,9 @@ export function initInMemoryAuth(opts: {
 					displayName: user.displayName,
 					signupOAuthClientId: user.signupOAuthClientId,
 					deletedAt: user.deletedAt,
+					activationThresholdReachedAt: user.activationThresholdReachedAt,
+					keepOfferDismissedAt: user.keepOfferDismissedAt,
+					earlyIntentionalSaves: earlyIntentionalSaves.get(user.id) ?? 0,
 				};
 			}
 		}
@@ -458,6 +467,24 @@ export function initInMemoryAuth(opts: {
 		for (const user of users.values()) {
 			if (user.id === userId) {
 				user.queueDigestOptOutAt = optedOutAt;
+				return;
+			}
+		}
+	};
+
+	const markActivationThresholdReached: MarkActivationThresholdReached = async ({ userId, at }) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				user.activationThresholdReachedAt = at.toISOString();
+				return;
+			}
+		}
+	};
+
+	const setKeepOfferDismissed: SetKeepOfferDismissed = async ({ userId, dismissedAt }) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				user.keepOfferDismissedAt = dismissedAt.toISOString();
 				return;
 			}
 		}
@@ -517,6 +544,8 @@ export function initInMemoryAuth(opts: {
 		setUserAppearance,
 		setUserDisplayName,
 		setQueueDigestOptOut,
+		markActivationThresholdReached,
+		setKeepOfferDismissed,
 		getAcquisitionAttribution,
 		deleteUser,
 	};

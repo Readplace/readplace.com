@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { ConditionalCheckFailedException, TransactionCanceledException, createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, TransactionCanceledException, createDynamoDocumentClient } from "@packages/storage-client";
 import type { EmailMessage } from "@packages/provider-contracts/email";
 import type { GmailMonitoringCheckpoint, GmailNewsletterNotice } from "@packages/provider-contracts/gmail-monitoring";
 import { initDynamoDbGmailMonitoring } from "./dynamodb-gmail-monitoring";
@@ -101,8 +101,7 @@ describe("initDynamoDbGmailMonitoring", () => {
 	it("returns false for conditional contention and propagates storage and unrelated transaction errors", async () => {
 		const page = { userId: USER, generation: "run-1", page: 2 };
 		assert.equal(await harness([conditionFailure()]).store.claimPage(page), false);
-		const transactionRace = new TransactionCanceledException({ $metadata: {}, message: "page raced", CancellationReasons: [{ Code: "ConditionalCheckFailed" }] });
-		assert.equal(await harness([transactionRace]).store.startRun({ checkpoint: CHECKPOINT, previous: CHECKPOINT }), false);
+		assert.equal(await harness([conditionFailure()]).store.startRun({ checkpoint: CHECKPOINT, previous: CHECKPOINT }), false);
 		await assert.rejects(harness([new Error("datastore unavailable")]).store.claimPage(page), /datastore unavailable/);
 		const transactionFailure = new TransactionCanceledException({ $metadata: {}, message: "throttled", CancellationReasons: [{ Code: "ThrottlingError" }] });
 		await assert.rejects(harness([transactionFailure]).store.claimPage(page), /throttled/);
@@ -162,7 +161,7 @@ describe("initDynamoDbGmailMonitoring", () => {
 		assert(Object.values(values).includes(NOTICE.mailboxId));
 		assert(Object.values(values).includes(NOTICE.accountEmail));
 		assert(Object.values(values).includes(NOTICE.gatewayAddress));
-		const raced = harness([{ Item: { ...NOTICE, key: `NOTICE#${SENDER}` } }, conditionFailure()]);
+		const raced = harness([{ Item: { ...NOTICE, key: `NOTICE#${SENDER}` } }, new TransactionCanceledException({ $metadata: {}, message: "page raced", CancellationReasons: [{ Code: "ConditionalCheckFailed" }] })]);
 		assert.equal(await raced.store.observeSender({ checkpoint, observation: { email: SENDER, name: undefined, approved: true }, notify: true }), false);
 	});
 

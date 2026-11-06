@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 import { initInMemoryQueueEntryCreated } from "./in-memory-queue-entry-created";
 
 describe("initInMemoryQueueEntryCreated", () => {
 	it("records the event it would have published", async () => {
 		const logged: unknown[][] = [];
-		const logger = HutchLogger.from({
+		const logger = Logger.from({
 			info: (...args: unknown[]) => {
 				logged.push(args);
 			},

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { RenderPdfPageToPng } from "@packages/crawl-article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type {
 	DownloadStagedPdf,
 	PdfPageOcrInput,
@@ -18,7 +18,7 @@ export function initPdfPageOcrHandler(deps: {
 	downloadStagedPdf: DownloadStagedPdf;
 	renderPdfPageToPng: RenderPdfPageToPng;
 	runPageOcr: RunPageOcr;
-	logger: HutchLogger;
+	logger: Logger;
 }): (rawInput: unknown) => Promise<PdfPageOcrOutput> {
 	const { downloadStagedPdf, renderPdfPageToPng, runPageOcr, logger } = deps;
 

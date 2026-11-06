@@ -1,7 +1,7 @@
 import { hasEnoughSavesForNextRead } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
@@ -9,9 +9,7 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import { RelatedArticlesComputedEvent } from "./index";
 import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
-import type { SelectRelatedArticles } from "./related-articles-selector";
-
-type NextReadTrigger = "content-changed";
+import type { RecommendationTrigger, SelectRelatedArticles } from "./related-articles-selector";
 
 export class MetadataNotReadyError extends Error {
 	readonly url: string;
@@ -27,7 +25,8 @@ interface NextReadSave {
 	userId: UserId;
 	url: string;
 	receiveCount: number;
-	trigger?: NextReadTrigger;
+	messageId: string;
+	trigger: RecommendationTrigger;
 }
 
 interface NextReadSkipDetails {
@@ -35,6 +34,7 @@ interface NextReadSkipDetails {
 	bestScore?: number;
 	candidateCount?: number;
 	hasSummary?: boolean;
+	budgetResetsAt?: Date;
 }
 
 type SkipNextRead = (params: {
@@ -48,8 +48,7 @@ type ComputeNextRead = (params: {
 	target: RelatedTargetArticle;
 }) => Promise<void>;
 
-const triggerOf = (save: NextReadSave): { trigger?: NextReadTrigger } =>
-	save.trigger ? { trigger: save.trigger } : {};
+const triggerOf = (save: NextReadSave): { trigger: RecommendationTrigger } => ({ trigger: save.trigger });
 
 export function initNextReadComputation(deps: {
 	gatherRelatedCandidatePools: GatherRelatedCandidatePools;
@@ -58,7 +57,7 @@ export function initNextReadComputation(deps: {
 	markRelatedArticlesSkipped: MarkRelatedArticlesSkipped;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): { skipNextRead: SkipNextRead; computeNextRead: ComputeNextRead } {
 	const {
 		gatherRelatedCandidatePools,
@@ -112,6 +111,12 @@ export function initNextReadComputation(deps: {
 		}
 
 		const result = await selectRelatedArticles({
+			attempt: {
+				userId: save.userId,
+				trigger: save.trigger,
+				messageId: save.messageId,
+				receiveCount: save.receiveCount,
+			},
 			target,
 			unreadCandidates: pools.unreadCandidates,
 			readCandidates: pools.readCandidates,
@@ -134,6 +139,14 @@ export function initNextReadComputation(deps: {
 					candidateCount: result.candidateCount,
 					hasSummary: target.hasSummary,
 				},
+			});
+			return;
+		}
+		if (result.kind === "budget-limited") {
+			await skipNextRead({
+				save,
+				reason: "daily recommendation budget spent",
+				details: { crawlStatus, budgetResetsAt: result.resetsAt },
 			});
 			return;
 		}

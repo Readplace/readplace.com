@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { AuthState, AuthStateStore } from "./auth-state.types";
 import { initRecoverableOAuthAuth } from "./recoverable-oauth";
 import { initRefreshProof } from "./refresh-proof";
@@ -43,7 +43,7 @@ async function fixture() {
 	const deps = {
 		keepAlive: <T>(work: Promise<T>) => work,
 		store, proof, serverUrl: "https://readplace.test", clientId: "hutch-chrome-extension", client: "chrome" as const,
-		version: "1.0.700", contextId: crypto.randomUUID(), now: () => now, uuid: () => crypto.randomUUID(), logger: HutchLogger.from(noopLogger),
+		version: "1.0.700", contextId: crypto.randomUUID(), now: () => now, uuid: () => crypto.randomUUID(), logger: Logger.from(noopLogger),
 		async openTab(url: string) { callbackState = new URL(url).searchParams.get("state") ?? ""; return 1; },
 		async waitForRedirect() { return callbackOverride ?? `https://readplace.test/oauth/callback?code=code&state=${callbackState}`; },
 		async closeTab() {},

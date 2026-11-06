@@ -18,13 +18,15 @@ import type {
 	SummaryState,
 } from "@packages/domain/article-aggregate";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
+	assembleRowUpdate,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+	writeIfCondition,
+} from "@packages/storage-client";
 import { z } from "zod";
 import { prepareCanonicalCommit, prepareExpectedSelection } from "./canonical-commit";
+import { SummaryStageColumn, decodeCrawlColumns, decodeSummaryColumns } from "./status-columns";
 import { VerificationFields } from "./verified-content";
 
 /**
@@ -74,6 +76,18 @@ type RowShape = z.infer<typeof ArticleAggregateRow>;
 
 const AGGREGATE_FIELDS = ArticleAggregateRow.keyof().options;
 
+const ArticleAggregateWriteRow = ArticleAggregateRow.extend({
+	summaryStage: dynamoField(SummaryStageColumn),
+	crawlFailedAt: dynamoField(z.string()),
+});
+
+type WriteColumns = z.input<typeof ArticleAggregateWriteRow>;
+
+type RowWrite = {
+	set: Partial<WriteColumns>;
+	remove: (keyof WriteColumns & string)[];
+};
+
 /**
  * 1. Legacy rows saved before `pendingSince` existed default to epoch 0 so the
  *    canary's age-gate immediately surfaces them once they cross MIN_AGE_MS.
@@ -102,24 +116,17 @@ function parseSummaryFailureReason(raw: string): import("@packages/article-state
 }
 
 function rowToCrawlState(row: RowShape): CrawlState {
-	if (row.crawlStatus === "failed") {
-		assert(
-			row.crawlFailureReason,
-			"crawlStatus=failed row must carry crawlFailureReason",
-		);
-		return { kind: "failed", reason: parseCrawlFailureReason(row.crawlFailureReason) };
+	const columns = decodeCrawlColumns(row);
+	if (columns.crawlStatus === "failed") {
+		return { kind: "failed", reason: parseCrawlFailureReason(columns.crawlFailureReason) };
 	}
-	if (row.crawlStatus === "unsupported") {
-		assert(
-			row.crawlUnsupportedReason,
-			"crawlStatus=unsupported row must carry crawlUnsupportedReason",
-		);
+	if (columns.crawlStatus === "unsupported") {
 		return {
 			kind: "unsupported",
-			reason: parseCrawlUnsupportedReason(row.crawlUnsupportedReason),
+			reason: parseCrawlUnsupportedReason(columns.crawlUnsupportedReason),
 		};
 	}
-	if (row.crawlStatus === "ready") return { kind: "ready" };
+	if (columns.crawlStatus === "ready") return { kind: "ready" };
 	return {
 		kind: "pending",
 		pendingSince: row.crawlPendingSince ?? LEGACY_PENDING_SINCE /* 1 */,
@@ -128,11 +135,11 @@ function rowToCrawlState(row: RowShape): CrawlState {
 }
 
 function rowToSummaryState(row: RowShape): SummaryState {
-	if (row.summaryStatus === "ready") {
-		assert(row.summary, "summaryStatus=ready row must carry summary");
+	const columns = decodeSummaryColumns(row);
+	if (columns.summaryStatus === "ready") {
 		const ready: Extract<SummaryState, { kind: "ready" }> = {
 			kind: "ready",
-			summary: row.summary,
+			summary: columns.summary,
 		};
 		if (row.summaryExcerpt) ready.excerpt = row.summaryExcerpt;
 		if (row.summaryInputTokens !== undefined)
@@ -143,17 +150,13 @@ function rowToSummaryState(row: RowShape): SummaryState {
 			ready.sourceContentHash = row.summarySourceContentHash;
 		return ready;
 	}
-	if (row.summaryStatus === "failed") {
-		assert(
-			row.summaryFailureReason,
-			"summaryStatus=failed row must carry summaryFailureReason",
-		);
+	if (columns.summaryStatus === "failed") {
 		return {
 			kind: "failed",
-			reason: parseSummaryFailureReason(row.summaryFailureReason),
+			reason: parseSummaryFailureReason(columns.summaryFailureReason),
 		};
 	}
-	if (row.summaryStatus === "skipped") {
+	if (columns.summaryStatus === "skipped") {
 		return row.summarySkippedReason
 			? { kind: "skipped", reason: row.summarySkippedReason }
 			: { kind: "skipped" };
@@ -211,60 +214,29 @@ function contentSelectionFromRow(row: RowShape): ContentSelectionSnapshot {
 	};
 }
 
-function appendMetadataClauses(
-	article: Article,
-	sets: string[],
-	values: Record<string, unknown>,
-): void {
-	sets.push(
-		"title = :title",
-		"siteName = :siteName",
-		"excerpt = :excerpt",
-		"wordCount = :wordCount",
-		"estimatedReadTime = :ert",
-		"imageUrl = :img",
-		"publishedOn = :publishedOn",
-	);
-	values[":title"] = article.metadata.title;
-	values[":siteName"] = article.metadata.siteName;
-	values[":excerpt"] = article.metadata.excerpt;
-	values[":wordCount"] = article.metadata.wordCount;
-	values[":ert"] = article.estimatedReadTime;
-	values[":img"] = article.metadata.imageUrl ?? null;
-	values[":publishedOn"] = article.metadata.publishedOn ?? null;
+function appendMetadataClauses(article: Article, write: RowWrite): void {
+	write.set.title = article.metadata.title;
+	write.set.siteName = article.metadata.siteName;
+	write.set.excerpt = article.metadata.excerpt;
+	write.set.wordCount = article.metadata.wordCount;
+	write.set.estimatedReadTime = article.estimatedReadTime;
+	write.set.imageUrl = article.metadata.imageUrl ?? null;
+	write.set.publishedOn = article.metadata.publishedOn ?? null;
 }
 
-function appendFreshnessClauses(
-	article: Article,
-	sets: string[],
-	values: Record<string, unknown>,
-): void {
-	sets.push(
-		"contentFetchedAt = :cfa",
-		"etag = :etag",
-		"lastModified = :lm",
-		"canonicalContentHash = :cch",
-		"bodyHash = :bh",
-	);
-	values[":cfa"] = article.freshness.contentFetchedAt;
-	values[":etag"] = article.freshness.etag ?? null;
-	values[":lm"] = article.freshness.lastModified ?? null;
-	values[":cch"] = article.freshness.canonicalContentHash ?? null;
-	values[":bh"] = article.freshness.bodyHash ?? null;
+function appendFreshnessClauses(article: Article, write: RowWrite): void {
+	write.set.contentFetchedAt = article.freshness.contentFetchedAt;
+	write.set.etag = article.freshness.etag ?? null;
+	write.set.lastModified = article.freshness.lastModified ?? null;
+	write.set.canonicalContentHash = article.freshness.canonicalContentHash ?? null;
+	write.set.bodyHash = article.freshness.bodyHash ?? null;
 }
 
-function appendSummaryClauses(
-	article: Article,
-	sets: string[],
-	removes: string[],
-	values: Record<string, unknown>,
-): void {
-	sets.push("summaryStatus = :summaryStatus");
+function appendSummaryClauses(article: Article, write: RowWrite): void {
 	if (article.summary.kind === "pending") {
-		sets.push("summaryPendingSince = :summaryPendingSince");
-		values[":summaryStatus"] = "pending";
-		values[":summaryPendingSince"] = article.summary.pendingSince;
-		removes.push(
+		write.set.summaryStatus = "pending";
+		write.set.summaryPendingSince = article.summary.pendingSince;
+		write.remove.push(
 			"summary",
 			"summaryExcerpt",
 			"summaryInputTokens",
@@ -277,20 +249,13 @@ function appendSummaryClauses(
 		return;
 	}
 	if (article.summary.kind === "ready") {
-		sets.push(
-			"summary = :summary",
-			"summaryExcerpt = :summaryExcerpt",
-			"summaryInputTokens = :summaryInputTokens",
-			"summaryOutputTokens = :summaryOutputTokens",
-			"summarySourceContentHash = :summarySourceContentHash",
-		);
-		values[":summaryStatus"] = "ready";
-		values[":summary"] = article.summary.summary;
-		values[":summaryExcerpt"] = article.summary.excerpt ?? null;
-		values[":summaryInputTokens"] = article.summary.inputTokens ?? null;
-		values[":summaryOutputTokens"] = article.summary.outputTokens ?? null;
-		values[":summarySourceContentHash"] = article.summary.sourceContentHash ?? null;
-		removes.push(
+		write.set.summaryStatus = "ready";
+		write.set.summary = article.summary.summary;
+		write.set.summaryExcerpt = article.summary.excerpt ?? null;
+		write.set.summaryInputTokens = article.summary.inputTokens ?? null;
+		write.set.summaryOutputTokens = article.summary.outputTokens ?? null;
+		write.set.summarySourceContentHash = article.summary.sourceContentHash ?? null;
+		write.remove.push(
 			"summaryFailureReason",
 			"summarySkippedReason",
 			"summaryPendingSince",
@@ -299,51 +264,45 @@ function appendSummaryClauses(
 		return;
 	}
 	if (article.summary.kind === "failed") {
-		sets.push("summaryFailureReason = :summaryFailureReason");
-		values[":summaryStatus"] = "failed";
-		values[":summaryFailureReason"] = JSON.stringify(article.summary.reason);
-		removes.push("summarySkippedReason", "summaryPendingSince", "summaryStage");
+		write.set.summaryStatus = "failed";
+		write.set.summaryFailureReason = JSON.stringify(article.summary.reason);
+		write.remove.push("summarySkippedReason", "summaryPendingSince", "summaryStage");
 		return;
 	}
-	values[":summaryStatus"] = "skipped";
+	write.set.summaryStatus = "skipped";
 	if (article.summary.reason) {
-		sets.push("summarySkippedReason = :summarySkippedReason");
-		values[":summarySkippedReason"] = article.summary.reason;
+		write.set.summarySkippedReason = article.summary.reason;
 	} else {
-		removes.push("summarySkippedReason");
+		write.remove.push("summarySkippedReason");
 	}
-	removes.push("summaryFailureReason", "summaryPendingSince", "summaryStage");
+	write.remove.push("summaryFailureReason", "summaryPendingSince", "summaryStage");
 }
 
 function appendCrawlClauses(
 	article: Article,
-	sets: string[],
-	removes: string[],
-	values: Record<string, unknown>,
+	write: RowWrite,
+	handWritten: { clauses: string[]; values: Record<string, unknown> },
 ): void {
-	sets.push("crawlStatus = :crawlStatus");
 	if (article.crawl.kind !== "pending") {
-		sets.push("crawlOutcomeRevision = if_not_exists(crawlOutcomeRevision, :zero) + :one");
-		values[":zero"] = 0;
-		values[":one"] = 1;
+		handWritten.clauses.push("crawlOutcomeRevision = if_not_exists(crawlOutcomeRevision, :zero) + :one");
+		handWritten.values[":zero"] = 0;
+		handWritten.values[":one"] = 1;
 	}
 	if (article.crawl.kind === "failed") {
-		sets.push("crawlFailureReason = :crawlFailureReason");
-		values[":crawlStatus"] = "failed";
-		values[":crawlFailureReason"] = JSON.stringify(article.crawl.reason);
-		removes.push("crawlUnsupportedReason", "crawlPendingSince", "crawlStartedAt");
+		write.set.crawlStatus = "failed";
+		write.set.crawlFailureReason = JSON.stringify(article.crawl.reason);
+		write.remove.push("crawlUnsupportedReason", "crawlPendingSince", "crawlStartedAt");
 		return;
 	}
 	if (article.crawl.kind === "unsupported") {
-		sets.push("crawlUnsupportedReason = :crawlUnsupportedReason");
-		values[":crawlStatus"] = "unsupported";
-		values[":crawlUnsupportedReason"] = JSON.stringify(article.crawl.reason);
-		removes.push("crawlFailureReason", "crawlPendingSince", "crawlStartedAt");
+		write.set.crawlStatus = "unsupported";
+		write.set.crawlUnsupportedReason = JSON.stringify(article.crawl.reason);
+		write.remove.push("crawlFailureReason", "crawlPendingSince", "crawlStartedAt");
 		return;
 	}
 	if (article.crawl.kind === "ready") {
-		values[":crawlStatus"] = "ready";
-		removes.push(
+		write.set.crawlStatus = "ready";
+		write.remove.push(
 			"crawlFailureReason",
 			"crawlUnsupportedReason",
 			"crawlFailedAt",
@@ -352,26 +311,17 @@ function appendCrawlClauses(
 		);
 		return;
 	}
-	sets.push("crawlPendingSince = :crawlPendingSince");
-	values[":crawlStatus"] = "pending";
-	values[":crawlPendingSince"] = article.crawl.pendingSince;
-	removes.push("crawlFailureReason", "crawlUnsupportedReason");
+	write.set.crawlStatus = "pending";
+	write.set.crawlPendingSince = article.crawl.pendingSince;
+	write.remove.push("crawlFailureReason", "crawlUnsupportedReason");
 }
 
-function appendSummaryAutoHealClauses(
-	article: Article,
-	sets: string[],
-	removes: string[],
-	values: Record<string, unknown>,
-): void {
-	sets.push("summaryAutoHealAttempts = :summaryAutoHealAttempts");
-	values[":summaryAutoHealAttempts"] = article.summaryAutoHeal.attempts;
+function appendSummaryAutoHealClauses(article: Article, write: RowWrite): void {
+	write.set.summaryAutoHealAttempts = article.summaryAutoHeal.attempts;
 	if (article.summaryAutoHeal.lastAttemptAt !== undefined) {
-		sets.push("summaryAutoHealLastAttemptAt = :summaryAutoHealLastAttemptAt");
-		values[":summaryAutoHealLastAttemptAt"] =
-			article.summaryAutoHeal.lastAttemptAt;
+		write.set.summaryAutoHealLastAttemptAt = article.summaryAutoHeal.lastAttemptAt;
 	} else {
-		removes.push("summaryAutoHealLastAttemptAt");
+		write.remove.push("summaryAutoHealLastAttemptAt");
 	}
 }
 
@@ -381,15 +331,14 @@ function appendSummaryAutoHealClauses(
  * aggregate save into a no-op. */
 function appendReaderAvailabilityClauses(
 	article: Article,
-	sets: string[],
-	values: Record<string, unknown>,
+	handWritten: { clauses: string[]; values: Record<string, unknown> },
 ): void {
 	assert(
 		article.readerAvailableAt,
 		"readerAvailability write requires a stamped readerAvailableAt",
 	);
-	sets.push("readerAvailableAt = if_not_exists(readerAvailableAt, :raa)");
-	values[":raa"] = article.readerAvailableAt;
+	handWritten.clauses.push("readerAvailableAt = if_not_exists(readerAvailableAt, :raa)");
+	handWritten.values[":raa"] = article.readerAvailableAt;
 }
 
 function buildSaveCommand(params: {
@@ -400,40 +349,44 @@ function buildSaveCommand(params: {
 }): {
 	UpdateExpression: string;
 	ExpressionAttributeValues: Record<string, unknown>;
-	ConditionExpression: string;
+	ConditionExpression?: string;
 } {
-	const sets: string[] = [];
-	const removes: string[] = [];
-	const values: Record<string, unknown> = {};
+	const write: RowWrite = { set: {}, remove: [] };
+	const handWrittenClauses: string[] = [];
+	const handWritten: { clauses: string[]; values: Record<string, unknown> } = { clauses: handWrittenClauses, values: {} };
 
 	const appendClauses: Record<AggregateField, () => void> = {
-		metadata: () => appendMetadataClauses(params.article, sets, values),
-		freshness: () => appendFreshnessClauses(params.article, sets, values),
-		summary: () => appendSummaryClauses(params.article, sets, removes, values),
-		crawl: () => appendCrawlClauses(params.article, sets, removes, values),
-		summaryAutoHeal: () => appendSummaryAutoHealClauses(params.article, sets, removes, values),
-		readerAvailability: () => appendReaderAvailabilityClauses(params.article, sets, values),
+		metadata: () => appendMetadataClauses(params.article, write),
+		freshness: () => appendFreshnessClauses(params.article, write),
+		summary: () => appendSummaryClauses(params.article, write),
+		crawl: () => appendCrawlClauses(params.article, write, handWritten),
+		summaryAutoHeal: () => appendSummaryAutoHealClauses(params.article, write),
+		readerAvailability: () => appendReaderAvailabilityClauses(params.article, handWritten),
 	};
 	for (const field of new Set(params.writes)) {
 		appendClauses[field]();
 	}
 
 	const conditions = ["attribute_not_exists(purgedAt)"];
+	const conditionValues: Record<string, unknown> = {};
 	if (params.canonicalCommit !== undefined) {
 		const commit = prepareCanonicalCommit(params.canonicalCommit);
-		sets.push(...commit.sets);
+		handWrittenClauses.push(...commit.sets);
 		conditions.push(...commit.conditions);
-		Object.assign(values, commit.values);
+		Object.assign(handWritten.values, commit.values);
 	}
 	if (params.selectionExpected !== undefined) {
 		const expected = prepareExpectedSelection(params.selectionExpected);
 		conditions.push(...expected.conditions);
-		Object.assign(values, expected.values);
+		Object.assign(conditionValues, expected.values);
 	}
-	const setClause = `SET ${sets.join(", ")}`;
-	const removeClause = removes.length > 0 ? ` REMOVE ${removes.join(", ")}` : "";
-	const UpdateExpression = setClause + removeClause;
-	return { UpdateExpression, ExpressionAttributeValues: values, ConditionExpression: conditions.join(" AND ") };
+	return assembleRowUpdate({
+		schema: ArticleAggregateWriteRow,
+		set: write.set,
+		remove: write.remove,
+		handWrittenSet: handWritten,
+		condition: { kind: "expression", expression: conditions.join(" AND "), values: conditionValues },
+	});
 }
 
 export function initDynamoDbArticleStore(deps: {
@@ -467,18 +420,17 @@ export function initDynamoDbArticleStore(deps: {
 			/* A purged (tombstoned) row must never be resurrected by an in-flight or
 			 * DLQ-redriven transition; a fresh save clears purgedAt first, so
 			 * post-revival transitions pass again. */
-			try {
-				await table.update({
+			const outcome = await writeIfCondition(() =>
+				table.update({
 					Key: { url: articleResourceUniqueId.value },
 					UpdateExpression,
 					ConditionExpression,
 					ExpressionAttributeValues,
 					ReturnValuesOnConditionCheckFailure: "ALL_OLD",
-				});
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException && (error.Item?.purgedAt !== undefined || (canonicalCommit === undefined && selectionExpected === undefined))) return;
-				throw error;
-			}
+				}),
+			);
+			if (outcome.kind === "written" || outcome.oldItem?.purgedAt !== undefined || (canonicalCommit === undefined && selectionExpected === undefined)) return;
+			throw outcome.error;
 		},
 	};
 

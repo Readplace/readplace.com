@@ -1,11 +1,11 @@
 import assert from "node:assert";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
-import { type ArticleFrontMatter, articleFrontMatterXhtml, COLOPHON_XHTML } from "./article-front-matter";
+import { articleFrontMatterXhtml, COLOPHON_XHTML } from "./article-front-matter";
 import { type EpubChapter, type EpubImage, packageEpub } from "./epub-package";
 import { chapterEpubXhtml, collectArticleImages } from "./epub-xhtml";
-import type { ArticleBody } from "@packages/domain/article";
+import type { BookChapter } from "../../../domain/readlist/book-chapter.types";
 
-export type BookChapter = ArticleFrontMatter & { articleUrl: string; contentHtml: ArticleBody };
+export type { BookChapter } from "../../../domain/readlist/book-chapter.types";
 
 export type BuildBookEpub = (params: {
 	title: string;

@@ -4,7 +4,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { initDynamoDbRelatedArticles } from "./dynamodb-related-articles";
 
@@ -959,6 +959,25 @@ describe("initDynamoDbRelatedArticles", () => {
 				articles: [
 					{ url: "example.com/a", title: "A", siteName: "Example", excerpt: "" },
 					{ url: "example.com/b", title: "B", siteName: "Example", excerpt: "" },
+				],
+			});
+
+			const { candidates } = await store.findRelatedReadCandidateArticles({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 2,
+			});
+
+			expect(candidates.map((candidate) => candidate.title)).toEqual(["A", "B"]);
+		});
+
+		it("takes only the limit from a page that holds more finished saves than the limit", async () => {
+			const { store } = readCandidateClient({
+				pages: [{ urls: ["example.com/a", "example.com/b", "example.com/c"] }],
+				articles: [
+					{ url: "example.com/a", title: "A", siteName: "Example", excerpt: "" },
+					{ url: "example.com/b", title: "B", siteName: "Example", excerpt: "" },
+					{ url: "example.com/c", title: "C", siteName: "Example", excerpt: "" },
 				],
 			});
 

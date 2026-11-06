@@ -1,0 +1,3 @@
+export const UPDATE_FETCH_TIMESTAMP_ENV = [
+	"DYNAMODB_ARTICLES_TABLE",
+] as const;

@@ -2,9 +2,9 @@ import assert from "node:assert";
 import type { CandidateId, SaveAttemptId } from "@packages/domain/article";
 import { ARCHIVE_TIER } from "@packages/article-state-types";
 import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult } from "@packages/finalize-article";
-import { ArchiveCaptureCrawlFailedEvent, type LogCrawlOutcome } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { ArchiveCaptureCrawlFailedEvent, type LogCrawlOutcome } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { PutTierSource } from "@packages/tier-source";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { VerifyWrapperSource } from "@packages/save-article";
@@ -24,7 +24,7 @@ export function initCrawlArchiveCapture(deps: {
 	readTierSnapshot: ReadTierSnapshot;
 	logCrawlOutcome: LogCrawlOutcome;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 	verifyWrapperSource: VerifyWrapperSource;
 	now: () => Date;
 }): CrawlArchiveCapture {

@@ -1,4 +1,4 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initDynamoDbMarkSummaryStage } from "./mark-summary-stage";
 
 type SendFn = DynamoDBDocumentClient["send"];

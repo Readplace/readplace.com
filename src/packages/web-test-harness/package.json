@@ -24,7 +24,7 @@
     "@packages/crawl-article": "workspace:*",
     "@packages/domain": "workspace:*",
     "@packages/extract-links-from-page": "workspace:*",
-    "@packages/hutch-logger": "workspace:*",
+    "@packages/logger": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
     "linkedom": "0.18.12",
     "supertest": "7.2.2"

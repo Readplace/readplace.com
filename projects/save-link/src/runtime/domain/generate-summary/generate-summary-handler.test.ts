@@ -7,13 +7,13 @@ import {
 	markSummaryReady,
 	markSummarySkipped,
 } from "@packages/domain/article-aggregate";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initGenerateSummaryHandler } from "./generate-summary-handler";
 import type { SummarizeArticle } from "./link-summariser";
-import type { FindArticleContent } from "../../providers/article-store/find-article-content";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import type { FindArticleContent } from "../save-link/article-content.types";
+import { computeCanonicalContentHash } from "./compute-canonical-content-hash";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { initRunMeteredLeg, type RunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
@@ -526,14 +526,10 @@ describe("initGenerateSummaryHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		const markLines = error.mock.calls.filter(([line]) => typeof line === "string" && line.startsWith("{"));
-		expect(markLines).toHaveLength(1);
-		expect(JSON.parse(markLines[0][0])).toMatchObject({
-			message: "[GenerateSummary] exhausted-mark record failed on receive 3 (messageId msg-1)",
-			url: URL,
-			name: "Error",
-			stack: expect.stringContaining("DynamoDB unavailable"),
-		});
+		expect(error).toHaveBeenCalledWith(
+			"[GenerateSummary] exhausted-mark record failed on receive 3 (messageId msg-1)",
+			{ url: URL, error: thrown },
+		);
 	});
 
 	it("reports batchItemFailures when the summariser returns no-text-block so SQS redelivers and eventually DLQs", async () => {

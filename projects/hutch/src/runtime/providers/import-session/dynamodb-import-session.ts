@@ -1,10 +1,9 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import { randomBytes } from "node:crypto";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import {
@@ -137,4 +136,3 @@ export function initDynamoDbImportSession(deps: {
 		},
 	};
 }
-/* c8 ignore stop */

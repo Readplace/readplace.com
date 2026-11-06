@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import type { UserId } from "@packages/domain/user";
 import type { FindAppleRefreshTokenByUserId } from "@packages/provider-contracts/auth";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 
 /** Revoke a user's tokens at any external identity provider they signed in
  * through, as part of account deletion. Apple requires this for App Store
@@ -19,7 +19,7 @@ export function initRevokeExternalIdpTokens(deps: {
 	appleClientId: string;
 	createAppleClientSecret: () => string;
 	fetch: typeof globalThis.fetch;
-	logger: HutchLogger;
+	logger: Logger;
 }): RevokeExternalIdpTokens {
 	return async (userId) => {
 		const appleRefreshToken = await deps.findAppleRefreshTokenByUserId(userId);

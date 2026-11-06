@@ -1,7 +1,6 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
 import { GmailAccountEmailSchema, type GmailMessageUpdateStore, GmailMessageOriginSchema } from "@packages/domain/gmail";
-import { UserIdSchema } from "@packages/domain/user";
 import {
 	GMAIL_EMAIL_UPDATE_FAILED_EVENT,
 	GmailEmailMarkedImportedEvent,
@@ -11,9 +10,9 @@ import {
 	GmailModifyPermissionGrantedEvent,
 	METERED_GMAIL_EMAIL_UPDATE_FAILURE_REASONS,
 	MarkGmailEmailImportedCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { MarkGmailEmailImported } from "./mark-gmail-email-imported";
 
 export const GmailMessageUpdateEnvelope = z.union([
@@ -21,7 +20,7 @@ export const GmailMessageUpdateEnvelope = z.union([
 		.object({ "detail-type": z.literal(MarkGmailEmailImportedCommand.detailType), detail: MarkGmailEmailImportedCommand.detailSchema })
 		.transform(({ detail }) => ({
 			kind: "mark" as const,
-			userId: UserIdSchema.parse(detail.userId),
+			userId: detail.userId,
 			receivedAtMessageId: detail.receivedAtMessageId,
 			origin: GmailMessageOriginSchema.parse(detail.origin),
 		})),
@@ -29,7 +28,7 @@ export const GmailMessageUpdateEnvelope = z.union([
 		.object({ "detail-type": z.literal(GmailModifyPermissionGrantedEvent.detailType), detail: GmailModifyPermissionGrantedEvent.detailSchema })
 		.transform(({ detail }) => ({
 			kind: "resume" as const,
-			userId: UserIdSchema.parse(detail.userId),
+			userId: detail.userId,
 			accountEmail: GmailAccountEmailSchema.parse(detail.accountEmail),
 		})),
 ]);
@@ -38,8 +37,8 @@ export function initGmailMessageUpdateHandler(deps: {
 	markImported: MarkGmailEmailImported;
 	listPendingByAccount: GmailMessageUpdateStore["listPendingByAccount"];
 	publishEvent: PublishEvent;
-	metricLog: HutchLogger.Typed<GmailEmailUpdateFailedLine>;
-	logger: HutchLogger;
+	metricLog: Logger.Typed<GmailEmailUpdateFailedLine>;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, metricLog, logger } = deps;
 
@@ -99,8 +98,8 @@ export function initGmailMessageUpdateHandler(deps: {
 export function initGmailMessageUpdateDlqHandler(deps: {
 	markFailed: GmailMessageUpdateStore["markFailed"];
 	publishEvent: PublishEvent;
-	metricLog: HutchLogger.Typed<GmailEmailUpdateFailedLine>;
-	logger: HutchLogger;
+	metricLog: Logger.Typed<GmailEmailUpdateFailedLine>;
+	logger: Logger;
 	now: () => Date;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {

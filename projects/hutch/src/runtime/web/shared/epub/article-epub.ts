@@ -1,10 +1,10 @@
+import { deflateSync, strToU8 } from "fflate";
 import { type ArticleBody, type ArticleDestinationUrl, articleDestinationHost } from "@packages/domain/article";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
 import { articleEpubXhtml, collectArticleImages } from "./epub-xhtml";
 import { type ArticleFrontMatter, articleFrontMatterXhtml, COLOPHON_XHTML } from "./article-front-matter";
+import { epubImageBudgetFor } from "./epub-image-budget";
 import { buildEpub } from "./epub-package";
-
-const MAX_EPUB_IMAGE_BYTES = 3_500_000;
 
 type SkippedImage = { filename: string; bytes: number };
 
@@ -42,6 +42,16 @@ export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildA
 	const { readArticleImage, logError, now } = deps;
 
 	return async (params): Promise<ArticleEpubBuild> => {
+		const frontMatter = articleFrontMatterXhtml({
+			title: params.title,
+			siteName: params.siteName,
+			excerpt: params.excerpt,
+			summary: params.summary,
+		});
+
+		const chapterHtml = frontMatter + params.contentHtml + COLOPHON_XHTML;
+		const imageBudget = epubImageBudgetFor({ deflatedBodyBytes: deflateSync(strToU8(chapterHtml)).length });
+
 		const candidates = collectArticleImages({
 			contentHtml: params.contentHtml,
 			articleUrl: params.articleUrl,
@@ -56,7 +66,7 @@ export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildA
 				logError(`[ArticleEpub] image ${candidate.filename} missing from store; skipping`);
 				continue;
 			}
-			if (usedBytes + bytes.length > MAX_EPUB_IMAGE_BYTES) {
+			if (usedBytes + bytes.length > imageBudget) {
 				skippedOverBudget.push({ filename: candidate.filename, bytes: bytes.length });
 				continue;
 			}
@@ -64,15 +74,8 @@ export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildA
 			images.push({ filename: candidate.filename, body: bytes });
 		}
 
-		const frontMatter = articleFrontMatterXhtml({
-			title: params.title,
-			siteName: params.siteName,
-			excerpt: params.excerpt,
-			summary: params.summary,
-		});
-
 		const xhtml = articleEpubXhtml({
-			contentHtml: frontMatter + params.contentHtml + COLOPHON_XHTML,
+			contentHtml: chapterHtml,
 			title: params.title,
 			articleUrl: params.articleUrl,
 			embeddedFilenames: images.map((image) => image.filename),

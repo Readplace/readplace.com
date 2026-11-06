@@ -1,5 +1,5 @@
-import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { SubscriptionCancelledEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { FindSubscriptionBySubscriptionId } from "@packages/provider-contracts/subscription-providers";
 import { z } from "zod";
 import type { StripeEventHandler } from "../stripe-webhook-receiver-handler";

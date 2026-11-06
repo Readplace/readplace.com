@@ -7,7 +7,7 @@ import {
 	initBase,
 } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	type AnalyticsEvent,
 	createAnalyticsMiddleware,
@@ -37,7 +37,7 @@ export function createBlogApp(
 	config: BaseConfig,
 	deps: {
 		resolveLogin: ResolveLogin;
-		analyticsLogger: HutchLogger.Typed<AnalyticsEvent>;
+		analyticsLogger: Logger.Typed<AnalyticsEvent>;
 		salt: string;
 		now: () => Date;
 		generateVisitorId: () => string;

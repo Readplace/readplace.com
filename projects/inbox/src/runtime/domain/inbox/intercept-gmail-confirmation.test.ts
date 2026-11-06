@@ -9,7 +9,7 @@ import {
 	MessageIdSchema,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 import { GOOGLE_FORWARDING_SENDER } from "./google-confirmation-link";
 import {
 	type InterceptionRecipient,
@@ -65,7 +65,7 @@ function harness() {
 		publishConfirmGmailForwarding: async (detail) => {
 			published.push(detail);
 		},
-		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
+		logger: Logger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
 	return { intercept, published, logs };
 }

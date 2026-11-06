@@ -13,6 +13,7 @@ describe("readlistToFileInto", () => {
 				state: { readlist: WORK.slug, tab: "queue", page: 1 },
 				activeReadlist: WORK,
 				readlists: [DEFAULT_READLIST, WORK],
+				activePurpose: undefined,
 			}),
 		).toEqual(WORK.slug);
 	});
@@ -23,6 +24,7 @@ describe("readlistToFileInto", () => {
 				state: { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 1 },
 				activeReadlist: DEFAULT_READLIST,
 				readlists: [DEFAULT_READLIST, WORK],
+				activePurpose: undefined,
 			}),
 		).toEqual(undefined);
 	});
@@ -95,5 +97,31 @@ describe("initResolveReadlistContext", () => {
 
 		expect(discovery).toBe(undefined);
 		expect(asked).toEqual([]);
+	});
+
+	it("carries the purpose of the readlist the reader is on, so every tab can show it", async () => {
+		const resolve = initResolveReadlistContext({
+			listReadlistDefinitions: async () => [
+				{ slug: WORK.slug, label: WORK.label, createdAt: new Date("2026-11-01T00:00:00Z"), purpose: "Papers for the team offsite" },
+			],
+			findSessionReadlistFilter: async () => undefined,
+		});
+
+		const context = await resolve({ query: { queue: WORK.slug }, headers: {} }, READER);
+
+		expect(context.activePurpose).toEqual("Papers for the team offsite");
+	});
+
+	it("carries no purpose for a readlist that has none", async () => {
+		const resolve = initResolveReadlistContext({
+			listReadlistDefinitions: async () => [
+				{ slug: WORK.slug, label: WORK.label, createdAt: new Date("2026-11-01T00:00:00Z") },
+			],
+			findSessionReadlistFilter: async () => undefined,
+		});
+
+		const context = await resolve({ query: { queue: WORK.slug }, headers: {} }, READER);
+
+		expect(context.activePurpose).toBe(undefined);
 	});
 });

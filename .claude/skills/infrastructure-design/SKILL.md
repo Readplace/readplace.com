@@ -108,7 +108,7 @@ Any change that adds, removes, renames, or re-wires a command or event declarati
 
 ## Runtime Environment Must Match Infrastructure
 
-When runtime code requires an environment variable, every link in the chain from source to runtime must be wired up. These concerns are spread across multiple files with no compile-time link — nothing enforces consistency automatically.
+When runtime code requires an environment variable, every link in the chain from source to runtime must be wired up. The link from the Pulumi program to the runtime root is one const tuple per Lambda: a sibling of the root, named after the entry with an `.env.ts` suffix, exports the names the deployed Lambda reads — for a web Lambda, including what its app, providers and components read — and a converted root reads them through the tuple reader of the env-accessor package (the one CLAUDE.md's Environment Variable Access names). The Pulumi site passes the same tuple as `environmentNames`, so `tsc` — and with it `pnpm check` and `pnpm check-infra` — fails when the `environment` block omits a name or writes a literal key the tuple does not list. A key that reaches the block through a spread is not checked. A root that still calls the required-env accessor directly is checked on the Pulumi side only; `git grep -l 'requireEnv(' -- 'projects/*/src/runtime/*.main.ts' ':!*/server.main.ts'` lists those roots (the excluded files start local dev servers, not Lambdas). `git grep environmentNames` lists the sites.
 
 Two failure modes to guard against:
 
@@ -126,8 +126,7 @@ For env vars that name a resource you provision in Pulumi (DynamoDB table, S3 bu
 - [ ] Config read in the infrastructure entry point and passed to the resource class
 - [ ] Resource created in the infrastructure resource class
 - [ ] IAM policy grants the deployed function access to the new resource's ARN
-- [ ] Lambda `environment:` block sets the variable, pointing to `resource.name`
-- [ ] Runtime composition root reads the variable via the required-env helper and passes it to the provider
+- [ ] Name added to the root's `.env.ts` tuple and read from the tuple reader's result; the compiler then names the Lambda `environment:` block to update — set the variable there to `resource.name`
 
 ### Flavor B — External secret (API keys, OAuth client secrets, webhook tokens)
 

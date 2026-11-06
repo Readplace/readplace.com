@@ -4,9 +4,9 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { SendUserDigestCommand } from "@packages/hutch-infra-components";
-import type { DispatchCommand } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { SendUserDigestCommand } from "@packages/infra-components";
+import type { DispatchCommand } from "@packages/infra-components/runtime";
 import type {
 	ListUserIdsBySubscriptionStatus,
 	SubscriptionStatus,
@@ -23,7 +23,7 @@ export interface DigestScanDeps {
 	logStarterReport: () => Promise<void>;
 	listUserIdsByStatus: ListUserIdsBySubscriptionStatus;
 	dispatchSendUserDigest: DispatchCommand<typeof SendUserDigestCommand>;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 /** Driven by the `rate(6 hours)` scheduler tick (one SQS record per fire). The

@@ -13,13 +13,13 @@ import {
 } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import type {
 	FindRelatedArticles,
 	FindRelatedCandidateArticles,
@@ -101,22 +101,18 @@ export function initDynamoDbRelatedArticles(deps: {
 		expressionAttributeValues: Record<string, unknown>;
 	}): Promise<MarkRelatedArticlesOutcome> {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		try {
-			await userArticles.update({
-				Key: { userId: params.userId, url: articleResourceUniqueId.value },
-				UpdateExpression: params.updateExpression,
-				// Terminal-once: two saves of the same article race each other through
-				// the worker, and the loser must not repaint a settled row with its own
-				// (equally valid, differently ordered) answer.
-				ConditionExpression:
-					"attribute_exists(savedAt) AND attribute_not_exists(relatedStatus)",
-				ExpressionAttributeValues: params.expressionAttributeValues,
-			});
-			return "stored";
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "superseded";
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => userArticles.update({
+			Key: { userId: params.userId, url: articleResourceUniqueId.value },
+			UpdateExpression: params.updateExpression,
+			// Terminal-once: two saves of the same article race each other through
+			// the worker, and the loser must not repaint a settled row with its own
+			// (equally valid, differently ordered) answer.
+			ConditionExpression:
+				"attribute_exists(savedAt) AND attribute_not_exists(relatedStatus)",
+			ExpressionAttributeValues: params.expressionAttributeValues,
+		}));
+		if (outcome.kind === "condition-failed") return "superseded";
+		return "stored";
 	}
 
 	const markRelatedArticlesReady: MarkRelatedArticlesReady = async (params) =>
@@ -212,7 +208,6 @@ export function initDynamoDbRelatedArticles(deps: {
 		params,
 	) => {
 		const excludeKey = ArticleResourceUniqueId.parse(params.excludeUrl).value;
-		/* c8 ignore next -- V8 block-coverage phantom on the awaited page read, see bcoe/c8#319 */
 		const savedUrls: string[] = [];
 		let exclusiveStartKey: Record<string, unknown> | undefined;
 
@@ -318,21 +313,17 @@ export function initDynamoDbRelatedArticles(deps: {
 		expressionAttributeValues: Record<string, unknown>;
 	}): Promise<MarkRelatedArticlesOutcome> {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		try {
-			await userArticles.update({
-				Key: { userId: params.userId, url: articleResourceUniqueId.value },
-				UpdateExpression: params.updateExpression,
-				ConditionExpression: "attribute_exists(savedAt) AND relatedStatus = :skipped",
-				ExpressionAttributeValues: {
-					...params.expressionAttributeValues,
-					":skipped": "skipped",
-				},
-			});
-			return "stored";
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "superseded";
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => userArticles.update({
+			Key: { userId: params.userId, url: articleResourceUniqueId.value },
+			UpdateExpression: params.updateExpression,
+			ConditionExpression: "attribute_exists(savedAt) AND relatedStatus = :skipped",
+			ExpressionAttributeValues: {
+				...params.expressionAttributeValues,
+				":skipped": "skipped",
+			},
+		}));
+		if (outcome.kind === "condition-failed") return "superseded";
+		return "stored";
 	}
 
 	const readyValues = (params: Parameters<MarkRelatedArticlesReady>[0]): Record<string, unknown> => ({

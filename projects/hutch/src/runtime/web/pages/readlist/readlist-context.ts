@@ -17,6 +17,7 @@ export interface ReadlistContext {
 	state: ReadlistUrlState;
 	activeReadlist: Readlist;
 	readlists: readonly Readlist[];
+	activePurpose: string | undefined;
 }
 
 const MAINLINE_READLISTS: readonly Readlist[] = [DEFAULT_READLIST];
@@ -31,10 +32,11 @@ export function mainlineReadlistContext(query: Record<string, unknown>): Readlis
 		state: { ...parseReadlistUrl(query), readlist: DEFAULT_READLIST_SLUG },
 		activeReadlist: DEFAULT_READLIST,
 		readlists: MAINLINE_READLISTS,
+		activePurpose: undefined,
 	};
 }
 
-interface ReadlistRequest {
+export interface ReadlistRequest {
 	query: Record<string, unknown>;
 	headers: { cookie?: string; authorization?: string };
 }
@@ -71,6 +73,7 @@ export function initResolveReadlistContext(deps: {
 			state: { ...requested, readlist: activeReadlist.slug },
 			activeReadlist,
 			readlists,
+			activePurpose: definitions.find((definition) => definition.slug === activeReadlist.slug)?.purpose,
 		};
 	};
 }

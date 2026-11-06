@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { initDynamoDbArticleCrawl } from "./dynamodb-article-crawl";
 
 type SendFn = DynamoDBDocumentClient["send"];
@@ -422,9 +422,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await expect(findArticleCrawlStatus(URL)).rejects.toThrow(
-				"crawlStatus=failed row must carry a crawlFailureReason",
-			);
+			await expect(findArticleCrawlStatus(URL)).rejects.toThrow("crawlFailureReason");
 		});
 
 		it("throws when crawlStatus=unsupported is persisted without a crawlUnsupportedReason", async () => {
@@ -434,9 +432,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await expect(findArticleCrawlStatus(URL)).rejects.toThrow(
-				"crawlStatus=unsupported row must carry a crawlUnsupportedReason",
-			);
+			await expect(findArticleCrawlStatus(URL)).rejects.toThrow("crawlUnsupportedReason");
 		});
 	});
 

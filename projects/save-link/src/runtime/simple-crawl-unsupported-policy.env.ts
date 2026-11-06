@@ -1,0 +1,3 @@
+export const SIMPLE_CRAWL_UNSUPPORTED_POLICY_ENV = [
+	"EVENT_BUS_NAME",
+] as const;

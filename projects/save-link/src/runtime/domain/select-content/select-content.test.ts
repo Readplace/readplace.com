@@ -1,5 +1,5 @@
 import { CandidateIdSchema } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { createHash } from "node:crypto";
 import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
 import { initSelectMostCompleteContent } from "./select-content";

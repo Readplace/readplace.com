@@ -1,8 +1,8 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishLinkDequeued } from "@packages/provider-contracts/events";
 
 export function initInMemoryLinkDequeued(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): { publishLinkDequeued: PublishLinkDequeued } {
 	const { logger } = deps;
 

@@ -46,7 +46,7 @@ describe("initReleasePrivateItem", () => {
 });
 
 describe("initPrivateItemReleaseSteps", () => {
-	it("releases the content, the pending original, the row, then the links", async () => {
+	it("releases the content, the pending original, the book images, the row, then the links", async () => {
 		const calls: string[] = [];
 		const steps = initPrivateItemReleaseSteps({
 			purgeArticleContent: async (url) => {
@@ -55,6 +55,7 @@ describe("initPrivateItemReleaseSteps", () => {
 			deleteMediaObjects: async (keys) => {
 				calls.push(`media:${keys.join(",")}`);
 			},
+			listMediaKeys: async (prefix) => [`${prefix}cover.png`, `${prefix}figure-1.jpg`],
 			deleteArticleRow: async (url) => {
 				calls.push(`row:${url}`);
 			},
@@ -70,6 +71,7 @@ describe("initPrivateItemReleaseSteps", () => {
 		assert.deepEqual(calls, [
 			`content:${PRIVATE_URL}`,
 			`media:pending/${UPLOAD_ID}/original`,
+			`media:images/${UPLOAD_ID}/cover.png,images/${UPLOAD_ID}/figure-1.jpg`,
 			`row:${PRIVATE_URL}`,
 			`links:${PRIVATE_URL}`,
 		]);

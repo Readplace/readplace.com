@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { AdmittedJob } from "../bulk-save-queue/bulk-save-queue";
 import type { WindowId } from "../domain/window-id";
 import {
@@ -28,7 +28,7 @@ export interface BulkSaveRunRecord {
 	clear: () => Promise<void>;
 }
 
-export function initBulkSaveRunRecord(deps: { area: BulkSaveRunArea; logger: HutchLogger }): BulkSaveRunRecord {
+export function initBulkSaveRunRecord(deps: { area: BulkSaveRunArea; logger: Logger }): BulkSaveRunRecord {
 	let runs: BulkSaveRun[] = [];
 	let writing: Promise<void> | undefined;
 	let waiting: Promise<void> | undefined;
@@ -39,7 +39,7 @@ export function initBulkSaveRunRecord(deps: { area: BulkSaveRunArea; logger: Hut
 			if (snapshot.length === 0) await deps.area.remove(BULK_SAVE_RUNS_KEY);
 			else await deps.area.set({ [BULK_SAVE_RUNS_KEY]: snapshot });
 		} catch (error) {
-			deps.logger.error("[bulk-save-run] could not write the run record", error);
+			deps.logger.error("[bulk-save-run] could not write the run record", { error: error });
 		}
 	}
 

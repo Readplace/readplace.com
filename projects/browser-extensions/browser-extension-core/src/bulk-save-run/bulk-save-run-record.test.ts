@@ -1,4 +1,4 @@
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { BulkSaveJobIdSchema } from "../bulk-save-queue/bulk-save-job";
 import { WindowIdSchema } from "../domain/window-id";
 import { BULK_SAVE_RUNS_KEY, type BulkSaveRun, BulkSaveRunIdSchema, type RunLink, parseBulkSaveRuns } from "./bulk-save-run";
@@ -69,7 +69,7 @@ function createRecord() {
 	const errors: unknown[] = [];
 	const record = initBulkSaveRunRecord({
 		area: store.area,
-		logger: HutchLogger.from({ ...noopLogger, error: (...args: unknown[]) => errors.push(args) }),
+		logger: Logger.from({ ...noopLogger, error: (...args: unknown[]) => errors.push(args) }),
 	});
 	return { record, errors, ...store };
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { ReaderArticleHashId, SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { UploadIdSchema } from "@packages/media-contracts";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
@@ -37,7 +37,7 @@ async function buildSubject(options: { savedItem: boolean }) {
 	const handler = initSettleMediaFailureHandler({
 		recordPrivateItemFailure: store.recordPrivateItemFailure,
 		failMediaUpload: sessions.failMediaUpload,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return { store, sessions, handler };
 }

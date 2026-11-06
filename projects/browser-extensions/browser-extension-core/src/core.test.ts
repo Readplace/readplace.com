@@ -1,12 +1,12 @@
 import { ReadingListItemIdSchema } from "./domain/reading-list-item-id";
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryAuth } from "./auth/in-memory-auth";
 import { UnauthorizedError } from "./auth/unauthorized-error";
 import { BrowserExtensionCore } from "./core";
 import type { ReadingList } from "./core";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
-import type { CollectionPage, LoadPageResult, SaveUrl, SaveUrlResult } from "./reading-list/reading-list.types";
+import type { CollectionPage, SaveUrl, SaveUrlResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { Auth, GuardedResult, WhenLoggedIn } from "./auth/auth.types";
 import type { ReadingListItem } from "./domain/reading-list-item.types";
@@ -125,21 +125,28 @@ describe("BrowserExtensionCore save", () => {
 	it("marks the exact invoking tab as saved, ignoring which tab is active now", async () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
-		const readingList = createRecordingReadingList();
+		const savedArticle = makeItem("https://example.com/article");
+		const readingList = createRecordingReadingList({
+			saveResult: { ok: true, item: savedArticle, messages: [] },
+		});
 		const { shell, showSavedCalls, showNeedsCaptureCalls, showDefaultCalls, iconUpdated } =
 			createFakeShell({ id: 7, url: "https://other.example", title: "Other" });
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 
-		core.save("current-tab", {
+		const result = await core.save("current-tab", {
 			url: "https://example.com/article",
 			title: "Article",
 			tabId: 42,
 		});
 
+		assert.deepStrictEqual(result, {
+			ok: true,
+			value: { ok: true, item: savedArticle, messages: [] },
+		});
 		await iconUpdated;
 		expect(showSavedCalls).toEqual([42]);
 		expect(showNeedsCaptureCalls).toEqual([]);
@@ -157,7 +164,7 @@ describe("BrowserExtensionCore save", () => {
 		});
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 
@@ -183,7 +190,7 @@ describe("BrowserExtensionCore save", () => {
 		});
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 
@@ -211,17 +218,21 @@ describe("BrowserExtensionCore save", () => {
 		});
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 
-		core.save("current-tab", {
+		const result = await core.save("current-tab", {
 			url: "https://example.com/article",
 			title: "Article",
 			tabId: 42,
 		});
 		await flush();
 
+		assert.deepStrictEqual(result, {
+			ok: true,
+			value: { ok: false, reason: "not-saveable", items: [], pages: [], total: undefined, sort: [] },
+		});
 		expect(showSavedCalls).toEqual([]);
 		expect(showDefaultCalls).toEqual([]);
 		expect(readingList.findByUrlCalls).toEqual([]);
@@ -243,7 +254,7 @@ describe("BrowserExtensionCore save", () => {
 		});
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 
@@ -255,6 +266,91 @@ describe("BrowserExtensionCore save", () => {
 		await flush();
 
 		expect(mintCalls).toBe(1);
+	});
+
+	it("answers not logged in and touches no icon when saving while logged out", async () => {
+		const auth = loggedInAuth();
+		auth.whenLoggedIn = () => ({ ok: false, reason: "not-logged-in" });
+		const readingList = createRecordingReadingList();
+		const cap = createCapturingShell();
+		const core = BrowserExtensionCore(cap.shell, { auth, logger, readingList });
+
+		const result = await core.save("current-tab", {
+			url: "https://example.com/article",
+			title: "Article",
+			tabId: 42,
+		});
+		await flush();
+
+		assert.deepStrictEqual(result, { ok: false, reason: "not-logged-in" });
+		expect(readingList.saveCalls).toEqual([]);
+		expect(cap.showSavedCalls).toEqual([]);
+	});
+
+	it("answers with the failure and logs it when the save rejects", async () => {
+		const errors: unknown[][] = [];
+		const recordingLogger = Logger.from({
+			...noopLogger,
+			error: (...args: unknown[]) => {
+				errors.push(args);
+			},
+		});
+		const saveFailure = new Error("save failed");
+		const readingList = createRecordingReadingList();
+		readingList.saveUrl = async () => {
+			throw saveFailure;
+		};
+		const cap = createCapturingShell();
+		const core = BrowserExtensionCore(cap.shell, {
+			auth: loggedInAuth(),
+			logger: recordingLogger,
+			readingList,
+		});
+
+		const result = await core.save("current-tab", {
+			url: "https://example.com/article",
+			title: "Article",
+			tabId: 42,
+		});
+		await flush();
+
+		assert.deepStrictEqual(result, { ok: false, reason: "error", error: saveFailure });
+		expect(errors).toHaveLength(1);
+		expect(cap.showSavedCalls).toEqual([]);
+	});
+
+	it("gives two concurrent saves their own results when they resolve out of order", async () => {
+		const pendingSaves = new Map<string, (result: SaveUrlResult) => void>();
+		const saveUrl: SaveUrl = ({ url }) =>
+			new Promise((resolve) => {
+				pendingSaves.set(url, resolve);
+			});
+		const cap = createCapturingShell();
+		const core = BrowserExtensionCore(cap.shell, {
+			auth: loggedInAuth(),
+			logger,
+			readingList: { ...initInMemoryReadingList(), saveUrl },
+		});
+
+		const firstSave = core.save("current-tab", { url: "https://first.example", title: "First" });
+		const secondSave = core.save("current-tab", { url: "https://second.example", title: "Second" });
+		const finishFirstSave = pendingSaves.get("https://first.example");
+		const finishSecondSave = pendingSaves.get("https://second.example");
+		assert(finishFirstSave, "the first save must have reached saveUrl");
+		assert(finishSecondSave, "the second save must have reached saveUrl");
+
+		const secondArticle = makeItem("https://second.example");
+		finishSecondSave({ ok: true, item: secondArticle, messages: [] });
+		assert.deepStrictEqual(await secondSave, {
+			ok: true,
+			value: { ok: true, item: secondArticle, messages: [] },
+		});
+
+		finishFirstSave({ ok: false, reason: "already-saved" });
+		assert.deepStrictEqual(await firstSave, {
+			ok: true,
+			value: { ok: false, reason: "already-saved" },
+		});
 	});
 });
 
@@ -361,15 +457,8 @@ function makeItem(url: string): ReadingListItem {
 	};
 }
 
-const logger = HutchLogger.from(noopLogger);
+const logger = Logger.from(noopLogger);
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
-
-function collectionPage(page: LoadPageResult | undefined): CollectionPage {
-	if (page === undefined || !("items" in page)) {
-		throw new Error("expected a loaded page, not a lost page list");
-	}
-	return page;
-}
 
 describe("BrowserExtensionCore init", () => {
 	it("opens the save-all-tabs popup from the context menu item", () => {
@@ -379,7 +468,7 @@ describe("BrowserExtensionCore init", () => {
 			createFakeShell();
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 		core.init();
@@ -458,7 +547,7 @@ describe("BrowserExtensionCore init", () => {
 
 	it("logs when resolving the shortcut target rejects", async () => {
 		const errors: unknown[] = [];
-		const recordingLogger = HutchLogger.from({
+		const recordingLogger = Logger.from({
 			...noopLogger,
 			error: (...args: unknown[]) => {
 				errors.push(args);
@@ -502,7 +591,7 @@ describe("BrowserExtensionCore init", () => {
 });
 
 describe("BrowserExtensionCore login/logout", () => {
-	it("emits logged-in and refreshes the active tab icon", async () => {
+	it("answers ok with no value key and refreshes the active tab icon", async () => {
 		const readingList = initInMemoryReadingList();
 		await readingList.saveUrl({ url: "https://active.example", title: "A" });
 		const cap = createCapturingShell({
@@ -513,30 +602,23 @@ describe("BrowserExtensionCore login/logout", () => {
 			logger,
 			readingList,
 		});
-		const events: string[] = [];
-		core.on("logged-in", { success: () => events.push("ok"), failure: () => {} });
 
-		core.login();
+		assert.deepStrictEqual(await core.login(), { ok: true });
 		await flush();
 
-		expect(events).toEqual(["ok"]);
 		expect(cap.showSavedCalls).toEqual([9]);
 	});
 
-	it("emits a failure when login rejects", async () => {
+	it("answers with the failure when login rejects", async () => {
 		const cap = createCapturingShell();
 		const auth = loggedInAuth();
+		const loginFailure = new Error("nope");
 		auth.login = async () => {
-			throw new Error("nope");
+			throw loginFailure;
 		};
 		const core = BrowserExtensionCore(cap.shell, { auth, logger, readingList: initInMemoryReadingList() });
-		const failures: unknown[] = [];
-		core.on("logged-in", { success: () => {}, failure: (e) => failures.push(e) });
 
-		core.login();
-		await flush();
-
-		expect(failures).toEqual([{ reason: "error", error: new Error("nope") }]);
+		assert.deepStrictEqual(await core.login(), { ok: false, reason: "error", error: loginFailure });
 	});
 
 	it("wraps a non-Error login rejection in an Error result", async () => {
@@ -546,14 +628,12 @@ describe("BrowserExtensionCore login/logout", () => {
 			throw "string rejection";
 		};
 		const core = BrowserExtensionCore(cap.shell, { auth, logger, readingList: initInMemoryReadingList() });
-		const failures: Array<{ reason: string; error?: Error }> = [];
-		core.on("logged-in", { success: () => {}, failure: (e) => failures.push(e) });
 
-		core.login();
-		await flush();
-
-		expect(failures).toHaveLength(1);
-		expect(failures[0].error?.message).toBe("string rejection");
+		assert.deepStrictEqual(await core.login(), {
+			ok: false,
+			reason: "error",
+			error: new Error("string rejection"),
+		});
 	});
 
 	it("emits logged-out and refreshes the active tab icon", async () => {
@@ -604,13 +684,21 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			logger,
 			readingList,
 		});
-		const results: unknown[] = [];
-		core.on("invoked-item-action", { success: (v) => results.push(v), failure: () => {} });
 
-		core.invoke("item-action", { id, name: "update-status" });
+		const result = await core.invoke("item-action", { id, name: "update-status" });
 		await flush();
 
-		expect(results).toHaveLength(1);
+		assert.deepStrictEqual(result, {
+			ok: true,
+			value: {
+				ok: true,
+				items: [saved.item],
+				pages: [],
+				total: undefined,
+				sort: [],
+				targetUrl: "https://i.example",
+			},
+		});
 		expect(cap.showSavedCalls).toEqual([3]);
 	});
 
@@ -664,18 +752,44 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			readingList,
 		});
 
-		core.invoke("item-action", {
+		const result = await core.invoke("item-action", {
 			id: ReadingListItemIdSchema.parse("ghost"),
 			name: "update-status",
 		});
 		await flush();
 
+		assert.deepStrictEqual(result, { ok: true, value: { ok: false, reason: "not-found" } });
 		expect(cap.showSavedCalls).toEqual([]);
 		expect(cap.showDefaultCalls).toEqual([]);
 		expect(readingList.findByUrlCalls).toEqual([]);
 	});
 
-	it("emits a failure and skips the icon refresh when invoking while logged out", async () => {
+	it("answers with the failure and skips the icon when the action rejects", async () => {
+		const actionFailure = new Error("action failed");
+		const readingList = createRecordingReadingList();
+		readingList.invokeAction = async () => {
+			throw actionFailure;
+		};
+		const cap = createCapturingShell({
+			activeTab: { id: 3, url: "https://i.example", title: "I" },
+		});
+		const core = BrowserExtensionCore(cap.shell, {
+			auth: loggedInAuth(),
+			logger,
+			readingList,
+		});
+
+		const result = await core.invoke("item-action", {
+			id: ReadingListItemIdSchema.parse("any-id"),
+			name: "update-status",
+		});
+		await flush();
+
+		assert.deepStrictEqual(result, { ok: false, reason: "error", error: actionFailure });
+		expect(cap.showSavedCalls).toEqual([]);
+	});
+
+	it("answers not logged in and skips the icon refresh when invoking while logged out", async () => {
 		const cap = createCapturingShell();
 		const auth = loggedInAuth();
 		auth.whenLoggedIn = (() => ({ ok: false, reason: "not-logged-in" })) as WhenLoggedIn;
@@ -684,60 +798,57 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			logger,
 			readingList: initInMemoryReadingList(),
 		});
-		const failures: unknown[] = [];
-		core.on("invoked-item-action", { success: () => {}, failure: (e) => failures.push(e) });
 
-		core.invoke("item-action", {
+		const result = await core.invoke("item-action", {
 			id: ReadingListItemIdSchema.parse("any-id"),
 			name: "update-status",
 		});
 		await flush();
 
-		expect(failures).toEqual([{ reason: "not-logged-in" }]);
+		assert.deepStrictEqual(result, { ok: false, reason: "not-logged-in" });
 		expect(cap.showDefaultCalls).toEqual([]);
 	});
 
-	it("fetches the reading list", async () => {
-		const readingList = initInMemoryReadingList();
-		await readingList.saveUrl({ url: "https://f.example", title: "F" });
+	it("fetches the first page of the reading list when no page or sort is asked for", async () => {
+		const readingList = createRecordingReadingList();
+		const saved = await readingList.saveUrl({ url: "https://f.example", title: "F" });
+		assert(saved.ok, "save should succeed for a fresh url");
+		readingList.loadPage = async () => ({ pageList: "lost" });
+		readingList.loadSort = async () => ({ pageList: "lost" });
 		const cap = createCapturingShell();
 		const core = BrowserExtensionCore(cap.shell, {
 			auth: loggedInAuth(),
 			logger,
 			readingList,
 		});
-		const results: LoadPageResult[] = [];
-		core.on("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
-		core.fetch("reading-list");
-		await flush();
+		const result: GuardedResult<CollectionPage> = await core.fetch("reading-list");
 
-		expect(results).toHaveLength(1);
-		expect(collectionPage(results[0]).items).toHaveLength(1);
-		expect(collectionPage(results[0]).pages).toEqual([]);
+		assert.deepStrictEqual(result, {
+			ok: true,
+			value: { items: [saved.item], pages: [], total: undefined, sort: [] },
+		});
 	});
 
 	it("fetches the page the reader picked, by its position in the list", async () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList();
-		await readingList.saveUrl({ url: "https://g.example", title: "G" });
+		const saved = await readingList.saveUrl({ url: "https://g.example", title: "G" });
+		assert(saved.ok, "save should succeed for a fresh url");
 		const cap = createCapturingShell();
 		const core = BrowserExtensionCore(cap.shell, {
 			auth,
 			logger,
 			readingList,
 		});
-		const results: LoadPageResult[] = [];
-		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
-		core.fetch("reading-list", { page: 1 });
-		await flush();
+		const result = await core.fetch("reading-list", { page: 1 });
 
-		expect(results).toHaveLength(1);
-		expect(collectionPage(results[0]).items.map((item) => item.url)).toEqual([
-			"https://g.example",
-		]);
+		assert.deepStrictEqual(result, {
+			ok: true,
+			value: { items: [saved.item], pages: [], total: undefined, sort: [] },
+		});
 		expect(readingList.loadPageCalls).toEqual([{ index: 1 }]);
 	});
 
@@ -745,22 +856,21 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList();
-		await readingList.saveUrl({ url: "https://s.example", title: "S" });
+		const saved = await readingList.saveUrl({ url: "https://s.example", title: "S" });
+		assert(saved.ok, "save should succeed for a fresh url");
 		const cap = createCapturingShell();
 		const core = BrowserExtensionCore(cap.shell, {
 			auth,
 			logger,
 			readingList,
 		});
-		const results: LoadPageResult[] = [];
-		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
-		core.fetch("reading-list", { sort: 1 });
-		await flush();
+		const result = await core.fetch("reading-list", { sort: 1 });
 
-		expect(collectionPage(results[0]).items.map((item) => item.url)).toEqual([
-			"https://s.example",
-		]);
+		assert.deepStrictEqual(result, {
+			ok: true,
+			value: { items: [saved.item], pages: [], total: undefined, sort: [] },
+		});
 		expect({ sorts: readingList.loadSortCalls, pages: readingList.loadPageCalls }).toEqual({
 			sorts: [{ index: 1 }],
 			pages: [],
@@ -773,16 +883,11 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 		auth.whenLoggedIn = (() => ({ ok: false, reason: "not-logged-in" })) as WhenLoggedIn;
 		const readingList = createRecordingReadingList();
 		const core = BrowserExtensionCore(cap.shell, { auth, logger, readingList });
-		const failures: unknown[] = [];
-		core.once("fetched-reading-list", { success: () => {}, failure: (e) => failures.push(e) });
 
-		core.fetch("reading-list", { sort: 0 });
-		await flush();
+		const result = await core.fetch("reading-list", { sort: 0 });
 
-		expect({ failures, sorts: readingList.loadSortCalls }).toEqual({
-			failures: [{ reason: "not-logged-in" }],
-			sorts: [],
-		});
+		assert.deepStrictEqual(result, { ok: false, reason: "not-logged-in" });
+		expect(readingList.loadSortCalls).toEqual([]);
 	});
 
 	it("forwards a lost page list rather than dressing it up as an empty page", async () => {
@@ -794,13 +899,10 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			logger,
 			readingList,
 		});
-		const results: LoadPageResult[] = [];
-		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
-		core.fetch("reading-list", { page: 0 });
-		await flush();
+		const result = await core.fetch("reading-list", { page: 0 });
 
-		expect(results).toEqual([{ pageList: "lost" }]);
+		assert.deepStrictEqual(result, { ok: true, value: { pageList: "lost" } });
 	});
 
 	it("mints a web session when fetching the reading list while logged in", async () => {
@@ -842,14 +944,15 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 
 	it("serves the list and logs when minting the web session fails", async () => {
 		const readingList = initInMemoryReadingList();
-		await readingList.saveUrl({ url: "https://e.example", title: "E" });
+		const saved = await readingList.saveUrl({ url: "https://e.example", title: "E" });
+		assert(saved.ok, "save should succeed for a fresh url");
 		const cap = createCapturingShell();
 		const auth = loggedInAuth();
 		auth.ensureWebSession = async () => {
 			throw new Error("mint failed");
 		};
 		const warns: unknown[][] = [];
-		const capturingLogger = HutchLogger.from({
+		const capturingLogger = Logger.from({
 			...noopLogger,
 			warn: (...args) => warns.push(args),
 		});
@@ -858,39 +961,35 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			logger: capturingLogger,
 			readingList,
 		});
-		const results: LoadPageResult[] = [];
-		core.on("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
-		core.fetch("reading-list");
+		const result = await core.fetch("reading-list");
 		await flush();
 
-		expect(results).toHaveLength(1);
+		assert.deepStrictEqual(result, {
+			ok: true,
+			value: { items: [saved.item], pages: [], total: undefined, sort: [] },
+		});
 		expect(warns).toHaveLength(1);
 	});
 
 });
 
-describe("BrowserExtensionCore result emission", () => {
+describe("BrowserExtensionCore settled results", () => {
 	function authReturning<T>(result: GuardedResult<T>): Auth {
 		const auth = loggedInAuth();
 		auth.whenLoggedIn = (() => result) as WhenLoggedIn;
 		return auth;
 	}
 
-	it("emits a failure for a guard rejection", async () => {
+	it("passes a guard refusal through", async () => {
 		const cap = createCapturingShell();
 		const core = BrowserExtensionCore(cap.shell, {
 			auth: authReturning({ ok: false, reason: "not-logged-in" }),
 			logger,
 			readingList: initInMemoryReadingList(),
 		});
-		const failures: unknown[] = [];
-		core.once("fetched-reading-list", { success: () => {}, failure: (e) => failures.push(e) });
 
-		core.fetch("reading-list");
-		await flush();
-
-		expect(failures).toEqual([{ reason: "not-logged-in" }]);
+		assert.deepStrictEqual(await core.fetch("reading-list"), { ok: false, reason: "not-logged-in" });
 	});
 
 	it("maps an UnauthorizedError rejection to not-logged-in", async () => {
@@ -903,16 +1002,11 @@ describe("BrowserExtensionCore result emission", () => {
 			logger,
 			readingList: initInMemoryReadingList(),
 		});
-		const failures: unknown[] = [];
-		core.once("fetched-reading-list", { success: () => {}, failure: (e) => failures.push(e) });
 
-		core.fetch("reading-list");
-		await flush();
-
-		expect(failures).toEqual([{ reason: "not-logged-in" }]);
+		assert.deepStrictEqual(await core.fetch("reading-list"), { ok: false, reason: "not-logged-in" });
 	});
 
-	it("preserves an Error rejection as the error result", async () => {
+	it("keeps the same Error instance from a rejection", async () => {
 		const cap = createCapturingShell();
 		const failure = new Error("kaboom");
 		const core = BrowserExtensionCore(cap.shell, {
@@ -920,50 +1014,40 @@ describe("BrowserExtensionCore result emission", () => {
 			logger,
 			readingList: initInMemoryReadingList(),
 		});
-		const failures: Array<{ reason: string; error?: Error }> = [];
-		core.once("fetched-reading-list", { success: () => {}, failure: (e) => failures.push(e) });
 
-		core.fetch("reading-list");
-		await flush();
+		const result = await core.fetch("reading-list");
 
-		expect(failures).toHaveLength(1);
-		expect(failures[0].error).toBe(failure);
+		assert(!result.ok && result.reason === "error", "a rejection must settle as an error result");
+		assert.strictEqual(result.error, failure);
 	});
 
-	it("maps a non-Error rejection to an error result", async () => {
+	it("wraps a non-Error rejection in an Error", async () => {
 		const cap = createCapturingShell();
 		const core = BrowserExtensionCore(cap.shell, {
 			auth: authReturning({ ok: true, value: Promise.reject("string failure") }),
 			logger,
 			readingList: initInMemoryReadingList(),
 		});
-		const failures: Array<{ reason: string; error?: Error }> = [];
-		core.once("fetched-reading-list", { success: () => {}, failure: (e) => failures.push(e) });
 
-		core.fetch("reading-list");
-		await flush();
-
-		expect(failures).toHaveLength(1);
-		expect(failures[0].reason).toBe("error");
-		expect(failures[0].error?.message).toBe("string failure");
+		assert.deepStrictEqual(await core.fetch("reading-list"), {
+			ok: false,
+			reason: "error",
+			error: new Error("string failure"),
+		});
 	});
 
-	it("emits a success synchronously for a non-promise value", async () => {
+	it("answers ok with a non-promise value", async () => {
 		const cap = createCapturingShell();
+		const syncItem = makeItem("https://sync.example");
 		const core = BrowserExtensionCore(cap.shell, {
-			auth: authReturning({ ok: true, value: { items: [makeItem("https://sync.example")], hasMore: false } }),
+			auth: authReturning({ ok: true, value: { items: [syncItem], hasMore: false } }),
 			logger,
 			readingList: initInMemoryReadingList(),
 		});
-		const results: LoadPageResult[] = [];
-		core.once("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
 
-		core.fetch("reading-list");
-		await flush();
-
-		expect(results).toHaveLength(1);
-		expect(collectionPage(results[0]).items[0]?.url).toBe("https://sync.example");
+		assert.deepStrictEqual(await core.fetch("reading-list"), {
+			ok: true,
+			value: { items: [syncItem], hasMore: false },
+		});
 	});
-
 });
-

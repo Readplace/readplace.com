@@ -1,6 +1,6 @@
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import type { SubscriptionStatus } from "@packages/provider-contracts/subscription-providers";

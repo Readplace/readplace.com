@@ -15,13 +15,6 @@ import type { GetEffectiveAccess } from "@packages/subscription-access";
  * `message` is.
  */
 
-/** Hard-coded production URL for the account page where a renewal is completed. */
-const APP_ACCOUNT_URL = "https://readplace.com/account";
-
-const INACTIVE_MESSAGE =
-	"Saving new links is paused because this Readplace subscription isn't active. " +
-	`Everything already saved stays readable and exportable, and the subscription can be reactivated at ${APP_ACCOUNT_URL}.`;
-
 export type ToolAccess =
 	| { readonly state: "ok" }
 	| { readonly state: "inactive"; readonly message: string }
@@ -35,11 +28,15 @@ export const UNVERIFIED_ACCESS = {
 
 export function initResolveToolAccess(deps: {
 	getEffectiveAccess: GetEffectiveAccess;
+	appOrigin: string;
 }): (userId: AuthenticatedUserId) => Promise<ToolAccess> {
+	const inactiveMessage =
+		"Saving new links is paused because this Readplace subscription isn't active. " +
+		`Everything already saved stays readable and exportable, and the subscription can be reactivated at ${new URL("/account", deps.appOrigin).toString()}.`;
 	return async (userId) => {
 		const access = await deps.getEffectiveAccess(userId);
 		if (access.access === "read-only") {
-			return { state: "inactive", message: INACTIVE_MESSAGE };
+			return { state: "inactive", message: inactiveMessage };
 		}
 		return { state: "ok" };
 	};

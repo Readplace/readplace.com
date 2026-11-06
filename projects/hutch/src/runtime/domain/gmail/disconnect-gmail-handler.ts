@@ -1,14 +1,13 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { DisconnectGmailCommand, GmailDisconnectedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { DisconnectGmailCommand, GmailDisconnectedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { DisconnectGmail } from "./disconnect-gmail";
 
 export function initDisconnectGmailHandler(deps: {
 	disconnectGmail: DisconnectGmail;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { disconnectGmail, publishEvent, logger } = deps;
 
@@ -24,7 +23,7 @@ export function initDisconnectGmailHandler(deps: {
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
-				const userId = UserIdSchema.parse(parsed.data.userId);
+				const { userId } = parsed.data;
 
 				const result = await disconnectGmail({ userId });
 				if (result.ok) {

@@ -1,8 +1,8 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
 
 export function initInMemorySaveAnonymousLink(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): { publishSaveAnonymousLink: PublishSaveAnonymousLink } {
 	const { logger } = deps;
 

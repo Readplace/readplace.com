@@ -290,7 +290,7 @@ describe("GMail Newsletters popup markup", () => {
 			["auto", "dialog", "-1", "gmail-dialog-title", "false", "add", "gmail-add"],
 		);
 		assert.equal(dialog.querySelector("#gmail-dialog-title")?.textContent, "Add newsletters");
-		assert.deepEqual(bodyBlocks(dialog), ["button", "div", "form", "gmail-sender-status", "gmail-checklist", "gmail-sender-label", "details", "gmail-mapping-choice"]);
+		assert.deepEqual(bodyBlocks(dialog), ["button", "form", "gmail-sender-status", "gmail-checklist", "gmail-sender-label", "details", "gmail-mapping-choice"]);
 		assert.equal(dialog.querySelector("[data-test-gmail-load-senders] #gmail-load-senders-button")?.textContent, "Load senders");
 		assert.equal(dialog.querySelector("[data-test-gmail-sender-picker] #gmail-sender-search")?.getAttribute("name"), "search");
 		const footer = dialog.querySelector("[data-test-gmail-dialog-footer]");

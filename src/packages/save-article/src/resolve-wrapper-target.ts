@@ -1,5 +1,5 @@
 import { type WrapperFamily, isArchiveHost, isUnlockableTrackerUrl, wrapperFamilyOf } from "@packages/domain/article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 
 export type ResolvedWrapperTarget = { url: string; contentSourceUrl?: string };
 
@@ -103,7 +103,7 @@ export function initResolveWrapperTarget(deps: {
 	hopBudgetMs: number;
 	totalBudgetMs: number;
 	challengeBudgetMs: number;
-	logger: HutchLogger;
+	logger: Logger;
 }): ResolveWrapperTarget {
 	const hopSignal = (deadline: AbortSignal) => AbortSignal.any([deadline, AbortSignal.timeout(deps.hopBudgetMs)]);
 	const hop = (url: string, deadline: AbortSignal) =>

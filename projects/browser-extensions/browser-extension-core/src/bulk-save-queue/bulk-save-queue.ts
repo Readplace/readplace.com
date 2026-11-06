@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import type { BulkSavePage, BulkSaveResult } from "../reading-list/reading-list.types";
 import {
@@ -7,7 +7,7 @@ import {
 	packRequests,
 	type BulkSaveSession,
 	type OpenBulkSaveSession,
-} from "../reading-list/siren-reading-list";
+} from "../reading-list/bulk-save-packing";
 import type { BulkPayloadStore, WakeScheduler } from "../upload-queue/upload-queue.types";
 import { type BulkSaveJob, type BulkSaveJobId, BulkSaveJobIdSchema, parseBulkSaveJobs } from "./bulk-save-job";
 
@@ -95,7 +95,7 @@ export function initBulkSaveQueue(deps: {
 	scheduler: WakeScheduler;
 	openSession: OpenBulkSaveSession;
 	progress: (events: QueueEvent[]) => Promise<void>;
-	logger: HutchLogger;
+	logger: Logger;
 }): BulkSaveQueue {
 	let pending: Promise<unknown> = Promise.resolve();
 	let resuming: Promise<ResumeOutcome> | undefined;
@@ -136,7 +136,7 @@ export function initBulkSaveQueue(deps: {
 		try {
 			await purgeAll();
 		} catch (error) {
-			deps.logger.error("[bulk-save-queue] purge failed", error);
+			deps.logger.error("[bulk-save-queue] purge failed", { error: error });
 		}
 	}
 
@@ -282,7 +282,7 @@ export function initBulkSaveQueue(deps: {
 					url: job.url,
 					tooBigMb: degradedMb.get(job.url) ?? null,
 				})),
-			).catch((error) => deps.logger.error("[bulk-save-queue] reporting a chunk sending failed", error));
+			).catch((error) => deps.logger.error("[bulk-save-queue] reporting a chunk sending failed", { error: error }));
 			try {
 				const bulk = await session.sendChunk(chunk);
 				progressed = true;
@@ -364,7 +364,7 @@ export function initBulkSaveQueue(deps: {
 					return { kind: "pass", report: await runPass() };
 				} catch (error) {
 					if (error instanceof UnauthorizedError) return { kind: "unauthorized" };
-					deps.logger.error("[bulk-save-queue] resume failed", error);
+					deps.logger.error("[bulk-save-queue] resume failed", { error: error });
 					return { kind: "pass", report: emptyReport() };
 				}
 			}).then(clearResuming);

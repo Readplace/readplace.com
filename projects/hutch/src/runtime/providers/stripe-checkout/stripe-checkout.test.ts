@@ -33,6 +33,7 @@ describe("initStripeCheckout", () => {
 				priceId: "price_test_yearly",
 				successUrl: "https://readplace.com/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 				cancelUrl: "https://readplace.com/signup",
+				coupon: null,
 			});
 
 			assert.equal(result.id, "cs_test_created");
@@ -49,6 +50,35 @@ describe("initStripeCheckout", () => {
 			assert.ok(body.includes("customer_email=buyer%40example.com"));
 			assert.ok(body.includes("allow_promotion_codes=true"));
 			assert.ok(!body.includes("subscription_data"), "no trial_end without trialEndsAt");
+		});
+
+		it.each<[string, string | null, { coupon: string | null; promotionCodes: string | null }]>([
+			["attaches the coupon and closes the promotion-code field", "EFvPMZn0", { coupon: "EFvPMZn0", promotionCodes: null }],
+			["leaves the promotion-code field open when no coupon is attached", null, { coupon: null, promotionCodes: "true" }],
+		])("%s", async (_behaviour, coupon, expected) => {
+			let receivedBody = "";
+			const fakeFetch: typeof globalThis.fetch = async (_input, init) => {
+				receivedBody = String(init?.body);
+				return jsonResponse(200, {
+					id: "cs_test_coupon",
+					url: "https://checkout.stripe.com/c/pay/cs_test_coupon",
+				});
+			};
+			const stripe = initStripeCheckout({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.createCheckoutSession({
+				customerEmail: "trialist@example.com",
+				priceId: "price_test_yearly",
+				successUrl: "https://readplace.com/ok",
+				cancelUrl: "https://readplace.com/cancel",
+				coupon,
+			});
+
+			const sent = new URLSearchParams(receivedBody);
+			assert.deepEqual(
+				{ coupon: sent.get("discounts[0][coupon]"), promotionCodes: sent.get("allow_promotion_codes") },
+				expected,
+			);
 		});
 
 		it("bills whichever price the caller names, so one Stripe client serves every plan", async () => {
@@ -68,6 +98,7 @@ describe("initStripeCheckout", () => {
 				priceId: "price_test_triennial",
 				successUrl: "https://readplace.com/auth/checkout/success",
 				cancelUrl: "https://readplace.com/signup",
+				coupon: null,
 			});
 
 			const body = String(receivedInit?.body ?? "");
@@ -96,6 +127,7 @@ describe("initStripeCheckout", () => {
 				successUrl: "https://readplace.com/ok",
 				cancelUrl: "https://readplace.com/cancel",
 				trialEndsAt,
+				coupon: null,
 			});
 
 			const body = String(receivedInit?.body ?? "");
@@ -122,6 +154,7 @@ describe("initStripeCheckout", () => {
 						priceId: "price_test_yearly",
 						successUrl: "https://readplace.com/ok",
 						cancelUrl: "https://readplace.com/cancel",
+						coupon: null,
 					}),
 				/Stripe createCheckoutSession failed \(400\): No such price/,
 			);
@@ -143,6 +176,7 @@ describe("initStripeCheckout", () => {
 						priceId: "price_test_yearly",
 						successUrl: "https://readplace.com/ok",
 						cancelUrl: "https://readplace.com/cancel",
+						coupon: null,
 					}),
 				/Stripe createCheckoutSession failed \(402\): Stripe error/,
 			);
@@ -164,6 +198,7 @@ describe("initStripeCheckout", () => {
 						priceId: "price_test_yearly",
 						successUrl: "https://readplace.com/ok",
 						cancelUrl: "https://readplace.com/cancel",
+						coupon: null,
 					}),
 				/Stripe createCheckoutSession failed \(500\): Stripe error/,
 			);

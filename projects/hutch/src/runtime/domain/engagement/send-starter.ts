@@ -24,16 +24,19 @@ import type { FindGeneratedSummary, GeneratedSummary } from "@packages/provider-
 import type { FindReaderReadyEmailState } from "@packages/provider-contracts/reader-ready-state";
 import type { EmailAttachment, SendEmail } from "@packages/provider-contracts/email";
 import { resolveEffectiveAccess } from "@packages/subscription-access";
-import { QueueDigestEmail, type QueueDigestEmailItem } from "../../web/queue-digest-email";
-import { buildDigestPreview } from "../../web/digest-preview";
-import type { BuildQueueDigestBook } from "../../web/queue-digest-book";
-import type { BookChapter } from "../../web/shared/epub/book-epub";
+import type {
+	BuildQueueDigestBook,
+	PreviewSummary,
+	QueueDigestEmailItem,
+	RenderStarterEmail,
+} from "./digest-email.types";
+import type { BookChapter } from "../readlist/book-chapter.types";
 import {
 	PAY_DIGEST_WINDOW_CLOSES_LEAD_MS,
 	PAY_DIGEST_WINDOW_OPENS_LEAD_MS,
 } from "../stripe/stripe-trial-config";
 import { STARTER_EMAIL_GAP_MS, STARTER_RETRY_WINDOW_MS } from "./starter-policy";
-import { reservedDomainOf } from "../../providers/email/skip-reserved-domain";
+import { reservedDomainOf } from "../email/reserved-domain";
 
 function toChapter(input: {
 	article: GlobalArticleData;
@@ -73,6 +76,8 @@ export function initSendStarter(deps: {
 	findGeneratedSummary: FindGeneratedSummary;
 	readArticleContent: ReadArticleContent;
 	buildQueueDigestBook: BuildQueueDigestBook;
+	renderStarterEmail: RenderStarterEmail;
+	previewSummary: PreviewSummary;
 	sendEmail: SendEmail;
 	signUnsubscribeToken: (userId: UserId) => string;
 	appOrigin: string;
@@ -210,7 +215,7 @@ export function initSendStarter(deps: {
 						articleId: article.id,
 						title: article.metadata.title,
 						siteName: article.metadata.siteName,
-						preview: buildDigestPreview(summary),
+						preview: deps.previewSummary(summary),
 					});
 					chapters.push(toChapter({ article, summary, contentHtml: stored.body }));
 				}
@@ -230,8 +235,7 @@ export function initSendStarter(deps: {
 				.update(JSON.stringify([userId, pack.campaignId]))
 				.digest("hex");
 			const idempotencyKey = `starter/${sendDigest}`;
-			const email = QueueDigestEmail({
-				kind: "starter",
+			const email = deps.renderStarterEmail({
 				starter: { readlist: pack.readlist, campaignId: pack.campaignId },
 				items,
 				links: {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { UserIdSchema } from "@packages/article-state-types";
 import type { Article } from "../article.types";
 import { submitLink } from "./submit-link";
 
@@ -93,7 +94,7 @@ describe("submitLink", () => {
 		it("passes the submitter through the effect so the submit-link handler can route the save to the authenticated user's library and tag where it came from", () => {
 			const { effects } = submitLink(undefined, {
 				url: "https://example.com/post",
-				submitter: { userId: "user-123", provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" },
+				submitter: { userId: UserIdSchema.parse("user-123"), provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" },
 				now: NOW,
 			});
 
@@ -101,7 +102,7 @@ describe("submitLink", () => {
 				{
 					kind: "dispatch-submit-link",
 					url: "https://example.com/post",
-					submitter: { userId: "user-123", provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" },
+					submitter: { userId: UserIdSchema.parse("user-123"), provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" },
 				},
 			]);
 		});
@@ -109,7 +110,7 @@ describe("submitLink", () => {
 		it("passes rawHtml through the effect so the submit-link handler can write the tier-0 source for extension uploads", () => {
 			const { effects } = submitLink(undefined, {
 				url: "https://example.com/post",
-				submitter: { userId: "user-123", provenance: { kind: "web" }, saveTrigger: "manual" },
+				submitter: { userId: UserIdSchema.parse("user-123"), provenance: { kind: "web" }, saveTrigger: "manual" },
 				rawHtml: "<html>captured</html>",
 				now: NOW,
 			});
@@ -118,7 +119,7 @@ describe("submitLink", () => {
 				{
 					kind: "dispatch-submit-link",
 					url: "https://example.com/post",
-					submitter: { userId: "user-123", provenance: { kind: "web" }, saveTrigger: "manual" },
+					submitter: { userId: UserIdSchema.parse("user-123"), provenance: { kind: "web" }, saveTrigger: "manual" },
 					rawHtml: "<html>captured</html>",
 				},
 			]);

@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { Article } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted, markSummaryExhausted } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";

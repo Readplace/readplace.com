@@ -47,7 +47,7 @@ class WebAuthFlowTest {
 	private fun serverBaseUrl(): String = server.url("/").toString().removeSuffix("/")
 
 	private fun oauthAt(baseUrl: String): OAuth =
-		OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
+		OAuth(endpoints = ServerEndpoints(baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
 
 	private fun request(): AuthorizationRequest =
 		oauthAt(serverBaseUrl()).makeNativeLoginAuthorizationRequest()
@@ -230,7 +230,7 @@ class WebAuthFlowTest {
 			}
 		}
 		val oauth = OAuth(
-			baseUrl = serverBaseUrl(),
+			endpoints = ServerEndpoints(serverBaseUrl()),
 			store = TokenStore(cannotPersist),
 			http = OkHttpClient(),
 			nativeUserAgent = "Readplace/1 Android/16",

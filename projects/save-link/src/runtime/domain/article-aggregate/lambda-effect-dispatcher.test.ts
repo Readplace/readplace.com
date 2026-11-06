@@ -1,3 +1,4 @@
+import { UserIdSchema } from "@packages/domain/user";
 import type { Effect } from "@packages/domain/article-aggregate";
 import {
 	CanonicalContentChangedEvent,
@@ -8,7 +9,7 @@ import {
 	SubmitLinkCommand,
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { initLambdaEffectDispatcher } from "./lambda-effect-dispatcher";
 
 describe("initLambdaEffectDispatcher", () => {
@@ -234,7 +235,7 @@ describe("initLambdaEffectDispatcher", () => {
 		await dispatchEffect({
 			kind: "dispatch-submit-link",
 			url: "https://example.com/article",
-			submitter: { userId: "user-123", provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" },
+			submitter: { userId: UserIdSchema.parse("user-123"), provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" },
 		});
 
 		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
@@ -301,7 +302,7 @@ describe("initLambdaEffectDispatcher", () => {
 		await dispatchEffect({
 			kind: "dispatch-submit-link",
 			url: "https://example.com/article",
-			submitter: { userId: "user-123", provenance: { kind: "web" }, saveTrigger: "manual" },
+			submitter: { userId: UserIdSchema.parse("user-123"), provenance: { kind: "web" }, saveTrigger: "manual" },
 			rawHtml: "<html>captured DOM</html>",
 		});
 

@@ -77,7 +77,7 @@ class ReadplaceApiTest {
 	}
 
 	private fun oauthFor(store: TokenStore, baseUrl: String = server.baseUrl): OAuth =
-		OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
+		OAuth(endpoints = ServerEndpoints(baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
 
 	/** Builds the client the way the composition root does: one OkHttp client with
 	 * its own jar. A ceiling is passed only when a test lowers it, so the default
@@ -1466,7 +1466,7 @@ class ReadplaceApiTest {
 			.followRedirects(false)
 			.addNetworkInterceptor(policy)
 			.build()
-		val oauth = OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
+		val oauth = OAuth(endpoints = ServerEndpoints(baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
 		return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, StandardTestDispatcher(testScheduler))
 	}
 
@@ -1525,7 +1525,7 @@ class ReadplaceApiTest {
 			val api = ReadplaceApi(
 				baseUrl,
 				client,
-				OAuth(baseUrl = baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT),
+				OAuth(endpoints = ServerEndpoints(baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT),
 				USER_AGENT,
 				StandardTestDispatcher(testScheduler),
 			)

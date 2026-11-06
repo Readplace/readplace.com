@@ -1,6 +1,6 @@
 import { initOAuthAuth } from "./oauth-auth";
 import type { OAuthAuthDeps, OAuthTokens, TokenStorage } from "./auth.types";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 
 function createInMemoryTokenStorage(): TokenStorage & { stored: OAuthTokens | null } {
 	const store: { stored: OAuthTokens | null } = { stored: null };
@@ -63,7 +63,7 @@ function createInMemoryOAuthDeps(overrides?: Partial<OAuthAuthDeps>) {
 		closeTab,
 		fetchFn,
 		tokenStorage: createInMemoryTokenStorage(),
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 		captured: {
 			get authorizeUrl() { return capturedAuthorizeUrl; },
 			get tokenUrl() { return capturedTokenUrl; },

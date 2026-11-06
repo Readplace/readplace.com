@@ -53,6 +53,7 @@ export {
 	type ContentClass,
 } from "./content-source";
 export { baseCookieOptions, isHttpsOrigin } from "./cookie-options";
+export { defineCookie, type CookieDefinition } from "./define-cookie";
 export { gatewayRequestIdOf } from "./gateway-request-id";
 export {
 	VISITOR_COOKIE_NAME,
@@ -70,18 +71,28 @@ export {
 export { utmValidationMiddleware } from "./utm-validation.middleware";
 export {
 	createAnalyticsMiddleware,
+} from "./analytics.middleware";
+export {
 	isBotRequest,
 	isBotUserAgent,
 	isReadplaceNativeClient,
 	readplaceNativeClientOf,
-	isCountableBrowserRequest,
-	hashIp,
-	suppressClickCount,
-	tagPageviewExperiment,
-	tagPageviewSortOrder,
 	classifyDeviceClass,
 	classifyBrowser,
 	classifyOsFamily,
+	mcpUaClientOf,
+	type DeviceClass,
+	type BrowserFamily,
+	type OsFamily,
+} from "./user-agent";
+export {
+	isCountableBrowserRequest,
+	suppressClickCount,
+	tagPageviewExperiment,
+	tagPageviewSortOrder,
+} from "./countable-request";
+export {
+	hashIp,
 	deriveSaveSurface,
 	buildSaveIntentEvent,
 	buildViewEndCtaShownEvent,
@@ -97,8 +108,9 @@ export {
 	buildMcpRequestRefusedEvent,
 	buildMcpSessionInitializedEvent,
 	buildMcpToolsListedEvent,
-	mcpUaClientOf,
 	buildPageDepthEvent,
+} from "./build-events";
+export {
 	type AnalyticsEvent,
 	type McpToolCalledEvent,
 	type SaveRefusedEvent,
@@ -129,10 +141,7 @@ export {
 	type McpSaveIntentEvent,
 	type ViewEndCtaShownEvent,
 	type FirstArticleAutosavedEvent,
-	type DeviceClass,
-	type BrowserFamily,
-	type OsFamily,
-} from "./analytics";
+} from "./analytics-event.types";
 export {
 	initRecordAudienceEvent,
 	type RecordAudienceEvent,

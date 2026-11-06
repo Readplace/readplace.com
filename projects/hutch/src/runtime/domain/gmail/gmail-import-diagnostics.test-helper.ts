@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { inspect } from "node:util";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initRecordGmailDiagnostic, type RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
 
 export interface CapturedGmailDiagnostic {
@@ -37,7 +37,7 @@ interface LoggedCall {
 
 export function captureGmailDiagnostics(input: { now: () => Date }) {
 	const calls: LoggedCall[] = [];
-	const logger = HutchLogger.from({
+	const logger = Logger.from({
 		...noopLogger,
 		info: (...args: unknown[]) => {
 			calls.push({ method: "info", args });
@@ -68,7 +68,7 @@ export function captureGmailDiagnostics(input: { now: () => Date }) {
 
 export function throwingGmailDiagnosticSink(input: { now: () => Date }): RecordGmailDiagnostic {
 	return initRecordGmailDiagnostic({
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			...noopLogger,
 			info: () => {
 				throw new Error("diagnostic sink unavailable");

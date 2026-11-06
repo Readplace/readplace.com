@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import type { ServedBody } from "@packages/domain/article";
-import { dynamoField } from "@packages/hutch-storage-client";
+import { dynamoField } from "@packages/storage-client";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 

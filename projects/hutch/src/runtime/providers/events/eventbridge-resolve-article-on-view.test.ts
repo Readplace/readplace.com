@@ -1,5 +1,5 @@
 import { newSaveAttemptId } from "@packages/domain/article";
-import { ResolveArticleOnViewCommand } from "@packages/hutch-infra-components";
+import { ResolveArticleOnViewCommand } from "@packages/infra-components";
 import { initEventBridgeResolveArticleOnView } from "./eventbridge-resolve-article-on-view";
 
 describe("initEventBridgeResolveArticleOnView", () => {

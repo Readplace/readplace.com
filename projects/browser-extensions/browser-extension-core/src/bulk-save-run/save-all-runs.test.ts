@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { GuardedResult } from "../auth/auth.types";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import { type BulkSaveJob, parseBulkSaveJobs } from "../bulk-save-queue/bulk-save-job";
@@ -7,7 +7,7 @@ import { type PassReport, initBulkSaveQueue } from "../bulk-save-queue/bulk-save
 import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import { WindowIdSchema } from "../domain/window-id";
 import type { BulkSavePage, SaveUrlResult, TabContent } from "../reading-list/reading-list.types";
-import type { BulkChunkSummary, BulkSaveSession } from "../reading-list/siren-reading-list";
+import type { BulkChunkSummary, BulkSaveSession } from "../reading-list/bulk-save-packing";
 import { BULK_SAVE_RUNS_KEY, type BulkSaveRun, BulkSaveRunIdSchema, parseBulkSaveRuns } from "./bulk-save-run";
 import { initBulkSaveRunRecord } from "./bulk-save-run-record";
 import { type SaveAllStart, SaveAllMessageSchema } from "./save-all-messages";
@@ -59,7 +59,7 @@ function createContext(
 	const captured: string[] = [];
 	const heldCaptures: { url: string; resolve: (content: TabContent | undefined) => void }[] = [];
 	const errors: unknown[] = [];
-	const logger = HutchLogger.from({ ...noopLogger, error: (...args: unknown[]) => errors.push(args) });
+	const logger = Logger.from({ ...noopLogger, error: (...args: unknown[]) => errors.push(args) });
 	const jobs = {
 		read: async (): Promise<unknown> => world.jobs,
 		write: async (written: BulkSaveJob[]) => {
@@ -485,7 +485,7 @@ describe("initSaveAllRuns drive", () => {
 		expect(states(storedRuns(world)[0])).toEqual(["failed"]);
 		expect(context.errors).toContainEqual([
 			"[save-all-runs] could not read the pending jobs of a failed send",
-			new Error("indexeddb gone"),
+			{ error: new Error("indexeddb gone") },
 		]);
 	});
 

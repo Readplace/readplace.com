@@ -1,0 +1,4 @@
+export const INBOX_FAILURES_DLQ_ENV = [
+	"DYNAMODB_INBOX_EMAIL_LINKS_TABLE",
+	"EVENT_BUS_NAME",
+] as const;

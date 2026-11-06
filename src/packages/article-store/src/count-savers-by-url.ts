@@ -2,7 +2,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 
 const UserArticleKeyRow = z.object({

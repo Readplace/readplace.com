@@ -2,7 +2,8 @@
 import assert from "node:assert";
 import { randomInt } from "node:crypto";
 import type { Express } from "express";
-import type { Logger } from "./domain/logger";
+import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
+import type { WebLogger } from "./domain/logger";
 import { hashPassword } from "@packages/domain/user";
 import { validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
@@ -13,14 +14,14 @@ import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-pr
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
-import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
+import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import { httpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initCachedUserCount } from "./web/auth/cached-user-count";
 import { readNewsletterCatalogSeed } from "./domain/newsletter-catalog/newsletter-catalog-seed";
-import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
+import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
 import { getEnv, requireEnv } from "@packages/require-env";
 
 type AssemblyProvidedKeys =
@@ -43,6 +44,8 @@ type AssemblyProvidedKeys =
 	| "analytics"
 	| "authDiagnosticsLogger"
 	| "salt"
+	| "keepOfferCouponId"
+	| "keepOfferEndsAt"
 	| "foundingAllocation"
 	| "newsletterCatalogSeed";
 export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
@@ -69,9 +72,13 @@ export function assembleReadplaceApp(input: {
 	const adminEmails = parseAdminEmails(requireEnv("ADMIN_EMAILS"));
 	const recrawlServiceToken = requireEnv("RECRAWL_SERVICE_TOKEN");
 	const salt = requireEnv("ANALYTICS_SALT");
-	const analyticsLogger = HutchLogger.fromJSON<AnalyticsEvent>();
+	const analyticsLogger = Logger.fromJSON<AnalyticsEvent>();
+
+	const keepOfferCouponId = requireEnv("STRIPE_KEEP_OFFER_COUPON_ID");
 
 	const app = createApp({
+		keepOfferCouponId,
+		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
 		validateSaveableUrl: withUnwrapPreprocessing(
 			validateSaveableUrl,
 			unwrappedPreProcessors(readplaceUnwrapPreprocessor),
@@ -87,18 +94,18 @@ export function assembleReadplaceApp(input: {
 		recrawlServiceToken,
 		baseUrl: appOrigin,
 		logError: (message, error) =>
-			HutchLogger.from(consoleLogger).error(
+			Logger.from(consoleLogger).error(
 				formatErrorLogLine({ message, error, now: () => new Date() }),
 			),
 		httpErrorMessageMapping,
 		now: () => new Date(),
 		drawRandomByte: () => randomInt(256),
-		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
-		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),
-		subscriptionLogger: HutchLogger.fromJSON<SubscriptionLogEvent>(),
-		funnelLogger: HutchLogger.fromJSON<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>(),
+		botDefenseLogger: Logger.fromJSON<BotDefenseEvent>(),
+		conversionLogger: Logger.fromJSON<ConversionEvent>(),
+		subscriptionLogger: Logger.fromJSON<SubscriptionLogEvent>(),
+		funnelLogger: Logger.fromJSON<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>(),
 		analytics: analyticsLogger,
-		authDiagnosticsLogger: HutchLogger.fromJSON<Record<string, unknown>>(),
+		authDiagnosticsLogger: Logger.fromJSON<Record<string, unknown>>(),
 		salt,
 		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),
 		newsletterCatalogSeed: readNewsletterCatalogSeed(),
@@ -111,7 +118,7 @@ export function createReadplaceApp() {
 	return assembleReadplaceApp({ appOrigin: requireEnv("APP_ORIGIN"), initProviders: initProdProviders });
 }
 
-export const localServer = (expressApp: Express, logger: Logger): void => {
+export const localServer = (expressApp: Express, logger: WebLogger): void => {
 	const port = getEnv("PORT") || "3000";
 	expressApp.listen(Number.parseInt(port, 10)).on("listening", () => {
 		logger.info(`Local server running on http://localhost:${port}`);

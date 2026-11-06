@@ -205,11 +205,11 @@ describe("toIntegrationsIndexViewModel", () => {
 	});
 
 	it.each([
-		[undefined, []],
-		[connection({ revokedAt: "2026-08-27T01:00:00.000Z", revokedReason: "invalid-grant" }), ["manage"]],
-		[connection(), ["finish-setup"]],
-		[connection({ forwardingConfirmedAt: "2026-08-27T00:05:00.000Z" }), ["manage"]],
-	])("locks Connect Gmail for a reader who can upgrade, keeping setup and management for connection %j", (existing, actions) => {
+		[undefined, [], "Connect Gmail"],
+		[connection({ revokedAt: "2026-08-27T01:00:00.000Z", revokedReason: "invalid-grant" }), ["manage"], "Connect Gmail"],
+		[connection(), ["finish-setup"], "Keep Gmail connected"],
+		[connection({ forwardingConfirmedAt: "2026-08-27T00:05:00.000Z" }), ["manage"], "Keep Gmail connected"],
+	])("locks Gmail for a reader who can upgrade, keeping setup and management for connection %j", (existing, actions, label) => {
 		const gmail = gmailRow({
 			connection: existing,
 			canConnectGmail: false,
@@ -224,7 +224,7 @@ describe("toIntegrationsIndexViewModel", () => {
 		assert(trigger);
 		assert.equal(trigger.getAttribute("data-test-needs-upgrade"), "connect-gmail");
 		assert.equal(trigger.getAttribute("popovertarget"), "subscribe-plans");
-		assert.equal(trigger.querySelector(".needs-upgrade__label")?.textContent, "Connect Gmail");
+		assert.equal(trigger.querySelector(".needs-upgrade__label")?.textContent, label);
 		assert.equal(trigger.classList.contains("btn--primary"), true);
 		assert.equal(trigger.classList.contains("btn--s"), true);
 		assert.equal(

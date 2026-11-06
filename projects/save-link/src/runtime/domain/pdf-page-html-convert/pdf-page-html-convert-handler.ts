@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine, estimateOutputTokens } from "@packages/ai-message";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { escapeHtmlText } from "@packages/crawl-article";
 import { sanitizeFragment } from "../article-parser/sanitize-fragment";
 import type {
@@ -34,8 +34,8 @@ const MIN_TEXT_RETENTION = 0.7;
 
 export function initPdfPageHtmlConvertHandler(deps: {
 	convertPageToHtmlWithLlm: ConvertPageToHtmlWithLlm;
-	logger: HutchLogger;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 }): (rawInput: unknown) => Promise<PdfPageHtmlConvertOutput> {
 	const { convertPageToHtmlWithLlm, logger, deepseekCallFailedLog } = deps;
 

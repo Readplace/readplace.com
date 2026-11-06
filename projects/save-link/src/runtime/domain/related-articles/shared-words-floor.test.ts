@@ -1,10 +1,18 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { articleDestinationUrl } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
-import type { SelectRelatedArticlesParams, SelectRelatedResult } from "./related-articles-selector";
+import type { SelectionAttempt, SelectRelatedArticlesParams, SelectRelatedResult } from "./related-articles-selector";
 import { initSelectRelatedArticlesWithoutSharedBoilerplate } from "./shared-boilerplate";
 import { initSelectRelatedArticlesAboveSharedWordsFloor } from "./shared-words-floor";
 import { scoreSharedWords } from "./shared-words-score";
+
+const ATTEMPT: SelectionAttempt = {
+	userId: UserIdSchema.parse("user-1"),
+	trigger: "save",
+	messageId: "message-1",
+	receiveCount: 1,
+};
 
 const target = { destinationUrl: articleDestinationUrl({ url: "https://example.com/target", displayUrl: undefined }), title: "Kubernetes operator reconciliation", description: "Cluster state loops", siteName: "Example" };
 const candidates: RelatedCandidate[] = Array.from({ length: 30 }, (_, index) => ({
@@ -21,7 +29,7 @@ describe("initSelectRelatedArticlesAboveSharedWordsFloor", () => {
 	it("skips below the floor without calling the selector", async () => {
 		const inner = jest.fn(async () => ready);
 		const { selectRelatedArticles } = initSelectRelatedArticlesAboveSharedWordsFloor({ selectRelatedArticles: inner, floor: 8, countsTowardFloor: () => true });
-		expect(await selectRelatedArticles({ target, unreadCandidates: [], readCandidates: candidates }))
+		expect(await selectRelatedArticles({ target, attempt: ATTEMPT, unreadCandidates: [], readCandidates: candidates }))
 			.toEqual({ kind: "no-shared-words", bestScore: 0, candidateCount: candidates.length });
 		expect(inner).not.toHaveBeenCalled();
 	});
@@ -29,13 +37,13 @@ describe("initSelectRelatedArticlesAboveSharedWordsFloor", () => {
 	it("gives an empty pool score zero", async () => {
 		const inner = jest.fn(async () => ready);
 		const { selectRelatedArticles } = initSelectRelatedArticlesAboveSharedWordsFloor({ selectRelatedArticles: inner, floor: 8, countsTowardFloor: () => true });
-		expect(await selectRelatedArticles({ target, unreadCandidates: [], readCandidates: [] }))
+		expect(await selectRelatedArticles({ target, attempt: ATTEMPT, unreadCandidates: [], readCandidates: [] }))
 			.toEqual({ kind: "no-shared-words", bestScore: 0, candidateCount: 0 });
 		expect(inner).not.toHaveBeenCalled();
 	});
 
 	it("passes at and above the floor with the original params and result", async () => {
-		const params: SelectRelatedArticlesParams = { target, unreadCandidates: candidates, readCandidates: [ownCopy] };
+		const params: SelectRelatedArticlesParams = { target, attempt: ATTEMPT, unreadCandidates: candidates, readCandidates: [ownCopy] };
 		const bestScore = Math.max(...scoreSharedWords({ target, candidates: [...candidates, ownCopy] }));
 		expect(bestScore).toBeGreaterThan(8);
 		for (const floor of [bestScore, bestScore - 1]) {
@@ -53,9 +61,9 @@ describe("initSelectRelatedArticlesAboveSharedWordsFloor", () => {
 		);
 		const block = { destinationUrl: articleDestinationUrl({ url: "https://blocked.example.com", displayUrl: undefined }), url: "https://blocked.example.com", title: "Access denied", description: "Please enable cookies", siteName: "Blocked" };
 		const mirror = { ...block, url: "https://other.example.com", siteName: "Other" };
-		expect(await selectRelatedArticles({ target, unreadCandidates: [block, mirror], readCandidates: candidates }))
+		expect(await selectRelatedArticles({ target, attempt: ATTEMPT, unreadCandidates: [block, mirror], readCandidates: candidates }))
 			.toEqual({ kind: "no-shared-words", bestScore: 0, candidateCount: candidates.length });
-		expect(await selectRelatedArticles({ target: block, unreadCandidates: [], readCandidates: [mirror] }))
+		expect(await selectRelatedArticles({ target: block, attempt: ATTEMPT, unreadCandidates: [], readCandidates: [mirror] }))
 			.toEqual({ kind: "shared-boilerplate" });
 		expect(inner).not.toHaveBeenCalled();
 	});
@@ -68,14 +76,14 @@ describe("initSelectRelatedArticlesAboveSharedWordsFloor", () => {
 			countsTowardFloor: ({ candidate }: { candidate: RelatedCandidate }) => candidate !== ownCopy,
 		};
 		const { selectRelatedArticles } = initSelectRelatedArticlesAboveSharedWordsFloor(deps);
-		expect(await selectRelatedArticles({ target, unreadCandidates: [ownCopy], readCandidates: candidates }))
+		expect(await selectRelatedArticles({ target, attempt: ATTEMPT, unreadCandidates: [ownCopy], readCandidates: candidates }))
 			.toEqual({ kind: "no-shared-words", bestScore: 0, candidateCount: candidates.length + 1 });
 		expect(inner).not.toHaveBeenCalled();
 	});
 
 	it("passes the whole corpus unchanged when an eligible candidate reaches the floor", async () => {
 		const match = { ...ownCopy, destinationUrl: articleDestinationUrl({ url: "https://example.com/match", displayUrl: undefined }), url: "https://example.com/match", title: "Kubernetes operator reconciliation explained" };
-		const params = { target, unreadCandidates: [ownCopy], readCandidates: [...candidates, match] };
+		const params = { target, attempt: ATTEMPT, unreadCandidates: [ownCopy], readCandidates: [...candidates, match] };
 		const scores = scoreSharedWords({ target, candidates: [ownCopy, ...candidates, match] });
 		const floor = scores.at(-1);
 		assert(floor !== undefined);
@@ -96,7 +104,7 @@ describe("initSelectRelatedArticlesAboveSharedWordsFloor", () => {
 		const inner = jest.fn(async () => ready);
 		const deps = { selectRelatedArticles: inner, floor: 7.5, countsTowardFloor: () => false };
 		const { selectRelatedArticles } = initSelectRelatedArticlesAboveSharedWordsFloor(deps);
-		expect(await selectRelatedArticles({ target, unreadCandidates: [ownCopy], readCandidates: [] }))
+		expect(await selectRelatedArticles({ target, attempt: ATTEMPT, unreadCandidates: [ownCopy], readCandidates: [] }))
 			.toEqual({ kind: "no-shared-words", bestScore: 0, candidateCount: 1 });
 		expect(inner).not.toHaveBeenCalled();
 	});

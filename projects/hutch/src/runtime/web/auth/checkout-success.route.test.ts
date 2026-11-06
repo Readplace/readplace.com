@@ -59,6 +59,7 @@ describe("GET /auth/checkout/success", () => {
 			priceId: "price_test_yearly",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
+			coupon: null,
 		});
 
 		const response = await request(harness.server)
@@ -92,6 +93,7 @@ describe("GET /auth/checkout/success", () => {
 			priceId: "price_test_yearly",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
+			coupon: null,
 		});
 
 		const response = await request(harness.server)
@@ -346,6 +348,7 @@ describe("GET /auth/checkout/success", () => {
 			priceId: "price_test_yearly",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
+			coupon: null,
 		});
 		await pendingSignup.storePendingSignup({
 			checkoutSessionId: checkout.id,

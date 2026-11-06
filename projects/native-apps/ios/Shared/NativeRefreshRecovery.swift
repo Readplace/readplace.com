@@ -3,18 +3,18 @@ import Foundation
 
 struct NativeAuthEvent: Codable {
 	let event_id: String
-	let event: String
+	let event: AuthEvent
 	let occurred_at: String
 	let client = "ios"
-	let surface: String
+	let surface: AuthSurface
 	let context_id: String
 	let client_version: String
 	var operation_id: String?
 	var attempt_id: String?
 	var generation: Int?
 	var http_status: Int?
-	var outcome: String?
-	var reason: String?
+	var outcome: AuthOutcome?
+	var reason: AuthReason?
 	var storage_status: Int32?
 	var dropped_events: Int?
 }
@@ -33,18 +33,18 @@ final class NativeAuthTransportDelegate: NSObject, URLSessionTaskDelegate {
 }
 
 actor NativeRefreshRecovery {
-	private let baseURL: String
+	private let endpoints: ServerEndpoints
 	private let records: NativeAuthRecords
 	private let session: URLSession
-	private let surface: String
+	private let surface: AuthSurface
 	private let version: String
 	private let context = UUID().uuidString.lowercased()
 	private var supported: Bool?
 	private var uploading = false
 
-	init(baseURL: String, records: NativeAuthRecords, configuration: URLSessionConfiguration,
-		surface: String, version: String) {
-		self.baseURL = baseURL
+	init(endpoints: ServerEndpoints, records: NativeAuthRecords, configuration: URLSessionConfiguration,
+		surface: AuthSurface, version: String) {
+		self.endpoints = endpoints
 		self.records = records
 		self.session = URLSession(configuration: configuration, delegate: NativeAuthTransportDelegate(), delegateQueue: nil)
 		self.surface = surface
@@ -57,7 +57,7 @@ actor NativeRefreshRecovery {
 			"X-Readplace-Installation-Id": try records.read().installationId]
 	}
 
-	func record(_ event: String, outcome: String? = nil, reason: String? = nil,
+	func record(_ event: AuthEvent, outcome: AuthOutcome? = nil, reason: AuthReason? = nil,
 		operation: String? = nil, attempt: String? = nil, status: Int? = nil, owner: NativeRefreshOperation? = nil,
 		storageStatus: Int32? = nil) {
 		let entry = NativeAuthEvent(event_id: UUID().uuidString.lowercased(), event: event,
@@ -68,8 +68,8 @@ actor NativeRefreshRecovery {
 			let earliest = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-7 * 86400))
 			let identity = owner?.diagnosticIdentity ?? record.diagnosticIdentity
 			let permit = identity == record.diagnosticIdentity ? record.diagnosticsPermit : owner?.diagnosticsPermit
-			var dropped = record.diagnostics.last { $0.identity == identity && $0.event.event == "journal_health" }?.event.dropped_events ?? 0
-			record.diagnostics.removeAll { $0.identity == identity && $0.event.event == "journal_health" }
+			var dropped = record.diagnostics.last { $0.identity == identity && $0.event.event == .journalHealth }?.event.dropped_events ?? 0
+			record.diagnostics.removeAll { $0.identity == identity && $0.event.event == .journalHealth }
 			let previousCount = record.diagnostics.count
 			record.diagnostics.removeAll { $0.event.occurred_at < earliest }
 			dropped += previousCount - record.diagnostics.count
@@ -77,8 +77,8 @@ actor NativeRefreshRecovery {
 			let healthId = UUID().uuidString.lowercased()
 			func checkpoint() -> [NativeAuthJournalEntry] {
 				guard dropped > 0 else { return [] }
-				let health = NativeAuthEvent(event_id: healthId, event: "journal_health", occurred_at: entry.occurred_at,
-					surface: surface, context_id: context, client_version: version, outcome: "success", reason: "journal_overflow", dropped_events: dropped)
+				let health = NativeAuthEvent(event_id: healthId, event: .journalHealth, occurred_at: entry.occurred_at,
+					surface: surface, context_id: context, client_version: version, outcome: .success, reason: .journalOverflow, dropped_events: dropped)
 				return [NativeAuthJournalEntry(event: health, identity: identity, permit: permit)]
 			}
 			while try record.diagnostics.count + checkpoint().count > 512 || JSONEncoder().encode(record.diagnostics + checkpoint()).count > 256 * 1024 {
@@ -99,7 +99,7 @@ actor NativeRefreshRecovery {
 			if !(try await isSupported()) { return nil }
 		}
 		let operation = try records.prepare(after: failed)
-		record("refresh_prepared", operation: operation.id, owner: operation)
+		record(.refreshPrepared, operation: operation.id, owner: operation)
 		let result = try await exchange(operation)
 		if result.expiry <= Date() {
 			let next = try records.prepare(after: result.tokens)
@@ -110,8 +110,7 @@ actor NativeRefreshRecovery {
 
 	private func isSupported() async throws -> Bool {
 		if let supported { return supported }
-		let url = URL(string: "\(baseURL)/.well-known/oauth-authorization-server")!
-		let (data, response) = try await session.data(from: url)
+		let (data, response) = try await session.data(from: endpoints.authorizationServerMetadata)
 		guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw OAuthError.refreshFailed }
 		struct Metadata: Decodable {
 			let readplace_refresh_protocols_supported: [Int]?
@@ -138,49 +137,49 @@ actor NativeRefreshRecovery {
 
 	private func exchange(_ operation: NativeRefreshOperation) async throws -> (tokens: OAuthTokens, expiry: Date) {
 		let body = form([
-			"grant_type": "refresh_token", "refresh_token": operation.parent.refreshToken,
+			"grant_type": "refresh_token", "refresh_token": operation.parent.refreshToken.raw,
 			"client_id": AppConfig.clientId, "readplace_refresh_protocol": "1",
 			"readplace_refresh_operation_id": operation.id,
 		])
-		let (data, response) = try await send(body: body, path: "/oauth/token", contentType: "application/x-www-form-urlencoded", operation: operation.id, owner: operation)
+		let (data, response) = try await send(body: body, to: endpoints.token, contentType: "application/x-www-form-urlencoded", operation: operation.id, owner: operation)
 		if response.statusCode != 200 {
 			struct Refusal: Decodable { let error: String; let readplace_reason: String? }
 			let error = try? JSONDecoder().decode(Refusal.self, from: data)
-			if error?.error == "invalid_grant", let reason = error?.readplace_reason, ["expired", "revoked", "superseded"].contains(reason) {
+			if error?.error == "invalid_grant", let reason = error?.readplace_reason.flatMap(AuthReason.init(rawValue:)), [AuthReason.expired, .revoked, .superseded].contains(reason) {
 				let current = try records.read()
 				if current.tokens != operation.parent, let tokens = current.tokens { return (tokens, .distantFuture) }
 				try records.update { record in
 					guard record.generation == operation.generation, record.pending == operation else { throw OAuthError.sessionChanged }
 					record.generation += 1; record.tokens = nil; record.pending = nil
 				}
-				record("credentials_cleared", outcome: "failure", reason: error?.readplace_reason, operation: operation.id, owner: operation)
+				record(.credentialsCleared, outcome: .failure, reason: reason, operation: operation.id, owner: operation)
 				Task { await self.flush() }
 				throw OAuthError.noRefreshToken
 			}
-			record("refresh_failed", outcome: "preserved", reason: "http_error", operation: operation.id, owner: operation)
+			record(.refreshFailed, outcome: .preserved, reason: .httpError, operation: operation.id, owner: operation)
 			throw OAuthError.refreshFailed
 		}
 		guard let answer = try? JSONDecoder().decode(Answer.self, from: data), answer.readplace.protocol == 1,
 			answer.readplace.operation_id == operation.id, !answer.access_token.isEmpty, !answer.refresh_token.isEmpty,
 			let expiry = Self.date(answer.readplace.access_expires_at) else {
-				record("refresh_failed", outcome: "preserved", reason: "malformed_response", operation: operation.id, owner: operation)
+				record(.refreshFailed, outcome: .preserved, reason: .malformedResponse, operation: operation.id, owner: operation)
 				throw OAuthError.malformedResponse
 			}
-		record("refresh_parsed", outcome: "success", operation: operation.id, owner: operation)
-		let tokens = OAuthTokens(accessToken: answer.access_token, refreshToken: answer.refresh_token)
-		record("storage_started", operation: operation.id, owner: operation)
+		record(.refreshParsed, outcome: .success, operation: operation.id, owner: operation)
+		let tokens = OAuthTokens(accessToken: AccessToken(raw: answer.access_token), refreshToken: RefreshToken(raw: answer.refresh_token))
+		record(.storageStarted, operation: operation.id, owner: operation)
 		do { try records.commit(tokens, operation: operation, permit: answer.readplace.diagnostics_permit) }
 		catch OAuthError.sessionChanged {
 			if let current = try records.read().tokens { return (current, .distantFuture) }
 			throw OAuthError.sessionChanged
 		}
 		catch {
-			record("storage_failed", outcome: "preserved", reason: "storage_write_failed", operation: operation.id,
+			record(.storageFailed, outcome: .preserved, reason: .storageWriteFailed, operation: operation.id,
 				owner: operation, storageStatus: (error as? KeychainError)?.status)
 			throw error
 		}
-		record("storage_completed", outcome: "success", operation: operation.id, owner: operation)
-		record(answer.readplace.recovered ? "refresh_recovered" : "refresh_completed", outcome: "success", operation: operation.id, owner: operation)
+		record(.storageCompleted, outcome: .success, operation: operation.id, owner: operation)
+		record(answer.readplace.recovered ? .refreshRecovered : .refreshCompleted, outcome: .success, operation: operation.id, owner: operation)
 		Task { await self.flush() }
 		return (tokens, expiry)
 	}
@@ -188,19 +187,19 @@ actor NativeRefreshRecovery {
 	func revoke(_ previous: NativeAuthRecord) async throws {
 		guard let tokens = previous.tokens, previous.bound || previous.pending != nil else { return }
 		let operation = UUID().uuidString.lowercased()
-		let body = try JSONSerialization.data(withJSONObject: ["token": tokens.refreshToken, "client_id": AppConfig.clientId,
+		let body = try JSONSerialization.data(withJSONObject: ["token": tokens.refreshToken.raw, "client_id": AppConfig.clientId,
 			"readplace_refresh_protocol": 1, "readplace_refresh_operation_id": operation], options: [.sortedKeys])
 		let owner = NativeRefreshOperation(id: operation, generation: previous.generation, parent: tokens,
 			diagnosticIdentity: previous.diagnosticIdentity, diagnosticsPermit: previous.diagnosticsPermit)
-		_ = try await send(body: body, path: "/oauth/revoke", contentType: "application/json", operation: operation, owner: owner)
+		_ = try await send(body: body, to: endpoints.revoke, contentType: "application/json", operation: operation, owner: owner)
 	}
 
-	private func send(body: Data, path: String, contentType: String, operation: String,
+	private func send(body: Data, to endpoint: URL, contentType: String, operation: String,
 		owner: NativeRefreshOperation, nonce: String? = nil, challenge: Int = 0) async throws -> (Data, HTTPURLResponse) {
 			let state = try records.read()
-			if path == "/oauth/token", state.pending?.id != operation { throw OAuthError.sessionChanged }
+			if endpoint == endpoints.token, state.pending?.id != operation { throw OAuthError.sessionChanged }
 			let attempt = UUID().uuidString.lowercased()
-			let url = URL(string: "\(baseURL)\(path)")!
+			let url = endpoint
 			var request = URLRequest(url: url)
 			request.httpMethod = "POST"; request.httpBody = body; request.timeoutInterval = 10
 			request.setValue(contentType, forHTTPHeaderField: "Content-Type")
@@ -209,16 +208,16 @@ actor NativeRefreshRecovery {
 			request.setValue(context, forHTTPHeaderField: "X-Readplace-Auth-Context-Id")
 			request.setValue(version, forHTTPHeaderField: "X-Readplace-Client-Version")
 			request.setValue(state.installationId, forHTTPHeaderField: "X-Readplace-Installation-Id")
-			record("refresh_request_started", operation: operation, attempt: attempt, owner: owner)
+			record(.refreshRequestStarted, operation: operation, attempt: attempt, owner: owner)
 			let data: Data; let raw: URLResponse
 			do { (data, raw) = try await session.data(for: request) }
-			catch { record("refresh_failed", outcome: "preserved", reason: "network_error", operation: operation, attempt: attempt, owner: owner); throw OAuthError.refreshUnreachable(error) }
+			catch { record(.refreshFailed, outcome: .preserved, reason: .networkError, operation: operation, attempt: attempt, owner: owner); throw OAuthError.refreshUnreachable(error) }
 			guard let response = raw as? HTTPURLResponse else { throw OAuthError.malformedResponse }
-			record("refresh_response_received", operation: operation, attempt: attempt, status: response.statusCode, owner: owner)
+			record(.refreshResponseReceived, operation: operation, attempt: attempt, status: response.statusCode, owner: owner)
 			let error = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
 			if challenge < 2, let next = response.value(forHTTPHeaderField: "DPoP-Nonce"),
 				error?["error"] as? String == "use_dpop_nonce" || error?["readplace_reason"] as? String == "proof_replayed" {
-				return try await send(body: body, path: path, contentType: contentType, operation: operation, owner: owner, nonce: next, challenge: challenge + 1)
+				return try await send(body: body, to: endpoint, contentType: contentType, operation: operation, owner: owner, nonce: next, challenge: challenge + 1)
 			}
 			return (data, response)
 	}
@@ -244,7 +243,7 @@ actor NativeRefreshRecovery {
 		var events = Array(state.diagnostics.filter { $0.permit == permit }.prefix(64).map(\.event))
 		while events.count > 1, let encoded = try? JSONEncoder().encode(Batch(schema_version: 1, events: events)), encoded.count > 32 * 1024 { events.removeLast() }
 		guard let body = try? JSONEncoder().encode(Batch(schema_version: 1, events: events)) else { return }
-		var request = URLRequest(url: URL(string: "\(baseURL)/diagnostics/auth")!)
+		var request = URLRequest(url: endpoints.authDiagnostics)
 		request.httpMethod = "POST"; request.httpBody = body; request.timeoutInterval = 10
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 		request.setValue("Bearer \(permit)", forHTTPHeaderField: "Authorization")

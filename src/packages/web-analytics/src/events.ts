@@ -1,4 +1,4 @@
-import { PARSE_ERROR_STREAM, CRAWL_OUTCOME_STREAM } from "@packages/hutch-infra-components";
+import { PARSE_ERROR_STREAM, CRAWL_OUTCOME_STREAM } from "@packages/infra-components";
 
 /**
  * Single source of truth for log stream names. Every analytics-style log line

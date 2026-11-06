@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbGmailMarkBackfill } from "./dynamodb-gmail-mark-backfill";

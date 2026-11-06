@@ -30,6 +30,7 @@ import type { ShareDemoVideo } from "../../shared/share-demo-video";
 import { buildExtensionDemoVideo } from "../../shared/extension-demo-video";
 import type { ExtensionDemoBrowser, ExtensionDemoVideo } from "../../shared/extension-demo-video";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
+import { GEMINI_MCP_ADD_COMMAND } from "../../shared/mcp-connect-commands";
 
 import { firefoxS3Config } from "browser-extension-core/s3-config";
 
@@ -305,7 +306,7 @@ const PANEL_DATA = {
 		intro:
 			"The same MCP server connects from the Gemini CLI. Add it once and Gemini can save pages to your readlist and read your list back, right inside the conversation.",
 		promptLabel: "Run this once",
-		prompt: "gemini mcp add --transport http readplace https://readplace.com/mcp",
+		prompt: GEMINI_MCP_ADD_COMMAND,
 		requirement:
 			"Free from the Gemini CLI — no paid plan. Connecting inside the Gemini app instead needs Google AI Ultra, where custom connectors live in Gemini Spark.",
 	},

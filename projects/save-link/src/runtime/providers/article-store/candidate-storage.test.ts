@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { NoSuchKey, S3ServiceException, type S3Client } from "@aws-sdk/client-s3";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initPutTierSource, candidateBodyKeys, CandidateProvenanceSchema, candidateProvenance, type CandidateProvenance } from "@packages/tier-source";
 import { initReadTierSource } from "./read-tier-source";
 import { initWriteCanonicalContent } from "./promote-tier-to-canonical";

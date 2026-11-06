@@ -1,5 +1,5 @@
 import { type SaveAttemptId, SaveAttemptIdSchema, isStoredWrapperUrl, isWrapperUrl } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { type Article, type TransitionAndPersist, markCrawlAwaitingReader, promoteTier } from "@packages/domain/article-aggregate";
@@ -11,7 +11,7 @@ import { initSelectMostCompleteContentHandler } from "./select-most-complete-con
 import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import { labelForIndex } from "./select-content-prompt";
 import { markNoReadableArticle } from "./mark-no-readable-article";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 
 const URL = "https://example.com/article";
 const BOOK_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";

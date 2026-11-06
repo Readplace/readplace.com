@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initSelectionSourceIdentity, initSourceIdentityDepBundle } from "./source-identity";
 
 describe("worker source identity", () => {

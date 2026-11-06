@@ -110,8 +110,8 @@ final class LaunchIntroMediaTests: XCTestCase {
 	func testTheCompositionRootBuildsAnIdleModelOnAReturningLaunch() {
 		addTeardownBlock { IntroMusic.system.stop() }
 
-		_ = makeLaunchIntroModel(reduceMotion: true)
-		let model = makeLaunchIntroModel(reduceMotion: true)
+		_ = makeLaunchIntroModel(reduceMotion: true, isLoggedIn: false)
+		let model = makeLaunchIntroModel(reduceMotion: true, isLoggedIn: false)
 
 		XCTAssertEqual(model.phase, .idle, "reduce motion never enters the intro")
 	}

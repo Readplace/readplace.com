@@ -1,10 +1,9 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
-import { DiscoverGmailSendersPageCommand, GmailSenderDiscoveryProgressedEvent, StartGmailSenderDiscoveryCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { DiscoverGmailSendersPageCommand, GmailSenderDiscoveryProgressedEvent, StartGmailSenderDiscoveryCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { GmailDiscoveryStore } from "@packages/domain/gmail";
-import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { type DiscoverGmailSenders, GMAIL_DISCOVERY_PAUSED_MESSAGE, type GmailDiscoveryPage } from "./discover-gmail-senders";
 
 const DiscoveryEnvelope = z.union([
@@ -17,14 +16,14 @@ export function initGmailDiscoveryHandler(deps: {
 	discover: DiscoverGmailSenders;
 	dispatchPage: (input: GmailDiscoveryPage) => Promise<void>;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 		for (const record of event.Records) {
 			try {
 				const envelope = DiscoveryEnvelope.parse(JSON.parse(record.body));
-				const userId = UserIdSchema.parse(envelope.detail.userId);
+				const { userId } = envelope.detail;
 				if (envelope.kind === "progress") {
 					const next = envelope.detail.nextPage;
 					if (next !== undefined) await deps.dispatchPage({ userId, ...next });
@@ -46,14 +45,14 @@ export function initGmailDiscoveryHandler(deps: {
 export function initGmailDiscoveryDlqHandler(deps: {
 	discovery: GmailDiscoveryStore;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 		for (const record of event.Records) {
 			try {
 				const envelope = DiscoveryEnvelope.parse(JSON.parse(record.body));
-				const userId = UserIdSchema.parse(envelope.detail.userId);
+				const { userId } = envelope.detail;
 				const current = await deps.discovery.findDiscoveryByUserId(userId);
 				if (current?.state !== "running") continue;
 				const expected = envelope.kind === "page"

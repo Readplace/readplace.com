@@ -6,9 +6,9 @@ import {
 	GmailFilterRewriteFailedEvent,
 	GmailFilterRewrittenEvent,
 	METERED_GMAIL_FILTER_REWRITE_REASONS,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initRewriteGmailFilterHandler } from "./rewrite-gmail-filter-handler";
@@ -37,7 +37,7 @@ function makeHarness(outcome: RewriteGmailFilterOutcome | (() => never)) {
 			published.push({ event, detail });
 		}) as PublishEvent,
 		metricLog: { info: capture, error: capture, warn: capture, debug: capture },
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	const run = async (event: SQSEvent) => {
 		const response = await handler(event, buildLambdaContext(), () => {});

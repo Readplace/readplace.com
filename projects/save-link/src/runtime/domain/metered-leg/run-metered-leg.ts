@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type {
 	ClaimMeteredLeg,
 	MeteredLeg,
@@ -31,7 +31,7 @@ export function initRunMeteredLeg(deps: {
 	claimMeteredLeg: ClaimMeteredLeg;
 	settleMeteredLeg: SettleMeteredLeg;
 	releaseMeteredLeg: ReleaseMeteredLeg;
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 }): RunMeteredLeg {
 	return async ({ url, leg, inputs, claimId, claimTtlMs, run }) => {

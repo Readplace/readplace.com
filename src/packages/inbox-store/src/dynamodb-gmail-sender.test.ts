@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbGmailSender } from "./dynamodb-gmail-sender";

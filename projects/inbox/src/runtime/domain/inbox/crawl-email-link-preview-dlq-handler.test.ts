@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { EmailLinkOrdinalSchema, type InboxEmailLinkStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -46,7 +46,7 @@ async function seed(
 function makeHandler(failPendingLink: InboxEmailLinkStore["failPendingLink"]) {
 	const handler = initCrawlEmailLinkPreviewDlqHandler({
 		failPendingLink,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return (body: string) =>
 		handler(buildSqsEvent([{ messageId: "rec-1", body }]), buildLambdaContext(), () => {});

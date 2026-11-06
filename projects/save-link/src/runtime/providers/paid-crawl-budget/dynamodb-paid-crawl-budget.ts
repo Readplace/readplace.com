@@ -1,23 +1,19 @@
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	TransactWriteCommand,
 	TransactionCanceledException,
 	defineDynamoTable,
-} from "@packages/hutch-storage-client";
+	writeIfCondition,
+} from "@packages/storage-client";
 import { z } from "zod";
 import {
 	fixedWindowStartSeconds,
 	type RateLimitRule,
 } from "@packages/domain/rate-limit";
-
-/** `consumed` distinguishes a fresh spend (this call incremented the counter)
- * from an idempotent re-consume of a message already counted this window (a
- * redelivery): only a fresh spend may later be refunded. */
-export type ConsumePaidCrawlBudget = (input: {
-	messageId: string;
-}) => Promise<{ allowed: false } | { allowed: true; consumed: boolean }>;
-export type RefundPaidCrawlBudget = () => Promise<void>;
+import type {
+	ConsumePaidCrawlBudget,
+	RefundPaidCrawlBudget,
+} from "../../domain/comprehensive-crawl/paid-crawl-budget.types";
 
 const BudgetRow = z.object({ pk: z.string() });
 
@@ -138,20 +134,15 @@ export function initDynamoDbPaidCrawlBudget(deps: {
 			nowMs,
 			windowSeconds: deps.rule.windowSeconds,
 		});
-		try {
-			await table.update({
+		await writeIfCondition(() =>
+			table.update({
 				Key: { pk: `${deps.scope}#global#${windowStartSeconds}` },
 				UpdateExpression: "ADD #count :negOne",
 				ConditionExpression: "attribute_exists(#count) AND #count > :zero",
 				ExpressionAttributeNames: { "#count": "count" },
 				ExpressionAttributeValues: { ":negOne": -1, ":zero": 0 },
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return;
-			}
-			throw error;
-		}
+			}),
+		);
 	};
 
 	return { consumePaidCrawlBudget, refundPaidCrawlBudget };

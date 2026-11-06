@@ -1,5 +1,5 @@
-import { noopLogger } from "@packages/hutch-logger";
-import { OAuthRefreshEvaluatedEvent } from "@packages/hutch-infra-components";
+import { noopLogger } from "@packages/logger";
+import { OAuthRefreshEvaluatedEvent } from "@packages/infra-components";
 import { initPublishRefreshEvaluation } from "./publish-evaluation";
 
 it("publishes the completed evaluation fact and diagnostic counts after metrics", async () => {

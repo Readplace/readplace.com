@@ -6,7 +6,7 @@ import {
 	ConditionalCheckFailedException,
 	TransactionCanceledException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import type {
 	EngagementState,
 	StarterPack,

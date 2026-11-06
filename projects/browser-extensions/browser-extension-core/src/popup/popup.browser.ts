@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { type IconName, iconSvg } from "@packages/ui-icons";
 import type { ZodType } from "zod";
 import { advertisesBulkSave } from "../advertised-capabilities";
@@ -28,12 +28,10 @@ import {
 } from "../command-shortcuts";
 import type { ReadingListItem } from "../domain/reading-list-item.types";
 import { installShortcuts } from "../keydown-shortcuts";
-import type { PopupMessage } from "../popup-message.types";
+import type { PopupMessage, PopupReplyFor } from "../popup-protocol";
 import type {
 	CollectionPage,
 	CollectionTotal,
-	InvokeActionResult,
-	LoadPageResult,
 	Message,
 	PageDescriptor,
 	SaveUrlResult,
@@ -148,7 +146,7 @@ function lowerFirst(text: string): string {
 export function initPopup(deps: {
 	browser: PopupBrowser;
 	appDomains: readonly string[];
-	logger: HutchLogger;
+	logger: Logger;
 	views: string;
 }): void {
 	const { browser, appDomains, logger } = deps;
@@ -181,8 +179,8 @@ export function initPopup(deps: {
 
 	/** Isolated boundary wrapper: the single contained assertion for the untyped
 	 * response, so call sites stay free of `as`. */
-	function send<T>(message: PopupMessage): Promise<T> {
-		return browser.runtime.sendMessage(message) as Promise<T>;
+	function send<M extends PopupMessage>(message: M): Promise<PopupReplyFor<M>> {
+		return browser.runtime.sendMessage(message) as Promise<PopupReplyFor<M>>;
 	}
 
 	async function performLogout() {
@@ -390,7 +388,7 @@ export function initPopup(deps: {
 				button.classList.add("list-view__control--pending");
 				try {
 					await whileListPending(async () => {
-						const result = await send<GuardedResult<InvokeActionResult>>({
+						const result = await send({
 							type: "invoke-action",
 							id: item.id,
 							name: action.name,
@@ -510,7 +508,7 @@ export function initPopup(deps: {
 	}
 
 	async function loadAllItems(): Promise<"loaded" | "failed" | "logged-out"> {
-		const result = await send<GuardedResult<CollectionPage>>({
+		const result = await send({
 			type: "get-all-items",
 		});
 
@@ -541,7 +539,7 @@ export function initPopup(deps: {
 	}
 
 	async function fetchCollection(request: CollectionRequest): Promise<void> {
-		const result = await send<GuardedResult<LoadPageResult>>(request);
+		const result = await send(request);
 
 		if (isNotLoggedIn(result)) {
 			showLoginPrompt();
@@ -606,7 +604,7 @@ export function initPopup(deps: {
 	}
 
 	function showListLoadFailure(error: unknown): void {
-		logger.error("Failed to initialize popup:", error);
+		logger.error("Failed to initialize popup", { error: error });
 		showView("list-view");
 		setListError(listLoadFailed());
 	}
@@ -732,14 +730,14 @@ export function initPopup(deps: {
 
 		let saveResult: GuardedResult<SaveUrlResult>;
 		try {
-			saveResult = await send<GuardedResult<SaveUrlResult>>({
+			saveResult = await send({
 				type: "save-current-tab",
 				url: target.url,
 				title: target.title,
 				tabId: target.tabId,
 			});
 		} catch (error) {
-			logger.error("Failed to save the current tab:", error);
+			logger.error("Failed to save the current tab", { error: error });
 			setSaveFailure(() => void saveTarget(target));
 			return;
 		}
@@ -873,7 +871,7 @@ export function initPopup(deps: {
 			const parsed = schema.safeParse(await browser.runtime.sendMessage(message));
 			return parsed.success ? parsed.data : LOST;
 		} catch (error) {
-			logger.error("Lost the save-all reply:", error);
+			logger.error("Lost the save-all reply", { error: error });
 			return LOST;
 		}
 	}
@@ -905,7 +903,7 @@ export function initPopup(deps: {
 			paintSaveAllView(buildSaveAllView({ provisionalCount, run: null }));
 			request = { type: "save-all-tabs", runId, windowId: windowIdOf(tabs), tabs: saveable, skipped };
 		} catch (error) {
-			logger.error("Failed to save all tabs:", error);
+			logger.error("Failed to save all tabs", { error: error });
 			showSaveAllFailure();
 			return;
 		}
@@ -965,18 +963,14 @@ export function initPopup(deps: {
 		loginError.hidden = true;
 
 		try {
-			const result = await send<{
-				ok: boolean;
-				reason?: string;
-				error?: { message?: string };
-			}>({ type: "login" });
+			const result = await send({ type: "login" });
 			if (!result.ok) {
-				logger.error("Sign-in failed:", result.reason, result.error);
+				logger.error("Sign-in failed", { reason: result.reason, error: result.error });
 				loginError.hidden = false;
 				return;
 			}
 		} catch (err) {
-			logger.error("Sign-in failed:", err);
+			logger.error("Sign-in failed", { error: err });
 			loginError.hidden = false;
 			return;
 		}
@@ -987,7 +981,7 @@ export function initPopup(deps: {
 
 	elementById("save-all-tabs-button").addEventListener("click", () => {
 		startSaveAll().catch((error) => {
-			logger.error("Failed to save all tabs:", error);
+			logger.error("Failed to save all tabs", { error: error });
 			showSaveAllFailure();
 		});
 	});
@@ -1046,11 +1040,11 @@ export function initPopup(deps: {
 	}
 
 	renderShortcutHints().catch((error) =>
-		logger.error("Failed to read command shortcuts:", error),
+		logger.error("Failed to read command shortcuts", { error: error }),
 	);
 
 	revealSaveAllTabs().catch((error) =>
-		logger.error("Failed to read advertised capabilities:", error),
+		logger.error("Failed to read advertised capabilities", { error: error }),
 	);
 
 	bootstrap().catch(showListLoadFailure);

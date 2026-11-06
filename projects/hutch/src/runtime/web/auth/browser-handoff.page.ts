@@ -15,7 +15,7 @@ import { AccessTokenSchema } from "@packages/domain/oauth";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { parseReturnUrl } from "./parse-return-url";
-import { persistentSessionCookieOptions } from "./session-cookie-options";
+import { sessionCookie } from "../session-cookie";
 
 const HandoffQuerySchema = z.looseObject({ code: BrowserHandoffCodeSchema });
 
@@ -32,7 +32,6 @@ interface BrowserHandoffDependencies {
 
 export function initBrowserHandoffRoutes(deps: BrowserHandoffDependencies): Router {
 	const router = express.Router();
-	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
 
 	router.post(
 		"/auth/handoff",
@@ -74,13 +73,13 @@ export function initBrowserHandoffRoutes(deps: BrowserHandoffDependencies): Rout
 			const presentedSessionId = req.cookies?.[SESSION_COOKIE_NAME];
 			assert(presentedSessionId, "a resolved req.userId must come from a session cookie");
 			if ((await deps.renewSession({ sessionId: presentedSessionId })) === "renewed") {
-				res.cookie(SESSION_COOKIE_NAME, presentedSessionId, sessionCookieOptions);
+				sessionCookie.set({ res, value: presentedSessionId, secure: deps.secureCookies });
 				res.redirect(303, target);
 				return;
 			}
 		}
 		const sessionId = await deps.createSession({ userId: redeemed.userId, emailVerified: redeemed.emailVerified });
-		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		sessionCookie.set({ res, value: sessionId, secure: deps.secureCookies });
 		res.set("Clear-Site-Data", '"storage"');
 		res.redirect(303, target);
 	});

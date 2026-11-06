@@ -68,6 +68,12 @@ function pageStartsIn(input: { root: Element; split: ReaderSectionSplit }): Read
 	return new Set<Node>(headings.filter((heading) => isChapterSectionId(heading.id)));
 }
 
+function withoutLoneWrappers(element: Element): Element {
+	const [onlyChild] = element.children;
+	const wrapsEverything = element.children.length === 1 && onlyChild.textContent.trim() === element.textContent.trim();
+	return wrapsEverything ? withoutLoneWrappers(onlyChild) : element;
+}
+
 export function pageReaderSections(input: {
 	html: string;
 	section: ReaderSectionInput;
@@ -78,8 +84,9 @@ export function pageReaderSections(input: {
 	const { document } = parseHTML(
 		`<!DOCTYPE html><html><body><div id="reader-section-pages-root">${input.html}</div></body></html>`,
 	);
-	const root = document.querySelector("div#reader-section-pages-root");
-	assert(root, "parseHTML must produce the reader-section-pages wrapper div");
+	const wrapper = document.querySelector("div#reader-section-pages-root");
+	assert(wrapper, "parseHTML must produce the reader-section-pages wrapper div");
+	const root = withoutLoneWrappers(wrapper);
 	const pages: Element[] = [document.createElement("div")];
 	const pageStarts = pageStartsIn({ root, split: input.split });
 	let firstHeadingSeen = false;

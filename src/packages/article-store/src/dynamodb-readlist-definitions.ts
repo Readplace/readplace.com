@@ -1,5 +1,4 @@
 import assert from "node:assert";
-import { EmailDeliveryModeSchema, LEGACY_DELIVERY_MODE } from "@packages/domain/inbox";
 import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_MAX_PER_USER,
@@ -7,18 +6,17 @@ import {
 	ReadlistSlugSchema,
 } from "@packages/domain/readlist";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import type {
 	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
-	SetReadlistDefinitionEmailDelivery,
 	SetReadlistDefinitionPurpose,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
@@ -28,7 +26,6 @@ const ReadlistDefinitionRow = z.object({
 	queueSlug: ReadlistSlugSchema,
 	queueLabel: z.string(),
 	queuePurpose: z.string().optional(),
-	queueEmailDelivery: EmailDeliveryModeSchema.optional(),
 	starterCampaignId: z.string().optional(),
 	createdAt: z.string(),
 });
@@ -42,7 +39,6 @@ export function initDynamoDbReadlistDefinitions(deps: {
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
-	setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 } {
 	const readlistDefinitions = defineDynamoTable({
@@ -73,7 +69,6 @@ export function initDynamoDbReadlistDefinitions(deps: {
 				slug: row.queueSlug,
 				label: row.queueLabel,
 				purpose: row.queuePurpose,
-				emailDelivery: row.queueEmailDelivery ?? LEGACY_DELIVERY_MODE,
 				...(row.starterCampaignId === undefined
 					? {}
 					: { starterCampaignId: row.starterCampaignId }),
@@ -91,107 +86,70 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		if (owned.length >= READLIST_MAX_PER_USER) {
 			throw new ReadlistLimitReachedError(READLIST_MAX_PER_USER);
 		}
-		try {
-			await readlistDefinitions.put({
-				Item: {
-					userId: params.userId,
-					url: readlistDefinitionKey(params.slug),
-					queueSlug: params.slug,
-					queueLabel: params.label,
-					createdAt: params.createdAt.toISOString(),
-				},
-				ConditionExpression: "attribute_not_exists(#url)",
-				ExpressionAttributeNames: { "#url": "url" },
-			});
-			return { created: true, ownedCount: owned.length + 1 };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return { created: false, ownedCount: owned.length };
-			}
-			throw error;
+		const outcome = await writeIfCondition(() => readlistDefinitions.put({
+			Item: {
+				userId: params.userId,
+				url: readlistDefinitionKey(params.slug),
+				queueSlug: params.slug,
+				queueLabel: params.label,
+				createdAt: params.createdAt.toISOString(),
+			},
+			ConditionExpression: "attribute_not_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url" },
+		}));
+		if (outcome.kind === "condition-failed") {
+			return { created: false, ownedCount: owned.length };
 		}
+		return { created: true, ownedCount: owned.length + 1 };
 	};
 
 	const renameReadlistDefinition: RenameReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		try {
-			await readlistDefinitions.update({
-				Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-				UpdateExpression: "SET #label = :label",
-				ConditionExpression: "attribute_exists(#url)",
-				ExpressionAttributeNames: { "#url": "url", "#label": "queueLabel" },
-				ExpressionAttributeValues: { ":label": params.label },
-			});
-			return { renamed: true };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return { renamed: false };
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => readlistDefinitions.update({
+			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+			UpdateExpression: "SET #label = :label",
+			ConditionExpression: "attribute_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url", "#label": "queueLabel" },
+			ExpressionAttributeValues: { ":label": params.label },
+		}));
+		if (outcome.kind === "condition-failed") return { renamed: false };
+		return { renamed: true };
 	};
 
 	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		try {
-			await readlistDefinitions.update({
-				Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-				UpdateExpression: "SET #purpose = :purpose",
-				ConditionExpression: "attribute_exists(#url)",
-				ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
-				ExpressionAttributeValues: { ":purpose": params.purpose },
-			});
-			return { updated: true };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return { updated: false };
-			throw error;
-		}
-	};
-
-	const setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery = async (params) => {
-		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		try {
-			await readlistDefinitions.update({
-				Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-				UpdateExpression: "SET #emailDelivery = :emailDelivery",
-				ConditionExpression: "attribute_exists(#url)",
-				ExpressionAttributeNames: { "#url": "url", "#emailDelivery": "queueEmailDelivery" },
-				ExpressionAttributeValues: { ":emailDelivery": params.emailDelivery },
-			});
-			return { updated: true };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return { updated: false };
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => readlistDefinitions.update({
+			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+			UpdateExpression: "SET #purpose = :purpose",
+			ConditionExpression: "attribute_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
+			ExpressionAttributeValues: { ":purpose": params.purpose },
+		}));
+		if (outcome.kind === "condition-failed") return { updated: false };
+		return { updated: true };
 	};
 
 	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		try {
-			await readlistDefinitions.update({
-				Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-				UpdateExpression: "REMOVE #purpose",
-				ConditionExpression: "attribute_exists(#url)",
-				ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
-			});
-			return { cleared: true };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return { cleared: false };
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => readlistDefinitions.update({
+			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+			UpdateExpression: "REMOVE #purpose",
+			ConditionExpression: "attribute_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url", "#purpose": "queuePurpose" },
+		}));
+		if (outcome.kind === "condition-failed") return { cleared: false };
+		return { cleared: true };
 	};
 
 	const deleteReadlistDefinition: DeleteReadlistDefinition = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
-		try {
-			await readlistDefinitions.delete({
-				Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
-				ConditionExpression: "attribute_exists(#url)",
-				ExpressionAttributeNames: { "#url": "url" },
-			});
-			return { deleted: true };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return { deleted: false };
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => readlistDefinitions.delete({
+			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+			ConditionExpression: "attribute_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url" },
+		}));
+		if (outcome.kind === "condition-failed") return { deleted: false };
+		return { deleted: true };
 	};
 
 	return {
@@ -200,7 +158,6 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		deleteReadlistDefinition,
 		listReadlistDefinitions,
 		renameReadlistDefinition,
-		setReadlistDefinitionEmailDelivery,
 		setReadlistDefinitionPurpose,
 	};
 }

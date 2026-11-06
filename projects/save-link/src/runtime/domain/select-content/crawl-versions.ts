@@ -3,6 +3,14 @@ import {
 	type StoredCrawlVersion,
 	normalizeCrawlVersion,
 } from "@packages/article-store";
+import type { CanonicalCommit } from "@packages/domain/article-aggregate";
+
+export type RecordCrawlVersion = (params: {
+	url: string;
+	crawledAt: string;
+	authorUserId?: string;
+	canonicalCommit: CanonicalCommit;
+}) => Promise<void>;
 
 /**
  * Prepend a dated crawl version onto the row's log, newest first. The log is

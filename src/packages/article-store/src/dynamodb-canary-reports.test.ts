@@ -1,4 +1,4 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { type CanaryReportRow, CanaryReportSourceSchema } from "@packages/provider-contracts/canary-report";
 import { initDynamoDbCanaryReports } from "./dynamodb-canary-reports";
 

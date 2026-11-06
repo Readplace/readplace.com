@@ -7,7 +7,7 @@ import {
 	GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
 	GMAIL_METRIC_NAMESPACE,
 	SAVE_LINK_LOG_GROUPS,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { HOMEPAGE_EXPOSURE } from "../web/pages/home";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";

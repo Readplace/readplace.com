@@ -1,8 +1,8 @@
 import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import type { DeepseekCallFailedLogLine } from "@packages/ai-message";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { type Logger, noopLogger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	MarkRelatedArticlesOutcome,
 	RelatedArticles,
@@ -82,8 +82,8 @@ interface HandlerOverrides {
 	pools?: RelatedCandidatePools;
 	selectRelatedArticles?: SelectRelatedArticles;
 	markOutcome?: MarkRelatedArticlesOutcome;
-	logger?: HutchLogger;
-	deepseekCallFailedLog?: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger?: Logger;
+	deepseekCallFailedLog?: Logger.Typed<DeepseekCallFailedLogLine>;
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {
@@ -149,6 +149,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(ready).toEqual([]);
 		expect(published).toEqual([{ url: TARGET_URL, userId: USER_ID, outcome: "skipped", relatedCount: 0, inputTokens: 0, outputTokens: 0 }]);
 		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			trigger: "reader-request",
 			url: TARGET_URL,
 			reason: "no earlier save shares the saved article's words",
 			receiveCount: 1,
@@ -189,7 +190,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 		await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
-		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", { sampleCount: 0, samples: [], agreement: undefined,
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", { trigger: "reader-request", sampleCount: 0, samples: [], agreement: undefined,
 			droppedNoSharedWord: 0,
 			droppedReasonNotAboutPick: 0,
 			url: TARGET_URL,
@@ -217,7 +218,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(published[0]?.relatedCount).toBe(1);
-		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", { sampleCount: 0, samples: [], agreement: undefined,
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", { trigger: "reader-request", sampleCount: 0, samples: [], agreement: undefined,
 			droppedNoSharedWord: 1,
 			droppedReasonNotAboutPick: 2,
 			url: TARGET_URL,
@@ -380,6 +381,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			trigger: "reader-request",
 			url: TARGET_URL,
 			reason: "crawl produced no metadata to compare",
 			receiveCount: 3,
@@ -412,6 +414,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			trigger: "reader-request",
 			url: TARGET_URL,
 			reason: "crawl still pending after the wait",
 			receiveCount: 3,
@@ -466,6 +469,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
 		expect(published).toEqual([{ url: TARGET_URL, userId: USER_ID, outcome: "skipped", relatedCount: 0, inputTokens: 0, outputTokens: 0 }]);
 		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			trigger: "reader-request",
 			url: TARGET_URL,
 			reason: "crawl produced no metadata to compare",
 			receiveCount: 1,
@@ -533,6 +537,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(skipped).toEqual([]);
 		expect(selected).toEqual([
 			{
+				attempt: { userId: USER_ID, trigger: "reader-request", messageId: "msg-1", receiveCount: 1 },
 				target: crawledTarget(),
 				unreadCandidates: pools.unreadCandidates,
 				readCandidates: pools.readCandidates,
@@ -617,4 +622,38 @@ it("logs both agreement samples while publishing only first-call tokens", async 
 	await handler(queueEntryEvent, buildLambdaContext(), () => {});
 	expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] completed", expect.objectContaining({ sampleCount: 2, samples, agreement }));
 	expect(published).toEqual([{ url: TARGET_URL, userId: USER_ID, outcome: "ready", relatedCount: 1, inputTokens: 120, outputTokens: 30 }]);
+});
+
+describe("initComputeRelatedArticlesHandler selection attempt", () => {
+	it("hands the selector the reader-request attempt", async () => {
+		const { handler, selected } = createHandler();
+
+		await handler(createSqsEvent(queueEntryBody, 3), buildLambdaContext(), () => {});
+
+		expect(selected.map((params) => params.attempt)).toEqual([
+			{ userId: USER_ID, trigger: "reader-request", messageId: "msg-1", receiveCount: 3 },
+		]);
+	});
+
+	it("ends a spent daily budget as a skipped computation that names when the budget resets", async () => {
+		const resetsAt = new Date("2026-08-05T00:00:00.000Z");
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, skipped, ready, published } = createHandler({
+			logger,
+			selectRelatedArticles: async () => ({ kind: "budget-limited", resetsAt }),
+		});
+
+		expect(await handler(queueEntryEvent, buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
+		expect(ready).toEqual([]);
+		expect(published).toEqual([{ url: TARGET_URL, userId: USER_ID, outcome: "skipped", relatedCount: 0, inputTokens: 0, outputTokens: 0 }]);
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			url: TARGET_URL,
+			reason: "daily recommendation budget spent",
+			receiveCount: 1,
+			crawlStatus: "ready",
+			budgetResetsAt: resetsAt,
+			trigger: "reader-request",
+		});
+	});
 });

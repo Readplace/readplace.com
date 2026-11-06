@@ -5,7 +5,7 @@ import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
 import { isWrapperUrl } from "@packages/domain/article";
 import type { Article, LoadArticle } from "@packages/domain/article-aggregate";
 import type { VerifyWrapperSource } from "@packages/save-article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { CrawlFailureReason } from "@packages/article-state-types";
 import { CandidateProvenanceSchema, KIND_BY_TIER, candidateProvenance, type CandidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import type { ListAvailableTierSources, CandidateReference } from "./list-available-tier-sources";
@@ -13,8 +13,8 @@ import type { ContentDecision, SelectMostCompleteContent, SelectionAudit } from 
 import type { JudgeCandidates } from "./judge-under-ledger";
 import { chooseTiedCandidate } from "./resolve-tie";
 import { COMPARISON_COMPLETED } from "./comparison-log";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
-import type { FindArticleContent } from "../../providers/article-store/find-article-content";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
+import type { FindArticleContent } from "../save-link/article-content.types";
 
 export interface PreparedContentSelection {
 	article: Article;
@@ -256,7 +256,7 @@ export function initPrepareContentSelection(deps: {
 
 export type LiveAttempt = { outcome: "body" | "no-body" | "deferred"; failureReason?: CrawlFailureReason };
 
-export function initLogContentSelection(deps: { logger: HutchLogger }): (params: {
+export function initLogContentSelection(deps: { logger: Logger }): (params: {
 	saveAttemptId: SaveAttemptId;
 	selection: PreparedContentSelection;
 	liveAttempt?: LiveAttempt;

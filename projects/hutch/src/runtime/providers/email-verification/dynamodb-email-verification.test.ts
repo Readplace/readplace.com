@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { VerificationTokenSchema } from "@packages/provider-contracts/email-verification";
 import { initDynamoDbEmailVerification } from "./dynamodb-email-verification";

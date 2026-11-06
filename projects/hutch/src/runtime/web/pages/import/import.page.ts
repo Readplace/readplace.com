@@ -411,6 +411,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 				maxAge: 5 * 60 * 1000,
 				sameSite: "lax",
 				httpOnly: true,
+				secure: deps.secureCookies,
 			});
 		}
 

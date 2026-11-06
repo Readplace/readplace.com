@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { GmailHistoryImportMessageIngestedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger } from "@packages/hutch-logger";
+import { GmailHistoryImportMessageIngestedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initIngestGmailImportDlqHandler } from "./ingest-gmail-import-dlq-handler";
@@ -23,7 +23,7 @@ function makeHarness(publishEvent: PublishEvent) {
 	const errors: string[] = [];
 	const handler = initIngestGmailImportDlqHandler({
 		publishEvent,
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			info: () => {},
 			warn: () => {},
 			error: (...args: unknown[]) => {

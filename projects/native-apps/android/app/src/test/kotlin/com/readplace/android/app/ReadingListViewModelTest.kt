@@ -8,6 +8,7 @@ import com.readplace.android.core.AccessToken
 import com.readplace.android.core.ApiError
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
+import com.readplace.android.core.CrawlEstimate
 import com.readplace.android.core.EphemeralCookieJar
 import com.readplace.android.core.InMemoryReaderChoiceStorage
 import com.readplace.android.core.LastViewedReadlist
@@ -15,6 +16,7 @@ import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.RefreshToken
+import com.readplace.android.core.ServerEndpoints
 import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.ShareTarget
 import com.readplace.android.core.SharedArticlesDrop
@@ -94,7 +96,7 @@ class ReadingListViewModelTest {
 
 	private fun TestScope.api(store: TokenStore, ioDispatcher: CoroutineDispatcher): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false).build()
-		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
+		val oauth = OAuth(endpoints = ServerEndpoints(server.baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
 		return ReadplaceApi(server.baseUrl, client, oauth, "Readplace/1 Android/16", ioDispatcher)
 	}
 
@@ -4329,8 +4331,18 @@ class ReadingListViewModelTest {
 
 	private fun cardPolls(id: String = "a1"): List<String?> = server.records("/queue/$id/card").map { it.poll }
 
-	private fun pendingRow(id: String = "a1", poll: Int = 1, afterSeconds: Int = 3, title: String = "A Title"): String =
-		Fixtures.article(id, title = title, processingJson = Fixtures.processing("/queue/$id/card?poll=$poll", afterSeconds))
+	private fun pendingRow(
+		id: String = "a1",
+		poll: Int = 1,
+		afterSeconds: Int = 3,
+		title: String = "A Title",
+		estimateJson: String? = Fixtures.COUNTING_ESTIMATE,
+	): String =
+		Fixtures.article(
+			id,
+			title = title,
+			processingJson = Fixtures.processing("/queue/$id/card?poll=$poll", afterSeconds, estimateJson),
+		)
 
 	private fun TestScope.advanceSeconds(seconds: Long) {
 		advanceTimeBy(seconds * 1_000)
@@ -4671,12 +4683,77 @@ class ReadingListViewModelTest {
 		)
 	}
 
+	@Test
+	fun `a polled row still processing without an estimate keeps the count it was showing`() = runTest {
+		val start = Instant.parse("2026-08-25T10:00:00Z")
+		var current = start
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.json(200, Fixtures.collection(listOf(pendingRow())))
+				"/queue/a1/card" -> Stub.json(200, pendingRow(poll = 2, estimateJson = null))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(now = { current })
+		viewModel.refresh()
+
+		current = start.plusSeconds(10)
+		advanceSeconds(3)
+
+		val row = viewModel.state.value.articles.single()
+		assertEquals("the answer itself is adopted", "/queue/a1/card?poll=2", row.processing?.refreshHref)
+		assertEquals(CrawlEstimate.Counting(seconds = 100), row.processing?.estimate)
+		assertEquals(mapOf("a1" to start), viewModel.state.value.processingReceivedAt)
+	}
+
+	@Test
+	fun `a refresh still processing without an estimate keeps the count it was showing`() = runTest {
+		val start = Instant.parse("2026-08-25T10:00:00Z")
+		var current = start
+		var rows = listOf(pendingRow())
+		server.handle { record ->
+			if (record.path == "/") Stub.json(200, Fixtures.collection(rows)) else Stub.json(404, "{}")
+		}
+		val viewModel = viewModel(now = { current })
+		viewModel.refresh()
+
+		current = start.plusSeconds(10)
+		rows = listOf(pendingRow(poll = 4, estimateJson = null))
+		viewModel.refresh()
+
+		val row = viewModel.state.value.articles.single()
+		assertEquals("/queue/a1/card?poll=4", row.processing?.refreshHref)
+		assertEquals(CrawlEstimate.Counting(seconds = 100), row.processing?.estimate)
+		assertEquals(mapOf("a1" to start), viewModel.state.value.processingReceivedAt)
+	}
+
+	@Test
+	fun `a row that never had an estimate is not stamped`() = runTest {
+		server.handle { record ->
+			if (record.path == "/") {
+				Stub.json(200, Fixtures.collection(listOf(pendingRow(estimateJson = null))))
+			} else {
+				Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+
+		viewModel.refresh()
+
+		assertEquals("precondition: the row is processing", "Processing", viewModel.state.value.articles.single().processing?.label)
+		assertEquals(emptyMap<String, Instant>(), viewModel.state.value.processingReceivedAt)
+	}
+
 	private object Fixtures {
 		const val LOCKED_MESSAGE = "Your account is locked because your email was never verified. " +
 			"Email <a href='mailto:readplace+verification@readplace.com'>readplace+verification@readplace.com</a> to restore access."
 
-		fun processing(href: String, afterSeconds: Int = 3): String =
-			"""{ "label": "Processing", "estimate": { "kind": "counting", "seconds": 100 }, "refresh": { "href": "$href", "afterSeconds": $afterSeconds } }"""
+		const val COUNTING_ESTIMATE = """{ "kind": "counting", "seconds": 100 }"""
+
+		fun processing(href: String, afterSeconds: Int = 3, estimateJson: String? = COUNTING_ESTIMATE): String {
+			val estimate = if (estimateJson == null) "" else """"estimate": $estimateJson, """
+			return """{ "label": "Processing", $estimate"refresh": { "href": "$href", "afterSeconds": $afterSeconds } }"""
+		}
 
 		fun article(
 			id: String = "a1",

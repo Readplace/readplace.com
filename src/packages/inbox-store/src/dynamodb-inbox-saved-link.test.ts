@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
-import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
+import { ConditionalCheckFailedException } from "@packages/storage-client";
 import { inboxSavedLinkKey } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { z } from "zod";

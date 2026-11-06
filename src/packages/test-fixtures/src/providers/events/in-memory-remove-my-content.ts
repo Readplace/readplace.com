@@ -1,8 +1,8 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 
 export function initInMemoryRemoveMyContent(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): { publishRemoveMyContent: PublishRemoveMyContent } {
 	const { logger } = deps;
 

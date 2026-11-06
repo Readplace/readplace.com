@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { type Logger, noopLogger } from "@packages/logger";
 import type {
 	GmailHttpAttempt,
 	GmailHttpResponseHeaders,
@@ -48,7 +48,7 @@ function makeHarness(responses: (Response | Error)[]) {
 
 	const infoLines: unknown[][] = [];
 	const errorLines: unknown[][] = [];
-	const logger: HutchLogger = {
+	const logger: Logger = {
 		info: (...args) => { infoLines.push(args); },
 		error: (...args) => { errorLines.push(args); },
 		warn: noopLogger.warn,

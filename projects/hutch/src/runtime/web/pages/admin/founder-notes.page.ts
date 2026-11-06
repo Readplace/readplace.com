@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response, Router } from "express";
+import type { Request, Response, Router } from "express";
 import express from "express";
 import { sendComponent } from "@packages/web-shell";
 import type { FindUserByEmail } from "@packages/provider-contracts/auth";
@@ -11,18 +11,14 @@ import type { EmitLifecycleEmailSent } from "../../../observability/lifecycle-em
 import { flattenZodErrors } from "../../auth/flatten-zod-errors";
 import type { BuildBannerState } from "../../banner-state";
 import { Base } from "../../base.component";
-import { initRefuseAdminAccess } from "./admin-forbidden.page";
 import { AdminFounderNotesPage, type FounderNotesViewModel } from "./founder-notes.component";
 import { FormFieldsSchema, founderNoteSchema } from "./founder-notes.schema";
-import { initRequireAdmin } from "./require-admin.middleware";
 
 export interface AdminFounderNotesDependencies {
 	findUserByEmail: FindUserByEmail;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	recordFounderNote: RecordFounderNote;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
-	adminEmails: readonly string[];
-	serviceToken: string;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 }
@@ -34,23 +30,8 @@ const LIFECYCLE_KIND_OF_NOTE = {
 
 const LAST_MS_OF_UTC_DAY = 24 * 60 * 60 * 1000 - 1;
 
-function noStore(_req: Request, res: Response, next: NextFunction): void {
-	res.setHeader("Cache-Control", "no-store");
-	next();
-}
-
 export function initAdminFounderNotesRoutes(deps: AdminFounderNotesDependencies): Router {
 	const router = express.Router();
-
-	router.use(noStore);
-	router.use(
-		initRequireAdmin({
-			findUserByEmail: deps.findUserByEmail,
-			adminEmails: deps.adminEmails,
-			serviceToken: deps.serviceToken,
-			refuse: initRefuseAdminAccess({ buildBannerState: deps.buildBannerState }),
-		}),
-	);
 
 	async function respond(
 		req: Request,

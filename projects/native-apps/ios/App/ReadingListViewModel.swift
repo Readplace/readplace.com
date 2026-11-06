@@ -426,14 +426,14 @@ final class ReadingListViewModel: ObservableObject {
 		guard let index = articles.firstIndex(where: { $0.id == article.id && $0.refreshHref == href }) else {
 			return false
 		}
-		articles[index] = article
+		articles[index] = article.keepingEstimate(shownBy: articles[index])
 		stampProcessing(of: [article])
 		return true
 	}
 
 	private func stampProcessing(of rows: [Article]) {
 		let stamp = now()
-		for row in rows where row.processing != nil { processingReceivedAt[row.id] = stamp }
+		for row in rows where row.processing?.estimate != nil { processingReceivedAt[row.id] = stamp }
 	}
 
 	private static func failureName(_ error: Error) -> String {
@@ -671,7 +671,8 @@ final class ReadingListViewModel: ObservableObject {
 	/// the rows the list doesn't already hold.
 	private func apply(_ page: ReadlistPage, replacing: Bool) {
 		if replacing {
-			articles = page.articles
+			let shown = articles.reduce(into: [String: Article]()) { $0[$1.id] = $1 }
+			articles = page.articles.map { $0.keepingEstimate(shownBy: shown[$0.id]) }
 			stampProcessing(of: page.articles)
 			pagesHeld = 1
 			// A fresh successful collection reconciles transient banners: a stale
@@ -763,4 +764,20 @@ struct ReaderPresentation: Identifiable {
 	let readerURL: URL
 	let articleId: String?
 	var id: String { articleId ?? readerURL.absoluteString }
+}
+
+private extension Article {
+	func keepingEstimate(shownBy previous: Article?) -> Article {
+		guard let processing, processing.estimate == nil, let estimate = previous?.processing?.estimate else {
+			return self
+		}
+		var kept = self
+		kept.processing = ArticleProcessing(
+			label: processing.label,
+			estimate: estimate,
+			refreshHref: processing.refreshHref,
+			refreshAfterSeconds: processing.refreshAfterSeconds
+		)
+		return kept
+	}
 }

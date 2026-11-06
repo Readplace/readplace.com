@@ -1,4 +1,5 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { UserIdSchema } from "@packages/domain/user";
+import { noopLogger } from "@packages/logger";
 import { initSelectRelatedArticles } from "./related-articles-selector";
 import assert from "node:assert/strict";
 import { articleDestinationUrl } from "@packages/domain/article";
@@ -8,9 +9,17 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import { initSelectAgreedPicks } from "./agreed-picks";
 import type {
+	SelectionAttempt,
 	SelectRelatedArticlesParams,
 	SelectRelatedResult,
 } from "./related-articles-selector";
+
+const ATTEMPT: SelectionAttempt = {
+	userId: UserIdSchema.parse("user-1"),
+	trigger: "save",
+	messageId: "message-1",
+	receiveCount: 1,
+};
 
 const candidate = (name: string): RelatedCandidate => ({
 	url: `https://example.com/${name}`,
@@ -24,6 +33,7 @@ const candidate = (name: string): RelatedCandidate => ({
 });
 const params: SelectRelatedArticlesParams = {
 	target: candidate("target"),
+	attempt: ATTEMPT,
 	unreadCandidates: [candidate("a"), candidate("b")],
 	readCandidates: [candidate("c")],
 };
@@ -69,6 +79,7 @@ describe("agreed Next-read picks", () => {
 		{ kind: "no-text-block" },
 		{ kind: "shared-boilerplate" },
 		{ kind: "no-shared-words", bestScore: 0, candidateCount: 1 },
+		{ kind: "budget-limited", resetsAt: new Date("2026-11-05T00:00:00.000Z") },
 	])("passes through a first-call skip without repeating", async (result) => {
 		const { select, calls } = selection([result]);
 		expect(await select(params)).toBe(result);
@@ -184,6 +195,7 @@ it("repeats identical grounded requests, preserves clipped reasons and records e
 	const result = await selectRelatedArticles({
 		...params,
 		target: { ...params.target, title: "Queues decay" },
+		attempt: ATTEMPT,
 		unreadCandidates: [
 			{ ...candidate("a"), title: "Queues decay" },
 			candidate("astronomy"),

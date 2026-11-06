@@ -98,6 +98,7 @@ function pageOptions(overrides: Partial<ReadlistPageOptions> = {}): ReadlistPage
 	return {
 		cspNonce: generateCspNonce(),
 		deviceClass: "desktop",
+		keepOffer: { shown: false, reason: "not-trial" },
 		readlistHoldsArticles: false,
 		tabHoldsRows: false,
 		rail: RAIL,
@@ -108,6 +109,7 @@ function pageOptions(overrides: Partial<ReadlistPageOptions> = {}): ReadlistPage
 			completedBefore: false,
 			completionUnearned: false,
 		},
+		purpose: undefined,
 		query: {},
 		...overrides,
 	};
@@ -241,6 +243,49 @@ describe("ReadlistPage", () => {
 		const alert = doc.querySelector('[data-test-alert="readlist"]');
 		assert(alert, "the alert region must always render");
 		expect(alert.classList.contains("alert--hidden")).toBe(true);
+	});
+
+	it.each([
+		["To read", "queue", "?from=queue"],
+		["Read", "done", "?from=done"],
+	] as const)("shows a set purpose above the tabs on %s, with an edit dialog that saves back to it", (_tab, tab, from) => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug, tab } },
+			{ purpose: "Papers for the team offsite" },
+		);
+
+		const card = doc.querySelector('[data-test-action="readlist-purpose-edit"]');
+		assert(card, "a set purpose must render the Purpose card");
+		expect(card.nextElementSibling?.classList.contains("readlist__tabs-bar")).toBe(true);
+		expect(card.getAttribute("popovertarget")).toBe("readlist-preferences-wizard");
+		expect(card.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Papers for the team offsite");
+		const action = doc.querySelector("#readlist-preferences-wizard [data-test-wizard]")?.getAttribute("action");
+		assert(action, "the edit dialog must post the purpose");
+		const url = new URL(action, "https://internal.invalid");
+		expect(`${url.pathname}?from=${url.searchParams.get("from")}`).toBe(`/queue/queues/${WORK.slug}/preferences${from}`);
+	});
+
+	it("shows no Purpose card and no edit dialog on a readlist without a purpose", () => {
+		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } });
+
+		expect(doc.querySelectorAll("[data-test-readlist-purpose], #readlist-preferences-wizard")).toHaveLength(0);
+	});
+
+	it("shows a read-only reader the full purpose, with no edit dialog", () => {
+		const doc = pageDoc(
+			{ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug }, accessIsReadOnly: true },
+			{ purpose: "Papers for the team offsite" },
+		);
+
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Papers for the team offsite");
+		expect(doc.querySelectorAll('[data-test-action="readlist-purpose-edit"], #readlist-preferences-wizard')).toHaveLength(0);
+	});
+
+	it("ships the Purpose card and its dialog's styles", () => {
+		const styles = buildPage().styles;
+
+		expect(styles).toContain(".readlist-purpose");
+		expect(styles).toContain(".wizard__title");
 	});
 
 	it("leaves Add link and its dialog out of a custom readlist and keeps them on All", () => {

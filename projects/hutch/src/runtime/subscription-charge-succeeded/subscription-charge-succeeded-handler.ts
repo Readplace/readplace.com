@@ -1,52 +1,36 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
-import { SubscriptionChargeSucceededEvent } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
+import { SubscriptionChargeSucceededEvent } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { UpsertActiveSubscription } from "@packages/provider-contracts/subscription-providers";
 import type { EmitSubscriptionEvent } from "../observability/subscription-events";
 
 export function initSubscriptionChargeSucceededHandler(deps: {
 	upsertActive: UpsertActiveSubscription;
 	emit: EmitSubscriptionEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
-				const detail = SubscriptionChargeSucceededEvent.detailSchema.parse(envelope.detail);
-				const userId = UserIdSchema.parse(detail.userId);
-				await deps.upsertActive({
-					userId,
-					subscriptionId: detail.subscriptionId,
-					customerId: detail.customerId,
-					plan: detail.plan,
-				});
-				deps.emit.chargeSucceeded({
-					userId,
-					subscriptionId: detail.subscriptionId,
-				});
-				deps.logger.info("[charge-succeeded] upserted active", {
-					userId,
-					subscriptionId: detail.subscriptionId,
-				});
-			} catch (error) {
-				deps.logger.error("[charge-succeeded] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+	return initSqsRecordHandler({
+		definition: SubscriptionChargeSucceededEvent,
+		logger: deps.logger,
+		failure: { message: "[charge-succeeded] record failed" },
+		malformed: { policy: "retry" },
+		handle: async (detail) => {
+			const { userId } = detail;
+			await deps.upsertActive({
+				userId,
+				subscriptionId: detail.subscriptionId,
+				customerId: detail.customerId,
+				plan: detail.plan,
+			});
+			deps.emit.chargeSucceeded({
+				userId,
+				subscriptionId: detail.subscriptionId,
+			});
+			deps.logger.info("[charge-succeeded] upserted active", {
+				userId,
+				subscriptionId: detail.subscriptionId,
+			});
+		},
+	});
 }

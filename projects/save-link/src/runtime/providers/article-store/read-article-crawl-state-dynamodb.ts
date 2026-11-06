@@ -3,7 +3,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { ContentTierSchema, CrawlStatusSchema } from "@packages/article-state-types";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";

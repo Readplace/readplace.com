@@ -1,10 +1,10 @@
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailDeliveryModeSchema } from "@packages/domain/gmail";
 import type { ForwardableSender, GmailAccountEmail, GmailMapping, GmailMappingStore } from "@packages/domain/gmail";
@@ -23,16 +23,6 @@ const GmailMappingRow = z.object({
 	deliveryMode: dynamoField(GmailDeliveryModeSchema),
 	markImportedAt: dynamoField(z.string()),
 });
-
-async function unlessConditionFails(write: () => Promise<unknown>): Promise<boolean> {
-	try {
-		await write();
-		return true;
-	} catch (error) {
-		if (!(error instanceof ConditionalCheckFailedException)) throw error;
-		return false;
-	}
-}
 
 function accountPrefix(accountEmail: GmailAccountEmail) {
 	return `${accountEmail}#`;
@@ -111,23 +101,23 @@ export function initDynamoDbGmailMapping(deps: {
 				ExpressionAttributeValues: { ":uid": userId, ":account": accountPrefix(accountEmail) },
 			}),
 		listMappingsByUserId: (userId) => list(byUser(userId)),
-		setMarkImported: (input) =>
-			unlessConditionFails(() =>
+		setMarkImported: async (input) =>
+			(await writeIfCondition(() =>
 				table.update({
 					Key: keyOf(input),
 					UpdateExpression: "SET markImportedAt = if_not_exists(markImportedAt, :now)",
 					ConditionExpression: "attribute_exists(mappingKey)",
 					ExpressionAttributeValues: { ":now": deps.now().toISOString() },
 				}),
-			),
-		clearMarkImported: (input) =>
-			unlessConditionFails(() =>
+			)).kind === "written",
+		clearMarkImported: async (input) =>
+			(await writeIfCondition(() =>
 				table.update({
 					Key: keyOf(input),
 					UpdateExpression: "REMOVE markImportedAt",
 					ConditionExpression: "attribute_exists(markImportedAt)",
 				}),
-			),
+			)).kind === "written",
 		removeMapping: async ({ userId, accountEmail, senderEmail }) => {
 			await table.delete({ Key: keyOf({ userId, accountEmail, senderEmail }) });
 		},

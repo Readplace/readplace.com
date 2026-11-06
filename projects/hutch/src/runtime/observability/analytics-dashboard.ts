@@ -6,7 +6,7 @@ import {
 	GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
 	GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
 	GMAIL_METRIC_NAMESPACE,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { CLICK_SURFACES } from "@packages/web-shell";
 import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import { HOMEPAGE_EXPOSURE } from "../web/pages/home/home.version";

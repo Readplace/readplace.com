@@ -1,9 +1,9 @@
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+	writeIfCondition,
+} from "@packages/storage-client";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import type {
@@ -176,18 +176,15 @@ export function initOnboardingSignals(deps: {
 		userId,
 		sentAt,
 	}) => {
-		try {
-			await onboarding.update({
+		const outcome = await writeIfCondition(() =>
+			onboarding.update({
 				Key: { userId },
 				UpdateExpression: "SET firstInboxEmailNoticeSentAt = :sentAt",
 				ConditionExpression: "attribute_not_exists(firstInboxEmailNoticeSentAt)",
 				ExpressionAttributeValues: { ":sentAt": sentAt },
-			});
-			return "claimed";
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "already-sent";
-			throw error;
-		}
+			}),
+		);
+		return outcome.kind === "written" ? "claimed" : "already-sent";
 	};
 
 	const getOnboardingSignals: GetOnboardingSignals = async ({ userId }) => {

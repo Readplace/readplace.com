@@ -12,7 +12,7 @@ export default {
 	ignoreDependencies: [
 		...(baseConfig.ignoreDependencies || []),
 		// Used in src/infra (reached via the Pulumi entry point, which knip ignores)
-		"@packages/hutch-infra-components",
+		"@packages/infra-components",
 		"@pulumi/aws",
 		"@pulumi/pulumi",
 	],

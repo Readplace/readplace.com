@@ -1,7 +1,7 @@
 import request from "supertest";
 import { GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import { describeUntrackedCtas, findUntrackedCtas, useLoopbackServer } from "@packages/web-test-harness";
 import { createBlogApp } from "./app";
@@ -11,7 +11,7 @@ import { initBlogPosts } from "./web/pages/blog/blog.posts";
 
 const serve = useLoopbackServer();
 
-const discard: HutchLogger.Typed<AnalyticsEvent> = {
+const discard: Logger.Typed<AnalyticsEvent> = {
 	info: () => {},
 	error: () => {},
 	warn: () => {},

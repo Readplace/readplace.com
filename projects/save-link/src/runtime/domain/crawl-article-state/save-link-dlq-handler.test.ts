@@ -1,4 +1,4 @@
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type Logger } from "@packages/logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import { initSaveLinkDlqHandler } from "./save-link-dlq-handler";
@@ -42,7 +42,6 @@ describe("initSaveLinkDlqHandler", () => {
 		const handler = initSaveLinkDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		await handler(
@@ -67,7 +66,6 @@ describe("initSaveLinkDlqHandler", () => {
 		const handler = initSaveLinkDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		const invalidEvent: SQSEvent = {
@@ -97,7 +95,6 @@ describe("initSaveLinkDlqHandler", () => {
 		const handler = initSaveLinkDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		const result = await handler(
@@ -112,7 +109,7 @@ describe("initSaveLinkDlqHandler", () => {
 	it("marks the original's crawl exhausted when a dead-lettered command carried an archive capture", async () => {
 		const CAPTURE = "https://web.archive.org/web/20081203185222/https://example.com/article";
 		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const handler = initSaveLinkDlqHandler({ transitionAndPersist, logger: noopLogger, now: () => new Date() });
+		const handler = initSaveLinkDlqHandler({ transitionAndPersist, logger: noopLogger });
 
 		const result = await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1", captureUrl: CAPTURE }), buildLambdaContext(), () => {});
 
@@ -131,7 +128,7 @@ describe("initSaveLinkDlqHandler", () => {
 		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
 			calls.push(["transition"]);
 		});
-		const logger: HutchLogger = {
+		const logger: Logger = {
 			...noopLogger,
 			error: (...args) => {
 				calls.push(args);
@@ -140,20 +137,13 @@ describe("initSaveLinkDlqHandler", () => {
 		const handler = initSaveLinkDlqHandler({
 			transitionAndPersist,
 			logger,
-			now: () => new Date("2026-10-15T04:43:01.000Z"),
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/failed", userId: "user-1" }, 4), buildLambdaContext(), () => {});
 
 		expect(calls).toHaveLength(2);
 		expect(calls[0]).toEqual(["transition"]);
-		expect(calls[1]).toHaveLength(1);
-		expect(JSON.parse(String(calls[1]?.[0]))).toEqual({
-			level: "ERROR",
-			timestamp: "2026-10-15T04:43:01.000Z",
-			message: "[SaveLinkDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted",
-			url: "https://example.com/failed",
-		});
+		expect(calls[1]).toEqual(["[SaveLinkDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted", { url: "https://example.com/failed" }]);
 	});
 
 	it("a throwing transition logs only the record-failed line", async () => {
@@ -161,7 +151,7 @@ describe("initSaveLinkDlqHandler", () => {
 		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
 			throw new Error("ddb down");
 		});
-		const logger: HutchLogger = {
+		const logger: Logger = {
 			...noopLogger,
 			error: (...args) => {
 				calls.push(args);
@@ -170,7 +160,6 @@ describe("initSaveLinkDlqHandler", () => {
 		const handler = initSaveLinkDlqHandler({
 			transitionAndPersist,
 			logger,
-			now: () => new Date("2026-10-15T04:43:01.000Z"),
 		});
 
 		const result = await handler(createSqsEvent({ url: "https://example.com/failed", userId: "user-1" }, 4), buildLambdaContext(), () => {});

@@ -1,6 +1,6 @@
 import { CandidateIdSchema } from "@packages/domain/article";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
-import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
+import { ConditionalCheckFailedException } from "@packages/storage-client";
 import { z } from "zod";
 import { initRecordCrawlVersion } from "./record-crawl-version";
 

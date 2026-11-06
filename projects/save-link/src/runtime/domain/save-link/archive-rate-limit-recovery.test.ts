@@ -4,12 +4,12 @@ import { initReadabilityParser, readabilityAdditions } from "@packages/article-p
 import { initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { initJudgeUnderLedger } from "../select-content/judge-under-ledger";
 import { initVerifyWrapperSource } from "@packages/save-article";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import { initListAvailableTierSources } from "../select-content/list-available-tier-sources";
 import { initPrepareContentSelection } from "../select-content/prepare-content-selection";

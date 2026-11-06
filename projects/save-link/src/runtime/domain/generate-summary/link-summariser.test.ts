@@ -1,10 +1,10 @@
 import { ZodError } from "zod";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import assert from "node:assert/strict";
 import { initLinkSummariser, MAX_SUMMARY_INPUT_CHARS } from "./link-summariser";
 import type { CreateAiMessage } from "@packages/ai-message";
-import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
+import type { MarkSummaryStage } from "./summary-stage.types";
 import { PaidLegPermitSchema } from "@packages/provider-contracts/metered-leg-ledger";
 
 function createStubCreateMessage(payload: { summary: string; excerpt?: string }): CreateAiMessage {

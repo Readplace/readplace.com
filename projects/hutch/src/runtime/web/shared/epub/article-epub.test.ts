@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { DOMParser } from "linkedom";
 import { strFromU8, unzipSync } from "fflate";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { ReaderArticleHashId, SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { mediaFilename } from "@packages/finalize-article";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
 import { destinationUrl } from "../../test-helpers/article-fixtures";
 import { epubFilename, initBuildArticleEpub } from "./article-epub";
+import { EPUB_DOWNLOAD_RAW_BYTE_LIMIT } from "./epub-image-budget";
 import { articleBody } from "@packages/test-fixtures";
 
 const ARTICLE_URL = "https://example.com/article";
@@ -30,6 +31,32 @@ function contentOutline(epub: Uint8Array): [string, string][] {
 	return Array.from(body.children, (element) => [element.localName, element.textContent]);
 }
 
+const TEXT_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .";
+
+function poorlyCompressingText(length: number): string {
+	let state = 0x2545f491;
+	const characters: string[] = [];
+	for (let index = 0; index < length; index++) {
+		state ^= state << 13;
+		state ^= state >>> 17;
+		state ^= state << 5;
+		characters.push(TEXT_ALPHABET[(state >>> 0) & 63]);
+	}
+	return characters.join("");
+}
+
+function imageStore(params: { count: number; bytes: number }): Record<string, Uint8Array> {
+	return Object.fromEntries(
+		Array.from({ length: params.count }, (_, index) => [`${String(index).padStart(16, "0")}.jpg`, new Uint8Array(params.bytes)]),
+	);
+}
+
+function imagesHtml(store: Record<string, Uint8Array>): string {
+	return Object.keys(store)
+		.map((filename) => `<p><img src="${embeddedSrc(filename)}"></p>`)
+		.join("");
+}
+
 describe("initBuildArticleEpub", () => {
 	it.each([ARTICLE_URL, "https://web.archive.org/web/20250101000000/https://example.com/article"])("embeds owned media under the stored identity %s", async (articleUrl) => {
 		const body = Buffer.from([1, 2, 3]);
@@ -46,6 +73,29 @@ describe("initBuildArticleEpub", () => {
 		expect(strFromU8(files["OEBPS/content.xhtml"])).toContain(`<img src="images/${filename}" alt="Photo" />`);
 		expect(strFromU8(files["OEBPS/content.opf"])).toContain(`href="images/${filename}" media-type="image/png"`);
 		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("embeds a private item's image from its own media route", async () => {
+		const articleUrl = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+		const filename = `${"ab".repeat(32)}.png`;
+		const build = initBuildArticleEpub({
+			readArticleImage: readerFor({ [filename]: new Uint8Array([1, 2, 3]) }),
+			logError: jest.fn(),
+			now: NOW,
+		});
+
+		const { bytes } = await build({
+			articleUrl,
+			title: "Book",
+			siteName: "Book",
+			excerpt: "",
+			summary: undefined,
+			contentHtml: articleBody(`<p><img src="/queue/${ReaderArticleHashId.from(articleUrl).value}/media/${filename}" alt="Plate"></p>`),
+		});
+
+		const files = unzipSync(bytes);
+		expect(files[`OEBPS/images/${filename}`]).toEqual(new Uint8Array([1, 2, 3]));
+		expect(strFromU8(files["OEBPS/content.xhtml"])).toContain(`<img src="images/${filename}" alt="Plate" />`);
 	});
 
 	it("embeds an available hosted image", async () => {
@@ -163,6 +213,59 @@ describe("initBuildArticleEpub", () => {
 		expect(result.skippedOverBudget).toEqual([{ filename: over, bytes: 1_000_000 }]);
 		expect(result.embeddedBytes).toBe(3_400_000);
 		expect(logError.mock.calls).toEqual([]);
+	});
+
+	it("shrinks the image budget so a large body with images stays under the base64-safe download size", async () => {
+		const store = imageStore({ count: 3, bytes: 1_000_000 });
+		const build = initBuildArticleEpub({ readArticleImage: readerFor(store), logError: jest.fn(), now: NOW });
+
+		const result = await build({
+			articleUrl: ARTICLE_URL,
+			title: "t",
+			siteName: "example.com",
+			excerpt: "",
+			summary: undefined,
+			contentHtml: articleBody(`<p>${poorlyCompressingText(2_600_000)}</p>${imagesHtml(store)}`),
+		});
+
+		expect((result.bytes.length * 4) / 3).toBeLessThan(6_000_000);
+		expect(result.skippedOverBudget).toHaveLength(1);
+		expect(Object.keys(unzipSync(result.bytes)).filter((path) => path.startsWith("OEBPS/images/"))).toHaveLength(2);
+	});
+
+	it("keeps an EPUB whose body nears the download limit within the budgeted size", async () => {
+		const store = imageStore({ count: 10, bytes: 20_000 });
+		const build = initBuildArticleEpub({ readArticleImage: readerFor(store), logError: jest.fn(), now: NOW });
+
+		const result = await build({
+			articleUrl: ARTICLE_URL,
+			title: "t",
+			siteName: "example.com",
+			excerpt: "",
+			summary: undefined,
+			contentHtml: articleBody(`<p>${poorlyCompressingText(Math.floor((EPUB_DOWNLOAD_RAW_BYTE_LIMIT - 60_000) / 0.7736))}</p>${imagesHtml(store)}`),
+		});
+
+		expect(result.bytes.length).toBeLessThanOrEqual(4_500_000);
+		expect(result.embeddedBytes).toBeGreaterThan(0);
+		expect(result.skippedOverBudget.length).toBeGreaterThan(0);
+	});
+
+	it("embeds every image of a short article that the large body had to drop", async () => {
+		const store = imageStore({ count: 3, bytes: 1_000_000 });
+		const build = initBuildArticleEpub({ readArticleImage: readerFor(store), logError: jest.fn(), now: NOW });
+
+		const result = await build({
+			articleUrl: ARTICLE_URL,
+			title: "t",
+			siteName: "example.com",
+			excerpt: "",
+			summary: undefined,
+			contentHtml: articleBody(`<p>Short.</p>${imagesHtml(store)}`),
+		});
+
+		expect(result.skippedOverBudget).toEqual([]);
+		expect(result.embeddedBytes).toBe(3_000_000);
 	});
 
 	it("skips an image missing from the store and logs it", async () => {

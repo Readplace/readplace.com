@@ -1,6 +1,6 @@
 import type { CookieOptions } from "express";
 import { z } from "zod";
-import { baseCookieOptions } from "@packages/web-analytics";
+import { defineCookie } from "@packages/web-analytics";
 
 export const LAST_AUTH_PROVIDER_COOKIE_NAME = "hutch_lastauth";
 
@@ -10,6 +10,14 @@ export type LastAuthProvider = z.infer<typeof LastAuthProviderSchema>;
 
 const LAST_AUTH_PROVIDER_COOKIE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
 
+const lastAuthProviderCookie = defineCookie({
+	name: LAST_AUTH_PROVIDER_COOKIE_NAME,
+	maxAgeMs: LAST_AUTH_PROVIDER_COOKIE_MAX_AGE_MS,
+	sameSite: "lax",
+	httpOnly: true,
+	schema: LastAuthProviderSchema,
+});
+
 export function setLastAuthProvider(
 	deps: {
 		res: { cookie: (name: string, value: string, options: CookieOptions) => void };
@@ -17,16 +25,11 @@ export function setLastAuthProvider(
 	},
 	provider: LastAuthProvider,
 ): void {
-	deps.res.cookie(LAST_AUTH_PROVIDER_COOKIE_NAME, provider, {
-		...baseCookieOptions(deps.secure),
-		maxAge: LAST_AUTH_PROVIDER_COOKIE_MAX_AGE_MS,
-	});
+	lastAuthProviderCookie.set({ res: deps.res, value: provider, secure: deps.secure });
 }
 
 export function readLastAuthProvider(req: {
 	cookies?: Record<string, unknown>;
 }): LastAuthProvider | undefined {
-	const parsed = LastAuthProviderSchema.safeParse(req.cookies?.[LAST_AUTH_PROVIDER_COOKIE_NAME]);
-	if (!parsed.success) return undefined;
-	return parsed.data;
+	return lastAuthProviderCookie.read(req);
 }

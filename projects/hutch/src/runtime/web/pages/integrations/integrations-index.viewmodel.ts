@@ -225,13 +225,24 @@ const GMAIL_UPGRADE_ACTIONS: Record<UpgradeStanding, IntegrationActionViewModel[
 	})],
 };
 
+const GMAIL_LOCK_LABELS: Record<GmailConnectionState, string> = {
+	disconnected: "Connect Gmail",
+	disconnecting: "Connect Gmail",
+	revoked: "Connect Gmail",
+	"awaiting-confirmation": "Keep Gmail connected",
+	"confirm-failed": "Keep Gmail connected",
+	"ready-to-filter": "Keep Gmail connected",
+	"filter-failed": "Keep Gmail connected",
+	filtering: "Keep Gmail connected",
+};
+
 function gmailUpgradeRow(input: { connection: GmailConnection | undefined; offer: UpgradeOffer | undefined }): IntegrationRowViewModel {
 	const row = gmailRow(input.connection);
 	const locks = renderedLockFor({
 		offer: input.offer,
 		gated: true,
 		key: "connect-gmail",
-		label: "Connect Gmail",
+		label: GMAIL_LOCK_LABELS[gmailConnectionState(input.connection)],
 		controlClass: "btn btn--primary btn--s",
 		source: "connectors",
 	});

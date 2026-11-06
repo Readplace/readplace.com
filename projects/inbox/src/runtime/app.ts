@@ -20,7 +20,7 @@ import type { UserId } from "@packages/domain/user";
 import type { SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { ResolveLogin } from "@packages/web-session";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	type AnalyticsEvent,
 	createAnalyticsMiddleware,
@@ -73,7 +73,7 @@ export function createInboxApp(
 		recordEngagementActivity: RecordEngagementActivity;
 		logError: (message: string, error?: Error) => void;
 		now: () => Date;
-		analyticsLogger: HutchLogger.Typed<AnalyticsEvent>;
+		analyticsLogger: Logger.Typed<AnalyticsEvent>;
 		salt: string;
 		generateVisitorId: () => string;
 		secureCookies: boolean;

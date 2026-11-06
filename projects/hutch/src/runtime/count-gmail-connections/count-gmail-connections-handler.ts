@@ -4,7 +4,7 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { GmailConnectionStore } from "@packages/domain/gmail";
 import {
 	GMAIL_CONNECTIONS_COUNT_EVENT,
@@ -13,8 +13,8 @@ import {
 
 export interface CountGmailConnectionsDeps {
 	countConnected: GmailConnectionStore["countConnected"];
-	metricLog: HutchLogger.Typed<GmailConnectionsCountLine>;
-	logger: HutchLogger;
+	metricLog: Logger.Typed<GmailConnectionsCountLine>;
+	logger: Logger;
 }
 
 export function initCountGmailConnectionsHandler(

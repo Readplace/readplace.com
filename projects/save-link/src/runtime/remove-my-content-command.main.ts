@@ -1,10 +1,10 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components/runtime";
 import {
 	initCountSaversByUrl,
 	initDynamoDbArticleStore,
@@ -16,15 +16,18 @@ import {
 	initS3ListContentKeys,
 	initTombstoneArticle,
 } from "@packages/article-store";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { REMOVE_MY_CONTENT_COMMAND_ENV } from "./remove-my-content-command.env";
 import { initReadTierSource } from "./providers/article-store/read-tier-source";
 import { initListAvailableTierSources } from "./domain/select-content/list-available-tier-sources";
 import { initRemoveMyContentCommandHandler } from "./domain/remove-my-content/remove-my-content-command-handler";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
+const env = readEnv(REMOVE_MY_CONTENT_COMMAND_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();

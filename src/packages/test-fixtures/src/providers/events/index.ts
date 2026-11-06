@@ -35,3 +35,4 @@ export * from "./in-memory-update-fetch-timestamp";
 export * from "./in-memory-compute-related-past-reads";
 export * from "./in-memory-compute-related-passes";
 export * from "./in-memory-resolve-article-on-view";
+export * from "./recording-publish-event";

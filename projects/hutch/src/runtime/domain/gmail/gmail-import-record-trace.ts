@@ -5,7 +5,7 @@ import type {
 	GmailImportRecordCorrelation,
 	GmailImportRecordStep,
 	RecordGmailDiagnostic,
-} from "../../observability/gmail-diagnostics";
+} from "./gmail-diagnostic.types";
 import { errorClassName } from "./error-class-name";
 import type { ObserveGmailHistoryImport } from "./gmail-history-import-observation.types";
 

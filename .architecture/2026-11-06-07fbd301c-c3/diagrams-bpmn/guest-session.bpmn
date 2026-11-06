@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_guest_session" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_guest_session" name="guest-session" isExecutable="false">
+    <bpmn:task id="n_S" name="staged, no owner">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_IN" name="inspecting, ETag stored">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_R" name="ready, facts">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_X" name="rejected, reason and notice">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_C" name="staged, owned">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_COMMIT" name="existing commit">
+      <bpmn:incoming>f_4</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_S" targetRef="n_IN" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_IN" targetRef="n_R" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_IN" targetRef="n_X" />
+    <bpmn:sequenceFlow id="f_3" name="reader claims" sourceRef="n_R" targetRef="n_C" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_C" targetRef="n_COMMIT" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_guest_session">
+    <bpmndi:BPMNPlane id="Plane_guest_session" bpmnElement="Process_guest_session">
+      <bpmndi:BPMNShape id="n_S_di" bpmnElement="n_S">
+        <dc:Bounds x="28" y="70" width="134.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_IN_di" bpmnElement="n_IN">
+        <dc:Bounds x="220.25" y="70" width="176.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R_di" bpmnElement="n_R">
+        <dc:Bounds x="501.5" y="28" width="104.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_X_di" bpmnElement="n_X">
+        <dc:Bounds x="454.5" y="112" width="198.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="711" y="70" width="116" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_COMMIT_di" bpmnElement="n_COMMIT">
+        <dc:Bounds x="885" y="70" width="129" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="162.25" y="94" />
+        <di:waypoint x="220.25" y="94" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="396.5" y="94" />
+        <di:waypoint x="449" y="94" />
+        <di:waypoint x="449" y="52" />
+        <di:waypoint x="501.5" y="52" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="396.5" y="94" />
+        <di:waypoint x="425.5" y="94" />
+        <di:waypoint x="425.5" y="136" />
+        <di:waypoint x="454.5" y="136" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="606" y="52" />
+        <di:waypoint x="658.5" y="52" />
+        <di:waypoint x="658.5" y="94" />
+        <di:waypoint x="711" y="94" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="827" y="94" />
+        <di:waypoint x="885" y="94" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

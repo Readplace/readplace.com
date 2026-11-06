@@ -1,16 +1,17 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { FinalizeArticle } from "@packages/finalize-article";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { RenderCrawlCommand, SimpleCrawlUnsupportedEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { RenderCrawlCommand, SimpleCrawlUnsupportedEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { initEmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import { initSaveLinkWork } from "../save-link/save-link-work";
 import { initSimpleCrawlUnsupportedPolicyHandler } from "../simple-crawl-unsupported-policy/simple-crawl-unsupported-policy-handler";
-import type { RenderOutcome, RenderPage } from "../../providers/render-page/render-page.types";
+import type { RenderOutcome, RenderPage } from "./render-page.types";
 import { initRenderCrawlHandler } from "./render-crawl-handler";
 
 const TRACKER = "https://links.tracker.example/r/abc?mid=1";
@@ -88,7 +89,7 @@ describe("a tracker link whose publisher blocked the free crawl", () => {
 			publishEvent,
 			logPrefix: "[composition]",
 		});
-		await saveLinkWork(TRACKER, { userId: "user-1", saveAttemptId });
+		await saveLinkWork(TRACKER, { userId: UserIdSchema.parse("user-1"), saveAttemptId });
 
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent, logger: noopLogger });
 		await policy(sqsEventFrom(takeOne(published, SimpleCrawlUnsupportedEvent.detailType)), buildLambdaContext(), () => {});

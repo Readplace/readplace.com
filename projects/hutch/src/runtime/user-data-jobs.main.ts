@@ -3,15 +3,15 @@ import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 import assert from "node:assert";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
 	initHandleByDetailType,
-} from "@packages/hutch-infra-components/runtime";
-import { DeleteAccountCommand, ExportUserDataCommand } from "@packages/hutch-infra-components";
-import { requireEnv } from "@packages/require-env";
+} from "@packages/infra-components/runtime";
+import { DeleteAccountCommand, ExportUserDataCommand } from "@packages/infra-components";
+import { readEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initRevokeAllUserOAuthTokens } from "./providers/oauth/dynamodb-oauth-model";
@@ -54,157 +54,160 @@ import {
 	initS3ListContentKeys,
 	initTombstoneArticle,
 } from "@packages/article-store";
+import { USER_DATA_JOBS_ENV } from "./user-data-jobs.env";
 
-const logger = HutchLogger.from(consoleLogger);
+const env = readEnv(USER_DATA_JOBS_ENV);
+
+const logger = Logger.from(consoleLogger);
 const now = () => new Date();
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});
 
 const auth = initDynamoDbAuth({
-	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession,
+	observeSession: initAuthDiagnosticRecorder({ salt: env.ANALYTICS_SALT, now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
 	client: dynamoClient,
-	usersTableName: requireEnv("DYNAMODB_USERS_TABLE"),
-	sessionsTableName: requireEnv("DYNAMODB_SESSIONS_TABLE"),
+	usersTableName: env.DYNAMODB_USERS_TABLE,
+	sessionsTableName: env.DYNAMODB_SESSIONS_TABLE,
 });
 
 const revokeAllUserOAuthTokens = initRevokeAllUserOAuthTokens({
-	secret: requireEnv("ANALYTICS_SALT"),
+	secret: env.ANALYTICS_SALT,
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_OAUTH_TABLE"),
+	tableName: env.DYNAMODB_OAUTH_TABLE,
 });
 
 const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_ARTICLES_TABLE"),
-	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
+	tableName: env.DYNAMODB_ARTICLES_TABLE,
+	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 	logger,
 	now: () => new Date(),
 });
 
 const engagementState = initDynamoDbEngagementStarter({
 	client: dynamoClient,
-	onboardingTableName: requireEnv("DYNAMODB_ONBOARDING_TABLE"),
-	notificationsTableName: requireEnv("DYNAMODB_READER_READY_NOTIFICATIONS_TABLE"),
-	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
+	onboardingTableName: env.DYNAMODB_ONBOARDING_TABLE,
+	notificationsTableName: env.DYNAMODB_READER_READY_NOTIFICATIONS_TABLE,
+	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 });
 const readlistDefinitions = initDynamoDbReadlistDefinitions({
 	client: dynamoClient,
-	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
+	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 });
 
 const readerReadyState = initDynamoDbReaderReadyState({
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_READER_READY_NOTIFICATIONS_TABLE"),
+	tableName: env.DYNAMODB_READER_READY_NOTIFICATIONS_TABLE,
 });
 
 const onboarding = initOnboardingSignals({
 	client: dynamoClient,
-	onboardingTableName: requireEnv("DYNAMODB_ONBOARDING_TABLE"),
+	onboardingTableName: env.DYNAMODB_ONBOARDING_TABLE,
 	now,
 });
 
 const subscriptionProviders = initDynamoDbSubscriptionProviders({
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE"),
+	tableName: env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE,
 	now,
 });
 
 const stripeSubscriptions = initStripeSubscriptions({
-	apiKey: requireEnv("STRIPE_SECRET_KEY"),
+	apiKey: env.STRIPE_SECRET_KEY,
 	fetch: globalThis.fetch,
 });
 
 const trialScheduler = initAwsTrialScheduler({
 	client: new SchedulerClient({}),
-	scheduleGroupName: requireEnv("TRIAL_SCHEDULER_GROUP_NAME"),
-	schedulerRoleArn: requireEnv("TRIAL_SCHEDULER_ROLE_ARN"),
-	eventBusArn: requireEnv("EVENT_BUS_ARN"),
+	scheduleGroupName: env.TRIAL_SCHEDULER_GROUP_NAME,
+	schedulerRoleArn: env.TRIAL_SCHEDULER_ROLE_ARN,
+	eventBusArn: env.EVENT_BUS_ARN,
 });
 
 const inboxEmail = initDynamoDbInboxEmail({
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_INBOX_EMAILS_TABLE"),
+	tableName: env.DYNAMODB_INBOX_EMAILS_TABLE,
 });
 
 const inboxEmailLink = initDynamoDbInboxEmailLink({
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE"),
+	tableName: env.DYNAMODB_INBOX_EMAIL_LINKS_TABLE,
 });
 
 const inboxSavedLink = initDynamoDbInboxSavedLink({
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_INBOX_SAVED_LINKS_TABLE"),
+	tableName: env.DYNAMODB_INBOX_SAVED_LINKS_TABLE,
 	now,
 });
 
 const inboxAddress = initDynamoDbInboxAddress({
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE"),
+	tableName: env.DYNAMODB_INBOX_ADDRESSES_TABLE,
 	now,
 });
 
 const deleteRawEmailObjects = initS3DeleteObjects({
 	client: s3Client,
-	bucketName: requireEnv("RAW_EMAIL_BUCKET_NAME"),
+	bucketName: env.RAW_EMAIL_BUCKET_NAME,
 });
 
 const deleteRawEmailObjectsByPrefix = initS3DeleteObjectsByPrefix({
 	client: s3Client,
-	bucketName: requireEnv("RAW_EMAIL_BUCKET_NAME"),
+	bucketName: env.RAW_EMAIL_BUCKET_NAME,
 });
 
 const deleteEmailContentObjects = initS3DeleteObjects({
 	client: s3Client,
-	bucketName: requireEnv("CONTENT_BUCKET_NAME"),
+	bucketName: env.CONTENT_BUCKET_NAME,
 });
 
 const deleteEmailImageObjects = initS3DeleteObjectsByPrefix({
 	client: s3Client,
-	bucketName: requireEnv("CONTENT_BUCKET_NAME"),
+	bucketName: env.CONTENT_BUCKET_NAME,
 });
 
 const { uploadUserDataExport, deleteUserExports } = initS3UserDataExport({
 	client: s3Client,
-	bucketName: requireEnv("USER_EXPORT_BUCKET_NAME"),
+	bucketName: env.USER_EXPORT_BUCKET_NAME,
 	now,
 });
 
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
-	eventBusName: requireEnv("EVENT_BUS_NAME"),
+	eventBusName: env.EVENT_BUS_NAME,
 });
 
 const { sendEmail } = initSkipReservedDomain({
-	...initResendEmail(requireEnv("RESEND_API_KEY")),
+	...initResendEmail(env.RESEND_API_KEY),
 	logger,
 });
 
 const passwordReset = initDynamoDbPasswordReset({
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_PASSWORD_RESET_TOKENS_TABLE"),
+	tableName: env.DYNAMODB_PASSWORD_RESET_TOKENS_TABLE,
 });
 
 const emailVerification = initDynamoDbEmailVerification({
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_VERIFICATION_TOKENS_TABLE"),
+	tableName: env.DYNAMODB_VERIFICATION_TOKENS_TABLE,
 });
 
 const pendingSignup = initDynamoDbPendingSignup({
 	client: dynamoClient,
-	tableName: requireEnv("DYNAMODB_PENDING_SIGNUPS_TABLE"),
+	tableName: env.DYNAMODB_PENDING_SIGNUPS_TABLE,
 	logger,
 });
 
-const appleClientId = requireEnv("APPLE_LOGIN_CLIENT_ID");
-const applePrivateKeyPem = Buffer.from(requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"), "base64").toString("utf8");
+const appleClientId = env.APPLE_LOGIN_CLIENT_ID;
+const applePrivateKeyPem = Buffer.from(env.APPLE_LOGIN_PRIVATE_KEY_BASE64, "base64").toString("utf8");
 assert(applePrivateKeyPem.includes("BEGIN PRIVATE KEY"), "APPLE_LOGIN_PRIVATE_KEY_BASE64 must decode to a PKCS#8 PEM");
 
-const articlesTableName = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
+const articlesTableName = env.DYNAMODB_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
 
 const { countOtherSaversByUrl } = initCountOtherSaversByUrl({
 	client: dynamoClient,
-	userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
+	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 });
 
 const { purgeArticleContent } = initPurgeArticleContent({
@@ -222,12 +225,14 @@ const releasePrivateItems = initReleasePrivateItems({
 		findItemOwner: initDynamoDbFindItemOwner({ client: dynamoClient, tableName: articlesTableName }).findItemOwner,
 		steps: initPrivateItemReleaseSteps({
 			purgeArticleContent,
-			deleteMediaObjects: initS3DeleteContentObjects({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") })
+			deleteMediaObjects: initS3DeleteContentObjects({ client: s3Client, bucketName: env.MEDIA_BUCKET_NAME })
 				.deleteContentObjects,
+			listMediaKeys: initS3ListContentKeys({ client: s3Client, bucketName: env.MEDIA_BUCKET_NAME })
+				.listContentKeys,
 			deleteArticleRow: initDeleteArticleRow({ client: dynamoClient, tableName: articlesTableName }).deleteArticleRow,
 			deleteUserArticleLinks: initDeleteUserArticleLinks({
 				client: dynamoClient,
-				tableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
+				tableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 			}).deleteUserArticleLinks,
 		}),
 	}),
@@ -237,9 +242,9 @@ const revokeExternalIdpTokens = initRevokeExternalIdpTokens({
 	findAppleRefreshTokenByUserId: auth.findAppleRefreshTokenByUserId,
 	appleClientId,
 	createAppleClientSecret: initCreateAppleClientSecret({
-		teamId: requireEnv("APPLE_LOGIN_TEAM_ID"),
+		teamId: env.APPLE_LOGIN_TEAM_ID,
 		clientId: appleClientId,
-		keyId: requireEnv("APPLE_LOGIN_KEY_ID"),
+		keyId: env.APPLE_LOGIN_KEY_ID,
 		privateKeyPem: applePrivateKeyPem,
 		now,
 	}),
@@ -247,14 +252,14 @@ const revokeExternalIdpTokens = initRevokeExternalIdpTokens({
 	logger,
 });
 
-const gmailConnections = initDynamoDbGmailConnection({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"), now });
-const gmailCredentials = initDynamoDbGmailCredentials({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_CREDENTIALS_TABLE"), now });
-const gmailSenders = initDynamoDbGmailSender({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_SENDERS_TABLE"), now });
-const gmailDiscovery = initDynamoDbGmailDiscovery({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now });
-const gmailHistoryImports = initDynamoDbGmailHistoryImport({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE") });
-const gmailMappings = initDynamoDbGmailMapping({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_MAPPINGS_TABLE"), now });
-const gmailMonitoring = initDynamoDbGmailMonitoring({ client: dynamoClient, tableName: requireEnv("DYNAMODB_GMAIL_MONITORING_TABLE"), now });
-const emailIdentities = initDynamoDbEmailIdentity({ client: dynamoClient, tableName: requireEnv("DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE") });
+const gmailConnections = initDynamoDbGmailConnection({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_CONNECTIONS_TABLE, now });
+const gmailCredentials = initDynamoDbGmailCredentials({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_CREDENTIALS_TABLE, now });
+const gmailSenders = initDynamoDbGmailSender({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_SENDERS_TABLE, now });
+const gmailDiscovery = initDynamoDbGmailDiscovery({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_DISCOVERY_TABLE, now });
+const gmailHistoryImports = initDynamoDbGmailHistoryImport({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE });
+const gmailMappings = initDynamoDbGmailMapping({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_MAPPINGS_TABLE, now });
+const gmailMonitoring = initDynamoDbGmailMonitoring({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_MONITORING_TABLE, now });
+const emailIdentities = initDynamoDbEmailIdentity({ client: dynamoClient, tableName: env.DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE });
 
 const disconnectGmail = initDisconnectGmail({
 	connections: gmailConnections,
@@ -265,8 +270,8 @@ const disconnectGmail = initDisconnectGmail({
 	removeGmailFilter: initRewriteGmailFilter({
 		filters: initGmailFilters({
 			accessToken: initGmailAccessToken({
-				clientId: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-				clientSecret: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+				clientId: env.GMAIL_INTEGRATION_CLIENT_ID,
+				clientSecret: env.GMAIL_INTEGRATION_CLIENT_SECRET,
 				credentials: gmailCredentials,
 				fetch: globalThis.fetch,
 				now,

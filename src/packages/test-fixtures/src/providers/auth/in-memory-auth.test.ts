@@ -590,6 +590,44 @@ describe("initInMemoryAuth", () => {
 				emailVerified: false,
 				registeredAt: expect.any(String),
 				signupOAuthClientId: null,
+				earlyIntentionalSaves: 0,
+			});
+		});
+
+		it("should carry the crossing instant, the dismissal instant and the early save count", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "test@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+			const at = new Date("2026-12-08T10:00:00.000Z");
+			await auth.countEarlyIntentionalSave({ userId: created.userId, at: new Date() });
+			await auth.markActivationThresholdReached({ userId: created.userId, at });
+			await auth.setKeepOfferDismissed({
+				userId: created.userId,
+				dismissedAt: new Date("2026-12-09T10:00:00.000Z"),
+			});
+
+			const result = await auth.findUserById(created.userId);
+
+			expect(result).toMatchObject({
+				activationThresholdReachedAt: "2026-12-08T10:00:00.000Z",
+				keepOfferDismissedAt: "2026-12-09T10:00:00.000Z",
+				earlyIntentionalSaves: 1,
+			});
+		});
+
+		it("should leave every account alone when the keep-offer setters name an unknown user", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "test@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+			const nobody = UserIdSchema.parse("nobody");
+			const at = new Date("2026-12-08T10:00:00.000Z");
+
+			await auth.markActivationThresholdReached({ userId: nobody, at });
+			await auth.setKeepOfferDismissed({ userId: nobody, dismissedAt: at });
+
+			expect(await auth.findUserById(created.userId)).toMatchObject({
+				activationThresholdReachedAt: undefined,
+				keepOfferDismissedAt: undefined,
 			});
 		});
 
@@ -1008,6 +1046,9 @@ describe("initInMemoryAuth", () => {
 				displayName: undefined,
 				deletedAt: undefined,
 				signupOAuthClientId: null,
+				activationThresholdReachedAt: undefined,
+				keepOfferDismissedAt: undefined,
+				earlyIntentionalSaves: 0,
 			});
 		});
 
@@ -1031,6 +1072,9 @@ describe("initInMemoryAuth", () => {
 				displayName: undefined,
 				deletedAt: undefined,
 				signupOAuthClientId: null,
+				activationThresholdReachedAt: undefined,
+				keepOfferDismissedAt: undefined,
+				earlyIntentionalSaves: 0,
 			});
 		});
 	});

@@ -1,10 +1,10 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
@@ -135,24 +135,20 @@ export function initDynamoDbInboxAddress(deps: {
 		for (let attempt = 0; attempt < INBOX_ADDRESS_MAX_CREATE_ATTEMPTS; attempt++) {
 			const token = generateInboxToken();
 			const address = buildInboxAddress({ name, token, domain });
-			try {
-				await table.put({
-					Item: {
-						address,
-						userId,
-						name,
-						token,
-						createdAt,
-						purpose,
-						...(readlist === undefined ? {} : { readlist }),
-					},
-					ConditionExpression: "attribute_not_exists(address)",
-				});
-				return { address, userId, name, token, createdAt, disabledAt: undefined, purpose, readlist };
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) continue;
-				throw error;
-			}
+			const outcome = await writeIfCondition(() => table.put({
+				Item: {
+					address,
+					userId,
+					name,
+					token,
+					createdAt,
+					purpose,
+					...(readlist === undefined ? {} : { readlist }),
+				},
+				ConditionExpression: "attribute_not_exists(address)",
+			}));
+			if (outcome.kind === "condition-failed") continue;
+			return { address, userId, name, token, createdAt, disabledAt: undefined, purpose, readlist };
 		}
 		throw new Error(
 			`Failed to mint a unique inbox address after ${INBOX_ADDRESS_MAX_CREATE_ATTEMPTS} attempts`,
@@ -194,16 +190,11 @@ export function initDynamoDbInboxAddress(deps: {
 		readlist: ReadlistSlug;
 		claimedAddress: InboxAddress;
 	}): Promise<void> => {
-		try {
-			await claims.delete({
-				Key: readlistClaimKey(input),
-				ConditionExpression: "claimedAddress = :claimed",
-				ExpressionAttributeValues: { ":claimed": input.claimedAddress },
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+		await writeIfCondition(() => claims.delete({
+			Key: readlistClaimKey(input),
+			ConditionExpression: "claimedAddress = :claimed",
+			ExpressionAttributeValues: { ":claimed": input.claimedAddress },
+		}));
 	};
 
 	return {
@@ -252,17 +243,12 @@ export function initDynamoDbInboxAddress(deps: {
 				addresses
 					.filter((entry) => entry.readlist === readlist)
 					.map(async (entry) => {
-						try {
-							await table.update({
-								Key: { address: entry.address },
-								ConditionExpression: "userId = :uid AND readlist = :readlist",
-								UpdateExpression: "REMOVE readlist",
-								ExpressionAttributeValues: { ":uid": userId, ":readlist": readlist },
-							});
-						} catch (error) {
-							if (error instanceof ConditionalCheckFailedException) return;
-							throw error;
-						}
+						await writeIfCondition(() => table.update({
+							Key: { address: entry.address },
+							ConditionExpression: "userId = :uid AND readlist = :readlist",
+							UpdateExpression: "REMOVE readlist",
+							ExpressionAttributeValues: { ":uid": userId, ":readlist": readlist },
+						}));
 					}),
 			);
 		},
@@ -278,20 +264,16 @@ export function initDynamoDbInboxAddress(deps: {
 				purpose: "gmail-readlist",
 				readlist: readlist === DEFAULT_READLIST_SLUG ? undefined : readlist,
 			});
-			try {
-				await claims.put({
-					Item: {
-						...readlistClaimKey({ userId, readlist }),
-						claimOwner: userId,
-						claimedAddress: minted.address,
-						createdAt: minted.createdAt,
-					},
-					ConditionExpression: "attribute_not_exists(address)",
-				});
-				return minted;
-			} catch (error) {
-				if (!(error instanceof ConditionalCheckFailedException)) throw error;
-			}
+			const outcome = await writeIfCondition(() => claims.put({
+				Item: {
+					...readlistClaimKey({ userId, readlist }),
+					claimOwner: userId,
+					claimedAddress: minted.address,
+					createdAt: minted.createdAt,
+				},
+				ConditionExpression: "attribute_not_exists(address)",
+			}));
+			if (outcome.kind === "written") return minted;
 			await disableAddress({ userId, address: minted.address });
 			const winner = await findReadlistAddress({ userId, readlist });
 			assert(winner, "a lost readlist address claim must leave the winning claim in place");

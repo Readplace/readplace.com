@@ -1,8 +1,7 @@
 import assert from "node:assert";
-import type { NextFunction, Request, Response, Router } from "express";
+import type { Router } from "express";
 import express from "express";
 import { sendComponent } from "@packages/web-shell";
-import type { FindUserByEmail } from "@packages/provider-contracts/auth";
 import type {
 	ExcludedIdentities,
 	ReadExcludedIdentities,
@@ -14,12 +13,8 @@ import type { BuildBannerState } from "../../banner-state";
 import { AdminDashboardPage, AdminDashboardsIndexPage } from "./admin-dashboard.component";
 import { buildAdminDashboardViewModel, buildAdminDashboardsIndexViewModel } from "./admin-dashboard.viewmodel";
 import { AdminDashboardSlugSchema, dashboardWindow, parseDashboardRange } from "./admin-dashboards.url";
-import { initRefuseAdminAccess } from "./admin-forbidden.page";
-import { initRequireAdmin } from "./require-admin.middleware";
 
 export interface AdminDashboardsDependencies {
-	findUserByEmail: FindUserByEmail;
-	adminEmails: readonly string[];
 	buildBannerState: BuildBannerState;
 	dashboards: Record<AdminDashboardSlug, AdminDashboard>;
 	runLogsInsightsQuery: RunLogsInsightsQuery;
@@ -29,23 +24,8 @@ export interface AdminDashboardsDependencies {
 
 const NO_EXCLUSIONS: ExcludedIdentities = { excludedVisitorIds: [], excludedUserIds: [] };
 
-function noStore(_req: Request, res: Response, next: NextFunction): void {
-	res.setHeader("Cache-Control", "no-store");
-	next();
-}
-
 export function initAdminDashboardsRoutes(deps: AdminDashboardsDependencies): Router {
 	const router = express.Router();
-
-	router.use(noStore);
-	router.use(
-		initRequireAdmin({
-			findUserByEmail: deps.findUserByEmail,
-			adminEmails: deps.adminEmails,
-			serviceToken: "",
-			refuse: initRefuseAdminAccess({ buildBannerState: deps.buildBannerState }),
-		}),
-	);
 
 	router.get("/", async (req, res) => {
 		sendComponent(

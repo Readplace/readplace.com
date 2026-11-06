@@ -32,7 +32,7 @@
  * an unchanged handler costs one describe-images call rather than a ~minute-long
  * docker build+push, on the staging AND prod registries independently. Only
  * genuinely new content is built. Skipping the re-push is safe because the
- * lifecycle policy now retains enough images (see HutchEcrRepository) that a
+ * lifecycle policy now retains enough images (see EcrRepository) that a
  * reused image cannot age out before its content next changes; the forensic
  * gitsha tag is still copied onto the reused image so every deployed commit
  * remains traceable. An existence probe that errors falls back to building, so
@@ -44,8 +44,8 @@ import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { computeImageTag } from "@packages/hutch-infra-components/infra/compute-image-tag";
-import { copyAssetFiles } from "@packages/hutch-infra-components/infra/copy-asset-files";
+import { computeImageTag } from "@packages/infra-components/infra/compute-image-tag";
+import { copyAssetFiles } from "@packages/infra-components/infra/copy-asset-files";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "..");

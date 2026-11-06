@@ -6,11 +6,19 @@ import {
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { requireEnv } from "@packages/require-env";
+} from "@packages/infra-components/runtime";
+import { consoleLogger, Logger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { readEnv } from "@packages/require-env";
+import { COMPUTE_RELATED_ARTICLES_ENV } from "./compute-related-articles.env";
 import { initRelatedArticlesDepBundle } from "./dep-bundles/related-articles";
+import { initDynamoDbRecommendationBudget } from "./providers/recommendation-budget/dynamodb-recommendation-budget";
+import type { RecommendationBudgetDeniedLine } from "./domain/related-articles/daily-budget";
+import { initDeepseekFlashTokenCounter } from "./domain/related-articles/deepseek-flash-tokenizer/deepseek-flash-tokenizer";
+import {
+	RECOMMENDATION_BUDGET_WINDOW_SECONDS,
+	RECOMMENDATION_DAILY_LIMIT_NANODOLLARS,
+} from "./domain/related-articles/recommendation-budget";
 import { initComputeRelatedPasses } from "./domain/related-articles/compute-related-passes";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
 import { initComputeRelatedPastReadsHandler } from "./domain/related-articles/compute-related-past-reads-handler";
@@ -18,10 +26,13 @@ import { initRecomputeSkippedNextReadHandler } from "./domain/related-articles/r
 import { initGatherRelatedCandidatePools } from "./domain/related-articles/related-articles-candidates";
 import { RELATED_ARTICLES_TIMEOUTS } from "./domain/related-articles/timeouts";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
+const env = readEnv(COMPUTE_RELATED_ARTICLES_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
+const eventBusName = env.EVENT_BUS_NAME;
+const rateLimitsTable = env.DYNAMODB_RATE_LIMITS_TABLE;
 
 const dynamoClient = createDynamoDocumentClient();
 const deepseekClient = initDeepseekClient({
@@ -32,16 +43,29 @@ const deepseekClient = initDeepseekClient({
 	logLevel: "info",
 	callTimeoutMs: RELATED_ARTICLES_TIMEOUTS.deepseekMs,
 	fetch: globalThis.fetch,
-	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	logUsage: Logger.fromJSON<DeepseekUsageLine>().info,
 	now: () => new Date(),
 });
 
 const createMessage = initCreateDeepseekMessage({ client: deepseekClient });
 
+const budget = initDynamoDbRecommendationBudget({
+	client: dynamoClient,
+	tableName: rateLimitsTable,
+	limitNanodollars: RECOMMENDATION_DAILY_LIMIT_NANODOLLARS,
+	windowSeconds: RECOMMENDATION_BUDGET_WINDOW_SECONDS,
+	now: () => new Date(),
+	delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+});
+const { countPromptTokens } = initDeepseekFlashTokenCounter();
+
 const { selectRelatedArticles, selectPastReads } = initRelatedArticlesDepBundle({
 	createMessage,
 	nowMs: () => performance.now(),
 	logger: consoleLogger,
+	budget,
+	countPromptTokens,
+	budgetDeniedLog: Logger.fromJSON<RecommendationBudgetDeniedLine>(),
 });
 
 const {
@@ -60,7 +84,7 @@ const {
 	userArticlesTableName: userArticlesTable,
 });
 
-const { findReadCandidatesAcrossReadlists, readPastReadsState, markPastReadsReady } =
+const { findReadCandidatesAcrossReadlists, readPastReadsState, markPastReadsReady, markPastReadsBudgetBlocked } =
 	initDynamoDbPastReads({
 		client: dynamoClient,
 		tableName: articlesTable,
@@ -87,7 +111,7 @@ const nextReadHandler = initComputeRelatedArticlesHandler({
 	publishEvent,
 	now: () => new Date(),
 	logger: consoleLogger,
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 });
 
 const pastReadsHandler = initComputeRelatedPastReadsHandler({
@@ -96,10 +120,11 @@ const pastReadsHandler = initComputeRelatedPastReadsHandler({
 	readPastReadsState,
 	selectPastReads,
 	markPastReadsReady,
+	markPastReadsBudgetBlocked,
 	publishEvent,
 	now: () => new Date(),
 	logger: consoleLogger,
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 });
 
 const recomputeNextReadHandler = initRecomputeSkippedNextReadHandler({

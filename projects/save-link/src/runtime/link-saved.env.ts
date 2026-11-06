@@ -1,0 +1,4 @@
+export const LINK_SAVED_ENV = [
+	"DYNAMODB_ARTICLES_TABLE",
+	"GENERATE_SUMMARY_QUEUE_URL",
+] as const;

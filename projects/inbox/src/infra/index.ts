@@ -3,16 +3,16 @@ import * as pulumi from "@pulumi/pulumi";
 import {
 	attachDlqConsumer,
 	curlImpersonateLayerArnFromPlatformStack,
-	HutchAPIGatewayLambdaRoute,
-	HutchDynamoDBAccess,
-	HutchEventBus,
-	HutchLambda,
-	HutchS3ReadWrite,
-	HutchSharedDlq,
-	HutchSQS,
-	HutchSQSBackedLambda,
+	APIGatewayLambdaRoute,
+	DynamoDBAccess,
+	EventBus,
+	Lambda,
+	S3ReadWrite,
+	SharedDlq,
+	Sqs,
+	SqsBackedLambda,
 	ssrEdgeSecretFromPlatformStack,
-} from "@packages/hutch-infra-components/infra";
+} from "@packages/infra-components/infra";
 import {
 	ConfirmGmailForwardingCommand,
 	CrawlEmailLinkPreview,
@@ -29,10 +29,20 @@ import {
 	LinkDequeuedEvent,
 	LinkQueueFailedEvent,
 	LinkQueuedEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { requireEnv } from "@packages/require-env";
 import { InboxMail } from "./inbox-mail";
 import { InboxStorage } from "./inbox-storage";
+import { INBOX_WEB_ENV } from "../runtime/lambda.env";
+import { CONFIRM_GMAIL_FORWARDING_ENV } from "../runtime/confirm-gmail-forwarding.env";
+import { CRAWL_EMAIL_LINK_PREVIEW_ENV } from "../runtime/crawl-email-link-preview.env";
+import { EXTRACT_EMAIL_LINKS_ENV } from "../runtime/extract-email-links.env";
+import { GMAIL_IMPORT_COMPLETION_ENV } from "../runtime/gmail-import-completion.env";
+import { INBOX_FAILURES_DLQ_ENV } from "../runtime/inbox-failures-dlq.env";
+import { INGEST_GMAIL_IMPORT_ENV } from "../runtime/ingest-gmail-import.env";
+import { RECEIVE_EMAIL_ENV } from "../runtime/receive-email.env";
+import { RECORD_EMAIL_LINKS_FILTERED_ENV } from "../runtime/record-email-links-filtered.env";
+import { RECORD_LINK_QUEUED_ENV } from "../runtime/record-link-queued.env";
 
 /**
  * inbox is deployed as its own Lambda behind hutch's existing API Gateway:
@@ -129,7 +139,7 @@ const inboxStorage = new InboxStorage("inbox-storage", {
 	},
 });
 
-const eventBus = HutchEventBus.fromPlatformStack(config);
+const eventBus = EventBus.fromPlatformStack(config);
 
 // receiveEmailLambda and crawlEmailLinkPreviewLambda both build initCrawlFetch,
 // whose last-resort leg spawns curl_chrome131 from this layer. Without it a
@@ -147,7 +157,7 @@ const INBOX_MAX_EMAIL_BYTES = String(20 * 1024 * 1024);
 
 // --- Web Lambda (GET /inbox + ANY /inbox/{proxy+}) ---
 
-const webInboxTables = new HutchDynamoDBAccess("inbox-web-inbox-tables", {
+const webInboxTables = new DynamoDBAccess("inbox-web-inbox-tables", {
 	tables: [
 		// The addresses userId-index backs the address reverse-lookup per page view.
 		{ arn: inboxStorage.addressesTable.arn, includeIndexes: true },
@@ -164,19 +174,19 @@ const webInboxTables = new HutchDynamoDBAccess("inbox-web-inbox-tables", {
 
 // GetItem authenticates every request; UpdateItem because verifying an inbox
 // address flips the session's email-verified flag (markSessionEmailVerified).
-const webSessions = new HutchDynamoDBAccess("inbox-web-sessions", {
+const webSessions = new DynamoDBAccess("inbox-web-sessions", {
 	tables: [{ arn: tableArn(tableNames.sessions), includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
 // users is read-only here: Query the userId-index to resolve the signed-in
 // user's row (same shape as hutch's send-user-digest users grant).
-const webUsersRead = new HutchDynamoDBAccess("inbox-web-users-read", {
+const webUsersRead = new DynamoDBAccess("inbox-web-users-read", {
 	tables: [{ arn: tableArn(tableNames.users), includeIndexes: true }],
 	actions: ["dynamodb:Query"],
 });
 
-const webSubscriptionProvidersRead = new HutchDynamoDBAccess(
+const webSubscriptionProvidersRead = new DynamoDBAccess(
 	"inbox-web-subscription-providers-read",
 	{
 		tables: [{ arn: tableArn(tableNames.subscriptionProviders), includeIndexes: false }],
@@ -184,32 +194,33 @@ const webSubscriptionProvidersRead = new HutchDynamoDBAccess(
 	},
 );
 
-const webSavedLinksRead = new HutchDynamoDBAccess("inbox-web-saved-links-read", {
+const webSavedLinksRead = new DynamoDBAccess("inbox-web-saved-links-read", {
 	tables: [{ arn: inboxStorage.savedLinksTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:BatchGetItem"],
 });
 
-const webOnboarding = new HutchDynamoDBAccess("inbox-web-onboarding", {
+const webOnboarding = new DynamoDBAccess("inbox-web-onboarding", {
 	tables: [{ arn: tableArn(tableNames.onboarding), includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const webArticlesRead = new HutchDynamoDBAccess("inbox-web-articles-read", {
+const webArticlesRead = new DynamoDBAccess("inbox-web-articles-read", {
 	tables: [{ arn: tableArn(tableNames.articles), includeIndexes: true }],
 	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
 
-const webUserArticles = new HutchDynamoDBAccess("inbox-web-user-articles", {
+const webUserArticles = new DynamoDBAccess("inbox-web-user-articles", {
 	tables: [{ arn: tableArn(tableNames.userArticles), includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:DeleteItem"],
 });
 
-const webLambda = new HutchLambda("inbox-web", {
+const webLambda = new Lambda("inbox-web", {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/inbox-web",
 	assetDir: "./src/runtime",
 	memorySize: 1024,
 	timeout: 10,
+	environmentNames: INBOX_WEB_ENV,
 	environment: {
 		NODE_ENV: nodeEnv,
 		STATIC_BASE_URL: staticBaseUrl,
@@ -243,13 +254,13 @@ const webLambda = new HutchLambda("inbox-web", {
 		...webUserArticles.policies,
 		// Reads the sanitized email bodies the receive worker wrote to the shared
 		// content bucket.
-		...HutchS3ReadWrite.readPoliciesForBucket("inbox-web-content", contentBucketName),
+		...S3ReadWrite.readPoliciesForBucket("inbox-web-content", contentBucketName),
 	],
 });
 
 eventBus.grantPublish(webLambda);
 
-const inboxRoutes = new HutchAPIGatewayLambdaRoute("inbox-web", {
+const inboxRoutes = new APIGatewayLambdaRoute("inbox-web", {
 	apiGatewayId,
 	apiGatewayExecutionArn,
 	lambda: webLambda,
@@ -269,10 +280,10 @@ const inboxRoutes = new HutchAPIGatewayLambdaRoute("inbox-web", {
 // EmailReceivedEvent. Expected
 // catch-all-MX conditions (unknown or disabled recipient) record an audit row and
 // ACK — never paging. Oversize / unparseable mail also records an audit row, but
-// only pages (fails to the DLQ so the HutchSQSBackedLambda alarm fires) when a
+// only pages (fails to the DLQ so the SqsBackedLambda alarm fires) when a
 // real, enabled recipient is affected; junk to guessed addresses just ACKs. The
 // immutable raw .eml is kept forever as the audit trail (★15 degrade-with-alert).
-const receiveEmailDynamodb = new HutchDynamoDBAccess("inbox-receive-email-dynamodb", {
+const receiveEmailDynamodb = new DynamoDBAccess("inbox-receive-email-dynamodb", {
 	tables: [
 		{ arn: inboxStorage.emailsTable.arn, includeIndexes: false },
 		{ arn: inboxStorage.addressesTable.arn, includeIndexes: false },
@@ -282,7 +293,7 @@ const receiveEmailDynamodb = new HutchDynamoDBAccess("inbox-receive-email-dynamo
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
-const receiveEmailGmailMappings = new HutchDynamoDBAccess("inbox-receive-email-gmail-mappings", {
+const receiveEmailGmailMappings = new DynamoDBAccess("inbox-receive-email-gmail-mappings", {
 	tables: [
 		{ arn: tableArn(tableNames.gmailConnections), includeIndexes: false },
 		{ arn: tableArn(tableNames.gmailMappings), includeIndexes: false },
@@ -290,30 +301,31 @@ const receiveEmailGmailMappings = new HutchDynamoDBAccess("inbox-receive-email-g
 	actions: ["dynamodb:GetItem"],
 });
 
-const receiveEmailIdentities = new HutchDynamoDBAccess("inbox-receive-email-identities", {
+const receiveEmailIdentities = new DynamoDBAccess("inbox-receive-email-identities", {
 	tables: [{ arn: inboxStorage.emailIdentitiesTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
-const receiveEmailByMessageId = new HutchDynamoDBAccess("inbox-receive-email-by-message-id", {
+const receiveEmailByMessageId = new DynamoDBAccess("inbox-receive-email-by-message-id", {
 	tables: [{ arn: inboxStorage.emailsTable.arn, includeIndexes: true }],
 	actions: ["dynamodb:Query"],
 });
 
-const receiveEmailQueue = new HutchSQS("inbox-receive-email", {
+const receiveEmailQueue = new Sqs("inbox-receive-email", {
 	// Worker timeout plus a receive-to-invoke buffer (matching the extract
 	// queue's guard): image rehosting can push a multi-recipient parse near the
 	// timeout, and visibility expiring mid-flight would redeliver it.
 	visibilityTimeoutSeconds: 120 + 60,
 });
 
-const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
+const receiveEmailLambda = new Lambda("inbox-receive-email", {
 	entryPoint: "./src/runtime/receive-email.main.ts",
 	outputDir: ".lib/inbox-receive-email",
 	assetDir: "./src/runtime",
 	memorySize: CRAWL_LAMBDA_MEMORY_MB,
 	timeout: 120,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: RECEIVE_EMAIL_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: inboxStorage.emailsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
@@ -336,8 +348,8 @@ const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
 		...receiveEmailByMessageId.policies,
 		// Reads the raw bucket (the .eml) and only writes the content bucket (the
 		// sanitized body and the rehosted images) — no content-bucket read.
-		...HutchS3ReadWrite.readPoliciesForBucket("inbox-receive-email-raw-read", rawEmailBucketName),
-		...HutchS3ReadWrite.writePoliciesForBucket(
+		...S3ReadWrite.readPoliciesForBucket("inbox-receive-email-raw-read", rawEmailBucketName),
+		...S3ReadWrite.writePoliciesForBucket(
 			"inbox-receive-email-content-write",
 			contentBucketName,
 		),
@@ -346,7 +358,7 @@ const receiveEmailLambda = new HutchLambda("inbox-receive-email", {
 
 eventBus.grantPublish(receiveEmailLambda);
 
-new HutchSQSBackedLambda("inbox-receive-email", {
+new SqsBackedLambda("inbox-receive-email", {
 	lambda: receiveEmailLambda,
 	queue: receiveEmailQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -389,7 +401,7 @@ new aws.sns.TopicSubscription(
 	{ dependsOn: [receiveEmailQueuePolicy] },
 );
 
-const extractEmailLinksDynamodb = new HutchDynamoDBAccess("inbox-extract-email-links-dynamodb", {
+const extractEmailLinksDynamodb = new DynamoDBAccess("inbox-extract-email-links-dynamodb", {
 	tables: [
 		{ arn: inboxStorage.emailsTable.arn, includeIndexes: false },
 		{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false },
@@ -406,11 +418,11 @@ const EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS = 180;
  * gap or a still-running extraction gets redelivered in its final seconds. */
 const RECEIVE_TO_INVOKE_GUARD_SECONDS = 60;
 
-const failuresDlq = new HutchSharedDlq(INBOX_FAILURES_DLQ, {
+const failuresDlq = new SharedDlq(INBOX_FAILURES_DLQ, {
 	alertEmailDLQEntry: alertEmail,
 });
 
-const extractEmailLinksQueue = new HutchSQS(INBOX_DLQ_SOURCES.extractEmailLinks, {
+const extractEmailLinksQueue = new Sqs(INBOX_DLQ_SOURCES.extractEmailLinks, {
 	visibilityTimeoutSeconds: EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
 	sharedDlq: failuresDlq,
 });
@@ -463,7 +475,7 @@ new aws.cloudwatch.MetricAlarm("inbox-extract-email-links-truncated-alarm", {
 	alarmActions: [truncationAlertTopic.arn],
 });
 
-const extractEmailLinksSubscriptionProvidersRead = new HutchDynamoDBAccess(
+const extractEmailLinksSubscriptionProvidersRead = new DynamoDBAccess(
 	"inbox-extract-email-links-subscription-providers-read",
 	{
 		tables: [{ arn: tableArn(tableNames.subscriptionProviders), includeIndexes: false }],
@@ -471,7 +483,7 @@ const extractEmailLinksSubscriptionProvidersRead = new HutchDynamoDBAccess(
 	},
 );
 
-const extractEmailLinksAddressesRead = new HutchDynamoDBAccess(
+const extractEmailLinksAddressesRead = new DynamoDBAccess(
 	"inbox-extract-email-links-addresses-read",
 	{
 		tables: [{ arn: inboxStorage.addressesTable.arn, includeIndexes: false }],
@@ -479,7 +491,7 @@ const extractEmailLinksAddressesRead = new HutchDynamoDBAccess(
 	},
 );
 
-const extractEmailLinksReadlistDefinitionsRead = new HutchDynamoDBAccess(
+const extractEmailLinksReadlistDefinitionsRead = new DynamoDBAccess(
 	"inbox-extract-email-links-readlist-definitions-read",
 	{
 		tables: [{ arn: tableArn(tableNames.userArticles), includeIndexes: false }],
@@ -487,7 +499,7 @@ const extractEmailLinksReadlistDefinitionsRead = new HutchDynamoDBAccess(
 	},
 );
 
-const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
+const extractEmailLinksLambda = new Lambda("inbox-extract-email-links", {
 	entryPoint: "./src/runtime/extract-email-links.main.ts",
 	outputDir: ".lib/inbox-extract-email-links",
 	assetDir: "./src/runtime",
@@ -495,6 +507,7 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 	// Headroom for the bounded LLM triage attempts on top of the parse and the
 	// per-link write fan-out.
 	timeout: EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS,
+	environmentNames: EXTRACT_EMAIL_LINKS_ENV,
 	environment: {
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
@@ -516,7 +529,7 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 		...extractEmailLinksAddressesRead.policies,
 		...extractEmailLinksReadlistDefinitionsRead.policies,
 		// Reads the raw .eml to re-derive the body; never writes any bucket.
-		...HutchS3ReadWrite.readPoliciesForBucket(
+		...S3ReadWrite.readPoliciesForBucket(
 			"inbox-extract-email-links-raw-read",
 			rawEmailBucketName,
 		),
@@ -536,7 +549,7 @@ const extractEmailLinksLambda = new HutchLambda("inbox-extract-email-links", {
 
 eventBus.grantPublish(extractEmailLinksLambda);
 
-const extractEmailLinksWithSQS = new HutchSQSBackedLambda("inbox-extract-email-links", {
+const extractEmailLinksWithSQS = new SqsBackedLambda("inbox-extract-email-links", {
 	lambda: extractEmailLinksLambda,
 	queue: extractEmailLinksQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -554,17 +567,18 @@ eventBus.subscribe(EmailReceivedEvent, extractEmailLinksWithSQS, {
 // links…" until the reader's budget runs out. The handler writes the meta
 // barrier itself, flagged as a give-up, so the panel stops and says the scan
 // failed rather than reporting an email nobody read as having no links.
-const failuresDlqDynamodb = new HutchDynamoDBAccess(`${INBOX_FAILURES_DLQ}-dlq-dynamodb`, {
+const failuresDlqDynamodb = new DynamoDBAccess(`${INBOX_FAILURES_DLQ}-dlq-dynamodb`, {
 	tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
-const failuresDlqLambda = new HutchLambda(`${INBOX_FAILURES_DLQ}-dlq`, {
+const failuresDlqLambda = new Lambda(`${INBOX_FAILURES_DLQ}-dlq`, {
 	entryPoint: `./src/runtime/${INBOX_FAILURES_DLQ}-dlq.main.ts`,
 	outputDir: `.lib/${INBOX_FAILURES_DLQ}-dlq`,
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: INBOX_FAILURES_DLQ_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -580,17 +594,17 @@ attachDlqConsumer(`${INBOX_FAILURES_DLQ}-dlq`, {
 	batchSize: 1,
 });
 
-const ingestGmailImportDynamodb = new HutchDynamoDBAccess("inbox-ingest-gmail-import-dynamodb", {
+const ingestGmailImportDynamodb = new DynamoDBAccess("inbox-ingest-gmail-import-dynamodb", {
 	tables: [{ arn: inboxStorage.emailsTable.arn, includeIndexes: true }],
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"],
 });
 
-const ingestGmailImportIdentities = new HutchDynamoDBAccess("inbox-ingest-gmail-import-identities", {
+const ingestGmailImportIdentities = new DynamoDBAccess("inbox-ingest-gmail-import-identities", {
 	tables: [{ arn: inboxStorage.emailIdentitiesTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
-const ingestGmailImportLookups = new HutchDynamoDBAccess("inbox-ingest-gmail-import-lookups", {
+const ingestGmailImportLookups = new DynamoDBAccess("inbox-ingest-gmail-import-lookups", {
 	tables: [
 		{ arn: inboxStorage.addressesTable.arn, includeIndexes: false },
 		{ arn: tableArn(tableNames.gmailHistoryImports), includeIndexes: false },
@@ -600,18 +614,19 @@ const ingestGmailImportLookups = new HutchDynamoDBAccess("inbox-ingest-gmail-imp
 
 const INGEST_GMAIL_IMPORT_TIMEOUT_SECONDS = 120;
 
-const ingestGmailImportQueue = new HutchSQS(INBOX_DLQ_SOURCES.ingestGmailImport, {
+const ingestGmailImportQueue = new Sqs(INBOX_DLQ_SOURCES.ingestGmailImport, {
 	visibilityTimeoutSeconds: INGEST_GMAIL_IMPORT_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
 	sharedDlq: failuresDlq,
 });
 
-const ingestGmailImportLambda = new HutchLambda("inbox-ingest-gmail-import", {
+const ingestGmailImportLambda = new Lambda("inbox-ingest-gmail-import", {
 	entryPoint: "./src/runtime/ingest-gmail-import.main.ts",
 	outputDir: ".lib/inbox-ingest-gmail-import",
 	assetDir: "./src/runtime",
 	memorySize: CRAWL_LAMBDA_MEMORY_MB,
 	timeout: INGEST_GMAIL_IMPORT_TIMEOUT_SECONDS,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: INGEST_GMAIL_IMPORT_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: inboxStorage.emailsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
@@ -627,14 +642,14 @@ const ingestGmailImportLambda = new HutchLambda("inbox-ingest-gmail-import", {
 		...ingestGmailImportDynamodb.policies,
 		...ingestGmailImportIdentities.policies,
 		...ingestGmailImportLookups.policies,
-		...HutchS3ReadWrite.readPoliciesForBucket("inbox-ingest-gmail-import-raw-read", rawEmailBucketName),
-		...HutchS3ReadWrite.writePoliciesForBucket("inbox-ingest-gmail-import-content-write", contentBucketName),
+		...S3ReadWrite.readPoliciesForBucket("inbox-ingest-gmail-import-raw-read", rawEmailBucketName),
+		...S3ReadWrite.writePoliciesForBucket("inbox-ingest-gmail-import-content-write", contentBucketName),
 	],
 });
 
 eventBus.grantPublish(ingestGmailImportLambda);
 
-const ingestGmailImportWithSQS = new HutchSQSBackedLambda("inbox-ingest-gmail-import", {
+const ingestGmailImportWithSQS = new SqsBackedLambda("inbox-ingest-gmail-import", {
 	lambda: ingestGmailImportLambda,
 	queue: ingestGmailImportQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -645,7 +660,7 @@ eventBus.subscribe(GmailHistoryImportMessageFetchedEvent, ingestGmailImportWithS
 	name: "inbox-ingest-gmail-import",
 });
 
-const crawlEmailLinkPreviewDynamodb = new HutchDynamoDBAccess(
+const crawlEmailLinkPreviewDynamodb = new DynamoDBAccess(
 	"inbox-crawl-email-link-preview-dynamodb",
 	{
 		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
@@ -654,20 +669,21 @@ const crawlEmailLinkPreviewDynamodb = new HutchDynamoDBAccess(
 	},
 );
 
-const crawlEmailLinkPreviewQueue = new HutchSQS(INBOX_DLQ_SOURCES.crawlEmailLinkPreview, {
+const crawlEmailLinkPreviewQueue = new Sqs(INBOX_DLQ_SOURCES.crawlEmailLinkPreview, {
 	// A single dead/slow origin retries and DLQs in isolation; matches the worker
 	// timeout so an in-flight crawl cannot be redelivered.
 	visibilityTimeoutSeconds: 120,
 	sharedDlq: failuresDlq,
 });
 
-const crawlEmailLinkPreviewLambda = new HutchLambda("inbox-crawl-email-link-preview", {
+const crawlEmailLinkPreviewLambda = new Lambda("inbox-crawl-email-link-preview", {
 	entryPoint: "./src/runtime/crawl-email-link-preview.main.ts",
 	outputDir: ".lib/inbox-crawl-email-link-preview",
 	assetDir: "./src/runtime",
 	memorySize: CRAWL_LAMBDA_MEMORY_MB,
 	timeout: 120,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: CRAWL_EMAIL_LINK_PREVIEW_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 		// Uploads each lead image to the shared content bucket, fronted by the
@@ -681,14 +697,14 @@ const crawlEmailLinkPreviewLambda = new HutchLambda("inbox-crawl-email-link-prev
 		// no access to the articles/user-articles tables (the preview itself
 		// saves nothing to /queue; the queue save rides SubmitLinkCommand from
 		// the extract Lambda into save-link's subscriber).
-		...HutchS3ReadWrite.writePoliciesForBucket(
+		...S3ReadWrite.writePoliciesForBucket(
 			"inbox-crawl-email-link-preview-content-write",
 			contentBucketName,
 		),
 	],
 });
 
-const crawlEmailLinkPreviewWithSQS = new HutchSQSBackedLambda("inbox-crawl-email-link-preview", {
+const crawlEmailLinkPreviewWithSQS = new SqsBackedLambda("inbox-crawl-email-link-preview", {
 	lambda: crawlEmailLinkPreviewLambda,
 	queue: crawlEmailLinkPreviewQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -699,17 +715,18 @@ eventBus.subscribe(CrawlEmailLinkPreview, crawlEmailLinkPreviewWithSQS, {
 	name: "inbox-crawl-email-link-preview",
 });
 
-const confirmGmailForwardingQueue = new HutchSQS(INBOX_DLQ_SOURCES.confirmGmailForwarding, {
+const confirmGmailForwardingQueue = new Sqs(INBOX_DLQ_SOURCES.confirmGmailForwarding, {
 	visibilityTimeoutSeconds: 60,
 	sharedDlq: failuresDlq,
 });
 
-const confirmGmailForwardingLambda = new HutchLambda("inbox-confirm-gmail-forwarding", {
+const confirmGmailForwardingLambda = new Lambda("inbox-confirm-gmail-forwarding", {
 	entryPoint: "./src/runtime/confirm-gmail-forwarding.main.ts",
 	outputDir: ".lib/inbox-confirm-gmail-forwarding",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: CONFIRM_GMAIL_FORWARDING_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
@@ -717,7 +734,7 @@ const confirmGmailForwardingLambda = new HutchLambda("inbox-confirm-gmail-forwar
 });
 eventBus.grantPublish(confirmGmailForwardingLambda);
 
-const confirmGmailForwardingWithSQS = new HutchSQSBackedLambda("inbox-confirm-gmail-forwarding", {
+const confirmGmailForwardingWithSQS = new SqsBackedLambda("inbox-confirm-gmail-forwarding", {
 	lambda: confirmGmailForwardingLambda,
 	queue: confirmGmailForwardingQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -766,7 +783,7 @@ new aws.cloudwatch.MetricAlarm("inbox-gmail-forwarding-confirm-failed-alarm", {
 	alarmActions: [gmailForwardingConfirmFailedTopic.arn],
 });
 
-const recordLinkQueuedDynamodb = new HutchDynamoDBAccess("inbox-record-link-queued-dynamodb", {
+const recordLinkQueuedDynamodb = new DynamoDBAccess("inbox-record-link-queued-dynamodb", {
 	tables: [{ arn: inboxStorage.savedLinksTable.arn, includeIndexes: false }],
 	// Every write addresses one row by key — no read, no query. A retraction
 	// deletes that row, because absence is what this model means by "not saved".
@@ -775,12 +792,13 @@ const recordLinkQueuedDynamodb = new HutchDynamoDBAccess("inbox-record-link-queu
 
 const RECORD_LINK_QUEUED_TIMEOUT_SECONDS = 30;
 
-const recordLinkQueuedLambda = new HutchLambda("inbox-record-link-queued", {
+const recordLinkQueuedLambda = new Lambda("inbox-record-link-queued", {
 	entryPoint: "./src/runtime/record-link-queued.main.ts",
 	outputDir: ".lib/inbox-record-link-queued",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: RECORD_LINK_QUEUED_TIMEOUT_SECONDS,
+	environmentNames: RECORD_LINK_QUEUED_ENV,
 	environment: {
 		DYNAMODB_INBOX_SAVED_LINKS_TABLE: tableNames.inboxSavedLinks,
 	},
@@ -790,12 +808,12 @@ const recordLinkQueuedLambda = new HutchLambda("inbox-record-link-queued", {
 // One rule per queue: eventBus.subscribe creates a QueuePolicy per call, and
 // two rules pointing at one queue would fight over that single physical policy.
 // Each fact therefore gets its own queue, all feeding this Lambda.
-const recordLinkQueuedQueue = new HutchSQS("inbox-record-link-queued", {
+const recordLinkQueuedQueue = new Sqs("inbox-record-link-queued", {
 	visibilityTimeoutSeconds:
 		RECORD_LINK_QUEUED_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
 });
 
-const recordLinkQueuedWithSQS = new HutchSQSBackedLambda("inbox-record-link-queued", {
+const recordLinkQueuedWithSQS = new SqsBackedLambda("inbox-record-link-queued", {
 	lambda: recordLinkQueuedLambda,
 	queue: recordLinkQueuedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -809,12 +827,12 @@ eventBus.subscribe(LinkQueuedEvent, recordLinkQueuedWithSQS, {
 	name: "inbox-record-link-queued",
 });
 
-const recordLinkQueueFailedQueue = new HutchSQS("inbox-record-link-queue-failed", {
+const recordLinkQueueFailedQueue = new Sqs("inbox-record-link-queue-failed", {
 	visibilityTimeoutSeconds:
 		RECORD_LINK_QUEUED_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
 });
 
-const recordLinkQueueFailedWithSQS = new HutchSQSBackedLambda("inbox-record-link-queue-failed", {
+const recordLinkQueueFailedWithSQS = new SqsBackedLambda("inbox-record-link-queue-failed", {
 	lambda: recordLinkQueuedLambda,
 	queue: recordLinkQueueFailedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -825,12 +843,12 @@ eventBus.subscribe(LinkQueueFailedEvent, recordLinkQueueFailedWithSQS, {
 	name: "inbox-record-link-queue-failed",
 });
 
-const recordLinkDequeuedQueue = new HutchSQS("inbox-record-link-dequeued", {
+const recordLinkDequeuedQueue = new Sqs("inbox-record-link-dequeued", {
 	visibilityTimeoutSeconds:
 		RECORD_LINK_QUEUED_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
 });
 
-const recordLinkDequeuedWithSQS = new HutchSQSBackedLambda("inbox-record-link-dequeued", {
+const recordLinkDequeuedWithSQS = new SqsBackedLambda("inbox-record-link-dequeued", {
 	lambda: recordLinkQueuedLambda,
 	queue: recordLinkDequeuedQueue,
 	alertEmailDLQEntry: alertEmail,
@@ -841,7 +859,7 @@ eventBus.subscribe(LinkDequeuedEvent, recordLinkDequeuedWithSQS, {
 	name: "inbox-record-link-dequeued",
 });
 
-const recordEmailLinksFilteredDynamodb = new HutchDynamoDBAccess(
+const recordEmailLinksFilteredDynamodb = new DynamoDBAccess(
 	"inbox-record-email-links-filtered-dynamodb",
 	{
 		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
@@ -851,24 +869,25 @@ const recordEmailLinksFilteredDynamodb = new HutchDynamoDBAccess(
 
 const RECORD_EMAIL_LINKS_FILTERED_TIMEOUT_SECONDS = 30;
 
-const recordEmailLinksFilteredLambda = new HutchLambda("inbox-record-email-links-filtered", {
+const recordEmailLinksFilteredLambda = new Lambda("inbox-record-email-links-filtered", {
 	entryPoint: "./src/runtime/record-email-links-filtered.main.ts",
 	outputDir: ".lib/inbox-record-email-links-filtered",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: RECORD_EMAIL_LINKS_FILTERED_TIMEOUT_SECONDS,
+	environmentNames: RECORD_EMAIL_LINKS_FILTERED_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 	},
 	policies: [...recordEmailLinksFilteredDynamodb.policies],
 });
 
-const recordEmailLinksFilteredQueue = new HutchSQS("inbox-record-email-links-filtered", {
+const recordEmailLinksFilteredQueue = new Sqs("inbox-record-email-links-filtered", {
 	visibilityTimeoutSeconds:
 		RECORD_EMAIL_LINKS_FILTERED_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
 });
 
-const recordEmailLinksFilteredWithSQS = new HutchSQSBackedLambda(
+const recordEmailLinksFilteredWithSQS = new SqsBackedLambda(
 	"inbox-record-email-links-filtered",
 	{
 		lambda: recordEmailLinksFilteredLambda,
@@ -887,19 +906,20 @@ eventBus.subscribeAll(
 	{ name: "inbox-record-email-links-filtered" },
 );
 
-const gmailImportCompletionDynamodb = new HutchDynamoDBAccess("inbox-gmail-import-completion-dynamodb", {
+const gmailImportCompletionDynamodb = new DynamoDBAccess("inbox-gmail-import-completion-dynamodb", {
 	tables: [{ arn: inboxStorage.emailsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
 const GMAIL_IMPORT_COMPLETION_TIMEOUT_SECONDS = 30;
 
-const gmailImportCompletionLambda = new HutchLambda("inbox-gmail-import-completion", {
+const gmailImportCompletionLambda = new Lambda("inbox-gmail-import-completion", {
 	entryPoint: "./src/runtime/gmail-import-completion.main.ts",
 	outputDir: ".lib/inbox-gmail-import-completion",
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: GMAIL_IMPORT_COMPLETION_TIMEOUT_SECONDS,
+	environmentNames: GMAIL_IMPORT_COMPLETION_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -909,11 +929,11 @@ const gmailImportCompletionLambda = new HutchLambda("inbox-gmail-import-completi
 
 eventBus.grantPublish(gmailImportCompletionLambda);
 
-const gmailImportCompletionQueue = new HutchSQS("inbox-gmail-import-completion", {
+const gmailImportCompletionQueue = new Sqs("inbox-gmail-import-completion", {
 	visibilityTimeoutSeconds: GMAIL_IMPORT_COMPLETION_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
 });
 
-const gmailImportCompletionWithSQS = new HutchSQSBackedLambda("inbox-gmail-import-completion", {
+const gmailImportCompletionWithSQS = new SqsBackedLambda("inbox-gmail-import-completion", {
 	lambda: gmailImportCompletionLambda,
 	queue: gmailImportCompletionQueue,
 	alertEmailDLQEntry: alertEmail,

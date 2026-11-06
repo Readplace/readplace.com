@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initCrawlArticle, type CrawlArticle } from "@packages/crawl-article";
 import {
 	markCrawlAwaitingReader,
@@ -12,7 +12,7 @@ import {
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
 	TierContentExtractedEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { initComprehensiveCrawlHandler } from "./comprehensive-crawl-handler";
 import { initFinalizeArticle, type FinalizeArticle, type FinalizedArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "@packages/tier-source";

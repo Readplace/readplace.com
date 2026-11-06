@@ -1,8 +1,8 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 
 export function initInMemoryUpdateFetchTimestamp(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): { publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp } {
 	const { logger } = deps;
 

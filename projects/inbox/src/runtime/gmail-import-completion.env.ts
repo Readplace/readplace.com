@@ -1,0 +1,4 @@
+export const GMAIL_IMPORT_COMPLETION_ENV = [
+	"DYNAMODB_INBOX_EMAILS_TABLE",
+	"EVENT_BUS_NAME",
+] as const;

@@ -21,8 +21,8 @@
   },
   "dependencies": {
     "@packages/domain": "workspace:*",
-    "@packages/hutch-infra-components": "workspace:*",
-    "@packages/hutch-logger": "workspace:*",
+    "@packages/infra-components": "workspace:*",
+    "@packages/logger": "workspace:*",
     "@packages/viewer-identity": "workspace:*",
     "isbot": "5.1.40",
     "zod": "4.4.3"

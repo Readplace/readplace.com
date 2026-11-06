@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException } from "@packages/storage-client";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initHandleSubscriptionCancelledHandler } from "./handle-subscription-cancelled-handler";
 import { initEmitSubscriptionEvent, type EmitSubscriptionEvent, type SubscriptionLogEvent } from "../observability/subscription-events";
 
@@ -69,7 +69,7 @@ describe("handle-subscription-cancelled-handler", () => {
 		const handler = initHandleSubscriptionCancelledHandler({
 			markCancelledByUserId: async ({ userId }) => { cancelledUserIds.push(userId); },
 			emit,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -101,7 +101,7 @@ describe("handle-subscription-cancelled-handler", () => {
 		const handler = initHandleSubscriptionCancelledHandler({
 			markCancelledByUserId: async ({ userId }) => { cancelledUserIds.push(userId); },
 			emit: makeNoopEmit(),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -124,7 +124,7 @@ describe("handle-subscription-cancelled-handler", () => {
 		const handler = initHandleSubscriptionCancelledHandler({
 			markCancelledByUserId: async () => { throw new Error("DynamoDB timeout"); },
 			emit: makeNoopEmit(),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -145,7 +145,7 @@ describe("handle-subscription-cancelled-handler", () => {
 				throw new ConditionalCheckFailedException({ $metadata: {}, message: "row gone" });
 			},
 			emit,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -163,7 +163,7 @@ describe("handle-subscription-cancelled-handler", () => {
 		const handler = initHandleSubscriptionCancelledHandler({
 			markCancelledByUserId: async () => {},
 			emit: makeNoopEmit(),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -181,7 +181,7 @@ describe("handle-subscription-cancelled-handler", () => {
 		const handler = initHandleSubscriptionCancelledHandler({
 			markCancelledByUserId: async () => {},
 			emit: makeNoopEmit(),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -204,7 +204,7 @@ describe("handle-subscription-cancelled-handler", () => {
 				cancelled.push(userId);
 			},
 			emit: makeNoopEmit(),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(

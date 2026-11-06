@@ -28,15 +28,15 @@ import {
 	EmailReceivedEvent,
 	GmailHistoryImportMessageFetchedEvent,
 	GmailHistoryImportMessageIngestedEvent,
-	type HutchEvent,
+	type EventDefinition,
 	MarkGmailEmailImportedCommand,
 	SaveEmailIssueCommand,
 	SendFirstInboxEmailNoticeCommand,
 	SendTrialFeedbackEmailCommand,
 	SubmitLinkCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
@@ -83,7 +83,7 @@ const SaveCorrelation = z.object({
 	emailOutput: z.object({ receivedAtMessageId: z.string(), outputKey: z.string() }).optional(),
 });
 
-type Published = { event: HutchEvent<z.ZodTypeAny>; detail: unknown };
+type Published = { event: EventDefinition<z.ZodTypeAny>; detail: unknown };
 
 function tldrIssueEml(messageId: string): Buffer {
 	return Buffer.from(
@@ -104,7 +104,7 @@ function tldrIssueEml(messageId: string): Buffer {
 
 function makePipeline() {
 	const now = () => NOW;
-	const logger = HutchLogger.from(noopLogger);
+	const logger = Logger.from(noopLogger);
 	const addresses = initInMemoryInboxAddress({ now });
 	const emails = initInMemoryInboxEmail();
 	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail, listEmailsByUserId: emails.listEmailsByUserId });
@@ -213,12 +213,11 @@ function makePipeline() {
 		findSubscriptionByUserId: async () => undefined,
 		findInboxAddress: addresses.findByAddress,
 		listReadlistDefinitions: async () => [
-			{ slug: WORK, label: "Work", emailDelivery: "links", createdAt: NOW },
-			{ slug: LATER, label: "Later", emailDelivery: "links", createdAt: NOW },
+			{ slug: WORK, label: "Work", createdAt: NOW },
+			{ slug: LATER, label: "Later", createdAt: NOW },
 			{
 				slug: ReadlistSlugSchema.parse("science"),
 				label: "Science",
-				emailDelivery: "links",
 				createdAt: NOW,
 			},
 		],
@@ -420,7 +419,7 @@ function makePipeline() {
 			})
 		).emails;
 
-	const publishedOf = (event: HutchEvent<z.ZodTypeAny>) =>
+	const publishedOf = (event: EventDefinition<z.ZodTypeAny>) =>
 		published.filter((entry) => entry.event === event);
 
 	const confirmSavedToAll = async () => {
@@ -804,7 +803,7 @@ for (const delivery of ["forward", "import"] as const) {
 		const recordOutcome = initRecordEmailLinksFilteredHandler({
 			putReadlistOutcome: pipeline.links.putReadlistOutcome,
 			listLinksByEmail: pipeline.links.listLinksByEmail,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 		const details = [
 			{

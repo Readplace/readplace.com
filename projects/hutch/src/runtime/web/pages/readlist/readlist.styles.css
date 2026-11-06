@@ -57,11 +57,11 @@
     max-width: var(--reader-max-width);
   }
 
-  .readlist__layout:not(:has(> .readlist__side > :not(.readlist-subscription--none, .setup-guide--hidden))) > .readlist__main {
+  .readlist__layout:not(:has(> .readlist__side > :not(.readlist-keep-offer--hidden, .readlist-subscription--none, .setup-guide--hidden))) > .readlist__main {
     grid-column: 2 / -1;
   }
 
-  .readlist__layout:not(:has(> .readlist__side > :not(.readlist-subscription--none, .setup-guide--hidden))) > .readlist__side {
+  .readlist__layout:not(:has(> .readlist__side > :not(.readlist-keep-offer--hidden, .readlist-subscription--none, .setup-guide--hidden))) > .readlist__side {
     display: none;
   }
 

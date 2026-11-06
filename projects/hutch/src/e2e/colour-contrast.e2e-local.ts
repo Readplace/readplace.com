@@ -1020,6 +1020,30 @@ test.describe("Plan choice holds its WCAG contrast in both themes", () => {
 	});
 });
 
+test.describe("Keep panel holds its WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the keep panel clears its contrast minimum", async ({ page }, testInfo) => {
+		const email = `colour-contrast-keep-offer-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createChipReader(page, email);
+		const trialing = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+			data: { userId, state: "trialing" },
+		});
+		assert.equal(trialing.status(), 201);
+		const crossed = await page.request.post(`${BASE_URL}/e2e/seed-keep-offer`, { data: { userId, saves: 2 } });
+		assert.equal(crossed.status(), 201);
+		await loginChipReader(page, email);
+		const panel = "[data-test-keep-offer]";
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator(panel)).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: panel, theme, view: "queue/keep-offer" });
+		}
+	});
+});
+
 test.describe("Account colour roles hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 
@@ -1156,10 +1180,7 @@ test.describe("Readlist preferences colour roles hold their WCAG contrast in bot
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(preferencesUrl, { waitUntil: "domcontentloaded" });
 			await expect(page.locator(preferences)).toHaveAttribute("data-test-preferences-state", "set");
-			await auditRoot(page, { root: preferences, theme, view: "preferences/set" });
-			await page.locator('[data-test-action="readlist-preferences-menu"]').click({ timeout: SETTLE_MS });
-			await expect(page.locator('[data-test-action="readlist-preferences-edit"]')).toBeVisible({ timeout: SETTLE_MS });
-			await auditRoot(page, { root: preferences, theme, view: "preferences/menu-open" });
+			await auditRoot(page, { root: "[data-test-readlist-purpose]", theme, view: "preferences/set" });
 		}
 	});
 });

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { CrawlArticle, CrawlUnsupportedReason } from "@packages/crawl-article";
 import { MAX_HTML_BYTES } from "@packages/crawl-article";
 import { markCrawlAwaitingReader, markCrawlBlocked, markCrawlExhausted, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
@@ -8,13 +8,13 @@ import {
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
 	TierContentExtractedEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { initFinalizeArticle, type FinalizeArticle, type FinalizedArticle } from "@packages/finalize-article";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
-import type { RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "../../providers/render-page/render-page.types";
+import type { RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "./render-page.types";
 import { legInputHash } from "../metered-leg/leg-input-hash";
 import { initRenderCrawlHandler } from "./render-crawl-handler";
 

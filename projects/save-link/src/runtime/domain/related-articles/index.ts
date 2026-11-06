@@ -8,4 +8,4 @@ export {
 	type ComputeRelatedPastReadsDetail,
 	RelatedPastReadsComputedEvent,
 	type RelatedPastReadsComputedDetail,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";

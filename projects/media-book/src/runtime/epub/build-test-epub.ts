@@ -1,6 +1,7 @@
 import { strToU8, zipSync } from "fflate";
 
 export type TestChapter = { file: string; title: string; body: string };
+type TestImage = { file: string; mediaType: string; bytes: Uint8Array };
 
 export function chapterXhtml(body: string): string {
 	return `<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>x</title><style>p{}</style></head><body>${body}</body></html>`;
@@ -12,9 +13,11 @@ export function buildTestEpub(params: {
 	chapters: TestChapter[];
 	toc?: "nav" | "ncx";
 	extraFiles?: Record<string, string>;
+	images?: TestImage[];
 }): Uint8Array {
+	const images = params.images ?? [];
 	const toc = params.toc ?? "nav";
-	const manifest = params.chapters.map((chapter, index) => `<item id="c${index}" href="${chapter.file}" media-type="application/xhtml+xml"/>`).join("");
+	const manifest = params.chapters.map((chapter, index) => `<item id="c${index}" href="${chapter.file}" media-type="application/xhtml+xml"/>`).join("") + images.map((image, index) => `<item id="i${index}" href="${image.file}" media-type="${image.mediaType}"/>`).join("");
 	const spine = params.chapters.map((_, index) => `<itemref idref="c${index}"/>`).join("");
 	const nav = `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol>${params.chapters
 		.map((chapter) => `<li><a href="${chapter.file}">${chapter.title}</a></li>`)
@@ -35,5 +38,8 @@ export function buildTestEpub(params: {
 		...Object.fromEntries(params.chapters.map((chapter) => [`OEBPS/${chapter.file}`, chapterXhtml(chapter.body)])),
 		...params.extraFiles,
 	};
-	return zipSync(Object.fromEntries(Object.entries(files).map(([name, content]) => [name, strToU8(content)])));
+	return zipSync({
+		...Object.fromEntries(Object.entries(files).map(([name, content]) => [name, strToU8(content)])),
+		...Object.fromEntries(images.map((image) => [`OEBPS/${image.file}`, image.bytes])),
+	});
 }

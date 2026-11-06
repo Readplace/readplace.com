@@ -10,3 +10,5 @@ Tabs that switch between views of the same content are **underline tabs** — ne
 - **Phone.** At `max-width: 600px` the tabs split the strip's width equally with 12px side padding. The strip wraps onto another row rather than truncating a label or scrolling sideways.
 
 A tab may carry a count as `Label (N)` (`formatTabCountLabel`), capped at `99+`, `(0)` when there are none, the bare label while the count is unknown. Show a count only where it helps the reader choose the tab, and reserve the width of its widest form so a late count doesn't move the row.
+
+A tab for a feature still in beta carries an accent Beta badge (`chip chip--badge chip--accent`) after its reserved label, spaced by the tab's 8px gap. On a phone that tab keeps its full width, so it may be wider than an equal share.

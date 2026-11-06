@@ -1,6 +1,6 @@
 import { ReaderArticleHashId } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
-import type { CountEarlyIntentionalSave } from "@packages/provider-contracts/auth";
+import type { CountEarlyIntentionalSave, MarkActivationThresholdReached } from "@packages/provider-contracts/auth";
 import type {
 	AssignSavedArticleToReadlist,
 	FindArticleById,
@@ -12,7 +12,7 @@ import type { RecordEngagementActivity } from "@packages/provider-contracts/enga
 import {
 	type ActivationThresholdReachedEvent,
 	buildActivationThresholdReachedEvent,
-} from "../../observability/funnel-events";
+} from "./funnel-events";
 import { isIntentionalSave } from "./intentional-save";
 
 export function initRecordPersonalSaves(deps: {
@@ -27,6 +27,7 @@ export function initRecordPersonalSaves(deps: {
 	logError: (message: string, error?: Error) => void;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	recordActivationThresholdReached: (event: ActivationThresholdReachedEvent) => void;
+	markActivationThresholdReached: MarkActivationThresholdReached;
 }): {
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
@@ -70,6 +71,7 @@ export function initRecordPersonalSaves(deps: {
 						},
 					),
 				);
+				await deps.markActivationThresholdReached({ userId: params.userId, at: deps.now() });
 			}
 		} catch (error) {
 			deps.logError("Failed to count early intentional save", error instanceof Error ? error : undefined);

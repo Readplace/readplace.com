@@ -1,8 +1,8 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishRefreshArticleContent } from "@packages/provider-contracts/events";
 
 export function initInMemoryRefreshArticleContent(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): { publishRefreshArticleContent: PublishRefreshArticleContent } {
 	const { logger } = deps;
 

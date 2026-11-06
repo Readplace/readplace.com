@@ -1,5 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { type DynamoDBDocumentClient, defineDynamoTable, forEachQueryPage } from "@packages/hutch-storage-client";
+import { type DynamoDBDocumentClient, defineDynamoTable, forEachQueryPage } from "@packages/storage-client";
 import { z } from "zod";
 
 const UserArticleKeyRow = z.object({ userId: z.string(), url: z.string() });

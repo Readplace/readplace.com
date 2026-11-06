@@ -7,7 +7,7 @@ import type { UserId } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { initDynamoDbReadlistDefinitions } from "./dynamodb-readlist-definitions";
 
 /**
@@ -66,18 +66,7 @@ describe("listReadlistDefinitions", () => {
 		expect(definition?.starterCampaignId).toBe("hn-starter-v1");
 	});
 
-	it("reads a never-set delivery as links", async () => {
-		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo([{ Items: [definitionItem()] }], () => undefined),
-			userArticlesTableName: TABLE,
-		});
-
-		const [definition] = await listReadlistDefinitions(USER);
-
-		expect(definition?.emailDelivery).toBe("links");
-	});
-
-	it("preserves a stored delivery", async () => {
+	it("reads a row that still holds a retired email delivery choice", async () => {
 		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
 				[{ Items: [definitionItem({ queueEmailDelivery: "issue" })] }],
@@ -88,7 +77,7 @@ describe("listReadlistDefinitions", () => {
 
 		const [definition] = await listReadlistDefinitions(USER);
 
-		expect(definition?.emailDelivery).toBe("issue");
+		expect(definition).not.toHaveProperty("emailDelivery");
 	});
 
 	it("queries the user's partition by definition-key prefix and never scans", async () => {
@@ -113,7 +102,6 @@ describe("listReadlistDefinitions", () => {
 				slug: "work",
 				label: "Work Reading",
 				purpose: "Essays on how teams actually ship.",
-				emailDelivery: "links",
 				createdAt: new Date("2026-08-19T10:00:00.000Z"),
 			},
 		]);
@@ -439,65 +427,6 @@ describe("setReadlistDefinitionPurpose", () => {
 
 		await expect(
 			setReadlistDefinitionPurpose({ userId: USER, slug: WORK, purpose: "Anything" }),
-		).rejects.toThrow("throttled");
-	});
-});
-
-describe("setReadlistDefinitionEmailDelivery", () => {
-	it("writes only the delivery, on a row that must already exist", async () => {
-		const commands: { name: string; input: Record<string, unknown> }[] = [];
-		const { setReadlistDefinitionEmailDelivery } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo([{}], (c) => commands.push(c)),
-			userArticlesTableName: TABLE,
-		});
-
-		expect(
-			await setReadlistDefinitionEmailDelivery({ userId: USER, slug: WORK, emailDelivery: "both" }),
-		).toEqual({ updated: true });
-		expect(commands[0].name).toBe("UpdateCommand");
-		expect(commands[0].input).toMatchObject({
-			TableName: TABLE,
-			Key: { userId: USER, url: "readplace:queue-def/work" },
-			ExpressionAttributeNames: { "#url": "url", "#emailDelivery": "queueEmailDelivery" },
-			ExpressionAttributeValues: { ":emailDelivery": "both" },
-		});
-		expect(String(commands[0].input.UpdateExpression)).toContain("SET #emailDelivery = :emailDelivery");
-		expect(String(commands[0].input.ConditionExpression)).toContain("attribute_exists(#url)");
-	});
-
-	it("reports a readlist that no longer has a definition row", async () => {
-		const { setReadlistDefinitionEmailDelivery } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo(
-				[
-					() => {
-						throw conditionalCheckFailed();
-					},
-				],
-				() => {},
-			),
-			userArticlesTableName: TABLE,
-		});
-
-		expect(
-			await setReadlistDefinitionEmailDelivery({ userId: USER, slug: WORK, emailDelivery: "issue" }),
-		).toEqual({ updated: false });
-	});
-
-	it("lets an unexpected storage failure surface", async () => {
-		const { setReadlistDefinitionEmailDelivery } = initDynamoDbReadlistDefinitions({
-			client: createFakeDynamo(
-				[
-					() => {
-						throw new Error("throttled");
-					},
-				],
-				() => {},
-			),
-			userArticlesTableName: TABLE,
-		});
-
-		await expect(
-			setReadlistDefinitionEmailDelivery({ userId: USER, slug: WORK, emailDelivery: "issue" }),
 		).rejects.toThrow("throttled");
 	});
 });

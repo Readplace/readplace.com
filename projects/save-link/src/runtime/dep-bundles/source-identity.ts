@@ -17,7 +17,7 @@ import {
 	type ResolveChallengedTracker,
 	type VerifyWrapperSource,
 } from "@packages/save-article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initResolveCandidateOriginal } from "../domain/select-content/resolve-candidate-original";
 
 export function initSourceIdentityDepBundle(deps: {
@@ -25,13 +25,13 @@ export function initSourceIdentityDepBundle(deps: {
 	repairWrapperIdentity: RepairWrapperIdentity;
 	crawlFetch: CrawlFetch;
 	resolveChallengedTracker: ResolveChallengedTracker;
-	logger: HutchLogger;
+	logger: Logger;
 }) {
 	const resolveWrapperTarget = initResolveWrapperTarget({
 		fetchRedirectHop: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
 		fetchTrackerHop: initFetchTrackerHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress, pageTarget: fallbackLinkTarget }),
 		resolveChallengedTracker: deps.resolveChallengedTracker,
-		resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch: deps.crawlFetch, logError: deps.logger.error.bind(deps.logger) }),
+		resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch: deps.crawlFetch, logError: (message, error) => deps.logger.error(message, { error }) }),
 		headers: DEFAULT_CRAWL_HEADERS,
 		...WRAPPER_RESOLVE_BUDGETS,
 		logger: deps.logger,

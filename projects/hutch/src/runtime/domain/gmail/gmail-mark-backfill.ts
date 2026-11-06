@@ -24,9 +24,9 @@ import {
 	ProcessGmailMarkBackfillPageCommand,
 	type ProcessGmailMarkBackfillPageDetail,
 	StartGmailMarkBackfillCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { OpenedGmailMailbox, OpenGmailMailboxForUpdate } from "@packages/provider-contracts/gmail-message-update";
 import { classifyMarkBackfillEmail, needsLinksMeta } from "./classify-mark-backfill-email";
 import { GmailUnavailableError, importedLabelId, markOriginal } from "./gmail-original-update";
@@ -81,7 +81,7 @@ export function initGmailMarkBackfillHandler(deps: {
 	openMailbox: OpenGmailMailboxForUpdate;
 	dispatchPage: (detail: ProcessGmailMarkBackfillPageDetail) => Promise<void>;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { backfills, logger, now } = deps;
@@ -274,7 +274,7 @@ export function initGmailMarkBackfillHandler(deps: {
 
 export function initGmailMarkBackfillDlqHandler(deps: {
 	failBackfill: GmailMarkBackfillStore["failBackfill"];
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {

@@ -10,7 +10,19 @@ export type {
 	DeepseekChatRequest,
 	DeepseekChatResponse,
 	DeepseekClient,
+	DeepseekMessage,
 } from "./deepseek-chat.types";
+export {
+	DEEPSEEK_PROMPT_TOKEN_MARGIN,
+	DEEPSEEK_SPECIAL_TOKENS,
+	encodeDeepseekChatPrompt,
+	toDeepseekMessages,
+} from "./deepseek-chat-prompt";
+export {
+	DEEPSEEK_PRICE_TABLE,
+	deepseekCostNanodollars,
+	deepseekPeakNanodollarsPerToken,
+} from "./deepseek-pricing";
 export { initDeepseekClient, type DeepseekClientOptions } from "./deepseek-client";
 export { DEEPSEEK_FEATURES, type DeepseekFeature } from "./deepseek-feature";
 export type { DeepseekUsageLine, LogDeepseekUsage } from "./deepseek-usage-line.types";
@@ -21,3 +33,4 @@ export type {
 	DeepseekCallSite,
 } from "./deepseek-call-failed-log-line";
 export { deepseekCallFailedLogLine, describeAiProviderError } from "./deepseek-call-failed-log-line";
+export { parseModelJson, type ModelJsonAnswer } from "./parse-model-json";

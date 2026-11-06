@@ -1,6 +1,6 @@
 import { emailImageS3KeyPrefix } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { DownloadedEmailImage } from "./download-email-images";
 import { initStoreEmailBody } from "./store-email-body";
 
@@ -31,7 +31,7 @@ function initSubject(overrides?: {
 				imagePuts.push({ key: params.key, contentType: params.contentType });
 			}),
 		imagesCdnBaseUrl: CDN,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return { store, writes, imagePuts };
 }

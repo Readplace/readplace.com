@@ -3,10 +3,10 @@ import { type Viewer, articleDestinationUrl, isNonArticleHost, mayReadItem, stub
 import {
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
-import { dynamoField } from "@packages/hutch-storage-client";
+import { dynamoField } from "@packages/storage-client";
 import { z } from "zod";
 
 export const ArticleRelatedRow = z.object({

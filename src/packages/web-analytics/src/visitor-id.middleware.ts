@@ -1,12 +1,19 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { z } from "zod";
-import { baseCookieOptions } from "./cookie-options";
+import { defineCookie } from "./define-cookie";
 
 export const VISITOR_COOKIE_NAME = "hutch_vid";
 
 /** A year — long enough to survive the 30-day click-attribution window so a
  * returning visitor keeps the same identity across multiple campaigns. */
 const VISITOR_COOKIE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
+const visitorIdCookie = defineCookie({
+	name: VISITOR_COOKIE_NAME,
+	maxAgeMs: VISITOR_COOKIE_MAX_AGE_MS,
+	sameSite: "lax",
+	httpOnly: true,
+	schema: z.string(),
+});
 
 /** Brand the opaque first-party id so it cannot be confused with a UserId or a
  * raw query string at a call site. */
@@ -37,7 +44,6 @@ export function createVisitorIdMiddleware(deps: {
 	secure: boolean;
 	isStaticAssetPath: (path: string) => boolean;
 }): RequestHandler {
-	const cookieOptions = { ...baseCookieOptions(deps.secure), maxAge: VISITOR_COOKIE_MAX_AGE_MS };
 	return (req: Request, res: Response, next: NextFunction) => {
 		if (deps.isStaticAssetPath(req.path)) {
 			next();
@@ -51,7 +57,7 @@ export function createVisitorIdMiddleware(deps: {
 		}
 		const visitorId = VisitorIdSchema.parse(deps.generateVisitorId());
 		req.visitorId = visitorId;
-		res.cookie(VISITOR_COOKIE_NAME, visitorId, cookieOptions);
+		visitorIdCookie.set({ res, value: visitorId, secure: deps.secure });
 		next();
 	};
 }

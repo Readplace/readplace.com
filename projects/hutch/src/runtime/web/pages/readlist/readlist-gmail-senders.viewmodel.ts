@@ -33,11 +33,9 @@ import { discoveryMatchesConnection } from "../integrations/gmail-save-senders";
 import {
 	chooseState,
 	GMAIL_CHECKLIST_MESSAGES,
-	type GmailChecklistCommand,
 	type GmailChecklistRow,
 	RETRY_ACTION,
 	SELECT_TOGGLE,
-	tickedEmails,
 } from "../integrations/gmail-sender-checklist.viewmodel";
 import {
 	byRecognitionThenName,
@@ -92,14 +90,12 @@ export interface ReadlistGmailSendersInput extends ReadlistGmailSectionStateInpu
 	destinations: ReadonlyMap<string, InboxAddressEntry>;
 	detection: NewsletterDetection;
 	selection: ReadlistGmailSelection;
-	command: GmailChecklistCommand;
 	listed: number | undefined;
 	pollCount: number;
 }
 
 export interface ReadlistGmailChecklist extends GmailChecklistView {
 	sender: ForwardableSender[];
-	added: ForwardableSender[];
 }
 
 export interface ReadlistGmailPickerViewModel extends GmailSenderWidgetViewModel {
@@ -130,7 +126,6 @@ export interface ReadlistGmailSendersViewModel {
 	links: ReadlistGmailLink[];
 	picker: ReadlistGmailPickerViewModel | undefined;
 	pageUrl: string;
-	commandApplied: boolean;
 }
 
 function track({ href, content }: { href: string; content: string }): string {
@@ -254,7 +249,7 @@ function toReadlistGmailChecklist(input: {
 	routing: ReadonlyMap<ForwardableSender, GmailSenderRouting>;
 	catalogAvailable: boolean;
 	selection: ReadlistGmailSelection;
-	command: GmailChecklistCommand;
+	saveAction: string;
 }): ReadlistGmailChecklist {
 	const slug = input.readlist.slug;
 	const candidates = [...input.candidates.values()].sort(byRecognitionThenName);
@@ -262,31 +257,27 @@ function toReadlistGmailChecklist(input: {
 	const here = candidates.filter((candidate) => routesHere(routingFor(candidate), slug));
 	const elsewhere = candidates.filter((candidate) => routingFor(candidate)?.kind === "routed" && !here.includes(candidate));
 	const known = candidates.filter((candidate) => !candidate.mapped && candidate.recognized);
-	const picked = input.command.pick === undefined ? [] : [input.command.pick];
-	const base = input.selection.edited ? input.selection.sender : here.map((candidate) => candidate.email);
-	const tickRequests = [...base, ...picked];
-	const requested = new Set([...tickRequests, ...input.selection.added]);
-	const added = candidates.filter(
-		(candidate) => !candidate.mapped && !candidate.recognized && requested.has(candidate.email) && candidate.email !== input.command.dismiss,
-	);
-	const listed = [...here, ...elsewhere, ...known, ...added];
-	const ticked = tickedEmails({ requested: tickRequests, select: input.command.select, listed });
-	const row = (extras: (candidate: GmailSenderCandidate) => Pick<GmailChecklistRow, "fields" | "notes">) => (candidate: GmailSenderCandidate): GmailChecklistRow => ({
-		email: candidate.email,
-		name: gmailSenderName(candidate),
-		checked: ticked.has(candidate.email),
-		autofocus: false,
-		...extras(candidate),
-	});
+	const ticked = new Set<string>(input.selection.edited ? input.selection.sender : here.map((candidate) => candidate.email));
+	const listed = [...here, ...elsewhere, ...known];
+	const row = (extras: (candidate: GmailSenderCandidate) => Pick<GmailChecklistRow, "fields" | "notes">) => (candidate: GmailSenderCandidate): GmailChecklistRow => {
+		const { fields, notes } = extras(candidate);
+		return {
+			email: candidate.email,
+			name: gmailSenderName(candidate),
+			checked: ticked.has(candidate.email),
+			autofocus: false,
+			fields: [...fields, { name: "shown", value: candidate.email }],
+			notes,
+		};
+	};
 	const groups = [
 		{ key: "here", title: `In ${input.readlist.label}`, rows: here.map(row((candidate) => ({ fields: [{ name: "routed", value: candidate.email }], notes: [] }))), actions: [] },
 		{ key: "elsewhere", title: "In other readlists", rows: elsewhere.map(row((candidate) => ({ fields: [], notes: [routedNote({ routing: routingFor(candidate), readlists: input.readlists })] }))), actions: [] },
 		{ key: "known", title: "Known newsletters", rows: known.map(row(() => ({ fields: [], notes: [] }))), actions: [] },
-		{ key: "added", title: "Senders you added", rows: added.map(row((candidate) => ({ fields: [{ name: "added", value: candidate.email }], notes: [] }))), actions: [{ name: "dismiss", label: "Remove" }] },
 	];
 	const state = chooseState({ candidates, catalogAvailable: input.catalogAvailable, known });
 	const allTicked = listed.every((candidate) => ticked.has(candidate.email));
-	const toggle = listed.length === 0 ? [] : [SELECT_TOGGLE[allTicked ? "none" : "all"]];
+	const toggle = listed.length === 0 ? [] : [{ ...SELECT_TOGGLE[allTicked ? "none" : "all"], formaction: input.saveAction }];
 	return {
 		state,
 		intro: checklistIntro(input.readlist.label),
@@ -296,7 +287,6 @@ function toReadlistGmailChecklist(input: {
 		knownCount: known.length,
 		actions: state === "catalog-unavailable" ? [RETRY_ACTION, ...toggle] : toggle,
 		sender: listed.filter((candidate) => ticked.has(candidate.email)).map((candidate) => candidate.email),
-		added: added.map((candidate) => candidate.email),
 	};
 }
 
@@ -308,6 +298,7 @@ function toPicker(input: ReadlistGmailSendersInput): ReadlistGmailPickerViewMode
 	const slug = input.readlist.slug;
 	const routing = gmailSenderRoutingFor(input);
 	const candidates = gmailSenderCandidates({ discoveredSenders: input.discoveredSenders, senders: input.mappings, detection: input.detection });
+	const saveAction = track({ href: readlistGmailSavePath(slug), content: "save-gmail-newsletters" });
 	const checklist = toReadlistGmailChecklist({
 		readlist: input.readlist,
 		readlists: input.readlists,
@@ -315,7 +306,7 @@ function toPicker(input: ReadlistGmailSendersInput): ReadlistGmailPickerViewMode
 		routing,
 		catalogAvailable: input.detection.status === "available",
 		selection: input.selection,
-		command: input.command,
+		saveAction,
 	});
 	const searchable = new Map(
 		[...candidates]
@@ -325,7 +316,7 @@ function toPicker(input: ReadlistGmailSendersInput): ReadlistGmailPickerViewMode
 	const results = toGmailSenderResults({ state: { search: input.selection.search }, candidates: searchable });
 	const pollUrl = (nextPoll: number) => {
 		const poll = new URL(
-			buildReadlistGmailUrl({ slug, selection: { edited: true, sender: [], added: [], search: "", discoveryStarted: true, discoveryAfter: input.selection.discoveryAfter } }),
+			buildReadlistGmailUrl({ slug, selection: { edited: true, sender: [], search: "", discoveryStarted: true, discoveryAfter: input.selection.discoveryAfter } }),
 			PARSE_ORIGIN,
 		);
 		poll.pathname = readlistGmailSendersPath(slug);
@@ -335,12 +326,11 @@ function toPicker(input: ReadlistGmailSendersInput): ReadlistGmailPickerViewMode
 	return {
 		autoDiscoverHtml: "",
 		selectionFields: [MARKER_FIELD, ...trackingFields("select-gmail-senders")],
-		saveAction: track({ href: readlistGmailSavePath(slug), content: "save-gmail-newsletters" }),
+		saveAction,
 		discoveryAction: track({ href: readlistGmailDiscoveryPath(slug), content: "load-gmail-senders" }),
 		discoveryFields: [
 			MARKER_FIELD,
 			...checklist.sender.map((value) => ({ name: "sender", value })),
-			...checklist.added.map((value) => ({ name: "added", value })),
 			...trackingFields("load-gmail-senders"),
 		],
 		pagePath: readlistPreferencesPath(slug),
@@ -368,6 +358,7 @@ function toPicker(input: ReadlistGmailSendersInput): ReadlistGmailPickerViewMode
 			resultsMessage: results.resultsMessage,
 			refineSearch: results.resultsState === "limited",
 			options: results.options,
+			formaction: saveAction,
 		},
 	};
 }
@@ -454,7 +445,7 @@ export function toReadlistGmailSenders(input: ReadlistGmailSendersInput): Readli
 	const picker = readlistGmailPickerVisible(state) ? toPicker(input) : undefined;
 	const selection: ReadlistGmailSelection = picker === undefined
 		? input.selection
-		: { ...input.selection, edited: true, sender: picker.checklist.sender, added: picker.checklist.added };
+		: { ...input.selection, edited: true, sender: picker.checklist.sender };
 	return {
 		sectionClass: SECTION_CLASS[state],
 		state,
@@ -462,6 +453,5 @@ export function toReadlistGmailSenders(input: ReadlistGmailSendersInput): Readli
 		...SECTION_VIEW[state](input),
 		picker,
 		pageUrl: buildReadlistGmailUrl({ slug: input.readlist.slug, selection }),
-		commandApplied: [input.command.pick, input.command.select, input.command.dismiss].some((value) => value !== undefined),
 	};
 }

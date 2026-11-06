@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initOAuthAuth } from "../auth/oauth-auth";
 import type { OAuthTokens } from "../auth/oauth-tokens";
 import { initSirenReadingList } from "../reading-list/siren-reading-list";

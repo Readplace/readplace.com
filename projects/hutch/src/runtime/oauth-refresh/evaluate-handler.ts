@@ -1,5 +1,5 @@
 import type { SQSHandler } from "aws-lambda";
-import { EvaluateOAuthRefreshCommand } from "@packages/hutch-infra-components";
+import { EvaluateOAuthRefreshCommand } from "@packages/infra-components";
 
 export function initRefreshEvaluationHandler(deps: { evaluate: (at: number) => Promise<unknown> }): SQSHandler {
 	return async event => {

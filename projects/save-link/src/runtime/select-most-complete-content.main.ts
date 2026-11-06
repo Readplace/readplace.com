@@ -2,26 +2,29 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { type CrawlSettledEvent, GenerateSummaryCommand, initLogCrawlSettled } from "@packages/hutch-infra-components";
+import { consoleLogger, Logger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { type CrawlSettledEvent, GenerateSummaryCommand, initLogCrawlSettled } from "@packages/infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
 	initSqsCommandDispatcher,
-} from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components/runtime";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { SELECT_MOST_COMPLETE_CONTENT_ENV } from "./select-most-complete-content.env";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initSelectMostCompleteContentHandler } from "./domain/select-content/select-most-complete-content-handler";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const env = readEnv(SELECT_MOST_COMPLETE_CONTENT_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
@@ -34,7 +37,7 @@ const deepseekClient = initDeepseekClient({
 	logLevel: "info",
 	callTimeoutMs: SELECT_CONTENT_TIMEOUTS.deepseekMs,
 	fetch: globalThis.fetch,
-	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	logUsage: Logger.fromJSON<DeepseekUsageLine>().info,
 	now: () => new Date(),
 });
 
@@ -45,7 +48,7 @@ const selectContent = initSelectContentDepBundle({
 	articlesTable,
 	createChatCompletion: initCreateDeepseekChatCompletion({ client: deepseekClient }),
 	logger: consoleLogger,
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 	now: () => new Date(),
 });
 
@@ -70,7 +73,7 @@ const { dispatchEffect } = initLambdaEffectDispatcher({
 	publishEvent,
 });
 
-const { logCrawlSettled } = initLogCrawlSettled({ logger: HutchLogger.fromJSON<CrawlSettledEvent>(), now: () => new Date() });
+const { logCrawlSettled } = initLogCrawlSettled({ logger: Logger.fromJSON<CrawlSettledEvent>(), now: () => new Date() });
 const { transitionAndPersist } = initTransitionAndPersist({
 	store,
 	dispatchEffect,

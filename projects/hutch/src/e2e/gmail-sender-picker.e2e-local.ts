@@ -118,14 +118,12 @@ async function openGmail(page: Page, stamp: string, seed: GmailSeed = {}): Promi
 	if (seed.enhanced !== false) {
 		await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 		await expect(page.locator("html")).toHaveAttribute("data-gmail-dialog-attached", "");
-		await expect(page.locator('#gmail-add-newsletters-form input[name="discovery_after"]')).toHaveCount(1);
 	}
 	if (seed.closed === true) return { email };
 	await page.locator(ADD_NEWSLETTERS).click();
 	await expect(page.locator(SENDER_PICKER)).toBeVisible();
 	if (seed.enhanced !== false) {
 		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
-		await expect(page.locator(DISCOVERY_FENCE)).toHaveCount(1);
 	}
 	return { email };
 }
@@ -274,7 +272,7 @@ test.describe("Gmail sender picker", () => {
 		await expect(page.locator("[data-test-gmail-mappings-empty]")).toBeVisible();
 	});
 
-	test("restores Load senders when an automatic discovery completes before its redirect settles", async ({
+	test("restores Load senders when a requested discovery completes before its redirect settles", async ({
 		page,
 	}, testInfo) => {
 		let releaseDiscovery: (() => void) | undefined;
@@ -298,6 +296,7 @@ test.describe("Gmail sender picker", () => {
 			completeDiscoveryOnStart: true,
 			discoveryStartHeld: true,
 		});
+		await page.locator("#gmail-load-senders-button").click();
 		await expect(page.locator("#gmail-load-senders-button")).toHaveText("Checking…");
 		await expect(page.locator(STATUS)).toHaveAttribute("hx-get", /poll=1/);
 		assert(releaseDiscovery);
@@ -307,7 +306,7 @@ test.describe("Gmail sender picker", () => {
 		await expect(page.locator(STATUS)).not.toHaveAttribute("hx-get");
 	});
 
-	test("keeps a search typed during the automatic discovery start when the start lands first", async ({
+	test("keeps a search typed during a discovery start when the start lands first", async ({
 		page,
 	}, testInfo) => {
 		let releaseDiscovery: (() => void) | undefined;
@@ -331,6 +330,7 @@ test.describe("Gmail sender picker", () => {
 		);
 		await page.addInitScript(markSenderSearchTriggers);
 		await openGmail(page, `search-race-${testInfo.workerIndex}-${Date.now()}`, { discoveryStartHeld: true });
+		await page.locator("#gmail-load-senders-button").click();
 		await expect(page.locator("[data-test-gmail-load-senders]")).toHaveClass(/htmx-request/);
 
 		await page.locator(`${SENDER_PICKER} summary`).click();
@@ -346,7 +346,7 @@ test.describe("Gmail sender picker", () => {
 		await expect(page.locator(`[data-test-gmail-sender-option="${KALE}"]`)).toBeVisible();
 	});
 
-	test("ticks a sender picked from the search while the automatic discovery start is in flight", async ({
+	test("ticks a sender picked from the search while a discovery start is in flight", async ({
 		page,
 	}, testInfo) => {
 		let releaseDiscovery: (() => void) | undefined;
@@ -369,6 +369,7 @@ test.describe("Gmail sender picker", () => {
 			discoveryEstimatedTotalMessages: 12,
 			discoveryStartHeld: true,
 		});
+		await page.locator("#gmail-load-senders-button").click();
 		await expect(page.locator("[data-test-gmail-load-senders]")).toHaveClass(/htmx-request/);
 		await expect(page.locator(STATUS)).toHaveAttribute("hx-get", /poll=1/);
 

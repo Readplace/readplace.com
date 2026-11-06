@@ -1,14 +1,16 @@
 import * as pulumi from "@pulumi/pulumi";
 import {
 	attachDlqConsumer,
-	HutchDynamoDBAccess,
-	HutchEventBus,
-	HutchLambda,
-	HutchMediaProcessor,
-	HutchS3ReadWrite,
-	HutchSharedDlq,
-} from "@packages/hutch-infra-components/infra";
-import { MEDIA_BOOK_DLQ_SOURCES, MediaUploadCommittedEvent } from "@packages/hutch-infra-components";
+	DynamoDBAccess,
+	EventBus,
+	Lambda,
+	MediaProcessor,
+	S3ReadWrite,
+	SharedDlq,
+} from "@packages/infra-components/infra";
+import { MEDIA_BOOK_DLQ_SOURCES, MediaUploadCommittedEvent } from "@packages/infra-components";
+import { MEDIA_BOOK_FAILURES_DLQ_ENV } from "../runtime/media-book-failures-dlq.env";
+import { PROCESS_BOOK_ENV } from "../runtime/process-book.env";
 
 const MEDIA_BOOK_FAILURES_DLQ = "media-book-failures";
 
@@ -20,18 +22,18 @@ const articlesTableName = config.require("articlesTableName");
 const articlesTableArn = config.require("articlesTableArn");
 const userArticlesTableName = config.require("userArticlesTableName");
 
-const eventBus = HutchEventBus.fromPlatformStack(config);
+const eventBus = EventBus.fromPlatformStack(config);
 
-const failuresDlq = new HutchSharedDlq(MEDIA_BOOK_FAILURES_DLQ, {
+const failuresDlq = new SharedDlq(MEDIA_BOOK_FAILURES_DLQ, {
 	alertEmailDLQEntry: alertEmail,
 });
 
-const articlesDynamodb = new HutchDynamoDBAccess("media-book-process-book-dynamodb", {
+const articlesDynamodb = new DynamoDBAccess("media-book-process-book-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:UpdateItem"],
 });
 
-new HutchMediaProcessor(MEDIA_BOOK_DLQ_SOURCES.processBook, {
+new MediaProcessor(MEDIA_BOOK_DLQ_SOURCES.processBook, {
 	eventBus,
 	event: MediaUploadCommittedEvent,
 	kinds: ["book"],
@@ -45,6 +47,7 @@ new HutchMediaProcessor(MEDIA_BOOK_DLQ_SOURCES.processBook, {
 		memorySize: 1769,
 		timeout: 900,
 		ephemeralStorageSize: 2048,
+		environmentNames: PROCESS_BOOK_ENV,
 		environment: {
 			MEDIA_BUCKET_NAME: mediaBucketName,
 			CONTENT_BUCKET_NAME: contentBucketName,
@@ -63,19 +66,27 @@ new HutchMediaProcessor(MEDIA_BOOK_DLQ_SOURCES.processBook, {
 					],
 				}),
 			},
-			...HutchS3ReadWrite.readPoliciesForBucket("media-book-content-read", contentBucketName),
-			...HutchS3ReadWrite.writePoliciesForBucket("media-book-content-write", contentBucketName),
+			{
+				name: "media-book-images-write",
+				policy: JSON.stringify({
+					Version: "2012-10-17",
+					Statement: [{ Effect: "Allow", Action: ["s3:PutObject"], Resource: `arn:aws:s3:::${mediaBucketName}/images/*` }],
+				}),
+			},
+			...S3ReadWrite.readPoliciesForBucket("media-book-content-read", contentBucketName),
+			...S3ReadWrite.writePoliciesForBucket("media-book-content-write", contentBucketName),
 			...articlesDynamodb.policies,
 		],
 	},
 });
 
-const failuresDlqLambda = new HutchLambda(`${MEDIA_BOOK_FAILURES_DLQ}-dlq`, {
+const failuresDlqLambda = new Lambda(`${MEDIA_BOOK_FAILURES_DLQ}-dlq`, {
 	entryPoint: `./src/runtime/${MEDIA_BOOK_FAILURES_DLQ}-dlq.main.ts`,
 	outputDir: `.lib/${MEDIA_BOOK_FAILURES_DLQ}-dlq`,
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: MEDIA_BOOK_FAILURES_DLQ_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},

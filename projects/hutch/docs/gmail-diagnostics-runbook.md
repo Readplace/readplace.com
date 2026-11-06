@@ -7,7 +7,7 @@ Readplace writes structured diagnostic lines for two Gmail flows whose failures 
 
 ## Line format
 
-Every diagnostic is one JSON object on one line, written as the single argument of the shared `HutchLogger` (`initRecordGmailDiagnostic` in `projects/hutch/src/runtime/observability/gmail-diagnostics.ts`; the event types live in the same file).
+Every diagnostic is one JSON object on one line, written as the single argument of the shared `Logger` (`initRecordGmailDiagnostic` in `projects/hutch/src/runtime/observability/gmail-diagnostics.ts`; the event types live in `projects/hutch/src/runtime/domain/gmail/gmail-diagnostic.types.ts`).
 
 - `version`: the event schema version, currently `1` (`GMAIL_DIAGNOSTIC_VERSION`). Filter on it when a query spans a change to the event shapes.
 - `timestamp`: ISO time from the recorder's clock when the line was built. `@timestamp` is the CloudWatch event time of the same line.
@@ -38,8 +38,8 @@ The complete trace, `INFO` and `ERROR` alike, stays in the source Lambda group f
 
 Where this comes from:
 
-- The Lambda names are set in `projects/hutch/src/infra/index.ts`: `hutch` (`LAMBDA_NAMES.hutchHandler`), `gmail-history-import`, `gmail-history-import-outcomes`, and `gmail-history-import-dlq` (through `HutchDLQEventHandler`). `HutchLambda` (`src/packages/hutch-infra-components/src/infra/hutch-lambda.ts`) appends `-handler`, creates the group `/aws/lambda/<name>-handler` with `retentionInDays: 30`, and attaches the observability subscription filter to every Lambda group except the forwarder's own.
-- That filter (`buildObservabilityFilterPattern` in `src/packages/hutch-infra-components/src/observability-filter.ts`) matches the text `"level":"ERROR"`. The forwarder (`classifyForwardedLine` in `projects/hutch/src/runtime/forward-analytics/forward-analytics-handler.ts`) sends a line with `level` `ERROR` to the errors group, and sends a line to the analytics group only when its `stream` is one of `FORWARDED_STREAMS`. Diagnostics carry no `stream`, so an `INFO` diagnostic reaches neither funnel and stays only in its source group.
+- The Lambda names are set in `projects/hutch/src/infra/index.ts`: `hutch` (`LAMBDA_NAMES.hutchHandler`), `gmail-history-import`, `gmail-history-import-outcomes`, and `gmail-history-import-dlq` (through `DLQEventHandler`). `Lambda` (`src/packages/infra-components/src/infra/lambda.ts`) appends `-handler`, creates the group `/aws/lambda/<name>-handler` with `retentionInDays: 30`, and attaches the observability subscription filter to every Lambda group except the forwarder's own.
+- That filter (`buildObservabilityFilterPattern` in `src/packages/infra-components/src/observability-filter.ts`) matches the text `"level":"ERROR"`. The forwarder (`classifyForwardedLine` in `projects/hutch/src/runtime/forward-analytics/forward-analytics-handler.ts`) sends a line with `level` `ERROR` to the errors group, and sends a line to the analytics group only when its `stream` is one of `FORWARDED_STREAMS`. Diagnostics carry no `stream`, so an `INFO` diagnostic reaches neither funnel and stays only in its source group.
 - `/readplace/errors` and its 90 days are `ERRORS_LOG_GROUP` and `ERRORS_LOG_GROUP_RETENTION_DAYS` in `projects/hutch/src/runtime/observability/events.ts`, created as `errors-log-group` in `projects/hutch/src/infra/index.ts`.
 
 In `/readplace/errors` the stored message is the JSON object alone, with the Lambda preamble stripped, and the log stream is named `<source log group>/<source log stream>`. Add `| filter @logStream like "/aws/lambda/gmail-history-import-handler/"` to keep one source. `ERROR` diagnostics also show up in the analytics dashboard's "Recent errors" widget; they have no `message` field, so read the `event` in the `@message` column.
@@ -188,7 +188,7 @@ A `missing-cookie` with a young `verifiedAgeMs` is not expiry: the cookie was lo
 | `gmail-history-import-outcomes-q` | EventBridge `GmailHistoryImportMessageIngested` | `gmail-history-import-outcomes-handler`, `history-import-outcomes` | 90 s | 3 |
 | `gmail-history-import-failures-dlq` | Both queues above after their last receive, and EventBridge when it cannot deliver to either queue | `gmail-history-import-dlq-handler`, `history-import-page-dlq` or `history-import-outcome-dlq` by source queue | | |
 
-All consumers take one record per invocation and report failures per record. The DLQ has an alarm that emails when a message is visible on it. It has no queue behind it: a record the DLQ handler fails returns to the DLQ and is received again. The values are set in `projects/hutch/src/infra/index.ts` (the outcomes queue's 3 is the `HutchSqsQueue` default).
+All consumers take one record per invocation and report failures per record. The DLQ has an alarm that emails when a message is visible on it. It has no queue behind it: a record the DLQ handler fails returns to the DLQ and is received again. The values are set in `projects/hutch/src/infra/index.ts` (the outcomes queue's 3 is the `SqsQueue` default).
 
 `GmailHistoryImportMessageIngested` is published by the inbox project's Gmail-import ingest worker, which writes no `gmail.*` diagnostics. Between a `message-processed` `published` step in the worker and the matching `outcome-recorded` step in the outcomes handler, look at that worker's own logs.
 

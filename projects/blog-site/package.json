@@ -16,8 +16,8 @@
   },
   "dependencies": {
     "@packages/domain": "workspace:*",
-    "@packages/hutch-logger": "workspace:*",
-    "@packages/hutch-storage-client": "workspace:*",
+    "@packages/logger": "workspace:*",
+    "@packages/storage-client": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/supported-clients": "workspace:*",
@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@packages/check-unused-css": "workspace:*",
-    "@packages/hutch-infra-components": "workspace:*",
+    "@packages/infra-components": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",

@@ -5,18 +5,17 @@ import {
 	GmailHistoryImportJobIdSchema,
 	GmailMessageIdSchema,
 } from "@packages/domain/gmail";
-import { UserIdSchema } from "@packages/domain/user";
-import { GmailHistoryImportCompletedEvent, GmailHistoryImportMessageIngestedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
+import { GmailHistoryImportCompletedEvent, GmailHistoryImportMessageIngestedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { RecordGmailDiagnostic } from "./gmail-diagnostic.types";
 import { type GmailImportRecordTrace, startGmailImportRecordTrace } from "./gmail-import-record-trace";
 
 interface OutcomeHandlerDependencies {
 	imports: GmailHistoryImportStore;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	recordDiagnostic: RecordGmailDiagnostic;
 }
 
@@ -29,7 +28,7 @@ export function initGmailHistoryImportOutcomeRecorder(input: OutcomeHandlerDepen
 
 	async function recordMessageOutcome(record: SQSRecord, trace: GmailImportRecordTrace): Promise<void> {
 		const detail = GmailHistoryImportMessageIngestedEvent.detailSchema.parse(JSON.parse(record.body).detail);
-		const userId = UserIdSchema.parse(detail.userId);
+		const { userId } = detail;
 		const jobId = GmailHistoryImportJobIdSchema.parse(detail.jobId);
 		trace.identify({ envelopeKind: "outcome", userId, jobId, generation: detail.generation, page: undefined });
 		const gmailMessageId = GmailMessageIdSchema.parse(detail.gmailMessageId);

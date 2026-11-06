@@ -1,17 +1,17 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 import { z } from "zod";
 import { type GmailHistoryImportJobId, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
-import { type UserId, UserIdSchema } from "@packages/domain/user";
+import type { UserId } from "@packages/domain/user";
 import {
 	GmailHistoryImportCompletedEvent,
 	GmailHistoryImportFailedEvent,
 	GmailHistoryImportPageProcessedEvent,
 	ProcessGmailHistoryImportPageCommand,
 	StartGmailHistoryImportCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { RecordGmailDiagnostic } from "./gmail-diagnostic.types";
 import type { GmailHistoryImport, GmailHistoryImportPage } from "./gmail-history-import";
 import { type GmailImportRecordIdentity, type GmailImportRecordTrace, startGmailImportRecordTrace } from "./gmail-import-record-trace";
 
@@ -40,13 +40,13 @@ export function initGmailHistoryImportHandler(deps: {
 	importer: GmailHistoryImport;
 	dispatchPage: (input: GmailHistoryImportPage) => Promise<void>;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 	recordDiagnostic: RecordGmailDiagnostic;
 	now: () => Date;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	async function processRecord(record: SQSRecord, trace: GmailImportRecordTrace): Promise<void> {
 		const envelope = GmailHistoryImportEnvelope.parse(JSON.parse(record.body));
-		const userId = UserIdSchema.parse(envelope.detail.userId);
+		const { userId } = envelope.detail;
 		const jobId = GmailHistoryImportJobIdSchema.parse(envelope.detail.jobId);
 		trace.identify(gmailHistoryImportRecordIdentity({ envelope, userId, jobId }));
 		if (envelope.kind === "progress") {

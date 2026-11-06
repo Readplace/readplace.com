@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException } from "@packages/storage-client";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {

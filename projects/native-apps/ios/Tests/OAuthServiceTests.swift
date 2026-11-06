@@ -9,7 +9,7 @@ final class OAuthServiceTests: XCTestCase {
 
 	private func makeService(store: TokenStore) -> OAuthService {
 		OAuthService(
-			baseURL: AppConfig.serverBaseURL,
+			endpoints: AppConfig.serverEndpoints,
 			store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent,
 			sessionConfiguration: TestSupport.stubbedConfiguration()
@@ -26,10 +26,10 @@ final class OAuthServiceTests: XCTestCase {
 
 		let tokens = try await makeService(store: store).exchangeCode("AUTH_CODE", verifier: "VERIFIER", redirectURI: AppConfig.nativeCallbackURL)
 
-		XCTAssertEqual(tokens.accessToken, "new-access")
-		XCTAssertEqual(tokens.refreshToken, "new-refresh")
-		XCTAssertEqual(store.tokens?.accessToken, "new-access")
-		XCTAssertEqual(store.tokens?.refreshToken, "new-refresh")
+		XCTAssertEqual(tokens.accessToken.raw, "new-access")
+		XCTAssertEqual(tokens.refreshToken.raw, "new-refresh")
+		XCTAssertEqual(store.tokens?.accessToken.raw, "new-access")
+		XCTAssertEqual(store.tokens?.refreshToken.raw, "new-refresh")
 
 		let body = TestSupport.formFields(StubURLProtocol.records(path: "/oauth/token").first!.body)
 		XCTAssertEqual(body["grant_type"], "authorization_code")
@@ -57,8 +57,8 @@ final class OAuthServiceTests: XCTestCase {
 		let newAccess = try await makeService(store: store).refresh()
 
 		XCTAssertEqual(newAccess, "a2")
-		XCTAssertEqual(store.tokens?.accessToken, "a2")
-		XCTAssertEqual(store.tokens?.refreshToken, "r1", "refresh token must be preserved when the server omits it")
+		XCTAssertEqual(store.tokens?.accessToken.raw, "a2")
+		XCTAssertEqual(store.tokens?.refreshToken.raw, "r1", "refresh token must be preserved when the server omits it")
 	}
 
 	func testRefreshUpdatesBothTokensWhenProvided() async throws {
@@ -67,8 +67,8 @@ final class OAuthServiceTests: XCTestCase {
 
 		_ = try await makeService(store: store).refresh()
 
-		XCTAssertEqual(store.tokens?.accessToken, "a3")
-		XCTAssertEqual(store.tokens?.refreshToken, "r3")
+		XCTAssertEqual(store.tokens?.accessToken.raw, "a3")
+		XCTAssertEqual(store.tokens?.refreshToken.raw, "r3")
 		let body = TestSupport.formFields(StubURLProtocol.records(path: "/oauth/token").first!.body)
 		XCTAssertEqual(body["grant_type"], "refresh_token")
 		XCTAssertEqual(body["refresh_token"], "r1")
@@ -95,18 +95,18 @@ final class OAuthServiceTests: XCTestCase {
 		} catch {
 			XCTAssertEqual((error as? OAuthError)?.errorDescription, OAuthError.refreshFailed.errorDescription)
 		}
-		XCTAssertEqual(store.tokens?.refreshToken, "r1", "only an outright rejection discards the token")
+		XCTAssertEqual(store.tokens?.refreshToken.raw, "r1", "only an outright rejection discards the token")
 	}
 
 	func testRefreshLeavesATokenAnOverlappingRefreshAlreadyStored() async throws {
 		let store = TestSupport.loggedInStore(access: "a1", refresh: "r1")
 		StubURLProtocol.setHandler { _, _ in
-			store.save(OAuthTokens(accessToken: "a2", refreshToken: "r2"))
+			store.save(OAuthTokens(accessToken: AccessToken(raw: "a2"), refreshToken: RefreshToken(raw: "r2")))
 			return .json(400, "{\"error\":\"invalid_grant\"}")
 		}
 		let access = try await makeService(store: store).refresh()
 		XCTAssertEqual(access, "a2")
-		XCTAssertEqual(store.tokens?.refreshToken, "r2")
+		XCTAssertEqual(store.tokens?.refreshToken.raw, "r2")
 	}
 
 	func testTransientAndMalformedRefusalsPreserveCredentials() async {
@@ -126,7 +126,7 @@ final class OAuthServiceTests: XCTestCase {
 		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.tokenResponse(access: "new", refresh: "new-r")) }
 		_ = try await oauth.refresh(after: original)
 		let delayed = try await oauth.refresh(after: original)
-		XCTAssertEqual(delayed.snapshot.tokens.accessToken, "new")
+		XCTAssertEqual(delayed.snapshot.tokens.accessToken.raw, "new")
 		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1)
 	}
 
@@ -134,7 +134,7 @@ final class OAuthServiceTests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		let oauth = makeService(store: store)
 		let rejected = store.tokens
-		let replacement = OAuthTokens(accessToken: "replacement", refreshToken: "replacement-r")
+		let replacement = OAuthTokens(accessToken: AccessToken(raw: "replacement"), refreshToken: RefreshToken(raw: "replacement-r"))
 		store.save(replacement)
 		await oauth.clear(ifUnchanged: rejected)
 		XCTAssertEqual(store.tokens, replacement)
@@ -186,7 +186,7 @@ final class OAuthServiceTests: XCTestCase {
 		gate.signal()
 		let result = try await second.value
 		_ = try await first.value
-		XCTAssertEqual(result.snapshot.tokens.accessToken, "new")
+		XCTAssertEqual(result.snapshot.tokens.accessToken.raw, "new")
 		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1)
 	}
 
@@ -290,11 +290,11 @@ extension OAuthServiceTests {
 		let oauth = makeService(store: store)
 		let snapshot = try await oauth.snapshot()
 		StubURLProtocol.setHandler { _, _ in
-			store.save(OAuthTokens(accessToken: "winner", refreshToken: "winner-r"))
+			store.save(OAuthTokens(accessToken: AccessToken(raw: "winner"), refreshToken: RefreshToken(raw: "winner-r")))
 			return StubURLProtocol.Stub(status: 400, headers: ["X-Readplace-Refresh-Attempt": "signed-proof"], body: Data("{\"error\":\"invalid_grant\"}".utf8))
 		}
 		let recovered = try await oauth.refresh(after: snapshot)
-		XCTAssertEqual(recovered.snapshot.tokens.accessToken, "winner")
+		XCTAssertEqual(recovered.snapshot.tokens.accessToken.raw, "winner")
 		XCTAssertEqual(recovered.recoveryProof, "signed-proof")
 	}
 
