@@ -8,6 +8,7 @@ import {
 	forEachQueryPage,
 	writeIfCondition,
 } from "@packages/storage-client";
+import { EnclosureSchema } from "@packages/media-contracts";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 import { ServedBodyFields, servedBodyOf } from "./served-body";
@@ -120,6 +121,7 @@ const ArticleRow = z.object({
 	ownerUserId: dynamoField(UserIdSchema),
 	media: dynamoField(ItemMediaSchema),
 	processingNotice: dynamoField(z.string()),
+	enclosure: dynamoField(EnclosureSchema),
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
 const ArticleMetadataFields = ArticleRow.omit({ content: true }).keyof().options;
@@ -213,6 +215,8 @@ function toSavedArticle(
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
 		media: article.media,
 		processingNotice: article.processingNotice,
+		ownerUserId: article.ownerUserId,
+		enclosure: article.enclosure,
 	};
 }
 

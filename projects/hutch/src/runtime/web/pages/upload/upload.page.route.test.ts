@@ -35,14 +35,14 @@ async function signedIn(fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN)) 
 }
 
 describe("Upload routes", () => {
-	it("redirects a signed-out upload to signup with a return to /upload", async () => {
+	it("renders the presigned form for a signed-out upload", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server)
 			.post("/upload")
 			.type("form")
 			.send({ contentType: "application/epub+zip" });
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/signup?return=%2Fupload");
+		expect(response.status).toBe(200);
+		expect(documentOf(response.text).querySelector("[data-test-upload-s3-form]")).not.toBeNull();
 	});
 
 	it("refuses an upload from a read-only account", async () => {

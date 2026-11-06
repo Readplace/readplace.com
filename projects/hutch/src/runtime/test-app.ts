@@ -1,3 +1,5 @@
+import type { MediaKindName } from "@packages/media-contracts";
+import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
 import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
 import express, { type Express } from "express";
@@ -93,6 +95,7 @@ interface TestAppOverrides {
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
 	fetchFirefoxDownloadUrl?: FetchFirefoxDownloadUrl;
 	keepOfferEndsAt?: Date;
+	guestUploadKinds?: readonly MediaKindName[];
 }
 
 export const TEST_FIREFOX_XPI_FILENAME = "abc123-1.0.0.xpi";
@@ -410,6 +413,7 @@ function flattenFixtureToAppDependencies(
 		salt: "test-analytics-salt",
 		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
 		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
+		guestUploadKinds: GUEST_UPLOAD_KINDS,
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
 		}),

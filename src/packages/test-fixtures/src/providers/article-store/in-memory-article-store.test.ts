@@ -10,6 +10,7 @@ import {
 	ReadlistSlugSchema,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { EnclosureSchema } from "@packages/media-contracts";
 import type { SaveArticleParams } from "./article-store.types";
 import { initInMemoryArticleStore } from "./in-memory-article-store";
 
@@ -2497,5 +2498,38 @@ describe("initInMemoryArticleStore private items", () => {
 		await store.setPurgedAt({ url: PRIVATE_URL, at: new Date("2026-11-05T11:00:00.000Z") });
 
 		assert.equal(await store.recordPrivateItemSections({ url: PRIVATE_URL, sectionCount: 3 }), "not-found");
+	});
+
+	it("records an enclosure that findArticleById then returns on the owned row", async () => {
+		const store = initInMemoryArticleStore();
+		await store.savePrivateItem(SAVE);
+		const enclosure = EnclosureSchema.parse({
+			object: `objects/sha256/${"b".repeat(64)}/1`,
+			mediaType: "audio/mp4",
+			durationSeconds: 2820,
+		});
+
+		assert.equal(await store.setArticleEnclosure({ url: PRIVATE_URL, enclosure }), "recorded");
+
+		const found = await store.findArticleById(ReaderArticleHashId.from(PRIVATE_URL), USER_A);
+		assert.deepEqual(found?.enclosure, enclosure);
+		assert.equal(found?.ownerUserId, USER_A);
+	});
+
+	it("answers not-found when recording an enclosure on an unknown, unowned or purged row", async () => {
+		const store = initInMemoryArticleStore();
+		const enclosure = EnclosureSchema.parse({
+			object: `objects/sha256/${"b".repeat(64)}/1`,
+			mediaType: "audio/mpeg",
+			durationSeconds: 60,
+		});
+		await store.saveArticle(makeArticleParams());
+		assert.equal(await store.setArticleEnclosure({ url: PRIVATE_URL, enclosure }), "not-found");
+		assert.equal(await store.setArticleEnclosure({ url: URL, enclosure }), "not-found");
+
+		await store.savePrivateItem(SAVE);
+		await store.setPurgedAt({ url: PRIVATE_URL, at: new Date("2026-11-05T11:00:00.000Z") });
+
+		assert.equal(await store.setArticleEnclosure({ url: PRIVATE_URL, enclosure }), "not-found");
 	});
 });

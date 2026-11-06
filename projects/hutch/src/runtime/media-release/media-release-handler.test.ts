@@ -37,6 +37,11 @@ async function buildSubject(overrides: { failRowDelete?: boolean } = {}) {
 			if (overrides.failRowDelete) throw new Error("DeleteItem failed");
 			calls.push(`row:${url}`);
 		},
+		mediaObjects: {
+			unrefAll: async ({ uploadId }) => {
+				calls.push(`holdings:${uploadId}`);
+			},
+		},
 		deleteUserArticleLinks: async (url) => {
 			calls.push(`links:${url}`);
 		},
@@ -64,6 +69,7 @@ describe("initMediaReleaseHandler", () => {
 			`media:pending/${UPLOAD_ID}/original`,
 			`media:images/${UPLOAD_ID}/cover.png,images/${UPLOAD_ID}/figure-1.jpg`,
 			`row:${PRIVATE_URL}`,
+			`holdings:${UPLOAD_ID}`,
 			`links:${PRIVATE_URL}`,
 		]);
 	});

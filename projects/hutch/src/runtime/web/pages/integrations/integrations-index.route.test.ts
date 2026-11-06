@@ -270,11 +270,16 @@ describe("GET /newsletters", () => {
 			utm_source: "integrations",
 			utm_medium: "internal",
 			utm_content: "ai-assistant-setup",
+			from: "connectors",
 		});
 		const guide = await agent.get(destination.pathname + destination.search).set(BROWSER_REQUEST_HEADERS);
 		expect(guide.status).toBe(200);
 		const guideDoc = load(guide.text);
 		expect(guideDoc.body.classList.contains("page-mcp-connect")).toBe(true);
+		const back = guideDoc.querySelector("[data-test-mcp-back]");
+		assert(back, "the guide links back to Connectors");
+		expect(back.textContent).toBe("Connectors");
+		expect(back.getAttribute("href")).toBe("/newsletters?utm_source=mcp-connect&utm_medium=internal&utm_content=back-to-connectors");
 		const capabilities = guideDoc.querySelector('[data-test-section="capabilities"]');
 		assert(capabilities, "the guide lists what an assistant can do");
 		for (const tool of ["mark_as_read", "add_to_readlist", "create_readlist"]) {
@@ -305,6 +310,7 @@ describe("GET /newsletters", () => {
 		const form = guide.closest("form");
 		assert(form, "See guide navigates with a form");
 		expect(form.getAttribute("action")).toBe("/mcp?utm_source=integrations&utm_medium=internal&utm_content=ai-assistant-guide");
+		expect(form.querySelector<HTMLInputElement>('input[name="from"]')?.value).toBe("connectors");
 	});
 
 	it("offers only Connect to a reader with no connection", async () => {

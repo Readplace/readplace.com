@@ -1,7 +1,8 @@
 import assert from "node:assert";
 import Handlebars from "handlebars";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
-import { displayableReadTime, isPrivateItemUrl, type SavedArticle } from "@packages/domain/article";
+import { ABSENT_ENCLOSURE, type EnclosureRead, isPrivateItemUrl, type SavedArticle } from "@packages/domain/article";
+import { displayableTime } from "../shared/displayable-time";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -63,6 +64,7 @@ export function toArticleSubEntity(
 		collectionQuery?: CollectionQueryParams;
 		now: Date;
 		pollCount?: number;
+		enclosure?: EnclosureRead;
 	},
 ): SirenSubEntity {
 	const id = article.id.value;
@@ -72,7 +74,8 @@ export function toArticleSubEntity(
 
 	const isRead = article.status === "read";
 	const targetStatus = isRead ? "unread" : "read";
-	const readTime = displayableReadTime(article);
+	const enclosure = options.enclosure ?? ABSENT_ENCLOSURE;
+	const readTime = displayableTime({ article, enclosure });
 	const hrefQuery = options.collectionQuery ? buildQueryString(options.collectionQuery) : "";
 	const ownReadlist = options.collectionQuery?.readlist === DEFAULT_READLIST_SLUG ? undefined : options.collectionQuery?.readlist;
 	const { label, phase } = cardProcessingOf({
@@ -113,6 +116,8 @@ export function toArticleSubEntity(
 				crawl: options.crawl,
 				summary: options.summary,
 			}),
+			mediaKind: article.media?.kind ?? null,
+			durationSeconds: enclosure.kind === "owned" ? enclosure.enclosure.durationSeconds : null,
 			...(phase.kind === "processing"
 				? {
 						processing: {

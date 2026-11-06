@@ -7,6 +7,7 @@ import type {
 } from "@packages/article-store";
 import type { UserId } from "@packages/domain/user";
 import { PrivateItemUrlSchema, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
+import type { UnrefAllForUpload } from "@packages/media-object-store";
 import type { FindItemOwner } from "@packages/provider-contracts/article-store";
 
 export type ReleaseStep = (item: { url: string }) => Promise<void>;
@@ -26,6 +27,7 @@ export function initPrivateItemReleaseSteps(deps: {
 	deleteMediaObjects: DeleteContentObjects;
 	listMediaKeys: ListContentKeys;
 	deleteArticleRow: DeleteArticleRow;
+	mediaObjects: { unrefAll: UnrefAllForUpload };
 	deleteUserArticleLinks: DeleteUserArticleLinks;
 }): readonly ReleaseStep[] {
 	return [
@@ -33,6 +35,7 @@ export function initPrivateItemReleaseSteps(deps: {
 		({ url }) => deps.deleteMediaObjects([pendingOriginalKey(url)]),
 		({ url }) => deps.listMediaKeys(bookImagesPrefix(url)).then(deps.deleteMediaObjects),
 		({ url }) => deps.deleteArticleRow(url),
+		({ url }) => deps.mediaObjects.unrefAll({ uploadId: uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url)) }),
 		({ url }) => deps.deleteUserArticleLinks(url),
 	];
 }

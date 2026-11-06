@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_keep_audio" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_keep_audio" name="keep-audio" isExecutable="false">
+    <bpmn:serviceTask id="n_U" name="Upload commit (later change)">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_C" name="MediaUploadCommittedEvent kind audio">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:task id="n_Q" name="[&quot;media-audio-keep-audio-q">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_L" name="media-audio-keep-audio Lambda">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_MB" name="media bucket"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_MO" name="media objects table"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_AR" name="articles table"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_CS" name="content bucket"></bpmn:dataStoreReference>
+    <bpmn:intermediateThrowEvent id="n_T" name="TierContentExtractedEvent">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="n_F" name="MediaProcessingFailedEvent">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="n_SEL" name="select-most-complete-content">
+      <bpmn:incoming>f_9</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_SET" name="settle-media-failure">
+      <bpmn:incoming>f_10</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_DLQ" name="[&quot;media-audio-failures DLQ">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_DL" name="media-audio-failures-dlq Lambda">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_U" targetRef="n_C" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_C" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_Q" targetRef="n_L" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_L" targetRef="n_T" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_L" targetRef="n_F" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_T" targetRef="n_SEL" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_F" targetRef="n_SET" />
+    <bpmn:sequenceFlow id="f_11" name="after two receives" sourceRef="n_Q" targetRef="n_DLQ" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_DLQ" targetRef="n_DL" />
+    <bpmn:sequenceFlow id="f_13" name="processing-exhausted" sourceRef="n_DL" targetRef="n_F" />
+    <bpmn:association id="f_3" sourceRef="n_L" targetRef="n_MB" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_L" targetRef="n_MO" associationDirection="One" />
+    <bpmn:association id="f_5" sourceRef="n_L" targetRef="n_AR" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_L" targetRef="n_CS" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_keep_audio">
+    <bpmndi:BPMNPlane id="Plane_keep_audio" bpmnElement="Process_keep_audio">
+      <bpmndi:BPMNShape id="n_U_di" bpmnElement="n_U">
+        <dc:Bounds x="28" y="285" width="162.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="300.8" y="275" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="450.85" y="287" width="201.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_L_di" bpmnElement="n_L">
+        <dc:Bounds x="722.48" y="327" width="176.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_MB_di" bpmnElement="n_MB">
+        <dc:Bounds x="1013.71" y="116" width="95.04" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_MO_di" bpmnElement="n_MO">
+        <dc:Bounds x="995.78" y="325.5" width="130.9" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_AR_di" bpmnElement="n_AR">
+        <dc:Bounds x="1011.95" y="427" width="98.56" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CS_di" bpmnElement="n_CS">
+        <dc:Bounds x="1008.32" y="528.5" width="105.82" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_T_di" bpmnElement="n_T">
+        <dc:Bounds x="1041.22" y="217.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_F_di" bpmnElement="n_F">
+        <dc:Bounds x="1290.35" y="231" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SEL_di" bpmnElement="n_SEL">
+        <dc:Bounds x="1211.6" y="339" width="197.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SET_di" bpmnElement="n_SET">
+        <dc:Bounds x="1467.1" y="287" width="159.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLQ_di" bpmnElement="n_DLQ">
+        <dc:Bounds x="710.35" y="243" width="200.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DL_di" bpmnElement="n_DL">
+        <dc:Bounds x="968.85" y="28" width="184.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="190.75" y="311" />
+        <di:waypoint x="245.78" y="311" />
+        <di:waypoint x="245.78" y="295" />
+        <di:waypoint x="300.8" y="295" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="340.8" y="295" />
+        <di:waypoint x="395.83" y="295" />
+        <di:waypoint x="395.83" y="311" />
+        <di:waypoint x="450.85" y="311" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="652.35" y="311" />
+        <di:waypoint x="687.41" y="311" />
+        <di:waypoint x="687.41" y="353" />
+        <di:waypoint x="722.48" y="353" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="898.73" y="353" />
+        <di:waypoint x="969.97" y="353" />
+        <di:waypoint x="969.97" y="237.5" />
+        <di:waypoint x="1041.22" y="237.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="898.73" y="353" />
+        <di:waypoint x="1094.54" y="353" />
+        <di:waypoint x="1094.54" y="251" />
+        <di:waypoint x="1290.35" y="251" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="1081.22" y="237.5" />
+        <di:waypoint x="1146.41" y="237.5" />
+        <di:waypoint x="1146.41" y="365" />
+        <di:waypoint x="1211.6" y="365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="1330.35" y="251" />
+        <di:waypoint x="1398.73" y="251" />
+        <di:waypoint x="1398.73" y="311" />
+        <di:waypoint x="1467.1" y="311" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="652.35" y="311" />
+        <di:waypoint x="681.35" y="311" />
+        <di:waypoint x="681.35" y="267" />
+        <di:waypoint x="710.35" y="267" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="910.85" y="267" />
+        <di:waypoint x="939.85" y="267" />
+        <di:waypoint x="939.85" y="54" />
+        <di:waypoint x="968.85" y="54" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="1153.6" y="54" />
+        <di:waypoint x="1221.97" y="54" />
+        <di:waypoint x="1221.97" y="251" />
+        <di:waypoint x="1290.35" y="251" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="898.73" y="353" />
+        <di:waypoint x="956.22" y="353" />
+        <di:waypoint x="956.22" y="140" />
+        <di:waypoint x="1013.71" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="898.73" y="353" />
+        <di:waypoint x="947.25" y="353" />
+        <di:waypoint x="947.25" y="349.5" />
+        <di:waypoint x="995.78" y="349.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="898.73" y="353" />
+        <di:waypoint x="955.34" y="353" />
+        <di:waypoint x="955.34" y="451" />
+        <di:waypoint x="1011.95" y="451" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="898.73" y="353" />
+        <di:waypoint x="953.52" y="353" />
+        <di:waypoint x="953.52" y="552.5" />
+        <di:waypoint x="1008.32" y="552.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

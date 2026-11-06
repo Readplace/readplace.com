@@ -1,4 +1,4 @@
-import type { MediaImageFile, MediaKindName, PrivateItemUrl, UploadId } from "@packages/media-contracts";
+import type { Enclosure, MediaImageFile, MediaKindName, PrivateItemUrl, UploadId } from "@packages/media-contracts";
 import type { SaveAttemptId } from "../article";
 import type { UserId } from "../user/user.types";
 
@@ -42,6 +42,8 @@ export type HeadMediaPendingOriginal = (params: {
 export type ReadMediaPendingPrefix = (params: { uploadId: UploadId; etag: string; bytes: number }) => Promise<Uint8Array>;
 
 export type PresignMediaImage = (input: { uploadId: UploadId; file: MediaImageFile }) => Promise<string>;
+
+export type PresignEnclosure = (input: Pick<Enclosure, "object" | "mediaType">) => Promise<string>;
 
 export type PublishMediaUploadCommitted = (params: {
 	uploadId: UploadId;

@@ -1,4 +1,5 @@
 /* c8 ignore start -- composition root, no logic to test */
+import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import assert from "node:assert";
 import { randomInt } from "node:crypto";
 import type { Express } from "express";
@@ -46,6 +47,7 @@ type AssemblyProvidedKeys =
 	| "salt"
 	| "keepOfferCouponId"
 	| "keepOfferEndsAt"
+	| "guestUploadKinds"
 	| "foundingAllocation"
 	| "newsletterCatalogSeed";
 export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
@@ -79,6 +81,7 @@ export function assembleReadplaceApp(input: {
 	const app = createApp({
 		keepOfferCouponId,
 		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
+		guestUploadKinds: GUEST_UPLOAD_KINDS,
 		validateSaveableUrl: withUnwrapPreprocessing(
 			validateSaveableUrl,
 			unwrappedPreProcessors(readplaceUnwrapPreprocessor),

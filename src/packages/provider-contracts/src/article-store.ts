@@ -270,6 +270,11 @@ export type RecordPrivateItemFailure = (params: { url: string; notice: string })
 
 export type RecordPrivateItemSections = (params: { url: string; sectionCount: number }) => Promise<"recorded" | "not-found">;
 
+export type SetArticleEnclosure = (params: {
+	url: string;
+	enclosure: NonNullable<SavedArticle["enclosure"]>;
+}) => Promise<"recorded" | "not-found">;
+
 export type ReadArticleImage = (params: {
 	url: string;
 	filename: string;

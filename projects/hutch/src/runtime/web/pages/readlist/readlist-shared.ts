@@ -104,7 +104,7 @@ import type {
 import type { InstallableClientOnboarding, OnboardingContext, Platform } from "../../onboarding/onboarding.types";
 import type { EffectiveAccess, } from "@packages/subscription-access";
 import type { ArticleDiscoveryQuery, ReadlistFilter, SavedArticle, ShownSummary, Viewer } from "@packages/domain/article";
-import { viewerFor } from "@packages/domain/article";
+import { ownedEnclosuresByUrl, viewerFor } from "@packages/domain/article";
 import type { ResolveOnViewSurface } from "@packages/provider-contracts/events";
 import { overlayResolution } from "../../../domain/resolve-on-view/request-resolution-on-view";
 import { requestCanCapture } from "../../onboarding/capture-capable-request";
@@ -703,6 +703,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			importSkipped: input.importSkipped,
 			summaryByUrl,
 			crawlByUrl,
+			enclosureByUrl: ownedEnclosuresByUrl({ viewer: viewerFor(input.userId), articles: input.result.articles }),
 			readerProvenanceByUrl,
 			effectiveAccess,
 			upgradeOffer,

@@ -1723,6 +1723,16 @@ describe("initBase config", () => {
 		).toBe("");
 	});
 
+	it("links a guest from the footer to the book upload, tracked to the footer", () => {
+		const doc = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body).window.document;
+		const upload = Array.from(doc.querySelectorAll(".footer__link")).find((el) => el.textContent === "Upload a book");
+		assert(upload, "the footer must link to the book upload");
+		const url = new URL(upload.getAttribute("href") ?? "", "https://internal.invalid");
+		expect(url.pathname).toBe("/upload");
+		expect(url.searchParams.get("utm_source")).toBe("footer");
+		expect(url.searchParams.get("utm_content")).toBe("upload");
+	});
+
 	it("leaves the footer links untagged by a surface when the page body sets none", () => {
 		const doc = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body).window.document;
 		const blog = doc.querySelector(".footer__link");
@@ -1737,7 +1747,7 @@ describe("initBase config", () => {
 		const links = Array.from(doc.querySelectorAll(".footer__link")).map(
 			(el) => new URL(el.getAttribute("href") ?? "", "https://internal.invalid").searchParams.get("utm_term"),
 		);
-		expect(links).toEqual(["reader-public", "reader-public", "reader-public"]);
+		expect(links).toEqual(["reader-public", "reader-public", "reader-public", "reader-public"]);
 	});
 });
 

@@ -2,7 +2,7 @@ import assert from "node:assert";
 import {
 	type ArticleDestinationUrl,
 	articleDestinationUrl,
-	displayableReadTime,
+	type EnclosureRead,
 	hostStubMetadata,
 	isNonArticleHost,
 	isPrivateItemUrl,
@@ -11,6 +11,7 @@ import {
 	type ShownSummary,
 	type StoredArticleBody,
 } from "@packages/domain/article";
+import { displayableTime } from "../displayable-time";
 import { type CrawlStatus, type ReaderFailedVariant, type SummaryStatus, deriveReaderViewStatus } from "@packages/article-state-types";
 import type { ReaderView } from "./reader-view";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -432,13 +433,14 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		destinationUrl: ArticleDestinationUrl;
 		provenance: ReaderProvenance | undefined;
 		saved: LocalTime | undefined;
+		enclosure: EnclosureRead;
 	}): string {
 		const { article } = input;
 		if (!article) return "";
 		const headerOob = renderArticleHeaderMetadataOob({
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
-			readTime: displayableReadTime(article),
+			readTime: displayableTime({ article, enclosure: input.enclosure }),
 			url: input.destinationUrl,
 			provenance: input.provenance,
 			saved: input.saved,
@@ -484,6 +486,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				destinationUrl,
 				provenance: params.provenance,
 				saved: params.saved,
+				enclosure: params.enclosure,
 			}),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
 			readerViewFailedOob: settledFailureOob({
@@ -552,6 +555,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				destinationUrl,
 				provenance: params.provenance,
 				saved: params.saved,
+				enclosure: params.enclosure,
 			}),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
 			readerViewFailedOob: settledFailureOob({

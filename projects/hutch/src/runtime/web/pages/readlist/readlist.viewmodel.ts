@@ -1,11 +1,13 @@
 import {
+	ABSENT_ENCLOSURE,
 	type CrawlRemainingEstimate,
-	displayableReadTime,
+	type EnclosureRead,
 	isPrivateItemUrl,
 	type DisplayableReadTime,
 	type SavedArticle,
 	type SaveableUrlErrorCode,
 } from "@packages/domain/article";
+import { displayableTime } from "../../shared/displayable-time";
 import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_MAX_PER_USER,
@@ -334,6 +336,7 @@ export function toReadlistArticleViewModel(params: {
 	 * still asks before deleting. */
 	deleteAcknowledged?: boolean;
 	filing?: ArticleFiling;
+	enclosure: EnclosureRead;
 }): ReadlistArticleViewModel {
 	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
 	const pollCount = params.pollCount ?? 1;
@@ -346,7 +349,7 @@ export function toReadlistArticleViewModel(params: {
 	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const cardKind = cardKindOf(article);
-	const readTime = displayableReadTime(article);
+	const readTime = displayableTime({ article, enclosure: params.enclosure });
 	const markStatusConfirm =
 		params.confirmReadlists === undefined
 			? undefined
@@ -414,6 +417,7 @@ export function toReadlistViewModel(
 		statusFlash?: StatusFlash;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
+		enclosureByUrl?: ReadonlyMap<string, EnclosureRead>;
 		readerProvenanceByUrl?: ReadonlyMap<string, ReaderProvenance | undefined>;
 		effectiveAccess?: EffectiveAccess;
 		upgradeOffer?: UpgradeOffer;
@@ -446,6 +450,7 @@ export function toReadlistViewModel(
 				returnQuery,
 				summary: options?.summaryByUrl?.get(a.url),
 				crawl: options?.crawlByUrl?.get(a.url),
+				enclosure: options?.enclosureByUrl?.get(a.url) ?? ABSENT_ENCLOSURE,
 				readerProvenance: options?.readerProvenanceByUrl?.get(a.url),
 				filters,
 				maxPolls: MAX_POLLS,

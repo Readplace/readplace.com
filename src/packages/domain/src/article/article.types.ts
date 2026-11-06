@@ -1,3 +1,4 @@
+import type { Enclosure } from "@packages/media-contracts";
 import type { z } from "zod";
 import type { UserId } from "../user/user.types";
 import type { ArticleDestinationUrl, SiteLabel } from "./article-site";
@@ -47,4 +48,6 @@ export interface SavedArticle {
 	relatedDismissedSuggestionId?: ReaderArticleHashId;
 	media?: ItemMedia;
 	processingNotice?: string;
+	ownerUserId?: UserId;
+	enclosure?: Enclosure;
 }

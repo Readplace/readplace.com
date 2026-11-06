@@ -14,7 +14,7 @@ import { SaveAttemptIdSchema, newSaveAttemptId, BulkSaveManifestSchema, MAX_PAGE
 import { buildSaveIntentEvent, } from "@packages/web-analytics";
 import { SAVE_OUTCOMES, SAVE_SURFACES, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import { saveClientOf } from "../../shared/save-client";
-import { isNonArticleHost, viewerFor } from "@packages/domain/article";
+import { isNonArticleHost, ownedEnclosuresByUrl, viewerFor } from "@packages/domain/article";
 import { CaptureTriggerSchema, type CaptureTrigger, } from "@packages/domain/article";
 import type { ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
 import { isPDF, MAX_HTML_BYTES, MAX_PDF_BYTES } from "@packages/crawl-article";
@@ -288,6 +288,7 @@ export function initReadlistSaveRoutes(
 						warning: { code: validation.error.code, message: validation.error.message },
 						surfacePlatform: nativeSurfaceOf(req),
 						crawlByUrl,
+						enclosureByUrl: ownedEnclosuresByUrl({ viewer: viewerFor(userId), articles: collection.articles }),
 						summaryByUrl,
 					},
 				),

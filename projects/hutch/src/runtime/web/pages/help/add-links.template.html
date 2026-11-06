@@ -228,6 +228,9 @@
       <section class="help__upload" data-test-help-upload>
         <h2 class="help__upload-title" data-test-help-upload-title>Add a book</h2>
         <p class="help__upload-lead" data-test-help-upload-lead>Upload a DRM-free EPUB of up to {{upload.ceilingLabel}}. MOBI and AZW3 are not supported.</p>
+        {{#if upload.guest}}
+        <p class="help__upload-lead" data-test-help-upload-guest>You don't need an account to upload a book: sign up when you save it.</p>
+        {{/if}}
         <a class="help__upload-link" href="{{upload.href}}" data-test-help-upload-link>Upload a book</a>
       </section>
       {{/if}}
