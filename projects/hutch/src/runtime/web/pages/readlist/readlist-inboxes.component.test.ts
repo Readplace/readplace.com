@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import {
 	AliasNameSchema,
-	type EmailDeliveryMode,
 	type InboxAddressEntry,
 	type InboxAddressPurpose,
 	InboxAddressSchema,
@@ -39,7 +38,6 @@ function inbox(input: {
 function renderInboxes(input: {
 	inboxes: readonly InboxAddressEntry[];
 	purpose?: string;
-	emailDelivery?: EmailDeliveryMode;
 }): Document {
 	return new JSDOM(
 		`<main>${renderReadlistInboxes(
@@ -48,7 +46,6 @@ function renderInboxes(input: {
 					slug: WORK,
 					label: "Work Reading",
 					purpose: input.purpose,
-					emailDelivery: input.emailDelivery ?? "links",
 				},
 				inboxes: input.inboxes,
 				readlists: [
@@ -78,13 +75,23 @@ function rowSummaries(doc: Document) {
 		name: found.querySelector("[data-test-inbox-name]")?.textContent,
 		address: found.querySelector("[data-test-inbox-address]")?.textContent,
 		destination: found.querySelector("[data-test-inbox-destination]")?.textContent,
-		button: found.querySelector("button")?.textContent,
+		routed: found.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked,
 	}));
 }
 
-function formFields(form: Element): Record<string, string | null> {
+function descriptionLines(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll("[data-test-inboxes-description]"), (line) => line.textContent);
+}
+
+function routeCheckbox(found: Element): HTMLInputElement {
+	const checkbox = found.querySelector<HTMLInputElement>('input[type="checkbox"]');
+	assert(checkbox, "every row must carry its Send to this readlist checkbox");
+	return checkbox;
+}
+
+function hiddenFields(form: Element): Record<string, string | null> {
 	return Object.fromEntries(
-		Array.from(form.querySelectorAll("input"), (input) => [
+		Array.from(form.querySelectorAll('input[type="hidden"]'), (input) => [
 			input.getAttribute("name"),
 			input.getAttribute("value"),
 		]),
@@ -92,7 +99,7 @@ function formFields(form: Element): Record<string, string | null> {
 }
 
 describe("buildReadlistInboxes", () => {
-	it("says where each inbox's newsletters go now, and offers the one move that changes it", () => {
+	it("says where each inbox's newsletters go now, ticking the ones sent here", () => {
 		const doc = renderInboxes({
 			inboxes: [
 				inbox({ name: "news", token: "a7b2c9", readlist: WORK }),
@@ -107,25 +114,25 @@ describe("buildReadlistInboxes", () => {
 				name: "deals",
 				address: "deals-c9d4e1@read.place",
 				destination: "Saves to All",
-				button: "Send here ('Work Reading' readlist)",
+				routed: false,
 			},
 			{
 				name: "news",
 				address: "news-a7b2c9@read.place",
 				destination: "Saves to All and Work Reading",
-				button: "Stop sending emails from 'news' inbox to this readlist",
+				routed: true,
 			},
 			{
 				name: "old",
 				address: "old-d0e5f2@read.place",
 				destination: "Saves to All",
-				button: "Send here ('Work Reading' readlist)",
+				routed: false,
 			},
 			{
 				name: "tech",
 				address: "tech-b8c3d0@read.place",
 				destination: "Saves to All and Later",
-				button: "Send here ('Work Reading' readlist)",
+				routed: false,
 			},
 		]);
 	});
@@ -177,143 +184,82 @@ describe("buildReadlistInboxes", () => {
 		]);
 	});
 
-	it("posts an inbox coming here back to All, tagged as taking it away", () => {
+	it("posts an inbox coming here back to All on untick, tagged as taking it away", () => {
 		const doc = renderInboxes({ inboxes: [inbox({ name: "news", token: "a7b2c9", readlist: WORK })] });
-		const form = row(doc, "news-a7b2c9@read.place").querySelector("form");
+		const found = row(doc, "news-a7b2c9@read.place");
+		const form = found.querySelector("form");
 		assert(form, "every row must carry its routing form");
 
 		expect(form.getAttribute("method")).toBe("POST");
 		expect(form.getAttribute("action")).toBe(
 			`/queue/queues/${WORK}/preferences/inboxes?utm_source=queue-preferences&utm_medium=internal&utm_content=unroute-inbox`,
 		);
-		expect(formFields(form)).toEqual({
-			address: "news-a7b2c9@read.place",
-			destination: "default",
-		});
+		expect(hiddenFields(form)).toEqual({ address: "news-a7b2c9@read.place" });
+		expect(routeCheckbox(found).checked).toBe(true);
 	});
 
-	it("posts any other inbox to this readlist, tagged as bringing it here", () => {
+	it("posts any other inbox to this readlist on tick, tagged as bringing it here", () => {
 		const doc = renderInboxes({ inboxes: [inbox({ name: "tech", token: "b8c3d0", readlist: LATER })] });
-		const form = row(doc, "tech-b8c3d0@read.place").querySelector("form");
+		const found = row(doc, "tech-b8c3d0@read.place");
+		const form = found.querySelector("form");
 		assert(form, "every row must carry its routing form");
 
 		expect(form.getAttribute("action")).toBe(
 			`/queue/queues/${WORK}/preferences/inboxes?utm_source=queue-preferences&utm_medium=internal&utm_content=route-inbox`,
 		);
-		expect(formFields(form)).toEqual({ address: "tech-b8c3d0@read.place", destination: WORK });
+		expect(hiddenFields(form)).toEqual({ address: "tech-b8c3d0@read.place" });
+		expect(routeCheckbox(found)).toMatchObject({ name: "send_here", value: "1", checked: false });
 	});
 
-	it("drops the feature from the routing form when the reader never asked for it", () => {
-		const doc = renderInboxes({
-			inboxes: [inbox({ name: "news", token: "a7b2c9" })],
-		});
+	it("submits the row the moment its checkbox changes, keeping a Save button for readers without scripts", () => {
+		const doc = renderInboxes({ inboxes: [inbox({ name: "news", token: "a7b2c9" })] });
+		const found = row(doc, "news-a7b2c9@read.place");
+		const checkbox = routeCheckbox(found);
 
-		expect(
-			row(doc, "news-a7b2c9@read.place").querySelector("form")?.getAttribute("action"),
-		).toBe(
-			`/queue/queues/${WORK}/preferences/inboxes?utm_source=queue-preferences&utm_medium=internal&utm_content=route-inbox`,
-		);
+		expect(checkbox.getAttribute("onclick")).toBe("this.form.requestSubmit()");
+		expect(checkbox.id).toBe("readlist-inbox-news-a7b2c9@read.place");
+		expect(checkbox.closest("label")?.textContent?.trim()).toBe("Send to this readlist");
+		expect(found.querySelector("noscript")?.innerHTML).toContain("Save");
 	});
 
-	it("names each routing button's inbox for assistive technology", () => {
+	it("names each routing checkbox's inbox for assistive technology", () => {
 		const doc = renderInboxes({
 			inboxes: [inbox({ name: "news", token: "a7b2c9" }), inbox({ name: "tech", token: "b8c3d0" })],
 		});
 
-		const described = Array.from(doc.querySelectorAll("[data-test-preferences-inbox] button"), (button) =>
-			doc.getElementById(button.getAttribute("aria-describedby") ?? "")?.textContent,
+		const described = Array.from(
+			doc.querySelectorAll('[data-test-preferences-inbox] input[type="checkbox"]'),
+			(checkbox) => doc.getElementById(checkbox.getAttribute("aria-describedby") ?? "")?.textContent,
 		);
 		expect(described).toEqual(["news", "tech"]);
 	});
 
-	it("says a custom email sent here saves the articles each email links to into All and here", () => {
+	it("says a custom email sent here saves every article it links to into All and here", () => {
 		const doc = renderInboxes({ inboxes: [] });
 
-		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and the articles each email links to are saved to All and Work Reading.",
-		);
+		expect(descriptionLines(doc)).toEqual([
+			"Send a custom email here and every article each email links to is saved to 'All' and 'Work Reading'.",
+		]);
+		expect(doc.querySelector("[data-test-email-delivery-label]")?.textContent).toBe("The articles it links to");
 	});
 
-	it("adds that only links fitting the purpose are kept once the readlist has one", () => {
+	it("adds that only the articles matching the purpose are saved here once the readlist has one", () => {
 		const doc = renderInboxes({ inboxes: [], purpose: "Essays on how teams ship." });
 
-		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and every article each email links to is saved to All. The ones that fit are also saved to Work Reading.",
-		);
-	});
-
-	it("says each email is saved as one article to All and here when the readlist saves the email itself", () => {
-		const doc = renderInboxes({ inboxes: [], emailDelivery: "issue" });
-
-		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and each email is saved as one article to All and Work Reading.",
-		);
-	});
-
-	it("keeps saving the email itself to here whatever the purpose, since the email skips the fit check", () => {
-		const doc = renderInboxes({ inboxes: [], emailDelivery: "issue", purpose: "Essays on how teams ship." });
-
-		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and each email is saved as one article to All and Work Reading.",
-		);
-	});
-
-	it("says each email and the articles it links to are saved to All and here when the readlist saves both", () => {
-		const doc = renderInboxes({ inboxes: [], emailDelivery: "both" });
-
-		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and each email is saved as one article, with the articles it links to, to All and Work Reading.",
-		);
-	});
-
-	it("adds that only linked articles that fit join the email here when the readlist saves both and has a purpose", () => {
-		const doc = renderInboxes({ inboxes: [], emailDelivery: "both", purpose: "Essays on how teams ship." });
-
-		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and each email is saved as one article to All and Work Reading, and the articles it links to are saved to All, with the ones that fit also saved to Work Reading.",
-		);
-	});
-
-	it("posts the email delivery choice to this readlist's preferences, tagged as setting it", () => {
-		const doc = renderInboxes({ inboxes: [] });
-		const form = doc.querySelector("[data-test-readlist-email-delivery]");
-		assert(form, "the email delivery form must render even with no custom emails");
-
-		expect(form.getAttribute("method")).toBe("POST");
-		expect(form.getAttribute("action")).toBe(
-			`/queue/queues/${WORK}/preferences/email-delivery?utm_source=queue-preferences&utm_medium=internal&utm_content=set-email-delivery`,
-		);
-	});
-
-	it("offers the email itself, the articles it links to, and both, checking the readlist's choice", () => {
-		const doc = renderInboxes({ inboxes: [inbox({ name: "news", token: "a7b2c9" })], emailDelivery: "both" });
-
-		const options = Array.from(doc.querySelectorAll<HTMLInputElement>("[data-test-email-delivery-option]"), (radio) => ({
-			value: radio.value,
-			name: radio.name,
-			checked: radio.checked,
-			text: radio.closest("label")?.textContent?.trim(),
-		}));
-		expect(options).toEqual([
-			{
-				value: "issue",
-				name: "delivery",
-				checked: false,
-				text: "The email itselfEach email lands in your readlist as one article. Save the links you want while you read it.",
-			},
-			{
-				value: "links",
-				name: "delivery",
-				checked: false,
-				text: "The articles it links toThe articles each email links to are saved one by one. The email stays on its inbox page.",
-			},
-			{
-				value: "both",
-				name: "delivery",
-				checked: true,
-				text: "BothEach email lands as an article, and the articles it links to are saved beside it.",
-			},
+		expect(descriptionLines(doc)).toEqual([
+			"Send a custom email here and every article each email links to is saved to 'All'.",
+			"Only the ones who match your preferences will be saved to 'Work Reading'",
 		]);
+		expect(doc.querySelector("[data-test-email-delivery-label]")?.textContent).toBe(
+			"The articles it links to that matches this readlist preferences",
+		);
+	});
+
+	it("names the section Readlist inbox emails and anchors it for the save redirect", () => {
+		const doc = renderInboxes({ inboxes: [] });
+
+		expect(section(doc).id).toBe("readlist-inboxes");
+		expect(doc.getElementById("readlist-inboxes-title")?.textContent).toBe("Readlist inbox emails");
 	});
 
 	it("shows the empty state, with a tracked way to create an inbox, when the reader has none", () => {
@@ -323,7 +269,7 @@ describe("buildReadlistInboxes", () => {
 
 		expect(section(doc).getAttribute("data-test-inboxes-state")).toBe("empty");
 		expect(section(doc).classList.contains("readlist-inboxes--empty")).toBe(true);
-		expect(create.textContent).toBe("Create a custom email");
+		expect(create.textContent).toBe("Create a readlist inbox email");
 		expect(create.getAttribute("href")).toBe(
 			"/newsletters/custom-emails?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox",
 		);
@@ -334,7 +280,7 @@ describe("buildReadlistInboxes", () => {
 		const manage = doc.querySelector('[data-test-action="manage-inboxes"]');
 		assert(manage, "the listed state must offer to manage custom emails");
 
-		expect(manage.textContent).toBe("Manage custom emails");
+		expect(manage.textContent).toBe("Manage readlist inbox emails");
 		expect(manage.getAttribute("href")).toBe(
 			"/newsletters/custom-emails?utm_source=queue-preferences&utm_medium=internal&utm_content=manage-inboxes",
 		);

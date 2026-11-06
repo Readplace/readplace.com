@@ -31,6 +31,7 @@ export interface GmailSenderResultsView {
 	resultsMessage: string;
 	refineSearch: boolean;
 	options: readonly GmailSenderOption[];
+	formaction?: string;
 }
 
 export interface GmailSenderWidgetViewModel {

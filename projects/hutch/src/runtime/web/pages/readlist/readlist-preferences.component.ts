@@ -1,12 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { EmailDeliveryMode, InboxAddressEntry } from "@packages/domain/inbox";
+import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import {
 	CONFIRM_POPOVER_STYLES,
 	render,
 	renderAlert,
 	renderIllustration,
+	renderToast,
 } from "@packages/web-shell";
 import type { AlertContent, CspNonce, PageBody } from "@packages/web-shell";
 
@@ -15,6 +16,7 @@ import { type UpgradeOffer, renderedLockFor, standingOf } from "../../shared/upg
 import { WIZARD_STYLES, type WizardRender } from "../../shared/wizard/wizard.component";
 import { GMAIL_SENDER_WIDGET_STYLES } from "../integrations/gmail.styles";
 import { readlistAlertFor } from "./readlist-alerts";
+import { STATUS_TOAST_DISMISS_MS } from "./readlist-mutation-fragments";
 import { type ReadlistFitChoices, renderReadlistFitChoices } from "./readlist-fit-choices.component";
 import { READLIST_GMAIL_SENDERS_STYLES, renderReadlistGmailSenders } from "./readlist-gmail-senders.component";
 import type { ReadlistGmailSendersViewModel } from "./readlist-gmail-senders.viewmodel";
@@ -128,7 +130,7 @@ const PANEL_CONTROLS: Record<PurposeState | "needs-upgrade" | "withheld", (input
 };
 
 export interface ReadlistPreferencesViewModel {
-	readlist: { slug: ReadlistSlug; label: string; purpose?: string; emailDelivery: EmailDeliveryMode };
+	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
 	rail: ReadlistRailViewModel;
 	values: Partial<ReadlistPreferencesWizardViewModel>;
 	wizardOpen: boolean;
@@ -136,6 +138,7 @@ export interface ReadlistPreferencesViewModel {
 	inboxes: readonly InboxAddressEntry[];
 	choices: ReadlistFitChoices;
 	alert?: AlertContent;
+	saved: boolean;
 	gmailSenders: ReadlistGmailSendersViewModel | undefined;
 	accessIsReadOnly: boolean;
 	subscriptionBanner: SubscriptionBannerState;
@@ -204,6 +207,9 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			readlist: vm.readlist,
 			choices: vm.choices,
 		}),
+		statusToastHtml: vm.saved
+			? renderToast({ message: "Preferences saved", dismissMs: STATUS_TOAST_DISMISS_MS, actions: [] })
+			: "",
 		subscriptionHtml: side.subscriptionHtml,
 		onboardingHtml: side.onboardingHtml,
 		readlistRenamesHtml: panels.renames,

@@ -1,20 +1,14 @@
-<section class="readlist-listing readlist-inboxes {{sectionClass}}" aria-labelledby="readlist-inboxes-title" data-test-readlist-inboxes data-test-inboxes-state="{{state}}">
+<section class="readlist-listing readlist-inboxes {{sectionClass}}" id="{{sectionId}}" aria-labelledby="readlist-inboxes-title" data-test-readlist-inboxes data-test-inboxes-state="{{state}}">
   <header class="readlist-inboxes__header">
-    <h2 class="readlist-inboxes__title" id="readlist-inboxes-title">Custom emails</h2>
-    <p class="readlist-inboxes__lede" data-test-inboxes-description>{{description}}</p>
+    <h2 class="readlist-inboxes__title" id="readlist-inboxes-title">Readlist inbox emails</h2>
+    {{#each descriptionLines}}
+    <p class="readlist-inboxes__lede" data-test-inboxes-description>{{this}}</p>
+    {{/each}}
   </header>
-  <form class="readlist-inboxes__delivery" method="POST" action="{{deliveryAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-readlist-email-delivery>
-    <fieldset class="readlist-inboxes__delivery-fieldset">
-      <legend class="form-field__label readlist-inboxes__delivery-legend">What to save from each email</legend>
-      {{#each deliveryOptions}}
-      <label class="readlist-inboxes__delivery-option">
-        <input id="readlist-email-delivery-{{value}}" class="readlist-inboxes__delivery-radio" type="radio" name="delivery" value="{{value}}"{{#if checked}} checked{{/if}} data-test-email-delivery-option="{{value}}">
-        <span class="readlist-inboxes__delivery-text"><span class="readlist-inboxes__delivery-label">{{label}}</span><span class="readlist-inboxes__delivery-description">{{description}}</span></span>
-      </label>
-      {{/each}}
-    </fieldset>
-    <button class="btn btn--secondary btn--m" type="submit" data-test-action="set-email-delivery">Save</button>
-  </form>
+  <div class="readlist-inboxes__delivery" data-test-readlist-email-delivery>
+    <p class="readlist-inboxes__delivery-label" data-test-email-delivery-label>{{deliveryLabel}}</p>
+    <p class="readlist-inboxes__delivery-description">The articles each email links to are saved one by one. The email stays on its inbox page.</p>
+  </div>
   <ul class="readlist-inboxes__list">
     {{#each rows}}
     <li class="readlist-inboxes__row" data-test-preferences-inbox="{{address}}" data-test-inbox-routing="{{routing}}">
@@ -23,17 +17,20 @@
       <p class="readlist-inboxes__destination" data-test-inbox-destination>{{destinationText}}</p>
       <form class="readlist-inboxes__form" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
         <input type="hidden" name="address" value="{{address}}">
-        <input type="hidden" name="destination" value="{{destination}}">
-        <button class="btn btn--secondary btn--m" type="submit" aria-describedby="{{nameId}}" data-test-action="{{testAction}}">{{submitLabel}}</button>
+        <label class="readlist-inboxes__route" for="readlist-inbox-{{address}}">
+          <input class="readlist-inboxes__route-checkbox" id="readlist-inbox-{{address}}" type="checkbox" name="send_here" value="1"{{#if routedHere}} checked{{/if}} onclick="this.form.requestSubmit()" aria-describedby="{{nameId}}" data-test-action="{{testAction}}">
+          Send to this readlist
+        </label>
+        <noscript><button class="btn btn--secondary btn--m" type="submit" aria-describedby="{{nameId}}">Save</button></noscript>
       </form>
     </li>
     {{/each}}
   </ul>
   <div class="readlist-inboxes__manage">
-    <a class="btn btn--neutral btn--m" href="{{manageInboxesHref}}" data-test-action="manage-inboxes">Manage custom emails</a>
+    <a class="btn btn--neutral btn--m" href="{{manageInboxesHref}}" data-test-action="manage-inboxes">Manage readlist inbox emails</a>
   </div>
   <div class="readlist-inboxes__empty" data-test-inboxes-empty>
-    <h3 class="readlist-inboxes__empty-title">No custom emails yet</h3>
-    <a class="btn btn--neutral" href="{{createInboxHref}}" data-test-action="create-inbox">Create a custom email</a>
+    <h3 class="readlist-inboxes__empty-title">No readlist inbox emails yet</h3>
+    <a class="btn btn--neutral" href="{{createInboxHref}}" data-test-action="create-inbox">Create a readlist inbox email</a>
   </div>
 </section>

@@ -43,7 +43,7 @@ function page(overrides: {
 	query?: Record<string, unknown>;
 }) {
 	return ReadlistPreferencesPage({
-		readlist: { slug: WORK, label: "Work Reading", purpose: overrides.purpose, emailDelivery: "links" },
+		readlist: { slug: WORK, label: "Work Reading", purpose: overrides.purpose },
 		rail: {
 			readlists: [DEFAULT_READLIST, { slug: WORK, label: "Work Reading" }, { slug: LATER, label: "Later" }],
 			activeReadlist: { slug: WORK, label: "Work Reading" },
@@ -60,6 +60,7 @@ function page(overrides: {
 		inboxes: overrides.inboxes ?? [],
 		choices: overrides.choices ?? [],
 		alert: overrides.alert,
+		saved: false,
 		gmailSenders: undefined,
 		accessIsReadOnly: overrides.accessIsReadOnly ?? false,
 		subscriptionBanner: overrides.subscriptionBanner ?? { state: "none" },

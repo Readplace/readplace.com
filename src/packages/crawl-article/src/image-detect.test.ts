@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { MAX_THUMBNAIL_BYTES } from "./extract-thumbnail";
 import { IMAGE_URL_EXTENSIONS, isSupportedImageContentType, MAX_IMAGE_BYTES } from "./image-detect";
+import { IMAGE_FORMATS } from "./image-formats";
 
 describe("isSupportedImageContentType", () => {
 	for (const contentType of [
@@ -30,6 +31,13 @@ describe("isSupportedImageContentType", () => {
 
 	it("rejects a non-image content type", () => {
 		assert.equal(isSupportedImageContentType("text/html"), false);
+	});
+
+	it("accepts every content type the shared format registry names", () => {
+		assert.deepEqual(
+			IMAGE_FORMATS.filter((format) => !isSupportedImageContentType(format.contentType)),
+			[],
+		);
 	});
 });
 

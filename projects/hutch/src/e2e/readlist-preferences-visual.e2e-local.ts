@@ -670,23 +670,23 @@ async function inboxesListed(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function eachInboxLeadsWithItsNameAndEndsWithItsMove(page: Page): Promise<void> {
+async function eachInboxLeadsWithItsNameAndEndsWithItsRoute(page: Page): Promise<void> {
 	await inboxesSectionSitsUnderThePurposePanel(page);
 	let above = await measuredBox(page, INBOXES_DESCRIPTION);
 	for (let position = 1; position <= PINNED_INBOX_ADDRESSES.length; position++) {
 		const row = `${INBOX_ROWS}:nth-child(${position})`;
-		const [box, name, destination, move] = [
+		const [box, name, destination, route] = [
 			await measuredBox(page, row),
 			await measuredBox(page, `${row} [data-test-inbox-name]`),
 			await measuredBox(page, `${row} [data-test-inbox-destination]`),
-			await measuredBox(page, `${row} button`),
+			await measuredBox(page, `${row} .readlist-inboxes__route`),
 		];
 		assert.ok(box.y >= above.y + above.height, `inbox ${position} must sit below what comes before it`);
 		assert.ok(
-			move.y >= destination.y + destination.height,
-			`inbox ${position}'s button must sit under where the inbox goes`,
+			route.y >= destination.y + destination.height,
+			`inbox ${position}'s checkbox must sit under where the inbox goes`,
 		);
-		assert.equal(move.x, name.x, `inbox ${position}'s button must line up with its name`);
+		assert.equal(route.x, name.x, `inbox ${position}'s checkbox must line up with its name`);
 		above = box;
 	}
 }
@@ -698,7 +698,7 @@ function inboxesListedCheckpoint(input: {
 	return {
 		name: input.name,
 		settled: inboxesListed,
-		geometry: eachInboxLeadsWithItsNameAndEndsWithItsMove,
+		geometry: eachInboxLeadsWithItsNameAndEndsWithItsRoute,
 		target: INBOXES,
 		capture: "element",
 		pinnedText: input.addresses.map((address, index) => ({
@@ -746,7 +746,8 @@ const INBOX_UNAVAILABLE_LIGHT: VisualCheckpoint = {
 const GMAIL_SENDERS = "[data-test-readlist-gmail-senders]";
 const GMAIL_CONNECT = `${GMAIL_SENDERS} [data-test-action="connect-gmail"]`;
 const GMAIL_CHECKLIST_ROWS = `${GMAIL_SENDERS} [data-test-gmail-checklist-row]`;
-const GMAIL_SAVE = `${GMAIL_SENDERS} [data-test-action="save-gmail-newsletters"]`;
+const GMAIL_AUTOSAVE = `${GMAIL_SENDERS} [data-gmail-autosave]`;
+const STATUS_TOAST_MESSAGE = "#status-toast [data-test-toast-message]";
 
 async function gmailSendersIn(page: Page, state: "connect" | "picker"): Promise<void> {
 	await expect(page.locator(GMAIL_SENDERS)).toHaveAttribute("data-test-gmail-senders-state", state);
@@ -762,7 +763,7 @@ async function gmailPickerListed(page: Page): Promise<void> {
 	await gmailSendersIn(page, "picker");
 	await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 	await expect(page.locator(GMAIL_CHECKLIST_ROWS)).toHaveCount(2);
-	await expect(page.locator(GMAIL_SAVE)).toBeVisible();
+	await expect(page.locator(GMAIL_AUTOSAVE)).toBeAttached();
 }
 
 async function gmailSendersFollowTheInboxes(page: Page): Promise<void> {
@@ -1115,5 +1116,23 @@ test.describe("Readlist preferences Gmail newsletters", () => {
 		await seedGmailSenders(page, { userId, namespace: `readlist-preferences-visual-${stamp}` });
 		await reopenPreferences(page, { slug });
 		await captureCheckpoint(page, GMAIL_PICKER_LIGHT);
+		await page.locator(`${GMAIL_SENDERS} [id="gmail-sender-dan@tldr.tech"]`).check();
+		await expect(page.locator(STATUS_TOAST_MESSAGE)).toHaveText("Preferences saved");
+	});
+
+	test("keeps both senders ticked in quick succession once the page is reopened", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const stamp = `gmail-autosave-${testInfo.workerIndex}-${Date.now()}`;
+		const { userId, slug } = await openPreferences(page, stamp);
+		await seedGmailSenders(page, { userId, namespace: `readlist-preferences-visual-${stamp}` });
+		await reopenPreferences(page, { slug });
+		await gmailPickerListed(page);
+		await page.locator(`${GMAIL_SENDERS} [id="gmail-sender-dan@tldr.tech"]`).check();
+		await page.locator(`${GMAIL_SENDERS} [id="gmail-sender-crew@morningbrew.com"]`).check();
+		await expect(page.locator(STATUS_TOAST_MESSAGE)).toHaveText("Preferences saved");
+		await reopenPreferences(page, { slug });
+		await gmailPickerListed(page);
+		await expect(page.locator(`${GMAIL_SENDERS} [id="gmail-sender-dan@tldr.tech"]`)).toBeChecked();
+		await expect(page.locator(`${GMAIL_SENDERS} [id="gmail-sender-crew@morningbrew.com"]`)).toBeChecked();
 	});
 });
