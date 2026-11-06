@@ -28,16 +28,21 @@
   text-wrap: pretty;
 }
 
-.readlist-preferences__menu {
-  margin: -6px -6px 0 0;
+.readlist-preferences__edit {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: start;
 }
 
-.readlist-preferences__menu-trigger {
+.readlist-preferences__pencil {
   display: none;
-}
-
-.readlist-preferences__menu-fallback {
-  display: block;
+  color: var(--muted-foreground);
 }
 
 .readlist-preferences__fallback {
@@ -49,12 +54,25 @@
     display: block;
   }
 
-  .readlist-preferences__menu-trigger {
-    display: flex;
+  .readlist-preferences__edit {
+    cursor: pointer;
   }
 
-  .readlist-preferences__menu-fallback {
-    display: none;
+  .readlist-preferences__edit:hover {
+    background: var(--muted);
+  }
+
+  .readlist-preferences__edit:hover .readlist-preferences__pencil {
+    color: var(--foreground);
+  }
+
+  .readlist-preferences__edit:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  .readlist-preferences__pencil {
+    display: flex;
   }
 
   .readlist-preferences .readlist-preferences__fallback {

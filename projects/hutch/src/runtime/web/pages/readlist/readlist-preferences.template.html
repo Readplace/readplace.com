@@ -24,37 +24,20 @@
                   {{/each}}
                 </div>
               </div>
+              {{#each editControls}}
+              <button class="readlist-preferences__set readlist-preferences__edit" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="readlist-preferences-edit">
+                <span class="readlist-preferences__purpose" data-test-preferences-purpose>{{../purposeText}}</span>
+                <span class="readlist-preferences__pencil">{{icon "pencil"}}</span>
+                <span class="sr-only">Edit purpose</span>
+              </button>
+              {{else}}
               <div class="readlist-preferences__set">
                 <p class="readlist-preferences__purpose" data-test-preferences-purpose>{{purposeText}}</p>
-                {{#each menus}}
-                <details class="menu readlist-preferences__menu" data-test-preferences-menu>
-                  <summary class="menu__toggle" data-test-action="readlist-preferences-menu">{{icon "ellipsis"}}<span class="sr-only">More options for this purpose</span></summary>
-                  <div class="menu__panel">
-                    {{#each triggers}}
-                    <button class="menu__item readlist-preferences__menu-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="{{testAction}}">{{icon iconName}}<span>{{text}}</span></button>
-                    {{/each}}
-                    {{#each actions}}
-                    <form class="readlist-preferences__menu-fallback" method="POST" action="{{url}}" hx-boost="false">
-                      <button class="menu__item" type="submit" data-test-action="{{testAction}}">{{icon iconName}}<span>{{text}}</span></button>
-                    </form>
-                    {{/each}}
-                  </div>
-                </details>
-                {{/each}}
-                {{#each lockedMenus}}
-                <details class="menu readlist-preferences__menu" data-test-preferences-menu data-test-menu-standing="locked">
-                  <summary class="menu__toggle" data-test-action="readlist-preferences-menu">
-                    {{icon "ellipsis"}}
-                    <span class="sr-only">More options for this purpose</span>
-                  </summary>
-                  <div class="menu__panel">
-                    {{#each menuLocks}}
-                    {{{this}}}
-                    {{/each}}
-                  </div>
-                </details>
+                {{#each purposeLocks}}
+                {{{this}}}
                 {{/each}}
               </div>
+              {{/each}}
               {{#each inlineWizards}}
               <div class="readlist-preferences__fallback">
                 {{{this}}}
@@ -75,5 +58,4 @@
       {{{readlistCreateHtml}}}
       {{{readlistDeleteConfirmHtml}}}
       {{{wizardPopoverHtml}}}
-      {{{purposeDeleteConfirmHtml}}}
     </main>

@@ -224,7 +224,6 @@ export function initReadlistPreferencesRoutes(deps: {
 				"invalid-purpose": () => ({
 					refusal: `${readlistPreferencesPath(slug)}?preferences_error=invalid-purpose`,
 					form: () => {
-						const stored = definitions.find((owned) => owned.slug === slug);
 						assert(stored, "a purpose is refused only for a readlist the reader owns");
 						return renderReadlistPurposeWizard({
 							readlist: stored,
@@ -234,6 +233,15 @@ export function initReadlistPreferencesRoutes(deps: {
 					},
 				}),
 			};
+
+			const stored = definitions.find((owned) => owned.slug === slug);
+			if (typed.trim() === "" && stored?.purpose !== undefined) {
+				const clearing = decideReadlistPurposeClear({ slug, readlists: readerReadlists(definitions) });
+				assert(clearing.ok, "a readlist with a purpose is one the reader owns");
+				const { cleared } = await deps.clearReadlistDefinitionPurpose({ userId, slug: clearing.slug });
+				answer(cleared ? { landing: readlistPreferencesPath(clearing.slug), scroll: "stay-put" } : unknownReadlistNaming);
+				return;
+			}
 
 			const decision = decideReadlistPurpose({
 				slug,
@@ -255,39 +263,6 @@ export function initReadlistPreferencesRoutes(deps: {
 				return;
 			}
 			answer({ landing: readlistPreferencesPath(decision.slug), scroll: "stay-put" });
-		},
-	);
-
-	router.post(
-		"/queues/:slug/preferences/purpose/delete",
-		requireNotLocked,
-		deps.requireWriteAccess,
-		async (req: Request, res: Response) => {
-			assert(req.userId, "userId required - route must be protected by requireAuth");
-			const userId = req.userId;
-			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
-			if (!requested.success) {
-				unknownReadlist(res);
-				return;
-			}
-			const decision = decideReadlistPurposeClear({
-				slug: requested.data,
-				readlists: readerReadlists(await deps.listReadlistDefinitions(userId)),
-			});
-			if (!decision.ok) {
-				unknownReadlist(res);
-				return;
-			}
-
-			const { cleared } = await deps.clearReadlistDefinitionPurpose({ userId, slug: decision.slug });
-			if (!cleared) {
-				unknownReadlist(res);
-				return;
-			}
-			res.redirect(
-				303,
-				readlistPreferencesPath(decision.slug),
-			);
 		},
 	);
 

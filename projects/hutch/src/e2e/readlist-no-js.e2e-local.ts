@@ -342,7 +342,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		}
 	});
 
-	test("a purpose is set and deleted as plain form submits", async ({ page }, testInfo) => {
+	test("a purpose is set, then removed by saving it empty, as plain form submits", async ({ page }, testInfo) => {
 		const email = await seedArticle(page, `${testInfo.workerIndex}-${Date.now()}-purpose`);
 		await loginAs(page, email);
 		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Weekend" } });
@@ -364,13 +364,12 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		await expect(preferences).toHaveAttribute("data-test-preferences-state", "set", { timeout: SETTLE_MS });
 		await expect(page.locator("[data-test-preferences-purpose]")).toHaveText("Essays on how teams ship software.");
 
-		await page.locator('[data-test-action="readlist-preferences-menu"]').click();
-		await page.locator('[data-test-action="readlist-preferences-delete"]').click();
-		const confirm = page.locator('[data-test-confirm-popover="readlist-purpose-delete"]');
-		await expect(confirm).toBeVisible();
+		await page.locator("[data-test-preferences-purpose]").click();
+		await expect(wizard).toBeVisible();
+		await wizard.locator('[data-test-field="purpose"]').fill("");
 		await Promise.all([
 			page.waitForNavigation({ waitUntil: "domcontentloaded" }),
-			confirm.locator('[data-test-action="readlist-purpose-delete-confirm"]').click(),
+			wizard.locator('[data-test-action="readlist-preferences-save"]').click(),
 		]);
 		await expect(preferences).toHaveAttribute("data-test-preferences-state", "unset", { timeout: SETTLE_MS });
 		await expect(page.locator('[data-test-confirm-popover="readlist-preferences"] [data-test-field="purpose"]')).toHaveValue("");

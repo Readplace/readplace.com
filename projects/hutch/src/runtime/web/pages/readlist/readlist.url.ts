@@ -162,10 +162,6 @@ export function readlistPreferencesEmailDeliveryPath(readlist: ReadlistSlug): st
 	return `${readlistPreferencesPath(readlist)}/email-delivery`;
 }
 
-export function readlistPurposeDeletePath(readlist: ReadlistSlug): string {
-	return `${readlistPreferencesPath(readlist)}/purpose/delete`;
-}
-
 export function readlistFitOverrideDeletePath(readlist: ReadlistSlug, id: ReadlistFitOverrideId): string {
 	return `${readlistPreferencesPath(readlist)}/overrides/${encodeURIComponent(id)}/delete`;
 }

@@ -2,7 +2,7 @@ export interface ReadlistDeps {
 	document: Document;
 }
 
-const MENU_SELECTOR = ".readlist-nav__menu, .readlist-article__menu, .readlist-preferences__menu";
+const MENU_SELECTOR = ".readlist-nav__menu, .readlist-article__menu";
 const NAME_FORM_SELECTOR = "form[data-readlist-name-form]";
 const NAME_FORM = { errorAttr: "data-readlist-name-error", failureAttr: "data-readlist-name-failure" };
 const SAVE_LINK_FORM_SELECTOR = "form[data-save-link-form]";

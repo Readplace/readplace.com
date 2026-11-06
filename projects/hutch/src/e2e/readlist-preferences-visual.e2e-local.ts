@@ -52,24 +52,14 @@ const INLINE_FIELD = `${INLINE} [data-test-field="purpose"]`;
 const INLINE_ERROR = `${INLINE} [data-test-wizard-error]`;
 const INLINE_SAVE = `${INLINE} [data-test-action="readlist-preferences-save-fallback"]`;
 const INLINE_CANCEL = `${INLINE} [data-test-action="readlist-preferences-cancel-fallback"]`;
-const DELETE_PANEL = '[data-test-confirm-popover="readlist-purpose-delete"]';
-const DELETE_HEADER = `${DELETE_PANEL} .confirm-popover__header`;
-const DELETE_TITLE = `${DELETE_PANEL} .confirm-popover__title`;
-const DELETE_BODY = `${DELETE_PANEL} .confirm-popover__body`;
-const DELETE_CANCEL = `${DELETE_PANEL} [data-test-action="readlist-purpose-delete-cancel"]`;
-const DELETE_COMMIT = `${DELETE_PANEL} [data-test-action="readlist-purpose-delete-confirm"]`;
 const PREFERENCES = "[data-test-readlist-preferences]";
 const PREFERENCES_TAB = '[data-test-filter="preferences"]';
 const SETUP_TRIGGER = '[data-test-action="readlist-preferences-setup"]';
 const UNSET_CARD = "[data-test-preferences-empty]";
 const UNSET_ART = `${UNSET_CARD} [data-test-illustration="book-lightbulb"]`;
 const UNSET_TEXT = `${UNSET_CARD} .readlist-empty__text`;
-const MENU = "[data-test-preferences-menu]";
-const MENU_TOGGLE = '[data-test-action="readlist-preferences-menu"]';
-const MENU_GLYPH = `${MENU_TOGGLE} svg`;
-const MENU_PANEL = `${MENU} .menu__panel`;
 const EDIT_TRIGGER = '[data-test-action="readlist-preferences-edit"]';
-const DELETE_TRIGGER = '[data-test-action="readlist-preferences-delete"]';
+const PENCIL = `${EDIT_TRIGGER} .readlist-preferences__pencil svg`;
 const PURPOSE_TEXT = "[data-test-preferences-purpose]";
 const INBOXES = "[data-test-readlist-inboxes]";
 const INBOX_ROWS = "[data-test-preferences-inbox]";
@@ -222,37 +212,19 @@ async function purposeShown(page: Page): Promise<void> {
 	await page.mouse.move(0, 0);
 }
 
-async function openPurposeMenu(page: Page): Promise<void> {
-	await page.click(MENU_TOGGLE);
-	await expect(page.locator(MENU)).toHaveAttribute("open", "");
-	await expect(page.locator(EDIT_TRIGGER)).toBeVisible();
-	await expect(page.locator(DELETE_TRIGGER)).toBeVisible();
-}
-
-async function menuOpenSettled(page: Page): Promise<void> {
+async function editFocusedSettled(page: Page): Promise<void> {
 	await purposeShown(page);
 	await expect(page.locator(SETUP_GUIDE)).toBeVisible();
 	await page.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
-	await openPurposeMenu(page);
+	await page.locator(EDIT_TRIGGER).focus();
 	await page.mouse.move(0, 0);
 }
 
 async function editDialogOpen(page: Page): Promise<void> {
 	await purposeShown(page);
-	await openPurposeMenu(page);
 	await page.click(EDIT_TRIGGER);
 	await wizardOpen(page);
 	await expect(page.locator(PANEL_FIELD)).toHaveValue(PURPOSE);
-	await page.mouse.move(0, 0);
-}
-
-async function deleteConfirmOpen(page: Page): Promise<void> {
-	await purposeShown(page);
-	await openPurposeMenu(page);
-	await page.click(DELETE_TRIGGER);
-	await page.waitForSelector(`${DELETE_PANEL}:popover-open`);
-	await expect(page.locator(`${DELETE_PANEL} [data-test-action="readlist-purpose-delete-confirm"]`)).toBeFocused();
-	await waitForBrandFonts(page, ["Inter"]);
 	await page.mouse.move(0, 0);
 }
 
@@ -357,19 +329,6 @@ async function editTitlesTheTaskAboveTheQuestion(page: Page): Promise<void> {
 	await questionLeadsTheFieldThenTheChoiceRow(page);
 }
 
-async function deleteAsksThenOffersTheChoiceRow(page: Page): Promise<void> {
-	const panel = await measuredBox(page, DELETE_PANEL);
-	assert.ok(near({ actual: panel.width, expected: 600, within: 1 }), `the dialog must be 600px wide, measured ${panel.width}px`);
-	await headerHoldsOnlyTheTitle(page, DELETE_HEADER);
-	const [body, cancel] = [await measuredBox(page, DELETE_BODY), await measuredBox(page, DELETE_CANCEL)];
-	stackedInOrder([
-		["question", await measuredBox(page, DELETE_TITLE)],
-		["consequence", body],
-		["choices", cancel],
-	]);
-	await choiceRowEndsAtTheField(page, { cancel: DELETE_CANCEL, save: DELETE_COMMIT, field: DELETE_BODY });
-}
-
 async function errorRowStaysOneLine(page: Page): Promise<void> {
 	await choiceRowEndsAtTheField(page, { cancel: INLINE_CANCEL, save: INLINE_SAVE, field: INLINE_FIELD });
 }
@@ -425,7 +384,7 @@ async function purposeCardSitsUnderTheTabs(page: Page): Promise<void> {
 		await measuredBox(page, PREFERENCES),
 		await measuredBox(page, INBOXES),
 		await measuredBox(page, PURPOSE_TEXT),
-		await measuredBox(page, MENU_GLYPH),
+		await measuredBox(page, PENCIL),
 	];
 	assert.ok(
 		near({ actual: tabs.y - main.y, expected: 0, within: 1 }),
@@ -445,11 +404,11 @@ async function purposeCardSitsUnderTheTabs(page: Page): Promise<void> {
 	);
 	assert.ok(
 		near({ actual: panel.x + panel.width - (glyph.x + glyph.width), expected: 25, within: 1 }),
-		`the kebab must end 25px inside the card's right edge, measured ${panel.x + panel.width - (glyph.x + glyph.width)}px`,
+		`the pencil must end 25px inside the card's right edge, measured ${panel.x + panel.width - (glyph.x + glyph.width)}px`,
 	);
 	assert.ok(
 		near({ actual: glyph.y - panel.y, expected: 25, within: 1 }),
-		`the kebab must sit 25px inside the card's top edge, measured ${glyph.y - panel.y}px`,
+		`the pencil must sit 25px inside the card's top edge, measured ${glyph.y - panel.y}px`,
 	);
 }
 
@@ -479,23 +438,14 @@ async function pageFitsTheClip(page: Page): Promise<void> {
 	);
 }
 
-async function menuOpensUnderItsKebab(page: Page): Promise<void> {
+async function editShowsItsFocusRing(page: Page): Promise<void> {
 	await railBesideMainBesideSide(page);
 	await pageFitsTheClip(page);
-	const [toggle, panel, edit, remove] = [
-		await measuredBox(page, MENU_TOGGLE),
-		await measuredBox(page, MENU_PANEL),
-		await measuredBox(page, EDIT_TRIGGER),
-		await measuredBox(page, DELETE_TRIGGER),
-	];
-	assert.ok(
-		near({ actual: panel.x + panel.width, expected: toggle.x + toggle.width, within: 1 }),
-		`the menu must end at its kebab's right edge, measured ${panel.x + panel.width}px and ${toggle.x + toggle.width}px`,
-	);
-	assert.ok(panel.y >= toggle.y + toggle.height, "the menu must open below its kebab");
-	for (const [name, item] of [["Edit", edit], ["Delete", remove]] as const) {
-		assert.ok(near({ actual: item.height, expected: 44, within: 0.5 }), `${name} must be a 44px row, measured ${item.height}px`);
-	}
+	const ring = await page.locator(EDIT_TRIGGER).evaluate((edit) => ({
+		focusVisible: edit.matches(":focus-visible"),
+		outline: getComputedStyle(edit).outlineWidth,
+	}));
+	assert.deepEqual(ring, { focusVisible: true, outline: "2px" }, "the focused purpose must draw its 2px focus ring")
 }
 
 async function phoneGuideSitsBetweenRailAndTabs(page: Page): Promise<void> {
@@ -555,9 +505,9 @@ const SET: Omit<VisualCheckpoint, "name"> = {
 	pinnedText: [],
 };
 
-const MENU_OPEN: Omit<VisualCheckpoint, "name"> = {
-	settled: menuOpenSettled,
-	geometry: menuOpensUnderItsKebab,
+const EDIT_FOCUSED: Omit<VisualCheckpoint, "name"> = {
+	settled: editFocusedSettled,
+	geometry: editShowsItsFocusRing,
 	target: MAIN,
 	capture: "page-from-top",
 	pinnedText: [],
@@ -575,14 +525,6 @@ const EDIT: Omit<VisualCheckpoint, "name"> = {
 	settled: editDialogOpen,
 	geometry: editTitlesTheTaskAboveTheQuestion,
 	target: PANEL,
-	capture: "element",
-	pinnedText: [],
-};
-
-const DELETE_CONFIRM: Omit<VisualCheckpoint, "name"> = {
-	settled: deleteConfirmOpen,
-	geometry: deleteAsksThenOffersTheChoiceRow,
-	target: DELETE_PANEL,
 	capture: "element",
 	pinnedText: [],
 };
@@ -851,7 +793,7 @@ test.describe("Readlist preferences panel", () => {
 			await captureCheckpoint(page, themed(WIZARD, `readlist-preferences-wizard-${theme}`));
 		});
 
-		test(`shows the saved purpose as plain text with its options menu (${theme})`, async ({ page }, testInfo) => {
+		test(`shows the saved purpose with a pencil to edit it (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			await savePurpose(page, `set-${theme}-${testInfo.workerIndex}-${Date.now()}`);
 			await captureCheckpoint(page, themed(SET, `readlist-preferences-set-${theme}`));
@@ -861,12 +803,6 @@ test.describe("Readlist preferences panel", () => {
 			await page.emulateMedia({ colorScheme: theme });
 			await openSetPreferences(page, `edit-${theme}-${testInfo.workerIndex}-${Date.now()}`);
 			await captureCheckpoint(page, themed(EDIT, `readlist-preferences-edit-${theme}`));
-		});
-
-		test(`asks before deleting the purpose (${theme})`, async ({ page }, testInfo) => {
-			await page.emulateMedia({ colorScheme: theme });
-			await openSetPreferences(page, `delete-confirm-${theme}-${testInfo.workerIndex}-${Date.now()}`);
-			await captureCheckpoint(page, themed(DELETE_CONFIRM, `readlist-preferences-delete-confirm-${theme}`));
 		});
 
 		test(`refuses a blank purpose in the dialog (${theme})`, async ({ page }, testInfo) => {
@@ -894,12 +830,10 @@ test.describe("Readlist preferences page", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
 	for (const theme of THEMES) {
-		test(`opens the purpose menu under its kebab, in the readlist's own page (${theme})`, async ({
-			page,
-		}, testInfo) => {
+		test(`rings the focused purpose, in the readlist's own page (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
-			await openSetPreferences(page, `menu-open-${theme}-${testInfo.workerIndex}-${Date.now()}`);
-			await captureCheckpoint(page, themed(MENU_OPEN, `readlist-preferences-menu-open-${theme}`));
+			await openSetPreferences(page, `edit-focused-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await captureCheckpoint(page, themed(EDIT_FOCUSED, `readlist-preferences-edit-focused-${theme}`));
 		});
 	}
 });

@@ -9,8 +9,11 @@ interface FieldState {
 
 const UNTOUCHED: FieldState = { invalid: false, autofocus: false };
 
-function purposeStepDocument({ invalid, autofocus }: FieldState): Document {
-	const [purposeStep] = READLIST_PREFERENCES_STEPS;
+function purposeStepDocument(
+	{ invalid, autofocus }: FieldState,
+	state: keyof typeof READLIST_PREFERENCES_STEPS = "unset",
+): Document {
+	const [purposeStep] = READLIST_PREFERENCES_STEPS[state];
 	const html = purposeStep.template({
 		values: { purpose: "Shipping essays." },
 		field: { idPrefix: "prefs-popover", errorId: "prefs-popover-error", invalid, autofocus },
@@ -18,15 +21,15 @@ function purposeStepDocument({ invalid, autofocus }: FieldState): Document {
 	return new JSDOM(html).window.document;
 }
 
-function purposeField(state: FieldState): Element {
-	const field = purposeStepDocument(state).querySelector('[name="purpose"]');
+function purposeField(state: FieldState, purposeState: keyof typeof READLIST_PREFERENCES_STEPS = "unset"): Element {
+	const field = purposeStepDocument(state, purposeState).querySelector('[name="purpose"]');
 	assert(field, "the purpose step must render its purpose field");
 	return field;
 }
 
 describe("READLIST_PREFERENCES_STEPS purpose step", () => {
-	it("asks what the readlist is for and says why it helps", () => {
-		const [purposeStep] = READLIST_PREFERENCES_STEPS;
+	it.each(["unset", "set"] as const)("asks what the readlist is for and says why it helps, when %s", (state) => {
+		const [purposeStep] = READLIST_PREFERENCES_STEPS[state];
 
 		expect(purposeStep.title).toBe("What's this readlist for?");
 		expect(purposeStep.description).toBe(
@@ -79,5 +82,13 @@ describe("READLIST_PREFERENCES_STEPS purpose step", () => {
 		expect(opened.hasAttribute("autofocus")).toBe(true);
 		expect(opened.hasAttribute("aria-invalid")).toBe(false);
 		expect(refused.hasAttribute("autofocus")).toBe(true);
+	});
+
+	it("requires an answer while the readlist has no purpose to remove", () => {
+		expect(purposeField(UNTOUCHED, "unset").hasAttribute("required")).toBe(true);
+	});
+
+	it("lets an existing purpose be emptied, which removes it", () => {
+		expect(purposeField(UNTOUCHED, "set").hasAttribute("required")).toBe(false);
 	});
 });

@@ -790,8 +790,6 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await page.goto(`${BASE_URL}/queue/queues/${slug}/preferences`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator(READLIST_PREFERENCES)).toHaveAttribute("data-test-preferences-state", "set");
 			await expect(page.locator(SETUP_GUIDE)).toBeVisible();
-			await page.locator('[data-test-action="readlist-preferences-menu"]').click();
-			await expect(page.locator('[data-test-preferences-menu]')).toHaveAttribute("open", "");
 			await expect(page.locator('[data-test-action="readlist-preferences-edit"]')).toBeVisible();
 			await settle(page, READLIST_LAYOUT);
 

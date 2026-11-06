@@ -51,15 +51,6 @@ function purposeDialogMarkup(): string {
 	return `${LIVE_REGION}<div id="readlist-preferences-wizard" popover data-test-dialog="purpose"><form method="POST" action="/queue/queues/work/preferences" hx-post="/queue/queues/work/preferences" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-readlist-name-form data-readlist-name-failure="Couldn't save the purpose." data-test-wizard="readlist-preferences"><div class="form-field"><label for="readlist-preferences-wizard-purpose">Readlist purpose</label><textarea id="readlist-preferences-wizard-purpose" name="purpose">Essays on how teams ship.</textarea><p data-readlist-name-error></p></div><button type="submit">Save</button></form></div>`;
 }
 
-function purposeMenuMarkup(): string {
-	return `
-		<details class="menu readlist-preferences__menu" open data-test-preferences-menu><summary class="menu__toggle" data-test-action="readlist-preferences-menu">More options for this purpose</summary><div class="menu__panel"><button class="menu__item" type="button" popovertarget="readlist-preferences-wizard">Edit</button><button class="menu__item" type="button" popovertarget="readlist-purpose-delete">Delete</button></div></details>
-		<button type="button" data-test-outside>Elsewhere</button>
-		<div id="readlist-preferences-wizard" popover data-test-dialog="purpose"><button type="button">Cancel</button></div>
-		<div id="readlist-purpose-delete" popover data-test-dialog="purpose-delete"><button type="button">Cancel</button></div>
-	`;
-}
-
 function addLinkMarkup(): string {
 	return `<main><button type="button" popovertarget="add-link" data-test-add-link-trigger>Add link</button><div id="add-link" popover data-test-dialog="add-link"><form method="POST" action="/queue/save" hx-post="/queue/save" hx-target="this" data-save-link-form data-save-link-failure="Couldn't save the link." data-test-form="save-article"><input name="url" type="url" autofocus value="https://example.com/a"><p data-save-link-error></p><button type="button" popovertarget="add-link">Cancel</button><button type="submit">Save</button></form><div id="save-tip" popover data-test-dialog="save-tip" tabindex="-1" autofocus><button type="button" popovertarget="save-tip">Continue with URL</button></div></div></main>`;
 }
@@ -149,10 +140,6 @@ function init(bodyHtml: string) {
 		cardMenu,
 		navSummary: () => element<HTMLElement>("[data-test-readlist-menu='work'] summary", "the readlist menu opens from a summary"),
 		cardSummary: () => element<HTMLElement>("[data-test-article-menu] summary", "the card menu opens from a summary"),
-		purposeMenu: () =>
-			element<HTMLDetailsElement>("[data-test-preferences-menu]", "the purpose menu must be in the document"),
-		purposeSummary: () =>
-			element<HTMLElement>("[data-test-preferences-menu] summary", "the purpose menu opens from a summary"),
 		purposeInvalid: () =>
 			element(
 				"form[data-readlist-name-form] textarea[name='purpose']",
@@ -397,22 +384,6 @@ describe("initReadlist", () => {
 
 		expect(app.errorText()).toBe("Couldn't save the purpose.");
 		expect(app.purposeInvalid()).toBe("true");
-	});
-
-	it("closes an open purpose menu when the reader clicks outside it", () => {
-		const app = init(purposeMenuMarkup());
-
-		app.clickOutside();
-
-		expect(app.purposeMenu().open).toBe(false);
-	});
-
-	it("returns focus to the purpose menu's summary when a dialog it opened closes", () => {
-		const app = init(purposeMenuMarkup());
-
-		app.closeDialog("purpose-delete");
-
-		expect(app.activeElement()).toBe(app.purposeSummary());
 	});
 
 	it("refuses to show a failure on a name form that has lost its failure text", () => {

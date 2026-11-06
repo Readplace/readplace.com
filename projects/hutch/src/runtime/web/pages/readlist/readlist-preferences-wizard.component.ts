@@ -20,20 +20,28 @@ export const READLIST_PREFERENCES_WIZARD_KEY = "readlist-preferences";
 
 const step = defineWizardStep<ReadlistPreferencesWizardViewModel>();
 
-export const READLIST_PREFERENCES_STEPS: WizardSteps<ReadlistPreferencesWizardViewModel> = [
-	step({
-		id: "purpose",
-		title: "What's this readlist for?",
-		description: "Describe what you want to save here. This helps keep your readlist focused.",
-		viewModel: ["purpose"],
-		template: ({ values, field }) =>
-			render(PURPOSE_STEP_TEMPLATE, {
-				purpose: values.purpose ?? "",
-				fieldId: `${field.idPrefix}-purpose`,
-				errorId: field.errorId,
-				invalid: field.invalid,
-				autofocus: field.autofocus,
-				maxLength: READLIST_PURPOSE_MAX_LENGTH,
-			}),
-	}),
-];
+function purposeSteps({ required }: { required: boolean }): WizardSteps<ReadlistPreferencesWizardViewModel> {
+	return [
+		step({
+			id: "purpose",
+			title: "What's this readlist for?",
+			description: "Describe what you want to save here. This helps keep your readlist focused.",
+			viewModel: ["purpose"],
+			template: ({ values, field }) =>
+				render(PURPOSE_STEP_TEMPLATE, {
+					purpose: values.purpose ?? "",
+					fieldId: `${field.idPrefix}-purpose`,
+					errorId: field.errorId,
+					invalid: field.invalid,
+					autofocus: field.autofocus,
+					required,
+					maxLength: READLIST_PURPOSE_MAX_LENGTH,
+				}),
+		}),
+	];
+}
+
+export const READLIST_PREFERENCES_STEPS: Record<"unset" | "set", WizardSteps<ReadlistPreferencesWizardViewModel>> = {
+	unset: purposeSteps({ required: true }),
+	set: purposeSteps({ required: false }),
+};

@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { EmailDeliveryMode, InboxAddressEntry } from "@packages/domain/inbox";
 import type { ReadlistSlug } from "@packages/domain/readlist";
-import type { IconName } from "@packages/ui-icons";
 import {
 	CONFIRM_POPOVER_STYLES,
 	render,
@@ -45,12 +44,8 @@ import {
 	type ReadlistPreferencesWizardViewModel,
 } from "./readlist-preferences-wizard.component";
 import { READLIST_PREFERENCES_STYLES } from "./readlist-preferences.styles";
-import {
-	READLIST_PURPOSE_DELETE_ID,
-	renderPurposeDeleteConfirm,
-} from "./readlist-purpose-delete-confirm.component";
 import type { ReadlistRailViewModel } from "./readlist-rail";
-import { readlistReturnQuery, readlistPreferencesPath, readlistPurposeDeletePath } from "./readlist.url";
+import { readlistReturnQuery, readlistPreferencesPath } from "./readlist.url";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-preferences.template.html"), "utf-8");
@@ -75,79 +70,28 @@ const WIZARD_HEADING: Record<PurposeState, WizardHeading> = {
 	set: { kind: "task", title: "Edit readlist purpose" },
 };
 
-interface SetupAction {
+interface PopoverControl {
 	popoverId: string;
-}
-
-interface PurposeMenuTrigger {
-	iconName: IconName;
-	text: string;
-	popoverId: string;
-	testAction: string;
-}
-
-interface PurposeMenuAction {
-	iconName: IconName;
-	text: string;
-	url: string;
-	testAction: string;
-}
-
-interface PurposeMenu {
-	triggers: readonly PurposeMenuTrigger[];
-	actions: readonly PurposeMenuAction[];
 }
 
 interface PanelControls {
 	modifierClasses: readonly string[];
-	setupActions: readonly SetupAction[];
-	menus: readonly PurposeMenu[];
+	setupActions: readonly PopoverControl[];
+	editControls: readonly PopoverControl[];
 	inlineWizards: readonly string[];
 	wizardPopoverHtml: string;
-	purposeDeleteConfirmHtml: string;
 	setupLocks: readonly string[];
-	lockedMenus: readonly { menuLocks: readonly string[] }[];
+	purposeLocks: readonly string[];
 }
 
 interface PanelControlsInput {
-	readlist: { slug: ReadlistSlug; label: string };
 	wizard: WizardRender;
 	wizardOpenClasses: readonly string[];
 	state: PurposeState;
 	offer: UpgradeOffer | undefined;
 }
 
-function purposeMenu(input: PanelControlsInput): PurposeMenu {
-	return {
-		triggers: [
-			{
-				iconName: "pencil",
-				text: "Edit",
-				popoverId: READLIST_PREFERENCES_WIZARD_ID,
-				testAction: "readlist-preferences-edit",
-			},
-			{
-				iconName: "trash",
-				text: "Delete",
-				popoverId: READLIST_PURPOSE_DELETE_ID,
-				testAction: "readlist-preferences-delete",
-			},
-		],
-		actions: [
-			{
-				iconName: "trash",
-				text: "Delete",
-				url: withInternalTracking(
-					readlistPurposeDeletePath(input.readlist.slug),
-					{ source: PREFERENCES_SOURCE, content: "delete-purpose-fallback" },
-				),
-				testAction: "readlist-preferences-delete-fallback",
-			},
-		],
-	};
-}
-
-const PURPOSE_LOCKS: Record<PurposeState, (offer: UpgradeOffer | undefined) => Pick<PanelControls, "setupLocks" | "lockedMenus">> = {
+const PURPOSE_LOCKS: Record<PurposeState, (offer: UpgradeOffer | undefined) => Pick<PanelControls, "setupLocks" | "purposeLocks">> = {
 	unset: (offer) => ({
 		setupLocks: renderedLockFor({
 			offer,
@@ -157,16 +101,18 @@ const PURPOSE_LOCKS: Record<PurposeState, (offer: UpgradeOffer | undefined) => P
 			controlClass: "btn btn--neutral readlist-empty__cta",
 			source: PREFERENCES_SOURCE,
 		}),
-		lockedMenus: [],
+		purposeLocks: [],
 	}),
 	set: (offer) => ({
 		setupLocks: [],
-		lockedMenus: [{
-			menuLocks: [
-				...renderedLockFor({ offer, gated: true, key: "edit-purpose", label: "Edit", controlClass: "menu__item", source: PREFERENCES_SOURCE }),
-				...renderedLockFor({ offer, gated: true, key: "delete-purpose", label: "Delete", controlClass: "menu__item", source: PREFERENCES_SOURCE }),
-			],
-		}],
+		purposeLocks: renderedLockFor({
+			offer,
+			gated: true,
+			key: "edit-purpose",
+			label: "Edit",
+			controlClass: "btn btn--neutral btn--s",
+			source: PREFERENCES_SOURCE,
+		}),
 	}),
 };
 
@@ -174,47 +120,37 @@ const PANEL_CONTROLS: Record<PurposeState | "needs-upgrade" | "withheld", (input
 	unset: (input) => ({
 		modifierClasses: input.wizardOpenClasses,
 		setupActions: [{ popoverId: READLIST_PREFERENCES_WIZARD_ID }],
-		menus: [],
+		editControls: [],
 		inlineWizards: [input.wizard.inlineHtml],
 		wizardPopoverHtml: input.wizard.popoverHtml,
-		purposeDeleteConfirmHtml: "",
 		setupLocks: [],
-		lockedMenus: [],
+		purposeLocks: [],
 	}),
 	set: (input) => ({
 		modifierClasses: input.wizardOpenClasses,
 		setupActions: [],
-		menus: [purposeMenu(input)],
+		editControls: [{ popoverId: READLIST_PREFERENCES_WIZARD_ID }],
 		inlineWizards: [input.wizard.inlineHtml],
 		wizardPopoverHtml: input.wizard.popoverHtml,
-		purposeDeleteConfirmHtml: renderPurposeDeleteConfirm({
-			label: input.readlist.label,
-			action: withInternalTracking(
-				readlistPurposeDeletePath(input.readlist.slug),
-				{ source: PREFERENCES_SOURCE, content: "delete-purpose" },
-			),
-		}),
 		setupLocks: [],
-		lockedMenus: [],
+		purposeLocks: [],
 	}),
 	"needs-upgrade": (input) => ({
 		modifierClasses: [READ_ONLY_CLASS],
 		setupActions: [],
-		menus: [],
+		editControls: [],
 		inlineWizards: [],
 		wizardPopoverHtml: "",
-		purposeDeleteConfirmHtml: "",
 		...PURPOSE_LOCKS[input.state](input.offer),
 	}),
 	withheld: () => ({
 		modifierClasses: [READ_ONLY_CLASS],
 		setupActions: [],
-		menus: [],
+		editControls: [],
 		inlineWizards: [],
 		wizardPopoverHtml: "",
-		purposeDeleteConfirmHtml: "",
 		setupLocks: [],
-		lockedMenus: [],
+		purposeLocks: [],
 	}),
 };
 
@@ -228,15 +164,16 @@ export function renderReadlistPurposeWizard(input: {
 	error?: string;
 }): WizardRender {
 	const preferencesHref = readlistPreferencesPath(input.readlist.slug);
+	const state = purposeStateOf(input.readlist);
 	return renderWizard({
 		id: READLIST_PREFERENCES_WIZARD_ID,
 		key: READLIST_PREFERENCES_WIZARD_KEY,
-		steps: READLIST_PREFERENCES_STEPS,
+		steps: READLIST_PREFERENCES_STEPS[state],
 		values: input.values,
 		action: withInternalTracking(preferencesHref, { source: PREFERENCES_SOURCE, content: "save-purpose" }),
 		cancelHref: withInternalTracking(preferencesHref, { source: PREFERENCES_SOURCE, content: "cancel" }),
 		submitLabel: "Save",
-		heading: WIZARD_HEADING[purposeStateOf(input.readlist)],
+		heading: WIZARD_HEADING[state],
 		failureMessage: PURPOSE_FAILURE_MESSAGE,
 		error: input.error,
 	});
@@ -265,7 +202,6 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 	const controls = PANEL_CONTROLS[standing === "open" ? state : standing]({
 		state,
 		offer: vm.rail.offer,
-		readlist: vm.readlist,
 		wizard: renderReadlistPurposeWizard({
 			readlist: vm.readlist,
 			values: vm.values,
@@ -306,8 +242,8 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		setupActions: controls.setupActions,
 		setupLocks: controls.setupLocks,
 		purposeText: vm.readlist.purpose,
-		menus: controls.menus,
-		lockedMenus: controls.lockedMenus,
+		editControls: controls.editControls,
+		purposeLocks: controls.purposeLocks,
 		inlineWizards: controls.inlineWizards,
 		inboxesHtml: renderReadlistInboxes(
 			buildReadlistInboxes({
@@ -327,7 +263,6 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		readlistCreateHtml: panels.create,
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
 		wizardPopoverHtml: controls.wizardPopoverHtml,
-		purposeDeleteConfirmHtml: controls.purposeDeleteConfirmHtml,
 	});
 
 	return {
