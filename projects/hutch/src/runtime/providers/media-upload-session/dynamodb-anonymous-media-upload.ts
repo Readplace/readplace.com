@@ -5,6 +5,7 @@ import type {
 	FindMediaUploadByCapability,
 	MarkMediaUploadInspecting,
 	RecordMediaInspection,
+	RecordTimedMediaFacts,
 } from "@packages/domain";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
@@ -65,6 +66,7 @@ export function initDynamoDbAnonymousMediaUpload(deps: {
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
 	markMediaUploadInspecting: MarkMediaUploadInspecting;
 	recordMediaInspection: RecordMediaInspection;
+	recordTimedMediaFacts: RecordTimedMediaFacts;
 	claimMediaUpload: ClaimMediaUpload;
 	findMediaUploadByCapability: FindMediaUploadByCapability;
 } {
@@ -127,6 +129,25 @@ export function initDynamoDbAnonymousMediaUpload(deps: {
 				ExpressionAttributeNames: { "#status": "status" },
 			});
 			return outcome === "refused" ? "not-inspecting" : to;
+		},
+		recordTimedMediaFacts: async ({ uploadId, etag, kind, inspection }) => {
+			const to = inspection.verdict === "inspected" ? "ready" : "rejected";
+			const recorded = { ":to": to, ":etag": etag, ":kind": kind, ":staged": "staged" };
+			const outcome = await update({
+				Key: { uploadId },
+				...(inspection.verdict === "inspected"
+					? {
+							UpdateExpression: "SET #status = :to, etag = :etag, kind = :kind, facts = :facts",
+							ExpressionAttributeValues: { ...recorded, ":facts": inspection.facts },
+						}
+					: {
+							UpdateExpression: "SET #status = :to, etag = :etag, kind = :kind, reason = :reason, notice = :notice",
+							ExpressionAttributeValues: { ...recorded, ":reason": inspection.reason, ":notice": inspection.notice },
+						}),
+				ConditionExpression: "#status = :staged AND attribute_not_exists(userId)",
+				ExpressionAttributeNames: { "#status": "status" },
+			});
+			return outcome === "refused" ? "not-staged" : to;
 		},
 		claimMediaUpload: async ({ uploadId, userId }) => {
 			const outcome = await update({

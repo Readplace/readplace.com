@@ -141,6 +141,7 @@ export interface UploadRouteDependencies {
 	mintUploadId: () => UploadId;
 	MEDIA_KINDS: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	GUEST_UPLOAD_KINDS: readonly MediaKindName[];
+	METERED_GUEST_UPLOAD_KINDS: readonly MediaKindName[];
 	transcriptAllowanceSeconds: number;
 	pickOutcomeWriters: (req: Request) => UploadOutcomeWriters;
 	buildBannerState: BuildBannerState;
@@ -149,10 +150,10 @@ export interface UploadRouteDependencies {
 
 export function initUploadRouter(deps: UploadRouteDependencies): Router {
 	const router = express.Router();
-	const viewerKinds = (req: Request) =>
+	const viewerKinds = (req: Request, metered = isMeteredStart(req.query)) =>
 		kindsForViewer({
 			kinds: deps.MEDIA_KINDS,
-			guestKinds: deps.GUEST_UPLOAD_KINDS,
+			guestKinds: metered ? deps.METERED_GUEST_UPLOAD_KINDS : deps.GUEST_UPLOAD_KINDS,
 			isSignedIn: Boolean(req.userId),
 		});
 
@@ -175,8 +176,8 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 	}
 
 	router.get("/", async (req, res) => {
-		const kinds = viewerKinds(req);
 		const metered = isMeteredStart(req.query);
+		const kinds = viewerKinds(req, metered);
 		sendComponent(
 			req,
 			res,
@@ -271,7 +272,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			etag: head.etag,
 			bytes: SNIFF_BYTES,
 		});
-		const kind = viewerKinds(req).find((candidate) => candidate.sniff(prefix));
+		const kind = viewerKinds(req, session.metered === true).find((candidate) => candidate.sniff(prefix));
 		if (!kind) {
 			await write(req, res, { outcome: "upload_unsupported_type" });
 			return;

@@ -50,6 +50,13 @@ export type RecordMediaInspection = (params: {
 	inspection: MediaInspectionVerdict;
 }) => Promise<"ready" | "rejected" | "not-inspecting">;
 
+export type RecordTimedMediaFacts = (params: {
+	uploadId: UploadId;
+	etag: string;
+	kind: MediaKindName;
+	inspection: MediaInspectionVerdict;
+}) => Promise<"ready" | "rejected" | "not-staged">;
+
 export type ClaimMediaUpload = (params: {
 	uploadId: UploadId;
 	userId: UserId;

@@ -96,15 +96,25 @@ describe("Upload routes", () => {
 		);
 	});
 
-	it("shows no transcript allowance without the transcripts feature or to a books-only guest", async () => {
+	it("shows no transcript allowance to a member or a guest without the transcripts feature", async () => {
 		const { agent, harness } = await signedIn();
 		const member = await agent.get("/upload");
-		const guest = await request(harness.server).get("/upload?features=transcripts");
+		const guest = await request(harness.server).get("/upload");
 		expect(
 			[member, guest].map((response) =>
 				documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]"),
 			),
 		).toEqual([null, null]);
+	});
+
+	it("tells a guest on the transcripts feature that audio files are transcribed", async () => {
+		const { harness } = await signedIn();
+		const response = await request(harness.server).get("/upload?features=transcripts");
+		expect(
+			documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]")?.textContent,
+		).toBe(
+			"Audio files get a timestamped transcript, up to 20 minutes a day. Split a longer file into parts of 20 minutes or less.",
+		);
 	});
 
 	it("describes only books to a guest", async () => {

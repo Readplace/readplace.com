@@ -22,6 +22,7 @@ export type {
 	CreateAnyMediaUploadSession,
 	MarkMediaUploadInspecting,
 	RecordMediaInspection,
+	RecordTimedMediaFacts,
 	ClaimMediaUpload,
 	FindMediaUploadByCapability,
 	PublishMediaUploadStaged,

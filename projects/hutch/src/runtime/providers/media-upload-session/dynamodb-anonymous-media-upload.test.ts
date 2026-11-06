@@ -221,6 +221,55 @@ describe.each(implementations)("anonymous media upload sessions ($name)", ({ ini
 		assert.equal(await statusOf(store), "ready");
 	});
 
+	const TIMED_FACTS = { kind: "audio" as const, shape: "timed" as const, durationSeconds: 600 };
+
+	it("records a guest's staged audio as ready with its etag and timed facts", async () => {
+		const store = await guestUpload("staged");
+
+		const outcome = await store.recordTimedMediaFacts({
+			uploadId: UPLOAD_ID,
+			etag: ETAG,
+			kind: "audio",
+			inspection: { verdict: "inspected", facts: TIMED_FACTS },
+		});
+
+		assert.equal(outcome, "ready");
+		const found = await store.findMediaUploadByCapability({ uploadId: UPLOAD_ID, userId: undefined });
+		assert.equal(found?.status, "ready");
+		assert.deepEqual(found && found.userId === undefined ? found.facts : undefined, TIMED_FACTS);
+		const claimed = await store.claimMediaUpload({ uploadId: UPLOAD_ID, userId: READER });
+		assert(claimed !== "not-claimable");
+		assert.equal(claimed.etag, ETAG);
+		assert.equal(claimed.kind, "audio");
+	});
+
+	it("records a guest's unreadable staged audio as rejected with its notice", async () => {
+		const store = await guestUpload("staged");
+
+		const outcome = await store.recordTimedMediaFacts({
+			uploadId: UPLOAD_ID,
+			etag: ETAG,
+			kind: "audio",
+			inspection: { verdict: "rejected", reason: "unreadable", notice: NOTICE },
+		});
+
+		assert.equal(outcome, "rejected");
+		const found = await store.findMediaUploadByCapability({ uploadId: UPLOAD_ID, userId: undefined });
+		assert.equal(found?.status, "rejected");
+		assert.equal(found && found.userId === undefined ? found.notice : undefined, NOTICE);
+	});
+
+	it("refuses timed facts for an upload that is not staged or that a member owns", async () => {
+		const inspecting = await guestUpload("inspecting");
+		const member = init();
+		await member.createAnyMediaUploadSession({ ...session, userId: READER });
+		const facts = { uploadId: UPLOAD_ID, etag: ETAG, kind: "audio" as const, inspection: { verdict: "inspected" as const, facts: TIMED_FACTS } };
+
+		assert.equal(await inspecting.recordTimedMediaFacts(facts), "not-staged");
+		assert.equal(await member.recordTimedMediaFacts(facts), "not-staged");
+		assert.equal(await statusOf(inspecting), "inspecting");
+	});
+
 	it("lets the same reader claim a ready upload twice, each time with its etag and save attempt", async () => {
 		const store = await guestUpload("ready");
 

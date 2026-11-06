@@ -19,6 +19,7 @@ import type {
 	PublishMediaUploadStaged,
 	ReadMediaPendingPrefix,
 	RecordMediaInspection,
+	RecordTimedMediaFacts,
 } from "@packages/domain";
 
 export interface InMemoryMediaUploadSessions {
@@ -29,6 +30,7 @@ export interface InMemoryMediaUploadSessions {
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
 	markMediaUploadInspecting: MarkMediaUploadInspecting;
 	recordMediaInspection: RecordMediaInspection;
+	recordTimedMediaFacts: RecordTimedMediaFacts;
 	claimMediaUpload: ClaimMediaUpload;
 	findMediaUploadByCapability: FindMediaUploadByCapability;
 }
@@ -89,6 +91,16 @@ export function initInMemoryMediaUploadSessions(): InMemoryMediaUploadSessions {
 				return "ready";
 			}
 			sessions.set(uploadId, { ...session, status: "rejected", reason: inspection.reason, notice: inspection.notice });
+			return "rejected";
+		},
+		recordTimedMediaFacts: async ({ uploadId, etag, kind, inspection }) => {
+			const session = anonymous(uploadId);
+			if (session?.status !== "staged") return "not-staged";
+			if (inspection.verdict === "inspected") {
+				sessions.set(uploadId, { ...session, status: "ready", etag, kind, facts: inspection.facts });
+				return "ready";
+			}
+			sessions.set(uploadId, { ...session, status: "rejected", etag, kind, reason: inspection.reason, notice: inspection.notice });
 			return "rejected";
 		},
 		claimMediaUpload: async ({ uploadId, userId }) => {

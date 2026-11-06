@@ -80,6 +80,7 @@ import type {
 	PublishMediaUploadStaged,
 	ReadMediaPendingPrefix,
 	RecordMediaInspection,
+	RecordTimedMediaFacts,
 } from "@packages/domain";
 import type {
 	InboxAddressStore,
@@ -753,6 +754,7 @@ export interface MediaUploadBundle {
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
 	markMediaUploadInspecting: MarkMediaUploadInspecting;
 	recordMediaInspection: RecordMediaInspection;
+	recordTimedMediaFacts: RecordTimedMediaFacts;
 	claimMediaUpload: ClaimMediaUpload;
 	findMediaUploadByCapability: FindMediaUploadByCapability;
 	mintMediaPendingPost: MintMediaPendingPost;

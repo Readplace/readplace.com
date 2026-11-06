@@ -257,7 +257,7 @@ import { initChargeBeforeSettle } from "./web/pages/upload/charge-before-settle"
 import { initChargeTranscript } from "./web/pages/upload/charge-transcript";
 import { initStageGatesByCaller } from "./web/pages/upload/stage-gates-by-caller";
 import { initSettleByCaller, initStageForReview } from "./web/pages/upload/stage-for-review";
-import { initAnonymousUploadRoutes } from "./web/pages/upload/upload-review.page";
+import { initAnonymousUploadRoutes, METERED_GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
 import { INSPECT_BOOK_TIMEOUT_SECONDS } from "@packages/infra-components";
@@ -272,6 +272,7 @@ import type {
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
 	MarkMediaUploadInspecting,
+	RecordTimedMediaFacts,
 	MintMediaPendingPost,
 	PresignEnclosure,
 	PresignMediaImage,
@@ -584,6 +585,7 @@ export interface AppDependencies {
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
 	findMediaUploadByCapability: FindMediaUploadByCapability;
 	markMediaUploadInspecting: MarkMediaUploadInspecting;
+	recordTimedMediaFacts: RecordTimedMediaFacts;
 	claimMediaUpload: ClaimMediaUpload;
 	publishMediaUploadStaged: PublishMediaUploadStaged;
 	guestUploadKinds: readonly MediaKindName[];
@@ -1544,6 +1546,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			requireWriteAccess,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
 			MEDIA_KINDS: deps.mediaKinds,
+			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			maxPolls: inspectionPollBudget({ lambdaTimeoutSeconds: INSPECT_BOOK_TIMEOUT_SECONDS, marginSeconds: 30 }),
 			buildBannerState,
 		}),
@@ -1567,6 +1570,8 @@ export function createApp(dependencies: AppDependencies): Express {
 				commitReceivedUpload,
 				stageForReview: initStageForReview({
 					markMediaUploadInspecting: deps.markMediaUploadInspecting,
+					recordTimedMediaFacts: deps.recordTimedMediaFacts,
+					readDurationByMeter: deps.readDurationByMeter,
 					publishMediaUploadStaged: deps.publishMediaUploadStaged,
 					now: deps.now,
 				}),
@@ -1579,6 +1584,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			mintUploadId: deps.mintUploadId,
 			MEDIA_KINDS: deps.mediaKinds,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
+			METERED_GUEST_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickOutcomeWriters: () => UPLOAD_OUTCOME_HTML,
 			buildBannerState,
