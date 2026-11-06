@@ -280,7 +280,7 @@ describe("GET /help/add-links", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector("[data-test-help-upload-lead]")?.textContent).toBe(
-			"Upload a DRM-free EPUB of up to 200 MB. MOBI and AZW3 are not supported, and images are not shown yet.",
+			"Upload a DRM-free EPUB of up to 200 MB. MOBI and AZW3 are not supported.",
 		);
 		const href = doc.querySelector("[data-test-help-upload-link]")?.getAttribute("href");
 		assert(href, "the upload section must link somewhere");
