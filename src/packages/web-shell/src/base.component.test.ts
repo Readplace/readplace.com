@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { JSDOM, VirtualConsole } from "jsdom";
 import {
 	NEWER_READER_VERSION,
@@ -209,6 +210,14 @@ function loadedClientScripts(doc: Document): string[] {
 }
 
 describe("Base component", () => {
+	it("declares the default locale as the og:locale, in Open Graph's underscore form", () => {
+		const doc = new JSDOM(Base(createTestPageBody(), GUEST_STATE).to("text/html").body).window.document;
+
+		expect(doc.querySelector('meta[property="og:locale"]')?.getAttribute("content")).toBe(
+			DEFAULT_LOCALE.replace("-", "_"),
+		);
+	});
+
 	it("should render a complete HTML page with the provided title", () => {
 		const page = createTestPageBody({ seo: { title: "My Title", description: "Desc", canonicalUrl: "https://readplace.com" } });
 		const result = Base(page, GUEST_STATE).to("text/html");

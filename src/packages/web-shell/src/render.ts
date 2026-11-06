@@ -1,7 +1,10 @@
 import assert from "node:assert";
+import { DEFAULT_LOCALE, isSupportedLocale, type WebCatalog } from '@packages/translations';
+import { WEB_CATALOG } from '@packages/translations/web-catalog';
 import { findIconSvg } from '@packages/ui-icons';
 import Handlebars from 'handlebars';
 import { withInternalTracking } from './internal-link-tracking';
+import { messageHtml } from './message-html';
 
 /**
  * `{{track '/account' source='queue' content='subscribe'}}` stamps the
@@ -39,6 +42,19 @@ Handlebars.registerHelper('icon', (name: unknown, options: Handlebars.HelperOpti
 	return new Handlebars.SafeString(svg);
 });
 
+export function createTranslateHelper(catalog: WebCatalog) {
+	return (key: unknown, options: Handlebars.HelperOptions): Handlebars.SafeString => {
+		assert(typeof key === 'string', '{{t}} requires a message key');
+		const locale: unknown = options.data?.locale;
+		assert(isSupportedLocale(locale), `{{t}} needs a supported locale in the render data, got ${String(locale)}`);
+		const message = catalog.findMessage({ locale, key });
+		assert(message !== undefined, `{{t}} does not know the message "${key}"`);
+		return messageHtml(message, options.hash);
+	};
+}
+
+Handlebars.registerHelper('t', createTranslateHelper(WEB_CATALOG));
+
 const compiledTemplates = new Map<string, HandlebarsTemplateDelegate>();
 
 export function render(template: string, data: object, options?: { helpers?: Record<string, Handlebars.HelperDelegate> }): string {
@@ -47,5 +63,5 @@ export function render(template: string, data: object, options?: { helpers?: Rec
 		compiled = Handlebars.compile(template);
 		compiledTemplates.set(template, compiled);
 	}
-	return compiled(data, { helpers: options?.helpers });
+	return compiled(data, { helpers: options?.helpers, data: { locale: DEFAULT_LOCALE } });
 }
