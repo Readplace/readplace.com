@@ -59,6 +59,8 @@ import type {
 	SetReadlistDefinitionPurpose,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
+	FindQueueRowKeys,
+	QueueRowKey,
 	ListUserSavesForUrls,
 	FindArticleById,
 	FindArticleByUrl,
@@ -234,6 +236,8 @@ export function initInMemoryArticleStore(): {
 	deleteReadlistArticle: DeleteReadlistArticle;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	findQueueRowKeys: FindQueueRowKeys;
+	hasQueueRow: (key: QueueRowKey) => boolean;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -808,6 +812,24 @@ export function initInMemoryArticleStore(): {
 		return saves;
 	};
 
+	const queueRowKeyOf = (ua: UserArticle): QueueRowKey => ({
+		userId: ua.readlist === undefined ? ua.userId : `${ua.userId}#queue/${ua.readlist}`,
+		url: ua.url,
+	});
+
+	const findQueueRowKeys: FindQueueRowKeys = async ({ userId, urls }) => {
+		const keys = new Set(urls.map((url) => ArticleResourceUniqueId.parse(url).value));
+		return [...userArticles.values()]
+			.filter((ua) => ua.userId === userId && keys.has(ua.url))
+			.map(queueRowKeyOf);
+	};
+
+	const hasQueueRow = (key: QueueRowKey): boolean =>
+		[...userArticles.values()].some((ua) => {
+			const candidate = queueRowKeyOf(ua);
+			return candidate.userId === key.userId && candidate.url === key.url;
+		});
+
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
 		const saves = new Map<string, { readlist?: ReadlistSlug }[]>();
 		for (const url of urls) {
@@ -1313,6 +1335,8 @@ export function initInMemoryArticleStore(): {
 		deleteReadlistArticle,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,
+		findQueueRowKeys,
+		hasQueueRow,
 		listUserSavesForUrls,
 		assignSavedArticleToReadlist,
 		moveReadlistArticles,

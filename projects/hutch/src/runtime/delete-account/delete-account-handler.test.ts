@@ -156,6 +156,7 @@ function buildSubject(
 	// Test-only failure injection: the article-store fake throws for any user id
 	// added here, so a batch can carry one poisoned record beside a healthy one.
 	const articleDeleteThrowIds = new Set<string>();
+	let afterUserArticlesDeleted: (userId: UserId) => Promise<void> = async () => {};
 
 	// Content-purge captures. `otherSaversByUrl` lets a test declare a URL still
 	// saved by someone else, so the purge is skipped for it.
@@ -204,7 +205,10 @@ function buildSubject(
 		listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 		deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
 		deleteAllInboxLinks: inboxLink.deleteAllLinksByUserId,
-		deleteAllInboxSavedLinks: inboxSavedLink.deleteAllByUserId,
+		deleteAllInboxSavedLinks: async (userId: UserId) => {
+			teardownOrder.push("saved-links");
+			await inboxSavedLink.deleteAllByUserId(userId);
+		},
 		tombstoneInboxAddresses: async (userId: UserId) => {
 			teardownOrder.push("tombstone");
 			await inboxAddress.tombstoneUserAddresses(userId);
@@ -246,6 +250,8 @@ function buildSubject(
 				throw new Error("simulated deleteAllUserArticles failure");
 			}
 			await articleStore.deleteAllUserArticles(userId);
+			teardownOrder.push("user-articles");
+			await afterUserArticlesDeleted(userId);
 		},
 		listUserArticleUrls: articleStore.listUserArticleUrls,
 		countOtherSaversByUrl: async ({ url }: { url: string; excludeUserId: string }) =>
@@ -329,6 +335,10 @@ function buildSubject(
 		appleRevokeCalls,
 		rewriteCalls,
 		teardownOrder,
+		inboxSavedLink,
+		onUserArticlesDeleted: (hook: (userId: UserId) => Promise<void>): void => {
+			afterUserArticlesDeleted = hook;
+		},
 		gmailRevokeTokens,
 		purgeContentCalls,
 		tombstoneCalls,
@@ -1191,7 +1201,33 @@ describe("delete-account handler", () => {
 		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 
 		assert.deepEqual(result.batchItemFailures, []);
-		assert.deepEqual(s.teardownOrder, ["imported-raw-email", "imports", "identities", "rewrite", "readlist-claims", "tombstone"]);
+		assert.deepEqual(s.teardownOrder, ["imported-raw-email", "imports", "identities", "rewrite", "readlist-claims", "tombstone", "user-articles", "saved-links"]);
+	});
+
+	it("sweeps saved links after deleting the user's articles", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, { label: "sweep", email: "sweep@example.com", subscription: "none" });
+
+		await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(
+			s.teardownOrder.filter((step) => step === "user-articles" || step === "saved-links"),
+			["user-articles", "saved-links"],
+		);
+	});
+
+	it("a saved link written between those two steps does not survive", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, { label: "race", email: "race@example.com", subscription: "none" });
+		const url = "https://example.com/written-during-erasure";
+		s.onUserArticlesDeleted(async (userId) => {
+			await s.inboxSavedLink.markLinkSaved({ userId, url });
+		});
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.equal((await s.inboxSavedLink.findSavedLinks({ userId: account.userId, urls: [url] })).size, 0);
 	});
 
 	it("redrives when Google cannot revoke the grant, then completes on the retry", async () => {

@@ -6,7 +6,9 @@ import type {
 import type {
 	ClaimCanonicalAlias,
 	FindIdentityRow,
+	FindQueueRowKeys,
 	PinContentSource,
+	QueueRowKey,
 	RecordPrivateItemFailure,
 	RecordPrivateItemSections,
 	SetArticleEnclosure,
@@ -449,6 +451,8 @@ export interface ArticleStoreBundle {
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;
+	findQueueRowKeys: FindQueueRowKeys;
+	hasQueueRow: (key: QueueRowKey) => boolean;
 	readSavedRowRelatedRequest: (params: {
 		userId: UserId;
 		url: string;
@@ -779,7 +783,9 @@ export interface InboxAddressBundle {
 export interface InboxEmailBundle {
 	inboxEmailStore: InboxEmailStore;
 	inboxEmailLinkStore: InboxEmailLinkStore;
-	inboxSavedLinkStore: InboxSavedLinkStore;
+	inboxSavedLinkStore: InboxSavedLinkStore & {
+		markLinkSaved: (input: { userId: UserId; url: string }) => Promise<void>;
+	};
 	readEmailContent: ContentProvider;
 }
 

@@ -434,6 +434,10 @@ export type ListUserSavesForUrl = (params: {
 	url: string;
 }) => Promise<{ readlist?: ReadlistSlug }[]>;
 
+export type QueueRowKey = { userId: string; url: string };
+
+export type FindQueueRowKeys = (input: { userId: UserId; urls: readonly string[] }) => Promise<QueueRowKey[]>;
+
 export type ListUserSavesForUrls = (params: {
 	userId: UserId;
 	urls: readonly string[];

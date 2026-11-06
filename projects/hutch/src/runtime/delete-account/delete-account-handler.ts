@@ -151,7 +151,6 @@ async function processCommand(
 	await deps.deleteEmailContentObjects(bodyS3Keys);
 	await deps.deleteEmailImageObjects(emailImageS3KeyPrefixes);
 	await deps.deleteAllInboxLinks(userId, receivedAtMessageIds);
-	await deps.deleteAllInboxSavedLinks(userId);
 	await deps.deleteAllInboxEmails(userId);
 	await deps.deleteRawEmailObjectsByPrefix([`gmail-import/${userId}`]);
 	await deps.deleteAllGmailHistoryImports(userId);
@@ -182,6 +181,7 @@ async function processCommand(
 	}
 	await deps.releasePrivateItems({ userId, urls: savedUrls });
 	await deps.deleteAllUserArticles(userId);
+	await deps.deleteAllInboxSavedLinks(userId);
 	await deps.withdrawStarterAssignment(userId);
 	await deps.deleteReaderReadyState(userId);
 	await deps.deleteOnboarding({ userId });

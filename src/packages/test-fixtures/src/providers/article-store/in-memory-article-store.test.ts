@@ -2533,3 +2533,34 @@ describe("initInMemoryArticleStore private items", () => {
 		assert.equal(await store.setArticleEnclosure({ url: PRIVATE_URL, enclosure }), "not-found");
 	});
 });
+
+describe("queue row keys", () => {
+	it("finds a default and a readlist queue row under the normalised key of a raw candidate", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams());
+		await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+
+		const keys = await store.findQueueRowKeys({ userId: USER_A, urls: ["https://example.com/article#top"] });
+
+		expect(keys).toEqual([
+			{ userId: USER_A, url: "example.com/article" },
+			{ userId: `${USER_A}#queue/work`, url: "example.com/article" },
+		]);
+	});
+
+	it("finds no queue row of another reader", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams());
+
+		expect(await store.findQueueRowKeys({ userId: USER_B, urls: [URL] })).toEqual([]);
+	});
+
+	it("answers whether a queue row is still there", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+
+		expect(store.hasQueueRow({ userId: `${USER_A}#queue/work`, url: "example.com/article" })).toBe(true);
+		expect(store.hasQueueRow({ userId: USER_A, url: "example.com/article" })).toBe(false);
+		expect(store.hasQueueRow({ userId: `${USER_A}#queue/work`, url: "example.com/other" })).toBe(false);
+	});
+});

@@ -69,3 +69,4 @@ export {
 export { initDynamoDbCanaryReports } from "./dynamodb-canary-reports";
 export { initDynamoDbPrivateItem } from "./dynamodb-private-item";
 export { initDynamoDbPrivateItemMedia } from "./dynamodb-private-item-media";
+export { initDynamoDbFindQueueRowKeys } from "./dynamodb-queue-row-keys";
