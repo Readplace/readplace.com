@@ -27,7 +27,7 @@ import {
 } from "./upload.outcome";
 import { isMeteredStart, uploadStartPathOf } from "./upload-features";
 import { type UploadRefusalReason, uploadRefusalMessage } from "./upload.refusal";
-import { acceptAttributeOf, kindsForViewer, toUploadStartViewModel } from "./upload.viewmodel";
+import { acceptAttributeOf, kindsForViewer, toUploadStartViewModel, transcriptAllowanceMinutesOf } from "./upload.viewmodel";
 
 const SNIFF_BYTES = 4096;
 
@@ -141,6 +141,7 @@ export interface UploadRouteDependencies {
 	mintUploadId: () => UploadId;
 	MEDIA_KINDS: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	GUEST_UPLOAD_KINDS: readonly MediaKindName[];
+	transcriptAllowanceSeconds: number;
 	pickOutcomeWriters: (req: Request) => UploadOutcomeWriters;
 	buildBannerState: BuildBannerState;
 	appOrigin: string;
@@ -174,6 +175,8 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 	}
 
 	router.get("/", async (req, res) => {
+		const kinds = viewerKinds(req);
+		const metered = isMeteredStart(req.query);
 		sendComponent(
 			req,
 			res,
@@ -181,12 +184,13 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 				UploadPage({
 					view: "start",
 					start: {
-						...toUploadStartViewModel(
-							viewerKinds(req),
-							Boolean(req.userId),
-							uploadStartPathOf(isMeteredStart(req.query)),
-						),
+						...toUploadStartViewModel(kinds, Boolean(req.userId), uploadStartPathOf(metered)),
 						refusalMessage: uploadRefusalMessage(req.query),
+						transcriptAllowanceMinutes: transcriptAllowanceMinutesOf({
+							kinds,
+							metered,
+							allowanceSeconds: deps.transcriptAllowanceSeconds,
+						}),
 					},
 				}),
 				await deps.buildBannerState(req),

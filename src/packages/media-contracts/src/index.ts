@@ -18,4 +18,4 @@ export { MediaFailureReasonSchema, type MediaFailureReason } from "./media-failu
 export { MediaInspectionFactsSchema, type MediaInspectionFacts } from "./media-inspection-facts";
 export { EnclosureSchema, type Enclosure } from "./enclosure";
 export { stagedObjectKey } from "./staged-object-key";
-export { allowanceSeconds, billableSeconds } from "./transcript-minutes";
+export { allowanceSeconds, billableSeconds, displayMinutes } from "./transcript-minutes";

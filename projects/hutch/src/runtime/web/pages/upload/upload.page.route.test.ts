@@ -86,6 +86,27 @@ describe("Upload routes", () => {
 		]);
 	});
 
+	it("tells a member who started with the transcripts feature the daily transcript allowance", async () => {
+		const { agent } = await signedIn();
+		const response = await agent.get("/upload?features=transcripts");
+		expect(
+			documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]")?.textContent,
+		).toBe(
+			"Audio files get a timestamped transcript, up to 20 minutes a day. Split a longer file into parts of 20 minutes or less.",
+		);
+	});
+
+	it("shows no transcript allowance without the transcripts feature or to a books-only guest", async () => {
+		const { agent, harness } = await signedIn();
+		const member = await agent.get("/upload");
+		const guest = await request(harness.server).get("/upload?features=transcripts");
+		expect(
+			[member, guest].map((response) =>
+				documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]"),
+			),
+		).toEqual([null, null]);
+	});
+
 	it("describes only books to a guest", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const doc = documentOf((await request(harness.server).get("/upload")).text);

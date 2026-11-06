@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { AUDIO, BOOK, MEDIA_KINDS } from "@packages/media-contracts";
-import { acceptAttributeOf, kindsForViewer, toUploadStartViewModel } from "./upload.viewmodel";
+import { acceptAttributeOf, kindsForViewer, toUploadStartViewModel, transcriptAllowanceMinutesOf } from "./upload.viewmodel";
 
 describe("kindsForViewer", () => {
 	it("offers a member every kind", () => {
@@ -51,6 +51,22 @@ describe("toUploadStartViewModel", () => {
 
 		assert.equal(vm.viewer, "member");
 		assert.equal(vm.showsGuestNotice, false);
+	});
+});
+
+describe("transcriptAllowanceMinutesOf", () => {
+	it("shows a flagged viewer of a metered kind the allowance in whole minutes", () => {
+		assert.equal(transcriptAllowanceMinutesOf({ kinds: [BOOK, AUDIO], metered: true, allowanceSeconds: 1250 }), 20);
+	});
+
+	it("shows no allowance to an unflagged viewer or to a viewer offered no metered kind", () => {
+		assert.deepEqual(
+			[
+				transcriptAllowanceMinutesOf({ kinds: [BOOK, AUDIO], metered: false, allowanceSeconds: 1250 }),
+				transcriptAllowanceMinutesOf({ kinds: [BOOK], metered: true, allowanceSeconds: 1250 }),
+			],
+			[undefined, undefined],
+		);
 	});
 });
 
