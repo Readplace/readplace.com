@@ -1,5 +1,9 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
+import {
+	CRAWL_STATUS_INDEX,
+	SUMMARY_STATUS_INDEX,
+} from "@packages/provider-contracts/article-status-indexes";
 
 export class HutchStorage extends pulumi.ComponentResource {
 	public readonly articlesTable: aws.dynamodb.Table;
@@ -60,11 +64,23 @@ export class HutchStorage extends pulumi.ComponentResource {
 			attributes: [
 				{ name: "url", type: "S" },
 				{ name: "routeId", type: "S" },
+				{ name: "crawlStatus", type: "S" },
+				{ name: "summaryStatus", type: "S" },
 			],
 			globalSecondaryIndexes: [
 				{
 					name: "routeId-index",
 					hashKey: "routeId",
+					projectionType: "ALL",
+				},
+				{
+					name: CRAWL_STATUS_INDEX,
+					hashKey: "crawlStatus",
+					projectionType: "ALL",
+				},
+				{
+					name: SUMMARY_STATUS_INDEX,
+					hashKey: "summaryStatus",
 					projectionType: "ALL",
 				},
 			],

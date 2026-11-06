@@ -8,7 +8,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "pending",
 				crawlStatus: "ready",
-				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, ["summary-pending"]);
 		});
@@ -17,7 +16,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "failed",
 				crawlStatus: "ready",
-				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -26,7 +24,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "ready",
 				crawlStatus: "ready",
-				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -35,7 +32,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "ready",
-				summarySkippedReason: "content-too-short",
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -44,7 +40,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "unsupported",
-				summarySkippedReason: "crawl-unsupported",
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -53,7 +48,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "ready",
-				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -64,7 +58,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "ready",
 				crawlStatus: "pending",
-				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, ["crawl-pending"]);
 		});
@@ -73,7 +66,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "ready",
 				crawlStatus: "failed",
-				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -82,7 +74,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "unsupported",
-				summarySkippedReason: "crawl-unsupported",
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -91,27 +82,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "ready",
 				crawlStatus: "ready",
-				summarySkippedReason: undefined,
-			});
-			assert.deepStrictEqual(reasons, []);
-		});
-	});
-
-	describe("summary skipped ai-unavailable", () => {
-		it("returns summary-skipped-ai-unavailable when the model returned the refusal sentinel (no auto-heal fires for skipped, manual recrawl is the only recovery)", () => {
-			const reasons = classifyRow({
-				summaryStatus: "skipped",
-				crawlStatus: "ready",
-				summarySkippedReason: "ai-unavailable",
-			});
-			assert.deepStrictEqual(reasons, ["summary-skipped-ai-unavailable"]);
-		});
-
-		it("does NOT emit ai-unavailable when summaryStatus is ready (defensive — reason attribute should be cleared on transition out of skipped)", () => {
-			const reasons = classifyRow({
-				summaryStatus: "ready",
-				crawlStatus: "ready",
-				summarySkippedReason: "ai-unavailable",
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -122,7 +92,6 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "pending",
 				crawlStatus: "pending",
-				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, ["summary-pending", "crawl-pending"]);
 		});
@@ -131,30 +100,16 @@ describe("classifyRow", () => {
 			const reasons = classifyRow({
 				summaryStatus: "failed",
 				crawlStatus: "failed",
-				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
-		});
-
-		it("returns crawl-pending and summary-skipped-ai-unavailable when crawl is in flight while a prior summary attempt was skipped because the model returned the refusal sentinel", () => {
-			const reasons = classifyRow({
-				summaryStatus: "skipped",
-				crawlStatus: "pending",
-				summarySkippedReason: "ai-unavailable",
-			});
-			assert.deepStrictEqual(reasons, [
-				"crawl-pending",
-				"summary-skipped-ai-unavailable",
-			]);
 		});
 	});
 
 	describe("undefined statuses", () => {
-		it("returns no reasons when both statuses are undefined (canary only flags pending and skipped-ai-unavailable — terminal absence is not stuck)", () => {
+		it("returns no reasons when both statuses are undefined (canary only flags pending — terminal absence is not stuck)", () => {
 			const reasons = classifyRow({
 				summaryStatus: undefined,
 				crawlStatus: undefined,
-				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});

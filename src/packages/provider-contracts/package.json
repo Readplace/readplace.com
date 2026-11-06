@@ -25,6 +25,10 @@
       "types": "./dist/article-resolution-on-view.d.ts",
       "default": "./dist/article-resolution-on-view.js"
     },
+    "./article-status-indexes": {
+      "types": "./dist/article-status-indexes.d.ts",
+      "default": "./dist/article-status-indexes.js"
+    },
     "./article-store": {
       "types": "./dist/article-store.d.ts",
       "default": "./dist/article-store.js"
@@ -180,6 +184,7 @@
       "article-crawl": ["./dist/article-crawl.d.ts"],
       "article-freshness": ["./dist/article-freshness.d.ts"],
       "article-resolution-on-view": ["./dist/article-resolution-on-view.d.ts"],
+      "article-status-indexes": ["./dist/article-status-indexes.d.ts"],
       "article-store": ["./dist/article-store.d.ts"],
       "article-summary": ["./dist/article-summary.d.ts"],
       "auth": ["./dist/auth.d.ts"],

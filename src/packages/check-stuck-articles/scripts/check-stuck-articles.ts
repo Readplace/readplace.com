@@ -2,7 +2,7 @@
 /**
  * Stuck-articles canary.
  *
- * Read-only DDB scan: returns one failing node:test sub-test per article
+ * Read-only: returns one failing node:test sub-test per article
  * whose state machines never reached a terminal-good state. Zero stuck
  * rows = green.
  */
@@ -33,8 +33,7 @@ import { formatStuckArticlesIssue, toCanaryReportRow } from "./stuck-articles-is
 const REACHABILITY_TIMEOUT_MS = 10_000;
 
 /**
- * Bounded parallelism for the reachability pings. The DDB scan caps at
- * MAX_PAGES so the worst-case row count is small, but bounding parallelism
+ * Bounded parallelism for the reachability pings. Bounding parallelism
  * keeps the runner from opening a pathological number of sockets when a
  * regression in classification widens the candidate set.
  */

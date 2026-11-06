@@ -80,7 +80,7 @@ jobs:
 
             // The canary writes the report inside the failing test, so it
             // exists for "real" failures (≥1 stuck row). If it's missing,
-            // the canary blew up earlier (e.g., MAX_PAGES assert, AWS auth)
+            // the canary blew up earlier (e.g., a status index still backfilling, AWS auth)
             // — surface a generic body that points the listener at the run.
             let stuckCount = 0;
             let body = [
