@@ -1200,7 +1200,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				backLink,
 				upload: isAppShell(req)
 					? undefined
-					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel },
+					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel, guest: !req.userId },
 				platform: nativeSurfaceOf(req),
 				cspNonce: requireCspNonce(req),
 			}),
