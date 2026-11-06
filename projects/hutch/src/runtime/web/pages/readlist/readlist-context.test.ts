@@ -102,7 +102,7 @@ describe("initResolveReadlistContext", () => {
 	it("carries the purpose of the readlist the reader is on, so every tab can show it", async () => {
 		const resolve = initResolveReadlistContext({
 			listReadlistDefinitions: async () => [
-				{ slug: WORK.slug, label: WORK.label, createdAt: new Date("2026-11-01T00:00:00Z"), purpose: "Papers for the team offsite", emailDelivery: "links" },
+				{ slug: WORK.slug, label: WORK.label, createdAt: new Date("2026-11-01T00:00:00Z"), purpose: "Papers for the team offsite" },
 			],
 			findSessionReadlistFilter: async () => undefined,
 		});
@@ -115,7 +115,7 @@ describe("initResolveReadlistContext", () => {
 	it("carries no purpose for a readlist that has none", async () => {
 		const resolve = initResolveReadlistContext({
 			listReadlistDefinitions: async () => [
-				{ slug: WORK.slug, label: WORK.label, createdAt: new Date("2026-11-01T00:00:00Z"), emailDelivery: "links" },
+				{ slug: WORK.slug, label: WORK.label, createdAt: new Date("2026-11-01T00:00:00Z") },
 			],
 			findSessionReadlistFilter: async () => undefined,
 		});

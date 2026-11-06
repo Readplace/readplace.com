@@ -61,6 +61,12 @@ export function initGmailPicker({ document }: GmailPickerDeps): void {
 		for (const submit of document.querySelectorAll<HTMLButtonElement>("[data-gmail-sender-search-submit]")) submit.click();
 	});
 	document.addEventListener("change", (event) => {
+		const checkbox = [...document.querySelectorAll<HTMLInputElement>("[data-gmail-checklist-sender]")].find((sender) => sender === event.target);
+		const form = checkbox?.form;
+		if (!form) return;
+		[...document.querySelectorAll<HTMLButtonElement>("[data-gmail-autosave]")].find((button) => button.form === form)?.click();
+	});
+	document.addEventListener("change", (event) => {
 		const target = [...document.querySelectorAll<HTMLInputElement>("[data-gmail-readlist-checkbox]")].find((checkbox) => checkbox === event.target);
 		if (target === undefined || target.disabled) return;
 		const form = target.closest<HTMLFormElement>("[data-gmail-readlist-selection]");

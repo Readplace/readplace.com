@@ -5,7 +5,6 @@ import {
 	canonicalReadlistPageRedirect,
 	parseReadlistUrl,
 	readlistFitOverrideDeletePath,
-	readlistPreferencesEmailDeliveryPath,
 	toArticleDiscoveryQuery,
 } from "./readlist.url";
 
@@ -277,14 +276,6 @@ describe("readlistFitOverrideDeletePath", () => {
 
 		expect(readlistFitOverrideDeletePath(ReadlistSlugSchema.parse("a1b2c3d4"), id)).toBe(
 			"/queue/queues/a1b2c3d4/preferences/overrides/0009007199254740-%3Ca%23b%3E%40mail-0003/delete",
-		);
-	});
-});
-
-describe("readlistPreferencesEmailDeliveryPath", () => {
-	it("posts the readlist's email delivery choice under its preferences", () => {
-		expect(readlistPreferencesEmailDeliveryPath(ReadlistSlugSchema.parse("a1b2c3d4"))).toBe(
-			"/queue/queues/a1b2c3d4/preferences/email-delivery",
 		);
 	});
 });

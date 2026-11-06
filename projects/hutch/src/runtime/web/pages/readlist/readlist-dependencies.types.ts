@@ -39,7 +39,6 @@ import type {
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
-	SetReadlistDefinitionEmailDelivery,
 	ClearReadlistDefinitionPurpose,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
@@ -152,7 +151,6 @@ export interface ReadlistDependencies {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
-	setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;

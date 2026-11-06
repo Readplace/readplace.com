@@ -230,3 +230,21 @@ describe("Gmail delivery choice", () => {
 		assert.equal(dom.window.document.querySelectorAll("[data-gmail-delivery-option]").length, 1);
 	});
 });
+
+describe("Gmail checklist autosave", () => {
+	it("saves the selection when a sender is ticked in a form that autosaves, and leaves other forms alone", () => {
+		const dom = new JSDOM(`<form id="selection"></form><input id="tick" type="checkbox" form="selection" data-gmail-checklist-sender><button id="autosave" type="submit" form="selection" hidden data-gmail-autosave></button>
+			<form id="plain"></form><input id="plain-tick" type="checkbox" form="plain" data-gmail-checklist-sender>
+			<input id="orphan" type="checkbox" data-gmail-checklist-sender>`);
+		initGmailPicker({ document: dom.window.document });
+		let saved = 0;
+		element(dom, "#autosave").addEventListener("click", (event) => {
+			event.preventDefault();
+			saved++;
+		});
+
+		for (const id of ["#tick", "#plain-tick", "#orphan"]) element(dom, id).dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+		assert.equal(saved, 1);
+	});
+});

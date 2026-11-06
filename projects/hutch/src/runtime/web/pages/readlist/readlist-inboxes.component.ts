@@ -2,21 +2,22 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	CUSTOM_EMAILS_PATH,
-	type EmailDeliveryMode,
 	type InboxAddressEntry,
 	isCappedAddress,
 	isLiveAddress,
 } from "@packages/domain/inbox";
 import {
 	DEFAULT_READLIST_LABEL,
-	DEFAULT_READLIST_SLUG,
 	type ReadlistRef,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
 import { render, withInternalTracking } from "@packages/web-shell";
-import { readlistPreferencesEmailDeliveryPath, readlistPreferencesInboxesPath } from "./readlist.url";
+import { type PurposeState, purposeStateOf } from "./readlist-purpose-card.component";
+import { readlistPreferencesInboxesPath } from "./readlist.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-inboxes.template.html"), "utf-8");
+
+export const READLIST_INBOXES_SECTION_ID = "readlist-inboxes";
 
 const INBOXES_SOURCE = "queue-preferences";
 
@@ -29,70 +30,25 @@ const SECTION_CLASS: Record<InboxesState, string> = {
 
 type InboxRouting = "here" | "elsewhere";
 
-const ROUTING_ACTIONS: Record<
-	InboxRouting,
-	{
-		submitLabel: (names: { inbox: string; readlist: string }) => string;
-		trackingContent: string;
-		destination: (readlist: ReadlistSlug) => ReadlistSlug;
-	}
-> = {
-	here: {
-		submitLabel: (names) => `Stop sending emails from '${names.inbox}' inbox to this readlist`,
-		trackingContent: "unroute-inbox",
-		destination: () => DEFAULT_READLIST_SLUG,
-	},
-	elsewhere: {
-		submitLabel: (names) => `Send here ('${names.readlist}' readlist)`,
-		trackingContent: "route-inbox",
-		destination: (readlist) => readlist,
-	},
+const ROUTING_TRACKING: Record<InboxRouting, string> = {
+	here: "unroute-inbox",
+	elsewhere: "route-inbox",
 };
 
-const EMAIL_DELIVERY_COPY: Record<EmailDeliveryMode, { label: string; description: string }> = {
-	issue: {
-		label: "The email itself",
-		description: "Each email lands in your readlist as one article. Save the links you want while you read it.",
-	},
-	links: {
-		label: "The articles it links to",
-		description: "The articles each email links to are saved one by one. The email stays on its inbox page.",
-	},
-	both: {
-		label: "Both",
-		description: "Each email lands as an article, and the articles it links to are saved beside it.",
-	},
+const DESCRIPTION_LINES: Record<PurposeState, (label: string) => readonly string[]> = {
+	unset: (label) => [
+		`Send a custom email here and every article each email links to is saved to '${DEFAULT_READLIST_LABEL}' and '${label}'.`,
+	],
+	set: (label) => [
+		`Send a custom email here and every article each email links to is saved to '${DEFAULT_READLIST_LABEL}'.`,
+		`Only the ones who match your preferences will be saved to '${label}'`,
+	],
 };
 
-const EMAIL_DELIVERY_ORDER: readonly EmailDeliveryMode[] = ["issue", "links", "both"];
-
-const DESCRIPTIONS: Record<EmailDeliveryMode, Record<"unset" | "set", (label: string) => string>> = {
-	links: {
-		unset: (label) =>
-			`Send a custom email here and the articles each email links to are saved to ${DEFAULT_READLIST_LABEL} and ${label}.`,
-		set: (label) =>
-			`Send a custom email here and every article each email links to is saved to ${DEFAULT_READLIST_LABEL}. The ones that fit are also saved to ${label}.`,
-	},
-	issue: {
-		unset: (label) =>
-			`Send a custom email here and each email is saved as one article to ${DEFAULT_READLIST_LABEL} and ${label}.`,
-		set: (label) =>
-			`Send a custom email here and each email is saved as one article to ${DEFAULT_READLIST_LABEL} and ${label}.`,
-	},
-	both: {
-		unset: (label) =>
-			`Send a custom email here and each email is saved as one article, with the articles it links to, to ${DEFAULT_READLIST_LABEL} and ${label}.`,
-		set: (label) =>
-			`Send a custom email here and each email is saved as one article to ${DEFAULT_READLIST_LABEL} and ${label}, and the articles it links to are saved to ${DEFAULT_READLIST_LABEL}, with the ones that fit also saved to ${label}.`,
-	},
+const DELIVERY_LABELS: Record<PurposeState, string> = {
+	unset: "The articles it links to",
+	set: "The articles it links to that matches this readlist preferences",
 };
-
-export interface ReadlistEmailDeliveryOption {
-	value: EmailDeliveryMode;
-	label: string;
-	description: string;
-	checked: boolean;
-}
 
 export interface ReadlistInboxRow {
 	nameId: string;
@@ -100,25 +56,24 @@ export interface ReadlistInboxRow {
 	address: string;
 	destinationText: string;
 	routing: InboxRouting;
+	routedHere: boolean;
 	action: string;
-	destination: ReadlistSlug;
-	submitLabel: string;
 	testAction: string;
 }
 
 export interface ReadlistInboxesDisplayModel {
+	sectionId: string;
 	sectionClass: string;
 	state: InboxesState;
-	description: string;
-	deliveryAction: string;
-	deliveryOptions: readonly ReadlistEmailDeliveryOption[];
+	descriptionLines: readonly string[];
+	deliveryLabel: string;
 	rows: readonly ReadlistInboxRow[];
 	createInboxHref: string;
 	manageInboxesHref: string;
 }
 
 export function buildReadlistInboxes(input: {
-	readlist: { slug: ReadlistSlug; label: string; purpose?: string; emailDelivery: EmailDeliveryMode };
+	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
 	inboxes: readonly InboxAddressEntry[];
 	readlists: readonly ReadlistRef[];
 }): ReadlistInboxesDisplayModel {
@@ -131,7 +86,7 @@ export function buildReadlistInboxes(input: {
 		)
 		.map((inbox, index): ReadlistInboxRow => {
 			const routing: InboxRouting = inbox.readlist === input.readlist.slug ? "here" : "elsewhere";
-			const routingAction = ROUTING_ACTIONS[routing];
+			const trackingContent = ROUTING_TRACKING[routing];
 			const routedTo = input.readlists.find((readlist) => readlist.slug === inbox.readlist);
 			return {
 				nameId: `readlist-inbox-${index}-name`,
@@ -142,31 +97,22 @@ export function buildReadlistInboxes(input: {
 						? `Saves to ${DEFAULT_READLIST_LABEL}`
 						: `Saves to ${DEFAULT_READLIST_LABEL} and ${routedTo.label}`,
 				routing,
+				routedHere: routing === "here",
 				action: withInternalTracking(action, {
 					source: INBOXES_SOURCE,
-					content: routingAction.trackingContent,
+					content: trackingContent,
 				}),
-				destination: routingAction.destination(input.readlist.slug),
-				submitLabel: routingAction.submitLabel({ inbox: inbox.name, readlist: input.readlist.label }),
-				testAction: routingAction.trackingContent,
+				testAction: trackingContent,
 			};
 		});
 	const state: InboxesState = rows.length === 0 ? "empty" : "listed";
+	const purposeState = purposeStateOf(input.readlist);
 	return {
+		sectionId: READLIST_INBOXES_SECTION_ID,
 		sectionClass: SECTION_CLASS[state],
 		state,
-		description: DESCRIPTIONS[input.readlist.emailDelivery][input.readlist.purpose === undefined ? "unset" : "set"](
-			input.readlist.label,
-		),
-		deliveryAction: withInternalTracking(readlistPreferencesEmailDeliveryPath(input.readlist.slug), {
-			source: INBOXES_SOURCE,
-			content: "set-email-delivery",
-		}),
-		deliveryOptions: EMAIL_DELIVERY_ORDER.map((value) => ({
-			value,
-			...EMAIL_DELIVERY_COPY[value],
-			checked: value === input.readlist.emailDelivery,
-		})),
+		descriptionLines: DESCRIPTION_LINES[purposeState](input.readlist.label),
+		deliveryLabel: DELIVERY_LABELS[purposeState],
 		rows,
 		createInboxHref: withInternalTracking(CUSTOM_EMAILS_PATH, {
 			source: INBOXES_SOURCE,

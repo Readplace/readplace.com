@@ -82,7 +82,7 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to the email itself?",
 			answer:
-				"It stays on its inbox page, where you can read it, and the article links in it are saved to your readlist. A readlist can choose instead to save the email itself as an article, or both, from its preferences.",
+				"It stays on its inbox page, where you can read it, and the article links in it are saved to your readlist.",
 		},
 		{
 			question: "Will it click unsubscribe links?",

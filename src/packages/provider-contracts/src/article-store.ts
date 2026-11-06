@@ -9,7 +9,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ItemMedia, ReaderArticleHashId, StoredArticleBody, Viewer } from "@packages/domain/article";
-import type { EmailDeliveryMode, EmailLinkOrdinal } from "@packages/domain/inbox";
+import type { EmailLinkOrdinal } from "@packages/domain/inbox";
 import type {
 	ReadlistFitEngineVerdict,
 	ReadlistFitOverrideId,
@@ -331,7 +331,6 @@ export interface ReadlistDefinitionData {
 	label: string;
 	createdAt: Date;
 	purpose?: string;
-	emailDelivery: EmailDeliveryMode;
 }
 
 export type CreateReadlistDefinition = (params: {
@@ -353,12 +352,6 @@ export type SetReadlistDefinitionPurpose = (params: {
 	userId: UserId;
 	slug: ReadlistSlug;
 	purpose: string;
-}) => Promise<{ updated: boolean }>;
-
-export type SetReadlistDefinitionEmailDelivery = (params: {
-	userId: UserId;
-	slug: ReadlistSlug;
-	emailDelivery: EmailDeliveryMode;
 }) => Promise<{ updated: boolean }>;
 
 export type ClearReadlistDefinitionPurpose = (params: {

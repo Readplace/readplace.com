@@ -9,7 +9,6 @@ export const READLIST_GMAIL_SECTION_ID = "readlist-gmail-senders";
 export interface ReadlistGmailSelection {
 	edited: boolean;
 	sender: readonly string[];
-	added: readonly string[];
 	search: string;
 	discoveryStarted: boolean;
 	discoveryAfter: string | undefined;
@@ -32,7 +31,6 @@ export function parseReadlistGmailSelection(query: Record<string, unknown>): Rea
 	return {
 		edited: query[READLIST_GMAIL_SELECTION_PARAM] === "1",
 		sender: picker.sender ?? [],
-		added: picker.added ?? [],
 		search: picker.search ?? "",
 		discoveryStarted: query.discovery === "started",
 		discoveryAfter: picker.discovery_after,
@@ -43,7 +41,6 @@ export function buildReadlistGmailUrl(input: { slug: ReadlistSlug; selection: Re
 	const { selection } = input;
 	const query = new URLSearchParams({ [READLIST_GMAIL_SELECTION_PARAM]: "1" });
 	for (const sender of new Set(selection.sender)) query.append("sender", sender);
-	for (const added of new Set(selection.added)) query.append("added", added);
 	if (selection.search !== "") query.set("search", selection.search);
 	if (selection.discoveryStarted) query.set("discovery", "started");
 	if (selection.discoveryAfter !== undefined) query.set("discovery_after", selection.discoveryAfter);
