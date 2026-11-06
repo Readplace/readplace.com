@@ -8,7 +8,7 @@ import { renderReaderReady } from "./reader-ready.component";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./section-pages";
 import { articleBody } from "@packages/test-fixtures";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 const TEST_READER_URL = "https://example.com/post";
 
 const APP_ORIGIN = "https://readplace.com";
@@ -337,5 +337,14 @@ describe("renderReaderReady paged body", () => {
 		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: APP_ORIGIN, content: articleBody(chapter(1).slice(0, 200)) }));
 
 		expect(doc.querySelector("[data-test-section-pager]")).toBeNull();
+	});
+
+	it("pages the same body under a smaller threshold and not under the production threshold", () => {
+		const smallBody = articleBody([1, 2, 3].map((n) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(60)}</p>`).join(""));
+		const render = (thresholdBytes: number) =>
+			parse(renderReaderReady({ readerSection: { ...TEST_READER_SECTION, thresholdBytes }, url: TEST_READER_URL, appOrigin: APP_ORIGIN, content: smallBody }));
+
+		expect(render(600).querySelector("[data-test-section-pager]")).not.toBeNull();
+		expect(render(READER_SECTION_PAGE_THRESHOLD_BYTES).querySelector("[data-test-section-pager]")).toBeNull();
 	});
 });

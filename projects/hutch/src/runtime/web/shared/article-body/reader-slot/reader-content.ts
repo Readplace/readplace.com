@@ -4,7 +4,6 @@ import { describeReaderTables } from "./reader-tables";
 import { keepSameHostLinksInSamePage } from "./same-host-links";
 import { anchorArticleSections } from "./section-anchors";
 import {
-	READER_SECTION_PAGE_THRESHOLD_BYTES,
 	type ReaderSectionInput,
 	type SectionPage,
 	pageReaderSections,
@@ -37,12 +36,12 @@ export const prepareReaderContent = rememberLastCall({
 		input.url,
 		input.section.requested,
 		input.section.readerPath,
+		input.section.thresholdBytes,
 	],
 	compute: (input: PrepareReaderContentInput): SectionPage =>
 		pageReaderSections({
 			html: preparedWholeHtml(input),
 			section: input.section,
 			split: readerSectionSplitFor(input.url),
-			thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES,
 		}),
 });

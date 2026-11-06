@@ -392,6 +392,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		return {
 			requested: requestedReaderSection(req.query.section),
 			readerPath: readerPathForReadlist(req)(articleId, readlist === DEFAULT_READLIST_SLUG ? undefined : readlist),
+			thresholdBytes: deps.readerSectionThresholdBytes,
 		};
 	};
 

@@ -2,7 +2,7 @@ import type { AppDependencies } from "../../../server";
 import type { initViewRoutes } from "./view.page";
 
 export function viewDependenciesFrom(
-	deps: Pick<AppDependencies, "validateSaveableUrl" | "findArticleByUrl" | "findItemOwner" | "findArticleFreshness" | "findArticleCrawlVersions" | "readArticleContent" | "readArticleImage" | "logError" | "findGeneratedSummary" | "markSummaryPending" | "findArticleCrawlStatus" | "markCrawlPending" | "saveArticleGlobally" | "resolveCanonicalIdentity" | "findIdentityRow" | "resolveFirstVisitIdentity" | "pinContentSource" | "findContentSourceUrl" | "publishSaveAnonymousLink" | "publishStaleCheckRequested" | "consumeRateLimit" | "rateLimitRules" | "now" | "salt">,
+	deps: Pick<AppDependencies, "validateSaveableUrl" | "findArticleByUrl" | "findItemOwner" | "findArticleFreshness" | "findArticleCrawlVersions" | "readArticleContent" | "readArticleImage" | "logError" | "findGeneratedSummary" | "markSummaryPending" | "findArticleCrawlStatus" | "markCrawlPending" | "saveArticleGlobally" | "resolveCanonicalIdentity" | "findIdentityRow" | "resolveFirstVisitIdentity" | "pinContentSource" | "findContentSourceUrl" | "publishSaveAnonymousLink" | "publishStaleCheckRequested" | "consumeRateLimit" | "rateLimitRules" | "now" | "salt" | "readerSectionThresholdBytes">,
 	built: Pick<Parameters<typeof initViewRoutes>[0], "appOrigin" | "ownHost" | "secureCookies" | "buildBannerState" | "recordAnalyticsEvent">,
 ): Parameters<typeof initViewRoutes>[0] {
 	const {
@@ -14,6 +14,7 @@ export function viewDependenciesFrom(
 	} = built;
 	return {
 		validateSaveableUrl: deps.validateSaveableUrl,
+		readerSectionThresholdBytes: deps.readerSectionThresholdBytes,
 		appOrigin,
 		ownHost,
 		secureCookies,

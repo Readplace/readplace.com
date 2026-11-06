@@ -118,6 +118,7 @@ import type {
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 
 export interface ReadlistDependencies {
+	readerSectionThresholdBytes: number;
 	validateSaveableUrl: ValidateSaveableUrl;
 	validateNewSaveUrl: ValidateSaveableUrl;
 	appOrigin: string;

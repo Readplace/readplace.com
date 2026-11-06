@@ -3,8 +3,9 @@ import { JSDOM } from "jsdom";
 import { destinationUrl } from "../../../test-helpers/article-fixtures";
 import { type ReaderSlotInput, renderReaderSlot } from "./reader-slot.component";
 import { articleBody } from "@packages/test-fixtures";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./section-pages";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 
 function parse(regions: { slot: string; notice: string }) {
 	return new JSDOM(

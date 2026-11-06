@@ -37,6 +37,7 @@ import { createApp } from "./server";
 import { initFetchFirefoxDownloadUrl, type FetchFirefoxDownloadUrl } from "./web/pages/install";
 import { batchFromSingular } from "./batch-from-singular";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./web/shared/article-body/reader-slot/section-pages";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { isStaticAssetRequestPath } from "./web/static-asset-paths";
@@ -96,6 +97,7 @@ interface TestAppOverrides {
 	fetchFirefoxDownloadUrl?: FetchFirefoxDownloadUrl;
 	keepOfferEndsAt?: Date;
 	guestUploadKinds?: readonly MediaKindName[];
+	readerSectionThresholdBytes?: number;
 }
 
 export const TEST_FIREFOX_XPI_FILENAME = "abc123-1.0.0.xpi";
@@ -172,6 +174,7 @@ function flattenFixtureToAppDependencies(
 			{ selfHost: new URL(fixture.shared.appOrigin).host },
 		),
 		appOrigin: fixture.shared.appOrigin,
+		readerSectionThresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES,
 		staticBaseUrl: fixture.shared.staticBaseUrl,
 		baseUrl: fixture.shared.appOrigin,
 		logError: fixture.shared.logError,

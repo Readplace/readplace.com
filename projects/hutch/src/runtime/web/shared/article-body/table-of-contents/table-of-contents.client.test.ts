@@ -6,7 +6,7 @@ import { renderTableOfContents } from "./table-of-contents.component";
 import { articleBody } from "@packages/test-fixtures";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../reader-slot/section-pages";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 const TEST_READER_URL = "https://example.com/post";
 
 const APP_ORIGIN = "https://readplace.com";

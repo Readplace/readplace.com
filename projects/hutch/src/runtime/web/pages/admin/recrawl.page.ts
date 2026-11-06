@@ -38,6 +38,7 @@ const RECRAWL_REFUSED_TEMPLATE = readFileSync(join(__dirname, "recrawl-refused.t
 
 export interface AdminRecrawlDependencies {
 	appOrigin: string;
+	readerSectionThresholdBytes: number;
 	now: () => Date;
 	findArticleByUrl: FindArticleByUrl;
 	findItemOwner: FindItemOwner;
@@ -223,7 +224,7 @@ async function renderRecrawlPage(
 
 	const html = Base(AdminRecrawlPage({
 		articleUrl,
-		readerSection: { requested: requestedReaderSection(req.query.section), readerPath: recrawlPathFor(articleUrl) },
+		readerSection: { requested: requestedReaderSection(req.query.section), readerPath: recrawlPathFor(articleUrl), thresholdBytes: deps.readerSectionThresholdBytes },
 		now: deps.now(),
 		destinationUrl: existing.destinationUrl,
 		appOrigin: deps.appOrigin,
@@ -293,6 +294,7 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies, resolveStoredArtic
 function handleSummaryPoll(
 	reader: ReturnType<typeof initArticleReader>,
 	resolveStoredArticle: ResolveStoredArticle,
+	readerSectionThresholdBytes: number,
 ) {
 	return async (req: Request, res: Response): Promise<void> => {
 		const parsed = RecrawlUrlSchema.safeParse(req.query.url);
@@ -309,7 +311,7 @@ function handleSummaryPoll(
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, requestedReaderSection(req.query.section)),
-			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: recrawlPathFor(articleUrl) },
+			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: recrawlPathFor(articleUrl), thresholdBytes: readerSectionThresholdBytes },
 			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
@@ -326,6 +328,7 @@ function handleSummaryPoll(
 function handleReaderPoll(
 	reader: ReturnType<typeof initArticleReader>,
 	resolveStoredArticle: ResolveStoredArticle,
+	readerSectionThresholdBytes: number,
 ) {
 	return async (req: Request, res: Response): Promise<void> => {
 		const parsed = RecrawlUrlSchema.safeParse(req.query.url);
@@ -342,7 +345,7 @@ function handleReaderPoll(
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, requestedReaderSection(req.query.section)),
-			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: recrawlPathFor(articleUrl) },
+			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: recrawlPathFor(articleUrl), thresholdBytes: readerSectionThresholdBytes },
 			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
@@ -381,8 +384,8 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 	const refusePrivateItem = refusePrivateItemRecrawl(deps);
 
 	router.get("/", refusePrivateItem, handleLanding(deps, reader, resolveStoredArticle));
-	router.get("/summary", refusePrivateItem, handleSummaryPoll(reader, resolveStoredArticle));
-	router.get("/reader", refusePrivateItem, handleReaderPoll(reader, resolveStoredArticle));
+	router.get("/summary", refusePrivateItem, handleSummaryPoll(reader, resolveStoredArticle, deps.readerSectionThresholdBytes));
+	router.get("/reader", refusePrivateItem, handleReaderPoll(reader, resolveStoredArticle, deps.readerSectionThresholdBytes));
 	// The `?url=` trigger is registered first so the lossless carrier is matched
 	// before the path wildcard ever sees the request.
 	router.post("/", refusePrivateItem, handleTriggerRecrawl(deps, resolveStoredArticle));

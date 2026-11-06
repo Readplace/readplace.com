@@ -11,6 +11,7 @@ import { createApp } from "./server";
 import { initProdProviders } from "./providers/prod-providers";
 import { initFetchFirefoxDownloadUrl } from "./web/pages/install";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./web/shared/article-body/reader-slot/section-pages";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
@@ -28,6 +29,7 @@ import { getEnv, requireEnv } from "@packages/require-env";
 type AssemblyProvidedKeys =
 	| "validateSaveableUrl"
 	| "appOrigin"
+	| "readerSectionThresholdBytes"
 	| "staticBaseUrl"
 	| "hashPassword"
 	| "fetchFirefoxDownloadUrl"
@@ -88,6 +90,7 @@ export function assembleReadplaceApp(input: {
 			{ selfHost: new URL(appOrigin).host },
 		),
 		appOrigin,
+		readerSectionThresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES,
 		staticBaseUrl,
 		hashPassword,
 		fetchFirefoxDownloadUrl: initFetchFirefoxDownloadUrl({ fetch }),

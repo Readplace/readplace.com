@@ -386,6 +386,7 @@ import "./web/session.types";
 export const PORT = requireEnv("PORT");
 
 export interface AppDependencies {
+	readerSectionThresholdBytes: number;
 	recordEngagementActivity: RecordEngagementActivity;
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;

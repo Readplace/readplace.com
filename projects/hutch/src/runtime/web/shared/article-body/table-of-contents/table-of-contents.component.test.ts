@@ -12,7 +12,7 @@ import { articleBody } from "@packages/test-fixtures";
 import type { ArticleBody } from "@packages/domain/article";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../reader-slot/section-pages";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 const TEST_READER_URL = "https://example.com/post";
 
 const APP_ORIGIN = "https://readplace.com";
@@ -255,7 +255,7 @@ describe("renderTableOfContents for a paged body", () => {
 	function renderPaged(requested: number | undefined): Element {
 		return wrapperOf(
 			renderTableOfContents({
-				readerSection: { requested, readerPath: "/queue/a/view" },
+				readerSection: { requested, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES },
 				url: TEST_READER_URL,
 				crawl: { status: "ready" },
 				content: longBody,

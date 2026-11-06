@@ -22,8 +22,9 @@ import {
 	stampOfflineCopy,
 } from "./offline-download.client";
 import { articleBody } from "@packages/test-fixtures";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../article-body/reader-slot/section-pages";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 
 const ORIGIN = "https://readplace.com";
 const CACHE_NAME = "readplace-offline-v1";

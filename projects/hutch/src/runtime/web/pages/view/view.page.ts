@@ -90,6 +90,7 @@ import {
 } from "./view.component";
 
 interface ViewDependencies {
+	readerSectionThresholdBytes: number;
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	ownHost: string;
@@ -581,7 +582,7 @@ function handleViewArticle(
 			Base(
 				ViewPage({
 					articleUrl,
-					readerSection: { requested: requestedReaderSection(req.query.section), readerPath: viewPathFor(articleUrl) },
+					readerSection: { requested: requestedReaderSection(req.query.section), readerPath: viewPathFor(articleUrl), thresholdBytes: deps.readerSectionThresholdBytes },
 					destinationUrl,
 					appOrigin: deps.appOrigin,
 					metadata,
@@ -631,7 +632,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams, requestedReaderSection(req.query.section)),
-			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: viewPathFor(articleUrl) },
+			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: viewPathFor(articleUrl), thresholdBytes: deps.readerSectionThresholdBytes },
 			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: readerPublicInstallUrl(req),
 			summaryToggleUrl: undefined,
@@ -668,7 +669,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams, requestedReaderSection(req.query.section)),
-			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: viewPathFor(articleUrl) },
+			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: viewPathFor(articleUrl), thresholdBytes: deps.readerSectionThresholdBytes },
 			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: readerPublicInstallUrl(req),
 			summaryToggleUrl: undefined,

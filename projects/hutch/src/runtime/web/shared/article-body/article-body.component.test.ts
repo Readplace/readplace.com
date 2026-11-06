@@ -6,8 +6,9 @@ import type { ArticleVersion } from "../article-reader/article-reader.types";
 import { type ArticleRailInput, renderArticleBody, renderArticleRail } from "./article-body.component";
 import { articleBody } from "@packages/test-fixtures";
 import { initFinalizeArticle } from "@packages/finalize-article";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./reader-slot/section-pages";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 const TEST_READER_URL = destinationUrl("https://example.com/post");
 
 const baseInput = {

@@ -27,8 +27,9 @@ import { buildArticleDeletion } from "../readlist/readlist-card/delete-confirm.c
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { articleBody } from "@packages/test-fixtures";
 import { epubDownloadGuideFor } from "../../shared/epub/epub-download-guide";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 
 const NO_QUEUE_FILING: ReaderReadlistFiling = {
 	tags: undefined,
