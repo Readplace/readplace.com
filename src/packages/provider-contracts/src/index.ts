@@ -12,6 +12,7 @@ export type * from "./events";
 export type * from "./google-auth";
 export * from "./hosted-checkout";
 export * from "./metered-leg-ledger";
+export * from "./transcript-quota";
 export type * from "./onboarding-signals";
 export type * from "./oauth";
 export * from "./password-reset";
