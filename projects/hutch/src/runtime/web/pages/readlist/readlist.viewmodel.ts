@@ -408,8 +408,8 @@ export function toReadlistArticleViewModel(params: {
 export function toReadlistViewModel(
 	result: FindArticlesResult,
 	filters: ReadlistUrlState,
-	options?: {
-		now?: Date;
+	options: {
+		now: Date;
 		errors?: ComponentError[];
 		saveErrorCode?: SaveableUrlErrorCode;
 		importFlash?: string;
@@ -428,7 +428,7 @@ export function toReadlistViewModel(
 		moveFlash?: MoveFlash;
 	},
 ): ReadlistViewModel {
-	const now = options?.now ?? new Date();
+	const now = options.now;
 	const returnQuery = readlistReturnQuery(filters);
 
 	/** When effectiveAccess is omitted the caller is a server-side render path
@@ -436,7 +436,7 @@ export function toReadlistViewModel(
 	 * — those code paths never reach the banner-rendering template, so we treat
 	 * "no info" as founding/full-access for view-model purposes. The
 	 * authenticated GET /queue handler always passes effectiveAccess. */
-	const access: EffectiveAccess = options?.effectiveAccess ?? {
+	const access: EffectiveAccess = options.effectiveAccess ?? {
 		tier: "founding",
 		access: "full",
 		banner: "none",
@@ -448,16 +448,16 @@ export function toReadlistViewModel(
 				article: a,
 				now,
 				returnQuery,
-				summary: options?.summaryByUrl?.get(a.url),
-				crawl: options?.crawlByUrl?.get(a.url),
-				enclosure: options?.enclosureByUrl?.get(a.url) ?? ABSENT_ENCLOSURE,
-				readerProvenance: options?.readerProvenanceByUrl?.get(a.url),
+				summary: options.summaryByUrl?.get(a.url),
+				crawl: options.crawlByUrl?.get(a.url),
+				enclosure: options.enclosureByUrl?.get(a.url) ?? ABSENT_ENCLOSURE,
+				readerProvenance: options.readerProvenanceByUrl?.get(a.url),
 				filters,
 				maxPolls: MAX_POLLS,
-				confirmReadlists: options?.confirmReadlistsByUrl?.get(a.url),
-				deleteAcknowledged: options?.deleteAcknowledged,
+				confirmReadlists: options.confirmReadlistsByUrl?.get(a.url),
+				deleteAcknowledged: options.deleteAcknowledged,
 				filing:
-					options?.readlists === undefined
+					options.readlists === undefined
 						? undefined
 						: {
 								readlists: options.readlists,
@@ -480,25 +480,25 @@ export function toReadlistViewModel(
 				? buildReadlistUrl({ ...filters, page: result.page + 1 })
 				: undefined,
 		},
-		errors: options?.errors,
-		saveErrorCode: options?.saveErrorCode,
-		importFlash: options?.importFlash,
-		importSkipped: options?.importSkipped,
-		statusFlash: options?.statusFlash
+		errors: options.errors,
+		saveErrorCode: options.saveErrorCode,
+		importFlash: options.importFlash,
+		importSkipped: options.importSkipped,
+		statusFlash: options.statusFlash
 			? {
 				message: options.statusFlash.message,
 				undoUrl: `/queue/${options.statusFlash.undoArticleId}/status${returnQuery}`,
 				undoStatus: options.statusFlash.undoStatus,
 			}
 			: undefined,
-		moveFlash: options?.moveFlash
+		moveFlash: options.moveFlash
 			? {
 					message: options.moveFlash.message,
 					undoUrl: `/queue/${options.moveFlash.articleId}/move${returnQuery}`,
 					undoFields: { from: options.moveFlash.undoFrom, to: options.moveFlash.undoTo },
 				}
 			: undefined,
-		subscriptionBanner: toSubscriptionBannerState(access, now, options?.upgradeOffer),
+		subscriptionBanner: toSubscriptionBannerState(access, now, options.upgradeOffer),
 		accessIsReadOnly: access.access === "read-only",
 	};
 }

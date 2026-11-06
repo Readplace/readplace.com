@@ -429,6 +429,7 @@ describe("toReadlistViewModel — listen time", () => {
 		};
 
 		const vm = toReadlistViewModel(makeResult([audio, link]), DEFAULT_FILTERS, {
+			now: NOW,
 			enclosureByUrl: new Map([[audioUrl, owned]]),
 		});
 
