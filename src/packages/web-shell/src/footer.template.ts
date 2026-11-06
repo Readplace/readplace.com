@@ -2,6 +2,7 @@ export const FOOTER_TEMPLATE = `  <footer class="footer">
 		<div class="footer__content">
 			<ul class="footer__links">
 				<li><a href="{{track '/blog' source='footer' content='blog' term=clickSurface}}" class="footer__link">Blog</a></li>
+				<li><a href="{{track '/upload' source='footer' content='upload' term=clickSurface}}" class="footer__link">Upload a book</a></li>
 				<li><a href="{{track '/privacy' source='footer' content='privacy' term=clickSurface}}" class="footer__link">Privacy</a></li>
 				<li><a href="{{track '/terms' source='footer' content='terms' term=clickSurface}}" class="footer__link">Terms</a></li>
 			</ul>

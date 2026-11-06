@@ -13,6 +13,7 @@ import type {
 	MarkMediaUploadInspecting,
 	MediaUploadSession,
 	MintMediaPendingPost,
+	PresignEnclosure,
 	PresignMediaImage,
 	PublishMediaUploadCommitted,
 	PublishMediaUploadStaged,
@@ -162,6 +163,20 @@ export function initInMemoryPresignMediaImage(): {
 			return `https://media.test/images/${input.uploadId}/${input.file}`;
 		},
 		presignedMediaImages,
+	};
+}
+
+export function initInMemoryPresignEnclosure(): {
+	presignEnclosure: PresignEnclosure;
+	presignedEnclosures: Parameters<PresignEnclosure>[0][];
+} {
+	const presignedEnclosures: Parameters<PresignEnclosure>[0][] = [];
+	return {
+		presignEnclosure: async (input) => {
+			presignedEnclosures.push(input);
+			return `https://media.test/${input.object}`;
+		},
+		presignedEnclosures,
 	};
 }
 

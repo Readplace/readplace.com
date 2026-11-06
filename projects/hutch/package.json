@@ -67,6 +67,7 @@
     "@packages/storage-client": "workspace:*",
     "@packages/inbox-store": "workspace:*",
     "@packages/media-contracts": "workspace:*",
+    "@packages/media-object-store": "workspace:*",
     "@packages/onboarding-extension-signal": "workspace:*",
     "@packages/onboarding-signals": "workspace:*",
     "@packages/provider-contracts": "workspace:*",

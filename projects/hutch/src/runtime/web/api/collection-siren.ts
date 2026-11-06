@@ -2,7 +2,7 @@ import assert from "node:assert";
 import type { FindArticlesResult, SortOrder } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
+import { type EnclosureRead, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import type { AppearancePreference } from "@packages/domain/user";
 import { PLATFORM_QUERY } from "../onboarding/native-client";
@@ -37,6 +37,7 @@ export function toArticleCollectionEntity(
 		showSaveInProgressNotice?: boolean;
 		appearance?: AppearancePreference;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
+		enclosureByUrl?: ReadonlyMap<string, EnclosureRead>;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		totalLabel?: (input: { total: number }) => string;
 		sort?: { options: readonly SortOption[]; current: SortOrder };
@@ -128,6 +129,7 @@ export function toArticleCollectionEntity(
 				now: options.now,
 				crawl: options.crawlByUrl?.get(article.url),
 				summary: options.summaryByUrl?.get(article.url),
+				enclosure: options.enclosureByUrl?.get(article.url),
 				collectionQuery: { readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status: queryParams.status, order: queryParams.order },
 			}),
 		),

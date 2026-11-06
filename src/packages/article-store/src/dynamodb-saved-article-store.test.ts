@@ -7,6 +7,7 @@ import type { SaveProvenance } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
+import { EnclosureSchema } from "@packages/media-contracts";
 import { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
 
 const USER = "abc123" as UserId;
@@ -1268,6 +1269,23 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 		});
 	});
 
+	it("findArticleById carries the row's owner and enclosure", async () => {
+		const enclosure = EnclosureSchema.parse({
+			object: `objects/sha256/${"d".repeat(64)}/1`,
+			mediaType: "audio/mpeg",
+			durationSeconds: 2820,
+		});
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem({ ...PRIVATE_ITEM_ROW, enclosure })], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem({ url: PRIVATE_ITEM_ROW.url }) } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		assert.deepEqual(article?.enclosure, enclosure);
+		assert.equal(article?.ownerUserId, USER);
+	});
+
 	it("findArticleById shows the private upload stub to a reader who holds a link but does not own it", async () => {
 		const { client } = createFakeClient({
 			QueryCommand: { default: { Items: [articleItem({ ...PRIVATE_ITEM_ROW, ownerUserId: "another-user" })], Count: 1 } },
@@ -1442,7 +1460,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt, #ownerUserId, #media, #processingNotice",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt, #ownerUserId, #media, #processingNotice, #enclosure",
 		);
 	});
 
@@ -1845,7 +1863,7 @@ describe("initDynamoDbSavedArticleStore findUnreadSavesForDigest", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt, #ownerUserId, #media, #processingNotice",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt, #ownerUserId, #media, #processingNotice, #enclosure",
 		);
 		expect(
 			page.candidates.map((candidate) => ({

@@ -84,6 +84,7 @@ import type {
 	RecordPrivateItemFailure,
 	RecordPrivateItemSections,
 	SaveArticle,
+	SetArticleEnclosure,
 	SaveArticleGlobally,
 	SavePrivateItem,
 	SaveArticleParams,
@@ -122,6 +123,7 @@ interface GlobalArticle {
 	ownerUserId?: UserId;
 	media?: ItemMedia;
 	processingNotice?: string;
+	enclosure?: SavedArticle["enclosure"];
 }
 
 interface UserArticle {
@@ -181,6 +183,8 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
 		media: article.media,
 		processingNotice: article.processingNotice,
+		ownerUserId: article.ownerUserId,
+		enclosure: article.enclosure,
 	};
 }
 
@@ -256,6 +260,7 @@ export function initInMemoryArticleStore(): {
 	savePrivateItem: SavePrivateItem;
 	recordPrivateItemFailure: RecordPrivateItemFailure;
 	recordPrivateItemSections: RecordPrivateItemSections;
+	setArticleEnclosure: SetArticleEnclosure;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	readArticleImage: ReadArticleImage;
 	writeImage: (params: {
@@ -1142,6 +1147,13 @@ export function initInMemoryArticleStore(): {
 		return "recorded";
 	};
 
+	const setArticleEnclosure: SetArticleEnclosure = async (params) => {
+		const article = articles.get(ArticleResourceUniqueId.parse(params.url).value);
+		if (article?.ownerUserId === undefined || article.purgedAt !== undefined) return "not-found";
+		article.enclosure = params.enclosure;
+		return "recorded";
+	};
+
 	const writeContent = async (params: { url: string; content: string }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);
@@ -1322,6 +1334,7 @@ export function initInMemoryArticleStore(): {
 		savePrivateItem,
 		recordPrivateItemFailure,
 		recordPrivateItemSections,
+		setArticleEnclosure,
 		writeContent,
 		readArticleImage,
 		writeImage,

@@ -6,6 +6,7 @@ import {
 	MediaRejectedEvent,
 	MediaUploadCommittedEvent,
 	MediaUploadStagedEvent,
+	TranscribeJobStateChangedEvent,
 } from "./events";
 
 const uploadId = "0123456789abcdef0123456789abcdef";
@@ -167,6 +168,29 @@ describe("MediaRejectedEvent", () => {
 
 	it("refuses a detail with an empty notice", () => {
 		const result = MediaRejectedEvent.detailSchema.safeParse({ ...rejectedDetail, notice: "" });
+
+		assert.equal(result.success, false);
+	});
+});
+
+describe("TranscribeJobStateChangedEvent", () => {
+	const completedDetail = { TranscriptionJobName: `rp-${uploadId}-1`, TranscriptionJobStatus: "COMPLETED" };
+
+	it("is named for the rules that subscribe to it", () => {
+		assert.equal(TranscribeJobStateChangedEvent.name, "transcribe-job-state-changed");
+	});
+
+	it("is published by Amazon Transcribe", () => {
+		assert.equal(TranscribeJobStateChangedEvent.source, "aws.transcribe");
+		assert.equal(TranscribeJobStateChangedEvent.detailType, "Transcribe Job State Change");
+	});
+
+	it("keeps the job name and status of a finished job", () => {
+		assert.deepEqual(TranscribeJobStateChangedEvent.detailSchema.parse(completedDetail), completedDetail);
+	});
+
+	it("refuses a status other than completed or failed", () => {
+		const result = TranscribeJobStateChangedEvent.detailSchema.safeParse({ ...completedDetail, TranscriptionJobStatus: "IN_PROGRESS" });
 
 		assert.equal(result.success, false);
 	});

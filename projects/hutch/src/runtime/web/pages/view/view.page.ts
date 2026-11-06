@@ -7,7 +7,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
-import { newSaveAttemptId, articleDestinationUrl, calculateReadTime, hostStubMetadata, isArchiveHost, isPrivateItemUrl, isPubliclyWithheld, isWrapperUrl, unwrapWrapperUrl, viewerFor, wrapperFamilyOf } from "@packages/domain/article";
+import { ABSENT_ENCLOSURE, newSaveAttemptId, articleDestinationUrl, calculateReadTime, hostStubMetadata, isArchiveHost, isPrivateItemUrl, isPubliclyWithheld, isWrapperUrl, unwrapWrapperUrl, viewerFor, wrapperFamilyOf } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
 	FindItemOwner,
@@ -627,6 +627,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
 			viewer: viewerFor(req.userId),
+			enclosure: ABSENT_ENCLOSURE,
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams, requestedReaderSection(req.query.section)),
@@ -663,6 +664,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 		const component = await reader.handleReaderPoll({
 			articleUrl,
 			viewer: viewerFor(req.userId),
+			enclosure: ABSENT_ENCLOSURE,
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams, requestedReaderSection(req.query.section)),

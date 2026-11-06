@@ -13,6 +13,7 @@ type UploadOutcomePayloads = {
 	committed: { uploadId: UploadId };
 	continue: { uploadId: UploadId };
 	failed: { uploadId: UploadId };
+	"staged-for-review": { uploadId: UploadId };
 } & { [C in UploadErrorCode]: Record<never, never> };
 
 export type UploadOutcomeKey = keyof UploadOutcomePayloads;

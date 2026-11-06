@@ -13,7 +13,7 @@ const PRECONDITION_FAILED = 412;
 export type StagedObject = { bytes: Uint8Array; sha256: string };
 export type DownloadStagedObject = (params: { uploadId: UploadId; etag: string }) => Promise<StagedObject | "staged-bytes-gone">;
 
-function isGone(error: unknown): boolean {
+export function isGone(error: unknown): boolean {
 	return error instanceof NoSuchKey || (error instanceof S3ServiceException && error.$metadata.httpStatusCode === PRECONDITION_FAILED);
 }
 

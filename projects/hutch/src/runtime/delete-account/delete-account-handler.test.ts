@@ -37,6 +37,8 @@ import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/provi
 import { resolveWriteAccess } from "@packages/subscription-access";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "../media-release/private-item-release-steps";
+import { type ReleasePrivateItems, initReleasePrivateItems } from "../media-release/release-private-items";
 import { initDeleteAccountHandler } from "./delete-account-handler";
 import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
 import { initRevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
@@ -63,7 +65,9 @@ function sorted(values: string[]): string[] {
 	return [...values].sort();
 }
 
-function buildSubject() {
+function buildSubject(
+	overrides: { releasePrivateItemsFor?: (articleStore: ReturnType<typeof initInMemoryArticleStore>) => ReleasePrivateItems } = {},
+) {
 	const auth = initInMemoryAuth({
 		hashPassword: async (password) => `hashed:${password}`,
 		verifyPassword: async (password, stored) => stored === `hashed:${password}`,
@@ -256,9 +260,11 @@ function buildSubject() {
 		tombstoneArticle: async ({ url, at }: { url: string; at: Date }) => {
 			tombstoneCalls.push({ url, at });
 		},
-		releasePrivateItems: async ({ userId, urls }) => {
-			privateItemReleases.push({ userId, urls, listedAtRelease: await articleStore.listUserArticleUrls(userId) });
-		},
+		releasePrivateItems:
+			overrides.releasePrivateItemsFor?.(articleStore) ??
+			(async ({ userId, urls }) => {
+				privateItemReleases.push({ userId, urls, listedAtRelease: await articleStore.listUserArticleUrls(userId) });
+			}),
 		now: () => SEED_NOW,
 		withdrawStarterAssignment: engagement.withdrawStarterAssignment,
 		deleteReaderReadyState: readerReady.deleteReaderReadyState,
@@ -758,6 +764,54 @@ describe("delete-account handler", () => {
 				urls: ["https://example.com/release/article"],
 				listedAtRelease: ["https://example.com/release/article"],
 			},
+		]);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId, includeTotal: true })).total, 0);
+	});
+
+	it("unrefs an audio item's media holdings while the account's saved urls are still listed, before dropping its rows", async () => {
+		const audioUploadId = "0123456789abcdef0123456789abcdef";
+		const audioUrl = `https://uploads.readplace.invalid/${audioUploadId}`;
+		const unrefs: Array<{ uploadId: string; listedAtUnref: string[] }> = [];
+		const s = buildSubject({
+			releasePrivateItemsFor: (articleStore) => async ({ userId, urls }) =>
+				initReleasePrivateItems({
+					releasePrivateItem: initReleasePrivateItem({
+						findItemOwner: articleStore.findItemOwner,
+						steps: initPrivateItemReleaseSteps({
+							purgeArticleContent: async () => {},
+							deleteMediaObjects: async () => {},
+							listMediaKeys: async () => [],
+							deleteArticleRow: async () => {},
+							mediaObjects: {
+								unrefAll: async ({ uploadId }) => {
+									unrefs.push({ uploadId, listedAtUnref: (await articleStore.listUserArticleUrls(userId)).sort() });
+								},
+							},
+							deleteUserArticleLinks: async () => {},
+						}),
+					}),
+				})({ userId, urls }),
+		});
+		const account = await seedAccount(s, {
+			label: "audio",
+			email: "audio@example.com",
+			subscription: "none",
+		});
+		await s.articleStore.saveArticle({
+			userId: account.userId,
+			url: audioUrl,
+			metadata: articleMetadata("An uploaded recording"),
+			estimatedReadTime: MinutesSchema.parse(47),
+			provenance: { kind: "web" },
+			savedAt: new Date(),
+		});
+		await s.articleStore.recordItemOwner({ url: audioUrl, ownerUserId: account.userId });
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.deepEqual(unrefs, [
+			{ uploadId: audioUploadId, listedAtUnref: ["https://example.com/audio/article", audioUrl].sort() },
 		]);
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId, includeTotal: true })).total, 0);
 	});

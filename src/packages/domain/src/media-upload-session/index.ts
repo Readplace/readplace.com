@@ -8,6 +8,7 @@ export type {
 	MintMediaPendingPost,
 	HeadMediaPendingOriginal,
 	ReadMediaPendingPrefix,
+	PresignEnclosure,
 	PresignMediaImage,
 	PublishMediaUploadCommitted,
 } from "./media-upload-session.types";

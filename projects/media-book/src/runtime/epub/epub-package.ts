@@ -10,13 +10,22 @@ export type EpubPackage = {
 	manifestMediaTypes: ReadonlyMap<string, string>;
 };
 
+export function packagePathFrom(containerXml: string): string {
+	return attribute({ element: elementsNamed({ within: parseXml(containerXml), name: "rootfile" })[0], name: "full-path" });
+}
+
 export function parseEpubPackage(bytes: Uint8Array): EpubPackage | "not-an-epub" {
 	const containerXml = readZipEntry({ bytes, name: "META-INF/container.xml" });
 	if (containerXml === undefined) return "not-an-epub";
-	const opfPath = attribute({ element: elementsNamed({ within: parseXml(containerXml), name: "rootfile" })[0], name: "full-path" });
+	const opfPath = packagePathFrom(containerXml);
 	const opfXml = opfPath === "" ? undefined : readZipEntry({ bytes, name: opfPath });
 	if (opfXml === undefined) return "not-an-epub";
-	const opf = parseXml(opfXml);
+	return parsePackageDocument({ opfPath, opfXml, untitled: "Untitled book" });
+}
+
+export function parsePackageDocument(params: { opfPath: string; opfXml: string; untitled: string }): EpubPackage | "not-an-epub" {
+	const { opfPath } = params;
+	const opf = parseXml(params.opfXml);
 
 	const manifest = new Map(
 		elementsNamed({ within: opf, name: "item" }).map((item) => [
@@ -36,7 +45,7 @@ export function parseEpubPackage(bytes: Uint8Array): EpubPackage | "not-an-epub"
 
 	const tocId = attribute({ element: elementsNamed({ within: opf, name: "spine" })[0], name: "toc" });
 	return {
-		title: textOf(elementsNamed({ within: opf, name: "title" })[0]) || "Untitled book",
+		title: textOf(elementsNamed({ within: opf, name: "title" })[0]) || params.untitled,
 		authors: elementsNamed({ within: opf, name: "creator" }).map(textOf).filter((name) => name !== ""),
 		spine,
 		navPath: [...manifest.values()].find((item) => item.properties.includes("nav"))?.path,

@@ -29,6 +29,7 @@ import {
 	initInMemoryMediaUploadCommitted,
 	initInMemoryMediaUploadStaged,
 	initInMemoryMediaUploadSessions,
+	initInMemoryPresignEnclosure,
 	initInMemoryPresignMediaImage,
 } from "./providers/media-upload-session/in-memory-media-upload-session";
 import { mintUploadId } from "@packages/media-contracts";
@@ -474,6 +475,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 				return outcome;
 			},
 			recordPrivateItemSections: articleStoreMemory.recordPrivateItemSections,
+			setArticleEnclosure: articleStoreMemory.setArticleEnclosure,
 			readContent: articleStoreMemory.readContent,
 			writeContent: articleStoreMemory.writeContent,
 			readArticleImage: articleStoreMemory.readArticleImage,
@@ -602,6 +604,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			...initInMemoryMediaUploadSessions(),
 			...initInMemoryMediaPending({ uploadBaseUrl: `${appOrigin}/e2e/s3-media` }),
 			...initInMemoryPresignMediaImage(),
+			...initInMemoryPresignEnclosure(),
 			...initInMemoryMediaUploadCommitted(),
 			...initInMemoryMediaUploadStaged(),
 			mintUploadId: () => mintUploadId(randomBytes),

@@ -21,6 +21,10 @@
       "types": "./dist/infra/compute-image-tag.d.ts",
       "default": "./dist/infra/compute-image-tag.js"
     },
+    "./infra/build-handler-images": {
+      "types": "./dist/infra/build-handler-images.d.ts",
+      "default": "./dist/infra/build-handler-images.js"
+    },
     "./runtime": {
       "types": "./dist/runtime/index.d.ts",
       "default": "./dist/runtime/index.js"
@@ -31,6 +35,7 @@
       "infra": ["./dist/infra/index.d.ts"],
       "infra/copy-asset-files": ["./dist/infra/copy-asset-files.d.ts"],
       "infra/compute-image-tag": ["./dist/infra/compute-image-tag.d.ts"],
+      "infra/build-handler-images": ["./dist/infra/build-handler-images.d.ts"],
       "runtime": ["./dist/runtime/index.d.ts"]
     }
   },
@@ -48,6 +53,7 @@
     "@packages/article-state-types": "workspace:*",
     "@packages/logger": "workspace:*",
     "@packages/media-contracts": "workspace:*",
+    "esbuild": "catalog:",
     "zod": "4.4.3"
   },
   "devDependencies": {
@@ -57,7 +63,6 @@
     "@types/aws-lambda": "8.10.161",
     "@types/jest": "30.0.0",
     "concurrently": "10.0.0",
-    "esbuild": "catalog:",
     "jest": "30.4.2",
     "typescript": "6.0.3"
   }

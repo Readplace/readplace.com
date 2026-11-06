@@ -36,6 +36,21 @@ describe("GET /mcp (browser connection guide)", () => {
 		]);
 	});
 
+	it("links back to Connectors only for a reader who came from Connectors", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const direct = load((await request(server).get("/mcp").set("Accept", "text/html,application/xhtml+xml")).text);
+		const fromConnectors = load(
+			(await request(server).get("/mcp?from=connectors").set("Accept", "text/html,application/xhtml+xml")).text,
+		);
+
+		expect(direct.querySelector("[data-test-mcp-back]")).toBeNull();
+		const back = fromConnectors.querySelector("[data-test-mcp-back]");
+		assert.ok(back, "a reader from Connectors gets a back link");
+		expect(back.textContent).toBe("Connectors");
+		expect(back.getAttribute("href")).toBe("/newsletters?utm_source=mcp-connect&utm_medium=internal&utm_content=back-to-connectors");
+	});
+
 	it("leads with the line about keeping the original sources", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server)

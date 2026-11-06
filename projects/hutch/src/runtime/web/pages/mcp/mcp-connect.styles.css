@@ -7,6 +7,22 @@
   margin: 0 auto;
 }
 
+.mcp-connect__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--foreground);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.mcp-connect__back:hover {
+  color: var(--primary-text);
+}
+
 .mcp-connect__title {
   font-family: var(--font-serif);
   font-size: 2rem;
