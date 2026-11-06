@@ -1,7 +1,8 @@
-<main class="upload" data-test-upload-page>
+<main class="upload" data-test-upload-page{{#if start}} data-upload-viewer="{{start.viewer}}"{{/if}}>
   <div class="upload__layout">
     <h1 class="upload__title">Upload a book</h1>
     {{#if errorAlertHtml}}<div data-test-upload-error="{{errorCode}}">{{{errorAlertHtml}}}</div>{{/if}}
+    {{#if start.showsGuestNotice}}<p class="upload__description" data-test-upload-guest-notice>You can upload now and sign up when you save it.</p>{{/if}}
     {{#if start}}
     <form class="upload__panel" method="post" action="{{track '/upload' source='upload-start' content='start'}}" data-test-upload-start>
       <div class="form-field">

@@ -3,13 +3,20 @@ import type { MediaKindManifest, MediaKindName } from "@packages/media-contracts
 export interface UploadStartViewModel {
 	readonly contentTypes: readonly string[];
 	readonly ceilingLabel: string;
+	readonly viewer: "guest" | "member";
+	readonly showsGuestNotice: boolean;
 }
 
-export function toUploadStartViewModel(kinds: ReadonlyMap<MediaKindName, MediaKindManifest>): UploadStartViewModel {
+export function toUploadStartViewModel(
+	kinds: ReadonlyMap<MediaKindName, MediaKindManifest>,
+	isSignedIn: boolean,
+): UploadStartViewModel {
 	const manifests = [...kinds.values()];
 	return {
 		contentTypes: manifests.flatMap((kind) => Object.keys(kind.accepts)),
 		ceilingLabel: manifests.map((kind) => `${kind.label}: up to ${kind.ceilingLabel}`).join(", "),
+		viewer: isSignedIn ? "member" : "guest",
+		showsGuestNotice: !isSignedIn,
 	};
 }
 

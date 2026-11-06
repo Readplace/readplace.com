@@ -253,17 +253,27 @@ import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import { initUploadRouter, UPLOAD_OUTCOME_HTML } from "./web/pages/upload/upload.page";
 import { initCommitReceivedUpload } from "./web/pages/upload/commit-received-upload";
-import { redirectAnonymousToUploadSignup } from "./web/pages/upload/redirect-anonymous-to-upload-signup";
-import { BOOK, MEDIA_KINDS, type UploadId } from "@packages/media-contracts";
+import { initStageGatesByCaller } from "./web/pages/upload/stage-gates-by-caller";
+import { initSettleByCaller, initStageForReview } from "./web/pages/upload/stage-for-review";
+import { initAnonymousUploadRoutes } from "./web/pages/upload/upload-review.page";
+import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
+import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
+import { INSPECT_BOOK_TIMEOUT_SECONDS } from "@packages/infra-components";
+import { BOOK, MEDIA_KINDS, type MediaKindName, type UploadId } from "@packages/media-contracts";
 import type {
+	ClaimMediaUpload,
+	CreateAnyMediaUploadSession,
 	CreateMediaUploadSession,
+	FindMediaUploadByCapability,
 	FindMediaUploadSession,
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
+	MarkMediaUploadInspecting,
 	MintMediaPendingPost,
 	PresignEnclosure,
 	PresignMediaImage,
 	PublishMediaUploadCommitted,
+	PublishMediaUploadStaged,
 	ReadMediaPendingPrefix,
 } from "@packages/domain";
 import type { ImportSessionStore } from "@packages/domain/import-session";
@@ -561,6 +571,12 @@ export interface AppDependencies {
 	createMediaUploadSession: CreateMediaUploadSession;
 	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
+	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
+	findMediaUploadByCapability: FindMediaUploadByCapability;
+	markMediaUploadInspecting: MarkMediaUploadInspecting;
+	claimMediaUpload: ClaimMediaUpload;
+	publishMediaUploadStaged: PublishMediaUploadStaged;
+	guestUploadKinds: readonly MediaKindName[];
 	mintMediaPendingPost: MintMediaPendingPost;
 	headMediaPendingOriginal: HeadMediaPendingOriginal;
 	readMediaPendingPrefix: ReadMediaPendingPrefix;
@@ -1494,18 +1510,52 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * `requireNotLocked`/`requireWriteAccess` gates run as route middleware. */
 	app.use("/import", importRouter);
 
+	const commitReceivedUpload = initCommitReceivedUpload({
+		savePrivateItem: deps.savePrivateItem,
+		publishMediaUploadCommitted: deps.publishMediaUploadCommitted,
+		markMediaUploadCommitted: deps.markMediaUploadCommitted,
+		now: deps.now,
+	});
+	app.use(
+		"/upload",
+		initAnonymousUploadRoutes({
+			findMediaUploadByCapability: deps.findMediaUploadByCapability,
+			claimMediaUpload: deps.claimMediaUpload,
+			commitReceivedUpload,
+			requireNotLocked,
+			requireWriteAccess,
+			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
+			MEDIA_KINDS,
+			maxPolls: inspectionPollBudget({ lambdaTimeoutSeconds: INSPECT_BOOK_TIMEOUT_SECONDS, marginSeconds: 30 }),
+			buildBannerState,
+		}),
+	);
 	app.use(
 		"/upload",
 		initUploadRouter({
-			stageGates: [redirectAnonymousToUploadSignup, requireNotLocked, requireWriteAccess],
-			settleReceivedUpload: initCommitReceivedUpload({
-				savePrivateItem: deps.savePrivateItem,
-				publishMediaUploadCommitted: deps.publishMediaUploadCommitted,
-				markMediaUploadCommitted: deps.markMediaUploadCommitted,
-				now: deps.now,
+			stageGates: [
+				initStageGatesByCaller({
+					signedIn: [requireNotLocked, requireWriteAccess],
+					guest: [
+						createRateLimitMiddleware({
+							consumeRateLimit: deps.consumeRateLimit,
+							bucket: "upload-stage",
+							rule: deps.rateLimitRules.uploadStage,
+						}),
+					],
+				}),
+			],
+			settleReceivedUpload: initSettleByCaller({
+				commitReceivedUpload,
+				stageForReview: initStageForReview({
+					markMediaUploadInspecting: deps.markMediaUploadInspecting,
+					publishMediaUploadStaged: deps.publishMediaUploadStaged,
+					MEDIA_KINDS,
+					now: deps.now,
+				}),
 			}),
-			createMediaUploadSession: deps.createMediaUploadSession,
-			findMediaUploadSession: deps.findMediaUploadSession,
+			createMediaUploadSession: deps.createAnyMediaUploadSession,
+			findMediaUploadSession: deps.findMediaUploadByCapability,
 			mintMediaPendingPost: deps.mintMediaPendingPost,
 			headMediaPendingOriginal: deps.headMediaPendingOriginal,
 			readMediaPendingPrefix: deps.readMediaPendingPrefix,
