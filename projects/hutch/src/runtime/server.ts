@@ -257,7 +257,11 @@ import { initChargeBeforeSettle } from "./web/pages/upload/charge-before-settle"
 import { initChargeTranscript } from "./web/pages/upload/charge-transcript";
 import { initStageGatesByCaller } from "./web/pages/upload/stage-gates-by-caller";
 import { initSettleByCaller, initStageForReview } from "./web/pages/upload/stage-for-review";
-import { initAnonymousUploadRoutes, METERED_GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
+import {
+	initAnonymousUploadRoutes,
+	METERED_GUEST_UPLOAD_KINDS,
+	METERED_ONLY_UPLOAD_KINDS,
+} from "./web/pages/upload/upload-review.page";
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
 import { INSPECT_BOOK_TIMEOUT_SECONDS } from "@packages/infra-components";
@@ -1585,6 +1589,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			MEDIA_KINDS: deps.mediaKinds,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
 			METERED_GUEST_UPLOAD_KINDS,
+			METERED_ONLY_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickOutcomeWriters: () => UPLOAD_OUTCOME_HTML,
 			buildBannerState,

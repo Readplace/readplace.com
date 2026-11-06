@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
-import { AUDIO, BOOK, MEDIA_KINDS } from "@packages/media-contracts";
-import { acceptAttributeOf, kindsForViewer, toUploadStartViewModel, transcriptAllowanceMinutesOf } from "./upload.viewmodel";
+import { AUDIO, BOOK, MEDIA_KINDS, VIDEO } from "@packages/media-contracts";
+import {
+	acceptAttributeOf,
+	detectUploadKind,
+	kindsForViewer,
+	toUploadStartViewModel,
+	transcriptAllowanceMinutesOf,
+} from "./upload.viewmodel";
 
 describe("kindsForViewer", () => {
 	it("offers a member every kind", () => {
@@ -10,7 +16,7 @@ describe("kindsForViewer", () => {
 				guestKinds: ["book"],
 				isSignedIn: true,
 			}),
-			[BOOK, AUDIO],
+			[BOOK, AUDIO, VIDEO],
 		);
 	});
 
@@ -22,6 +28,40 @@ describe("kindsForViewer", () => {
 				isSignedIn: false,
 			}),
 			[BOOK],
+		);
+	});
+});
+
+function mp4Prefix(brand: string): Uint8Array {
+	return Buffer.concat([Buffer.from([0, 0, 0, 0x20]), Buffer.from(`ftyp${brand}`, "latin1"), Buffer.alloc(20)]);
+}
+
+describe("detectUploadKind", () => {
+	it("takes the kind that claims the file's extension when another kind also sniffs the bytes", () => {
+		assert.equal(
+			detectUploadKind({ kinds: MEDIA_KINDS, offered: [BOOK, AUDIO, VIDEO], fileName: "talk.MP4", prefix: mp4Prefix("isom") }),
+			VIDEO,
+		);
+	});
+
+	it("finds no kind when the kind that claims the extension is not offered", () => {
+		assert.equal(
+			detectUploadKind({ kinds: MEDIA_KINDS, offered: [BOOK, AUDIO], fileName: "talk.mp4", prefix: mp4Prefix("isom") }),
+			undefined,
+		);
+	});
+
+	it("sniffs every offered kind when the file has no name", () => {
+		assert.equal(
+			detectUploadKind({ kinds: MEDIA_KINDS, offered: [BOOK, AUDIO, VIDEO], fileName: undefined, prefix: mp4Prefix("isom") }),
+			AUDIO,
+		);
+	});
+
+	it("sniffs every offered kind when no kind claims the extension", () => {
+		assert.equal(
+			detectUploadKind({ kinds: MEDIA_KINDS, offered: [BOOK, AUDIO, VIDEO], fileName: "talk.bin", prefix: mp4Prefix("avc1") }),
+			VIDEO,
 		);
 	});
 });

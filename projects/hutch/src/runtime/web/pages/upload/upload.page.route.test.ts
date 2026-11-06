@@ -20,6 +20,10 @@ function mp3Prefix(): Uint8Array {
 	return Buffer.from("ID3\x04\x00\x00\x00\x00\x00\x00", "latin1");
 }
 
+function mp4Prefix(): Uint8Array {
+	return Buffer.concat([Buffer.from([0, 0, 0, 0x20]), Buffer.from("ftypisom", "latin1"), Buffer.alloc(20)]);
+}
+
 function errorCodeOf(html: string): string | null | undefined {
 	return documentOf(html)
 		.querySelector("[data-test-upload-error]")
@@ -289,6 +293,32 @@ describe("Upload routes", () => {
 		);
 		expect(saved?.metadata.siteName).toBe("Audio");
 		expect(saved?.metadata.title).toBe("Audio upload");
+	});
+
+	it("offers a member video only with the transcripts feature", async () => {
+		const { agent } = await signedIn();
+		const [plain, metered] = await Promise.all([agent.get("/upload"), agent.get("/upload?features=transcripts")]);
+		expect(
+			[plain, metered].map((response) =>
+				documentOf(response.text).querySelector("[data-test-upload-heading]")?.textContent,
+			),
+		).toEqual(["Upload a book or an audio file", "Upload a book, an audio file, or a video"]);
+		expect(
+			[...documentOf(metered.text).querySelectorAll("[data-test-upload-description]")].map((p) => p.textContent),
+		).toContain("Video: MP4, up to 2 GB.");
+	});
+
+	it("answers upload_unsupported_type for a member's MP4 without the transcripts feature", async () => {
+		const { harness, agent } = await signedIn();
+		const staged = await agent.post("/upload").type("form").send({ fileName: "talk.mp4", byteLength: 64 });
+		const uploadId = stagedUploadId(documentOf(staged.text));
+		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: mp4Prefix() });
+
+		const received = await agent.post(`/upload/${uploadId}/received`);
+
+		expect(received.status).toBe(422);
+		expect(errorCodeOf(received.text)).toBe("upload_unsupported_type");
+		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([]);
 	});
 
 	it("answers upload_too_large when the received file is over its detected kind's ceiling", async () => {

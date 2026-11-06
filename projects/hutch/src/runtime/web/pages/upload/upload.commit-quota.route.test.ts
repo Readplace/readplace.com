@@ -50,6 +50,28 @@ async function uploadAndReceive(params: {
 }
 
 describe("Metered upload commit", () => {
+	it("commits a flagged member's MP4 as video", async () => {
+		const signed = await signedIn();
+		const staged = await signed.agent
+			.post("/upload?features=transcripts")
+			.type("form")
+			.send({ fileName: "talk.mp4", byteLength: 64 });
+		const key = documentOf(staged.text).querySelector<HTMLInputElement>('[data-test-upload-s3-form] input[name="key"]')?.value;
+		assert(key, "the S3 form must carry the object key");
+		const uploadId = UploadIdSchema.parse(key.replace("pending/", "").replace("/original", ""));
+		signed.harness.mediaUpload.receivePendingOriginal({
+			uploadId,
+			bytes: Buffer.concat([Buffer.from([0, 0, 0, 0x20]), Buffer.from("ftypisom", "latin1"), Buffer.alloc(20)]),
+		});
+
+		const received = await signed.agent.post(`/upload/${uploadId}/received`);
+
+		expect(received.status).toBe(303);
+		expect(signed.harness.mediaUpload.publishedMediaUploadCommitted).toEqual([
+			expect.objectContaining({ uploadId, userId: signed.userId, kind: "video" }),
+		]);
+	});
+
 	it("charges a flagged audio upload and publishes the seconds charged", async () => {
 		const signed = await signedIn();
 

@@ -13,6 +13,7 @@ export { defineMediaKind, type MediaKindManifest, type Meter, type TimedFactsRef
 export { isPlayableAudio, type TimedMediaFacts } from "./playable-audio";
 export { AUDIO } from "./kinds/audio";
 export { BOOK } from "./kinds/book";
+export { VIDEO } from "./kinds/video";
 export { MEDIA_KINDS, MediaKindNameSchema, type MediaKindName } from "./media-kinds";
 export { MediaFailureReasonSchema, type MediaFailureReason } from "./media-failure";
 export { MediaInspectionFactsSchema, type MediaInspectionFacts } from "./media-inspection-facts";

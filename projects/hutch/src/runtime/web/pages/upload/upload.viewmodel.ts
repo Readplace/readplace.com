@@ -1,3 +1,4 @@
+import { extname } from "node:path";
 import { type MediaKindManifest, type MediaKindName, displayMinutes } from "@packages/media-contracts";
 import { uploadDescriptionsOf, uploadHeadingOf } from "./upload-copy";
 
@@ -19,6 +20,19 @@ export function kindsForViewer(input: {
 	return [...input.kinds.values()].filter(
 		(kind) => input.isSignedIn || input.guestKinds.includes(kind.name),
 	);
+}
+
+export function detectUploadKind(input: {
+	kinds: ReadonlyMap<MediaKindName, MediaKindManifest>;
+	offered: readonly MediaKindManifest[];
+	fileName: string | undefined;
+	prefix: Uint8Array;
+}): MediaKindManifest | undefined {
+	const extension = extname(input.fileName ?? "").toLowerCase();
+	const claimsExtension = (kind: MediaKindManifest) =>
+		Object.values(kind.accepts).some((extensions) => extensions.includes(extension));
+	const declared = [...input.kinds.values()].some(claimsExtension);
+	return input.offered.find((kind) => (!declared || claimsExtension(kind)) && kind.sniff(input.prefix));
 }
 
 export function toUploadStartViewModel(

@@ -31,6 +31,7 @@ import { UploadReviewPage, type UploadReviewView } from "./upload-review.compone
 
 export const GUEST_UPLOAD_KINDS: readonly MediaKindName[] = ["book"];
 export const METERED_GUEST_UPLOAD_KINDS: readonly MediaKindName[] = ["book", "audio"];
+export const METERED_ONLY_UPLOAD_KINDS: readonly MediaKindName[] = ["video"];
 
 type ReviewViewState = "inspecting" | "ready" | "rejected";
 const REVIEW_VIEW_STATES: readonly string[] = ["inspecting", "ready", "rejected"] satisfies ReviewViewState[];

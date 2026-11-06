@@ -27,7 +27,13 @@ import {
 } from "./upload.outcome";
 import { isMeteredStart, uploadStartPathOf } from "./upload-features";
 import { type UploadRefusalReason, uploadRefusalMessage } from "./upload.refusal";
-import { acceptAttributeOf, kindsForViewer, toUploadStartViewModel, transcriptAllowanceMinutesOf } from "./upload.viewmodel";
+import {
+	acceptAttributeOf,
+	detectUploadKind,
+	kindsForViewer,
+	toUploadStartViewModel,
+	transcriptAllowanceMinutesOf,
+} from "./upload.viewmodel";
 
 const SNIFF_BYTES = 4096;
 
@@ -143,6 +149,7 @@ export interface UploadRouteDependencies {
 	MEDIA_KINDS: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	GUEST_UPLOAD_KINDS: readonly MediaKindName[];
 	METERED_GUEST_UPLOAD_KINDS: readonly MediaKindName[];
+	METERED_ONLY_UPLOAD_KINDS: readonly MediaKindName[];
 	transcriptAllowanceSeconds: number;
 	pickOutcomeWriters: (req: Request) => UploadOutcomeWriters;
 	buildBannerState: BuildBannerState;
@@ -156,7 +163,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			kinds: deps.MEDIA_KINDS,
 			guestKinds: metered ? deps.METERED_GUEST_UPLOAD_KINDS : deps.GUEST_UPLOAD_KINDS,
 			isSignedIn: Boolean(req.userId),
-		});
+		}).filter((kind) => metered || !deps.METERED_ONLY_UPLOAD_KINDS.includes(kind.name));
 
 	async function write<K extends UploadOutcomeKey>(
 		req: Request,
@@ -273,7 +280,12 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			etag: head.etag,
 			bytes: SNIFF_BYTES,
 		});
-		const kind = viewerKinds(req, session.metered === true).find((candidate) => candidate.sniff(prefix));
+		const kind = detectUploadKind({
+			kinds: deps.MEDIA_KINDS,
+			offered: viewerKinds(req, session.metered === true),
+			fileName: session.fileName,
+			prefix,
+		});
 		if (!kind) {
 			await write(req, res, { outcome: "upload_unsupported_type" });
 			return;
