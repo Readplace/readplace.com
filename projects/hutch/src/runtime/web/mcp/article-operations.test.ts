@@ -330,8 +330,8 @@ describe("initMcpArticleOperations", () => {
 		);
 		const ops = buildOps({
 			listReadlistDefinitions: async () => [
-				{ slug: earlier, label: "Earlier", emailDelivery: "links", createdAt: new Date("2026-01-01") },
-				{ slug: work, label: "Work", emailDelivery: "links", createdAt: new Date("2026-01-02") },
+				{ slug: earlier, label: "Earlier", createdAt: new Date("2026-01-01") },
+				{ slug: work, label: "Work", createdAt: new Date("2026-01-02") },
 			],
 			findReadlistArticleById,
 			resolveReadlistMembership: async () => new Map([[article.url, [{ id: work, name: "Work" }]]]),
@@ -356,7 +356,7 @@ describe("initMcpArticleOperations", () => {
 		const work = ReadlistSlugSchema.parse("work");
 		const article = buildArticle();
 		const listReadlistDefinitions = jest.fn(async () => [
-			{ slug: work, label: "Work", emailDelivery: "links" as const, createdAt: new Date("2026-01-01") },
+			{ slug: work, label: "Work", createdAt: new Date("2026-01-01") },
 		]);
 		const findReadlistArticleById = jest.fn(async () => null);
 		const ops = buildOps({ listReadlistDefinitions, findReadlistArticleById });
@@ -656,7 +656,7 @@ describe("initMcpArticleOperations", () => {
 			const findRelatedArticles = jest.fn(async (): ReturnType<FindRelatedArticles> => ({ status: "pending" }));
 			const ops = buildOps({
 				listReadlistDefinitions: async () => [
-					{ slug: work, label: "Work", emailDelivery: "links", createdAt: new Date("2026-01-01") },
+					{ slug: work, label: "Work", createdAt: new Date("2026-01-01") },
 				],
 				findReadlistArticleById: async () => article,
 				findRelatedArticles,

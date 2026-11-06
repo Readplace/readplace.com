@@ -349,7 +349,6 @@ describe("starter eligibility and insertion", () => {
 					Array.from({ length: 7 }, (_, i) => ({
 						slug: ReadlistSlugSchema.parse(`list-${i}`),
 						label: `List ${i}`,
-						emailDelivery: "links",
 						createdAt: NOW,
 					})),
 			},
@@ -370,7 +369,6 @@ describe("starter eligibility and insertion", () => {
 					Array.from({ length: 6 }, (_, i) => ({
 						slug: ReadlistSlugSchema.parse(`list-${i}`),
 						label: `List ${i}`,
-						emailDelivery: "links",
 						createdAt: NOW,
 					})),
 			},

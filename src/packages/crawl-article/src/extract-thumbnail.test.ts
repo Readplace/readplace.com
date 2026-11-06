@@ -262,4 +262,146 @@ describe("initFetchThumbnailImage", () => {
 		expect(result.image?.url).toBe("https://example.com/real.png");
 		expect(result.provenUnusable).toEqual(["https://example.com/not-an-image"]);
 	});
+
+	const PNG_BYTES = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("png-body")]);
+	const WEBP_BYTES = Buffer.concat([Buffer.from("RIFF"), Buffer.from([0x10, 0, 0, 0]), Buffer.from("WEBPVP8 ")]);
+	const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+	const GIF_BYTES = Buffer.from("GIF89a-gif-body");
+
+	it("accepts an og:image served as application/octet-stream when its bytes carry a PNG signature and stores the sniffed type", async () => {
+		const errorLogs: string[] = [];
+		const infoLogs: string[] = [];
+		const crawlFetch: CrawlFetch = async () =>
+			new Response(PNG_BYTES, { status: 200, headers: { "content-type": "application/octet-stream" } });
+		const fetchThumbnail = initFetchThumbnailImage({
+			crawlFetch,
+			logError: (message) => errorLogs.push(message),
+			logInfo: (message) => infoLogs.push(message),
+			logThumbnailNotDelivered: () => {},
+		});
+
+		const result = await fetchThumbnail({
+			candidates: ["https://cdn.example.com/social-card"],
+			referer: "https://example.com/article",
+		});
+
+		expect(result.image?.contentType).toBe("image/png");
+		expect(result.image?.extension).toBe(".png");
+		expect(result.image?.body.equals(PNG_BYTES)).toBe(true);
+		expect(result.provenUnusable).toEqual([]);
+		expect(errorLogs).toEqual([]);
+		expect(infoLogs).toEqual([]);
+	});
+
+	it.each([
+		{ header: "text/plain", bytes: WEBP_BYTES, contentType: "image/webp", extension: ".webp" },
+		{ header: "text/html", bytes: JPEG_BYTES, contentType: "image/jpeg", extension: ".jpg" },
+	])(
+		"accepts a $header candidate whose bytes carry a $contentType signature and stores the sniffed type",
+		async ({ header, bytes, contentType, extension }) => {
+			const crawlFetch: CrawlFetch = async () =>
+				new Response(bytes, { status: 200, headers: { "content-type": header } });
+			const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+
+			const result = await fetchThumbnail({
+				candidates: ["https://cdn.example.com/card"],
+				referer: "https://example.com/article",
+			});
+
+			expect(result.image?.contentType).toBe(contentType);
+			expect(result.image?.extension).toBe(extension);
+		},
+	);
+
+	it("accepts a candidate with no Content-Type header when its bytes carry a GIF signature", async () => {
+		const crawlFetch: CrawlFetch = async () => new Response(GIF_BYTES, { status: 200 });
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+
+		const result = await fetchThumbnail({
+			candidates: ["https://cdn.example.com/card"],
+			referer: "https://example.com/article",
+		});
+
+		expect(result.image?.contentType).toBe("image/gif");
+		expect(result.image?.extension).toBe(".gif");
+	});
+
+	it("keeps the declared Content-Type for an image/* header even when the bytes carry a different signature", async () => {
+		const crawlFetch: CrawlFetch = async () =>
+			new Response(PNG_BYTES, { status: 200, headers: { "content-type": "image/jpeg" } });
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+
+		const result = await fetchThumbnail({
+			candidates: ["https://cdn.example.com/card"],
+			referer: "https://example.com/article",
+		});
+
+		expect(result.image?.contentType).toBe("image/jpeg");
+		expect(result.image?.extension).toBe(".jpg");
+	});
+
+	it("keeps image/svg+xml on the strength of its header alone", async () => {
+		const crawlFetch: CrawlFetch = async () =>
+			new Response('<svg xmlns="http://www.w3.org/2000/svg"></svg>', {
+				status: 200,
+				headers: { "content-type": "image/svg+xml" },
+			});
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+
+		const result = await fetchThumbnail({
+			candidates: ["https://cdn.example.com/logo"],
+			referer: "https://example.com/article",
+		});
+
+		expect(result.image?.contentType).toBe("image/svg+xml");
+		expect(result.image?.extension).toBe(".svg");
+	});
+
+	it("proves a candidate unusable and logs the declared Content-Type when a non-image body carries no image signature", async () => {
+		const errorLogs: string[] = [];
+		const crawlFetch: CrawlFetch = async () =>
+			new Response(Buffer.from("%PDF-1.4"), { status: 200, headers: { "content-type": "application/octet-stream" } });
+		const fetchThumbnail = initFetchThumbnailImage({
+			crawlFetch,
+			logError: (message) => errorLogs.push(message),
+			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
+		});
+
+		const result = await fetchThumbnail({
+			candidates: ["https://cdn.example.com/report"],
+			referer: "https://example.com/article",
+		});
+
+		expect(result.image).toBeUndefined();
+		expect(result.provenUnusable).toEqual(["https://cdn.example.com/report"]);
+		expect(errorLogs).toEqual([
+			'[CrawlArticle] Thumbnail unexpected Content-Type "application/octet-stream" for https://cdn.example.com/report',
+		]);
+	});
+
+	it("rejects an oversized declared body before reading it, whatever the Content-Type", async () => {
+		const errorLogs: string[] = [];
+		const crawlFetch: CrawlFetch = async () =>
+			new Response(PNG_BYTES, {
+				status: 200,
+				headers: { "content-type": "application/octet-stream", "content-length": String(MAX_THUMBNAIL_BYTES + 1) },
+			});
+		const fetchThumbnail = initFetchThumbnailImage({
+			crawlFetch,
+			logError: (message) => errorLogs.push(message),
+			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
+		});
+
+		const result = await fetchThumbnail({
+			candidates: ["https://cdn.example.com/huge"],
+			referer: "https://example.com/article",
+		});
+
+		expect(result.provenUnusable).toEqual(["https://cdn.example.com/huge"]);
+		expect(errorLogs).toEqual([
+			`[CrawlArticle] Thumbnail too large (${MAX_THUMBNAIL_BYTES + 1} bytes) for https://cdn.example.com/huge`,
+		]);
+	});
 });

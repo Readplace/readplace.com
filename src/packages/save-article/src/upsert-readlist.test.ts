@@ -16,7 +16,7 @@ const MINTED = ReadlistSlugSchema.parse("minted");
 const NOW = new Date("2026-09-01T00:00:00.000Z");
 
 function definition({ slug, label }: { slug: string; label: string }): ReadlistDefinitionData {
-	return { slug: ReadlistSlugSchema.parse(slug), label, emailDelivery: "links", createdAt: new Date(0) };
+	return { slug: ReadlistSlugSchema.parse(slug), label, createdAt: new Date(0) };
 }
 
 function build(overrides: {

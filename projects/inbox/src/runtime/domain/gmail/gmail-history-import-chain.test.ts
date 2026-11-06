@@ -213,12 +213,11 @@ function makePipeline() {
 		findSubscriptionByUserId: async () => undefined,
 		findInboxAddress: addresses.findByAddress,
 		listReadlistDefinitions: async () => [
-			{ slug: WORK, label: "Work", emailDelivery: "links", createdAt: NOW },
-			{ slug: LATER, label: "Later", emailDelivery: "links", createdAt: NOW },
+			{ slug: WORK, label: "Work", createdAt: NOW },
+			{ slug: LATER, label: "Later", createdAt: NOW },
 			{
 				slug: ReadlistSlugSchema.parse("science"),
 				label: "Science",
-				emailDelivery: "links",
 				createdAt: NOW,
 			},
 		],
