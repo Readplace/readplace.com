@@ -136,8 +136,9 @@ describe("initDynamoDbRecommendationBudget", () => {
 			assert.deepEqual(counter?.Update, {
 				TableName: TABLE,
 				Key: { pk: `recommendation-budget#user#user-1#${DAY_START}` },
-				UpdateExpression: "ADD consumed :total SET expiresAt = if_not_exists(expiresAt, :expiresAt)",
-				ConditionExpression: "attribute_not_exists(consumed) OR consumed <= :headroom",
+				UpdateExpression: "ADD #consumed :total SET expiresAt = if_not_exists(expiresAt, :expiresAt)",
+				ConditionExpression: "attribute_not_exists(#consumed) OR #consumed <= :headroom",
+				ExpressionAttributeNames: { "#consumed": "consumed" },
 				ExpressionAttributeValues: {
 					":total": 5_000_000,
 					":headroom": LIMIT - 5_000_000,
@@ -320,7 +321,8 @@ describe("initDynamoDbRecommendationBudget", () => {
 			assert.deepEqual(counter?.Update, {
 				TableName: TABLE,
 				Key: { pk: `recommendation-budget#user#user-1#${DAY_START}` },
-				UpdateExpression: "ADD consumed :delta",
+				UpdateExpression: "ADD #consumed :delta",
+				ExpressionAttributeNames: { "#consumed": "consumed" },
 				ExpressionAttributeValues: { ":delta": -2_000_000 },
 			});
 		});

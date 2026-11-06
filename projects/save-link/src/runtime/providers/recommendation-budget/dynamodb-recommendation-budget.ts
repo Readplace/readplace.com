@@ -121,8 +121,9 @@ export function initDynamoDbRecommendationBudget(deps: {
 				Update: {
 					TableName: deps.tableName,
 					Key: counter,
-					UpdateExpression: "ADD consumed :total SET expiresAt = if_not_exists(expiresAt, :expiresAt)",
-					ConditionExpression: "attribute_not_exists(consumed) OR consumed <= :headroom",
+					UpdateExpression: "ADD #consumed :total SET expiresAt = if_not_exists(expiresAt, :expiresAt)",
+					ConditionExpression: "attribute_not_exists(#consumed) OR #consumed <= :headroom",
+					ExpressionAttributeNames: { "#consumed": "consumed" },
 					ExpressionAttributeValues: {
 						":total": total,
 						":headroom": deps.limitNanodollars - total,
@@ -175,7 +176,8 @@ export function initDynamoDbRecommendationBudget(deps: {
 							userId: input.reservation.userId,
 							windowStartSeconds: input.reservation.windowStartSeconds,
 						}),
-						UpdateExpression: "ADD consumed :delta",
+						UpdateExpression: "ADD #consumed :delta",
+						ExpressionAttributeNames: { "#consumed": "consumed" },
 						ExpressionAttributeValues: { ":delta": input.deltaNanodollars },
 					},
 				},
