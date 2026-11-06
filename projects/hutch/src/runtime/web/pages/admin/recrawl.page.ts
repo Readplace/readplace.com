@@ -25,7 +25,7 @@ import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.
 import { NO_READER_VIEW_FAILED_OOB } from "../../shared/article-reader/reader-view-failed-oob";
 import { initResolveStoredArticle, type ResolveStoredArticle } from "../../shared/resolve-stored-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ANONYMOUS_VIEWER, isPrivateItemUrl, newSaveAttemptId, wrapperFamilyOf } from "@packages/domain/article";
+import { ABSENT_ENCLOSURE, ANONYMOUS_VIEWER, isPrivateItemUrl, newSaveAttemptId, wrapperFamilyOf } from "@packages/domain/article";
 import { cleanWrapperTarget, type ResolveWrapperTarget } from "@packages/save-article";
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
@@ -305,6 +305,7 @@ function handleSummaryPoll(
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
 			viewer: ANONYMOUS_VIEWER,
+			enclosure: ABSENT_ENCLOSURE,
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, requestedReaderSection(req.query.section)),
@@ -337,6 +338,7 @@ function handleReaderPoll(
 		const component = await reader.handleReaderPoll({
 			articleUrl,
 			viewer: ANONYMOUS_VIEWER,
+			enclosure: ABSENT_ENCLOSURE,
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, requestedReaderSection(req.query.section)),

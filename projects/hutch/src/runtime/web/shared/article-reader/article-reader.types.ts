@@ -6,6 +6,7 @@ import type {
 	CaptureTrigger,
 	ShownSummary,
 	Viewer,
+	EnclosureRead,
 } from "@packages/domain/article";
 import type {
 	ArticleCrawl,
@@ -135,6 +136,7 @@ export interface HandlePollParams {
 	articleUrl: string;
 	readerSection: ReaderSectionInput;
 	viewer: Viewer;
+	enclosure: EnclosureRead;
 	articleId: string | undefined;
 	pollCount: number;
 	pollUrlBuilder: PollUrlBuilder;

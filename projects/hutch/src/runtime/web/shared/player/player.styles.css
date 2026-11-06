@@ -1,0 +1,13 @@
+.reader-player {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.5rem 0;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+
+.reader-player__audio {
+  display: block;
+  width: 100%;
+}

@@ -546,6 +546,7 @@ export function initReaderPageRoutes(deps: Pick<
 			const appearance = (await deps.findUserById(ownedArticle.userId))?.appearance ?? "system";
 			const readerBody = ReaderPage(ownedArticle, {
 				appOrigin: deps.appOrigin,
+				enclosure: ownedEnclosure({ viewer: viewerFor(req.userId), article: ownedArticle }),
 				readerSection: ownerReaderSection(req, ownedArticle.id.value),
 				content: state.content,
 				summary: state.summary,
@@ -627,6 +628,7 @@ export function initReaderPageRoutes(deps: Pick<
 			FreshForComponent(
 				Base(withOfflineReading(ReaderPage(ownedArticle, {
 					appOrigin: deps.appOrigin,
+					enclosure: ownedEnclosure({ viewer: viewerFor(req.userId), article: ownedArticle }),
 					readerSection: ownerReaderSection(req, ownedArticle.id.value),
 					content: state.content,
 					summary: state.summary,
