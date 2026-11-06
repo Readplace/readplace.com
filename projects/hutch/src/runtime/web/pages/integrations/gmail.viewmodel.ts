@@ -590,7 +590,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		showSenders,
 		showReconnect: revoked,
 		showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
-		autoDiscoverAction: input.discoveryStarted ? undefined : GMAIL_DISCOVERY_START_PATH,
+		autoDiscoverAction: input.discoveryStarted || input.discovery.state !== "idle" ? undefined : GMAIL_DISCOVERY_START_PATH,
 		dialog: dialogFor({ mode, state: pickerState, ticked, banners, saved: input.saved, awaitingConfirmation: pollState !== undefined, candidates }),
 		senderPicker: { open: focus === "search", searchAutofocus: focus === "search" },
 		search: pickerState.search ?? "",

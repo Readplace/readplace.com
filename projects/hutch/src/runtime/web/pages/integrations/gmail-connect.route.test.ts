@@ -391,24 +391,29 @@ describe("GET /integrations/gmail/callback", () => {
 			"a discovery permission failure must show the metadata reconnect prompt",
 		);
 
+		const paused = await gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId);
+		assert(paused, "the paused discovery must exist");
+
 		const response = await connectAndCallback(agent);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/newsletters/gmail?notice=connected");
+		const location = new URL(response.headers.location, TEST_APP_ORIGIN);
+		expect(location.pathname).toBe("/newsletters/gmail");
+		expect(Object.fromEntries(location.searchParams)).toEqual({ notice: "connected", discovery: "started", discovery_after: paused.updatedAt });
+		expect(gmail.discoveryRequests).toEqual([{ userId }]);
 		expect(await gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId)).toMatchObject({
 			state: "failed",
 			page: 1,
 			pageToken: "resume",
 			requiresReconnect: false,
 		});
-		const page = await agent.get("/newsletters/gmail");
+		const page = await agent.get(`${location.pathname}${location.search}`);
 		const document = new JSDOM(page.text).window.document;
 		expect(document.querySelector("[data-test-gmail-senders] [data-test-gmail-add-newsletters]")?.textContent).toBe("Add newsletters");
-		const autoLoad = document.querySelector("[data-test-gmail-auto-load-senders]");
-		assert(autoLoad, "the page must load senders on its own once reconnected");
-		expect(autoLoad.getAttribute("hx-trigger")).toBe("load");
-		expect(autoLoad.getAttribute("hx-post")).toBe("/newsletters/gmail/discovery/start");
-		const opened = new JSDOM((await agent.get("/newsletters/gmail?add=1")).text).window.document;
+		expect(document.querySelector("[data-test-gmail-auto-load-senders]")).toBeNull();
+		const opened = new JSDOM((await agent.get(`/newsletters/gmail?add=1&discovery=started&discovery_after=${encodeURIComponent(paused.updatedAt)}`)).text).window.document;
+		expect(opened.querySelector("[data-test-gmail-discovery-status]")?.textContent).toBe("Checking… Checked 25 messages");
+		expect(opened.querySelector("#gmail-sender-status")?.getAttribute("hx-get")).toContain("poll=1");
 		expect(opened.querySelector("#gmail-dialog [data-test-gmail-load-senders]")?.getAttribute("hx-trigger")).toBe("submit");
 		expect(gmail.rewriteRequests).toEqual([]);
 	});

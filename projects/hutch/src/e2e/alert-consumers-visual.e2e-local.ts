@@ -87,7 +87,7 @@ async function openGmailSuccess(page: Page, stamp: string): Promise<void> {
 	const email = `alert-gmail-${stamp}@example.com`;
 	const userId = await createUser(page, email);
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-gmail-state`, {
-		data: { userId, discoveryState: "complete", completeDiscoveryOnStart: true },
+		data: { userId, discoveryState: "complete" },
 	});
 	assert.equal(seeded.status(), 201, "the Gmail visual needs a connected account");
 	await loginAs(page, email);

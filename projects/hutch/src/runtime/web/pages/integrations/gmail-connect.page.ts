@@ -3,12 +3,12 @@ import { randomBytes } from "node:crypto";
 import type { Request, RequestHandler, Response, Router } from "express";
 import { z } from "zod";
 import { hasAnyGmailScope, hasGmailScope, summarizeGmailHistoryImport } from "@packages/domain/gmail";
-import type { ForwardableSender, GmailAccountEmail, GmailConnection, GmailHistoryImportJob, GmailHistoryImportSummary } from "@packages/domain/gmail";
+import type { ForwardableSender, GmailAccountEmail, GmailConnection, GmailDiscovery, GmailHistoryImportJob, GmailHistoryImportSummary } from "@packages/domain/gmail";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { GMAIL_MESSAGE_READ_SCOPES, GMAIL_MODIFY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 import { buildIntegrationsUrl, GMAIL_CALLBACK_PATH } from "./gmail-connect.url";
-import { buildGmailUrl, closeGmailDialog, parseGmailPickerState } from "./gmail.url";
+import { buildGmailUrl, closeGmailDialog, type GmailUrlParams, parseGmailPickerState } from "./gmail.url";
 import { importFollowsMapping, initGmailImportActions, latestGmailImportsBySender } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import { initGmailMarkActions } from "./gmail-mark-actions";
@@ -71,11 +71,8 @@ export function registerGmailConnectRoutes(
 		return resumeAll([...jobs.filter((job) => job.state === "awaiting-permission"), ...(retry ? [latest] : [])], input.userId);
 	};
 
-	const reconnectRequired = async (input: { intent: ConnectIntent; existing: GmailConnection; userId: UserId }): Promise<boolean> => {
-		if (input.intent.kind === "connect" || input.existing.revokedAt !== undefined) return true;
-		const discovery = await gmail.gmailDiscoveryStore.findDiscoveryByUserId(input.userId);
-		return discovery?.requiresReconnect === true;
-	};
+	const reconnectRequired = (input: { intent: ConnectIntent; existing: GmailConnection; discovery: GmailDiscovery | undefined }): boolean =>
+		input.intent.kind === "connect" || input.existing.revokedAt !== undefined || input.discovery?.requiresReconnect === true;
 
 	const returnSignedOutReaderToIntegrations: RequestHandler = (req, res, next) => {
 		if (req.userId) {
@@ -207,7 +204,9 @@ export function registerGmailConnectRoutes(
 			await gmail.publishRewriteGmailFilter({ userId, reason: "reconnected" });
 		}
 		trace.enter(req, "reconnect");
-		if (existing !== undefined && await reconnectRequired({ intent: payload.intent, existing, userId })) {
+		const discovery = await gmail.gmailDiscoveryStore.findDiscoveryByUserId(userId);
+		let resumedDiscovery: Pick<GmailUrlParams, "discovery" | "discovery_after"> = {};
+		if (existing !== undefined && reconnectRequired({ intent: payload.intent, existing, discovery })) {
 			const connectedAt = await gmail.gmailConnectionStore.clearRevoked({ userId });
 			try {
 				await gmail.gmailDiscoveryStore.clearRequiresReconnect({ userId, generation: randomBytes(16).toString("hex") });
@@ -225,6 +224,10 @@ export function registerGmailConnectRoutes(
 				}
 				throw error;
 			}
+			if (discovery?.requiresReconnect === true) {
+				await gmail.publishStartGmailSenderDiscovery({ userId });
+				resumedDiscovery = { discovery: "started", discovery_after: discovery.updatedAt };
+			}
 		}
 		if (payload.intent.kind === "import") {
 			trace.enter(req, "import-intent");
@@ -235,7 +238,7 @@ export function registerGmailConnectRoutes(
 			}
 			const resumed = await resumeSenderImports({ userId, accountEmail: found.value, sender: payload.intent.sender });
 			trace.enter(req, "done");
-			res.redirect(303, buildGmailUrl({ ...state, notice: resumed > 0 ? "import_started" : "import_permission_granted" }));
+			res.redirect(303, buildGmailUrl({ ...state, ...resumedDiscovery, notice: resumed > 0 ? "import_started" : "import_permission_granted" }));
 			return;
 		}
 		if (payload.intent.kind === "mark") {
@@ -248,10 +251,10 @@ export function registerGmailConnectRoutes(
 			for (const senderEmail of payload.intent.senders) await turnOnMapped({ userId, accountEmail: found.value, senderEmail });
 			await resumeAwaitingImports(userId);
 			trace.enter(req, "done");
-			res.redirect(303, buildGmailUrl({ ...state, notice: "mark_permission_granted" }));
+			res.redirect(303, buildGmailUrl({ ...state, ...resumedDiscovery, notice: "mark_permission_granted" }));
 			return;
 		}
 		trace.enter(req, "done");
-		res.redirect(303, buildGmailUrl({ notice: "connected" }));
+		res.redirect(303, buildGmailUrl({ ...resumedDiscovery, notice: "connected" }));
 	});
 }

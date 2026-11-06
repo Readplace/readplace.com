@@ -136,10 +136,26 @@ describe("GMail Newsletters discovery status", () => {
 		assert.equal(vm.autoDiscoverAction, undefined);
 	});
 
-	it("keeps cached choices usable when discovery fails", () => {
+	it("serves a completed discovery from the cache without starting another", () => {
+		const vm = toGmailPageViewModel(input({ discovery: { state: "complete", mode: "history", checkedMessageCount: 6_728 } }));
+		assert.equal(`${vm.status.statusLead}${vm.status.checkedLabel}`, "2 senders discovered · Checked 6,728 messages");
+		assert.equal(vm.status.loadButtonLabel, "Load senders");
+		assert.equal(vm.status.pollUrl, undefined);
+		assert.equal(vm.autoDiscoverAction, undefined);
+	});
+
+	it("polls a discovery already running without starting another", () => {
+		const vm = toGmailPageViewModel(input({ discovery: { state: "running", mode: "full", checkedMessageCount: 250 } }));
+		assert.equal(`${vm.status.statusLead}${vm.status.checkedLabel}`, "Checking… Checked 250 messages");
+		assert.equal(vm.status.pollUrl, "/newsletters/gmail/senders?discovery=started&poll=1");
+		assert.equal(vm.autoDiscoverAction, undefined);
+	});
+
+	it("keeps cached choices usable when discovery fails and leaves the retry to the reader", () => {
 		const vm = toGmailPageViewModel(input({ discovery: { state: "failed", mode: "full", checkedMessageCount: 40 } }));
 		assert.equal(vm.status.statusLead, "I couldn't finish loading your Gmail senders. Your saved choices are still available. Try Load senders again.");
 		assert.equal(vm.status.loadButtonLabel, "Load senders");
+		assert.equal(vm.autoDiscoverAction, undefined);
 		assert.deepEqual(vm.results.options.map((option) => option.email), [BREW, TLDR]);
 	});
 
