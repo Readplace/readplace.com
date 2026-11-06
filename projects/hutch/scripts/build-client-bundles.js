@@ -134,6 +134,22 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/article-body/highlights/highlight-toolbar.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "highlight-toolbar.client.js"),
+    globalName: "HighlightToolbar",
+    footer: [
+      "HighlightToolbar.initHighlightToolbar({",
+      "  document: window.document,",
+      "  window: window,",
+      "  timers: { setTimeout: function (callback, delayMs) { return window.setTimeout(callback, delayMs); }, clearTimeout: function (handle) { window.clearTimeout(handle); } },",
+      "  rectsOf: function (range) { return Array.from(range.getClientRects()); }",
+      "});",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/pages/reader/reader-exit-confirm.client.ts",
     ),
     outfile: path.join(OUT_DIR, "reader-exit-confirm.client.js"),

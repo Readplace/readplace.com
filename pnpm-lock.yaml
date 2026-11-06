@@ -1590,6 +1590,9 @@ importers:
       '@types/jest':
         specifier: 30.0.0
         version: 30.0.0
+      '@types/jsdom':
+        specifier: 21.1.7
+        version: 21.1.7
       '@types/sanitize-html':
         specifier: 2.16.1
         version: 2.16.1
@@ -1602,6 +1605,12 @@ importers:
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      linkedom:
+        specifier: 0.18.12
+        version: 0.18.12
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -11861,7 +11870,7 @@ snapshots:
       whatwg-encoding: 3.1.1
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
-      ws: 8.21.0
+      ws: 8.22.0
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - bufferutil

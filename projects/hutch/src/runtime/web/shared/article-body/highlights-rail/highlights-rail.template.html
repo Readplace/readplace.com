@@ -1,0 +1,22 @@
+<section id="highlights-rail" class="highlights-rail" aria-label="Highlights" data-test-highlights-rail{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>{{#if rows.length}}<details class="disclosure-card highlights-rail__card" open data-test-highlights-card>
+            <summary class="disclosure-card__header">
+              <span class="disclosure-card__title">Highlights</span>
+              <span class="disclosure-card__chevron">{{icon "chevron-down"}}</span>
+            </summary>
+            <ol class="disclosure-card__body highlights-rail__list" role="list">
+              {{#each rows}}
+              <li class="highlights-rail__row" data-highlight-row="{{highlightId}}" data-test-highlight-row="{{highlightId}}" data-test-highlight-state="{{state}}">
+                <blockquote class="highlights-rail__excerpt">{{exact}}</blockquote>
+                {{#if orphaned}}<p class="highlights-rail__chip" data-test-highlight-orphan>Not found in this version</p>{{/if}}
+                <div class="highlights-rail__actions">
+                  {{#if jumpHref}}<a class="btn btn--neutral btn--s highlights-rail__jump" href="{{jumpHref}}" data-test-action="highlight-jump">Jump</a>{{/if}}
+                  <form method="POST" action="{{deleteUrl}}" class="highlights-rail__delete-form highlights-rail__delete-form--fallback" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
+                    <button class="btn btn--neutral btn--s" type="submit" data-test-action="highlight-delete-fallback">Delete</button>
+                  </form>
+                  <button class="btn btn--neutral btn--s highlights-rail__delete-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="highlight-delete">Delete</button>
+                </div>
+                {{{popoverHtml}}}
+              </li>
+              {{/each}}
+            </ol>
+          </details>{{/if}}</section>

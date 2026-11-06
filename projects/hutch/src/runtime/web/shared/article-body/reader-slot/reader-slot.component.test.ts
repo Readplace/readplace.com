@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import { destinationUrl } from "../../../test-helpers/article-fixtures";
 import { type ReaderSlotInput, renderReaderSlot } from "./reader-slot.component";
 import { articleBody } from "@packages/test-fixtures";
+import { HighlightIdSchema } from "@packages/domain/article";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./section-pages";
 
 const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
@@ -868,5 +869,45 @@ describe("renderReaderSlot", () => {
 			assert(slot, `slot must render for status=${expected}`);
 			expect(slot.getAttribute("data-reader-status")).toBe(expected);
 		}
+	});
+});
+
+describe("renderReaderSlot highlight states", () => {
+	const highlight = {
+		highlightId: HighlightIdSchema.parse("0b8f6c1e-2d3a-4b5c-8d9e-0f1a2b3c4d5e"),
+		highlightOf: "https://example.com/article",
+		exact: "Body",
+		prefix: "",
+		suffix: "",
+		start: 0,
+		end: 4,
+		anchoredContentHash: "hash",
+		anchorState: "anchored" as const,
+		orderKey: 0,
+		createdAt: new Date("2026-11-01T00:00:00.000Z"),
+		updatedAt: new Date("2026-11-01T00:00:00.000Z"),
+		anchorRevision: 0,
+	};
+	const input = {
+		url: URL,
+		articleId: ARTICLE_ID,
+		appOrigin: APP_ORIGIN,
+		noticeOob: false,
+		now: NOW,
+		readerSection: TEST_READER_SECTION,
+		highlights: { rows: [highlight], canonicalContentHash: "hash" },
+	};
+
+	it("returns the marked body's states when the reader is ready", () => {
+		const regions = renderReaderSlot({ ...input, crawl: { status: "ready" }, content: articleBody("<p>Body</p>") });
+
+		expect(regions.states).toEqual([{ highlight, anchor: { start: 0, end: 4, anchorState: "anchored" } }]);
+		expect(regions.slot).toContain(`id="highlight-${highlight.highlightId}"`);
+	});
+
+	it("returns no states while the reader has no body to mark", () => {
+		const regions = renderReaderSlot({ ...input, crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" } });
+
+		expect(regions.states).toEqual([]);
 	});
 });

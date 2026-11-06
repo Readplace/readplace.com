@@ -1012,6 +1012,23 @@ describe("initInMemoryArticleStore", () => {
 			expect(result).toBeNull();
 		});
 
+		it("findArticleFreshness leaves canonicalContentHash undefined until one is set", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticleGlobally({
+				url: "https://example.com/hashed",
+				metadata: { title: "T", siteName: "S", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date("2026-11-01T00:00:00.000Z"),
+			});
+
+			const before = await store.findArticleFreshness("https://example.com/hashed");
+			await store.setCanonicalContentHash({ url: "https://example.com/hashed", canonicalContentHash: "hash-1" });
+			const after = await store.findArticleFreshness("https://example.com/hashed");
+
+			expect(before?.canonicalContentHash).toBeUndefined();
+			expect(after?.canonicalContentHash).toBe("hash-1");
+		});
+
 	});
 
 	describe("crawl versions", () => {

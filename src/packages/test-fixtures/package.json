@@ -189,6 +189,10 @@
       "types": "./dist/providers/refresh-html/index.d.ts",
       "default": "./dist/providers/refresh-html/index.js"
     },
+    "./providers/highlights": {
+      "types": "./dist/providers/highlights/index.d.ts",
+      "default": "./dist/providers/highlights/index.js"
+    },
     "./providers/related-articles": {
       "types": "./dist/providers/related-articles/index.d.ts",
       "default": "./dist/providers/related-articles/index.js"
@@ -354,6 +358,9 @@
       ],
       "providers/refresh-html": [
         "./dist/providers/refresh-html/index.d.ts"
+      ],
+      "providers/highlights": [
+        "./dist/providers/highlights/index.d.ts"
       ],
       "providers/related-articles": [
         "./dist/providers/related-articles/index.d.ts"

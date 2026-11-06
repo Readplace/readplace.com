@@ -1,9 +1,10 @@
-import type { ReaderSectionInput } from "../article-body/reader-slot/section-pages";
 import type {
-	ArticleMetadata,
-	Minutes,
 	ArticleBody,
+	ArticleMetadata,
 	CaptureTrigger,
+	Highlight,
+	HighlightId,
+	Minutes,
 	ShownSummary,
 	Viewer,
 	EnclosureRead,
@@ -13,20 +14,21 @@ import type {
 	FindArticleCrawlStatus,
 } from "@packages/provider-contracts/article-crawl";
 import type {
+	FindArticleByUrl,
+	FindArticleCrawlVersions,
+	FindArticleFreshness,
+	FindItemOwner,
+	ReadArticleContent,
+} from "@packages/provider-contracts/article-store";
+import type {
 	FindGeneratedSummary,
 	GeneratedSummary,
 } from "@packages/provider-contracts/article-summary";
-import type {
-	FindArticleByUrl,
-	FindItemOwner,
-	FindArticleCrawlVersions,
-	FindArticleFreshness,
-	ReadArticleContent,
-} from "@packages/provider-contracts/article-store";
-import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
-import type { CaptureWatch } from "./capture-watch";
 import type { RequestResolutionOnView } from "../../../domain/resolve-on-view/request-resolution-on-view";
+import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
+import type { ReaderSectionInput } from "../article-body/reader-slot/section-pages";
+import type { CaptureWatch } from "./capture-watch";
 import type { ReaderView } from "./reader-view";
 
 export type ReaderViewFailure = { readerContentUnavailable: boolean };
@@ -132,6 +134,11 @@ export interface ResolveReaderStateParams {
  * include an install URL on this particular poll path. Defaulting silently
  * here is what got us the stuck-progress-bar bug in the first place.
  */
+export interface PollHighlights {
+	rows: readonly Highlight[];
+	deleteUrlFor: (highlightId: HighlightId) => string;
+}
+
 export interface HandlePollParams {
 	articleUrl: string;
 	readerSection: ReaderSectionInput;
@@ -159,6 +166,7 @@ export interface HandlePollParams {
 	 * `extensionInstallUrl`.
 	 */
 	provenance: ReaderProvenance | undefined;
+	highlights?: PollHighlights;
 	saved: LocalTime | undefined;
 	readerViewFailedOob: ReaderViewFailedOob;
 	renderDownloadsOob: ((articleUrl: string) => string) | undefined;

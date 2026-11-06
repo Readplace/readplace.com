@@ -15,6 +15,8 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/read
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryHighlights } from "@packages/test-fixtures/providers/highlights";
+import { HighlightIdSchema } from "@packages/domain/article";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import {
 	initInMemoryInboxAddress,
@@ -80,6 +82,7 @@ function buildSubject(
 	});
 	const oauthDeps = initInMemoryOAuthModel();
 	const articleStore = initInMemoryArticleStore();
+	const highlights = initInMemoryHighlights();
 	const readerReady = initInMemoryReaderReadyState();
 	const onboarding = initInMemoryOnboardingSignals({ now: () => SEED_NOW });
 	const engagement = initInMemoryEngagementStarter({ library: articleStore });
@@ -260,6 +263,7 @@ function buildSubject(
 			await afterUserArticlesDeleted(userId);
 		},
 		deleteAllTranscriptQuota: initInMemoryTranscriptLedger({ rows: transcriptQuotaRows }).deleteAllTranscriptQuota,
+		deleteAllUserHighlights: highlights.deleteAllUserHighlights,
 		listUserArticleUrls: articleStore.listUserArticleUrls,
 		countOtherSaversByUrl: async ({ url }: { url: string; excludeUserId: string }) =>
 			otherSaversByUrl.get(url) ?? 0,
@@ -312,6 +316,7 @@ function buildSubject(
 		auth,
 		oauthDeps,
 		articleStore,
+		highlights,
 		readerReady,
 		onboarding,
 		engagement,
@@ -832,6 +837,48 @@ describe("delete-account handler", () => {
 			{ uploadId: audioUploadId, listedAtUnref: ["https://example.com/audio/article", audioUrl].sort() },
 		]);
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId, includeTotal: true })).total, 0);
+	});
+
+	it("deletes every highlight of the deleted account and leaves another account's", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "highlighter",
+			email: "highlighter@example.com",
+			subscription: "none",
+		});
+		const otherUserId = UserIdSchema.parse("other-highlighter");
+		const url = "example.com/highlighted";
+		const highlightFor = (highlightId: string) => ({
+			exact: "quote",
+			prefix: "",
+			suffix: "",
+			highlightId: HighlightIdSchema.parse(highlightId),
+			highlightOf: url,
+			start: 0,
+			end: 5,
+			anchoredContentHash: "hash",
+			anchorState: "anchored" as const,
+			orderKey: 0,
+			createdAt: SEED_NOW,
+			updatedAt: SEED_NOW,
+			anchorRevision: 0,
+		});
+		await s.highlights.createHighlight({
+			userId: account.userId,
+			highlight: highlightFor("00000000-0000-4000-8000-000000000001"),
+			replacedIds: [],
+		});
+		await s.highlights.createHighlight({
+			userId: otherUserId,
+			highlight: highlightFor("00000000-0000-4000-8000-000000000002"),
+			replacedIds: [],
+		});
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.deepEqual(await s.highlights.listArticleHighlights({ userId: account.userId, url }), []);
+		assert.equal((await s.highlights.listArticleHighlights({ userId: otherUserId, url })).length, 1);
 	});
 
 	it("leaves content another user still saves in place — delists the account but never purges a co-saved URL", async () => {

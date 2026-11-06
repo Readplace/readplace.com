@@ -76,6 +76,7 @@ import { initInMemoryLinkDequeued } from "./providers/events/in-memory-link-dequ
 import { initInMemoryQueueEntryCreated } from "./providers/events/in-memory-queue-entry-created";
 import { initInMemoryLinkQueued } from "./providers/events/in-memory-link-queued";
 import { initInMemoryRelatedArticles } from "./providers/related-articles/in-memory-related-articles";
+import { initInMemoryHighlights } from "./providers/highlights/in-memory-highlights";
 import { initInMemoryPastReads } from "./providers/related-articles/in-memory-past-reads";
 import { initInMemoryRelatedPassRequests } from "./providers/related-articles/in-memory-related-pass-requests";
 import { initInMemoryComputeRelatedPastReads } from "./providers/events/in-memory-compute-related-past-reads";
@@ -485,6 +486,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			writeMetadata: articleStoreMemory.writeMetadata,
 			setContentSourceTier: articleStoreMemory.setContentSourceTier,
 			setContentFetchedAt: articleStoreMemory.setContentFetchedAt,
+			setCanonicalContentHash: articleStoreMemory.setCanonicalContentHash,
 			setDisplayUrl: articleStoreMemory.setDisplayUrl,
 			claimAlias: articleStoreMemory.claimAlias,
 			resolveAlias: articleStoreMemory.resolveAlias,
@@ -551,6 +553,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			}),
 		},
 		pastReads: pastReadsMemory,
+		highlights: initInMemoryHighlights(),
 		freshness: { refreshArticleIfStale: createNoopRefreshArticleIfStale() },
 		oauth: {
 			oauthModel,

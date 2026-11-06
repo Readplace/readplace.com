@@ -100,7 +100,7 @@ export interface AdminRecrawlPageInput {
  */
 export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 	const actions = RegularReader({ actionBtns: { readlistPicker: undefined } });
-	const innerContent = renderArticleBody({
+	const { html: innerContent } = renderArticleBody({
 		readerSection: input.readerSection,
 		now: input.now,
 		title: input.metadata.title,

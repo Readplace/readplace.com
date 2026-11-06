@@ -10,6 +10,7 @@ import type {
 	FindEmailByUserId,
 } from "@packages/provider-contracts/auth";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
+import type { DeleteAllUserHighlights } from "@packages/provider-contracts/highlights";
 import type {
 	DeleteAllUserArticles,
 	ListUserArticleUrls,
@@ -81,6 +82,7 @@ export interface DeleteAccountHandlerDependencies {
 	deleteEmailImageObjects: (prefixes: string[]) => Promise<void>;
 	deleteAllUserArticles: DeleteAllUserArticles;
 	deleteAllTranscriptQuota: DeleteAllTranscriptQuota;
+	deleteAllUserHighlights: DeleteAllUserHighlights;
 	listUserArticleUrls: ListUserArticleUrls;
 	countOtherSaversByUrl: CountOtherSaversByUrl;
 	purgeArticleContent: PurgeArticleContent;
@@ -185,6 +187,7 @@ async function processCommand(
 	await deps.deleteAllUserArticles(userId);
 	await deps.deleteAllInboxSavedLinks(userId);
 	await deps.deleteAllTranscriptQuota({ userId });
+	await deps.deleteAllUserHighlights(userId);
 	await deps.withdrawStarterAssignment(userId);
 	await deps.deleteReaderReadyState(userId);
 	await deps.deleteOnboarding({ userId });

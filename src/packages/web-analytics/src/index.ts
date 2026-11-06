@@ -134,6 +134,8 @@ export {
 	type ImportFromUrlAcquiredEvent,
 	type ArticleReadEvent,
 	type SummaryToggledEvent,
+	type HighlightCreatedEvent,
+	type HighlightDeletedEvent,
 	type ViewOpenedEvent,
 	type ViewCrawlLimitedEvent,
 	type EpubImagesOverBudgetEvent,

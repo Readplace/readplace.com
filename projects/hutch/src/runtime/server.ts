@@ -151,6 +151,13 @@ import type {
 	SaveArticleGlobally,
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
+import type {
+	CreateHighlight,
+	DeleteArticleHighlights,
+	DeleteHighlight,
+	ListArticleHighlights,
+} from "@packages/provider-contracts/highlights";
+import { initCreateReaderHighlight } from "./web/shared/article-body/highlights/create-reader-highlight";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { FindIdentityRow, PinContentSource, SavePrivateItem, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
@@ -478,6 +485,10 @@ export interface AppDependencies {
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
+	deleteArticleHighlights: DeleteArticleHighlights;
+	listArticleHighlights: ListArticleHighlights;
+	createHighlight: CreateHighlight;
+	deleteHighlight: DeleteHighlight;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	saveReadlistArticle: SaveReadlistArticle;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -1482,6 +1493,12 @@ export function createApp(dependencies: AppDependencies): Express {
 	const keepOffer = initKeepOffer({ findUserById: deps.findUserById, getEffectiveAccess, now: deps.now, endsAt: deps.keepOfferEndsAt });
 
 	const queueRouter = initReadlistRoutes(readlistDependenciesFrom(deps, {
+		createReaderHighlight: initCreateReaderHighlight({
+			listArticleHighlights: deps.listArticleHighlights,
+			createHighlight: deps.createHighlight,
+			newHighlightId: randomUUID,
+			now: deps.now,
+		}),
 		keepOffer,
 		validateNewSaveUrl,
 		appOrigin,

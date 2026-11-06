@@ -576,7 +576,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as save_errors by surface",
 				"| sort save_errors desc",
 			].join(" "),
-			x: 12, y: 146, width: 12, height: 8,
+			x: 12, y: 154, width: 12, height: 8,
 			view: "bar",
 		}),
 		logWidget({
@@ -591,7 +591,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort save_intents desc",
 				"| limit 10",
 			].join(" "),
-			x: 12, y: 154, width: 12, height: 8,
+			x: 12, y: 162, width: 12, height: 8,
 			view: "bar",
 		}),
 	);
@@ -615,6 +615,22 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			].join(" "),
 			x: 12, y: 98, width: 12, height: 8,
 			view: "bar",
+		}),
+	);
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Highlights created / deleted",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, event",
+				`| filter stream = "${STREAMS.analytics}" and (event = "${ANALYTICS_EVENTS.highlightCreated}" or event = "${ANALYTICS_EVENTS.highlightDeleted}")`,
+				...exclude,
+				"| stats count(*) as highlights by event, bin(1d)",
+			].join(" "),
+			x: 0, y: 106, width: 12, height: 8,
+			view: "timeSeries",
 		}),
 	);
 
@@ -647,7 +663,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort pageviews desc",
 				"| limit 10",
 			].join(" "),
-			x: 0, y: 106, width: 12, height: 8,
+			x: 0, y: 114, width: 12, height: 8,
 			view: "pie",
 		}),
 		logWidget({
@@ -661,7 +677,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count_distinct(visitor_hash) as visitors by device_class, bin(1d)",
 			].join(" "),
-			x: 12, y: 106, width: 12, height: 8,
+			x: 12, y: 114, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 	);
@@ -706,7 +722,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort @timestamp desc",
 				"| limit 100",
 			].join(" "),
-			x: 0, y: 114, width: 24, height: 8,
+			x: 0, y: 122, width: 24, height: 8,
 			view: "table",
 		}),
 	);
@@ -739,7 +755,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count_distinct(visitor_id) as visitors, count(*) as landings by version",
 				"| sort visitors desc",
 			].join(" "),
-			x: 0, y: 122, width: 12, height: 8,
+			x: 0, y: 130, width: 12, height: 8,
 			view: "bar",
 		}),
 	);
@@ -757,7 +773,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count_distinct(visitor_id) as visitors by event",
 				"| sort visitors desc",
 			].join(" "),
-			x: 0, y: 162, width: 12, height: 8,
+			x: 0, y: 170, width: 12, height: 8,
 			view: "bar",
 		}),
 		logWidget({
@@ -771,7 +787,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count_distinct(user_id) as signups by landing, tier",
 				"| sort signups desc",
 			].join(" "),
-			x: 12, y: 162, width: 12, height: 8,
+			x: 12, y: 170, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -790,7 +806,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count_distinct(visitor_id) as visitors by arm, event",
 				"| sort arm asc",
 			].join(" "),
-			x: 0, y: 170, width: 12, height: 8,
+			x: 0, y: 178, width: 12, height: 8,
 			view: "bar",
 		}),
 		logWidget({
@@ -805,7 +821,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count_distinct(user_id) as signups by arm, tier",
 				"| sort signups desc",
 			].join(" "),
-			x: 12, y: 170, width: 12, height: 8,
+			x: 12, y: 178, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -829,7 +845,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort pageviews desc",
 				"| limit 25",
 			].join(" "),
-			x: 12, y: 122, width: 12, height: 8,
+			x: 12, y: 130, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -846,7 +862,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as attempts by outcome",
 				"| sort attempts desc",
 			].join(" "),
-			x: 0, y: 130, width: 12, height: 8,
+			x: 0, y: 138, width: 12, height: 8,
 			view: "bar",
 		}),
 		logWidget({
@@ -859,7 +875,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count(*) as attempts by bin(1d), outcome",
 			].join(" "),
-			x: 12, y: 130, width: 12, height: 8,
+			x: 12, y: 138, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 	);
@@ -887,7 +903,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count_distinct(user_id) as users, count(*) as events by bin(1d), event",
 			].join(" "),
-			x: 0, y: 138, width: 12, height: 8,
+			x: 0, y: 146, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 		logWidget({
@@ -901,7 +917,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				`| stats count(*) as n by event, coalesce(variant, reason, "-") as detail`,
 				"| sort n desc",
 			].join(" "),
-			x: 12, y: 138, width: 12, height: 8,
+			x: 12, y: 146, width: 12, height: 8,
 			view: "bar",
 		}),
 		logWidget({
@@ -919,7 +935,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count_distinct(user_id) as users by bin(1d), event, paid_now",
 			].join(" "),
-			x: 0, y: 146, width: 12, height: 8,
+			x: 0, y: 154, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 	);
@@ -937,7 +953,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count(*) as autosaves by bin(1d)",
 			].join(" "),
-			x: 0, y: 154, width: 12, height: 8,
+			x: 0, y: 162, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 	);
@@ -963,7 +979,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort signups desc",
 				"| limit 50",
 			].join(" "),
-			x: 12, y: 186, width: 12, height: 8,
+			x: 12, y: 194, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -992,7 +1008,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as readers, median(unseen_px) as unseen_px_median, pct(unseen_px, 90) as unseen_px_p90, median(seen_percent) as seen_percent_median by bin(1d) as day",
 				"| sort day asc",
 			].join(" "),
-			x: 0, y: 206, width: 12, height: 8,
+			x: 0, y: 214, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 		logWidget({
@@ -1006,7 +1022,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as readers, median(seen_percent) as seen_percent_median, median(unseen_px) as unseen_px_median, max(page_height_px) as page_height_px by device_class",
 				"| sort readers desc",
 			].join(" "),
-			x: 12, y: 206, width: 12, height: 8,
+			x: 12, y: 214, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -1030,7 +1046,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as downloads, count_distinct(visitor_id) as downloaders by device, os_label, browser_label, source",
 				"| sort downloads desc",
 			].join(" "),
-			x: 0, y: 238, width: 12, height: 8,
+			x: 0, y: 246, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -1046,7 +1062,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count(*) as sends by bin(1d), kind",
 			].join(" "),
-			x: 0, y: 246, width: 24, height: 8,
+			x: 0, y: 254, width: 24, height: 8,
 			view: "timeSeries",
 		}),
 		logWidget({
@@ -1060,7 +1076,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count_distinct(user_id) as users, count(*) as ticks by reason, tier",
 				"| sort users desc",
 			].join(" "),
-			x: 0, y: 254, width: 12, height: 8,
+			x: 0, y: 262, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1075,7 +1091,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort users desc",
 				"| limit 50",
 			].join(" "),
-			x: 12, y: 254, width: 12, height: 8,
+			x: 12, y: 262, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1089,7 +1105,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as views, count_distinct(user_id) as users by terms",
 				"| sort views desc",
 			].join(" "),
-			x: 0, y: 262, width: 12, height: 8,
+			x: 0, y: 270, width: 12, height: 8,
 			view: "bar",
 		}),
 		logWidget({
@@ -1103,17 +1119,17 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as unsubscribes, count_distinct(user_id) as users by method, email_kind",
 				"| sort users desc",
 			].join(" "),
-			x: 12, y: 262, width: 12, height: 8,
+			x: 12, y: 270, width: 12, height: 8,
 			view: "bar",
 		}),
 	);
 
-	widgets.push(deepseekCostWidget({ region, y: 230 }));
+	widgets.push(deepseekCostWidget({ region, y: 238 }));
 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 334, width: 8, height: 4,
+			x: index * 8, y: 342, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1140,7 +1156,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort refusals desc",
 				"| limit 40",
 			].join(" "),
-			x: 12, y: 194, width: 12, height: 8,
+			x: 12, y: 202, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({ region, ...oauthTokens.revocationsPerDay }),
@@ -1168,7 +1184,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort clicks desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 214, width: 12, height: 8,
+			x: 0, y: 222, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1186,7 +1202,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as visitors, sum(last_signup_ms > first_touch_ms) as signed_up_after, sum(visitor_events = touches) as touch_only_visitors by first_control",
 				"| sort visitors desc",
 			].join(" "),
-			x: 12, y: 214, width: 12, height: 8,
+			x: 12, y: 222, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -1194,7 +1210,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		{
 			type: "metric",
-			x: 0, y: 222, width: 6, height: 4,
+			x: 0, y: 230, width: 6, height: 4,
 			properties: {
 				region,
 				title: "Gmail filter rewrites that failed",
@@ -1208,7 +1224,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		},
 		{
 			type: "metric",
-			x: 6, y: 222, width: 6, height: 4,
+			x: 6, y: 230, width: 6, height: 4,
 			properties: {
 				region,
 				title: "Gmail forwarding confirmations that failed",
@@ -1236,7 +1252,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort failures desc",
 				"| limit 20",
 			].join(" "),
-			x: 12, y: 222, width: 12, height: 8,
+			x: 12, y: 230, width: 12, height: 8,
 			view: "table",
 		}),
 	);
@@ -1258,7 +1274,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| filter screens > 0",
 				"| stats sum(screens) as screens_shown, count(*) as visitors_shown, sum(signup_clicks > 0) as visitors_clicked_create_account, sum(login_clicks > 0) as visitors_clicked_log_in, sum(last_signup_ms > first_seen_ms) as signups_after_screen",
 			].join(" "),
-			x: 0, y: 312, width: 24, height: 6,
+			x: 0, y: 320, width: 24, height: 6,
 			view: "table",
 		}),
 	);
@@ -1273,7 +1289,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				'| stats count_distinct(user_id) as users by event, coalesce(entry_source, "-") as source, coalesce(offer, "-") as offer_applied',
 			].join(" "),
-			x: 0, y: 318, width: 12, height: 8,
+			x: 0, y: 326, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -1285,7 +1301,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				'| stats count_distinct(user_id) as users, avg(hours_since_signup) as avg_hours by coalesce(oauth_client_id, "web/email") as client',
 			].join(" "),
-			x: 12, y: 318, width: 12, height: 8,
+			x: 12, y: 326, width: 12, height: 8,
 			view: "bar",
 		}),
 		logWidget({
@@ -1297,7 +1313,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count(*) as sends by bin(1d), kind",
 			].join(" "),
-			x: 0, y: 326, width: 12, height: 8,
+			x: 0, y: 334, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 		logWidget({
@@ -1309,7 +1325,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count_distinct(user_id) as users by event, surface",
 			].join(" "),
-			x: 12, y: 326, width: 12, height: 8,
+			x: 12, y: 334, width: 12, height: 8,
 			view: "table",
 		}),
 	);

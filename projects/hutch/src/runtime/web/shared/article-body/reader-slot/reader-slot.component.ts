@@ -20,6 +20,7 @@ import {
 	renderReaderFailed,
 } from "./reader-failed.component";
 import { READER_PENDING_DESCRIPTION, renderReaderPending } from "./reader-pending.component";
+import type { ReaderHighlights } from "./mark-highlights";
 import { renderReaderReady } from "./reader-ready.component";
 import type { ReaderSectionInput } from "./section-pages";
 import type { CapturePollUrls } from "../../article-reader/article-reader.types";
@@ -50,6 +51,7 @@ export interface ReaderSlotInput {
 	noticeOob: boolean;
 	now: Date;
 	readerSection: ReaderSectionInput;
+	highlights?: ReaderHighlights;
 }
 
 const EMPTY_NOTICE_TEMPLATE = readFileSync(
@@ -58,7 +60,7 @@ const EMPTY_NOTICE_TEMPLATE = readFileSync(
 );
 
 function withEmptyNotice(slot: string, noticeOob: boolean, gaveUpUrl?: string): ReaderRegions {
-	return { slot, notice: render(EMPTY_NOTICE_TEMPLATE, { noticeOob, gaveUpUrl }) };
+	return { slot, notice: render(EMPTY_NOTICE_TEMPLATE, { noticeOob, gaveUpUrl }), states: [] };
 }
 
 const CAPTURE_MISSING_NOTICE: FailedCrawlNotice = { variant: "capture-missing", captureRescue: "offered" };
@@ -159,16 +161,15 @@ function pollOrSlow(
 }
 
 function ready(input: ReaderSlotInput, content: ArticleBody, oob: boolean): ReaderRegions {
-	return withEmptyNotice(
-		renderReaderReady({
-			content,
-			oob,
-			appOrigin: input.appOrigin,
-			url: input.url,
-			readerSection: input.readerSection,
-		}),
-		input.noticeOob,
-	);
+	const rendered = renderReaderReady({
+		content,
+		oob,
+		appOrigin: input.appOrigin,
+		url: input.url,
+		readerSection: input.readerSection,
+		highlights: input.highlights,
+	});
+	return { ...withEmptyNotice(rendered.html, input.noticeOob), states: rendered.states };
 }
 
 export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {

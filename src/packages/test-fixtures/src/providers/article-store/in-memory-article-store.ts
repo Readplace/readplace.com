@@ -119,6 +119,7 @@ interface GlobalArticle {
 	lastModified?: string;
 	contentFetchedAt?: string;
 	bodyHash?: string;
+	canonicalContentHash?: string;
 	contentSourceTier?: "tier-0" | "tier-1" | "tier-2";
 	crawlVersions?: ArticleCrawlVersion[];
 	purgedAt?: Date;
@@ -277,6 +278,7 @@ export function initInMemoryArticleStore(): {
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" | "tier-2" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
+	setCanonicalContentHash: (params: { url: string; canonicalContentHash: string }) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	claimAlias: ClaimCanonicalAlias;
 	resolveAlias: (url: string) => Promise<string | undefined>;
@@ -1103,6 +1105,7 @@ export function initInMemoryArticleStore(): {
 			lastModified: article.lastModified,
 			contentFetchedAt: article.contentFetchedAt,
 			bodyHash: article.bodyHash,
+			canonicalContentHash: article.canonicalContentHash,
 		};
 	};
 
@@ -1228,6 +1231,13 @@ export function initInMemoryArticleStore(): {
 		const article = articles.get(articleResourceUniqueId.value);
 		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
 		article.contentFetchedAt = params.at;
+	};
+
+	const setCanonicalContentHash = async (params: { url: string; canonicalContentHash: string }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.canonicalContentHash = params.canonicalContentHash;
 	};
 
 	const setCrawlVersions = async (params: { url: string; versions: ArticleCrawlVersion[] }) => {
@@ -1373,6 +1383,7 @@ export function initInMemoryArticleStore(): {
 		writeMetadata,
 		setContentSourceTier,
 		setContentFetchedAt,
+		setCanonicalContentHash,
 		setDisplayUrl,
 		claimAlias,
 		resolveAlias,

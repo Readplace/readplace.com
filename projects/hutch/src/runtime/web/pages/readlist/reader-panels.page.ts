@@ -19,7 +19,7 @@ import { ReaderArticleHashIdSchema, nextReadDismissalOf } from "@packages/domain
 import { ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { parseCaptureWatch } from "../../shared/article-reader/capture-watch";
 import { renderReaderDownloadsOob, } from "../../shared/article-body/reader-actions/reader-actions.component";
-import type { ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
+import type { PollHighlights, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
 import {
 	sendComponent,
 	toRelativeOrDate,
@@ -49,6 +49,8 @@ import {
 	nativeSurfaceQuery,
 } from "../../onboarding/native-client";
 import type { SavedArticle } from "@packages/domain/article";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { highlightFeatureEnabled, highlightPathsFor } from "./highlight-feature";
 import { initRequestRelatedPasses } from "./request-related-passes";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
 import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, ISSUE_LINK_SAVED_PARAM } from "./readlist-shared";
@@ -58,7 +60,7 @@ const HTMX_STOP_POLLING_STATUS = 286;
 export function initReaderPanelRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requireWriteAccess" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt"
+		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requireWriteAccess" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -75,6 +77,17 @@ export function initReaderPanelRoutes(
 		parseEmailIssueArticleUrl(article.url) === undefined
 			? (articleUrl) =>
 					renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req), guide: epubGuideFor(req, article) })
+			: undefined;
+
+	const pollHighlightsFor = async (req: Request, article: SavedArticle): Promise<PollHighlights | undefined> =>
+		highlightFeatureEnabled(req.query) && !isAppPlatform(req)
+			? {
+					rows: await deps.listArticleHighlights({
+						userId: article.userId,
+						url: ArticleResourceUniqueId.parse(article.url).value,
+					}),
+					deleteUrlFor: highlightPathsFor({ articleId: article.id.value, query: req.query }).deleteUrlFor,
+				}
 			: undefined;
 
 	router.get("/:id/summary", async (req: Request, res: Response) => {
@@ -108,6 +121,7 @@ export function initReaderPanelRoutes(
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
+			highlights: await pollHighlightsFor(req, article),
 		});
 		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));
@@ -144,6 +158,7 @@ export function initReaderPanelRoutes(
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
+			highlights: await pollHighlightsFor(req, article),
 		});
 		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));

@@ -2274,6 +2274,26 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		});
 	});
 
+	it("findArticleFreshness returns the canonicalContentHash when the row holds one", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: { canonicalContentHash: "a".repeat(64) } } },
+		});
+
+		const freshness = await initStore(client).findArticleFreshness(URL);
+
+		expect(freshness?.canonicalContentHash).toBe("a".repeat(64));
+	});
+
+	it("findArticleFreshness leaves canonicalContentHash undefined on a legacy row without one", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: { etag: '"e"', canonicalContentHash: null } } },
+		});
+
+		const freshness = await initStore(client).findArticleFreshness(URL);
+
+		expect(freshness?.canonicalContentHash).toBeUndefined();
+	});
+
 	it("findArticleFreshness returns null when the row is absent", async () => {
 		const { client } = createFakeClient({ GetCommand: { default: { Item: undefined } } });
 

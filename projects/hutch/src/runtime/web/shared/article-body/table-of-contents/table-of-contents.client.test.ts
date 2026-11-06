@@ -25,7 +25,7 @@ function readerHtml(html: string): string {
 		title: undefined,
 		oob: false,
 	});
-	return `${tableOfContents}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content, appOrigin: APP_ORIGIN })}`;
+	return `${tableOfContents}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content, appOrigin: APP_ORIGIN }).html}`;
 }
 
 const PENDING_READER_HTML = renderTableOfContents({

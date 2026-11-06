@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type { Router } from "express";
 import express from "express";
 import { initMapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-mapping";
@@ -14,6 +15,7 @@ import { initReadlistListingRoutes } from "./readlist-listing.page";
 import { initReadlistSaveRoutes } from "./readlist-save.page";
 import { initReadlistQueueRoutes } from "./readlist-queues.page";
 import { initReaderPanelRoutes } from "./reader-panels.page";
+import { initHighlightRoutes } from "./highlights.page";
 import { initReadlistCardRoutes } from "./readlist-card.page";
 
 export function initReadlistRoutes(deps: ReadlistDependencies): Router {
@@ -21,43 +23,44 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	const shared = initReadlistShared(deps);
 	const { findNonEmptyReadlists, resolveOnboardingSignals } = shared;
 
-	router.use(
-		initReaderPageRoutes(
-			{
-				findArticleUrlById: deps.findArticleUrlById,
-				findArticleByUrl: deps.findArticleByUrl,
-				findItemOwner: deps.findItemOwner,
-				presignMediaImage: deps.presignMediaImage,
-				presignEnclosure: deps.presignEnclosure,
-				findArticleById: deps.findArticleById,
-				listUserSavesForUrl: deps.listUserSavesForUrl,
-				appOrigin: deps.appOrigin,
-				listIssueLinks: deps.listIssueLinks,
-				findIssueLinkSaveStates: deps.findIssueLinkSaveStates,
-				dualAuth: deps.dualAuth,
-				listReadlistDefinitions: deps.listReadlistDefinitions,
-				getOnboardingSignals: deps.getOnboardingSignals,
-				now: deps.now,
-				findRelatedArticles: deps.findRelatedArticles,
-				logError: deps.logError,
-				findPastReads: deps.findPastReads,
-				resolveReaderProvenance: deps.resolveReaderProvenance,
-				markdownBearerAuth: deps.markdownBearerAuth,
-				buildBannerState: deps.buildBannerState,
-				recordEngagementActivity: deps.recordEngagementActivity,
-				findUserById: deps.findUserById,
-				chromelessReader: deps.chromelessReader,
-				findArticleCrawlVersions: deps.findArticleCrawlVersions,
-				webReader: deps.webReader,
-				resolveOwnedArticle: deps.resolveOwnedArticle,
-				findArticleCrawlStatus: deps.findArticleCrawlStatus,
-				findGeneratedSummary: deps.findGeneratedSummary,
-				readArticleContent: deps.readArticleContent,
-				requestResolutionOnView: deps.requestResolutionOnView,
-			},
-			shared,
-		),
+	const readerPage = initReaderPageRoutes(
+		{
+			findArticleUrlById: deps.findArticleUrlById,
+			findArticleByUrl: deps.findArticleByUrl,
+			findItemOwner: deps.findItemOwner,
+			presignMediaImage: deps.presignMediaImage,
+			presignEnclosure: deps.presignEnclosure,
+			findArticleById: deps.findArticleById,
+			listUserSavesForUrl: deps.listUserSavesForUrl,
+			appOrigin: deps.appOrigin,
+			listIssueLinks: deps.listIssueLinks,
+			findIssueLinkSaveStates: deps.findIssueLinkSaveStates,
+			dualAuth: deps.dualAuth,
+			listReadlistDefinitions: deps.listReadlistDefinitions,
+			getOnboardingSignals: deps.getOnboardingSignals,
+			now: deps.now,
+			findRelatedArticles: deps.findRelatedArticles,
+			logError: deps.logError,
+			findPastReads: deps.findPastReads,
+			resolveReaderProvenance: deps.resolveReaderProvenance,
+			markdownBearerAuth: deps.markdownBearerAuth,
+			buildBannerState: deps.buildBannerState,
+			recordEngagementActivity: deps.recordEngagementActivity,
+			findUserById: deps.findUserById,
+			chromelessReader: deps.chromelessReader,
+			findArticleCrawlVersions: deps.findArticleCrawlVersions,
+			webReader: deps.webReader,
+			resolveOwnedArticle: deps.resolveOwnedArticle,
+			findArticleCrawlStatus: deps.findArticleCrawlStatus,
+			findGeneratedSummary: deps.findGeneratedSummary,
+			readArticleContent: deps.readArticleContent,
+			requestResolutionOnView: deps.requestResolutionOnView,
+			listArticleHighlights: deps.listArticleHighlights,
+			findArticleFreshness: deps.findArticleFreshness,
+		},
+		shared,
 	);
+	router.use(readerPage.router);
 	router.use(
 		initSaveRefusalTrackingRoutes({
 			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
@@ -68,6 +71,29 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
+	router.use(
+		initHighlightRoutes(
+			{
+				requireWriteAccess: deps.requireWriteAccess,
+				readArticleContent: deps.readArticleContent,
+				findArticleFreshness: deps.findArticleFreshness,
+				createReaderHighlight: deps.createReaderHighlight,
+				deleteHighlight: deps.deleteHighlight,
+				recordAnalyticsEvent: deps.recordAnalyticsEvent,
+				salt: deps.salt,
+				now: deps.now,
+				appOrigin: deps.appOrigin,
+			},
+			{
+				findOwnedArticle: (req, id) => {
+					assert(req.userId, "userId required - route must be protected by requireAuth");
+					return shared.storeFor(shared.requestReadlistContext(req).state.readlist).findArticleById(id, req.userId);
+				},
+				renderOwnerReader: readerPage.renderOwnerReader,
+				readerSectionFor: shared.ownerReaderSection,
+			},
+		),
+	);
 
 	const { gmail } = deps;
 	const readlistGmail =
@@ -225,6 +251,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				markSummaryToggled: deps.markSummaryToggled,
 				recordAnalyticsEvent: deps.recordAnalyticsEvent,
 				salt: deps.salt,
+				listArticleHighlights: deps.listArticleHighlights,
 			},
 			shared,
 		),

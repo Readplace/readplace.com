@@ -2,6 +2,7 @@ export { initDynamoDbArticleStore } from "./dynamodb-article-store";
 export { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
 export { initDynamoDbReadlistDefinitions } from "./dynamodb-readlist-definitions";
 export { initDynamoDbReadlistFitOverrides } from "./dynamodb-readlist-fit-overrides";
+export { initDynamoDbHighlights } from "./dynamodb-highlights";
 export { initFindSavedArticleForLink } from "./find-saved-article-for-link";
 export { initDynamoDbArticleCrawl } from "./dynamodb-article-crawl";
 export { initDynamoDbMeteredLegLedger } from "./dynamodb-metered-leg-ledger";

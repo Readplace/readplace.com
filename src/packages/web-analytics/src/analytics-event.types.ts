@@ -168,6 +168,23 @@ export interface SummaryToggledEvent {
 	visitor_hash: string | null;
 }
 
+export interface HighlightCreatedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.highlightCreated;
+	timestamp: string;
+	user_id: UserId;
+	visitor_hash: string | null;
+	origin: "mouse";
+}
+
+export interface HighlightDeletedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.highlightDeleted;
+	timestamp: string;
+	user_id: UserId;
+	visitor_hash: string | null;
+}
+
 /**
  * Carries `visitor_id` so it joins to the `user_created` conversion per device.
  */
@@ -475,4 +492,6 @@ export type AnalyticsEvent =
 	| McpSessionInitializedEvent
 	| McpToolsListedEvent
 	| OAuthTokenRevokedEvent
-	| EpubImagesOverBudgetEvent;
+	| EpubImagesOverBudgetEvent
+	| HighlightCreatedEvent
+	| HighlightDeletedEvent;

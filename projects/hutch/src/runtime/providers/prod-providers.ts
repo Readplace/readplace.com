@@ -25,6 +25,7 @@ import {
 	initDynamoDbReadlistDefinitions,
 	initDynamoDbReadlistFitOverrides,
 	initDynamoDbSavedArticleStore,
+	initDynamoDbHighlights,
 } from "@packages/article-store";
 import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, fallbackLinkTarget, initCrawlFetch, initFetchRedirectHop, initFetchTrackerHop, initResolveAppleNewsStoryUrl } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -222,6 +223,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	});
 	const onboardingSignals = initOnboardingSignals({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 	const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger, now: () => new Date() });
+	const highlights = initDynamoDbHighlights({ client, userArticlesTableName: userArticlesTable });
 	const queueDefinitions = initDynamoDbReadlistDefinitions({ client, userArticlesTableName: userArticlesTable });
 	const readlistFitOverrides = initDynamoDbReadlistFitOverrides({ client, userArticlesTableName: userArticlesTable });
 	const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
@@ -589,6 +591,10 @@ export function initProdProviders(input: { appOrigin: string }) {
 		}),
 		...auth,
 		...articleStore,
+		deleteArticleHighlights: highlights.deleteArticleHighlights,
+		listArticleHighlights: highlights.listArticleHighlights,
+		createHighlight: highlights.createHighlight,
+		deleteHighlight: highlights.deleteHighlight,
 		...queueDefinitions,
 		...readlistFitOverrides,
 		createReadlistDefinition: initReportReadlistCap({

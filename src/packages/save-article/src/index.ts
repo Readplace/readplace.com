@@ -46,6 +46,7 @@ export { initVerifyWrapperSource, type VerifyWrapperSource } from "./verify-wrap
 export { rankNewLinksAbove } from "./rank-new-links-above";
 export {
 	bindArticleStoreToReadlist,
+	initDeleteArticleHighlightsUnlessSavedElsewhere,
 	initPublishLinkDequeuedUnlessSavedElsewhere,
 	type ReadlistBoundArticleStoreDependencies,
 } from "./readlist-bound-article-store";

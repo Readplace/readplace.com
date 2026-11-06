@@ -47,7 +47,7 @@ function readerContent(doc: Document): Element {
 
 describe("renderReaderReady", () => {
 	it("renders the article content as document text a reader or extractor can read", () => {
-		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: "https://readplace.com", content: articleBody("<p>Body copy</p>") }));
+		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: "https://readplace.com", content: articleBody("<p>Body copy</p>") }).html);
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -57,7 +57,7 @@ describe("renderReaderReady", () => {
 	});
 
 	it("carries the article content on a styled div, not a frame the page has to measure", () => {
-		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: "https://readplace.com", content: articleBody("<p>x</p>") }));
+		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: "https://readplace.com", content: articleBody("<p>x</p>") }).html);
 
 		const content = readerContent(doc);
 		expect(content.tagName).toBe("DIV");
@@ -71,7 +71,7 @@ describe("renderReaderReady", () => {
 				url: TEST_READER_URL,
 				content: articleBody('<p>safe</p><img src="https://cdn.example.com/x.jpg" onerror="alert(1)">'),
 				appOrigin: "https://readplace.com",
-			}),
+			}).html,
 		);
 
 		const image = readerContent(doc).querySelector("img");
@@ -87,7 +87,7 @@ describe("renderReaderReady", () => {
 				url: TEST_READER_URL,
 				content: articleBody("<style>body { position: fixed; }</style><p>safe</p>"),
 				appOrigin: "https://readplace.com",
-			}),
+			}).html,
 		);
 
 		expect(readerContent(doc).innerHTML.trim()).toBe("<p>safe</p>");
@@ -100,7 +100,7 @@ describe("renderReaderReady", () => {
 				url: TEST_READER_URL,
 				content: articleBody('<a href="https://readplace.com/queue" target="_blank">Readlist</a>'),
 				appOrigin: "https://readplace.com",
-			}),
+			}).html,
 		);
 
 		const link = readerContent(doc).querySelector("a");
@@ -115,7 +115,7 @@ describe("renderReaderReady", () => {
 				url: TEST_READER_URL,
 				content: articleBody('<a href="https://example.com/post" target="_blank">Post</a>'),
 				appOrigin: "https://readplace.com",
-			}),
+			}).html,
 		);
 
 		const link = readerContent(doc).querySelector("a");
@@ -129,7 +129,7 @@ describe("renderReaderReady", () => {
 			'<p><a href="#lispm">#</a>\n<A HREF="ftp://ftp.cs.cmu.edu/user/ai/lang/lisp/code/impdep/explorer/0.html" NAME="lispm">\nLisp Machines</A></p>';
 
 		const doc = parse(
-			renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: articleBody(captured), appOrigin: APP_ORIGIN }),
+			renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: articleBody(captured), appOrigin: APP_ORIGIN }).html,
 		);
 
 		expect(articleUrlsAnAnchorWalkWouldMint(doc, articleUrl)).toEqual([
@@ -145,7 +145,7 @@ describe("renderReaderReady", () => {
 				url: TEST_READER_URL,
 				content: articleBody("<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>"),
 				appOrigin: APP_ORIGIN,
-			}),
+			}).html,
 		);
 
 		const ids = Array.from(readerContent(doc).querySelectorAll("h2, h3"), (heading) => heading.id);
@@ -159,7 +159,7 @@ describe("renderReaderReady", () => {
 				url: TEST_READER_URL,
 				content: articleBody('<h2 id="article-body-reader-slot">Overview</h2><p>Body copy</p>'),
 				appOrigin: APP_ORIGIN,
-			}),
+			}).html,
 		);
 
 		const heading = readerContent(doc).querySelector("h2");
@@ -175,7 +175,7 @@ describe("renderReaderReady", () => {
 				url: TEST_READER_URL,
 				content: articleBody('<h2>Overview</h2><p><a href="&amp;amp;#106;avascript:alert(1)">Click</a></p>'),
 				appOrigin: APP_ORIGIN,
-			}),
+			}).html,
 		);
 
 		expect(readerContent(doc).innerHTML.trim()).toBe(
@@ -185,7 +185,7 @@ describe("renderReaderReady", () => {
 
 	it("flags the slot with hx-swap-oob when oob is true so HTMX swaps replace the live slot", () => {
 		const doc = parse(
-			renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: articleBody("<p>x</p>"), oob: true, appOrigin: "https://readplace.com" }),
+			renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: articleBody("<p>x</p>"), oob: true, appOrigin: "https://readplace.com" }).html,
 		);
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
@@ -194,7 +194,7 @@ describe("renderReaderReady", () => {
 	});
 
 	it("omits hx-swap-oob when oob is absent (initial SSR render)", () => {
-		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: "https://readplace.com", content: articleBody("<p>x</p>") }));
+		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: "https://readplace.com", content: articleBody("<p>x</p>") }).html);
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -210,7 +210,7 @@ describe("renderReaderReady", () => {
 				content: articleBody(
 					"<table><thead><tr><th>stage</th><th>owner</th></tr></thead><tbody><tr><td>extract</td><td>parser</td></tr></tbody></table>",
 				),
-			}),
+			}).html,
 		);
 
 		const content = readerContent(doc);
@@ -231,7 +231,7 @@ describe("renderReaderReady", () => {
 				content: articleBody(
 					'<table><thead><tr><th colspan="3">Bundle sizes</th></tr><tr><th rowspan="2">name</th><th colspan="2">size</th></tr><tr><th>w</th><th>h</th></tr></thead><tbody><tr><td>n</td><td>1</td><td>2</td></tr></tbody></table>',
 				),
-			}),
+			}).html,
 		);
 
 		const content = readerContent(doc);
@@ -256,7 +256,7 @@ describe("renderReaderReady", () => {
 				content: articleBody(
 					"<table><thead><tr><th>Model</th><th>ain</th></tr></thead><tbody><tr><th>whisper</th><td>1.2</td></tr></tbody></table>",
 				),
-			}),
+			}).html,
 		);
 
 		expect(readerContent(doc).querySelector("tbody th")?.getAttribute("data-label")).toBe("Model");
@@ -271,7 +271,7 @@ describe("renderReaderReady", () => {
 				content: articleBody(
 					"<table><thead><tr><th>a \"b\" &lt;i&gt;</th><th>x</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>",
 				),
-			}),
+			}).html,
 		);
 
 		const content = readerContent(doc);
@@ -288,7 +288,7 @@ describe("renderReaderReady", () => {
 				content: articleBody(
 					`<table data-reader-fits="" data-reader-flow=""><tbody><tr data-reader-header=""><td data-label="fake">${"x".repeat(100)}</td><td>y</td></tr></tbody></table>`,
 				),
-			}),
+			}).html,
 		);
 
 		expect(
@@ -303,7 +303,7 @@ describe("renderReaderReady", () => {
 				url: TEST_READER_URL,
 				appOrigin: "https://readplace.com",
 				content: articleBody("<table><tbody><tr><td>a</td></tr><tr><td>b</td></tr></tbody></table>"),
-			}),
+			}).html,
 		);
 
 		expect(readerContent(doc).querySelector("table")?.hasAttribute("data-reader-flow")).toBe(true);
@@ -315,7 +315,7 @@ describe("renderReaderReady paged body", () => {
 	const longBody = articleBody([1, 2, 3].map(chapter).join(""));
 
 	it("renders a pager whose next link boosts like the next-read link", () => {
-		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: APP_ORIGIN, content: longBody }));
+		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: APP_ORIGIN, content: longBody }).html);
 
 		const pager = doc.querySelector("[data-test-section-pager]");
 		assert(pager, "a paged body must render the pager");
@@ -334,7 +334,7 @@ describe("renderReaderReady paged body", () => {
 	});
 
 	it("renders no pager for a body under the threshold", () => {
-		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: APP_ORIGIN, content: articleBody(chapter(1).slice(0, 200)) }));
+		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: APP_ORIGIN, content: articleBody(chapter(1).slice(0, 200)) }).html);
 
 		expect(doc.querySelector("[data-test-section-pager]")).toBeNull();
 	});
@@ -342,7 +342,7 @@ describe("renderReaderReady paged body", () => {
 	it("pages the same body under a smaller threshold and not under the production threshold", () => {
 		const smallBody = articleBody([1, 2, 3].map((n) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(60)}</p>`).join(""));
 		const render = (thresholdBytes: number) =>
-			parse(renderReaderReady({ readerSection: { ...TEST_READER_SECTION, thresholdBytes }, url: TEST_READER_URL, appOrigin: APP_ORIGIN, content: smallBody }));
+			parse(renderReaderReady({ readerSection: { ...TEST_READER_SECTION, thresholdBytes }, url: TEST_READER_URL, appOrigin: APP_ORIGIN, content: smallBody }).html);
 
 		expect(render(600).querySelector("[data-test-section-pager]")).not.toBeNull();
 		expect(render(READER_SECTION_PAGE_THRESHOLD_BYTES).querySelector("[data-test-section-pager]")).toBeNull();

@@ -45,10 +45,18 @@ import type { PublishResolveArticleOnView } from "@packages/provider-contracts/e
 import type {
 	ArticleMetadata,
 	ArticleStatus,
+	HighlightId,
 	Minutes,
 	ReaderArticleHashId,
 	ValidateSaveableUrl,
 } from "@packages/domain/article";
+import type {
+	CreateHighlight,
+	DeleteAllUserHighlights,
+	DeleteArticleHighlights,
+	DeleteHighlight,
+	ListArticleHighlights,
+} from "@packages/provider-contracts/highlights";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type {
 	FindPastReads,
@@ -519,6 +527,7 @@ export interface ArticleStoreBundle {
 	}) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" | "tier-2" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
+	setCanonicalContentHash: (params: { url: string; canonicalContentHash: string }) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	claimAlias: ClaimCanonicalAlias;
 	resolveAlias: (url: string) => Promise<string | undefined>;
@@ -593,6 +602,16 @@ export interface PendingUploadBundle {
 export interface SummaryBundle {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
+}
+
+export interface HighlightsBundle {
+	listArticleHighlights: ListArticleHighlights;
+	createHighlight: CreateHighlight;
+	deleteHighlight: DeleteHighlight;
+	deleteArticleHighlights: DeleteArticleHighlights;
+	deleteAllUserHighlights: DeleteAllUserHighlights;
+	setCreateCancelled: (cancelled: boolean) => void;
+	bumpAnchorRevision: (params: { userId: UserId; url: string; highlightId: HighlightId }) => void;
 }
 
 export interface RelatedArticlesBundle {
@@ -833,6 +852,7 @@ export interface TestAppFixture {
 	pendingUpload: PendingUploadBundle;
 	summary: SummaryBundle;
 	relatedArticles: RelatedArticlesBundle;
+	highlights: HighlightsBundle;
 	pastReads: {
 		findPastReads: FindPastReads;
 		markPastReadsReady: MarkPastReadsReady;

@@ -17,6 +17,14 @@ import { render, renderIllustration, toRelativeOrDate, withInternalTracking } fr
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
+import {
+	highlightsRailRowsFromStates,
+	pendingHighlightsRailRows,
+	renderHighlightsRail,
+} from "../../shared/article-body/highlights-rail/highlights-rail.component";
+import { HIGHLIGHT_TOOLBAR_SCRIPT, renderHighlightToolbar } from "../../shared/article-body/highlights/highlight-toolbar.component";
+import type { ReaderHighlights } from "../../shared/article-body/reader-slot/mark-highlights";
+import type { HighlightId } from "@packages/domain/article";
 import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import {
 	type MarkReadAction,
@@ -133,6 +141,11 @@ export function readerMarkStatusConfirm(input: {
 	};
 }
 
+export interface ReaderPageHighlights extends ReaderHighlights {
+	createUrl: string;
+	deleteUrlFor: (highlightId: HighlightId) => string;
+}
+
 export function ReaderPage(
 	article: SavedArticle,
 	options: {
@@ -162,6 +175,8 @@ export function ReaderPage(
 		crawlVersions?: ArticleVersion[];
 		articleHistoryRemoval?: ArticleHistoryRemoval;
 		offlineCopyRow?: boolean;
+		highlights?: ReaderPageHighlights;
+		statusToast?: string;
 		exitConfirmScopes?: ExitConfirmScopes;
 		readerPathFor: (articleId: string) => string;
 		markStatusConfirmReadlists?: readonly ReadlistRef[];
@@ -231,40 +246,8 @@ export function ReaderPage(
 					now: options.now,
 					readerPathForReadlist: options.readerPathForReadlist,
 				};
-	const railLandmark = railLandmarkFor({
-		hasCard:
-			(options.crawlVersions ?? []).length > 0 ||
-			(pastReadsInput !== undefined && hasVisiblePastReads(pastReadsInput)) ||
-			isTableOfContentsVisible({
-				crawl: options.crawl,
-				content: options.content,
-				notice: options.readerNotice,
-			}),
-	});
-	const railHtml = renderArticleRail({
-		url: article.destinationUrl,
-		readerSection: options.readerSection,
-		title: article.metadata.title,
-		crawl: options.crawl,
-		content: options.content,
-		readerNotice: options.readerNotice,
-		appOrigin: options.appOrigin,
-		crawlVersions: options.crawlVersions,
-		articleHistoryRemoval: options.articleHistoryRemoval,
-		offlineCopyRow: options.offlineCopyRow,
-		previouslyReadHtml:
-			pastReadsInput === undefined
-				? undefined
-				: renderPastReadsSection({
-						...pastReadsInput,
-						placement: {
-							kind: "rail",
-							pollUrl: options.previouslyReadPollUrl,
-							computeUrl: options.previouslyReadComputeUrl,
-						},
-					}),
-	});
-	const innerContent = renderArticleBody({
+	const { html: articleBodyHtml, states: highlightStates } = renderArticleBody({
+		highlights: options.highlights,
 		readerSection: options.readerSection,
 		now: options.now,
 		title: article.metadata.title,
@@ -302,6 +285,57 @@ export function ReaderPage(
 						placement: { kind: "inline", oob: false, computeUrl: options.previouslyReadComputeUrl },
 					}),
 	});
+	const highlights = options.highlights;
+	const highlightsRail =
+		highlights === undefined
+			? undefined
+			: renderHighlightsRail({
+					rows:
+						highlightStates.length === 0
+							? pendingHighlightsRailRows(highlights.rows)
+							: highlightsRailRowsFromStates(highlightStates),
+					deleteUrlFor: highlights.deleteUrlFor,
+					oob: false,
+				});
+	const innerContent =
+		highlights === undefined
+			? articleBodyHtml
+			: articleBodyHtml + renderHighlightToolbar({ createUrl: highlights.createUrl });
+	const railLandmark = railLandmarkFor({
+		hasCard:
+			highlightsRail?.hasRows === true ||
+			(options.crawlVersions ?? []).length > 0 ||
+			(pastReadsInput !== undefined && hasVisiblePastReads(pastReadsInput)) ||
+			isTableOfContentsVisible({
+				crawl: options.crawl,
+				content: options.content,
+				notice: options.readerNotice,
+			}),
+	});
+	const railHtml = renderArticleRail({
+		url: article.destinationUrl,
+		readerSection: options.readerSection,
+		title: article.metadata.title,
+		crawl: options.crawl,
+		content: options.content,
+		readerNotice: options.readerNotice,
+		appOrigin: options.appOrigin,
+		crawlVersions: options.crawlVersions,
+		articleHistoryRemoval: options.articleHistoryRemoval,
+		offlineCopyRow: options.offlineCopyRow,
+		highlightsHtml: highlightsRail?.html,
+		previouslyReadHtml:
+			pastReadsInput === undefined
+				? undefined
+				: renderPastReadsSection({
+						...pastReadsInput,
+						placement: {
+							kind: "rail",
+							pollUrl: options.previouslyReadPollUrl,
+							computeUrl: options.previouslyReadComputeUrl,
+						},
+					}),
+	});
 	const shareDialogHtml = share === undefined ? renderSharingOffDialog() : renderShareDialog(share);
 	const downloadGuideHtml =
 		sharing.epubDownloadGuide === undefined ? "" : renderDownloadGuideDialog(sharing.epubDownloadGuide);
@@ -315,7 +349,8 @@ export function ReaderPage(
 					hiddenFields: [{ name: "returnTo", value: picker.returnTo }],
 				});
 	const filingToast = options.readlistFiling.toast;
-	const statusToastHtml = filingToast === undefined ? "" : renderFilingToast(filingToast);
+	const statusToastHtml =
+		options.statusToast ?? (filingToast === undefined ? "" : renderFilingToast(filingToast));
 	const nextRead = renderNextRead({
 		related: options.related
 			? {
@@ -387,7 +422,8 @@ export function ReaderPage(
 				(options.enclosure.kind === "absent" ? "" : PLAYER_SCRIPT) +
 				READER_OPEN_SCRIPT +
 				READER_TOP_SCRIPT +
-				TABLE_OF_CONTENTS_SCRIPT,
+				TABLE_OF_CONTENTS_SCRIPT +
+				(highlights === undefined ? "" : HIGHLIGHT_TOOLBAR_SCRIPT),
 		}),
 	};
 }

@@ -10,6 +10,7 @@ export type * from "./email";
 export type * from "./email-verification";
 export type * from "./events";
 export type * from "./google-auth";
+export type * from "./highlights";
 export * from "./hosted-checkout";
 export * from "./metered-leg-ledger";
 export * from "./transcript-quota";

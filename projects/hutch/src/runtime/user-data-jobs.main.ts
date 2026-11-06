@@ -51,6 +51,7 @@ import {
 	initDeleteArticleRow,
 	initDeleteUserArticleLinks,
 	initDynamoDbFindItemOwner,
+	initDynamoDbHighlights,
 	initPurgeArticleContent,
 	initS3DeleteContentObjects,
 	initS3ListContentKeys,
@@ -84,6 +85,10 @@ const articleStore = initDynamoDbSavedArticleStore({
 	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 	logger,
 	now: () => new Date(),
+});
+const highlights = initDynamoDbHighlights({
+	client: dynamoClient,
+	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 });
 
 const engagementState = initDynamoDbEngagementStarter({
@@ -334,6 +339,7 @@ export const handler = initHandleByDetailType({
 					now: () => new Date(),
 					delay: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 				}).deleteAllTranscriptQuota,
+				deleteAllUserHighlights: highlights.deleteAllUserHighlights,
 				listUserArticleUrls: articleStore.listUserArticleUrls,
 				countOtherSaversByUrl,
 				purgeArticleContent,

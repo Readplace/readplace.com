@@ -42,6 +42,7 @@ import {
 } from "@packages/test-fixtures/providers/onboarding-signals";
 import { initReadArticleImageByIdentity } from "./read-article-image-by-identity";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryHighlights } from "@packages/test-fixtures/providers/highlights";
 import type { ExtractPdf } from "@packages/crawl-article";
 import {
 	CRAWL_PERSONAS,
@@ -190,6 +191,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword, now: () => new Date() });
 	const articleStore = initInMemoryArticleStore();
+	const highlights = initInMemoryHighlights();
 	const engagementStarter = initInMemoryEngagementStarter({ library: articleStore });
 	const onboardingSignals = initInMemoryOnboardingSignals({ now: () => new Date() });
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
@@ -603,6 +605,10 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	return {
 		...auth,
 		...articleStore,
+		deleteArticleHighlights: highlights.deleteArticleHighlights,
+		listArticleHighlights: highlights.listArticleHighlights,
+		createHighlight: highlights.createHighlight,
+		deleteHighlight: highlights.deleteHighlight,
 		readArticleImage: initReadArticleImageByIdentity({
 			shared: articleStore.readArticleImage,
 			private: articleStore.readArticleImage,

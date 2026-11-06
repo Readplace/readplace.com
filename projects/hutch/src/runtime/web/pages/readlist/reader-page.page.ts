@@ -31,7 +31,7 @@ import {
 	sendComponent,
 	withInternalTracking,
 } from "@packages/web-shell";
-import type { CspNonce } from "@packages/web-shell";
+import type { Component, CspNonce } from "@packages/web-shell";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { RedirectComponent, type Redirect } from "../../redirect.component";
 import { FreshForComponent } from "../../conditional-get";
@@ -50,11 +50,11 @@ import {
 import type {
 	ReaderReadlistFiling,
 } from "./reader-readlist-filing";
-import { computeArticleContentVersion } from "../../shared/article-content-version";
+import { computeArticleContentVersion, withHighlightsVersion } from "../../shared/article-content-version";
 import { readerCachePolicy } from "./reader-cache-policy";
 import { VIEW_BACK_LINK } from "./reader-skeleton/reader-skeleton.component";
 import type { PageBody } from "@packages/web-shell";
-import { ReaderPage, } from "../reader/reader.component";
+import { ReaderPage, type ReaderPageHighlights } from "../reader/reader.component";
 import { isPrefetchRequest } from "../../shared/prefetch-request";
 import { isBotUserAgent } from "@packages/web-analytics";
 import { requestCanCapture } from "../../onboarding/capture-capable-request";
@@ -73,7 +73,9 @@ import { EXIT_CONFIRM_SCOPE } from "../reader/reader-exit-confirm.component";
 import { MARKED_READ_EVENT } from "../reader/reader-exit-confirm.client";
 import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type { SavedArticle } from "@packages/domain/article";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
+import { highlightFeatureEnabled, highlightPathsFor } from "./highlight-feature";
 import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM } from "./readlist-shared";
 
 const pastReadsComputeUrlFor = (params: {
@@ -166,6 +168,20 @@ const readerCaptureBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspN
 })();
 </script>`;
 
+export type RenderOwnerReader = (
+	req: Request<{ id: string }>,
+	res: Response,
+	options: {
+		statusCode: 200 | 422;
+		toast: string | undefined;
+		markViewed: boolean;
+	},
+) => Promise<void>;
+
+function withStatusCode(component: Component, statusCode: number): Component {
+	return { to: (mediaType) => ({ ...component.to(mediaType), statusCode }) };
+}
+
 function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 	assert(page.scripts, "the reader page always sets its scripts");
 	return { ...page, scripts: page.scripts + OFFLINE_READER_SCRIPT + offlineCopyRowScript(cspNonce) };
@@ -174,8 +190,8 @@ function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 
 export function initReaderPageRoutes(deps: Pick<
 		ReadlistDependencies,
-		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "presignEnclosure" | "findArticleById" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView"
-	>, shared: ReadlistShared): Router {
+		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView" | "listArticleHighlights" | "findArticleFreshness" | "presignEnclosure" | "findArticleById"
+	>, shared: ReadlistShared): { router: Router; renderOwnerReader: RenderOwnerReader } {
 	const router = express.Router();
 	const { requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
 
@@ -334,6 +350,7 @@ export function initReaderPageRoutes(deps: Pick<
 
 	const resolveOwnerReader = async (
 		req: Request<{ id: string }>,
+		options: { markViewed: boolean },
 	): Promise<OwnerReaderResolution> => {
 		const readerReadlist = requestReadlistContext(req).state.readlist;
 		const result = await resolveReaderPermalinkIn(readerReadlist)({
@@ -352,7 +369,7 @@ export function initReaderPageRoutes(deps: Pick<
 
 		const ownedArticle = result.article;
 
-		if (!isPrefetchRequest(req)) {
+		if (options.markViewed && !isPrefetchRequest(req)) {
 			await storeFor(readerReadlist).markArticleViewed({
 				userId: ownedArticle.userId,
 				url: ownedArticle.url,
@@ -480,8 +497,8 @@ export function initReaderPageRoutes(deps: Pick<
 		initOwnerArticleMarkdown(deps),
 	);
 
-	router.get("/:id/view", noindexMiddleware, async (req: Request<{ id: string }>, res: Response) => {
-		const resolved = await resolveOwnerReader(req);
+	const renderOwnerReader: RenderOwnerReader = async (req, res, options) => {
+		const resolved = await resolveOwnerReader(req, { markViewed: options.markViewed });
 		if (resolved.kind === "redirect") {
 			sendComponent(req, res, RedirectComponent(resolved.redirect));
 			return;
@@ -492,7 +509,7 @@ export function initReaderPageRoutes(deps: Pick<
 			return;
 		}
 
-		if (isDeliberateReaderRequest(req)) {
+		if (options.markViewed && isDeliberateReaderRequest(req)) {
 			await deps.recordEngagementActivity({
 				userId: resolved.article.userId,
 				kind: "reader-open",
@@ -512,8 +529,41 @@ export function initReaderPageRoutes(deps: Pick<
 			readlistFiling,
 			deletion,
 			provenance,
-			contentVersion,
 		} = resolved;
+		const highlightsOn =
+			highlightFeatureEnabled(req.query) && !isAppPlatform(req);
+		const highlightRows = highlightsOn
+			? await deps.listArticleHighlights({
+					userId: ownedArticle.userId,
+					url: ArticleResourceUniqueId.parse(ownedArticle.url).value,
+				})
+			: [];
+		const contentVersion = withHighlightsVersion({
+			contentVersion: resolved.contentVersion,
+			highlights: highlightRows,
+		});
+		const highlightPaths = highlightPathsFor({
+			articleId: ownedArticle.id.value,
+			query: req.query,
+		});
+		const highlights: ReaderPageHighlights | undefined = highlightsOn
+			? {
+					rows: highlightRows,
+					canonicalContentHash: (
+						await deps.findArticleFreshness(ownedArticle.url)
+					)?.canonicalContentHash,
+					createUrl: highlightPaths.createUrl,
+					deleteUrlFor: highlightPaths.deleteUrlFor,
+				}
+			: undefined;
+		const settle = (component: Component, cacheControl: string): Component =>
+			options.statusCode === 200
+				? FreshForComponent(component, {
+						ifNoneMatch: req.get("If-None-Match"),
+						cspNonce,
+						cacheControl,
+					})
+				: withStatusCode(component, options.statusCode);
 		const pastReadsOptions = {
 			previouslyRead,
 			previouslyReadPollUrl,
@@ -528,7 +578,10 @@ export function initReaderPageRoutes(deps: Pick<
 		};
 
 		const cspNonce = requireCspNonce(req);
-		const currentPath = withoutFiledFlash(req.originalUrl);
+		const currentPath =
+			options.statusCode === 200
+				? withoutFiledFlash(req.originalUrl)
+				: highlightPaths.viewPath;
 		const issueLinks = await issueLinksFor(req, ownedArticle);
 		const readerSettled =
 			state.readerPollUrl === undefined &&
@@ -575,7 +628,7 @@ export function initReaderPageRoutes(deps: Pick<
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
 				req, res,
-				FreshForComponent(
+				settle(
 					ChromelessPage(
 						{
 							...readerBody,
@@ -595,7 +648,7 @@ export function initReaderPageRoutes(deps: Pick<
 							appearance,
 						},
 					),
-					{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: readerCacheControl },
+					readerCacheControl,
 				),
 			);
 			return;
@@ -625,7 +678,7 @@ export function initReaderPageRoutes(deps: Pick<
 
 		sendComponent(
 			req, res,
-			FreshForComponent(
+			settle(
 				Base(withOfflineReading(ReaderPage(ownedArticle, {
 					appOrigin: deps.appOrigin,
 					enclosure: ownedEnclosure({ viewer: viewerFor(req.userId), article: ownedArticle }),
@@ -660,16 +713,22 @@ export function initReaderPageRoutes(deps: Pick<
 					epubDownloadGuide: epubGuideFor(req, ownedArticle),
 					issueLinks,
 					deletion,
+					highlights,
+					statusToast: options.toast,
 				}), cspNonce), {
 					...(await deps.buildBannerState(req)),
 					currentPath,
 					showExtensionSuggestionBanner,
 					extensionInstalled: isExtensionInstalled(req),
 				}),
-				{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: readerCacheControl },
+				readerCacheControl,
 			),
 		);
-	});
+	};
 
-	return router;
+	router.get("/:id/view", noindexMiddleware, (req: Request<{ id: string }>, res: Response) =>
+		renderOwnerReader(req, res, { statusCode: 200, toast: undefined, markViewed: true }),
+	);
+
+	return { router, renderOwnerReader };
 }

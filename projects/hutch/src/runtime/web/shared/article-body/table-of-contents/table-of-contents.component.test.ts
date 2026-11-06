@@ -162,7 +162,7 @@ describe("renderTableOfContents", () => {
 
 	it("links every row to a heading the reader slot renders from the same content", () => {
 		const doc = parse(
-			`${render({ crawl: { status: "ready" }, content: HEADED_CONTENT })}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: HEADED_CONTENT, appOrigin: APP_ORIGIN })}`,
+			`${render({ crawl: { status: "ready" }, content: HEADED_CONTENT })}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: HEADED_CONTENT, appOrigin: APP_ORIGIN }).html}`,
 		);
 
 		const slot = doc.querySelector("[data-test-reader-content]");
@@ -215,7 +215,7 @@ describe("renderTableOfContents", () => {
 	it("leaves the leading title heading out of the card while the reader body keeps it and its anchor", () => {
 		const content = articleBody("<h2>Field notes</h2><p>One</p><h2>Method <a href=\"#method\">¶</a></h2><p>Two</p>");
 		const doc = parse(
-			`${render({ crawl: { status: "ready" }, content, title: "Field notes" })}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content, appOrigin: APP_ORIGIN })}`,
+			`${render({ crawl: { status: "ready" }, content, title: "Field notes" })}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content, appOrigin: APP_ORIGIN }).html}`,
 		);
 
 		const slot = doc.querySelector("[data-test-reader-content]");

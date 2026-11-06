@@ -5,6 +5,7 @@ import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import type { ArticleVersion } from "../article-reader/article-reader.types";
 import { type ArticleRailInput, renderArticleBody, renderArticleRail } from "./article-body.component";
 import { articleBody } from "@packages/test-fixtures";
+import { HighlightIdSchema } from "@packages/domain/article";
 import { initFinalizeArticle } from "@packages/finalize-article";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./reader-slot/section-pages";
 
@@ -51,7 +52,7 @@ describe("renderArticleBody", () => {
 				crawl: { status: "ready" },
 				content: articleBody("<p>Body</p>"),
 				reportHref: "mailto:report@example.com?subject=Report",
-			}),
+			}).html,
 		);
 
 		const report = reportSlot(doc);
@@ -63,7 +64,7 @@ describe("renderArticleBody", () => {
 	});
 
 	it("withholds the report link without an href", () => {
-		const doc = parse(renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<p>Body</p>") }));
+		const doc = parse(renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<p>Body</p>") }).html);
 
 		const report = reportSlot(doc);
 		assert.equal(report.classList.contains("article-body__report--withheld"), true);
@@ -78,7 +79,7 @@ describe("renderArticleBody", () => {
 				content: articleBody("<p>Body</p>"),
 				readerNotice: "failed",
 				reportHref: "mailto:report@example.com?subject=Report",
-			}),
+			}).html,
 		);
 
 		const report = reportSlot(doc);
@@ -87,12 +88,12 @@ describe("renderArticleBody", () => {
 	});
 
 	it("hides the report link while the article has no content, and shows it once a ready slot is swapped in", () => {
-		const doc = parse(renderArticleBody({ ...baseInput, reportHref: "mailto:report@example.com?subject=Report" }));
+		const doc = parse(renderArticleBody({ ...baseInput, reportHref: "mailto:report@example.com?subject=Report" }).html);
 		const report = reportSlot(doc);
 		assert.equal(report.matches(STYLESHEET_SHOWN_REPORT), false);
 
 		const readySlot = parse(
-			renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<p>Body</p>") }),
+			renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<p>Body</p>") }).html,
 		).querySelector("[data-test-reader-slot]");
 		assert(readySlot, "a ready article must render its reader slot");
 		const pendingSlot = doc.querySelector("[data-test-reader-slot]");
@@ -113,7 +114,7 @@ describe("renderArticleBody", () => {
 			mediaType: "plain-text", plainText,
 		});
 		assert(finalized.ok);
-		const doc = parse(renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody(finalized.article.html) }));
+		const doc = parse(renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody(finalized.article.html) }).html);
 		const code = doc.querySelector(".article-body__content pre code");
 		assert(code);
 		expect(code.textContent).toBe(plainText);
@@ -125,8 +126,8 @@ describe("renderArticleBody", () => {
 			parse(html).querySelector("[data-test-reader-provenance]")?.textContent?.trim();
 
 		expect([
-			tagOf(renderArticleBody({ ...baseInput, provenance: { kind: "import" } })),
-			tagOf(renderArticleBody(baseInput)),
+			tagOf(renderArticleBody({ ...baseInput, provenance: { kind: "import" } }).html),
+			tagOf(renderArticleBody(baseInput).html),
 		]).toEqual(["via Import", undefined]);
 	});
 
@@ -135,14 +136,14 @@ describe("renderArticleBody", () => {
 			renderArticleBody({
 				...baseInput,
 				saved: { iso: "2026-04-25T06:00:00.000Z", label: "6h ago", mode: "relative" },
-			}),
+			}).html,
 		);
 
 		expect(doc.querySelector("[data-test-reader-saved]")?.textContent).toBe("6h ago");
 	});
 
 	it("passes the article's publish date through to the header", () => {
-		const doc = parse(renderArticleBody({ ...baseInput, publishedOn: "2025-10-08" }));
+		const doc = parse(renderArticleBody({ ...baseInput, publishedOn: "2025-10-08" }).html);
 
 		expect(doc.querySelector('[data-test-reader-fact="published"]')?.textContent).toBe("Published Oct 8, 2025");
 	});
@@ -151,7 +152,7 @@ describe("renderArticleBody", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: articleBody("<p>Body copy</p>"),
-		});
+		}).html;
 		const doc = parse(html);
 
 		expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe(
@@ -173,7 +174,7 @@ describe("renderArticleBody", () => {
 			...baseInput,
 			content: articleBody("<p>Body</p>"),
 			summary: { status: "ready", summary: "Key points." },
-		});
+		}).html;
 		const doc = parse(html);
 
 		const slot = doc.querySelector("[data-test-reader-summary]");
@@ -189,7 +190,7 @@ describe("renderArticleBody", () => {
 			summary: { status: "pending" },
 			summaryPollUrl: "/queue/abc/summary?poll=1",
 			readerPollUrl: "/queue/abc/reader?poll=1",
-		});
+		}).html;
 		const doc = parse(html);
 
 		const slot = doc.querySelector("[data-test-reader-summary]");
@@ -207,7 +208,7 @@ describe("renderArticleBody", () => {
 			crawl: { status: "ready" },
 			summary: { status: "pending" },
 			summaryPollUrl: "/queue/abc/summary?poll=1",
-		});
+		}).html;
 		const doc = parse(html);
 
 		const slot = doc.querySelector("[data-test-reader-summary]");
@@ -224,7 +225,7 @@ describe("renderArticleBody", () => {
 			content: articleBody("<p>Body</p>"),
 			topActionsHtml: '<div data-test-top-actions>top</div>',
 			bottomActionsHtml: '<div data-test-bottom-actions>bottom</div>',
-		});
+		}).html;
 		const doc = parse(html);
 
 		assert(doc.querySelector("[data-test-top-actions]"), "top actions must be spliced in");
@@ -234,7 +235,7 @@ describe("renderArticleBody", () => {
 	});
 
 	it("leaves the rail's cards out of the article column, so the summary slot is followed directly by the reader slot", () => {
-		const doc = parse(renderArticleBody({ ...baseInput, content: articleBody("<p>Body</p>") }));
+		const doc = parse(renderArticleBody({ ...baseInput, content: articleBody("<p>Body</p>") }).html);
 
 		const summarySlot = doc.querySelector("#article-body-summary-slot");
 		assert(summarySlot, "the summary slot must be rendered");
@@ -248,7 +249,7 @@ describe("renderArticleBody", () => {
 			...baseInput,
 			content: undefined,
 			readerPollUrl: "/queue/abc/reader?poll=1",
-		});
+		}).html;
 		const doc = parse(html);
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
@@ -263,7 +264,7 @@ describe("renderArticleBody", () => {
 			content: undefined,
 			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			readerPollUrl: "/queue/abc/reader?poll=1",
-		});
+		}).html;
 		const doc = parse(html);
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
@@ -282,7 +283,7 @@ describe("renderArticleBody", () => {
 			...baseInput,
 			content: undefined,
 			crawl: { status: "failed", outcomeRevision: 1, reason: "exceeded SQS maxReceiveCount" },
-		});
+		}).html;
 		const doc = parse(html);
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
@@ -306,7 +307,7 @@ describe("renderArticleBody", () => {
 				content: undefined,
 				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
 				capturePollUrls,
-			}),
+			}).html,
 		);
 
 		const notice = doc.querySelector("[data-test-reader-notice]");
@@ -322,7 +323,7 @@ describe("renderArticleBody", () => {
 			...baseInput,
 			content: articleBody("<p>Body</p>"),
 			summary: { status: "ready", summary: "Key points." },
-		});
+		}).html;
 		const doc = parse(html);
 
 		const card = doc.querySelector("[data-test-article-card]");
@@ -344,7 +345,7 @@ describe("renderArticleBody", () => {
 				...baseInput,
 				content: articleBody("<p>Body</p>"),
 				previouslyReadHtml: '<section id="article-body-topic-reads-inline-slot">past reads</section>',
-			}),
+			}).html,
 		);
 
 		const card = doc.querySelector("[data-test-article-card]");
@@ -366,7 +367,7 @@ describe("renderArticleBody", () => {
 			topActionsHtml: '<div data-test-top-actions>top</div>',
 			issueLinksHtml: '<section data-test-issue-links>links</section>',
 			bottomActionsHtml: '<div data-test-bottom-actions>bottom</div>',
-		});
+		}).html;
 		const doc = parse(html);
 
 		const order = Array.from(doc.body.children, (child) =>
@@ -386,7 +387,7 @@ describe("renderArticleBody", () => {
 
 	it("leaves the table of contents to the rail, so the body carries only the anchored article", () => {
 		const doc = parse(
-			renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<h2>Why it matters</h2><p>One</p>") }),
+			renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<h2>Why it matters</h2><p>One</p>") }).html,
 		);
 
 		const heading = doc.querySelector("[data-test-reader-content] h2");
@@ -398,7 +399,7 @@ describe("renderArticleBody", () => {
 	});
 
 	it("renders the notice region hidden after the card while the reader view is ready", () => {
-		const doc = parse(renderArticleBody({ ...baseInput, content: articleBody("<p>Body</p>") }));
+		const doc = parse(renderArticleBody({ ...baseInput, content: articleBody("<p>Body</p>") }).html);
 
 		const notice = doc.querySelector("[data-test-reader-notice]");
 		assert(notice, "the notice region must be rendered unconditionally");
@@ -436,6 +437,17 @@ describe("renderArticleRail", () => {
 		assert(wrapper, "the table of contents wrapper must always be rendered");
 		return wrapper.getAttribute("data-test-table-of-contents");
 	}
+
+	it("renders the highlights section before the table of contents when supplied", () => {
+		expect(
+			railChildren(
+				renderArticleRail({
+					...pendingReader,
+					highlightsHtml: '<section id="highlights-rail" data-test-highlights-rail></section>',
+				}),
+			),
+		).toEqual([{ tag: "SECTION", marker: "data-test-highlights-rail" }, hiddenTableOfContents]);
+	});
 
 	it("renders the Article history rows when versions are supplied", () => {
 		const doc = parse(renderArticleRail({ ...pendingReader, crawlVersions: versions }));
@@ -576,5 +588,34 @@ describe("renderArticleRail", () => {
 			{ tag: "DETAILS", marker: "data-test-article-history" },
 			{ tag: "SECTION", marker: "data-test-reader-topic-reads" },
 		]);
+	});
+});
+
+describe("renderArticleBody highlight states", () => {
+	it("passes up the reader slot's highlight states", () => {
+		const highlight = {
+			highlightId: HighlightIdSchema.parse("0b8f6c1e-2d3a-4b5c-8d9e-0f1a2b3c4d5e"),
+			highlightOf: "https://example.com/post",
+			exact: "absent passage",
+			prefix: "",
+			suffix: "",
+			start: 0,
+			end: 14,
+			anchoredContentHash: "hash",
+			anchorState: "anchored" as const,
+			orderKey: 0,
+			createdAt: new Date("2026-11-01T00:00:00.000Z"),
+			updatedAt: new Date("2026-11-01T00:00:00.000Z"),
+			anchorRevision: 0,
+		};
+
+		const rendered = renderArticleBody({
+			...baseInput,
+			crawl: { status: "ready" },
+			content: articleBody("<p>Body</p>"),
+			highlights: { rows: [highlight], canonicalContentHash: "hash" },
+		});
+
+		expect(rendered.states).toEqual([{ highlight, anchor: { start: 0, end: 14, anchorState: "orphaned" } }]);
 	});
 });
