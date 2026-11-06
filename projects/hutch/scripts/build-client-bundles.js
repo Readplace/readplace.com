@@ -93,6 +93,23 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/player/player.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "player.client.js"),
+    globalName: "Player",
+    footer: [
+      "Player.initPlayer({",
+      "  document: window.document,",
+      "  window: window,",
+      "  addSwapListener: function (listener) {",
+      "    window.document.body.addEventListener('htmx:afterSwap', listener);",
+      "  }",
+      "});",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/pages/reader/reader-top.client.ts",
     ),
     outfile: path.join(OUT_DIR, "reader-top.client.js"),

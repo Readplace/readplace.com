@@ -80,7 +80,7 @@ import { READER_TOP_SCRIPT } from "./reader-top-script";
 import { READER_STYLES } from "./reader.styles";
 import type { EnclosureRead } from "@packages/domain/article";
 import { displayableTime } from "../../shared/displayable-time";
-import { renderPlayer } from "../../shared/player/player.component";
+import { PLAYER_SCRIPT, renderPlayer } from "../../shared/player/player.component";
 import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
 import { reportArticleHref } from "../../shared/report-article/report-article-href";
 
@@ -384,6 +384,7 @@ export function ReaderPage(
 				READLIST_PICKER_SCRIPT +
 				READLIST_CLIENT_SCRIPT +
 				(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +
+				(options.enclosure.kind === "absent" ? "" : PLAYER_SCRIPT) +
 				READER_OPEN_SCRIPT +
 				READER_TOP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT,

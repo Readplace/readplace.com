@@ -11,3 +11,9 @@
   display: block;
   width: 100%;
 }
+
+[data-article-body] p[aria-current="true"] {
+  background: var(--secondary);
+  color: var(--foreground);
+  border-radius: var(--radius-sm);
+}

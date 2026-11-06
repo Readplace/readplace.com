@@ -122,6 +122,12 @@ function firstReaderChild(html: string): Element | undefined {
 	return Array.from(reader.children).find((child) => child.tagName !== "STYLE");
 }
 
+function playerScripts(html: string): string[] {
+	return Array.from(documentOf(html).querySelectorAll("script[src]"))
+		.map((script) => script.getAttribute("src") ?? "")
+		.filter((src) => src.includes("player.client.js"));
+}
+
 function headerReadTime(html: string): string | undefined {
 	return documentOf(html)
 		.querySelector('#reader-article-meta [data-test-reader-fact="read-time"]')
@@ -143,6 +149,17 @@ describe("an owned enclosure in the reader", () => {
 			player?.querySelector("audio[data-player-audio]")?.getAttribute("src"),
 		).toBe(`/queue/${AUDIO_ID}/enclosure`);
 		expect(headerReadTime(response.text)).toBe("47 min listen");
+	});
+
+	it("loads the player script once for the owner's audio and not for a link", async () => {
+		const { signIn } = await appWithOwnersEnclosure();
+		const agent = await signIn(OWNER);
+
+		const audio = await agent.get(`/queue/${AUDIO_ID}/view`).set(BROWSER_REQUEST_HEADERS);
+		const link = await agent.get(`/queue/${LINK_ID}/view`).set(BROWSER_REQUEST_HEADERS);
+
+		expect(playerScripts(audio.text)).toEqual(["/client-dist/player.client.js"]);
+		expect(playerScripts(link.text)).toEqual([]);
 	});
 
 	it("serves the rendered transcript with its five-minute headings and seek links", async () => {
