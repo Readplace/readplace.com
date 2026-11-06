@@ -19,6 +19,7 @@ export interface ReadlistTab {
 	testFilter: string;
 	isActive: boolean;
 	widestLabel: string;
+	beta: boolean;
 }
 
 export interface ReadlistTabsDisplayModel {
@@ -47,6 +48,7 @@ function preferencesTabs(input: {
 			testFilter: PREFERENCES_TAB.testFilter,
 			isActive,
 			widestLabel: PREFERENCES_TAB.label,
+			beta: true,
 		},
 	];
 }
@@ -70,6 +72,7 @@ export function buildReadlistTabs(input: {
 				testFilter: tab.testFilter,
 				isActive: tab.id === input.activeTab,
 				widestLabel: tab.label,
+				beta: false,
 			})),
 			...preferencesTabs(input),
 		],

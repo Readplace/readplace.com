@@ -139,6 +139,21 @@ describe("buildReadlistTabs", () => {
 		expect(hrefParts(preferences).params.get("utm_content")).toBe("filter-preferences");
 	});
 
+	it("marks only the preferences tab as Beta, beside its reserved label", () => {
+		const doc = renderTabs({ activeTab: "queue", readlist: WORK });
+
+		const tagged = Array.from(doc.querySelectorAll("[data-test-filter]"), (tab) => [
+			tab.getAttribute("data-test-filter"),
+			tab.querySelector(":scope > [data-test-filter-beta]")?.textContent ?? null,
+		]);
+		expect(tagged).toEqual([
+			["unread", null],
+			["read", null],
+			["preferences", "Beta"],
+		]);
+		expect(tabLink(doc, "preferences").querySelector(".underline-tabs__label")?.textContent).toBe("Preferences");
+	});
+
 	it("hides the preferences tab on the built-in readlist", () => {
 		expect(tabKeys(renderTabs({ activeTab: "queue" }))).toEqual([
 			"unread",

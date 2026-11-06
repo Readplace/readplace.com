@@ -26,6 +26,7 @@ const HIT_AREA_OVERHANG = 2;
 const READ_TAB_WIDTH = 88;
 const TO_READ_TAB_WIDTH = 111;
 const TAB_SIDE_PADDING = 24;
+const TAB_LABEL_GAP = 8;
 
 const READLIST_TABS = "[data-test-filters]";
 const READLIST_TAB = `${READLIST_TABS} .underline-tabs__tab`;
@@ -136,12 +137,14 @@ async function tabWidth(page: Page, selector: string): Promise<number> {
 	return (await measuredBox(page, selector)).width;
 }
 
-async function tabHugsItsReservedLabel(page: Page, selector: string): Promise<number> {
-	const width = await tabWidth(page, selector);
-	const label = (await measuredBox(page, `${selector} .underline-tabs__label`)).width;
+async function preferencesTabHugsItsLabelAndBetaTag(page: Page): Promise<number> {
+	const width = await tabWidth(page, PREFERENCES_TAB);
+	const label = (await measuredBox(page, `${PREFERENCES_TAB} .underline-tabs__label`)).width;
+	const beta = (await measuredBox(page, `${PREFERENCES_TAB} [data-test-filter-beta]`)).width;
+	const expected = label + TAB_LABEL_GAP + beta + 2 * TAB_SIDE_PADDING;
 	assert.ok(
-		Math.abs(width - (label + 2 * TAB_SIDE_PADDING)) <= 0.5,
-		`the "${selector}" tab must be its reserved label plus ${TAB_SIDE_PADDING}px each side, measured tab=${width}px label=${label}px`,
+		Math.abs(width - expected) <= 0.5,
+		`the Preferences tab must be its reserved label, a ${TAB_LABEL_GAP}px gap and its Beta tag plus ${TAB_SIDE_PADDING}px each side, measured tab=${width}px label=${label}px beta=${beta}px`,
 	);
 	return width;
 }
@@ -213,7 +216,7 @@ async function readlistStripGeometry(page: Page): Promise<void> {
 async function threeTabStripGeometry(page: Page): Promise<void> {
 	await readlistStripGeometry(page);
 	await tabsShareOneRow(page, READLIST_TAB);
-	await tabHugsItsReservedLabel(page, PREFERENCES_TAB);
+	await preferencesTabHugsItsLabelAndBetaTag(page);
 }
 
 async function readlistPhoneGeometry(page: Page): Promise<void> {
@@ -348,11 +351,11 @@ test.describe("Underline tabs geometry on the readlist at desktop", () => {
 		const slug = await createCustomReadlist(page, railIsOpen);
 		await gotoCustomReadlist(page, slug);
 		await waitForBrandFonts(page, ["Inter"]);
-		const closed = await tabHugsItsReservedLabel(page, PREFERENCES_TAB);
+		const closed = await preferencesTabHugsItsLabelAndBetaTag(page);
 
 		await gotoCustomReadlistPreferences(page, slug);
 		await waitForBrandFonts(page, ["Inter"]);
-		const open = await tabHugsItsReservedLabel(page, PREFERENCES_TAB);
+		const open = await preferencesTabHugsItsLabelAndBetaTag(page);
 
 		assert.equal(open, closed, `the Preferences tab must keep one width, measured closed=${closed}px open=${open}px`);
 		await openUnderlineSitsOnTheBaseline(page);
