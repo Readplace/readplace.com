@@ -18,6 +18,19 @@ describe("defineMediaKind", () => {
 		assert.equal(Object.isFrozen(kind), true);
 	});
 
+	it("keeps a metered kind's meter and listen time", () => {
+		const listenTime = (seconds: number) => seconds;
+		const kind = defineMediaKind({ ...MANIFEST, meter: "transcript-seconds", listenTime });
+
+		assert.deepEqual(kind, { ...MANIFEST, meter: "transcript-seconds", listenTime });
+	});
+
+	it("gives an unmetered kind no meter or listen time key", () => {
+		const kind = defineMediaKind(MANIFEST);
+
+		assert.deepEqual(Object.keys(kind).sort(), Object.keys(MANIFEST).sort());
+	});
+
 	it("refuses a kind that accepts no media type", () => {
 		assert.throws(() => defineMediaKind({ ...MANIFEST, accepts: {} }), /book accepts no media type/);
 	});

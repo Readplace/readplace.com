@@ -31,6 +31,7 @@ const AnyRow = z.object({
 	fileName: dynamoField(z.string()),
 	byteLength: dynamoField(z.number().int().nonnegative()),
 	saveAttemptId: SaveAttemptIdSchema,
+	metered: dynamoField(z.boolean()),
 	status: z.enum(["staged", "committed", "failed", "inspecting", "ready", "rejected"]),
 	etag: dynamoField(z.string()),
 	facts: dynamoField(MediaInspectionFactsSchema),

@@ -25,6 +25,8 @@ import {
 	type UploadWriteContext,
 	writeUploadOutcome,
 } from "./upload.outcome";
+import { isMeteredStart, uploadStartPathOf } from "./upload-features";
+import { type UploadRefusalReason, uploadRefusalMessage } from "./upload.refusal";
 import { acceptAttributeOf, kindsForViewer, toUploadStartViewModel } from "./upload.viewmodel";
 
 const SNIFF_BYTES = 4096;
@@ -64,6 +66,7 @@ function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, 
 				start: toUploadStartViewModel(
 					context.kinds,
 					Boolean(context.req.userId),
+					uploadStartPathOf(isMeteredStart(context.req.query)),
 				),
 				error: {
 					code,
@@ -75,11 +78,18 @@ function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, 
 	};
 }
 
+function refusalWriter(reason: UploadRefusalReason): (res: Response) => void {
+	return (res) => {
+		res.redirect(303, `${uploadStartPathOf(true)}&refused=${reason}`);
+	};
+}
+
 export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 	staged: (res, outcome, context) => {
 		const start = toUploadStartViewModel(
 			context.kinds,
 			Boolean(context.req.userId),
+			uploadStartPathOf(false),
 		);
 		sendPage(
 			context,
@@ -115,6 +125,9 @@ export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 	upload_too_large: errorWriter("upload_too_large"),
 	upload_not_received: errorWriter("upload_not_received"),
 	upload_session_not_found: errorWriter("upload_session_not_found"),
+	"transcript-quota": refusalWriter("transcript-quota"),
+	"transcript-too-long": refusalWriter("transcript-too-long"),
+	"unreadable-audio": refusalWriter("unreadable-audio"),
 };
 
 export interface UploadRouteDependencies {
@@ -167,7 +180,14 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			Base(
 				UploadPage({
 					view: "start",
-					start: toUploadStartViewModel(viewerKinds(req), Boolean(req.userId)),
+					start: {
+						...toUploadStartViewModel(
+							viewerKinds(req),
+							Boolean(req.userId),
+							uploadStartPathOf(isMeteredStart(req.query)),
+						),
+						refusalMessage: uploadRefusalMessage(req.query),
+					},
 				}),
 				await deps.buildBannerState(req),
 			),
@@ -190,6 +210,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			userId: req.userId,
 			...(fileName === undefined ? {} : { fileName }),
 			...(byteLength === undefined ? {} : { byteLength }),
+			...(isMeteredStart(req.query) ? { metered: true } : {}),
 			saveAttemptId: newSaveAttemptId(),
 		});
 		const post = await deps.mintMediaPendingPost({

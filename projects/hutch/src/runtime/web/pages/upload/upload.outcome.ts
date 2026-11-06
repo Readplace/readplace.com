@@ -2,6 +2,7 @@ import type { MediaKindManifest, UploadId } from "@packages/media-contracts";
 import type { Request, Response } from "express";
 import type { BuildBannerState } from "../../banner-state";
 import type { UploadErrorCode } from "./upload.error";
+import type { UploadRefusalReason } from "./upload.refusal";
 
 type UploadOutcomePayloads = {
 	staged: {
@@ -13,7 +14,7 @@ type UploadOutcomePayloads = {
 	continue: { uploadId: UploadId };
 	failed: { uploadId: UploadId };
 	"staged-for-review": { uploadId: UploadId };
-} & { [C in UploadErrorCode]: Record<never, never> };
+} & { [C in UploadErrorCode | UploadRefusalReason]: Record<never, never> };
 
 export type UploadOutcomeKey = keyof UploadOutcomePayloads;
 

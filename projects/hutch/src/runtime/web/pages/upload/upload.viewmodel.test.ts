@@ -28,7 +28,7 @@ describe("kindsForViewer", () => {
 
 describe("toUploadStartViewModel", () => {
 	it("names every offered kind in the heading and describes each one", () => {
-		const vm = toUploadStartViewModel([BOOK, AUDIO], true);
+		const vm = toUploadStartViewModel([BOOK, AUDIO], true, "/upload");
 
 		assert.equal(vm.heading, "Upload a book or an audio file");
 		assert.deepEqual(vm.descriptions, [
@@ -38,15 +38,16 @@ describe("toUploadStartViewModel", () => {
 	});
 
 	it("names a signed-out viewer a guest and shows them the guest notice", () => {
-		const vm = toUploadStartViewModel([BOOK], false);
+		const vm = toUploadStartViewModel([BOOK], false, "/upload?features=transcripts");
 
 		assert.equal(vm.heading, "Upload a book");
+		assert.equal(vm.startPath, "/upload?features=transcripts");
 		assert.equal(vm.viewer, "guest");
 		assert.equal(vm.showsGuestNotice, true);
 	});
 
 	it("names a signed-in viewer a member and hides the guest notice", () => {
-		const vm = toUploadStartViewModel([BOOK, AUDIO], true);
+		const vm = toUploadStartViewModel([BOOK, AUDIO], true, "/upload");
 
 		assert.equal(vm.viewer, "member");
 		assert.equal(vm.showsGuestNotice, false);

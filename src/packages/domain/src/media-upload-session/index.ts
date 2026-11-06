@@ -8,6 +8,7 @@ export type {
 	MintMediaPendingPost,
 	HeadMediaPendingOriginal,
 	ReadMediaPendingPrefix,
+	ReadTimedDuration,
 	PresignEnclosure,
 	PresignMediaImage,
 	PublishMediaUploadCommitted,

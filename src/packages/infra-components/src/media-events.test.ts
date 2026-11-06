@@ -64,6 +64,12 @@ describe("MediaUploadCommittedEvent", () => {
 		assert.deepEqual(MediaUploadCommittedEvent.detailSchema.parse(committedDetail), committedDetail);
 	});
 
+	it("keeps the seconds charged for a metered upload", () => {
+		const charged = { ...committedDetail, chargedSeconds: 600 };
+
+		assert.deepEqual(MediaUploadCommittedEvent.detailSchema.parse(charged), charged);
+	});
+
 	it("is published from the media source", () => {
 		assert.equal(MediaUploadCommittedEvent.source, "hutch.media");
 		assert.equal(MediaUploadCommittedEvent.detailType, "MediaUploadCommitted");

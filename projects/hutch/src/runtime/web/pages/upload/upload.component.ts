@@ -34,6 +34,12 @@ function templateDataOf(state: UploadPageState): object {
 				start: state.start,
 				heading: state.start.heading,
 				errorCode: state.error?.code,
+				refusalAlertHtml: renderAlert({
+					key: "upload-refusal",
+					content: state.start.refusalMessage
+						? { variant: "error", message: { text: state.start.refusalMessage } }
+						: undefined,
+				}),
 				errorAlertHtml:
 					state.error &&
 					renderAlert({

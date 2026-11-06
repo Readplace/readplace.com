@@ -95,6 +95,7 @@
     "helmet": "8.2.0",
     "isbot": "5.1.40",
     "linkedom": "0.18.12",
+    "music-metadata": "12.3.3",
     "resend": "6.12.4",
     "serverless-http": "4.0.0",
     "zod": "4.4.3"

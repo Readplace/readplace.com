@@ -1,4 +1,10 @@
-import type { MediaKindName } from "@packages/media-contracts";
+import type { ReadTimedDuration } from "@packages/domain";
+import { MEDIA_KINDS, type MediaKindManifest, type MediaKindName, type Meter } from "@packages/media-contracts";
+import {
+	initInMemoryTranscriptCharge,
+	initInMemoryTranscriptLedger,
+	initInMemoryTranscriptQuotaRows,
+} from "@packages/test-fixtures/providers/transcript-quota";
 import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
 import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
@@ -98,7 +104,11 @@ interface TestAppOverrides {
 	keepOfferEndsAt?: Date;
 	guestUploadKinds?: readonly MediaKindName[];
 	readerSectionThresholdBytes?: number;
+	mediaKinds?: ReadonlyMap<MediaKindName, MediaKindManifest>;
+	readDurationByMeter?: ReadonlyMap<Meter, ReadTimedDuration>;
 }
+
+export const TEST_TRANSCRIPT_ALLOWANCE_SECONDS = 1250;
 
 export const TEST_FIREFOX_XPI_FILENAME = "abc123-1.0.0.xpi";
 
@@ -157,6 +167,7 @@ function flattenFixtureToAppDependencies(
 	subscriptionBundle: SubscriptionEventsBundle,
 	funnelBundle: FunnelEventsBundle,
 ): Parameters<typeof createApp>[0] {
+	const transcriptQuotaRows = initInMemoryTranscriptQuotaRows();
 	const saveIdentityDeps = {
 		validateUrl: fixture.shared.validateSaveableUrl,
 		findIdentityRow: fixture.articleStore.findIdentityRow,
@@ -349,6 +360,15 @@ function flattenFixtureToAppDependencies(
 		importSessionStore: fixture.importSession.importSessionStore,
 		savePrivateItem: fixture.articleStore.savePrivateItem,
 		...fixture.mediaUpload,
+		mediaKinds: MEDIA_KINDS,
+		readDurationByMeter: new Map(),
+		transcriptAllowanceSeconds: TEST_TRANSCRIPT_ALLOWANCE_SECONDS,
+		...initInMemoryTranscriptCharge({
+			rows: transcriptQuotaRows,
+			allowanceSeconds: TEST_TRANSCRIPT_ALLOWANCE_SECONDS,
+			now: fixture.shared.now,
+		}),
+		refundUnstartedCharge: initInMemoryTranscriptLedger({ rows: transcriptQuotaRows }).refundUnstartedCharge,
 		extractLinksFromPageUrl: fixture.importSession.extractLinksFromPageUrl,
 		provisionInboxAddress: (userId: UserId) =>
 			fixture.inboxAddress.inboxAddressStore

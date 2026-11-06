@@ -11,6 +11,7 @@ export interface MediaUploadSession {
 	readonly fileName?: string;
 	readonly byteLength?: number;
 	readonly saveAttemptId: SaveAttemptId;
+	readonly metered?: boolean;
 	readonly status: MediaUploadSessionState;
 }
 
@@ -38,6 +39,11 @@ export type HeadMediaPendingOriginal = (params: {
 	uploadId: UploadId;
 }) => Promise<{ etag: string; size: number } | undefined>;
 
+export type ReadTimedDuration = (params: {
+	uploadId: UploadId;
+	etag: string;
+}) => Promise<{ durationSeconds: number; hasAudio: boolean; hasVideo: boolean } | { unreadable: true }>;
+
 export type ReadMediaPendingPrefix = (params: { uploadId: UploadId; etag: string; bytes: number }) => Promise<Uint8Array>;
 
 export type PresignMediaImage = (input: { uploadId: UploadId; file: MediaImageFile }) => Promise<string>;
@@ -52,4 +58,5 @@ export type PublishMediaUploadCommitted = (params: {
 	saveAttemptId: SaveAttemptId;
 	etag: string;
 	attempt: number;
+	chargedSeconds?: number;
 }) => Promise<void>;

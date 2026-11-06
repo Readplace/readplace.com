@@ -101,7 +101,10 @@ import { initReadArticleImageByIdentity } from "./read-article-image-by-identity
 import { initEventBridgeMediaUploadCommitted } from "./events/eventbridge-media-upload-committed";
 import { initEventBridgeMediaUploadStaged } from "./events/eventbridge-media-upload-staged";
 import { initDynamoDbPrivateItem } from "@packages/article-store";
-import { mintUploadId } from "@packages/media-contracts";
+import { MEDIA_KINDS, mintUploadId } from "@packages/media-contracts";
+import { initDynamoDbTranscriptCharge, initDynamoDbTranscriptLedger } from "@packages/transcript-quota";
+import { initS3ReadTimedDuration } from "./media-duration/s3-read-timed-duration";
+import { transcriptAllowanceSecondsFromEnv } from "./transcript-allowance-env";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
 import { initGmailAccountEmail } from "./gmail-api/gmail-account";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
@@ -438,6 +441,22 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const { presignMediaImage } = initS3PresignMediaImage({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") });
 	const { presignEnclosure } = initS3PresignEnclosure({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") });
 	const { publishMediaUploadCommitted } = initEventBridgeMediaUploadCommitted({ publishEvent });
+	const transcriptAllowanceSeconds = transcriptAllowanceSecondsFromEnv();
+	const transcriptLedgerDeps = {
+		client,
+		tableName: tables.media,
+		now: () => new Date(),
+		delay: (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)),
+	};
+	const { chargeTranscriptQuota } = initDynamoDbTranscriptCharge({
+		...transcriptLedgerDeps,
+		allowanceSeconds: transcriptAllowanceSeconds,
+	});
+	const { refundUnstartedCharge } = initDynamoDbTranscriptLedger(transcriptLedgerDeps);
+	const { readTimedDuration } = initS3ReadTimedDuration({
+		client: new S3Client({}),
+		bucketName: requireEnv("MEDIA_BUCKET_NAME"),
+	});
 	const { publishMediaUploadStaged } = initEventBridgeMediaUploadStaged({ publishEvent });
 	const importSessionStore = initDynamoDbImportSession({
 		client,
@@ -591,6 +610,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 		presignMediaImage,
 		presignEnclosure,
 		publishMediaUploadCommitted,
+		mediaKinds: MEDIA_KINDS,
+		readDurationByMeter: new Map([["transcript-seconds" as const, readTimedDuration]]),
+		transcriptAllowanceSeconds,
+		chargeTranscriptQuota,
+		refundUnstartedCharge,
 		publishMediaUploadStaged,
 		mintUploadId: () => mintUploadId(randomBytes),
 		extractLinksFromPageUrl,

@@ -253,13 +253,16 @@ import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import { initUploadRouter, UPLOAD_OUTCOME_HTML } from "./web/pages/upload/upload.page";
 import { initCommitReceivedUpload } from "./web/pages/upload/commit-received-upload";
+import { initChargeBeforeSettle } from "./web/pages/upload/charge-before-settle";
+import { initChargeTranscript } from "./web/pages/upload/charge-transcript";
 import { initStageGatesByCaller } from "./web/pages/upload/stage-gates-by-caller";
 import { initSettleByCaller, initStageForReview } from "./web/pages/upload/stage-for-review";
 import { initAnonymousUploadRoutes } from "./web/pages/upload/upload-review.page";
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
 import { INSPECT_BOOK_TIMEOUT_SECONDS } from "@packages/infra-components";
-import { AUDIO, BOOK, MEDIA_KINDS, type MediaKindName, type UploadId } from "@packages/media-contracts";
+import { AUDIO, BOOK, type MediaKindManifest, type MediaKindName, type Meter, type UploadId } from "@packages/media-contracts";
+import type { ChargeTranscriptQuota, RefundUnstartedCharge } from "@packages/provider-contracts/transcript-quota";
 import type {
 	ClaimMediaUpload,
 	CreateAnyMediaUploadSession,
@@ -275,6 +278,7 @@ import type {
 	PublishMediaUploadCommitted,
 	PublishMediaUploadStaged,
 	ReadMediaPendingPrefix,
+	ReadTimedDuration,
 } from "@packages/domain";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
@@ -569,6 +573,11 @@ export interface AppDependencies {
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	savePrivateItem: SavePrivateItem;
+	mediaKinds: ReadonlyMap<MediaKindName, MediaKindManifest>;
+	readDurationByMeter: ReadonlyMap<Meter, ReadTimedDuration>;
+	transcriptAllowanceSeconds: number;
+	chargeTranscriptQuota: ChargeTranscriptQuota;
+	refundUnstartedCharge: RefundUnstartedCharge;
 	createMediaUploadSession: CreateMediaUploadSession;
 	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
@@ -1511,11 +1520,19 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * `requireNotLocked`/`requireWriteAccess` gates run as route middleware. */
 	app.use("/import", importRouter);
 
-	const commitReceivedUpload = initCommitReceivedUpload({
-		savePrivateItem: deps.savePrivateItem,
-		publishMediaUploadCommitted: deps.publishMediaUploadCommitted,
-		markMediaUploadCommitted: deps.markMediaUploadCommitted,
-		now: deps.now,
+	const commitReceivedUpload = initChargeBeforeSettle({
+		charge: initChargeTranscript({
+			readDurationByMeter: deps.readDurationByMeter,
+			chargeTranscriptQuota: deps.chargeTranscriptQuota,
+			allowanceSeconds: deps.transcriptAllowanceSeconds,
+		}),
+		settle: initCommitReceivedUpload({
+			savePrivateItem: deps.savePrivateItem,
+			publishMediaUploadCommitted: deps.publishMediaUploadCommitted,
+			markMediaUploadCommitted: deps.markMediaUploadCommitted,
+			now: deps.now,
+		}),
+		refund: deps.refundUnstartedCharge,
 	});
 	app.use(
 		"/upload",
@@ -1526,7 +1543,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			requireNotLocked,
 			requireWriteAccess,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
-			MEDIA_KINDS,
+			MEDIA_KINDS: deps.mediaKinds,
 			maxPolls: inspectionPollBudget({ lambdaTimeoutSeconds: INSPECT_BOOK_TIMEOUT_SECONDS, marginSeconds: 30 }),
 			buildBannerState,
 		}),
@@ -1560,7 +1577,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			headMediaPendingOriginal: deps.headMediaPendingOriginal,
 			readMediaPendingPrefix: deps.readMediaPendingPrefix,
 			mintUploadId: deps.mintUploadId,
-			MEDIA_KINDS,
+			MEDIA_KINDS: deps.mediaKinds,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
 			pickOutcomeWriters: () => UPLOAD_OUTCOME_HTML,
 			buildBannerState,

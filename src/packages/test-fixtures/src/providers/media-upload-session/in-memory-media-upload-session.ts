@@ -108,6 +108,7 @@ export function initInMemoryMediaUploadSessions(): InMemoryMediaUploadSessions {
 				fileName: session.fileName,
 				byteLength: session.byteLength,
 				saveAttemptId: session.saveAttemptId,
+				metered: session.metered,
 				status: "staged",
 				etag: session.etag,
 			};

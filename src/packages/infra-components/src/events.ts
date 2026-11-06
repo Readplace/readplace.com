@@ -1614,6 +1614,7 @@ export const MediaUploadCommittedEvent = defineEvent({
 		saveAttemptId: SaveAttemptIdSchema,
 		etag: z.string().min(1),
 		attempt: z.number().int().positive(),
+		chargedSeconds: z.number().int().positive().optional(),
 	}),
 });
 export type MediaUploadCommittedDetail = z.infer<typeof MediaUploadCommittedEvent.detailSchema>;

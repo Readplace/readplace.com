@@ -6,6 +6,8 @@ export interface UploadStartViewModel {
 	readonly descriptions: readonly string[];
 	readonly viewer: "guest" | "member";
 	readonly showsGuestNotice: boolean;
+	readonly startPath: string;
+	readonly refusalMessage?: string;
 }
 
 export function kindsForViewer(input: {
@@ -21,8 +23,10 @@ export function kindsForViewer(input: {
 export function toUploadStartViewModel(
 	kinds: readonly MediaKindManifest[],
 	isSignedIn: boolean,
+	startPath: string,
 ): UploadStartViewModel {
 	return {
+		startPath,
 		heading: uploadHeadingOf(kinds),
 		descriptions: uploadDescriptionsOf(kinds),
 		viewer: isSignedIn ? "member" : "guest",

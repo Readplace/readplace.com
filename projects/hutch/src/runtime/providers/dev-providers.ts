@@ -129,7 +129,13 @@ import {
 	initInMemoryPresignEnclosure,
 	initInMemoryPresignMediaImage,
 } from "@packages/test-fixtures/providers/media-upload-session";
-import { mintUploadId } from "@packages/media-contracts";
+import { MEDIA_KINDS, mintUploadId } from "@packages/media-contracts";
+import {
+	initInMemoryTranscriptCharge,
+	initInMemoryTranscriptLedger,
+	initInMemoryTranscriptQuotaRows,
+} from "@packages/test-fixtures/providers/transcript-quota";
+import { transcriptAllowanceSecondsFromEnv } from "./transcript-allowance-env";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryInboxEmailLink, initInMemoryInboxSavedLink } from "@packages/test-fixtures/providers/inbox-email";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
@@ -591,6 +597,8 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	// so prod-strength per-IP limits would throttle a full e2e run.
 	const { consumeRateLimit } = initInMemoryRateLimit({ now: () => new Date() });
 	const rateLimitRules = parseRateLimitRules(requireEnv("RATE_LIMITS"));
+	const transcriptAllowanceSeconds = transcriptAllowanceSecondsFromEnv();
+	const transcriptQuotaRows = initInMemoryTranscriptQuotaRows();
 
 	return {
 		...auth,
@@ -611,6 +619,11 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		presignMediaImage: initInMemoryPresignMediaImage().presignMediaImage,
 		presignEnclosure: initInMemoryPresignEnclosure().presignEnclosure,
 		publishMediaUploadCommitted: initInMemoryMediaUploadCommitted().publishMediaUploadCommitted,
+		mediaKinds: MEDIA_KINDS,
+		readDurationByMeter: new Map(),
+		transcriptAllowanceSeconds,
+		...initInMemoryTranscriptCharge({ rows: transcriptQuotaRows, allowanceSeconds: transcriptAllowanceSeconds, now: () => new Date() }),
+		refundUnstartedCharge: initInMemoryTranscriptLedger({ rows: transcriptQuotaRows }).refundUnstartedCharge,
 		publishMediaUploadStaged: initInMemoryMediaUploadStaged().publishMediaUploadStaged,
 		mintUploadId: () => mintUploadId(randomBytes),
 		extractLinksFromPageUrl,

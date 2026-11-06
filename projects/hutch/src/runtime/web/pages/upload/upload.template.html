@@ -4,7 +4,8 @@
     {{#if errorAlertHtml}}<div data-test-upload-error="{{errorCode}}">{{{errorAlertHtml}}}</div>{{/if}}
     {{#if start.showsGuestNotice}}<p class="upload__description" data-test-upload-guest-notice>You can upload now and sign up when you save it.</p>{{/if}}
     {{#if start}}
-    <form class="upload__panel" method="post" action="{{track '/upload' source='upload-start' content='start'}}" data-test-upload-start>
+    {{{refusalAlertHtml}}}
+    <form class="upload__panel" method="post" action="{{track start.startPath source='upload-start' content='start'}}" data-test-upload-start>
       {{#each start.descriptions}}<p class="upload__description" data-test-upload-description>{{this}}</p>{{/each}}
       <button class="btn btn--primary upload__submit" type="submit">Choose a file</button>
     </form>
