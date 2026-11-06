@@ -303,6 +303,8 @@ describe("toArticleCollectionEntity", () => {
 			"isRead",
 			"needsBrowserCapture",
 			"contentVersion",
+			"mediaKind",
+			"durationSeconds",
 			"processing",
 		]);
 	});

@@ -8,7 +8,8 @@ import {
 	S3ReadWrite,
 	SharedDlq,
 } from "@packages/infra-components/infra";
-import { MEDIA_BOOK_DLQ_SOURCES, MediaUploadCommittedEvent } from "@packages/infra-components";
+import { INSPECT_BOOK_TIMEOUT_SECONDS, MEDIA_BOOK_DLQ_SOURCES, MediaUploadCommittedEvent, MediaUploadStagedEvent } from "@packages/infra-components";
+import { INSPECT_BOOK_ENV } from "../runtime/inspect-book.env";
 import { MEDIA_BOOK_FAILURES_DLQ_ENV } from "../runtime/media-book-failures-dlq.env";
 import { PROCESS_BOOK_ENV } from "../runtime/process-book.env";
 
@@ -76,6 +77,39 @@ new MediaProcessor(MEDIA_BOOK_DLQ_SOURCES.processBook, {
 			...S3ReadWrite.readPoliciesForBucket("media-book-content-read", contentBucketName),
 			...S3ReadWrite.writePoliciesForBucket("media-book-content-write", contentBucketName),
 			...articlesDynamodb.policies,
+		],
+	},
+});
+
+new MediaProcessor(MEDIA_BOOK_DLQ_SOURCES.inspectBook, {
+	eventBus,
+	event: MediaUploadStagedEvent,
+	kinds: ["book"],
+	subscriptionName: "media-book-inspect-book",
+	sharedDlq: failuresDlq,
+	alertEmailDLQEntry: alertEmail,
+	lambda: {
+		entryPoint: "./src/runtime/inspect-book.main.ts",
+		outputDir: ".lib/media-book-inspect-book",
+		assetDir: "./src/runtime",
+		memorySize: 1024,
+		timeout: INSPECT_BOOK_TIMEOUT_SECONDS,
+		environmentNames: INSPECT_BOOK_ENV,
+		environment: {
+			MEDIA_BUCKET_NAME: mediaBucketName,
+			EVENT_BUS_NAME: eventBus.eventBusName,
+		},
+		policies: [
+			{
+				name: "media-book-pending-read",
+				policy: JSON.stringify({
+					Version: "2012-10-17",
+					Statement: [
+						{ Effect: "Allow", Action: ["s3:GetObject"], Resource: `arn:aws:s3:::${mediaBucketName}/pending/*` },
+						{ Effect: "Allow", Action: ["s3:ListBucket"], Resource: `arn:aws:s3:::${mediaBucketName}` },
+					],
+				}),
+			},
 		],
 	},
 });

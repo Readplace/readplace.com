@@ -8,7 +8,10 @@ const FONT_OBFUSCATION_ALGORITHMS = new Set([
 
 export function isDrmProtected(bytes: Uint8Array): boolean {
 	const encryptionXml = readZipEntry({ bytes, name: "META-INF/encryption.xml" });
-	if (encryptionXml === undefined) return false;
+	return encryptionXml !== undefined && isDrmEncryption(encryptionXml);
+}
+
+export function isDrmEncryption(encryptionXml: string): boolean {
 	const document = parseXml(encryptionXml);
 	return elementsNamed({ within: document, name: "encrypteddata" }).some((encrypted) => {
 		const algorithms = elementsNamed({ within: encrypted, name: "encryptionmethod" }).map((method) => method.getAttribute("Algorithm"));

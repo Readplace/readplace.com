@@ -1,5 +1,6 @@
 export { EcrRepository } from "./ecr-repository";
 export { EventBus } from "./event-bus";
+export { AwsServiceEventRule } from "./aws-service-event-rule";
 export { curlImpersonateLayerArnFromPlatformStack } from "./curl-impersonate-layer";
 export { ssrEdgeSecretFromPlatformStack } from "./ssr-edge-secret";
 export { Lambda } from "./lambda";

@@ -121,6 +121,10 @@
       "types": "./dist/providers/import-session/index.d.ts",
       "default": "./dist/providers/import-session/index.js"
     },
+    "./providers/transcript-quota": {
+      "types": "./dist/providers/transcript-quota/index.d.ts",
+      "default": "./dist/providers/transcript-quota/index.js"
+    },
     "./providers/inbox-address": {
       "types": "./dist/providers/inbox-address/index.d.ts",
       "default": "./dist/providers/inbox-address/index.js"
@@ -299,6 +303,9 @@
       ],
       "providers/import-session": [
         "./dist/providers/import-session/index.d.ts"
+      ],
+      "providers/transcript-quota": [
+        "./dist/providers/transcript-quota/index.d.ts"
       ],
       "providers/inbox-address": [
         "./dist/providers/inbox-address/index.d.ts"

@@ -7,6 +7,7 @@ import {
 	initInMemoryMediaUploadCommitted,
 	initInMemoryMediaUploadSessions,
 	initInMemoryMediaUploadStaged,
+	initInMemoryPresignEnclosure,
 	initInMemoryPresignMediaImage,
 } from "./in-memory-media-upload-session";
 import { mintPrivateItemUrl } from "@packages/media-contracts";
@@ -107,6 +108,18 @@ describe("initInMemoryPresignMediaImage", () => {
 
 		assert.equal(url, `https://media.test/images/${uploadId}/${file}`);
 		assert.deepEqual(presignedMediaImages, [{ uploadId, file }]);
+	});
+});
+
+describe("initInMemoryPresignEnclosure", () => {
+	it("answers a media.test URL ending with the object key and records the call", async () => {
+		const object = `objects/sha256/${"0123456789abcdef".repeat(4)}/1`;
+		const { presignEnclosure, presignedEnclosures } = initInMemoryPresignEnclosure();
+
+		const url = await presignEnclosure({ object, mediaType: "audio/mpeg" });
+
+		assert.equal(url, `https://media.test/${object}`);
+		assert.deepEqual(presignedEnclosures, [{ object, mediaType: "audio/mpeg" }]);
 	});
 });
 

@@ -1,0 +1,41 @@
+{
+  "name": "media-audio",
+  "version": "1.0.0",
+  "description": "Keeps an uploaded audio file and publishes its private tier-0 source",
+  "main": "src/infra/index.ts",
+  "private": true,
+  "scripts": {
+    "compile": "rm -rf dist && tsc",
+    "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
+    "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
+    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\"",
+    "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
+    "check": "nx run media-audio:check"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1057.0",
+    "@packages/article-store": "workspace:*",
+    "@packages/dead-letter-routing": "workspace:*",
+    "@packages/infra-components": "workspace:*",
+    "@packages/logger": "workspace:*",
+    "@packages/storage-client": "workspace:*",
+    "@packages/media-contracts": "workspace:*",
+    "@packages/media-object-store": "workspace:*",
+    "@packages/require-env": "workspace:*",
+    "@packages/tier-source": "workspace:*",
+    "music-metadata": "12.3.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@packages/test-fixtures": "workspace:*",
+    "@packages/test-phase-runner": "workspace:*",
+    "@pulumi/pulumi": "3.244.0",
+    "@types/aws-lambda": "8.10.161",
+    "@types/jest": "30.0.0",
+    "@types/node": "22.19.19",
+    "c8": "11.0.0",
+    "concurrently": "10.0.0",
+    "jest": "30.4.2",
+    "typescript": "6.0.3"
+  }
+}

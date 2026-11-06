@@ -15,7 +15,7 @@ import type { UserId } from "@packages/domain/user";
 import { appClientOf, } from "../../shared/save-client";
 import { FILED_READLIST_PARAM } from "../../shared/filing-flash";
 import { calculateReadTime, hostStubMetadata, } from "@packages/domain/article";
-import { ReaderArticleHashIdSchema, mayReadItem, viewerFor } from "@packages/domain/article";
+import { ABSENT_ENCLOSURE, ReaderArticleHashIdSchema, mayReadItem, ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { MediaImageFileSchema, PrivateItemUrlSchema, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
 import { articleEpubHref } from "../../shared/epub/epub-link";
 import { readerContentUnavailable, readerNoticeOf } from "../../shared/article-reader/reader-view";
@@ -174,7 +174,7 @@ function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 
 export function initReaderPageRoutes(deps: Pick<
 		ReadlistDependencies,
-		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView"
+		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "presignEnclosure" | "findArticleById" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView"
 	>, shared: ReadlistShared): Router {
 	const router = express.Router();
 	const { requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
@@ -460,6 +460,19 @@ export function initReaderPageRoutes(deps: Pick<
 		res.redirect(302, location);
 	});
 
+	router.get("/:id/enclosure", noindexMiddleware, async (req: Request<{ id: string }>, res: Response) => {
+		const id = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = id.success && req.userId ? await deps.findArticleById(id.data, req.userId) : null;
+		const read = article ? ownedEnclosure({ viewer: viewerFor(req.userId), article }) : ABSENT_ENCLOSURE;
+		if (read.kind === "absent") {
+			res.status(404).type("html").send("");
+			return;
+		}
+		const location = await deps.presignEnclosure({ object: read.enclosure.object, mediaType: read.enclosure.mediaType });
+		res.set("Cache-Control", "private, no-store");
+		res.redirect(302, location);
+	});
+
 	router.get(
 		"/:id/view",
 		noindexMiddleware,
@@ -533,6 +546,7 @@ export function initReaderPageRoutes(deps: Pick<
 			const appearance = (await deps.findUserById(ownedArticle.userId))?.appearance ?? "system";
 			const readerBody = ReaderPage(ownedArticle, {
 				appOrigin: deps.appOrigin,
+				enclosure: ownedEnclosure({ viewer: viewerFor(req.userId), article: ownedArticle }),
 				readerSection: ownerReaderSection(req, ownedArticle.id.value),
 				content: state.content,
 				summary: state.summary,
@@ -614,6 +628,7 @@ export function initReaderPageRoutes(deps: Pick<
 			FreshForComponent(
 				Base(withOfflineReading(ReaderPage(ownedArticle, {
 					appOrigin: deps.appOrigin,
+					enclosure: ownedEnclosure({ viewer: viewerFor(req.userId), article: ownedArticle }),
 					readerSection: ownerReaderSection(req, ownedArticle.id.value),
 					content: state.content,
 					summary: state.summary,

@@ -3,7 +3,7 @@ import type {
 	Minutes,
 	SavedArticle,
 } from "@packages/domain/article";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { ABSENT_ENCLOSURE, type EnclosureRead, ReaderArticleHashId } from "@packages/domain/article";
 import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { iconSvg } from "@packages/ui-icons";
@@ -418,6 +418,24 @@ describe("toReadlistViewModel", () => {
 	});
 });
 
+describe("toReadlistViewModel — listen time", () => {
+	it("labels a card holding an owned enclosure with its listen time, and a card absent from the map with its read time", () => {
+		const audioUrl = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+		const audio = makeArticle({ id: ReaderArticleHashId.from(audioUrl), url: audioUrl, destinationUrl: destinationUrl(audioUrl) });
+		const link = makeArticle();
+		const owned: EnclosureRead = {
+			kind: "owned",
+			enclosure: { object: `objects/sha256/${"e".repeat(64)}/1`, mediaType: "audio/mp4", durationSeconds: 2820 },
+		};
+
+		const vm = toReadlistViewModel(makeResult([audio, link]), DEFAULT_FILTERS, {
+			enclosureByUrl: new Map([[audioUrl, owned]]),
+		});
+
+		expect(vm.articles.map((card) => card.readTime?.label)).toEqual(["47 min listen", "3 min read"]);
+	});
+});
+
 describe("toReadlistArticleViewModel — isStalePending", () => {
 	const baseParams = {
 		article: makeArticle(),
@@ -430,7 +448,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 	};
 
 	it("is false on the first tick of a normal pending row (polling continues)", () => {
-		const vm = toReadlistArticleViewModel({
+		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...baseParams,
 			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			pollCount: 1,
@@ -440,7 +458,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 	});
 
 	it("is true once the pending row has exhausted the poll cap (cardPollUrl drops)", () => {
-		const vm = toReadlistArticleViewModel({
+		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...baseParams,
 			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			pollCount: 4,
@@ -450,7 +468,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 	});
 
 	it("is false for terminal failed rows (the reader-failure page handles the click-through)", () => {
-		const vm = toReadlistArticleViewModel({
+		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...baseParams,
 			crawl: { status: "failed", outcomeRevision: 1, reason: "x" },
 			pollCount: 4,
@@ -460,7 +478,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 	});
 
 	it("is false for terminal unsupported rows", () => {
-		const vm = toReadlistArticleViewModel({
+		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...baseParams,
 			crawl: { status: "unsupported", reason: "x" },
 			pollCount: 4,
@@ -470,7 +488,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 	});
 
 	it("is false for ready rows whose summary has also settled", () => {
-		const vm = toReadlistArticleViewModel({
+		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...baseParams,
 			crawl: { status: "ready" },
 			summary: { status: "ready", summary: "ok" },
@@ -492,7 +510,7 @@ describe("toReadlistArticleViewModel — via", () => {
 	};
 
 	it("names the sender an emailed save arrived from", () => {
-		const vm = toReadlistArticleViewModel({
+		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...base,
 			readerProvenance: { kind: "email", senderEmail: "news@example.com" },
 		});
@@ -500,7 +518,7 @@ describe("toReadlistArticleViewModel — via", () => {
 	});
 
 	it("names the newsletter the catalog resolved, keeping its address behind the name", () => {
-		const vm = toReadlistArticleViewModel({
+		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...base,
 			readerProvenance: { kind: "newsletter", name: "TLDR", senderEmail: "dan@tldr.tech" },
 		});
@@ -508,8 +526,8 @@ describe("toReadlistArticleViewModel — via", () => {
 	});
 
 	it("carries no via for a save that did not arrive by email, and none for a row saved before provenance was kept", () => {
-		const web = toReadlistArticleViewModel({ ...base, readerProvenance: { kind: "web" } });
-		const unknown = toReadlistArticleViewModel({ ...base, readerProvenance: undefined });
+		const web = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE, ...base, readerProvenance: { kind: "web" } });
+		const unknown = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE, ...base, readerProvenance: undefined });
 		expect([web.via, unknown.via]).toEqual([undefined, undefined]);
 	});
 });
@@ -535,7 +553,7 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 	}
 
 	it("stamps a content version on the reader link", () => {
-		const vm = toReadlistArticleViewModel({
+		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			article: makeArticle(),
 			now: NOW,
 			returnQuery: "",
@@ -552,7 +570,7 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 	});
 
 	it("orders the queue slug before the version for a non-default readlist", () => {
-		const vm = toReadlistArticleViewModel({
+		const vm = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			article: makeArticle(),
 			now: NOW,
 			returnQuery: "",
@@ -575,8 +593,8 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			maxPolls: 3,
 			readerProvenance: undefined,
 		};
-		const pending = toReadlistArticleViewModel({ ...base, summary: undefined });
-		const ready = toReadlistArticleViewModel({ ...base, summary: { status: "ready", summary: "TL;DR" } });
+		const pending = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE, ...base, summary: undefined });
+		const ready = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE, ...base, summary: { status: "ready", summary: "TL;DR" } });
 		expect(readerVersion(pending.readerHref)).not.toBe(readerVersion(ready.readerHref));
 	});
 
@@ -590,11 +608,11 @@ describe("toReadlistArticleViewModel — versioned reader href", () => {
 			maxPolls: 3,
 			readerProvenance: undefined,
 		};
-		const earlier = toReadlistArticleViewModel({
+		const earlier = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...base,
 			article: makeArticle({ contentFetchedAt: new Date("2026-01-01T00:00:00Z") }),
 		});
-		const later = toReadlistArticleViewModel({
+		const later = toReadlistArticleViewModel({ enclosure: ABSENT_ENCLOSURE,
 			...base,
 			article: makeArticle({ contentFetchedAt: new Date("2026-02-01T00:00:00Z") }),
 		});

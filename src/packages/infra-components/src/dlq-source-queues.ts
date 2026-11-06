@@ -29,6 +29,12 @@ export const MEDIA_BOOK_DLQ_SOURCES = {
 	inspectBook: "media-book-inspect-book",
 } as const;
 
+export const MEDIA_AUDIO_DLQ_SOURCES = {
+	keepAudio: "media-audio-keep-audio",
+	prepareTranscription: "media-audio-prepare-transcription",
+	renderTranscript: "media-audio-render-transcript",
+} as const;
+
 export const GMAIL_HISTORY_IMPORT_DLQ_SOURCES = {
 	pages: "gmail-history-import",
 	outcomes: "gmail-history-import-outcomes",
@@ -70,6 +76,12 @@ export const MEDIA_BOOK_DLQ_SOURCE_QUEUES = {
 	processBook: `${MEDIA_BOOK_DLQ_SOURCES.processBook}-q`,
 	inspectBook: `${MEDIA_BOOK_DLQ_SOURCES.inspectBook}-q`,
 } as const satisfies QueueNamesFor<typeof MEDIA_BOOK_DLQ_SOURCES>;
+
+export const MEDIA_AUDIO_DLQ_SOURCE_QUEUES = {
+	keepAudio: `${MEDIA_AUDIO_DLQ_SOURCES.keepAudio}-q`,
+	prepareTranscription: `${MEDIA_AUDIO_DLQ_SOURCES.prepareTranscription}-q`,
+	renderTranscript: `${MEDIA_AUDIO_DLQ_SOURCES.renderTranscript}-q`,
+} as const satisfies QueueNamesFor<typeof MEDIA_AUDIO_DLQ_SOURCES>;
 
 export const INSPECT_BOOK_TIMEOUT_SECONDS = 120;
 

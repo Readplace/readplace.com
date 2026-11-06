@@ -55,7 +55,7 @@ export function HelpAddLinksPage(params: {
 	 * bare public shape by default. Mirrors the account page, the other chromeless
 	 * surface the same sheet hosts, so both read "Back to readlist". */
 	backLink?: { href: string; label: string };
-	upload?: { href: string; ceilingLabel: string };
+	upload?: { href: string; ceilingLabel: string; guest: boolean };
 }): Component {
 	const platform = params.platform ?? PLATFORM_WITHOUT_MARKER;
 	const copy = PIN_COPY[platform];

@@ -28,6 +28,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				findArticleByUrl: deps.findArticleByUrl,
 				findItemOwner: deps.findItemOwner,
 				presignMediaImage: deps.presignMediaImage,
+				presignEnclosure: deps.presignEnclosure,
+				findArticleById: deps.findArticleById,
 				listUserSavesForUrl: deps.listUserSavesForUrl,
 				appOrigin: deps.appOrigin,
 				listIssueLinks: deps.listIssueLinks,

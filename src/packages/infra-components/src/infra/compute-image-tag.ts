@@ -30,24 +30,11 @@ function listAssetsSorted(root: string): string[] {
 	return files.sort();
 }
 
-/**
- * Computes a content-addressed image tag for one OCR handler. The tag must
- * change whenever the built image would change and stay identical otherwise —
- * ECR tags are mutable, so the tag string is the only thing Pulumi diffs to
- * decide whether to redeploy the Lambda.
- *
- * Hashes the ENTIRE handler output dir (the esbuild bundle plus every asset
- * `copyAssetFiles` copied — critically the runtime-loaded prompt `.md` files,
- * which are not inlined into `index.js`), together with the Dockerfile and the
- * curl-impersonate version build-arg. Deliberately excludes no git SHA: an
- * unchanged handler yields an unchanged tag, so unrelated pushes no longer force
- * a redeploy.
- */
 export function computeImageTag(args: {
 	handlerName: string;
 	handlerOutputDir: string;
 	dockerfileContents: Buffer;
-	curlImpersonateVersion: string;
+	buildArgs: Readonly<Record<string, string>>;
 }): string {
 	const hash = createHash("sha256");
 	for (const relativePath of listAssetsSorted(args.handlerOutputDir)) {
@@ -57,7 +44,12 @@ export function computeImageTag(args: {
 		hash.update("\0");
 	}
 	hash.update(args.dockerfileContents);
-	hash.update(args.curlImpersonateVersion);
+	hash.update(
+		Object.keys(args.buildArgs)
+			.sort()
+			.map((key) => args.buildArgs[key])
+			.join("\0"),
+	);
 	const contentHash = hash.digest("hex").slice(0, 12);
 	return `${contentHash}-${args.handlerName}`;
 }

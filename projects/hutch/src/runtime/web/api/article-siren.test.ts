@@ -3,7 +3,7 @@ import type {
 	Minutes,
 	SavedArticle,
 } from "@packages/domain/article";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { ABSENT_ENCLOSURE, type EnclosureRead, ReaderArticleHashId } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -81,6 +81,8 @@ describe("toArticleSubEntity", () => {
 				isRead: false,
 				needsBrowserCapture: false,
 				contentVersion: computeArticleContentVersion({ article, crawl: undefined, summary: undefined }),
+				mediaKind: null,
+				durationSeconds: null,
 				processing: {
 					label: "Processing",
 					refresh: { href: `/queue/${ARTICLE_ID}/card?poll=1`, afterSeconds: 3 },
@@ -170,6 +172,41 @@ describe("toArticleSubEntity", () => {
 
 	it("carries no chapter count for an ordinary article", () => {
 		expect(toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", now: NOW }).properties).not.toHaveProperty("sectionCount");
+	});
+
+	it("exposes an owned enclosure's duration and listen time beside an unset media kind", () => {
+		const enclosure: EnclosureRead = {
+			kind: "owned",
+			enclosure: { object: `objects/sha256/${"d".repeat(64)}/1`, mediaType: "audio/mpeg", durationSeconds: 2820 },
+		};
+
+		const { properties } = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", now: NOW, enclosure });
+
+		expect([properties?.mediaKind, properties?.durationSeconds, properties?.readTime]).toEqual([
+			null,
+			2820,
+			{ value: "47", label: "47 min listen" },
+		]);
+	});
+
+	it("names a book's media kind with no duration", () => {
+		const book = makeArticle({
+			media: { kind: "book", fileName: "dune.epub", routeId: ReaderArticleHashId.from(ARTICLE_URL), sectionCount: 23 },
+		});
+
+		const { properties } = toArticleSubEntity(book, { addToReadlist: "advertised", now: NOW });
+
+		expect([properties?.mediaKind, properties?.durationSeconds]).toEqual(["book", null]);
+	});
+
+	it("names no media kind and no duration for a link", () => {
+		const { properties } = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", now: NOW, enclosure: ABSENT_ENCLOSURE });
+
+		expect([properties?.mediaKind, properties?.durationSeconds, properties?.readTime]).toEqual([
+			null,
+			null,
+			{ value: "5", label: "5 min read" },
+		]);
 	});
 
 	it("does not advertise a delete action — deletion is website-only", () => {

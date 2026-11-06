@@ -78,7 +78,9 @@ import {
 } from "./sharing-off-dialog.component";
 import { READER_TOP_SCRIPT } from "./reader-top-script";
 import { READER_STYLES } from "./reader.styles";
-import { displayableReadTime } from "@packages/domain/article";
+import type { EnclosureRead } from "@packages/domain/article";
+import { displayableTime } from "../../shared/displayable-time";
+import { renderPlayer } from "../../shared/player/player.component";
 import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
 import { reportArticleHref } from "../../shared/report-article/report-article-href";
 
@@ -169,6 +171,7 @@ export function ReaderPage(
 		provenance: ReaderProvenance | undefined;
 		issueLinks?: IssueLinksSectionInput;
 		deletion: ArticleDeletion;
+		enclosure: EnclosureRead;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -266,7 +269,7 @@ export function ReaderPage(
 		now: options.now,
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
-		readTime: displayableReadTime(article),
+		readTime: displayableTime({ article, enclosure: options.enclosure }),
 		url: article.destinationUrl,
 		articleId,
 		provenance: options.provenance,
@@ -347,6 +350,7 @@ export function ReaderPage(
 					illustrationHtml: renderIllustration("trash-can"),
 				});
 	const content = render(READER_TEMPLATE, {
+		playerHtml: renderPlayer({ articleId, enclosure: options.enclosure }),
 		innerContent,
 		railLandmark,
 		railHtml,

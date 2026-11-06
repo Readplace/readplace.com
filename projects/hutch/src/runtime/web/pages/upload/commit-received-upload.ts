@@ -1,4 +1,9 @@
-import type { MarkMediaUploadCommitted, MediaUploadSession, PublishMediaUploadCommitted } from "@packages/domain";
+import type {
+	AnyMediaUploadSession,
+	MarkMediaUploadCommitted,
+	MediaUploadSession,
+	PublishMediaUploadCommitted,
+} from "@packages/domain";
 import { mintPrivateItemUrl } from "@packages/media-contracts";
 import type { SavePrivateItem } from "@packages/provider-contracts/article-store";
 import type { UploadOutcome } from "./upload.outcome";
@@ -8,6 +13,12 @@ export type SettleReceivedUpload = (params: {
 	etag: string;
 	size: number;
 }) => Promise<UploadOutcome<"committed">>;
+
+export type SettleAnyReceivedUpload = (params: {
+	session: AnyMediaUploadSession;
+	etag: string;
+	size: number;
+}) => Promise<UploadOutcome<"committed" | "staged-for-review">>;
 
 export function initCommitReceivedUpload(deps: {
 	savePrivateItem: SavePrivateItem;

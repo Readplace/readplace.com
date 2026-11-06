@@ -1,5 +1,8 @@
   <main class="mcp-connect">
     <div class="mcp-connect__container">
+      {{#if back}}
+      <a class="mcp-connect__back" href="{{back.href}}" data-test-mcp-back>{{icon "arrow-left"}}{{back.label}}</a>
+      {{/if}}
       <h1 class="mcp-connect__title">Connect Readplace to your AI assistant</h1>
       <p class="mcp-connect__lead" data-test-mcp-sources-line>Keep the original sources after the AI conversation ends.</p>
       <p class="mcp-connect__lead">Readplace runs an MCP server. Connect it once and your assistant can save pages to your readlist and read your list back &mdash; right inside the conversation. From then on, &ldquo;Save this research to my readplace&rdquo; is all it takes.</p>

@@ -16,7 +16,7 @@ import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, STREAMS, } from "../../../observability/events";
 import { appClientOf, } from "../../shared/save-client";
 import { ReaderArticleHashIdSchema, nextReadDismissalOf } from "@packages/domain/article";
-import { viewerFor } from "@packages/domain/article";
+import { ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { parseCaptureWatch } from "../../shared/article-reader/capture-watch";
 import { renderReaderDownloadsOob, } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
@@ -96,6 +96,7 @@ export function initReaderPanelRoutes(
 		const component = await reader.handleSummaryPoll({
 			articleUrl: article.url,
 			viewer: viewerFor(userId),
+			enclosure: ownedEnclosure({ viewer: viewerFor(userId), article }),
 			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
@@ -131,6 +132,7 @@ export function initReaderPanelRoutes(
 		const component = await reader.handleReaderPoll({
 			articleUrl: article.url,
 			viewer: viewerFor(userId),
+			enclosure: ownedEnclosure({ viewer: viewerFor(userId), article }),
 			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),

@@ -95,6 +95,7 @@ import { initDynamoDbMediaUploadSessions } from "./media-upload-session/dynamodb
 import { initDynamoDbAnonymousMediaUpload } from "./media-upload-session/dynamodb-anonymous-media-upload";
 import { initS3MediaPending } from "./media-pending/s3-media-pending";
 import { initS3PresignMediaImage } from "./media-image/s3-presign-media-image";
+import { initS3PresignEnclosure } from "./media-objects/s3-presign-enclosure";
 import { initS3ReadMediaImage } from "./media-image/s3-read-media-image";
 import { initReadArticleImageByIdentity } from "./read-article-image-by-identity";
 import { initEventBridgeMediaUploadCommitted } from "./events/eventbridge-media-upload-committed";
@@ -435,6 +436,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		bucketName: requireEnv("MEDIA_BUCKET_NAME"),
 	});
 	const { presignMediaImage } = initS3PresignMediaImage({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") });
+	const { presignEnclosure } = initS3PresignEnclosure({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") });
 	const { publishMediaUploadCommitted } = initEventBridgeMediaUploadCommitted({ publishEvent });
 	const { publishMediaUploadStaged } = initEventBridgeMediaUploadStaged({ publishEvent });
 	const importSessionStore = initDynamoDbImportSession({
@@ -587,6 +589,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		headMediaPendingOriginal,
 		readMediaPendingPrefix,
 		presignMediaImage,
+		presignEnclosure,
 		publishMediaUploadCommitted,
 		publishMediaUploadStaged,
 		mintUploadId: () => mintUploadId(randomBytes),
