@@ -20,6 +20,7 @@ import { requireEnv } from "@packages/require-env";
 import { filterReachable } from "./check-reachable";
 import {
 	CRAWL_MIN_AGE_MS,
+	PRIVATE_CRAWL_MIN_AGE_MS,
 	SUMMARY_MIN_AGE_MS,
 	collectStuckRows,
 } from "./collect-stuck-rows";
@@ -57,7 +58,7 @@ test("Stuck articles canary", async (t) => {
 	const reportUrl = `${origin}${canaryReportPath(key)}`;
 	const client = createDynamoDocumentClient({ region });
 	process.stderr.write(
-		`[info] min-age gate: crawl-pending ≥ ${CRAWL_MIN_AGE_MS / 60_000}min, summary-pending ≥ ${SUMMARY_MIN_AGE_MS / 60_000}min\n`,
+		`[info] min-age gate: crawl-pending ≥ ${CRAWL_MIN_AGE_MS / 60_000}min, private crawl-pending ≥ ${PRIVATE_CRAWL_MIN_AGE_MS / 60_000}min, summary-pending ≥ ${SUMMARY_MIN_AGE_MS / 60_000}min\n`,
 	);
 	const stuck = await collectStuckRows({
 		client,
@@ -68,6 +69,7 @@ test("Stuck articles canary", async (t) => {
 		fetch: globalThis.fetch,
 		timeoutMs: REACHABILITY_TIMEOUT_MS,
 		concurrency: REACHABILITY_CONCURRENCY,
+		skipProbe: (row) => row.ownerUserId !== undefined,
 		log: (msg) => process.stderr.write(`${msg}\n`),
 	});
 	const [first, ...rest] = reachable;

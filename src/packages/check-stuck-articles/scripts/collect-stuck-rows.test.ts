@@ -7,6 +7,7 @@ import {
 } from "@packages/provider-contracts/article-status-indexes";
 import {
 	CRAWL_MIN_AGE_MS,
+	PRIVATE_CRAWL_MIN_AGE_MS,
 	SUMMARY_MIN_AGE_MS,
 	buildQueryInputs,
 	collectStuckRows,
@@ -103,10 +104,22 @@ describe("buildQueryInputs", () => {
 
 	it("age-gates the crawl-pending query on crawlPendingSince with a legacy contentFetchedAt/savedAt fallback", () => {
 		const filter = crawlInput.FilterExpression;
-		assert.match(filter, /^crawlPendingSince < :crawlMinAge OR /);
+		assert.match(filter, /^\(attribute_not_exists\(ownerUserId\) AND \(crawlPendingSince < :crawlMinAge OR /);
 		assert.match(
 			filter,
 			/attribute_not_exists\(crawlPendingSince\) AND attribute_not_exists\(summaryPendingSince\) AND \(contentFetchedAt < :crawlMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :crawlMinAge\)\)/,
+		);
+	});
+
+	it("gives a private row four hours before its pending crawl counts as stuck", () => {
+		assert.equal(PRIVATE_CRAWL_MIN_AGE_MS, 4 * 60 * 60_000);
+		assert.equal(
+			crawlInput.ExpressionAttributeValues[":privateCrawlMinAge"],
+			new Date(NOW.getTime() - PRIVATE_CRAWL_MIN_AGE_MS).toISOString(),
+		);
+		assert.match(
+			crawlInput.FilterExpression,
+			/OR \(attribute_exists\(ownerUserId\) AND \(crawlPendingSince < :privateCrawlMinAge OR \(attribute_not_exists\(crawlPendingSince\) AND attribute_not_exists\(summaryPendingSince\) AND \(contentFetchedAt < :privateCrawlMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :privateCrawlMinAge\)\)\)\)\)$/,
 		);
 	});
 
@@ -194,6 +207,7 @@ describe("collectStuckRows", () => {
 				"crawlPendingSince",
 				"summaryPendingSince",
 				"savedAt",
+				"ownerUserId",
 			]) {
 				assert.ok(projection.includes(attr), `ProjectionExpression must include ${attr}`);
 			}

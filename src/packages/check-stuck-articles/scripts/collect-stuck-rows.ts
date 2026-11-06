@@ -31,12 +31,14 @@ const StuckArticleRow = z.object({
 	crawlPendingSince: dynamoField(z.string()),
 	summaryPendingSince: dynamoField(z.string()),
 	savedAt: z.string(),
+	ownerUserId: dynamoField(z.string()),
 });
 
 export interface StuckRow {
 	originalUrl: string;
 	reasons: StuckReason[];
 	contentFetchedAt: string | undefined;
+	ownerUserId: string | undefined;
 	/**
 	 * Surfaced in the failing test message so an operator reading the GitHub
 	 * Actions output knows which writer to suspect without cross-referencing
@@ -61,6 +63,12 @@ export const CRAWL_MIN_AGE_MS = 20 * 60_000; /* 1 */
  *    occasionally drag an in-flight summary past the SQS budget without the
  *    chain failing.
  */
+/**
+ * 1. Private rows run prepare-transcription (up to 60 min of SQS retries),
+ *    Transcribe and render-transcript; 4 h covers the longest normal path.
+ */
+export const PRIVATE_CRAWL_MIN_AGE_MS = 4 * 60 * 60_000; /* 1 */
+
 export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
 
 /**
@@ -76,6 +84,7 @@ export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
  */
 export function buildQueryInputs(now: Date) {
 	const crawlMinAge = new Date(now.getTime() - CRAWL_MIN_AGE_MS).toISOString();
+	const privateCrawlMinAge = new Date(now.getTime() - PRIVATE_CRAWL_MIN_AGE_MS).toISOString();
 	const summaryMinAge = new Date(now.getTime() - SUMMARY_MIN_AGE_MS).toISOString();
 	const legacyAgeGate = (axisMinAgeKey: string) =>
 		`(attribute_not_exists(crawlPendingSince) AND attribute_not_exists(summaryPendingSince) AND ` +
@@ -83,7 +92,7 @@ export function buildQueryInputs(now: Date) {
 		` OR (attribute_not_exists(contentFetchedAt) AND savedAt < ${axisMinAgeKey})))`;
 	const ProjectionExpression =
 		"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, " +
-		"crawlPendingSince, summaryPendingSince, savedAt";
+		"crawlPendingSince, summaryPendingSince, savedAt, ownerUserId";
 	const ExpressionAttributeNames = { "#u": "url" };
 	return [
 		{
@@ -100,12 +109,15 @@ export function buildQueryInputs(now: Date) {
 		{
 			IndexName: CRAWL_STATUS_INDEX,
 			KeyConditionExpression: "crawlStatus = :pending",
-			FilterExpression: `crawlPendingSince < :crawlMinAge OR ${legacyAgeGate(":crawlMinAge")}`,
+			FilterExpression:
+				`(attribute_not_exists(ownerUserId) AND (crawlPendingSince < :crawlMinAge OR ${legacyAgeGate(":crawlMinAge")})) ` +
+				`OR (attribute_exists(ownerUserId) AND (crawlPendingSince < :privateCrawlMinAge OR ${legacyAgeGate(":privateCrawlMinAge")}))`,
 			ProjectionExpression,
 			ExpressionAttributeNames,
 			ExpressionAttributeValues: {
 				":pending": "pending",
 				":crawlMinAge": crawlMinAge,
+				":privateCrawlMinAge": privateCrawlMinAge,
 			},
 		},
 	] as const;
@@ -135,6 +147,7 @@ export async function collectStuckRows(deps: {
 			originalUrl: row.originalUrl ?? row.url,
 			reasons: verdict.reasons,
 			contentFetchedAt: row.contentFetchedAt,
+			ownerUserId: row.ownerUserId,
 			terminalCheckMessage: verdict.message,
 		});
 	}
