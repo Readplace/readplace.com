@@ -235,7 +235,7 @@ async function main() {
       handlerName: handler.name,
       handlerOutputDir: resolve(PROJECT_ROOT, ".lib", handler.name),
       dockerfileContents,
-      curlImpersonateVersion: CURL_IMPERSONATE_VERSION,
+      buildArgs: { CURL_IMPERSONATE_VERSION },
     });
     const imageUri = `${repositoryUrl}:${tag}`;
     // --tag-only writes the imageUri Pulumi would diff, no docker involved.
