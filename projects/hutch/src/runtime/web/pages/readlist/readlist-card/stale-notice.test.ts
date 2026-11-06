@@ -25,7 +25,7 @@ describe("staleNoticeHtml", () => {
 		);
 	});
 
-	it("keeps the card's wording for an item with no origin and no kind", () => {
-		expect(staleNoticeHtml({ ...base, hasOrigin: false })).toBe("Taking a while — we're still preparing this .");
+	it("refuses an item with no origin and no kind", () => {
+		expect(() => staleNoticeHtml({ ...base, hasOrigin: false })).toThrow("a private item always carries a media kind");
 	});
 });

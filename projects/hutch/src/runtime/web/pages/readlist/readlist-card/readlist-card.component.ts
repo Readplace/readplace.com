@@ -154,12 +154,14 @@ export function toReadlistCardDisplayModel(
 		].join(""),
 		deleteMenuHtml: renderDeleteMenuItems({ deletion: article.deletion, surface: "queue-card" }),
 		uploadAgainUrl: withInternalTracking("/upload", { source: "queue-card", content: "failed-card" }),
-		staleNoticeHtml: staleNoticeHtml({
-			url: article.url,
-			siteName: article.siteName,
-			hasOrigin: article.hasOrigin,
-			kindNoun: article.kind?.noun,
-		}),
+		staleNoticeHtml: article.isStalePending
+			? staleNoticeHtml({
+					url: article.url,
+					siteName: article.siteName,
+					hasOrigin: article.hasOrigin,
+					kindNoun: article.kind?.noun,
+				})
+			: "",
 	};
 }
 
