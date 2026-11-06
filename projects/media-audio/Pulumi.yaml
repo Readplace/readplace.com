@@ -1,0 +1,6 @@
+name: media-audio
+description: Keeps an uploaded audio file and publishes its private tier-0 source
+runtime:
+  name: nodejs
+  options:
+    typescript: true
