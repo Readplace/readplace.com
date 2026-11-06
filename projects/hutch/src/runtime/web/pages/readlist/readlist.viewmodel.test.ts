@@ -435,6 +435,60 @@ describe("toReadlistViewModel — listen time", () => {
 
 		expect(vm.articles.map((card) => card.readTime?.label)).toEqual(["47 min listen", "3 min read"]);
 	});
+
+	it("labels an owned audio card's kind with its listen time", () => {
+		const audioUrl =
+			"https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+		const audio = makeArticle({
+			id: ReaderArticleHashId.from(audioUrl),
+			url: audioUrl,
+			destinationUrl: destinationUrl(audioUrl),
+			media: {
+				kind: "audio",
+				fileName: "talk.mp3",
+				routeId: ReaderArticleHashId.from(audioUrl),
+			},
+		});
+		const owned: EnclosureRead = {
+			kind: "owned",
+			enclosure: {
+				object: `objects/sha256/${"e".repeat(64)}/1`,
+				mediaType: "audio/mpeg",
+				durationSeconds: 2820,
+			},
+		};
+
+		const vm = toReadlistViewModel(makeResult([audio]), DEFAULT_FILTERS, {
+			now: NOW,
+			enclosureByUrl: new Map([[audioUrl, owned]]),
+		});
+
+		expect(vm.articles[0].kind?.icon).toBe("file");
+		expect(vm.articles[0].kindLabel).toBe("Audio · 47 min listen");
+	});
+
+	it("labels an audio card without an enclosure or words by its kind alone", () => {
+		const audioUrl =
+			"https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+		const audio = makeArticle({
+			id: ReaderArticleHashId.from(audioUrl),
+			url: audioUrl,
+			destinationUrl: destinationUrl(audioUrl),
+			metadata: { ...makeArticle().metadata, wordCount: 0 },
+			media: {
+				kind: "audio",
+				fileName: "talk.mp3",
+				routeId: ReaderArticleHashId.from(audioUrl),
+			},
+		});
+
+		const vm = toReadlistViewModel(makeResult([audio]), DEFAULT_FILTERS, {
+			now: NOW,
+			enclosureByUrl: new Map(),
+		});
+
+		expect(vm.articles[0].kindLabel).toBe("Audio");
+	});
 });
 
 describe("toReadlistArticleViewModel — isStalePending", () => {

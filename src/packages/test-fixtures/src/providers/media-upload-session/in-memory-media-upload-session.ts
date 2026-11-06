@@ -75,10 +75,10 @@ export function initInMemoryMediaUploadSessions(): InMemoryMediaUploadSessions {
 			sessions.set(session.uploadId, session);
 			return session;
 		},
-		markMediaUploadInspecting: async ({ uploadId, etag }) => {
+		markMediaUploadInspecting: async ({ uploadId, etag, kind }) => {
 			const session = anonymous(uploadId);
 			if (session?.status !== "staged") return "not-staged";
-			sessions.set(uploadId, { ...session, status: "inspecting", etag });
+			sessions.set(uploadId, { ...session, status: "inspecting", etag, kind });
 			return "inspecting";
 		},
 		recordMediaInspection: async ({ uploadId, inspection }) => {
@@ -97,6 +97,10 @@ export function initInMemoryMediaUploadSessions(): InMemoryMediaUploadSessions {
 			const unclaimedReady = session.userId === undefined && session.status === "ready";
 			const sameReaderAgain = session.userId === userId && session.status === "staged";
 			if (!unclaimedReady && !sameReaderAgain) return "not-claimable";
+			assert(
+				session.kind,
+				`upload ${uploadId} was staged without a detected kind`,
+			);
 			const claimed: ClaimedMediaUpload = {
 				uploadId: session.uploadId,
 				userId,
@@ -129,11 +133,10 @@ export function initInMemoryMediaPending(deps: { uploadBaseUrl: string }): InMem
 	const originals = new Map<string, { bytes: Uint8Array; etag: string }>();
 
 	return {
-		mintMediaPendingPost: async ({ uploadId, contentType, successActionRedirect }) => ({
+		mintMediaPendingPost: async ({ uploadId, successActionRedirect }) => ({
 			url: deps.uploadBaseUrl,
 			fields: {
 				key: `pending/${uploadId}/original`,
-				"Content-Type": contentType,
 				success_action_redirect: successActionRedirect,
 			},
 		}),

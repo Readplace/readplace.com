@@ -6,12 +6,13 @@ import type {
 	MediaUploadSession,
 	PublishMediaUploadStaged,
 } from "@packages/domain";
-import type { MediaKindManifest, MediaKindName } from "@packages/media-contracts";
-import type { SettleAnyReceivedUpload, SettleReceivedUpload } from "./commit-received-upload";
+import type { MediaKindManifest } from "@packages/media-contracts";
+import { defaultFileNameOf, type SettleAnyReceivedUpload, type SettleReceivedUpload } from "./commit-received-upload";
 import type { UploadOutcome } from "./upload.outcome";
 
 export type StageForReview = (params: {
 	session: AnonymousMediaUploadSession;
+	kind: MediaKindManifest;
 	etag: string;
 	size: number;
 }) => Promise<UploadOutcome<"staged-for-review">>;
@@ -19,22 +20,26 @@ export type StageForReview = (params: {
 export function initStageForReview(deps: {
 	markMediaUploadInspecting: MarkMediaUploadInspecting;
 	publishMediaUploadStaged: PublishMediaUploadStaged;
-	MEDIA_KINDS: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	now: () => Date;
 }): StageForReview {
-	return async ({ session, etag, size }) => {
-		const { uploadId, kind, fileName } = session;
-		const marked = await deps.markMediaUploadInspecting({ uploadId, etag });
+	return async ({ session, kind, etag, size }) => {
+		const { uploadId } = session;
+		const marked = await deps.markMediaUploadInspecting({
+			uploadId,
+			etag,
+			kind: kind.name,
+		});
 		if (marked === "inspecting") {
-			const manifest = deps.MEDIA_KINDS.get(kind);
-			assert(manifest, `staged upload of unknown kind ${kind}`);
-			const [mediaType, ...others] = Object.keys(manifest.accepts);
-			assert(mediaType !== undefined && others.length === 0, `kind ${kind} must accept exactly one media type`);
+			const [mediaType, ...others] = Object.keys(kind.accepts);
+			assert(
+				mediaType !== undefined && others.length === 0,
+				`kind ${kind.name} must accept exactly one media type`,
+			);
 			await deps.publishMediaUploadStaged({
 				uploadId,
-				kind,
+				kind: kind.name,
 				mediaType,
-				fileName,
+				fileName: session.fileName ?? defaultFileNameOf(kind),
 				size,
 				etag,
 				stagedAt: deps.now().toISOString(),
@@ -52,8 +57,8 @@ export function initSettleByCaller(deps: {
 	commitReceivedUpload: SettleReceivedUpload;
 	stageForReview: StageForReview;
 }): SettleAnyReceivedUpload {
-	return async ({ session, etag, size }) =>
+	return async ({ session, kind, etag, size }) =>
 		isSignedInMediaUploadSession(session)
-			? deps.commitReceivedUpload({ session, etag, size })
-			: deps.stageForReview({ session, etag, size });
+			? deps.commitReceivedUpload({ session, kind, etag, size })
+			: deps.stageForReview({ session, kind, etag, size });
 }

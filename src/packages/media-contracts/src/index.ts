@@ -10,6 +10,7 @@ export {
 export { MediaImageFileSchema, type MediaImageFile, mediaImageFileOf } from "./media-image-file";
 export type { MediaFacts } from "./media-facts.types";
 export { defineMediaKind, type MediaKindManifest } from "./media-kind";
+export { AUDIO } from "./kinds/audio";
 export { BOOK } from "./kinds/book";
 export { MEDIA_KINDS, MediaKindNameSchema, type MediaKindName } from "./media-kinds";
 export { MediaFailureReasonSchema, type MediaFailureReason } from "./media-failure";

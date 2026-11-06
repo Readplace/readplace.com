@@ -32,7 +32,11 @@ async function buildSubject() {
 		fileName: "dune.epub",
 		saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"),
 	});
-	await sessions.markMediaUploadInspecting({ uploadId: UPLOAD_ID, etag: '"etag-1"' });
+	await sessions.markMediaUploadInspecting({
+		uploadId: UPLOAD_ID,
+		etag: '"etag-1"',
+		kind: "book",
+	});
 	const infoCalls: string[] = [];
 	const handler = initRecordMediaInspectionHandler({
 		recordMediaInspection: sessions.recordMediaInspection,

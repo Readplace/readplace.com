@@ -7,8 +7,8 @@ export type MediaUploadSessionState = "staged" | "committed" | "failed";
 export interface MediaUploadSession {
 	readonly uploadId: UploadId;
 	readonly userId: UserId;
-	readonly kind: MediaKindName;
-	readonly fileName: string;
+	readonly kind?: MediaKindName;
+	readonly fileName?: string;
 	readonly byteLength?: number;
 	readonly saveAttemptId: SaveAttemptId;
 	readonly status: MediaUploadSessionState;
@@ -30,7 +30,6 @@ export type FailMediaUpload = (params: { uploadId: UploadId }) => Promise<"faile
 
 export type MintMediaPendingPost = (params: {
 	uploadId: UploadId;
-	contentType: string;
 	uploadCeilingBytes: number;
 	successActionRedirect: string;
 }) => Promise<{ url: string; fields: Readonly<Record<string, string>> }>;

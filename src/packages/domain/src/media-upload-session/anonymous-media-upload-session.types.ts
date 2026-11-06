@@ -12,8 +12,8 @@ export type AnonymousMediaUploadSessionState = "staged" | "inspecting" | "ready"
 export interface AnonymousMediaUploadSession {
 	readonly uploadId: UploadId;
 	readonly userId?: undefined;
-	readonly kind: MediaKindName;
-	readonly fileName: string;
+	readonly kind?: MediaKindName;
+	readonly fileName?: string;
 	readonly byteLength?: number;
 	readonly saveAttemptId: MediaUploadSession["saveAttemptId"];
 	readonly status: AnonymousMediaUploadSessionState;
@@ -25,7 +25,10 @@ export interface AnonymousMediaUploadSession {
 
 export type AnyMediaUploadSession = MediaUploadSession | AnonymousMediaUploadSession;
 
-export type ClaimedMediaUpload = MediaUploadSession & { readonly etag: string };
+export type ClaimedMediaUpload = MediaUploadSession & {
+	readonly etag: string;
+	readonly kind: MediaKindName;
+};
 
 export type MediaInspectionVerdict =
 	| { readonly verdict: "inspected"; readonly facts: MediaInspectionFacts }
@@ -38,6 +41,7 @@ export type CreateAnyMediaUploadSession = (
 export type MarkMediaUploadInspecting = (params: {
 	uploadId: UploadId;
 	etag: string;
+	kind: MediaKindName;
 }) => Promise<"inspecting" | "not-staged">;
 
 export type RecordMediaInspection = (params: {

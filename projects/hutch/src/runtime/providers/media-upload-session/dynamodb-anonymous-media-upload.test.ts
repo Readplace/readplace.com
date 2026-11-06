@@ -100,7 +100,11 @@ describe.each(implementations)("anonymous media upload sessions ($name)", ({ ini
 		const store = init();
 		await store.createAnyMediaUploadSession({ ...session, userId: undefined });
 		if (stage === "staged") return store;
-		await store.markMediaUploadInspecting({ uploadId: UPLOAD_ID, etag: ETAG });
+		await store.markMediaUploadInspecting({
+			uploadId: UPLOAD_ID,
+			etag: ETAG,
+			kind: "book",
+		});
 		if (stage === "inspecting") return store;
 		await store.recordMediaInspection({ uploadId: UPLOAD_ID, inspection: { verdict: "inspected", facts: FACTS } });
 		return store;
@@ -131,7 +135,14 @@ describe.each(implementations)("anonymous media upload sessions ($name)", ({ ini
 	it("moves a guest's staged upload to inspecting with the etag it was given", async () => {
 		const store = await guestUpload("staged");
 
-		assert.equal(await store.markMediaUploadInspecting({ uploadId: UPLOAD_ID, etag: ETAG }), "inspecting");
+		assert.equal(
+			await store.markMediaUploadInspecting({
+				uploadId: UPLOAD_ID,
+				etag: ETAG,
+				kind: "book",
+			}),
+			"inspecting",
+		);
 
 		const found = await store.findMediaUploadByCapability({ uploadId: UPLOAD_ID, userId: undefined });
 		assert.equal(found?.status, "inspecting");
@@ -140,12 +151,33 @@ describe.each(implementations)("anonymous media upload sessions ($name)", ({ ini
 
 	it("refuses to inspect an upload that is not staged, a signed-in upload, or an unknown one", async () => {
 		const inspecting = await guestUpload("inspecting");
-		assert.equal(await inspecting.markMediaUploadInspecting({ uploadId: UPLOAD_ID, etag: ETAG }), "not-staged");
+		assert.equal(
+			await inspecting.markMediaUploadInspecting({
+				uploadId: UPLOAD_ID,
+				etag: ETAG,
+				kind: "book",
+			}),
+			"not-staged",
+		);
 
 		const member = init();
 		await member.createAnyMediaUploadSession({ ...session, userId: READER });
-		assert.equal(await member.markMediaUploadInspecting({ uploadId: UPLOAD_ID, etag: ETAG }), "not-staged");
-		assert.equal(await member.markMediaUploadInspecting({ uploadId: UNKNOWN_ID, etag: ETAG }), "not-staged");
+		assert.equal(
+			await member.markMediaUploadInspecting({
+				uploadId: UPLOAD_ID,
+				etag: ETAG,
+				kind: "book",
+			}),
+			"not-staged",
+		);
+		assert.equal(
+			await member.markMediaUploadInspecting({
+				uploadId: UNKNOWN_ID,
+				etag: ETAG,
+				kind: "book",
+			}),
+			"not-staged",
+		);
 	});
 
 	it("records an inspected book as ready with its facts", async () => {
@@ -200,6 +232,7 @@ describe.each(implementations)("anonymous media upload sessions ($name)", ({ ini
 			assert.equal(claimed.userId, READER);
 			assert.equal(claimed.status, "staged");
 			assert.equal(claimed.etag, ETAG);
+			assert.equal(claimed.kind, "book");
 			assert.equal(claimed.saveAttemptId, SAVE_ATTEMPT_ID);
 		}
 		assert.equal((await store.findMediaUploadSession({ uploadId: UPLOAD_ID, userId: READER }))?.status, "staged");
@@ -268,6 +301,13 @@ describe("initDynamoDbAnonymousMediaUpload", () => {
 			now: () => NOW,
 		});
 
-		await assert.rejects(store.markMediaUploadInspecting({ uploadId: UPLOAD_ID, etag: ETAG }), { message: "throttled" });
+		await assert.rejects(
+			store.markMediaUploadInspecting({
+				uploadId: UPLOAD_ID,
+				etag: ETAG,
+				kind: "book",
+			}),
+			{ message: "throttled" },
+		);
 	});
 });

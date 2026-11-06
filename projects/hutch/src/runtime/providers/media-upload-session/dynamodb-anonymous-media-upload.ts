@@ -27,8 +27,8 @@ import { MEDIA_UPLOAD_SESSION_TTL_SECONDS } from "./dynamodb-media-upload-sessio
 const AnyRow = z.object({
 	uploadId: UploadIdSchema,
 	userId: dynamoField(UserIdSchema),
-	kind: MediaKindNameSchema,
-	fileName: z.string(),
+	kind: dynamoField(MediaKindNameSchema),
+	fileName: dynamoField(z.string()),
 	byteLength: dynamoField(z.number().int().nonnegative()),
 	saveAttemptId: SaveAttemptIdSchema,
 	status: z.enum(["staged", "committed", "failed", "inspecting", "ready", "rejected"]),
@@ -47,7 +47,10 @@ const AnonymousSession = AnyRow.omit({ userId: true }).extend({
 	status: z.enum(["staged", "inspecting", "ready", "rejected"]),
 });
 
-const ClaimedSession = SignedInSession.extend({ etag: z.string() });
+const ClaimedSession = SignedInSession.extend({
+	etag: z.string(),
+	kind: MediaKindNameSchema,
+});
 
 function toSession(row: z.infer<typeof AnyRow>): AnyMediaUploadSession {
 	return row.userId === undefined ? AnonymousSession.parse(row) : SignedInSession.parse(row);
@@ -84,13 +87,20 @@ export function initDynamoDbAnonymousMediaUpload(deps: {
 			});
 			return session;
 		},
-		markMediaUploadInspecting: async ({ uploadId, etag }) => {
+		markMediaUploadInspecting: async ({ uploadId, etag, kind }) => {
 			const outcome = await update({
 				Key: { uploadId },
-				UpdateExpression: "SET #status = :inspecting, etag = :etag",
-				ConditionExpression: "#status = :staged AND attribute_not_exists(userId)",
+				UpdateExpression:
+					"SET #status = :inspecting, etag = :etag, kind = :kind",
+				ConditionExpression:
+					"#status = :staged AND attribute_not_exists(userId)",
 				ExpressionAttributeNames: { "#status": "status" },
-				ExpressionAttributeValues: { ":inspecting": "inspecting", ":etag": etag, ":staged": "staged" },
+				ExpressionAttributeValues: {
+					":inspecting": "inspecting",
+					":etag": etag,
+					":kind": kind,
+					":staged": "staged",
+				},
 			});
 			return outcome === "refused" ? "not-staged" : "inspecting";
 		},

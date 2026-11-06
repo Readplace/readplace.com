@@ -92,6 +92,21 @@ describe("cardKindOf", () => {
 		});
 	});
 
+	it("names the audio kind with its badge icon", () => {
+		const routeId = ReaderArticleHashId.from(
+			"https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef",
+		);
+		expect(
+			cardKindOf({ media: { kind: "audio", fileName: "talk.mp3", routeId } })
+				?.kind,
+		).toEqual({
+			name: "audio",
+			label: "Audio",
+			noun: "audio",
+			icon: "file",
+		});
+	});
+
 	it("gives an ordinary article no kind", () => {
 		expect(cardKindOf({ media: undefined })).toBeUndefined();
 	});

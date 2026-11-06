@@ -20,8 +20,8 @@ export const MEDIA_UPLOAD_SESSION_TTL_SECONDS = 24 * 60 * 60;
 const SessionRow = z.object({
 	uploadId: UploadIdSchema,
 	userId: UserIdSchema,
-	kind: MediaKindNameSchema,
-	fileName: z.string(),
+	kind: dynamoField(MediaKindNameSchema),
+	fileName: dynamoField(z.string()),
 	byteLength: dynamoField(z.number().int().nonnegative()),
 	saveAttemptId: SaveAttemptIdSchema,
 	status: z.enum(["staged", "committed", "failed"]),

@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
+import { AUDIO } from "./kinds/audio";
 import { BOOK } from "./kinds/book";
 import { MEDIA_KINDS, MediaKindNameSchema } from "./media-kinds";
 
 describe("MEDIA_KINDS", () => {
-	it("holds a manifest for the book kind only", () => {
-		assert.deepEqual([...MEDIA_KINDS.keys()], ["book"]);
+	it("holds a manifest for every kind name", () => {
+		assert.deepEqual([...MEDIA_KINDS.keys()], MediaKindNameSchema.options);
 	});
 
 	it("holds the book manifest under its own name", () => {
 		assert.equal(MEDIA_KINDS.get("book"), BOOK);
+	});
+
+	it("holds the audio manifest under its own name", () => {
+		assert.equal(MEDIA_KINDS.get("audio"), AUDIO);
 	});
 });
 

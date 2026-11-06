@@ -259,7 +259,7 @@ import { initAnonymousUploadRoutes } from "./web/pages/upload/upload-review.page
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
 import { INSPECT_BOOK_TIMEOUT_SECONDS } from "@packages/infra-components";
-import { BOOK, MEDIA_KINDS, type MediaKindName, type UploadId } from "@packages/media-contracts";
+import { AUDIO, BOOK, MEDIA_KINDS, type MediaKindName, type UploadId } from "@packages/media-contracts";
 import type {
 	ClaimMediaUpload,
 	CreateAnyMediaUploadSession,
@@ -1201,7 +1201,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				backLink,
 				upload: isAppShell(req)
 					? undefined
-					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel, guest: !req.userId },
+					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel, audioCeilingLabel: AUDIO.ceilingLabel, guest: !req.userId },
 				platform: nativeSurfaceOf(req),
 				cspNonce: requireCspNonce(req),
 			}),
@@ -1551,7 +1551,6 @@ export function createApp(dependencies: AppDependencies): Express {
 				stageForReview: initStageForReview({
 					markMediaUploadInspecting: deps.markMediaUploadInspecting,
 					publishMediaUploadStaged: deps.publishMediaUploadStaged,
-					MEDIA_KINDS,
 					now: deps.now,
 				}),
 			}),
@@ -1562,6 +1561,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			readMediaPendingPrefix: deps.readMediaPendingPrefix,
 			mintUploadId: deps.mintUploadId,
 			MEDIA_KINDS,
+			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
 			pickOutcomeWriters: () => UPLOAD_OUTCOME_HTML,
 			buildBannerState,
 			appOrigin,

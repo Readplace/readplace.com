@@ -15,9 +15,10 @@ import type { BuildBannerState } from "../../banner-state";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import type { SettleReceivedUpload } from "./commit-received-upload";
 import { redirectAnonymousToUploadSignup } from "./redirect-anonymous-to-upload-signup";
-import { type UploadReviewView, UploadReviewPage } from "./upload-review.component";
 import { type UploadOutcome, type UploadOutcomeKey, writeUploadOutcome } from "./upload.outcome";
-import { StartUploadBody, UPLOAD_OUTCOME_HTML, kindAccepting } from "./upload.page";
+import { UPLOAD_OUTCOME_HTML } from "./upload.page";
+import { kindsForViewer } from "./upload.viewmodel";
+import { UploadReviewPage, type UploadReviewView } from "./upload-review.component";
 
 export const GUEST_UPLOAD_KINDS: readonly MediaKindName[] = ["book"];
 
@@ -75,10 +76,20 @@ export function initAnonymousUploadRoutes(deps: {
 	buildBannerState: BuildBannerState;
 }): Router {
 	const router = express.Router();
-	const kinds = deps.MEDIA_KINDS;
-
-	async function write<K extends UploadOutcomeKey>(req: Request, res: Response, outcome: UploadOutcome<K>) {
-		const context = { req, bannerState: await deps.buildBannerState(req), kinds };
+	async function write<K extends UploadOutcomeKey>(
+		req: Request,
+		res: Response,
+		outcome: UploadOutcome<K>,
+	) {
+		const context = {
+			req,
+			bannerState: await deps.buildBannerState(req),
+			kinds: kindsForViewer({
+				kinds: deps.MEDIA_KINDS,
+				guestKinds: deps.GUEST_UPLOAD_KINDS,
+				isSignedIn: Boolean(req.userId),
+			}),
+		};
 		writeUploadOutcome({ writers: UPLOAD_OUTCOME_HTML, res, outcome, context });
 	}
 
@@ -103,16 +114,6 @@ export function initAnonymousUploadRoutes(deps: {
 		sendComponent(req, res, Base(UploadReviewPage({ state: view, uploadId: session.uploadId }), await deps.buildBannerState(req)));
 	});
 
-	router.post("/", async (req, res, next) => {
-		const body = StartUploadBody.safeParse(req.body);
-		const kind = body.success ? kindAccepting(kinds, body.data.contentType) : undefined;
-		if (req.userId || !kind || deps.GUEST_UPLOAD_KINDS.includes(kind.name)) {
-			next();
-			return;
-		}
-		await write(req, res, { outcome: "upload_unsupported_type" });
-	});
-
 	router.post(
 		"/:id/commit",
 		redirectAnonymousToUploadSignup,
@@ -135,10 +136,17 @@ export function initAnonymousUploadRoutes(deps: {
 				await write(req, res, { outcome: "upload_session_not_found" });
 				return;
 			}
+			const kind = deps.MEDIA_KINDS.get(claimed.kind);
+			assert(kind, `claimed upload of unknown kind ${claimed.kind}`);
 			await write(
 				req,
 				res,
-				await deps.commitReceivedUpload({ session: claimed, etag: claimed.etag, size: claimed.byteLength ?? 0 }),
+				await deps.commitReceivedUpload({
+					session: claimed,
+					kind,
+					etag: claimed.etag,
+					size: claimed.byteLength ?? 0,
+				}),
 			);
 		},
 	);

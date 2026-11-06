@@ -298,7 +298,16 @@ describe("GET /help/add-links", () => {
 		expect(doc.querySelector("[data-test-help-upload-guest]")?.textContent).toBe(
 			"You don't need an account to upload a book: sign up when you save it.",
 		);
-		const href = doc.querySelector("[data-test-help-upload-link]")?.getAttribute("href");
+		expect(
+			doc.querySelector("[data-test-help-upload-title]")?.textContent,
+		).toBe("Add a book");
+		expect(doc.querySelector("[data-test-help-upload-audio]")).toBeNull();
+		expect(doc.querySelector("[data-test-help-upload-link]")?.textContent).toBe(
+			"Upload a book",
+		);
+		const href = doc
+			.querySelector("[data-test-help-upload-link]")
+			?.getAttribute("href");
 		assert(href, "the upload section must link somewhere");
 		const url = new URL(href, TEST_APP_ORIGIN);
 		expect(url.pathname).toBe("/upload");
@@ -313,8 +322,18 @@ describe("GET /help/add-links", () => {
 		const response = await agent.get("/help/add-links");
 
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-help-upload-link]")).not.toBeNull();
+		expect(doc.querySelector("[data-test-help-upload-link]")?.textContent).toBe(
+			"Upload a file",
+		);
 		expect(doc.querySelector("[data-test-help-upload-guest]")).toBeNull();
+		expect(
+			doc.querySelector("[data-test-help-upload-title]")?.textContent,
+		).toBe("Add a book or audio file");
+		expect(
+			doc.querySelector("[data-test-help-upload-audio]")?.textContent,
+		).toBe(
+			"Upload an MP3 or M4A of up to 256 MB to listen to it in the reader.",
+		);
 	});
 
 	it("shows the book upload when a platform is named without the app shell", async () => {

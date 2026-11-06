@@ -1,24 +1,52 @@
 import assert from "node:assert/strict";
-import { BOOK, MEDIA_KINDS } from "@packages/media-contracts";
-import { acceptAttributeOf, toUploadStartViewModel } from "./upload.viewmodel";
+import { AUDIO, BOOK, MEDIA_KINDS } from "@packages/media-contracts";
+import { acceptAttributeOf, kindsForViewer, toUploadStartViewModel } from "./upload.viewmodel";
+
+describe("kindsForViewer", () => {
+	it("offers a member every kind", () => {
+		assert.deepEqual(
+			kindsForViewer({
+				kinds: MEDIA_KINDS,
+				guestKinds: ["book"],
+				isSignedIn: true,
+			}),
+			[BOOK, AUDIO],
+		);
+	});
+
+	it("offers a guest only the guest kinds", () => {
+		assert.deepEqual(
+			kindsForViewer({
+				kinds: MEDIA_KINDS,
+				guestKinds: ["book"],
+				isSignedIn: false,
+			}),
+			[BOOK],
+		);
+	});
+});
 
 describe("toUploadStartViewModel", () => {
-	it("offers each accepted media type and names each kind's ceiling", () => {
-		const vm = toUploadStartViewModel(MEDIA_KINDS, true);
+	it("names every offered kind in the heading and describes each one", () => {
+		const vm = toUploadStartViewModel([BOOK, AUDIO], true);
 
-		assert.deepEqual(vm.contentTypes, ["application/epub+zip"]);
-		assert.equal(vm.ceilingLabel, "Book: up to 200 MB");
+		assert.equal(vm.heading, "Upload a book or an audio file");
+		assert.deepEqual(vm.descriptions, [
+			"Book: EPUB, DRM-free, up to 200 MB. MOBI and AZW3 are not supported.",
+			"Audio: MP3 or M4A, up to 256 MB.",
+		]);
 	});
 
 	it("names a signed-out viewer a guest and shows them the guest notice", () => {
-		const vm = toUploadStartViewModel(MEDIA_KINDS, false);
+		const vm = toUploadStartViewModel([BOOK], false);
 
+		assert.equal(vm.heading, "Upload a book");
 		assert.equal(vm.viewer, "guest");
 		assert.equal(vm.showsGuestNotice, true);
 	});
 
 	it("names a signed-in viewer a member and hides the guest notice", () => {
-		const vm = toUploadStartViewModel(MEDIA_KINDS, true);
+		const vm = toUploadStartViewModel([BOOK, AUDIO], true);
 
 		assert.equal(vm.viewer, "member");
 		assert.equal(vm.showsGuestNotice, false);
@@ -26,7 +54,7 @@ describe("toUploadStartViewModel", () => {
 });
 
 describe("acceptAttributeOf", () => {
-	it("lists the kind's file extensions", () => {
-		assert.equal(acceptAttributeOf(BOOK), ".epub");
+	it("lists every offered kind's file extensions", () => {
+		assert.equal(acceptAttributeOf([BOOK, AUDIO]), ".epub,.mp3,.m4a");
 	});
 });

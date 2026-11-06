@@ -1,27 +1,18 @@
 <main class="upload" data-test-upload-page{{#if start}} data-upload-viewer="{{start.viewer}}"{{/if}}>
   <div class="upload__layout">
-    <h1 class="upload__title">Upload a book</h1>
+    <h1 class="upload__title" data-test-upload-heading>{{#if heading}}{{heading}}{{else}}Upload{{/if}}</h1>
     {{#if errorAlertHtml}}<div data-test-upload-error="{{errorCode}}">{{{errorAlertHtml}}}</div>{{/if}}
     {{#if start.showsGuestNotice}}<p class="upload__description" data-test-upload-guest-notice>You can upload now and sign up when you save it.</p>{{/if}}
     {{#if start}}
     <form class="upload__panel" method="post" action="{{track '/upload' source='upload-start' content='start'}}" data-test-upload-start>
-      <div class="form-field">
-        <label class="form-field__label" for="upload-content-type">File type</label>
-        <div class="form-input form-input--within form-input--select">
-          <select class="form-input__control" id="upload-content-type" name="contentType">
-            {{#each start.contentTypes}}<option value="{{this}}">{{this}}</option>{{/each}}
-          </select>
-          <span class="form-input__chevron">{{icon "chevron-down"}}</span>
-        </div>
-      </div>
-      <p class="upload__description" data-test-upload-description>EPUB, DRM-free, {{start.ceilingLabel}}; MOBI and AZW3 are not supported.</p>
+      {{#each start.descriptions}}<p class="upload__description" data-test-upload-description>{{this}}</p>{{/each}}
       <button class="btn btn--primary upload__submit" type="submit">Choose a file</button>
     </form>
     {{/if}}
     {{#if staged}}
     <form class="upload__panel" method="post" enctype="multipart/form-data" action="{{staged.url}}" data-test-upload-s3-form>
       {{#each staged.fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-      <p class="upload__description">Up to {{staged.ceilingLabel}}.</p>
+      {{#each staged.descriptions}}<p class="upload__description" data-test-upload-staged-description>{{this}}</p>{{/each}}
       <input class="upload__file-input" type="file" name="file" accept="{{staged.accept}}" required data-test-upload-file>
       <button class="btn btn--primary upload__submit" type="submit">Upload</button>
     </form>

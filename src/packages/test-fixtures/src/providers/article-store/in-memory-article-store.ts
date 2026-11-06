@@ -32,6 +32,7 @@ import {
 	readlistFitOverrideId,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { MEDIA_KINDS } from "@packages/media-contracts";
 import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
@@ -1132,12 +1133,19 @@ export function initInMemoryArticleStore(): {
 			assert(existing.ownerUserId === params.ownerUserId, "a private item identity is saved by its uploader only");
 			return "already-saved";
 		}
+		const manifest = MEDIA_KINDS.get(params.media.kind);
+		assert(manifest, `no media kind manifest for ${params.media.kind}`);
 		const routeId = ReaderArticleHashId.from(params.url);
 		articles.set(key, {
 			url: key,
 			originalUrl: params.url,
 			routeId,
-			metadata: { title: params.media.fileName, siteName: "Book", excerpt: "", wordCount: 0 },
+			metadata: {
+				title: params.media.fileName,
+				siteName: manifest.label,
+				excerpt: "",
+				wordCount: 0,
+			},
 			estimatedReadTime: MinutesSchema.parse(0),
 			savedAt: params.savedAt,
 			ownerUserId: params.ownerUserId,

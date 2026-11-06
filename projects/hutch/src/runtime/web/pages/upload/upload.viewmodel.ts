@@ -1,25 +1,35 @@
 import type { MediaKindManifest, MediaKindName } from "@packages/media-contracts";
+import { uploadDescriptionsOf, uploadHeadingOf } from "./upload-copy";
 
 export interface UploadStartViewModel {
-	readonly contentTypes: readonly string[];
-	readonly ceilingLabel: string;
+	readonly heading: string;
+	readonly descriptions: readonly string[];
 	readonly viewer: "guest" | "member";
 	readonly showsGuestNotice: boolean;
 }
 
+export function kindsForViewer(input: {
+	kinds: ReadonlyMap<MediaKindName, MediaKindManifest>;
+	guestKinds: readonly MediaKindName[];
+	isSignedIn: boolean;
+}): MediaKindManifest[] {
+	return [...input.kinds.values()].filter(
+		(kind) => input.isSignedIn || input.guestKinds.includes(kind.name),
+	);
+}
+
 export function toUploadStartViewModel(
-	kinds: ReadonlyMap<MediaKindName, MediaKindManifest>,
+	kinds: readonly MediaKindManifest[],
 	isSignedIn: boolean,
 ): UploadStartViewModel {
-	const manifests = [...kinds.values()];
 	return {
-		contentTypes: manifests.flatMap((kind) => Object.keys(kind.accepts)),
-		ceilingLabel: manifests.map((kind) => `${kind.label}: up to ${kind.ceilingLabel}`).join(", "),
+		heading: uploadHeadingOf(kinds),
+		descriptions: uploadDescriptionsOf(kinds),
 		viewer: isSignedIn ? "member" : "guest",
 		showsGuestNotice: !isSignedIn,
 	};
 }
 
-export function acceptAttributeOf(kind: MediaKindManifest): string {
-	return Object.values(kind.accepts).flat().join(",");
+export function acceptAttributeOf(kinds: readonly MediaKindManifest[]): string {
+	return kinds.flatMap((kind) => Object.values(kind.accepts).flat()).join(",");
 }
