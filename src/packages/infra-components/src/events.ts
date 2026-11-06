@@ -1,5 +1,11 @@
 import { CandidateIdSchema, CrawlFailureReasonSchema, SaveAttemptIdSchema, UserIdSchema } from "@packages/article-state-types";
-import { MediaFailureReasonSchema, MediaKindNameSchema, PrivateItemUrlSchema, UploadIdSchema } from "@packages/media-contracts";
+import {
+	MediaFailureReasonSchema,
+	MediaInspectionFactsSchema,
+	MediaKindNameSchema,
+	PrivateItemUrlSchema,
+	UploadIdSchema,
+} from "@packages/media-contracts";
 import { z } from "zod";
 
 type EventDefinition<T extends z.ZodTypeAny> = {
@@ -1625,3 +1631,38 @@ export const MediaProcessingFailedEvent = defineEvent({
 	}),
 });
 export type MediaProcessingFailedDetail = z.infer<typeof MediaProcessingFailedEvent.detailSchema>;
+
+export const MediaUploadStagedEvent = defineEvent({
+	name: "media-upload-staged", source: "hutch.media", detailType: "MediaUploadStaged",
+	detailSchema: z.object({
+		uploadId: UploadIdSchema,
+		kind: MediaKindNameSchema,
+		mediaType: z.string().min(1),
+		fileName: z.string().min(1),
+		size: z.number().int().positive(),
+		etag: z.string().min(1),
+		stagedAt: z.string(),
+	}),
+});
+export type MediaUploadStagedDetail = z.infer<typeof MediaUploadStagedEvent.detailSchema>;
+
+export const MediaInspectedEvent = defineEvent({
+	name: "media-inspected", source: "hutch.media", detailType: "MediaInspected",
+	detailSchema: z.object({
+		uploadId: UploadIdSchema,
+		kind: MediaKindNameSchema,
+		facts: MediaInspectionFactsSchema,
+	}),
+});
+export type MediaInspectedDetail = z.infer<typeof MediaInspectedEvent.detailSchema>;
+
+export const MediaRejectedEvent = defineEvent({
+	name: "media-rejected", source: "hutch.media", detailType: "MediaRejected",
+	detailSchema: z.object({
+		uploadId: UploadIdSchema,
+		kind: MediaKindNameSchema,
+		reason: MediaFailureReasonSchema,
+		notice: z.string().min(1),
+	}),
+});
+export type MediaRejectedDetail = z.infer<typeof MediaRejectedEvent.detailSchema>;

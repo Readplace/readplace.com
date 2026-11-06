@@ -26,6 +26,7 @@ export const INBOX_DLQ_SOURCES = {
 
 export const MEDIA_BOOK_DLQ_SOURCES = {
 	processBook: "media-book-process-book",
+	inspectBook: "media-book-inspect-book",
 } as const;
 
 export const GMAIL_HISTORY_IMPORT_DLQ_SOURCES = {
@@ -67,7 +68,10 @@ export const INBOX_DLQ_SOURCE_QUEUES = {
 
 export const MEDIA_BOOK_DLQ_SOURCE_QUEUES = {
 	processBook: `${MEDIA_BOOK_DLQ_SOURCES.processBook}-q`,
+	inspectBook: `${MEDIA_BOOK_DLQ_SOURCES.inspectBook}-q`,
 } as const satisfies QueueNamesFor<typeof MEDIA_BOOK_DLQ_SOURCES>;
+
+export const INSPECT_BOOK_TIMEOUT_SECONDS = 120;
 
 export const GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES = {
 	pages: `${GMAIL_HISTORY_IMPORT_DLQ_SOURCES.pages}-q`,

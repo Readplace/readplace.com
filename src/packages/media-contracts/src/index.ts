@@ -13,3 +13,4 @@ export { defineMediaKind, type MediaKindManifest } from "./media-kind";
 export { BOOK } from "./kinds/book";
 export { MEDIA_KINDS, MediaKindNameSchema, type MediaKindName } from "./media-kinds";
 export { MediaFailureReasonSchema, type MediaFailureReason } from "./media-failure";
+export { MediaInspectionFactsSchema, type MediaInspectionFacts } from "./media-inspection-facts";

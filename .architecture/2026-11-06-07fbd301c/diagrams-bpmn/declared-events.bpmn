@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_declared_events" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_declared_events" name="declared-events" isExecutable="false">
+    <bpmn:serviceTask id="n_M" name="Media contracts: upload id, kind name, failure reason, inspection facts">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_S" name="MediaUploadStagedEvent">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="n_I" name="MediaInspectedEvent">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="n_R" name="MediaRejectedEvent">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="n_C" name="MediaUploadCommittedEvent">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="n_F" name="MediaProcessingFailedEvent">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="n_B" name="Shared event bus, source hutch.media">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_P" name="Media-book processor">
+      <bpmn:incoming>f_10</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_SF" name="Settle media failure (hutch)">
+      <bpmn:incoming>f_11</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_M" targetRef="n_S" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_M" targetRef="n_I" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_M" targetRef="n_R" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_M" targetRef="n_C" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_M" targetRef="n_F" />
+    <bpmn:sequenceFlow id="f_5" name="declared, unwired" sourceRef="n_S" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_6" name="declared, unwired" sourceRef="n_I" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_7" name="declared, unwired" sourceRef="n_R" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_C" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_F" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_10" name="MediaUploadCommitted" sourceRef="n_B" targetRef="n_P" />
+    <bpmn:sequenceFlow id="f_11" name="MediaProcessingFailed" sourceRef="n_B" targetRef="n_SF" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_declared_events">
+    <bpmndi:BPMNPlane id="Plane_declared_events" bpmnElement="Process_declared_events">
+      <bpmndi:BPMNShape id="n_M_di" bpmnElement="n_M">
+        <dc:Bounds x="28" y="225.75" width="197.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_S_di" bpmnElement="n_S">
+        <dc:Bounds x="336.54" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_I_di" bpmnElement="n_I">
+        <dc:Bounds x="336.54" y="122.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R_di" bpmnElement="n_R">
+        <dc:Bounds x="336.54" y="217" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="336.54" y="311.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_F_di" bpmnElement="n_F">
+        <dc:Bounds x="336.54" y="419.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_B_di" bpmnElement="n_B">
+        <dc:Bounds x="487.58" y="233.75" width="184.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_P_di" bpmnElement="n_P">
+        <dc:Bounds x="730.08" y="191.75" width="165" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SF_di" bpmnElement="n_SF">
+        <dc:Bounds x="734.83" y="275.75" width="155.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="225.5" y="259.75" />
+        <di:waypoint x="281.02" y="259.75" />
+        <di:waypoint x="281.02" y="48" />
+        <di:waypoint x="336.54" y="48" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="225.5" y="259.75" />
+        <di:waypoint x="281.02" y="259.75" />
+        <di:waypoint x="281.02" y="142.5" />
+        <di:waypoint x="336.54" y="142.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="225.5" y="259.75" />
+        <di:waypoint x="281.02" y="259.75" />
+        <di:waypoint x="281.02" y="237" />
+        <di:waypoint x="336.54" y="237" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="225.5" y="259.75" />
+        <di:waypoint x="281.02" y="259.75" />
+        <di:waypoint x="281.02" y="331.5" />
+        <di:waypoint x="336.54" y="331.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="225.5" y="259.75" />
+        <di:waypoint x="281.02" y="259.75" />
+        <di:waypoint x="281.02" y="439.5" />
+        <di:waypoint x="336.54" y="439.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="376.54" y="48" />
+        <di:waypoint x="432.06" y="48" />
+        <di:waypoint x="432.06" y="259.75" />
+        <di:waypoint x="487.58" y="259.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="376.54" y="142.5" />
+        <di:waypoint x="432.06" y="142.5" />
+        <di:waypoint x="432.06" y="259.75" />
+        <di:waypoint x="487.58" y="259.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="376.54" y="237" />
+        <di:waypoint x="432.06" y="237" />
+        <di:waypoint x="432.06" y="259.75" />
+        <di:waypoint x="487.58" y="259.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="376.54" y="331.5" />
+        <di:waypoint x="432.06" y="331.5" />
+        <di:waypoint x="432.06" y="259.75" />
+        <di:waypoint x="487.58" y="259.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="376.54" y="439.5" />
+        <di:waypoint x="432.06" y="439.5" />
+        <di:waypoint x="432.06" y="259.75" />
+        <di:waypoint x="487.58" y="259.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="672.08" y="259.75" />
+        <di:waypoint x="701.08" y="259.75" />
+        <di:waypoint x="701.08" y="215.75" />
+        <di:waypoint x="730.08" y="215.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="672.08" y="259.75" />
+        <di:waypoint x="703.46" y="259.75" />
+        <di:waypoint x="703.46" y="301.75" />
+        <di:waypoint x="734.83" y="301.75" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
