@@ -27,6 +27,15 @@ new S3ReadWrite("hutch-media-bucket", {
 		{ id: "pending", expirationDays: 2, prefixes: ["pending/"] },
 		{ id: "transcripts", expirationDays: 14, prefixes: ["transcripts/"] },
 	],
+	corsRules: [
+		{
+			allowedMethods: ["POST"],
+			allowedOrigins: ["*"],
+			allowedHeaders: ["*"],
+			exposeHeaders: ["ETag"],
+			maxAgeSeconds: 3600,
+		},
+	],
 });
 
 new aws.dynamodb.Table("hutch-media-table", {
