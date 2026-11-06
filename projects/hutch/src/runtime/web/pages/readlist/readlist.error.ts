@@ -16,6 +16,7 @@ import {
 } from "@packages/domain/readlist";
 import type { Request } from "express";
 import { z } from "zod";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 export const SAVE_FAILED_MESSAGE = "Couldn't save this article. Try again.";
 
@@ -92,7 +93,7 @@ export const READLIST_RENAME_REJECTIONS: Record<ReadlistRenameRejection, { messa
 
 export const READLIST_UNKNOWN_ARTICLE_MESSAGE = "That article isn't in this readlist.";
 
-export const READLIST_PURPOSE_INVALID_MESSAGE = `Say what this readlist is for, in up to ${new Intl.NumberFormat("en-US").format(READLIST_PURPOSE_MAX_LENGTH)} characters.`;
+export const READLIST_PURPOSE_INVALID_MESSAGE = `Say what this readlist is for, in up to ${new Intl.NumberFormat(DEFAULT_LOCALE).format(READLIST_PURPOSE_MAX_LENGTH)} characters.`;
 
 export type HttpErrorMessageMapping = (query: Record<string, unknown>) => string | undefined;
 

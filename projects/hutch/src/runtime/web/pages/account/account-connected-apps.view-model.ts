@@ -14,6 +14,7 @@ import type { NativeClientPlatform } from "../../onboarding/native-client";
 import { findRosterAssistant } from "../../shared/assistant-roster";
 import { FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE } from "../../shared/client-surface-phrases";
 import { buildConnectedAppDisconnectUrl } from "./account.url";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 const ACCOUNT_SOURCE = "account";
 
@@ -102,7 +103,7 @@ const OS_LABEL = {
 	other: undefined,
 } satisfies Record<SignInOs, string | undefined>;
 
-const REGION_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
+const REGION_NAMES = new Intl.DisplayNames([DEFAULT_LOCALE], { type: "region" });
 
 const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set(["127.0.0.1", "[::1]"]);
 

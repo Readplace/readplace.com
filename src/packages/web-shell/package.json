@@ -48,6 +48,7 @@
   "dependencies": {
     "@packages/provider-contracts": "workspace:*",
     "@packages/supported-clients": "workspace:*",
+    "@packages/translations": "workspace:*",
     "@packages/ui-icons": "workspace:*",
     "@packages/web-session": "workspace:*",
     "handlebars": "4.7.9",

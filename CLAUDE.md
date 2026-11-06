@@ -128,6 +128,24 @@ Where a handler marks, the reader sees today's failure state. The message is the
 
 AWS documents the redrive at https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-configure-dead-letter-queue-redrive.html.
 
+### User-facing copy comes from the translation files
+
+Readplace serves en-US today and will add en-AU and other languages. A literal string in a template, view model, email or Siren title cannot be translated, and one key missing from one locale ships a blank or English string to every reader of that locale. Copy therefore lives in the translations workspace package (`pnpm nx show projects` names it; its README table lists each surface and its purpose), whose types make every supported locale carry every key with the same `{name}` placeholders.
+
+| Where | How copy reaches the reader |
+|---|---|
+| A template | `{{t "page.component.element" name=value}}` — an unknown key fails the render |
+| TypeScript, for copy chosen by state | `t()` / `tPlural()` from a translator bound once to the surface, arriving through the template's existing `{{vm.field}}` |
+
+- Never write a literal label, sentence, `aria-label`, `placeholder`, `title`, `alt` or meta description in a migrated surface. The brand name and server-supplied text are not copy to translate.
+- Adding or changing a key means deciding its value for every locale in the supported-locale list (grep the package for `SUPPORTED_LOCALES`).
+- Values never contain HTML. A sentence split around a link becomes `before` / `link` / `after` keys with the `<a>` kept in the template. Plurals are `one` / `other` sub-keys chosen with `Intl.PluralRules`, used only where the code compared a cardinal count `=== 1`.
+- Store a code, never a sentence: a row is shared by readers of every locale.
+- Read a locale tag from `DEFAULT_LOCALE` instead of writing `"en"` or `"en-US"`. A tag that is part of a contract (crawler `accept-language`, `en_US_POSIX` date parsing, `localeCompare` sorts) stays as written.
+- Each web deployable's `copy.test.ts` runs the copy checker over the directories it lists as migrated and fails on literal copy left in a template. Do not extend a checker's exempt list without the human's approval.
+
+Not translated by design: the home, landing, help, support, terms and privacy prose pages and the import FAQ; store and manifest metadata; admin pages and operator dashboards; MCP and WebMCP text; agent documents (`llms.txt`, `llms-full.txt`, `auth.md`, skills); blog posts; log lines; protocol text such as HTTP reason phrases and JSON-RPC bodies.
+
 ## Architecture Guidelines
 
 ### Brand & Design Guidelines

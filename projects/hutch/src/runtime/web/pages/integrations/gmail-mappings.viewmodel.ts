@@ -43,6 +43,7 @@ import {
 	GMAIL_SENDER_REMOVE_PATH,
 	type GmailPickerState,
 } from "./gmail.url";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 export type GmailMappingDestination =
 	| { kind: "readlist"; readlists: readonly ReadlistRef[] }
@@ -218,7 +219,7 @@ function importCounts(summary: GmailHistoryImportSummary | undefined): GmailImpo
 	const shown = summary.status === "cancelled"
 		? [...SETTLED_COUNTS, ["cancelled", "cancelled", "cancelled"] as const]
 		: SETTLED_COUNTS;
-	return shown.map(([key, field, label]) => ({ key, label: `${summary.counts[field].toLocaleString("en")} ${label}` }));
+	return shown.map(([key, field, label]) => ({ key, label: `${summary.counts[field].toLocaleString(DEFAULT_LOCALE)} ${label}` }));
 }
 
 function resolveEntry(entry: InboxAddressEntry, readlists: readonly ReadlistRef[]): ReadlistRef {
@@ -367,7 +368,7 @@ function markBackfillCounts(counts: GmailMarkBackfillCounts): GmailMarkBackfillC
 		["not-saved", notSaved, notSaved === 1 ? "not fully saved to Readplace, left as it is" : "not fully saved to Readplace, left as they are"],
 		["failed", counts.failed, "couldn't be updated"],
 	];
-	return lines.filter(([, count]) => count > 0).map(([key, count, label]) => ({ key, label: `${count.toLocaleString("en")} ${label}` }));
+	return lines.filter(([, count]) => count > 0).map(([key, count, label]) => ({ key, label: `${count.toLocaleString(DEFAULT_LOCALE)} ${label}` }));
 }
 
 function markBackfill(input: {

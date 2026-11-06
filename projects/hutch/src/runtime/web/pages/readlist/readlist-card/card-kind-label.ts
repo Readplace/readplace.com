@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { ItemMedia, Minutes } from "@packages/domain/article";
+import type { DisplayableReadTime, ItemMedia, Minutes } from "@packages/domain/article";
 import { MEDIA_KINDS, type MediaKindName } from "@packages/media-contracts";
 import type { IconName } from "@packages/ui-icons";
 
@@ -10,9 +10,17 @@ export interface CardKind {
 	icon: IconName;
 }
 
-type KindLabel = (input: { label: string; estimatedReadTime: Minutes; wordCount: number; sectionCount: number | undefined }) => string;
+interface KindLabelInput {
+	label: string;
+	estimatedReadTime: Minutes;
+	wordCount: number;
+	sectionCount: number | undefined;
+	readTime: DisplayableReadTime | undefined;
+}
 
-const KIND_BADGE_ICON: Record<MediaKindName, IconName> = { book: "book" };
+type KindLabel = (input: KindLabelInput) => string;
+
+const KIND_BADGE_ICON: Record<MediaKindName, IconName> = { book: "book", audio: "file" };
 
 export function hoursAndMinutesRead(minutes: Minutes): string {
 	const hours = Math.floor(minutes / 60);
@@ -27,22 +35,18 @@ const CARD_KIND_LABEL: Record<MediaKindName, KindLabel> = {
 		[label, sectionCount === undefined ? undefined : `${sectionCount} ${sectionCount === 1 ? "chapter" : "chapters"}`, wordCount > 0 ? hoursAndMinutesRead(estimatedReadTime) : undefined]
 			.filter((part) => part !== undefined)
 			.join(" · "),
+	audio: ({ label, readTime }) => [label, readTime?.label].filter((part) => part !== undefined).join(" · "),
 };
 
-export function cardKindOf(
-	article: { media?: ItemMedia; metadata: { wordCount: number }; estimatedReadTime: Minutes },
-): { kind: CardKind; kindLabel: string } | undefined {
+export function cardKindOf(article: { media?: ItemMedia }): { kind: CardKind } | undefined {
 	if (article.media === undefined) return undefined;
 	const name = article.media.kind;
 	const manifest = MEDIA_KINDS.get(name);
 	assert(manifest, `no media kind manifest for ${name}`);
-	return {
-		kind: { name, label: manifest.label, noun: manifest.label.toLowerCase(), icon: KIND_BADGE_ICON[name] },
-		kindLabel: CARD_KIND_LABEL[name]({
-			label: manifest.label,
-			estimatedReadTime: article.estimatedReadTime,
-			wordCount: article.metadata.wordCount,
-			sectionCount: article.media.sectionCount,
-		}),
-	};
+	return { kind: { name, label: manifest.label, noun: manifest.label.toLowerCase(), icon: KIND_BADGE_ICON[name] } };
+}
+
+export function cardKindLabel(input: Omit<KindLabelInput, "label"> & { kind: CardKind }): string {
+	const { kind, ...rest } = input;
+	return CARD_KIND_LABEL[kind.name]({ ...rest, label: kind.label });
 }

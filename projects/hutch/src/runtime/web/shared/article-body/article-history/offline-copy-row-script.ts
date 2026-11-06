@@ -4,6 +4,7 @@ import {
 	OFFLINE_COPY_PATH_ATTRIBUTE,
 	OFFLINE_COPY_SAVED_AT_ATTRIBUTE,
 } from "../../offline-reader/offline-cache";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 export const offlineCopyRowScript = (cspNonce: CspNonce) => `<script nonce="${cspNonce}">
 (function () {
@@ -12,11 +13,11 @@ export const offlineCopyRowScript = (cspNonce: CspNonce) => `<script nonce="${cs
 	var cardAttribute = "data-offline-copy-card";
 	var versionsSelector = "[data-article-history-versions]";
 	function dateLabel(iso) {
-		return new Date(iso).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "${SERVER_TIME_ZONE}" });
+		return new Date(iso).toLocaleString("${DEFAULT_LOCALE}", { day: "numeric", month: "short", year: "numeric", timeZone: "${SERVER_TIME_ZONE}" });
 	}
 	function timeLabel(iso) {
 		var parts = {};
-		new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "${SERVER_TIME_ZONE}" })
+		new Intl.DateTimeFormat("${DEFAULT_LOCALE}", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "${SERVER_TIME_ZONE}" })
 			.formatToParts(new Date(iso))
 			.forEach(function (part) { parts[part.type] = part.value; });
 		return parts.hour + ":" + parts.minute + " " + parts.dayPeriod;
