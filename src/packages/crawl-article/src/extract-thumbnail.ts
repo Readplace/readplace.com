@@ -5,6 +5,7 @@ import type { ThumbnailCascade, ThumbnailImage } from "./crawl-article.types";
 import { initLogFetchFailure, type LogFetchFailure } from "./log-fetch-failure";
 import { BodyTooLargeError, readBodyWithCap } from "./read-capped-body";
 import { describeRejection } from "./describe-rejection";
+import { sniffImageContentType } from "./image-formats";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
 export const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
@@ -130,6 +131,11 @@ function outcomeForAbsentStatus(status: number): CandidateOutcome {
 	return UNPROVEN;
 }
 
+function resolveThumbnailContentType(params: { headerContentType: string; body: Buffer }): string | undefined {
+	if (params.headerContentType.startsWith("image/")) return params.headerContentType;
+	return sniffImageContentType(params.body);
+}
+
 async function tryFetchImage(args: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
@@ -151,17 +157,18 @@ async function tryFetchImage(args: {
 			logFetchFailure({ status: response.status, message });
 			return outcomeForAbsentStatus(response.status);
 		}
-		const contentType = response.headers.get("content-type") ?? "";
-		if (!contentType.startsWith("image/")) {
-			logError(`[CrawlArticle] Thumbnail unexpected Content-Type "${contentType}" for ${url}`);
-			return PROVEN_UNUSABLE;
-		}
 		const contentLength = response.headers.get("content-length");
 		if (contentLength && Number.parseInt(contentLength, 10) > MAX_THUMBNAIL_BYTES) {
 			logError(`[CrawlArticle] Thumbnail too large (${contentLength} bytes) for ${url}`);
 			return PROVEN_UNUSABLE;
 		}
 		const body = await readBodyWithCap(response, MAX_THUMBNAIL_BYTES);
+		const headerContentType = response.headers.get("content-type") ?? "";
+		const contentType = resolveThumbnailContentType({ headerContentType, body });
+		if (contentType === undefined) {
+			logError(`[CrawlArticle] Thumbnail unexpected Content-Type "${headerContentType}" for ${url}`);
+			return PROVEN_UNUSABLE;
+		}
 		return {
 			verdict: "image",
 			image: { body, contentType, url, extension: extensionFromContentType({ contentType, url }) },
