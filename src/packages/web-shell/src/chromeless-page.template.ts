@@ -1,7 +1,8 @@
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { HtmxLoaded } from "./htmx-script";
 
 export const CHROMELESS_TEMPLATE = `<!DOCTYPE html>
-<html lang="en-AU">
+<html lang="${DEFAULT_LOCALE}">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { JSDOM } from "jsdom";
 import { initChromelessPage } from "./chromeless-page";
 import type { ChromelessBannerState } from "./chromeless-page";
@@ -48,6 +49,12 @@ function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 }
 
 describe("ChromelessPage", () => {
+	it("declares the default locale as the document language", () => {
+		const doc = new JSDOM(ChromelessPage(createTestPageBody(), NO_BANNER).to("text/html").body).window.document;
+
+		expect(doc.documentElement.getAttribute("lang")).toBe(DEFAULT_LOCALE);
+	});
+
 	it("pins the dark theme class on the body when the app supplies a dark appearance preference", () => {
 		const result = ChromelessPage(createTestPageBody(), { cspNonce: CSP_NONCE, appearance: "dark" }).to(
 			"text/html",

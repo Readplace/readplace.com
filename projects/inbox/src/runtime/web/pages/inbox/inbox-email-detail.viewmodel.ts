@@ -46,6 +46,7 @@ import {
 	type ReadlistFitOverridesByReadlist,
 } from "./inbox-readlist-fit";
 import { buildMailTabs, type MailTab } from "./mail-tabs";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 /** Initial poll count for a card on first page render: the first htmx tick then
  * requests `?poll=1` and the poll route increments from there. */
@@ -337,7 +338,7 @@ function readlistLines(input: {
 	return lines;
 }
 
-const ISSUE_DESTINATIONS = new Intl.ListFormat("en", { type: "conjunction" });
+const ISSUE_DESTINATIONS = new Intl.ListFormat(DEFAULT_LOCALE, { type: "conjunction" });
 
 function issueSaveNotice(
 	issueSave: NonNullable<InboxEmailLinksMeta["issueSave"]>,

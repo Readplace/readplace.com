@@ -4,6 +4,7 @@ import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { buildLockableGmailConnectionPrompt } from "./gmail-connection-prompt";
 import type { GmailFormAction } from "./gmail-form-fields";
 import { GMAIL_DISCOVERY_FAST_POLLS, GMAIL_DISCOVERY_MAX_POLLS } from "./gmail.url";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 export interface GmailSenderStatusViewModel {
 	discoveryState: string;
@@ -41,7 +42,7 @@ export interface GmailSenderStatusInput {
 }
 
 function checkedLabel(count: number, suffix: string): string {
-	return `Checked ${count.toLocaleString("en")} ${count === 1 ? "message" : "messages"}${suffix}`;
+	return `Checked ${count.toLocaleString(DEFAULT_LOCALE)} ${count === 1 ? "message" : "messages"}${suffix}`;
 }
 
 function checkingForNewMessages(input: GmailSenderStatusInput): boolean {
@@ -67,7 +68,7 @@ function discoveryStatus(input: GmailSenderStatusInput, discovering: boolean): {
 		};
 	}
 	const discovered = input.discoveredCount;
-	return { lead: `${discovered.toLocaleString("en")} ${discovered === 1 ? "sender" : "senders"} discovered · `, checked: checkedLabel(count, "") };
+	return { lead: `${discovered.toLocaleString(DEFAULT_LOCALE)} ${discovered === 1 ? "sender" : "senders"} discovered · `, checked: checkedLabel(count, "") };
 }
 
 function discoveryPollTrigger(nextPoll: number): "every 3s" | "every 15s" {
@@ -77,7 +78,7 @@ function discoveryPollTrigger(nextPoll: number): "every 3s" | "every 15s" {
 function refreshActions(input: { listed: number | undefined; knownCount: number }): { label: string }[] {
 	if (input.listed === undefined || input.knownCount <= input.listed) return [];
 	const found = input.knownCount - input.listed;
-	return [{ label: `Show ${found.toLocaleString("en")} newly found ${found === 1 ? "newsletter" : "newsletters"}` }];
+	return [{ label: `Show ${found.toLocaleString(DEFAULT_LOCALE)} newly found ${found === 1 ? "newsletter" : "newsletters"}` }];
 }
 
 export function toGmailSenderStatus(input: GmailSenderStatusInput): GmailSenderStatusViewModel {
