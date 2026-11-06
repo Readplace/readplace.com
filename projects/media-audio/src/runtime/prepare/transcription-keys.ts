@@ -1,4 +1,6 @@
+import assert from "node:assert";
 import { MediaUploadCommittedEvent } from "@packages/infra-components";
+import { type UploadId, UploadIdSchema } from "@packages/media-contracts";
 import { z } from "zod";
 
 export const ChargedCommittedDetailSchema =
@@ -15,8 +17,8 @@ export const JobRequestSchema = z.object({
 	attempt: z.number().int().positive(),
 	kind: z.string(),
 	url: z.string(),
-	userId: z.string(),
-	saveAttemptId: z.string(),
+	userId: MediaUploadCommittedEvent.detailSchema.shape.userId,
+	saveAttemptId: MediaUploadCommittedEvent.detailSchema.shape.saveAttemptId,
 	fileName: z.string(),
 	durationSeconds: z.number().int().positive(),
 });
@@ -30,6 +32,16 @@ export function transcriptsKeyPrefix(uploadId: string): string {
 
 export function transcriptionJobName(ref: JobRef): string {
 	return `rp-${ref.uploadId}-${ref.attempt}`;
+}
+
+const JOB_NAME_PATTERN = /^rp-([0-9a-f]{32})-([1-9][0-9]*)$/;
+
+export function parseTranscriptionJobName(
+	jobName: string,
+): { uploadId: UploadId; attempt: number } {
+	const match = JOB_NAME_PATTERN.exec(jobName);
+	assert(match, `Not a transcription job name: ${jobName}`);
+	return { uploadId: UploadIdSchema.parse(match[1]), attempt: Number(match[2]) };
 }
 
 export function transcriptionInputKey(

@@ -13,6 +13,8 @@ import { MEDIA_AUDIO_FAILURES_DLQ_ENV } from "./media-audio-failures-dlq.env";
 import { initKeepAudioDlqHandler } from "./keep-audio/media-audio-failures-dlq-handler";
 import { initWriteMinimalAudioBody } from "./minimal-body/write-minimal-audio-body";
 import { initPrepareTranscriptionDlqHandler } from "./prepare/prepare-transcription-dlq-handler";
+import { initFindReleasedTranscript } from "./render/find-released-transcript";
+import { initRenderTranscriptDlqHandler } from "./render/render-transcript-dlq-handler";
 import { initS3TranscriptFiles } from "./s3/s3-transcript-files";
 import { initTranscribeJobs } from "./transcribe/transcribe-jobs";
 
@@ -34,7 +36,8 @@ const { readJobRequest, deletePrefix } = initS3TranscriptFiles({
 	client: s3Client,
 	bucketName: env.MEDIA_BUCKET_NAME,
 });
-const { refundTranscriptCharge } = initDynamoDbTranscriptLedger({
+const { refundTranscriptCharge, settleTranscriptCharge } =
+	initDynamoDbTranscriptLedger({
 	client: dynamoClient,
 	tableName: env.MEDIA_TABLE_NAME,
 	now: () => new Date(),
@@ -48,6 +51,10 @@ const { getTranscriptionJob } = initTranscribeJobs({
 const { putTierSource } = initPutTierSource({
 	client: s3Client,
 	bucketName: env.CONTENT_BUCKET_NAME,
+});
+const writeMinimalAudioBody = initWriteMinimalAudioBody({
+	putTierSource,
+	publishEvent,
 });
 
 export const handler = initDeadLetterRouter({
@@ -63,10 +70,19 @@ export const handler = initDeadLetterRouter({
 				refundTranscriptCharge,
 				readJobRequest,
 				deletePrefix,
-				writeMinimalAudioBody: initWriteMinimalAudioBody({
-					putTierSource,
-					publishEvent,
+				writeMinimalAudioBody,
+				logger,
+			}),
+		[MEDIA_AUDIO_DLQ_SOURCE_QUEUES.renderTranscript]:
+			initRenderTranscriptDlqHandler({
+				findReleasedTranscript: initFindReleasedTranscript({
+					readJobRequest,
+					findArticleMedia,
+					settleTranscriptCharge,
+					deletePrefix,
 				}),
+				writeMinimalAudioBody,
+				settleTranscriptCharge,
 				logger,
 			}),
 	},

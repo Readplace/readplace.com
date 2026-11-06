@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import * as pulumi from "@pulumi/pulumi";
 import {
 	attachDlqConsumer,
+	AwsServiceEventRule,
 	DynamoDBAccess,
 	EventBus,
 	Lambda,
@@ -11,10 +12,11 @@ import {
 	Sqs,
 	SqsBackedLambda,
 } from "@packages/infra-components/infra";
-import { MEDIA_AUDIO_DLQ_SOURCES, MediaUploadCommittedEvent } from "@packages/infra-components";
+import { MEDIA_AUDIO_DLQ_SOURCES, MediaUploadCommittedEvent, TranscribeJobStateChangedEvent } from "@packages/infra-components";
 import { KEEP_AUDIO_ENV } from "../runtime/keep-audio.env";
 import { MEDIA_AUDIO_FAILURES_DLQ_ENV } from "../runtime/media-audio-failures-dlq.env";
 import { PREPARE_TRANSCRIPTION_ENV } from "../runtime/prepare-transcription.env";
+import { RENDER_TRANSCRIPT_ENV } from "../runtime/render-transcript.env";
 import { z } from "zod";
 
 const MEDIA_AUDIO_FAILURES_DLQ = "media-audio-failures";
@@ -168,6 +170,56 @@ eventBus.grantPublish(prepareTranscriptionLambda);
 eventBus.subscribe(MediaUploadCommittedEvent, prepareTranscription, {
 	name: "media-audio-prepare-transcription",
 	detail: { kind: ["audio"] },
+});
+
+const RENDER_TRANSCRIPT_TIMEOUT_SECONDS = 120;
+
+const renderTranscriptLedgerDynamodb = new DynamoDBAccess("media-audio-render-transcript-ledger-dynamodb", {
+	tables: [{ arn: mediaTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const renderTranscriptLambda = new Lambda(MEDIA_AUDIO_DLQ_SOURCES.renderTranscript, {
+	entryPoint: "./src/runtime/render-transcript.main.ts",
+	outputDir: ".lib/media-audio-render-transcript",
+	assetDir: "./src/runtime",
+	memorySize: 1024,
+	timeout: RENDER_TRANSCRIPT_TIMEOUT_SECONDS,
+	environmentNames: RENDER_TRANSCRIPT_ENV,
+	environment: transcriptionEnvironment,
+	policies: [
+		{
+			name: "media-audio-render-transcript-s3",
+			policy: JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [{ Effect: "Allow", Action: ["s3:GetObject", "s3:DeleteObject"], Resource: transcriptsObjects }, mediaBucketList],
+			}),
+		},
+		...S3ReadWrite.readPoliciesForBucket("media-audio-render-transcript-content-read", contentBucketName),
+		...S3ReadWrite.writePoliciesForBucket("media-audio-render-transcript-content-write", contentBucketName),
+		...renderTranscriptLedgerDynamodb.policies,
+		...articleReadDynamodb.policies,
+	],
+});
+
+const renderTranscriptQueue = new Sqs(MEDIA_AUDIO_DLQ_SOURCES.renderTranscript, {
+	visibilityTimeoutSeconds: 2 * RENDER_TRANSCRIPT_TIMEOUT_SECONDS,
+	dlqMaxReceiveCount: 2,
+	sharedDlq: failuresDlq,
+});
+
+const renderTranscript = new SqsBackedLambda(MEDIA_AUDIO_DLQ_SOURCES.renderTranscript, {
+	lambda: renderTranscriptLambda,
+	queue: renderTranscriptQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.grantPublish(renderTranscriptLambda);
+AwsServiceEventRule.create(MEDIA_AUDIO_DLQ_SOURCES.renderTranscript, {
+	event: TranscribeJobStateChangedEvent,
+	detail: { TranscriptionJobStatus: ["COMPLETED", "FAILED"], TranscriptionJobName: [{ prefix: "rp-" }] },
+	target: renderTranscript,
 });
 
 const failuresDlqLambda = new Lambda(`${MEDIA_AUDIO_FAILURES_DLQ}-dlq`, {

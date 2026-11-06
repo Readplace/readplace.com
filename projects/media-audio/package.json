@@ -20,6 +20,7 @@
     "@aws-sdk/s3-request-presigner": "3.1057.0",
     "@packages/article-store": "workspace:*",
     "@packages/dead-letter-routing": "workspace:*",
+    "@packages/domain": "workspace:*",
     "@packages/infra-components": "workspace:*",
     "@packages/logger": "workspace:*",
     "@packages/storage-client": "workspace:*",

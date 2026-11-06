@@ -77,6 +77,17 @@ export function initS3TranscriptFiles(deps: {
 		);
 	};
 
+	const readTranscriptOutput = async ({
+		key,
+	}: {
+		key: string;
+	}): Promise<unknown> => {
+		const response = await deps.client.send(
+			new GetObjectCommand({ Bucket: deps.bucketName, Key: key }),
+		);
+		return JSON.parse((await response.Body?.transformToString()) ?? "null");
+	};
+
 	const deletePrefix = async (prefix: string): Promise<void> => {
 		const listed = await deps.client.send(
 			new ListObjectsV2Command({ Bucket: deps.bucketName, Prefix: prefix }),
@@ -98,6 +109,7 @@ export function initS3TranscriptFiles(deps: {
 		putTranscriptFile,
 		putJobRequest,
 		readJobRequest,
+		readTranscriptOutput,
 		deletePrefix,
 	};
 }

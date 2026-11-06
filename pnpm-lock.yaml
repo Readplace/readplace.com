@@ -809,6 +809,9 @@ importers:
       '@packages/dead-letter-routing':
         specifier: workspace:*
         version: link:../../src/packages/dead-letter-routing
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../../src/packages/domain
       '@packages/infra-components':
         specifier: workspace:*
         version: link:../../src/packages/infra-components

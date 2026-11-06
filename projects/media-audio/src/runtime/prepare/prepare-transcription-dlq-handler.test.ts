@@ -31,7 +31,7 @@ const SIDECAR: JobRequest = {
 	attempt: 1,
 	kind: "audio",
 	url: DETAIL.url,
-	userId: "user-1",
+	userId: DETAIL.userId,
 	saveAttemptId: DETAIL.saveAttemptId,
 	fileName: "sidecar.mp3",
 	durationSeconds: 540,

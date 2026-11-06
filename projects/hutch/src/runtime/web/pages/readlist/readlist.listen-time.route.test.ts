@@ -41,13 +41,18 @@ const SirenCollection = z.looseObject({
 	),
 });
 
+const TRANSCRIPT_HTML =
+	'<h2>00:00</h2><p><a href="?t=0">00:00</a> Welcome to the talk.</p><h2>05:00</h2><p><a href="?t=300">05:00</a> The second part begins.</p>';
+
 const useApp = useTestServer();
 
 async function appWithOwnersEnclosure() {
 	return appWithOwnersAudio("ready");
 }
 
-async function appWithOwnersAudio(audioCrawl: "ready" | "pending") {
+async function appWithOwnersAudio(
+	audioCrawl: "ready" | "pending" | "transcript",
+) {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const harness = useApp(fixture);
 	const owner = await harness.auth.createUser(OWNER);
@@ -68,7 +73,13 @@ async function appWithOwnersAudio(audioCrawl: "ready" | "pending") {
 			savedAt,
 		});
 		if (url === AUDIO_URL && audioCrawl === "pending") continue;
-		await fixture.articleStore.writeContent({ url, content: "<p>Body.</p>" });
+		await fixture.articleStore.writeContent({
+			url,
+			content:
+				url === AUDIO_URL && audioCrawl === "transcript"
+					? TRANSCRIPT_HTML
+					: "<p>Body.</p>",
+		});
 		await fixture.articleCrawl.markCrawlReady({ url });
 	}
 	await fixture.articleStore.recordItemOwner({
@@ -132,6 +143,19 @@ describe("an owned enclosure in the reader", () => {
 			player?.querySelector("audio[data-player-audio]")?.getAttribute("src"),
 		).toBe(`/queue/${AUDIO_ID}/enclosure`);
 		expect(headerReadTime(response.text)).toBe("47 min listen");
+	});
+
+	it("serves the rendered transcript with its five-minute headings and seek links", async () => {
+		const { signIn } = await appWithOwnersAudio("transcript");
+		const agent = await signIn(OWNER);
+
+		const response = await agent
+			.get(`/queue/${AUDIO_ID}/view`)
+			.set(BROWSER_REQUEST_HEADERS);
+
+		const body = documentOf(response.text).querySelector("[data-article-body]");
+		expect(body?.querySelector("h2#section-05-00")?.textContent).toBe("05:00");
+		expect(body?.querySelector('a[href="?t=300"]')?.textContent).toBe("05:00");
 	});
 
 	it("keeps the player outside the pending reader slot while the body is still being prepared", async () => {

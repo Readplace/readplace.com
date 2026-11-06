@@ -200,6 +200,26 @@ describe("initPrepareContentSelection", () => {
 		expect(result).toMatchObject({ outcome: "selected", selectionRule: "first-capture" });
 	});
 
+	it("serves a rendered audio transcript as its private item's first content without consulting the judge", async () => {
+		const audioUrl = "https://uploads.readplace.invalid/fedcba9876543210fedcba9876543210";
+		const html = '<h2>00:00</h2><p><a href="?t=0">00:00</a> Welcome to the show.</p><h2>05:00</h2><p><a href="?t=300">05:00</a> Later on.</p>';
+		const transcript: VerifiedTierSource = {
+			tier: "tier-0", html,
+			metadata: candidateProvenance({
+				metadata: { title: "episode-12", siteName: "Audio", excerpt: "Welcome to the show.", wordCount: 6, estimatedReadTime: 7 },
+				html, evaluationHtml: html, attemptId: FRESH, originalUrl: audioUrl, sourceUrl: audioUrl, kind: "extension", fetchedAt: NOW,
+			}),
+		};
+		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+		const { prepare } = setup({ listAvailableTierSources: async () => [transcript], resolveOriginalUrl: async () => audioUrl, selectMostCompleteContent: select });
+
+		const result = await prepare({ url: audioUrl, candidates: [{ tier: "tier-0", id: transcript.metadata.id }] });
+
+		expect(select).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "first-capture" });
+		expect(result.selected?.html).toBe(html);
+	});
+
 	it.each([
 		{ capture: "tap capture taken on a wrapper host", build: wrapperHostCapture },
 		{ capture: "automatic capture of the article's own host under 100 words", build: () => withWordCount(automaticCapture(), 99) },
