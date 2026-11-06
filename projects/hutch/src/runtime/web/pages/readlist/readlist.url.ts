@@ -173,10 +173,6 @@ export function readlistPreferencesInboxesPath(readlist: ReadlistSlug): string {
 	return `${readlistPreferencesPath(readlist)}/inboxes`;
 }
 
-export function readlistPreferencesEmailDeliveryPath(readlist: ReadlistSlug): string {
-	return `${readlistPreferencesPath(readlist)}/email-delivery`;
-}
-
 export function readlistFitOverrideDeletePath(readlist: ReadlistSlug, id: ReadlistFitOverrideId): string {
 	return `${readlistPreferencesPath(readlist)}/overrides/${encodeURIComponent(id)}/delete`;
 }

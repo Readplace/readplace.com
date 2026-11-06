@@ -5,7 +5,7 @@ import { buildReadlistCountsUrl, buildReadlistUrl, READLIST_PATH } from "./readl
 
 /** Long enough to read the message and reach for Undo, short enough not to
  * linger; the global toast.client script removes it after this delay. */
-const STATUS_TOAST_DISMISS_MS = 6000;
+export const STATUS_TOAST_DISMISS_MS = 6000;
 
 interface StatusToastModel {
 	message: string;

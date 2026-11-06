@@ -36,8 +36,8 @@ describe("buildReaderReadlistFiling", () => {
 		const filing = buildReaderReadlistFiling({
 			articleId: "abc123",
 			definitions: [
-				{ slug: WORK, label: "Work", emailDelivery: "links", createdAt: new Date("2026-08-01T00:00:00.000Z") },
-				{ slug: LATER, label: "Later", emailDelivery: "links", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+				{ slug: WORK, label: "Work", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+				{ slug: LATER, label: "Later", createdAt: new Date("2026-08-01T00:00:00.000Z") },
 			],
 			saves: [{}, { readlist: WORK }],
 			returnTo: "/queue/abc123/view",
@@ -62,8 +62,8 @@ describe("buildReaderReadlistFiling", () => {
 		const filing = buildReaderReadlistFiling({
 			articleId: "abc123",
 			definitions: [
-				{ slug: WORK, label: "Work", emailDelivery: "links", createdAt: new Date("2026-08-01T00:00:00.000Z") },
-				{ slug: LATER, label: "Later", emailDelivery: "links", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+				{ slug: WORK, label: "Work", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+				{ slug: LATER, label: "Later", createdAt: new Date("2026-08-01T00:00:00.000Z") },
 			],
 			saves: [{}, { readlist: WORK }, { readlist: LATER }],
 			returnTo: "/queue/abc123/view",
@@ -87,7 +87,6 @@ describe("buildReaderReadlistFiling", () => {
 		const definitions = Array.from({ length: READLIST_MAX_PER_USER }, (_unused, index) => ({
 			slug: ReadlistSlugSchema.parse(`readlist${index}`),
 			label: `Readlist ${index}`,
-			emailDelivery: "links" as const,
 			createdAt: new Date("2026-08-01T00:00:00.000Z"),
 		}));
 
@@ -110,8 +109,8 @@ describe("buildReaderReadlistFiling", () => {
 		const filing = buildReaderReadlistFiling({
 			articleId: "abc123",
 			definitions: [
-				{ slug: WORK, label: "Work", emailDelivery: "links", createdAt: new Date("2026-08-01T00:00:00.000Z") },
-				{ slug: LATER, label: "Later", emailDelivery: "links", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+				{ slug: WORK, label: "Work", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+				{ slug: LATER, label: "Later", createdAt: new Date("2026-08-01T00:00:00.000Z") },
 			],
 			saves: [{}, { readlist: LATER }],
 			returnTo: "/queue/abc123/view",
@@ -129,8 +128,8 @@ describe("buildReaderReadlistFiling", () => {
 		const filing = buildReaderReadlistFiling({
 			articleId: "abc123",
 			definitions: [
-				{ slug: WORK, label: "Work", emailDelivery: "links", createdAt: new Date("2026-08-01T00:00:00.000Z") },
-				{ slug: LATER, label: "Later", emailDelivery: "links", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+				{ slug: WORK, label: "Work", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+				{ slug: LATER, label: "Later", createdAt: new Date("2026-08-01T00:00:00.000Z") },
 			],
 			saves: [{ readlist: WORK }],
 			returnTo: "/queue/abc123/view",
@@ -145,8 +144,8 @@ describe("buildReaderReadlistFiling", () => {
 	describe("filing toast", () => {
 		const DEEP_WORK = ReadlistSlugSchema.parse("deep-work");
 		const DEFINITIONS = [
-			{ slug: DEEP_WORK, label: "Deep Work", emailDelivery: "links" as const, createdAt: new Date("2026-08-01T00:00:00.000Z") },
-			{ slug: LATER, label: "Later", emailDelivery: "links" as const, createdAt: new Date("2026-08-01T00:00:00.000Z") },
+			{ slug: DEEP_WORK, label: "Deep Work", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+			{ slug: LATER, label: "Later", createdAt: new Date("2026-08-01T00:00:00.000Z") },
 		];
 
 		it("confirms the filing the flash names, with an Undo that takes the article back out", () => {
