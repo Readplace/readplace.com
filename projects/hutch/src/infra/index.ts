@@ -588,6 +588,19 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 				],
 			}),
 		},
+		{
+			name: "web-media-objects-read",
+			policy: JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [
+					{
+						Effect: "Allow",
+						Action: ["s3:GetObject"],
+						Resource: `arn:aws:s3:::${mediaBucketName}/objects/*`,
+					},
+				],
+			}),
+		},
 		trialSchedulerManagePolicy,
 	],
 });

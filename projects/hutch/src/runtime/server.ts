@@ -261,6 +261,7 @@ import type {
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
 	MintMediaPendingPost,
+	PresignEnclosure,
 	PresignMediaImage,
 	PublishMediaUploadCommitted,
 	ReadMediaPendingPrefix,
@@ -564,6 +565,7 @@ export interface AppDependencies {
 	headMediaPendingOriginal: HeadMediaPendingOriginal;
 	readMediaPendingPrefix: ReadMediaPendingPrefix;
 	presignMediaImage: PresignMediaImage;
+	presignEnclosure: PresignEnclosure;
 	publishMediaUploadCommitted: PublishMediaUploadCommitted;
 	mintUploadId: () => UploadId;
 	provisionInboxAddress: (userId: UserId) => Promise<void>;

@@ -72,6 +72,7 @@ import type {
 	MarkMediaUploadInspecting,
 	MediaUploadSession,
 	MintMediaPendingPost,
+	PresignEnclosure,
 	PresignMediaImage,
 	PublishMediaUploadCommitted,
 	PublishMediaUploadStaged,
@@ -756,6 +757,8 @@ export interface MediaUploadBundle {
 	receivePendingOriginal: (params: { uploadId: MediaUploadSession["uploadId"]; bytes: Uint8Array }) => void;
 	presignMediaImage: PresignMediaImage;
 	presignedMediaImages: Parameters<PresignMediaImage>[0][];
+	presignEnclosure: PresignEnclosure;
+	presignedEnclosures: Parameters<PresignEnclosure>[0][];
 	publishMediaUploadCommitted: PublishMediaUploadCommitted;
 	publishedMediaUploadCommitted: Parameters<PublishMediaUploadCommitted>[0][];
 	publishMediaUploadStaged: PublishMediaUploadStaged;
