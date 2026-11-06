@@ -31,6 +31,8 @@ export const MEDIA_BOOK_DLQ_SOURCES = {
 
 export const MEDIA_AUDIO_DLQ_SOURCES = {
 	keepAudio: "media-audio-keep-audio",
+	prepareTranscription: "media-audio-prepare-transcription",
+	renderTranscript: "media-audio-render-transcript",
 } as const;
 
 export const GMAIL_HISTORY_IMPORT_DLQ_SOURCES = {
@@ -77,6 +79,8 @@ export const MEDIA_BOOK_DLQ_SOURCE_QUEUES = {
 
 export const MEDIA_AUDIO_DLQ_SOURCE_QUEUES = {
 	keepAudio: `${MEDIA_AUDIO_DLQ_SOURCES.keepAudio}-q`,
+	prepareTranscription: `${MEDIA_AUDIO_DLQ_SOURCES.prepareTranscription}-q`,
+	renderTranscript: `${MEDIA_AUDIO_DLQ_SOURCES.renderTranscript}-q`,
 } as const satisfies QueueNamesFor<typeof MEDIA_AUDIO_DLQ_SOURCES>;
 
 export const INSPECT_BOOK_TIMEOUT_SECONDS = 120;

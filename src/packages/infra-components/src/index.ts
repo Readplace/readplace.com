@@ -250,4 +250,6 @@ export {
 	type MediaInspectedDetail,
 	MediaRejectedEvent,
 	type MediaRejectedDetail,
+	TranscribeJobStateChangedEvent,
+	type TranscribeJobStateChangedDetail,
 } from "./events";

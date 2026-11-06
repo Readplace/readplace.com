@@ -7,4 +7,5 @@ config:
   platform:mediaTableName: hutch-media-staging
   platform:deletionProtection: false
   platform:ocrLambdaRepositoryName: hutch-ocr-lambda
+  platform:mediaLambdaRepositoryName: hutch-media-lambda
 encryptionsalt: v1:3mv+Fh6U5xU=:v1:31a/qUTye7EJHFxA:EkWZyyGcQyoEJnO4wpd3Fdjus5CDSQ==

@@ -1666,3 +1666,12 @@ export const MediaRejectedEvent = defineEvent({
 	}),
 });
 export type MediaRejectedDetail = z.infer<typeof MediaRejectedEvent.detailSchema>;
+
+export const TranscribeJobStateChangedEvent = defineEvent({
+	name: "transcribe-job-state-changed", source: "aws.transcribe", detailType: "Transcribe Job State Change",
+	detailSchema: z.object({
+		TranscriptionJobName: z.string(),
+		TranscriptionJobStatus: z.enum(["COMPLETED", "FAILED"]),
+	}),
+});
+export type TranscribeJobStateChangedDetail = z.infer<typeof TranscribeJobStateChangedEvent.detailSchema>;

@@ -6,6 +6,7 @@ import { EcrRepository, EventBus, S3ReadWrite } from "@packages/infra-components
 const config = new pulumi.Config();
 const eventBusName = config.require("eventBusName");
 const ocrLambdaRepositoryName = config.require("ocrLambdaRepositoryName");
+const mediaLambdaRepositoryName = config.require("mediaLambdaRepositoryName");
 const deletionProtection = config.requireBoolean("deletionProtection");
 
 const eventBus = EventBus.create("hutch", { eventBusName });
@@ -15,9 +16,17 @@ const ocrLambdaRepository = EcrRepository.create("hutch-ocr-lambda", {
 	keepLastNImages: 200,
 });
 
+EcrRepository.create("hutch-media-lambda", {
+	repositoryName: mediaLambdaRepositoryName,
+	keepLastNImages: 200,
+});
+
 new S3ReadWrite("hutch-media-bucket", {
 	bucketName: config.require("mediaBucketName"),
-	expirationRules: [{ id: "pending", expirationDays: 2, prefixes: ["pending/"] }],
+	expirationRules: [
+		{ id: "pending", expirationDays: 2, prefixes: ["pending/"] },
+		{ id: "transcripts", expirationDays: 14, prefixes: ["transcripts/"] },
+	],
 });
 
 new aws.dynamodb.Table("hutch-media-table", {

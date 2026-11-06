@@ -113,7 +113,7 @@ export class EventBus {
 	}
 }
 
-function allowRulesToSend(queueArn: string, ruleArns: string[]): string {
+export function allowRulesToSend(queueArn: string, ruleArns: string[]): string {
 	return JSON.stringify({
 		Version: "2012-10-17",
 		Statement: [
