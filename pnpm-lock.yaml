@@ -1083,9 +1083,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      esbuild:
-        specifier: 'catalog:'
-        version: 0.28.0
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
@@ -1727,6 +1724,9 @@ importers:
       '@packages/media-contracts':
         specifier: workspace:*
         version: link:../media-contracts
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.28.0
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -1749,9 +1749,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      esbuild:
-        specifier: 'catalog:'
-        version: 0.28.0
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
