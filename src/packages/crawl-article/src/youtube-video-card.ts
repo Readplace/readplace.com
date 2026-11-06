@@ -9,7 +9,7 @@ export type YouTubeVideoCard = { title: string; author: string; excerpt: string;
 
 export type FetchYouTubeVideoCard = (params: { url: string }) => Promise<YouTubeVideoCard | undefined>;
 
-export function initFetchYouTubeVideoCard(deps: { fetch: typeof fetch; logError: (message: string, error?: Error) => void }): FetchYouTubeVideoCard {
+export function initFetchYouTubeVideoCard(deps: { fetch: typeof fetch; logError: (message: string, details?: { readonly error?: unknown }) => void }): FetchYouTubeVideoCard {
 	return async (params) => {
 		const embed = parseYouTubeEmbed(params.url);
 		if (embed?.kind !== "video") return undefined;
@@ -35,7 +35,7 @@ export function initFetchYouTubeVideoCard(deps: { fetch: typeof fetch; logError:
 				html: `<p class="reader-embed-facade"><a href="${watchUrl}" target="_blank" rel="noopener noreferrer"><img src="${posterUrl}" alt="Watch on YouTube" loading="lazy"></a></p>`,
 			};
 		} catch (error) {
-			deps.logError(`[CrawlArticle] youtube oembed error for ${params.url}`, error instanceof Error ? error : undefined);
+			deps.logError(`[CrawlArticle] youtube oembed error for ${params.url}`, { error });
 			return undefined;
 		}
 	};

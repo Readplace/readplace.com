@@ -75,13 +75,13 @@ describe("initFetchYouTubeVideoCard", () => {
 		const { fetchVideoCard, logError } = setup(async () => { throw failure; });
 
 		expect(await fetchVideoCard({ url: WATCH_URL })).toBeUndefined();
-		expect(logError.mock.calls).toEqual([[`[CrawlArticle] youtube oembed error for ${WATCH_URL}`, failure]]);
+		expect(logError.mock.calls).toEqual([[`[CrawlArticle] youtube oembed error for ${WATCH_URL}`, { error: failure }]]);
 	});
 
 	it("declines a fetch that throws something other than an Error", async () => {
 		const { fetchVideoCard, logError } = setup(async () => { throw "aborted"; });
 
 		expect(await fetchVideoCard({ url: WATCH_URL })).toBeUndefined();
-		expect(logError.mock.calls).toEqual([[`[CrawlArticle] youtube oembed error for ${WATCH_URL}`, undefined]]);
+		expect(logError.mock.calls).toEqual([[`[CrawlArticle] youtube oembed error for ${WATCH_URL}`, { error: "aborted" }]]);
 	});
 });
