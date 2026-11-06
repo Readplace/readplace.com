@@ -60,11 +60,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Docker Buildx + AWS CLI are pre-installed, but buildx
-      # requires explicit setup for the multi-platform builder. save-link's
-      # deploy-infra script runs build-image.mjs before pulumi up; that
-      # script does its own `aws ecr get-login-password | docker login`.
-      - name: Configure Docker Buildx for OCR image build
-        if: inputs.project == 'save-link'
+      # requires explicit setup for the multi-platform builder.
+      - name: Configure Docker Buildx for container image build
+        if: hashFiles(format('projects/{0}/Dockerfile', inputs.project)) != ''
         uses: docker/setup-buildx-action@v3
 
       # hutch's post-deploy drives a browser against the deployed stack.
@@ -128,8 +126,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Configure Docker Buildx for OCR image build
-        if: inputs.project == 'save-link'
+      - name: Configure Docker Buildx for container image build
+        if: hashFiles(format('projects/{0}/Dockerfile', inputs.project)) != ''
         uses: docker/setup-buildx-action@v3
 
       - name: Deploy ${{ inputs.project }} to prod
