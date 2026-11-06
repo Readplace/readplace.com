@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_prepare_transcription" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_prepare_transcription" name="prepare-transcription" isExecutable="false">
+    <bpmn:startEvent id="n_C" name="MediaUploadCommittedEvent, kind audio">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="n_K" name="Media-audio keep-audio">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_Q" name="[&quot;media-audio-prepare-transcription-q">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_P" name="Prepare transcription (ffprobe, ffmpeg)">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_A" name="Acknowledge and log">
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:task id="n_T" name="Amazon Transcribe job rp-uploadId-attempt">
+      <bpmn:incoming>f_4</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:task id="n_R" name="Refund the unstarted charge">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="n_B" name="TierContentExtracted, short audio body">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:task id="n_D" name="[&quot;media-audio-failures DLQ">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_DR" name="Prepare-transcription dead-letter route">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_C" targetRef="n_K" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_C" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_Q" targetRef="n_P" />
+    <bpmn:sequenceFlow id="f_3" name="not charged" sourceRef="n_P" targetRef="n_A" />
+    <bpmn:sequenceFlow id="f_4" name="charged" sourceRef="n_P" targetRef="n_T" />
+    <bpmn:sequenceFlow id="f_5" name="bytes gone or item released" sourceRef="n_P" targetRef="n_R" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_R" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_7" name="uncharged" sourceRef="n_K" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_8" name="after 3 receives" sourceRef="n_Q" targetRef="n_D" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_D" targetRef="n_DR" />
+    <bpmn:sequenceFlow id="f_10" name="no job" sourceRef="n_DR" targetRef="n_R" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_prepare_transcription">
+    <bpmndi:BPMNPlane id="Plane_prepare_transcription" bpmnElement="Process_prepare_transcription">
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="80.05" y="104" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_K_di" bpmnElement="n_K">
+        <dc:Bounds x="241.98" y="72" width="173.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="230.1" y="156" width="197.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_P_di" bpmnElement="n_P">
+        <dc:Bounds x="502.48" y="72" width="166.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_A_di" bpmnElement="n_A">
+        <dc:Bounds x="751.6" y="28" width="154" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_T_di" bpmnElement="n_T">
+        <dc:Bounds x="743.85" y="200" width="169.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R_di" bpmnElement="n_R">
+        <dc:Bounds x="971.35" y="114" width="162" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_B_di" bpmnElement="n_B">
+        <dc:Bounds x="1235.59" y="104" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_D_di" bpmnElement="n_D">
+        <dc:Bounds x="485.35" y="160" width="200.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DR_di" bpmnElement="n_DR">
+        <dc:Bounds x="744.1" y="112" width="169" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="120.05" y="124" />
+        <di:waypoint x="181.01" y="124" />
+        <di:waypoint x="181.01" y="96" />
+        <di:waypoint x="241.98" y="96" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="120.05" y="124" />
+        <di:waypoint x="175.08" y="124" />
+        <di:waypoint x="175.08" y="182" />
+        <di:waypoint x="230.1" y="182" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="427.35" y="182" />
+        <di:waypoint x="464.91" y="182" />
+        <di:waypoint x="464.91" y="98" />
+        <di:waypoint x="502.48" y="98" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="668.73" y="98" />
+        <di:waypoint x="710.16" y="98" />
+        <di:waypoint x="710.16" y="52" />
+        <di:waypoint x="751.6" y="52" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="668.73" y="98" />
+        <di:waypoint x="706.29" y="98" />
+        <di:waypoint x="706.29" y="226" />
+        <di:waypoint x="743.85" y="226" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="668.73" y="98" />
+        <di:waypoint x="820.04" y="98" />
+        <di:waypoint x="820.04" y="140" />
+        <di:waypoint x="971.35" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="1133.35" y="140" />
+        <di:waypoint x="1184.47" y="140" />
+        <di:waypoint x="1184.47" y="124" />
+        <di:waypoint x="1235.59" y="124" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="415.48" y="96" />
+        <di:waypoint x="825.53" y="96" />
+        <di:waypoint x="825.53" y="124" />
+        <di:waypoint x="1235.59" y="124" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="427.35" y="182" />
+        <di:waypoint x="456.35" y="182" />
+        <di:waypoint x="456.35" y="184" />
+        <di:waypoint x="485.35" y="184" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="685.85" y="184" />
+        <di:waypoint x="714.98" y="184" />
+        <di:waypoint x="714.98" y="138" />
+        <di:waypoint x="744.1" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="913.1" y="138" />
+        <di:waypoint x="942.23" y="138" />
+        <di:waypoint x="942.23" y="140" />
+        <di:waypoint x="971.35" y="140" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

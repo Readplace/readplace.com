@@ -9,11 +9,15 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
     "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\"",
-    "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
+    "check-infra": "pnpm compute-image-tags && PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
+    "build-image": "node tools/build-image.mjs",
+    "compute-image-tags": "node tools/build-image.mjs --tag-only",
     "check": "nx run media-audio:check"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1057.0",
+    "@aws-sdk/client-transcribe": "3.1057.0",
+    "@aws-sdk/s3-request-presigner": "3.1057.0",
     "@packages/article-store": "workspace:*",
     "@packages/dead-letter-routing": "workspace:*",
     "@packages/infra-components": "workspace:*",
@@ -21,8 +25,10 @@
     "@packages/storage-client": "workspace:*",
     "@packages/media-contracts": "workspace:*",
     "@packages/media-object-store": "workspace:*",
+    "@packages/provider-contracts": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/tier-source": "workspace:*",
+    "@packages/transcript-quota": "workspace:*",
     "music-metadata": "12.3.3",
     "zod": "4.4.3"
   },

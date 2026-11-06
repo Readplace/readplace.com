@@ -44,6 +44,10 @@ const SirenCollection = z.looseObject({
 const useApp = useTestServer();
 
 async function appWithOwnersEnclosure() {
+	return appWithOwnersAudio("ready");
+}
+
+async function appWithOwnersAudio(audioCrawl: "ready" | "pending") {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const harness = useApp(fixture);
 	const owner = await harness.auth.createUser(OWNER);
@@ -63,6 +67,7 @@ async function appWithOwnersEnclosure() {
 			provenance: { kind: "web" },
 			savedAt,
 		});
+		if (url === AUDIO_URL && audioCrawl === "pending") continue;
 		await fixture.articleStore.writeContent({ url, content: "<p>Body.</p>" });
 		await fixture.articleCrawl.markCrawlReady({ url });
 	}
@@ -127,6 +132,26 @@ describe("an owned enclosure in the reader", () => {
 			player?.querySelector("audio[data-player-audio]")?.getAttribute("src"),
 		).toBe(`/queue/${AUDIO_ID}/enclosure`);
 		expect(headerReadTime(response.text)).toBe("47 min listen");
+	});
+
+	it("keeps the player outside the pending reader slot while the body is still being prepared", async () => {
+		const { signIn } = await appWithOwnersAudio("pending");
+		const agent = await signIn(OWNER);
+
+		const response = await agent
+			.get(`/queue/${AUDIO_ID}/view`)
+			.set(BROWSER_REQUEST_HEADERS);
+
+		const page = documentOf(response.text);
+		const player = page.querySelector(
+			'main.reader > [data-test-reader-player="audio"]',
+		);
+		const slot = page.querySelector(
+			"[data-article-body] [data-test-reader-slot]",
+		);
+		expect(player).not.toBeNull();
+		expect(slot?.getAttribute("data-reader-status")).toBe("pending");
+		expect(slot?.contains(player)).toBe(false);
 	});
 
 	it("renders no player for a link", async () => {
