@@ -14,6 +14,11 @@ export const enUS = {
 				format: "an MP3 or M4A file",
 				description: "Audio: MP3 or M4A, up to {ceiling}.",
 			},
+			video: {
+				noun: "a video",
+				format: "an MP4 file",
+				description: "Video: MP4, up to {ceiling}.",
+			},
 		},
 	},
 } as const;

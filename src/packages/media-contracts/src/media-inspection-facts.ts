@@ -8,7 +8,7 @@ export const MediaInspectionFactsSchema = z.discriminatedUnion("kind", [
 		sectionTitles: z.array(z.string()),
 	}),
 	z.object({
-		kind: z.literal("audio"),
+		kind: z.enum(["audio", "video"]),
 		shape: z.literal("timed"),
 		durationSeconds: z.number().nonnegative(),
 	}),

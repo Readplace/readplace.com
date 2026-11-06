@@ -19,6 +19,12 @@ describe("MediaInspectionFactsSchema", () => {
 		assert.deepEqual(MediaInspectionFactsSchema.parse(timedFacts), timedFacts);
 	});
 
+	it("keeps a video file's timed duration", () => {
+		const timedFacts = { kind: "video", shape: "timed", durationSeconds: 60 };
+
+		assert.deepEqual(MediaInspectionFactsSchema.parse(timedFacts), timedFacts);
+	});
+
 	it("refuses a kind it does not name", () => {
 		assert.equal(MediaInspectionFactsSchema.safeParse({ ...bookFacts, kind: "audio" }).success, false);
 	});

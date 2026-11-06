@@ -41,6 +41,7 @@ function bookLabel(input: { wordCount: number; estimatedReadTime: number; sectio
 }
 
 const AUDIO_KIND: CardKind = { name: "audio", label: "Audio", noun: "audio", icon: "file" };
+const VIDEO_KIND: CardKind = { name: "video", label: "Video", noun: "video", icon: "file-down" };
 
 describe("cardKindLabel", () => {
 	it("labels a book with its chapters and its read time", () => {
@@ -73,6 +74,18 @@ describe("cardKindLabel", () => {
 				readTime: { value: "47", label: "47 min listen" },
 			}),
 		).toBe("Audio · 47 min listen");
+	});
+
+	it("labels video with its listen time", () => {
+		expect(
+			cardKindLabel({
+				kind: VIDEO_KIND,
+				estimatedReadTime: minutes(0),
+				wordCount: 0,
+				sectionCount: undefined,
+				readTime: { value: "1", label: "1 min listen" },
+			}),
+		).toBe("Video · 1 min listen");
 	});
 
 	it("labels audio by its kind alone before its listen time is known", () => {

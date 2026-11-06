@@ -20,7 +20,7 @@ interface KindLabelInput {
 
 type KindLabel = (input: KindLabelInput) => string;
 
-const KIND_BADGE_ICON: Record<MediaKindName, IconName> = { book: "book", audio: "file" };
+const KIND_BADGE_ICON: Record<MediaKindName, IconName> = { book: "book", audio: "file", video: "file-down" };
 
 export function hoursAndMinutesRead(minutes: Minutes): string {
 	const hours = Math.floor(minutes / 60);
@@ -30,12 +30,16 @@ export function hoursAndMinutesRead(minutes: Minutes): string {
 	return `${hours} h ${rest} min read`;
 }
 
+const timedKindLabel: KindLabel = ({ label, readTime }) =>
+	[label, readTime?.label].filter((part) => part !== undefined).join(" · ");
+
 const CARD_KIND_LABEL: Record<MediaKindName, KindLabel> = {
 	book: ({ label, estimatedReadTime, wordCount, sectionCount }) =>
 		[label, sectionCount === undefined ? undefined : `${sectionCount} ${sectionCount === 1 ? "chapter" : "chapters"}`, wordCount > 0 ? hoursAndMinutesRead(estimatedReadTime) : undefined]
 			.filter((part) => part !== undefined)
 			.join(" · "),
-	audio: ({ label, readTime }) => [label, readTime?.label].filter((part) => part !== undefined).join(" · "),
+	audio: timedKindLabel,
+	video: timedKindLabel,
 };
 
 export function cardKindOf(article: { media?: ItemMedia }): { kind: CardKind } | undefined {
