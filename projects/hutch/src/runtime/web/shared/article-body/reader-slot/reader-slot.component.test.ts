@@ -83,7 +83,7 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("pending");
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=1");
-		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+		expect(slot.getAttribute("hx-trigger")).toBe("every 3s [document.visibilityState === 'visible']");
 		expect(readerProgressTrack(doc).getAttribute("aria-valuenow")).toBe("8");
 	});
 

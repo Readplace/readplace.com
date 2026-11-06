@@ -269,7 +269,7 @@ describe("renderArticleBody", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("pending");
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=1");
-		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+		expect(slot.getAttribute("hx-trigger")).toBe("every 3s [document.visibilityState === 'visible']");
 		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
 		const bar = slot.querySelector('[data-test-progress-bar="reader"]');
 		assert(bar, "the reader panel must carry its own progress block");

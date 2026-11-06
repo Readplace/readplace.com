@@ -1,4 +1,4 @@
-<div id="article-body-related-slot" class="next-read {{stateClass}}" data-test-reader-related data-related-status="{{status}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
+<div id="article-body-related-slot" class="next-read {{stateClass}}" data-test-reader-related data-related-status="{{status}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{/if}}>
           {{#each cards}}
           <section class="next-read__card">
             <div class="next-read__header">

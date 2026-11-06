@@ -1433,7 +1433,7 @@ describe("View routes", () => {
 			assert(slot, "summary slot must be rendered");
 			expect(slot.getAttribute("data-summary-status")).toBe("pending");
 			expect(slot.getAttribute("hx-get")).toMatch(/^\/view\/summary\?url=.+&poll=1$/);
-			expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+			expect(slot.getAttribute("hx-trigger")).toBe("every 3s [document.visibilityState === 'visible']");
 			const pendingTitle = slot.querySelector("[data-test-summary-pending-title]");
 			assert(pendingTitle, "the pending summary panel must be rendered when status=pending");
 			expect(pendingTitle.textContent).toBe("Generating summary");
