@@ -4,6 +4,7 @@ import assert from "node:assert";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { createDynamoDocumentClient } from "@packages/storage-client";
+import { initMediaObjectStore } from "@packages/media-object-store";
 import { Logger, consoleLogger } from "@packages/logger";
 import {
 	EventBridgeClient,
@@ -230,6 +231,12 @@ const releasePrivateItems = initReleasePrivateItems({
 			listMediaKeys: initS3ListContentKeys({ client: s3Client, bucketName: env.MEDIA_BUCKET_NAME })
 				.listContentKeys,
 			deleteArticleRow: initDeleteArticleRow({ client: dynamoClient, tableName: articlesTableName }).deleteArticleRow,
+			mediaObjects: initMediaObjectStore({
+				client: dynamoClient,
+				tableName: env.MEDIA_TABLE_NAME,
+				s3: s3Client,
+				bucketName: env.MEDIA_BUCKET_NAME,
+			}),
 			deleteUserArticleLinks: initDeleteUserArticleLinks({
 				client: dynamoClient,
 				tableName: env.DYNAMODB_USER_ARTICLES_TABLE,

@@ -358,6 +358,17 @@ describe("GMail Newsletters page", () => {
 		expect(account.textContent).toBe("reader@gmail.com");
 	});
 
+	it("links back to Connectors", async () => {
+		const { agent } = await connectedAgent();
+
+		const doc = load((await agent.get(GMAIL)).text);
+
+		const back = doc.querySelector("[data-test-gmail-back]");
+		assert(back, "the Gmail page links back to Connectors");
+		expect(back.textContent).toBe("Connectors");
+		expect(back.getAttribute("href")).toBe("/newsletters?utm_source=integrations-gmail&utm_medium=internal&utm_content=back-to-newsletters");
+	});
+
 	it("names no account before Google has told us which one is connected", async () => {
 		const { agent } = await connectedAgent({ accountEmail: false });
 

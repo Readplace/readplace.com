@@ -36,6 +36,10 @@ describe("llms files", () => {
 		expect(FILES[name]).not.toContain("Readplace exports EPUB but does not import it");
 	});
 
+	it("llms-full.txt says a file uploaded before signing up is collected and deleted unless saved", () => {
+		expect(FILES["llms-full.txt"]).toContain("- A file uploaded before signing up, and the title, authors and chapter titles read from it, deleted within a few days unless it is saved");
+	});
+
 	it("llms-full.txt quotes the readlist cap from its constant", () => {
 		expect(FILES["llms-full.txt"]).toContain(`Up to ${READLIST_MAX_PER_USER} named readlists`);
 	});

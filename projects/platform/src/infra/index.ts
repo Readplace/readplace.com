@@ -6,6 +6,8 @@ import { EcrRepository, EventBus, S3ReadWrite } from "@packages/infra-components
 const config = new pulumi.Config();
 const eventBusName = config.require("eventBusName");
 const ocrLambdaRepositoryName = config.require("ocrLambdaRepositoryName");
+const mediaLambdaRepositoryName = config.require("mediaLambdaRepositoryName");
+const deletionProtection = config.requireBoolean("deletionProtection");
 
 const eventBus = EventBus.create("hutch", { eventBusName });
 
@@ -14,9 +16,28 @@ const ocrLambdaRepository = EcrRepository.create("hutch-ocr-lambda", {
 	keepLastNImages: 200,
 });
 
+EcrRepository.create("hutch-media-lambda", {
+	repositoryName: mediaLambdaRepositoryName,
+	keepLastNImages: 200,
+});
+
 new S3ReadWrite("hutch-media-bucket", {
 	bucketName: config.require("mediaBucketName"),
-	expirationRules: [{ id: "pending", expirationDays: 2, prefixes: ["pending/"] }],
+	expirationRules: [
+		{ id: "pending", expirationDays: 2, prefixes: ["pending/"] },
+		{ id: "transcripts", expirationDays: 14, prefixes: ["transcripts/"] },
+	],
+});
+
+new aws.dynamodb.Table("hutch-media-table", {
+	name: config.require("mediaTableName"),
+	billingMode: "PAY_PER_REQUEST",
+	hashKey: "pk",
+	rangeKey: "sk",
+	attributes: [{ name: "pk", type: "S" }, { name: "sk", type: "S" }],
+	pointInTimeRecovery: { enabled: true },
+	ttl: { attributeName: "expiresAt", enabled: true },
+	deletionProtectionEnabled: deletionProtection,
 });
 
 // The curl_chrome131 bash wrapper + statically-linked curl-impersonate binary

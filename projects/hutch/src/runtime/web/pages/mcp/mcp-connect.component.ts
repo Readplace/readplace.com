@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import assert from "node:assert";
-import { render } from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import { ADVERTISED_CLIENTS, SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
 import { mcpOperationsWithEffect } from "@packages/domain/mcp";
+import { NEWSLETTERS_PATH } from "@packages/domain/inbox";
 
 import { MCP_CONNECT_STYLES } from "./mcp-connect.styles";
 import { GEMINI_MCP_ADD_COMMAND } from "../../shared/mcp-connect-commands";
@@ -122,7 +123,23 @@ const MCP_CONNECT_DESCRIPTION =
 
 const MCP_COPY_SCRIPT = `<script src="/client-dist/mcp.client.js" defer></script>`;
 
-export function McpConnectPage(): PageBody {
+export const MCP_GUIDE_ORIGIN_PARAM = "from";
+
+export type McpGuideOrigin = "connectors" | "elsewhere";
+
+export function parseMcpGuideOrigin(query: Record<string, unknown>): McpGuideOrigin {
+	return query[MCP_GUIDE_ORIGIN_PARAM] === "connectors" ? "connectors" : "elsewhere";
+}
+
+const BACK_LINKS: Record<McpGuideOrigin, { href: string; label: string } | undefined> = {
+	connectors: {
+		href: withInternalTracking(NEWSLETTERS_PATH, { source: "mcp-connect", content: "back-to-connectors" }),
+		label: "Connectors",
+	},
+	elsewhere: undefined,
+};
+
+export function McpConnectPage(input: { origin: McpGuideOrigin }): PageBody {
 	return {
 		seo: {
 			title: `${MCP_CONNECT_TITLE} (MCP) — Readplace`,
@@ -165,6 +182,7 @@ export function McpConnectPage(): PageBody {
 		bodyClass: "page-mcp-connect",
 		content: {
 			html: render(MCP_CONNECT_TEMPLATE, {
+				back: BACK_LINKS[input.origin],
 				serverUrl: MCP_SERVER_URL,
 				gettingStarted: GETTING_STARTED,
 				tools: MCP_TOOLS,

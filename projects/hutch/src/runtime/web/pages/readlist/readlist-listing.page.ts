@@ -47,7 +47,7 @@ import {
 } from "../../onboarding/native-client";
 import { setSirenCanonicalRedirectCaching, setSirenCollectionCaching } from "../../siren-discovery-cache";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { viewerFor } from "@packages/domain/article";
+import { ownedEnclosuresByUrl, viewerFor } from "@packages/domain/article";
 import { type ReadlistShared, dismissTokenFor, loadSummaries, loadCrawls, NO_READLIST_FILTER, } from "./readlist-shared";
 
 function readImportSkippedFlash(
@@ -156,6 +156,7 @@ export function initReadlistListingRoutes(deps: Pick<
 						showSaveInProgressNotice: isNativeClient(req) && !hasBackgroundSaveContinuity(req),
 						appearance,
 						crawlByUrl,
+						enclosureByUrl: ownedEnclosuresByUrl({ viewer: viewerFor(userId), articles: filtered.articles }),
 						summaryByUrl,
 						totalLabel: readlistTotalLabel,
 						sort: { options: READLIST_SORT_OPTIONS, current: order },

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { useTestServer } from "../../../test-app";
+import { loginAgent, useTestServer } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -287,6 +287,34 @@ describe("GET /help/add-links", () => {
 		const url = new URL(href, TEST_APP_ORIGIN);
 		expect(url.pathname).toBe("/upload");
 		expect(url.searchParams.get("utm_source")).toBe("help-add-links");
+	});
+
+	it("tells a logged-out visitor a book can be uploaded before signing up, beside the tracked upload link", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/help/add-links");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-help-upload-guest]")?.textContent).toBe(
+			"You don't need an account to upload a book: sign up when you save it.",
+		);
+		const href = doc.querySelector("[data-test-help-upload-link]")?.getAttribute("href");
+		assert(href, "the upload section must link somewhere");
+		const url = new URL(href, TEST_APP_ORIGIN);
+		expect(url.pathname).toBe("/upload");
+		expect(url.searchParams.get("utm_source")).toBe("help-add-links");
+		expect(url.searchParams.get("utm_medium")).toBe("internal");
+	});
+
+	it("leaves the no-account line out for a signed-in reader", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/help/add-links");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-help-upload-link]")).not.toBeNull();
+		expect(doc.querySelector("[data-test-help-upload-guest]")).toBeNull();
 	});
 
 	it("shows the book upload when a platform is named without the app shell", async () => {

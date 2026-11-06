@@ -13,7 +13,7 @@ import { classifyDeviceClass, hashIp, } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, STREAMS, } from "../../../observability/events";
 import { FILED_READLIST_PARAM } from "../../shared/filing-flash";
-import { ReaderArticleHashIdSchema, viewerFor } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, ownedEnclosure, viewerFor } from "@packages/domain/article";
 import {
 	sendComponent,
 } from "@packages/web-shell";
@@ -282,6 +282,7 @@ export function initReadlistCardRoutes(
 		});
 		const articleVm = toReadlistArticleViewModel({
 			article,
+			enclosure: ownedEnclosure({ viewer: viewerFor(userId), article }),
 			now: deps.now(),
 			returnQuery,
 			summary,

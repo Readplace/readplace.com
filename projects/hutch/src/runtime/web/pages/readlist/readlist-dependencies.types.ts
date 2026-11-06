@@ -1,5 +1,5 @@
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
-import type { PresignMediaImage } from "@packages/domain";
+import type { PresignEnclosure, PresignMediaImage } from "@packages/domain";
 import type { initKeepOffer } from "../../../domain/engagement/keep-offer";
 import type { RequestHandler, } from "express";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
@@ -127,6 +127,7 @@ export interface ReadlistDependencies {
 	findArticleByUrl: FindArticleByUrl;
 	findItemOwner: FindItemOwner;
 	presignMediaImage: PresignMediaImage;
+	presignEnclosure: PresignEnclosure;
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticleUrlById: FindArticleUrlById;

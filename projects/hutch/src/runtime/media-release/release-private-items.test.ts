@@ -47,6 +47,11 @@ async function buildSubject() {
 		deleteArticleRow: async (url) => {
 			calls.push(`row:${url}`);
 		},
+		mediaObjects: {
+			unrefAll: async ({ uploadId }) => {
+				calls.push(`holdings:${uploadId}`);
+			},
+		},
 		deleteUserArticleLinks: async (url) => {
 			calls.push(`links:${url}`);
 			await store.deleteArticle(ReaderArticleHashId.from(url), ACCOUNT);
@@ -63,6 +68,7 @@ const OWN_ITEM_RELEASE = [
 	`media:pending/${OWN_UPLOAD_ID}/original`,
 	`media:images/${OWN_UPLOAD_ID}/cover.png,images/${OWN_UPLOAD_ID}/figure-1.jpg`,
 	`row:${OWN_PRIVATE_URL}`,
+	`holdings:${OWN_UPLOAD_ID}`,
 	`links:${OWN_PRIVATE_URL}`,
 ];
 

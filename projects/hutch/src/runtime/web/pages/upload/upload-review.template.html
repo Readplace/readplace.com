@@ -1,0 +1,41 @@
+<main class="upload" data-test-upload-page>
+  <div class="upload__layout">
+    <h1 class="upload__title">Upload a book</h1>
+    {{#if inspecting}}
+    <section id="upload-status" data-upload-status="inspecting" data-test-upload-inspecting data-background-request hx-get="{{inspecting.pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-select="#upload-status" hx-swap="outerHTML">
+      <p class="upload__description">Still checking your book…</p>
+      <a href="{{inspecting.checkAgainUrl}}" data-test-upload-check-again>Check again</a>
+    </section>
+    {{/if}}
+    {{#if overrun}}
+    <section id="upload-status" data-upload-status="overrun">
+      <div class="upload__panel" data-test-upload-inspection-overrun>
+        <p class="upload__description">We couldn't finish checking this book. Upload it again.</p>
+        <a href="{{track '/upload' source='upload-review' content='upload-again'}}" data-test-upload-again>Upload again</a>
+      </div>
+    </section>
+    {{/if}}
+    {{#if review}}
+    <section id="upload-status" data-upload-status="review">
+      <div class="upload__panel" data-test-upload-review>
+        <h2 data-test-upload-review-title>{{review.title}}</h2>
+        {{#if review.authors}}<p class="upload__description" data-test-upload-review-authors>{{review.authors}}</p>{{/if}}
+        <ol>
+          {{#each review.sectionTitles}}<li data-test-upload-section>{{this}}</li>{{/each}}
+        </ol>
+        <form method="post" action="{{review.commitUrl}}" data-test-upload-commit-form>
+          <button class="btn btn--primary upload__submit" type="submit">Save to my queue</button>
+        </form>
+      </div>
+    </section>
+    {{/if}}
+    {{#if rejected}}
+    <section id="upload-status" data-upload-status="rejected">
+      <div class="upload__panel">
+        <p class="upload__description" data-test-upload-notice>{{rejected.notice}}</p>
+        <a href="{{track '/upload' source='upload-review' content='upload-again'}}" data-test-upload-again>Upload again</a>
+      </div>
+    </section>
+    {{/if}}
+  </div>
+</main>

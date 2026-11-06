@@ -69,6 +69,7 @@ describe("readlist route order", () => {
 		expect(order).toEqual([
 			"GET /:id/read noindexMiddleware,<anonymous>",
 			"GET /:id/media/:file noindexMiddleware,<anonymous>",
+			"GET /:id/enclosure noindexMiddleware,<anonymous>",
 			"GET /:id/view noindexMiddleware,<anonymous>,<anonymous>",
 			"GET /:id/view noindexMiddleware,<anonymous>",
 			"POST /save-articles <anonymous>",
@@ -124,6 +125,7 @@ describe("readlist route order", () => {
 		expect(order).toEqual([
 			"GET /:id/read noindexMiddleware,<anonymous>",
 			"GET /:id/media/:file noindexMiddleware,<anonymous>",
+			"GET /:id/enclosure noindexMiddleware,<anonymous>",
 			"GET /:id/view noindexMiddleware,<anonymous>,<anonymous>",
 			"GET /:id/view noindexMiddleware,<anonymous>",
 			"POST /save-articles <anonymous>",

@@ -2,8 +2,7 @@ import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { MediaProcessingFailedEvent, MediaUploadCommittedEvent } from "@packages/infra-components";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-
-const PROCESSING_EXHAUSTED_NOTICE = "We couldn't prepare this book. Please upload it again.";
+import { PROCESSING_EXHAUSTED_NOTICE } from "./book-failure-notices";
 
 export function initProcessBookDlqHandler(deps: { publishEvent: PublishEvent; logger: Logger }): Handler<SQSEvent, SQSBatchResponse> {
 	return initSqsRecordHandler({

@@ -992,8 +992,9 @@ export const FOOTER_STYLES = `
 	.footer__links {
 		list-style: none;
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: center;
-		gap: 24px;
+		gap: 8px 24px;
 		margin: 0 0 12px 0;
 		padding: 0;
 	}

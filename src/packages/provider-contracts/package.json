@@ -168,6 +168,10 @@
     "./metered-leg-ledger": {
       "types": "./dist/metered-leg-ledger.d.ts",
       "default": "./dist/metered-leg-ledger.js"
+    },
+    "./transcript-quota": {
+      "types": "./dist/transcript-quota.d.ts",
+      "default": "./dist/transcript-quota.js"
     }
   },
   "typesVersions": {
@@ -211,7 +215,8 @@
       "engagement-starter": ["./dist/engagement-starter.d.ts"],
       "canary-report": ["./dist/canary-report.d.ts"],
       "logs-insights": ["./dist/logs-insights.d.ts"],
-      "metered-leg-ledger": ["./dist/metered-leg-ledger.d.ts"]
+      "metered-leg-ledger": ["./dist/metered-leg-ledger.d.ts"],
+      "transcript-quota": ["./dist/transcript-quota.d.ts"]
     }
   },
   "private": true,

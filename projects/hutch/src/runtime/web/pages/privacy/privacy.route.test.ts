@@ -103,7 +103,23 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 4 November 2026");
+		expect(response.text).toContain("Last updated: 6 November 2026");
+	});
+
+	it("lists a file uploaded before signing up among the data Readplace collects", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const items = Array.from(doc.querySelectorAll("li"), (item) => item.textContent);
+		expect(items).toContain("Files uploaded before signing up: the file, its name, and the title, authors and chapter titles read from it.");
+	});
+
+	it("says how long a file uploaded before signing up is kept", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("A file you upload before signing up, with its name, title, authors and chapter titles, is deleted within a few days. Until you save it no account holds them, so you cannot delete them sooner. If you save it to your queue, the book stays with your saved articles until you remove it.");
 	});
 
 	it("lists the optional display name among the account information Readplace keeps", async () => {

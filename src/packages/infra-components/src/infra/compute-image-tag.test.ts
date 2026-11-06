@@ -22,7 +22,7 @@ describe("computeImageTag", () => {
 			handlerName: "pdf-page-ocr",
 			handlerOutputDir: dir,
 			dockerfileContents: Buffer.from("FROM public.ecr.aws/lambda/nodejs:22\n"),
-			curlImpersonateVersion: "1.0.0",
+			buildArgs: { CURL_IMPERSONATE_VERSION: "1.0.0" },
 		};
 	}
 
@@ -76,9 +76,20 @@ describe("computeImageTag", () => {
 		);
 	});
 
-	it("changes when the curl-impersonate version changes", () => {
+	it("keeps the tag save-link's single curl-impersonate build arg produced before build args were generic", () => {
+		assert.equal(computeImageTag(args()), "a7356ce780e1-pdf-page-ocr");
+	});
+
+	it("changes when a build arg value changes", () => {
 		const before = computeImageTag(args());
 
-		assert.notEqual(computeImageTag({ ...args(), curlImpersonateVersion: "2.0.0" }), before);
+		assert.notEqual(computeImageTag({ ...args(), buildArgs: { CURL_IMPERSONATE_VERSION: "2.0.0" } }), before);
+	});
+
+	it("does not depend on the order the build args are given in", () => {
+		assert.equal(
+			computeImageTag({ ...args(), buildArgs: { A_REF: "a", B_REF: "b" } }),
+			computeImageTag({ ...args(), buildArgs: { B_REF: "b", A_REF: "a" } }),
+		);
 	});
 });

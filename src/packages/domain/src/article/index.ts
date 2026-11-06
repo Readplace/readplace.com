@@ -89,6 +89,7 @@ export {
 	type Viewer,
 	viewerFor,
 } from "./private-item-access";
+export { ABSENT_ENCLOSURE, type EnclosureRead, ownedEnclosure, ownedEnclosuresByUrl } from "./owned-enclosure";
 export {
 	storedArticleBody,
 	type ArticleBody,

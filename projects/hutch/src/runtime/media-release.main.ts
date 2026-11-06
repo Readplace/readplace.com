@@ -9,6 +9,7 @@ import {
 } from "@packages/article-store";
 import { Logger, consoleLogger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
+import { initMediaObjectStore } from "@packages/media-object-store";
 import { readEnv } from "@packages/require-env";
 import { MEDIA_RELEASE_ENV } from "./media-release.env";
 import { initMediaReleaseHandler } from "./media-release/media-release-handler";
@@ -20,6 +21,7 @@ const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
 const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
 const contentBucketName = env.CONTENT_BUCKET_NAME;
 const mediaBucketName = env.MEDIA_BUCKET_NAME;
+const mediaTableName = env.MEDIA_TABLE_NAME;
 
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});
@@ -36,6 +38,7 @@ const releasePrivateItem = initReleasePrivateItem({
 		deleteMediaObjects: initS3DeleteContentObjects({ client: s3Client, bucketName: mediaBucketName }).deleteContentObjects,
 		listMediaKeys: initS3ListContentKeys({ client: s3Client, bucketName: mediaBucketName }).listContentKeys,
 		deleteArticleRow: initDeleteArticleRow({ client: dynamoClient, tableName: articlesTable }).deleteArticleRow,
+		mediaObjects: initMediaObjectStore({ client: dynamoClient, tableName: mediaTableName, s3: s3Client, bucketName: mediaBucketName }),
 		deleteUserArticleLinks: initDeleteUserArticleLinks({ client: dynamoClient, tableName: userArticlesTable })
 			.deleteUserArticleLinks,
 	}),

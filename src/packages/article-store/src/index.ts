@@ -68,3 +68,4 @@ export {
 } from "./dynamodb-engagement-starter";
 export { initDynamoDbCanaryReports } from "./dynamodb-canary-reports";
 export { initDynamoDbPrivateItem } from "./dynamodb-private-item";
+export { initDynamoDbPrivateItemMedia } from "./dynamodb-private-item-media";

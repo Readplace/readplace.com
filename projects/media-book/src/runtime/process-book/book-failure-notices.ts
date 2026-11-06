@@ -20,3 +20,5 @@ export const BOOK_FAILURES: Record<BookFailure, { reason: MediaFailureReason; no
 		notice: "This book is too large to read or export. Split it into smaller EPUB files and upload each one.",
 	},
 };
+
+export const PROCESSING_EXHAUSTED_NOTICE = "We couldn't prepare this book. Please upload it again.";

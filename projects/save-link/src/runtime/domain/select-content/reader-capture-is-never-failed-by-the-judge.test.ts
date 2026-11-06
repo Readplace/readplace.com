@@ -15,6 +15,7 @@ import { computeCanonicalContentHash } from "../generate-summary/compute-canonic
 
 const URL = "https://example.com/article";
 const BOOK_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const AUDIO_URL = "https://uploads.readplace.invalid/fedcba9876543210fedcba9876543210";
 const NOW = "2026-10-09T00:00:00.000Z";
 const ATTEMPT = SaveAttemptIdSchema.parse("reader-save");
 const EARLIER_ATTEMPT = SaveAttemptIdSchema.parse("earlier-save");
@@ -75,6 +76,10 @@ const PRODUCERS = [
 	{
 		producer: "a media-book EPUB upload", url: BOOK_URL,
 		page: { wordCount: 2400, html: "<section><h2 id=\"section-1\">Chapter One</h2><p>The book the reader uploaded.</p></section>", evaluationHtml: "<section><h2 id=\"section-1\">Chapter One</h2><p>The book the reader uploaded.</p></section>" },
+	},
+	{
+		producer: "a media-audio upload", url: AUDIO_URL,
+		page: { wordCount: 6, html: "<h1>episode-12</h1><p>Audio, 47 minutes.</p><p>File: episode-12.mp3</p>", evaluationHtml: "<h1>episode-12</h1><p>Audio, 47 minutes.</p><p>File: episode-12.mp3</p>" },
 	},
 ];
 
