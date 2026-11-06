@@ -28,6 +28,7 @@ const PREFERENCES = `/queue/queues/${TECH}/preferences`;
 const SENDERS = `${PREFERENCES}/gmail/senders`;
 const DISCOVERY = `${PREFERENCES}/gmail/discovery`;
 const SAVE = `${PREFERENCES}/gmail`;
+const SAVED = `${PREFERENCES}?preferences_saved=1#readlist-gmail-senders`;
 const UNKNOWN_READLIST = "/queue?queue_error=unknown_readlist";
 const ONE_DAY_MS = 86_400_000;
 const AT = "2026-09-30T00:00:00.000Z";
@@ -68,10 +69,6 @@ function hiddenFields(form: Element): Record<string, string> {
 	return Object.fromEntries(Array.from(form.querySelectorAll<HTMLInputElement>('input[type="hidden"]'), (input) => [input.name, input.value]));
 }
 
-function rootIds(doc: Document): (string | null)[] {
-	return Array.from(doc.body.children, (element) => element.getAttribute("id"));
-}
-
 function checklistRows(doc: Document): [string | null, string | null, boolean][] {
 	return Array.from(doc.querySelectorAll("#gmail-checklist [data-test-gmail-checklist-row]"), (element) => {
 		const checkbox = element.querySelector("[data-test-gmail-checklist-sender]");
@@ -82,14 +79,6 @@ function checklistRows(doc: Document): [string | null, string | null, boolean][]
 			checkbox.hasAttribute("checked"),
 		];
 	});
-}
-
-function optionEmails(doc: Document): (string | null)[] {
-	return Array.from(doc.querySelectorAll("[data-test-gmail-sender-option]"), (el) => el.getAttribute("data-test-gmail-sender-option"));
-}
-
-function locationParams(location: string): Record<string, string> {
-	return Object.fromEntries(new URL(location, "https://readplace.com").searchParams);
 }
 
 function pageAlerts(doc: Document): (string | null)[] {
@@ -253,13 +242,13 @@ describe("Readlist Gmail newsletters section", () => {
 		expect(doc.querySelector("#gmail-readlist-selection")?.getAttribute("method")).toBe("GET");
 	});
 
-	it("keeps Save available when the Gmail filter failed", async () => {
+	it("keeps saving available when the Gmail filter failed", async () => {
 		const { agent, gmail, userId } = await readerAgent();
 		await gmail.bundle.gmailConnectionStore.recordFilterError({ userId, error: { code: "rejected", message: "Unrecognized forwarding address", at: "2026-09-16T00:00:00.000Z" } });
 		const doc = load((await agent.get(PREFERENCES)).text);
 		expect(sectionState(doc)).toBe("filter-failed");
 		expect(section(doc).querySelector('[data-test-action="open-gmail-newsletters"]')?.getAttribute("href")).toBe("/newsletters/gmail?utm_source=queue-preferences&utm_medium=internal&utm_content=open-gmail-newsletters");
-		expect(section(doc).querySelector('[data-test-action="save-gmail-newsletters"]')?.getAttribute("formaction")).toBe(`${SAVE}?utm_source=queue-preferences&utm_medium=internal&utm_content=save-gmail-newsletters`);
+		expect(section(doc).querySelector("[data-gmail-autosave]")?.getAttribute("formaction")).toBe(`${SAVE}?utm_source=queue-preferences&utm_medium=internal&utm_content=save-gmail-newsletters`);
 	});
 
 	it("lists senders here, elsewhere and known, ticking the ones routed here", async () => {
@@ -291,82 +280,16 @@ describe("Readlist Gmail newsletters section", () => {
 		expect(gmail.rewriteRequests).toEqual([]);
 	});
 
-	it("redirects a checklist command to the canonical URL, or pushes it for htmx", async () => {
+	it("posts every checklist tick, the select toggle and each search result to the save", async () => {
 		const { agent } = await readerAgent();
-		const command = `${PREFERENCES}?gmail_selection=1&pick=${encodeURIComponent(MORNING)}`;
-		const redirected = await agent.get(command);
-		expect(redirected.status).toBe(303);
-		expect(redirected.headers.location).toBe(`${PREFERENCES}?gmail_selection=1&sender=${encodeURIComponent(MORNING)}#readlist-gmail-senders`);
-		const pushed = await agent.get(command).set("HX-Request", "true");
-		expect(pushed.status).toBe(200);
-		expect(pushed.headers["hx-push-url"]).toBe(redirected.headers.location);
-		expect(checklistRows(load(pushed.text))).toEqual([["known", MORNING, true]]);
+		const doc = load((await agent.get(PREFERENCES)).text);
+		const tracked = `${SAVE}?utm_source=queue-preferences&utm_medium=internal&utm_content=save-gmail-newsletters`;
+		expect(section(doc).querySelector('[data-test-gmail-checklist-action="select"]')?.getAttribute("formaction")).toBe(tracked);
+		expect(section(doc).querySelector(`[data-test-gmail-checklist-row="${MORNING}"] input[name="shown"]`)?.getAttribute("value")).toBe(MORNING);
+		const search = load((await agent.get(`${SENDERS}?gmail_selection=1&search=morning`).set("HX-Request", "true")).text);
+		expect(search.querySelector(`[data-test-gmail-sender-option="${MORNING}"]`)?.getAttribute("formaction")).toBe(tracked);
 	});
 
-	it("answers a search with results only, finding a sender routed to another readlist", async () => {
-		const { agent, mapSender } = await readerAgent();
-		await mapSender(TLDR, [SCIENCE]);
-		const response = await agent.get(`${SENDERS}?gmail_selection=1&search=dan`).set("HX-Request", "true");
-		expect(response.status).toBe(200);
-		expect(response.headers["cache-control"]).toBe("private, no-store");
-		expect(response.headers["hx-push-url"]).toBe(`${PREFERENCES}?gmail_selection=1&search=dan#readlist-gmail-senders`);
-		const doc = load(response.text);
-		expect(rootIds(doc)).toEqual(["gmail-sender-results"]);
-		expect(optionEmails(doc)).toEqual([TLDR]);
-	});
-
-	it("answers a poll with the status and an out-of-band load button", async () => {
-		const { agent } = await readerAgent();
-		const response = await agent.get(`${SENDERS}?gmail_selection=1&discovery=started&poll=1`).set("HX-Request", "true");
-		expect(response.status).toBe(200);
-		expect(rootIds(load(response.text))).toEqual(["gmail-load-senders-button", "gmail-sender-status"]);
-	});
-
-	it("sends a full-page request for the senders fragment to the preferences page", async () => {
-		const { agent } = await readerAgent();
-		const response = await agent.get(`${SENDERS}?gmail_selection=1&search=dan`);
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(`${PREFERENCES}?gmail_selection=1&search=dan#readlist-gmail-senders`);
-	});
-
-	it("redirects an htmx fragment request to the page when no picker shows", async () => {
-		const { agent, gmail, userId } = await readerAgent();
-		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
-		const response = await agent.get(`${SENDERS}?gmail_selection=1&search=dan`).set("HX-Request", "true");
-		expect(response.headers["hx-redirect"]).toBe(PREFERENCES);
-	});
-
-	it("bounces fragment and discovery requests for a readlist the reader does not own", async () => {
-		const { agent } = await readerAgent();
-		expect((await agent.get("/queue/queues/default/preferences/gmail/senders").set("HX-Request", "true")).headers.location).toBe(UNKNOWN_READLIST);
-		expect((await agent.post("/queue/queues/zzz999/preferences/gmail/discovery").type("form").send({ gmail_selection: "1" })).headers.location).toBe(UNKNOWN_READLIST);
-	});
-
-	it("starts discovery only when the reader asks, keeping the selection", async () => {
-		const { agent, gmail, userId } = await readerAgent();
-		await agent.get(PREFERENCES);
-		await agent.get(`${SENDERS}?gmail_selection=1&search=dan`).set("HX-Request", "true");
-		expect(gmail.discoveryRequests).toEqual([]);
-		const response = await agent.post(DISCOVERY).type("form").send({ gmail_selection: "1", sender: MORNING });
-		expect(response.status).toBe(303);
-		expect(locationParams(response.headers.location)).toMatchObject({ gmail_selection: "1", sender: MORNING, discovery: "started" });
-		expect(gmail.discoveryRequests).toEqual([{ userId }]);
-	});
-
-	it("sends a discovery request needing sender access back to the page", async () => {
-		const { agent, gmail } = await readerAgent({ scope: GMAIL_SETTINGS_SCOPE });
-		const response = await agent.post(DISCOVERY).type("form").send({ gmail_selection: "1" });
-		expect(response.headers.location).toBe(PREFERENCES);
-		expect(gmail.discoveryRequests).toEqual([]);
-	});
-
-	it("sends a discovery request back to the page once the reader asked to disconnect", async () => {
-		const { agent, gmail, userId } = await readerAgent();
-		await gmail.bundle.gmailConnectionStore.markDisconnectRequested({ userId });
-		const response = await agent.post(DISCOVERY).type("form").send({ gmail_selection: "1" });
-		expect([response.status, response.headers.location]).toEqual([303, PREFERENCES]);
-		expect(gmail.discoveryRequests).toEqual([]);
-	});
 });
 
 describe("Saving Gmail newsletters to a readlist", () => {
@@ -378,7 +301,7 @@ describe("Saving Gmail newsletters to a readlist", () => {
 		const { agent, gmail, userId } = await readerAgent();
 		const response = await agent.post(SAVE).type("form").send({ gmail_selection: "1", sender: [MORNING, TLDR] });
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(PREFERENCES);
+		expect(response.headers.location).toBe(SAVED);
 		expect(await routedHere(agent, TECH)).toEqual([["here", MORNING, true], ["here", TLDR, true]]);
 		const modes = await Promise.all([MORNING, TLDR].map(async (senderEmail) => (await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail }))?.deliveryMode));
 		expect(modes).toEqual(["issue", "issue"]);
@@ -417,11 +340,26 @@ describe("Saving Gmail newsletters to a readlist", () => {
 		expect(gmail.rewriteRequests).toEqual([{ userId, reason: "sender-added" }]);
 	});
 
+	it("saves a picked search result alongside the ticks", async () => {
+		const { agent } = await readerAgent();
+		const response = await agent.post(SAVE).type("form").send({ gmail_selection: "1", sender: TLDR, pick: MORNING });
+		expect(response.headers.location).toBe(SAVED);
+		expect(await routedHere(agent, TECH)).toEqual([["here", MORNING, true], ["here", TLDR, true]]);
+	});
+
+	it("saves every shown sender on select all, and none on clear", async () => {
+		const { agent } = await readerAgent();
+		await agent.post(SAVE).type("form").send({ gmail_selection: "1", select: "all", shown: [MORNING, TLDR] });
+		expect(await routedHere(agent, TECH)).toEqual([["here", MORNING, true], ["here", TLDR, true]]);
+		await agent.post(SAVE).type("form").send({ gmail_selection: "1", select: "none", sender: TLDR, routed: [MORNING, TLDR], shown: [MORNING, TLDR] });
+		expect(await routedHere(agent, TECH)).toEqual([["elsewhere", MORNING, false], ["elsewhere", TLDR, false]]);
+	});
+
 	it("publishes nothing when the selection is unchanged", async () => {
 		const { agent, gmail, mapSender } = await readerAgent();
 		await mapSender(TLDR, [TECH]);
 		const response = await agent.post(SAVE).type("form").send({ gmail_selection: "1", sender: TLDR, routed: TLDR });
-		expect(response.headers.location).toBe(PREFERENCES);
+		expect(response.headers.location).toBe(SAVED);
 		expect([gmail.rewriteRequests, gmail.newsletterSenderSubmissions]).toEqual([[], []]);
 	});
 

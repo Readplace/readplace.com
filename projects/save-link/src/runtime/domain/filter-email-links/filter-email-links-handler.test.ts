@@ -42,7 +42,6 @@ function workDefinition(purpose: string | undefined): ReadlistDefinitionData {
 	return {
 		slug: WORK,
 		label: "Work",
-		emailDelivery: "links",
 		createdAt: new Date("2026-09-01T00:00:00.000Z"),
 		...(purpose === undefined ? {} : { purpose }),
 	};

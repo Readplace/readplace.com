@@ -450,7 +450,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			listReadlistDefinitions: articleStoreMemory.listReadlistDefinitions,
 			renameReadlistDefinition: articleStoreMemory.renameReadlistDefinition,
 			setReadlistDefinitionPurpose: articleStoreMemory.setReadlistDefinitionPurpose,
-			setReadlistDefinitionEmailDelivery: articleStoreMemory.setReadlistDefinitionEmailDelivery,
 			clearReadlistDefinitionPurpose: articleStoreMemory.clearReadlistDefinitionPurpose,
 			getSummaryToggleState: articleStoreMemory.getSummaryToggleState,
 			readArticleContent: async ({ url, viewer }) =>

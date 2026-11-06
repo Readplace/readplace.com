@@ -139,7 +139,6 @@ import type {
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
-	SetReadlistDefinitionEmailDelivery,
 	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
@@ -464,7 +463,6 @@ export interface AppDependencies {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
-	setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;

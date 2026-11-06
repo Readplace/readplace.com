@@ -14,7 +14,7 @@ import type { GmailIntegrationDependencies } from "../integrations/gmail-integra
 import { renderGmailSenderResultsHtml, renderGmailSenderStatusHtml } from "../integrations/gmail-sender-widget.component";
 import { GMAIL_DISCOVERY_MAX_POLLS } from "../integrations/gmail.url";
 import { initReadReadlistGmailSources, type SaveReadlistGmailSenders, type SaveReadlistGmailSendersRejection } from "./readlist-gmail-senders.save";
-import { buildReadlistGmailUrl, parseReadlistGmailSelection } from "./readlist-gmail-senders.url";
+import { buildReadlistGmailUrl, parseReadlistGmailSelection, READLIST_GMAIL_SECTION_ID } from "./readlist-gmail-senders.url";
 import { type UpgradeOffer, upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { type ReadlistGmailSendersViewModel, readlistGmailPickerVisible, toReadlistGmailSenders } from "./readlist-gmail-senders.viewmodel";
 import { READLIST_ERROR_UNKNOWN_READLIST } from "./readlist.error";
@@ -41,7 +41,7 @@ export function initReadlistGmailSenders(deps: {
 
 	const load: LoadReadlistGmailSenders = async ({ userId, readlist, readlists, query, offer }) => {
 		const sources = await readSources(userId);
-		const { command, listed } = parseGmailChecklistCommand(query);
+		const { listed } = parseGmailChecklistCommand(query);
 		return toReadlistGmailSenders({
 			...sources,
 			userId,
@@ -51,7 +51,6 @@ export function initReadlistGmailSenders(deps: {
 			discoveredSenders: sources.pool.senders,
 			detection: await gmail.detectNewsletters([...sources.pool.known]),
 			selection: parseReadlistGmailSelection(query),
-			command,
 			listed,
 			pollCount: parsePollParam(query.poll, GMAIL_DISCOVERY_MAX_POLLS),
 		});
@@ -147,7 +146,7 @@ export function initReadlistGmailSenders(deps: {
 			const slug = requested.data;
 			const outcome = await deps.save({ userId: ownerOf(req), slug, body: req.body });
 			const redirects: Record<"saved" | SaveReadlistGmailSendersRejection, string> = {
-				saved: readlistPreferencesPath(slug),
+				saved: `${readlistPreferencesPath(slug)}?preferences_saved=1#${READLIST_GMAIL_SECTION_ID}`,
 				"unknown-readlist": unknownReadlistUrl,
 				"gmail-selection": `${readlistPreferencesPath(slug)}?preferences_error=gmail-selection`,
 				"gmail-unavailable": `${readlistPreferencesPath(slug)}?preferences_error=gmail-unavailable`,

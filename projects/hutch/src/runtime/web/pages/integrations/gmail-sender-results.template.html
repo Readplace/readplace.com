@@ -2,7 +2,7 @@
                   <ul class="gmail__options gmail__sender-options">
                     {{#each options}}
                     <li>
-                      <button class="gmail__picker-option" type="submit" form="gmail-readlist-selection" formmethod="get" formnovalidate name="pick" value="{{email}}" data-gmail-picker-option data-test-gmail-sender-option="{{email}}">
+                      <button class="gmail__picker-option" type="submit" form="gmail-readlist-selection" {{#if ../formaction}}formmethod="post" formaction="{{../formaction}}"{{else}}formmethod="get"{{/if}} formnovalidate name="pick" value="{{email}}" data-gmail-picker-option data-test-gmail-sender-option="{{email}}">
                         {{#if name}}<span data-test-gmail-sender-option-name>{{name}}</span>{{/if}}<span class="gmail__option-email">{{email}}</span>
                       </button>
                     </li>
