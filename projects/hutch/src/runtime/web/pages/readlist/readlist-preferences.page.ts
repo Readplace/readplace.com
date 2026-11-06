@@ -44,10 +44,11 @@ import type { LoadReadlistGmailSenders } from "./readlist-gmail-senders.page";
 import type { FindNonEmptyReadlists } from "./readlist-holdings";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
 import { READLIST_PREFERENCES_WIZARD_ID } from "./readlist-preferences-wizard.component";
-import { ReadlistPreferencesPage, renderReadlistPurposeWizard } from "./readlist-preferences.component";
+import { ReadlistPreferencesPage } from "./readlist-preferences.component";
+import { renderReadlistPurposeWizard } from "./readlist-purpose-card.component";
 import { buildReadlistRail } from "./readlist-rail";
 import { READLIST_ERROR_UNKNOWN_READLIST, READLIST_PURPOSE_INVALID_MESSAGE } from "./readlist.error";
-import { buildReadlistUrl, readlistPreferencesPath } from "./readlist.url";
+import { PURPOSE_ORIGINS, buildReadlistUrl, readlistPreferencesPath, readlistPurposeLandingPath } from "./readlist.url";
 import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { toSubscriptionBannerState } from "./readlist.viewmodel";
 
@@ -77,6 +78,10 @@ const PREFERENCES_ERRORS: Record<PreferencesErrorCode, PreferencesError> = {
 const PreferencesQuerySchema = z.object({
 	purpose: z.string().optional().catch(undefined),
 	preferences_error: z.enum(PREFERENCES_ERROR_CODES).optional().catch(undefined),
+});
+
+const PurposeOriginQuerySchema = z.object({
+	from: z.enum(PURPOSE_ORIGINS).catch("preferences"),
 });
 
 const InboxRoutingBodySchema = z
@@ -165,6 +170,7 @@ export function initReadlistPreferencesRoutes(deps: {
 			state: { readlist: definition.slug, tab: "queue", page: 1 } as const,
 			activeReadlist,
 			readlists,
+			activePurpose: definition.purpose,
 		};
 		const draft = parsed.purpose;
 		const error: PreferencesError =
@@ -217,6 +223,7 @@ export function initReadlistPreferencesRoutes(deps: {
 				return;
 			}
 			const slug = requested.data;
+			const { from } = PurposeOriginQuerySchema.parse(req.query);
 			const typed = typeof req.body?.purpose === "string" ? req.body.purpose : "";
 			const definitions = await deps.listReadlistDefinitions(userId);
 			const rejections: Record<ReadlistPurposeRejection, () => ReadlistNaming> = {
@@ -228,6 +235,7 @@ export function initReadlistPreferencesRoutes(deps: {
 						return renderReadlistPurposeWizard({
 							readlist: stored,
 							values: { purpose: typed },
+							from,
 							error: READLIST_PURPOSE_INVALID_MESSAGE,
 						}).popoverFormHtml;
 					},
@@ -239,7 +247,7 @@ export function initReadlistPreferencesRoutes(deps: {
 				const clearing = decideReadlistPurposeClear({ slug, readlists: readerReadlists(definitions) });
 				assert(clearing.ok, "a readlist with a purpose is one the reader owns");
 				const { cleared } = await deps.clearReadlistDefinitionPurpose({ userId, slug: clearing.slug });
-				answer(cleared ? { landing: readlistPreferencesPath(clearing.slug), scroll: "stay-put" } : unknownReadlistNaming);
+				answer(cleared ? { landing: readlistPurposeLandingPath({ readlist: clearing.slug, from }), scroll: "stay-put" } : unknownReadlistNaming);
 				return;
 			}
 
@@ -262,7 +270,7 @@ export function initReadlistPreferencesRoutes(deps: {
 				answer(unknownReadlistNaming);
 				return;
 			}
-			answer({ landing: readlistPreferencesPath(decision.slug), scroll: "stay-put" });
+			answer({ landing: readlistPurposeLandingPath({ readlist: decision.slug, from }), scroll: "stay-put" });
 		},
 	);
 

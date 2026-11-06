@@ -1180,7 +1180,7 @@ test.describe("Readlist preferences colour roles hold their WCAG contrast in bot
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(preferencesUrl, { waitUntil: "domcontentloaded" });
 			await expect(page.locator(preferences)).toHaveAttribute("data-test-preferences-state", "set");
-			await auditRoot(page, { root: preferences, theme, view: "preferences/set" });
+			await auditRoot(page, { root: "[data-test-readlist-purpose]", theme, view: "preferences/set" });
 		}
 	});
 });

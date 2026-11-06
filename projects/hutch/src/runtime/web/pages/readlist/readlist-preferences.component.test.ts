@@ -117,11 +117,11 @@ describe("ReadlistPreferencesPage", () => {
 			".menu__panel",
 			".confirm-popover",
 			".wizard__title",
-			".readlist-preferences__purpose",
+			".readlist-purpose",
 			".readlist-inboxes__row",
 			".readlist-empty",
 			".setup-guide",
-			".readlist-preferences__set",
+			".readlist-preferences__fallback",
 		]) {
 			expect(styles).toContain(selector);
 		}
@@ -289,17 +289,27 @@ describe("ReadlistPreferencesPage", () => {
 		expect(panel.querySelectorAll("[data-test-preferences-menu]")).toHaveLength(0);
 	});
 
-	it("makes a set purpose one button that opens the edit dialog, with a pencil and no options menu", () => {
-		const panel = purposePanel(documentOf(page({ purpose: "Shipping essays." }).content.html));
-		const edit = panel.querySelector('[data-test-action="readlist-preferences-edit"]');
-		assert(edit, "the set state must offer the purpose's edit control");
+	it("shows a set purpose in the Purpose card above the tabs, opening the edit dialog", () => {
+		const doc = documentOf(page({ purpose: "Shipping essays." }).content.html);
+		const card = doc.querySelector('.readlist__browse > [data-test-action="readlist-purpose-edit"]');
+		assert(card, "the set state must render the Purpose card");
 
-		expect(edit.tagName).toBe("BUTTON");
-		expect(edit.getAttribute("popovertarget")).toBe("readlist-preferences-wizard");
-		expect(edit.querySelector("[data-test-preferences-purpose]")?.textContent).toBe("Shipping essays.");
-		expect(edit.querySelectorAll(".readlist-preferences__pencil svg")).toHaveLength(1);
-		expect(edit.querySelector(".sr-only")?.textContent).toBe("Edit purpose");
-		expect(panel.querySelectorAll("[data-test-preferences-menu]")).toHaveLength(0);
+		expect(card.nextElementSibling?.matches("[data-test-filters]")).toBe(true);
+		expect(card.getAttribute("popovertarget")).toBe("readlist-preferences-wizard");
+		expect(card.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
+		expect(purposePanel(doc).querySelectorAll("[data-test-preferences-menu]")).toHaveLength(0);
+	});
+
+	it("shows no Purpose card while the purpose is unset", () => {
+		expect(documentOf(page({}).content.html).querySelectorAll("[data-test-readlist-purpose]")).toHaveLength(0);
+	});
+
+	it("posts the purpose from Preferences without naming an origin, so the save lands back on Preferences", () => {
+		const doc = documentOf(page({ purpose: "Shipping essays." }).content.html);
+
+		expect(doc.querySelector("[data-test-wizard]")?.getAttribute("action")).toBe(
+			`/queue/queues/${WORK}/preferences?utm_source=queue-preferences&utm_medium=internal&utm_content=save-purpose`,
+		);
 	});
 
 	it.each([
@@ -366,10 +376,10 @@ describe("ReadlistPreferencesPage", () => {
 		expect(panel.className).toBe(
 			"readlist-listing readlist-preferences readlist-preferences--set readlist-preferences--read-only",
 		);
-		expect(panel.querySelector("[data-test-preferences-purpose]")?.textContent).toBe("Shipping essays.");
+		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
 		expect(
 			doc.querySelectorAll(
-				'[data-test-action="readlist-preferences-setup"], [data-test-action="readlist-preferences-edit"], [data-test-wizard], .readlist-preferences__fallback, [data-test-confirm-popover="readlist-preferences"]',
+				'[data-test-action="readlist-preferences-setup"], [data-test-action="readlist-purpose-edit"], [data-test-wizard], .readlist-preferences__fallback, [data-test-confirm-popover="readlist-preferences"]',
 			),
 		).toHaveLength(0);
 	});
@@ -410,9 +420,10 @@ describe("ReadlistPreferencesPage", () => {
 
 	it("locks the set purpose's edit for a read-only reader who can upgrade, with no wizard behind it", () => {
 		const doc = documentOf(page({ purpose: "Shipping essays.", accessIsReadOnly: true, offer: OFFER }).content.html);
-		const panel = purposePanel(doc);
+		const panel = doc.querySelector("[data-test-readlist-purpose]");
+		assert(panel, "the set purpose must render its card");
 
-		expect(panel.querySelector("[data-test-preferences-purpose]")?.textContent).toBe("Shipping essays.");
+		expect(panel.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
 		expect(
 			Array.from(panel.querySelectorAll('[data-test-action="upgrade-open"]'), (lock) => [
 				lock.getAttribute("data-test-needs-upgrade"),
@@ -424,7 +435,7 @@ describe("ReadlistPreferencesPage", () => {
 		).toEqual(["/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-edit-purpose"]);
 		expect(
 			doc.querySelectorAll(
-				'[data-test-action="readlist-preferences-edit"], [data-test-preferences-menu], [data-test-wizard]',
+				'[data-test-action="readlist-purpose-edit"], [data-test-preferences-menu], [data-test-wizard]',
 			),
 		).toHaveLength(0);
 	});

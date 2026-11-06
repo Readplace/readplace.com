@@ -84,6 +84,9 @@ import {
 	toReadlistSubscriptionDisplayModel,
 } from "./readlist-subscription.component";
 import { READLIST_STYLES } from "./readlist.styles";
+import { READLIST_PURPOSE_CARD_STYLES, renderReadlistPurpose } from "./readlist-purpose-card.component";
+import { standingOf } from "../../shared/upgrade-offer/upgrade-offer";
+import { WIZARD_STYLES } from "../../shared/wizard/wizard.component";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist.template.html"), "utf-8");
 
@@ -118,6 +121,7 @@ export interface ReadlistPageOptions {
 	saveUrl?: string;
 	onboarding: ReadlistOnboarding;
 	keepOffer: KeepOfferEligibility;
+	purpose: string | undefined;
 	query: Record<string, unknown>;
 }
 
@@ -442,6 +446,13 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		client: installClientOf(options.onboarding.context),
 	});
 
+	const purpose = renderReadlistPurpose({
+		readlist: { slug: filters.readlist, purpose: options.purpose },
+		standing: standingOf({ gated: vm.accessIsReadOnly, offer: options.rail.offer }),
+		offer: options.rail.offer,
+		from: filters.tab,
+	});
+
 	const addLink = isDefaultReadlist
 		? renderReadlistAddLink({
 				filters,
@@ -488,6 +499,8 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		addLinkPendingHtml: addLink.pendingHtml,
 		addLinkControlHtml: addLink.controlHtml,
 		addLinkDialogHtml: addLink.dialogHtml,
+		purposeCardHtml: purpose.cardHtml,
+		purposeWizardHtml: purpose.wizardPopoverHtml,
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: filters.tab,
@@ -595,7 +608,14 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",
 		},
-		styles: `${CONFIRM_POPOVER_STYLES}\n${ONBOARDING_STYLES}\n${READLIST_STYLES}\n${READLIST_DISCOVERY_STYLES}`,
+		styles: [
+			CONFIRM_POPOVER_STYLES,
+			ONBOARDING_STYLES,
+			READLIST_STYLES,
+			READLIST_DISCOVERY_STYLES,
+			WIZARD_STYLES,
+			READLIST_PURPOSE_CARD_STYLES,
+		].join("\n"),
 		bodyClass: READLIST_BODY_CLASS,
 		content: { html: content },
 		scripts: scripts.join("\n"),

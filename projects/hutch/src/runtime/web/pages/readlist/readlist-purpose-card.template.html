@@ -1,0 +1,16 @@
+{{#if editable}}
+<button class="readlist-purpose readlist-purpose--editable" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-readlist-purpose data-test-action="readlist-purpose-edit">
+  <span class="readlist-purpose__heading"><span class="readlist-purpose__icon" aria-hidden="true">{{icon "note"}}</span>Purpose</span>
+  <span class="readlist-purpose__pencil" aria-hidden="true">{{icon "pencil"}}</span>
+  <span class="readlist-purpose__text" data-test-readlist-purpose-text>{{preview}}{{#if cut}} <span class="readlist-purpose__more" data-test-readlist-purpose-more>view more …</span>{{/if}}</span>
+  <span class="sr-only">Edit purpose</span>
+</button>
+{{else}}
+<section class="readlist-purpose" aria-labelledby="readlist-purpose-title" data-test-readlist-purpose>
+  <h2 class="readlist-purpose__heading" id="readlist-purpose-title"><span class="readlist-purpose__icon" aria-hidden="true">{{icon "note"}}</span>Purpose</h2>
+  <p class="readlist-purpose__text readlist-purpose__text--full" data-test-readlist-purpose-text>{{purpose}}</p>
+  {{#each locks}}
+  <div class="readlist-purpose__lock">{{{this}}}</div>
+  {{/each}}
+</section>
+{{/if}}

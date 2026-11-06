@@ -17,6 +17,9 @@ const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
 const PURPOSE =
 	"Long-form essays about how teams actually ship software, kept here so I can reread them before a planning round.";
+const PURPOSE_PREVIEW =
+	"Long-form essays about how teams actually ship software, kept here so I can reread them before a view more …";
+const EDITED_PURPOSE = "Weekend reading only.";
 
 const DESKTOP = { width: 1280, height: 900 };
 const DESKTOP_TALL = { width: 1280, height: 1700 };
@@ -58,9 +61,15 @@ const SETUP_TRIGGER = '[data-test-action="readlist-preferences-setup"]';
 const UNSET_CARD = "[data-test-preferences-empty]";
 const UNSET_ART = `${UNSET_CARD} [data-test-illustration="book-lightbulb"]`;
 const UNSET_TEXT = `${UNSET_CARD} .readlist-empty__text`;
-const EDIT_TRIGGER = '[data-test-action="readlist-preferences-edit"]';
-const PENCIL = `${EDIT_TRIGGER} .readlist-preferences__pencil svg`;
-const PURPOSE_TEXT = "[data-test-preferences-purpose]";
+const PURPOSE_CARD = "[data-test-readlist-purpose]";
+const EDIT_TRIGGER = '[data-test-action="readlist-purpose-edit"]';
+const PENCIL = `${EDIT_TRIGGER} .readlist-purpose__pencil svg`;
+const PURPOSE_TEXT = "[data-test-readlist-purpose-text]";
+const PURPOSE_HEADING = `${PURPOSE_CARD} .readlist-purpose__heading`;
+const BROWSE = ".readlist__browse";
+const TABS_BAR = ".readlist__tabs-bar";
+const TO_READ_TAB = '[data-test-filter="unread"]';
+const READ_TAB = '[data-test-filter="read"]';
 const INBOXES = "[data-test-readlist-inboxes]";
 const INBOX_ROWS = "[data-test-preferences-inbox]";
 const INBOXES_DESCRIPTION = "[data-test-inboxes-description]";
@@ -207,7 +216,7 @@ async function unsetShown(page: Page): Promise<void> {
 
 async function purposeShown(page: Page): Promise<void> {
 	await expect(page.locator(PREFERENCES)).toHaveAttribute("data-test-preferences-state", "set");
-	await expect(page.locator(PURPOSE_TEXT)).toHaveText(PURPOSE);
+	await expect(page.locator(PURPOSE_TEXT)).toHaveText(PURPOSE_PREVIEW);
 	await waitForBrandFonts(page, ["Inter"]);
 	await page.mouse.move(0, 0);
 }
@@ -376,40 +385,75 @@ async function unsetCardComposition(page: Page): Promise<void> {
 	);
 }
 
-async function purposeCardSitsUnderTheTabs(page: Page): Promise<void> {
-	await expect(page.locator(SETUP_TRIGGER)).toBeHidden();
-	const [main, tabs, panel, inboxes, purpose, glyph] = [
-		await measuredBox(page, MAIN_COLUMN),
-		await measuredBox(page, TABS),
-		await measuredBox(page, PREFERENCES),
-		await measuredBox(page, INBOXES),
+async function purposeCardInsets(page: Page): Promise<void> {
+	const [card, heading, purpose, glyph] = [
+		await measuredBox(page, PURPOSE_CARD),
+		await measuredBox(page, PURPOSE_HEADING),
 		await measuredBox(page, PURPOSE_TEXT),
 		await measuredBox(page, PENCIL),
 	];
 	assert.ok(
-		near({ actual: tabs.y - main.y, expected: 0, within: 1 }),
-		`the tabs must lead the main column, measured ${tabs.y - main.y}px under its top`,
+		near({ actual: heading.x - card.x, expected: 17, within: 1 }),
+		`the Purpose title must start 17px inside the card, measured ${heading.x - card.x}px`,
 	);
 	assert.ok(
-		near({ actual: panel.y - (tabs.y + tabs.height), expected: 32, within: 1 }),
-		`the purpose card must sit 32px under the tabs, measured ${panel.y - (tabs.y + tabs.height)}px`,
+		near({ actual: purpose.x, expected: heading.x, within: 1 }),
+		`the purpose must start where its title starts, measured ${purpose.x - heading.x}px apart`,
+	);
+	assert.ok(purpose.y >= heading.y + heading.height, "the purpose must sit under its title");
+	assert.ok(
+		near({ actual: card.x + card.width - (glyph.x + glyph.width), expected: 17, within: 1 }),
+		`the pencil must end 17px inside the card's right edge, measured ${card.x + card.width - (glyph.x + glyph.width)}px`,
 	);
 	assert.ok(
-		near({ actual: inboxes.y - (panel.y + panel.height), expected: 32, within: 1 }),
-		`the inboxes must sit 32px under the purpose card, measured ${inboxes.y - (panel.y + panel.height)}px`,
+		near({ actual: glyph.y + glyph.height / 2, expected: heading.y + heading.height / 2, within: 1 }),
+		"the pencil must sit level with the Purpose title",
 	);
+}
+
+async function purposeCardLeadsTheTabs(page: Page, tabs: string): Promise<void> {
+	const [main, card] = [await measuredBox(page, MAIN_COLUMN), await measuredBox(page, PURPOSE_CARD)];
 	assert.ok(
-		near({ actual: purpose.x - panel.x, expected: 25, within: 1 }),
-		`the purpose must start 25px inside the card, measured ${purpose.x - panel.x}px`,
+		near({ actual: card.y - main.y, expected: 0, within: 1 }),
+		`the Purpose card must lead the main column, measured ${card.y - main.y}px under its top`,
 	);
+	await purposeCardSitsOverTheTabs(page, tabs);
+}
+
+async function purposeCardSitsOverTheTabs(page: Page, tabs: string): Promise<void> {
+	const [card, bar] = [await measuredBox(page, PURPOSE_CARD), await measuredBox(page, tabs)];
 	assert.ok(
-		near({ actual: panel.x + panel.width - (glyph.x + glyph.width), expected: 25, within: 1 }),
-		`the pencil must end 25px inside the card's right edge, measured ${panel.x + panel.width - (glyph.x + glyph.width)}px`,
+		near({ actual: bar.y - (card.y + card.height), expected: 32, within: 1 }),
+		`the tabs must sit 32px under the Purpose card, measured ${bar.y - (card.y + card.height)}px`,
 	);
+	await purposeCardInsets(page);
+}
+
+async function purposeCardSitsAboveTheTabs(page: Page): Promise<void> {
+	await expect(page.locator(PREFERENCES)).toBeHidden();
+	await purposeCardLeadsTheTabs(page, TABS);
+	const [tabs, inboxes] = [await measuredBox(page, TABS), await measuredBox(page, INBOXES)];
 	assert.ok(
-		near({ actual: glyph.y - panel.y, expected: 25, within: 1 }),
-		`the pencil must sit 25px inside the card's top edge, measured ${glyph.y - panel.y}px`,
+		near({ actual: inboxes.y - (tabs.y + tabs.height), expected: 32, within: 1 }),
+		`the inboxes must sit 32px under the tabs, measured ${inboxes.y - (tabs.y + tabs.height)}px`,
 	);
+}
+
+async function listingPurposeLeadsTheTabs(page: Page): Promise<void> {
+	await neverScrollsSideways(page);
+	await purposeCardLeadsTheTabs(page, TABS_BAR);
+}
+
+async function phoneListingPurposeLeadsTheTabs(page: Page): Promise<void> {
+	await neverScrollsSideways(page);
+	await purposeCardSitsOverTheTabs(page, TABS_BAR);
+}
+
+async function listingPurposeShown(page: Page): Promise<void> {
+	await expect(page.locator(PURPOSE_TEXT)).toHaveText(PURPOSE_PREVIEW);
+	await expect(page.locator(`${BROWSE} .readlist-empty`)).toBeVisible();
+	await waitForBrandFonts(page, ["Inter"]);
+	await page.mouse.move(0, 0);
 }
 
 async function neverScrollsSideways(page: Page): Promise<void> {
@@ -450,15 +494,15 @@ async function editShowsItsFocusRing(page: Page): Promise<void> {
 
 async function phoneGuideSitsBetweenRailAndTabs(page: Page): Promise<void> {
 	await neverScrollsSideways(page);
-	const [rail, guide, tabs, panel] = [
+	const [rail, guide, card, tabs] = [
 		await measuredBox(page, RAIL),
 		await measuredBox(page, SETUP_GUIDE),
+		await measuredBox(page, PURPOSE_CARD),
 		await measuredBox(page, TABS),
-		await measuredBox(page, PREFERENCES),
 	];
 	assert.ok(rail.y + rail.height <= guide.y, "the setup guide must follow the readlist rail on a phone");
-	assert.ok(guide.y + guide.height <= tabs.y, "the setup guide must lead the tabs on a phone");
-	assert.ok(tabs.y + tabs.height <= panel.y, "the purpose card must sit under the tabs on a phone");
+	assert.ok(guide.y + guide.height <= card.y, "the setup guide must lead the Purpose card on a phone");
+	assert.ok(card.y + card.height <= tabs.y, "the Purpose card must lead the tabs on a phone");
 }
 
 async function unsetBodyWrapsOnAPhone(page: Page): Promise<void> {
@@ -499,8 +543,8 @@ const UNSET: Omit<VisualCheckpoint, "name"> = {
 
 const SET: Omit<VisualCheckpoint, "name"> = {
 	settled: purposeShown,
-	geometry: purposeCardSitsUnderTheTabs,
-	target: PREFERENCES,
+	geometry: purposeCardSitsAboveTheTabs,
+	target: PURPOSE_CARD,
 	capture: "element",
 	pinnedText: [],
 };
@@ -562,6 +606,14 @@ const SET_PHONE: VisualCheckpoint = {
 	...SET,
 	name: "readlist-preferences-set-phone",
 	geometry: phoneGuideSitsBetweenRailAndTabs,
+};
+
+const LISTING_PURPOSE: Omit<VisualCheckpoint, "name"> = {
+	settled: listingPurposeShown,
+	geometry: listingPurposeLeadsTheTabs,
+	target: BROWSE,
+	capture: "element",
+	pinnedText: [],
 };
 
 const WIZARD_PHONE: VisualCheckpoint = {
@@ -861,6 +913,58 @@ test.describe("Readlist preferences on a phone", () => {
 		await openPreferencesByRequest(page, `wizard-phone-${testInfo.workerIndex}-${Date.now()}`);
 		await page.click(SETUP_TRIGGER);
 		await captureCheckpoint(page, WIZARD_PHONE);
+	});
+});
+
+async function openListingWithPurpose(page: Page, input: { stamp: string; tab: string }): Promise<void> {
+	const slug = await openPreferencesByRequest(page, input.stamp);
+	await seedPurpose(page, slug);
+	await clickAndWaitForPageReload(page, page.locator(input.tab));
+	await expect(page.locator(`${input.tab}[aria-current="page"]`)).toHaveCount(1);
+	await page.mouse.move(5, 5);
+}
+
+test.describe("Readlist purpose on the listing tabs", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`shows the purpose above To read's tabs (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openListingWithPurpose(page, { stamp: `to-read-${theme}-${testInfo.workerIndex}-${Date.now()}`, tab: TO_READ_TAB });
+			await captureCheckpoint(page, themed(LISTING_PURPOSE, `readlist-purpose-to-read-${theme}`));
+		});
+	}
+
+	test("shows the purpose above Read's tabs (light)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openListingWithPurpose(page, { stamp: `read-light-${testInfo.workerIndex}-${Date.now()}`, tab: READ_TAB });
+		await captureCheckpoint(page, themed(LISTING_PURPOSE, "readlist-purpose-read-light"));
+	});
+
+	test("edits the purpose from To read and lands back on To read", async ({ page }, testInfo) => {
+		await openListingWithPurpose(page, { stamp: `to-read-edit-${testInfo.workerIndex}-${Date.now()}`, tab: TO_READ_TAB });
+		await page.click(EDIT_TRIGGER);
+		await wizardOpen(page);
+		await expect(page.locator(PANEL_FIELD)).toHaveValue(PURPOSE);
+		await page.locator(PANEL_FIELD).fill(EDITED_PURPOSE);
+		await clickAndWaitForPageReload(page, page.locator(PANEL_SAVE));
+
+		await expect(page.locator(PURPOSE_TEXT)).toHaveText(EDITED_PURPOSE);
+		await expect(page.locator(`${TO_READ_TAB}[aria-current="page"]`)).toHaveCount(1);
+		await expect(page.locator(PREFERENCES)).toHaveCount(0);
+	});
+});
+
+test.describe("Readlist purpose on a phone's listing", () => {
+	test.use({ timezoneId: "UTC", viewport: PHONE });
+
+	test("shows the purpose above To read's tabs on a phone (light)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openListingWithPurpose(page, { stamp: `to-read-phone-${testInfo.workerIndex}-${Date.now()}`, tab: TO_READ_TAB });
+		await captureCheckpoint(page, {
+			...themed(LISTING_PURPOSE, "readlist-purpose-to-read-phone"),
+			geometry: phoneListingPurposeLeadsTheTabs,
+		});
 	});
 });
 

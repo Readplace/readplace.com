@@ -1,0 +1,105 @@
+.readlist-purpose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 14px;
+  width: 100%;
+  margin: 0;
+  padding: 15px 16px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  color: var(--foreground);
+  text-align: start;
+}
+
+.readlist-purpose__heading {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+
+.readlist-purpose__icon {
+  display: inline-flex;
+  flex: none;
+  font-size: 24px;
+  margin-inline-start: -2px;
+  color: var(--color-brand);
+}
+
+.readlist-purpose__pencil {
+  grid-column: 2;
+  grid-row: 1;
+  display: none;
+  color: var(--muted-foreground);
+}
+
+.readlist-purpose__text {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.readlist-purpose__text--full {
+  white-space: pre-wrap;
+}
+
+.readlist-purpose__more {
+  display: none;
+  color: var(--primary-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.readlist-purpose__lock {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+@supports selector(:popover-open) {
+  .readlist-purpose--editable {
+    cursor: pointer;
+  }
+
+  .readlist-purpose--editable:hover {
+    border-color: var(--muted-foreground);
+  }
+
+  .readlist-purpose--editable:hover .readlist-purpose__pencil {
+    color: var(--foreground);
+  }
+
+  .readlist-purpose--editable:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  .readlist-purpose__pencil {
+    display: flex;
+  }
+
+  .readlist-purpose__more {
+    display: inline;
+  }
+}

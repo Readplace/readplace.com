@@ -8,6 +8,7 @@
             {{{alertHtml}}}
           </div>
           <div class="readlist__browse">
+            {{{purposeCardHtml}}}
             {{{tabsHtml}}}
             <section class="readlist-listing {{panelClass}}" aria-labelledby="readlist-preferences-title" data-test-readlist-preferences data-test-preferences-state="{{state}}">
               <h2 class="sr-only" id="readlist-preferences-title">Preferences for {{readlistLabel}}</h2>
@@ -24,20 +25,6 @@
                   {{/each}}
                 </div>
               </div>
-              {{#each editControls}}
-              <button class="readlist-preferences__set readlist-preferences__edit" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="readlist-preferences-edit">
-                <span class="readlist-preferences__purpose" data-test-preferences-purpose>{{../purposeText}}</span>
-                <span class="readlist-preferences__pencil">{{icon "pencil"}}</span>
-                <span class="sr-only">Edit purpose</span>
-              </button>
-              {{else}}
-              <div class="readlist-preferences__set">
-                <p class="readlist-preferences__purpose" data-test-preferences-purpose>{{purposeText}}</p>
-                {{#each purposeLocks}}
-                {{{this}}}
-                {{/each}}
-              </div>
-              {{/each}}
               {{#each inlineWizards}}
               <div class="readlist-preferences__fallback">
                 {{{this}}}
