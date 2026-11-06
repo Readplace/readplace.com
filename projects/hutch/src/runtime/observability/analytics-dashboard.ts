@@ -879,7 +879,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			region,
 			title: "Checkout funnel per day",
 			logGroupNames: analyticsSource,
-			// Distinct users, not raw counts: checkout_started fires once per Subscribe
+			// Distinct users, not raw counts: checkout_started fires once per Upgrade
 			// click, so abandon-and-retry would inflate the conversion denominator.
 			query: [
 				"fields @timestamp, event",

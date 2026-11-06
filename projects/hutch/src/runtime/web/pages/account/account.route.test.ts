@@ -747,7 +747,7 @@ describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () =
 		const doc = new JSDOM(response.text).window.document;
 		// The subscription state still renders — the reviewer sees where they stand.
 		expect(doc.querySelector("[data-test-account-status]")?.textContent).toContain("free trial");
-		// No in-app purchase path: no Subscribe form, no card management section.
+		// No in-app purchase path: no Upgrade form, no card management section.
 		expect(actionKeys(doc)).toEqual([]);
 		expectBillingHidden(doc);
 		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
@@ -969,7 +969,7 @@ describe("GET /account?platform=ios&shell=app (the app's in-app web sheet)", () 
 		const doc = new JSDOM((await agent.get("/account?shell=app")).text).window.document;
 
 		expect(doc.body.classList.contains("page-account--chromeless")).toBe(true);
-		// Guideline 3.1.1 holds off the shell marker alone: no Subscribe CTA, no cards.
+		// Guideline 3.1.1 holds off the shell marker alone: no Upgrade CTA, no cards.
 		expect(actionKeys(doc)).toEqual([]);
 		expectBillingHidden(doc);
 		expect(confirmPopoverKeys(doc)).toEqual(["delete-account"]);
