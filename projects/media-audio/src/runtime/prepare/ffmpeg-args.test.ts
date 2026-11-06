@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+	enclosureArgs,
 	transcriptionInputArgs,
 	transcriptionInputExtension,
 } from "./ffmpeg-args";
@@ -56,5 +57,23 @@ describe("transcriptionInputExtension", () => {
 		["opus", "m4a"],
 	])("names a %s input %s", (codec, extension) => {
 		assert.equal(transcriptionInputExtension(codec), extension);
+	});
+});
+
+describe("enclosureArgs", () => {
+	const ENCLOSURE = { ...BASE, outputPath: "/tmp/u.m4a" };
+
+	it("reads the staged bytes the way the transcription input does", () => {
+		const input = transcriptionInputArgs({ ...ENCLOSURE, codec: "aac" }).slice(0, -3);
+
+		assert.deepEqual(enclosureArgs({ ...ENCLOSURE, codec: "aac" }).slice(0, input.length), input);
+	});
+
+	it("copies an aac stream", () => {
+		assert.deepEqual(enclosureArgs({ ...ENCLOSURE, codec: "aac" }).slice(-3), ["-c:a", "copy", ENCLOSURE.outputPath]);
+	});
+
+	it.each(["mp3", "opus"])("encodes a %s stream as 64 kb/s mono AAC", (codec) => {
+		assert.deepEqual(enclosureArgs({ ...ENCLOSURE, codec }).slice(-7), ["-c:a", "aac", "-b:a", "64k", "-ac", "1", ENCLOSURE.outputPath]);
 	});
 });

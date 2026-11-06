@@ -59,6 +59,34 @@ export function initRunFfprobe(deps: { execFile: ExecFile }): RunFfprobe {
 	};
 }
 
+const DurationOutputSchema = z.object({
+	format: z.object({ duration: z.coerce.number() }),
+});
+
+export type ProbeFileDuration = (params: {
+	file: string;
+}) => Promise<{ durationSeconds: number }>;
+
+export function initProbeFileDuration(deps: {
+	execFile: ExecFile;
+}): ProbeFileDuration {
+	return async ({ file }) => {
+		const { stdout } = await deps.execFile("ffprobe", [
+			"-v",
+			"warning",
+			"-show_entries",
+			"format=duration",
+			"-of",
+			"json",
+			file,
+		]);
+		return {
+			durationSeconds: DurationOutputSchema.parse(JSON.parse(stdout)).format
+				.duration,
+		};
+	};
+}
+
 export function firstAudioCodec(streams: ProbedStream[]): string | undefined {
 	return streams.find((stream) => stream.codec_type === "audio")?.codec_name;
 }

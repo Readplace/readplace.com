@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { MediaUploadCommittedEvent } from "@packages/infra-components";
+import {
+	MediaProcessingFailedEvent,
+	MediaUploadCommittedEvent,
+} from "@packages/infra-components";
 import { Logger, noopLogger } from "@packages/logger";
 import { stagedObjectKey } from "@packages/media-contracts";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -12,6 +15,7 @@ import {
 } from "@packages/test-fixtures/providers/transcript-quota";
 import {
 	initPrepareTranscriptionHandler,
+	type PrepareStep,
 	type RunFfmpeg,
 	type TranscriptionStarted,
 } from "./prepare-transcription-handler";
@@ -60,6 +64,8 @@ function setUp(
 		item?: "present" | "gone";
 		probe?: Awaited<ReturnType<RunFfprobe>>;
 		ffmpeg?: Awaited<ReturnType<RunFfmpeg>>;
+		videoStep?: Awaited<ReturnType<PrepareStep>>;
+		unrefAll?: () => Promise<void>;
 	} = {},
 ) {
 	const rows = overrides.rows ?? initInMemoryTranscriptQuotaRows();
@@ -84,6 +90,17 @@ function setUp(
 			assert.equal(key, stagedObjectKey(COMMITTED.uploadId));
 			return SIGNED;
 		},
+		prepareSteps: {
+			audio: async () => "proceed",
+			video: async (params) =>
+				record("extractAudio", params, overrides.videoStep ?? "proceed"),
+		},
+		unrefAll: async (params) => {
+			calls.push(["unrefAll", params]);
+			await overrides.unrefAll?.();
+		},
+		publishEvent: async (event, detail) =>
+			record("publishEvent", [event.detailType, detail], undefined),
 		runFfprobe: async (params) =>
 			record(
 				"runFfprobe",
@@ -280,6 +297,7 @@ describe("initPrepareTranscriptionHandler", () => {
 
 		assert.deepEqual(calls, [
 			["findArticleMedia", { url: DETAIL.url }],
+			["unrefAll", { uploadId: UPLOAD_ID }],
 			["refundUnstarted", CHARGE],
 			["deletePrefix", `transcripts/${UPLOAD_ID}/`],
 		]);
@@ -294,6 +312,7 @@ describe("initPrepareTranscriptionHandler", () => {
 
 		assert.deepEqual(calls, [
 			["findArticleMedia", { url: DETAIL.url }],
+			["unrefAll", { uploadId: UPLOAD_ID }],
 			["refundUnstarted", CHARGE],
 		]);
 	});
@@ -318,5 +337,130 @@ describe("initPrepareTranscriptionHandler", () => {
 		assert.equal(await run({ uploadId: "x" }), "failed");
 
 		assert.deepEqual(calls, []);
+	});
+
+	describe("a video upload", () => {
+		const VIDEO_DETAIL = { ...DETAIL, kind: "video" };
+
+		it("extracts the audio before the charge is marked started, then transcribes it", async () => {
+			const rows = initInMemoryTranscriptQuotaRows();
+			await seedCharge(rows, "reserved");
+			const { run, calls } = setUp({ rows });
+
+			assert.equal(await run(VIDEO_DETAIL), "acked");
+
+			const names = calls.map(([name]) => name);
+			assert.deepEqual(calls[1], [
+				"extractAudio",
+				{ detail: VIDEO_DETAIL, inputUrl: SIGNED },
+			]);
+			assert.ok(names.indexOf("extractAudio") < names.indexOf("markStarted"));
+			assert.equal(calls.at(-1)?.[0], "startTranscriptionJob");
+		});
+
+		it("writes no tier-0 body and publishes nothing before the transcript", async () => {
+			const rows = initInMemoryTranscriptQuotaRows();
+			await seedCharge(rows, "reserved");
+			const { run, calls } = setUp({ rows });
+
+			assert.equal(await run(VIDEO_DETAIL), "acked");
+
+			assert.deepEqual(
+				calls.filter(
+					([name]) =>
+						name === "writeMinimalAudioBody" || name === "publishEvent",
+				),
+				[],
+			);
+		});
+
+		it("runs no pre-step for a dequeued item and releases the hold a dead delivery left", async () => {
+			const rows = initInMemoryTranscriptQuotaRows();
+			await seedCharge(rows, "reserved");
+			const { run, calls } = setUp({ rows, item: "gone" });
+
+			assert.equal(await run(VIDEO_DETAIL), "acked");
+
+			assert.deepEqual(calls, [
+				["findArticleMedia", { url: DETAIL.url }],
+				["unrefAll", { uploadId: UPLOAD_ID }],
+				["refundUnstarted", CHARGE],
+				["deletePrefix", `transcripts/${UPLOAD_ID}/`],
+			]);
+		});
+
+		it("fails the record without refunding when releasing the hold fails", async () => {
+			const rows = initInMemoryTranscriptQuotaRows();
+			await seedCharge(rows, "reserved");
+			const { run, calls } = setUp({
+				rows,
+				item: "gone",
+				unrefAll: async () => Promise.reject(new Error("throttled")),
+			});
+
+			assert.equal(await run(VIDEO_DETAIL), "failed");
+
+			assert.deepEqual(calls.at(-1), ["unrefAll", { uploadId: UPLOAD_ID }]);
+		});
+
+		it.each([
+			"reserved",
+			"none",
+		] as const)("refunds a %s charge and publishes nothing when the row goes during extraction", async (state) => {
+			const rows = initInMemoryTranscriptQuotaRows();
+			await seedCharge(rows, state);
+			const { run, calls } = setUp({ rows, videoStep: "row-gone" });
+
+			assert.equal(await run(VIDEO_DETAIL), "acked");
+
+			assert.deepEqual(calls.at(-1), ["refundUnstarted", CHARGE]);
+		});
+
+		it.each([
+			"reserved",
+			"none",
+		] as const)("publishes staged-bytes-gone after refunding a %s charge", async (state) => {
+			const rows = initInMemoryTranscriptQuotaRows();
+			await seedCharge(rows, state);
+			const { run, calls } = setUp({ rows, videoStep: "staged-bytes-gone" });
+
+			assert.equal(await run(VIDEO_DETAIL), "acked");
+
+			const published = {
+				uploadId: UPLOAD_ID,
+				kind: "video",
+				url: DETAIL.url,
+				saveAttemptId: DETAIL.saveAttemptId,
+				attempt: 1,
+				reason: "staged-bytes-gone",
+				notice: "We couldn't find the file you uploaded. Please upload it again.",
+			};
+			assert.deepEqual(MediaProcessingFailedEvent.detailSchema.parse(published), published);
+			assert.deepEqual(calls.slice(-2), [
+				["refundUnstarted", CHARGE],
+				["publishEvent", ["MediaProcessingFailed", published]],
+			]);
+		});
+
+		it.each([
+			"row-gone",
+			"staged-bytes-gone",
+		] as const)("never refunds a started charge when extraction answers %s", async (videoStep) => {
+			const rows = initInMemoryTranscriptQuotaRows();
+			await seedCharge(rows, "started");
+			const { run, calls } = setUp({ rows, videoStep });
+
+			assert.equal(await run(VIDEO_DETAIL), "failed");
+
+			assert.deepEqual(calls.at(-1), ["refundUnstarted", CHARGE]);
+		});
+
+		it("fails a book upload, which has no pre-step", async () => {
+			const { run, calls } = setUp();
+
+			assert.equal(await run({ ...DETAIL, kind: "book" }), "failed");
+
+			assert.equal(calls.at(-1)?.[0], "findArticleMedia");
+		});
 	});
 });

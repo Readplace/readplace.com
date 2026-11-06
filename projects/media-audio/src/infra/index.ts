@@ -15,6 +15,7 @@ import {
 } from "@packages/infra-components/infra";
 import { MEDIA_AUDIO_DLQ_SOURCES, MediaUploadCommittedEvent, TranscribeJobStateChangedEvent } from "@packages/infra-components";
 import { KEEP_AUDIO_ENV } from "../runtime/keep-audio.env";
+import { KEPT_ORIGINAL_KINDS, MEDIA_AUDIO_KINDS } from "../runtime/media-audio-kinds";
 import { MEDIA_AUDIO_FAILURES_DLQ_ENV } from "../runtime/media-audio-failures-dlq.env";
 import { PREPARE_TRANSCRIPTION_ENV } from "../runtime/prepare-transcription.env";
 import { RENDER_TRANSCRIPT_ENV } from "../runtime/render-transcript.env";
@@ -51,7 +52,7 @@ const articlesDynamodb = new DynamoDBAccess("media-audio-keep-audio-articles-dyn
 new MediaProcessor(MEDIA_AUDIO_DLQ_SOURCES.keepAudio, {
 	eventBus,
 	event: MediaUploadCommittedEvent,
-	kinds: ["audio"],
+	kinds: KEPT_ORIGINAL_KINDS,
 	subscriptionName: "media-audio-keep-audio",
 	sharedDlq: failuresDlq,
 	alertEmailDLQEntry: alertEmail,
@@ -109,6 +110,16 @@ const transcriptLedgerDynamodb = new DynamoDBAccess("media-audio-transcript-ledg
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem"],
 });
 
+const extractAudioMediaDynamodb = new DynamoDBAccess("media-audio-extract-audio-media-dynamodb", {
+	tables: [{ arn: mediaTableArn, includeIndexes: false }],
+	actions: ["dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem", "dynamodb:Query"],
+});
+
+const extractAudioArticlesDynamodb = new DynamoDBAccess("media-audio-extract-audio-articles-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
 const articleReadDynamodb = new DynamoDBAccess("media-audio-transcription-articles-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem"],
@@ -137,6 +148,7 @@ const prepareTranscriptionLambda = new Lambda(MEDIA_AUDIO_DLQ_SOURCES.prepareTra
 				Statement: [
 					{ Effect: "Allow", Action: ["s3:GetObject"], Resource: `arn:aws:s3:::${mediaBucketName}/pending/*` },
 					{ Effect: "Allow", Action: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource: transcriptsObjects },
+					{ Effect: "Allow", Action: ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"], Resource: `arn:aws:s3:::${mediaBucketName}/objects/*` },
 					mediaBucketList,
 				],
 			}),
@@ -152,6 +164,8 @@ const prepareTranscriptionLambda = new Lambda(MEDIA_AUDIO_DLQ_SOURCES.prepareTra
 		...S3ReadWrite.writePoliciesForBucket("media-audio-prepare-transcription-content-write", contentBucketName),
 		...transcriptLedgerDynamodb.policies,
 		...articleReadDynamodb.policies,
+		...extractAudioMediaDynamodb.policies,
+		...extractAudioArticlesDynamodb.policies,
 	],
 });
 
@@ -171,7 +185,7 @@ const prepareTranscription = new SqsBackedLambda(MEDIA_AUDIO_DLQ_SOURCES.prepare
 eventBus.grantPublish(prepareTranscriptionLambda);
 eventBus.subscribe(MediaUploadCommittedEvent, prepareTranscription, {
 	name: "media-audio-prepare-transcription",
-	detail: { kind: ["audio"] },
+	detail: { kind: [...MEDIA_AUDIO_KINDS] },
 });
 
 new aws.budgets.Budget("transcribe-daily-budget", {

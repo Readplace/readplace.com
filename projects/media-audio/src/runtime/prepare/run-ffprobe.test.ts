@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
 	type ExecFile,
 	firstAudioCodec,
+	initProbeFileDuration,
 	initRunFfmpeg,
 	initRunFfprobe,
 } from "./run-ffprobe";
@@ -83,6 +84,68 @@ describe("initRunFfprobe", () => {
 		}));
 
 		await assert.rejects(runFfprobe({ url: URL, etag: '"etag"' }));
+	});
+});
+
+describe("initRunFfprobe on a video", () => {
+	it("reads the h264 and aac streams of an MP4", async () => {
+		const streams = [
+			{ codec_type: "video", codec_name: "h264" },
+			{ codec_type: "audio", codec_name: "aac" },
+		];
+		const { runFfprobe } = setUp(async () => ({
+			stdout: JSON.stringify({ programs: [], stream_groups: [], streams }),
+			stderr: "",
+		}));
+
+		assert.deepEqual(await runFfprobe({ url: URL, etag: '"etag"' }), {
+			outcome: "read",
+			streams,
+		});
+	});
+});
+
+describe("initProbeFileDuration", () => {
+	function setUpDuration(stdout: string) {
+		const calls: [string, string[]][] = [];
+		const execFile: ExecFile = async (file, args) => {
+			calls.push([file, args]);
+			return { stdout, stderr: "" };
+		};
+		return { probeFileDuration: initProbeFileDuration({ execFile }), calls };
+	}
+
+	it("reads the duration ffprobe prints for a local file", async () => {
+		const { probeFileDuration, calls } = setUpDuration(
+			JSON.stringify({ format: { duration: "59.200000" } }),
+		);
+
+		assert.deepEqual(await probeFileDuration({ file: "/tmp/u.m4a" }), {
+			durationSeconds: 59.2,
+		});
+
+		assert.deepEqual(calls, [
+			[
+				"ffprobe",
+				[
+					"-v",
+					"warning",
+					"-show_entries",
+					"format=duration",
+					"-of",
+					"json",
+					"/tmp/u.m4a",
+				],
+			],
+		]);
+	});
+
+	it("rejects a duration that is not a number", async () => {
+		const { probeFileDuration } = setUpDuration(
+			JSON.stringify({ format: { duration: "N/A" } }),
+		);
+
+		await assert.rejects(probeFileDuration({ file: "/tmp/u.m4a" }));
 	});
 });
 

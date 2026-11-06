@@ -7,17 +7,35 @@ export function transcriptionInputExtension(codec: string): string {
 	return COPY_BY_CODEC[codec] ?? "m4a";
 }
 
-export function transcriptionInputArgs(params: {
+const ENCLOSURE_COPY_CODECS: ReadonlySet<string> = new Set(["aac"]);
+const COPY = ["-c:a", "copy"];
+const AAC_64K_MONO = ["-c:a", "aac", "-b:a", "64k", "-ac", "1"];
+
+type StagedAudioRead = {
 	url: string;
 	etag: string;
 	chargedSeconds: number;
 	codec: string;
 	outputPath: string;
-}): string[] {
-	const encode =
-		params.codec in COPY_BY_CODEC
-			? ["-c:a", "copy"]
-			: ["-c:a", "aac", "-b:a", "64k", "-ac", "1"];
+};
+
+export function transcriptionInputArgs(params: StagedAudioRead): string[] {
+	return [
+		...stagedAudioInputArgs(params),
+		...(params.codec in COPY_BY_CODEC ? COPY : AAC_64K_MONO),
+		params.outputPath,
+	];
+}
+
+export function enclosureArgs(params: StagedAudioRead): string[] {
+	return [
+		...stagedAudioInputArgs(params),
+		...(ENCLOSURE_COPY_CODECS.has(params.codec) ? COPY : AAC_64K_MONO),
+		params.outputPath,
+	];
+}
+
+function stagedAudioInputArgs(params: StagedAudioRead): string[] {
 	return [
 		"-nostdin",
 		"-y",
@@ -32,7 +50,5 @@ export function transcriptionInputArgs(params: {
 		"0:a:0",
 		"-t",
 		String(params.chargedSeconds),
-		...encode,
-		params.outputPath,
 	];
 }

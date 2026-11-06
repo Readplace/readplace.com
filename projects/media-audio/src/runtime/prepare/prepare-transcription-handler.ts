@@ -5,14 +5,21 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import { MediaUploadCommittedEvent } from "@packages/infra-components";
+import {
+	MediaProcessingFailedEvent,
+	MediaUploadCommittedEvent,
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
 import { stagedObjectKey } from "@packages/media-contracts";
+import type { UnrefAllForUpload } from "@packages/media-object-store";
 import type {
 	MarkTranscriptStarted,
 	RefundUnstartedCharge,
 } from "@packages/provider-contracts";
 import { z } from "zod";
+import { AUDIO_FAILURE_NOTICES } from "../keep-audio/audio-failure-notices";
+import { type MediaAudioKind, MediaAudioKindSchema } from "../media-audio-kinds";
 import type { WriteMinimalAudioBody } from "../minimal-body/write-minimal-audio-body";
 import {
 	transcriptionInputArgs,
@@ -39,6 +46,10 @@ const CommittedEnvelope = z.object({
 export type RunFfmpeg = (
 	args: string[],
 ) => Promise<"written" | "staged-bytes-gone">;
+export type PrepareStep = (params: {
+	detail: ChargedCommittedDetail;
+	inputUrl: string;
+}) => Promise<"proceed" | "row-gone" | "staged-bytes-gone">;
 export type TranscriptionStarted = {
 	event: "transcription-started";
 	uploadId: string;
@@ -56,6 +67,9 @@ export function initPrepareTranscriptionHandler(deps: {
 		url: string;
 	}) => Promise<{ media?: { fileName: string } } | undefined>;
 	stagedInputUrl: (params: { key: string }) => Promise<string>;
+	prepareSteps: Readonly<Record<MediaAudioKind, PrepareStep>>;
+	unrefAll: UnrefAllForUpload;
+	publishEvent: PublishEvent;
 	runFfprobe: RunFfprobe;
 	runFfmpeg: RunFfmpeg;
 	putTranscriptFile: (params: { key: string; path: string }) => Promise<void>;
@@ -104,6 +118,7 @@ export function initPrepareTranscriptionHandler(deps: {
 	const prepare = async (detail: ChargedCommittedDetail, time: string) => {
 		const item = await deps.findArticleMedia({ url: detail.url });
 		if (item === undefined) {
+			await deps.unrefAll({ uploadId: detail.uploadId });
 			await refundUnstarted(detail);
 			await deps.deletePrefix(transcriptsKeyPrefix(detail.uploadId));
 			return;
@@ -113,6 +128,26 @@ export function initPrepareTranscriptionHandler(deps: {
 		const url = await deps.stagedInputUrl({
 			key: stagedObjectKey(detail.uploadId),
 		});
+		const step = await deps.prepareSteps[
+			MediaAudioKindSchema.parse(detail.kind)
+		]({ detail, inputUrl: url });
+		if (step === "row-gone") {
+			await refundUnstarted(detail);
+			return;
+		}
+		if (step === "staged-bytes-gone") {
+			await refundUnstarted(detail);
+			await deps.publishEvent(MediaProcessingFailedEvent, {
+				uploadId: detail.uploadId,
+				kind: detail.kind,
+				url: detail.url,
+				saveAttemptId: detail.saveAttemptId,
+				attempt: detail.attempt,
+				reason: "staged-bytes-gone",
+				notice: AUDIO_FAILURE_NOTICES["staged-bytes-gone"],
+			});
+			return;
+		}
 		const probed = await deps.runFfprobe({ url, etag: detail.etag });
 		if (probed.outcome === "staged-bytes-gone")
 			return stagedBytesGone(detail, item.media, time);
