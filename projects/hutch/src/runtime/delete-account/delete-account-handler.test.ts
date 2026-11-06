@@ -47,6 +47,11 @@ import { initRevokeGmailGrant } from "../providers/gmail-api/gmail-revoke";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { GmailAccountEmailSchema, ForwardableSenderSchema, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
+import {
+	initInMemoryTranscriptCharge,
+	initInMemoryTranscriptLedger,
+	initInMemoryTranscriptQuotaRows,
+} from "@packages/test-fixtures/providers/transcript-quota";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import type { TrialNudgeKind } from "@packages/provider-contracts/trial-scheduler";
 
@@ -85,6 +90,7 @@ function buildSubject(
 	const inboxAddress = initInMemoryInboxAddress({ now: () => SEED_NOW });
 	const gmail = initInMemoryGmailIntegration({ grant: { ok: false, reason: "exchange-failed", status: 400, error: undefined, errorDescription: undefined }, addresses: initInMemoryInboxAddress({ now: () => new Date() }) });
 	const identities = initInMemoryEmailIdentity();
+	const transcriptQuotaRows = initInMemoryTranscriptQuotaRows();
 
 	const deleteCustomerCalls: Array<{ customerId: string }> = [];
 	const deleteSubscriptionCalls: UserId[] = [];
@@ -253,6 +259,7 @@ function buildSubject(
 			teardownOrder.push("user-articles");
 			await afterUserArticlesDeleted(userId);
 		},
+		deleteAllTranscriptQuota: initInMemoryTranscriptLedger({ rows: transcriptQuotaRows }).deleteAllTranscriptQuota,
 		listUserArticleUrls: articleStore.listUserArticleUrls,
 		countOtherSaversByUrl: async ({ url }: { url: string; excludeUserId: string }) =>
 			otherSaversByUrl.get(url) ?? 0,
@@ -314,6 +321,7 @@ function buildSubject(
 		inboxAddress,
 		gmail,
 		identities,
+		transcriptQuotaRows,
 		deleteCustomerCalls,
 		deleteSubscriptionCalls,
 		trialEndCalls,
@@ -1188,6 +1196,31 @@ describe("delete-account handler", () => {
 		assert.equal((await monitoring.findCheckpoint(bystander.userId))?.historyId, "100");
 		assert.equal((await monitoring.listObservations({ userId: bystander.userId, mailboxId: bystander.userId })).observations.length, 1);
 		assert.equal((await monitoring.findNotice({ userId: bystander.userId, senderEmail }))?.status, "sent");
+	});
+
+	it("erases the deleted account's transcript allowance day and charge rows and leaves another account's", async () => {
+		const s = buildSubject();
+		const victim = await seedAccount(s, { label: "quota-1", email: "quota-1@example.com", subscription: "none" });
+		const bystander = await seedAccount(s, { label: "quota-2", email: "quota-2@example.com", subscription: "none" });
+		const { chargeTranscriptQuota } = initInMemoryTranscriptCharge({
+			rows: s.transcriptQuotaRows,
+			allowanceSeconds: 1250,
+			now: () => SEED_NOW,
+		});
+		for (const account of [victim, bystander]) {
+			await chargeTranscriptQuota({ userId: account.userId, uploadId: "0123456789abcdef0123456789abcdef", attempt: 1, seconds: 600 });
+		}
+		const rowsOf = (userId: string) =>
+			[...s.transcriptQuotaRows.charges, ...s.transcriptQuotaRows.spentSeconds].filter(([key]) => key.startsWith(`${userId}#`));
+		const day = SEED_NOW.toISOString().slice(0, 10);
+
+		assert.deepEqual((await run(s, [{ messageId: "msg", body: bodyFor(victim.userId) }])).batchItemFailures, []);
+
+		assert.deepEqual(rowsOf(victim.userId), []);
+		assert.deepEqual(rowsOf(bystander.userId), [
+			[`${bystander.userId}#0123456789abcdef0123456789abcdef#1`, { seconds: 600, state: "reserved", day }],
+			[`${bystander.userId}#${day}`, 600],
+		]);
 	});
 
 	it("runs the Gmail teardown before the addresses are tombstoned", async () => {

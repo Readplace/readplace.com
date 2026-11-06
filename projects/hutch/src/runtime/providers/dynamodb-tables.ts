@@ -16,6 +16,7 @@ const DynamoTablesSchema = z.strictObject({
 	pendingSignups: TableName,
 	importSessions: TableName,
 	mediaUploadSessions: TableName,
+	media: TableName,
 	inboxAddresses: TableName,
 	inboxEmailLinks: TableName,
 	inboxSavedLinks: TableName,

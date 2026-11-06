@@ -468,6 +468,9 @@ importers:
       '@packages/time-left':
         specifier: workspace:*
         version: link:../../src/packages/time-left
+      '@packages/transcript-quota':
+        specifier: workspace:*
+        version: link:../../src/packages/transcript-quota
       '@packages/translations':
         specifier: workspace:*
         version: link:../../src/packages/translations

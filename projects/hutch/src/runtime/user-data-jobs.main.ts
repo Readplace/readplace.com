@@ -5,6 +5,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initMediaObjectStore } from "@packages/media-object-store";
+import { initDynamoDbTranscriptLedger } from "@packages/transcript-quota";
 import { Logger, consoleLogger } from "@packages/logger";
 import {
 	EventBridgeClient,
@@ -327,6 +328,12 @@ export const handler = initHandleByDetailType({
 				deleteEmailContentObjects,
 				deleteEmailImageObjects,
 				deleteAllUserArticles: articleStore.deleteAllUserArticles,
+				deleteAllTranscriptQuota: initDynamoDbTranscriptLedger({
+					client: dynamoClient,
+					tableName: env.MEDIA_TABLE_NAME,
+					now: () => new Date(),
+					delay: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+				}).deleteAllTranscriptQuota,
 				listUserArticleUrls: articleStore.listUserArticleUrls,
 				countOtherSaversByUrl,
 				purgeArticleContent,

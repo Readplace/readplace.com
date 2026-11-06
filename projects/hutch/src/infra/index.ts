@@ -50,7 +50,7 @@ import {
 	MediaProcessingFailedEvent,
 	MediaRejectedEvent,
 } from "@packages/infra-components";
-import { PRIVATE_ITEM_HOST } from "@packages/media-contracts";
+import { allowanceSeconds, PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
@@ -125,6 +125,10 @@ const staticBucketName = config.require("staticBucketName");
 const contentBucketName = config.require("contentBucketName");
 const mediaBucketName = config.require("mediaBucketName");
 const mediaTableName = config.require("mediaTableName");
+const transcriptAllowanceSeconds = allowanceSeconds({
+	budgetMilliCents: config.requireNumber("transcriptDailyBudgetMilliCents"),
+	milliCentsPerSecond: config.requireNumber("transcribeMilliCentsPerSecond"),
+});
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const pendingPdfBucketName = config.require("pendingPdfBucketName");
 const userExportBucketName = config.require("userExportBucketName");
@@ -371,6 +375,10 @@ const webCanaryReportsRead = new DynamoDBAccess("hutch-web-canary-reports-read",
 	tables: [{ arn: storage.canaryReportsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:Query"],
 });
+const webMediaTranscriptQuota = new DynamoDBAccess("hutch-web-media-transcript-quota", {
+	tables: [{ arn: mediaTableArn(mediaTableName), includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+});
 
 const api = new aws.apigatewayv2.Api("hutch-api-gateway", {
 	name: "hutch-api-gateway",
@@ -492,6 +500,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 			pendingSignups: storage.pendingSignupsTable.name,
 			importSessions: storage.importSessionsTable.name,
 			mediaUploadSessions: storage.mediaUploadSessionsTable.name,
+			media: mediaTableName,
 			inboxAddresses: tableNames.inboxAddresses,
 			inboxEmailLinks: tableNames.inboxEmailLinks,
 			inboxSavedLinks: tableNames.inboxSavedLinks,
@@ -535,6 +544,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		ANALYTICS_SALT_GENERATION: String(analyticsSaltGeneration),
 		SSR_EDGE_SECRET: ssrEdgeSecret,
 		ADMIN_EMAILS: requireEnv("ADMIN_EMAILS"),
+		TRANSCRIPT_ALLOWANCE_SECONDS: String(transcriptAllowanceSeconds),
 		RECRAWL_SERVICE_TOKEN: requireEnv("RECRAWL_SERVICE_TOKEN"),
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
@@ -548,6 +558,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		...webUsersScan.policies,
 		...webIssueLinksRead.policies,
 		...webCanaryReportsRead.policies,
+		...webMediaTranscriptQuota.policies,
 		...S3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
 		...S3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
 		...S3ReadWrite.writePoliciesForBucket("hutch-pending-pdf", pendingPdfBucketName),
@@ -842,6 +853,7 @@ const userDataJobsMediaPendingDeletePolicy = {
 					`arn:aws:s3:::${mediaBucketName}/pending/*`,
 					`arn:aws:s3:::${mediaBucketName}/images/*`,
 					`arn:aws:s3:::${mediaBucketName}/objects/*`,
+					`arn:aws:s3:::${mediaBucketName}/transcripts/*`,
 				],
 			},
 			{
@@ -1475,6 +1487,7 @@ const mediaReleaseS3Policy = {
 					`arn:aws:s3:::${mediaBucketName}/pending/*`,
 					`arn:aws:s3:::${mediaBucketName}/images/*`,
 					`arn:aws:s3:::${mediaBucketName}/objects/*`,
+					`arn:aws:s3:::${mediaBucketName}/transcripts/*`,
 				],
 			},
 			{

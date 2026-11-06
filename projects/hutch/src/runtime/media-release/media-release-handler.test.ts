@@ -32,7 +32,8 @@ async function buildSubject(overrides: { failRowDelete?: boolean } = {}) {
 		deleteMediaObjects: async (keys) => {
 			calls.push(`media:${keys.join(",")}`);
 		},
-		listMediaKeys: async (prefix) => [`${prefix}cover.png`, `${prefix}figure-1.jpg`],
+		listMediaKeys: async (prefix) =>
+			prefix.startsWith("transcripts/") ? [`${prefix}1.input.mp3`, `${prefix}1.json`] : [`${prefix}cover.png`, `${prefix}figure-1.jpg`],
 		deleteArticleRow: async (url) => {
 			if (overrides.failRowDelete) throw new Error("DeleteItem failed");
 			calls.push(`row:${url}`);
@@ -58,7 +59,7 @@ function dequeued(userId: string) {
 }
 
 describe("initMediaReleaseHandler", () => {
-	it("releases the owner's item: content, pending original, book images, row, then links", async () => {
+	it("releases the owner's item: content, pending original, book images, transcripts, row, then links", async () => {
 		const { calls, handler } = await buildSubject();
 
 		const result = await handler(dequeued(OWNER), buildLambdaContext(), () => {});
@@ -68,6 +69,7 @@ describe("initMediaReleaseHandler", () => {
 			`content:${PRIVATE_URL}`,
 			`media:pending/${UPLOAD_ID}/original`,
 			`media:images/${UPLOAD_ID}/cover.png,images/${UPLOAD_ID}/figure-1.jpg`,
+			`media:transcripts/${UPLOAD_ID}/1.input.mp3,transcripts/${UPLOAD_ID}/1.json`,
 			`row:${PRIVATE_URL}`,
 			`holdings:${UPLOAD_ID}`,
 			`links:${PRIVATE_URL}`,
@@ -93,6 +95,7 @@ describe("initMediaReleaseHandler", () => {
 			`content:${PRIVATE_URL}`,
 			`media:pending/${UPLOAD_ID}/original`,
 			`media:images/${UPLOAD_ID}/cover.png,images/${UPLOAD_ID}/figure-1.jpg`,
+			`media:transcripts/${UPLOAD_ID}/1.input.mp3,transcripts/${UPLOAD_ID}/1.json`,
 		]);
 	});
 });
