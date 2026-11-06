@@ -325,6 +325,10 @@
   margin: 0;
 }
 
+.readlist-add-link__form + .upload-dropzone-form {
+  margin-top: 16px;
+}
+
 @media (max-width: 600px) {
   .readlist-add-link {
     order: -1;
@@ -432,7 +436,7 @@
   white-space: nowrap;
 }
 
-@container readlist-listing-header (max-width: calc(22.3125rem + 24px)) {
+@container readlist-listing-header (max-width: calc(16.125rem + 12px)) {
   .readlist__count {
     display: none;
   }
@@ -459,21 +463,6 @@
   gap: 4px;
   min-height: 36px;
   margin-block: -6px;
-  font-size: 0.875rem;
-  color: var(--muted-foreground);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.readlist-listing__sort:hover {
-  color: var(--foreground);
-}
-
-.readlist-listing__upload {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  margin-block: -6px;
   margin-inline-start: auto;
   font-size: 0.875rem;
   color: var(--muted-foreground);
@@ -481,7 +470,7 @@
   white-space: nowrap;
 }
 
-.readlist-listing__upload:hover {
+.readlist-listing__sort:hover {
   color: var(--foreground);
 }
 

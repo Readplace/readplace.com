@@ -5,6 +5,11 @@ import type { CspNonce, PageBody } from "@packages/web-shell";
 
 import { DISCLOSURE_CARD_STYLES } from "../../shared/disclosure-card/disclosure-card.styles";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
+import {
+	renderUploadDropzone,
+	UPLOAD_DROPZONE_SCRIPT,
+	UPLOAD_DROPZONE_STYLES,
+} from "../../shared/upload-dropzone/upload-dropzone.component";
 import { IMPORT_LIMITS } from "./import.limits";
 import { IMPORT_STYLES } from "./import.styles";
 import type {
@@ -44,56 +49,6 @@ interface PanelConfig {
 	readonly template: string;
 	readonly scripts: (cspNonce: CspNonce) => string;
 }
-
-const uploadAutoSubmitScript = (cspNonce: CspNonce) => `
-<script nonce="${cspNonce}">
-	(function () {
-		function wire() {
-			var form = document.querySelector('form.import__upload-form');
-			if (!form) return;
-			var input = form.querySelector('input[type="file"]');
-			var dropzone = form.querySelector('[data-import-dropzone]');
-			var meta = form.querySelector('[data-import-dropzone-meta]');
-			if (!input || !dropzone) return;
-			var defaultMeta = meta ? meta.textContent : '';
-
-			function showFilename() {
-				if (!input.files || input.files.length === 0) return;
-				if (meta) meta.textContent = input.files[0].name;
-			}
-
-			input.addEventListener('change', function () {
-				showFilename();
-				if (input.files && input.files.length > 0) form.requestSubmit();
-			});
-
-			['dragenter', 'dragover'].forEach(function (event) {
-				dropzone.addEventListener(event, function (e) {
-					e.preventDefault();
-					dropzone.classList.add('import__dropzone--dragover');
-				});
-			});
-			['dragleave', 'dragend', 'drop'].forEach(function (event) {
-				dropzone.addEventListener(event, function () {
-					dropzone.classList.remove('import__dropzone--dragover');
-				});
-			});
-			dropzone.addEventListener('drop', function (e) {
-				e.preventDefault();
-				if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
-				input.files = e.dataTransfer.files;
-				showFilename();
-				form.requestSubmit();
-			});
-		}
-		if (document.readyState === 'loading') {
-			document.addEventListener('DOMContentLoaded', wire, { once: true });
-		} else {
-			wire();
-		}
-	})();
-</script>
-`;
 
 const fromUrlAutoSubmitScript = (cspNonce: CspNonce) => `
 <script nonce="${cspNonce}">
@@ -148,7 +103,7 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 const PANEL_CONFIG: Record<ImportMode, PanelConfig> = {
 	upload: {
 		template: IMPORT_UPLOAD_TEMPLATE,
-		scripts: (cspNonce) => `${IMPORT_CLIENT_SCRIPT}${uploadAutoSubmitScript(cspNonce)}`,
+		scripts: () => `${IMPORT_CLIENT_SCRIPT}${UPLOAD_DROPZONE_SCRIPT}`,
 	},
 	"from-url": {
 		template: IMPORT_FROM_URL_PANEL_TEMPLATE,
@@ -201,6 +156,13 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonc
 			: "",
 		saveTipState: options.saveTip.state,
 		saveTipHtml: options.saveTip.html,
+		dropzoneHtml: renderUploadDropzone({
+			importAction: vm.uploadAction,
+			bookFallbackHref: vm.bookFallbackHref,
+			signInHref: vm.signInHref,
+			disabled: false,
+			idPrefix: "import",
+		}),
 	};
 	const tabsHtml = render(IMPORT_TABS_TEMPLATE, data);
 	const panelHtml = render(panel.template, data);
@@ -236,7 +198,7 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonc
 				},
 			],
 		},
-		styles: `${DISCLOSURE_CARD_STYLES}\n${IMPORT_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${UNDERLINE_TABS_STYLES}`,
+		styles: `${DISCLOSURE_CARD_STYLES}\n${IMPORT_STYLES}\n${UPLOAD_DROPZONE_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${UNDERLINE_TABS_STYLES}`,
 		bodyClass: "page-import",
 		content: { html: content },
 		scripts: `${panel.scripts(options.cspNonce)}${SAVE_TIP_SCRIPT}`,

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { render, renderAlert } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import type { UploadErrorCode } from "./upload.error";
+import { UPLOAD_FAILED_MESSAGE } from "./upload.error";
 import { UPLOAD_STYLES } from "./upload.styles";
 import type { UploadStartViewModel } from "./upload.viewmodel";
 
@@ -61,7 +62,7 @@ function templateDataOf(state: UploadPageState): object {
 					content: {
 						variant: "warning",
 						message: {
-							text: "We couldn't open that upload. Check your readlist for the reason, or upload the file again.",
+							text: UPLOAD_FAILED_MESSAGE,
 						},
 					},
 				}),

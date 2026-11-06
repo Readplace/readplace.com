@@ -226,6 +226,21 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/upload-dropzone/upload-dropzone.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "upload-dropzone.client.js"),
+    globalName: "UploadDropzone",
+    footer: [
+      "UploadDropzone.initUploadDropzone({",
+      "  document: window.document,",
+      "  createRequest: function () { return new XMLHttpRequest(); },",
+      "  navigate: function (href) { window.location.assign(href); }",
+      "});",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/pages/import/import.client.ts",
     ),
     outfile: path.join(OUT_DIR, "import.client.js"),
@@ -236,11 +251,6 @@ const BUNDLES = [
       "  addSwapListener: function (listener) {",
       "    window.document.body.addEventListener('htmx:afterSwap', listener);",
       "  }",
-      "});",
-      "ImportClient.initUploadProgress({",
-      "  document: window.document,",
-      "  formatBytes: ImportClient.formatBytes,",
-      "  nativeSubmit: function (form) { form.submit(); }",
       "});",
     ].join("\n"),
   },

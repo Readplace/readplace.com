@@ -8,6 +8,7 @@ import type {
 	CreateAnyMediaUploadSession,
 	FindMediaUploadByCapability,
 	HeadMediaPendingOriginal,
+	MediaPendingSuccessAction,
 	MintMediaPendingPost,
 	ReadMediaPendingPrefix,
 } from "@packages/domain";
@@ -137,6 +138,16 @@ export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 	"no-audio-track": refusalWriter("no-audio-track"),
 };
 
+export type UploadProtocol = {
+	writers: UploadOutcomeWriters;
+	s3SuccessAction: (continueUrl: string) => MediaPendingSuccessAction;
+};
+
+export const UPLOAD_PROTOCOL_HTML: UploadProtocol = {
+	writers: UPLOAD_OUTCOME_HTML,
+	s3SuccessAction: (continueUrl) => ({ redirect: continueUrl }),
+};
+
 export interface UploadRouteDependencies {
 	stageGates: readonly RequestHandler[];
 	settleReceivedUpload: SettleAnyReceivedUpload;
@@ -151,7 +162,7 @@ export interface UploadRouteDependencies {
 	METERED_GUEST_UPLOAD_KINDS: readonly MediaKindName[];
 	METERED_ONLY_UPLOAD_KINDS: readonly MediaKindName[];
 	transcriptAllowanceSeconds: number;
-	pickOutcomeWriters: (req: Request) => UploadOutcomeWriters;
+	pickUploadProtocol: (req: Request) => UploadProtocol;
 	buildBannerState: BuildBannerState;
 	appOrigin: string;
 }
@@ -176,7 +187,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			kinds: viewerKinds(req),
 		};
 		writeUploadOutcome({
-			writers: deps.pickOutcomeWriters(req),
+			writers: deps.pickUploadProtocol(req).writers,
 			res,
 			outcome,
 			context,
@@ -229,7 +240,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 		const post = await deps.mintMediaPendingPost({
 			uploadId,
 			uploadCeilingBytes,
-			successActionRedirect: `${deps.appOrigin}/upload/${uploadId}`,
+			successAction: deps.pickUploadProtocol(req).s3SuccessAction(`${deps.appOrigin}/upload/${uploadId}`),
 		});
 		await write(req, res, {
 			outcome: "staged",

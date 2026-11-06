@@ -29,10 +29,12 @@ export type MarkMediaUploadCommitted = (params: {
 
 export type FailMediaUpload = (params: { uploadId: UploadId }) => Promise<"failed" | "not-committed">;
 
+export type MediaPendingSuccessAction = { redirect: string } | { status: "201" };
+
 export type MintMediaPendingPost = (params: {
 	uploadId: UploadId;
 	uploadCeilingBytes: number;
-	successActionRedirect: string;
+	successAction: MediaPendingSuccessAction;
 }) => Promise<{ url: string; fields: Readonly<Record<string, string>> }>;
 
 export type HeadMediaPendingOriginal = (params: {

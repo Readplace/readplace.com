@@ -146,11 +146,13 @@ export function initInMemoryMediaPending(deps: { uploadBaseUrl: string }): InMem
 	const originals = new Map<string, { bytes: Uint8Array; etag: string }>();
 
 	return {
-		mintMediaPendingPost: async ({ uploadId, successActionRedirect }) => ({
+		mintMediaPendingPost: async ({ uploadId, successAction }) => ({
 			url: deps.uploadBaseUrl,
 			fields: {
 				key: `pending/${uploadId}/original`,
-				success_action_redirect: successActionRedirect,
+				...("redirect" in successAction
+					? { success_action_redirect: successAction.redirect }
+					: { success_action_status: successAction.status }),
 			},
 		}),
 		headMediaPendingOriginal: async ({ uploadId }) => {

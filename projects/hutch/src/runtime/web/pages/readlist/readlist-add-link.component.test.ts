@@ -46,15 +46,15 @@ function formDoc(overrides: Partial<Parameters<typeof renderAddLinkForm>[0]> = {
 	);
 }
 
-describe("Add link", () => {
-	it("offers a neutral Add link button that opens the dialog", () => {
+describe("Add article", () => {
+	it("offers a neutral + Article button that opens the dialog", () => {
 		const doc = addLinkDoc();
 
 		const trigger = element(doc, '[data-test-action="add-link"]');
 		expect(trigger.getAttribute("popovertarget")).toBe("add-link");
 		expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
 		expect(trigger.classList.contains("btn--neutral")).toBe(true);
-		expect(trigger.textContent).toBe("Add link");
+		expect(trigger.textContent).toBe("Article");
 	});
 
 	it("titles the dialog and tells the reader where the link is saved", () => {
@@ -63,8 +63,10 @@ describe("Add link", () => {
 		const dialog = element(doc, "#add-link");
 		expect(dialog.getAttribute("popover")).toBe("auto");
 		expect(dialog.getAttribute("role")).toBe("dialog");
-		expect(element(doc, "#add-link-title").textContent).toBe("Add link");
-		expect(element(doc, "#add-link-body").textContent).toBe("Paste an article link to save it to All.");
+		expect(element(doc, "#add-link-title").textContent).toBe("Add article");
+		expect(element(doc, "#add-link-body").textContent).toBe(
+			"Paste a link, or drop a file: a bookmarks export to review, or a DRM-free EPUB to read.",
+		);
 	});
 
 	it("opens the dialog on its labelled, empty article link field", () => {
@@ -132,7 +134,7 @@ describe("Add link", () => {
 		const doc = addLinkDoc();
 
 		const fallback = element(doc, "details[data-test-add-link-fallback]");
-		expect(element(fallback, "summary").textContent).toBe("Add link");
+		expect(element(fallback, "summary").textContent).toBe("Article");
 		const form = element(fallback, '[data-test-form="save-article-fallback"]');
 		expect(form.getAttribute("method")).toBe("POST");
 		expect(form.getAttribute("action")).toBe(element(doc, '[data-test-form="save-article"]').getAttribute("action"));
@@ -146,7 +148,9 @@ describe("Add link", () => {
 		const doc = addLinkDoc({ accessIsReadOnly });
 
 		const controls = Array.from(
-			doc.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input[name="url"], button[type="submit"]'),
+			doc.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
+				'[data-test-form^="save-article"] input[name="url"], [data-test-form^="save-article"] button[type="submit"]',
+			),
 		);
 		expect(controls).toHaveLength(4);
 		expect(controls.map((control) => control.disabled)).toEqual([
@@ -157,6 +161,43 @@ describe("Add link", () => {
 		]);
 	});
 
+	it("offers a file dropzone in the dialog as its own form after the link form, posting to the tracked import", () => {
+		const doc = addLinkDoc();
+
+		const dialog = element(doc, "#add-link");
+		const dropzone = element(dialog, '[data-test-form="upload-file"]');
+		expect(dropzone.tagName.toLowerCase()).toBe("form");
+		expect(dropzone.closest("#add-link-form")).toBeNull();
+		const forms = Array.from(dialog.querySelectorAll<Element>("form"));
+		expect(forms.indexOf(dropzone)).toBe(forms.indexOf(element(dialog, "#add-link-form")) + 1);
+		const action = new URL(dropzone.getAttribute("action") ?? "", "https://readplace.test");
+		expect(action.pathname).toBe("/import");
+		expect(action.searchParams.get("utm_source")).toBe("queue-add-article");
+		expect(element(dropzone, 'input[type="file"]').id).toBe("add-article-file");
+	});
+
+	it.each([true, false])("sets the dropzone's file field disabled state for read-only access (%s)", (accessIsReadOnly) => {
+		const doc = addLinkDoc({ accessIsReadOnly });
+
+		expect(element<HTMLInputElement>(doc, '[data-test-form="upload-file"] input[type="file"]').disabled).toBe(accessIsReadOnly);
+	});
+
+	it("points the no-popover disclosure at the book upload page", () => {
+		const doc = addLinkDoc();
+
+		const link = element(doc, "details[data-test-add-link-fallback] [data-test-add-link-fallback-upload]");
+		const url = new URL(link.getAttribute("href") ?? "", "https://readplace.test");
+		expect(url.pathname).toBe("/upload");
+		expect(url.searchParams.get("utm_source")).toBe("queue-add-article");
+		expect(url.searchParams.get("utm_content")).toBe("upload");
+	});
+
+	it("leaves the dropzone out of a pending link's form", () => {
+		const doc = parse(addLink({ saveUrl: "https://example.com/a" }).pendingHtml);
+
+		expect(doc.querySelector('[data-test-form="upload-file"]')).toBeNull();
+	});
+
 	it("renders one visible prefilled form, outside any dialog, for a pending link", () => {
 		const rendered = addLink({ saveUrl: "https://example.com/article?x=1&y=2" });
 		const doc = parse(rendered.pendingHtml);
@@ -165,7 +206,7 @@ describe("Add link", () => {
 		expect(rendered.dialogHtml).toBe("");
 		const pending = element(doc, "#add-link");
 		expect(pending.hasAttribute("popover")).toBe(false);
-		expect(element(pending, "#add-link-title").textContent).toBe("Add link");
+		expect(element(pending, "#add-link-title").textContent).toBe("Add article");
 		const forms = doc.querySelectorAll("form");
 		expect(forms).toHaveLength(1);
 		const form = forms[0];
@@ -302,7 +343,7 @@ describe("Add link by upgrade standing", () => {
 		expect(trigger.getAttribute("data-test-needs-upgrade")).toBe("add-link");
 		expect(trigger.getAttribute("popovertarget")).toBe("subscribe-plans");
 		expect(trigger.classList.contains("btn--neutral")).toBe(true);
-		expect(element(slot, ".needs-upgrade__label").textContent).toBe("Add link");
+		expect(element(slot, ".needs-upgrade__label").textContent).toBe("Add article");
 		expect(element(slot, '[data-test-action="upgrade-fallback"]').getAttribute("href")).toBe(
 			"/account/plans?utm_source=queue-add-link&utm_medium=internal&utm_content=upgrade-add-link",
 		);

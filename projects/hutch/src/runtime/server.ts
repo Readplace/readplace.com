@@ -259,7 +259,8 @@ import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
 import { initUnrouteInboxesOnReadlistDelete } from "./domain/readlist/unroute-inboxes-on-readlist-delete";
 import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
-import { initUploadRouter, UPLOAD_OUTCOME_HTML } from "./web/pages/upload/upload.page";
+import { initUploadRouter, UPLOAD_PROTOCOL_HTML } from "./web/pages/upload/upload.page";
+import { UPLOAD_PROTOCOL_SIREN } from "./web/pages/upload/upload.outcome.siren";
 import { initCommitReceivedUpload } from "./web/pages/upload/commit-received-upload";
 import { initChargeBeforeSettle } from "./web/pages/upload/charge-before-settle";
 import { initChargeTranscript } from "./web/pages/upload/charge-transcript";
@@ -1610,7 +1611,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			METERED_GUEST_UPLOAD_KINDS,
 			METERED_ONLY_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
-			pickOutcomeWriters: () => UPLOAD_OUTCOME_HTML,
+			pickUploadProtocol: (req) => (wantsSiren(req) ? UPLOAD_PROTOCOL_SIREN : UPLOAD_PROTOCOL_HTML),
 			buildBannerState,
 			appOrigin,
 		}),

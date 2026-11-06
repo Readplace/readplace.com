@@ -13,6 +13,7 @@ import {
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import type { SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { ComponentError } from "../../shared/component-error.types";
+import { renderUploadDropzone } from "../../shared/upload-dropzone/upload-dropzone.component";
 import {
 	type UpgradeOffer,
 	type UpgradeStanding,
@@ -22,6 +23,7 @@ import {
 import { DEFAULT_READLIST } from "./readlist.nav";
 import { READLIST_SAVE_PATH, readlistReturnQuery, type ReadlistUrlState } from "./readlist.url";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
+import { UPLOAD_ENTRY_HREFS } from "../upload/upload-entry-ctas";
 
 const CONTROL_TEMPLATE = readFileSync(join(__dirname, "readlist-add-link.template.html"), "utf-8");
 const FORM_TEMPLATE = readFileSync(join(__dirname, "readlist-add-link-form.template.html"), "utf-8");
@@ -31,9 +33,9 @@ const SKIPPED_TEMPLATE = readFileSync(join(__dirname, "readlist-save-feedback-sk
 
 export const ADD_LINK_POPOVER_ID = "add-link";
 
-const ADD_LINK_TITLE = "Add link";
+const ADD_LINK_TITLE = "Add article";
 
-const ADD_LINK_BODY = `Paste an article link to save it to ${DEFAULT_READLIST.label}.`;
+const ADD_LINK_BODY = "Paste a link, or drop a file: a bookmarks export to review, or a DRM-free EPUB to read.";
 
 const ADD_LINK_FAILURE = "Couldn't save the link.";
 
@@ -46,6 +48,8 @@ export interface AddLinkFormError {
 	message: string;
 	code?: SaveableUrlErrorCode;
 }
+
+const ADD_ARTICLE_IMPORT_ACTION = withInternalTracking("/import", { source: "queue-add-article", content: "import" });
 
 export function addLinkAction(filters: ReadlistUrlState): string {
 	return withInternalTracking(
@@ -115,14 +119,23 @@ export function renderReadlistAddLink(input: {
 	const formControl = (): ReadlistAddLink => ({
 		controlHtml: render(CONTROL_TEMPLATE, {
 			locks: [],
-			forms: [{ action, accessIsReadOnly: input.accessIsReadOnly }],
+			forms: [{ action, accessIsReadOnly: input.accessIsReadOnly, bookFallbackHref: UPLOAD_ENTRY_HREFS.addArticleFallback }],
 		}),
 		dialogHtml: renderConfirmPopover({
 			id: ADD_LINK_POPOVER_ID,
 			key: ADD_LINK_POPOVER_ID,
 			title: ADD_LINK_TITLE,
 			body: ADD_LINK_BODY,
-			actionsHtml: `${form({ value: "", autoSubmit: false, autofocus: true })}\n${input.saveTip.html}`,
+			actionsHtml: [
+				form({ value: "", autoSubmit: false, autofocus: true }),
+				renderUploadDropzone({
+					importAction: ADD_ARTICLE_IMPORT_ACTION,
+					bookFallbackHref: UPLOAD_ENTRY_HREFS.addArticleFallback,
+					disabled: input.accessIsReadOnly,
+					idPrefix: "add-article",
+				}),
+				input.saveTip.html,
+			].join("\n"),
 		}),
 		pendingHtml: "",
 	});
@@ -138,7 +151,7 @@ export function renderReadlistAddLink(input: {
 				controlClass: "btn btn--neutral btn--s",
 				source: "queue-add-link",
 			});
-			assert(lock, "a reader who needs an upgrade must be offered the Add link lock");
+			assert(lock, "a reader who needs an upgrade must be offered the Add article lock");
 			return {
 				controlHtml: render(CONTROL_TEMPLATE, { locks: [renderNeedsUpgrade(lock)], forms: [] }),
 				dialogHtml: "",

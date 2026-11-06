@@ -13,6 +13,7 @@ import {
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import { newSaveAttemptId, type ValidateSaveableUrl, type SaveableUrl, type SaveableUrlErrorCode } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import { BOOK } from "@packages/media-contracts";
 import type { PublishSubmitLink } from "@packages/provider-contracts/events";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { AllocateSavedAtSequence } from "@packages/provider-contracts/article-store";
@@ -35,7 +36,9 @@ import {
 } from "./import-skipped-cookie";
 import { READLIST_PATH } from "../readlist/readlist.url";
 import { ImportAcquirePage, ImportPage } from "./import.component";
-import { importErrorMessageMapping } from "./import.error";
+import { type ImportRefusalCode, importErrorMessageMapping, importRefusalMessage } from "./import.error";
+import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
+import { wantsSiren } from "../../content-negotiation";
 import { toImportAcquireViewModel, toImportViewModel } from "./import.viewmodel";
 import { initMultipartUpload } from "./multipart-upload";
 import { parseImportPage } from "./import.url";
@@ -76,10 +79,27 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 }
 
 const UPLOAD_ERROR_REDIRECT = {
-	tooLarge: "/import?mode=upload&error_code=import_too_large",
-	noUrls: "/import?mode=upload&error_code=import_no_urls",
 	sessionNotFound: "/import?mode=upload&error_code=import_session_not_found",
 } as const;
+
+const IMPORT_REFUSAL_STATUS: Record<ImportRefusalCode, number> = {
+	import_too_large: 413,
+	import_no_urls: 422,
+	import_is_book: 422,
+};
+
+const BOOK_SNIFF_BYTES = 4096;
+
+function refuseImport(req: Request, res: Response, code: ImportRefusalCode): void {
+	if (wantsSiren(req)) {
+		res
+			.status(IMPORT_REFUSAL_STATUS[code])
+			.type(SIREN_MEDIA_TYPE)
+			.json(sirenError({ code, message: importRefusalMessage(code) }));
+		return;
+	}
+	res.redirect(303, `/import?mode=upload&error_code=${code}`);
+}
 
 const FROM_URL_ERROR_REDIRECT = {
 	invalid: "/import?error_code=import_url_invalid",
@@ -104,9 +124,9 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		rule: deps.importFromUrlRateLimit,
 	});
 
-	const sizeLimitHandler: ErrorRequestHandler = (err, _req, res, next) => {
+	const sizeLimitHandler: ErrorRequestHandler = (err, req, res, next) => {
 		if (err && typeof err === "object" && "type" in err && err.type === "entity.too.large") {
-			res.redirect(303, UPLOAD_ERROR_REDIRECT.tooLarge);
+			refuseImport(req, res, "import_too_large");
 			return;
 		}
 		next(err);
@@ -146,13 +166,17 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	router.post("/", importRateLimit, rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {
 		const parsed = parseRequest(req);
 		if (!parsed.ok) {
-			res.redirect(303, UPLOAD_ERROR_REDIRECT.noUrls);
+			refuseImport(req, res, "import_no_urls");
+			return;
+		}
+		if (BOOK.sniff(parsed.file.content.subarray(0, BOOK_SNIFF_BYTES))) {
+			refuseImport(req, res, "import_is_book");
 			return;
 		}
 
 		const { urls, truncated, totalFound } = extractUrls(parsed.file.content);
 		if (urls.length === 0) {
-			res.redirect(303, UPLOAD_ERROR_REDIRECT.noUrls);
+			refuseImport(req, res, "import_no_urls");
 			return;
 		}
 

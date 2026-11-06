@@ -130,11 +130,26 @@ describe("initInMemoryMediaPending", () => {
 		const post = await pending.mintMediaPendingPost({
 			uploadId,
 			uploadCeilingBytes: 10,
-			successActionRedirect: "https://app.test/upload/x",
+			successAction: { redirect: "https://app.test/upload/x" },
 		});
 
 		assert.equal(post.url, "https://s3.test/bucket");
 		assert.equal(post.fields.key, `pending/${uploadId}/original`);
+		assert.equal(post.fields.success_action_redirect, "https://app.test/upload/x");
+		assert.equal(post.fields.success_action_status, undefined);
+	});
+
+	it("mints a post that answers a status instead of a redirect when asked", async () => {
+		const pending = initInMemoryMediaPending({ uploadBaseUrl: "https://s3.test/bucket" });
+
+		const post = await pending.mintMediaPendingPost({
+			uploadId,
+			uploadCeilingBytes: 10,
+			successAction: { status: "201" },
+		});
+
+		assert.equal(post.fields.success_action_status, "201");
+		assert.equal(post.fields.success_action_redirect, undefined);
 	});
 
 	it("answers no head before the original arrives, then its size and a prefix", async () => {

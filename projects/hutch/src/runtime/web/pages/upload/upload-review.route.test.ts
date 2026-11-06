@@ -169,6 +169,19 @@ describe("Guest upload routes", () => {
 		expect(harness.mediaUpload.publishedMediaUploadStaged).toHaveLength(1);
 	});
 
+	it("sends a Siren client to the review once a received guest upload is staged", async () => {
+		const harness = guestApp();
+		const uploadId = await guestStage(harness.server);
+		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: epubPrefix() });
+
+		const received = await request(harness.server)
+			.post(`/upload/${uploadId}/received`)
+			.set("Accept", "application/vnd.siren+json");
+
+		expect(received.status).toBe(303);
+		expect(received.headers.location).toBe(`/upload/${uploadId}`);
+	});
+
 	it("stages a guest row for review when a signed-in reader holding its id posts received", async () => {
 		const harness = guestApp();
 		const uploadId = await guestStage(harness.server);

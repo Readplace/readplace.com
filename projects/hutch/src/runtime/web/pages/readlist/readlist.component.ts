@@ -24,7 +24,7 @@ import {
 import type { OnboardingContext } from "../../onboarding/onboarding.types";
 import { buildExtensionInstallUrl, type PitchablePlatform } from "../../onboarding/extension-install";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
-import { UPLOAD_ENTRY_HREFS } from "../upload/upload-entry-ctas";
+import { UPLOAD_DROPZONE_SCRIPT, UPLOAD_DROPZONE_STYLES } from "../../shared/upload-dropzone/upload-dropzone.component";
 import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
 import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
 import { renderMoveDialogs } from "./readlist-card/move-dialog.component";
@@ -96,6 +96,7 @@ export function readlistPageScripts(cspNonce: CspNonce): string {
 	return [
 		NAV_HIDE_SCRIPT,
 		SAVE_TIP_SCRIPT,
+		UPLOAD_DROPZONE_SCRIPT,
 		READLIST_CLIENT_SCRIPT,
 		READER_PAGE_SCRIPTS,
 		OFFLINE_DOWNLOAD_SCRIPT,
@@ -178,17 +179,17 @@ interface DeviceClient {
 const NOTHING_SAVED_TITLE = "Nothing saved yet";
 
 const EXTENSION_INVITE_TEXT =
-	"Save your first article with Add link, or use the Readplace browser extension to save it in one click.";
+	"Save your first article with the Article button, or use the Readplace browser extension to save it in one click.";
 
 const NOTHING_SAVED_INVITES: Record<PitchablePlatform, { text: string; label: string }> = {
 	chrome: { text: EXTENSION_INVITE_TEXT, label: "Install Chrome extension" },
 	firefox: { text: EXTENSION_INVITE_TEXT, label: "Install Firefox extension" },
 	iphone: {
-		text: "Save your first article with Add link, or use the Readplace iPhone app to save it from the share sheet.",
+		text: "Save your first article with the Article button, or use the Readplace iPhone app to save it from the share sheet.",
 		label: "Install iPhone app",
 	},
 	other: {
-		text: `Save your first article with Add link, or set up one-tap saving from ${SAVE_SURFACES_SHORT_PHRASE}.`,
+		text: `Save your first article with the Article button, or set up one-tap saving from ${SAVE_SURFACES_SHORT_PHRASE}.`,
 		label: "Set up one-tap saving",
 	},
 };
@@ -517,7 +518,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			{ source: "queue-sort", content: "sort", term: nextOrder },
 		),
 		sortLabel: sort.label,
-		uploadUrl: UPLOAD_ENTRY_HREFS.queueHeader,
 		sortIconName: sort.iconName,
 		offlineDownload: offlineDownloadControl({ filters, isEmpty: vm.isEmpty }),
 		saveSkeletonHtml: renderReadlistSaveSkeleton(
@@ -615,6 +615,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			READLIST_DISCOVERY_STYLES,
 			WIZARD_STYLES,
 			READLIST_PURPOSE_CARD_STYLES,
+			UPLOAD_DROPZONE_STYLES,
 		].join("\n"),
 		bodyClass: READLIST_BODY_CLASS,
 		content: { html: content },

@@ -19,6 +19,12 @@ describe("importErrorMessageMapping", () => {
 		);
 	});
 
+	it("maps import_is_book to the message that points at the book upload page", () => {
+		expect(importErrorMessageMapping({ error_code: "import_is_book" })).toBe(
+			"That file is an EPUB book, not a list of links. Upload it from the book upload page.",
+		);
+	});
+
 	it("maps import_no_urls to the no-links message", () => {
 		expect(importErrorMessageMapping({ error_code: "import_no_urls" })).toBe(
 			"We couldn't find any links in that file.",

@@ -474,10 +474,10 @@ async function addLinkSitsBesideTheTabs(page: Page): Promise<void> {
 	const addLink = await measuredBox(page, ADD_LINK);
 	const tabs = await measuredBox(page, FILTER_TABS);
 	const bar = await measuredBox(page, TABS_BAR);
-	assert.ok(addLink.x >= tabs.x + tabs.width, "Add link must sit after the tabs");
-	assert.ok(addLink.y < tabs.y + tabs.height, "Add link must share the tabs' row");
-	assert.ok(near({ actual: addLink.x + addLink.width, expected: bar.x + bar.width }), "Add link must sit at the tabs' trailing edge");
-	assert.ok(near({ actual: tabs.y + tabs.height, expected: bar.y + bar.height }), "Add link must not stretch the tabs' row");
+	assert.ok(addLink.x >= tabs.x + tabs.width, "Add article must sit after the tabs");
+	assert.ok(addLink.y < tabs.y + tabs.height, "Add article must share the tabs' row");
+	assert.ok(near({ actual: addLink.x + addLink.width, expected: bar.x + bar.width }), "Add article must sit at the tabs' trailing edge");
+	assert.ok(near({ actual: tabs.y + tabs.height, expected: bar.y + bar.height }), "Add article must not stretch the tabs' row");
 }
 
 async function addLinkDialogGeometry(page: Page): Promise<void> {
@@ -499,8 +499,8 @@ async function addLinkPhoneGeometry(page: Page): Promise<void> {
 	await neverScrollsSideways(page);
 	const addLink = await measuredBox(page, ADD_LINK);
 	const tabs = await measuredBox(page, FILTER_TABS);
-	assert.ok(addLink.y + addLink.height <= tabs.y, "Add link must wrap above the tabs on a phone");
-	assert.ok(near({ actual: addLink.x + addLink.width, expected: tabs.x + tabs.width }), "Add link must keep the tabs' trailing edge on a phone");
+	assert.ok(addLink.y + addLink.height <= tabs.y, "Add article must wrap above the tabs on a phone");
+	assert.ok(near({ actual: addLink.x + addLink.width, expected: tabs.x + tabs.width }), "Add article must keep the tabs' trailing edge on a phone");
 }
 
 async function saveErrorPhoneGeometry(page: Page): Promise<void> {
@@ -508,7 +508,7 @@ async function saveErrorPhoneGeometry(page: Page): Promise<void> {
 	const message = await measuredBox(page, SAVE_ERROR);
 	const addLink = await measuredBox(page, ADD_LINK);
 	const listing = await measuredBox(page, LISTING);
-	assert.ok(message.y + message.height <= addLink.y, "the save error must sit above Add link on a phone");
+	assert.ok(message.y + message.height <= addLink.y, "the save error must sit above Add article on a phone");
 	assert.ok(near({ actual: message.width, expected: listing.width }), "the save error must span the column on a phone");
 }
 
@@ -573,7 +573,7 @@ async function guideSitsAboveTheTabs(page: Page): Promise<void> {
 	const guide = await measuredBox(page, SETUP_GUIDE);
 	const addLink = await measuredBox(page, ADD_LINK);
 	const tabs = await measuredBox(page, FILTER_TABS);
-	assert.ok(guide.y + guide.height <= addLink.y, "the setup guide must lead Add link on a phone");
+	assert.ok(guide.y + guide.height <= addLink.y, "the setup guide must lead Add article on a phone");
 	assert.ok(guide.y + guide.height <= tabs.y, "the setup guide must lead the tabs and list on a phone");
 }
 
@@ -2039,7 +2039,7 @@ test.describe("Readlist page (subscription inactive)", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
 	for (const theme of THEMES) {
-		test(`shows the inactive banner with the locked Add link (${theme})`, async ({ page }, testInfo) => {
+		test(`shows the inactive banner with the locked Add article (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-subscription-inactive-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createVerifiedUser(page, email);
@@ -2431,11 +2431,11 @@ test.describe("Readlist alerts", () => {
 	}
 });
 
-test.describe("Readlist Add link", () => {
+test.describe("Readlist Add article", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
 	for (const theme of THEMES) {
-		test(`keeps Add link beside the tabs at tablet widths (${theme})`, async ({ page }, testInfo) => {
+		test(`keeps Add article beside the tabs at tablet widths (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-save-tablet-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			await createVerifiedUser(page, email);
@@ -2527,10 +2527,10 @@ test.describe("Readlist import results", () => {
 	}
 });
 
-test.describe("Readlist Add link on a phone", () => {
+test.describe("Readlist Add article on a phone", () => {
 	test.use({ timezoneId: "UTC", viewport: PHONE });
 
-	test("wraps Add link above the tabs down to 320px", async ({ page }, testInfo) => {
+	test("wraps Add article above the tabs down to 320px", async ({ page }, testInfo) => {
 		const email = `readlist-save-stack-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUser(page, email);
 		await loginAs(page, email);
@@ -2544,7 +2544,7 @@ test.describe("Readlist Add link on a phone", () => {
 		}
 	});
 
-	test("shows a save error the redirect lands on above Add link", async ({ page }, testInfo) => {
+	test("shows a save error the redirect lands on above Add article", async ({ page }, testInfo) => {
 		const email = `readlist-save-error-phone-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await createVerifiedUser(page, email);
 		await loginAs(page, email);
@@ -2821,7 +2821,7 @@ test.describe("Readlist page on a phone", () => {
 		await captureCheckpoint(page, KEEP_OFFER_PANEL_PHONE);
 	});
 
-	test("asks for an article from All on a custom readlist without Add link", async ({ page }, testInfo) => {
+	test("asks for an article from All on a custom readlist without Add article", async ({ page }, testInfo) => {
 		const email = `readlist-phone-custom-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
 		await expect(page.locator(ADD_LINK)).toBeHidden();

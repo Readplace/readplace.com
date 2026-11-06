@@ -415,28 +415,28 @@ describe("ReadlistPage", () => {
 		{
 			device: "a device with no installable client",
 			context: { hasInstallableClient: false } as const,
-			text: "Save your first article with Add link, or set up one-tap saving from your browser, phone, or AI assistant.",
+			text: "Save your first article with the Article button, or set up one-tap saving from your browser, phone, or AI assistant.",
 			label: "Set up one-tap saving",
 			client: null,
 		},
 		{
 			device: "Chrome",
 			context: installableClient({ platform: "chrome" }),
-			text: "Save your first article with Add link, or use the Readplace browser extension to save it in one click.",
+			text: "Save your first article with the Article button, or use the Readplace browser extension to save it in one click.",
 			label: "Install Chrome extension",
 			client: "chrome",
 		},
 		{
 			device: "Firefox",
 			context: installableClient({ platform: "firefox" }),
-			text: "Save your first article with Add link, or use the Readplace browser extension to save it in one click.",
+			text: "Save your first article with the Article button, or use the Readplace browser extension to save it in one click.",
 			label: "Install Firefox extension",
 			client: "firefox",
 		},
 		{
 			device: "iPhone",
 			context: installableClient({ platform: "iphone" }),
-			text: "Save your first article with Add link, or use the Readplace iPhone app to save it from the share sheet.",
+			text: "Save your first article with the Article button, or use the Readplace iPhone app to save it from the share sheet.",
 			label: "Install iPhone app",
 			client: "iphone",
 		},
@@ -471,7 +471,7 @@ describe("ReadlistPage", () => {
 		);
 
 		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
-			"Save your first article with Add link, or use the Readplace browser extension to save it in one click.",
+			"Save your first article with the Article button, or use the Readplace browser extension to save it in one click.",
 		);
 		expect(emptyActionKeys(doc)).toEqual([]);
 	});
@@ -777,18 +777,6 @@ describe("ReadlistPage", () => {
 		assert(next, "the next-page control must render");
 		expect(prev.getAttribute("rel")).toBe("prev");
 		expect(next.getAttribute("rel")).toBe("next");
-	});
-
-	it("links the listing header to /upload, tracked as the queue's own click", () => {
-		const doc = pageDoc({ articles: [PLAIN_ARTICLE], isEmpty: false });
-
-		const link = doc.querySelector("[data-test-upload-link]");
-		assert(link, "the listing header must link to /upload");
-		expect(link.textContent).toBe("Upload a book");
-		const url = new URL(link.getAttribute("href") ?? "", "https://readplace.test");
-		expect(url.pathname).toBe("/upload");
-		expect(url.searchParams.get("utm_source")).toBe("queue-listing");
-		expect(url.searchParams.get("utm_content")).toBe("upload");
 	});
 
 	it("offers the unread download beside the sort control", () => {

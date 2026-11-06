@@ -21,7 +21,6 @@
               <section class="readlist-listing" data-test-listing>
                 <header class="readlist-listing__header {{listingHeaderStateClass}}">
                   {{{countHtml}}}
-                  <a class="readlist-listing__upload" href="{{uploadUrl}}" data-test-upload-link>Upload a book</a>
                   <a class="readlist-listing__sort" href="{{sortUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-sort>{{sortLabel}} {{icon sortIconName}}</a>
                   <div class="readlist-listing__offline {{offlineDownload.stateClass}}" data-offline-download="{{offlineDownload.href}}" data-test-offline-download>
                     <button class="btn btn--neutral btn--s" id="readlist-offline-download" type="button" data-offline-download-start data-test-offline-download-start>Download unread for offline</button>
