@@ -47,7 +47,7 @@ import {
 	moveItemLabel,
 } from "./readlist-card/move-dialog.component";
 import { cardProcessingOf } from "./readlist-card/card-processing";
-import { type CardKind, cardKindOf } from "./readlist-card/card-kind-label";
+import { type CardKind, cardKindLabel, cardKindOf } from "./readlist-card/card-kind-label";
 import { readlistCardVia } from "./readlist-card/readlist-card-via";
 import type {
 	ProvenanceLabel,
@@ -346,6 +346,7 @@ export function toReadlistArticleViewModel(params: {
 	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const cardKind = cardKindOf(article);
+	const readTime = displayableReadTime(article);
 	const markStatusConfirm =
 		params.confirmReadlists === undefined
 			? undefined
@@ -368,7 +369,7 @@ export function toReadlistArticleViewModel(params: {
 			article.provenance?.kind === "hn-suggestion"
 				? "Added by Readplace from Hacker News"
 				: undefined,
-		readTime: displayableReadTime(article),
+		readTime,
 		via: readlistCardVia(params.readerProvenance),
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),
 		actions: toStatusActions({ id, status: article.status }, returnQuery, markStatusConfirm?.popoverId),
@@ -385,7 +386,16 @@ export function toReadlistArticleViewModel(params: {
 		isStalePending: phase.kind === "stale",
 		processingNotice: article.processingNotice,
 		kind: cardKind?.kind,
-		kindLabel: cardKind?.kindLabel,
+		kindLabel:
+			cardKind === undefined
+				? undefined
+				: cardKindLabel({
+						kind: cardKind.kind,
+						estimatedReadTime: article.estimatedReadTime,
+						wordCount: article.metadata.wordCount,
+						sectionCount: article.media?.sectionCount,
+						readTime,
+					}),
 		processingLabel: processing.label,
 		crawlEstimate: isProcessing ? phase.estimate : undefined,
 		hasOrigin: !isPrivateItemUrl(article.url),

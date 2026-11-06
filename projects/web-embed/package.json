@@ -20,6 +20,7 @@
     "@packages/logger": "workspace:*",
     "@packages/storage-client": "workspace:*",
     "@packages/require-env": "workspace:*",
+    "@packages/translations": "workspace:*",
     "@packages/web-session": "workspace:*",
     "@packages/viewer-identity": "workspace:*",
     "@packages/web-analytics": "workspace:*",

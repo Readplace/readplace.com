@@ -69,6 +69,7 @@
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/domain": "workspace:*",
     "@packages/logger": "workspace:*",
+    "@packages/translations": "workspace:*",
     "@packages/ui-icons": "workspace:*",
     "@packages/web-shell": "workspace:*",
     "esbuild": "catalog:",

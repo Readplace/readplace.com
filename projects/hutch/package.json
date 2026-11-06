@@ -76,6 +76,7 @@
     "@packages/subscription-access": "workspace:*",
     "@packages/supported-clients": "workspace:*",
     "@packages/time-left": "workspace:*",
+    "@packages/translations": "workspace:*",
     "@packages/ui-icons": "workspace:*",
     "@packages/viewer-identity": "workspace:*",
     "@packages/web-analytics": "workspace:*",
