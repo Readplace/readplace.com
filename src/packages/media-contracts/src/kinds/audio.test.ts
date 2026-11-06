@@ -63,9 +63,13 @@ describe("AUDIO", () => {
 		});
 	});
 
-	it("states its 256 MiB ceiling as 256 MB and carries no meter", () => {
+	it("states its 256 MiB ceiling as 256 MB", () => {
 		assert.equal(AUDIO.uploadCeilingBytes, 268435456);
 		assert.equal(AUDIO.ceilingLabel, "256 MB");
-		assert.equal("meter" in AUDIO, false);
+	});
+
+	it("meters transcript seconds and rounds its listen time up to the minute", () => {
+		assert.equal(AUDIO.meter, "transcript-seconds");
+		assert.deepEqual([AUDIO.listenTime?.(2820), AUDIO.listenTime?.(2821)], [47, 48]);
 	});
 });
