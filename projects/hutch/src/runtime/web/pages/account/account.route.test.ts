@@ -3855,7 +3855,7 @@ describe("POST /account/delete", () => {
 
 		// The in-app delete form posts with ?platform=ios, so the rejection redirect
 		// must carry it forward — a bare /account?error=… would bounce the WKWebView
-		// to the web surface with its subscribe CTAs.
+		// to the web surface with its upgrade CTAs.
 		const response = await agent.post("/account/delete?platform=ios");
 
 		expect(response.status).toBe(303);
