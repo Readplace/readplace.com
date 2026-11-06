@@ -355,11 +355,7 @@ export function initExtractEmailLinksHandler(deps: {
 					customReadlists.size > 0
 						? await listReadlistDefinitions(userId)
 						: [];
-				const inboxDefinition =
-					routing.kind === "inbox"
-						? definitions.find((definition) => definition.slug === routedReadlist)
-						: undefined;
-				const fanOut = resolveEmailFanOut({ routing, inboxReadlist: inboxDefinition });
+				const fanOut = resolveEmailFanOut({ routing });
 				const triagedLinks: {
 					ordinal: EmailLinkOrdinal;
 					url: string;
@@ -397,15 +393,6 @@ export function initExtractEmailLinksHandler(deps: {
 				if (canSubmit && fanOut.issue && writeAccess !== "full") {
 					noticePublished = true;
 					await publishSaveHeldNotice({
-						userId,
-						receivedAtMessageId,
-						inboxAddress: recipientAddress,
-					});
-				}
-				if (canSubmit && routing.kind === "inbox" && fanOut.issue && writeAccess === "full") {
-					await saveIssue(undefined);
-					firstInboxNoticePublished = true;
-					await publishFirstInboxEmailNotice({
 						userId,
 						receivedAtMessageId,
 						inboxAddress: recipientAddress,

@@ -101,7 +101,6 @@ function input(overrides: Partial<ReadlistGmailSendersInput> = {}): ReadlistGmai
 		destinations: DESTINATIONS,
 		detection: recognised([[TLDR, "TLDR"], [BREW, "Morning Brew"], [BYTES, "Bytes"]]),
 		selection: parseReadlistGmailSelection({}),
-		command: { pick: undefined, select: undefined, dismiss: undefined },
 		listed: undefined,
 		pollCount: 0,
 		...overrides,
@@ -223,9 +222,9 @@ describe("toReadlistGmailSenders checklist", () => {
 			{ key: "elsewhere", title: "In other readlists", rows: [[BREW, false, ["In All and Tech"]]] },
 			{ key: "known", title: "Known newsletters", rows: [[BYTES, false, []]] },
 		]);
-		assert.deepEqual(picker(vm).checklist.groups[0].rows[0].fields, [{ name: "routed", value: TLDR }]);
+		assert.deepEqual(picker(vm).checklist.groups[0].rows[0].fields, [{ name: "routed", value: TLDR }, { name: "shown", value: TLDR }]);
+		assert.deepEqual(picker(vm).checklist.groups[1].rows[0].fields, [{ name: "shown", value: BREW }]);
 		assert.equal(vm.links[0].key, "manage-gmail-newsletters");
-		assert.equal(vm.commandApplied, false);
 		assert.equal(vm.pageUrl, `/queue/queues/design/preferences?gmail_selection=1&sender=${encodeURIComponent(TLDR)}#readlist-gmail-senders`);
 	});
 
@@ -234,19 +233,28 @@ describe("toReadlistGmailSenders checklist", () => {
 		assert.deepEqual(picker(vm).checklist.sender, []);
 	});
 
-	it("applies a pick, a select-all and a dismiss", () => {
-		const edited = parseReadlistGmailSelection({ gmail_selection: "1", sender: [AUNT], added: [AUNT] });
-		const picked = toReadlistGmailSenders(input({ selection: edited, command: { pick: BYTES, select: undefined, dismiss: undefined } }));
-		assert.deepEqual(picker(picked).checklist.sender, [BYTES, AUNT]);
-		assert.deepEqual(groupEmails(picked).at(-1), { key: "added", title: "Senders you added", rows: [[AUNT, true, []]] });
-		assert.equal(picked.commandApplied, true);
+	it("keeps the ticks a selection carries and lists no added senders", () => {
+		const edited = parseReadlistGmailSelection({ gmail_selection: "1", sender: [BYTES, AUNT], added: [AUNT] });
+		const vm = toReadlistGmailSenders(input({ selection: edited }));
+		assert.deepEqual(picker(vm).checklist.sender, [BYTES]);
+		assert.deepEqual(groupEmails(vm).map((group) => group.key), ["here", "elsewhere", "known"]);
+	});
 
-		const all = toReadlistGmailSenders(input({ selection: edited, command: { pick: undefined, select: "all", dismiss: undefined } }));
-		assert.deepEqual(picker(all).checklist.sender, [TLDR, BREW, BYTES, AUNT]);
-		assert.deepEqual(picker(all).checklist.actions.map((action) => action.label), ["Clear selection"]);
+	it("saves straight away from the select toggle and from a search result", () => {
+		const vm = picker(toReadlistGmailSenders(input()));
+		assert.deepEqual(vm.checklist.actions, [{ key: "select", name: "select", value: "all", label: "Select all", formaction: vm.saveAction }]);
+		assert.equal(vm.results.formaction, vm.saveAction);
+	});
 
-		const dismissed = toReadlistGmailSenders(input({ selection: edited, command: { pick: undefined, select: undefined, dismiss: AUNT } }));
-		assert.deepEqual(picker(dismissed).checklist.added, []);
+	it("offers to clear the selection once every listed sender is ticked", () => {
+		const all = parseReadlistGmailSelection({ gmail_selection: "1", sender: [TLDR, BREW, BYTES] });
+		const vm = picker(toReadlistGmailSenders(input({ selection: all })));
+		assert.deepEqual(vm.checklist.actions.map((action) => action.label), ["Clear selection"]);
+	});
+
+	it("keeps the retry a lookup when the catalog is unavailable", () => {
+		const vm = picker(toReadlistGmailSenders(input({ detection: { status: "unavailable" } })));
+		assert.equal(vm.checklist.actions[0].formaction, undefined);
 	});
 
 	it("offers a retry when the catalog is unavailable", () => {

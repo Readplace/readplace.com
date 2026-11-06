@@ -97,7 +97,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		initReadlistPreferencesRoutes({
 			listReadlistDefinitions: deps.listReadlistDefinitions,
 			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
-			setReadlistDefinitionEmailDelivery: deps.setReadlistDefinitionEmailDelivery,
 			clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 			listReadlistFitOverrides: deps.listReadlistFitOverrides,
 			deleteReadlistFitOverride: deps.deleteReadlistFitOverride,

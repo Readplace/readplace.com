@@ -40,7 +40,21 @@ const SaveBodySchema = z.object({
 	gmail_selection: z.literal("1"),
 	sender: SendersFieldSchema,
 	routed: SendersFieldSchema,
+	shown: SendersFieldSchema,
+	select: z.enum(["all", "none"]).optional(),
+	pick: ForwardableSenderSchema.optional(),
 });
+
+const TICKS: Record<"all" | "none" | "each", (body: z.infer<typeof SaveBodySchema>) => ForwardableSender[]> = {
+	all: (body) => body.shown,
+	none: () => [],
+	each: (body) => body.sender,
+};
+
+function tickedSenders(body: z.infer<typeof SaveBodySchema>): ForwardableSender[] {
+	const ticked = TICKS[body.select ?? "each"](body);
+	return [...new Set(body.pick === undefined ? ticked : [...ticked, body.pick])];
+}
 
 export interface ReadlistGmailSources extends ReadlistGmailSectionStateInput {
 	state: ReadlistGmailSectionState;
@@ -124,7 +138,7 @@ export function initSaveReadlistGmailSenders(deps: {
 		const decision = decideGmailReadlistSelection({
 			slug,
 			readlists,
-			ticked: parsed.data.sender,
+			ticked: tickedSenders(parsed.data),
 			routed: parsed.data.routed,
 			known: sources.pool.known,
 			routing,
