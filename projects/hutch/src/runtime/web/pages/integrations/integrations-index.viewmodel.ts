@@ -7,6 +7,7 @@ import { gmailConnectionState } from "@packages/domain/gmail";
 import { CUSTOM_EMAILS_ORIGIN_PARAM, CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
 import type { CustomEmailsOrigin } from "@packages/domain/inbox";
 import { MCP_GUIDE_PATH } from "../../shared/assistant-roster";
+import { MCP_GUIDE_ORIGIN_PARAM, type McpGuideOrigin } from "../mcp";
 import { AI_ASSISTANTS_OR } from "../../shared/client-enumerations";
 import { ACCOUNT_PLANS_URL } from "../account/account.url";
 import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
@@ -285,6 +286,8 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 	};
 }
 
+const MCP_GUIDE_FROM_CONNECTORS = { name: MCP_GUIDE_ORIGIN_PARAM, value: "connectors" satisfies McpGuideOrigin };
+
 const AI_ASSISTANT_ACTIONS: Record<SetupState, Omit<IntegrationActionViewModel, "trackSource" | "trackContent">> = {
 	"not-set-up": {
 		key: "ai-assistant-setup",
@@ -292,7 +295,7 @@ const AI_ASSISTANT_ACTIONS: Record<SetupState, Omit<IntegrationActionViewModel, 
 		href: MCP_GUIDE_PATH,
 		label: "Set up",
 		variant: "primary",
-		fields: [],
+		fields: [MCP_GUIDE_FROM_CONNECTORS],
 		boost: false,
 	},
 	active: {
@@ -301,7 +304,7 @@ const AI_ASSISTANT_ACTIONS: Record<SetupState, Omit<IntegrationActionViewModel, 
 		href: MCP_GUIDE_PATH,
 		label: "See guide",
 		variant: "neutral",
-		fields: [],
+		fields: [MCP_GUIDE_FROM_CONNECTORS],
 		boost: false,
 	},
 };

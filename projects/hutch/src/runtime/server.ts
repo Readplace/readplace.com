@@ -337,7 +337,7 @@ import { campaignTag, HOMEPAGE_SPLIT } from "./web/experiments/homepage-split";
 import { buildSaveTip } from "./web/shared/save-tip/save-tip.component";
 import { initSaveTipEventRoute } from "./web/shared/save-tip/save-tip.route";
 import { initPageDepthRoute } from "./web/shared/page-depth/page-depth.route";
-import { McpConnectPage } from "./web/pages/mcp";
+import { McpConnectPage, parseMcpGuideOrigin } from "./web/pages/mcp";
 import { DevelopersPage } from "./web/pages/developers";
 import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
@@ -1023,7 +1023,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			next();
 			return;
 		}
-		sendComponent(req, res, Base(McpConnectPage(), await buildBannerState(req)));
+		sendComponent(req, res, Base(McpConnectPage({ origin: parseMcpGuideOrigin(req.query) }), await buildBannerState(req)));
 	});
 
 	app.use(
