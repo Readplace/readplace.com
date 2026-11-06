@@ -34,6 +34,7 @@ export interface GmailChecklistAction {
 	name: string | undefined;
 	value: string;
 	label: string;
+	formaction?: string;
 }
 
 export interface GmailSenderChecklist {

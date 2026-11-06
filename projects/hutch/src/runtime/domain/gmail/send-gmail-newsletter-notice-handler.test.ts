@@ -27,7 +27,7 @@ const ACCOUNT = GmailAccountEmailSchema.parse("gmail-user@gmail.com");
 const GATEWAY = InboxAddressSchema.parse("gmail-reader@read.place");
 const NOW = Date.parse("2026-10-04T00:00:00Z");
 const DAY_MS = 24 * 60 * 60 * 1_000;
-const WORK: ReadlistDefinitionData = { slug: ReadlistSlugSchema.parse("work"), label: "Work", emailDelivery: "links", createdAt: new Date(NOW) };
+const WORK: ReadlistDefinitionData = { slug: ReadlistSlugSchema.parse("work"), label: "Work", createdAt: new Date(NOW) };
 
 function recognizing(newsletters: [ForwardableSender, string | undefined][]): DetectNewsletters {
 	return async () => ({
