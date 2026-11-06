@@ -124,6 +124,7 @@ assert(staticDomains.length > 0, "staticDomains must have at least one entry");
 const staticBucketName = config.require("staticBucketName");
 const contentBucketName = config.require("contentBucketName");
 const mediaBucketName = config.require("mediaBucketName");
+const mediaTableName = config.require("mediaTableName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const pendingPdfBucketName = config.require("pendingPdfBucketName");
 const userExportBucketName = config.require("userExportBucketName");
@@ -151,6 +152,9 @@ const newsletterCatalogBucketName = config.require("newsletterCatalogBucketName"
 const inboxAwsRegion = new pulumi.Config("aws").require("region");
 const inboxAwsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
 function inboxTableArn(tableName: string): pulumi.Output<string> {
+	return pulumi.interpolate`arn:aws:dynamodb:${inboxAwsRegion}:${inboxAwsAccountId}:table/${tableName}`;
+}
+function mediaTableArn(tableName: string): pulumi.Output<string> {
 	return pulumi.interpolate`arn:aws:dynamodb:${inboxAwsRegion}:${inboxAwsAccountId}:table/${tableName}`;
 }
 
@@ -821,7 +825,11 @@ const userDataJobsMediaPendingDeletePolicy = {
 			{
 				Effect: "Allow",
 				Action: ["s3:DeleteObject"],
-				Resource: [`arn:aws:s3:::${mediaBucketName}/pending/*`, `arn:aws:s3:::${mediaBucketName}/images/*`],
+				Resource: [
+					`arn:aws:s3:::${mediaBucketName}/pending/*`,
+					`arn:aws:s3:::${mediaBucketName}/images/*`,
+					`arn:aws:s3:::${mediaBucketName}/objects/*`,
+				],
 			},
 			{
 				Effect: "Allow",
@@ -831,6 +839,20 @@ const userDataJobsMediaPendingDeletePolicy = {
 		],
 	}),
 };
+
+const mediaHoldingsActions = [
+	"dynamodb:Query",
+	"dynamodb:GetItem",
+	"dynamodb:PutItem",
+	"dynamodb:UpdateItem",
+	"dynamodb:DeleteItem",
+	"dynamodb:ConditionCheckItem",
+];
+
+const userDataJobsMediaHoldingsDynamodb = new DynamoDBAccess("user-data-jobs-media-holdings-dynamodb", {
+	tables: [{ arn: mediaTableArn(mediaTableName), includeIndexes: false }],
+	actions: mediaHoldingsActions,
+});
 
 const userDataJobsGmailHistoryDynamodb = new DynamoDBAccess("user-data-jobs-gmail-history-dynamodb", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
@@ -887,6 +909,7 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		MEDIA_BUCKET_NAME: mediaBucketName,
+		MEDIA_TABLE_NAME: mediaTableName,
 		USER_EXPORT_BUCKET_NAME: userExportBucketName,
 		ANALYTICS_SALT: analyticsSalt,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
@@ -905,6 +928,7 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 	policies: [
 		...userDataJobsDynamodb.policies,
 		...userDataJobsGmailHistoryDynamodb.policies,
+		...userDataJobsMediaHoldingsDynamodb.policies,
 		...userDataJobsEmailIdentitiesDynamodb.policies,
 		userDataJobsS3Policy,
 		userDataJobsMediaPendingDeletePolicy,
@@ -1420,6 +1444,11 @@ const mediaReleaseDynamodb = new DynamoDBAccess("media-release-dynamodb", {
 	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:DeleteItem"],
 });
 
+const mediaReleaseMediaHoldingsDynamodb = new DynamoDBAccess("media-release-media-holdings-dynamodb", {
+	tables: [{ arn: mediaTableArn(mediaTableName), includeIndexes: false }],
+	actions: mediaHoldingsActions,
+});
+
 const mediaReleaseS3Policy = {
 	name: "media-release-s3-delete",
 	policy: JSON.stringify({
@@ -1432,6 +1461,7 @@ const mediaReleaseS3Policy = {
 					`arn:aws:s3:::${contentBucketName}/*`,
 					`arn:aws:s3:::${mediaBucketName}/pending/*`,
 					`arn:aws:s3:::${mediaBucketName}/images/*`,
+					`arn:aws:s3:::${mediaBucketName}/objects/*`,
 				],
 			},
 			{
@@ -1459,8 +1489,9 @@ const mediaReleaseLambda = new Lambda("media-release", {
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		MEDIA_BUCKET_NAME: mediaBucketName,
+		MEDIA_TABLE_NAME: mediaTableName,
 	},
-	policies: [...mediaReleaseDynamodb.policies, mediaReleaseS3Policy],
+	policies: [...mediaReleaseDynamodb.policies, ...mediaReleaseMediaHoldingsDynamodb.policies, mediaReleaseS3Policy],
 });
 
 const mediaReleaseWithSQS = new SqsBackedLambda("media-release", {
