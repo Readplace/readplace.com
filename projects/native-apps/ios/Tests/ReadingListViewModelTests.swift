@@ -4265,15 +4265,28 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertGreaterThan(changes, 0, "the list redraws as the manifest records each download")
 	}
 
-	private func pendingRow(id: String = "a1", poll: Int = 1, afterSeconds: Int = 3, title: String = "A Title") -> String {
+	private static let countingEstimateJSON = #"{ "kind": "counting", "seconds": 100 }"#
+
+	private func pendingRow(
+		id: String = "a1",
+		poll: Int = 1,
+		afterSeconds: Int = 3,
+		title: String = "A Title",
+		estimateJSON: String? = countingEstimateJSON
+	) -> String {
 		Fixtures.article(id: id, title: title, processingJSON: Fixtures.processing(
-			href: "/queue/\(id)/card?poll=\(poll)", afterSeconds: afterSeconds
+			estimateJSON: estimateJSON, href: "/queue/\(id)/card?poll=\(poll)", afterSeconds: afterSeconds
 		))
 	}
 
-	private func polledPending(id: String = "a1", poll: Int, afterSeconds: Int = 3) -> StubURLProtocol.Stub {
+	private func polledPending(
+		id: String = "a1",
+		poll: Int,
+		afterSeconds: Int = 3,
+		estimateJSON: String? = countingEstimateJSON
+	) -> StubURLProtocol.Stub {
 		.json(200, Fixtures.polledArticle(id: id, processingJSON: Fixtures.processing(
-			href: "/queue/\(id)/card?poll=\(poll)", afterSeconds: afterSeconds
+			estimateJSON: estimateJSON, href: "/queue/\(id)/card?poll=\(poll)", afterSeconds: afterSeconds
 		)))
 	}
 
@@ -4625,6 +4638,72 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(viewModel.articles.first?.refreshHref, "/queue/a1/card?poll=2")
 		XCTAssertEqual(viewModel.processingReceivedAt["a1"], Date(timeIntervalSince1970: 200))
+		viewModel.handleBackground()
+		pause.release()
+		await viewModel.processingRefresh?.value
+	}
+
+	func testAPolledRowStillProcessingWithoutAnEstimateKeepsTheCountItWasShowing() async {
+		var clock = Date(timeIntervalSince1970: 100)
+		serve(rows: [pendingRow()], polls: ["/queue/a1/card?poll=1": polledPending(poll: 2, estimateJSON: nil)])
+		let pause = FakeRefreshPause(.held)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), now: { clock }, pause: pause)
+		await viewModel.refresh()
+		await pause.waitForPauses(1)
+
+		clock = Date(timeIntervalSince1970: 200)
+		pause.release()
+		await pause.waitForPauses(2)
+
+		let row = viewModel.articles.first
+		XCTAssertEqual(row?.refreshHref, "/queue/a1/card?poll=2", "the answer itself is adopted")
+		XCTAssertEqual(row?.processing?.estimate, .counting(seconds: 100))
+		XCTAssertEqual(viewModel.processingReceivedAt["a1"], Date(timeIntervalSince1970: 100))
+		let presentation = ArticleRowPresentation(
+			isRead: false,
+			readTimeLabel: nil,
+			savedLabel: nil,
+			isAvailableOffline: false,
+			processing: row?.processing,
+			processingReceivedAt: viewModel.processingReceivedAt["a1"]
+		)
+		XCTAssertEqual(presentation.estimateText(now: Date(timeIntervalSince1970: 110)), "~90 s left")
+		viewModel.handleBackground()
+		pause.release()
+		await viewModel.processingRefresh?.value
+	}
+
+	func testARefreshStillProcessingWithoutAnEstimateKeepsTheCountItWasShowing() async {
+		var clock = Date(timeIntervalSince1970: 100)
+		var rows = [pendingRow()]
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.collection(entitiesJSON: rows)) }
+		let pause = FakeRefreshPause(.held)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), now: { clock }, pause: pause)
+		await viewModel.refresh()
+
+		clock = Date(timeIntervalSince1970: 200)
+		rows = [pendingRow(poll: 4, estimateJSON: nil)]
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.articles.first?.refreshHref, "/queue/a1/card?poll=4")
+		XCTAssertEqual(viewModel.articles.first?.processing?.estimate, .counting(seconds: 100))
+		XCTAssertEqual(viewModel.processingReceivedAt["a1"], Date(timeIntervalSince1970: 100))
+		viewModel.handleBackground()
+		pause.release()
+		await viewModel.processingRefresh?.value
+	}
+
+	func testARowThatNeverHadAnEstimateIsNotStamped() async {
+		StubURLProtocol.setHandler { _, _ in
+			.json(200, Fixtures.collection(entitiesJSON: [self.pendingRow(estimateJSON: nil)]))
+		}
+		let pause = FakeRefreshPause(.held)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), pause: pause)
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(viewModel.articles.first?.processing?.label, "Processing", "precondition: the row is processing")
+		XCTAssertEqual(viewModel.processingReceivedAt, [:])
 		viewModel.handleBackground()
 		pause.release()
 		await viewModel.processingRefresh?.value

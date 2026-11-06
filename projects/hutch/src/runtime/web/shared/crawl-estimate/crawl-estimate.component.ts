@@ -20,7 +20,7 @@ function displayOf(estimate: CrawlRemainingEstimate | undefined) {
 	}
 }
 
-export function renderCrawlEstimate(estimate: CrawlRemainingEstimate | undefined): string {
-	const display = displayOf(estimate);
-	return render(TEMPLATE, { ...display, label: crawlEstimateLabel(display.remainingSeconds) }).trim();
+export function renderCrawlEstimate(params: { key: string; estimate: CrawlRemainingEstimate | undefined }): string {
+	const display = displayOf(params.estimate);
+	return render(TEMPLATE, { ...display, key: params.key, label: crawlEstimateLabel(display.remainingSeconds) }).trim();
 }

@@ -15,6 +15,7 @@ export const READER_PENDING_DESCRIPTION =
 	"Readplace is cleaning up this article for a focused, distraction-free reading experience.";
 const READER_CAPTURING_TITLE = "Copying the page from your device";
 const TITLE_ID = "article-body-reader-pending-title";
+const ESTIMATE_KEY = "reader";
 
 export type ReaderPendingInput =
 	| {
@@ -36,13 +37,13 @@ export function renderReaderPending(input: ReaderPendingInput): string {
 					title: READER_PENDING_TITLE,
 					descriptions: input.descriptions,
 					progressHtml: renderProgressBar({ axis: "reader", pct: input.pct, labelledBy: TITLE_ID }),
-					estimateHtml: renderCrawlEstimate(input.estimate),
+					estimateHtml: renderCrawlEstimate({ key: ESTIMATE_KEY, estimate: input.estimate }),
 				}
 			: {
 					title: READER_CAPTURING_TITLE,
 					descriptions: [],
 					progressHtml: renderHiddenProgressBar({ axis: "reader" }),
-					estimateHtml: renderCrawlEstimate(undefined),
+					estimateHtml: renderCrawlEstimate({ key: ESTIMATE_KEY, estimate: undefined }),
 				};
 	return render(TEMPLATE, {
 		pollUrl: input.pollUrl,

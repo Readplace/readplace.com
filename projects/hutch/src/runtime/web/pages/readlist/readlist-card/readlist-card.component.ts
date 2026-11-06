@@ -140,7 +140,7 @@ export function toReadlistCardDisplayModel(
 		isFirst: options.isFirst,
 		cardStatus: isProcessing ? "pending" : "terminal",
 		processingHiddenClass: isProcessing ? "" : " readlist-article__processing--hidden",
-		crawlEstimateHtml: renderCrawlEstimate(article.crawlEstimate),
+		crawlEstimateHtml: renderCrawlEstimate({ key: article.id, estimate: article.crawlEstimate }),
 		metaHiddenClass: isProcessing ? " readlist-article__meta--hidden" : "",
 		urlEmptyClass: article.siteName ? "" : " readlist-article__site--empty",
 		readTimeLabel,
