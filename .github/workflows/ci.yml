@@ -580,8 +580,8 @@ jobs:
     needs: [detect-ios]
     # Fork PRs fall back to the free GitHub-hosted macOS runner: on a public repo,
     # untrusted PR code must never touch the self-hosted M5 (RCE + secret exposure).
-    # Own pushes and same-repo PRs use the M5, which keeps Xcode, xcodegen and a
-    # warm simulator + DerivedData between runs — no cold install/boot each time.
+    # Own pushes and same-repo PRs use the M5, which keeps Xcode, xcodegen and
+    # DerivedData between runs — no cold install each time.
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && fromJSON('["self-hosted", "macOS"]') || 'macos-15' }}
     defaults:
       run:

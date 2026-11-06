@@ -220,8 +220,8 @@ Run the tests with `make test` (boots a simulator); it also recompiles the
 To run the app in a simulator against a local server, start `pnpm dev` in
 `projects/hutch` (it listens on `http://127.0.0.1:3000`, which the Simulator
 reaches as the Mac's own loopback) and run `make run-local`: it compiles the
-`LOCAL_SERVER` condition, then installs and launches the app on the newest
-iPhone simulator.
+`LOCAL_SERVER` condition, then installs and launches the app on this checkout's own
+simulator, created on first use from the newest iPhone runtime.
 
 ---
 
@@ -385,7 +385,7 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   driver flags Xcode still passes, and every link dies with
   `ld: -objc_abi_version '-Xlinker' not supported`; the nix `DEVELOPER_DIR` also
   makes xcodebuild resolve the wrong simulator set (hence the UDID-matched `SIM`
-  default, which also takes the *newest* installed runtime). **Route any new
+  default, a per-checkout device on the *newest* installed runtime). **Route any new
   `xcodebuild`/`xcrun` invocation through `xc.sh`** — it runs system tools out of
   `/usr/bin`, and it picks the newest installed Xcode, the same rule
   `scripts/fastlane.sh` uses, so the tested and shipped toolchains can't diverge.
