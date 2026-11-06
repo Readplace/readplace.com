@@ -11,4 +11,5 @@ config:
   media-audio:articlesTableName: hutch-articles-cda0a08
   media-audio:articlesTableArn: arn:aws:dynamodb:ap-southeast-2:572337278115:table/hutch-articles-cda0a08
   media-audio:mediaLambdaRepositoryName: hutch-media-lambda
+  media-audio:transcribeDailyBudgetUsd: '1'
 encryptionsalt: v1:7rKdNxmoF6o=:v1:+FYDyIfgcTbclwuk:DUHqJdDnilU13eg3nkAODBvtZ/EgYw==

@@ -36,6 +36,7 @@
   "devDependencies": {
     "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
+    "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",
     "@types/aws-lambda": "8.10.161",
     "@types/jest": "30.0.0",

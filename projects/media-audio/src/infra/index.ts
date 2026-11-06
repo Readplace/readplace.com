@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import {
 	attachDlqConsumer,
@@ -29,6 +30,7 @@ const mediaTableName = config.require("mediaTableName");
 const mediaTableArn = config.require("mediaTableArn");
 const articlesTableName = config.require("articlesTableName");
 const articlesTableArn = config.require("articlesTableArn");
+const transcribeDailyBudgetUsd = config.require("transcribeDailyBudgetUsd");
 
 const eventBus = EventBus.fromPlatformStack(config);
 
@@ -170,6 +172,36 @@ eventBus.grantPublish(prepareTranscriptionLambda);
 eventBus.subscribe(MediaUploadCommittedEvent, prepareTranscription, {
 	name: "media-audio-prepare-transcription",
 	detail: { kind: ["audio"] },
+});
+
+new aws.budgets.Budget("transcribe-daily-budget", {
+	name: "transcribe-daily",
+	budgetType: "COST",
+	timeUnit: "DAILY",
+	limitAmount: transcribeDailyBudgetUsd,
+	limitUnit: "USD",
+	costFilters: [{ name: "Service", values: ["Amazon Transcribe"] }],
+	notifications: [
+		{
+			comparisonOperator: "GREATER_THAN",
+			threshold: 100,
+			thresholdType: "PERCENTAGE",
+			notificationType: "ACTUAL",
+			subscriberEmailAddresses: [alertEmail],
+		},
+	],
+});
+
+new aws.cloudwatch.LogMetricFilter("transcript-seconds-filter", {
+	name: "transcript-seconds",
+	logGroupName: prepareTranscriptionLambda.logGroupName,
+	pattern: '{ $.event = "transcription-started" }',
+	metricTransformation: {
+		name: "TranscriptSeconds",
+		namespace: "Readplace/MediaAudio",
+		value: "$.chargedSeconds",
+		unit: "Seconds",
+	},
 });
 
 const RENDER_TRANSCRIPT_TIMEOUT_SECONDS = 120;
