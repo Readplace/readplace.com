@@ -19,6 +19,7 @@
     "@packages/article-state-types": "workspace:*",
     "@packages/domain": "workspace:*",
     "@packages/logger": "workspace:*",
+    "@packages/media-contracts": "workspace:*",
     "@packages/storage-client": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
     "zod": "4.4.3"

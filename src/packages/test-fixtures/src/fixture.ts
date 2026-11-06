@@ -474,6 +474,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 				return outcome;
 			},
 			recordPrivateItemSections: articleStoreMemory.recordPrivateItemSections,
+			setArticleEnclosure: articleStoreMemory.setArticleEnclosure,
 			readContent: articleStoreMemory.readContent,
 			writeContent: articleStoreMemory.writeContent,
 			readArticleImage: articleStoreMemory.readArticleImage,

@@ -9,6 +9,7 @@ import type {
 	PinContentSource,
 	RecordPrivateItemFailure,
 	RecordPrivateItemSections,
+	SetArticleEnclosure,
 	SavePrivateItem,
 } from "@packages/provider-contracts/article-store";
 import type { CrawlArticle } from "@packages/crawl-article";
@@ -495,6 +496,7 @@ export interface ArticleStoreBundle {
 	savePrivateItem: SavePrivateItem;
 	recordPrivateItemFailure: RecordPrivateItemFailure;
 	recordPrivateItemSections: RecordPrivateItemSections;
+	setArticleEnclosure: SetArticleEnclosure;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	readArticleImage: ReadArticleImage;
