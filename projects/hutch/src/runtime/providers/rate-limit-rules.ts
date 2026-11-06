@@ -17,6 +17,7 @@ const RateLimitRulesSchema = z.strictObject({
 	browserHandoff: Rule,
 	import: Rule,
 	importFromUrl: Rule,
+	uploadStage: Rule,
 } satisfies Record<keyof RateLimitRules, typeof Rule>);
 
 export function parseRateLimitRules(raw: string): RateLimitRules {

@@ -14,7 +14,8 @@ export type RateLimitBucket =
 	| "auth-diagnostics"
 	| "browser-handoff"
 	| "import"
-	| "import-from-url";
+	| "import-from-url"
+	| "upload-stage";
 
 /**
  * Atomically count one request against `(bucket, key)` for the rule's current
@@ -49,4 +50,5 @@ export interface RateLimitRules {
 	 * than {@link import} because each request makes the server fetch an
 	 * attacker-chosen origin (SSRF/DoS amplification surface). */
 	importFromUrl: RateLimitRule;
+	uploadStage: RateLimitRule;
 }

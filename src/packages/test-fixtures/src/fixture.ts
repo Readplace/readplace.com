@@ -328,6 +328,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			browserHandoff: unlimitedRule,
 			import: unlimitedRule,
 			importFromUrl: unlimitedRule,
+			uploadStage: unlimitedRule,
 		},
 	};
 	const pendingHtml = initInMemoryPendingHtml();

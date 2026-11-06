@@ -57,6 +57,7 @@ config:
   hutch:rateLimitBrowserHandoff: 5000/3600
   hutch:rateLimitImport: 5000/3600
   hutch:rateLimitImportFromUrl: 5000/3600
+  hutch:rateLimitUploadStage: 20/3600
   hutch:apiThrottleBurstLimit: 5000
   hutch:apiThrottleRateLimit: 2000
   hutch:trialSchedulerGroupName: hutch-trial-end-staging
