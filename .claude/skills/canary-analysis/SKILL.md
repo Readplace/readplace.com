@@ -23,7 +23,7 @@ When a trigger fires, latch it and start no new hypothesis or category. Finish t
 
 Resolve supported model IDs at runtime; use available delegation or switch facilities with a self-contained evidence brief. Per-category reasoning, RCA, acceptance design and verification judgment use Claude **Fable at the effort the [CLAUDE.md](../../../CLAUDE.md) model table sets, named on the call**, with **Opus Max** already authorized when Fable is unavailable, or Codex **Astra**. Code, tests and reverts use Claude **Opus 5.5 medium** or Codex **Sol**. Respect a narrower user selection; ask if no authorized model or required facility is available, rather than silently substituting. See the runtime reference for quota and handoff details.
 
-The parent runs only one heavy check at a time, after checking local sessions and self-hosted runners are idle. Never delegate a full check or a commit that fires its hook. Follow repository checks and hook policy; do not bypass hooks.
+The parent runs a heavy check only while fewer than three heavy tasks (other sessions' checks and busy self-hosted runners) are already running, counted as the [CLAUDE.md](../../../CLAUDE.md) section "Delegated agents never run the full check" describes. Never delegate a full check or a commit that fires its hook. Follow repository checks and hook policy; do not bypass hooks.
 
 Resolve the Git common directory with `git rev-parse --git-common-dir` (relative output is relative to the current directory). Store a durable private ledger in a run subdirectory there, never in `/tmp` or tracked logs. Persist before every handoff, mutation and pause:
 
