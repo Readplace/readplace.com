@@ -107,6 +107,15 @@ export type RenderLegClaim =
 	| { kind: "in-flight" }
 	| { kind: "budget-exhausted" };
 
+type RenderRecoveryEvent =
+	| { phase: "started" }
+	| { phase: "finished"; outcome: "committed" | "settled" | "failed" | "blocked" | "threw"; httpStatus?: number };
+
+export type RenderRecoveryAttempt = {
+	policyVersion: "mckinsey-web-unlocker-502-v1";
+	host: string;
+} & RenderRecoveryEvent;
+
 export type RenderLadderLegs = {
 	renderPage: RenderPage;
 	url: string;
@@ -127,6 +136,7 @@ export type RenderLadderLegs = {
 	}) => Promise<void>;
 	releaseLeg: (permit: PaidLegPermit) => Promise<void>;
 	remainingMilliseconds: () => number;
+	reportRecoveryAttempt: (attempt: RenderRecoveryAttempt) => void;
 };
 
 const TIME_EXHAUSTED: SkippedLeg = {
@@ -348,6 +358,55 @@ export async function runRenderLadder(
 			settledThrough: "web-unlocker-render",
 			residentialSkipped,
 		};
+	const recoveryUrl = URL.parse(legs.url);
+	const recoveryHost = recoveryUrl?.protocol === "https:" && recoveryUrl.port === "" &&
+		["www.mckinsey.com", "email.mckinsey.com"].includes(recoveryUrl.hostname)
+		? recoveryUrl.hostname : undefined;
+	if (
+		recoveryHost !== undefined &&
+		residentialReport.kind === "skipped" && residentialReport.reason === "block-evidence" &&
+		webUnlockerRender.report.kind === "failed" && webUnlockerRender.report.httpStatus === 502
+	) {
+		const allowance = renderAllowance(RENDER_CRAWL_TIMEOUTS.residentialNavigationMs);
+		if (!fitsInTime(allowance)) {
+			residentialReport = TIME_EXHAUSTED;
+		} else {
+			const claim = await legs.claimLeg("render-residential-per-gb");
+			if (claim.kind === "deferred")
+				return { kind: "deferred", awaiting: "render-residential-per-gb", direct: direct.report };
+			if (claim.kind !== "granted")
+				return stopped("render-residential-per-gb", claim, direct.report);
+			if (!fitsInTime(allowance)) {
+				await legs.releaseLeg(claim.permit);
+				residentialReport = TIME_EXHAUSTED;
+			} else {
+				const report = (attempt: RenderRecoveryEvent) =>
+					legs.reportRecoveryAttempt({ ...attempt, host: recoveryHost, policyVersion: "mckinsey-web-unlocker-502-v1" });
+				let recovery: LegOutcome;
+				try {
+					recovery = await underPermit(claim.permit, () => {
+						const egress = legs.residentialEgress(claim.permit);
+						report({ phase: "started" });
+						return renderLeg({
+							egress,
+							navigationTimeoutMilliseconds: RENDER_CRAWL_TIMEOUTS.residentialNavigationMs,
+							renderedThrough: "residential-per-gb",
+							escalation: "available",
+						});
+					});
+				} catch (error) {
+					report({ phase: "finished", outcome: "threw" });
+					throw error;
+				}
+				if (recovery.kind !== "continue") {
+					report({ phase: "finished", outcome: recovery.kind });
+					return { kind: "settled", settledThrough: "residential-per-gb", residentialSkipped: false };
+				}
+				report({ phase: "finished", outcome: recovery.report.kind, httpStatus: recovery.report.httpStatus });
+				residentialReport = recovery.report;
+			}
+		}
+	}
 	return {
 		kind: "unrendered",
 		direct: direct.report,
