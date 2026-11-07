@@ -1311,6 +1311,17 @@ export const GmailDisconnectedEvent = defineEvent({
 });
 export type GmailDisconnectedDetail = z.infer<typeof GmailDisconnectedEvent.detailSchema>;
 
+export const GmailDisconnectSkippedEvent = defineEvent({
+	name: "gmail-disconnect-skipped",
+	source: "hutch.app",
+	detailType: "GmailDisconnectSkipped",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		reason: z.enum(["not-connected", "not-requested"]),
+	}),
+});
+export type GmailDisconnectSkippedDetail = z.infer<typeof GmailDisconnectSkippedEvent.detailSchema>;
+
 export const StartGmailSenderDiscoveryCommand = defineEvent({
 	name: "start-gmail-sender-discovery",
 	source: "hutch.app",

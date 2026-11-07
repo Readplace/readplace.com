@@ -77,6 +77,9 @@ export function initDynamoDbGmailConnection(deps: {
 	});
 
 	const connectedKeys = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: z.object({ userId: UserIdSchema, connected: z.string() }) });
+	const updateIfRowExists = async (input: Parameters<typeof table.update>[0]) => {
+		await writeIfCondition(() => table.update({ ...input, ConditionExpression: "attribute_exists(userId)" }));
+	};
 	return {
 		listConnectedPage: async ({ pageToken }) => {
 			const page = await connectedKeys.query({
@@ -119,7 +122,7 @@ export function initDynamoDbGmailConnection(deps: {
 			return row === undefined ? undefined : toConnection(row);
 		},
 		markForwardingConfirmed: async ({ userId }) => {
-			await table.update({
+			await updateIfRowExists({
 				Key: { userId },
 				UpdateExpression:
 					"SET forwardingConfirmedAt = if_not_exists(forwardingConfirmedAt, :now) REMOVE lastConfirmError",
@@ -127,21 +130,21 @@ export function initDynamoDbGmailConnection(deps: {
 			});
 		},
 		recordConfirmError: async ({ userId, error }) => {
-			await table.update({
+			await updateIfRowExists({
 				Key: { userId },
 				UpdateExpression: "SET lastConfirmError = :err",
 				ExpressionAttributeValues: { ":err": error },
 			});
 		},
 		recordAccountEmail: async ({ userId, accountEmail }) => {
-			await table.update({
+			await updateIfRowExists({
 				Key: { userId },
 				UpdateExpression: "SET accountEmail = :email",
 				ExpressionAttributeValues: { ":email": accountEmail },
 			});
 		},
 		recordFilter: async ({ userId, filterCount, filterSenderCount }) => {
-			await table.update({
+			await updateIfRowExists({
 				Key: { userId },
 				UpdateExpression:
 					"SET filterCount = :c, filterSenderCount = :n, filterUpdatedAt = :now REMOVE lastFilterError",
@@ -153,21 +156,21 @@ export function initDynamoDbGmailConnection(deps: {
 			});
 		},
 		clearFilter: async ({ userId }) => {
-			await table.update({
+			await updateIfRowExists({
 				Key: { userId },
 				UpdateExpression:
 					"REMOVE filterCount, filterSenderCount, filterUpdatedAt, lastFilterError",
 			});
 		},
 		recordFilterError: async ({ userId, error }) => {
-			await table.update({
+			await updateIfRowExists({
 				Key: { userId },
 				UpdateExpression: "SET lastFilterError = :err",
 				ExpressionAttributeValues: { ":err": error },
 			});
 		},
 		markRevoked: async ({ userId, reason }) => {
-			await table.update({
+			await updateIfRowExists({
 				Key: { userId },
 				UpdateExpression: "SET revokedAt = :now, revokedReason = :reason REMOVE connected",
 				ExpressionAttributeValues: { ":now": deps.now().toISOString(), ":reason": reason },
@@ -190,7 +193,7 @@ export function initDynamoDbGmailConnection(deps: {
 		},
 		clearRevoked: async ({ userId }) => {
 			const connectedAt = deps.now().toISOString();
-			await table.update({
+			await updateIfRowExists({
 				Key: { userId },
 				UpdateExpression: "SET connected = :c, connectedAt = :now REMOVE revokedAt, revokedReason",
 				ExpressionAttributeValues: { ":c": CONNECTED_MARKER, ":now": connectedAt },

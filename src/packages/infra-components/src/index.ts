@@ -126,6 +126,8 @@ export {
 	type DisconnectGmailDetail,
 	GmailDisconnectedEvent,
 	type GmailDisconnectedDetail,
+	GmailDisconnectSkippedEvent,
+	type GmailDisconnectSkippedDetail,
 	StartGmailSenderDiscoveryCommand,
 	DiscoverGmailSendersPageCommand,
 	GmailSenderDiscoveryProgressedEvent,

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import type { SQSEvent } from "aws-lambda";
-import { GmailDisconnectedEvent } from "@packages/infra-components";
+import { GmailDisconnectSkippedEvent, GmailDisconnectedEvent } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
-import type { DisconnectGmailOutcome } from "./disconnect-gmail";
+import type { DisconnectGmailWhenRequestedOutcome } from "./disconnect-gmail-when-requested";
 import { initDisconnectGmailHandler } from "./disconnect-gmail-handler";
 
 const USER = "00000000000000000000000000000001";
@@ -14,7 +14,7 @@ function commandBody(): string {
 	return JSON.stringify({ detail: { userId: USER } });
 }
 
-function makeHarness(outcome: DisconnectGmailOutcome | (() => never)) {
+function makeHarness(outcome: DisconnectGmailWhenRequestedOutcome | (() => never)) {
 	const published: { event: unknown; detail: unknown }[] = [];
 	const handler = initDisconnectGmailHandler({
 		disconnectGmail: async () => {
@@ -68,7 +68,20 @@ describe("initDisconnectGmailHandler", () => {
 		const response = await run(buildSqsEvent([{ messageId: "cmd-1", body: commandBody() }]));
 
 		assert.deepEqual(response, { batchItemFailures: [] });
-		assert.deepEqual(published, []);
+		assert.deepEqual(published, [
+			{ event: GmailDisconnectSkippedEvent, detail: { userId: USER, reason: "not-connected" } },
+		]);
+	});
+
+	it("publishes that it skipped when nobody asked for the disconnect", async () => {
+		const { run, published } = makeHarness({ ok: false, reason: "not-requested" });
+
+		const response = await run(buildSqsEvent([{ messageId: "cmd-1", body: commandBody() }]));
+
+		assert.deepEqual(response, { batchItemFailures: [] });
+		assert.deepEqual(published, [
+			{ event: GmailDisconnectSkippedEvent, detail: { userId: USER, reason: "not-requested" } },
+		]);
 	});
 
 	it("retries a command whose detail it cannot read", async () => {
