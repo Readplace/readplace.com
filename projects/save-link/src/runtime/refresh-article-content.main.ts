@@ -6,6 +6,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
 import { consoleLogger } from "@packages/logger";
 import { initReadRefreshHtml } from "./providers/refresh-html/read-refresh-html";
+import { initFindRefreshAdmissionRow } from "./providers/article-crawl/find-refresh-admission-row";
 import { readEnv } from "@packages/require-env";
 import { REFRESH_ARTICLE_CONTENT_ENV } from "./refresh-article-content.env";
 import { initRefreshArticleContentHandler } from "./domain/save-link/refresh-article-content-handler";
@@ -33,10 +34,15 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 
-const canonicalAliasStore = initCanonicalAliasStore({ client: createDynamoDocumentClient(), tableName: env.DYNAMODB_ARTICLES_TABLE });
+const dynamoClient = createDynamoDocumentClient();
+
+const { findRefreshAdmissionRow } = initFindRefreshAdmissionRow({ client: dynamoClient, tableName: env.DYNAMODB_ARTICLES_TABLE });
+
+const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: env.DYNAMODB_ARTICLES_TABLE });
 const resolveOriginalUrl = initResolveCandidateOriginal({ findIdentityRow: canonicalAliasStore.findIdentityRow });
 
 export const handler = initRefreshArticleContentHandler({
+	findRefreshAdmissionRow,
 	resolveOriginalUrl,
 	readRefreshHtml,
 	putTierSource,

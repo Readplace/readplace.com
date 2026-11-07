@@ -7,4 +7,4 @@ export type PutRefreshHtml = (params: {
 	saveAttemptId: SaveAttemptId;
 }) => Promise<void>;
 
-export type ReadRefreshHtml = (url: string, options: { saveAttemptId: SaveAttemptId; representation?: "evaluation" }) => Promise<string>;
+export type ReadRefreshHtml = (url: string, options: { saveAttemptId: SaveAttemptId; representation?: "evaluation" }) => Promise<string | undefined>;

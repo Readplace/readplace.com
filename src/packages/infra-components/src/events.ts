@@ -684,6 +684,26 @@ export type RefreshContentExtractedDetail = z.infer<
 	typeof RefreshContentExtractedEvent.detailSchema
 >;
 
+export const RefreshArticleContentSkipReason = z.enum([
+	"purged",
+	"unsupported",
+	"superseded",
+	"staged-html-expired",
+]);
+export type RefreshArticleContentSkipReason = z.infer<typeof RefreshArticleContentSkipReason>;
+
+export const RefreshArticleContentSkippedEvent = defineEvent({
+	name: "refresh-article-content-skipped",
+	source: "hutch.save-link",
+	detailType: "RefreshArticleContentSkipped",
+	detailSchema: z.object({
+		url: z.string(),
+		saveAttemptId: SaveAttemptIdSchema,
+		contentFetchedAt: z.string(),
+		reason: RefreshArticleContentSkipReason,
+	}),
+});
+
 export const RecrawlCompletedEvent = defineEvent({
 	name: "recrawl-completed",
 	source: "hutch.save-link",

@@ -875,6 +875,7 @@ it.each([
 	let staged: { html: string; evaluationHtml: string } | undefined;
 	const putTierSource = jest.fn();
 	const refresh = initRefreshArticleContentHandler({
+		findRefreshAdmissionRow: async () => ({ crawlStatus: "ready", contentFetchedAt: "2025-01-01T00:00:00.000Z" }),
 		resolveOriginalUrl,
 		readRefreshHtml: async (_url, options) => { assert(staged); return options?.representation === "evaluation" ? staged.evaluationHtml : staged.html; },
 		putTierSource, publishEvent: jest.fn(), logger: noopLogger,
@@ -916,6 +917,7 @@ it.each<{ kind: "image" | "plain-text"; contentType: string; body: string }>([
 	let staged: { html: string; evaluationHtml: string } | undefined;
 	const putTierSource = jest.fn();
 	const refresh = initRefreshArticleContentHandler({
+		findRefreshAdmissionRow: async () => ({ crawlStatus: "ready", contentFetchedAt: "2025-01-01T00:00:00.000Z" }),
 		resolveOriginalUrl: async () => url,
 		readRefreshHtml: async (_url, options) => {
 			assert(staged);
