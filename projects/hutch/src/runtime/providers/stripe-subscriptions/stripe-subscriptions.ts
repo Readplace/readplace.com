@@ -5,6 +5,7 @@ import {
 	type CancelSubscriptionImmediately,
 	type CreateSubscriptionOnExistingCustomer,
 	type DeleteCustomer,
+	type FindOpenInvoiceFailure,
 	type FindSubscriptionNextCharge,
 	type ListInvoices,
 	type OnUnpaidFirstInvoice,
@@ -98,6 +99,17 @@ const StripeInvoiceList = z.object({
 	has_more: z.boolean(),
 });
 
+const StripeOpenInvoiceList = z.object({
+	data: z.array(
+		z.object({
+			id: InvoiceIdSchema,
+			billing_reason: z.string().nullable(),
+			attempt_count: z.number().int(),
+			next_payment_attempt: z.number().int().nullable(),
+		}),
+	),
+});
+
 function invoiceCursorParams(cursor: Parameters<ListInvoices>[0]["cursor"]): Record<string, string> {
 	if (cursor === undefined) {
 		return {};
@@ -119,6 +131,7 @@ export function initStripeSubscriptions(deps: {
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	deleteCustomer: DeleteCustomer;
 	listInvoices: ListInvoices;
+	findOpenInvoiceFailure: FindOpenInvoiceFailure;
 } {
 	const stripeHeaders = {
 		Authorization: `Bearer ${deps.apiKey}`,
@@ -381,6 +394,39 @@ export function initStripeSubscriptions(deps: {
 		};
 	};
 
+	const findOpenInvoiceFailure: FindOpenInvoiceFailure = async ({ subscriptionId }) => {
+		const query = new URLSearchParams({
+			subscription: subscriptionId,
+			status: "open",
+			limit: "10",
+		});
+		const response = await deps.fetch(`${STRIPE_API}/invoices?${query.toString()}`, {
+			method: "GET",
+			headers: stripeHeaders,
+		});
+
+		if (!response.ok) {
+			const message = await readStripeErrorMessage(response);
+			throw new Error(`Stripe findOpenInvoiceFailure failed (${response.status}): ${message}`);
+		}
+
+		const list = StripeOpenInvoiceList.safeParse(await response.json());
+		if (!list.success) {
+			throw new Error("Stripe findOpenInvoiceFailure returned an unexpected body");
+		}
+
+		const failure = list.data.data.find(
+			(invoice) =>
+				invoice.billing_reason === "subscription_cycle" &&
+				invoice.next_payment_attempt !== null &&
+				invoice.attempt_count > 0,
+		);
+		if (failure === undefined) {
+			return undefined;
+		}
+		return { invoiceId: failure.id, attemptCount: failure.attempt_count };
+	};
+
 	return {
 		cancelImmediately,
 		createSubscriptionOnExistingCustomer,
@@ -389,5 +435,6 @@ export function initStripeSubscriptions(deps: {
 		reverseScheduledCancellation,
 		deleteCustomer,
 		listInvoices,
+		findOpenInvoiceFailure,
 	};
 }

@@ -14,7 +14,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 - The account emails (email verification, welcome, password reset) and the trial day-3 and day-7 emails come from `Fayner from Readplace <fayner@readplace.com>`; every other email comes from `Readplace <readplace@readplace.com>`, the support address. Replies reach `fayner@readplace.com`, a Google Workspace mailbox: through Reply-To on every email that sets one, which is every email except email verification and password reset, and through the From address on those two.
 - Eleven emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the Hacker News starter email, the data export email and the Gmail newsletter notice have no Bcc.
 - Six emails carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link: the three sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email), the trial day-3 and day-7 emails, and the connector welcome. They share one opt-out: unsubscribing from any of them stops all that can still send. The unsubscribe URL names the email it came from with `kind=regular`, `kind=pay`, `kind=starter`, `kind=trial-day3`, `kind=trial-day7` or `kind=welcome-connector`, which the `queue_digest_unsubscribed` event records as `kind`; links delivered before this parameter existed carry none, and their events have no `kind`. The readlist digest and the trial-ending digest tag their links `utm_source=queue-digest`; the Hacker News starter email tags its links `utm_source=starter-email`; the day-3 and day-7 emails tag theirs `utm_source=day3-email` and `utm_source=day7-email`; the connector welcome tags its links `utm_source=welcome-email`. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that disabling their custom emails stops it.
-- Only the Gmail newsletter notice, the Hacker News starter email and the trial day-3 and day-7 emails set a Resend idempotency key. The rest rely on their own once-only markers, or on none.
+- The Gmail newsletter notice, the Hacker News starter email, the trial day-3 and day-7 emails, the trial feedback, trial reminder, charge reminder and payment-failed emails set a Resend idempotency key. The rest rely on their own once-only markers, or on none.
 - A trial extension does not clear the day-3 marker (`trialDay3EmailSentAt`), the day-7 marker (`trialDay7EmailSentAt`) or the founder-note marker (`founderNoteSentAt`): they are outside the REMOVE list in `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:55`.
 - Only the three emails sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email) carry an attachment: one EPUB book of the articles they list (`projects/hutch/src/runtime/web/queue-digest-book.ts:12`, passed to Resend at `projects/hutch/src/runtime/providers/email/resend-email.ts:18`). No other email has an attachment.
 
@@ -28,7 +28,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 | 4 | [Trial-ending digest](#4-trial-ending-digest) | `Waiting in your readlist` | Once per trial window, on the first 6-hourly check 96h to 60h before the trial ends (around day 11 of 14) that finds a ready unread save; verified trialists who have not unsubscribed. A trial reopened by reactivation or an admin extension can get it again. | none |
 | 5 | [Trial pre-expiry reminder](#5-trial-pre-expiry-reminder) | `your Readplace trial ends in 2 days` | 48 hours before a no-card trial ends (12 days after signup, day 13 of 14), if the reader is still trialing and got no trial-ending digest. | `readplace+trial_reminder@readplace.com` |
 | 6 | [Pre-charge reminder](#6-pre-charge-reminder) | `your Readplace membership starts on {chargeDate}` | 7 days before a trial subscriber's first charge, or 5 minutes after subscribing or reactivating when less than 7 days remain. | `readplace+charge_reminder@readplace.com` |
-| 7 | [Payment failed](#7-payment-failed) | `your Readplace payment didn't go through` | Within seconds of each failed renewal charge attempt that Stripe will retry; not on the final attempt and never during a trial. | `readplace+payment_failed@readplace.com` |
+| 7 | [Payment failed](#7-payment-failed) | `your Readplace payment didn't go through` | Within seconds of each failed renewal charge attempt that Stripe will retry, once per invoice and attempt (re-read from Stripe at send time); not on the final attempt and never during a trial. | `readplace+payment_failed@readplace.com` |
 | 8 | [Trial feedback request](#8-trial-feedback-request) | `you tried Readplace — what was missing?` | About 3 days after a trial ends without a membership, normally 17 days and 1 hour after signup. | `readplace+trial_feedback@readplace.com` |
 | 9 | [Inbox saves paused](#9-inbox-saves-paused) | `links sent to your Readplace Inbox are waiting` | Immediately, the first time mail to a reader's Readplace inbox address brings article links (or, for a Gmail sender mapped in "issue" or "both" mode, any issue) while their subscription is read-only. Once per lapse. | `readplace+automation_saves_held@readplace.com` |
 | 10 | [Readlist digest](#10-readlist-digest) | `Waiting in your readlist` | At most once every 7 days, for verified paying members (never founding members; trialists are checked, but a 14-day trial never holds a 30-day-old save), while saves at least 30 days old (unread, reader view and summary ready, never listed before) are waiting; checked every 6 hours. | none |
@@ -847,7 +847,7 @@ Not sent when:
 > **Observations**
 >
 > - Copy defect: with exactly one save the email says "the 1 article you've saved stay readable either way" (singular noun, plural verb), and trial-reminder-email.test.ts asserts that exact text `projects/hutch/src/runtime/web/auth/trial-reminder-email.ts:31`
-> - Readers can get two copies. There is no idempotency key, and the sent marker is written only after Resend accepts the email. If the marker write fails, the redelivery sends a second copy (up to 3 receives), and a concurrent duplicate delivery can do the same `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:337`
+> - The sent marker is written only after Resend accepts the email, so a marker-write failure or a concurrent duplicate delivery sends again, with the idempotency key `trial-reminder/<userId>/<trialEndsAt>`. Within Resend's 24-hour key window that replay sends no second copy, and a key Resend refuses as reused with another payload counts as sent. Only a redrive more than 24 hours later can send a second copy `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:379`
 > - Deleted accounts can be emailed. POST /account/delete only sets deletedAt, processReminder never checks it, and findEmailByUserId does not filter it. A fire before the deletion job removes the schedule sends to the deleted account `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`
 > - Paying readers can get it. Before the trial ends, the checkout success page is the only path from trialing to active, and the Stripe webhook receiver handles only customer.subscription.deleted and invoice.payment_failed. A reader who pays but never lands on the success page stays trialing and is still asked to keep using Readplace `projects/hutch/src/runtime/stripe-webhook-receiver.main.ts:33`
 > - There is no email-verification check. Unverified email signups get it, including accounts already locked from saving after their 7-day window `projects/hutch/src/runtime/web/middleware/require-not-locked.middleware.ts:10`
@@ -869,7 +869,7 @@ Not sent when:
 | Subject | your Readplace trial ends in 2 days |
 | Headers | none |
 | Plain-text part | Yes. It has the same four paragraphs, then "Upgrade: <account link>" and the signoff, where the HTML shows a "Keep using Readplace" button instead. |
-| Idempotency key | none |
+| Idempotency key | `trial-reminder/<userId>/<trialEndsAt>` |
 
 Content variants:
 
@@ -1203,7 +1203,7 @@ Not sent when:
 > - The charge date is a UTC calendar date with no time, so for readers west of UTC the charge can land the evening before the printed date while the copy says "Cancel any time before {chargeDate}" `projects/hutch/src/runtime/web/auth/charge-reminder-email.ts:33`
 > - Only the browser's return from Checkout arms the reminder, and there is no checkout.session.completed webhook, so a reader who closes the tab after paying is charged at trial end with no notice `projects/hutch/src/runtime/stripe-webhook-receiver.main.ts:33`
 > - Schedule-creation failures raise no alarm: none of the LogMetricFilters in the hutch stack (the first is at `projects/hutch/src/infra/index.ts:1030`) match the log line, and the Scheduler target has no DeadLetterConfig `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:281`
-> - Duplicates are possible but not observed: the send happens before the marker write, there is no Resend idempotency key, and the marker is an unconditional SET rather than a claim like automation-saves-held, so a marker-write failure after a successful send, or two overlapping deliveries, can send twice `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:404`, `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:176`
+> - The send happens before the marker write, and the marker is an unconditional SET rather than a claim like automation-saves-held, so a marker-write failure after a successful send, or two overlapping deliveries, send again with the idempotency key `charge-reminder/<userId>/<chargeAt>`. Within Resend's 24-hour key window that replay sends no second copy, and a key Resend refuses as reused with another payload counts as sent. Only a redrive more than 24 hours later can send a second copy `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:468`, `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:176`
 > - The reactivate path has no 48-hour floor: a member who reactivates hours before the charge gets the notice 5 minutes later, and one who reactivates under 5 minutes before gets none `projects/hutch/src/runtime/web/pages/account/account.page.ts:670`
 > - The 7-day lead follows a code comment saying Visa requires at least 7 days' notice and Mastercard caps it at 7 days (network rules unverified) `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:61`
 > - The plain-text part keeps "the button below takes you there" although plain text has no button `projects/hutch/src/runtime/web/auth/charge-reminder-email.ts:48`
@@ -1221,7 +1221,7 @@ Not sent when:
 | Subject | your Readplace membership starts on {chargeDate} |
 | Headers | none |
 | Plain-text part | Yes: the three body paragraphs, a "Manage your subscription: {ctaUrl}" line and the signoff, separated by blank lines. |
-| Idempotency key | none |
+| Idempotency key | `charge-reminder/<userId>/<chargeAt>` |
 
 Content variants:
 
@@ -1540,8 +1540,8 @@ Trigger chain:
 4. The handler keeps only renewal invoices (billing_reason subscription_cycle) that have another retry scheduled `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:44`
 5. It finds the member's subscription row by Stripe subscription id, requires status active, and publishes SendTrialFeedbackEmailCommand {userId, kind: payment_failed} to EventBridge `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:83`
 6. An EventBridge rule routes the command to the send-trial-feedback-email-q SQS queue `projects/hutch/src/infra/index.ts:1264`
-7. The send-trial-feedback-email Lambda routes kind payment_failed to processPaymentFailed, which re-checks the membership is active and loads the account email `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:86`
-8. It renders the email and sends it through Resend behind the reserved-domain filter `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:457`
+7. The send-trial-feedback-email Lambda routes kind payment_failed to processPaymentFailed, which re-checks the membership is active, re-reads the row's Stripe subscription for an open renewal invoice whose charge failed and will be retried, and skips the attempt (`<invoiceId>/<attemptCount>`) the row records as already emailed `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:490`
+8. It loads the account email, renders the email, sends it through Resend behind the reserved-domain filter with idempotency key `payment-failed/<invoiceId>/<attemptCount>`, and records that attempt on the row as paymentFailedEmailAttempt, so one email goes out per invoice and attempt `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:562`
 
 Sent only when:
 
@@ -1553,6 +1553,8 @@ Sent only when:
 - That Stripe subscription is the one currently recorded on the member's Readplace subscription row `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:67`
 - The membership status is active when the webhook arrives `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:75`
 - The membership is still active when the email Lambda runs, seconds later `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:435`
+- The row still holds a Stripe subscription id, and Stripe, read at send time, still lists an open renewal invoice for it with attempt_count above 0 and another retry scheduled `projects/hutch/src/runtime/providers/stripe-subscriptions/stripe-subscriptions.ts:397`
+- That invoice and attempt is not the one already recorded as emailed on the row (paymentFailedEmailAttempt) `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:528`
 - The account has an email address on file `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:444`
 - The address is not on a reserved test domain (example.com, example.net, example.org, or a .test, .example, .invalid or .localhost TLD) `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
 
@@ -1572,7 +1574,10 @@ Not sent when:
 
 **Timing:** Event-driven with no schedule: the email goes out within seconds of each qualifying invoice.payment_failed webhook, at whatever UTC time Stripe's charge attempt fails (in the capture, webhook at 2026-10-05T10:32:51Z and send 1 second later). Stripe's Smart Retries settings, not Readplace, decide when retries happen and so when later copies go out (the captured invoice's next retry was 3 days later, on 2026-10-08).
 
-**If sending fails:** Webhook-stage errors, including a 10 s Lambda timeout, return 5xx so Stripe redelivers, and a Lambda Errors alarm emails ops; skipped events return 200 and are never redelivered. Email-stage errors are retried by SQS after 60 s, up to 3 receives, then the message moves to send-trial-feedback-email-dlq, which alarms; with no idempotency key, a retry after an ambiguous Resend failure can send a second copy.
+**If sending fails:** Webhook-stage errors, including a 10 s Lambda timeout, return 5xx so Stripe redelivers, and a Lambda Errors alarm emails ops; skipped events return 200 and are never redelivered. Email-stage errors are retried by SQS after 60 s, up to 3 receives, then the message moves to send-trial-feedback-email-dlq, which alarms; a retry after an ambiguous Resend failure reuses the same idempotency key, so Resend does not send a second copy within its 24-hour key window, and a key Resend refuses as reused with another payload counts as sent. A Stripe read failure fails the record and a later receive retries it. A redrive of a message whose invoice has since been paid, or whose attempt was already emailed, sends nothing.
+
+- Operator: redriving send-trial-feedback-email-dlq more than 24 hours after the first receive can repeat an email whose first send Resend accepted, because the key has expired. If the message's `record failed` line shows the mark write failed, delete the message instead of redriving it.
+- Operator: if a `record failed` line reads `Error: Resend <name>` (a 5xx or null status), no line shows the mark write failing, and the row has no marker, redrive only once 24 hours have passed since the last such line. An earlier redrive after the payload changed can count an undelivered email as sent.
 
 <details><summary>Edge cases</summary>
 
@@ -1580,8 +1585,8 @@ Not sent when:
 - The handler reads the subscription id from either the older top-level `subscription` field or the newer `parent.subscription_details.subscription`, so a webhook API version change on the Stripe endpoint still works `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:60`
 - An invoice whose subscription arrives as an expanded object fails the payload parse and is skipped with a warning `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:34`
 - Every skipped webhook still returns 200, so Stripe never redelivers it `projects/hutch/src/runtime/stripe-webhook-receiver/stripe-webhook-receiver-handler.ts:59`
-- A webhook Lambda timeout (10 s) after EventBridge already accepted the command returns 5xx; Stripe redelivers and the member gets a second copy `src/packages/infra-components/src/infra/stripe-webhook-receiver.ts:55`
-- The send-time re-check reads the row by user and checks only that it is active, not that it is still on the failing Stripe subscription; a member whose row moved to a new subscription between webhook and send still gets the email `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:435`
+- A webhook Lambda timeout (10 s) after EventBridge already accepted the command returns 5xx and Stripe redelivers, which publishes a second command for the same invoice and attempt; it logs `attempt already emailed` once paymentFailedEmailAttempt is recorded, and before that replays the idempotency key `payment-failed/<invoiceId>/<attemptCount>`, so no second copy goes out within Resend's 24-hour key window `src/packages/infra-components/src/infra/stripe-webhook-receiver.ts:55`
+- The send-time re-check reads the open invoices of the row's current Stripe subscription, so a member whose row moved to a new subscription between webhook and send gets nothing for a failure on the old one; the email goes out only when the current subscription has an open failed cycle invoice whose attempt was not already emailed `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:517`
 - The recipient lookup reads the users table userId-index with Limit 1; Gmail canonical-claim items carry ownerUserId instead of userId, so they never stand in for the real address `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:84`
 - Reserved-domain matching is exact and case-insensitive on the whole domain or the TLD, so an address like user@mail.example.com is not matched and is sent `projects/hutch/src/runtime/domain/email/reserved-domain.ts:17`
 - Members who kept their trial at checkout have their row written active at checkout `projects/hutch/src/runtime/web/auth/auth.page.ts:527`; their first post-trial charge qualifies only because Stripe labels it subscription_cycle (Stripe behaviour, unverified in code)
@@ -1595,7 +1600,7 @@ Not sent when:
 
 > **Observations**
 >
-> - No dedup: there is no idempotency key or sent marker, so a member gets an identical copy for every qualifying failed attempt (the first failure, each non-final Stripe retry, any manual Dashboard or API retry) plus any duplicate Stripe delivery or SQS retry after an ambiguous Resend failure; the test names per-attempt sending as deliberate `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.test.ts:893`
+> - One copy per invoice and attempt: a member gets an identical copy for every qualifying failed attempt (the first failure, each non-final Stripe retry, any manual Dashboard or API retry), while a duplicate Stripe delivery, an SQS retry or a redrive for an attempt already emailed sends nothing `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.test.ts`
 > - The copy promises "If every retry fails, the subscription cancels and your account goes read-only" `projects/hutch/src/runtime/web/auth/payment-failed-email.ts:27`; that holds only if Stripe's 'after all retries fail' setting cancels the subscription (Dashboard setting, unverified), because Readplace ends the membership only on customer.subscription.deleted `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/customer-subscription-deleted.ts:48`
 > - If Stripe automatic retries are turned off, next_payment_attempt is empty on the first failure and no member ever gets this email (Stripe behaviour, unverified) `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:53`
 > - A logged-out reader who clicks 'Update your card' is sent to /login with no return URL and lands on /queue after signing in, not on the account page, and the utm parameters are lost `projects/hutch/src/runtime/server.ts:527`
@@ -1618,7 +1623,7 @@ Not sent when:
 | Subject | your Readplace payment didn't go through |
 | Headers | none |
 | Plain-text part | Yes: the same three paragraphs, then "Update your card: {ctaUrl}" and the signoff, separated by blank lines. |
-| Idempotency key | none |
+| Idempotency key | `payment-failed/<invoiceId>/<attemptCount>` |
 
 Content variants:
 
@@ -1803,7 +1808,7 @@ Not sent when:
 
 **Timing:** The one-shot schedule fires exactly 3 days (259,200,000 ms) after the subscription-events Lambda processes SubscriptionCancelled, as an EventBridge Scheduler at() in UTC to the whole second with no flexible window `projects/hutch/src/runtime/schedule-trial-feedback-email/schedule-trial-feedback-email-handler.ts:19`. For both trial paths that is normally trialEndsAt + 1 hour + 3 days, which for an unextended 14-day trial is signup + 17 days 1 hour (captured: signup 2026-09-18T14:22:08Z, cancellation final 2026-10-02T15:22:09Z, sent 2026-10-05T15:22:10Z).
 
-**If sending fails:** Each record runs in its own try/catch; a Resend, DynamoDB or missing-total error fails only that record, which SQS retries after the 60-second visibility timeout up to 3 receives before moving it to the queue's DLQ, whose CloudWatch alarm emails readplace+devops@readplace.com in prod `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:99`. The email is sent before the trialFeedbackEmailSentAt marker is written and without an idempotency key, so a failure between the two steps sends a second copy on retry.
+**If sending fails:** Each record runs in its own try/catch; a Resend, DynamoDB or missing-total error fails only that record, which SQS retries after the 60-second visibility timeout up to 3 receives before moving it to the queue's DLQ, whose CloudWatch alarm emails readplace+devops@readplace.com in prod `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:99`. The email is sent before the trialFeedbackEmailSentAt marker is written, so a failure between the two steps sends again on retry with the idempotency key `trial-feedback/<userId>`. Within Resend's 24-hour key window that replay sends no second copy, and a key Resend refuses as reused with another payload counts as sent. Only a redrive more than 24 hours later can send a second copy.
 
 <details><summary>Edge cases</summary>
 
@@ -1827,7 +1832,7 @@ Not sent when:
 > **Observations**
 >
 > - A stale schedule can email a churned paying member: checkout success deletes only the trial-end and trial-reminder schedules `projects/hutch/src/runtime/web/auth/auth.page.ts:550`, and the send step checks only status === cancelled `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:124`, so a cancelled trialist who starts a membership within the 3 days and is cancelled again (for example Stripe-side) before the schedule fires gets this trial email.
-> - Duplicate risk: the send happens before the marker write with no idempotency key `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:160`, while the automation-saves-held email in the same file claims its marker first `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:219`.
+> - Duplicate risk: the send happens before the marker write `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:200`, while the automation-saves-held email in the same file claims its marker first. A retry or redrive within 24 hours replays the Resend idempotency key `trial-feedback/<userId>` and sends no second copy; only a redrive more than 24 hours later can.
 > - A reader who deleted their account can still get it: findEmailByUserId ignores the deletedAt soft-delete marker `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`, so a schedule that fires between POST /account/delete `projects/hutch/src/runtime/web/pages/account/account.page.ts:625` and the scrub removing it `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:135`, or after the scrub lands in the DLQ, still sends.
 > - Trialists see only Subscribe on the account page, never Cancel `projects/hutch/src/runtime/web/pages/account/account.view-model.ts:791`, so nearly every recipient's trial simply ran out, yet the copy says they "decided not to continue" `projects/hutch/src/runtime/web/auth/trial-feedback-email.ts:37`.
 > - trial_expired_charge_failed is in the accepted reasons but cannot occur: upsertTrialing removes customerId and only upsertActive, which sets status active, writes it, so a trialing row always takes the no-card branch `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:58`.
@@ -1847,7 +1852,7 @@ Not sent when:
 | Subject | you tried Readplace — what was missing? |
 | Headers | none |
 | Plain-text part | Yes: the same three paragraphs and sign-off as plain text, separated by blank lines. |
-| Idempotency key | none |
+| Idempotency key | `trial-feedback/<userId>` |
 
 Content variants:
 

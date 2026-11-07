@@ -10,12 +10,18 @@ import { SendTrialFeedbackEmailCommand, type SendTrialFeedbackEmailDetail } from
 import type { Logger } from "@packages/logger";
 import type { FindEmailByUserId, FindUserContactByUserId } from "@packages/provider-contracts/auth";
 import type { FindArticlesByUser } from "@packages/provider-contracts/article-store";
-import type { SendEmail } from "@packages/provider-contracts/email";
+import {
+	EmailKeyReusedError,
+	type EmailMessage,
+	type SendEmail,
+} from "@packages/provider-contracts/email";
+import type { FindOpenInvoiceFailure } from "@packages/provider-contracts/subscription-billing";
 import type {
 	ClaimTrialNudge,
 	ReleaseTrialNudge,
 	FindSubscriptionByUserId,
 	MarkAutomationSavesHeldEmailSent,
+	MarkPaymentFailedEmailSent,
 	MarkTrialFeedbackEmailSent,
 	MarkTrialReminderEmailSent,
 } from "@packages/provider-contracts/subscription-providers";
@@ -61,6 +67,8 @@ export interface SendTrialFeedbackEmailDeps {
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
+	markPaymentFailedEmailSent: MarkPaymentFailedEmailSent;
+	findOpenInvoiceFailure: FindOpenInvoiceFailure;
 	claimTrialNudge: ClaimTrialNudge;
 	releaseTrialNudge: ReleaseTrialNudge;
 	findUserContactByUserId: FindUserContactByUserId;
@@ -107,6 +115,21 @@ export function initSendTrialFeedbackEmailHandler(
 				deps,
 			),
 	});
+}
+
+async function sendUnlessKeyReused(
+	message: EmailMessage,
+	deps: SendTrialFeedbackEmailDeps,
+): Promise<void> {
+	try {
+		await deps.sendEmail(message);
+	} catch (error) {
+		if (!(error instanceof EmailKeyReusedError)) throw error;
+		deps.logger.warn(
+			"[send-trial-feedback-email] idempotency key already used with another payload — counted as sent",
+			{ idempotencyKey: message.idempotencyKey },
+		);
+	}
 }
 
 async function processCommand(
@@ -165,15 +188,19 @@ async function processCommand(
 		savedArticlesCount: total,
 	});
 
-	await deps.sendEmail({
-		from: EMAIL_FROM,
-		to: email,
-		bcc: EMAIL_BCC,
-		replyTo: EMAIL_REPLY_TO,
-		subject: TRIAL_FEEDBACK_EMAIL_SUBJECT,
-		html: component.to("text/html"),
-		text: component.to("text/plain"),
-	});
+	await sendUnlessKeyReused(
+		{
+			from: EMAIL_FROM,
+			to: email,
+			bcc: EMAIL_BCC,
+			replyTo: EMAIL_REPLY_TO,
+			subject: TRIAL_FEEDBACK_EMAIL_SUBJECT,
+			html: component.to("text/html"),
+			text: component.to("text/plain"),
+			idempotencyKey: `trial-feedback/${userId}`,
+		},
+		deps,
+	);
 
 	deps.emitLifecycleEmailSent({
 		userId,
@@ -340,15 +367,19 @@ async function processReminder(
 		ctaUrl: `${deps.appOrigin}/account?utm_source=trial-reminder&utm_medium=email&utm_campaign=trial-preexpiry&utm_content=subscribe`,
 	});
 
-	await deps.sendEmail({
-		from: EMAIL_FROM,
-		to: email,
-		bcc: REMINDER_EMAIL_BCC,
-		replyTo: EMAIL_REPLY_TO,
-		subject: TRIAL_REMINDER_EMAIL_SUBJECT,
-		html: component.to("text/html"),
-		text: component.to("text/plain"),
-	});
+	await sendUnlessKeyReused(
+		{
+			from: EMAIL_FROM,
+			to: email,
+			bcc: REMINDER_EMAIL_BCC,
+			replyTo: EMAIL_REPLY_TO,
+			subject: TRIAL_REMINDER_EMAIL_SUBJECT,
+			html: component.to("text/html"),
+			text: component.to("text/plain"),
+			idempotencyKey: `trial-reminder/${userId}/${row.trialEndsAt}`,
+		},
+		deps,
+	);
 
 	deps.emitLifecycleEmailSent({
 		userId,
@@ -425,15 +456,19 @@ async function processChargeReminder(
 		plan: row.plan,
 	});
 
-	await deps.sendEmail({
-		from: EMAIL_FROM,
-		to: email,
-		bcc: CHARGE_REMINDER_EMAIL_BCC,
-		replyTo: EMAIL_REPLY_TO,
-		subject: component.subject,
-		html: component.to("text/html"),
-		text: component.to("text/plain"),
-	});
+	await sendUnlessKeyReused(
+		{
+			from: EMAIL_FROM,
+			to: email,
+			bcc: CHARGE_REMINDER_EMAIL_BCC,
+			replyTo: EMAIL_REPLY_TO,
+			subject: component.subject,
+			html: component.to("text/html"),
+			text: component.to("text/plain"),
+			idempotencyKey: `charge-reminder/${userId}/${chargeAt}`,
+		},
+		deps,
+	);
 
 	deps.emitLifecycleEmailSent({
 		userId,
@@ -471,6 +506,30 @@ async function processPaymentFailed(
 		);
 		return;
 	}
+	if (!row.subscriptionId) {
+		deps.logger.info(
+			"[send-trial-feedback-email] payment-failed: no subscription id — noop",
+			{ userId },
+		);
+		return;
+	}
+
+	const failure = await deps.findOpenInvoiceFailure({ subscriptionId: row.subscriptionId });
+	if (!failure) {
+		deps.logger.info(
+			"[send-trial-feedback-email] payment-failed: no open invoice failure — noop",
+			{ userId, subscriptionId: row.subscriptionId },
+		);
+		return;
+	}
+	const attempt = `${failure.invoiceId}/${failure.attemptCount}`;
+	if (row.paymentFailedEmailAttempt === attempt) {
+		deps.logger.info(
+			"[send-trial-feedback-email] payment-failed: attempt already emailed — noop",
+			{ userId, attempt },
+		);
+		return;
+	}
 
 	const email = await deps.findEmailByUserId(userId);
 	if (!email) {
@@ -486,17 +545,23 @@ async function processPaymentFailed(
 		ctaUrl: `${deps.appOrigin}/account?utm_source=payment-failed&utm_medium=email&utm_campaign=dunning&utm_content=update-card`,
 	});
 
-	await deps.sendEmail({
-		from: EMAIL_FROM,
-		to: email,
-		bcc: PAYMENT_FAILED_EMAIL_BCC,
-		replyTo: EMAIL_REPLY_TO,
-		subject: PAYMENT_FAILED_EMAIL_SUBJECT,
-		html: component.to("text/html"),
-		text: component.to("text/plain"),
-	});
+	await sendUnlessKeyReused(
+		{
+			from: EMAIL_FROM,
+			to: email,
+			bcc: PAYMENT_FAILED_EMAIL_BCC,
+			replyTo: EMAIL_REPLY_TO,
+			subject: PAYMENT_FAILED_EMAIL_SUBJECT,
+			html: component.to("text/html"),
+			text: component.to("text/plain"),
+			idempotencyKey: `payment-failed/${attempt}`,
+		},
+		deps,
+	);
 
+	await deps.markPaymentFailedEmailSent({ userId, attempt });
 	deps.logger.info("[send-trial-feedback-email] payment-failed email sent", {
 		userId,
+		attempt,
 	});
 }

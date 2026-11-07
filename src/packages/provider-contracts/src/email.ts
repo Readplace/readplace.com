@@ -32,3 +32,13 @@ export class EmailRejectedError extends Error {
 		this.name = "EmailRejectedError";
 	}
 }
+
+export class EmailKeyReusedError extends Error {
+	readonly statusCode: number;
+
+	constructor(params: { statusCode: number; message: string }) {
+		super(params.message);
+		this.statusCode = params.statusCode;
+		this.name = "EmailKeyReusedError";
+	}
+}

@@ -672,6 +672,63 @@ describe("initDynamoDbSubscriptionProviders", () => {
 		});
 	});
 
+	describe("markPaymentFailedEmailSent", () => {
+		it("issues a guarded Update that records the emailed attempt and bumps updatedAt", async () => {
+			const { subs, sent } = initCapturingProviders();
+
+			await subs.markPaymentFailedEmailSent({ userId: USER_ID, attempt: "in_1Open/2" });
+
+			const command = CapturedFencedCommand.parse(sent[0]);
+			expect(command.input.UpdateExpression).toContain(
+				"paymentFailedEmailAttempt = :attempt",
+			);
+			expect(command.input.UpdateExpression).toContain("updatedAt = :now");
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.ExpressionAttributeValues[":attempt"]).toBe("in_1Open/2");
+			expect(command.input.ExpressionAttributeValues[":now"]).toBe(
+				"2026-05-22T10:00:00.750Z",
+			);
+		});
+	});
+
+	describe("findByUserId with paymentFailedEmailAttempt", () => {
+		const BASE_ITEM = {
+			userId: USER_ID,
+			provider: "stripe",
+			status: "active",
+			createdAt: "2026-05-20T10:00:00.000Z",
+			updatedAt: "2026-06-04T00:00:00.000Z",
+		};
+
+		it("reads back the emailed attempt a row holds", async () => {
+			const client = createFakeClient(() => ({
+				Item: { ...BASE_ITEM, paymentFailedEmailAttempt: "in_1Open/1" },
+			}));
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const row = await subs.findByUserId(USER_ID);
+			assert(row, "row must be returned");
+			expect(row.paymentFailedEmailAttempt).toBe("in_1Open/1");
+		});
+
+		it("reads a row written before the attribute existed without it", async () => {
+			const client = createFakeClient(() => ({ Item: BASE_ITEM }));
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const row = await subs.findByUserId(USER_ID);
+			assert(row, "row must be returned");
+			expect("paymentFailedEmailAttempt" in row).toBe(false);
+		});
+	});
+
 	describe("setNextCharge", () => {
 		it("issues a guarded Update that only writes when the row is still the active subscription it was read from", async () => {
 			let received: unknown;

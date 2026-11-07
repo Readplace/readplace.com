@@ -864,4 +864,126 @@ describe("initStripeSubscriptions", () => {
 			);
 		});
 	});
+
+	describe("findOpenInvoiceFailure", () => {
+		const CYCLE_FAILURE = {
+			id: "in_1Cycle",
+			billing_reason: "subscription_cycle",
+			attempt_count: 2,
+			next_payment_attempt: 1789776000,
+		};
+
+		function stubOpenInvoices(input: {
+			status: number;
+			body: object;
+			record?: (url: string, init: RequestInit | undefined) => void;
+		}): typeof globalThis.fetch {
+			return async (target, init) => {
+				input.record?.(typeof target === "string" ? target : target.toString(), init);
+				return jsonResponse(input.status, input.body);
+			};
+		}
+
+		it("asks Stripe for the subscription's open invoices with the bearer token", async () => {
+			const requests: { url: string; init: RequestInit | undefined }[] = [];
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubOpenInvoices({
+					status: 200,
+					body: { data: [] },
+					record: (url, init) => requests.push({ url, init }),
+				}),
+			});
+
+			await stripe.findOpenInvoiceFailure({ subscriptionId: "sub_dunning" });
+
+			assert.equal(
+				requests[0]?.url,
+				"https://api.stripe.com/v1/invoices?subscription=sub_dunning&status=open&limit=10",
+			);
+			assert.equal(requests[0]?.init?.method, "GET");
+			const headers = new Headers(requests[0]?.init?.headers);
+			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
+			assert.equal(headers.get("Stripe-Version"), "2026-04-22.dahlia");
+		});
+
+		it("returns the open cycle invoice and its attempt count", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubOpenInvoices({ status: 200, body: { data: [CYCLE_FAILURE] } }),
+			});
+
+			const failure = await stripe.findOpenInvoiceFailure({ subscriptionId: "sub_dunning" });
+
+			assert.deepEqual(failure, { invoiceId: "in_1Cycle", attemptCount: 2 });
+		});
+
+		it("skips a newer non-cycle invoice to return the cycle failure behind it", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubOpenInvoices({
+					status: 200,
+					body: {
+						data: [
+							{ ...CYCLE_FAILURE, id: "in_1Proration", billing_reason: "subscription_update" },
+							CYCLE_FAILURE,
+						],
+					},
+				}),
+			});
+
+			const failure = await stripe.findOpenInvoiceFailure({ subscriptionId: "sub_dunning" });
+
+			assert.deepEqual(failure, { invoiceId: "in_1Cycle", attemptCount: 2 });
+		});
+
+		it.each([
+			["a cycle invoice finalised but not yet charged", { ...CYCLE_FAILURE, attempt_count: 0 }],
+			["a cycle invoice whose final attempt was made", { ...CYCLE_FAILURE, next_payment_attempt: null }],
+		])("returns undefined for %s", async (_label, invoice) => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubOpenInvoices({ status: 200, body: { data: [invoice] } }),
+			});
+
+			const failure = await stripe.findOpenInvoiceFailure({ subscriptionId: "sub_dunning" });
+
+			assert.equal(failure, undefined);
+		});
+
+		it("returns undefined when the subscription has no open invoice", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubOpenInvoices({ status: 200, body: { data: [] } }),
+			});
+
+			const failure = await stripe.findOpenInvoiceFailure({ subscriptionId: "sub_paid" });
+
+			assert.equal(failure, undefined);
+		});
+
+		it("throws with the status when Stripe answers 500", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubOpenInvoices({ status: 500, body: { error: { message: "boom" } } }),
+			});
+
+			await assert.rejects(
+				stripe.findOpenInvoiceFailure({ subscriptionId: "sub_dunning" }),
+				/Stripe findOpenInvoiceFailure failed \(500\): boom/,
+			);
+		});
+
+		it("throws when Stripe answers 200 with an unexpected body", async () => {
+			const stripe = initStripeSubscriptions({
+				apiKey: "sk_test_abc",
+				fetch: stubOpenInvoices({ status: 200, body: { data: [{ id: "not-an-invoice" }] } }),
+			});
+
+			await assert.rejects(
+				stripe.findOpenInvoiceFailure({ subscriptionId: "sub_dunning" }),
+				/Stripe findOpenInvoiceFailure returned an unexpected body/,
+			);
+		});
+	});
 });

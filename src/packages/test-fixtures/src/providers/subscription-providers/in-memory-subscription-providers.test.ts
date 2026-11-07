@@ -276,6 +276,28 @@ describe("initInMemorySubscriptionProviders", () => {
 		).rejects.toThrow(/No subscription row/);
 	});
 
+	it("markPaymentFailedEmailSent records the emailed attempt on the row", async () => {
+		const clock = { iso: "2026-05-22T00:00:00.000Z" };
+		const subs = initInMemorySubscriptionProviders({ now: () => new Date(clock.iso) });
+		await subs.upsertActive({ userId, subscriptionId: "sub_dun", customerId: "cus_dun" });
+
+		clock.iso = "2026-06-03T00:00:00.000Z";
+		await subs.markPaymentFailedEmailSent({ userId, attempt: "in_1Open/1" });
+
+		const row = await subs.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.paymentFailedEmailAttempt).toBe("in_1Open/1");
+		expect(row.status).toBe("active");
+		expect(row.updatedAt).toBe("2026-06-03T00:00:00.000Z");
+	});
+
+	it("throws when markPaymentFailedEmailSent is called for an unknown user", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		await expect(
+			subs.markPaymentFailedEmailSent({ userId, attempt: "in_1Open/1" }),
+		).rejects.toThrow(/No subscription row/);
+	});
+
 	it("deleteSubscription removes the row so the user has no subscription", async () => {
 		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
 		await subs.upsertActive({ userId, subscriptionId: "sub_del", customerId: "cus_del" });

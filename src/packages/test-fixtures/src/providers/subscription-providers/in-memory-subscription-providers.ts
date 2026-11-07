@@ -18,6 +18,7 @@ import {
 	type MarkTrialFeedbackEmailSent,
 	type MarkTrialReminderEmailSent,
 	type MarkAutomationSavesHeldEmailSent,
+	type MarkPaymentFailedEmailSent,
 	type RecordFounderNote,
 	type ReleasePayDigest,
 	type SetSubscriptionNextCharge,
@@ -57,6 +58,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
+	markPaymentFailedEmailSent: MarkPaymentFailedEmailSent;
 	claimPayDigest: ClaimPayDigest;
 	releasePayDigest: ReleasePayDigest;
 	claimTrialNudge: ClaimTrialNudge;
@@ -213,6 +215,16 @@ export function initInMemorySubscriptionProviders(opts: {
 		});
 	};
 
+	const markPaymentFailedEmailSent: MarkPaymentFailedEmailSent = async ({ userId, attempt }) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		rows.set(userId, {
+			...existing,
+			paymentFailedEmailAttempt: attempt,
+			updatedAt: opts.now().toISOString(),
+		});
+	};
+
 	const markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent = async ({
 		userId,
 		sentAt,
@@ -355,6 +367,7 @@ export function initInMemorySubscriptionProviders(opts: {
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent,
+		markPaymentFailedEmailSent,
 		claimPayDigest,
 		releasePayDigest,
 		claimTrialNudge,

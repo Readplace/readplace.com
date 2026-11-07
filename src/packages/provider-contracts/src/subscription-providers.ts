@@ -32,6 +32,7 @@ export interface SubscriptionRecord {
 	trialFeedbackEmailSentAt?: string;
 	trialReminderEmailSentAt?: string;
 	automationSavesHeldEmailSentAt?: string;
+	paymentFailedEmailAttempt?: string;
 	payDigestEmailSentAt?: string;
 	payDigestMessageId?: string;
 	payDigestUrls?: readonly string[];
@@ -107,6 +108,8 @@ export type MarkTrialReminderEmailSent = (input: {
 	userId: UserId;
 	sentAt: string;
 }) => Promise<void>;
+
+export type MarkPaymentFailedEmailSent = (input: { userId: UserId; attempt: string }) => Promise<void>;
 
 export type MarkAutomationSavesHeldEmailSent = (input: {
 	userId: UserId;

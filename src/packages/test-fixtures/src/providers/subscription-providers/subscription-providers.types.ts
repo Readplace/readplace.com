@@ -8,6 +8,7 @@ export type {
 	MarkSubscriptionCancelledByEvent,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
+	MarkPaymentFailedEmailSent,
 	MarkSubscriptionPendingCancellationByEvent,
 	MarkTrialFeedbackEmailSent,
 	MarkTrialReminderEmailSent,

@@ -19,6 +19,7 @@ export const SubscriptionProviderRow = z.object({
 	trialFeedbackEmailSentAt: dynamoField(z.string()),
 	trialReminderEmailSentAt: dynamoField(z.string()),
 	automationSavesHeldEmailSentAt: dynamoField(z.string()),
+	paymentFailedEmailAttempt: dynamoField(z.string()),
 	payDigestEmailSentAt: dynamoField(z.string()),
 	payDigestMessageId: dynamoField(z.string()),
 	payDigestUrls: dynamoField(z.array(z.string())),
@@ -57,6 +58,9 @@ export function toRecord(row: z.infer<typeof SubscriptionProviderRow>): Subscrip
 			: {}),
 		...(row.automationSavesHeldEmailSentAt !== undefined
 			? { automationSavesHeldEmailSentAt: row.automationSavesHeldEmailSentAt }
+			: {}),
+		...(row.paymentFailedEmailAttempt !== undefined
+			? { paymentFailedEmailAttempt: row.paymentFailedEmailAttempt }
 			: {}),
 		...(row.payDigestEmailSentAt !== undefined
 			? { payDigestEmailSentAt: row.payDigestEmailSentAt }

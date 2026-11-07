@@ -10,6 +10,7 @@ import {
 	type ReleaseTrialNudge,
 	type DeleteSubscription,
 	type MarkAutomationSavesHeldEmailSent,
+	type MarkPaymentFailedEmailSent,
 	type MarkSubscriptionActive,
 	type MarkSubscriptionCancelledByEvent,
 	type MarkSubscriptionPendingCancellationByEvent,
@@ -41,6 +42,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
+	markPaymentFailedEmailSent: MarkPaymentFailedEmailSent;
 	claimPayDigest: ClaimPayDigest;
 	releasePayDigest: ReleasePayDigest;
 	claimTrialNudge: ClaimTrialNudge;
@@ -179,6 +181,18 @@ export function initDynamoDbSubscriptionWrites(deps: {
 			ConditionExpression: "attribute_exists(userId)",
 			ExpressionAttributeValues: {
 				":sentAt": sentAt,
+				":now": deps.now().toISOString(),
+			},
+		});
+	};
+
+	const markPaymentFailedEmailSent: MarkPaymentFailedEmailSent = async ({ userId, attempt }) => {
+		await table.update({
+			Key: { userId },
+			UpdateExpression: "SET paymentFailedEmailAttempt = :attempt, updatedAt = :now",
+			ConditionExpression: "attribute_exists(userId)",
+			ExpressionAttributeValues: {
+				":attempt": attempt,
 				":now": deps.now().toISOString(),
 			},
 		});
@@ -335,6 +349,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent,
+		markPaymentFailedEmailSent,
 		claimPayDigest,
 		releasePayDigest,
 		claimTrialNudge,

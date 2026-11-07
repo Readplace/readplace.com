@@ -1,6 +1,6 @@
 /* c8 ignore start -- thin SDK wrapper, tested via integration */
 import { Resend } from "resend";
-import { EmailRejectedError, type SendEmail } from "@packages/provider-contracts/email";
+import { EmailKeyReusedError, EmailRejectedError, type SendEmail } from "@packages/provider-contracts/email";
 
 export function initResendEmail(apiKey: string): { sendEmail: SendEmail } {
 	const resend = new Resend(apiKey);
@@ -32,6 +32,9 @@ export function initResendEmail(apiKey: string): { sendEmail: SendEmail } {
 			// confirmed rejection would release the cooldown and let the redrive post
 			// a second copy of a digest that was already delivered.
 			if (typeof statusCode === "number" && statusCode >= 400 && statusCode < 500) {
+				if (result.error.name === "invalid_idempotent_request") {
+					throw new EmailKeyReusedError({ statusCode, message });
+				}
 				throw new EmailRejectedError({ statusCode, message });
 			}
 			throw new Error(message);
