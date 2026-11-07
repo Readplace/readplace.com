@@ -1443,6 +1443,81 @@ describe("initRenderCrawlHandler", () => {
 		expect(response).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
+	describe("the McKinsey recovery experiment", () => {
+		const target = "https://www.mckinsey.com/article?token=private-query";
+		const gatewayFailure = failed("main document answered HTTP 502", 502);
+		const markerLines = (info: jest.Mock) => info.mock.calls
+			.filter(([message]) => message === "[RenderCrawlCommand] recovery attempt")
+			.map(([, fields]) => fields);
+
+		it("records the bounded attempt and candidate outcome without URL secrets, then reuses its settled candidate on redelivery", async () => {
+			const info = jest.fn();
+			const residentialEgress = jest.fn(() => RESIDENTIAL_EGRESS);
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true, consumed: true });
+			const reportProxiedRenderAttempt = jest.fn();
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_HTTP2_PROTOCOL_ERROR"), webUnlocker: gatewayFailure, residential: rendered({ finalUrl: target }) });
+			const handler = createHandler({ renderPage, residentialEgress, consumeRenderCrawlBudget, reportProxiedRenderAttempt, putTierSource, publishEvent, logger: { ...noopLogger, info } });
+			const detail = { url: target, unsupportedReason: "blocked" as const, saveAttemptId: "mckinsey-attempt" };
+
+			expect(await run(handler, detail)).toEqual({ batchItemFailures: [] });
+			expect(consumeRenderCrawlBudget).toHaveBeenCalledTimes(1);
+			expect(renderPage.mock.calls.map(([params]) => params.egress.kind)).toEqual(["direct", "web-unlocker", "residential"]);
+			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ renderedThrough: "residential-per-gb" }) }));
+			expect(reportProxiedRenderAttempt).toHaveBeenCalledWith(expect.objectContaining({ readability: "readable", saveAttemptId: "mckinsey-attempt", renderedThrough: "residential-per-gb" }));
+			const recorded = publishEvent.mock.calls.find(([event]) => event === TierContentExtractedEvent)?.[1].candidates[0];
+
+			expect(await run(handler, detail)).toEqual({ batchItemFailures: [] });
+			expect(residentialEgress).toHaveBeenCalledTimes(1);
+			expect(putTierSource).toHaveBeenCalledTimes(1);
+			expect(publishEvent).toHaveBeenLastCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [recorded], liveAttempt: { outcome: "no-body" } }));
+			expect(markerLines(info)).toEqual([
+				{ stream: "render-recovery", policyVersion: "mckinsey-web-unlocker-502-v1", saveAttemptId: "mckinsey-attempt", host: "www.mckinsey.com", phase: "started" },
+				{ stream: "render-recovery", policyVersion: "mckinsey-web-unlocker-502-v1", saveAttemptId: "mckinsey-attempt", host: "www.mckinsey.com", phase: "finished", outcome: "committed" },
+			]);
+		});
+
+		it("retains the direct, fetch and both browser failures when the recovery also answers 502", async () => {
+			const info = jest.fn();
+			const logParseError = jest.fn();
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_HTTP2_PROTOCOL_ERROR"), webUnlocker: gatewayFailure, residential: failed("residential main document answered HTTP 502", 502) });
+			const handler = createHandler({ renderPage, transitionAndPersist, logParseError, logger: { ...noopLogger, info } });
+
+			expect(await run(handler, { url: target, unsupportedReason: "blocked" })).toEqual({ batchItemFailures: [] });
+
+			const detail = "render-failed: direct-egress: net::ERR_HTTP2_PROTOCOL_ERROR; residential-per-gb: residential main document answered HTTP 502; web-unlocker-fetch: blocked; web-unlocker-render: main document answered HTTP 502";
+			expect(logParseError).toHaveBeenCalledWith({ url: target, reason: detail });
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, { url: target, input: { reason: { kind: "fetch-failed", detail, httpStatus: 502 }, receiveCount: 1 } });
+			expect(renderPage).toHaveBeenCalledTimes(3);
+			expect(markerLines(info).at(-1)).toEqual({ stream: "render-recovery", policyVersion: "mckinsey-web-unlocker-502-v1", saveAttemptId: "attempt-1", host: "www.mckinsey.com", phase: "finished", outcome: "failed", httpStatus: 502 });
+		});
+
+		it.each([false, true])("honors a deferred recovery claim and preserves reader captures (carried: %s)", async (carried) => {
+			const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date("2026-10-28T12:00:00.000Z") });
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const residentialEgress = jest.fn(() => RESIDENTIAL_EGRESS);
+			const info = jest.fn();
+			const handler = createHandler({
+				...ledger, transitionAndPersist, publishEvent, residentialEgress, logger: { ...noopLogger, info },
+				claimMeteredLeg: (claim) => claim.leg === "render-residential-per-gb" ? Promise.resolve({ kind: "deferred" }) : ledger.claimMeteredLeg(claim),
+				renderPage: renderPageAnswering({ direct: failed("net::ERR_HTTP2_PROTOCOL_ERROR"), webUnlocker: gatewayFailure }),
+			});
+
+			expect(await run(handler, { url: target, unsupportedReason: "blocked", ...(carried ? { candidates: wrapperRefs } : {}) })).toEqual({ batchItemFailures: [] });
+			expect(residentialEgress).not.toHaveBeenCalled();
+			expect(markerLines(info)).toEqual([]);
+			if (carried) {
+				expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: wrapperRefs, liveAttempt: { outcome: "no-body" } }));
+				expect(transitionAndPersist).not.toHaveBeenCalled();
+			} else {
+				expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlAwaitingReader, { url: target, input: { deferredLeg: "render-residential-per-gb" } });
+			}
+		});
+	});
+
 	describe("the metered-leg ledger", () => {
 		const NOW = new Date("2026-10-28T12:00:00.000Z");
 		const deferringLedger = () => initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => true, now: () => NOW });

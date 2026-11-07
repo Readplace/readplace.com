@@ -435,6 +435,11 @@ export function initRenderCrawlHandler(deps: {
 						logMeteredLeg(logger, { url, leg: permit.leg, action: "released" });
 					},
 					remainingMilliseconds: () => context.getRemainingTimeInMillis(),
+					reportRecoveryAttempt: (attempt) => logger.info("[RenderCrawlCommand] recovery attempt", {
+						stream: "render-recovery",
+						saveAttemptId,
+						...attempt,
+					}),
 				});
 				await resolveLadder(rendered, ctx, record.receiveCount);
 			},
