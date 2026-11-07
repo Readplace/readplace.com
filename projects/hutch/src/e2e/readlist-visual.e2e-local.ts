@@ -491,10 +491,10 @@ async function addLinkDialogGeometry(page: Page): Promise<void> {
 	assert.ok(near({ actual: input.height, expected: 48 }), "the link field must stay 48px high");
 	assert.ok(near({ actual: input.x - panel.x, expected: 33 }), "the link field must start inside the dialog's padding");
 	assert.ok(near({ actual: panel.x + panel.width - (input.x + input.width), expected: 33 }), "the link field must span the dialog");
-	assert.ok(cancel.y >= input.y + input.height, "Cancel and Save must sit below the field");
-	assert.ok(near({ actual: cancel.y, expected: save.y }), "Cancel and Save must share a row");
-	assert.ok(near({ actual: save.x, expected: cancel.x + cancel.width + 8 }), "Save must sit 8px after Cancel");
-	assert.ok(near({ actual: save.x + save.width, expected: panel.x + panel.width - 33 }), "Save must end at the dialog's padding");
+	assert.ok(cancel.y >= input.y + input.height, "Cancel and Send must sit below the field");
+	assert.ok(near({ actual: cancel.y, expected: save.y }), "Cancel and Send must share a row");
+	assert.ok(near({ actual: save.x, expected: cancel.x + cancel.width + 8 }), "Send must sit 8px after Cancel");
+	assert.ok(near({ actual: save.x + save.width, expected: panel.x + panel.width - 33 }), "Send must end at the dialog's padding");
 }
 
 async function addLinkPhoneGeometry(page: Page): Promise<void> {

@@ -26,9 +26,9 @@ const PHONE_TALL = { width: 390, height: 2100 };
 
 const SAVE_FORM = '#add-link [data-test-form="save-article"]';
 const SAVE_INPUT = `${SAVE_FORM} input[name="url"]`;
-const SAVE_BUTTON = `${SAVE_FORM} button[type="submit"]`;
+const SAVE_BUTTON = '#add-link [data-test-action="add-link-save"]';
 const SAVE_FORM_IN_FLIGHT = `${SAVE_FORM}.htmx-request`;
-const SAVING_LABEL = `${SAVE_FORM} .readlist__save-btn-saving`;
+const SAVING_LABEL = `${SAVE_BUTTON} .readlist__save-btn-saving`;
 const SKELETON = "main.readlist [data-test-save-skeleton]";
 const SKELETON_TOGGLE = `${SKELETON} .readlist-save-skeleton__toggle`;
 const SORT_ROW = "main.readlist .readlist-listing__header";

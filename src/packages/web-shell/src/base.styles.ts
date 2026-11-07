@@ -493,7 +493,8 @@ export const BUTTON_STYLES = `
 		opacity: 1;
 	}
 
-	:where(form.htmx-request) .btn:disabled {
+	:where(form.htmx-request) .btn:disabled,
+	.btn.htmx-request:disabled {
 		opacity: 1;
 		cursor: progress;
 	}

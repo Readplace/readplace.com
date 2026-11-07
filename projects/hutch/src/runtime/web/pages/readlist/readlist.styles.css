@@ -325,7 +325,40 @@
   margin: 0;
 }
 
-.readlist-add-link__form + .upload-dropzone-form {
+.readlist-add-article__tabs {
+  margin-bottom: 16px;
+}
+
+.readlist-add-article__tab {
+  cursor: pointer;
+}
+
+.readlist-add-article__mode {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.readlist-add-article__tab:has(> .readlist-add-article__mode:checked) {
+  font-weight: 600;
+  color: var(--foreground);
+  border-bottom-color: var(--foreground);
+}
+
+.readlist-add-article__tab:has(> .readlist-add-article__mode:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.readlist-add-article:has(.readlist-add-article__mode[value="link"]:checked) :is(.readlist-add-article__panel--file, .readlist-add-article__send--file),
+.readlist-add-article:has(.readlist-add-article__mode[value="file"]:checked) :is(.readlist-add-article__panel--link, .readlist-add-article__send--link) {
+  display: none;
+}
+
+.readlist-add-article > .confirm-popover__buttons {
   margin-top: 16px;
 }
 

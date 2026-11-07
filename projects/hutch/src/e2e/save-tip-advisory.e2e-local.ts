@@ -68,7 +68,7 @@ test.describe("The save tip meets a reader at the Add link field", () => {
 		await addLink.click();
 		await expect(saveTip).toBeHidden();
 		await field.fill(draft);
-		await form.locator('button[type="submit"]').click();
+		await dialog.locator('[data-test-action="add-link-save"]').click();
 		await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
 		await expect(dialog).toBeHidden();
 	});

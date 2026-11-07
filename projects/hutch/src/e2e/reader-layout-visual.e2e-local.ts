@@ -194,7 +194,7 @@ async function openReaderWithNoRailCard(page: Page, stamp: string): Promise<void
 
 	const saveForm = await openAddLink(page);
 	await saveForm.locator('input[name="url"]').fill(`${UNFETCHABLE_FIXTURE}${stamp}`);
-	await saveForm.locator('button[type="submit"]').click();
+	await page.locator('#add-link [data-test-action="add-link-save"]').click();
 	await expect(page.locator(SAVED_CARD)).toHaveCount(1);
 	const href = await page.locator(SAVED_CARD_TITLE).getAttribute("href");
 	assert.ok(href, "the saved card must link into the reader");

@@ -1,0 +1,18 @@
+<div class="readlist-add-article" data-test-add-article>
+  <div class="underline-tabs readlist-add-article__tabs" role="radiogroup" aria-label="Add from" data-test-add-article-tabs>
+    {{#each modes}}
+    <label class="underline-tabs__tab readlist-add-article__tab"><input class="readlist-add-article__mode" type="radio" name="add-article-mode" value="{{value}}"{{#if checked}} checked{{/if}} data-test-add-article-mode="{{value}}"><span class="underline-tabs__label" data-widest="{{label}}"><span>{{label}}</span></span></label>
+    {{/each}}
+  </div>
+  <div class="readlist-add-article__panel readlist-add-article__panel--link" data-test-add-article-panel="link">
+    {{{linkFormHtml}}}
+  </div>
+  <div class="readlist-add-article__panel readlist-add-article__panel--file" data-test-add-article-panel="file">
+    {{{dropzoneHtml}}}
+  </div>
+  <div class="confirm-popover__buttons">
+    <button class="btn btn--neutral readlist-add-link__cancel" type="button" popovertarget="add-link" popovertargetaction="hide" data-test-action="add-link-cancel">Cancel</button>
+    <button class="btn btn--primary readlist__save-btn readlist-add-article__send readlist-add-article__send--link" id="add-link-save" type="submit" form="add-link-form" data-test-action="add-link-save"{{#if accessIsReadOnly}} disabled{{/if}}><span class="btn__label-stack"><span class="readlist__save-btn-label">Send</span><span class="readlist__save-btn-saving">Sending…</span></span></button>
+    <button class="btn btn--primary readlist-add-article__send readlist-add-article__send--file" type="submit" form="add-article-upload-form" data-test-action="add-article-upload-send"{{#if accessIsReadOnly}} disabled{{/if}}>Send</button>
+  </div>
+</div>

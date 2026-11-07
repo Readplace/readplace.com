@@ -29,7 +29,7 @@ describe("GET /queue save skeleton", () => {
 		const doc = documentOf(response.text);
 		const form = doc.querySelector('[data-test-form="save-article"]');
 		assert(form, "the save form must render on the All queue");
-		expect(form.getAttribute("hx-indicator")).toBe("closest form, .readlist-save-skeleton");
+		expect(form.getAttribute("hx-indicator")).toBe("closest form, .readlist-save-skeleton, #add-link-save");
 		expect(doc.querySelectorAll(".readlist-save-skeleton").length).toBe(1);
 		expect(skeletonOf(response.text).getAttribute("aria-hidden")).toBe("true");
 	});

@@ -13,10 +13,11 @@ export function maxScrollY(): number {
 export function recordScrollAfterSwap(selector: string): void {
 	const control = document.querySelector(selector);
 	if (!control) throw new Error(`recordScrollAfterSwap needs ${selector}`);
+	const owner = control instanceof HTMLButtonElement ? control.form : null;
 	function record(event: Event): void {
 		if (!(event instanceof CustomEvent)) return;
 		const trigger: unknown = event.detail?.requestConfig?.elt;
-		if (!(trigger instanceof Element) || !(trigger === control || trigger.contains(control))) return;
+		if (!(trigger instanceof Element) || !(trigger === control || trigger === owner || trigger.contains(control))) return;
 		document.removeEventListener("htmx:afterSettle", record);
 		let last = window.scrollY;
 		let stableFrames = 0;

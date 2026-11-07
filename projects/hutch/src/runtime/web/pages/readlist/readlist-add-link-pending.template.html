@@ -2,4 +2,8 @@
               <h2 class="readlist-add-link-pending__title" id="add-link-title">{{title}}</h2>
               <p class="readlist-add-link-pending__body" id="add-link-body">{{body}}</p>
               {{{formHtml}}}
+              <div class="confirm-popover__buttons">
+                <button class="btn btn--neutral readlist-add-link__cancel" type="button" popovertarget="add-link" popovertargetaction="hide" data-test-action="add-link-cancel">Cancel</button>
+                <button class="btn btn--primary readlist__save-btn" id="add-link-save" type="submit" form="add-link-form" data-test-action="add-link-save"{{#if accessIsReadOnly}} disabled{{/if}}><span class="btn__label-stack"><span class="readlist__save-btn-label">Save</span><span class="readlist__save-btn-saving">Saving…</span></span></button>
+              </div>
             </section>

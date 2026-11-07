@@ -1,33 +1,22 @@
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
 const SIREN_ACCEPT = `${SIREN_MEDIA_TYPE}, text/html;q=0.9`;
 
-export type FileKind = "book" | "links" | "unsupported";
+export type FileKind = "upload" | "links" | "unsupported";
 
-interface BookAcceptEntry {
-	readonly type: string;
-	readonly extensions: readonly string[];
-}
-
-function parseBookAccept(bookAccept: string): BookAcceptEntry[] {
-	return bookAccept
-		.split(";")
-		.filter((entry) => entry.includes(":"))
-		.map((entry) => {
-			const [type, extensions] = entry.split(":");
-			return { type, extensions: extensions.split(",").map((extension) => extension.toLowerCase()) };
-		});
+export function acceptsFile(file: { name: string; type: string }, accept: string): boolean {
+	const name = file.name.toLowerCase();
+	return accept
+		.split(",")
+		.map((entry) => entry.trim().toLowerCase())
+		.some((entry) => (entry.startsWith(".") ? name.endsWith(entry) : entry === file.type));
 }
 
 function isTextShaped(type: string): boolean {
 	return type.startsWith("text/") || type === "application/json" || type.endsWith("+xml") || type.endsWith("+json");
 }
 
-export function classifyFile(file: { name: string; type: string }, bookAccept: string): FileKind {
-	const name = file.name.toLowerCase();
-	const books = parseBookAccept(bookAccept);
-	if (books.some((book) => book.type === file.type || book.extensions.some((extension) => name.endsWith(extension)))) {
-		return "book";
-	}
+export function classifyFile(file: { name: string; type: string }, accepts: readonly string[]): FileKind {
+	if (accepts.some((accept) => acceptsFile(file, accept))) return "upload";
 	if (file.type === "" || isTextShaped(file.type)) return "links";
 	return "unsupported";
 }
@@ -158,10 +147,31 @@ function findAction(entity: SirenEntity, name: string): SirenAction | undefined 
 	return entity.actions.find((action) => action.name === name);
 }
 
+interface OfferedKind {
+	readonly accept: string;
+	readonly maxBytes: number;
+	readonly tooLarge: string;
+}
+
+function requiredAttribute(element: Element, name: string): string {
+	const value = element.getAttribute(name);
+	assert(value, `the upload dropzone must carry ${name}`);
+	return value;
+}
+
+function offeredKindOf(element: Element): OfferedKind {
+	return {
+		accept: requiredAttribute(element, "data-accept"),
+		maxBytes: Number(requiredAttribute(element, "data-max-bytes")),
+		tooLarge: requiredAttribute(element, "data-message-too-large"),
+	};
+}
+
 interface Widget {
 	form: HTMLFormElement;
 	input: HTMLInputElement;
 	zone: HTMLElement;
+	primary: HTMLElement;
 	error: HTMLElement;
 	meta: HTMLElement;
 	fill: HTMLElement;
@@ -174,12 +184,13 @@ function widgetOf(view: Window & typeof globalThis, target: EventTarget | null):
 	if (!(form instanceof view.HTMLFormElement)) return undefined;
 	const input = form.querySelector<HTMLInputElement>('input[type="file"]');
 	const zone = form.querySelector<HTMLElement>("[data-upload-dropzone-zone]");
+	const primary = form.querySelector<HTMLElement>("[data-upload-dropzone-primary]");
 	const error = form.querySelector<HTMLElement>("[data-upload-dropzone-error]");
 	const meta = form.querySelector<HTMLElement>("[data-upload-dropzone-meta]");
 	const fill = form.querySelector<HTMLElement>("[data-upload-dropzone-progress-fill]");
 	const label = form.querySelector<HTMLElement>("[data-upload-dropzone-progress-label]");
-	assert(input && zone && error && meta && fill && label, "the upload dropzone is missing one of its parts");
-	return { form, input, zone, error, meta, fill, label };
+	assert(input && zone && primary && error && meta && fill && label, "the upload dropzone is missing one of its parts");
+	return { form, input, zone, primary, error, meta, fill, label };
 }
 
 function windowOf(doc: Document): Window & typeof globalThis {
@@ -194,9 +205,7 @@ export function initUploadDropzone(deps: UploadDropzoneDeps): void {
 	const resolve = (href: string): string => new URL(href, doc.baseURI).href;
 
 	function message(widget: Widget, key: string): string {
-		const text = widget.form.getAttribute(`data-message-${key}`);
-		assert(text, `the upload dropzone must carry data-message-${key}`);
-		return text;
+		return requiredAttribute(widget.form, `data-message-${key}`);
 	}
 
 	function showError(widget: Widget, text: string): void {
@@ -298,11 +307,9 @@ export function initUploadDropzone(deps: UploadDropzoneDeps): void {
 		});
 	}
 
-	function uploadBook(widget: Widget, file: File, contentType: string): void {
-		const startAction = widget.form.getAttribute("data-book-start-action");
-		assert(startAction, "the upload dropzone must carry data-book-start-action");
-		const url = resolve(startAction);
-		const body = new URLSearchParams({ contentType, fileName: file.name, byteLength: String(file.size) }).toString();
+	function uploadMedia(widget: Widget, file: File): void {
+		const url = resolve(requiredAttribute(widget.form, "data-upload-start-action"));
+		const body = new URLSearchParams({ fileName: file.name, byteLength: String(file.size) }).toString();
 		send({
 			method: "POST",
 			url,
@@ -311,15 +318,6 @@ export function initUploadDropzone(deps: UploadDropzoneDeps): void {
 			onDone: (request) => follow(widget, request, url, (entity) => uploadContent(widget, file, entity)),
 			onError: () => showError(widget, message(widget, "failed")),
 		});
-	}
-
-	function bookContentType(file: File, bookAccept: string): string {
-		const name = file.name.toLowerCase();
-		const entries = parseBookAccept(bookAccept);
-		const match = entries.find((entry) => entry.type === file.type) ??
-			entries.find((entry) => entry.extensions.some((extension) => name.endsWith(extension)));
-		assert(match, "a file classified as a book must match one of the book types");
-		return match.type;
 	}
 
 	function chosenFile(widget: Widget): File | undefined {
@@ -332,31 +330,50 @@ export function initUploadDropzone(deps: UploadDropzoneDeps): void {
 		if (widget.input.disabled || !file) return;
 		widget.meta.textContent = file.name;
 		clearError(widget);
-		const bookAccept = widget.form.getAttribute("data-book-accept");
-		assert(bookAccept, "the upload dropzone must carry data-book-accept");
-		const kind = classifyFile(file, bookAccept);
-		if (kind === "unsupported") {
+		const offered = Array.from(widget.form.querySelectorAll("[data-upload-kind]"), offeredKindOf);
+		const route = classifyFile(file, offered.map((kind) => kind.accept));
+		if (route === "unsupported") {
 			showError(widget, message(widget, "unsupported"));
 			return;
 		}
-		const limit = Number(widget.form.getAttribute(kind === "book" ? "data-book-max-bytes" : "data-import-max-bytes"));
-		if (file.size > limit) {
-			showError(widget, message(widget, kind === "book" ? "book-too-large" : "import-too-large"));
+		if (route === "links") {
+			if (file.size > Number(widget.form.getAttribute("data-import-max-bytes"))) {
+				showError(widget, message(widget, "import-too-large"));
+				return;
+			}
+			widget.form.dataset.uploadState = "uploading";
+			uploadLinks(widget, file);
+			return;
+		}
+		const kind = offered.find((candidate) => acceptsFile(file, candidate.accept));
+		assert(kind, "a file routed to upload must match one of the offered kinds");
+		if (file.size > kind.maxBytes) {
+			showError(widget, kind.tooLarge);
 			return;
 		}
 		const signInHref = widget.form.getAttribute("data-sign-in-href");
-		if (kind === "book" && signInHref) {
+		if (signInHref) {
 			deps.navigate(signInHref);
 			return;
 		}
 		widget.form.dataset.uploadState = "uploading";
-		if (kind === "book") uploadBook(widget, file, bookContentType(file, bookAccept));
-		else uploadLinks(widget, file);
+		uploadMedia(widget, file);
+	}
+
+	function keep(widget: Widget, file: File | undefined): void {
+		if (widget.input.disabled || !file) return;
+		widget.primary.textContent = file.name;
+		clearError(widget);
+	}
+
+	function choose(widget: Widget, file: File | undefined): void {
+		if (widget.form.dataset.uploadOnChoose === "true") handle(widget, file);
+		else keep(widget, file);
 	}
 
 	doc.addEventListener("change", (event) => {
 		const widget = widgetOf(view, event.target);
-		if (widget) handle(widget, chosenFile(widget));
+		if (widget) choose(widget, chosenFile(widget));
 	});
 
 	for (const type of ["dragenter", "dragover"]) {
@@ -389,6 +406,6 @@ export function initUploadDropzone(deps: UploadDropzoneDeps): void {
 		const files: FileList | undefined = Reflect.get(event, "dataTransfer")?.files;
 		if (!files || files.length === 0) return;
 		widget.input.files = files;
-		handle(widget, files[0]);
+		choose(widget, files[0]);
 	});
 }
