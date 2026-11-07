@@ -13,6 +13,7 @@ import type { ContentDecision, SelectMostCompleteContent, SelectionAudit } from 
 import type { JudgeCandidates } from "./judge-under-ledger";
 import { chooseTiedCandidate } from "./resolve-tie";
 import { canonicalSupersedes } from "./canonical-supersedes";
+import { refreshRefusalFor } from "./refresh-refusal";
 import { COMPARISON_COMPLETED } from "./comparison-log";
 import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import type { FindArticleContent } from "../save-link/article-content.types";
@@ -24,9 +25,9 @@ export interface PreparedContentSelection {
 	originalUrl: string;
 	sources: VerifiedTierSource[];
 	selected: VerifiedTierSource | undefined;
-	outcome: "selected" | "retained" | "no-readable";
+	outcome: "selected" | "retained" | "no-readable" | "refused";
 	reason: string;
-	selectionRule: "first-capture" | "superseded-by-canonical" | "direct-resource" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict" | "lone-body" | "lone-error-status" | "judge-deferred" | "video-card-fallback";
+	selectionRule: "first-capture" | "superseded-by-canonical" | "direct-resource" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict" | "lone-body" | "lone-error-status" | "judge-deferred" | "video-card-fallback" | "refresh-refused";
 	ownCaptureFailed: boolean;
 	readableIds: ReadonlySet<CandidateId>;
 	audit?: SelectionAudit;
@@ -146,8 +147,8 @@ export function initPrepareContentSelection(deps: {
 	judge: JudgeCandidates;
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	verifyWrapperSource: VerifyWrapperSource;
-}): (params: { url: string; saveAttemptId: SaveAttemptId; claimId: string; mode: SelectionMode; candidates?: readonly CandidateReference[] }) => Promise<PreparedContentSelection> {
-	return async ({ url, saveAttemptId, claimId, mode, candidates }) => {
+}): (params: { url: string; saveAttemptId: SaveAttemptId; claimId: string; mode: SelectionMode; candidates?: readonly CandidateReference[]; refresh?: { contentFetchedAt: string } }) => Promise<PreparedContentSelection> {
+	return async ({ url, saveAttemptId, claimId, mode, candidates, refresh }) => {
 		const proseHashes = new Map<string, string>();
 		const proseHashOf = (html: string): string => {
 			const known = proseHashes.get(html);
@@ -158,6 +159,8 @@ export function initPrepareContentSelection(deps: {
 		};
 		const article = await deps.loadArticle(url);
 		assert(article, `Article aggregate not found for url: ${url}`);
+		const refusal = refresh === undefined ? undefined : refreshRefusalFor({ article, messageFetchedAt: refresh.contentFetchedAt });
+		if (refusal !== undefined) return { article, originalUrl: url, sources: [], selected: undefined, outcome: "refused", reason: refusal, selectionRule: "refresh-refused", ownCaptureFailed: false, readableIds: new Set(), legacyCanonicalWithheld: false, judgedBodies: 0 };
 		const expected = article.contentSelection;
 		const originalUrl = await deps.resolveOriginalUrl(url);
 		const canonical = expected?.candidateId && expected.tier ? { id: expected.candidateId, tier: expected.tier } : undefined;

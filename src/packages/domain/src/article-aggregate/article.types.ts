@@ -69,5 +69,7 @@ export interface Article {
 	summary: SummaryState;
 	summaryAutoHeal: SummaryAutoHealState;
 	readerAvailableAt?: string;
+	savedAt?: string;
+	purgedAt?: string;
 	contentSelection?: ContentSelectionSnapshot;
 }

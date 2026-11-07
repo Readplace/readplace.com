@@ -177,6 +177,16 @@ describe("final-receive mark", () => {
 		expect(persisted).toEqual([]);
 	});
 
+	it("refresh acknowledges a refused redrive", async () => {
+		const { handler, persisted } = setupHandler(initRefreshContentExtractedHandler, {
+			selectMostCompleteContent: async () => { throw new Error("a refused redrive must not reach the judge"); },
+			loadArticle: async () => ({ ...article, freshness: { contentFetchedAt: "2026-10-06T00:00:00.000Z" } }),
+		});
+		const refreshDetail = { ...candidateDetail, contentFetchedAt: "2026-10-05T00:00:00.000Z", bodyHash: "raw-hash" };
+		expect(await handler(event(refreshDetail), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+		expect(persisted).toEqual([]);
+	});
+
 	it("refresh keeps its row on the final receive", async () => {
 		const { handler, persisted } = setupHandler(initRefreshContentExtractedHandler, { selectMostCompleteContent: providerError });
 		const refreshDetail = { ...candidateDetail, contentFetchedAt: "2026-10-05T00:00:00.000Z", bodyHash: "raw-hash" };

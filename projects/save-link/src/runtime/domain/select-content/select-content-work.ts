@@ -103,6 +103,10 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 	const logContentSelection = initLogContentSelection(deps);
 	return async (params: SelectContentRequest & { claimId: string }): Promise<void> => {
 		const prepared = await prepare(params);
+		if (prepared.outcome === "refused") {
+			deps.logger.info("[RefreshContentExtracted] refused", { url: params.url, saveAttemptId: params.saveAttemptId, reason: prepared.reason, rowFetchedAt: prepared.article.freshness.contentFetchedAt, extractedAt: params.extractedAt });
+			return;
+		}
 		const keepRow = params.liveAttempt?.outcome === "deferred" || prepared.legacyCanonicalWithheld;
 		const nothingReadable = prepared.selected === undefined && !keepRow && prepared.selectionRule !== "judge-deferred";
 		const card = nothingReadable ? await recoverVideoCard(deps, { url: params.url, saveAttemptId: params.saveAttemptId, originalUrl: prepared.originalUrl }) : undefined;

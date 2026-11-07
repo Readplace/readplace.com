@@ -104,7 +104,7 @@ ChatGPT readers call the tool definitions OpenAI's plugin directory published fr
 
 ### A DeepSeek dead letter is kept to be redriven
 
-**Read the row first.** In the 30 days to 2026-10-24 every judge and summary dead letter moved on without a redrive: of 31 judge rows, 27 were ready on 2026-10-24 and 4 had failed again with a parse error, and the 3 summary rows settled. A late redrive is therefore usually stale. Before you redrive a message, read its article row, and delete the message instead when the row has already moved on. SQS cannot edit a message on the way back, so a redrive runs the old command against the row as it is now. A stale `recrawl-content-extracted` dead letter, one whose candidates were all fetched before the committed canonical, keeps that canonical and pays no judge call; the comparison line logs it as `superseded-by-canonical`. On `select-most-complete-content`, an older attempt's direct resource no longer replaces a canonical fetched later: selection logs `superseded-by-canonical` and keeps the row. Its judge path can still choose an older body, so the rule above stands.
+**Read the row first.** In the 30 days to 2026-10-24 every judge and summary dead letter moved on without a redrive: of 31 judge rows, 27 were ready on 2026-10-24 and 4 had failed again with a parse error, and the 3 summary rows settled. A late redrive is therefore usually stale. Before you redrive a message, read its article row, and delete the message instead when the row has already moved on. SQS cannot edit a message on the way back, so a redrive runs the old command against the row as it is now. A stale `recrawl-content-extracted` dead letter, one whose candidates were all fetched before the committed canonical, keeps that canonical and pays no judge call; the comparison line logs it as `superseded-by-canonical`. On `select-most-complete-content`, an older attempt's direct resource no longer replaces a canonical fetched later: selection logs `superseded-by-canonical` and keeps the row. Its judge path can still choose an older body, so the rule above stands. `refresh-content-extracted-dlq` needs no prior read, because its handler makes this comparison itself.
 
 Each queue below dead-letters into its own `<queue>-dlq`, and nothing consumes it.
 
@@ -112,7 +112,7 @@ Each queue below dead-letters into its own `<queue>-dlq`, and nothing consumes i
 |---|---|
 | `select-most-complete-content`, `reselect-after-removal`, `recrawl-content-extracted` | The handler marks the crawl failed, logs `dead-lettered after N receives`, and still fails the record |
 | `generate-summary` | The handler marks the summary failed and still fails the record |
-| `refresh-content-extracted` | Nothing is marked; the reader keeps the current content |
+| `refresh-content-extracted` | Nothing is marked; the reader keeps the current content. A redrive is safe at any time: the handler acknowledges a message when the row is purged, `unsupported`, or holds a newer fetch than the message, and logs `[RefreshContentExtracted] refused`. Otherwise it commits, which heals |
 | `compute-related-articles` | Nothing is marked; Next read and Already read stay as they were |
 | `filter-email-links` | The handler marks that readlist's decision failed, and the email page shows its failed line. Every link is already in All |
 
