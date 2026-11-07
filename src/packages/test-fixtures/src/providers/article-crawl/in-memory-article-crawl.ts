@@ -28,8 +28,10 @@ export function initInMemoryArticleCrawl(deps: { now: () => Date }): {
 	isMeteredLegsDeferred: (url: string) => boolean;
 	crawlStateOf: (url: string) => ArticleCrawl | undefined;
 	resumeMeteredLegs: (url: string) => void;
+	fullCrawlRequestedAt: (url: string) => string | undefined;
 	stampResolutionOnViewClaim: (params: { url: string; claimedAt: string }) => void;
 } {
+	const fullCrawlRequests = new Map<string, string>();
 	const states = new Map<string, ArticleCrawl>();
 	const meteredLegsDeferred = new Set<string>();
 	const outcomeRevisions = new Map<string, number>();
@@ -63,12 +65,14 @@ export function initInMemoryArticleCrawl(deps: { now: () => Date }): {
 				return { kind: "refused", crawlStatus: current.status, carriedMarker: meteredLegsDeferred.has(id.value) };
 			}
 			meteredLegsDeferred.add(id.value);
+			fullCrawlRequests.delete(id.value);
 			states.set(id.value, { status: "pending", startedAt: startedAtOf(current) });
 			return { kind: "marked" };
 		}
 		const carriedMarker = meteredLegsDeferred.has(id.value);
 		meteredLegsDeferred.delete(id.value);
 		if (current?.status === "ready") return { kind: "refused", crawlStatus: "ready", carriedMarker };
+		fullCrawlRequests.set(id.value, deps.now().toISOString());
 		// Preserve any previously recorded stage when re-marking pending so the
 		// progress indicator does not reset.
 		const existingStage =
@@ -86,6 +90,7 @@ export function initInMemoryArticleCrawl(deps: { now: () => Date }): {
 	const forceMarkCrawlPending: ForceMarkCrawlPending = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url);
 		meteredLegsDeferred.delete(id.value);
+		fullCrawlRequests.set(id.value, deps.now().toISOString());
 		states.set(id.value, { status: "pending", startedAt: deps.now().toISOString() });
 	};
 
@@ -139,9 +144,11 @@ export function initInMemoryArticleCrawl(deps: { now: () => Date }): {
 
 	const stampResolutionOnViewClaim = ({ url, claimedAt }: { url: string; claimedAt: string }): void => {
 		resolutionOnViewClaims.set(ArticleResourceUniqueId.parse(url).value, claimedAt);
+		fullCrawlRequests.set(ArticleResourceUniqueId.parse(url).value, claimedAt);
 	};
 
 	return {
+		fullCrawlRequestedAt: (url) => fullCrawlRequests.get(ArticleResourceUniqueId.parse(url).value),
 		stampResolutionOnViewClaim,
 		isMeteredLegsDeferred,
 		crawlStateOf,

@@ -74,7 +74,7 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 		expect(input.Key).toEqual({ url: ArticleResourceUniqueId.parse(URL).value });
 		expect(input.UpdateExpression).toContain("SET crawlStatus = :pending, crawlPendingSince = :now, summaryStatus = :pending, summaryPendingSince = :now");
 		expect(input.UpdateExpression).toContain("REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince");
-		expect(input.UpdateExpression).toContain("resolutionOnViewClaimedAt = :now");
+		expect(input.UpdateExpression).toContain("resolutionOnViewClaimedAt = :now, fullCrawlRequestedAt = :now");
 		expect(input.ConditionExpression).toContain("crawlStatus IN (:failed, :unsupported)");
 		expect(input.ConditionExpression).toContain("attribute_not_exists(resolutionOnViewClaimedAt) OR resolutionOnViewClaimedAt < :coolDownCutoff");
 		expect(input.ReturnValues).toBe("ALL_NEW");
@@ -106,7 +106,7 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 		const { input } = sent();
 		expect(input.UpdateExpression).toContain("SET summaryStatus = :pending, summaryPendingSince = :now");
 		expect(input.UpdateExpression).toContain("REMOVE summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince");
-		expect(input.UpdateExpression).toContain("resolutionOnViewClaimedAt = :now");
+		expect(input.UpdateExpression).toContain("resolutionOnViewClaimedAt = :now, fullCrawlRequestedAt = :now");
 		expect(input.ConditionExpression).toContain(
 			"crawlStatus = :ready AND (summaryStatus = :failed OR (summaryStatus = :skipped AND summarySkippedReason IN (:awaitingReader, :aiUnavailable)))",
 		);

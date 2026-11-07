@@ -1,0 +1,9 @@
+The failed-articles canary requires `fullCrawlRequestedAt` on the latest admitted attempt. Deploy the article-store admission changes before applying historical recovery, then enable the canary filter. Existing reports remain snapshots.
+
+Run `python3 scripts/backfill-full-crawl.py --table TABLE --logs HISTORY.json` for counts, then repeat with `--apply`. AWS region and credentials come from the local AWS environment. The tool never emits article URLs and does not restart crawls. The CLI automatically paginates the one-time table scan; the recurring canary continues using status indexes.
+
+HISTORY.json must contain `coverageStart`, `coverageEnd` (ISO UTC timestamps), and `admissions`: normalized retained admission events with article-key `url`, ISO UTC `timestamp`, `meteredLegs` (`run` or `deferred`), and `crawlPending.kind` (`marked`). Export the submission logs and all other admission sources, including resolution and admin recrawls. Normalize accepted resolution and forced recrawl admissions to `run`/`marked`. Include accepted deferred admissions. Only declare a coverage window for which every admission source is available; missing sources mean the history cannot establish eligibility.
+
+Recovery requires coverage from the article's save through its current `crawlFailedAt`. Its latest accepted admission before that failure must permit full processing. Rows without sufficient retained history, including summary-only failures without an attributable failure time, remain unverifiable. Existing resolution or paid-processing timestamps alone cannot establish that no later deferred attempt occurred. Updates compare the observed row attributes and refuse concurrent changes; already tracked rows are skipped. Run the dry run again after applying to inspect the remaining counts.
+
+The workflow skips scheduled collection while issue #1329 remains open. Closing that historical worklist is an operator action after reviewing the new report scope.

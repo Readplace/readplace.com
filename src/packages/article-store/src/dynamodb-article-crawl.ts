@@ -42,6 +42,7 @@ export const ArticleCrawlRow = z.object({
 	resolutionOnViewClaimedAt: dynamoField(z.string()),
 	crawlStartedAt: dynamoField(z.string()),
 	crawlPendingSince: dynamoField(z.string()),
+	fullCrawlRequestedAt: dynamoField(z.string()),
 });
 
 type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
@@ -181,7 +182,7 @@ export function initDynamoDbArticleCrawl(deps: {
 				meteredLegs === "deferred"
 					? {
 							Key: { url: articleResourceUniqueId.value },
-							UpdateExpression: `${setPending}, meteredLegsDeferredSince = if_not_exists(meteredLegsDeferredSince, :pendingSince)`,
+							UpdateExpression: `${setPending}, meteredLegsDeferredSince = if_not_exists(meteredLegsDeferredSince, :pendingSince) REMOVE fullCrawlRequestedAt`,
 							ConditionExpression:
 								"attribute_not_exists(crawlStatus) OR crawlStatus IN (:failed, :unsupported)",
 							ExpressionAttributeValues: {
@@ -194,7 +195,7 @@ export function initDynamoDbArticleCrawl(deps: {
 						}
 					: {
 							Key: { url: articleResourceUniqueId.value },
-							UpdateExpression: `${setPending} REMOVE meteredLegsDeferredSince`,
+							UpdateExpression: `${setPending}, fullCrawlRequestedAt = :pendingSince REMOVE meteredLegsDeferredSince`,
 							ConditionExpression:
 								"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
 							ExpressionAttributeValues: {
@@ -221,7 +222,7 @@ export function initDynamoDbArticleCrawl(deps: {
 		await table.update({
 			Key: { url: articleResourceUniqueId.value },
 			UpdateExpression:
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, #ledgerResidential, #ledgerUnlockerFetch, #ledgerUnlockerRender, #ledgerComprehensive, #ledgerContentJudge, meteredLegsDeferredSince",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, fullCrawlRequestedAt = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, #ledgerResidential, #ledgerUnlockerFetch, #ledgerUnlockerRender, #ledgerComprehensive, #ledgerContentJudge, meteredLegsDeferredSince",
 			ExpressionAttributeNames: {
 				"#ledgerResidential": "ledger_render-residential-per-gb",
 				"#ledgerUnlockerFetch": "ledger_render-web-unlocker-fetch",

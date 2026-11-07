@@ -9,6 +9,8 @@ You have been triggered because the `Failed articles canary` workflow surfaced o
 
 This canary is a **debug worklist**, not a pass/fail health check. The script always exits 0; a non-empty report means real customer URLs were dropped and the operator wants to investigate each one.
 
+Only articles with a recorded full-processing admission for the latest attempt qualify. Deferred-only imports and unverifiable history are excluded. Summary failures hidden by the reader are excluded.
+
 ## Your Task
 
 1. **Read the issue, then its report.** The issue holds counts only: rows per axis and per stored-reason kind, plus a **Report (admins only)** link. Each row's URL, axes, stored reason, saved and fetched times and a Recrawl button are on that report page, which needs a browser signed in as an admin. The axes tell you which state machine terminated unsuccessfully.

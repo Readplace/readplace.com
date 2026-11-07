@@ -122,7 +122,7 @@ describe("formatFailedArticlesIssue", () => {
 			[
 				"<!-- CLAUDE_FAILED_ARTICLES_FIX -->",
 				"",
-				"The failed-articles canary surfaced rows whose state machines reached a terminal unsuccessful outcome. This is a debug worklist: investigate each cluster below, then close this issue once the backlog is processed (the canary skips its scan while this issue stays open).",
+				"The failed-articles canary surfaced user-visible failures after full processing was requested for the latest attempt. This is a debug worklist: investigate each cluster below, then close this issue once the backlog is processed (the canary skips its scan while this issue stays open).",
 				"",
 				"Each row's URL, stored reason and recrawl button are on the report page, which only admins can open. Do not copy a reader's URL into this issue, a comment or a commit; cite a row by its number on the report.",
 				"",

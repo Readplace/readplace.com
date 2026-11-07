@@ -1,36 +1,3 @@
-/**
- * Status-index query logic for the failed-articles canary, extracted so the unit tests
- * can exercise the filter expression and row-shaping without bootstrapping
- * the top-level `test()` block (which requires AWS env vars at import).
- *
- * A row is "failed" when both state-machine axes have reached a terminal
- * value (non-`pending`) AND at least one axis is a genuine error, as classified
- * by production's `classifyCrawlOutcome` / `classifySummaryOutcome`:
- *   - `crawlStatus` = failed
- *   - `summaryStatus` = failed
- *
- * Terminal-but-complete outcomes are NOT surfaced. `crawlStatus = unsupported`
- * is a definitive *supported* determination that the content type is one the
- * product does not render (e.g. an image) — correct behaviour, not a bug — and
- * `summaryStatus = skipped` means the worker deliberately produced no summary
- * (content too short, crawl failed first, etc.). Deriving the failure set from
- * the shared predicates keeps the canary in step with production: a new or
- * reclassified status is a compile break there, not a silent canary change.
- *
- * A crawl that `failed` with a `blocked`/`spend-capped` reason is likewise
- * dropped: re-saving only re-trips it until the window frees, so it is not a
- * debug-worklist item.
- *
- * A crawl that `failed` with a `not-found` reason (HTTP 404/410) is also
- * dropped: the origin definitively no longer serves the page, so a recrawl
- * can never succeed. A dead link is a fact about the web, not a crawler
- * defect an operator can fix.
- *
- * The queries also accept an optional lookback (in days) that gates rows on
- * `savedAt` — a value of `0` disables the gate and surfaces every historical
- * row, which is the default so the operator gets the full backlog and can
- * narrow it later by raising the value.
- */
 import assert from "node:assert/strict";
 import {
 	classifyCrawlOutcome,
@@ -109,7 +76,7 @@ export function buildQueryInputs(now: Date, lookbackDays: number) {
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: expressionAttributeValues,
 	};
-	const meteredLegsTried = "attribute_not_exists(meteredLegsDeferredSince)";
+	const meteredLegsTried = "attribute_exists(fullCrawlRequestedAt) AND attribute_not_exists(meteredLegsDeferredSince)";
 	return [
 		{
 			...shared,
@@ -149,7 +116,7 @@ function classifyAxes(row: z.infer<typeof FailedArticleRow>): {
 		axes.push("crawl-failed");
 		if (row.crawlFailureReason !== undefined) reasons["crawl-failed"] = row.crawlFailureReason;
 	}
-	if (classifySummaryOutcome(row.summaryStatus) === "error") {
+	if (row.crawlStatus === "ready" && classifySummaryOutcome(row.summaryStatus) === "error") {
 		axes.push("summary-failed");
 		if (row.summaryFailureReason !== undefined)
 			reasons["summary-failed"] = row.summaryFailureReason;
