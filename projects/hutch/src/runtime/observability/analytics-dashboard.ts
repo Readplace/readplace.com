@@ -634,6 +634,29 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	widgets.push(
+		logWidget({
+			region,
+			title: "Highlights by origin: creates and quick deletes",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, event, origin, highlight_id",
+				`| filter stream = "${STREAMS.analytics}"`,
+				`| filter event in ["${ANALYTICS_EVENTS.highlightCreated}", "${ANALYTICS_EVENTS.highlightDeleted}"]`,
+				...exclude,
+				"| fields toMillis(@timestamp) as ms",
+				"| stats earliest(origin) as origin, count(*) as events, max(ms) - min(ms) as lifeMs by highlight_id",
+				"| filter ispresent(origin)",
+				"| stats count(*) as creates, sum(events = 2 and lifeMs < 30000) as quickDeletes by origin",
+			].join(" "),
+			x: 12,
+			y: 106,
+			width: 12,
+			height: 8,
+			view: "table",
+		}),
+	);
+
 	widgets.push({
 		type: "metric",
 		x: 0, y: 114, width: 12, height: 8,

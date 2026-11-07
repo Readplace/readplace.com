@@ -6,6 +6,7 @@ import type {
 } from "@packages/domain/gmail";
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
+import type { GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import type { RevokeGmailGrant } from "@packages/provider-contracts/gmail-oauth";
 import type { Logger } from "@packages/logger";
 import type { CancelGmailHistoryImports } from "./cancel-gmail-history-imports";
@@ -23,23 +24,26 @@ export function initDisconnectGmail(deps: {
 	credentials: GmailCredentialsStore;
 	senders: GmailSenderStore;
 	discovery: GmailDiscoveryStore;
+	monitoring: Pick<GmailMonitoringStore, "deleteAllByUserId">;
 	addresses: InboxAddressStore;
 	removeGmailFilter: RewriteGmailFilter;
 	revokeGmailGrant: RevokeGmailGrant;
 	cancelGmailHistoryImports: CancelGmailHistoryImports;
 	logger: Logger;
 }): DisconnectGmail {
-	const { connections, credentials, senders, addresses, removeGmailFilter, revokeGmailGrant, logger } = deps;
+	const { connections, credentials, senders, monitoring, addresses, removeGmailFilter, revokeGmailGrant, logger } = deps;
 
 	return async ({ userId }) => {
 		const connection = await connections.findConnectionByUserId(userId);
 		if (connection === undefined) {
+			await monitoring.deleteAllByUserId(userId);
 			await deps.discovery.deleteDiscoveryByUserId(userId);
 			return { ok: false, reason: "not-connected" };
 		}
 
 		await deps.cancelGmailHistoryImports({ userId, senderEmail: undefined, reason: "disconnected" });
 		await senders.deleteAllSendersByUserId(userId);
+		await monitoring.deleteAllByUserId(userId);
 		const rewritten = await removeGmailFilter({ userId });
 		if (!rewritten.ok && rewritten.reason === "unavailable") {
 			return { ok: false, reason: "unavailable" };

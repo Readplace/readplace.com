@@ -11,6 +11,7 @@ import {
 } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
 import type { InboxSavedLinkStore } from "@packages/domain/inbox";
+import type { FindQueueRowKeys } from "@packages/provider-contracts/article-store";
 import type { RecordLinkFact } from "./record-queued-link";
 import { UserIdSchema } from "@packages/domain/user";
 import { z } from "zod";
@@ -37,17 +38,22 @@ export function initRecordLinkQueuedHandler(deps: {
 	recordQueuedLink: RecordLinkFact;
 	recordFailedLink: RecordLinkFact;
 	retractLinkSaved: InboxSavedLinkStore["retractLinkSaved"];
+	findQueueRowKeys: FindQueueRowKeys;
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { recordQueuedLink, recordFailedLink, retractLinkSaved, logger } = deps;
+	const { recordQueuedLink, recordFailedLink, retractLinkSaved, findQueueRowKeys, logger } = deps;
+
+	const retractUnlessStillQueued: RecordLinkFact = async ({ userId, url }) => {
+		const keys = await findQueueRowKeys({ userId, urls: [url] });
+		if (keys.length > 0) return "retraction skipped: link still in queue";
+		await retractLinkSaved({ userId, url });
+		return "save retracted";
+	};
 
 	const recorders: Record<string, RecordLinkFact> = {
 		[LinkQueuedEvent.detailType]: recordQueuedLink,
 		[LinkQueueFailedEvent.detailType]: recordFailedLink,
-		[LinkDequeuedEvent.detailType]: async (fact) => {
-			await retractLinkSaved(fact);
-			return "save retracted";
-		},
+		[LinkDequeuedEvent.detailType]: retractUnlessStillQueued,
 	};
 
 	return async (event): Promise<SQSBatchResponse> => {

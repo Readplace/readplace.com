@@ -189,6 +189,7 @@ async function wiredHarness(options: { recordDiagnostic?: (now: () => Date) => R
 			const nextPageToken = listed.value.nextPageToken === undefined ? undefined : `${SENTINEL_PAGE_TOKEN}${listed.value.nextPageToken}`;
 			return { ok: true, value: { messageIds: listed.value.messageIds, nextPageToken } };
 		},
+		fetchMessageMetadata: gmail.history.fetchMessageMetadata,
 		fetchRawMessage: async (input) => {
 			const fetched = await gmail.history.fetchRawMessage(input);
 			input.observe(attemptOf("messages.get", fetched));

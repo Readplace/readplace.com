@@ -103,7 +103,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 6 November 2026");
+		expect(response.text).toContain("Last updated: 7 November 2026");
 	});
 
 	it("lists a file uploaded before signing up among the data Readplace collects", async () => {

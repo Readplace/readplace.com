@@ -29,7 +29,7 @@ describe("archive attempt orchestration", () => {
 		const now = () => new Date("2026-10-05T00:00:00.000Z");
 		const shared = {
 			crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle }),
-			putTierSource: async (source: Parameters<PutTierSource>[0]) => { stored.push(source); },
+			putTierSource: async (source: Parameters<PutTierSource>[0]) => { stored.push(source); return source.metadata; },
 			readTierSnapshot: async () => ({ tier0Status: "not_attempted" as const, tier1Status: "not_attempted" as const, pickedTier: "none" as const }),
 			logCrawlOutcome: () => {}, logger: noopLogger, now,
 		};
@@ -96,7 +96,7 @@ describe("archive attempt orchestration", () => {
 		const { parseHtml } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: () => {} });
 		const finalizeArticle = initFinalizeArticle({ parseHtml, downloadMedia: async () => [], processContent: async ({ html }) => html, fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }), putImageObject: async () => {}, imagesCdnBaseUrl: "https://cdn.example.com" });
 		const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle });
-		const putTierSource = jest.fn<ReturnType<PutTierSource>, Parameters<PutTierSource>>(async () => {});
+		const putTierSource = jest.fn<ReturnType<PutTierSource>, Parameters<PutTierSource>>(async (params) => params.metadata);
 		const readTierSnapshot = async () => ({ tier0Status: "not_attempted" as const, tier1Status: "failed" as const, pickedTier: "none" as const });
 		const emitSimpleCrawlUnsupported = async () => {};
 		const shared = { crawlAndFinalizeArticle, putTierSource, readTierSnapshot, logCrawlOutcome: () => {}, logger: noopLogger, now: () => new Date("2026-10-01T00:00:00Z") };

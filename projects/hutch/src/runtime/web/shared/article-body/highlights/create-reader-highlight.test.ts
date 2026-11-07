@@ -56,7 +56,13 @@ describe("initCreateReaderHighlight", () => {
 	it("creates a highlight re-described against the served text", async () => {
 		const { store, createReaderHighlight } = setup();
 
-		const outcome = await createReaderHighlight({ text, contentHash, userId, url, ...rangeOf("brown fox") });
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown fox"),
+		});
 
 		assert.equal(outcome.status, "created");
 		const rows = await store.listArticleHighlights({ userId, url });
@@ -113,7 +119,15 @@ describe("initCreateReaderHighlight", () => {
 	it("answers passage-changed for an empty selection", async () => {
 		const { createReaderHighlight } = setup();
 
-		const outcome = await createReaderHighlight({ text, contentHash, userId, url, exact: "", start: 4, end: 4 });
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			exact: "",
+			start: 4,
+			end: 4,
+		});
 
 		assert.deepEqual(outcome, { status: "passage-changed" });
 	});
@@ -139,7 +153,15 @@ describe("initCreateReaderHighlight", () => {
 		const { store, createReaderHighlight } = setup();
 		const half = HIGHLIGHT_MAX_EXACT_LENGTH - 10;
 		const long = "a".repeat(HIGHLIGHT_MAX_EXACT_LENGTH + 20);
-		await createReaderHighlight({ text: long, contentHash, userId, url, exact: long.slice(0, half), start: 0, end: half });
+		await createReaderHighlight({
+			text: long,
+			contentHash,
+			userId,
+			url,
+			exact: long.slice(0, half),
+			start: 0,
+			end: half,
+		});
 
 		const outcome = await createReaderHighlight({
 			text: long,
@@ -157,9 +179,21 @@ describe("initCreateReaderHighlight", () => {
 
 	it("merges an overlapping highlight into one row spanning both", async () => {
 		const { store, createReaderHighlight } = setup();
-		await createReaderHighlight({ text, contentHash, userId, url, ...rangeOf("quick brown") });
+		await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("quick brown"),
+		});
 
-		const outcome = await createReaderHighlight({ text, contentHash, userId, url, ...rangeOf("brown fox") });
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown fox"),
+		});
 
 		assert.equal(outcome.status, "merged");
 		assert(outcome.status === "merged");
@@ -176,11 +210,22 @@ describe("initCreateReaderHighlight", () => {
 		const lazy = rangeOf("lazy dog");
 		await store.createHighlight({
 			userId,
-			highlight: storedRow({ exact: "lazy dog", start: lazy.start - 5, end: lazy.end - 5, anchoredContentHash: "old" }),
+			highlight: storedRow({
+				exact: "lazy dog",
+				start: lazy.start - 5,
+				end: lazy.end - 5,
+				anchoredContentHash: "old",
+			}),
 			replacedIds: [],
 		});
 
-		const outcome = await createReaderHighlight({ text, contentHash, userId, url, ...rangeOf("the lazy") });
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("the lazy"),
+		});
 
 		assert.equal(outcome.status, "merged");
 		const rows = await store.listArticleHighlights({ userId, url });
@@ -195,11 +240,22 @@ describe("initCreateReaderHighlight", () => {
 		const fox = rangeOf("brown fox");
 		await store.createHighlight({
 			userId,
-			highlight: storedRow({ exact: "vanished words", start: fox.start, end: fox.end, anchoredContentHash: "old" }),
+			highlight: storedRow({
+				exact: "vanished words",
+				start: fox.start,
+				end: fox.end,
+				anchoredContentHash: "old",
+			}),
 			replacedIds: [],
 		});
 
-		const outcome = await createReaderHighlight({ text, contentHash, userId, url, ...fox });
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...fox,
+		});
 
 		assert.equal(outcome.status, "created");
 		assert.equal((await store.listArticleHighlights({ userId, url })).length, 2);
@@ -207,10 +263,22 @@ describe("initCreateReaderHighlight", () => {
 
 	it("passes the store's cancelled outcome through", async () => {
 		const { store, createReaderHighlight } = setup();
-		await createReaderHighlight({ text, contentHash, userId, url, ...rangeOf("quick brown") });
+		await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("quick brown"),
+		});
 		store.setCreateCancelled(true);
 
-		const outcome = await createReaderHighlight({ text, contentHash, userId, url, ...rangeOf("brown fox") });
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown fox"),
+		});
 
 		assert.deepEqual(outcome, { status: "cancelled" });
 	});

@@ -35,7 +35,7 @@ describe("initInMemoryGmailFilters", () => {
 		);
 	});
 
-	it("lists the current set and deletes a filter by id", async () => {
+	it("lists the current set by id and forward target only, and deletes a filter by id", async () => {
 		const gmail = initInMemoryGmailFilters([
 			{ id: "f-a", query: "from:(dan@tldr.tech)", forwardTo: GATEWAY },
 			{ id: "f-b", query: "from:(crew@morningbrew.com)", forwardTo: GATEWAY },
@@ -43,7 +43,10 @@ describe("initInMemoryGmailFilters", () => {
 
 		const before = await gmail.api.listFilters({ userId: USER });
 		assert(before.ok);
-		assert.equal(before.value.length, 2);
+		assert.deepEqual(before.value, [
+			{ id: "f-a", forwardTo: GATEWAY },
+			{ id: "f-b", forwardTo: GATEWAY },
+		]);
 
 		await gmail.api.deleteFilter({ userId: USER, filterId: "f-a" });
 		assert.deepEqual(gmail.deleted, ["f-a"]);

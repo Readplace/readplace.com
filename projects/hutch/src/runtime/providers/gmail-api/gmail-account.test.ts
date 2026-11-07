@@ -13,19 +13,16 @@ function harness(body: unknown, status = 200) {
 }
 
 describe("initGmailAccountEmail", () => {
-	it("resolves the freshly granted token's primary mailbox before any credentials are persisted", async () => {
-		const { findGmailAccountEmail, requests } = harness({ sendAs: [
-			{ sendAsEmail: "alias@read.place" },
-			{ sendAsEmail: " Reader@Gmail.com ", isPrimary: true },
-		] });
+	it("resolves the freshly granted token's mailbox address from its profile alone, before any credentials are persisted", async () => {
+		const { findGmailAccountEmail, requests } = harness({ emailAddress: " Reader@Gmail.com " });
 
 		assert.deepEqual(await findGmailAccountEmail({ accessToken: "new-grant-access-token" }), { ok: true, value: "reader@gmail.com" });
-		assert.deepEqual(requests, [{ url: "https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs", authorization: "Bearer new-grant-access-token" }]);
+		assert.deepEqual(requests, [{ url: "https://gmail.googleapis.com/gmail/v1/users/me/profile?fields=emailAddress", authorization: "Bearer new-grant-access-token" }]);
 	});
 
-	it.each([{ sendAs: [{ sendAsEmail: "alias@read.place" }] }, {}, { sendAs: "invalid" }])("rejects an unidentified mailbox: %j", async (body) => {
+	it.each([{}, { emailAddress: 42 }, { emailAddress: null }])("rejects an unidentified mailbox: %j", async (body) => {
 		const { findGmailAccountEmail } = harness(body);
-		assert.deepEqual(await findGmailAccountEmail({ accessToken: "token" }), { ok: false, reason: "rejected", status: 200, message: "no primary sendAs address" });
+		assert.deepEqual(await findGmailAccountEmail({ accessToken: "token" }), { ok: false, reason: "rejected", status: 200, message: "profile has no emailAddress" });
 	});
 
 	it("reports an invalid grant without looking up a previously saved token", async () => {

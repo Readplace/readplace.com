@@ -79,9 +79,10 @@ export function initMonitorGmailNewsletters(deps: {
 		} else if (checkpoint.mode === "baseline") {
 			const found = await read(connection, await deps.mailbox.listCurrentIncomingMessageSenders({ userId: input.userId, pageToken: checkpoint.pageToken }));
 			if (found === undefined) return progress(undefined);
-			await observe(checkpoint, found.senders, "baseline");
+			const recent = checkpoint.initializing ? found.senders : found.senders.filter((sender) => sender.lastMessageAt !== undefined && sender.lastMessageAt >= checkpoint.lastCheckedAt);
+			await observe(checkpoint, recent, "baseline");
 			const scannedCount = checkpoint.scannedCount + found.scannedMessages;
-			const complete = found.nextPageToken === undefined || (checkpoint.initializing && scannedCount >= GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW);
+			const complete = found.nextPageToken === undefined || (checkpoint.initializing ? scannedCount >= GMAIL_DISCOVERY_RECENT_MESSAGE_WINDOW : found.newestMessageAt !== undefined && found.newestMessageAt < checkpoint.lastCheckedAt);
 			next = { ...next, scannedCount, mode: complete ? "arrivals" : "baseline", pageToken: complete ? undefined : found.nextPageToken };
 		} else if (checkpoint.mode === "arrivals") {
 			assert(checkpoint.historyId, "Gmail monitoring captures a history cursor before scanning");

@@ -1,7 +1,7 @@
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/infra-components/runtime";
 import { Logger, consoleLogger } from "@packages/logger";
-import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbGmailDiscovery, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbInboxAddress } from "@packages/inbox-store";
+import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbGmailDiscovery, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailMonitoring, initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { readEnv } from "@packages/require-env";
 import {
 	DisconnectGmailCommand,
@@ -106,6 +106,7 @@ export const handler = initHandleByDetailType({
 					credentials,
 					senders,
 					discovery: initDynamoDbGmailDiscovery({ client, tableName: env.DYNAMODB_GMAIL_DISCOVERY_TABLE, now }),
+					monitoring: initDynamoDbGmailMonitoring({ client, tableName: env.DYNAMODB_GMAIL_MONITORING_TABLE, now }),
 					addresses,
 					removeGmailFilter: initRewriteGmailFilter({ ...filterDeps, mappings: { listMappings: async () => [] } }),
 					revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),

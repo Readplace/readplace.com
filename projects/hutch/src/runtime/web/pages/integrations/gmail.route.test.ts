@@ -1927,6 +1927,7 @@ describe("Your newsletters", () => {
 			credentials: gmail.bundle.gmailCredentialsStore,
 			senders: gmail.bundle.gmailSenderStore,
 			discovery: gmail.bundle.gmailDiscoveryStore,
+			monitoring: gmail.bundle.gmailMonitoringStore,
 			addresses: gmail.addresses,
 			removeGmailFilter: async () => ({ ok: true, filterCount: 0, senderCount: 0 }),
 			revokeGmailGrant: async () => ({ ok: true }),
@@ -2623,8 +2624,8 @@ describe("Mark imported emails as read", () => {
 	});
 
 	it.each<[string, boolean, string]>([
-		["leaves imported emails unread", false, "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender and leaves it unread."],
-		["says nothing about leaving emails unread once marking is on", true, "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender."],
+		["leaves imported emails unread", false, "To import unread messages, Readplace needs permission to read your Gmail messages. It downloads only unread mail sent from this address; to find it, it reads the sender, labels and date of each message Gmail's search lists for the address. It leaves that mail unread."],
+		["says nothing about leaving emails unread once marking is on", true, "To import unread messages, Readplace needs permission to read your Gmail messages. It downloads only unread mail sent from this address; to find it, it reads the sender, labels and date of each message Gmail's search lists for the address."],
 	])("asks for read access in words that %s", async (_label, markOn, copy) => {
 		const { agent, gmail, userId, mapSender, seedJob } = await connectedAgent();
 		const destination = await mapSender(TLDR, "default");

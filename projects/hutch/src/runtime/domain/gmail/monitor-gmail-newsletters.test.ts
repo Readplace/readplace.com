@@ -166,23 +166,30 @@ describe("Gmail newsletter monitoring", () => {
 		h.advance();
 		assert((await h.monitor.page(after.nextPage)).nextPage);
 	});
-	it("recovers expired history with full metadata pagination, preserves observations and notifies approval transitions", async () => {
+	it("recovers expired history by re-reading until a page predates the last completed check, preserves observations and notifies approval transitions", async () => {
 		const h = await harness(); h.catalog.records = [];
 		await h.run(); h.advance(10_000);
-		h.catalog.records = [record({})];
+		const archived = ForwardableSenderSchema.parse("archived@example.com");
+		h.catalog.records = [record({}), record({ from: archived })];
 		let expired = true;
 		h.mailbox.listIncomingMessageSenders = async () => {
 			if (expired) { expired = false; return { ok: false, reason: "history-expired" }; }
 			return { ok: true, value: { ...EMPTY, historyId: "400" } };
 		};
-		let pages = 0;
+		const pageTokens: (string | undefined)[] = [];
 		h.mailbox.listCurrentIncomingMessageSenders = async ({ pageToken }) => {
-			pages++;
-			return { ok: true, value: { ...EMPTY, senders: [{ email: SENDER, name: undefined, lastMessageAt: NOW - 10_000 }], scannedMessages: 5_000, nextPageToken: pageToken === undefined ? "more" : undefined } };
+			pageTokens.push(pageToken);
+			if (pageToken === undefined) return { ok: true, value: { ...EMPTY, scannedMessages: 25, nextPageToken: "dated" } };
+			return { ok: true, value: { ...EMPTY, senders: [{ email: SENDER, name: undefined, lastMessageAt: NOW - 10_000 }, { email: archived, name: "Archived", lastMessageAt: NOW - 20_000 }], scannedMessages: 25, newestMessageAt: NOW - 10_000, oldestMessageAt: NOW - 20_000, nextPageToken: "older" } };
 		};
 		assert.deepEqual(await h.run(), [SENDER]);
-		assert.equal(pages, 2);
-		assert.equal((await h.state()).historyId, "400");
+		assert.deepEqual(pageTokens, [undefined, "dated"]);
+		const { mailboxId, historyId } = await h.state();
+		assert.equal(historyId, "400");
+		assert.equal(await h.monitoring.findObservation({ userId: USER, mailboxId, senderEmail: archived }), undefined);
+		const observed = await h.monitoring.findObservation({ userId: USER, mailboxId, senderEmail: SENDER });
+		assert.equal(observed?.approved, true);
+		assert.equal(observed?.lastMessageAt, NOW - 10_000);
 	});
 	it("resync finds missed new mail without notifying old baseline mail", async () => {
 		const h = await harness(); await h.run(); h.advance(10_000);
@@ -193,6 +200,31 @@ describe("Gmail newsletter monitoring", () => {
 		};
 		h.mailbox.listCurrentIncomingMessageSenders = async () => ({ ok: true, value: { ...EMPTY, senders: [{ email: SENDER, name: undefined, lastMessageAt: NOW + 5_000 }] } });
 		assert.deepEqual(await h.run(), [SENDER]);
+	});
+	it("after the history cursor expires, re-reads only mail newer than the last completed check", async () => {
+		const h = await harness(); await h.run(); h.advance(10_000);
+		const fresh = ForwardableSenderSchema.parse("fresh@example.com");
+		const atCheck = ForwardableSenderSchema.parse("at-check@example.com");
+		const stale = ForwardableSenderSchema.parse("stale@example.com");
+		const undated = ForwardableSenderSchema.parse("undated@example.com");
+		const older = ForwardableSenderSchema.parse("older@example.com");
+		h.catalog.records = [record({}), ...[fresh, atCheck, stale, undated, older].map((from) => record({ from }))];
+		let expired = true;
+		h.mailbox.listIncomingMessageSenders = async () => {
+			if (expired) { expired = false; return { ok: false, reason: "history-expired" }; }
+			return { ok: true, value: { ...EMPTY, historyId: "400" } };
+		};
+		const pageTokens: (string | undefined)[] = [];
+		h.mailbox.listCurrentIncomingMessageSenders = async ({ pageToken }) => {
+			pageTokens.push(pageToken);
+			if (pageToken === undefined) return { ok: true, value: { ...EMPTY, senders: [{ email: fresh, name: undefined, lastMessageAt: NOW + 5_000 }, { email: atCheck, name: undefined, lastMessageAt: NOW }, { email: stale, name: undefined, lastMessageAt: NOW - 5_000 }, { email: undated, name: undefined }], scannedMessages: 25, newestMessageAt: NOW + 5_000, oldestMessageAt: NOW - 5_000, nextPageToken: "older" } };
+			return { ok: true, value: { ...EMPTY, senders: [{ email: older, name: undefined, lastMessageAt: NOW - 6_000 }], scannedMessages: 25, newestMessageAt: NOW - 6_000, oldestMessageAt: NOW - 9_000, nextPageToken: "oldest" } };
+		};
+		assert.deepEqual([...await h.run()].sort(), [atCheck, fresh]);
+		assert.deepEqual(pageTokens, [undefined, "older"]);
+		const { mailboxId } = await h.state();
+		const observed = await Promise.all([fresh, atCheck, stale, undated, older].map(async (senderEmail) => await h.monitoring.findObservation({ userId: USER, mailboxId, senderEmail }) !== undefined));
+		assert.deepEqual(observed, [true, true, false, false, false]);
 	});
 	it("resetting a changed connected mailbox silently reinitializes observations", async () => {
 		const h = await harness(); await h.run();

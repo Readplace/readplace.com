@@ -14,7 +14,7 @@ export function renderGmailConnectDisclaimer(action: GmailConnectDisclaimerActio
 		id: action.confirmPopoverId,
 		key: action.confirmPopoverId,
 		title: "Gmail integration is experimental",
-		body: "Readplace never sends or deletes your email. It adds one filter to forward the senders you choose. It reads past emails or marks them as read only when you ask it to.",
+		body: "Readplace never sends or deletes your email. It adds one filter to forward the senders you choose, replacing any filter that already forwards to a Gmail forwarding address Readplace gave you. To list your senders, it reads only the sender, labels and date of your emails, including new ones while Gmail stays connected. It downloads past emails or marks them as read only when you ask it to.",
 		actionsHtml: render(GMAIL_CONNECT_DISCLAIMER_ACTIONS_TEMPLATE, action),
 	});
 }

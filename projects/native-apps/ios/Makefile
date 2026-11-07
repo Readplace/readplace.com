@@ -1,4 +1,4 @@
-.PHONY: ipa ipa-staging generate open test test-staging run-local require-sim clean
+.PHONY: ipa ipa-staging generate open test test-staging run-local require-sim clean clean-sim
 
 # Build an UNSIGNED .ipa you can sideload onto your iPhone. Generates the Xcode
 # project first (the build script no longer self-generates).
@@ -38,7 +38,8 @@ open: generate
 # Kept lazy (`?=`) so `make clean/ipa/generate` never shell out to a simulator
 # probe, but memoised through `$(eval)` so the probe still runs at most once even
 # though `$(SIM)` is expanded several times (recipe, SIM_DEVICE, recursive make).
-SIM_UDID = $(eval SIM_UDID := $(shell ref=$$(./scripts/xc.sh xcrun simctl list devices available | grep -E '^[[:space:]]+iPhone' | tail -n1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}') && [ -n "$$ref" ] && hash=$$(printf '%s' '$(CURDIR)' | shasum | cut -c1-8) && set -- $$(./scripts/xc.sh xcrun simctl list devices available -j | ./scripts/xc.sh python3 -c 'import json,sys; ref,hash=sys.argv[1:3]; devices=json.load(sys.stdin)["devices"]; runtime,kind=next((key,d["deviceTypeIdentifier"]) for key,ds in devices.items() for d in ds if d["udid"]==ref); name="Readplace-"+hash+"-"+runtime.rsplit(".",1)[1]; print(name,kind,runtime,*[d["udid"] for d in devices[runtime] if d["name"]==name])' "$$ref" "$$hash") && { [ -n "$$4" ] && echo "$$4" || ./scripts/xc.sh xcrun simctl create "$$1" "$$2" "$$3"; }))$(SIM_UDID)
+SIM_UDID = $(eval SIM_UDID := $(shell ref=$$(./scripts/xc.sh xcrun simctl list devices available | grep -E '^[[:space:]]+iPhone' | tail -n1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}') && [ -n "$$ref" ] && set -- $$(./scripts/xc.sh xcrun simctl list devices available -j | ./scripts/xc.sh python3 -c 'import json,sys; ref,prefix=sys.argv[1:3]; devices=json.load(sys.stdin)["devices"]; runtime,kind=next((key,d["deviceTypeIdentifier"]) for key,ds in devices.items() for d in ds if d["udid"]==ref); name=prefix+runtime.rsplit(".",1)[1]; print(name,kind,runtime,*[d["udid"] for d in devices[runtime] if d["name"]==name])' "$$ref" '$(SIM_NAME_PREFIX)') && { [ -n "$$4" ] && echo "$$4" || ./scripts/xc.sh xcrun simctl create "$$1" "$$2" "$$3"; }))$(SIM_UDID)
+SIM_NAME_PREFIX = Readplace-$(shell printf '%s' '$(CURDIR)' | shasum | cut -c1-8)-
 SIM ?= platform=iOS Simulator,id=$(SIM_UDID)
 # Pull the id/name field out explicitly rather than taking "text after the last
 # =": a destination may carry a trailing key (`…,name=iPhone 17,OS=26.5`), which
@@ -91,3 +92,9 @@ run-local: generate require-sim
 # Remove generated project + build artifacts; sources are the source of truth.
 clean:
 	rm -rf Readplace.xcodeproj build
+
+clean-sim:
+	./scripts/xc.sh xcrun simctl list devices -j | ./scripts/xc.sh python3 -c 'import json,sys; prefix=sys.argv[1]; [print(d["udid"],d["name"],d["state"]) for ds in json.load(sys.stdin)["devices"].values() for d in ds if d["name"].startswith(prefix)]' '$(SIM_NAME_PREFIX)' | while read -r udid name state; do \
+		if [ "$$state" = Booted ]; then ./scripts/xc.sh xcrun simctl shutdown "$$udid" || exit 1; fi; \
+		./scripts/xc.sh xcrun simctl delete "$$udid" || exit 1; echo "Deleted $$name"; \
+	done

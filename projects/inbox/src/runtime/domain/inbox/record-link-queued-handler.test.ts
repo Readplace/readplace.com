@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
 import { hashPassword, type UserId, UserIdSchema, verifyPassword } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
-import type { FindIdentityRow, QueueRowKey } from "@packages/provider-contracts/article-store";
+import type { FindIdentityRow, FindQueueRowKeys, QueueRowKey } from "@packages/provider-contracts/article-store";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryAuth, initInMemoryIsAccountLive } from "@packages/test-fixtures/providers/auth";
@@ -47,6 +47,7 @@ type LoggedLine = { message: unknown; details: unknown };
 async function createHandler(options: {
 	beforeTransaction?: (key: QueueRowKey) => Promise<void>;
 	findIdentityRow?: (inner: FindIdentityRow) => FindIdentityRow;
+	findQueueRowKeys?: (inner: FindQueueRowKeys) => FindQueueRowKeys;
 } = {}) {
 	const store = initInMemoryInboxSavedLink();
 	const articles = initInMemoryArticleStore();
@@ -80,6 +81,7 @@ async function createHandler(options: {
 			markLinkSaveFailed: store.markLinkSaveFailed,
 		}),
 		retractLinkSaved: store.retractLinkSaved,
+		findQueueRowKeys: options.findQueueRowKeys?.(articles.findQueueRowKeys) ?? articles.findQueueRowKeys,
 		logger,
 	});
 	const run = (bodies: string[]) =>
@@ -168,6 +170,7 @@ describe("recordLinkQueuedHandler", () => {
 			},
 			recordFailedLink: async () => "save failed",
 			retractLinkSaved: async () => {},
+			findQueueRowKeys: async () => [],
 			logger: Logger.from(noopLogger),
 		});
 
@@ -192,9 +195,10 @@ describe("recordLinkQueuedHandler", () => {
 describe("recordLinkQueuedHandler retraction", () => {
 	it("stops reading saved once the reader deletes the queue row", async () => {
 		const { userId, run, queue, stateOf } = await createHandler();
-		await queue(POST_URL);
+		const save = await queue(POST_URL);
 
 		await run([queuedBody({ url: POST_URL, userId })]);
+		await save.remove();
 		const result = await run([dequeuedBody({ url: POST_URL, userId })]);
 
 		expect(result).toEqual({ batchItemFailures: [] });
@@ -203,18 +207,23 @@ describe("recordLinkQueuedHandler retraction", () => {
 
 	it("re-reads saved when the reader saves the link again after deleting it", async () => {
 		const { userId, run, queue, stateOf } = await createHandler();
-		await queue(POST_URL);
+		const save = await queue(POST_URL);
 
-		await run([queuedBody({ url: POST_URL, userId }), dequeuedBody({ url: POST_URL, userId }), queuedBody({ url: POST_URL, userId })]);
+		await run([queuedBody({ url: POST_URL, userId })]);
+		await save.remove();
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+		await queue(POST_URL);
+		await run([queuedBody({ url: POST_URL, userId })]);
 
 		expect(await stateOf(POST_URL)).toBe("saved");
 	});
 
 	it("converges when the deletion fact is redelivered", async () => {
 		const { userId, run, queue, stateOf } = await createHandler();
-		await queue(POST_URL);
+		const save = await queue(POST_URL);
 
 		await run([queuedBody({ url: POST_URL, userId })]);
+		await save.remove();
 		const result = await run([dequeuedBody({ url: POST_URL, userId }), dequeuedBody({ url: POST_URL, userId })]);
 
 		expect(result).toEqual({ batchItemFailures: [] });
@@ -288,10 +297,12 @@ describe("recordLinkQueuedHandler — a tweet linked on twitter.com and saved as
 
 	it("reads the tweet as unsaved once both its articles are deleted", async () => {
 		const { store, userId, run, queue } = await createHandler();
-		await queue(TWEET_ON_TWITTER);
-		await queue(TWEET_ON_X);
+		const twitterSave = await queue(TWEET_ON_TWITTER);
+		const xSave = await queue(TWEET_ON_X);
 
 		await run([queuedBody({ url: TWEET_ON_TWITTER, userId }), queuedBody({ url: TWEET_ON_X, userId })]);
+		await xSave.remove();
+		await twitterSave.remove();
 		await run([dequeuedBody({ url: TWEET_ON_X, userId }), dequeuedBody({ url: TWEET_ON_TWITTER, userId })]);
 
 		expect((await store.findSavedLinks({ userId, urls: [TWEET_ON_TWITTER, TWEET_ON_X] })).size).toBe(0);
@@ -681,6 +692,153 @@ describe("recordLinkQueuedHandler — finding the queue row the save wrote", () 
 	});
 });
 
+describe("recordLinkQueuedHandler — a redriven or late deletion fact", () => {
+	it("keeps the link saved when a late deletion fact arrives after the reader saved it again", async () => {
+		const { store, userId, run, queue, stateOf } = await createHandler();
+		await store.markLinkSaved({ userId, url: POST_URL });
+		await queue(POST_URL);
+
+		const result = await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(await stateOf(POST_URL)).toBe("saved");
+	});
+
+	it("keeps the link saved when the same late deletion fact is redriven twice", async () => {
+		const { store, userId, run, queue, stateOf } = await createHandler();
+		await store.markLinkSaved({ userId, url: POST_URL });
+		await queue(POST_URL);
+
+		const first = await run([dequeuedBody({ url: POST_URL, userId })]);
+		const second = await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(first).toEqual({ batchItemFailures: [] });
+		expect(second).toEqual({ batchItemFailures: [] });
+		expect(await stateOf(POST_URL)).toBe("saved");
+	});
+
+	it("keeps the link saved while the reader still holds it in another readlist", async () => {
+		const { store, articles, userId, run, queueInReadlist, stateOf } = await createHandler();
+		await store.markLinkSaved({ userId, url: POST_URL });
+		await articles.createReadlistDefinition({ userId, slug: WORK, label: "Work", createdAt: NOW });
+		await queueInReadlist(POST_URL);
+
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(await stateOf(POST_URL)).toBe("saved");
+	});
+
+	it("retracts when the queue no longer holds the link", async () => {
+		const { store, userId, run, stateOf } = await createHandler();
+		await store.markLinkSaved({ userId, url: POST_URL });
+
+		const result = await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(await stateOf(POST_URL)).toBeUndefined();
+	});
+
+	it("clears a failed row when the queue holds nothing", async () => {
+		const { store, userId, run, stateOf } = await createHandler();
+		await store.markLinkSaveFailed({ userId, url: POST_URL });
+
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(await stateOf(POST_URL)).toBeUndefined();
+	});
+
+	it("leaves a failed row when the queue holds the link", async () => {
+		const { store, userId, run, queue, stateOf } = await createHandler();
+		await store.markLinkSaveFailed({ userId, url: POST_URL });
+		await queue(POST_URL);
+
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(await stateOf(POST_URL)).toBe("failed");
+	});
+
+	it("creates no row for an account already erased", async () => {
+		const { store, run } = await createHandler();
+		const erased = UserIdSchema.parse("erased-reader");
+
+		const result = await run([dequeuedBody({ url: POST_URL, userId: erased })]);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect((await store.findSavedLinks({ userId: erased, urls: [POST_URL] })).size).toBe(0);
+	});
+
+	it("an old deletion redriven after a later re-save and a later delete retracts", async () => {
+		const { store, userId, run, queue, stateOf } = await createHandler();
+		await store.markLinkSaved({ userId, url: POST_URL });
+		const save = await queue(POST_URL);
+		await save.remove();
+
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(await stateOf(POST_URL)).toBeUndefined();
+	});
+
+	it("a later re-save survives an old deletion and a later retraction still works", async () => {
+		const { store, userId, run, queue, stateOf } = await createHandler();
+		await store.markLinkSaved({ userId, url: POST_URL });
+		const save = await queue(POST_URL);
+
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+		expect(await stateOf(POST_URL)).toBe("saved");
+		await save.remove();
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(await stateOf(POST_URL)).toBeUndefined();
+	});
+
+	it("fails the record and keeps the row when the queue read throws", async () => {
+		const { store, userId, run, stateOf } = await createHandler({
+			findQueueRowKeys: () => async () => {
+				throw new Error("dynamo unavailable");
+			},
+		});
+		await store.markLinkSaved({ userId, url: POST_URL });
+
+		const result = await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "m-0" }] });
+		expect(await stateOf(POST_URL)).toBe("saved");
+	});
+
+	it("a re-stamped row, then the deletion, ends absent", async () => {
+		const { store, userId, run, stateOf } = await createHandler();
+		await store.markLinkSaved({ userId, url: POST_URL });
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+		await store.markLinkSaved({ userId, url: POST_URL });
+
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(await stateOf(POST_URL)).toBeUndefined();
+	});
+
+	it("keeps the link saved when the fact's URL normalises to the queue row", async () => {
+		const { store, userId, run, queue, stateOf } = await createHandler();
+		const factUrl = `${POST_URL}?utm_source=x`;
+		await store.markLinkSaved({ userId, url: factUrl });
+		await queue(POST_URL);
+
+		await run([dequeuedBody({ url: factUrl, userId })]);
+
+		expect(await stateOf(factUrl)).toBe("saved");
+	});
+
+	it("writes no row when a deletion fact arrives for a queued link that has no row yet", async () => {
+		const { store, userId, run, queue } = await createHandler();
+		await queue(POST_URL);
+
+		const result = await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect((await store.findSavedLinks({ userId, urls: [POST_URL] })).size).toBe(0);
+	});
+});
+
 describe("recordLinkQueuedHandler — log lines", () => {
 	it("a save not recorded line names the url, userId and messageId", async () => {
 		const { userId, lines, run } = await createHandler();
@@ -702,6 +860,22 @@ describe("recordLinkQueuedHandler — log lines", () => {
 			{
 				message: "[record-link-queued] failure not recorded: account-closed",
 				details: { url: POST_URL, userId: closedReader, messageId: "m-0" },
+			},
+		]);
+	});
+
+	it("a skipped retraction logs the url, userId and messageId", async () => {
+		const { store, userId, lines, run, queue, stateOf } = await createHandler();
+		await store.markLinkSaved({ userId, url: POST_URL });
+		await queue(POST_URL);
+
+		await run([dequeuedBody({ url: POST_URL, userId })]);
+
+		expect(await stateOf(POST_URL)).toBe("saved");
+		expect(lines).toEqual([
+			{
+				message: "[record-link-queued] retraction skipped: link still in queue",
+				details: { url: POST_URL, userId, messageId: "m-0" },
 			},
 		]);
 	});

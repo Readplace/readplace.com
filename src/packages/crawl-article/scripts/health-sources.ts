@@ -329,6 +329,13 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		expectsThumbnail: false,
 	},
 	{
+		label: "YouTube (render description, oEmbed card fallback)",
+		url: "https://www.youtube.com/watch?v=I-jk9ni4XWk",
+		expectedContent: "How to Live to be 100+",
+		forbiddenContent: ["Article from www.youtube.com"],
+		expectsThumbnail: true,
+	},
+	{
 		label: "The Hill (residential unlocker path)",
 		url: "https://thehill.com/changing-america/enrichment/arts-culture/578724-5-points-for-anger-1-for-a-like-how-facebooks",
 		expectedContent: "ranked five times more valuable than likes",

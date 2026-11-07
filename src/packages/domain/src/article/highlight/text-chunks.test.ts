@@ -45,6 +45,22 @@ describe("collectTextChunks", () => {
 		assert.equal(chunk.node, text);
 	});
 
+	it("gives each chunk the DOM text node its text was read from, in document order", () => {
+		const { document } = parseHTML(
+			'<!doctype html><html><body><div id="content"><p>one <em>two</em> <a href="/x">three</a><blockquote>four</blockquote>five</p></div></body></html>',
+		);
+		const root = document.getElementById("content");
+		assert(root);
+
+		const chunks = collectTextChunks<Node>(root);
+
+		assert.deepEqual(
+			chunks.map((chunk) => chunk.node.nodeValue),
+			["one ", "two", " ", "three", "four", "five"],
+		);
+		for (const chunk of chunks) assert.equal(chunk.node.nodeValue, chunk.text);
+	});
+
 	it("reads a text node without a value as empty", () => {
 		assert.deepEqual(
 			chunksOf(collectTextChunks(fakeElement("div", [fakeText(null)]))),

@@ -75,6 +75,7 @@ function setUp(
 		putTierSource: async (params) => {
 			puts.push(params);
 			release.record("putTierSource", params.url, undefined);
+			return params.metadata;
 		},
 		publishEvent,
 		writeMinimalAudioBody: async (params) =>

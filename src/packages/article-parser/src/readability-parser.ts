@@ -2,10 +2,9 @@ import assert from "node:assert";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import { articleFromHostTitle, clipMetadataExcerpt, contentSavedFromHostExcerpt, pageHostUrl } from "@packages/domain/article";
-import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
+import { type CrawlArticle, type YouTubeEmbed, resolveDocumentUrl } from "@packages/crawl-article";
 import type { ParseArticle, ParseHtml, ReadabilityAdditions } from "./article-parser.types";
 import { matchingSiteRuleUrl, type SiteArticleContent, type SiteRules } from "@packages/site-rules";
-import type { YouTubeEmbed } from "./parse-embed-url";
 
 export function initReadabilityParser(deps: {
 	crawlArticle: CrawlArticle;

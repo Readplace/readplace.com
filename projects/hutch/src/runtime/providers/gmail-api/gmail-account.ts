@@ -3,24 +3,17 @@ import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import { classify } from "./gmail-call";
 
-const SEND_AS_ENDPOINT = "https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs";
+const PROFILE_ENDPOINT = "https://gmail.googleapis.com/gmail/v1/users/me/profile?fields=emailAddress";
 
-const SendAsListResponse = z.object({
-	sendAs: z
-		.array(
-			z.object({
-				sendAsEmail: z.string().trim().toLowerCase().pipe(GmailAccountEmailSchema),
-				isPrimary: z.boolean().optional(),
-			}),
-		)
-		.optional(),
+const ProfileResponse = z.object({
+	emailAddress: z.string().trim().toLowerCase().pipe(GmailAccountEmailSchema),
 });
 
 export function initGmailAccountEmail(deps: {
 	fetch: typeof globalThis.fetch;
 }): FindGmailAccountEmail {
 	return async ({ accessToken }) => {
-		const response = await deps.fetch(SEND_AS_ENDPOINT, {
+		const response = await deps.fetch(PROFILE_ENDPOINT, {
 			method: "GET",
 			headers: { Authorization: `Bearer ${accessToken}` },
 		});
@@ -28,19 +21,16 @@ export function initGmailAccountEmail(deps: {
 		return classify(
 			{ ok: true, value: response },
 			async (response) => {
-				const parsed = SendAsListResponse.safeParse(await response.json());
-				const primary = parsed.success
-					? parsed.data.sendAs?.find((alias) => alias.isPrimary === true)
-					: undefined;
-				if (primary === undefined) {
+				const parsed = ProfileResponse.safeParse(await response.json());
+				if (!parsed.success) {
 					return {
 						ok: false,
 						reason: "rejected",
 						status: response.status,
-						message: "no primary sendAs address",
+						message: "profile has no emailAddress",
 					};
 				}
-				return { ok: true, value: primary.sendAsEmail };
+				return { ok: true, value: parsed.data.emailAddress };
 			},
 		);
 	};

@@ -1760,6 +1760,11 @@ const rewriteGmailFilterGmailHistoryDynamodb = new DynamoDBAccess("hutch-rewrite
 	actions: ["dynamodb:Query", "dynamodb:UpdateItem"],
 });
 
+const rewriteGmailFilterGmailMonitoringDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filter-gmail-monitoring", {
+	tables: [{ arn: storage.gmailMonitoringTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:Query", "dynamodb:DeleteItem"],
+});
+
 const rewriteGmailFilterQueue = new Sqs("rewrite-gmail-filter", {
 	visibilityTimeoutSeconds: 60,
 });
@@ -1780,10 +1785,11 @@ const rewriteGmailFilterLambda = new Lambda("rewrite-gmail-filter", {
 		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
+		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
 		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
 	},
-	policies: [...rewriteGmailFilterDynamodb.policies, ...rewriteGmailFilterGmailHistoryDynamodb.policies],
+	policies: [...rewriteGmailFilterDynamodb.policies, ...rewriteGmailFilterGmailHistoryDynamodb.policies, ...rewriteGmailFilterGmailMonitoringDynamodb.policies],
 });
 
 eventBus.grantPublish(rewriteGmailFilterLambda);

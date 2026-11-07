@@ -616,7 +616,7 @@ describe("initSaveLinkWork — a queued twitter.com identity", () => {
 			};
 		};
 		const adoptDestination = jest.fn<ReturnType<AdoptArticleDestination>, Parameters<AdoptArticleDestination>>().mockResolvedValue("adopted");
-		const putTierSource = jest.fn<ReturnType<PutTierSource>, Parameters<PutTierSource>>(async () => {});
+		const putTierSource = jest.fn<ReturnType<PutTierSource>, Parameters<PutTierSource>>(async (params) => params.metadata);
 		const { saveLinkWork } = createWork({
 			crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({
 				crawlArticle: initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl: async () => undefined }),
@@ -661,7 +661,10 @@ describe("initSaveLinkWork — the tier-1 commit tail", () => {
 				trace.push(["crawlAndFinalizeArticle", params]);
 				return { status: "fetched", article, finalUrl: "https://site.com/final", bodyHash: "b".repeat(64), lastModified: "Tue, 28 Oct 2026 00:00:00 GMT", ...fetched };
 			},
-			putTierSource: record("putTierSource"),
+			putTierSource: async (params) => {
+				trace.push(["putTierSource", params]);
+				return params.metadata;
+			},
 			updateFetchTimestamp: record("updateFetchTimestamp"),
 			markCrawlStage: record("markCrawlStage"),
 			adoptCanonicalIdentity: record("adoptCanonicalIdentity"),

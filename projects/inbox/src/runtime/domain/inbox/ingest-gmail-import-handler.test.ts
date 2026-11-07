@@ -101,6 +101,7 @@ function makeHarness(opts?: {
 			evaluate: initEvaluateGmailImportCompletion({ findCompletion: completion.findCompletion, publishEvent }),
 		}),
 		readRawEmail: rawBucket.read,
+		deleteRawEmail: rawBucket.delete,
 		parseEmail: opts?.parseEmail ?? parseEmail,
 		findByAddress: addresses.findByAddress,
 		findImportJob: imports.findJob,
@@ -627,6 +628,171 @@ describe("initIngestGmailImportHandler", () => {
 		assert.deepEqual(published, []);
 	});
 
+	it("deletes the raw copy of a skipped message once the skip is reported", async () => {
+		const { published, deliver, detail, rawBucket } =
+			await importedIssueHarness();
+		await rawBucket.put({
+			key: detail.rawEmailS3Key,
+			raw: tldrIssue({
+				from: "promo@tldr.tech",
+				messageId: "<issue-42@tldr.tech>",
+			}),
+		});
+
+		await deliver([detail]);
+
+		assert.deepEqual(published, [
+			ingested({ jobId: FIRST_JOB, outcome: "skipped-sender-mismatch" }),
+		]);
+		assert.deepEqual(rawBucket.keys(), []);
+	});
+
+	it("keeps the raw copy of an imported message, which the stored email references", async () => {
+		const { deliver, detail, rawBucket } = await importedIssueHarness();
+
+		await deliver([detail]);
+
+		assert.deepEqual(rawBucket.keys(), [detail.rawEmailS3Key]);
+	});
+
+	it("deletes only the later job's raw copy when that job finds the issue already imported", async () => {
+		const { published, deliver, detail, rawBucket, imports, destinationAddress } =
+			await importedIssueHarness();
+		await deliver([detail]);
+		await runningImport({ imports, jobId: SECOND_JOB, destinationAddress });
+		const later = fetchedDetail({ jobId: SECOND_JOB, destinationAddress });
+		await rawBucket.put({
+			key: later.rawEmailS3Key,
+			raw: tldrIssue({
+				from: "dan@tldr.tech",
+				messageId: "<issue-42@tldr.tech>",
+			}),
+		});
+
+		await deliver([later]);
+
+		assert.deepEqual(
+			published.at(-1),
+			ingested({ jobId: SECOND_JOB, outcome: "already-imported" }),
+		);
+		assert.deepEqual(rawBucket.keys(), [detail.rawEmailS3Key]);
+	});
+
+	it("keeps the raw copy a superseded run fetched, for the retried run that fetches to the same key", async () => {
+		const { deliver, detail, rawBucket, destinationAddress } =
+			await importedIssueHarness();
+		await rawBucket.put({
+			key: detail.rawEmailS3Key,
+			raw: tldrIssue({
+				from: "promo@tldr.tech",
+				messageId: "<issue-42@tldr.tech>",
+			}),
+		});
+
+		await deliver([
+			fetchedDetail({
+				jobId: FIRST_JOB,
+				destinationAddress,
+				generation: "generation-0",
+			}),
+		]);
+
+		assert.deepEqual(rawBucket.keys(), [detail.rawEmailS3Key]);
+	});
+
+	for (const lateDuplicate of ["the reader cancelled the import", "its readlist address was retired"] as const) {
+		it(`keeps the raw copy an email taken over from an abandoned delivery references when a duplicate arrives after ${lateDuplicate}`, async () => {
+			const { imports, addresses, identities, published, deliver, detail, rawBucket } = await importedIssueHarness();
+			const abandonedRow = "2026-09-20T07:31:00.000Z#<issue-42@tldr.tech>";
+			await identities.claim({
+				key: messageIdentityKey({ userId: READER, sender: ForwardableSenderSchema.parse("dan@tldr.tech"), messageId: NormalizedMessageIdSchema.parse("issue-42@tldr.tech") }),
+				userId: READER,
+				receivedAtMessageId: abandonedRow,
+				attempt: { origin: "receive", sesMessageId: "ses-abandoned" },
+				now: NOW,
+			});
+			await deliver([detail]);
+			assert.deepEqual(published.at(-1), ingested({ jobId: FIRST_JOB, outcome: "imported", receivedAtMessageId: abandonedRow }));
+			if (lateDuplicate === "the reader cancelled the import") await imports.cancelJobs({ userId: READER, senderEmail: ForwardableSenderSchema.parse("dan@tldr.tech"), reason: "user-cancelled", now: NOW });
+			else await addresses.retireReadlistAddress({ userId: READER, readlist: ReadlistSlugSchema.parse("a1b2c3d4") });
+
+			await deliver([detail]);
+
+			assert.deepEqual(published.at(-1), ingested({ jobId: FIRST_JOB, outcome: "cancelled" }));
+			assert.deepEqual(rawBucket.keys(), [detail.rawEmailS3Key]);
+		});
+	}
+
+	it("keeps the raw copy an email taken over from an abandoned delivery references when a duplicate arrives while the import runs", async () => {
+		const { identities, published, deliver, detail, rawBucket } = await importedIssueHarness();
+		const abandonedRow = "2026-09-20T07:31:00.000Z#<issue-42@tldr.tech>";
+		await identities.claim({
+			key: messageIdentityKey({ userId: READER, sender: ForwardableSenderSchema.parse("dan@tldr.tech"), messageId: NormalizedMessageIdSchema.parse("issue-42@tldr.tech") }),
+			userId: READER,
+			receivedAtMessageId: abandonedRow,
+			attempt: { origin: "receive", sesMessageId: "ses-abandoned" },
+			now: NOW,
+		});
+		await deliver([detail]);
+
+		await deliver([detail]);
+
+		assert.deepEqual(published.at(-1), ingested({ jobId: FIRST_JOB, outcome: "imported", receivedAtMessageId: abandonedRow }));
+		assert.deepEqual(rawBucket.keys(), [detail.rawEmailS3Key]);
+	});
+
+	it("retries the record when the raw copy cannot be deleted, after reporting its outcome", async () => {
+		const { imports, readlistAddress } = makeHarness();
+		const destinationAddress = await readlistAddress(READER);
+		await runningImport({ imports, jobId: FIRST_JOB, destinationAddress });
+		const published: unknown[] = [];
+		const handler = initIngestGmailImportHandler({
+			resumeAcceptedGmailEmail: async () => false,
+			recordDuplicateGmailOrigin: async () => {},
+			readRawEmail: async () =>
+				tldrIssue({ from: "promo@tldr.tech", messageId: "<issue-42@tldr.tech>" }),
+			deleteRawEmail: async () => {
+				throw new Error("S3 unavailable");
+			},
+			parseEmail,
+			findByAddress: async () => undefined,
+			findImportJob: imports.findJob,
+			downloadEmailImages: async () => [],
+			resolveIdentity: async () => ({
+				proceed: false,
+				reason: "already-ingested",
+				receivedAtMessageId: IMPORTED_ROW,
+			}),
+			ingest: async () => "stored",
+			publishEvent: (async (_event, detail) => {
+				published.push(detail);
+			}) as PublishEvent,
+			maxEmailBytes: 20 * 1024 * 1024,
+			logger: Logger.from(noopLogger),
+		});
+
+		const response = await handler(
+			buildSqsEvent([
+				{
+					messageId: "fetched-0",
+					body: JSON.stringify({
+						"detail-type": "GmailHistoryImportMessageFetched",
+						detail: fetchedDetail({ jobId: FIRST_JOB, destinationAddress }),
+					}),
+				},
+			]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		assert.deepEqual(response, {
+			batchItemFailures: [{ itemIdentifier: "fetched-0" }],
+		});
+		assert.deepEqual(published, [
+			ingested({ jobId: FIRST_JOB, outcome: "skipped-sender-mismatch" }).detail,
+		]);
+	});
+
 	it("retries a record that is not a fetched message", async () => {
 		const { imports } = makeHarness();
 		const published: unknown[] = [];
@@ -634,6 +800,7 @@ describe("initIngestGmailImportHandler", () => {
 			resumeAcceptedGmailEmail: async () => false,
 			recordDuplicateGmailOrigin: async () => {},
 			readRawEmail: async () => undefined,
+			deleteRawEmail: async () => {},
 			parseEmail,
 			findByAddress: async () => undefined,
 			findImportJob: imports.findJob,
@@ -754,6 +921,7 @@ for (const fault of ["unparseable", "oversized", "wrong-sender", "no-message-id"
 		if (fault === "wrong-sender" || fault === "no-message-id") await harness.rawBucket.put({ key: harness.detail.rawEmailS3Key, raw: tldrIssue({ from: fault === "wrong-sender" ? "someone@example.com" : "dan@tldr.tech", messageId: fault === "no-message-id" ? undefined : "<issue-42@tldr.tech>" }) });
 		assert.deepEqual(await harness.deliver([harness.detail]), { batchItemFailures: [] });
 		assert.deepEqual(harness.published, [ingested({ jobId: FIRST_JOB, outcome: "cancelled" })]);
+		assert.deepEqual(harness.rawBucket.keys(), []);
 	});
 }
 

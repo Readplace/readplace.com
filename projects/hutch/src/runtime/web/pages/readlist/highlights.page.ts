@@ -36,7 +36,7 @@ const CreateHighlightBodySchema = z
 		exact: z.string().min(1),
 		start: z.coerce.number().int().min(0),
 		end: z.coerce.number().int().min(0),
-		origin: z.enum(["mouse"]),
+		origin: z.enum(["mouse", "tap", "longpress"]),
 	})
 	.refine((body) => body.start <= body.end);
 
@@ -161,6 +161,7 @@ export function initHighlightRoutes(
 					user_id: userId,
 					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					origin: body.data.origin,
+					highlight_id: outcome.highlight.highlightId,
 				});
 				const { viewPath } = highlightPathsFor({
 					articleId: article.id.value,
@@ -220,6 +221,7 @@ export function initHighlightRoutes(
 				timestamp: deps.now().toISOString(),
 				user_id: userId,
 				visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
+				highlight_id: highlightId.data,
 			});
 			const { viewPath } = highlightPathsFor({
 				articleId: article.id.value,

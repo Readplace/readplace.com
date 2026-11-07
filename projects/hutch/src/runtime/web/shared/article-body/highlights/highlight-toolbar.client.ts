@@ -1,12 +1,13 @@
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
+import type { HighlightCreatedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
+import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
+import { placeBelowSelection, TOOLBAR_GAP_PX, VIEWPORT_GUTTER_PX } from "./toolbar-placement-coarse";
 
 export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
 
 export const SELECTION_DEBOUNCE_MS = 100;
 export const POINTER_SETTLE_MS = 10;
-export const VIEWPORT_GUTTER_PX = 16;
-export const TOOLBAR_GAP_PX = 10;
 
 const CONTENT_SELECTOR = ".article-body__content";
 const TOOLBAR_SELECTOR = "[data-highlight-toolbar]";
@@ -22,14 +23,16 @@ export interface ToolbarRect {
 
 interface ToolbarViewport {
 	readonly width: number;
+	readonly height: number;
 	readonly offsetLeft: number;
 	readonly offsetTop: number;
 	addEventListener(type: "scroll" | "resize", listener: () => void): void;
 }
 
-interface HighlightToolbarWindow {
+interface HighlightToolbarWindow extends SentenceTapWindow {
 	readonly visualViewport: ToolbarViewport;
 	requestAnimationFrame(callback: () => void): unknown;
+	addEventListener(type: "scroll", listener: () => void, options: { passive: boolean }): void;
 }
 
 interface HighlightToolbarTimers {
@@ -42,6 +45,7 @@ interface HighlightToolbarDeps {
 	window: HighlightToolbarWindow;
 	timers: HighlightToolbarTimers;
 	rectsOf: (range: Range) => readonly ToolbarRect[];
+	isPopoverOpen: () => boolean;
 }
 
 interface SelectedPassage {
@@ -70,6 +74,22 @@ function passageOf(input: { range: Range; content: Element }): SelectedPassage |
 	return start < 0 ? undefined : { exact: text.slice(start, end), start, end };
 }
 
+function placeAboveSelection(input: {
+	rects: readonly ToolbarRect[];
+	size: { width: number; height: number };
+	viewport: ToolbarViewport;
+}): { top: number; left: number } {
+	const { rects, size, viewport } = input;
+	const first = rects[0];
+	const last = rects[rects.length - 1];
+	const above = first.top - size.height - TOOLBAR_GAP_PX;
+	const top = above < viewport.offsetTop ? last.bottom + TOOLBAR_GAP_PX : above;
+	const centred = first.left + first.width / 2 - viewport.offsetLeft - size.width / 2;
+	const maxLeft = viewport.width - size.width - VIEWPORT_GUTTER_PX;
+	const left = Math.min(Math.max(centred, VIEWPORT_GUTTER_PX), maxLeft) + viewport.offsetLeft;
+	return { top, left };
+}
+
 function originOf(event: Event): unknown {
 	return Reflect.get(Object(Reflect.get(event, "detail")), "origin");
 }
@@ -86,6 +106,20 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		return selection;
 	};
 
+	const isCoarse = (): boolean => deps.window.matchMedia(COARSE_POINTER_QUERY).matches;
+
+	const sentenceTap = initSentenceTap({
+		document,
+		window: deps.window,
+		isPopoverOpen: deps.isPopoverOpen,
+		selectionOf,
+	});
+
+	const pressOrigin = (range: Range): HighlightCreatedEvent["origin"] => {
+		if (sentenceTap.isTapped(range)) return "tap";
+		return isCoarse() ? "longpress" : "mouse";
+	};
+
 	const toolbarOf = (): HTMLElement => {
 		const toolbar = document.querySelector<HTMLElement>(TOOLBAR_SELECTOR);
 		assert(toolbar, "the highlight script ships with its toolbar");
@@ -96,15 +130,20 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		const toolbar = toolbarOf();
 		const rects = deps.rectsOf(range);
 		assert(rects.length > 0, "a selection holding text has client rects");
-		const first = rects[0];
-		const last = rects[rects.length - 1];
 		const viewport = deps.window.visualViewport;
 		const size = toolbar.getBoundingClientRect();
-		const above = first.top - size.height - TOOLBAR_GAP_PX;
-		const top = above < viewport.offsetTop ? last.bottom + TOOLBAR_GAP_PX : above;
-		const centred = first.left + first.width / 2 - viewport.offsetLeft - size.width / 2;
-		const maxLeft = viewport.width - size.width - VIEWPORT_GUTTER_PX;
-		const left = Math.min(Math.max(centred, VIEWPORT_GUTTER_PX), maxLeft) + viewport.offsetLeft;
+		const { top, left } = isCoarse()
+			? placeBelowSelection({
+					rects,
+					toolbar: { width: size.width, height: size.height },
+					viewport: {
+						width: viewport.width,
+						height: viewport.height,
+						offsetLeft: viewport.offsetLeft,
+						offsetTop: viewport.offsetTop,
+					},
+				})
+			: placeAboveSelection({ rects, size, viewport });
 		toolbar.style.top = `${top}px`;
 		toolbar.style.left = `${left}px`;
 	};
@@ -185,7 +224,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		const button = document.querySelector(BUTTON_SELECTOR);
 		assert(button, "the highlight toolbar carries its button");
 		if (path.includes(button)) {
-			if (shown !== undefined) submit({ range: shown, origin: "mouse" });
+			if (shown !== undefined) submit({ range: shown, origin: pressOrigin(shown) });
 			return;
 		}
 		const mark = Array.from(document.querySelectorAll(`.${ARTICLE_HIGHLIGHT_CLASS}`))
@@ -203,4 +242,5 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 	});
 	deps.window.visualViewport.addEventListener("scroll", reposition);
 	deps.window.visualViewport.addEventListener("resize", reposition);
+	deps.window.addEventListener("scroll", reposition, { passive: true });
 }

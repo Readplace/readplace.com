@@ -279,6 +279,7 @@ const disconnectGmail = initDisconnectGmail({
 	credentials: gmailCredentials,
 	senders: gmailSenders,
 	discovery: gmailDiscovery,
+	monitoring: gmailMonitoring,
 	addresses: inboxAddress,
 	removeGmailFilter: initRewriteGmailFilter({
 		filters: initGmailFilters({

@@ -83,6 +83,10 @@ export type GetGmailReadonlyAccessToken = (input: {
 
 export interface GmailRawMessage {
 	raw: Buffer;
+}
+
+export interface GmailMessageMetadata {
+	from: string | undefined;
 	internalDate: string;
 	labelIds: string[];
 }
@@ -95,6 +99,11 @@ export interface GmailHistory {
 		pageToken: string | undefined;
 		observe: ObserveGmailHttpAttempt;
 	}) => Promise<GmailHistoryResult<{ messageIds: GmailMessageId[]; nextPageToken: string | undefined }>>;
+	fetchMessageMetadata: (input: {
+		userId: UserId;
+		messageId: GmailMessageId;
+		observe: ObserveGmailHttpAttempt;
+	}) => Promise<GmailHistoryResult<GmailMessageMetadata | { notFound: true }>>;
 	fetchRawMessage: (input: {
 		userId: UserId;
 		messageId: GmailMessageId;

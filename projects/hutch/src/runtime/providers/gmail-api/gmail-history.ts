@@ -29,7 +29,10 @@ const ENDPOINT = `${GMAIL_API_ORIGIN}/gmail/v1/users/me`;
 const LISTING_FIELDS = "messages(id),nextPageToken";
 const LISTING_INCLUDES_SPAM_TRASH = false;
 const RAW_MESSAGE_FORMAT = "RAW";
-const RAW_MESSAGE_FIELDS = "raw,internalDate,labelIds";
+const RAW_MESSAGE_FIELDS = "raw";
+const METADATA_MESSAGE_FORMAT = "METADATA";
+const METADATA_HEADERS = "From";
+const METADATA_MESSAGE_FIELDS = "internalDate,labelIds,payload/headers";
 
 const MessagesResponse = z.object({
 	messages: z.array(z.object({ id: GmailMessageIdSchema })).optional(),
@@ -38,8 +41,12 @@ const MessagesResponse = z.object({
 
 const RawMessageResponse = z.object({
 	raw: z.string(),
+});
+
+const MetadataResponse = z.object({
 	internalDate: z.coerce.number().int(),
 	labelIds: z.array(z.string()).optional(),
+	payload: z.object({ headers: z.array(z.object({ name: z.string(), value: z.string() })).default([]) }).default({ headers: [] }),
 });
 
 const ErrorResponse = z.object({
@@ -70,8 +77,14 @@ function rawMessageFields(json: unknown): Record<string, number | boolean> {
 	return {
 		rawPresent: raw !== undefined,
 		rawLength: typeof raw === "string" ? raw.length : 0,
+	};
+}
+
+function metadataFields(json: unknown): Record<string, number | boolean> {
+	return {
 		internalDatePresent: present(json, "internalDate"),
 		labelCount: items(member(json, "labelIds")).length,
+		headerCount: items(member(member(json, "payload"), "headers")).length,
 	};
 }
 
@@ -253,6 +266,30 @@ export function initGmailHistory(deps: {
 				},
 			};
 		},
+		fetchMessageMetadata: async ({ userId, messageId, observe }) => {
+			const query = new URLSearchParams({ format: METADATA_MESSAGE_FORMAT, metadataHeaders: METADATA_HEADERS, fields: METADATA_MESSAGE_FIELDS });
+			const call = await get({
+				userId,
+				url: `${ENDPOINT}/messages/${encodeURIComponent(messageId)}?${query}`,
+				request: { operation: "messages.get", fieldMask: METADATA_MESSAGE_FIELDS, format: METADATA_MESSAGE_FORMAT },
+				requestedEndpoint: "gmail.messages.get",
+				observe,
+			});
+			if (call.ok && call.value.response.status === 404) {
+				call.value.settle({ classification: "not-found", bodyReads: [] });
+				return { ok: true, value: { notFound: true } };
+			}
+			const result = await read({ call, schema: MetadataResponse, summarize: metadataFields });
+			if (!result.ok) return result;
+			return {
+				ok: true,
+				value: {
+					from: result.value.payload.headers.find((header) => header.name.toLowerCase() === "from")?.value,
+					internalDate: new Date(result.value.internalDate).toISOString(),
+					labelIds: result.value.labelIds ?? [],
+				},
+			};
+		},
 		fetchRawMessage: async ({ userId, messageId, observe }) => {
 			const query = new URLSearchParams({ format: RAW_MESSAGE_FORMAT, fields: RAW_MESSAGE_FIELDS });
 			const call = await get({
@@ -270,11 +307,7 @@ export function initGmailHistory(deps: {
 			if (!result.ok) return result;
 			return {
 				ok: true,
-				value: {
-					raw: Buffer.from(result.value.raw, "base64url"),
-					internalDate: new Date(result.value.internalDate).toISOString(),
-					labelIds: result.value.labelIds ?? [],
-				},
+				value: { raw: Buffer.from(result.value.raw, "base64url") },
 			};
 		},
 	};

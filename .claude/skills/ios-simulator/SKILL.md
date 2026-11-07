@@ -37,6 +37,21 @@ To record: `xcrun simctl io "$D" recordVideo --codec h264 out.mp4`, stopped with
 leaves a recorder registered and every later attempt fails `Resource busy`; only
 `killall -9 com.apple.CoreSimulator.CoreSimulatorService` clears that.
 
+## Driving the UI
+
+A scripted tap, a Home press or a return to the foreground runs as an XCUITest
+(`XCUIDevice.shared.press(.home)`, `XCUIApplication.activate()`) in the app's UI-test target. That
+target sits outside the app's main scheme, so `make test` and CI never build it; after
+`make generate`, `xcodebuild -list` run through the wrapper names the target and its scheme.
+
+The share-demo recording test is the model to copy. Its runner script builds the UI tests once with
+`build-for-testing`, then runs one test method at a time with `test-without-building` and
+`-only-testing:` — grep the iOS app's directory for `test-without-building`; its one hit is that
+runner.
+
+Never drive the Simulator window with `cliclick` or another host mouse tool: it moves the real
+pointer and clicks into whatever the person at the Mac is using.
+
 ## The window is black and titled "… – External Display"
 
 `SimulatorExternalDisplay` is set per device in `com.apple.iphonesimulator`, and a device booted
@@ -45,7 +60,7 @@ preference does not fix the affected device: Simulator holds the value in memory
 back on relaunch, so the device keeps opening the phantom.
 
 Switch to a device that does not have it set. Pass `SIM='platform=iOS Simulator,id=<UDID>'`, or
-delete this checkout's device (`xcrun simctl delete "$D"`) so the next `make` creates a fresh one. Confirm before spending time on it:
+run `make clean-sim`, which deletes only this checkout's devices, so the next `make` creates a fresh one. Confirm before spending time on it:
 
 ```bash
 xcrun simctl io "$D" enumerate | grep -A4 "Class: Display" | grep "Default width"

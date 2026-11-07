@@ -1084,6 +1084,7 @@ describe("Gmail mappings across a disconnect and reconnect", () => {
 			credentials: gmail.bundle.gmailCredentialsStore,
 			senders: gmail.bundle.gmailSenderStore,
 			discovery: gmail.bundle.gmailDiscoveryStore,
+			monitoring: gmail.bundle.gmailMonitoringStore,
 			addresses: gmail.addresses,
 			removeGmailFilter: async () => ({ ok: true, filterCount: 0, senderCount: 0 }),
 			revokeGmailGrant: async () => ({ ok: true }),

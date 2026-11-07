@@ -20,9 +20,10 @@ const inboxSavedLinkStore = initDynamoDbInboxSavedLink({
 	tableName: env.DYNAMODB_INBOX_SAVED_LINKS_TABLE,
 	now,
 });
+const findQueueRowKeys = initDynamoDbFindQueueRowKeys({ client, userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE });
 const findLinkQueueRowKeys = initFindLinkQueueRowKeys({
 	findIdentityRow: initCanonicalAliasStore({ client, tableName: env.DYNAMODB_ARTICLES_TABLE }).findIdentityRow,
-	findQueueRowKeys: initDynamoDbFindQueueRowKeys({ client, userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE }),
+	findQueueRowKeys,
 });
 const markLinkSavedWhileQueued = initDynamoDbMarkLinkSavedWhileQueued({
 	client,
@@ -40,5 +41,6 @@ export const handler = initRecordLinkQueuedHandler({
 		markLinkSaveFailed: inboxSavedLinkStore.markLinkSaveFailed,
 	}),
 	retractLinkSaved: inboxSavedLinkStore.retractLinkSaved,
+	findQueueRowKeys,
 	logger,
 });

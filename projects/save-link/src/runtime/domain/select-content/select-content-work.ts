@@ -1,7 +1,8 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 import { type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
-import { isBlockClassStatus } from "@packages/crawl-article";
+import { type FetchYouTubeVideoCard, isBlockClassStatus } from "@packages/crawl-article";
+import { estimatedReadTimeFromWordCount } from "@packages/finalize-article";
 import { formatErrorLogLine, type Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import type { VerifyWrapperSource } from "@packages/save-article";
@@ -30,6 +31,7 @@ import { SELECT_CONTENT_TIMEOUTS } from "./timeouts";
 import { initJudgeUnderLedger } from "./judge-under-ledger";
 import type { RunMeteredLeg } from "../metered-leg/run-metered-leg";
 import type { FindArticleContent } from "../save-link/article-content.types";
+import { candidateProvenance, type PutTierSource, type VerifiedTierSource } from "@packages/tier-source";
 
 export interface SelectContentDependencies {
 	listAvailableTierSources: ListAvailableTierSources;
@@ -42,6 +44,8 @@ export interface SelectContentDependencies {
 	transitionAndPersist: TransitionAndPersist;
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	verifyWrapperSource: VerifyWrapperSource;
+	fetchYouTubeVideoCard: FetchYouTubeVideoCard;
+	putTierSource: PutTierSource;
 	now: () => Date;
 	logger: Logger;
 }
@@ -82,19 +86,36 @@ function noReadableReason(params: { selection: PreparedContentSelection; saveAtt
 	return { kind: "parse-error", detail };
 }
 
+async function recoverVideoCard(deps: SelectContentDependencies, params: { url: string; saveAttemptId: SaveAttemptId; originalUrl: string }): Promise<VerifiedTierSource | undefined> {
+	const card = await deps.fetchYouTubeVideoCard({ url: params.originalUrl });
+	if (card === undefined) return undefined;
+	const metadata = candidateProvenance({
+		metadata: { title: card.title, siteName: "YouTube", excerpt: card.excerpt, wordCount: 0, estimatedReadTime: estimatedReadTimeFromWordCount(0), imageUrl: card.posterUrl },
+		html: card.html, evaluationHtml: card.html, attemptId: params.saveAttemptId, originalUrl: params.originalUrl, sourceUrl: card.watchUrl, kind: "live", fetchedAt: deps.now().toISOString(), httpStatus: 200,
+	});
+	const persisted = await deps.putTierSource({ url: params.url, tier: "tier-1", html: card.html, evaluationHtml: card.html, metadata });
+	return { tier: "tier-1", html: card.html, evaluationHtml: card.html, metadata: persisted };
+}
+
 export function initSelectContentWork(deps: SelectContentDependencies) {
 	const judge = initJudgeUnderLedger({ selectMostCompleteContent: deps.selectMostCompleteContent, runMeteredLeg: deps.runMeteredLeg, claimTtlMs: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds * 1000 });
 	const prepare = initPrepareContentSelection({ ...deps, judge });
 	const logContentSelection = initLogContentSelection(deps);
 	return async (params: SelectContentRequest & { claimId: string }): Promise<void> => {
-		const selection = await prepare(params);
+		const prepared = await prepare(params);
+		const keepRow = params.liveAttempt?.outcome === "deferred" || prepared.legacyCanonicalWithheld;
+		const nothingReadable = prepared.selected === undefined && !keepRow && prepared.selectionRule !== "judge-deferred";
+		const card = nothingReadable ? await recoverVideoCard(deps, { url: params.url, saveAttemptId: params.saveAttemptId, originalUrl: prepared.originalUrl }) : undefined;
+		const selection: PreparedContentSelection = card === undefined ? prepared : {
+			...prepared, selected: card, outcome: "selected", selectionRule: "video-card-fallback", sources: [...prepared.sources, card],
+			readableIds: new Set([...prepared.readableIds, card.metadata.id]), reason: `no readable candidate (${prepared.reason}); served the oEmbed video card`,
+		};
 		const expected = selection.article.contentSelection;
 		const source = selection.selected;
 		if (source === undefined) {
-			const keepRow = params.liveAttempt?.outcome === "deferred" || selection.legacyCanonicalWithheld;
 			if (!keepRow && selection.selectionRule === "judge-deferred") {
 				await deps.transitionAndPersist(markCrawlAwaitingReader, { url: params.url, input: { deferredLeg: "content-judge" }, selectionExpected: { snapshot: expected } });
-			} else if (!keepRow) {
+			} else if (nothingReadable) {
 				await deps.transitionAndPersist(markNoReadableArticle, { url: params.url, input: { reason: noReadableReason({ selection, saveAttemptId: params.saveAttemptId, liveAttempt: params.liveAttempt }) }, selectionExpected: { snapshot: expected } });
 			}
 			logContentSelection({ saveAttemptId: params.saveAttemptId, selection, liveAttempt: params.liveAttempt });
