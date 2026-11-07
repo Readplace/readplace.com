@@ -14,7 +14,6 @@ export type PublishCancelSubscriptionCommand = (params: {
 
 export type PublishExportUserDataCommand = (params: {
 	userId: UserId;
-	email: string;
 	requestedAt: string;
 }) => Promise<void>;
 

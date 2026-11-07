@@ -3341,20 +3341,20 @@ Trigger chain:
 
 1. The customer opens /export from the Account page or the Privacy page and clicks Email me my data, which posts to /export/start `projects/hutch/src/runtime/web/pages/export/export.template.html:29`
 2. requireAuth lets the request through only when it carries a signed-in cookie session `projects/hutch/src/runtime/server.ts:1588`
-3. The route reads the account's email address from the users table `projects/hutch/src/runtime/web/pages/export/export.page.ts:30`
-4. The route publishes ExportUserDataCommand { userId, email, requestedAt } to EventBridge and redirects to /export?status=preparing `projects/hutch/src/runtime/web/pages/export/export.page.ts:37`
-5. The rule export-user-data-command-rule delivers the command to SQS user-data-jobs-q, and the user-data-jobs Lambda picks it up with batch size 1 `projects/hutch/src/infra/index.ts:765`
-6. The Lambda routes the command to the export handler, which reads every saved article across the customer's readlists, 500 per page, until a page comes back empty `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:77`
+3. The route publishes ExportUserDataCommand { userId, requestedAt } to EventBridge and redirects to /export?status=preparing; the command carries no address `projects/hutch/src/runtime/web/pages/export/export.page.ts:26`
+4. The rule export-user-data-command-rule delivers the command to SQS user-data-jobs-q, and the user-data-jobs Lambda picks it up with batch size 1 `projects/hutch/src/infra/index.ts:765`
+5. The Lambda routes the command to the export handler, which first reads the users row with a consistent read and stops if the account is gone, reclaimed under a new id, being deleted, or already sent an export for a request this new or newer `projects/hutch/src/runtime/export-user-data/decide-export-delivery.ts:8`
+6. The handler reads every saved article across the customer's readlists, 500 per page, until a page comes back empty `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:77`
 7. The handler writes the JSON file to s3://hutch-user-exports-prod/exports/<userId>/<timestamp>.json and presigns a GET link with X-Amz-Expires=604800 `projects/hutch/src/runtime/providers/user-data-export/s3-user-data-export.ts:38`
-8. The handler emails the link to the address carried in the command, then publishes UserDataExported `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:117`
+8. The handler reads the users row again after the upload, emails the link to the address on that live row, records the request time as delivered on the row, then publishes UserDataExported `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:129`
 
 Sent only when:
 
 - The customer is signed in on the website with a session cookie `projects/hutch/src/runtime/server.ts:1588`
 - The customer clicks Email me my data on /export, and each click queues its own email `projects/hutch/src/runtime/web/pages/export/export.template.html:29`
 - Account status does not matter: trial, membership, lapsed, read-only and locked (unverified past the 7-day window) accounts all qualify, because the route checks only sign-in and exporting is deliberately left open to locked accounts `projects/hutch/src/runtime/web/middleware/require-not-locked.middleware.ts:13`
-- The account has an email address in the users table at the moment of the click `projects/hutch/src/runtime/web/pages/export/export.page.ts:31`
-- The command publishes to EventBridge without error `projects/hutch/src/runtime/web/pages/export/export.page.ts:37`
+- The command publishes to EventBridge without error `projects/hutch/src/runtime/web/pages/export/export.page.ts:26`
+- The account still exists under the same id and is not being deleted, both before the articles are read and again just before the send `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:121`
 - The worker reads every saved article across the customer's readlists without error; a customer with no saved articles still gets the email `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:92`
 - Reading the articles, uploading the file and sending all finish inside the 900 s Lambda timeout `projects/hutch/src/infra/index.ts:703`
 - The JSON file uploads to S3 and the download link is signed `projects/hutch/src/runtime/providers/user-data-export/s3-user-data-export.ts:28`
@@ -3365,15 +3365,16 @@ Not sent when:
 
 - Not signed in: the click redirects to /login and nothing is queued. This includes a phone browser, opened from the iOS or Android app, that has no Readplace session `projects/hutch/src/runtime/server.ts:527`
 - Banned IP address: the request gets a 403 before the app runs `projects/hutch/src/runtime/web/middleware/ban.ts:29`
-- No email address found for the account: the customer lands back on /export with no error message and nothing is queued `projects/hutch/src/runtime/web/pages/export/export.page.ts:33`
+- The account is gone, or its address now belongs to a new account: the export is skipped, any export file already written for the user is deleted, and UserDataExportSkipped is published with reason account-gone `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:160`
+- The account is being deleted: the same skip, with reason account-deleting `projects/hutch/src/runtime/export-user-data/decide-export-delivery.ts:8`
+- An export for a request at least as new has already been delivered, which is what a redrive from user-data-jobs-dlq after a successful send looks like: nothing is sent, the file is kept, and UserDataExportSkipped is published with reason already-delivered `projects/hutch/src/runtime/export-user-data/decide-export-delivery.ts:16`
 - Reserved test domain: the send is skipped with the warning "[email] reserved recipient domain — not sent" `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:14`
 - A failure that repeats on every attempt, such as a saved article with no matching global article row, fails all 12 tries, so the command ends in the dead-letter queue and the customer never gets the email `src/packages/article-store/src/dynamodb-saved-article-store.ts:780`
-- Repeat requests are never held back: there is no once-only marker, rate limit, unsubscribe or opt-out, so every click sends another email `projects/hutch/src/runtime/web/pages/export/export.page.ts:27`
-- Deleting the account does not stop an export that is already queued, because the worker mails the address carried in the command without checking that the account still exists `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:120`
+- A newer click is never held back: there is no rate limit, unsubscribe or opt-out, so every new click sends another email. Only a request older than or equal to the last delivered one is skipped `projects/hutch/src/runtime/export-user-data/decide-export-delivery.ts:16`
 
 **Timing:** No deliberate delay: the worker runs as soon as SQS delivers the command, so the email normally lands seconds to a few minutes after the click, and the run must finish within the 900 s Lambda timeout. A failed attempt is retried every 900 s (15 min) for up to 12 receives, so the last try is about 2 h 45 min after the click; the link nominally lasts 604,800 s (7 days), and the S3 lifecycle rule deletes the file 7 days after it is written.
 
-**If sending fails:** If the address lookup or the EventBridge publish fails, the click returns a 500 error and nothing retries. Any worker failure (article store, S3, Resend or the follow-up event) reruns the whole export every 15 minutes for up to 12 receives, then moves the command to user-data-jobs-dlq, whose alarm emails ops at readplace+devops@readplace.com; the customer is never told.
+**If sending fails:** If the EventBridge publish fails, the click returns a 500 error and nothing retries. Any worker failure (article store, S3, Resend or the follow-up event) reruns the whole export every 15 minutes for up to 12 receives, then moves the command to user-data-jobs-dlq, whose alarm emails ops at readplace+devops@readplace.com; the customer is never told.
 
 <details><summary>Edge cases</summary>
 
@@ -3383,12 +3384,12 @@ Not sent when:
 - Requests on the old hutch-app.com host get a 301 to readplace.com before any route runs, so a POST there never reaches /export/start `projects/hutch/src/runtime/server.ts:582`
 - A malformed utm_* query value gets a 400 before the route runs; the page's own form always sends valid values `src/packages/web-analytics/src/utm-validation.middleware.ts:23`
 - The recipient is the stored account address, lowercased and trimmed, with Gmail dots and +tags kept and never the Gmail canonical identity key: a signup as " Sam.Reader@Gmail.com" is mailed at "sam.reader@gmail.com" `src/packages/domain/src/user/email.ts:8`
-- If the address lookup or the EventBridge publish throws, the customer sees the JSON body {"error":"Internal Server Error","statusCode":500} instead of the preparing page, and nothing retries `projects/hutch/src/runtime/web/middleware/error-handler.ts:33`
+- If the EventBridge publish throws, the customer sees the JSON body {"error":"Internal Server Error","statusCode":500} instead of the preparing page, and nothing retries `projects/hutch/src/runtime/web/middleware/error-handler.ts:33`
 - If EventBridge cannot deliver the command to the queue, it applies its default retry policy and then sends the event to the target's dead-letter queue, user-data-jobs-dlq `src/packages/infra-components/src/infra/event-bus.ts:89`
 - The worker runs only if its whole composition root initialises: about 40 required environment variables, including unrelated Stripe, Apple and Gmail secrets, plus an assert that the Apple key decodes to a PKCS#8 PEM. Any failure there fails every export `projects/hutch/src/runtime/user-data-jobs.main.ts:199`
 - A malformed message body, a detail that fails the schema, or an unknown detail-type is retried until the dead-letter queue and never emailed `projects/hutch/src/runtime/handle-by-detail-type.ts:24`
-- A retry after a successful send reruns the whole export and sends a second email with a new file and link. This happens when publishing UserDataExported fails, or when Resend returns an ambiguous 5xx after accepting the message, because no idempotency key is passed `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:117`
-- Export and account deletion share the unordered user-data-jobs-q queue. If deletion runs first, the export still emails the deleted account's address, typically reporting 0 articles; if the export runs first, deletion removes the file and the emailed link stops working `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:187`
+- A retry after the delivered marker is written is skipped as already-delivered, so a failed UserDataExported publish or a redrive sends no second email. One duplicate remains: if Resend accepts the message (or returns an ambiguous 5xx after accepting it) and the marker write then fails, the retry sends a second email with a new file and link, because no idempotency key is passed `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:144`
+- Export and account deletion share the unordered user-data-jobs-q queue, so a redrive can deliver them in either order. If deletion has started or finished, the export is skipped and deletes any file it wrote, so no email reaches the deleted address; if the export is sent first, deletion removes the file and the emailed link stops working `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:187`
 - Local dev with PERSISTENCE=development and the e2e server use an in-memory publisher that only logs, so no email goes out; a dev server with PERSISTENCE=prod publishes to the real event bus, and whichever stack's worker consumes it sends a real email `projects/hutch/src/runtime/dev-app.ts:15`
 
 </details>
@@ -3398,12 +3399,11 @@ Not sent when:
 > - The "7 days" promise may not hold (unverified): the worker presigns the link with the Lambda role's temporary credentials, so the URL carries X-Amz-Security-Token, and AWS stops honouring such a URL when those credentials expire, likely within hours. The email, the /export page, the preparing page and the Privacy page all promise 7 days `projects/hutch/src/runtime/user-data-jobs.main.ts:56`
 > - A failed export is invisible to the customer. They have already seen "Preparing your export. Check your inbox shortly.", and when every retry fails only ops hear about it, through the dead-letter alarm email `projects/hutch/src/runtime/web/pages/export/export-preparing.template.html:5`
 > - Duplicate emails are possible: /export/start has no rate limit or dedupe, and the worker passes no idempotency key to Resend, so repeat clicks and retries after a successful send each deliver another email with a different link `projects/hutch/src/runtime/web/pages/export/export.page.ts:37`
-> - On a reserved test domain the worker still logs "[ExportUserData] sent email" and publishes UserDataExported although nothing was sent, so logs and events overstate deliveries `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:128`
-> - The worker logs the recipient address alongside the userId on every send `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:130`
+> - On a reserved test domain the worker still logs "[ExportUserData] sent email" and publishes UserDataExported although nothing was sent, so logs and events overstate deliveries `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:140`
 > - The download link is a raw presigned S3 URL of about 1.6 KB on hutch-user-exports-prod.s3.ap-southeast-2.amazonaws.com, not a readplace.com address. The email no longer prints it: the fallback line reads "If the button above doesn't work, use this download link." and links the same URL as the button, so the customer cannot see or copy the address from the text, and the fallback helps only when the button fails to render, not when the link itself fails `projects/hutch/src/runtime/web/pages/export/user-data-export-email.template.html:31`
-> - The message is HTML only, with no plain-text part `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:117`
+> - The message is HTML only, with no plain-text part `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:129`
 > - An empty export still emails "Readplace packaged 0 articles"; the handler test asserts this, so it appears intended `projects/hutch/src/runtime/export-user-data/export-user-data-handler.test.ts:308`
-> - The worker never reads the command's requestedAt, and no rule subscribes to UserDataExported, so the event triggers nothing `src/packages/infra-components/src/events.ts:636`
+> - No rule subscribes to UserDataExported or UserDataExportSkipped, so the events trigger nothing `src/packages/infra-components/src/events.ts:782`
 
 ### Message
 
@@ -3542,7 +3542,6 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
     "resources": [],
     "detail": {
       "userId": "944bd89b7f3dea9073c72bedad648df4",
-      "email": "sam.reader@gmail.com",
       "requestedAt": "2026-10-06T05:17:44.302Z"
     }
   },
@@ -3620,7 +3619,6 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
     "resources": [],
     "detail": {
       "userId": "c1c4bd92a3f35e7421ea2a3533ad7ab4",
-      "email": "sam.reader@gmail.com",
       "requestedAt": "2026-10-06T05:17:44.354Z"
     }
   },
@@ -3688,7 +3686,6 @@ Subject: **Your Readplace export is ready** · To: `sam.reader@gmail.com`
     "resources": [],
     "detail": {
       "userId": "ae70c7d8d05cba7ca83575ce2d89516b",
-      "email": "sam.reader@gmail.com",
       "requestedAt": "2026-10-06T05:17:44.371Z"
     }
   },
@@ -3729,10 +3726,10 @@ Exact HTML body: [`html/user-data-export--no-articles.html`](html/user-data-expo
 
 ### Source
 
-- `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:117` — sender: builds from, reply-to, to, subject and HTML and calls sendEmail
+- `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:129` — sender: builds from, reply-to, to, subject and HTML and calls sendEmail to the live row's address
 - `projects/hutch/src/runtime/web/pages/export/user-data-export-email.ts:11` — renderer: picks "1 article" or "{n} articles" and renders the template
 - `projects/hutch/src/runtime/web/pages/export/user-data-export-email.template.html:22` — template: heading, count sentence, Download my data button and fallback download link
-- `projects/hutch/src/runtime/web/pages/export/export.page.ts:27` — web handler for POST /export/start: reads the address and publishes ExportUserDataCommand
+- `projects/hutch/src/runtime/web/pages/export/export.page.ts:26` — web handler for POST /export/start: publishes ExportUserDataCommand with the user id and request time
 - `projects/hutch/src/runtime/user-data-jobs.main.ts:318` — worker composition root: routes ExportUserDataCommand to the export handler
 - `projects/hutch/src/runtime/providers/user-data-export/s3-user-data-export.ts:23` — writes the JSON file to S3 and presigns the 7-day link
 - `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:11` — reserved-domain filter in front of Resend, wired at user-data-jobs.main.ts:176

@@ -1,7 +1,6 @@
 import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
-import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
 import type { PublishExportUserDataCommand } from "@packages/provider-contracts/events";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -10,8 +9,6 @@ import { ExportPage } from "./export.component";
 
 interface ExportDependencies {
 	publishExportUserDataCommand: PublishExportUserDataCommand;
-	findEmailByUserId: FindEmailByUserId;
-	logError: (message: string, error?: Error) => void;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 }
@@ -26,17 +23,8 @@ export function initExportRoutes(deps: ExportDependencies): Router {
 
 	router.post("/start", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const userId = req.userId;
-		const email = await deps.findEmailByUserId(userId);
-		if (!email) {
-			deps.logError(`[Export] No email found for userId ${userId}`);
-			res.redirect(303, "/export");
-			return;
-		}
-
 		await deps.publishExportUserDataCommand({
-			userId,
-			email,
+			userId: req.userId,
 			requestedAt: deps.now().toISOString(),
 		});
 

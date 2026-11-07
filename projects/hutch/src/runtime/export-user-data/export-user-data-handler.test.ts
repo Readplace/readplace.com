@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { noopLogger, Logger } from "@packages/logger";
 import type { SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -6,8 +7,9 @@ import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/arti
 import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
 import { MinutesSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
-import { UserIdSchema } from "@packages/domain/user";
-import { UserDataExportedEvent } from "@packages/infra-components";
+import type { UserId } from "@packages/domain/user";
+import { UserDataExportedEvent, UserDataExportSkippedEvent } from "@packages/infra-components";
+import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import type { UploadUserDataExport } from "../providers/user-data-export/user-data-export.types";
 import { initExportUserDataHandler } from "./export-user-data-handler";
 
@@ -23,11 +25,13 @@ const ExportBodySchema = z.object({
 	articles: z.array(z.looseObject({ url: z.string(), title: z.string() })),
 });
 
-function createSqsEvent(detail: {
+type ExportMessage = {
 	userId: string;
-	email: string;
 	requestedAt: string;
-}): SQSEvent {
+	email?: string;
+};
+
+function createSqsEvent(detail: ExportMessage): SQSEvent {
 	const record: SQSRecord = {
 		messageId: "msg-1",
 		receiptHandle: "receipt-1",
@@ -47,8 +51,22 @@ function fixedNow(): Date {
 	return new Date("2026-04-30T12:00:00.000Z");
 }
 
+const READER_EMAIL = "user@example.com";
+
+type Auth = ReturnType<typeof initInMemoryAuth>;
+
+interface HarnessHooks {
+	onUpload?: (input: { auth: Auth; userId: UserId }) => Promise<void>;
+	onSend?: (input: { auth: Auth; userId: UserId }) => Promise<void>;
+	failSends?: number;
+	failExportedPublishes?: number;
+}
+
 interface HandlerHarness {
+	userId: UserId;
+	auth: Auth;
 	uploadCalls: Array<{ userId: string; bodyLength: number; parsedBody: unknown }>;
+	objects: Map<string, string[]>;
 	emailCalls: Array<{ from: string; replyTo: string | undefined; to: string; subject: string; html: string }>;
 	publishedEvents: Array<{ source: string; detailType: string; detail: unknown }>;
 	handler: ReturnType<typeof initExportUserDataHandler>;
@@ -56,29 +74,62 @@ interface HandlerHarness {
 	engagement: ReturnType<typeof initInMemoryEngagementStarter>;
 }
 
-function createHarness(): HandlerHarness {
+function initTestAuth(): Auth {
+	return initInMemoryAuth({
+		hashPassword: async (password) => `hashed:${password}`,
+		verifyPassword: async (password, stored) => stored === `hashed:${password}`,
+		now: fixedNow,
+	});
+}
+
+async function signUp(auth: Auth, email: string): Promise<UserId> {
+	const created = await auth.createUser({ email, password: "password123" });
+	assert(created.ok, "sign-up failed");
+	return created.userId;
+}
+
+async function createHarness(hooks: HarnessHooks = {}): Promise<HandlerHarness> {
+	const auth = initTestAuth();
+	const userId = await signUp(auth, READER_EMAIL);
 	const store = initInMemoryArticleStore();
 	const engagement = initInMemoryEngagementStarter({ library: store });
 	const uploadCalls: HandlerHarness["uploadCalls"] = [];
-	const uploadUserDataExport: UploadUserDataExport = async ({ userId, body }) => {
-		uploadCalls.push({ userId, bodyLength: body.length, parsedBody: JSON.parse(body) });
-		return {
-			s3Key: `exports/${userId}/2026-04-30T12-00-00-000Z.json`,
-			downloadUrl: `https://example.com/signed/${userId}`,
-		};
+	const objects: HandlerHarness["objects"] = new Map();
+	const uploadUserDataExport: UploadUserDataExport = async ({ userId: uploadUserId, body }) => {
+		uploadCalls.push({ userId: uploadUserId, bodyLength: body.length, parsedBody: JSON.parse(body) });
+		const s3Key = `exports/${uploadUserId}/upload-${uploadCalls.length}.json`;
+		objects.set(uploadUserId, [...(objects.get(uploadUserId) ?? []), s3Key]);
+		await hooks.onUpload?.({ auth, userId });
+		return { s3Key, downloadUrl: `https://example.com/signed/${uploadUserId}` };
 	};
 	const emailCalls: HandlerHarness["emailCalls"] = [];
 	const publishedEvents: HandlerHarness["publishedEvents"] = [];
+	let sendsToFail = hooks.failSends ?? 0;
+	let exportedPublishesToFail = hooks.failExportedPublishes ?? 0;
 
 	const handler = initExportUserDataHandler({
 		engagementState: engagement,
 		listReadlistDefinitions: store.listReadlistDefinitions,
 		findArticlesAcrossReadlists: store.findArticlesAcrossReadlists,
 		uploadUserDataExport,
+		deleteUserExports: async (deletedUserId) => {
+			objects.delete(deletedUserId);
+		},
+		findExportRecipient: auth.findExportRecipient,
+		markExportDelivered: auth.markExportDelivered,
 		sendEmail: async (msg) => {
+			if (sendsToFail > 0) {
+				sendsToFail--;
+				throw new Error("Resend 500");
+			}
 			emailCalls.push({ from: msg.from, replyTo: msg.replyTo, to: msg.to, subject: msg.subject, html: msg.html });
+			await hooks.onSend?.({ auth, userId });
 		},
 		publishEvent: async (event, detail) => {
+			if (event.detailType === UserDataExportedEvent.detailType && exportedPublishesToFail > 0) {
+				exportedPublishesToFail--;
+				throw new Error("PutEvents failed");
+			}
 			publishedEvents.push({
 				source: event.source,
 				detailType: event.detailType,
@@ -89,12 +140,12 @@ function createHarness(): HandlerHarness {
 		now: fixedNow,
 	});
 
-	return { uploadCalls, emailCalls, publishedEvents, handler, store, engagement };
+	return { userId, auth, uploadCalls, objects, emailCalls, publishedEvents, handler, store, engagement };
 }
 
 async function invokeHandler(
 	harness: HandlerHarness,
-	detail: { userId: string; email: string; requestedAt: string },
+	detail: ExportMessage,
 ): Promise<SQSBatchResponse> {
 	const result = harness.handler(createSqsEvent(detail), buildLambdaContext(), () => {});
 	const awaited = result instanceof Promise ? await result : result;
@@ -104,8 +155,8 @@ async function invokeHandler(
 
 describe("initExportUserDataHandler", () => {
 	it("exports the permanent assignment, frozen starter, readlist identity and article attribution", async () => {
-		const harness = createHarness();
-		const userId = UserIdSchema.parse("starter-user");
+		const harness = await createHarness();
+		const { userId } = harness;
 		const now = fixedNow();
 		const picks = Array.from({ length: 10 }, (_, index) => ({
 			url: `https://publisher.com/${index}`,
@@ -156,7 +207,6 @@ describe("initExportUserDataHandler", () => {
 		});
 		await invokeHandler(harness, {
 			userId,
-			email: "reader@recipient.com",
 			requestedAt: now.toISOString(),
 		});
 		expect(harness.uploadCalls[0]?.parsedBody).toMatchObject({
@@ -180,8 +230,8 @@ describe("initExportUserDataHandler", () => {
 		);
 	});
 	it("uploads an export, emails the user a download link, and publishes UserDataExportedEvent", async () => {
-		const harness = createHarness();
-		const userId = UserIdSchema.parse("user-1");
+		const harness = await createHarness();
+		const { userId } = harness;
 		await harness.store.saveArticle({
 			userId,
 			url: "https://example.com/article-1",
@@ -198,7 +248,6 @@ describe("initExportUserDataHandler", () => {
 
 		const response = await invokeHandler(harness, {
 			userId,
-			email: "user@example.com",
 			requestedAt: "2026-04-30T11:59:00.000Z",
 		});
 
@@ -226,14 +275,14 @@ describe("initExportUserDataHandler", () => {
 		expect(harness.publishedEvents[0].detail).toEqual({
 			userId,
 			articleCount: 1,
-			s3Key: `exports/${userId}/2026-04-30T12-00-00-000Z.json`,
+			s3Key: `exports/${userId}/upload-1.json`,
 			exportedAt: "2026-04-30T12:00:00.000Z",
 		});
 	});
 
 	it("paginates through every page when the user has more articles than one page", async () => {
-		const harness = createHarness();
-		const userId = UserIdSchema.parse("user-many");
+		const harness = await createHarness();
+		const { userId } = harness;
 		// PAGE_SIZE in the handler is 500; cross the boundary to force two pages.
 		const TOTAL = 600;
 		for (let i = 0; i < TOTAL; i++) {
@@ -254,7 +303,6 @@ describe("initExportUserDataHandler", () => {
 
 		await invokeHandler(harness, {
 			userId,
-			email: "user@example.com",
 			requestedAt: "2026-04-30T11:59:00.000Z",
 		});
 
@@ -264,8 +312,8 @@ describe("initExportUserDataHandler", () => {
 	});
 
 	it("exports an article saved only to a named readlist, not just the All readlist", async () => {
-		const harness = createHarness();
-		const userId = UserIdSchema.parse("user-readlists");
+		const harness = await createHarness();
+		const { userId } = harness;
 		await harness.store.saveArticle({
 			userId,
 			url: "https://example.com/in-all",
@@ -293,7 +341,6 @@ describe("initExportUserDataHandler", () => {
 
 		await invokeHandler(harness, {
 			userId,
-			email: "user@example.com",
 			requestedAt: "2026-04-30T11:59:00.000Z",
 		});
 
@@ -306,12 +353,11 @@ describe("initExportUserDataHandler", () => {
 	});
 
 	it("emits an empty export when the user has no articles", async () => {
-		const harness = createHarness();
-		const userId = UserIdSchema.parse("user-empty");
+		const harness = await createHarness();
+		const { userId } = harness;
 
 		await invokeHandler(harness, {
 			userId,
-			email: "user@example.com",
 			requestedAt: "2026-04-30T11:59:00.000Z",
 		});
 
@@ -322,7 +368,7 @@ describe("initExportUserDataHandler", () => {
 	});
 
 	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
-		const harness = createHarness();
+		const harness = await createHarness();
 
 		const invalidEvent: SQSEvent = {
 			Records: [{
@@ -348,7 +394,8 @@ describe("initExportUserDataHandler", () => {
 	});
 
 	it("stops on the first empty page when total claims more rows (orphaned user_articles)", async () => {
-		const userId = UserIdSchema.parse("user-orphan");
+		const auth = initTestAuth();
+		const userId = await signUp(auth, READER_EMAIL);
 		const findArticlesAcrossReadlists = jest
 			.fn()
 			.mockResolvedValueOnce({
@@ -384,6 +431,9 @@ describe("initExportUserDataHandler", () => {
 				uploadCalls.push({ parsedBody: JSON.parse(body) });
 				return { s3Key: `exports/${uid}/x.json`, downloadUrl: "https://example.com/d" };
 			},
+			deleteUserExports: async () => {},
+			findExportRecipient: auth.findExportRecipient,
+			markExportDelivered: auth.markExportDelivered,
 			sendEmail: async (msg) => {
 				emailCalls.push({ to: msg.to });
 			},
@@ -397,7 +447,6 @@ describe("initExportUserDataHandler", () => {
 		const result = handler(
 			createSqsEvent({
 				userId,
-				email: "user@example.com",
 				requestedAt: "2026-04-30T11:59:00.000Z",
 			}),
 			buildLambdaContext(),
@@ -411,5 +460,268 @@ describe("initExportUserDataHandler", () => {
 		expect(body.articleCount).toBe(1);
 		expect(emailCalls).toHaveLength(1);
 		expect(publishedEvents[0].detail).toMatchObject({ articleCount: 1 });
+	});
+
+	describe("redrive safety", () => {
+		const REQUESTED_AT = "2026-04-30T11:59:00.000Z";
+		const LATER_REQUESTED_AT = "2026-04-30T11:59:30.000Z";
+
+		function skipped(input: { userId: UserId; requestedAt: string; reason: string }) {
+			return {
+				source: UserDataExportSkippedEvent.source,
+				detailType: UserDataExportSkippedEvent.detailType,
+				detail: input,
+			};
+		}
+
+		function exported(input: { userId: UserId; s3Key: string }) {
+			return {
+				source: UserDataExportedEvent.source,
+				detailType: UserDataExportedEvent.detailType,
+				detail: { ...input, articleCount: 0, exportedAt: "2026-04-30T12:00:00.000Z" },
+			};
+		}
+
+		it("skips with no email and no object when the account row is gone", async () => {
+			const harness = await createHarness();
+			const { userId } = harness;
+			await harness.auth.closeUserAccount(userId);
+
+			const response = await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(harness.uploadCalls).toEqual([]);
+			expect(harness.emailCalls).toEqual([]);
+			expect(Object.fromEntries(harness.objects)).toEqual({});
+			expect(harness.publishedEvents).toEqual([
+				skipped({ userId, requestedAt: REQUESTED_AT, reason: "account-gone" }),
+			]);
+			expect(await harness.auth.findExportRecipient(userId)).toBeNull();
+		});
+
+		it("skips with no email and no object when deletedAt is set", async () => {
+			const harness = await createHarness();
+			const { userId } = harness;
+			await harness.auth.markAccountDeleted({ userId, at: "2026-04-30T11:59:10.000Z" });
+
+			await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(harness.emailCalls).toEqual([]);
+			expect(Object.fromEntries(harness.objects)).toEqual({});
+			expect(harness.publishedEvents).toEqual([
+				skipped({ userId, requestedAt: REQUESTED_AT, reason: "account-deleting" }),
+			]);
+		});
+
+		it("mails the live row's address when an old-shape message carries a stale email", async () => {
+			const harness = await createHarness();
+			const { userId } = harness;
+
+			await invokeHandler(harness, { userId, email: "old@example.com", requestedAt: REQUESTED_AT });
+
+			expect(harness.emailCalls.map((email) => email.to)).toEqual([READER_EMAIL]);
+		});
+
+		it("does not mail the new owner when the address was reclaimed under a new userId", async () => {
+			const harness = await createHarness();
+			const { userId } = harness;
+			await harness.auth.closeUserAccount(userId);
+			const newUserId = await signUp(harness.auth, READER_EMAIL);
+
+			await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(harness.emailCalls).toEqual([]);
+			expect(Object.fromEntries(harness.objects)).toEqual({});
+			expect(harness.publishedEvents).toEqual([
+				skipped({ userId, requestedAt: REQUESTED_AT, reason: "account-gone" }),
+			]);
+			expect(await harness.auth.findExportRecipient(newUserId)).toEqual({
+				email: READER_EMAIL,
+				deletedAt: undefined,
+				exportDeliveredRequestedAt: undefined,
+			});
+		});
+
+		it("run twice: one email, marker equals requestedAt, second run publishes already-delivered", async () => {
+			const harness = await createHarness();
+			const { userId } = harness;
+
+			await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+			await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(harness.emailCalls.map((email) => email.to)).toEqual([READER_EMAIL]);
+			expect(Object.fromEntries(harness.objects)).toEqual({ [userId]: [`exports/${userId}/upload-1.json`] });
+			expect(harness.publishedEvents).toEqual([
+				exported({ userId, s3Key: `exports/${userId}/upload-1.json` }),
+				skipped({ userId, requestedAt: REQUESTED_AT, reason: "already-delivered" }),
+			]);
+			expect(await harness.auth.findExportRecipient(userId)).toEqual({
+				email: READER_EMAIL,
+				deletedAt: undefined,
+				exportDeliveredRequestedAt: REQUESTED_AT,
+			});
+		});
+
+		it("run after a later delivered export: an older request skips and the marker keeps the later value", async () => {
+			const harness = await createHarness();
+			const { userId } = harness;
+
+			await invokeHandler(harness, { userId, requestedAt: LATER_REQUESTED_AT });
+			await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(harness.emailCalls.map((email) => email.to)).toEqual([READER_EMAIL]);
+			expect(harness.publishedEvents).toEqual([
+				exported({ userId, s3Key: `exports/${userId}/upload-1.json` }),
+				skipped({ userId, requestedAt: REQUESTED_AT, reason: "already-delivered" }),
+			]);
+			expect(await harness.auth.findExportRecipient(userId)).toEqual({
+				email: READER_EMAIL,
+				deletedAt: undefined,
+				exportDeliveredRequestedAt: LATER_REQUESTED_AT,
+			});
+		});
+
+		it("a newer request after an older delivered one sends and moves the marker forward", async () => {
+			const harness = await createHarness();
+			const { userId } = harness;
+
+			await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+			await invokeHandler(harness, { userId, requestedAt: LATER_REQUESTED_AT });
+
+			expect(harness.emailCalls.map((email) => email.to)).toEqual([READER_EMAIL, READER_EMAIL]);
+			expect(harness.publishedEvents).toEqual([
+				exported({ userId, s3Key: `exports/${userId}/upload-1.json` }),
+				exported({ userId, s3Key: `exports/${userId}/upload-2.json` }),
+			]);
+			expect(await harness.auth.findExportRecipient(userId)).toEqual({
+				email: READER_EMAIL,
+				deletedAt: undefined,
+				exportDeliveredRequestedAt: LATER_REQUESTED_AT,
+			});
+		});
+
+		it("publish failure after the send: the retry sends no second email and publishes already-delivered", async () => {
+			const harness = await createHarness({ failExportedPublishes: 1 });
+			const { userId } = harness;
+
+			const first = await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+			const retry = await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(first).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+			expect(retry).toEqual({ batchItemFailures: [] });
+			expect(harness.emailCalls.map((email) => email.to)).toEqual([READER_EMAIL]);
+			expect(Object.fromEntries(harness.objects)).toEqual({ [userId]: [`exports/${userId}/upload-1.json`] });
+			expect(harness.publishedEvents).toEqual([
+				skipped({ userId, requestedAt: REQUESTED_AT, reason: "already-delivered" }),
+			]);
+		});
+
+		it("send failure leaves the marker unset so the retry delivers", async () => {
+			const harness = await createHarness({ failSends: 1 });
+			const { userId } = harness;
+
+			const first = await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+			const afterFailure = await harness.auth.findExportRecipient(userId);
+			const retry = await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(first).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+			expect(afterFailure).toEqual({ email: READER_EMAIL, deletedAt: undefined, exportDeliveredRequestedAt: undefined });
+			expect(retry).toEqual({ batchItemFailures: [] });
+			expect(harness.emailCalls.map((email) => email.to)).toEqual([READER_EMAIL]);
+			expect(harness.publishedEvents).toEqual([
+				exported({ userId, s3Key: `exports/${userId}/upload-2.json` }),
+			]);
+			expect(await harness.auth.findExportRecipient(userId)).toEqual({
+				email: READER_EMAIL,
+				deletedAt: undefined,
+				exportDeliveredRequestedAt: REQUESTED_AT,
+			});
+		});
+
+		it("delete overtaking between the gates: the uploaded object is removed, no email, fact account-deleting", async () => {
+			const harness = await createHarness({
+				onUpload: ({ auth, userId }) => auth.markAccountDeleted({ userId, at: "2026-04-30T11:59:40.000Z" }),
+			});
+			const { userId } = harness;
+
+			await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(harness.uploadCalls).toHaveLength(1);
+			expect(harness.emailCalls).toEqual([]);
+			expect(Object.fromEntries(harness.objects)).toEqual({});
+			expect(harness.publishedEvents).toEqual([
+				skipped({ userId, requestedAt: REQUESTED_AT, reason: "account-deleting" }),
+			]);
+		});
+
+		it("account closed between the gates: the object is removed, no email, fact account-gone", async () => {
+			const harness = await createHarness({
+				onUpload: ({ auth, userId }) => auth.closeUserAccount(userId),
+			});
+			const { userId } = harness;
+
+			await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(harness.emailCalls).toEqual([]);
+			expect(Object.fromEntries(harness.objects)).toEqual({});
+			expect(harness.publishedEvents).toEqual([
+				skipped({ userId, requestedAt: REQUESTED_AT, reason: "account-gone" }),
+			]);
+		});
+
+		it("a later delivered request between the gates: no email and the delivered object stays", async () => {
+			const harness = await createHarness({
+				onUpload: ({ auth, userId }) =>
+					auth.markExportDelivered({ userId, email: READER_EMAIL, requestedAt: LATER_REQUESTED_AT }),
+			});
+			const { userId } = harness;
+			harness.objects.set(userId, [`exports/${userId}/delivered.json`]);
+
+			await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(harness.emailCalls).toEqual([]);
+			expect(Object.fromEntries(harness.objects)).toEqual({
+				[userId]: [`exports/${userId}/delivered.json`, `exports/${userId}/upload-1.json`],
+			});
+			expect(harness.publishedEvents).toEqual([
+				skipped({ userId, requestedAt: REQUESTED_AT, reason: "already-delivered" }),
+			]);
+			expect(await harness.auth.findExportRecipient(userId)).toEqual({
+				email: READER_EMAIL,
+				deletedAt: undefined,
+				exportDeliveredRequestedAt: LATER_REQUESTED_AT,
+			});
+		});
+
+		it("run after delete finished: redrive leaves no object under the deleted userId, including one left by an earlier crash", async () => {
+			const harness = await createHarness();
+			const { userId } = harness;
+			harness.objects.set(userId, [`exports/${userId}/left-by-crash.json`]);
+			await harness.auth.closeUserAccount(userId);
+
+			await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(harness.emailCalls).toEqual([]);
+			expect(Object.fromEntries(harness.objects)).toEqual({});
+			expect(harness.publishedEvents).toEqual([
+				skipped({ userId, requestedAt: REQUESTED_AT, reason: "account-gone" }),
+			]);
+		});
+
+		it("the row closed between send and mark does not fail the record", async () => {
+			const harness = await createHarness({
+				onSend: ({ auth, userId }) => auth.closeUserAccount(userId),
+			});
+			const { userId } = harness;
+
+			const response = await invokeHandler(harness, { userId, requestedAt: REQUESTED_AT });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(harness.emailCalls.map((email) => email.to)).toEqual([READER_EMAIL]);
+			expect(harness.publishedEvents).toEqual([
+				exported({ userId, s3Key: `exports/${userId}/upload-1.json` }),
+			]);
+			expect(await harness.auth.findExportRecipient(userId)).toBeNull();
+		});
 	});
 });

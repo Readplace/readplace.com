@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_export_gates" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_export_gates" name="export-gates" isExecutable="false">
+    <bpmn:sendTask id="n_Cmd" name="ExportUserDataCommand"></bpmn:sendTask>
+    <bpmn:dataStoreReference id="n_Read1" name="findExportRecipient index query + consistent GetItem"></bpmn:dataStoreReference>
+    <bpmn:exclusiveGateway id="n_Gate1" name="gate 1: decide delivery">
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="n_Build" name="read articles, readlists, engagement; upload JSON">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Read2" name="findExportRecipient again"></bpmn:dataStoreReference>
+    <bpmn:exclusiveGateway id="n_Gate2" name="gate 2: decide delivery">
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="n_Send" name="sendEmail to the decided address">
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Mark" name="markExportDelivered conditional on same user and an older marker"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_Exported" name="UserDataExported">
+
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="n_Refused" name="reason">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:dataStoreReference id="n_Purge" name="deleteUserExports(userId)"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_Skipped" name="UserDataExportSkipped">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_2" name="deliver" sourceRef="n_Gate1" targetRef="n_Build" />
+    <bpmn:sequenceFlow id="f_5" name="deliver" sourceRef="n_Gate2" targetRef="n_Send" />
+    <bpmn:sequenceFlow id="f_8" name="refused" sourceRef="n_Gate1" targetRef="n_Refused" />
+    <bpmn:sequenceFlow id="f_9" name="refused" sourceRef="n_Gate2" targetRef="n_Refused" />
+    <bpmn:sequenceFlow id="f_12" name="already-delivered" sourceRef="n_Refused" targetRef="n_Skipped" />
+    <bpmn:association id="f_0" sourceRef="n_Cmd" targetRef="n_Read1" associationDirection="One" />
+    <bpmn:association id="f_1" sourceRef="n_Read1" targetRef="n_Gate1" associationDirection="One" />
+    <bpmn:association id="f_3" sourceRef="n_Build" targetRef="n_Read2" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_Read2" targetRef="n_Gate2" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_Send" targetRef="n_Mark" associationDirection="One" />
+    <bpmn:association id="f_7" sourceRef="n_Mark" targetRef="n_Exported" associationDirection="One" />
+    <bpmn:association id="f_10" sourceRef="n_Refused" targetRef="n_Purge" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_Purge" targetRef="n_Skipped" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_export_gates">
+    <bpmndi:BPMNPlane id="Plane_export_gates" bpmnElement="Process_export_gates">
+      <bpmndi:BPMNShape id="n_Cmd_di" bpmnElement="n_Cmd">
+        <dc:Bounds x="120.41" y="28" width="188" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Read1_di" bpmnElement="n_Read1">
+        <dc:Bounds x="135.54" y="134" width="157.74" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Gate1_di" bpmnElement="n_Gate1">
+        <dc:Bounds x="171.41" y="284.5" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Build_di" bpmnElement="n_Build">
+        <dc:Bounds x="124.91" y="446.5" width="179" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Read2_di" bpmnElement="n_Read2">
+        <dc:Bounds x="131.14" y="572.5" width="166.54" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Gate2_di" bpmnElement="n_Gate2">
+        <dc:Bounds x="171.41" y="696" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Send_di" bpmnElement="n_Send">
+        <dc:Bounds x="76.66" y="869" width="183.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Mark_di" bpmnElement="n_Mark">
+        <dc:Bounds x="28" y="990" width="159.28" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Exported_di" bpmnElement="n_Exported">
+        <dc:Bounds x="110.3" y="1140.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Refused_di" bpmnElement="n_Refused">
+        <dc:Bounds x="296.16" y="858" width="56" height="56" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Purge_di" bpmnElement="n_Purge">
+        <dc:Bounds x="223.28" y="1003.5" width="177.54" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Skipped_di" bpmnElement="n_Skipped">
+        <dc:Bounds x="263.67" y="1140.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="214.41" y="370.5" />
+        <di:waypoint x="214.41" y="446.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="214.41" y="782" />
+        <di:waypoint x="214.41" y="825.5" />
+        <di:waypoint x="168.41" y="825.5" />
+        <di:waypoint x="168.41" y="869" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="214.41" y="370.5" />
+        <di:waypoint x="214.41" y="614.25" />
+        <di:waypoint x="324.16" y="614.25" />
+        <di:waypoint x="324.16" y="858" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="214.41" y="782" />
+        <di:waypoint x="214.41" y="820" />
+        <di:waypoint x="324.16" y="820" />
+        <di:waypoint x="324.16" y="858" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="324.16" y="914" />
+        <di:waypoint x="324.16" y="1027.25" />
+        <di:waypoint x="283.67" y="1027.25" />
+        <di:waypoint x="283.67" y="1140.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="214.41" y="76" />
+        <di:waypoint x="214.41" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="214.41" y="182" />
+        <di:waypoint x="214.41" y="284.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="214.41" y="514.5" />
+        <di:waypoint x="214.41" y="572.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="214.41" y="620.5" />
+        <di:waypoint x="214.41" y="696" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="168.41" y="921" />
+        <di:waypoint x="168.41" y="955.5" />
+        <di:waypoint x="107.64" y="955.5" />
+        <di:waypoint x="107.64" y="990" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="107.64" y="1038" />
+        <di:waypoint x="107.64" y="1089.25" />
+        <di:waypoint x="130.3" y="1089.25" />
+        <di:waypoint x="130.3" y="1140.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="324.16" y="914" />
+        <di:waypoint x="324.16" y="958.75" />
+        <di:waypoint x="312.05" y="958.75" />
+        <di:waypoint x="312.05" y="1003.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="312.05" y="1051.5" />
+        <di:waypoint x="312.05" y="1096" />
+        <di:waypoint x="283.67" y="1096" />
+        <di:waypoint x="283.67" y="1140.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

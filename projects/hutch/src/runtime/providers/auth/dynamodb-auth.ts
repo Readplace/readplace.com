@@ -38,6 +38,8 @@ import type {
 	DestroyUserSessions,
 	FindAppleRefreshTokenByUserId,
 	FindEmailByUserId,
+	FindExportRecipient,
+	MarkExportDelivered,
 	FindSessionOAuthGrant,
 	FindSessionReadlistFilter,
 	FindUserById,
@@ -94,6 +96,7 @@ const UserRow = z.object({
 	earlyIntentionalSaves: dynamoField(z.number()),
 	activationThresholdReachedAt: dynamoField(z.string()),
 	keepOfferDismissedAt: dynamoField(z.string()),
+	exportDeliveredRequestedAt: dynamoField(z.string()),
 });
 
 const EARLY_INTENTIONAL_SAVE_WINDOW_MS = 72 * 3_600_000;
@@ -130,6 +133,8 @@ export function initDynamoDbAuth(deps: {
 	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	closeUserAccount: CloseUserAccount;
 	markAccountDeleted: MarkAccountDeleted;
+	findExportRecipient: FindExportRecipient;
+	markExportDelivered: MarkExportDelivered;
 	countUsers: CountUsers;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markEmailVerified: MarkEmailVerified;
@@ -553,6 +558,33 @@ export function initDynamoDbAuth(deps: {
 		});
 	};
 
+	const findExportRecipient: FindExportRecipient = async (userId) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return null;
+		const row = await users.get(
+			{ email },
+			{ projection: ["email", "userId", "deletedAt", "exportDeliveredRequestedAt"], consistentRead: true },
+		);
+		if (row === undefined || row.userId !== userId) return null;
+		return {
+			email: row.email,
+			deletedAt: row.deletedAt,
+			exportDeliveredRequestedAt: row.exportDeliveredRequestedAt,
+		};
+	};
+
+	const markExportDelivered: MarkExportDelivered = async ({ userId, email, requestedAt }) => {
+		await writeIfCondition(() =>
+			users.update({
+				Key: { email },
+				UpdateExpression: "SET exportDeliveredRequestedAt = :requestedAt",
+				ConditionExpression:
+					"attribute_exists(email) AND userId = :userId AND (attribute_not_exists(exportDeliveredRequestedAt) OR exportDeliveredRequestedAt < :requestedAt)",
+				ExpressionAttributeValues: { ":requestedAt": requestedAt, ":userId": userId },
+			}),
+		);
+	};
+
 	const findUserContactByUserId: FindUserContactByUserId = async (userId) => {
 		const { items } = await users.query({
 			IndexName: "userId-index",
@@ -742,6 +774,8 @@ export function initDynamoDbAuth(deps: {
 		destroyOAuthGrantSessions,
 		closeUserAccount,
 		markAccountDeleted,
+		findExportRecipient,
+		markExportDelivered,
 		countUsers,
 		countEarlyIntentionalSave,
 		markEmailVerified,

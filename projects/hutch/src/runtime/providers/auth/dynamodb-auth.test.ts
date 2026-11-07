@@ -221,6 +221,124 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("findExportRecipient", () => {
+		function createRecipientFakeClient(opts: {
+			indexed?: Record<string, unknown>;
+			byEmail?: Record<string, unknown>;
+		}): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
+			const commands: CapturedCommand[] = [];
+			const client = {
+				send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+					const name = command.constructor.name;
+					commands.push({ name, input: command.input });
+					if (name === "QueryCommand") {
+						const rows = opts.indexed ? [opts.indexed] : [];
+						return { Items: rows, Count: rows.length };
+					}
+					return { Item: opts.byEmail };
+				}) as DynamoDBDocumentClient["send"],
+			};
+			return { client: client as typeof client & DynamoDBDocumentClient, commands };
+		}
+
+		it("returns the address, deletedAt and marker from a consistent read", async () => {
+			const { client, commands } = createRecipientFakeClient({
+				indexed: { email: "user@example.com", userId: "abc123" },
+				byEmail: {
+					email: "user@example.com",
+					userId: "abc123",
+					deletedAt: "2026-08-31T00:00:00.000Z",
+					exportDeliveredRequestedAt: "2026-08-30T00:00:00.000Z",
+				},
+			});
+
+			const recipient = await initAuth(client).findExportRecipient(USER);
+
+			expect(recipient).toEqual({
+				email: "user@example.com",
+				deletedAt: "2026-08-31T00:00:00.000Z",
+				exportDeliveredRequestedAt: "2026-08-30T00:00:00.000Z",
+			});
+			const get = commands.find((c) => c.name === "GetCommand");
+			expect(get?.input).toMatchObject({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				ConsistentRead: true,
+			});
+		});
+
+		it("returns null when the index has no row", async () => {
+			const { client } = createRecipientFakeClient({});
+
+			expect(await initAuth(client).findExportRecipient(USER)).toBeNull();
+		});
+
+		it("returns null when the index is stale and the row is gone", async () => {
+			const { client } = createRecipientFakeClient({
+				indexed: { email: "user@example.com", userId: "abc123" },
+			});
+
+			expect(await initAuth(client).findExportRecipient(USER)).toBeNull();
+		});
+
+		it("returns null when the address now belongs to another userId", async () => {
+			const { client } = createRecipientFakeClient({
+				indexed: { email: "user@example.com", userId: "abc123" },
+				byEmail: { email: "user@example.com", userId: "someone-else" },
+			});
+
+			expect(await initAuth(client).findExportRecipient(USER)).toBeNull();
+		});
+	});
+
+	describe("markExportDelivered", () => {
+		it("writes the marker conditioned on the same user and an older marker", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).markExportDelivered({
+				userId: USER,
+				email: "user@example.com",
+				requestedAt: "2026-08-31T00:00:00.000Z",
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toMatchObject({
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET exportDeliveredRequestedAt = :requestedAt",
+				ExpressionAttributeValues: { ":requestedAt": "2026-08-31T00:00:00.000Z", ":userId": "abc123" },
+			});
+			expect(update?.input.ConditionExpression).toContain("attribute_exists(email)");
+			expect(update?.input.ConditionExpression).toContain("userId = :userId");
+			expect(update?.input.ConditionExpression).toContain(
+				"(attribute_not_exists(exportDeliveredRequestedAt) OR exportDeliveredRequestedAt < :requestedAt)",
+			);
+		});
+
+		it("treats a refused condition as success", async () => {
+			const { client } = createWriteFakeClient({
+				fail: new ConditionalCheckFailedException({ $metadata: {}, message: "refused" }),
+			});
+
+			await initAuth(client).markExportDelivered({
+				userId: USER,
+				email: "user@example.com",
+				requestedAt: "2026-08-31T00:00:00.000Z",
+			});
+		});
+
+		it("rethrows any other error", async () => {
+			const { client } = createWriteFakeClient({ fail: new Error("throttled") });
+
+			await expect(
+				initAuth(client).markExportDelivered({
+					userId: USER,
+					email: "user@example.com",
+					requestedAt: "2026-08-31T00:00:00.000Z",
+				}),
+			).rejects.toThrow("throttled");
+		});
+	});
+
 	describe("userExistsByEmail", () => {
 		it("returns true when a matching row exists", async () => {
 			const client: Partial<DynamoDBDocumentClient> = {

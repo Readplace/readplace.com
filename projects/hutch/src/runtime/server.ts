@@ -1639,8 +1639,6 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const exportRouter = initExportRoutes({
 		publishExportUserDataCommand: deps.publishExportUserDataCommand,
-		findEmailByUserId: deps.findEmailByUserId,
-		logError: deps.logError,
 		now: () => new Date(),
 		buildBannerState,
 	});

@@ -764,7 +764,6 @@ export const ExportUserDataCommand = defineEvent({
 	detailType: "ExportUserDataCommand",
 	detailSchema: z.object({
 		userId: UserIdSchema,
-		email: z.string(),
 		requestedAt: z.string(),
 	}),
 });
@@ -792,6 +791,19 @@ export const UserDataExportedEvent = defineEvent({
 	}),
 });
 export type UserDataExportedDetail = z.infer<typeof UserDataExportedEvent.detailSchema>;
+
+export const UserDataExportSkippedEvent = defineEvent({
+	name: "user-data-export-skipped",
+	source: "hutch.export-user-data",
+	detailType: "UserDataExportSkipped",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		requestedAt: z.string(),
+		reason: z.enum(["account-gone", "account-deleting", "already-delivered"]),
+	}),
+});
+export type UserDataExportSkippedDetail = z.infer<typeof UserDataExportSkippedEvent.detailSchema>;
+export type UserDataExportSkipReason = UserDataExportSkippedDetail["reason"];
 
 export const UpdateFetchTimestampCommand = defineEvent({
 	name: "update-fetch-timestamp-command",

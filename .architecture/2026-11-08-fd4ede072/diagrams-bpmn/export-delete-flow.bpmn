@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_export_delete_flow" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_export_delete_flow" name="export-delete-flow" isExecutable="false">
+    <bpmn:serviceTask id="n_ExportRoute" name="POST /export/start">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_DeleteRoute" name="POST account delete"></bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_MarkDeleted" name="users row: deletedAt set"></bpmn:dataStoreReference>
+    <bpmn:sendTask id="n_ExportCmd" name="ExportUserDataCommand userId, requestedAt (email removed)">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_DeleteCmd" name="DeleteAccountCommand userId">
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:task id="n_Bus" name="[&quot;EventBridge bus detail-type rules">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_JobsQ" name="[&quot;user-data-jobs-q batch 1, 12 receives">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_JobsDlq" name="[&quot;user-data-jobs-dlq">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_Lambda" name="user-data-jobs Lambda dispatch by detail type">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_ExportHandler" name="export handler gate 1, build, upload, gate 2, send, mark">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_DeleteHandler" name="delete-account handler idempotent, unchanged">
+      <bpmn:incoming>f_10</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Users" name="users table exportDeliveredRequestedAt"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_Bucket" name="export bucket exports/userId/"></bpmn:dataStoreReference>
+    <bpmn:task id="n_Resend" name="Resend: export link to the live row's address">
+      <bpmn:incoming>f_13</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:endEvent id="n_Exported" name="UserDataExported">
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_Skipped" name="UserDataExportSkipped account-gone, account-deleting, already-delivered">
+      <bpmn:incoming>f_15</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_ExportRoute" targetRef="n_ExportCmd" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_ExportCmd" targetRef="n_Bus" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_DeleteCmd" targetRef="n_Bus" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_Bus" targetRef="n_JobsQ" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_JobsQ" targetRef="n_Lambda" />
+    <bpmn:sequenceFlow id="f_7" name="after 12 receives" sourceRef="n_JobsQ" targetRef="n_JobsDlq" />
+    <bpmn:sequenceFlow id="f_8" name="redrive, any order" sourceRef="n_JobsDlq" targetRef="n_JobsQ" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_Lambda" targetRef="n_ExportHandler" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_Lambda" targetRef="n_DeleteHandler" />
+    <bpmn:sequenceFlow id="f_13" name="" sourceRef="n_ExportHandler" targetRef="n_Resend" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_ExportHandler" targetRef="n_Exported" />
+    <bpmn:sequenceFlow id="f_15" name="" sourceRef="n_ExportHandler" targetRef="n_Skipped" />
+    <bpmn:association id="f_1" sourceRef="n_DeleteRoute" targetRef="n_MarkDeleted" associationDirection="One" />
+    <bpmn:association id="f_2" sourceRef="n_MarkDeleted" targetRef="n_DeleteCmd" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_ExportHandler" targetRef="n_Users" associationDirection="One" />
+    <bpmn:association id="f_12" sourceRef="n_ExportHandler" targetRef="n_Bucket" associationDirection="One" />
+    <bpmn:association id="f_16" sourceRef="n_DeleteHandler" targetRef="n_Users" associationDirection="One" />
+    <bpmn:association id="f_17" sourceRef="n_DeleteHandler" targetRef="n_Bucket" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_export_delete_flow">
+    <bpmndi:BPMNPlane id="Plane_export_delete_flow" bpmnElement="Process_export_delete_flow">
+      <bpmndi:BPMNShape id="n_ExportRoute_di" bpmnElement="n_ExportRoute">
+        <dc:Bounds x="285" y="28" width="155.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DeleteRoute_di" bpmnElement="n_DeleteRoute">
+        <dc:Bounds x="476.25" y="28" width="156.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_MarkDeleted_di" bpmnElement="n_MarkDeleted">
+        <dc:Bounds x="489.49" y="135.25" width="163.02" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ExportCmd_di" bpmnElement="n_ExportCmd">
+        <dc:Bounds x="265.49" y="134" width="188" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DeleteCmd_di" bpmnElement="n_DeleteCmd">
+        <dc:Bounds x="370.62" y="260" width="176.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Bus_di" bpmnElement="n_Bus">
+        <dc:Bounds x="389.12" y="370" width="139.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_JobsQ_di" bpmnElement="n_JobsQ">
+        <dc:Bounds x="380.62" y="480" width="156.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_JobsDlq_di" bpmnElement="n_JobsDlq">
+        <dc:Bounds x="275.37" y="592" width="157.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Lambda_di" bpmnElement="n_Lambda">
+        <dc:Bounds x="469.12" y="590" width="173.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ExportHandler_di" bpmnElement="n_ExportHandler">
+        <dc:Bounds x="260.62" y="700" width="189" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DeleteHandler_di" bpmnElement="n_DeleteHandler">
+        <dc:Bounds x="485.62" y="716" width="171.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Users_di" bpmnElement="n_Users">
+        <dc:Bounds x="556.99" y="852" width="181.28" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Bucket_di" bpmnElement="n_Bucket">
+        <dc:Bounds x="774.27" y="852" width="115.72" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Resend_di" bpmnElement="n_Resend">
+        <dc:Bounds x="28" y="865.5" width="186.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Exported_di" bpmnElement="n_Exported">
+        <dc:Bounds x="281.51" y="862.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Skipped_di" bpmnElement="n_Skipped">
+        <dc:Bounds x="434.88" y="842" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="362.62" y="76" />
+        <di:waypoint x="362.62" y="105" />
+        <di:waypoint x="359.49" y="105" />
+        <di:waypoint x="359.49" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="359.49" y="202" />
+        <di:waypoint x="359.49" y="286" />
+        <di:waypoint x="459" y="286" />
+        <di:waypoint x="459" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="459" y="312" />
+        <di:waypoint x="459" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="459" y="422" />
+        <di:waypoint x="459" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="459" y="532" />
+        <di:waypoint x="459" y="561" />
+        <di:waypoint x="555.87" y="561" />
+        <di:waypoint x="555.87" y="590" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="459" y="532" />
+        <di:waypoint x="459" y="562" />
+        <di:waypoint x="354.25" y="562" />
+        <di:waypoint x="354.25" y="592" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="377.1" y="592" />
+        <di:waypoint x="434.24" y="532" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="555.87" y="642" />
+        <di:waypoint x="555.87" y="671" />
+        <di:waypoint x="355.12" y="671" />
+        <di:waypoint x="355.12" y="700" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="555.87" y="642" />
+        <di:waypoint x="555.87" y="679" />
+        <di:waypoint x="571.5" y="679" />
+        <di:waypoint x="571.5" y="716" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="355.12" y="784" />
+        <di:waypoint x="355.12" y="824.75" />
+        <di:waypoint x="121.13" y="824.75" />
+        <di:waypoint x="121.13" y="865.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="355.12" y="784" />
+        <di:waypoint x="355.12" y="823.13" />
+        <di:waypoint x="301.51" y="823.13" />
+        <di:waypoint x="301.51" y="862.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="355.12" y="784" />
+        <di:waypoint x="355.12" y="813" />
+        <di:waypoint x="454.88" y="813" />
+        <di:waypoint x="454.88" y="842" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="554.62" y="76" />
+        <di:waypoint x="554.62" y="105.63" />
+        <di:waypoint x="571" y="105.63" />
+        <di:waypoint x="571" y="135.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="571" y="183.25" />
+        <di:waypoint x="571" y="221.63" />
+        <di:waypoint x="459" y="221.63" />
+        <di:waypoint x="459" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="355.12" y="784" />
+        <di:waypoint x="355.12" y="818" />
+        <di:waypoint x="647.63" y="818" />
+        <di:waypoint x="647.63" y="852" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="355.12" y="784" />
+        <di:waypoint x="355.12" y="818" />
+        <di:waypoint x="832.13" y="818" />
+        <di:waypoint x="832.13" y="852" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="571.5" y="768" />
+        <di:waypoint x="571.5" y="810" />
+        <di:waypoint x="647.63" y="810" />
+        <di:waypoint x="647.63" y="852" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="571.5" y="768" />
+        <di:waypoint x="571.5" y="810" />
+        <di:waypoint x="832.13" y="810" />
+        <di:waypoint x="832.13" y="852" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

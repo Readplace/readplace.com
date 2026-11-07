@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer, loginAgent } from "../../../test-app";
@@ -65,29 +66,10 @@ describe("Export routes", () => {
 	});
 
 	describe("POST /export/start (authenticated)", () => {
-		it("logs and redirects back to /export when the user's email cannot be looked up", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const errorMessages: string[] = [];
-			fixture.shared.logError = (msg) => { errorMessages.push(msg); };
-			fixture.auth.findEmailByUserId = async () => null;
-			let published = 0;
-			fixture.events.publishExportUserDataCommand = async () => { published++; };
-			const harness = useApp(fixture);
-			const agent = await loginAgent(harness.server, harness.auth);
-
-			const response = await agent.post("/export/start");
-
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/export");
-			expect(published).toBe(0);
-			expect(errorMessages.some((m) => m.includes("No email found for userId"))).toBe(true);
-		});
-
-		it("publishes ExportUserDataCommand carrying userId + email and redirects to the preparing page", async () => {
+		it("publishes ExportUserDataCommand carrying userId and requestedAt and redirects to the preparing page", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const published: Array<{
 				userId: string;
-				email: string;
 				requestedAt: string;
 			}> = [];
 			fixture.events.publishExportUserDataCommand = async (params) => {
@@ -100,9 +82,9 @@ describe("Export routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/export?status=preparing");
-			expect(published).toHaveLength(1);
-			expect(published[0].email).toBe("test@example.com");
-			expect(published[0].userId).toMatch(/.+/);
+			const user = await harness.auth.findUserByEmail("test@example.com");
+			assert(user, "the logged-in user must exist");
+			expect(published).toEqual([{ userId: user.userId, requestedAt: expect.any(String) }]);
 			expect(Number.isFinite(new Date(published[0].requestedAt).getTime())).toBe(true);
 		});
 	});
