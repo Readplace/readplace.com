@@ -1461,6 +1461,17 @@ export const EmailOutputSavedToAllEvent = defineEvent({
 });
 export type EmailOutputSavedToAllDetail = z.infer<typeof EmailOutputSavedToAllEvent.detailSchema>;
 
+export const EmailIssueSaveSkippedEvent = defineEvent({
+	name: "email-issue-save-skipped",
+	source: "hutch.save-link",
+	detailType: "EmailIssueSaveSkipped",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		receivedAtMessageId: z.string(),
+		reason: z.enum(["removed-by-reader", "body-gone", "write-access-lapsed"]),
+	}),
+});
+
 export const MarkGmailEmailImportedCommand = defineEvent({
 	name: "mark-gmail-email-imported",
 	source: "hutch.inbox",

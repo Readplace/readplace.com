@@ -577,7 +577,18 @@ const saveEmailIssueArticlesDynamodb = new DynamoDBAccess("save-email-issue-arti
 
 const saveEmailIssueUserArticlesDynamodb = new DynamoDBAccess("save-email-issue-user-articles-dynamodb", {
 	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
+	actions: [
+		"dynamodb:GetItem",
+		"dynamodb:UpdateItem",
+		"dynamodb:Query",
+		"dynamodb:BatchGetItem",
+		"dynamodb:ConditionCheckItem",
+	],
+});
+
+const saveEmailIssueSubscriptionProvidersRead = new DynamoDBAccess("save-email-issue-subscription-providers-dynamodb", {
+	tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
 });
 
 const saveEmailIssueOnboardingDynamodb = new DynamoDBAccess("save-email-issue-onboarding-dynamodb", {
@@ -598,10 +609,12 @@ const saveEmailIssueLambda = new Lambda("save-email-issue-command", {
 		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
 	},
 	policies: [
 		...saveEmailIssueArticlesDynamodb.policies,
 		...saveEmailIssueUserArticlesDynamodb.policies,
+		...saveEmailIssueSubscriptionProvidersRead.policies,
 		...saveEmailIssueOnboardingDynamodb.policies,
 		...contentBucket.readPolicies("save-email-issue-content-read"),
 		...contentBucket.writePolicies("save-email-issue-s3"),

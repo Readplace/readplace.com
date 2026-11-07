@@ -174,8 +174,6 @@ export function initCanonicalAliasStore(deps: {
 
 	const findAdoptedFetchUrl: FindAdoptedFetchUrl = async (url) => {
 		const row = await table.get({ url: aliasIdentity(url).key }, { consistentRead: true });
-		// Only an adopted real article carries displayUrl; a normal article and an
-		// alias row both lack it, so the crawl falls back to fetching `url` as-is.
 		return row?.displayUrl;
 	};
 

@@ -223,6 +223,7 @@ export {
 	type EmailOutputsSelectedDetail,
 	EmailOutputSavedToAllEvent,
 	type EmailOutputSavedToAllDetail,
+	EmailIssueSaveSkippedEvent,
 	MarkGmailEmailImportedCommand,
 	type MarkGmailEmailImportedDetail,
 	GmailEmailMarkedImportedEvent,

@@ -1,8 +1,8 @@
-import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { EventEnvelope } from "@packages/domain/event-envelope";
 import { deriveEmailIssueMetadata, emailIssueArticleUrl, emailIssueReceivedAt } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
-import { EmailOutputSavedToAllEvent, SaveEmailIssueCommand } from "@packages/infra-components";
+import { EmailIssueSaveSkippedEvent, EmailOutputSavedToAllEvent, SaveEmailIssueCommand } from "@packages/infra-components";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
@@ -31,19 +31,24 @@ export function initSaveEmailIssueCommandHandler(deps: {
 		logger,
 		failure: { message: `${LOG_PREFIX} record failed` },
 		malformed: { policy: "retry" },
-		handle: async (detail) => {
-			const { userId } = detail;
-			const url = emailIssueArticleUrl({ userId, receivedAtMessageId: detail.receivedAtMessageId });
+		handle: async (detail, record) => {
+			const { userId, receivedAtMessageId } = detail;
+			const requestedAt = new Date(EventEnvelope.parse(JSON.parse(record.body)).time);
+			const url = emailIssueArticleUrl({ userId, receivedAtMessageId });
 			const body = await deps.readEmailBody(ArticleResourceUniqueId.parse(url));
-			assert(body !== undefined, `${LOG_PREFIX} an email's body is stored before its issue is saved`);
+			if (body === undefined) {
+				logger.warn(`${LOG_PREFIX} save skipped: the email's body is gone`, { receivedAtMessageId });
+				await deps.publishEvent(EmailIssueSaveSkippedEvent, { userId, receivedAtMessageId, reason: "body-gone" });
+				return;
+			}
 			const { estimatedReadTime, ...metadata } = deriveEmailIssueMetadata({
 				subject: detail.subject,
 				senderEmail: detail.senderEmail,
 				senderName: detail.senderName,
 				html: body,
-				receivedAt: emailIssueReceivedAt(detail.receivedAtMessageId),
+				receivedAt: emailIssueReceivedAt(receivedAtMessageId),
 			});
-			const { contentPending } = await deps.saveEmailIssue({
+			const outcome = await deps.saveEmailIssue({
 				userId,
 				url,
 				displayUrl: detail.issueUrl,
@@ -51,11 +56,35 @@ export function initSaveEmailIssueCommandHandler(deps: {
 				estimatedReadTime,
 				provenance: { kind: "email", senderEmail: detail.senderEmail },
 				readlists: detail.readlists.map((readlist) => ReadlistSlugSchema.parse(readlist)),
+				requestedAt,
 				onSavedToAll: async () => {
 					if (detail.emailOutput === undefined) return;
 					await deps.publishEvent(EmailOutputSavedToAllEvent, { userId, ...detail.emailOutput });
 				},
 			});
+			if (outcome.kind === "write-access-lapsed") {
+				logger.warn("[save-email-issue] save refused", {
+					userId,
+					receivedAtMessageId,
+					messageId: record.messageId,
+					reason: "write-access-lapsed",
+				});
+				await deps.publishEvent(EmailIssueSaveSkippedEvent, { userId, receivedAtMessageId, reason: "write-access-lapsed" });
+				return;
+			}
+			if (outcome.kind === "saved") {
+				for (const filing of outcome.filings) {
+					if (filing.outcome === "filed" || filing.outcome === "already-filed" || filing.outcome === "newer-row-won") continue;
+					logger.info("[save-email-issue] filing skipped", {
+						userId,
+						readlist: filing.readlist,
+						receivedAtMessageId,
+						messageId: record.messageId,
+						reason: filing.outcome,
+					});
+				}
+			}
+			const { contentPending } = outcome;
 			if (contentPending) {
 				const extractedAt = deps.now().toISOString();
 				await commitTierCandidate({
@@ -72,15 +101,18 @@ export function initSaveEmailIssueCommandHandler(deps: {
 					announce: { event: "tier-content-extracted", userId, extractedAt: () => extractedAt },
 				});
 			}
+			if (outcome.kind === "removed-by-reader") {
+				await deps.publishEvent(EmailIssueSaveSkippedEvent, { userId, receivedAtMessageId, reason: "removed-by-reader" });
+			}
 			try {
 				await deps.recordInboxArticleQueued({ userId });
 			} catch (error) {
 				logger.warn(`${LOG_PREFIX} inbox onboarding stamp failed — continuing`, {
-					receivedAtMessageId: detail.receivedAtMessageId,
+					receivedAtMessageId,
 					error: String(error),
 				});
 			}
-			logger.info(`${LOG_PREFIX} saved`, { receivedAtMessageId: detail.receivedAtMessageId, contentPending });
+			logger.info(`${LOG_PREFIX} saved`, { receivedAtMessageId, contentPending });
 		},
 	});
 }
