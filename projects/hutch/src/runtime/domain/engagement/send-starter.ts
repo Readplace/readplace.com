@@ -6,7 +6,7 @@ import type {
 	FrozenStarterMessage,
 	StarterPack,
 } from "@packages/provider-contracts/engagement-starter";
-import type { FindUserContactByUserId } from "@packages/provider-contracts/auth";
+import type { FindUserContactByUserId, UserContact } from "@packages/provider-contracts/auth";
 import type {
 	FindSubscriptionByUserId,
 	SubscriptionRecord,
@@ -62,6 +62,25 @@ function holdsForPayment(input: { row: SubscriptionRecord | undefined; now: Date
 		now.getTime() < trialEnd - PAY_DIGEST_WINDOW_CLOSES_LEAD_MS &&
 		now.getTime() + STARTER_EMAIL_GAP_MS >= trialEnd - PAY_DIGEST_WINDOW_OPENS_LEAD_MS
 	);
+}
+
+function eligibleRecipient(input: {
+	contact: UserContact | null;
+	row: SubscriptionRecord | undefined;
+	now: Date;
+}): UserContact | undefined {
+	const { contact, row, now } = input;
+	const access = resolveEffectiveAccess(row, now);
+	if (
+		!contact?.emailVerified ||
+		contact.queueDigestOptOutAt !== undefined ||
+		contact.deletedAt !== undefined ||
+		reservedDomainOf(contact.email) !== undefined ||
+		(access.tier !== "trial" && access.tier !== "paid")
+	) {
+		return undefined;
+	}
+	return contact;
 }
 
 export function initSendStarter(deps: {
@@ -142,30 +161,31 @@ export function initSendStarter(deps: {
 			}
 			return true;
 		}
-		if (message === undefined) {
-			const [contact, row, slot] = await Promise.all([
-				deps.findUserContactByUserId(userId),
-				deps.findSubscriptionByUserId(userId),
-				deps.findReaderReadyEmailState(userId),
-			]);
-			const access = resolveEffectiveAccess(row, now);
-			if (
-				!contact?.emailVerified ||
-				contact.queueDigestOptOutAt !== undefined ||
-				contact.deletedAt !== undefined ||
-				reservedDomainOf(contact.email) !== undefined ||
-				(access.tier !== "trial" && access.tier !== "paid")
-			) {
-				if (await deps.state.suppressStarterEmail({ userId, reason: "recipient-ineligible" })) {
-					deps.emit({
-						userId,
-						campaignId: pack.campaignId,
-						event: "suppressed",
-						reason: "recipient-ineligible",
-					});
-				}
-				return true;
+		const [contact, row, slot] = await Promise.all([
+			deps.findUserContactByUserId(userId),
+			deps.findSubscriptionByUserId(userId),
+			deps.findReaderReadyEmailState(userId),
+		]);
+		const recipient = eligibleRecipient({ contact, row, now });
+		if (recipient === undefined) {
+			const withheld =
+				message === undefined
+					? {
+							settle: deps.state.suppressStarterEmail,
+							event: "suppressed" as const,
+							reason: "recipient-ineligible",
+						}
+					: {
+							settle: deps.state.markStarterEmailReview,
+							event: "failure" as const,
+							reason: "recipient-ineligible-after-attempt",
+						};
+			if (await withheld.settle({ userId, reason: withheld.reason })) {
+				deps.emit({ userId, campaignId: pack.campaignId, event: withheld.event, reason: withheld.reason });
 			}
+			return true;
+		}
+		if (message === undefined) {
 			const latestDigest = Math.max(
 				slot.lastSentAt?.getTime() ?? Number.NEGATIVE_INFINITY,
 				row?.payDigestEmailSentAt === undefined
@@ -247,7 +267,7 @@ export function initSendStarter(deps: {
 			const frozen: FrozenStarterMessage = {
 				from: "Readplace <readplace@readplace.com>",
 				replyTo: "fayner@readplace.com",
-				to: contact.email,
+				to: recipient.email,
 				subject: email.subject,
 				html: email.to("text/html"),
 				text: email.to("text/plain"),

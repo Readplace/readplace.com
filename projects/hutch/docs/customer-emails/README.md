@@ -3752,9 +3752,9 @@ Trigger chain:
 3. send-user-digest tries to enroll the reader; a failure is logged and the check continues `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:158`
 4. Enrollment saves ten fresh Hacker News picks into All and a new "Hacker News picks" readlist `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:181`
 5. Unless the trial-ending digest is due, the check hands the reader to the starter sender, and stops there when the sender handled them `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:171`
-6. The sender re-checks the reader, the 47.5h gap and the unread picks, and builds the EPUB of the listed picks `projects/hutch/src/runtime/domain/engagement/send-starter.ts:253`
-7. It freezes the message and the ordered article URLs on the starter pack row `projects/hutch/src/runtime/domain/engagement/send-starter.ts:259`
-8. It sends the frozen message through Resend with the EPUB attached and marks the pack sent `projects/hutch/src/runtime/domain/engagement/send-starter.ts:276`
+6. The sender re-checks the reader, the 47.5h gap and the unread picks, and builds the EPUB of the listed picks `projects/hutch/src/runtime/domain/engagement/send-starter.ts:277`
+7. It freezes the message and the ordered article URLs on the starter pack row `projects/hutch/src/runtime/domain/engagement/send-starter.ts:283`
+8. It sends the frozen message through Resend with the EPUB attached and marks the pack sent `projects/hutch/src/runtime/domain/engagement/send-starter.ts:300`
 
 Sent only when:
 
@@ -3766,23 +3766,24 @@ Sent only when:
 - The reader has fewer than 5 personal saves and room for another readlist `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:95`
 - Ten snapshot picks no more than 24 hours old are available that the reader has not saved `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:105`
 - The trial-ending digest is not due on this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:171`
-- When the message is built, the reader is still verified, subscribed to the digest, not pending deletion, at a deliverable address and on a trial or paid tier `projects/hutch/src/runtime/domain/engagement/send-starter.ts:147`
-- At least 47.5 hours have passed since the later of the last readlist digest and the trial-ending digest, and the trial-ending digest window does not open within those 47.5 hours `projects/hutch/src/runtime/domain/engagement/send-starter.ts:170`
-- At least one pick has a ready reader view and summary, a readable saved body on an article host, has not been purged, and is still unread in a readlist that holds it as this campaign's suggestion `projects/hutch/src/runtime/domain/engagement/send-starter.ts:182`
-- The EPUB of the listed picks builds `projects/hutch/src/runtime/domain/engagement/send-starter.ts:253`
+- On every attempt, the reader is still verified, subscribed to the digest, not pending deletion, at a deliverable address and on a trial or paid tier `projects/hutch/src/runtime/domain/engagement/send-starter.ts:169`
+- At least 47.5 hours have passed since the later of the last readlist digest and the trial-ending digest, and the trial-ending digest window does not open within those 47.5 hours `projects/hutch/src/runtime/domain/engagement/send-starter.ts:189`
+- At least one pick has a ready reader view and summary, a readable saved body on an article host, has not been purged, and is still unread in a readlist that holds it as this campaign's suggestion `projects/hutch/src/runtime/domain/engagement/send-starter.ts:200`
+- The EPUB of the listed picks builds `projects/hutch/src/runtime/domain/engagement/send-starter.ts:277`
 
 Not sent when:
 
-- The pack was already sent, suppressed or set aside for review `projects/hutch/src/runtime/domain/engagement/send-starter.ts:114`
-- The reader became ineligible before the message was built: the email is suppressed for good with reason recipient-ineligible `projects/hutch/src/runtime/domain/engagement/send-starter.ts:154`
-- Every pick was read, filed away from the campaign or dropped: suppressed for good with reason no-unread-picks `projects/hutch/src/runtime/domain/engagement/send-starter.ts:219`
-- Under 47.5 hours since the last digest, or the trial-ending window opens soon: held, and that check sends no readlist digest either `projects/hutch/src/runtime/domain/engagement/send-starter.ts:170`
-- The first attempt is 23 hours 55 minutes old (Resend's idempotency window less 5 minutes): set aside for review with reason provider-window-expired and never sent `projects/hutch/src/runtime/domain/engagement/send-starter.ts:127`
+- The pack was already sent, suppressed or set aside for review `projects/hutch/src/runtime/domain/engagement/send-starter.ts:138`
+- The reader became ineligible before the message was built: the email is suppressed for good with reason recipient-ineligible `projects/hutch/src/runtime/domain/engagement/send-starter.ts:183`
+- The reader became ineligible after an attempt: never sent again, set aside for review with reason recipient-ineligible-after-attempt `projects/hutch/src/runtime/domain/engagement/send-starter.ts:183`
+- Every pick was read, filed away from the campaign or dropped: suppressed for good with reason no-unread-picks `projects/hutch/src/runtime/domain/engagement/send-starter.ts:244`
+- Under 47.5 hours since the last digest, or the trial-ending window opens soon: held, and that check sends no readlist digest either `projects/hutch/src/runtime/domain/engagement/send-starter.ts:189`
+- The first attempt is 23 hours 55 minutes old (Resend's idempotency window less 5 minutes): set aside for review with reason provider-window-expired and never sent `projects/hutch/src/runtime/domain/engagement/send-starter.ts:150`
 - The reader is in the comparison arm: they get the picks neither in their library nor by email `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:78`
 
 **Timing:** Checked every 6 hours with the readlist digest. The picks are saved on the first check after 72 hours of inactivity, and the email goes out on that check or the first later one that is 47.5 hours after the reader's last digest (`projects/hutch/src/runtime/domain/engagement/starter-policy.ts:12`). Once per account.
 
-**If sending fails:** A Resend error throws, which fails the SQS record of the send-user-digest queue for a retry. The retry resends the message frozen on the starter pack row with the same idempotency key `starter/{sha256 of userId and campaign}` (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:232`), so Resend delivers it once. It rebuilds the EPUB from the article URLs stored on the pack, dated by the first attempt, so the attachment bytes match the first attempt (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:101`). The first attempt builds the EPUB before the claim; a build failure on either attempt (a stored pick whose body can no longer be read, an image missing from the content store, or an image read error) fails the record, which SQS retries and then moves to the send-user-digest DLQ, so the email never goes out without the attachment (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:97`, `projects/hutch/src/runtime/web/shared/epub/book-epub.ts:30`). A failure marking the pack sent after Resend accepted it also throws, and the retry is answered by Resend's idempotency key.
+**If sending fails:** A Resend error throws, which fails the SQS record of the send-user-digest queue for a retry. The retry resends the message frozen on the starter pack row, only if the reader is still eligible, with the same idempotency key `starter/{sha256 of userId and campaign}` (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:257`), so Resend delivers it once. It rebuilds the EPUB from the article URLs stored on the pack, dated by the first attempt, so the attachment bytes match the first attempt (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:125`). The first attempt builds the EPUB before the claim; a build failure on either attempt (a stored pick whose body can no longer be read, an image missing from the content store, or an image read error) fails the record, which SQS retries and then moves to the send-user-digest DLQ, so the email never goes out without the attachment (`projects/hutch/src/runtime/domain/engagement/send-starter.ts:112`, `projects/hutch/src/runtime/web/shared/epub/book-epub.ts:30`). A failure marking the pack sent after Resend accepted it also throws, and the retry is answered by Resend's idempotency key.
 
 ### Message
 
@@ -3817,8 +3818,8 @@ Exact HTML body: [`html/hacker-news-starter--default.html`](html/hacker-news-sta
 
 ### Source
 
-- `projects/hutch/src/runtime/domain/engagement/send-starter.ts:87` — sender: eligibility, gap, unread picks, frozen message, Resend call
-- `projects/hutch/src/runtime/domain/engagement/send-starter.ts:101` — EPUB rebuilt on a retry from the pack's stored article URLs (first-attempt build at :253)
+- `projects/hutch/src/runtime/domain/engagement/send-starter.ts:86` — sender: eligibility, gap, unread picks, frozen message, Resend call
+- `projects/hutch/src/runtime/domain/engagement/send-starter.ts:125` — EPUB rebuilt on a retry from the pack's stored article URLs (first-attempt build at :277)
 - `src/packages/provider-contracts/src/engagement-starter.ts:74` — articleUrls on the starter pack, written with the claim at `src/packages/article-store/src/dynamodb-engagement-starter.ts:396`
 - `projects/hutch/src/runtime/domain/engagement/enroll-starter.ts:55` — enrollment: rollout, eligibility, arm, inactivity, picks saved into the library
 - `projects/hutch/src/runtime/domain/engagement/starter-policy.ts:9` — campaign id, 72h inactivity, 24h snapshot age, 47.5h gap, retry window
