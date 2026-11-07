@@ -18,14 +18,14 @@ const ResolutionOnViewRow = ArticleCrawlRow.extend(ArticleSummaryRow.shape);
 const CLAIM_BY_AXES: Record<ResolutionAxes, { UpdateExpression: string; ConditionExpression: string; values: Record<string, string> }> = {
 	"crawl-and-summary": {
 		UpdateExpression:
-			"SET crawlStatus = :pending, crawlPendingSince = :now, summaryStatus = :pending, summaryPendingSince = :now, resolutionOnViewClaimedAt = :now REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince",
+			"SET crawlStatus = :pending, crawlPendingSince = :now, summaryStatus = :pending, summaryPendingSince = :now, resolutionOnViewClaimedAt = :now, fullCrawlRequestedAt = :now REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince",
 		ConditionExpression:
 			"crawlStatus IN (:failed, :unsupported) AND (attribute_not_exists(resolutionOnViewClaimedAt) OR resolutionOnViewClaimedAt < :coolDownCutoff)",
 		values: { ":failed": "failed", ":unsupported": "unsupported" },
 	},
 	summary: {
 		UpdateExpression:
-			"SET summaryStatus = :pending, summaryPendingSince = :now, resolutionOnViewClaimedAt = :now REMOVE summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince",
+			"SET summaryStatus = :pending, summaryPendingSince = :now, resolutionOnViewClaimedAt = :now, fullCrawlRequestedAt = :now REMOVE summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince",
 		ConditionExpression:
 			"crawlStatus = :ready AND (summaryStatus = :failed OR (summaryStatus = :skipped AND summarySkippedReason IN (:awaitingReader, :aiUnavailable))) AND (attribute_not_exists(resolutionOnViewClaimedAt) OR resolutionOnViewClaimedAt < :coolDownCutoff)",
 		values: {

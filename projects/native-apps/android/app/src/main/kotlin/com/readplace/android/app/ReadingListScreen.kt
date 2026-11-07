@@ -55,6 +55,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -86,6 +87,7 @@ import com.readplace.android.core.SharedArticlesDropPresentation
 import com.readplace.android.core.SirenAction
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Instant
@@ -112,7 +114,13 @@ fun ReadingListScreen(
 ) {
 	val state by viewModel.state.collectAsState()
 	val scope = rememberCoroutineScope()
-	val clock = remember(now) { Clock.fixed(now, ZoneId.systemDefault()) }
+	val tickingNow by produceState(initialValue = now, key1 = now) {
+		while (true) {
+			delay(60_000)
+			value = Instant.now()
+		}
+	}
+	val clock = remember(tickingNow) { Clock.fixed(tickingNow, ZoneId.systemDefault()) }
 	val reduceMotion = remember { !ValueAnimator.areAnimatorsEnabled() }
 
 	var showingAddInstructions by remember { mutableStateOf(false) }

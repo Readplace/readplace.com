@@ -12,6 +12,7 @@ import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-
 import { openAddLink } from "./page-interactions";
 import { measureBoxes, neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 import { measureDocumentBoxes, pinSaveBarValue } from "./readlist-save-skeleton.browser";
+import { disableLocalTimeTick } from "./reader-failed-notice-visual.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -117,6 +118,7 @@ async function seedArticles(
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
+	await page.addInitScript(disableLocalTimeTick);
 	await page
 		.context()
 		.addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);

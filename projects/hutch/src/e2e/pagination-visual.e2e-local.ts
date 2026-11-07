@@ -15,6 +15,7 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { READLIST_PAGE_SIZE } from "../runtime/web/pages/readlist/readlist-page-size";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
+import { disableLocalTimeTick } from "./reader-failed-notice-visual.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -70,6 +71,7 @@ async function createVerifiedUser(page: Page, email: string): Promise<string> {
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
+	await page.addInitScript(disableLocalTimeTick);
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);

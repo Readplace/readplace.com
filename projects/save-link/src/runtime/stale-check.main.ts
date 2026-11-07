@@ -13,7 +13,7 @@ import type {
 	PublishUpdateFetchTimestamp,
 } from "@packages/provider-contracts/events";
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
-import { newSaveAttemptId } from "@packages/domain/article";
+import { ARTICLE_REFRESH_DEADLINE_MS, newSaveAttemptId } from "@packages/domain/article";
 import { initStaleCheckHandler } from "./domain/stale-check/stale-check-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initCanonicalAliasStore, initDynamoDbArticleCrawl } from "@packages/article-store";
@@ -30,10 +30,6 @@ import { readEnv } from "@packages/require-env";
 import { STALE_CHECK_ENV } from "./stale-check.env";
 
 const env = readEnv(STALE_CHECK_ENV);
-
-// Must match the staleness TTL the reading path applies. Reads of an article older than this
-// trigger a conditional GET against the source (304 → noop, 200 → re-extract).
-const STALE_TTL_MS = 86_400_000;
 
 const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
 const contentBucketName = env.CONTENT_BUCKET_NAME;
@@ -124,6 +120,6 @@ export const handler = initStaleCheckHandler({
 	transitionAndPersist: articleAggregate.transitionAndPersist,
 	now,
 	newSaveAttemptId,
-	staleTtlMs: STALE_TTL_MS,
+	staleTtlMs: ARTICLE_REFRESH_DEADLINE_MS,
 	logger: consoleLogger,
 });

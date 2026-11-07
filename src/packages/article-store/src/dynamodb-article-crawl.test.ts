@@ -459,7 +459,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE meteredLegsDeferredSince",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, fullCrawlRequestedAt = :pendingSince REMOVE meteredLegsDeferredSince",
 			);
 			expect(command.input.ConditionExpression).toBe(
 				"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
@@ -495,7 +495,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince) REMOVE meteredLegsDeferredSince",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince), fullCrawlRequestedAt = :pendingSince REMOVE meteredLegsDeferredSince",
 			);
 			expect(command.input.ConditionExpression).toBe(
 				"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
@@ -527,7 +527,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, meteredLegsDeferredSince = if_not_exists(meteredLegsDeferredSince, :pendingSince)",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, meteredLegsDeferredSince = if_not_exists(meteredLegsDeferredSince, :pendingSince) REMOVE fullCrawlRequestedAt",
 			);
 			expect(command.input.ConditionExpression).toBe(
 				"attribute_not_exists(crawlStatus) OR crawlStatus IN (:failed, :unsupported)",
@@ -556,7 +556,7 @@ describe("initDynamoDbArticleCrawl", () => {
 
 			const command = received as { input: { UpdateExpression?: string } };
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince), meteredLegsDeferredSince = if_not_exists(meteredLegsDeferredSince, :pendingSince)",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince), meteredLegsDeferredSince = if_not_exists(meteredLegsDeferredSince, :pendingSince) REMOVE fullCrawlRequestedAt",
 			);
 		});
 
@@ -671,7 +671,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, #ledgerResidential, #ledgerUnlockerFetch, #ledgerUnlockerRender, #ledgerComprehensive, #ledgerContentJudge, meteredLegsDeferredSince",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, fullCrawlRequestedAt = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, #ledgerResidential, #ledgerUnlockerFetch, #ledgerUnlockerRender, #ledgerComprehensive, #ledgerContentJudge, meteredLegsDeferredSince",
 			);
 			expect(command.input.ExpressionAttributeNames).toEqual({
 				"#ledgerResidential": "ledger_render-residential-per-gb",

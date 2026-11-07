@@ -10,6 +10,7 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { disableLocalTimeTick } from "./reader-failed-notice-visual.browser";
 import {
 	type MeasuredBox,
 	measureBoxes,
@@ -109,6 +110,7 @@ async function seedEmailedCard(
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
+	await page.addInitScript(disableLocalTimeTick);
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);

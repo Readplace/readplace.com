@@ -108,6 +108,7 @@ describe("buildQueryInputs", () => {
 
 	it("excludes a failed row whose metered legs were deferred to the reader, since the paid crawl never tried it", () => {
 		for (const input of buildQueryInputs(NOW, 0)) {
+			assert.match(input.FilterExpression, /attribute_exists\(fullCrawlRequestedAt\)/);
 			assert.match(input.FilterExpression, /AND attribute_not_exists\(meteredLegsDeferredSince\)/);
 		}
 	});
@@ -251,7 +252,7 @@ describe("collectFailedRows", () => {
 		});
 		const failed = await collect(client);
 		assert.equal(failed.length, 1);
-		assert.deepEqual(failed[0]?.axes, ["crawl-failed", "summary-failed"]);
+		assert.deepEqual(failed[0]?.axes, ["crawl-failed"]);
 	});
 
 	it("classifies a crawl-failed row and surfaces its failure reason; summary-skipped is silently dropped", async () => {
@@ -332,7 +333,7 @@ describe("collectFailedRows", () => {
 		assert.deepEqual(await collect(client), []);
 	});
 
-	it("still surfaces the summary axis when a not-found crawl left the summary failed (pre-fix legacy rows)", async () => {
+	it("hides the summary axis when a not-found crawl left the summary failed", async () => {
 		const row = {
 			url: "site.test/deleted-legacy",
 			originalUrl: "https://site.test/deleted-legacy",
@@ -347,8 +348,7 @@ describe("collectFailedRows", () => {
 			[SUMMARY_STATUS_INDEX]: [[row]],
 		});
 		const failed = await collect(client);
-		assert.equal(failed.length, 1);
-		assert.deepEqual(failed[0]?.axes, ["summary-failed"]);
+		assert.deepEqual(failed, []);
 	});
 
 	it("surfaces a non-rate-limited block (edge-block) — a real crawler block to investigate", async () => {

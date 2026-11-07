@@ -14,7 +14,7 @@ import {
 import { z } from "zod";
 import { classifyRefusedClaim } from "./classify-refused-claim";
 
-const MeteredLegRow = z.object({ url: z.string() });
+const MeteredLegRow = z.object({ url: z.string(), fullCrawlRequestedAt: z.string().optional() });
 
 function legAttributeNames(leg: MeteredLeg) {
 	return { "#claim": `claim_${leg}`, "#ledger": `ledger_${leg}` };
@@ -39,7 +39,7 @@ export function initDynamoDbMeteredLegLedger(deps: {
 		const written = await writeIfCondition(() =>
 			table.update({
 				Key: { url: ArticleResourceUniqueId.parse(url).value },
-				UpdateExpression: "SET #claim = :claim",
+				UpdateExpression: "SET #claim = :claim, fullCrawlRequestedAt = if_not_exists(fullCrawlRequestedAt, :now)",
 				ConditionExpression:
 					"attribute_not_exists(meteredLegsDeferredSince) AND (attribute_not_exists(#claim) OR #claim.expiresAt < :now OR #claim.claimId = :claimId) AND (attribute_not_exists(#ledger) OR #ledger.inputHash <> :hash)",
 				ExpressionAttributeNames: legAttributeNames(leg),

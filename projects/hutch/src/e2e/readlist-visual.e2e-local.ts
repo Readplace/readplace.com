@@ -32,6 +32,7 @@ import {
 } from "./page-interactions";
 import { growRailToFitOpenFlyout } from "./readlist.browser";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
+import { disableLocalTimeTick } from "./reader-failed-notice-visual.browser";
 import { trialEndShowingTiles } from "./trial-countdown-seed";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -243,6 +244,7 @@ async function seedKeepOffer(page: Page, params: { userId: string; saves: number
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
+	await page.addInitScript(disableLocalTimeTick);
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);

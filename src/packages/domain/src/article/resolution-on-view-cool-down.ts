@@ -1,5 +1,5 @@
-const RESOLUTION_ON_VIEW_COOL_DOWN_MS = 24 * 60 * 60 * 1000;
+import { ARTICLE_REFRESH_DEADLINE_MS } from "./article-refresh-deadline";
 
 export function resolutionOnViewCoolDownCutoff(now: Date): string {
-	return new Date(now.getTime() - RESOLUTION_ON_VIEW_COOL_DOWN_MS).toISOString();
+	return new Date(now.getTime() - ARTICLE_REFRESH_DEADLINE_MS).toISOString();
 }

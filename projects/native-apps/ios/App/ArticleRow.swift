@@ -8,10 +8,22 @@ struct ArticleRow: View {
 	@ScaledMetric(relativeTo: .caption) private var dotSize: CGFloat = 8
 
 	var body: some View {
+		TimelineView(.everyMinute) { context in
+			card(now: context.date)
+		}
+		.listRowInsets(edge.rowInsets)
+		.listRowSeparator(.hidden)
+		.listRowBackground(Color.clear)
+	}
+
+	@ViewBuilder
+	private func card(now: Date) -> some View {
 		let presentation = ArticleRowPresentation(
 			isRead: article.isRead,
 			readTimeLabel: article.readTimeLabel,
-			savedLabel: article.savedAt.map { Self.relative.localizedString(for: $0, relativeTo: Date()) },
+			savedAt: article.savedAt,
+			now: now,
+			locale: .autoupdatingCurrent,
 			isAvailableOffline: isAvailableOffline,
 			processing: article.processing,
 			processingReceivedAt: processingReceivedAt,
@@ -93,9 +105,6 @@ struct ArticleRow: View {
 		.background(presentation.fill, in: edge.fillShape)
 		.padding(edge.borderInsets)
 		.background(Color.brandBorder, in: edge.borderShape)
-		.listRowInsets(edge.rowInsets)
-		.listRowSeparator(.hidden)
-		.listRowBackground(Color.clear)
 	}
 
 	@ViewBuilder
@@ -133,10 +142,4 @@ struct ArticleRow: View {
 			}
 		}
 	}
-
-	private static let relative: RelativeDateTimeFormatter = {
-		let formatter = RelativeDateTimeFormatter()
-		formatter.unitsStyle = .abbreviated
-		return formatter
-	}()
 }

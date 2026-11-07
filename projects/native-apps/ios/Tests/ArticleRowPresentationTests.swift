@@ -3,8 +3,12 @@ import SwiftUI
 @testable import Readplace
 
 final class ArticleRowPresentationTests: XCTestCase {
+	private let now = Date(timeIntervalSince1970: 1_000_000)
+	private let threeDaysAgo = Date(timeIntervalSince1970: 1_000_000 - 259_200)
+	private let enUS = Locale(identifier: "en_US")
+
 	func testAnUnreadRowLeadsWithTheAmberDotOnTheSecondaryFill() {
-		let presentation = ArticleRowPresentation(isRead: false, readTimeLabel: "~6 min read", savedLabel: "3d ago", isAvailableOffline: false)
+		let presentation = ArticleRowPresentation(isRead: false, readTimeLabel: "~6 min read", savedAt: threeDaysAgo, now: now, locale: enUS, isAvailableOffline: false)
 
 		XCTAssertEqual(presentation.marker, .unreadDot)
 		XCTAssertEqual(presentation.markerColor, .brandPrimaryText)
@@ -14,7 +18,7 @@ final class ArticleRowPresentationTests: XCTestCase {
 	}
 
 	func testAReadRowLeadsWithTheGreenCheckAndDimsTheTitleOnTheCardFill() {
-		let presentation = ArticleRowPresentation(isRead: true, readTimeLabel: "~6 min read", savedLabel: "3d ago", isAvailableOffline: false)
+		let presentation = ArticleRowPresentation(isRead: true, readTimeLabel: "~6 min read", savedAt: threeDaysAgo, now: now, locale: enUS, isAvailableOffline: false)
 
 		XCTAssertEqual(presentation.marker, .readCheck)
 		XCTAssertEqual(presentation.markerColor, .brandSuccessText)
@@ -24,27 +28,50 @@ final class ArticleRowPresentationTests: XCTestCase {
 	}
 
 	func testTheMetaLineJoinsReadTimeAndSavedLabelWithAMiddleDot() {
-		let presentation = ArticleRowPresentation(isRead: false, readTimeLabel: "~6 min read", savedLabel: "3d ago", isAvailableOffline: false)
+		let presentation = ArticleRowPresentation(isRead: false, readTimeLabel: "~6 min read", savedAt: threeDaysAgo, now: now, locale: enUS, isAvailableOffline: false)
 
 		XCTAssertEqual(presentation.metaText, "~6 min read · 3d ago")
 	}
 
 	func testTheMetaLineIsOnlyTheSavedLabelWhenTheReadTimeIsMissingOrEmpty() {
-		let missing = ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedLabel: "3d ago", isAvailableOffline: false)
-		let empty = ArticleRowPresentation(isRead: false, readTimeLabel: "", savedLabel: "3d ago", isAvailableOffline: false)
+		let missing = ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedAt: threeDaysAgo, now: now, locale: enUS, isAvailableOffline: false)
+		let empty = ArticleRowPresentation(isRead: false, readTimeLabel: "", savedAt: threeDaysAgo, now: now, locale: enUS, isAvailableOffline: false)
 
 		XCTAssertEqual(missing.metaText, "3d ago")
 		XCTAssertEqual(empty.metaText, "3d ago")
 	}
 
+	func testTheSavedLabelIsRelativeToTheMomentTheRowIsDrawn() {
+		let savedAt = Date(timeIntervalSince1970: 2_000_000)
+		let drawn = { (seconds: TimeInterval) in
+			ArticleRowPresentation(
+				isRead: false, readTimeLabel: nil, savedAt: savedAt, now: savedAt.addingTimeInterval(seconds), locale: self.enUS,
+				isAvailableOffline: false
+			).metaText
+		}
+
+		XCTAssertEqual(drawn(30), "30s ago")
+		XCTAssertEqual(drawn(120), "2m ago")
+		XCTAssertEqual(drawn(3_600), "1h ago")
+	}
+
+	func testTheSavedLabelIsWrittenInTheReadersLocale() {
+		let presentation = ArticleRowPresentation(
+			isRead: false, readTimeLabel: nil, savedAt: threeDaysAgo, now: now, locale: Locale(identifier: "pt_BR"),
+			isAvailableOffline: false
+		)
+
+		XCTAssertEqual(presentation.metaText, "há 3 dias")
+	}
+
 	func testTheMetaLineIsOnlyTheReadTimeWhenTheSavedLabelIsMissing() {
-		let presentation = ArticleRowPresentation(isRead: false, readTimeLabel: "~6 min read", savedLabel: nil, isAvailableOffline: false)
+		let presentation = ArticleRowPresentation(isRead: false, readTimeLabel: "~6 min read", savedAt: nil, now: now, locale: enUS, isAvailableOffline: false)
 
 		XCTAssertEqual(presentation.metaText, "~6 min read")
 	}
 
 	func testTheMetaLineIsAbsentWhenNeitherReadTimeNorSavedLabelIsKnown() {
-		let presentation = ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedLabel: nil, isAvailableOffline: false)
+		let presentation = ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedAt: nil, now: now, locale: enUS, isAvailableOffline: false)
 
 		XCTAssertEqual(presentation.metaText, nil)
 	}
@@ -56,10 +83,10 @@ final class ArticleRowPresentationTests: XCTestCase {
 
 	func testARowShowsTheOfflineBadgeOnlyWhenItsCurrentVersionIsStored() {
 		XCTAssertTrue(
-			ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedLabel: nil, isAvailableOffline: true).showsOfflineBadge
+			ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedAt: nil, now: now, locale: enUS, isAvailableOffline: true).showsOfflineBadge
 		)
 		XCTAssertFalse(
-			ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedLabel: nil, isAvailableOffline: false).showsOfflineBadge
+			ArticleRowPresentation(isRead: false, readTimeLabel: nil, savedAt: nil, now: now, locale: enUS, isAvailableOffline: false).showsOfflineBadge
 		)
 		XCTAssertEqual(ArticleRowPresentation.offlineBadgeLabel, "Saved offline")
 	}
@@ -72,7 +99,7 @@ final class ArticleRowPresentationTests: XCTestCase {
 
 	private func presentation(_ estimate: CrawlEstimate?, receivedAt: Date? = nil) -> ArticleRowPresentation {
 		ArticleRowPresentation(
-			isRead: false, readTimeLabel: "~6 min read", savedLabel: "3d ago", isAvailableOffline: false,
+			isRead: false, readTimeLabel: "~6 min read", savedAt: threeDaysAgo, now: now, locale: enUS, isAvailableOffline: false,
 			processing: processing(estimate), processingReceivedAt: receivedAt ?? received
 		)
 	}
@@ -83,7 +110,7 @@ final class ArticleRowPresentationTests: XCTestCase {
 
 	func testARowInProcessingHidesItsMetaAndShowsTheServerLabelVerbatim() {
 		let row = ArticleRowPresentation(
-			isRead: false, readTimeLabel: "~6 min read", savedLabel: "3d ago", isAvailableOffline: false,
+			isRead: false, readTimeLabel: "~6 min read", savedAt: threeDaysAgo, now: now, locale: enUS, isAvailableOffline: false,
 			processing: processing(nil, label: "Preparing your book…")
 		)
 
@@ -92,7 +119,7 @@ final class ArticleRowPresentationTests: XCTestCase {
 	}
 
 	func testARowNotInProcessingHasNoLabelAndNoEstimate() {
-		let row = ArticleRowPresentation(isRead: false, readTimeLabel: "~6 min read", savedLabel: nil, isAvailableOffline: false)
+		let row = ArticleRowPresentation(isRead: false, readTimeLabel: "~6 min read", savedAt: nil, now: now, locale: enUS, isAvailableOffline: false)
 
 		XCTAssertEqual(row.metaText, "~6 min read")
 		XCTAssertNil(row.processingLabel)
@@ -132,7 +159,7 @@ final class ArticleRowPresentationTests: XCTestCase {
 	func testNoEstimateOrNoReceiptShowsNothing() {
 		let noEstimate = presentation(nil)
 		let noReceipt = ArticleRowPresentation(
-			isRead: false, readTimeLabel: nil, savedLabel: nil, isAvailableOffline: false,
+			isRead: false, readTimeLabel: nil, savedAt: nil, now: now, locale: enUS, isAvailableOffline: false,
 			processing: processing(.counting(seconds: 10))
 		)
 
@@ -142,7 +169,7 @@ final class ArticleRowPresentationTests: XCTestCase {
 
 	func testTheNoticeIsCarriedVerbatim() {
 		let row = ArticleRowPresentation(
-			isRead: false, readTimeLabel: nil, savedLabel: nil, isAvailableOffline: false, notice: "This is taking a while."
+			isRead: false, readTimeLabel: nil, savedAt: nil, now: now, locale: enUS, isAvailableOffline: false, notice: "This is taking a while."
 		)
 
 		XCTAssertEqual(row.noticeText, "This is taking a while.")

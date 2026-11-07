@@ -11,6 +11,7 @@ import {
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { clickAndWaitForPageReload, nameNewReadlist, openReadlistSwitcher, railIsOpen } from "./page-interactions";
+import { disableLocalTimeTick } from "./reader-failed-notice-visual.browser";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -30,6 +31,7 @@ const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
 
 async function loginAs(page: Page, email: string): Promise<void> {
+	await page.addInitScript(disableLocalTimeTick);
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
