@@ -209,9 +209,11 @@ export function initPrepareContentSelection(deps: {
 			(article.freshness.canonicalContentHash === EMPTY_TEXT_HASH && previous === undefined);
 		const firstCapture = firstCaptureOf({ isFirstContent, sources });
 		const freshIds = new Set(candidates?.map((candidate) => candidate.id));
-		const considered = mode === "recrawl" ? sources.filter((source) => freshIds.has(source.metadata.id)) : [];
-		const superseded = considered.length > 0 && considered.every((source) => canonicalSupersedes({ source, canonical: previous, saveAttemptId })) ? previous : undefined;
-		const directResources = directResourcesOf({ sources, saveAttemptId });
+		const attemptResources = directResourcesOf({ sources, saveAttemptId });
+		const supersededBy = (source: VerifiedTierSource) => canonicalSupersedes({ source, canonical: previous, saveAttemptId });
+		const directResources = attemptResources.filter((source) => !supersededBy(source));
+		const considered = mode === "recrawl" ? sources.filter((source) => freshIds.has(source.metadata.id)) : attemptResources;
+		const superseded = considered.length > 0 && considered.every(supersededBy) ? previous : undefined;
 		const proseUnchanged = previous !== undefined && sources.length > 1 &&
 			sources.every((source) => proseHashOf(source.html) === article.freshness.canonicalContentHash && candidateIsReadable(source));
 		const loneBody = loneBodyOf({ isFirstContent, sources });
