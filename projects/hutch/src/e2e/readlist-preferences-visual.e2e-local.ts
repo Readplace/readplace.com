@@ -796,12 +796,45 @@ const GMAIL_NEWSLETTERS = [
 	{ email: "crew@morningbrew.com", name: "Brew Crew" },
 ] as const;
 
-async function seedGmailSenders(page: Page, input: { userId: string; namespace: string }): Promise<void> {
+const GMAIL_NEWSLETTERS_PAST_THE_CARD = [
+	...GMAIL_NEWSLETTERS,
+	{ email: "hello@theopencircle.co", name: "The Open Circle" },
+	{ email: "news@platformer.news", name: "Platformer" },
+	{ email: "digest@hackernewsletter.com", name: "Hacker Newsletter" },
+] as const;
+
+const GMAIL_SENDER_PICKER = `${GMAIL_SENDERS} [data-test-gmail-sender-picker]`;
+const GMAIL_SENDER_MENU = `${GMAIL_SENDER_PICKER} .gmail__picker-menu`;
+const GMAIL_SENDER_OPTIONS = `${GMAIL_SENDER_PICKER} [data-test-gmail-sender-option]`;
+
+async function everySenderOptionPaintsPastTheCard(page: Page): Promise<void> {
+	const [menu, card] = [await measuredBox(page, GMAIL_SENDER_MENU), await measuredBox(page, GMAIL_SENDERS)];
+	assert.ok(
+		menu.y + menu.height > card.y + card.height,
+		"the open sender menu must reach below the Gmail card for the clipping check to mean anything",
+	);
+	const hits = await page.locator(GMAIL_SENDER_OPTIONS).evaluateAll((options) =>
+		options.map((option) => {
+			const box = option.getBoundingClientRect();
+			return option.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+		}),
+	);
+	assert.deepEqual(
+		hits,
+		hits.map(() => true),
+		"every sender option must take the pointer past the Gmail card's bottom edge",
+	);
+}
+
+async function seedGmailSenders(
+	page: Page,
+	input: { userId: string; namespace: string; senders: readonly { email: string; name: string }[] },
+): Promise<void> {
 	await page.context().addCookies([{ name: "e2e_catalog_ns", value: input.namespace, url: BASE_URL }]);
 	const catalog = await page.request.post(`${BASE_URL}/e2e/seed-newsletter-catalog`, {
 		data: {
 			namespace: input.namespace,
-			records: GMAIL_NEWSLETTERS.map((newsletter) => ({
+			records: input.senders.map((newsletter) => ({
 				from: newsletter.email,
 				name: newsletter.name,
 				status: "approved",
@@ -813,7 +846,7 @@ async function seedGmailSenders(page: Page, input: { userId: string; namespace: 
 	});
 	assert.equal(catalog.status(), 201, "the newsletter catalog seed must be accepted");
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-gmail-state`, {
-		data: { userId: input.userId, discoveredSenders: GMAIL_NEWSLETTERS },
+		data: { userId: input.userId, discoveredSenders: input.senders },
 	});
 	assert.equal(seeded.status(), 201, "the Gmail seed must connect the reader's mailbox");
 }
@@ -1113,18 +1146,37 @@ test.describe("Readlist preferences Gmail newsletters", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const stamp = `gmail-picker-light-${testInfo.workerIndex}-${Date.now()}`;
 		const { userId, slug } = await openPreferences(page, stamp);
-		await seedGmailSenders(page, { userId, namespace: `readlist-preferences-visual-${stamp}` });
+		await seedGmailSenders(page, { userId, namespace: `readlist-preferences-visual-${stamp}`, senders: GMAIL_NEWSLETTERS });
 		await reopenPreferences(page, { slug });
 		await captureCheckpoint(page, GMAIL_PICKER_LIGHT);
 		await page.locator(`${GMAIL_SENDERS} [id="gmail-sender-dan@tldr.tech"]`).check();
 		await expect(page.locator(STATUS_TOAST_MESSAGE)).toHaveText("Preferences saved");
 	});
 
+	test("opens the sender picker past the bottom of the Gmail card", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const stamp = `gmail-picker-open-${testInfo.workerIndex}-${Date.now()}`;
+		const { userId, slug } = await openPreferences(page, stamp);
+		await seedGmailSenders(page, {
+			userId,
+			namespace: `readlist-preferences-visual-${stamp}`,
+			senders: GMAIL_NEWSLETTERS_PAST_THE_CARD,
+		});
+		await reopenPreferences(page, { slug });
+		await expect(page.locator(GMAIL_CHECKLIST_ROWS)).toHaveCount(GMAIL_NEWSLETTERS_PAST_THE_CARD.length);
+		await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
+		await page.locator(`${GMAIL_SENDER_PICKER} summary`).click();
+		await expect(page.locator(GMAIL_SENDER_PICKER)).toHaveAttribute("open", "");
+		await expect(page.locator(GMAIL_SENDER_OPTIONS)).toHaveCount(GMAIL_NEWSLETTERS_PAST_THE_CARD.length);
+		await page.locator(GMAIL_SENDER_MENU).scrollIntoViewIfNeeded();
+		await everySenderOptionPaintsPastTheCard(page);
+	});
+
 	test("keeps both senders ticked in quick succession once the page is reopened", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const stamp = `gmail-autosave-${testInfo.workerIndex}-${Date.now()}`;
 		const { userId, slug } = await openPreferences(page, stamp);
-		await seedGmailSenders(page, { userId, namespace: `readlist-preferences-visual-${stamp}` });
+		await seedGmailSenders(page, { userId, namespace: `readlist-preferences-visual-${stamp}`, senders: GMAIL_NEWSLETTERS });
 		await reopenPreferences(page, { slug });
 		await gmailPickerListed(page);
 		await page.locator(`${GMAIL_SENDERS} [id="gmail-sender-dan@tldr.tech"]`).check();
