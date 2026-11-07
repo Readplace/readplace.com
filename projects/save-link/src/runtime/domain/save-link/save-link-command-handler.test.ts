@@ -110,7 +110,7 @@ describe("initSaveLinkCommandHandler", () => {
 	it("writes the tier-1 source before publishing TierContentExtractedEvent (selector relies on the source being listable)", async () => {
 		const calls: string[] = [];
 		const publishEvent = jest.fn(async () => { calls.push("publishEvent"); });
-		const putTierSource: PutTierSource = jest.fn(async () => { calls.push("putTierSource"); });
+		const putTierSource: PutTierSource = jest.fn(async (params: Parameters<PutTierSource>[0]) => { calls.push("putTierSource"); return params.metadata; });
 
 		const handler = createHandler({ publishEvent, putTierSource });
 

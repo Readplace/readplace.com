@@ -33,6 +33,7 @@ function setUp() {
 	const write = initWriteMinimalAudioBody({
 		putTierSource: async (params) => {
 			tierSources.push(params);
+			return params.metadata;
 		},
 		publishEvent,
 	});

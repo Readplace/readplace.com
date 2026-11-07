@@ -60,6 +60,7 @@ function setUp(overrides: { download?: DownloadStagedObject; sections?: "recorde
 		},
 		putTierSource: async (params) => {
 			tierSources.push(params);
+			return params.metadata;
 		},
 		storeBookImagesFor: initStoreBookImage({
 			putBookImage: async (input) => {

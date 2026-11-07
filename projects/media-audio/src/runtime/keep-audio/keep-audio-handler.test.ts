@@ -76,6 +76,7 @@ function setUp(overrides: { facts?: AudioStreamFacts | "unrecognised"; staged?: 
 			putTierSource: async (params) => {
 				tierSources.push(params);
 				provenanceAttempts.push(params.metadata.attemptId);
+				return params.metadata;
 			},
 			publishEvent,
 		}),

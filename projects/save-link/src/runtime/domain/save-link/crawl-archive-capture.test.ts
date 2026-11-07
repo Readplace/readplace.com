@@ -77,7 +77,7 @@ describe("initCrawlArchiveCapture", () => {
 it("rejects a legacy queued capture whose original does not match the adopted identity", async () => {
 	const crawlAndFinalizeArticle = jest.fn();
 	const publishEvent = jest.fn().mockResolvedValue(undefined);
-	const crawl = initCrawlArchiveCapture({ crawlAndFinalizeArticle, putTierSource: async () => {}, readTierSnapshot: async () => ({ tier0Status: "not_attempted", tier1Status: "not_attempted", pickedTier: "none" }), logCrawlOutcome: () => {}, logger: noopLogger, now: () => new Date(), verifyWrapperSource: async () => undefined, publishEvent });
+	const crawl = initCrawlArchiveCapture({ crawlAndFinalizeArticle, putTierSource: async (params) => params.metadata, readTierSnapshot: async () => ({ tier0Status: "not_attempted", tier1Status: "not_attempted", pickedTier: "none" }), logCrawlOutcome: () => {}, logger: noopLogger, now: () => new Date(), verifyWrapperSource: async () => undefined, publishEvent });
 	expect(await crawl({ url: ORIGINAL, captureUrl: CAPTURE, saveAttemptId: SaveAttemptIdSchema.parse("legacy-attempt") })).toBeUndefined();
 	expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
 	expect(publishEvent).toHaveBeenCalledWith(ArchiveCaptureCrawlFailedEvent, { url: ORIGINAL, captureUrl: CAPTURE, reason: "unverified source identity" });
@@ -95,6 +95,7 @@ it("reads the tier snapshot, writes the archive candidate, then logs its success
 		crawlAndFinalizeArticle: async () => ({ status: "fetched", article: finalized, bodyHash: "a".repeat(64), evaluationHtml, httpStatus: 200 }),
 		putTierSource: async (params) => {
 			trace.push(["putTierSource", params]);
+			return params.metadata;
 		},
 		readTierSnapshot: async (params) => {
 			trace.push(["readTierSnapshot", params]);

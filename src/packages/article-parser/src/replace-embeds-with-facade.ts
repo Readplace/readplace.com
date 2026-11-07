@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { type YouTubeEmbed, parseYouTubeEmbed } from "./parse-embed-url";
+import { type YouTubeEmbed, parseYouTubeEmbed } from "@packages/crawl-article";
 
 /* A YouTube <iframe> embed never plays in the reader: the body renders inside a
  * sandboxed iframe with no allow-scripts, so the player's JS is blocked and the

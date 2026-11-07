@@ -26,7 +26,7 @@ function createRun(overrides: Partial<RunCrawlFromTier1Deps> = {}) {
 		emitSimpleCrawlUnsupported: async (params) => {
 			unsupported.push(params);
 		},
-		putTierSource: async () => {},
+		putTierSource: async (params) => params.metadata,
 		updateFetchTimestamp: async () => {},
 		transitionAndPersist: async () => {},
 		markCrawlStage: async () => {},

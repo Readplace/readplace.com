@@ -20,6 +20,7 @@ function harness() {
 	const commitTierCandidate = initCommitTierCandidate({
 		putTierSource: async (params) => {
 			trace.push(["putTierSource", params]);
+			return params.metadata;
 		},
 		publishEvent: async (event, detail) => {
 			trace.push(["publishEvent", event.detailType, detail]);

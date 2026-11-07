@@ -56,6 +56,7 @@ function makeHarness(opts: {
 		},
 		putTierSource: async (params) => {
 			tierSources.push(params);
+			return params.metadata;
 		},
 		recordInboxArticleQueued:
 			opts.recordInboxArticleQueued ??

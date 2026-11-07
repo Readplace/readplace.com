@@ -54,6 +54,15 @@ describe("immutable content candidates", () => {
 		expect((await readTierSource({ url: URL, tier: "tier-1" }))?.metadata).toEqual(pointer?.metadata);
 	});
 
+	it("returns the candidate it stored, carrying where its bodies live", async () => {
+		const { client } = storage();
+		const { putTierSource } = initPutTierSource({ client, bucketName: "content" });
+
+		const stored = await putTierSource({ url: URL, tier: "tier-1", html: "<p>Article</p>", metadata: metadata("located") });
+
+		expect(stored).toEqual({ ...metadata("located"), ...candidateBodyKeys({ url: URL, tier: "tier-1", candidateId: cid("located") }) });
+	});
+
 	it("reads an earlier event's exact bytes after a later extraction replaces the tier pointer", async () => {
 		const { client } = storage();
 		const { putTierSource } = initPutTierSource({ client, bucketName: "content" });
