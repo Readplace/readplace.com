@@ -12,3 +12,7 @@ export function allowanceSeconds(p: { budgetMilliCents: number; milliCentsPerSec
 export function displayMinutes(seconds: number): number {
 	return Math.floor(seconds / SECONDS_PER_MINUTE);
 }
+
+export function chargedMinutes(seconds: number): number {
+	return Math.ceil(seconds / SECONDS_PER_MINUTE);
+}

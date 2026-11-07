@@ -340,16 +340,56 @@ describe("Upload routes", () => {
 		const { harness, agent } = await signedIn();
 		const staged = await agent.post("/upload").type("form").send({});
 		const uploadId = stagedUploadId(documentOf(staged.text));
-		const overBookCeiling = Buffer.alloc(200 * 1024 * 1024 + 1);
-		Buffer.from(epubPrefix()).copy(overBookCeiling, 0);
+		const prefix = Buffer.alloc(1024);
+		Buffer.from(epubPrefix()).copy(prefix, 0);
 		harness.mediaUpload.receivePendingOriginal({
 			uploadId,
-			bytes: overBookCeiling,
+			bytes: prefix,
+			byteLength: 200 * 1024 * 1024 + 1,
 		});
 		const received = await agent.post(`/upload/${uploadId}/received`);
 		expect(received.status).toBe(413);
 		expect(errorCodeOf(received.text)).toBe("upload_too_large");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([]);
+	});
+
+	it.each([
+		{ startPath: "/upload?features=transcripts", features: "transcripts", allowance: 1 },
+		{ startPath: "/upload", features: null, allowance: 0 },
+	])("keeps the start path $startPath on a received file's error page", async ({ startPath, features, allowance }) => {
+		const { harness, agent } = await signedIn();
+		const staged = await agent.post(startPath).type("form").send({});
+		const uploadId = stagedUploadId(documentOf(staged.text));
+		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: Buffer.from("not a zip at all") });
+
+		const received = await agent.post(`/upload/${uploadId}/received`);
+
+		const doc = documentOf(received.text);
+		expect(errorCodeOf(received.text)).toBe("upload_unsupported_type");
+		const retry = new URL(doc.querySelector("[data-test-upload-start]")?.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		expect({ pathname: retry.pathname, features: retry.searchParams.get("features") }).toEqual({
+			pathname: "/upload",
+			features,
+		});
+		expect(doc.querySelectorAll("[data-test-upload-transcript-allowance]").length).toBe(allowance);
+	});
+
+	it.each([
+		{ startPath: "/upload?features=transcripts", features: "transcripts", allowance: 1 },
+		{ startPath: "/upload", features: null, allowance: 0 },
+	])("keeps the start path $startPath when a declared size is refused", async ({ startPath, features, allowance }) => {
+		const { agent } = await signedIn();
+
+		const response = await agent.post(startPath).type("form").send({ byteLength: 10 * 1024 * 1024 * 1024 });
+
+		const doc = documentOf(response.text);
+		expect(errorCodeOf(response.text)).toBe("upload_too_large");
+		const retry = new URL(doc.querySelector("[data-test-upload-start]")?.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		expect({ pathname: retry.pathname, features: retry.searchParams.get("features") }).toEqual({
+			pathname: "/upload",
+			features,
+		});
+		expect(doc.querySelectorAll("[data-test-upload-transcript-allowance]").length).toBe(allowance);
 	});
 
 	it("answers upload_session_not_found for an id the viewer does not own", async () => {

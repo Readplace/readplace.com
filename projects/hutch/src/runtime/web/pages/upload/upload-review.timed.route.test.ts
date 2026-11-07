@@ -40,6 +40,12 @@ async function guestAudio(harness: Harness) {
 	return stageAudio({ harness, agent: request.agent(harness.server), startPath: "/upload?features=transcripts" });
 }
 
+function featuresOfUploadAgain(doc: Document): string | null {
+	const href = doc.querySelector("[data-test-upload-again]")?.getAttribute("href");
+	assert(href, "Upload again must carry a target");
+	return new URL(href, TEST_APP_ORIGIN).searchParams.get("features");
+}
+
 async function reviewOf(harness: Harness, uploadId: string) {
 	const view = await request(harness.server).get(`/upload/${uploadId}`);
 	return { view, doc: documentOf(view.text) };
@@ -60,9 +66,20 @@ describe("Guest audio review", () => {
 			defaultFileNameOf(AUDIO),
 		);
 		expect(doc.querySelector("[data-test-upload-duration]")?.textContent).toBe("10 min");
-		expect(doc.querySelector("[data-test-transcript-minutes]")?.textContent).toBe("Uses 10 of your 20 minutes today");
+		expect(doc.querySelector("[data-test-transcript-minutes]")?.textContent).toBe("Uses 10 of your 20 transcript minutes today");
 		expect(doc.querySelector("[data-test-upload-commit-form]")).not.toBeNull();
 		expect(findUntrackedCtas(view.text, { skipSelectors: [], ownOrigin: TEST_APP_ORIGIN })).toEqual([]);
+	});
+
+	it("charges a flagged guest's file shorter than a minute as a whole transcript minute", async () => {
+		duration = { durationSeconds: 50, hasAudio: true, hasVideo: false };
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { uploadId } = await guestAudio(harness);
+
+		const { doc } = await reviewOf(harness, uploadId);
+		expect(doc.querySelector("[data-test-transcript-minutes]")?.textContent).toBe(
+			"Uses 1 of your 20 transcript minutes today",
+		);
 	});
 
 	it("refuses a flagged guest's audio longer than the day's allowance, with no way to save it", async () => {
@@ -77,6 +94,7 @@ describe("Guest audio review", () => {
 		);
 		expect(doc.querySelector("[data-test-upload-commit-form]")).toBeNull();
 		expect(findUntrackedCtas(view.text, { skipSelectors: [], ownOrigin: TEST_APP_ORIGIN })).toEqual([]);
+		expect(featuresOfUploadAgain(doc)).toBe("transcripts");
 	});
 
 	it.each([
@@ -92,6 +110,7 @@ describe("Guest audio review", () => {
 		expect(doc.querySelector("[data-test-upload-notice]")?.textContent).toBe(
 			"We couldn't read this audio file. Upload an MP3 or M4A that plays on your device.",
 		);
+		expect(featuresOfUploadAgain(doc)).toBe("transcripts");
 	});
 
 	it("charges the reader who saves a flagged guest's audio", async () => {

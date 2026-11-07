@@ -808,7 +808,11 @@ export interface MediaUploadBundle {
 	mintMediaPendingPost: MintMediaPendingPost;
 	headMediaPendingOriginal: HeadMediaPendingOriginal;
 	readMediaPendingPrefix: ReadMediaPendingPrefix;
-	receivePendingOriginal: (params: { uploadId: MediaUploadSession["uploadId"]; bytes: Uint8Array }) => void;
+	receivePendingOriginal: (params: {
+		uploadId: MediaUploadSession["uploadId"];
+		bytes: Uint8Array;
+		byteLength?: number;
+	}) => void;
 	presignMediaImage: PresignMediaImage;
 	presignedMediaImages: Parameters<PresignMediaImage>[0][];
 	presignEnclosure: PresignEnclosure;

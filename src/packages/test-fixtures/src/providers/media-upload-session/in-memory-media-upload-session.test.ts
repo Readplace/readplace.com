@@ -163,6 +163,16 @@ describe("initInMemoryMediaPending", () => {
 		assert.equal(head.size, 4);
 		assert.deepEqual([...(await pending.readMediaPendingPrefix({ uploadId, etag: head.etag, bytes: 2 }))], [1, 2]);
 	});
+
+	it("reports a declared byte length for an original whose stored bytes are only its prefix", async () => {
+		const pending = initInMemoryMediaPending({ uploadBaseUrl: "https://s3.test/bucket" });
+		pending.receivePendingOriginal({ uploadId, bytes: new Uint8Array([1, 2]), byteLength: 300_000_000 });
+		const head = await pending.headMediaPendingOriginal({ uploadId });
+		assert(head, "the original has arrived");
+
+		assert.equal(head.size, 300_000_000);
+		assert.deepEqual([...(await pending.readMediaPendingPrefix({ uploadId, etag: head.etag, bytes: 4 }))], [1, 2]);
+	});
 });
 
 describe("initInMemoryMediaUploadCommitted", () => {
