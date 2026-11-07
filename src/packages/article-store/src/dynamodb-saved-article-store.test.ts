@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/storage-client";
+import {
+	ConditionalCheckFailedException,
+	type DynamoDBDocumentClient,
+	TransactionCanceledException,
+} from "@packages/storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
@@ -3746,5 +3750,231 @@ describe("initDynamoDbSavedArticleStore saves as requested", () => {
 		const result = await initStore(client).hasSaveLandedSince({ userId: USER, url: URL, requestedAt: REQUESTED_AT });
 
 		expect(result).toBe(false);
+	});
+});
+
+describe("initDynamoDbSavedArticleStore readlist filing", () => {
+	const WORK = ReadlistSlugSchema.parse("work");
+	const REQUESTED_AT = new Date("2026-11-03T10:00:00Z");
+	const SAVED_AT = new Date("2026-11-03T10:05:00.123Z");
+	const filing = (overrides: Partial<Parameters<ReturnType<typeof initStore>["fileIntoLiveReadlist"]>[0]> = {}) => ({
+		userId: USER,
+		readlist: WORK,
+		url: URL,
+		savedAt: SAVED_AT,
+		provenance,
+		requestedAt: REQUESTED_AT,
+		landsAs: { status: "unread" as const },
+		...overrides,
+	});
+	const cancelled = (codes: (string | undefined)[] | undefined) => () => {
+		throw new TransactionCanceledException({
+			message: "cancelled",
+			$metadata: {},
+			CancellationReasons: codes?.map((Code) => ({ Code })),
+		});
+	};
+	const TransactItems = z.array(
+		z.object({
+			ConditionCheck: z
+				.object({
+					Key: z.record(z.string(), z.unknown()),
+					ConditionExpression: z.string(),
+					ExpressionAttributeNames: z.record(z.string(), z.string()),
+					ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
+				})
+				.optional(),
+			Update: z
+				.object({
+					Key: z.record(z.string(), z.unknown()),
+					UpdateExpression: z.string(),
+					ConditionExpression: z.string(),
+					ExpressionAttributeValues: z.record(z.string(), z.unknown()),
+				})
+				.optional(),
+		}),
+	);
+	const itemsOf = (commands: CapturedCommand[]) => {
+		const transaction = commands.find((c) => c.name === "TransactWriteCommand");
+		assert(transaction, "the store must have sent a TransactWriteCommand");
+		return TransactItems.parse(z.object({ TransactItems: z.unknown() }).parse(transaction.input).TransactItems);
+	};
+
+	it("checks the definition, then the All row and its removal marker, then writes the readlist row, and bumps the global savedAt", async () => {
+		const { client, commands } = createFakeClient();
+
+		const result = await initStore(client).fileIntoLiveReadlist(filing());
+
+		expect(result).toEqual({ outcome: "filed" });
+		const [definition, allRow, readlistRow] = itemsOf(commands);
+		expect(definition?.ConditionCheck?.Key).toEqual({ userId: USER, url: "readplace:queue-def/work" });
+		expect(definition?.ConditionCheck?.ConditionExpression).toContain("attribute_exists(#url)");
+		expect(allRow?.ConditionCheck?.Key).toEqual({ userId: USER, url: RESOURCE_ID });
+		expect(allRow?.ConditionCheck?.ConditionExpression).toContain("attribute_exists(savedAt)");
+		expect(allRow?.ConditionCheck?.ConditionExpression).toContain("#removedAt <= :requestedAt");
+		expect(allRow?.ConditionCheck?.ExpressionAttributeNames).toEqual({ "#removedAt": "readlistRemovedAt#work" });
+		expect(readlistRow?.Update?.Key).toEqual({ userId: `${USER}#queue/work`, url: RESOURCE_ID });
+		expect(readlistRow?.Update?.ConditionExpression).toBe("attribute_not_exists(savedAt) OR savedAt < :savedAt");
+		expect(readlistRow?.Update?.UpdateExpression).toBe(
+			"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
+		);
+		expect(readlistRow?.Update?.ExpressionAttributeValues).toEqual({
+			":savedAt": SAVED_AT.toISOString(),
+			":provenance": provenance,
+			":unread": "unread",
+		});
+		const bump = commands.find((c) => c.name === "UpdateCommand");
+		expect(bump?.input.Key).toEqual({ url: RESOURCE_ID });
+		expect(bump?.input.ExpressionAttributeValues).toEqual({ ":savedAt": STORE_NOW.toISOString() });
+	});
+
+	it("binds the request time as a whole-second instant, the format the removal marker is written in", async () => {
+		const { client, commands } = createFakeClient();
+
+		await initStore(client).fileIntoLiveReadlist(filing({ requestedAt: new Date("2026-11-03T10:00:00.900Z") }));
+
+		expect(itemsOf(commands)[1]?.ConditionCheck?.ExpressionAttributeValues).toEqual({
+			":requestedAt": "2026-11-03T10:00:00Z",
+		});
+	});
+
+	it("keeps an existing suggestion attribution and sends the new one only through if_not_exists", async () => {
+		const suggestionAttribution = { campaignId: "hn-starter-v1", snapshotAt: STORE_NOW.toISOString(), hnItemId: 1, rank: 1 };
+		const { client, commands } = createFakeClient();
+
+		await initStore(client).fileIntoLiveReadlist(filing({ suggestionAttribution }));
+
+		const update = itemsOf(commands)[2]?.Update;
+		expect(update?.UpdateExpression).toContain("suggestionAttribution = if_not_exists(suggestionAttribution, :attribution)");
+		expect(update?.ExpressionAttributeValues[":attribution"]).toEqual(suggestionAttribution);
+	});
+
+	it("lands a row read with the All row's readAt only where no readlist row exists", async () => {
+		const readAt = new Date("2026-11-03T10:02:00.456Z");
+		const { client, commands } = createFakeClient();
+
+		await initStore(client).fileIntoLiveReadlist(filing({ landsAs: { status: "read", readAt } }));
+
+		const update = itemsOf(commands)[2]?.Update;
+		expect(update?.UpdateExpression).toBe(
+			"SET savedAt = :savedAt, provenance = :provenance, #status = :read, readAt = :readAt",
+		);
+		expect(update?.ConditionExpression).toBe("attribute_not_exists(savedAt)");
+		expect(update?.ExpressionAttributeValues).toEqual({
+			":savedAt": SAVED_AT.toISOString(),
+			":provenance": provenance,
+			":read": "read",
+			":readAt": readAt.toISOString(),
+		});
+	});
+
+	it.each([
+		["the readlist definition", ["ConditionalCheckFailed", "None", "None"], "readlist-gone"],
+		["the definition and the All row together", ["ConditionalCheckFailed", "ConditionalCheckFailed", "None"], "readlist-gone"],
+		["the readlist row, to a newer write", ["None", "None", "ConditionalCheckFailed"], "newer-row-won"],
+	])("answers from a failed check on %s without reading the All row", async (_name, codes, outcome) => {
+		const { client, commands } = createFakeClient({ TransactWriteCommand: { default: cancelled(codes) } });
+
+		expect(await initStore(client).fileIntoLiveReadlist(filing())).toEqual({ outcome });
+		expect(commands.map((c) => c.name)).toEqual(["TransactWriteCommand"]);
+	});
+
+	it("answers newer-row-won when a row appeared since the read, under the read variant", async () => {
+		const { client } = createFakeClient({
+			TransactWriteCommand: { default: cancelled(["None", "None", "ConditionalCheckFailed"]) },
+		});
+
+		const result = await initStore(client).fileIntoLiveReadlist(
+			filing({ landsAs: { status: "read", readAt: new Date("2026-11-03T10:02:00Z") } }),
+		);
+
+		expect(result).toEqual({ outcome: "newer-row-won" });
+	});
+
+	it.each([
+		["the All row alone", ["None", "ConditionalCheckFailed", "None"]],
+		["the All row and the readlist row together", ["None", "ConditionalCheckFailed", "ConditionalCheckFailed"]],
+	])("reads the All row consistently after a failed check on %s", async (_name, codes) => {
+		const gone = createFakeClient({ TransactWriteCommand: { default: cancelled(codes) } });
+		const removed = createFakeClient({
+			TransactWriteCommand: { default: cancelled(codes) },
+			GetCommand: { default: { Item: userArticleItem() } },
+		});
+
+		expect(await initStore(gone.client).fileIntoLiveReadlist(filing())).toEqual({ outcome: "not-in-all" });
+		expect(await initStore(removed.client).fileIntoLiveReadlist(filing())).toEqual({ outcome: "removed-after-request" });
+		const read = removed.commands.find((c) => c.name === "GetCommand");
+		expect(read?.input.Key).toEqual({ userId: USER, url: RESOURCE_ID });
+		expect(read?.input.ConsistentRead).toBe(true);
+	});
+
+	it.each([
+		["a transaction conflict alone", ["TransactionConflict", "None", "None"]],
+		["a transaction conflict beside a failed condition", ["TransactionConflict", "None", "ConditionalCheckFailed"]],
+		["a cancellation naming no reasons", undefined],
+	])("rethrows %s so SQS retries against settled rows", async (_name, codes) => {
+		const { client } = createFakeClient({ TransactWriteCommand: { default: cancelled(codes) } });
+
+		await expect(initStore(client).fileIntoLiveReadlist(filing())).rejects.toBeInstanceOf(TransactionCanceledException);
+	});
+
+	it("rethrows a failure that is not a cancellation", async () => {
+		const { client } = createFakeClient({
+			TransactWriteCommand: {
+				default: () => {
+					throw new Error("throttled");
+				},
+			},
+		});
+
+		await expect(initStore(client).fileIntoLiveReadlist(filing())).rejects.toThrow("throttled");
+	});
+
+	it("reads the readlist row consistently, and answers undefined when there is none", async () => {
+		const present = createFakeClient({
+			GetCommand: { default: { Item: userArticleItem({ status: "read", readAt: "2026-11-03T10:02:00.000Z" }) } },
+		});
+		const absent = createFakeClient();
+
+		expect(await initStore(present.client).findReadlistFiling({ userId: USER, readlist: WORK, url: URL })).toEqual({
+			savedAt: new Date("2026-05-30T09:00:00.000Z"),
+			status: "read",
+			readAt: new Date("2026-11-03T10:02:00.000Z"),
+		});
+		expect(present.commands[0]?.input.Key).toEqual({ userId: `${USER}#queue/work`, url: RESOURCE_ID });
+		expect(present.commands[0]?.input.ConsistentRead).toBe(true);
+		expect(await initStore(absent.client).findReadlistFiling({ userId: USER, readlist: WORK, url: URL })).toBeUndefined();
+	});
+
+	it("records the removal marker before deleting a single removal, resolving the article once", async () => {
+		const { client, commands } = createFakeClient({ QueryCommand: { default: { Items: [articleItem()] } } });
+
+		const deleted = await initStore(client).deleteReadlistArticle({ id: ReaderArticleHashId.from(URL), userId: USER, readlist: WORK });
+
+		expect(deleted).toBe(true);
+		expect(commands.map((c) => c.name)).toEqual(["QueryCommand", "UpdateCommand", "DeleteCommand"]);
+		expect(commands[0]?.input.IndexName).toBe("routeId-index");
+		expect(commands[1]?.input.Key).toEqual({ userId: USER, url: RESOURCE_ID });
+		expect(commands[1]?.input.ExpressionAttributeNames).toEqual({ "#removedAt": "readlistRemovedAt#work" });
+		expect(commands[2]?.input.Key).toEqual({ userId: `${USER}#queue/work`, url: RESOURCE_ID });
+	});
+
+	it("writes no marker for a single removal of an unknown article", async () => {
+		const { client, commands } = createFakeClient({ QueryCommand: { default: { Items: [] } } });
+
+		const deleted = await initStore(client).deleteReadlistArticle({ id: ReaderArticleHashId.from(URL), userId: USER, readlist: WORK });
+
+		expect(deleted).toBe(false);
+		expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
+	});
+
+	it("purges a readlist row with no removal marker", async () => {
+		const { client, commands } = createFakeClient({ QueryCommand: { default: { Items: [articleItem()] } } });
+
+		const deleted = await initStore(client).purgeReadlistArticle({ id: ReaderArticleHashId.from(URL), userId: USER, readlist: WORK });
+
+		expect(deleted).toBe(true);
+		expect(commands.map((c) => c.name)).toEqual(["QueryCommand", "DeleteCommand"]);
+		expect(commands[1]?.input.Key).toEqual({ userId: `${USER}#queue/work`, url: RESOURCE_ID });
 	});
 });

@@ -25,6 +25,7 @@ import type {
 	DeleteReadlistFitOverride,
 	DeleteArticle,
 	DeleteReadlistArticle,
+	PurgeReadlistArticle,
 	FindArticleById,
 	FindArticleByUrl,
 	FindItemOwner,
@@ -151,6 +152,7 @@ export interface ReadlistDependencies {
 	findReadlistArticleById: FindReadlistArticleById;
 	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
 	deleteReadlistArticle: DeleteReadlistArticle;
+	purgeReadlistArticle: PurgeReadlistArticle;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;

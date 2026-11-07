@@ -56,6 +56,10 @@ export {
 	type FileArticleIntoReadlistDependencies,
 } from "./file-article-into-readlist";
 export {
+	type FileRequestedArticleIntoReadlist,
+	initFileRequestedArticleIntoReadlist,
+} from "./file-requested-article-into-readlist";
+export {
 	initUpsertReadlist,
 	type UpsertReadlist,
 	type UpsertReadlistOutcome,

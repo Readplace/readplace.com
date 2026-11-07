@@ -1721,7 +1721,7 @@ const fileArticleIntoReadlistArticlesDynamodb = new DynamoDBAccess("file-article
 
 const fileArticleIntoReadlistUserArticlesDynamodb = new DynamoDBAccess("file-article-into-readlist-user-articles-dynamodb", {
 	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:ConditionCheckItem"],
 });
 
 const fileArticleIntoReadlistLambda = new Lambda("file-article-into-readlist", {

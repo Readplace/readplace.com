@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { SaveProvenanceSchema } from "@packages/domain/article";
+import { EventEnvelope } from "@packages/domain/event-envelope";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import {
@@ -9,8 +10,8 @@ import {
 } from "@packages/infra-components";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import type { FindSavedArticleForLink } from "@packages/provider-contracts/article-store";
-import type { FileArticleIntoReadlist } from "@packages/save-article";
+import type { FindSavedArticleForLink, ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
+import type { FileRequestedArticleIntoReadlist } from "@packages/save-article";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 
 export class ArticleNotYetSavedError extends Error {
@@ -33,7 +34,8 @@ export class ArticleNotYetSavedError extends Error {
 
 export function initFileArticleIntoReadlistCommandHandler(deps: {
 	findSavedArticleForLink: FindSavedArticleForLink;
-	fileArticleIntoReadlist: FileArticleIntoReadlist;
+	listReadlistDefinitions: ListReadlistDefinitions;
+	fileRequestedArticleIntoReadlist: FileRequestedArticleIntoReadlist;
 	publishEvent: PublishEvent;
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -61,17 +63,44 @@ export function initFileArticleIntoReadlistCommandHandler(deps: {
 			},
 		},
 		malformed: { policy: "retry" },
-		handle: async (detail) => {
+		handle: async (detail, record) => {
 			const { userId } = detail;
 			const readlist = ReadlistSlugSchema.parse(detail.readlist);
 			assert(readlist !== DEFAULT_READLIST_SLUG, "All is never a filing target");
 			const provenance = SaveProvenanceSchema.parse(detail.provenance);
+			const requestedAt = new Date(EventEnvelope.parse(JSON.parse(record.body)).time);
+			const skip = (reason: string) =>
+				deps.logger.info("[file-article-into-readlist] filing skipped", {
+					userId,
+					readlist,
+					messageId: record.messageId,
+					reason,
+				});
 
+			const definitions = await deps.listReadlistDefinitions(userId);
+			if (!definitions.some((definition) => definition.slug === readlist)) {
+				skip("readlist-gone");
+				return;
+			}
 			const found = await deps.findSavedArticleForLink({ userId, url: detail.url });
 			if (found.kind === "not-saved") {
 				throw new ArticleNotYetSavedError({ userId, readlist, source: detail.fit.source });
 			}
-			await deps.fileArticleIntoReadlist({ userId, readlist, article: found.article, provenance });
+			const filing = await deps.fileRequestedArticleIntoReadlist({
+				userId,
+				readlist,
+				article: found.article,
+				provenance,
+				source: detail.fit.source,
+				requestedAt,
+			});
+			if (filing.kind === "not-in-all") {
+				throw new ArticleNotYetSavedError({ userId, readlist, source: detail.fit.source });
+			}
+			if (filing.kind === "skipped") {
+				skip(filing.reason);
+				return;
+			}
 			await deps.publishEvent(ArticleFiledIntoReadlistEvent, {
 				userId,
 				readlist,

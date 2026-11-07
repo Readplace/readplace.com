@@ -173,6 +173,9 @@ import type {
 	FindReadlistArticleById,
 	UpdateArticleStatusAcrossReadlists,
 	DeleteReadlistArticle,
+	PurgeReadlistArticle,
+	FileIntoLiveReadlist,
+	FindReadlistFiling,
 	MarkReadlistArticleViewed,
 	AssignSavedArticleToReadlist,
 	MoveReadlistArticles,
@@ -495,6 +498,9 @@ export interface ArticleStoreBundle {
 	findReadlistArticleById: FindReadlistArticleById;
 	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
 	deleteReadlistArticle: DeleteReadlistArticle;
+	purgeReadlistArticle: PurgeReadlistArticle;
+	fileIntoLiveReadlist: FileIntoLiveReadlist;
+	findReadlistFiling: FindReadlistFiling;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;

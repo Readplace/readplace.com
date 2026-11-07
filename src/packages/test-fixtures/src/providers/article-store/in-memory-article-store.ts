@@ -13,6 +13,7 @@ import type {
 	ServedBody,
 } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { toEventInstant } from "@packages/domain/event-envelope";
 import {
 	ReaderArticleHashId,
 	articleDestinationUrl,
@@ -52,6 +53,9 @@ import type {
 	DeleteAllUserArticles,
 	DeleteArticle,
 	DeleteReadlistArticle,
+	FileIntoLiveReadlist,
+	FindReadlistFiling,
+	PurgeReadlistArticle,
 	ListReadlistDefinitions,
 	ListReadlistFitOverrides,
 	PurgeReadlistFitOverrides,
@@ -248,6 +252,9 @@ export function initInMemoryArticleStore(): {
 	findReadlistArticleById: FindReadlistArticleById;
 	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
 	deleteReadlistArticle: DeleteReadlistArticle;
+	purgeReadlistArticle: PurgeReadlistArticle;
+	findReadlistFiling: FindReadlistFiling;
+	fileIntoLiveReadlist: FileIntoLiveReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	findQueueRowKeys: FindQueueRowKeys;
@@ -338,6 +345,13 @@ export function initInMemoryArticleStore(): {
 		string,
 		{ userId: UserId; readlist: ReadlistSlug; override: ReadlistFitOverride }
 	>();
+	const readlistRemovals = new Map<string, { userId: UserId; removedAt: string }>();
+	const readlistRemovalKey = (removal: { userId: UserId; readlist: ReadlistSlug; url: string }) =>
+		`${userArticleKey(removal.userId, ArticleResourceUniqueId.parse(removal.url).value)}|${removal.readlist}`;
+	const recordReadlistRemoval = (removal: { userId: UserId; readlist: ReadlistSlug; url: string }) => {
+		if (!userArticles.has(userArticleKey(removal.userId, ArticleResourceUniqueId.parse(removal.url).value))) return;
+		readlistRemovals.set(readlistRemovalKey(removal), { userId: removal.userId, removedAt: toEventInstant(new Date()) });
+	};
 	const findPersonalLibrary: FindPersonalLibrary = async (userId) => {
 		const own = [...userArticles.values()].filter((row) => row.userId === userId);
 		const personal = own.filter(
@@ -482,7 +496,7 @@ export function initInMemoryArticleStore(): {
 		overtakes,
 	}: {
 		readlist: ReadlistSlug | undefined;
-		params: SaveArticleParams;
+		params: Pick<SaveArticleParams, "userId" | "url" | "savedAt" | "provenance" | "suggestionAttribution">;
 		overtakes: (existing: UserArticle) => boolean;
 	}) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -796,7 +810,12 @@ export function initInMemoryArticleStore(): {
 		if (!userArticles.has(uaKey)) return false;
 
 		userArticles.delete(uaKey);
-		if (readlist === undefined) announceDefaultRowDeleted({ userId, url: article.originalUrl });
+		if (readlist === undefined) {
+			for (const key of readlistRemovals.keys()) {
+				if (key.startsWith(`${uaKey}|`)) readlistRemovals.delete(key);
+			}
+			announceDefaultRowDeleted({ userId, url: article.originalUrl });
+		}
 		return true;
 	};
 
@@ -816,8 +835,57 @@ export function initInMemoryArticleStore(): {
 		return "marked" as const;
 	};
 
-	const deleteReadlistArticle: DeleteReadlistArticle = async ({ id, userId, readlist }) =>
+	const deleteReadlistArticle: DeleteReadlistArticle = async ({ id, userId, readlist }) => {
+		const article = findArticleByRouteId(id);
+		if (article) recordReadlistRemoval({ userId, readlist, url: article.originalUrl });
+		return deleteFrom(readlist, id, userId);
+	};
+
+	const purgeReadlistArticle: PurgeReadlistArticle = async ({ id, userId, readlist }) =>
 		deleteFrom(readlist, id, userId);
+
+	const findReadlistFiling: FindReadlistFiling = async ({ userId, readlist, url }) => {
+		const row = userArticles.get(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value, readlist));
+		if (row === undefined) return undefined;
+		return { savedAt: row.savedAt, status: row.status, readAt: row.readAt };
+	};
+
+	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
+		if (!readlistDefinitions.has(readlistDefinitionKey(params.userId, params.readlist))) {
+			return { outcome: "readlist-gone" };
+		}
+		if (!userArticles.has(userArticleKey(params.userId, ArticleResourceUniqueId.parse(params.url).value))) {
+			return { outcome: "not-in-all" };
+		}
+		const removal = readlistRemovals.get(readlistRemovalKey(params));
+		if (removal !== undefined && removal.removedAt > toEventInstant(params.requestedAt)) {
+			return { outcome: "removed-after-request" };
+		}
+		const landsAs = params.landsAs;
+		if (landsAs.status === "read") {
+			const key = userArticleKey(params.userId, ArticleResourceUniqueId.parse(params.url).value, params.readlist);
+			if (userArticles.has(key)) return { outcome: "newer-row-won" };
+			userArticles.set(key, {
+				userId: params.userId,
+				readlist: params.readlist,
+				url: ArticleResourceUniqueId.parse(params.url).value,
+				status: "read",
+				readAt: landsAs.readAt,
+				savedAt: params.savedAt,
+				provenance: params.provenance,
+				suggestionAttribution: params.suggestionAttribution,
+			});
+		} else {
+			const { wroteUserArticle } = writeUserRowUnless({
+				readlist: params.readlist,
+				params,
+				overtakes: (existing) => existing.savedAt.getTime() >= params.savedAt.getTime(),
+			});
+			if (!wroteUserArticle) return { outcome: "newer-row-won" };
+		}
+		await bumpArticleSavedAt({ url: params.url, savedAt: new Date() });
+		return { outcome: "filed" };
+	};
 
 	const deleteAllUserArticles: DeleteAllUserArticles = async (userId) => {
 		for (const [key, ua] of userArticles) {
@@ -828,6 +896,9 @@ export function initInMemoryArticleStore(): {
 		}
 		for (const [key, entry] of readlistFitOverrides) {
 			if (entry.userId === userId) readlistFitOverrides.delete(key);
+		}
+		for (const [key, removal] of readlistRemovals) {
+			if (removal.userId === userId) readlistRemovals.delete(key);
 		}
 		saveCursors.delete(userId);
 	};
@@ -1052,8 +1123,10 @@ export function initInMemoryArticleStore(): {
 		}
 	};
 
-	const deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl = async ({ userId, readlist, url }) =>
-		userArticles.delete(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value, readlist));
+	const deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl = async ({ userId, readlist, url }) => {
+		recordReadlistRemoval({ userId, readlist, url });
+		return userArticles.delete(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value, readlist));
+	};
 
 	const listReadlistDefinitions: ListReadlistDefinitions = async (userId) =>
 		[...readlistDefinitions.values()]
@@ -1450,6 +1523,9 @@ export function initInMemoryArticleStore(): {
 		findReadlistArticleById,
 		updateArticleStatusAcrossReadlists,
 		deleteReadlistArticle,
+		purgeReadlistArticle,
+		findReadlistFiling,
+		fileIntoLiveReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,
 		findQueueRowKeys,

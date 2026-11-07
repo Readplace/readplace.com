@@ -6,8 +6,12 @@ import {
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
+	TransactionCanceledException,
+	TransactWriteCommand,
 	writeIfCondition,
 } from "@packages/storage-client";
+import { toEventInstant } from "@packages/domain/event-envelope";
+import { initRecordReadlistRemoval, readlistRemovedAtAttribute } from "./readlist-removal-marker";
 import { EnclosureSchema } from "@packages/media-contracts";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
@@ -47,6 +51,9 @@ import type {
 	DeleteAllUserArticles,
 	DeleteArticle,
 	DeleteReadlistArticle,
+	FileIntoLiveReadlist,
+	FindReadlistFiling,
+	PurgeReadlistArticle,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
@@ -270,6 +277,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 	findReadlistArticleById: FindReadlistArticleById;
 	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
 	deleteReadlistArticle: DeleteReadlistArticle;
+	purgeReadlistArticle: PurgeReadlistArticle;
+	findReadlistFiling: FindReadlistFiling;
+	fileIntoLiveReadlist: FileIntoLiveReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
@@ -1037,16 +1047,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const countReadlistArticles: CountReadlistArticles = (query) =>
 		countArticlesInPartition(readlistPartitionValue({ userId: query.userId, readlist: query.readlist }), query);
 
-	const deleteInPartition = async (
-		partition: string,
-		routeId: ReaderArticleHashId,
-	): Promise<boolean> => {
-		const article = await findArticleByRouteId(routeId);
-		if (!article) return false;
-
+	const deleteRowInPartition = async ({ partition, url }: { partition: string; url: string }): Promise<boolean> => {
 		const outcome = await writeIfCondition(() =>
 			userArticles.delete({
-				Key: { userId: partition, url: article.url },
+				Key: { userId: partition, url },
 				ConditionExpression: "attribute_exists(savedAt)",
 			}),
 		);
@@ -1054,10 +1058,115 @@ export function initDynamoDbSavedArticleStore(deps: {
 		return true;
 	};
 
+	const deleteInPartition = async (
+		partition: string,
+		routeId: ReaderArticleHashId,
+	): Promise<boolean> => {
+		const article = await findArticleByRouteId(routeId);
+		if (!article) return false;
+		return deleteRowInPartition({ partition, url: article.url });
+	};
+
 	const deleteArticle: DeleteArticle = (routeId, userId) => deleteInPartition(userId, routeId);
 
-	const deleteReadlistArticle: DeleteReadlistArticle = ({ id, userId, readlist }) =>
+	const recordReadlistRemoval = initRecordReadlistRemoval({ client, userArticlesTableName, now });
+
+	const deleteReadlistArticle: DeleteReadlistArticle = async ({ id, userId, readlist }) => {
+		const article = await findArticleByRouteId(id);
+		if (!article) return false;
+		await recordReadlistRemoval({ userId, readlist, url: article.originalUrl });
+		return deleteRowInPartition({ partition: readlistPartitionValue({ userId, readlist }), url: article.url });
+	};
+
+	const purgeReadlistArticle: PurgeReadlistArticle = ({ id, userId, readlist }) =>
 		deleteInPartition(readlistPartitionValue({ userId, readlist }), id);
+
+	const findReadlistFiling: FindReadlistFiling = async ({ userId, readlist, url }) => {
+		const row = await userArticles.get(
+			{ userId: readlistPartitionValue({ userId, readlist }), url: ArticleResourceUniqueId.parse(url).value },
+			{ consistentRead: true },
+		);
+		if (row === undefined) return undefined;
+		return { savedAt: new Date(row.savedAt), status: row.status, readAt: toOptionalDate(row.readAt) };
+	};
+
+	const readlistRowWrite = (params: Parameters<FileIntoLiveReadlist>[0]) => {
+		const attribution =
+			params.suggestionAttribution === undefined
+				? { set: "", values: {} }
+				: {
+					set: ", suggestionAttribution = if_not_exists(suggestionAttribution, :attribution)",
+					values: { ":attribution": params.suggestionAttribution },
+				};
+		const shared = { ":savedAt": params.savedAt.toISOString(), ":provenance": params.provenance, ...attribution.values };
+		if (params.landsAs.status === "read") {
+			return {
+				UpdateExpression: `SET savedAt = :savedAt, provenance = :provenance, #status = :read, readAt = :readAt${attribution.set}`,
+				ConditionExpression: "attribute_not_exists(savedAt)",
+				ExpressionAttributeValues: { ...shared, ":read": "read", ":readAt": params.landsAs.readAt.toISOString() },
+			};
+		}
+		return {
+			UpdateExpression: `SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)${attribution.set}`,
+			ConditionExpression: "attribute_not_exists(savedAt) OR savedAt < :savedAt",
+			ExpressionAttributeValues: { ...shared, ":unread": "unread" },
+		};
+	};
+
+	const isNeitherPassedNorConditionFailed = (code: string | undefined) =>
+		code !== "None" && code !== "ConditionalCheckFailed";
+
+	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
+		const { userId, readlist } = params;
+		const key = ArticleResourceUniqueId.parse(params.url).value;
+		try {
+			await client.send(
+				new TransactWriteCommand({
+					TransactItems: [
+						{
+							ConditionCheck: {
+								TableName: userArticlesTableName,
+								Key: { userId, url: readlistDefinitionKey(readlist) },
+								ConditionExpression: "attribute_exists(#url)",
+								ExpressionAttributeNames: { "#url": "url" },
+							},
+						},
+						{
+							ConditionCheck: {
+								TableName: userArticlesTableName,
+								Key: { userId, url: key },
+								ConditionExpression:
+									"attribute_exists(savedAt) AND (attribute_not_exists(#removedAt) OR #removedAt <= :requestedAt)",
+								ExpressionAttributeNames: { "#removedAt": readlistRemovedAtAttribute(readlist) },
+								ExpressionAttributeValues: { ":requestedAt": toEventInstant(params.requestedAt) },
+							},
+						},
+						{
+							Update: {
+								TableName: userArticlesTableName,
+								Key: { userId: readlistPartitionValue({ userId, readlist }), url: key },
+								ExpressionAttributeNames: { "#status": "status" },
+								...readlistRowWrite(params),
+							},
+						},
+					],
+				}),
+			);
+		} catch (error) {
+			if (!(error instanceof TransactionCanceledException)) throw error;
+			const codes = (error.CancellationReasons ?? []).map((reason) => reason.Code);
+			const decisive = codes.indexOf("ConditionalCheckFailed");
+			if (decisive === -1 || codes.some(isNeitherPassedNorConditionFailed)) throw error;
+			if (decisive === 0) return { outcome: "readlist-gone" };
+			if (decisive === 1) {
+				const allRow = await userArticles.get({ userId, url: key }, { consistentRead: true });
+				return { outcome: allRow === undefined ? "not-in-all" : "removed-after-request" };
+			}
+			return { outcome: "newer-row-won" };
+		}
+		await bumpArticleSavedAt({ url: params.url, savedAt: now() });
+		return { outcome: "filed" };
+	};
 
 	const forEachPartitionRow = (
 		partition: string,
@@ -1575,6 +1684,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 		findReadlistArticleById,
 		updateArticleStatusAcrossReadlists,
 		deleteReadlistArticle,
+		purgeReadlistArticle,
+		findReadlistFiling,
+		fileIntoLiveReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,
 		listUserSavesForUrls,

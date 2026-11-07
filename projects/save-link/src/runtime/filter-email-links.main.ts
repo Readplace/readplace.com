@@ -51,6 +51,7 @@ const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
 const { listReadlistFitOverrides } = initDynamoDbReadlistFitOverrides({
 	client: createDynamoDocumentClient(),
 	userArticlesTableName: userArticlesTable,
+	now: () => new Date(),
 });
 
 const { publishEvent } = initEventBridgePublisher({
