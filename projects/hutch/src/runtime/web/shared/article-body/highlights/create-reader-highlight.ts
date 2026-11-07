@@ -1,5 +1,5 @@
 import type { CandidateId } from "@packages/article-state-types";
-import { type Highlight, HighlightIdSchema } from "@packages/domain/article";
+import { type Highlight, HighlightIdSchema, joinNotes } from "@packages/domain/article";
 import {
 	anchorHighlight,
 	describeRange,
@@ -16,7 +16,8 @@ import type {
 export type CreateReaderHighlightOutcome =
 	| CreateHighlightOutcome
 	| { status: "passage-changed" }
-	| { status: "too-long" };
+	| { status: "too-long" }
+	| { status: "notes-too-long" };
 
 export type CreateReaderHighlight = (params: {
 	text: string;
@@ -27,6 +28,7 @@ export type CreateReaderHighlight = (params: {
 	exact: string;
 	start: number;
 	end: number;
+	note?: string;
 }) => Promise<CreateReaderHighlightOutcome>;
 
 export function initCreateReaderHighlight(deps: {
@@ -49,7 +51,7 @@ export function initCreateReaderHighlight(deps: {
 			const anchor = anchorHighlight({ text, contentHash, highlight: row });
 			return anchor.anchorState === "orphaned"
 				? []
-				: [{ highlightId: row.highlightId, start: anchor.start, end: anchor.end }];
+				: [{ highlightId: row.highlightId, start: anchor.start, end: anchor.end, row }];
 		});
 		const { range, merged } = mergeRanges({
 			range: { start: params.start, end: params.end },
@@ -58,6 +60,13 @@ export function initCreateReaderHighlight(deps: {
 		const described = describeRange({ text, start: range.start, end: range.end });
 		if (described.exact.length > HIGHLIGHT_MAX_EXACT_LENGTH) {
 			return { status: "too-long" };
+		}
+		let note = params.note;
+		const newestFirst = [...merged].sort((a, b) => b.row.createdAt.getTime() - a.row.createdAt.getTime());
+		for (const { row } of newestFirst) {
+			const joined = joinNotes({ newer: note, older: row.note });
+			if (!joined.ok) return { status: "notes-too-long" };
+			note = joined.note;
 		}
 
 		const now = deps.now();
@@ -72,6 +81,7 @@ export function initCreateReaderHighlight(deps: {
 			createdAt: now,
 			updatedAt: now,
 			anchorRevision: 0,
+			...(note === undefined ? {} : { note }),
 		};
 		return deps.createHighlight({
 			userId,

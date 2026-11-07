@@ -44,9 +44,13 @@ function highlight(input: {
 const deleteUrlFor = (highlightId: string): string =>
 	`/queue/abc/highlights/${highlightId}/delete?feature=highlight`;
 
+const noteUrlFor = (highlightId: string): string =>
+	`/queue/abc/highlights/${highlightId}/note?feature=highlight`;
+
 function railOf(rows: readonly HighlightsRailRow[], oob = false): Document {
-	return new JSDOM(renderHighlightsRail({ rows, deleteUrlFor, oob }).html)
-		.window.document;
+	return new JSDOM(
+		renderHighlightsRail({ rows, deleteUrlFor, noteUrlFor, oob }).html,
+	).window.document;
 }
 
 function rowOf(doc: Document, highlightId: string): Element {
@@ -80,6 +84,8 @@ describe("renderHighlightsRail", () => {
 		expect(popoverIds).toEqual([
 			`delete-highlight-${FIRST_ID}`,
 			`delete-highlight-${SECOND_ID}`,
+			`note-highlight-${FIRST_ID}`,
+			`note-highlight-${SECOND_ID}`,
 		]);
 		for (const highlightId of [FIRST_ID, SECOND_ID]) {
 			const row = rowOf(doc, highlightId);
@@ -88,8 +94,9 @@ describe("renderHighlightsRail", () => {
 					.querySelector('[data-test-action="highlight-delete"]')
 					?.getAttribute("popovertarget"),
 			).toBe(`delete-highlight-${highlightId}`);
-			const forms = Array.from(row.querySelectorAll("form"), (form) =>
-				form.getAttribute("action"),
+			const forms = Array.from(
+				row.querySelectorAll("form:not([data-test-form])"),
+				(form) => form.getAttribute("action"),
 			);
 			expect(forms).toHaveLength(2);
 			for (const action of forms) {
@@ -121,7 +128,9 @@ describe("renderHighlightsRail", () => {
 	it("swaps <main> from both delete forms with their buttons disabled in flight", () => {
 		const doc = railOf([{ highlight: first, state: "anchored" }]);
 
-		for (const form of Array.from(doc.querySelectorAll("form"))) {
+		for (const form of Array.from(
+			doc.querySelectorAll("form:not([data-test-form])"),
+		)) {
 			expect(form.getAttribute("hx-boost")).toBe("true");
 			expect(form.getAttribute("hx-target")).toBe("main");
 			expect(form.getAttribute("hx-select")).toBe("main");
@@ -206,6 +215,7 @@ describe("renderHighlightsRail", () => {
 		const rendered = renderHighlightsRail({
 			rows: [],
 			deleteUrlFor,
+			noteUrlFor,
 			oob: false,
 		});
 		const wrapper = new JSDOM(rendered.html).window.document.querySelector(
@@ -223,6 +233,7 @@ describe("renderHighlightsRail", () => {
 		const rendered = renderHighlightsRail({
 			rows: [{ highlight: first, state: "anchored" }],
 			deleteUrlFor,
+			noteUrlFor,
 			oob: true,
 		});
 		const wrapper = new JSDOM(rendered.html).window.document.getElementById(
@@ -231,5 +242,134 @@ describe("renderHighlightsRail", () => {
 
 		expect(rendered.hasRows).toBe(true);
 		expect(wrapper?.getAttribute("hx-swap-oob")).toBe("outerHTML");
+	});
+
+	describe("notes", () => {
+		const noted = {
+			...highlight({ highlightId: FIRST_ID, exact: "First passage", orderKey: 10 }),
+			note: "A line\nand another",
+		};
+
+		it("shows a row's note under its quote and offers Edit note, and Add note on a row without one", () => {
+			const doc = railOf([
+				{ highlight: noted, state: "anchored" },
+				{ highlight: second, state: "anchored" },
+			]);
+
+			const notedRow = rowOf(doc, FIRST_ID);
+			expect(
+				notedRow.querySelector("[data-test-highlight-note]")?.textContent,
+			).toBe("A line\nand another");
+			expect(
+				notedRow.querySelector("blockquote + [data-test-highlight-note]"),
+			).not.toBeNull();
+			const trigger = notedRow.querySelector(
+				'[data-test-action="highlight-note"]',
+			);
+			expect(trigger?.textContent).toBe("Edit note");
+			expect(trigger?.getAttribute("popovertarget")).toBe(
+				`note-highlight-${FIRST_ID}`,
+			);
+			expect(trigger?.classList.contains("highlight-note__trigger")).toBe(
+				true,
+			);
+			const bareRow = rowOf(doc, SECOND_ID);
+			expect(bareRow.querySelectorAll("[data-test-highlight-note]")).toHaveLength(
+				0,
+			);
+			expect(
+				bareRow.querySelector('[data-test-action="highlight-note"]')
+					?.textContent,
+			).toBe("Add note");
+		});
+
+		it("renders each row's note dialog after the list, titled by its note state", () => {
+			const doc = railOf([
+				{ highlight: noted, state: "anchored" },
+				{ highlight: second, state: "anchored" },
+			]);
+
+			const dialogs = Array.from(
+				doc.querySelectorAll('[data-test-confirm-popover="highlight-note-edit"]'),
+			);
+			expect(
+				dialogs.map((dialog) =>
+					dialog.getAttribute("data-test-confirm-subject"),
+				),
+			).toEqual([FIRST_ID, SECOND_ID]);
+			for (const dialog of dialogs) {
+				expect(dialog.closest("ol")).toBeNull();
+				expect(
+					dialog.querySelector("form")?.getAttribute("action"),
+				).toBe(noteUrlFor(dialog.getAttribute("data-test-confirm-subject") ?? ""));
+			}
+			expect(dialogs[0].textContent).toContain("Edit note");
+			expect(dialogs[1].textContent).toContain("Add a note");
+		});
+
+		it("offers an orphaned row's note dialog too", () => {
+			const doc = railOf([{ highlight: noted, state: "orphaned" }]);
+
+			expect(
+				rowOf(doc, FIRST_ID).querySelector('[data-test-action="highlight-note"]')
+					?.textContent,
+			).toBe("Edit note");
+			expect(doc.getElementById(`note-highlight-${FIRST_ID}`)).not.toBeNull();
+		});
+
+		it("holds each row's fallback form in a details, posting the dialog's action and note field with no autofocus or popover target", () => {
+			const doc = railOf([{ highlight: noted, state: "anchored" }]);
+
+			const fallback = rowOf(doc, FIRST_ID).querySelector(
+				"details.highlight-note__fallback",
+			);
+			assert(fallback);
+			expect(fallback.querySelector("summary")?.textContent).toBe("Edit note");
+			const form = fallback.querySelector(
+				'form[data-test-form="highlight-note-fallback"]',
+			);
+			assert(form);
+			expect(form.getAttribute("action")).toBe(noteUrlFor(FIRST_ID));
+			expect(form.querySelector("textarea")?.getAttribute("name")).toBe("note");
+			expect(form.querySelector("textarea")?.textContent).toBe(
+				"A line\nand another",
+			);
+			expect(form.querySelectorAll("[autofocus]")).toHaveLength(0);
+			expect(form.querySelectorAll("[popovertarget]")).toHaveLength(0);
+		});
+
+		it("repeats no id across two rows, and each form's label and description resolve inside that form", () => {
+			const doc = railOf([
+				{ highlight: noted, state: "anchored" },
+				{ highlight: second, state: "anchored" },
+			]);
+
+			const ids = Array.from(doc.querySelectorAll("[id]"), (el) => el.id);
+			expect(new Set(ids).size).toBe(ids.length);
+			const forms = Array.from(doc.querySelectorAll("form[data-test-form]"));
+			expect(forms).toHaveLength(4);
+			for (const form of forms) {
+				const label = form.querySelector("label[for]");
+				const textarea = form.querySelector("textarea");
+				assert(label && textarea);
+				expect(form.querySelector(`#${label.getAttribute("for")}`)).toBe(
+					textarea,
+				);
+				expect(
+					form.querySelector(`#${textarea.getAttribute("aria-describedby")}`),
+				).not.toBeNull();
+			}
+		});
+
+		it("escapes a stored note", () => {
+			const doc = railOf([
+				{ highlight: { ...noted, note: "<img src=x>" }, state: "anchored" },
+			]);
+
+			expect(
+				rowOf(doc, FIRST_ID).querySelector("[data-test-highlight-note]")
+					?.innerHTML,
+			).toBe("&lt;img src=x&gt;");
+		});
 	});
 });

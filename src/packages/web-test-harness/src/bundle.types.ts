@@ -62,6 +62,7 @@ import type {
 	DeleteHighlight,
 	ListArticleHighlights,
 	ListHighlightsOfArticle,
+	UpdateHighlightNote,
 	WriteHighlightAnchor,
 } from "@packages/provider-contracts/highlights";
 import type { ReadlistSlug } from "@packages/domain/readlist";
@@ -629,6 +630,7 @@ export interface HighlightsBundle {
 	deleteAllUserHighlights: DeleteAllUserHighlights;
 	listHighlightsOfArticle: ListHighlightsOfArticle;
 	writeHighlightAnchor: WriteHighlightAnchor;
+	updateHighlightNote: UpdateHighlightNote;
 	setCreateCancelled: (cancelled: boolean) => void;
 	bumpAnchorRevision: (params: { userId: UserId; url: string; highlightId: HighlightId }) => void;
 }

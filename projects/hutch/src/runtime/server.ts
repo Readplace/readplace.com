@@ -156,6 +156,7 @@ import type {
 	DeleteArticleHighlights,
 	DeleteHighlight,
 	ListArticleHighlights,
+	UpdateHighlightNote,
 } from "@packages/provider-contracts/highlights";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import { initCreateReaderHighlight } from "./web/shared/article-body/highlights/create-reader-highlight";
@@ -492,6 +493,7 @@ export interface AppDependencies {
 	readCanonicalSnapshot: ReadCanonicalSnapshot;
 	createHighlight: CreateHighlight;
 	deleteHighlight: DeleteHighlight;
+	updateHighlightNote: UpdateHighlightNote;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	saveReadlistArticle: SaveReadlistArticle;
 	moveReadlistArticles: MoveReadlistArticles;

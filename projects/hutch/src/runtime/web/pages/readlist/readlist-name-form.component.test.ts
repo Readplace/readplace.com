@@ -40,8 +40,8 @@ describe("renderReadlistNameForm", () => {
 	it("marks the form for the client script and carries the failure the script shows when the server cannot answer", () => {
 		const form = formOf(nameForm());
 
-		expect(form.hasAttribute("data-readlist-name-form")).toBe(true);
-		expect(form.getAttribute("data-readlist-name-failure")).toBe("Couldn't rename the readlist.");
+		expect(form.hasAttribute("data-dialog-form")).toBe(true);
+		expect(form.getAttribute("data-dialog-form-failure")).toBe("Couldn't rename the readlist.");
 		expect(form.getAttribute("method")).toBe("POST");
 		expect(form.getAttribute("action")).toBe("/queue/queues/weekend/rename");
 		expect(form.getAttribute("data-test-form")).toBe("readlist-weekend");
@@ -61,7 +61,7 @@ describe("renderReadlistNameForm", () => {
 		const doc = nameForm();
 		const input = inputOf(doc);
 
-		const error = doc.querySelector("[data-readlist-name-error]");
+		const error = doc.querySelector("[data-dialog-form-error]");
 		assert(error, "the partial must carry its error line");
 		expect(input.hasAttribute("aria-invalid")).toBe(false);
 		expect(input.hasAttribute("autofocus")).toBe(true);
@@ -80,7 +80,7 @@ describe("renderReadlistNameForm", () => {
 		expect(input.value).toBe('"Weekend" <b>Reads</b> & more');
 		expect(input.getAttribute("aria-invalid")).toBe("true");
 		expect(input.hasAttribute("autofocus")).toBe(true);
-		expect(error.hasAttribute("data-readlist-name-error")).toBe(true);
+		expect(error.hasAttribute("data-dialog-form-error")).toBe(true);
 		expect(error.textContent).toBe("You already have a readlist with that name, so pick another one.");
 	});
 
@@ -105,7 +105,7 @@ describe("renderReadlistNameForm", () => {
 		const doc = nameForm();
 		const input = inputOf(doc);
 
-		const error = doc.querySelector("[data-readlist-name-error]");
+		const error = doc.querySelector("[data-dialog-form-error]");
 		assert(error, "the partial must carry its error line");
 		expect(input.getAttribute("aria-describedby")).toBe("weekend-dialog-name-error");
 		expect(error.id).toBe("weekend-dialog-name-error");

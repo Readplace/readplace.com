@@ -1,0 +1,14 @@
+<form class="confirm-popover__actions highlight-note-form" method="POST" action="{{action}}"{{#if answersInPlace}} hx-post="{{action}}" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-dialog-form data-dialog-form-failure="{{failureMessage}}"{{else}} hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{/if}}{{#if refusal}} data-highlight-note-refusal="{{refusal}}"{{/if}} data-test-form="{{key}}">
+  {{#each hiddenFields}}
+  <input type="hidden" name="{{name}}" value="{{value}}">
+  {{/each}}
+  <label class="form-field__label" for="{{inputId}}">{{fieldLabel}}</label>
+  <textarea class="form-input form-input--multiline" id="{{inputId}}" name="{{field}}" rows="4" maxlength="{{maxLength}}" aria-describedby="{{inputId}}-error"{{#if autofocus}} autofocus{{/if}}{{#if error}} aria-invalid="true"{{/if}} data-test-highlight-note-input>{{value}}</textarea>
+  <p class="form-field__error" id="{{inputId}}-error" role="alert" data-dialog-form-error data-test-highlight-note-error>{{error}}</p>
+  <div class="confirm-popover__buttons">
+    {{#if popoverId}}
+    <button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="{{key}}-cancel">Cancel</button>
+    {{/if}}
+    <button class="btn btn--primary readlist-name-form__commit" type="submit" data-test-action="{{key}}-save"><span class="readlist-name-form__commit-label">{{commitLabel}}</span>{{{loaderHtml}}}</button>
+  </div>
+</form>

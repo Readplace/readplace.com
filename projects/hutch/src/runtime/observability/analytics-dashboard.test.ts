@@ -717,6 +717,25 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		]);
 	});
 
+	it("charts highlight creates, deletes and note saves per day, by event and note action", () => {
+		const widget = buildBody().widgets.find(({ properties }) => properties.title === "Highlights created / deleted");
+		assert(widget, "the highlights created / deleted widget must exist");
+		expect(widget).toMatchObject({
+			type: "log",
+			x: 0,
+			y: 106,
+			width: 12,
+			height: 8,
+			properties: { view: "timeSeries" },
+		});
+		const query = widget.properties.query;
+		assert(typeof query === "string");
+		expect(query).toContain(
+			`| filter stream = "${STREAMS.analytics}" and (event = "${ANALYTICS_EVENTS.highlightCreated}" or event = "${ANALYTICS_EVENTS.highlightDeleted}" or event = "${ANALYTICS_EVENTS.highlightNoteSaved}")`,
+		);
+		expect(query).toContain("| stats count(*) as highlights by event, action, bin(1d)");
+	});
+
 	it("counts highlight creates and creates deleted within 30 s, by origin, beside the created / deleted chart", () => {
 		const widget = buildBody().widgets.find(
 			({ properties }) => properties.title === "Highlights by origin: creates and quick deletes",

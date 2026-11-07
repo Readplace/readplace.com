@@ -26,6 +26,7 @@ export const ANALYTICS_EVENTS = {
 	summaryToggled: "summary_toggled",
 	highlightCreated: "highlight_created",
 	highlightDeleted: "highlight_deleted",
+	highlightNoteSaved: "highlight_note_saved",
 	viewOpened: "view_opened",
 	viewCrawlLimited: "view_crawl_limited",
 	viewSaveIntent: "view_save_intent",

@@ -15,6 +15,7 @@ import { initReadlistListingRoutes } from "./readlist-listing.page";
 import { initReadlistSaveRoutes } from "./readlist-save.page";
 import { initReadlistQueueRoutes } from "./readlist-queues.page";
 import { initReaderPanelRoutes } from "./reader-panels.page";
+import { initHighlightNoteRoutes } from "./highlight-note.page";
 import { initHighlightRoutes } from "./highlights.page";
 import { initReadlistCardRoutes } from "./readlist-card.page";
 
@@ -91,6 +92,23 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				},
 				renderOwnerReader: readerPage.renderOwnerReader,
 				readerSectionFor: shared.ownerReaderSection,
+			},
+		),
+	);
+	router.use(
+		initHighlightNoteRoutes(
+			{
+				requireWriteAccess: deps.requireWriteAccess,
+				updateHighlightNote: deps.updateHighlightNote,
+				recordAnalyticsEvent: deps.recordAnalyticsEvent,
+				salt: deps.salt,
+				now: deps.now,
+			},
+			{
+				findOwnedArticle: (req, id) => {
+					assert(req.userId, "userId required - route must be protected by requireAuth");
+					return shared.storeFor(shared.requestReadlistContext(req).state.readlist).findArticleById(id, req.userId);
+				},
 			},
 		),
 	);

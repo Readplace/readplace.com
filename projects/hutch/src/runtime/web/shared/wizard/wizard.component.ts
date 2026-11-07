@@ -17,7 +17,7 @@ const FORM_CLASS: Record<WizardSurface, string> = {
 
 const SUBMIT_ATTRIBUTES: Record<WizardSurface, string> = {
 	popover:
-		'hx-post="{{action}}" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-readlist-name-form data-readlist-name-failure="{{failureMessage}}"',
+		'hx-post="{{action}}" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-dialog-form data-dialog-form-failure="{{failureMessage}}"',
 	inline: 'hx-boost="false"',
 };
 

@@ -1,0 +1,40 @@
+.confirm-popover__actions.highlight-note-form {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  width: 100%;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.highlight-note-form .confirm-popover__buttons {
+  margin-top: 16px;
+}
+
+.htmx-request.highlight-note-form,
+.htmx-request .highlight-note-form {
+  cursor: progress;
+}
+
+.highlight-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.highlight-note__trigger {
+  display: none;
+}
+
+@supports selector(:popover-open) {
+  .highlight-note__trigger {
+    display: inline-flex;
+  }
+
+  .highlight-note__fallback {
+    display: none;
+  }
+}

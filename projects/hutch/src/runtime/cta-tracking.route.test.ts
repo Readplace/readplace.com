@@ -209,6 +209,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 				: [];
 
 		const untracked: string[] = [];
+		let highlightedHtml = "";
 		for (const path of [
 			...MEMBER_PATHS,
 			...readlistPaths,
@@ -216,11 +217,30 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		]) {
 			const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
 			untracked.push(...untrackedOn(path, response.text));
+			if (path === highlightedPath) highlightedHtml = response.text;
 		}
+		const noteFormUtm = (selector: string) => {
+			const action = new JSDOM(highlightedHtml).window.document.querySelector(selector)?.getAttribute("action");
+			assert(action, `the highlighted reader must render ${selector}`);
+			const params = new URL(action, "https://readplace.com").searchParams;
+			return { source: params.get("utm_source"), content: params.get("utm_content") };
+		};
 
 		expect(readerHref).toContain("/view");
 		expect(readlistPaths.length).toBe(7);
 		expect(untracked).toEqual([]);
+		expect(noteFormUtm('#note-highlight-dialog form[data-test-form="highlight-note"]')).toEqual({
+			source: "highlight-toolbar",
+			content: "save-note",
+		});
+		expect(noteFormUtm('[data-test-confirm-popover="highlight-note-edit"] form')).toEqual({
+			source: "highlights-rail",
+			content: "edit-note",
+		});
+		expect(noteFormUtm('form[data-test-form="highlight-note-fallback"]')).toEqual({
+			source: "highlights-rail",
+			content: "edit-note",
+		});
 	});
 
 	it("holds across the billing surfaces of a paying subscriber with saved cards and invoices", async () => {

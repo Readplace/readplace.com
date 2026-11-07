@@ -624,10 +624,10 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			title: "Highlights created / deleted",
 			logGroupNames: analyticsSource,
 			query: [
-				"fields @timestamp, event",
-				`| filter stream = "${STREAMS.analytics}" and (event = "${ANALYTICS_EVENTS.highlightCreated}" or event = "${ANALYTICS_EVENTS.highlightDeleted}")`,
+				"fields @timestamp, event, action",
+				`| filter stream = "${STREAMS.analytics}" and (event = "${ANALYTICS_EVENTS.highlightCreated}" or event = "${ANALYTICS_EVENTS.highlightDeleted}" or event = "${ANALYTICS_EVENTS.highlightNoteSaved}")`,
 				...exclude,
-				"| stats count(*) as highlights by event, bin(1d)",
+				"| stats count(*) as highlights by event, action, bin(1d)",
 			].join(" "),
 			x: 0, y: 106, width: 12, height: 8,
 			view: "timeSeries",

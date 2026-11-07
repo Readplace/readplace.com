@@ -79,17 +79,19 @@ export function initReaderPanelRoutes(
 					renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req), guide: epubGuideFor(req, article) })
 			: undefined;
 
-	const pollHighlightsFor = async (req: Request, article: SavedArticle): Promise<PollHighlights | undefined> =>
-		highlightFeatureEnabled(req.query) && !isAppPlatform(req)
-			? {
-					rows: await deps.listArticleHighlights({
-						userId: article.userId,
-						url: ArticleResourceUniqueId.parse(article.url).value,
-					}),
-					canonicalContentHash: (await deps.readCanonicalSnapshot(article.url))?.canonicalContentHash,
-					deleteUrlFor: highlightPathsFor({ articleId: article.id.value, query: req.query }).deleteUrlFor,
-				}
-			: undefined;
+	const pollHighlightsFor = async (req: Request, article: SavedArticle): Promise<PollHighlights | undefined> => {
+		if (!highlightFeatureEnabled(req.query) || isAppPlatform(req)) return undefined;
+		const { deleteUrlFor, noteUrlFor } = highlightPathsFor({ articleId: article.id.value, query: req.query });
+		return {
+			rows: await deps.listArticleHighlights({
+				userId: article.userId,
+				url: ArticleResourceUniqueId.parse(article.url).value,
+			}),
+			canonicalContentHash: (await deps.readCanonicalSnapshot(article.url))?.canonicalContentHash,
+			deleteUrlFor,
+			noteUrlFor,
+		};
+	};
 
 	router.get("/:id/summary", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");

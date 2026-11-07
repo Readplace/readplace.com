@@ -89,7 +89,13 @@ async function highlightedReaderPath(input: {
 	const created = await input.agent
 		.post(`/queue/${input.articleId}/highlights?feature=highlight`)
 		.type("form")
-		.send({ exact: input.exact, start: String(start), end: String(start + input.exact.length), origin: "mouse" });
+		.send({
+			exact: input.exact,
+			start: String(start),
+			end: String(start + input.exact.length),
+			origin: "mouse",
+			note: "A note on the passage",
+		});
 	assert.equal(created.status, 303, "the highlight must be created");
 	return path;
 }
@@ -219,7 +225,7 @@ describe("every popup opens on its first decision", () => {
 		expect(gaps).toEqual([]);
 		expect(drawerSeen).toBe(true);
 		expect(readerKeys).toContain("delete");
-		expect(highlightedKeys).toContain("highlight-delete");
+		expect(highlightedKeys).toEqual(expect.arrayContaining(["highlight-delete", "highlight-note", "highlight-note-edit"]));
 		expect([...keys].sort()).toEqual([
 			"account-profile",
 			"add-link",
@@ -230,6 +236,8 @@ describe("every popup opens on its first decision", () => {
 			"download-guide",
 			"exit-confirm",
 			"highlight-delete",
+			"highlight-note",
+			"highlight-note-edit",
 			"mark-status",
 			"move",
 			"readlist-create",
@@ -367,8 +375,21 @@ describe("every popup opens on its first decision", () => {
 	});
 
 	it("keeps autofocus off every inline copy and on the refused field of a 422", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
+		const unservedUrl = "https://mail.google.com/mail/u/0/";
+		await agent.post("/queue/save").type("form").send({ url: unservedUrl });
+		const unserved = await fixture.articleStore.findArticleByUrl(unservedUrl);
+		assert(unserved, "the unserved article is saved");
+		const refusedNote = await agent
+			.post(`/queue/${unserved.id.value}/highlights?feature=highlight`)
+			.set("HX-Request", "true")
+			.type("form")
+			.send({ exact: "anything", start: "0", end: "8", origin: "mouse", note: "Kept", answer: "dialog" });
+		const refusedNoteTargets = Array.from(parse(refusedNote.text).querySelectorAll("[autofocus]"), (target) =>
+			target.hasAttribute("data-test-highlight-note-input"),
+		);
 		const plans = parse((await agent.get("/account/plans").set(BROWSER_REQUEST_HEADERS)).text);
 		const madeReadlist = createdSlug(
 			(await agent.post("/queue/queues").type("form").send({ label: "New Readlist" })).headers.location,
@@ -397,6 +418,8 @@ describe("every popup opens on its first decision", () => {
 		]);
 		expect(refused.status).toBe(422);
 		expect(refusedTargets).toEqual([true]);
+		expect(refusedNote.status).toBe(422);
+		expect(refusedNoteTargets).toEqual([true]);
 	});
 });
 

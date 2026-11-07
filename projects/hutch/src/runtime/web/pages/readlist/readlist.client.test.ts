@@ -36,19 +36,19 @@ function lockedMenusMarkup(): string {
 const LIVE_REGION = `<div id="toast-live-region" role="status" aria-live="polite"></div>`;
 
 function renameDialogMarkup(): string {
-	return `${LIVE_REGION}<div id="readlist-rename-work" popover data-test-dialog="rename"><form data-readlist-name-form data-readlist-name-failure="Couldn't rename the readlist." data-test-form="readlist-rename" action="/queue/queues/work/rename" hx-post="/queue/queues/work/rename"><input name="label" value="Work Reading"><p data-readlist-name-error></p><button type="submit">Save</button></form></div>`;
+	return `${LIVE_REGION}<div id="readlist-rename-work" popover data-test-dialog="rename"><form data-dialog-form data-dialog-form-failure="Couldn't rename the readlist." data-test-form="readlist-rename" action="/queue/queues/work/rename" hx-post="/queue/queues/work/rename"><input name="label" value="Work Reading"><p data-dialog-form-error></p><button type="submit">Save</button></form></div>`;
 }
 
 function createDialogMarkup(): string {
-	return `${LIVE_REGION}<div id="readlist-create" popover data-test-dialog="create"><form data-readlist-name-form data-readlist-name-failure="Couldn't create the readlist." data-test-form="readlist-create" action="/queue/queues?queue=all" hx-post="/queue/queues?queue=all"><input name="label" value="Ideas &amp; Inspiration"><p data-readlist-name-error></p><button type="submit">Create readlist</button></form></div>`;
+	return `${LIVE_REGION}<div id="readlist-create" popover data-test-dialog="create"><form data-dialog-form data-dialog-form-failure="Couldn't create the readlist." data-test-form="readlist-create" action="/queue/queues?queue=all" hx-post="/queue/queues?queue=all"><input name="label" value="Ideas &amp; Inspiration"><p data-dialog-form-error></p><button type="submit">Create readlist</button></form></div>`;
 }
 
 function createAndMoveDialogMarkup(): string {
-	return `${LIVE_REGION}<div id="readlist-create-move-abc" popover data-test-dialog="create-move"><form data-readlist-name-form data-readlist-name-failure="Couldn't create the readlist." data-test-form="readlist-create-move" action="/queue/abc/move?queue=work" hx-post="/queue/abc/move?queue=work"><input type="hidden" name="from" value="work"><input name="label" value="Finance"><p data-readlist-name-error></p><button type="submit">Create readlist</button></form></div>`;
+	return `${LIVE_REGION}<div id="readlist-create-move-abc" popover data-test-dialog="create-move"><form data-dialog-form data-dialog-form-failure="Couldn't create the readlist." data-test-form="readlist-create-move" action="/queue/abc/move?queue=work" hx-post="/queue/abc/move?queue=work"><input type="hidden" name="from" value="work"><input name="label" value="Finance"><p data-dialog-form-error></p><button type="submit">Create readlist</button></form></div>`;
 }
 
 function purposeDialogMarkup(): string {
-	return `${LIVE_REGION}<div id="readlist-preferences-wizard" popover data-test-dialog="purpose"><form method="POST" action="/queue/queues/work/preferences" hx-post="/queue/queues/work/preferences" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-readlist-name-form data-readlist-name-failure="Couldn't save the purpose." data-test-wizard="readlist-preferences"><div class="form-field"><label for="readlist-preferences-wizard-purpose">Readlist purpose</label><textarea id="readlist-preferences-wizard-purpose" name="purpose">Essays on how teams ship.</textarea><p data-readlist-name-error></p></div><button type="submit">Save</button></form></div>`;
+	return `${LIVE_REGION}<div id="readlist-preferences-wizard" popover data-test-dialog="purpose"><form method="POST" action="/queue/queues/work/preferences" hx-post="/queue/queues/work/preferences" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-dialog-form data-dialog-form-failure="Couldn't save the purpose." data-test-wizard="readlist-preferences"><div class="form-field"><label for="readlist-preferences-wizard-purpose">Readlist purpose</label><textarea id="readlist-preferences-wizard-purpose" name="purpose">Essays on how teams ship.</textarea><p data-dialog-form-error></p></div><button type="submit">Save</button></form></div>`;
 }
 
 function addLinkMarkup(): string {
@@ -142,7 +142,7 @@ function init(bodyHtml: string) {
 		cardSummary: () => element<HTMLElement>("[data-test-article-menu] summary", "the card menu opens from a summary"),
 		purposeInvalid: () =>
 			element(
-				"form[data-readlist-name-form] textarea[name='purpose']",
+				"form[data-dialog-form] textarea[name='purpose']",
 				"the purpose form must carry its purpose field",
 			).getAttribute("aria-invalid"),
 		outside: () => element<HTMLElement>("[data-test-outside]", "an outside control must be in the document"),
@@ -169,7 +169,7 @@ function init(bodyHtml: string) {
 			htmxEvent(target, "htmx:afterRequest", { xhr: request }),
 		failToSend: (target: Element) => htmxEvent(target, "htmx:sendError", { xhr: answered({ status: 0 }) }),
 		failToSendWithoutDetail: (target: Element) => htmxEvent(target, "htmx:sendError"),
-		nameForm: () => element("form[data-readlist-name-form]", "the name form must be in the document"),
+		nameForm: () => element("form[data-dialog-form]", "the name form must be in the document"),
 		saveLinkForm: () => element("form[data-save-link-form]", "the Add link form must be in the document"),
 		saveLinkError: () =>
 			element("[data-save-link-error]", "the Add link form must carry its error line").textContent,
@@ -182,15 +182,15 @@ function init(bodyHtml: string) {
 		unrelatedForm: () => element("form[data-test-form='unrelated']", "the unrelated form must be in the document"),
 		cardLink: () => element("[data-test-card-link]", "the card link must be in the document"),
 		errorText: () =>
-			element("[data-readlist-name-error]", "the name form must carry its error line").textContent,
+			element("[data-dialog-form-error]", "the name form must carry its error line").textContent,
 		inputInvalid: () =>
 			element(
-				"form[data-readlist-name-form] input[name='label']",
+				"form[data-dialog-form] input[name='label']",
 				"the name form must carry its name input",
 			).getAttribute("aria-invalid"),
 		announced: () => element("#toast-live-region", "the shell mounts a live region on every page").textContent,
 		invalidFields: () =>
-			Array.from(document.querySelectorAll("form[data-readlist-name-form] input[aria-invalid]"), (input) =>
+			Array.from(document.querySelectorAll("form[data-dialog-form] input[aria-invalid]"), (input) =>
 				input.getAttribute("name"),
 			),
 	};
@@ -245,7 +245,7 @@ describe("initReadlist", () => {
 
 		const detail = app.answerBeforeSwap(
 			app.nameForm(),
-			answered({ status: 422, body: "<form data-readlist-name-form></form>" }),
+			answered({ status: 422, body: "<form data-dialog-form></form>" }),
 		);
 
 		expect(detail.shouldSwap).toBe(true);
@@ -356,7 +356,7 @@ describe("initReadlist", () => {
 
 		const detail = app.answerBeforeSwap(
 			app.nameForm(),
-			answered({ status: 422, body: "<form data-readlist-name-form></form>" }),
+			answered({ status: 422, body: "<form data-dialog-form></form>" }),
 		);
 
 		expect(detail.shouldSwap).toBe(true);
@@ -388,7 +388,7 @@ describe("initReadlist", () => {
 
 	it("refuses to show a failure on a name form that has lost its failure text", () => {
 		const app = init(
-			`<form data-readlist-name-form><input name="label" value="Work"><p data-readlist-name-error></p></form>`,
+			`<form data-dialog-form><input name="label" value="Work"><p data-dialog-form-error></p></form>`,
 		);
 
 		app.failToSend(app.nameForm());

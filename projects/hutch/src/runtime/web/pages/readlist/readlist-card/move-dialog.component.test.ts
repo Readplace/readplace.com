@@ -328,7 +328,7 @@ describe("renderMoveDialogs", () => {
 		});
 		expect(shape(refusedForm)).toEqual(shape(dialogForm));
 		expect(refusedForm.querySelector("input[name='label']")?.getAttribute("value")).toBe("All");
-		expect(textOf(refusedForm, "[data-readlist-name-error]")).toBe(
+		expect(textOf(refusedForm, "[data-dialog-form-error]")).toBe(
 			"Pick a name other than All, the readlist that holds every save.",
 		);
 	});

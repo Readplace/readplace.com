@@ -9,6 +9,7 @@ import type {
 	DeleteHighlight,
 	ListArticleHighlights,
 	ListHighlightsOfArticle,
+	UpdateHighlightNote,
 	WriteHighlightAnchor,
 } from "@packages/provider-contracts/highlights";
 
@@ -20,6 +21,7 @@ export interface InMemoryHighlights {
 	deleteAllUserHighlights: DeleteAllUserHighlights;
 	listHighlightsOfArticle: ListHighlightsOfArticle;
 	writeHighlightAnchor: WriteHighlightAnchor;
+	updateHighlightNote: UpdateHighlightNote;
 	setCreateCancelled: (cancelled: boolean) => void;
 	bumpAnchorRevision: (params: { userId: UserId; url: string; highlightId: HighlightId }) => void;
 }
@@ -85,6 +87,14 @@ export function initInMemoryHighlights(): InMemoryHighlights {
 		return { outcome: "written" };
 	};
 
+	const updateHighlightNote: UpdateHighlightNote = async ({ userId, url, highlightId, note, updatedAt }) => {
+		const row = rows.get(keyOf({ userId, url, highlightId }));
+		if (row === undefined) return { updated: false, hadNote: false };
+		const { note: previous, ...current } = row.highlight;
+		row.highlight = { ...current, ...(note === undefined ? {} : { note }), updatedAt };
+		return { updated: true, hadNote: previous !== undefined };
+	};
+
 	return {
 		listArticleHighlights,
 		createHighlight,
@@ -93,6 +103,7 @@ export function initInMemoryHighlights(): InMemoryHighlights {
 		deleteAllUserHighlights,
 		listHighlightsOfArticle,
 		writeHighlightAnchor,
+		updateHighlightNote,
 		setCreateCancelled: (cancelled) => {
 			createCancelled = cancelled;
 		},

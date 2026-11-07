@@ -116,6 +116,6 @@ describe("renderReadlistCreate", () => {
 		expect(form.getAttribute("action")).toBe(
 			"/queue/queues?queue=work&utm_source=queue-nav&utm_medium=internal&utm_content=new-readlist",
 		);
-		expect(form.getAttribute("data-readlist-name-failure")).toBe("Couldn't create the readlist.");
+		expect(form.getAttribute("data-dialog-form-failure")).toBe("Couldn't create the readlist.");
 	});
 });
