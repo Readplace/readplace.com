@@ -15,6 +15,7 @@ import {
 } from "@packages/onboarding-extension-signal";
 import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
 import { createReadlistFromReader, markReadWithConfirmation, openAddLink } from "./page-interactions";
+import { selectPassage } from "./highlight-a-passage.browser";
 import { CONNECTOR_REDIRECT_URI, gotoConsent, registerConnector } from "./oauth-consent";
 import { seedChromeGrant } from "./oauth-revoke/seed-grant";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
@@ -834,6 +835,54 @@ test.describe("The reader's failed-crawl notice holds its WCAG contrast in both 
 				page.locator('[data-test-reader-notice] [data-test-alert="reader-capture-pitch"][data-test-alert-variant="info"]'),
 			).toBeVisible({ timeout: SETTLE_MS });
 			await auditRoot(page, { root: "[data-test-reader-notice]", theme, view: "reader-notice-failed" });
+		}
+	});
+});
+
+test.describe("A highlighted passage in the reader holds its WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the marked passage clears colour and greyscale minimums", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-highlight-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const passage = "the reader's own mark keeps the ink of the words it sits behind";
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-highlight-${run}`,
+				title: "A passage worth keeping",
+				content: `<p>Seeded body for the highlight contrast sweep: ${passage}, in both themes.</p>`,
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		const readerUrl = `${BASE_URL}/queue/${articleId}/view?feature=highlight`;
+		await loginChipReader(page, email);
+		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', { timeout: SETTLE_MS });
+		await page.evaluate(selectPassage, { root: "[data-test-reader-content]", exact: passage });
+		await expect(page.locator("[data-test-highlight-toolbar]")).toBeVisible({ timeout: SETTLE_MS });
+		await page.locator('[data-test-action="highlight"]').click();
+		await expect(page.locator("[data-test-reader-content] mark.article-highlight")).toHaveText(passage, {
+			timeout: SETTLE_MS,
+		});
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-reader-content] mark.article-highlight")).toHaveText(passage, {
+				timeout: SETTLE_MS,
+			});
+			await page.mouse.move(0, 0);
+			const measurements = await stableMeasurements(page, "[data-test-reader-content]");
+			assert.ok(
+				measurements.some((measured) => measured.role === "text" && measured.name === "mark.article-highlight"),
+				`${theme}/reader-highlight: the audit must measure the marked passage's ink`,
+			);
+			assertContrast(measurements, { theme, view: "reader-highlight" });
 		}
 	});
 });

@@ -21,7 +21,7 @@ export function hnStarterWidgets(deps: {
 				"| stats count(*) as events, count_distinct(user_id) as accounts by campaign_id, event, arm, reason",
 				"| sort events desc",
 			].join(" "),
-			x: 0, y: 274, width: 24, height: 8,
+			x: 0, y: 290, width: 24, height: 8,
 			view: "table",
 		},
 		readerActivity: {
@@ -35,7 +35,7 @@ export function hnStarterWidgets(deps: {
 				"| stats count(*) as actions, count_distinct(user_id) as accounts by campaign_id, arm, activity_kind, marked_read, on_suggestion",
 				"| sort actions desc",
 			].join(" "),
-			x: 0, y: 282, width: 12, height: 8,
+			x: 0, y: 298, width: 12, height: 8,
 			view: "table",
 		},
 		unsubscribesByArm: {
@@ -49,7 +49,7 @@ export function hnStarterWidgets(deps: {
 				"| filter ispresent(original_arm) and unsubscribes > 0",
 				"| stats count(*) as accounts by campaign, original_arm",
 			].join(" "),
-			x: 12, y: 282, width: 12, height: 8,
+			x: 12, y: 298, width: 12, height: 8,
 			view: "table",
 		},
 		latestReport: {
@@ -64,7 +64,7 @@ export function hnStarterWidgets(deps: {
 				"latest(treatment.inserted) as t_inserted, latest(treatment.insertionFailed) as t_insertion_failed, latest(treatment.sent) as t_sent, latest(treatment.suppressed) as t_suppressed, latest(treatment.review) as t_review",
 				"by campaign_id",
 			].join(" "),
-			x: 0, y: 290, width: 24, height: 6,
+			x: 0, y: 306, width: 24, height: 6,
 			view: "table",
 		},
 		latestReportByCohort: {
@@ -78,7 +78,7 @@ export function hnStarterWidgets(deps: {
 				"by campaign_id, cohort",
 				"| sort cohort asc",
 			].join(" "),
-			x: 0, y: 296, width: 12, height: 8,
+			x: 0, y: 312, width: 12, height: 8,
 			view: "table",
 		},
 		activatedOverTime: {
@@ -90,7 +90,7 @@ export function hnStarterWidgets(deps: {
 				"max(comparison.activated) as comparison_activated, max(comparison.mature) as comparison_mature",
 				"by bin(6h)",
 			].join(" "),
-			x: 12, y: 296, width: 12, height: 8,
+			x: 12, y: 312, width: 12, height: 8,
 			view: "timeSeries",
 		},
 	} satisfies Record<string, LogWidgetSpec>;

@@ -70,6 +70,7 @@ export {
 } from "./save-provenance";
 export {
 	ARTICLE_SECTION_ID_PREFIX,
+	ARTICLE_HIGHLIGHT_ID_PREFIX,
 	chapterSectionId,
 	isChapterSectionId,
 	READER_CELL_LABEL_ATTRIBUTE,
@@ -167,3 +168,22 @@ export {
 	type SavedWindowId,
 } from "./article-discovery";
 export { resolutionOnViewCoolDownCutoff } from "./resolution-on-view-cool-down";
+export {
+	HighlightIdSchema,
+	type HighlightId,
+	AnchorStateSchema,
+	type AnchorState,
+	type Highlight,
+	type TextQuoteSelector,
+} from "./highlight/highlight";
+export {
+	anchorHighlightFuzzy,
+	type FuzzyAnchorableHighlight,
+} from "./highlight/anchor-highlight-fuzzy";
+export {
+	reanchorArticleHighlights,
+	type ReanchorableHighlight,
+	type HighlightAnchorUpdate,
+	type HighlightAnchorWrite,
+	type ReanchorCounts,
+} from "./highlight/reanchor-article-highlights";

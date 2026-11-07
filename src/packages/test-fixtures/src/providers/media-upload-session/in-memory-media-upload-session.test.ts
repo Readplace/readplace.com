@@ -129,7 +129,6 @@ describe("initInMemoryMediaPending", () => {
 
 		const post = await pending.mintMediaPendingPost({
 			uploadId,
-			contentType: "application/epub+zip",
 			uploadCeilingBytes: 10,
 			successActionRedirect: "https://app.test/upload/x",
 		});
@@ -184,9 +183,12 @@ describe("initInMemoryMediaUploadSessions for a guest upload", () => {
 		const sessions = initInMemoryMediaUploadSessions();
 		await sessions.createAnyMediaUploadSession(guest);
 		assert.equal(await sessions.findMediaUploadSession({ uploadId, userId: owner }), undefined);
-		assert.equal(await sessions.markMediaUploadInspecting({ uploadId, etag: '"e"' }), "inspecting");
+		assert.equal(await sessions.markMediaUploadInspecting({ uploadId, etag: '"e"', kind: "book" }), "inspecting");
 		assert.equal(
-			await sessions.recordMediaInspection({ uploadId, inspection: { verdict: "inspected", facts } }),
+			await sessions.recordMediaInspection({
+				uploadId,
+				inspection: { verdict: "inspected", facts },
+			}),
 			"ready",
 		);
 
@@ -207,9 +209,23 @@ describe("initInMemoryMediaUploadSessions for a guest upload", () => {
 			await sessions.recordMediaInspection({ uploadId, inspection: { verdict: "inspected", facts } }),
 			"not-inspecting",
 		);
-		assert.equal(await sessions.claimMediaUpload({ uploadId, userId: owner }), "not-claimable");
-		await sessions.markMediaUploadInspecting({ uploadId, etag: '"e"' });
-		assert.equal(await sessions.markMediaUploadInspecting({ uploadId, etag: '"e"' }), "not-staged");
+		assert.equal(
+			await sessions.claimMediaUpload({ uploadId, userId: owner }),
+			"not-claimable",
+		);
+		await sessions.markMediaUploadInspecting({
+			uploadId,
+			etag: '"e"',
+			kind: "book",
+		});
+		assert.equal(
+			await sessions.markMediaUploadInspecting({
+				uploadId,
+				etag: '"e"',
+				kind: "book",
+			}),
+			"not-staged",
+		);
 
 		const outcome = await sessions.recordMediaInspection({
 			uploadId,

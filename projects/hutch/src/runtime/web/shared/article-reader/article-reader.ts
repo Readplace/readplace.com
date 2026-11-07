@@ -28,6 +28,11 @@ import {
 	renderDocumentTitleOob,
 } from "../article-body/article-header/article-header.component";
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
+import {
+	highlightsRailRowsFromStates,
+	pendingHighlightsRailRows,
+	renderHighlightsRail,
+} from "../article-body/highlights-rail/highlights-rail.component";
 import { type ReaderSlotCapture, renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import type { ReaderSectionInput } from "../article-body/reader-slot/section-pages";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
@@ -39,6 +44,7 @@ import type {
 	CapturePollUrls,
 	HandlePollParams,
 	KnownReaderState,
+	PollHighlights,
 	PollUrlBuilder,
 	ReaderState,
 	ReaderViewFailedOob,
@@ -86,6 +92,7 @@ interface PollResponseBodyInput {
 	title: string | undefined;
 	now: Date;
 	readerSection: ReaderSectionInput;
+	highlights: PollHighlights | undefined;
 }
 
 function renderPollResponseBody(input: PollResponseBodyInput): string {
@@ -104,7 +111,19 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		appOrigin: input.appOrigin,
 		now: input.now,
 		readerSection: input.readerSection,
+		highlights: input.highlights,
 	});
+	const highlightsRail =
+		input.highlights === undefined
+			? ""
+			: renderHighlightsRail({
+					rows:
+						reader.states.length === 0
+							? pendingHighlightsRailRows(input.highlights.rows)
+							: highlightsRailRowsFromStates(reader.states),
+					deleteUrlFor: input.highlights.deleteUrlFor,
+					oob: true,
+				}).html;
 	const summarySlot = renderSummarySlot({
 		crawl: input.crawl,
 		summary: input.summary,
@@ -127,6 +146,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 	if (input.primary === "reader") {
 		return (
 			reader.slot +
+			highlightsRail +
 			summarySlot +
 			tableOfContents +
 			input.metadataOob +
@@ -139,7 +159,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		input.readerPollUrl === undefined && input.content !== undefined;
 	return (
 		summarySlot +
-		(readerSettledOnArticle ? "" : reader.slot + tableOfContents) +
+		(readerSettledOnArticle ? "" : reader.slot + highlightsRail + tableOfContents) +
 		input.metadataOob +
 		input.readerViewFailedOob +
 		input.downloadsOob +
@@ -391,6 +411,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				now: deps.now(),
 				url: destinationUrl,
 				articleId: undefined,
+				highlights: undefined,
 				crawl: undefined,
 				summary: undefined,
 				content: undefined,
@@ -499,6 +520,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			appOrigin: deps.appOrigin,
 			readerNotice: undefined,
 			title: article?.metadata.title,
+			highlights: params.highlights,
 		}));
 	}
 
@@ -568,6 +590,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			appOrigin: deps.appOrigin,
 			readerNotice: undefined,
 			title: article?.metadata.title,
+			highlights: params.highlights,
 		}));
 	}
 

@@ -8,6 +8,7 @@ import { readEnv } from "@packages/require-env";
 import { KEEP_AUDIO_ENV } from "./keep-audio.env";
 import { initPutTierSource } from "@packages/tier-source";
 import { initKeepAudioHandler } from "./keep-audio/keep-audio-handler";
+import { initWriteMinimalAudioBody } from "./minimal-body/write-minimal-audio-body";
 import { parseAudioStream } from "./probe/music-metadata-parse";
 import { initProbeMedia } from "./probe/probe-media";
 import { initS3StagedObject } from "./s3/s3-staged-object";
@@ -30,7 +31,7 @@ export const handler = initKeepAudioHandler({
 	probeMedia: initProbeMedia({ parseAudioStream }),
 	mediaObjects: initMediaObjectStore({ client: dynamoClient, tableName: env.MEDIA_TABLE_NAME, s3: s3Client, bucketName: mediaBucketName }),
 	setArticleEnclosure,
-	putTierSource,
+	writeMinimalAudioBody: initWriteMinimalAudioBody({ putTierSource, publishEvent }),
 	publishEvent,
 	logger: Logger.from(consoleLogger),
 });

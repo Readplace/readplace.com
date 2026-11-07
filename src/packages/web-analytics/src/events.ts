@@ -24,6 +24,8 @@ export const ANALYTICS_EVENTS = {
 	importCommitted: "import_committed",
 	articleRead: "article_read",
 	summaryToggled: "summary_toggled",
+	highlightCreated: "highlight_created",
+	highlightDeleted: "highlight_deleted",
 	viewOpened: "view_opened",
 	viewCrawlLimited: "view_crawl_limited",
 	viewSaveIntent: "view_save_intent",

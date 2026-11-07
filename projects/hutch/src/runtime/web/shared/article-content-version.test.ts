@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import type { ServedBody } from "@packages/domain/article";
 import { siteLabel } from "../test-helpers/article-fixtures";
-import { computeArticleContentVersion, type ArticleContentVersionInput } from "./article-content-version";
+import { HighlightIdSchema } from "@packages/domain/article";
+import { computeArticleContentVersion, withHighlightsVersion, type ArticleContentVersionInput } from "./article-content-version";
 
 function baseInput(overrides?: Partial<ArticleContentVersionInput>): ArticleContentVersionInput {
 	return {
@@ -174,5 +175,53 @@ describe("computeArticleContentVersion", () => {
 			},
 		});
 		assert.equal(computeArticleContentVersion(legacy), computeArticleContentVersion(legacy));
+	});
+});
+
+describe("withHighlightsVersion", () => {
+	const contentVersion = "0123456789abcdef";
+	const row = {
+		highlightId: HighlightIdSchema.parse("00000000-0000-4000-8000-000000000001"),
+		updatedAt: new Date("2026-11-01T10:00:00.000Z"),
+		anchorRevision: 0,
+		anchorState: "anchored" as const,
+	};
+	const second = { ...row, highlightId: HighlightIdSchema.parse("00000000-0000-4000-8000-000000000002") };
+
+	it("keeps the content version for an article without highlights", () => {
+		assert.equal(withHighlightsVersion({ contentVersion, highlights: [] }), contentVersion);
+	});
+
+	it("answers a different 16-hex version once the article has a highlight", () => {
+		const version = withHighlightsVersion({ contentVersion, highlights: [row] });
+
+		assert.notEqual(version, contentVersion);
+		assert.match(version, /^[0-9a-f]{16}$/);
+	});
+
+	it("is the same for the same rows in any order", () => {
+		assert.equal(
+			withHighlightsVersion({ contentVersion, highlights: [row, second] }),
+			withHighlightsVersion({ contentVersion, highlights: [second, row] }),
+		);
+	});
+
+	it("changes with the content version", () => {
+		assert.notEqual(
+			withHighlightsVersion({ contentVersion, highlights: [row] }),
+			withHighlightsVersion({ contentVersion: "fedcba9876543210", highlights: [row] }),
+		);
+	});
+
+	it.each([
+		["a new row", [row, second]],
+		["an edit", [{ ...row, updatedAt: new Date("2026-11-02T10:00:00.000Z") }]],
+		["a re-anchor", [{ ...row, anchorRevision: 1 }]],
+		["an anchor state change", [{ ...row, anchorState: "orphaned" as const }]],
+	])("changes on %s", (_label, highlights) => {
+		assert.notEqual(
+			withHighlightsVersion({ contentVersion, highlights }),
+			withHighlightsVersion({ contentVersion, highlights: [row] }),
+		);
 	});
 });

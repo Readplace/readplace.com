@@ -51,6 +51,13 @@ import type {
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
+import type {
+	DeleteArticleHighlights,
+	DeleteHighlight,
+	ListArticleHighlights,
+} from "@packages/provider-contracts/highlights";
+import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
+import type { CreateReaderHighlight } from "../../shared/article-body/highlights/create-reader-highlight";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawPdfCommand, PublishSubmitLink } from "@packages/provider-contracts/events";
 import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
@@ -118,6 +125,7 @@ import type {
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 
 export interface ReadlistDependencies {
+	readerSectionThresholdBytes: number;
 	validateSaveableUrl: ValidateSaveableUrl;
 	validateNewSaveUrl: ValidateSaveableUrl;
 	appOrigin: string;
@@ -145,6 +153,11 @@ export interface ReadlistDependencies {
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
+	deleteArticleHighlights: DeleteArticleHighlights;
+	listArticleHighlights: ListArticleHighlights;
+	readCanonicalSnapshot: ReadCanonicalSnapshot;
+	deleteHighlight: DeleteHighlight;
+	createReaderHighlight: CreateReaderHighlight;
 	addArticleToReadlist: AddArticleToReadlist;
 	fileArticleIntoReadlist: FileArticleIntoReadlist;
 	upsertReadlist: UpsertReadlist;

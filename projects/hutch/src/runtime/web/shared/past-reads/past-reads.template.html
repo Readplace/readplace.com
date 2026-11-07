@@ -1,5 +1,5 @@
 {{#if rail}}
-<section id="article-body-topic-reads-slot" class="past-reads {{stateClass}}" data-test-reader-topic-reads data-topic-reads-status="{{status}}"{{#if rail.pollUrl}} data-background-request hx-get="{{rail.pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML"{{/if}}>
+<section id="article-body-topic-reads-slot" class="past-reads {{stateClass}}" data-test-reader-topic-reads data-topic-reads-status="{{status}}"{{#if rail.pollUrl}} data-background-request hx-get="{{rail.pollUrl}}" hx-trigger="every 3s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{/if}}>
 {{else}}
 <section id="article-body-topic-reads-inline-slot" class="past-reads past-reads--inline {{stateClass}}" data-test-reader-topic-reads-inline data-topic-reads-status="{{status}}"{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
 {{/if}}

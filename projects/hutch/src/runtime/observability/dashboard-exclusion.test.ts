@@ -44,6 +44,11 @@ const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 			"Renders a CloudWatch metric, and a datapoint has no field a Logs Insights clause could filter on. The import_committed event feeding the metric filter carries neither visitor_id nor user_id either, so there is no identity anywhere in that chain to prune — the counter includes internal imports and no dashboard-layer change can alter that.",
 	},
 	{
+		title: "Highlights re-anchored after a recrawl — anchored, moved, orphaned per day",
+		reason:
+			"Renders CloudWatch metrics, and a datapoint has no field a Logs Insights clause could filter on. The highlights_reanchored line feeding the metric filters carries the article url and the counts of every reader's highlights on it, but neither visitor_id nor user_id, so there is no identity to prune — the counts include internal readers' highlights.",
+	},
+	{
 		title: "Pageviews (CloudWatch metric since 2026-08-24, internal traffic included)",
 		reason: `${METRIC_COUNTER_REASON} Measured over the life of /readplace/analytics, the exclusion list removes 20.1% of pageview lines (12,119 of 60,208), so this counter reads about a quarter above the Logs Insights pageview widgets beside it — which is why the title says so on the widget's face.`,
 	},

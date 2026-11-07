@@ -11,7 +11,7 @@
       "outputs": ["{projectRoot}/dist"]
     },
     "deploy-infra": {
-      "command": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes) $([ \"$CI\" = true ] && [ \"$PULUMI_STACK\" = staging ] && echo --skip-preview)",
+      "command": "nx run media-audio:build-image && PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes) $([ \"$CI\" = true ] && [ \"$PULUMI_STACK\" = staging ] && echo --skip-preview)",
       "options": { "cwd": "{projectRoot}" },
       "dependsOn": ["compile"]
     },
@@ -31,6 +31,18 @@
       "dependsOn": ["compile"],
       "outputs": ["{projectRoot}/coverage"]
     },
-    "test": {}
+    "test": {},
+    "build-image": {
+      "command": "pnpm build-image",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"],
+      "cache": false
+    },
+    "compute-image-tags": {
+      "command": "pnpm compute-image-tags",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"],
+      "cache": false
+    }
   }
 }

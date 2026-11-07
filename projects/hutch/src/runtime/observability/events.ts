@@ -83,6 +83,18 @@ export const METRICS = {
 		namespace: "Readplace/Readlists",
 		name: "ReadlistCapApproached",
 	},
+	highlightsAnchored: {
+		namespace: "Readplace/Highlights",
+		name: "HighlightsAnchored",
+	},
+	highlightsMoved: {
+		namespace: "Readplace/Highlights",
+		name: "HighlightsMoved",
+	},
+	highlightsOrphaned: {
+		namespace: "Readplace/Highlights",
+		name: "HighlightsOrphaned",
+	},
 } as const;
 
 export const READLIST_CAP_APPROACHED_EVENT = "readlist_cap_approached";
@@ -92,6 +104,17 @@ export interface ReadlistCapApproachedLine {
 	count: number;
 	limit: number;
 	userId: UserId;
+}
+
+export const HIGHLIGHTS_REANCHORED_EVENT = "highlights_reanchored";
+
+export interface HighlightsReanchoredLine {
+	event: typeof HIGHLIGHTS_REANCHORED_EVENT;
+	url: string;
+	anchored: number;
+	moved: number;
+	orphaned: number;
+	skipped: number;
 }
 
 export const GMAIL_CONNECTIONS_COUNT_EVENT = "gmail_connections_counted";

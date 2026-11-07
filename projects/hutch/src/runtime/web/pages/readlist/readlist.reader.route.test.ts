@@ -1076,7 +1076,7 @@ describe("Readlist routes", () => {
 			assert(summarySlot, "summary slot must be rendered");
 			expect(summarySlot.getAttribute("data-summary-status")).toBe("pending");
 			expect(summarySlot.getAttribute("hx-get")).toMatch(/^\/queue\/.+\/summary\?poll=1$/);
-			expect(summarySlot.getAttribute("hx-trigger")).toBe("every 3s");
+			expect(summarySlot.getAttribute("hx-trigger")).toBe("every 3s [document.visibilityState === 'visible']");
 			const pendingTitle = summarySlot.querySelector("[data-test-summary-pending-title]");
 			assert(pendingTitle, "the pending summary panel must be rendered when status=pending");
 			expect(pendingTitle.textContent).toBe("Generating summary");
@@ -1153,7 +1153,7 @@ describe("Readlist routes", () => {
 				summarySlot.classList.contains("article-body__summary-slot--hidden"),
 			).toBe(true);
 			expect(summarySlot.getAttribute("hx-get")).toMatch(/^\/queue\/.+\/summary\?poll=1$/);
-			expect(summarySlot.getAttribute("hx-trigger")).toBe("every 3s");
+			expect(summarySlot.getAttribute("hx-trigger")).toBe("every 3s [document.visibilityState === 'visible']");
 
 			const readerSlot = doc.querySelector("[data-test-reader-slot]");
 			assert(readerSlot, "reader slot must be rendered");

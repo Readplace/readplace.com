@@ -3,17 +3,26 @@ import { join } from "node:path";
 import { render, renderAlert } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import type { UploadErrorCode } from "./upload.error";
-import { UPLOAD_ERROR_MESSAGES } from "./upload.error";
 import { UPLOAD_STYLES } from "./upload.styles";
 import type { UploadStartViewModel } from "./upload.viewmodel";
 
 const UPLOAD_TEMPLATE = readFileSync(join(__dirname, "upload.template.html"), "utf-8");
 
 export type UploadPageState =
-	| { view: "start"; start: UploadStartViewModel; errorCode?: UploadErrorCode }
+	| {
+			view: "start";
+			start: UploadStartViewModel;
+			error?: { code: UploadErrorCode; message: string };
+		}
 	| {
 			view: "staged";
-			staged: { url: string; fields: { name: string; value: string }[]; ceilingLabel: string; accept: string };
+			staged: {
+				url: string;
+				fields: { name: string; value: string }[];
+				heading: string;
+				descriptions: readonly string[];
+				accept: string;
+			};
 		}
 	| { view: "continue"; uploadId: string }
 	| { view: "failed" };
@@ -23,16 +32,26 @@ function templateDataOf(state: UploadPageState): object {
 		case "start":
 			return {
 				start: state.start,
-				errorCode: state.errorCode,
+				heading: state.start.heading,
+				errorCode: state.error?.code,
+				refusalAlertHtml: renderAlert({
+					key: "upload-refusal",
+					content: state.start.refusalMessage
+						? { variant: "error", message: { text: state.start.refusalMessage } }
+						: undefined,
+				}),
 				errorAlertHtml:
-					state.errorCode &&
+					state.error &&
 					renderAlert({
 						key: "upload",
-						content: { variant: "error", message: { text: UPLOAD_ERROR_MESSAGES[state.errorCode] } },
+						content: {
+							variant: "error",
+							message: { text: state.error.message },
+						},
 					}),
 			};
 		case "staged":
-			return { staged: state.staged };
+			return { staged: state.staged, heading: state.staged.heading };
 		case "continue":
 			return { continueUploadId: state.uploadId };
 		case "failed":
@@ -53,8 +72,8 @@ function templateDataOf(state: UploadPageState): object {
 export function UploadPage(state: UploadPageState): PageBody {
 	return {
 		seo: {
-			title: "Upload a book — Readplace",
-			description: "Upload a DRM-free EPUB book to read in Readplace.",
+			title: "Upload — Readplace",
+			description: "Upload a file to read or listen to in Readplace.",
 			canonicalUrl: "/upload",
 			robots: "noindex, follow",
 		},

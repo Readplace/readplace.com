@@ -7,6 +7,7 @@ export interface DeleteArticleFromReadlistDependencies {
 	deleteArticle: DeleteArticle;
 	findArticleUrlById: FindArticleUrlById;
 	publishLinkDequeued: PublishLinkDequeued;
+	deleteArticleHighlights: (params: { url: string; userId: UserId }) => Promise<void>;
 }
 
 /** Drops a reader's readlist row and announces that it is gone, so every surface
@@ -26,6 +27,7 @@ export function initDeleteArticleFromReadlist(
 		if (url === null) return false;
 		const deleted = await deps.deleteArticle(articleId, userId);
 		await deps.publishLinkDequeued({ url, userId });
+		await deps.deleteArticleHighlights({ url, userId });
 		return deleted;
 	};
 }

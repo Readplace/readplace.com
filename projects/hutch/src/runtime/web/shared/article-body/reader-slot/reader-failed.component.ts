@@ -6,6 +6,7 @@ import { render, renderAlert, renderIllustration, withInternalTracking } from "@
 import { FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE } from "../../client-surface-phrases";
 import type { CapturePollUrls } from "../../article-reader/article-reader.types";
 import type { CaptureRescue } from "./failed-crawl-notice";
+import type { ReaderHighlightState } from "./mark-highlights";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "reader-failed.template.html"),
@@ -44,6 +45,7 @@ export interface ReaderFailedInput {
 export interface ReaderRegions {
 	slot: string;
 	notice: string;
+	states: readonly ReaderHighlightState[];
 }
 
 const TITLES: Record<ReaderFailedVariant, string> = {
@@ -159,6 +161,7 @@ function rescueFor(input: ReaderFailedInput): { url: ArticleDestinationUrl; arti
 
 export function renderReaderFailed(input: ReaderFailedInput): ReaderRegions {
 	return {
+		states: [],
 		slot: render(MARKER_TEMPLATE, {
 			variant: input.variant,
 			oob: input.oob === true,

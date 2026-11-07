@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type {
 	ArticleDiscoveryQuery,
 	ArticleMetadata,
+	CandidateId,
 	ArticleStatus,
 	ItemMedia,
 	Minutes,
@@ -32,6 +33,7 @@ import {
 	readlistFitOverrideId,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { MEDIA_KINDS } from "@packages/media-contracts";
 import type {
 	AllocateSavedAt,
 	AllocateSavedAtSequence,
@@ -59,6 +61,8 @@ import type {
 	SetReadlistDefinitionPurpose,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
+	FindQueueRowKeys,
+	QueueRowKey,
 	ListUserSavesForUrls,
 	FindArticleById,
 	FindArticleByUrl,
@@ -97,6 +101,7 @@ import type {
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
 import { DigestPageCursorSchema } from "@packages/provider-contracts/article-store";
+import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type { FindPersonalLibrary, SaveStarterPack } from "@packages/provider-contracts/engagement-starter";
 
 interface GlobalArticle {
@@ -116,6 +121,8 @@ interface GlobalArticle {
 	lastModified?: string;
 	contentFetchedAt?: string;
 	bodyHash?: string;
+	canonicalContentHash?: string;
+	canonicalCandidateId?: CandidateId;
 	contentSourceTier?: "tier-0" | "tier-1" | "tier-2";
 	crawlVersions?: ArticleCrawlVersion[];
 	purgedAt?: Date;
@@ -234,6 +241,8 @@ export function initInMemoryArticleStore(): {
 	deleteReadlistArticle: DeleteReadlistArticle;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
+	findQueueRowKeys: FindQueueRowKeys;
+	hasQueueRow: (key: QueueRowKey) => boolean;
 	listUserSavesForUrls: ListUserSavesForUrls;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -272,6 +281,14 @@ export function initInMemoryArticleStore(): {
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" | "tier-2" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
+	setCanonicalContentHash: (params: { url: string; canonicalContentHash: string }) => Promise<void>;
+	readCanonicalSnapshot: ReadCanonicalSnapshot;
+	replaceCanonicalContent: (params: {
+		url: string;
+		content: string;
+		canonicalContentHash: string;
+		canonicalCandidateId: CandidateId;
+	}) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	claimAlias: ClaimCanonicalAlias;
 	resolveAlias: (url: string) => Promise<string | undefined>;
@@ -808,6 +825,24 @@ export function initInMemoryArticleStore(): {
 		return saves;
 	};
 
+	const queueRowKeyOf = (ua: UserArticle): QueueRowKey => ({
+		userId: ua.readlist === undefined ? ua.userId : `${ua.userId}#queue/${ua.readlist}`,
+		url: ua.url,
+	});
+
+	const findQueueRowKeys: FindQueueRowKeys = async ({ userId, urls }) => {
+		const keys = new Set(urls.map((url) => ArticleResourceUniqueId.parse(url).value));
+		return [...userArticles.values()]
+			.filter((ua) => ua.userId === userId && keys.has(ua.url))
+			.map(queueRowKeyOf);
+	};
+
+	const hasQueueRow = (key: QueueRowKey): boolean =>
+		[...userArticles.values()].some((ua) => {
+			const candidate = queueRowKeyOf(ua);
+			return candidate.userId === key.userId && candidate.url === key.url;
+		});
+
 	const listUserSavesForUrls: ListUserSavesForUrls = async ({ userId, urls, readlists }) => {
 		const saves = new Map<string, { readlist?: ReadlistSlug }[]>();
 		for (const url of urls) {
@@ -1110,12 +1145,19 @@ export function initInMemoryArticleStore(): {
 			assert(existing.ownerUserId === params.ownerUserId, "a private item identity is saved by its uploader only");
 			return "already-saved";
 		}
+		const manifest = MEDIA_KINDS.get(params.media.kind);
+		assert(manifest, `no media kind manifest for ${params.media.kind}`);
 		const routeId = ReaderArticleHashId.from(params.url);
 		articles.set(key, {
 			url: key,
 			originalUrl: params.url,
 			routeId,
-			metadata: { title: params.media.fileName, siteName: "Book", excerpt: "", wordCount: 0 },
+			metadata: {
+				title: params.media.fileName,
+				siteName: manifest.label,
+				excerpt: "",
+				wordCount: 0,
+			},
 			estimatedReadTime: MinutesSchema.parse(0),
 			savedAt: params.savedAt,
 			ownerUserId: params.ownerUserId,
@@ -1198,6 +1240,36 @@ export function initInMemoryArticleStore(): {
 		const article = articles.get(articleResourceUniqueId.value);
 		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
 		article.contentFetchedAt = params.at;
+	};
+
+	const setCanonicalContentHash = async (params: { url: string; canonicalContentHash: string }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.canonicalContentHash = params.canonicalContentHash;
+	};
+
+	const readCanonicalSnapshot: ReadCanonicalSnapshot = async (url) => {
+		const article = articles.get(ArticleResourceUniqueId.parse(url).value);
+		if (article?.canonicalContentHash === undefined) return undefined;
+		return {
+			canonicalContentHash: article.canonicalContentHash,
+			...(article.canonicalCandidateId === undefined ? {} : { canonicalCandidateId: article.canonicalCandidateId }),
+		};
+	};
+
+	const replaceCanonicalContent = async (params: {
+		url: string;
+		content: string;
+		canonicalContentHash: string;
+		canonicalCandidateId: CandidateId;
+	}) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.content = params.content;
+		article.canonicalContentHash = params.canonicalContentHash;
+		article.canonicalCandidateId = params.canonicalCandidateId;
 	};
 
 	const setCrawlVersions = async (params: { url: string; versions: ArticleCrawlVersion[] }) => {
@@ -1313,6 +1385,8 @@ export function initInMemoryArticleStore(): {
 		deleteReadlistArticle,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,
+		findQueueRowKeys,
+		hasQueueRow,
 		listUserSavesForUrls,
 		assignSavedArticleToReadlist,
 		moveReadlistArticles,
@@ -1341,6 +1415,9 @@ export function initInMemoryArticleStore(): {
 		writeMetadata,
 		setContentSourceTier,
 		setContentFetchedAt,
+		setCanonicalContentHash,
+		readCanonicalSnapshot,
+		replaceCanonicalContent,
 		setDisplayUrl,
 		claimAlias,
 		resolveAlias,

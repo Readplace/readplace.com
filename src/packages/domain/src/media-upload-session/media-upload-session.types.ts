@@ -7,10 +7,11 @@ export type MediaUploadSessionState = "staged" | "committed" | "failed";
 export interface MediaUploadSession {
 	readonly uploadId: UploadId;
 	readonly userId: UserId;
-	readonly kind: MediaKindName;
-	readonly fileName: string;
+	readonly kind?: MediaKindName;
+	readonly fileName?: string;
 	readonly byteLength?: number;
 	readonly saveAttemptId: SaveAttemptId;
+	readonly metered?: boolean;
 	readonly status: MediaUploadSessionState;
 }
 
@@ -30,7 +31,6 @@ export type FailMediaUpload = (params: { uploadId: UploadId }) => Promise<"faile
 
 export type MintMediaPendingPost = (params: {
 	uploadId: UploadId;
-	contentType: string;
 	uploadCeilingBytes: number;
 	successActionRedirect: string;
 }) => Promise<{ url: string; fields: Readonly<Record<string, string>> }>;
@@ -38,6 +38,11 @@ export type MintMediaPendingPost = (params: {
 export type HeadMediaPendingOriginal = (params: {
 	uploadId: UploadId;
 }) => Promise<{ etag: string; size: number } | undefined>;
+
+export type ReadTimedDuration = (params: {
+	uploadId: UploadId;
+	etag: string;
+}) => Promise<{ durationSeconds: number; hasAudio: boolean; hasVideo: boolean } | { unreadable: true }>;
 
 export type ReadMediaPendingPrefix = (params: { uploadId: UploadId; etag: string; bytes: number }) => Promise<Uint8Array>;
 
@@ -53,4 +58,5 @@ export type PublishMediaUploadCommitted = (params: {
 	saveAttemptId: SaveAttemptId;
 	etag: string;
 	attempt: number;
+	chargedSeconds?: number;
 }) => Promise<void>;

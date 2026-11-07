@@ -462,7 +462,7 @@ describe("renderNextRead", () => {
 			swap: slot.getAttribute("hx-swap"),
 		}).toEqual({
 			get: "/queue/abc/related?poll=2",
-			trigger: "every 3s",
+			trigger: "every 3s [document.visibilityState === 'visible']",
 			swap: "outerHTML",
 		});
 	});

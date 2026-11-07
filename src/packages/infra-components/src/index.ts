@@ -86,6 +86,8 @@ export {
 	type SendTrialFeedbackEmailDetail,
 	SendFirstInboxEmailNoticeCommand,
 	type SendFirstInboxEmailNoticeDetail,
+	HighlightsReanchoredEvent,
+	type HighlightsReanchoredDetail,
 	ReaderViewLoadingSucceeded,
 	type ReaderViewLoadingSucceededDetail,
 	SendUserDigestCommand,

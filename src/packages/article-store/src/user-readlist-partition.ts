@@ -10,6 +10,8 @@ const READLIST_PARTITION_INFIX = "#queue/";
 
 export const READLIST_DEFINITION_KEY_PREFIX = "readplace:queue-def/";
 
+export const HIGHLIGHT_KEY_PREFIX = "readplace:highlight/";
+
 export const READLIST_FIT_OVERRIDE_KEY_PREFIX = "readplace:queue-override/";
 
 export function readlistPartitionValue(params: { userId: UserId; readlist: ReadlistSlug }): string {

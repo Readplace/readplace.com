@@ -17,6 +17,7 @@ import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
 import { renderSummarySlot } from "./summary-slot/summary-slot.component";
 import { renderTableOfContents } from "./table-of-contents/table-of-contents.component";
+import type { ReaderHighlightState, ReaderHighlights } from "./reader-slot/mark-highlights";
 import type { ReaderSectionInput } from "./reader-slot/section-pages";
 
 const ARTICLE_BODY_TEMPLATE = readFileSync(
@@ -61,6 +62,12 @@ export interface ArticleBodyInput {
 	previouslyReadHtml?: string;
 	reportHref?: string;
 	readerSection: ReaderSectionInput;
+	highlights?: ReaderHighlights;
+}
+
+interface RenderedArticleBody {
+	html: string;
+	states: readonly ReaderHighlightState[];
 }
 
 export interface ArticleRailInput {
@@ -80,10 +87,12 @@ export interface ArticleRailInput {
 	 * the public `/view` and the admin recrawl leave it unset, so reading history
 	 * never appears there. */
 	previouslyReadHtml?: string;
+	highlightsHtml?: string;
 }
 
 export function renderArticleRail(input: ArticleRailInput): string {
 	return render(ARTICLE_RAIL_TEMPLATE, {
+		highlightsHtml: input.highlightsHtml ?? "",
 		tableOfContentsHtml: renderTableOfContents({
 			crawl: input.crawl,
 			content: input.content,
@@ -103,7 +112,7 @@ export function renderArticleRail(input: ArticleRailInput): string {
 	}).trim();
 }
 
-export function renderArticleBody(input: ArticleBodyInput): string {
+export function renderArticleBody(input: ArticleBodyInput): RenderedArticleBody {
 	const readerRegions = renderReaderSlot({
 		crawl: input.crawl,
 		content: input.content,
@@ -117,6 +126,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		noticeOob: false,
 		now: input.now,
 		readerSection: input.readerSection,
+		highlights: input.highlights,
 	});
 
 	const summarySlotHtml = renderSummarySlot({
@@ -139,7 +149,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		publishedOn: input.publishedOn,
 	});
 
-	return render(ARTICLE_BODY_TEMPLATE, {
+	const html = render(ARTICLE_BODY_TEMPLATE, {
 		topActionsHtml: input.topActionsHtml,
 		headerHtml,
 		readerSlotHtml: readerRegions.slot,
@@ -150,4 +160,5 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		bottomActionsHtml: input.bottomActionsHtml,
 		reportHref: input.reportHref,
 	});
+	return { html, states: readerRegions.states };
 }

@@ -52,6 +52,7 @@ export function initAdminRoutes(
 		| "adminDashboards"
 		| "adminEmails"
 		| "recrawlServiceToken"
+		| "readerSectionThresholdBytes"
 	>,
 	built: { appOrigin: string; buildBannerState: BuildBannerState; emitLifecycleEmailSent: EmitLifecycleEmailSent },
 ): Router {
@@ -87,6 +88,7 @@ export function initAdminRoutes(
 		publishRecrawlLinkInitiated: deps.publishRecrawlLinkInitiated,
 		buildBannerState,
 		now: deps.now,
+		readerSectionThresholdBytes: deps.readerSectionThresholdBytes,
 	});
 	router.use("/admin/recrawl", noStore, withServiceToken, adminRecrawlRouter);
 

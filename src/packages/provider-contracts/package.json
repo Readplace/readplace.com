@@ -25,9 +25,17 @@
       "types": "./dist/article-resolution-on-view.d.ts",
       "default": "./dist/article-resolution-on-view.js"
     },
+    "./article-status-indexes": {
+      "types": "./dist/article-status-indexes.d.ts",
+      "default": "./dist/article-status-indexes.js"
+    },
     "./article-store": {
       "types": "./dist/article-store.d.ts",
       "default": "./dist/article-store.js"
+    },
+    "./canonical-snapshot": {
+      "types": "./dist/canonical-snapshot.d.ts",
+      "default": "./dist/canonical-snapshot.js"
     },
     "./article-summary": {
       "types": "./dist/article-summary.d.ts",
@@ -84,6 +92,10 @@
     "./gmail-message-update": {
       "types": "./dist/gmail-message-update.d.ts",
       "default": "./dist/gmail-message-update.js"
+    },
+    "./highlights": {
+      "types": "./dist/highlights.d.ts",
+      "default": "./dist/highlights.js"
     },
     "./hosted-checkout": {
       "types": "./dist/hosted-checkout.d.ts",
@@ -180,8 +192,10 @@
       "article-crawl": ["./dist/article-crawl.d.ts"],
       "article-freshness": ["./dist/article-freshness.d.ts"],
       "article-resolution-on-view": ["./dist/article-resolution-on-view.d.ts"],
+      "article-status-indexes": ["./dist/article-status-indexes.d.ts"],
       "article-store": ["./dist/article-store.d.ts"],
       "article-summary": ["./dist/article-summary.d.ts"],
+      "canonical-snapshot": ["./dist/canonical-snapshot.d.ts"],
       "auth": ["./dist/auth.d.ts"],
       "browser-handoff": ["./dist/browser-handoff.d.ts"],
       "email": ["./dist/email.d.ts"],
@@ -195,6 +209,7 @@
       "gmail-mailbox": ["./dist/gmail-mailbox.d.ts"],
       "gmail-history": ["./dist/gmail-history.d.ts"],
       "gmail-message-update": ["./dist/gmail-message-update.d.ts"],
+      "highlights": ["./dist/highlights.d.ts"],
       "hosted-checkout": ["./dist/hosted-checkout.d.ts"],
       "newsletter-catalog": ["./dist/newsletter-catalog.d.ts"],
       "onboarding-signals": ["./dist/onboarding-signals.d.ts"],

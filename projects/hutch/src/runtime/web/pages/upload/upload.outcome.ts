@@ -1,12 +1,12 @@
+import type { MediaKindManifest, UploadId } from "@packages/media-contracts";
 import type { Request, Response } from "express";
-import type { MediaKindManifest, MediaKindName, UploadId } from "@packages/media-contracts";
 import type { BuildBannerState } from "../../banner-state";
 import type { UploadErrorCode } from "./upload.error";
+import type { UploadRefusalReason } from "./upload.refusal";
 
 type UploadOutcomePayloads = {
 	staged: {
 		uploadId: UploadId;
-		kind: MediaKindName;
 		post: { url: string; fields: Readonly<Record<string, string>> };
 		uploadCeilingBytes: number;
 	};
@@ -14,7 +14,7 @@ type UploadOutcomePayloads = {
 	continue: { uploadId: UploadId };
 	failed: { uploadId: UploadId };
 	"staged-for-review": { uploadId: UploadId };
-} & { [C in UploadErrorCode]: Record<never, never> };
+} & { [C in UploadErrorCode | UploadRefusalReason]: Record<never, never> };
 
 export type UploadOutcomeKey = keyof UploadOutcomePayloads;
 
@@ -29,7 +29,7 @@ export type UploadOutcomeWriters = {
 export type UploadWriteContext = {
 	req: Request;
 	bannerState: Awaited<ReturnType<BuildBannerState>>;
-	kinds: ReadonlyMap<MediaKindName, MediaKindManifest>;
+	kinds: readonly MediaKindManifest[];
 };
 
 export function writeUploadOutcome<K extends UploadOutcomeKey>(params: {

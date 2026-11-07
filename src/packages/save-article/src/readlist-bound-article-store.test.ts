@@ -4,6 +4,7 @@ import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import {
 	bindArticleStoreToReadlist,
+	initDeleteArticleHighlightsUnlessSavedElsewhere,
 	initPublishLinkDequeuedUnlessSavedElsewhere,
 } from "./readlist-bound-article-store";
 
@@ -80,5 +81,35 @@ describe("initPublishLinkDequeuedUnlessSavedElsewhere", () => {
 		await publish({ url: URL, userId: USER });
 
 		expect(published).toEqual([]);
+	});
+});
+
+describe("initDeleteArticleHighlightsUnlessSavedElsewhere", () => {
+	it("deletes the article's highlights under its normalised key once the reader holds it in no readlist at all", async () => {
+		const deleted: { url: string; userId: UserId }[] = [];
+		const deleteHighlights = initDeleteArticleHighlightsUnlessSavedElsewhere({
+			listUserSavesForUrl: async () => [],
+			deleteArticleHighlights: async (params) => {
+				deleted.push(params);
+			},
+		});
+
+		await deleteHighlights({ url: "https://example.com/article?utm_source=x", userId: USER });
+
+		expect(deleted).toEqual([{ url: "example.com/article", userId: USER }]);
+	});
+
+	it("keeps the highlights while the reader still holds the link in another readlist", async () => {
+		const deleted: { url: string; userId: UserId }[] = [];
+		const deleteHighlights = initDeleteArticleHighlightsUnlessSavedElsewhere({
+			listUserSavesForUrl: async () => [{}],
+			deleteArticleHighlights: async (params) => {
+				deleted.push(params);
+			},
+		});
+
+		await deleteHighlights({ url: URL, userId: USER });
+
+		expect(deleted).toEqual([]);
 	});
 });

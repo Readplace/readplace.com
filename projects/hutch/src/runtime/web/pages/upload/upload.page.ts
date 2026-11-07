@@ -17,7 +17,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import type { SettleAnyReceivedUpload } from "./commit-received-upload";
 import { UploadPage } from "./upload.component";
-import { UPLOAD_ERROR_STATUS, type UploadErrorCode } from "./upload.error";
+import { UPLOAD_ERROR_STATUS, type UploadErrorCode, uploadErrorMessageOf } from "./upload.error";
 import {
 	type UploadOutcome,
 	type UploadOutcomeKey,
@@ -25,7 +25,15 @@ import {
 	type UploadWriteContext,
 	writeUploadOutcome,
 } from "./upload.outcome";
-import { acceptAttributeOf, toUploadStartViewModel } from "./upload.viewmodel";
+import { isMeteredStart, uploadStartPathOf } from "./upload-features";
+import { type UploadRefusalReason, uploadRefusalMessage } from "./upload.refusal";
+import {
+	acceptAttributeOf,
+	detectUploadKind,
+	kindsForViewer,
+	toUploadStartViewModel,
+	transcriptAllowanceMinutesOf,
+} from "./upload.viewmodel";
 
 const SNIFF_BYTES = 4096;
 
@@ -47,8 +55,7 @@ const RECEIVED_AGAIN: Record<
 	rejected: "staged-for-review",
 };
 
-export const StartUploadBody = z.object({
-	contentType: z.string().min(1),
+const StartUploadBody = z.object({
 	fileName: z.string().min(1).optional(),
 	byteLength: z.coerce.number().int().positive().optional(),
 });
@@ -60,16 +67,36 @@ function sendPage(context: UploadWriteContext, res: Response, page: ReturnType<t
 function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, context: UploadWriteContext) => void {
 	return (res, _outcome, context) => {
 		sendPage(context, res, {
-			...UploadPage({ view: "start", start: toUploadStartViewModel(context.kinds, Boolean(context.req.userId)), errorCode: code }),
+			...UploadPage({
+				view: "start",
+				start: toUploadStartViewModel(
+					context.kinds,
+					Boolean(context.req.userId),
+					uploadStartPathOf(isMeteredStart(context.req.query)),
+				),
+				error: {
+					code,
+					message: uploadErrorMessageOf({ code, kinds: context.kinds }),
+				},
+			}),
 			statusCode: UPLOAD_ERROR_STATUS[code],
 		});
 	};
 }
 
+function refusalWriter(reason: UploadRefusalReason): (res: Response) => void {
+	return (res) => {
+		res.redirect(303, `${uploadStartPathOf(true)}&refused=${reason}`);
+	};
+}
+
 export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 	staged: (res, outcome, context) => {
-		const kind = context.kinds.get(outcome.kind);
-		assert(kind, `staged upload of unknown kind ${outcome.kind}`);
+		const start = toUploadStartViewModel(
+			context.kinds,
+			Boolean(context.req.userId),
+			uploadStartPathOf(false),
+		);
 		sendPage(
 			context,
 			res,
@@ -77,9 +104,13 @@ export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 				view: "staged",
 				staged: {
 					url: outcome.post.url,
-					fields: Object.entries(outcome.post.fields).map(([name, value]) => ({ name, value })),
-					ceilingLabel: kind.ceilingLabel,
-					accept: acceptAttributeOf(kind),
+					fields: Object.entries(outcome.post.fields).map(([name, value]) => ({
+						name,
+						value,
+					})),
+					heading: start.heading,
+					descriptions: start.descriptions,
+					accept: acceptAttributeOf(context.kinds),
 				},
 			}),
 		);
@@ -99,16 +130,12 @@ export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 	upload_unsupported_type: errorWriter("upload_unsupported_type"),
 	upload_too_large: errorWriter("upload_too_large"),
 	upload_not_received: errorWriter("upload_not_received"),
-	upload_bad_magic: errorWriter("upload_bad_magic"),
 	upload_session_not_found: errorWriter("upload_session_not_found"),
+	"transcript-quota": refusalWriter("transcript-quota"),
+	"transcript-too-long": refusalWriter("transcript-too-long"),
+	"unreadable-audio": refusalWriter("unreadable-audio"),
+	"no-audio-track": refusalWriter("no-audio-track"),
 };
-
-export function kindAccepting(
-	kinds: ReadonlyMap<MediaKindName, MediaKindManifest>,
-	contentType: string,
-): MediaKindManifest | undefined {
-	return [...kinds.values()].find((kind) => contentType in kind.accepts);
-}
 
 export interface UploadRouteDependencies {
 	stageGates: readonly RequestHandler[];
@@ -120,6 +147,10 @@ export interface UploadRouteDependencies {
 	readMediaPendingPrefix: ReadMediaPendingPrefix;
 	mintUploadId: () => UploadId;
 	MEDIA_KINDS: ReadonlyMap<MediaKindName, MediaKindManifest>;
+	GUEST_UPLOAD_KINDS: readonly MediaKindName[];
+	METERED_GUEST_UPLOAD_KINDS: readonly MediaKindName[];
+	METERED_ONLY_UPLOAD_KINDS: readonly MediaKindName[];
+	transcriptAllowanceSeconds: number;
 	pickOutcomeWriters: (req: Request) => UploadOutcomeWriters;
 	buildBannerState: BuildBannerState;
 	appOrigin: string;
@@ -127,30 +158,62 @@ export interface UploadRouteDependencies {
 
 export function initUploadRouter(deps: UploadRouteDependencies): Router {
 	const router = express.Router();
-	const kinds = deps.MEDIA_KINDS;
+	const viewerKinds = (req: Request, metered = isMeteredStart(req.query)) =>
+		kindsForViewer({
+			kinds: deps.MEDIA_KINDS,
+			guestKinds: metered ? deps.METERED_GUEST_UPLOAD_KINDS : deps.GUEST_UPLOAD_KINDS,
+			isSignedIn: Boolean(req.userId),
+		}).filter((kind) => metered || !deps.METERED_ONLY_UPLOAD_KINDS.includes(kind.name));
 
-	async function write<K extends UploadOutcomeKey>(req: Request, res: Response, outcome: UploadOutcome<K>) {
-		const context: UploadWriteContext = { req, bannerState: await deps.buildBannerState(req), kinds };
-		writeUploadOutcome({ writers: deps.pickOutcomeWriters(req), res, outcome, context });
+	async function write<K extends UploadOutcomeKey>(
+		req: Request,
+		res: Response,
+		outcome: UploadOutcome<K>,
+	) {
+		const context: UploadWriteContext = {
+			req,
+			bannerState: await deps.buildBannerState(req),
+			kinds: viewerKinds(req),
+		};
+		writeUploadOutcome({
+			writers: deps.pickOutcomeWriters(req),
+			res,
+			outcome,
+			context,
+		});
 	}
 
 	router.get("/", async (req, res) => {
+		const metered = isMeteredStart(req.query);
+		const kinds = viewerKinds(req, metered);
 		sendComponent(
 			req,
 			res,
-			Base(UploadPage({ view: "start", start: toUploadStartViewModel(kinds, Boolean(req.userId)) }), await deps.buildBannerState(req)),
+			Base(
+				UploadPage({
+					view: "start",
+					start: {
+						...toUploadStartViewModel(kinds, Boolean(req.userId), uploadStartPathOf(metered)),
+						refusalMessage: uploadRefusalMessage(req.query),
+						transcriptAllowanceMinutes: transcriptAllowanceMinutesOf({
+							kinds,
+							metered,
+							allowanceSeconds: deps.transcriptAllowanceSeconds,
+						}),
+					},
+				}),
+				await deps.buildBannerState(req),
+			),
 		);
 	});
 
 	router.post("/", ...deps.stageGates, async (req, res) => {
 		const body = StartUploadBody.safeParse(req.body);
-		const kind = body.success ? kindAccepting(kinds, body.data.contentType) : undefined;
-		if (!body.success || !kind) {
-			await write(req, res, { outcome: "upload_unsupported_type" });
-			return;
-		}
-		const { contentType, fileName, byteLength } = body.data;
-		if (byteLength !== undefined && byteLength > kind.uploadCeilingBytes) {
+		const { fileName, byteLength } = body.success ? body.data : {};
+		const uploadCeilingBytes = Math.max(
+			...viewerKinds(req).map((kind) => kind.uploadCeilingBytes),
+		);
+		if (byteLength !== undefined && byteLength > uploadCeilingBytes) {
 			await write(req, res, { outcome: "upload_too_large" });
 			return;
 		}
@@ -158,23 +221,21 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 		await deps.createMediaUploadSession({
 			uploadId,
 			userId: req.userId,
-			kind: kind.name,
-			fileName: fileName ?? `${kind.label} upload`,
+			...(fileName === undefined ? {} : { fileName }),
 			...(byteLength === undefined ? {} : { byteLength }),
+			...(isMeteredStart(req.query) ? { metered: true } : {}),
 			saveAttemptId: newSaveAttemptId(),
 		});
 		const post = await deps.mintMediaPendingPost({
 			uploadId,
-			contentType,
-			uploadCeilingBytes: kind.uploadCeilingBytes,
+			uploadCeilingBytes,
 			successActionRedirect: `${deps.appOrigin}/upload/${uploadId}`,
 		});
 		await write(req, res, {
 			outcome: "staged",
 			uploadId,
-			kind: kind.name,
 			post,
-			uploadCeilingBytes: kind.uploadCeilingBytes,
+			uploadCeilingBytes,
 		});
 	});
 
@@ -214,14 +275,35 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			await write(req, res, { outcome: "upload_not_received" });
 			return;
 		}
-		const kind = kinds.get(session.kind);
-		assert(kind, `upload session of unknown kind ${session.kind}`);
-		const prefix = await deps.readMediaPendingPrefix({ uploadId: session.uploadId, etag: head.etag, bytes: SNIFF_BYTES });
-		if (!kind.sniff(prefix)) {
-			await write(req, res, { outcome: "upload_bad_magic" });
+		const prefix = await deps.readMediaPendingPrefix({
+			uploadId: session.uploadId,
+			etag: head.etag,
+			bytes: SNIFF_BYTES,
+		});
+		const kind = detectUploadKind({
+			kinds: deps.MEDIA_KINDS,
+			offered: viewerKinds(req, session.metered === true),
+			fileName: session.fileName,
+			prefix,
+		});
+		if (!kind) {
+			await write(req, res, { outcome: "upload_unsupported_type" });
 			return;
 		}
-		await write(req, res, await deps.settleReceivedUpload({ session, etag: head.etag, size: head.size }));
+		if (head.size > kind.uploadCeilingBytes) {
+			await write(req, res, { outcome: "upload_too_large" });
+			return;
+		}
+		await write(
+			req,
+			res,
+			await deps.settleReceivedUpload({
+				session,
+				kind,
+				etag: head.etag,
+				size: head.size,
+			}),
+		);
 	});
 
 	return router;

@@ -118,6 +118,7 @@ export {
 	type InboxLinkSaveState,
 	type InboxSavedLinkEntry,
 	type InboxSavedLinkStore,
+	type MarkLinkSavedWhileQueued,
 } from "./inbox-saved-link.types";
 export {
 	EmailOutputKeySchema,

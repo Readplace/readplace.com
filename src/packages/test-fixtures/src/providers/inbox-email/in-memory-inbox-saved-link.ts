@@ -7,7 +7,11 @@ import {
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
-export function initInMemoryInboxSavedLink(): InboxSavedLinkStore {
+export type InMemoryInboxSavedLink = InboxSavedLinkStore & {
+	markLinkSaved: (input: { userId: UserId; url: string }) => Promise<void>;
+};
+
+export function initInMemoryInboxSavedLink(): InMemoryInboxSavedLink {
 	const states = new Map<string, InboxLinkSaveState>();
 	const rowKey = (userId: UserId, linkKey: string) => `${userId}#${linkKey}`;
 

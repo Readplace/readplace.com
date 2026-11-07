@@ -81,6 +81,10 @@ const PRODUCERS = [
 		producer: "a media-audio upload", url: AUDIO_URL,
 		page: { wordCount: 6, html: "<h1>episode-12</h1><p>Audio, 47 minutes.</p><p>File: episode-12.mp3</p>", evaluationHtml: "<h1>episode-12</h1><p>Audio, 47 minutes.</p><p>File: episode-12.mp3</p>" },
 	},
+	{
+		producer: "a media-audio transcript", url: AUDIO_URL,
+		page: { wordCount: 900, html: "<h2>00:00</h2><p><a href=\"?t=0\">00:00</a> Welcome to the show.</p><h2>05:00</h2><p><a href=\"?t=300\">05:00</a> Later on.</p>", evaluationHtml: "<h2>00:00</h2><p><a href=\"?t=0\">00:00</a> Welcome to the show.</p><h2>05:00</h2><p><a href=\"?t=300\">05:00</a> Later on.</p>" },
+	},
 ];
 
 type Page = { url: string; wordCount: number; html: string; evaluationHtml: string };

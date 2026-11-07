@@ -230,7 +230,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			epubDownloadGuide: input.epubDownloadGuide,
 		},
 	});
-	const innerContent = renderArticleBody({
+	const { html: innerContent } = renderArticleBody({
 		readerSection: input.readerSection,
 		now: input.now,
 		title: input.metadata.title,

@@ -11,7 +11,6 @@ import { loginAgent, useTestServer } from "../../../test-app";
 import { inspectionPollBudget } from "./inspection-poll-budget";
 
 const useApp = useTestServer();
-const useAppWithoutGuestKinds = useTestServer({ guestUploadKinds: [] });
 const ONE_DAY_MS = 86_400_000;
 const MAX_POLLS = inspectionPollBudget({ lambdaTimeoutSeconds: INSPECT_BOOK_TIMEOUT_SECONDS, marginSeconds: 30 });
 const PROCESSING_EXHAUSTED_NOTICE = "We couldn't open this book. Upload it again.";
@@ -56,7 +55,11 @@ function guestApp(fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN)) {
 
 type Harness = ReturnType<typeof guestApp>;
 
-async function guestStage(server: Server, body: Record<string, string> = { contentType: "application/epub+zip" }) {
+function mp3Prefix(): Uint8Array {
+	return Buffer.from("ID3\x04\x00\x00\x00\x00\x00\x00", "latin1");
+}
+
+async function guestStage(server: Server, body: Record<string, string> = {}) {
 	const staged = await request(server).post("/upload").type("form").send(body);
 	return stagedUploadId(documentOf(staged.text));
 }
@@ -89,7 +92,10 @@ async function readerB(harness: Harness) {
 describe("Guest upload routes", () => {
 	it("stages a guest EPUB on a session without an owner and renders the presigned form", async () => {
 		const harness = guestApp();
-		const response = await request(harness.server).post("/upload").type("form").send({ contentType: "application/epub+zip" });
+		const response = await request(harness.server)
+			.post("/upload")
+			.type("form")
+			.send({});
 
 		expect(response.status).toBe(200);
 		const uploadId = stagedUploadId(documentOf(response.text));
@@ -98,23 +104,28 @@ describe("Guest upload routes", () => {
 		expect(session?.status).toBe("staged");
 	});
 
-	it("refuses a guest upload of a kind outside the guest kinds", async () => {
-		const harness = useAppWithoutGuestKinds(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).post("/upload").type("form").send({ contentType: "application/epub+zip" });
-
-		expect(response.status).toBe(422);
-		expect(documentOf(response.text).querySelector("[data-test-upload-error]")?.getAttribute("data-test-upload-error")).toBe(
-			"upload_unsupported_type",
-		);
-	});
-
-	it("refuses a guest upload of a type no kind accepts", async () => {
+	it("refuses a guest's audio upload, naming only the formats a guest may upload", async () => {
 		const harness = guestApp();
-		const response = await request(harness.server).post("/upload").type("form").send({ contentType: "text/plain" });
+		const uploadId = await guestStage(harness.server);
+		harness.mediaUpload.receivePendingOriginal({
+			uploadId,
+			bytes: mp3Prefix(),
+		});
+		const received = await request(harness.server).post(
+			`/upload/${uploadId}/received`,
+		);
 
-		expect(documentOf(response.text).querySelector("[data-test-upload-error]")?.getAttribute("data-test-upload-error")).toBe(
+		expect(received.status).toBe(422);
+		const error = documentOf(received.text).querySelector(
+			"[data-test-upload-error]",
+		);
+		expect(error?.getAttribute("data-test-upload-error")).toBe(
 			"upload_unsupported_type",
 		);
+		expect(error?.textContent).toContain(
+			"That file type isn't supported. Upload a DRM-free EPUB.",
+		);
+		expect(harness.mediaUpload.publishedMediaUploadStaged).toEqual([]);
 	});
 
 	it("keeps a signed-in upload on the member path without spending the guest allowance", async () => {
@@ -125,7 +136,7 @@ describe("Guest upload routes", () => {
 		};
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const staged = await agent.post("/upload").type("form").send({ contentType: "application/epub+zip" });
+		const staged = await agent.post("/upload").type("form").send({});
 		const uploadId = stagedUploadId(documentOf(staged.text));
 		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: epubPrefix() });
 		const received = await agent.post(`/upload/${uploadId}/received`);
@@ -133,7 +144,10 @@ describe("Guest upload routes", () => {
 		expect(received.headers.location).toBe("/queue");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(1);
 		expect(harness.mediaUpload.publishedMediaUploadStaged).toEqual([]);
-		const guest = await request(harness.server).post("/upload").type("form").send({ contentType: "application/epub+zip" });
+		const guest = await request(harness.server)
+			.post("/upload")
+			.type("form")
+			.send({});
 		expect(guest.status).toBe(200);
 	});
 
@@ -356,8 +370,11 @@ describe("Guest upload routes", () => {
 
 	it("saves the reviewed book after signup once, under the guest's attempt and the staged etag", async () => {
 		const harness = guestApp();
-		const { uploadId, head } = await guestReady(harness, { contentType: "application/epub+zip", byteLength: "64" });
-		const guestSession = await harness.mediaUpload.findMediaUploadByCapability({ uploadId, userId: undefined });
+		const { uploadId, head } = await guestReady(harness, { byteLength: "64" });
+		const guestSession = await harness.mediaUpload.findMediaUploadByCapability({
+			uploadId,
+			userId: undefined,
+		});
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 
@@ -413,7 +430,10 @@ describe("Guest upload routes", () => {
 		const harness = useApp(fixture);
 		for (let upload = 0; upload < 10; upload++) await guestReceive(harness);
 
-		const eleventh = await request(harness.server).post("/upload").type("form").send({ contentType: "application/epub+zip" });
+		const eleventh = await request(harness.server)
+			.post("/upload")
+			.type("form")
+			.send({});
 		expect(eleventh.status).toBe(429);
 	});
 });

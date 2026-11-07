@@ -38,7 +38,7 @@ export async function isReachable(
 
 export async function filterReachable<T extends { originalUrl: string }>(
 	rows: T[],
-	deps: ReachableDeps & { concurrency: number },
+	deps: ReachableDeps & { concurrency: number; skipProbe: (row: T) => boolean },
 ): Promise<T[]> {
 	const reachable: T[] = [];
 	for (let i = 0; i < rows.length; i += deps.concurrency) {
@@ -46,7 +46,7 @@ export async function filterReachable<T extends { originalUrl: string }>(
 		const results = await Promise.all(
 			chunk.map(async (row) => ({
 				row,
-				ok: await isReachable(row.originalUrl, deps),
+				ok: deps.skipProbe(row) || (await isReachable(row.originalUrl, deps)),
 			})),
 		);
 		for (const { row, ok } of results) {

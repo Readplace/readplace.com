@@ -12,7 +12,7 @@ import { articleBody } from "@packages/test-fixtures";
 import type { ArticleBody } from "@packages/domain/article";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../reader-slot/section-pages";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 const TEST_READER_URL = "https://example.com/post";
 
 const APP_ORIGIN = "https://readplace.com";
@@ -162,7 +162,7 @@ describe("renderTableOfContents", () => {
 
 	it("links every row to a heading the reader slot renders from the same content", () => {
 		const doc = parse(
-			`${render({ crawl: { status: "ready" }, content: HEADED_CONTENT })}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: HEADED_CONTENT, appOrigin: APP_ORIGIN })}`,
+			`${render({ crawl: { status: "ready" }, content: HEADED_CONTENT })}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: HEADED_CONTENT, appOrigin: APP_ORIGIN }).html}`,
 		);
 
 		const slot = doc.querySelector("[data-test-reader-content]");
@@ -215,7 +215,7 @@ describe("renderTableOfContents", () => {
 	it("leaves the leading title heading out of the card while the reader body keeps it and its anchor", () => {
 		const content = articleBody("<h2>Field notes</h2><p>One</p><h2>Method <a href=\"#method\">¶</a></h2><p>Two</p>");
 		const doc = parse(
-			`${render({ crawl: { status: "ready" }, content, title: "Field notes" })}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content, appOrigin: APP_ORIGIN })}`,
+			`${render({ crawl: { status: "ready" }, content, title: "Field notes" })}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content, appOrigin: APP_ORIGIN }).html}`,
 		);
 
 		const slot = doc.querySelector("[data-test-reader-content]");
@@ -255,7 +255,7 @@ describe("renderTableOfContents for a paged body", () => {
 	function renderPaged(requested: number | undefined): Element {
 		return wrapperOf(
 			renderTableOfContents({
-				readerSection: { requested, readerPath: "/queue/a/view" },
+				readerSection: { requested, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES },
 				url: TEST_READER_URL,
 				crawl: { status: "ready" },
 				content: longBody,

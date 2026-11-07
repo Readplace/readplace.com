@@ -10,4 +10,6 @@ config:
   media-audio:mediaTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-media-prod
   media-audio:articlesTableName: hutch-articles-cda0a08
   media-audio:articlesTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-articles-cda0a08
+  media-audio:mediaLambdaRepositoryName: hutch-media-lambda
+  media-audio:transcribeDailyBudgetUsd: '5'
 encryptionsalt: v1:LfDCtFWLrp0=:v1:9vHeqQcxovauxB0n:qSWupZEi9smhOEJFrF9YfhS1KBv+Pg==

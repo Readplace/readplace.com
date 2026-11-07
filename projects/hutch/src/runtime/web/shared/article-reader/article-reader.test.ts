@@ -18,8 +18,9 @@ import type {
 	PollUrlBuilder,
 	ReaderViewFailedOob,
 } from "./article-reader.types";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../article-body/reader-slot/section-pages";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 
 const ARTICLE_URL = "https://example.com/post";
 

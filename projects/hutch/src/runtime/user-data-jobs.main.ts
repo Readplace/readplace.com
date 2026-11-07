@@ -5,6 +5,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initMediaObjectStore } from "@packages/media-object-store";
+import { initDynamoDbTranscriptLedger } from "@packages/transcript-quota";
 import { Logger, consoleLogger } from "@packages/logger";
 import {
 	EventBridgeClient,
@@ -50,6 +51,7 @@ import {
 	initDeleteArticleRow,
 	initDeleteUserArticleLinks,
 	initDynamoDbFindItemOwner,
+	initDynamoDbHighlights,
 	initPurgeArticleContent,
 	initS3DeleteContentObjects,
 	initS3ListContentKeys,
@@ -83,6 +85,10 @@ const articleStore = initDynamoDbSavedArticleStore({
 	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 	logger,
 	now: () => new Date(),
+});
+const highlights = initDynamoDbHighlights({
+	client: dynamoClient,
+	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 });
 
 const engagementState = initDynamoDbEngagementStarter({
@@ -327,6 +333,13 @@ export const handler = initHandleByDetailType({
 				deleteEmailContentObjects,
 				deleteEmailImageObjects,
 				deleteAllUserArticles: articleStore.deleteAllUserArticles,
+				deleteAllTranscriptQuota: initDynamoDbTranscriptLedger({
+					client: dynamoClient,
+					tableName: env.MEDIA_TABLE_NAME,
+					now: () => new Date(),
+					delay: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+				}).deleteAllTranscriptQuota,
+				deleteAllUserHighlights: highlights.deleteAllUserHighlights,
 				listUserArticleUrls: articleStore.listUserArticleUrls,
 				countOtherSaversByUrl,
 				purgeArticleContent,

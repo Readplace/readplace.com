@@ -2,7 +2,7 @@
 /**
  * Stuck-articles canary.
  *
- * Read-only DDB scan: returns one failing node:test sub-test per article
+ * Read-only: returns one failing node:test sub-test per article
  * whose state machines never reached a terminal-good state. Zero stuck
  * rows = green.
  */
@@ -20,6 +20,7 @@ import { requireEnv } from "@packages/require-env";
 import { filterReachable } from "./check-reachable";
 import {
 	CRAWL_MIN_AGE_MS,
+	PRIVATE_CRAWL_MIN_AGE_MS,
 	SUMMARY_MIN_AGE_MS,
 	collectStuckRows,
 } from "./collect-stuck-rows";
@@ -33,8 +34,7 @@ import { formatStuckArticlesIssue, toCanaryReportRow } from "./stuck-articles-is
 const REACHABILITY_TIMEOUT_MS = 10_000;
 
 /**
- * Bounded parallelism for the reachability pings. The DDB scan caps at
- * MAX_PAGES so the worst-case row count is small, but bounding parallelism
+ * Bounded parallelism for the reachability pings. Bounding parallelism
  * keeps the runner from opening a pathological number of sockets when a
  * regression in classification widens the candidate set.
  */
@@ -58,7 +58,7 @@ test("Stuck articles canary", async (t) => {
 	const reportUrl = `${origin}${canaryReportPath(key)}`;
 	const client = createDynamoDocumentClient({ region });
 	process.stderr.write(
-		`[info] min-age gate: crawl-pending ≥ ${CRAWL_MIN_AGE_MS / 60_000}min, summary-pending ≥ ${SUMMARY_MIN_AGE_MS / 60_000}min\n`,
+		`[info] min-age gate: crawl-pending ≥ ${CRAWL_MIN_AGE_MS / 60_000}min, private crawl-pending ≥ ${PRIVATE_CRAWL_MIN_AGE_MS / 60_000}min, summary-pending ≥ ${SUMMARY_MIN_AGE_MS / 60_000}min\n`,
 	);
 	const stuck = await collectStuckRows({
 		client,
@@ -69,6 +69,7 @@ test("Stuck articles canary", async (t) => {
 		fetch: globalThis.fetch,
 		timeoutMs: REACHABILITY_TIMEOUT_MS,
 		concurrency: REACHABILITY_CONCURRENCY,
+		skipProbe: (row) => row.ownerUserId !== undefined,
 		log: (msg) => process.stderr.write(`${msg}\n`),
 	});
 	const [first, ...rest] = reachable;

@@ -7,6 +7,7 @@ import { initPersistCandidateArtifact } from "./persist-candidate-artifact";
 import { candidateBodyKeys, candidateManifestKey } from "./candidate-object-keys";
 import { CandidateProvenanceSchema, type CandidateProvenance } from "./tier-source.types";
 import { candidateProvenance } from "./candidate-provenance";
+import { KNOWN_TIERS } from "@packages/article-state-types";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 
@@ -47,6 +48,16 @@ describe("candidate manifest identity", () => {
 		await putTierSource({ url: URL, tier: "tier-1", html: "stable body", metadata: { ...metadata("same"), fetchedAt: "2026-10-06T00:00:00Z" } });
 		const key = candidateManifestKey({ url: URL, tier: "tier-1", candidateId: cid("same") });
 		expect(JSON.parse(objects.get(key) ?? "{}").fetchedAt).toBe("2026-10-05T00:00:00Z");
+	});
+	it("keeps every candidate key within S3's 1024-byte limit at the longest unhashed article segment", () => {
+		const url = `https://example.com/${"a".repeat(886)}`;
+		expect(ArticleResourceUniqueId.parse(url).toS3SourcesPrefix().length).toBe("articles/".length + 900 + "/sources/".length);
+		const keys = KNOWN_TIERS.flatMap((tier) => {
+			const candidate = { url, tier, candidateId: cid("candidate") };
+			const { htmlLocation, evaluationLocation } = candidateBodyKeys(candidate);
+			return [candidateManifestKey(candidate), htmlLocation, evaluationLocation];
+		});
+		expect(keys.filter((key) => Buffer.byteLength(key) > 1024)).toEqual([]);
 	});
 	it("propagates manifest storage failures instead of overwriting the current source", async () => {
 		for (const failure of [new Error("offline"), new S3ServiceException({ name: "AccessDenied", $fault: "client", $metadata: {}, message: "denied" })]) {

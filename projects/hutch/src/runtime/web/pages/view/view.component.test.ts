@@ -14,8 +14,9 @@ import {
 } from "./view.component";
 import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { articleBody } from "@packages/test-fixtures";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 
 const baseInput: ViewPageInput = {
 	readerSection: TEST_READER_SECTION,

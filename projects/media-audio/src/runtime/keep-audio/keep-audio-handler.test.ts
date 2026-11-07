@@ -10,6 +10,7 @@ import type { PutTierSource } from "@packages/tier-source";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { AudioStreamFacts } from "../probe/music-metadata-parse";
+import { initWriteMinimalAudioBody } from "../minimal-body/write-minimal-audio-body";
 import { initProbeMedia } from "../probe/probe-media";
 import type { ReadStagedObject } from "../s3/s3-staged-object";
 import { initKeepAudioHandler } from "./keep-audio-handler";
@@ -71,10 +72,13 @@ function setUp(overrides: { facts?: AudioStreamFacts | "unrecognised"; staged?: 
 			enclosures.push(params);
 			return overrides.enclosure ?? "recorded";
 		},
-		putTierSource: async (params) => {
-			tierSources.push(params);
-			provenanceAttempts.push(params.metadata.attemptId);
-		},
+		writeMinimalAudioBody: initWriteMinimalAudioBody({
+			putTierSource: async (params) => {
+				tierSources.push(params);
+				provenanceAttempts.push(params.metadata.attemptId);
+			},
+			publishEvent,
+		}),
 		publishEvent,
 		logger: Logger.from(noopLogger),
 	});
@@ -212,6 +216,16 @@ describe("initKeepAudioHandler", () => {
 		const { run, published } = setUp();
 
 		assert.deepEqual(await run({ time: TIME, detail: { uploadId: "x" } }), { batchItemFailures: [{ itemIdentifier: "m-1" }] });
+		assert.deepEqual(published, []);
+	});
+
+	it("records the enclosure of a charged upload and leaves its body to transcription", async () => {
+		const { run, published, enclosures, tierSources } = setUp();
+
+		assert.deepEqual(await run({ time: TIME, detail: { ...DETAIL, chargedSeconds: 600 } }), { batchItemFailures: [] });
+
+		assert.equal(enclosures.length, 1);
+		assert.deepEqual(tierSources, []);
 		assert.deepEqual(published, []);
 	});
 });

@@ -211,6 +211,26 @@ describe("initSelectContentWork", () => {
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(refreshContent, expect.objectContaining({ input: expect.objectContaining({ freshness }) }));
 	});
 
+	it("publishes canonical-content-changed when a refresh commits a body with a new hash, so highlights re-anchor as on a recrawl", async () => {
+		const rows = new Map<string, Article>([[URL, article({
+			freshness: { contentFetchedAt: "2026-10-04T00:00:00.000Z", canonicalContentHash: "previous-hash" },
+			contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 3 },
+		})]]);
+		const dispatched: unknown[] = [];
+		const { transitionAndPersist } = initTransitionAndPersist({
+			store: { load: async (url) => rows.get(url), save: async ({ article: next }) => { rows.set(next.url, next); } },
+			dispatchEffect: async (effect) => { dispatched.push(effect); },
+			logCrawlSettled: () => {},
+		});
+		const { work } = setup({ loadArticle: async (url) => rows.get(url), transitionAndPersist });
+
+		await work({ ...laterRequest, mode: "refresh", refresh: { bodyHash: "raw-body-hash", contentFetchedAt: NOW }, candidates: [{ id: cid("tier-1"), tier: "tier-1" }] });
+
+		expect(rows.get(URL)?.freshness.canonicalContentHash).toBe(computeCanonicalContentHash(source().html));
+		expect(dispatched).toContainEqual({ kind: "publish-canonical-content-changed", url: URL });
+		expect(dispatched).not.toContainEqual({ kind: "generate-summary", url: URL });
+	});
+
 	it("keeps the stored canonical through the recrawl tie transition when the judge ties it with a fresh identical copy", async () => {
 		const existing = article({ contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 4 } });
 		const { work, deps, commit } = setup({

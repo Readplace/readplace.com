@@ -24,6 +24,7 @@ import { SEND_TRIAL_FEEDBACK_EMAIL_ENV } from "./send-trial-feedback-email.env";
 import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "./send-first-inbox-email-notice.env";
 import { FORWARD_ANALYTICS_ENV } from "./forward-analytics.env";
 import { EVALUATE_OAUTH_REFRESH_ENV } from "./evaluate-oauth-refresh.env";
+import { REANCHOR_HIGHLIGHTS_ENV } from "./reanchor-highlights.env";
 
 const tuples = {
 	COUNT_GMAIL_CONNECTIONS_ENV,
@@ -52,6 +53,7 @@ const tuples = {
 	SEND_FIRST_INBOX_EMAIL_NOTICE_ENV,
 	FORWARD_ANALYTICS_ENV,
 	EVALUATE_OAUTH_REFRESH_ENV,
+	REANCHOR_HIGHLIGHTS_ENV,
 };
 
 describe("Lambda environment tuples", () => {

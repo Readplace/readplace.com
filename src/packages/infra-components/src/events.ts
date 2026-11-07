@@ -1614,6 +1614,7 @@ export const MediaUploadCommittedEvent = defineEvent({
 		saveAttemptId: SaveAttemptIdSchema,
 		etag: z.string().min(1),
 		attempt: z.number().int().positive(),
+		chargedSeconds: z.number().int().positive().optional(),
 	}),
 });
 export type MediaUploadCommittedDetail = z.infer<typeof MediaUploadCommittedEvent.detailSchema>;
@@ -1675,3 +1676,16 @@ export const TranscribeJobStateChangedEvent = defineEvent({
 	}),
 });
 export type TranscribeJobStateChangedDetail = z.infer<typeof TranscribeJobStateChangedEvent.detailSchema>;
+
+export const HighlightsReanchoredEvent = defineEvent({
+	name: "highlights-reanchored",
+	source: "hutch.app",
+	detailType: "HighlightsReanchored",
+	detailSchema: z.object({
+		url: z.string(),
+		anchored: z.number().int().nonnegative(),
+		moved: z.number().int().nonnegative(),
+		orphaned: z.number().int().nonnegative(),
+	}),
+});
+export type HighlightsReanchoredDetail = z.infer<typeof HighlightsReanchoredEvent.detailSchema>;

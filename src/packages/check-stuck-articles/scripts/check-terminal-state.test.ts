@@ -7,7 +7,6 @@ describe("checkTerminalState", () => {
 		const result = checkTerminalState({
 			summaryStatus: "ready",
 			crawlStatus: "ready",
-			summarySkippedReason: undefined,
 		});
 		assert.deepStrictEqual(result, { terminal: true });
 	});
@@ -16,29 +15,14 @@ describe("checkTerminalState", () => {
 		const result = checkTerminalState({
 			summaryStatus: "skipped",
 			crawlStatus: "ready",
-			summarySkippedReason: "content-too-short",
 		});
 		assert.deepStrictEqual(result, { terminal: true });
-	});
-
-	it("returns terminal:false with the ai-unavailable message when the model returned the refusal sentinel", () => {
-		const result = checkTerminalState({
-			summaryStatus: "skipped",
-			crawlStatus: "ready",
-			summarySkippedReason: "ai-unavailable",
-		});
-		assert.equal(result.terminal, false);
-		assert.match(
-			result.terminal === false ? result.message : "",
-			/ai-unavailable.*no auto-heal fires for skipped/,
-		);
 	});
 
 	it("returns terminal:false with the summary-pending message when summaryStatus=pending", () => {
 		const result = checkTerminalState({
 			summaryStatus: "pending",
 			crawlStatus: "ready",
-			summarySkippedReason: undefined,
 		});
 		assert.deepStrictEqual(result, {
 			terminal: false,
@@ -51,7 +35,6 @@ describe("checkTerminalState", () => {
 		const result = checkTerminalState({
 			summaryStatus: "pending",
 			crawlStatus: "pending",
-			summarySkippedReason: undefined,
 		});
 		assert.equal(result.terminal, false);
 		assert.equal(
@@ -64,14 +47,12 @@ describe("checkTerminalState", () => {
 		const failedCrawl = checkTerminalState({
 			summaryStatus: "ready",
 			crawlStatus: "failed",
-			summarySkippedReason: undefined,
 		});
 		assert.deepStrictEqual(failedCrawl, { terminal: true });
 
 		const unsupportedCrawl = checkTerminalState({
 			summaryStatus: "skipped",
 			crawlStatus: "unsupported",
-			summarySkippedReason: "crawl-unsupported",
 		});
 		assert.deepStrictEqual(unsupportedCrawl, { terminal: true });
 	});
@@ -80,7 +61,6 @@ describe("checkTerminalState", () => {
 		const result = checkTerminalState({
 			summaryStatus: undefined,
 			crawlStatus: undefined,
-			summarySkippedReason: undefined,
 		});
 		assert.deepStrictEqual(result, { terminal: true });
 	});

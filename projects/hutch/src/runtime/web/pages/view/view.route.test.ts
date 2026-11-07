@@ -24,7 +24,6 @@ import { calculateReadTime, shownSummary } from "@packages/domain/article";
 import { MAX_POLLS } from "@packages/web-shell";
 import type { ViewOpenedEvent } from "@packages/web-analytics";
 import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
-import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 const READPLACE_IOS = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -63,6 +62,7 @@ function ctaAction(doc: Document): Element {
 const useApp = useTestServer();
 const CANONICAL_OF_ALIAS = "https://example.com/canonical-post";
 const useAppWithAliasFold = useTestServer({ resolveCanonicalIdentity: async () => CANONICAL_OF_ALIAS });
+const useAppWithSmallReaderSections = useTestServer({ readerSectionThresholdBytes: 600 });
 
 function buildReaderHarness(mountApp: typeof useApp = useApp, prepare: (fixture: TestAppFixture) => void = () => {}) {
 	const parseArticle: ParseArticle = async () => buildParseResult();
@@ -1433,7 +1433,7 @@ describe("View routes", () => {
 			assert(slot, "summary slot must be rendered");
 			expect(slot.getAttribute("data-summary-status")).toBe("pending");
 			expect(slot.getAttribute("hx-get")).toMatch(/^\/view\/summary\?url=.+&poll=1$/);
-			expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+			expect(slot.getAttribute("hx-trigger")).toBe("every 3s [document.visibilityState === 'visible']");
 			const pendingTitle = slot.querySelector("[data-test-summary-pending-title]");
 			assert(pendingTitle, "the pending summary panel must be rendered when status=pending");
 			expect(pendingTitle.textContent).toBe("Generating summary");
@@ -2874,12 +2874,12 @@ describe("Keep this one block on the public reader", () => {
 
 describe("Public reader sections (GET /view/<url>?section=N)", () => {
 	const LONG_BODY = [1, 2, 3]
-		.map((n) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(Math.ceil(READER_SECTION_PAGE_THRESHOLD_BYTES / 10))}</p>`)
+		.map((n) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(60)}</p>`)
 		.join("");
 
 	async function longPublicArticle() {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async () => {} } });
+		const harness = useAppWithSmallReaderSections({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async () => {} } });
 		await fixture.articleStore.saveArticleGlobally({
 			url: ARTICLE_URL,
 			metadata: { title: "Hello World", siteName: "example.com", excerpt: "", wordCount: 500 },

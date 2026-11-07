@@ -59,6 +59,8 @@ config:
   hutch:rateLimitImportFromUrl: 5000/3600
   hutch:rateLimitUploadStage: 20/3600
   hutch:mediaTableName: hutch-media-staging
+  hutch:transcriptDailyBudgetMilliCents: 50000
+  hutch:transcribeMilliCentsPerSecond: 40
   hutch:apiThrottleBurstLimit: 5000
   hutch:apiThrottleRateLimit: 2000
   hutch:trialSchedulerGroupName: hutch-trial-end-staging

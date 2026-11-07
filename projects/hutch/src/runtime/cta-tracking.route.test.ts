@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { ReaderArticleHashId } from "@packages/domain/article";
+import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { AliasNameSchema } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
@@ -93,6 +94,26 @@ const MEMBER_PATHS = [
 	"/no-such-page",
 ];
 
+async function highlightedReaderPath(input: {
+	agent: Awaited<ReturnType<typeof loginAgent>>;
+	articleId: string;
+	exact: string;
+}): Promise<string> {
+	const path = `/queue/${input.articleId}/view?feature=highlight`;
+	const content = new JSDOM((await input.agent.get(path)).text).window.document.querySelector(
+		".article-body__content",
+	);
+	assert(content, "the flagged reader must render its content");
+	const start = normaliseText(collectTextChunks<Node>(content)).text.indexOf(input.exact);
+	assert(start >= 0, `the served text must hold "${input.exact}"`);
+	const created = await input.agent
+		.post(`/queue/${input.articleId}/highlights?feature=highlight`)
+		.type("form")
+		.send({ exact: input.exact, start: String(start), end: String(start + input.exact.length), origin: "mouse" });
+	assert.equal(created.status, 303, "the highlight must be created");
+	return path;
+}
+
 function untrackedOn(path: string, html: string): string[] {
 	return describeUntrackedCtas(
 		findUntrackedCtas(html, { skipSelectors: ARTICLE_CONTENT_REGIONS, ownOrigin: TEST_APP_ORIGIN }),
@@ -143,6 +164,11 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			purpose: "user-alias",
 		});
 		await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+		await fixture.articleStore.writeContent({
+			url: "https://example.com/article",
+			content: "<p>A paragraph worth keeping, with commentary.</p>",
+		});
+		await fixture.articleCrawl.markCrawlReady({ url: "https://example.com/article" });
 		const queue = await agent.get("/queue").set(BROWSER_REQUEST_HEADERS);
 		const readerHref = new JSDOM(queue.text).window.document
 			.querySelector("[data-test-article-title]")
@@ -168,6 +194,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			.post(`/queue/${articleId}/assign`)
 			.type("form")
 			.send({ queue: madeReadlist, returnTo: `/queue/${articleId}/view` });
+		const highlightedPath = await highlightedReaderPath({ agent, articleId, exact: "commentary" });
 		const readlistPaths =
 			madeReadlist && describedReadlist
 				? [
@@ -177,6 +204,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 						`/queue?moved_article=${articleId}&moved_from=default&moved_to=${madeReadlist}`,
 						`/queue/queues/${describedReadlist}/preferences`,
 						`/queue/${articleId}/view?filed_readlist=${madeReadlist}`,
+						highlightedPath,
 					]
 				: [];
 
@@ -191,7 +219,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		}
 
 		expect(readerHref).toContain("/view");
-		expect(readlistPaths.length).toBe(6);
+		expect(readlistPaths.length).toBe(7);
 		expect(untracked).toEqual([]);
 	});
 

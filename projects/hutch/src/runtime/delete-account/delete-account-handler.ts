@@ -10,10 +10,12 @@ import type {
 	FindEmailByUserId,
 } from "@packages/provider-contracts/auth";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
+import type { DeleteAllUserHighlights } from "@packages/provider-contracts/highlights";
 import type {
 	DeleteAllUserArticles,
 	ListUserArticleUrls,
 } from "@packages/provider-contracts/article-store";
+import type { DeleteAllTranscriptQuota } from "@packages/provider-contracts/transcript-quota";
 import type {
 	CountOtherSaversByUrl,
 	PurgeArticleContent,
@@ -79,6 +81,8 @@ export interface DeleteAccountHandlerDependencies {
 	deleteEmailContentObjects: (keys: string[]) => Promise<void>;
 	deleteEmailImageObjects: (prefixes: string[]) => Promise<void>;
 	deleteAllUserArticles: DeleteAllUserArticles;
+	deleteAllTranscriptQuota: DeleteAllTranscriptQuota;
+	deleteAllUserHighlights: DeleteAllUserHighlights;
 	listUserArticleUrls: ListUserArticleUrls;
 	countOtherSaversByUrl: CountOtherSaversByUrl;
 	purgeArticleContent: PurgeArticleContent;
@@ -151,7 +155,6 @@ async function processCommand(
 	await deps.deleteEmailContentObjects(bodyS3Keys);
 	await deps.deleteEmailImageObjects(emailImageS3KeyPrefixes);
 	await deps.deleteAllInboxLinks(userId, receivedAtMessageIds);
-	await deps.deleteAllInboxSavedLinks(userId);
 	await deps.deleteAllInboxEmails(userId);
 	await deps.deleteRawEmailObjectsByPrefix([`gmail-import/${userId}`]);
 	await deps.deleteAllGmailHistoryImports(userId);
@@ -182,6 +185,9 @@ async function processCommand(
 	}
 	await deps.releasePrivateItems({ userId, urls: savedUrls });
 	await deps.deleteAllUserArticles(userId);
+	await deps.deleteAllInboxSavedLinks(userId);
+	await deps.deleteAllTranscriptQuota({ userId });
+	await deps.deleteAllUserHighlights(userId);
 	await deps.withdrawStarterAssignment(userId);
 	await deps.deleteReaderReadyState(userId);
 	await deps.deleteOnboarding({ userId });

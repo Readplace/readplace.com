@@ -1,4 +1,5 @@
 import sanitizeHtml from "sanitize-html";
+import { HighlightIdSchema } from "./highlight/highlight";
 
 const ALLOWED_TAGS = [
 	"p",
@@ -66,6 +67,8 @@ const RULE_CLASSES = ["ocr-page-break"];
 
 export const ARTICLE_SECTION_ID_PREFIX = "section-";
 
+export const ARTICLE_HIGHLIGHT_ID_PREFIX = "highlight-";
+
 const CHAPTER_SECTION_ID_PATTERN = new RegExp(`^${ARTICLE_SECTION_ID_PREFIX}ch-[1-9][0-9]*$`);
 
 export function chapterSectionId(chapter: number): string {
@@ -89,6 +92,18 @@ const keepOnlySectionId: sanitizeHtml.Transformer = (tagName, attribs) => {
 	};
 };
 
+const keepOnlyHighlightIds: sanitizeHtml.Transformer = (tagName, attribs) => {
+	const { id = "", "data-highlight-id": highlightId = "", ...rest } = attribs;
+	return {
+		tagName,
+		attribs: {
+			...rest,
+			...(id.startsWith(ARTICLE_HIGHLIGHT_ID_PREFIX) ? { id } : {}),
+			...(HighlightIdSchema.safeParse(highlightId).success ? { "data-highlight-id": highlightId } : {}),
+		},
+	};
+};
+
 const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 	allowedTags: ALLOWED_TAGS,
 	allowedAttributes: {
@@ -102,10 +117,12 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 		h3: ["id"],
 		p: ["class"],
 		hr: ["class"],
+		mark: ["class", "id", "data-highlight-id"],
 	},
 	allowedClasses: {
 		p: PARAGRAPH_CLASSES,
 		hr: RULE_CLASSES,
+		mark: ["article-highlight"],
 	},
 	allowedSchemes: ["http", "https", "mailto"],
 	allowedSchemesByTag: { img: ["http", "https", "data"] },
@@ -118,6 +135,7 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 				: { tagName: "span", attribs: {} },
 		h2: keepOnlySectionId,
 		h3: keepOnlySectionId,
+		mark: keepOnlyHighlightIds,
 	},
 };
 

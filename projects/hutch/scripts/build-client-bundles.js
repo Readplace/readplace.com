@@ -93,6 +93,23 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/player/player.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "player.client.js"),
+    globalName: "Player",
+    footer: [
+      "Player.initPlayer({",
+      "  document: window.document,",
+      "  window: window,",
+      "  addSwapListener: function (listener) {",
+      "    window.document.body.addEventListener('htmx:afterSwap', listener);",
+      "  }",
+      "});",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/pages/reader/reader-top.client.ts",
     ),
     outfile: path.join(OUT_DIR, "reader-top.client.js"),
@@ -111,6 +128,22 @@ const BUNDLES = [
       "  document: window.document,",
       "  window: window,",
       "  addSettleListener: function (listener) { window.document.body.addEventListener('htmx:afterSettle', listener); }",
+      "});",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
+      "src/runtime/web/shared/article-body/highlights/highlight-toolbar.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "highlight-toolbar.client.js"),
+    globalName: "HighlightToolbar",
+    footer: [
+      "HighlightToolbar.initHighlightToolbar({",
+      "  document: window.document,",
+      "  window: window,",
+      "  timers: { setTimeout: function (callback, delayMs) { return window.setTimeout(callback, delayMs); }, clearTimeout: function (handle) { window.clearTimeout(handle); } },",
+      "  rectsOf: function (range) { return Array.from(range.getClientRects()); }",
       "});",
     ].join("\n"),
   },

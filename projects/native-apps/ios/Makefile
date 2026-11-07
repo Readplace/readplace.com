@@ -38,12 +38,13 @@ open: generate
 # Kept lazy (`?=`) so `make clean/ipa/generate` never shell out to a simulator
 # probe, but memoised through `$(eval)` so the probe still runs at most once even
 # though `$(SIM)` is expanded several times (recipe, SIM_DEVICE, recursive make).
-SIM_UDID = $(eval SIM_UDID := $(shell ./scripts/xc.sh xcrun simctl list devices available | grep -E '^[[:space:]]+iPhone' | tail -n1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}'))$(SIM_UDID)
+SIM_UDID = $(eval SIM_UDID := $(shell ref=$$(./scripts/xc.sh xcrun simctl list devices available | grep -E '^[[:space:]]+iPhone' | tail -n1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}') && [ -n "$$ref" ] && hash=$$(printf '%s' '$(CURDIR)' | shasum | cut -c1-8) && set -- $$(./scripts/xc.sh xcrun simctl list devices available -j | ./scripts/xc.sh python3 -c 'import json,sys; ref,hash=sys.argv[1:3]; devices=json.load(sys.stdin)["devices"]; runtime,kind=next((key,d["deviceTypeIdentifier"]) for key,ds in devices.items() for d in ds if d["udid"]==ref); name="Readplace-"+hash+"-"+runtime.rsplit(".",1)[1]; print(name,kind,runtime,*[d["udid"] for d in devices[runtime] if d["name"]==name])' "$$ref" "$$hash") && { [ -n "$$4" ] && echo "$$4" || ./scripts/xc.sh xcrun simctl create "$$1" "$$2" "$$3"; }))$(SIM_UDID)
 SIM ?= platform=iOS Simulator,id=$(SIM_UDID)
 # Pull the id/name field out explicitly rather than taking "text after the last
 # =": a destination may carry a trailing key (`…,name=iPhone 17,OS=26.5`), which
 # would otherwise resolve the device to "26.5".
 SIM_DEVICE = $(shell printf '%s' '$(SIM)' | sed -E 's/.*,(id|name)=([^,]*).*/\2/')
+SIM_WAS_BOOTED = $(eval SIM_WAS_BOOTED := $(shell ./scripts/xc.sh xcrun simctl list devices booted | grep -o '$(SIM_DEVICE)'))$(SIM_WAS_BOOTED)
 COVERAGE_RESULT = build/TestResults.xcresult
 
 # `make test RECORD_SNAPSHOTS=1` re-mints the share card's committed baselines for
@@ -56,7 +57,7 @@ SNAPSHOT_ENV = $(if $(RECORD_SNAPSHOTS),TEST_RUNNER_READPLACE_RECORD_SNAPSHOTS=$
 # Both test entry points need a simulator, so they fail through one actionable
 # message rather than xcodebuild's generic destination dump.
 require-sim:
-	@test -n "$(SIM_DEVICE)" || { echo "!! No iPhone simulator found. Add one in Xcode > Settings > Components, or pass SIM='platform=iOS Simulator,id=<UDID>'." >&2; exit 1; }
+	@test -n "$(SIM_DEVICE)" || { echo "!! No iPhone simulator runtime found to create this checkout's device from. Add one in Xcode > Settings > Components, or pass SIM='platform=iOS Simulator,id=<UDID>'." >&2; exit 1; }
 
 test: generate require-sim
 	./scripts/xc.sh xcrun simctl bootstatus '$(SIM_DEVICE)' -b
@@ -65,6 +66,7 @@ test: generate require-sim
 		-enableCodeCoverage YES -resultBundlePath $(COVERAGE_RESULT)
 	./scripts/xc.sh python3 scripts/check-coverage.py $(COVERAGE_RESULT)
 	$(MAKE) test-staging SIM='$(SIM)'
+	$(if $(filter file,$(origin SIM)),$(if $(SIM_WAS_BOOTED),,./scripts/xc.sh xcrun simctl shutdown '$(SIM_DEVICE)'))
 
 # Compile the STAGING condition and smoke-test it. The full suite can't run under
 # STAGING — OAuthServiceTests/LoginFlowTests pin the production redirect URI — so

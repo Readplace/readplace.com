@@ -2,14 +2,14 @@
 /**
  * Failed-articles canary.
  *
- * Read-only DDB scan that surfaces articles whose state machines reached a
+ * Read-only status-index query that surfaces articles whose state machines reached a
  * terminal error outcome — crawl `failed` or summary `failed`. Crawl
  * `unsupported` and summary `skipped` are complete (supported) terminal
  * outcomes, not errors, and are not surfaced. Unlike the stuck-articles
  * canary, this one is a
  * diagnostic feed — the operator wants the full list of customer URLs that
  * the pipeline gave up on, so they can re-save and debug each one. A green
- * (zero-row) scan is the normal steady state; a non-empty scan is a debug
+ * (zero-row) run is the normal steady state; a non-empty run is a debug
  * worklist, not a CI failure. The script therefore always exits 0; the
  * workflow opens a tracking issue when the report is non-empty.
  */
