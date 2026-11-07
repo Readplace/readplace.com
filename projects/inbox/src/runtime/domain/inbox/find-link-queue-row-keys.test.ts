@@ -11,6 +11,7 @@ const NOW = new Date("2026-11-03T10:00:00.000Z");
 const ORIGINAL = "https://publisher.example/article";
 const ALIAS_TARGET = "https://publisher.example/canonical";
 const TRACKER = "https://javascriptweekly.com/link/100000/rss";
+const OVERSIZED_TRACKER = `https://link.mail.beehiiv.com/ss/c/u001.${"a".repeat(2800)}`;
 const ARCHIVE = "https://archive.ph/Ab1cD";
 const LINKEDIN_EMAIL_LINK = "https://www.linkedin.com/comm/feed/update/urn:li:activity:7000000000000000001";
 
@@ -56,6 +57,7 @@ const branches: Branch[] = [
 	} },
 	{ name: "an archive capture whose embedded host is normalised", raw: "https://web.archive.org/web/2026/https://twitter.com/person/status/1" },
 	{ name: "a tracker followed over the network", raw: TRACKER, targets: { [TRACKER]: { url: ORIGINAL, contentSourceUrl: TRACKER } } },
+	{ name: "an oversized tracker followed over the network", raw: OVERSIZED_TRACKER, targets: { [OVERSIZED_TRACKER]: { url: ORIGINAL, contentSourceUrl: OVERSIZED_TRACKER } } },
 	{ name: "a tracker followed through an archive", raw: TRACKER, targets: {
 		[TRACKER]: { url: ARCHIVE, contentSourceUrl: TRACKER },
 		[ARCHIVE]: { url: ORIGINAL, contentSourceUrl: ARCHIVE },
@@ -162,21 +164,33 @@ describe("findLinkQueueRowKeys", () => {
 		]);
 	});
 
-	it("reads nothing for a URL whose key is over 2,048 bytes", async () => {
-		const reads: string[] = [];
+	it("finds the saved destination of an oversized tracking link so its inbox state can recover", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...articleRow(ORIGINAL), userId, provenance: { kind: "email", senderEmail: "letter@example.com" } });
+		await store.claimAlias({
+			aliasUrl: OVERSIZED_TRACKER,
+			targetOriginalUrl: ORIGINAL,
+			sourceBinding: { contentSourceUrl: OVERSIZED_TRACKER, sourceOriginalUrl: ORIGINAL },
+			now: NOW,
+		});
 		const findLinkQueueRowKeys = initFindLinkQueueRowKeys({
-			findIdentityRow: async (url) => {
-				reads.push(url);
-				return { kind: "absent" };
-			},
-			findQueueRowKeys: async ({ urls }) => {
-				reads.push(...urls);
-				return [];
-			},
+			findIdentityRow: store.findIdentityRow,
+			findQueueRowKeys: store.findQueueRowKeys,
 		});
 
-		expect(await findLinkQueueRowKeys({ userId, url: `${ORIGINAL}/${"a".repeat(2100)}` })).toEqual([]);
-		expect(reads).toEqual([]);
+		expect(await findLinkQueueRowKeys({ userId, url: OVERSIZED_TRACKER })).toEqual([
+			{ userId, url: "publisher.example/article" },
+		]);
+	});
+
+	it("returns no queue row for an oversized link with no saved destination", async () => {
+		const store = initInMemoryArticleStore();
+		const findLinkQueueRowKeys = initFindLinkQueueRowKeys({
+			findIdentityRow: store.findIdentityRow,
+			findQueueRowKeys: store.findQueueRowKeys,
+		});
+
+		expect(await findLinkQueueRowKeys({ userId, url: OVERSIZED_TRACKER })).toEqual([]);
 	});
 
 	it("still reads a URL whose key is exactly 2,048 bytes", async () => {

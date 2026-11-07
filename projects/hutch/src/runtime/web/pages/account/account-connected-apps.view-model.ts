@@ -70,10 +70,10 @@ const BUILT_IN_APP_COPY = {
 } satisfies Record<BuiltInClientName, { title: string; description: string }>;
 
 const BUILT_IN_DISCONNECT_BODY =
-	"It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.";
+	"It can't save to Readplace until you sign in to it again. Your saved articles stay in your library.";
 
 const ASSISTANT_DISCONNECT_BODY =
-	"It's signed out everywhere and can't reach your readlist until you connect it again. Your saved articles stay in your readlist.";
+	"Its Readplace connection stops working until you connect it again. Readplace pages opened inside the app may stay signed in. Change your Readplace password to sign them out. Your saved articles stay in your library.";
 
 const BROWSER_LABEL = {
 	chrome: "Chrome",
@@ -234,7 +234,7 @@ export function buildConnectedAppsSection(input: {
 			id,
 			clientId: app.client.id,
 			href,
-			title: `Sign out ${app.title} from all devices?`,
+			title: `Disconnect ${app.title}?`,
 			lead: app.description,
 			body: app.body,
 		};

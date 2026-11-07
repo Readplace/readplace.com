@@ -1,4 +1,4 @@
-import { ArticleResourceUniqueId, equivalentArticleUrls } from "@packages/article-resource-unique-id";
+import { equivalentArticleUrls } from "@packages/article-resource-unique-id";
 import { unwrapWrapperUrl, validateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { FindIdentityRow, FindQueueRowKeys, QueueRowKey } from "@packages/provider-contracts/article-store";
@@ -7,8 +7,6 @@ import {
 	initResolveSaveIdentity,
 	neverResolveWrapperTarget,
 } from "@packages/save-article";
-
-const MAX_PARTITION_KEY_BYTES = 2048;
 
 export type FindLinkQueueRowKeys = (input: { userId: UserId; url: string }) => Promise<QueueRowKey[]>;
 
@@ -26,8 +24,6 @@ export function initFindLinkQueueRowKeys(deps: {
 	});
 
 	return async ({ userId, url }) => {
-		if (Buffer.byteLength(ArticleResourceUniqueId.parse(url).value, "utf8") > MAX_PARTITION_KEY_BYTES) return [];
-
 		const replayed = await replaySaveIdentity(url);
 		const roots = [
 			url,

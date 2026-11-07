@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
 import { hashPassword, type UserId, UserIdSchema, verifyPassword } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
-import type { FindIdentityRow, FindQueueRowKeys, QueueRowKey } from "@packages/provider-contracts/article-store";
+import type { FindQueueRowKeys, QueueRowKey } from "@packages/provider-contracts/article-store";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryAuth, initInMemoryIsAccountLive } from "@packages/test-fixtures/providers/auth";
@@ -23,7 +23,6 @@ const ALIAS_TARGET = "https://publisher.example/canonical";
 const TRACKER = "https://javascriptweekly.com/link/100000/rss";
 const WORK = ReadlistSlugSchema.parse("work");
 const NOW = new Date("2026-11-03T10:00:00.000Z");
-const MAX_PARTITION_KEY_BYTES = 2048;
 
 const outboundTo = (url: string) => `https://archive.ph/o/Ab1cD/${url}`;
 
@@ -46,7 +45,6 @@ type LoggedLine = { message: unknown; details: unknown };
 
 async function createHandler(options: {
 	beforeTransaction?: (key: QueueRowKey) => Promise<void>;
-	findIdentityRow?: (inner: FindIdentityRow) => FindIdentityRow;
 	findQueueRowKeys?: (inner: FindQueueRowKeys) => FindQueueRowKeys;
 } = {}) {
 	const store = initInMemoryInboxSavedLink();
@@ -61,7 +59,7 @@ async function createHandler(options: {
 		info: (message, details) => lines.push({ message, details }),
 	});
 	const findLinkQueueRowKeys = initFindLinkQueueRowKeys({
-		findIdentityRow: options.findIdentityRow?.(articles.findIdentityRow) ?? articles.findIdentityRow,
+		findIdentityRow: articles.findIdentityRow,
 		findQueueRowKeys: articles.findQueueRowKeys,
 	});
 	const markWhileQueued = initInMemoryMarkLinkSavedWhileQueued({
@@ -667,18 +665,32 @@ describe("recordLinkQueuedHandler — finding the queue row the save wrote", () 
 	});
 
 	it("a LinkQueueFailed whose URL key is over 2,048 bytes ends failed", async () => {
-		const { userId, run, stateOf } = await createHandler({
-			findIdentityRow: (inner) => async (url) => {
-				assert(Buffer.byteLength(url, "utf8") <= MAX_PARTITION_KEY_BYTES, "ValidationException: key too long");
-				return inner(url);
-			},
-		});
+		const { userId, run, stateOf } = await createHandler();
 		const longUrl = `${POST_URL}/${"a".repeat(2100)}`;
 
 		const result = await run([failedBody({ url: longUrl, userId })]);
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(await stateOf(longUrl)).toBe("failed");
+	});
+
+	it("recovers an oversized tracker's failed inbox state after its destination is saved and keeps it saved on a late failure fact", async () => {
+		const { userId, run, queue, stateOf, articles } = await createHandler();
+		const tracker = `https://link.mail.beehiiv.com/ss/c/u001.${"a".repeat(2800)}`;
+		expect(await run([failedBody({ url: tracker, userId })])).toEqual({ batchItemFailures: [] });
+		expect(await stateOf(tracker)).toBe("failed");
+		await queue(ORIGINAL);
+		await articles.claimAlias({
+			aliasUrl: tracker,
+			targetOriginalUrl: ORIGINAL,
+			sourceBinding: { contentSourceUrl: tracker, sourceOriginalUrl: ORIGINAL },
+			now: NOW,
+		});
+
+		expect(await run([queuedBody({ url: tracker, userId })])).toEqual({ batchItemFailures: [] });
+		expect(await stateOf(tracker)).toBe("saved");
+		expect(await run([failedBody({ url: tracker, userId })])).toEqual({ batchItemFailures: [] });
+		expect(await stateOf(tracker)).toBe("saved");
 	});
 
 	it("records saved when the fact's URL has a fragment and tracking parameters the queue row's key does not", async () => {

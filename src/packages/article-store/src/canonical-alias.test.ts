@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ConditionalCheckFailedException, TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { z } from "zod";
 import { initCanonicalAliasStore } from "./canonical-alias";
@@ -24,6 +26,83 @@ const CapturedCommand = z.object({
 
 const TABLE = "test-articles";
 const NOW = new Date("2026-07-15T10:00:00.000Z");
+
+describe("oversized alias identities", () => {
+	it.each([2048, 2049, 2830])("stores a normalized %i-byte alias without exceeding DynamoDB's key limit", async (size) => {
+		const normalized = `link.example/${"x".repeat(size - "link.example/".length)}`;
+		const aliasUrl = `https://${normalized}`;
+		const commands: unknown[] = [];
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => { commands.push(command); return {}; }) });
+		await store.claimAlias({ aliasUrl, targetOriginalUrl: "https://publisher.example/story", now: NOW });
+		const { input } = CapturedCommand.parse(commands[0]);
+		const expectedKey = size === 2048 ? normalized : `#alias-sha256-v1:${createHash("sha256").update(normalized).digest("hex")}`;
+		expect(input.Key).toEqual({ url: expectedKey });
+		expect(Buffer.byteLength(expectedKey, "utf8")).toBeLessThanOrEqual(2048);
+		expect(input.ExpressionAttributeValues?.[":aliasOriginalUrl"]).toBe(size === 2048 ? undefined : aliasUrl);
+		expect(input.ConditionExpression).toBe("attribute_not_exists(#url)");
+	});
+
+	it("measures the normalized encoding and reuses equivalent keys while preserving distinct long URLs", async () => {
+		const aliasUrl = `https://link.example/${"é".repeat(400)}`;
+		expect(Buffer.byteLength(aliasUrl, "utf8")).toBeLessThan(2048);
+		expect(Buffer.byteLength(ArticleResourceUniqueId.parse(aliasUrl).value, "utf8")).toBeGreaterThan(2048);
+		const keys: unknown[] = [];
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => {
+			keys.push(CapturedCommand.parse(command).input.Key);
+			return {};
+		}) });
+		await store.findIdentityRow(aliasUrl);
+		await store.findIdentityRow(`http://LINK.EXAMPLE/${"%C3%A9".repeat(400)}?utm_source=newsletter`);
+		await store.findIdentityRow(`${aliasUrl}different`);
+		expect(keys[0]).toEqual(keys[1]);
+		expect(new Set(keys.map((key) => JSON.stringify(key))).size).toBe(2);
+	});
+
+	it("reads the full target and source binding back through every alias lookup", async () => {
+		const aliasUrl = `https://link.example/${"a".repeat(2830)}`;
+		const targetOriginalUrl = "https://publisher.example/story";
+		const binding = { contentSourceUrl: aliasUrl, sourceOriginalUrl: targetOriginalUrl };
+		let stored: Record<string, unknown> | undefined;
+		let storedKey: unknown;
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => {
+			const { input } = CapturedCommand.parse(command);
+			if (input.UpdateExpression !== undefined) {
+				expect(input.UpdateExpression).toContain("aliasOriginalUrl = :aliasOriginalUrl");
+				expect(input.ConditionExpression).toBe("attribute_not_exists(#url) OR (rowKind = :alias AND aliasTargetUrl = :target)");
+				storedKey = input.Key;
+				stored = {
+					rowKind: input.ExpressionAttributeValues?.[":alias"],
+					aliasOriginalUrl: input.ExpressionAttributeValues?.[":aliasOriginalUrl"],
+					aliasTargetUrl: input.ExpressionAttributeValues?.[":target"],
+					contentSourceUrl: input.ExpressionAttributeValues?.[":source"],
+					sourceOriginalUrl: input.ExpressionAttributeValues?.[":original"],
+				};
+				return {};
+			}
+			expect(input.Key).toEqual(storedKey);
+			return { Item: stored };
+		}) });
+		await store.claimAlias({ aliasUrl, targetOriginalUrl, sourceBinding: binding, now: NOW });
+		expect(stored?.aliasOriginalUrl).toBe(aliasUrl);
+		expect(await store.resolveAlias(aliasUrl)).toBe(targetOriginalUrl);
+		expect(await store.findIdentityRow(aliasUrl)).toEqual({ kind: "alias", targetUrl: targetOriginalUrl, sourceBinding: binding });
+		expect(await store.findContentSourceUrl(aliasUrl)).toBe(aliasUrl);
+		expect(await store.findAdoptedFetchUrl(aliasUrl)).toBeUndefined();
+	});
+
+	it("uses the same bounded destination alias in an atomic adoption while preserving the real article key", async () => {
+		const destinationUrl = `https://publisher.example/${"x".repeat(2830)}`;
+		const commands: unknown[] = [];
+		const store = initCanonicalAliasStore({ tableName: TABLE, client: createFakeClient((command) => { commands.push(command); return {}; }) });
+		expect(await store.adoptDestination({ articleUrl: "https://origin.example/story", destinationUrl, now: NOW })).toBe("adopted");
+		await store.findIdentityRow(destinationUrl);
+		const destinationKey = CapturedCommand.parse(commands[1]).input.Key;
+		expect(commands[0]).toMatchObject({ input: { TransactItems: [
+			{ Update: { Key: destinationKey, UpdateExpression: "SET rowKind = :alias, aliasTargetUrl = :target, aliasCreatedAt = :now, aliasOriginalUrl = :aliasOriginalUrl", ExpressionAttributeValues: { ":aliasOriginalUrl": destinationUrl, ":target": "https://origin.example/story" }, ConditionExpression: "attribute_not_exists(#url) OR (rowKind = :alias AND aliasTargetUrl = :target)" } },
+			{ Update: { Key: { url: "origin.example/story" }, ExpressionAttributeValues: { ":destination": destinationUrl } } },
+		] } });
+	});
+});
 
 function conditionalCheckFailed(): ConditionalCheckFailedException {
 	return new ConditionalCheckFailedException({ $metadata: {}, message: "The conditional request failed" });
