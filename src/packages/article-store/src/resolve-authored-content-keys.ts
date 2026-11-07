@@ -1,6 +1,8 @@
 import { GetObjectCommand, NoSuchKey, S3ServiceException, type S3Client } from "@aws-sdk/client-s3";
-import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import assert from "node:assert";
+import { ArticleResourceUniqueId, toCrawlVersionMinuteId } from "@packages/article-resource-unique-id";
 import { type CandidateId, CandidateIdSchema } from "@packages/domain/article";
+import { type EventInstant, floorToSecond } from "@packages/domain/event-envelope";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
@@ -18,11 +20,13 @@ const CrawlVersionsRow = z.object({
 
 const TierSourceAuthorSchema = z.object({
 	authorUserId: z.string().optional(),
+	fetchedAt: z.string().optional(),
 });
 
 const CandidateManifestSchema = z.object({
 	id: CandidateIdSchema,
 	authorUserId: z.string().optional(),
+	fetchedAt: z.string().optional(),
 	htmlLocation: z.string(),
 	evaluationLocation: z.string(),
 });
@@ -44,6 +48,7 @@ export type ResolveAuthoredContentKeys = (params: {
 	url: string;
 	userId: string;
 	versionMinuteId: string;
+	requestedAt: EventInstant;
 }) => Promise<{ objectKeys: string[]; manifestKeys: string[]; pruneMinuteIds: string[]; candidateIds: CandidateId[] }>;
 
 export function initResolveAuthoredContentKeys(deps: {
@@ -59,8 +64,9 @@ export function initResolveAuthoredContentKeys(deps: {
 		schema: CrawlVersionsRow,
 	});
 
-	async function readMetadata(key: string): Promise<unknown> {
+	async function readMetadata(key: string): Promise<{ body: unknown; lastModified: Date } | undefined> {
 		let body: string;
+		let lastModified: Date;
 		try {
 			const response = await deps.s3Client.send(
 				new GetObjectCommand({
@@ -69,6 +75,8 @@ export function initResolveAuthoredContentKeys(deps: {
 				}),
 			);
 			if (!response.Body) return undefined;
+			assert(response.LastModified, "S3 GetObject response missing LastModified");
+			lastModified = response.LastModified;
 			body = await response.Body.transformToString("utf-8");
 		} catch (error) {
 			/* c8 ignore next -- V8 block coverage phantom: the true-path is exercised by the missing-sidecar test yet reports a zero-count sub-range, see bcoe/c8#319 */
@@ -76,24 +84,28 @@ export function initResolveAuthoredContentKeys(deps: {
 			if (error instanceof S3ServiceException && error.name === "NoSuchKey") return undefined;
 			throw error;
 		}
-		return safeJsonParse(body);
+		return { body: safeJsonParse(body), lastModified };
 	}
 
-	async function ownedManifests<T extends { authorUserId?: string }>(params: { prefix: string; suffixPattern: RegExp; schema: z.ZodType<T>; userId: string }): Promise<{ key: string; metadata: T }[]> {
+	async function ownedManifests<T extends { authorUserId?: string }>(params: { prefix: string; suffixPattern: RegExp; schema: z.ZodType<T>; userId: string }): Promise<{ key: string; metadata: T; lastModified: Date }[]> {
 		const keys = await deps.listContentKeys(params.prefix);
 		const manifests = await Promise.all(keys
 			.filter((key) => params.suffixPattern.test(key.slice(params.prefix.length)))
-			.map(async (key) => ({ key, parsed: params.schema.safeParse(await readMetadata(key)) })));
-		return manifests.flatMap(({ key, parsed }) => parsed.success && parsed.data.authorUserId === params.userId ? [{ key, metadata: parsed.data }] : []);
+			.map(async (key) => ({ key, read: await readMetadata(key) })));
+		return manifests.flatMap(({ key, read }) => {
+			if (read === undefined) return [];
+			const parsed = params.schema.safeParse(read.body);
+			return parsed.success && parsed.data.authorUserId === params.userId ? [{ key, metadata: parsed.data, lastModified: read.lastModified }] : [];
+		});
 	}
 
-	async function authoredCandidateKeys(id: ArticleResourceUniqueId, userId: string, only?: ReadonlySet<CandidateId>): Promise<{ objectKeys: string[]; manifestKeys: string[]; candidateIds: CandidateId[] }> {
+	async function authoredCandidateKeys(id: ArticleResourceUniqueId, userId: string, selects: (metadata: z.infer<typeof CandidateManifestSchema>) => boolean): Promise<{ objectKeys: string[]; manifestKeys: string[]; candidateIds: CandidateId[] }> {
 		const owned = (await ownedManifests({
 			prefix: id.toS3CandidatesPrefix({ tier: TIER_0 }),
 			suffixPattern: /^[a-f0-9]{64}\/metadata\.json$/,
 			schema: CandidateManifestSchema,
 			userId,
-		})).filter(({ metadata }) => only === undefined || only.has(metadata.id));
+		})).filter(({ metadata }) => selects(metadata));
 		return {
 			objectKeys: owned.flatMap(({ metadata }) => [metadata.htmlLocation, metadata.evaluationLocation]),
 			manifestKeys: owned.map(({ key }) => key),
@@ -101,13 +113,13 @@ export function initResolveAuthoredContentKeys(deps: {
 		};
 	}
 
-	async function authoredMediaKeys(id: ArticleResourceUniqueId, userId: string) {
-		const owned = await ownedManifests({
+	async function authoredMediaKeys(id: ArticleResourceUniqueId, userId: string, selects: (lastModified: Date) => boolean) {
+		const owned = (await ownedManifests({
 			prefix: id.toS3MediaOwnersPrefix(),
 			suffixPattern: /^(?:[a-f0-9]{64}\/[a-f0-9]{64}|[a-f0-9]{32}\/[a-f0-9]{32})\.[a-z0-9]+\.metadata\.json$/,
 			schema: MediaManifestSchema,
 			userId,
-		});
+		})).filter(({ lastModified }) => selects(lastModified));
 		return { objectKeys: owned.map(({ metadata }) => metadata.objectKey), manifestKeys: owned.map(({ key }) => key) };
 	}
 
@@ -118,9 +130,12 @@ export function initResolveAuthoredContentKeys(deps: {
 			{ url: id.value },
 			{ projection: ["crawlVersions"], consistentRead: true },
 		);
+		const requestedAt = new Date(params.requestedAt);
+		const savedAfterRequest = (writtenAt: Date) => floorToSecond(writtenAt) > requestedAt;
+		const requestedMinuteId = toCrawlVersionMinuteId(params.requestedAt);
 		const allAuthored = (row?.crawlVersions ?? [])
 			.map(normalizeCrawlVersion)
-			.filter((entry) => entry.authorUserId === params.userId);
+			.filter((entry) => entry.authorUserId === params.userId && entry.minuteId <= requestedMinuteId);
 		const namedEntries = allAuthored.filter(
 			(entry) => entry.minuteId === params.versionMinuteId,
 		);
@@ -132,8 +147,8 @@ export function initResolveAuthoredContentKeys(deps: {
 
 		const isLastAuthoredVersion = allAuthored.length === 1 && namedEntries.length === 1;
 		if (isLastAuthoredVersion) {
-			const tierZeroAuthor = TierSourceAuthorSchema.safeParse(await readMetadata(id.toS3SourceMetadataKey({ tier: TIER_0 })));
-			if (tierZeroAuthor.success && tierZeroAuthor.data.authorUserId === params.userId) {
+			const tierZeroAuthor = TierSourceAuthorSchema.safeParse((await readMetadata(id.toS3SourceMetadataKey({ tier: TIER_0 })))?.body);
+			if (tierZeroAuthor.success && tierZeroAuthor.data.authorUserId === params.userId && !savedAfterRequest(new Date(tierZeroAuthor.data.fetchedAt ?? ""))) {
 				objectKeys.push(
 					id.toS3SourceKey({ tier: TIER_0 }),
 				);
@@ -141,8 +156,8 @@ export function initResolveAuthoredContentKeys(deps: {
 			}
 		}
 		if (isLastAuthoredVersion || allAuthored.length === 0) {
-			const candidates = await authoredCandidateKeys(id, params.userId);
-			const media = await authoredMediaKeys(id, params.userId);
+			const candidates = await authoredCandidateKeys(id, params.userId, ({ fetchedAt }) => !savedAfterRequest(new Date(fetchedAt ?? "")));
+			const media = await authoredMediaKeys(id, params.userId, (lastModified) => !savedAfterRequest(lastModified));
 			objectKeys.push(...media.objectKeys);
 			manifestKeys.push(...media.manifestKeys);
 			objectKeys.push(...candidates.objectKeys);
@@ -152,7 +167,7 @@ export function initResolveAuthoredContentKeys(deps: {
 			const remainingCandidateIds = new Set(allAuthored.filter((entry) => !namedEntries.includes(entry)).map((entry) => entry.candidateId));
 			const removedCandidateIds = new Set(namedEntries.flatMap((entry) => entry.candidateId === undefined || remainingCandidateIds.has(entry.candidateId) ? [] : [entry.candidateId]));
 			if (removedCandidateIds.size > 0) {
-				const candidates = await authoredCandidateKeys(id, params.userId, removedCandidateIds);
+				const candidates = await authoredCandidateKeys(id, params.userId, ({ id: candidateId }) => removedCandidateIds.has(candidateId));
 				objectKeys.push(...candidates.objectKeys);
 				manifestKeys.push(...candidates.manifestKeys);
 				candidateIds.push(...removedCandidateIds);

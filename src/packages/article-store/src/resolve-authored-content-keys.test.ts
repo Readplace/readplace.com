@@ -1,5 +1,6 @@
 import { NoSuchKey, S3ServiceException, type S3Client } from "@aws-sdk/client-s3";
 import { createHash } from "node:crypto";
+import { toEventInstant } from "@packages/domain/event-envelope";
 import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initResolveAuthoredContentKeys } from "./resolve-authored-content-keys";
 
@@ -14,7 +15,7 @@ function createFakeDynamo(item: Record<string, unknown> | undefined): DynamoDBDo
 }
 
 type FakeSidecar =
-	| { body: string }
+	| { body: string; lastModified?: Date }
 	| "missing"
 	| "missing-as-service-exception"
 	| "empty-body"
@@ -46,11 +47,14 @@ function createFakeS3(
 		}
 		return {
 			Body: { transformToString: async () => object.body },
+			LastModified: object.lastModified ?? STORED_AT,
 		};
 	};
 	return { send } as unknown as Pick<S3Client, "send"> /* 1 */;
 }
 
+const STORED_AT = new Date("2026-07-10T09:41:30Z");
+const REQUESTED_AT = toEventInstant(new Date("2026-07-10T10:00:00Z"));
 const TABLE = "articles";
 const BUCKET = "content-bucket";
 const URL = "https://example.com/post";
@@ -62,6 +66,7 @@ const lastAuthoredRequest = {
 	url: URL,
 	userId: "user-1",
 	versionMinuteId: ONLY_AUTHORED,
+	requestedAt: REQUESTED_AT,
 };
 
 function createResolver(opts: {
@@ -82,10 +87,10 @@ function createResolver(opts: {
 	});
 }
 
-function authoredCandidate({ id, authorUserId }: { id: string; authorUserId?: string }) {
+function authoredCandidate({ id, authorUserId, fetchedAt }: { id: string; authorUserId?: string; fetchedAt?: string }) {
 	const manifestKey = `${CANDIDATE_PREFIX}${createHash("sha256").update(id).digest("hex")}/metadata.json`;
 	const bodyPrefix = `${CANDIDATE_PREFIX}${createHash("sha256").update(`body:${id}`).digest("hex")}/`;
-	const metadata = { id, authorUserId, htmlLocation: `${bodyPrefix}content.html`, evaluationLocation: `${bodyPrefix}evaluation.html` };
+	const metadata = { id, authorUserId, fetchedAt, htmlLocation: `${bodyPrefix}content.html`, evaluationLocation: `${bodyPrefix}evaluation.html` };
 	return { manifestKey, metadata, object: { body: JSON.stringify(metadata) } };
 }
 
@@ -197,6 +202,7 @@ describe("initResolveAuthoredContentKeys", () => {
 			url: URL,
 			userId: "user-1",
 			versionMinuteId: "2026-07-10T09:41Z",
+			requestedAt: REQUESTED_AT,
 		});
 
 		expect(resolved.objectKeys).toEqual([
@@ -225,6 +231,7 @@ describe("initResolveAuthoredContentKeys", () => {
 			url: URL,
 			userId: "user-1",
 			versionMinuteId: "2026-06-28T22:01Z",
+			requestedAt: REQUESTED_AT,
 		});
 
 		expect(resolved.objectKeys).toEqual([
@@ -261,6 +268,7 @@ describe("initResolveAuthoredContentKeys", () => {
 			url: URL,
 			userId: "user-1",
 			versionMinuteId: "2026-07-10T09:41Z",
+			requestedAt: REQUESTED_AT,
 		});
 
 		expect(resolved.objectKeys).toEqual([
@@ -281,6 +289,7 @@ describe("initResolveAuthoredContentKeys", () => {
 			url: URL,
 			userId: "user-1",
 			versionMinuteId: "2026-07-10T09:41Z",
+			requestedAt: REQUESTED_AT,
 		});
 
 		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [], candidateIds: [], manifestKeys: [] });
@@ -297,6 +306,7 @@ describe("initResolveAuthoredContentKeys", () => {
 			url: URL,
 			userId: "user-1",
 			versionMinuteId: "2026-03-26T14:32Z",
+			requestedAt: REQUESTED_AT,
 		});
 
 		expect(resolved).toEqual({ objectKeys: [], pruneMinuteIds: [], candidateIds: [], manifestKeys: [] });
@@ -467,7 +477,7 @@ it.each(["first", "second"] as const)("removing the %s of two candidate-backed a
 	});
 
 	const { candidate } = versions[removed];
-	expect(await resolveAuthoredContentKeys({ url: URL, userId: "user-1", versionMinuteId: versions[removed].minuteId })).toEqual({
+	expect(await resolveAuthoredContentKeys({ url: URL, userId: "user-1", versionMinuteId: versions[removed].minuteId, requestedAt: REQUESTED_AT })).toEqual({
 		objectKeys: [candidate.metadata.htmlLocation, candidate.metadata.evaluationLocation],
 		manifestKeys: [candidate.manifestKey],
 		pruneMinuteIds: [versions[removed].minuteId],
@@ -484,4 +494,120 @@ it("keeps a candidate a remaining authored version still references", async () =
 	});
 
 	expect(await resolveAuthoredContentKeys(lastAuthoredRequest)).toEqual({ objectKeys: [], manifestKeys: [], pruneMinuteIds: [ONLY_AUTHORED], candidateIds: [] });
+});
+
+describe("the removal resolves against the state as of the request", () => {
+	const AFTER_REQUEST = "2026-07-10T10:00:01.000Z";
+	const BEFORE_REQUEST = "2026-07-10T09:59:59.000Z";
+
+	it("keeps a capture saved after the request when the log is empty", async () => {
+		const earlier = authoredCandidate({ id: "earlier", authorUserId: "user-1", fetchedAt: BEFORE_REQUEST });
+		const later = authoredCandidate({ id: "later", authorUserId: "user-1", fetchedAt: AFTER_REQUEST });
+		const objects = Object.fromEntries([earlier, later].map((candidate) => [candidate.manifestKey, candidate.object]));
+		const { resolveAuthoredContentKeys } = createResolver({ crawlVersions: [], sidecar: "missing", objects, listContentKeys: async () => Object.keys(objects) });
+
+		expect(await resolveAuthoredContentKeys(lastAuthoredRequest)).toEqual({
+			objectKeys: [earlier.metadata.htmlLocation, earlier.metadata.evaluationLocation],
+			manifestKeys: [earlier.manifestKey],
+			pruneMinuteIds: [],
+			candidateIds: [earlier.metadata.id],
+		});
+	});
+
+	it("keeps a capture saved after the request when the named version is the last one", async () => {
+		const earlier = authoredCandidate({ id: "earlier", authorUserId: "user-1", fetchedAt: BEFORE_REQUEST });
+		const later = authoredCandidate({ id: "later", authorUserId: "user-1", fetchedAt: AFTER_REQUEST });
+		const objects = Object.fromEntries([earlier, later].map((candidate) => [candidate.manifestKey, candidate.object]));
+		const { resolveAuthoredContentKeys } = createResolver({
+			crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-1" }],
+			sidecar: "missing", objects, listContentKeys: async () => Object.keys(objects),
+		});
+
+		expect(await resolveAuthoredContentKeys(lastAuthoredRequest)).toEqual({
+			objectKeys: [ONLY_AUTHORED_KEY, earlier.metadata.htmlLocation, earlier.metadata.evaluationLocation],
+			manifestKeys: [earlier.manifestKey],
+			pruneMinuteIds: [ONLY_AUTHORED],
+			candidateIds: [earlier.metadata.id],
+		});
+	});
+
+	it("counts only versions logged by the request minute as the reader's", async () => {
+		const earlier = authoredCandidate({ id: "earlier", authorUserId: "user-1", fetchedAt: BEFORE_REQUEST });
+		const later = authoredCandidate({ id: "later", authorUserId: "user-1", fetchedAt: AFTER_REQUEST });
+		const objects = Object.fromEntries([earlier, later].map((candidate) => [candidate.manifestKey, candidate.object]));
+		const { resolveAuthoredContentKeys } = createResolver({
+			crawlVersions: [
+				{ minuteId: ONLY_AUTHORED, authorUserId: "user-1" },
+				{ minuteId: "2026-07-10T10:01Z", authorUserId: "user-1", candidateId: later.metadata.id },
+			],
+			sidecar: "missing", objects, listContentKeys: async () => Object.keys(objects),
+		});
+
+		expect(await resolveAuthoredContentKeys(lastAuthoredRequest)).toEqual({
+			objectKeys: [ONLY_AUTHORED_KEY, earlier.metadata.htmlLocation, earlier.metadata.evaluationLocation],
+			manifestKeys: [earlier.manifestKey],
+			pruneMinuteIds: [ONLY_AUTHORED],
+			candidateIds: [earlier.metadata.id],
+		});
+	});
+
+	it("keeps a tier-0 sidecar a later capture rewrote", async () => {
+		const { resolveAuthoredContentKeys } = createResolver({
+			crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-1" }],
+			sidecar: { body: JSON.stringify({ authorUserId: "user-1", fetchedAt: AFTER_REQUEST }) },
+		});
+
+		expect(await resolveAuthoredContentKeys(lastAuthoredRequest)).toEqual({
+			objectKeys: [ONLY_AUTHORED_KEY], manifestKeys: [], pruneMinuteIds: [ONLY_AUTHORED], candidateIds: [],
+		});
+	});
+
+	it("erases media whose owner manifest predates the request and keeps a later one", async () => {
+		const earlier = authoredMedia({ attemptId: "earlier", authorUserId: "user-1" });
+		const later = authoredMedia({ attemptId: "later", authorUserId: "user-1" });
+		const objects = {
+			[earlier.manifestKey]: { ...earlier.object, lastModified: new Date(BEFORE_REQUEST) },
+			[later.manifestKey]: { ...later.object, lastModified: new Date(AFTER_REQUEST) },
+		};
+		const { resolveAuthoredContentKeys } = createResolver({ sidecar: "missing", objects, listContentKeys: async () => Object.keys(objects) });
+
+		expect(await resolveAuthoredContentKeys(lastAuthoredRequest)).toEqual({ objectKeys: [earlier.objectKey], manifestKeys: [earlier.manifestKey], candidateIds: [], pruneMinuteIds: [] });
+	});
+
+	it("treats a capture in the same second as the request as before it", async () => {
+		const sameSecond = authoredCandidate({ id: "same-second", authorUserId: "user-1", fetchedAt: "2026-07-10T10:00:00.999Z" });
+		const media = authoredMedia({ attemptId: "same-second", authorUserId: "user-1" });
+		const objects = {
+			[sameSecond.manifestKey]: sameSecond.object,
+			[media.manifestKey]: { ...media.object, lastModified: new Date("2026-07-10T10:00:00.500Z") },
+		};
+		const { resolveAuthoredContentKeys } = createResolver({
+			crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-1" }],
+			sidecar: { body: JSON.stringify({ authorUserId: "user-1", fetchedAt: "2026-07-10T10:00:00Z" }) },
+			objects, listContentKeys: async () => Object.keys(objects),
+		});
+
+		expect(await resolveAuthoredContentKeys(lastAuthoredRequest)).toEqual({
+			objectKeys: [ONLY_AUTHORED_KEY, `articles/${ENCODED}/sources/tier-0.html`, media.objectKey, sameSecond.metadata.htmlLocation, sameSecond.metadata.evaluationLocation],
+			manifestKeys: [`articles/${ENCODED}/sources/tier-0.metadata.json`, media.manifestKey, sameSecond.manifestKey],
+			pruneMinuteIds: [ONLY_AUTHORED],
+			candidateIds: [sameSecond.metadata.id],
+		});
+	});
+
+	it("treats a manifest with an unparseable fetchedAt as before the request", async () => {
+		const unparseable = authoredCandidate({ id: "unparseable", authorUserId: "user-1", fetchedAt: "not a time" });
+		const { resolveAuthoredContentKeys } = createResolver({
+			crawlVersions: [], sidecar: "missing",
+			objects: { [unparseable.manifestKey]: unparseable.object },
+			listContentKeys: async () => [unparseable.manifestKey],
+		});
+
+		expect(await resolveAuthoredContentKeys(lastAuthoredRequest)).toEqual({
+			objectKeys: [unparseable.metadata.htmlLocation, unparseable.metadata.evaluationLocation],
+			manifestKeys: [unparseable.manifestKey],
+			pruneMinuteIds: [],
+			candidateIds: [unparseable.metadata.id],
+		});
+	});
 });
