@@ -303,11 +303,11 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness({
 			history: (history) => ({
 				...history,
-				fetchRawMessage: async (input) => {
+				fetchMessageMetadata: async (input) => {
 					const moved = movedAfterListing[input.messageId];
-					if (moved === undefined) return history.fetchRawMessage(input);
+					if (moved === undefined) return history.fetchMessageMetadata(input);
 					if (moved === "deleted") return { ok: true, value: { notFound: true } };
-					return { ok: true, value: { raw: Buffer.from("moved"), internalDate: "2026-08-30T00:00:00.000Z", labelIds: [moved, "UNREAD"] } };
+					return { ok: true, value: { from: TLDR, internalDate: "2026-08-30T00:00:00.000Z", labelIds: [moved, "UNREAD"] } };
 				},
 			}),
 		});
@@ -552,6 +552,38 @@ describe("initGmailHistoryImport", () => {
 		]);
 	});
 
+	it("fails the import as gmail-rejected when Gmail refuses a message's metadata, without downloading its body", async () => {
+		const downloaded: string[] = [];
+		const h = await harness({
+			history: (inner) => ({
+				...inner,
+				fetchMessageMetadata: async (input) => {
+					input.observe(attemptFor("messages.get", "rejected"));
+					return { ok: false, reason: "rejected", status: 400, message: "Invalid id" };
+				},
+				fetchRawMessage: async (input) => {
+					downloaded.push(input.messageId);
+					return inner.fetchRawMessage(input);
+				},
+			}),
+		});
+		await h.startJob("generation-1");
+		h.addUnread({ id: "newer", internalDate: "2026-08-31T00:00:00.000Z" });
+
+		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
+
+		assert.deepEqual(step, { ...NOTHING, failed: "gmail-rejected" });
+		assert.deepEqual(downloaded, []);
+		assert.deepEqual(h.bucket.keys(), []);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 1, nextPagePresent: false },
+			{ kind: "http-attempt", attempt: attemptFor("messages.get", "rejected") },
+			{ kind: "gmail-call-failed", operation: "messages.get", lastAttemptOperation: "messages.get", reason: "rejected", status: 400 },
+			{ kind: "job-failed", reason: "gmail-rejected", persisted: true },
+		]);
+	});
+
 	it("fails the import as gmail-rejected when Gmail refuses a message fetch, having published only the mail recorded before it", async () => {
 		let fetches = 0;
 		const h = await harness({
@@ -561,6 +593,7 @@ describe("initGmailHistoryImport", () => {
 					input.observe(attemptFor("messages.list"));
 					return inner.listMessageIds(input);
 				},
+				fetchMessageMetadata: inner.fetchMessageMetadata,
 				fetchRawMessage: async (input) => {
 					fetches++;
 					if (fetches === 2) {
@@ -602,6 +635,7 @@ describe("initGmailHistoryImport", () => {
 					input.observe(attemptFor("messages.list"));
 					return inner.listMessageIds(input);
 				},
+				fetchMessageMetadata: inner.fetchMessageMetadata,
 				fetchRawMessage: async (input) => {
 					fetches++;
 					if (fetches === 2) return { ok: false, reason: "reauth-required" };
@@ -841,6 +875,7 @@ describe("initGmailHistoryImport", () => {
 					input.observe(attemptFor("messages.list"));
 					return inner.listMessageIds(input);
 				},
+				fetchMessageMetadata: inner.fetchMessageMetadata,
 				fetchRawMessage: async (input) => {
 					input.observe(attemptFor("messages.get"));
 					return inner.fetchRawMessage(input);
@@ -892,6 +927,80 @@ describe("initGmailHistoryImport", () => {
 });
 
 describe("history import listing that is independent of read state", () => {
+	it("downloads a body only for unread mail whose From header names the chosen sender", async () => {
+		const downloaded: string[] = [];
+		const fromHeaders: Record<string, string | undefined> = {
+			named: "TLDR <dan@tldrnewsletter.com>",
+			lookalike: "TLDR <news@tldrnewsletter.com>",
+			missing: undefined,
+		};
+		const h = await harness({
+			history: (inner) => ({
+				...inner,
+				fetchMessageMetadata: async (input) => {
+					const metadata = await inner.fetchMessageMetadata(input);
+					if (!(input.messageId in fromHeaders) || !metadata.ok || "notFound" in metadata.value) return metadata;
+					return { ok: true, value: { ...metadata.value, from: fromHeaders[input.messageId] } };
+				},
+				fetchRawMessage: async (input) => {
+					downloaded.push(input.messageId);
+					return inner.fetchRawMessage(input);
+				},
+			}),
+		});
+		await h.startJob("generation-1");
+		h.addUnread({ id: "named", internalDate: "2026-08-31T00:00:00.000Z" });
+		h.addUnread({ id: "lookalike", internalDate: "2026-08-30T00:00:00.000Z" });
+		h.addUnread({ id: "missing", internalDate: "2026-08-29T00:00:00.000Z" });
+		h.gmail.addMessage({
+			userId: READER,
+			sender: TLDR,
+			messageId: messageId("read"),
+			raw: Buffer.from("read"),
+			internalDate: "2026-08-28T00:00:00.000Z",
+			labelIds: ["INBOX"],
+		});
+
+		await h.runAllPages("generation-1");
+
+		assert.deepEqual(downloaded, ["named"]);
+		assert.deepEqual(publishedIds(h.published), ["named"]);
+		assert.deepEqual(h.bucket.keys(), [`gmail-import/${READER}/${JOB}/named.eml`]);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 4, nextPagePresent: false },
+			{ kind: "message-processed", index: 0, outcome: "published" },
+			{ kind: "message-processed", index: 1, outcome: "sender-mismatch" },
+			{ kind: "message-processed", index: 2, outcome: "sender-mismatch" },
+			{ kind: "message-processed", index: 3, outcome: "already-read" },
+			{ kind: "page-saved", nextPagePresent: false },
+			{ kind: "job-completed", persisted: false },
+		]);
+	});
+
+	it("skips a message deleted between its metadata and its body", async () => {
+		const h = await harness({
+			history: (inner) => ({
+				...inner,
+				fetchRawMessage: async () => ({ ok: true, value: { notFound: true } }),
+			}),
+		});
+		await h.startJob("generation-1");
+		h.addUnread({ id: "gone", internalDate: "2026-08-31T00:00:00.000Z" });
+
+		await h.runAllPages("generation-1");
+
+		assert.deepEqual(publishedIds(h.published), []);
+		assert.deepEqual(h.bucket.keys(), []);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 1, nextPagePresent: false },
+			{ kind: "message-processed", index: 0, outcome: "not-found" },
+			{ kind: "page-saved", nextPagePresent: false },
+			{ kind: "job-completed", persisted: true },
+		]);
+	});
+
 	it("lists a message that is already read and skips it when fetched", async () => {
 		const h = await harness();
 		await h.startJob("generation-1");

@@ -145,6 +145,9 @@ function makePipeline() {
 		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, addGmailOrigins: completion.addGmailOrigins, publishEvent }),
 		recordDuplicateGmailOrigin,
 		readRawEmail,
+		deleteRawEmail: async (key: string) => {
+			rawObjects.delete(key);
+		},
 		parseEmail,
 		findByAddress: addresses.findByAddress,
 		findImportJob: imports.findJob,

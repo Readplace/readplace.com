@@ -279,6 +279,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 			credentials: gmailCredentialsStore,
 			senders: gmailSenderStore,
 			discovery: gmailDiscoveryStore,
+			monitoring: gmailMonitoringStore,
 			addresses: inboxAddressStore,
 			removeGmailFilter: initRewriteGmailFilter({ ...gmailFilterDeps, mappings: { listMappings: async () => [] } }),
 			revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),

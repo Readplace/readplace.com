@@ -3,6 +3,7 @@ import {
 	ForwardableSenderSchema,
 	GmailAccountEmailSchema,
 	type GmailMessageOrigin,
+	type GmailHistoryImportJob,
 	GmailHistoryImportJobIdSchema,
 	type GmailHistoryImportStore,
 	GmailMessageIdSchema,
@@ -36,6 +37,7 @@ type IngestionOutcome = Pick<
 
 export function initIngestGmailImportHandler(deps: {
 	readRawEmail: (s3Key: string) => Promise<Buffer | undefined>;
+	deleteRawEmail: (s3Key: string) => Promise<void>;
 	parseEmail: (input: {
 		raw: Buffer;
 		receivedAt: string;
@@ -53,6 +55,7 @@ export function initIngestGmailImportHandler(deps: {
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		readRawEmail,
+		deleteRawEmail,
 		parseEmail,
 		findByAddress,
 		findImportJob,
@@ -65,32 +68,31 @@ export function initIngestGmailImportHandler(deps: {
 		logger,
 	} = deps;
 
-	const ingestFetchedMessage = async (
-		detail: GmailHistoryImportMessageFetchedDetail,
-	): Promise<IngestionOutcome> => {
-		const { userId } = detail;
-		const jobId = GmailHistoryImportJobIdSchema.parse(detail.jobId);
-		const job = await findImportJob({ userId, jobId });
-		if (job === undefined) return { outcome: "cancelled", receivedAtMessageId: undefined };
+	const decideFetchedMessage = async (input: {
+		detail: GmailHistoryImportMessageFetchedDetail;
+		job: GmailHistoryImportJob;
+		raw: Buffer | undefined;
+	}): Promise<IngestionOutcome & { rawDisposable: boolean }> => {
+		const { detail, job, raw } = input;
+		const { userId, jobId } = job;
 
 		const destinations = new Set(detail.destinationAddresses);
 		const currentRun = job.state === "running" && job.generation === detail.generation;
 		const currentSelection = destinations.size === new Set(job.destinationAddresses).size && job.destinationAddresses.every((address) => destinations.has(address));
 		const mayIngest = currentRun && currentSelection;
 
-		const raw = await readRawEmail(detail.rawEmailS3Key);
-		if (raw === undefined && !mayIngest) return { outcome: "cancelled", receivedAtMessageId: undefined };
+		if (raw === undefined && !mayIngest) return { outcome: "cancelled", receivedAtMessageId: undefined, rawDisposable: false };
 		assert(
 			raw !== undefined,
 			"an imported raw email is written before its fetched event is published",
 		);
-		if (raw.byteLength > deps.maxEmailBytes && !mayIngest) return { outcome: "cancelled", receivedAtMessageId: undefined };
+		if (raw.byteLength > deps.maxEmailBytes && !mayIngest) return { outcome: "cancelled", receivedAtMessageId: undefined, rawDisposable: true };
 		assert(
 			raw.byteLength <= deps.maxEmailBytes,
 			`imported email ${detail.rawEmailS3Key} exceeds the inbox size cap`,
 		);
 		const parsed = await parseEmail({ raw, receivedAt: detail.internalDate });
-		if (!parsed.ok && !mayIngest) return { outcome: "cancelled", receivedAtMessageId: undefined };
+		if (!parsed.ok && !mayIngest) return { outcome: "cancelled", receivedAtMessageId: undefined, rawDisposable: true };
 		assert(parsed.ok, `imported email ${detail.rawEmailS3Key} is unparseable`);
 
 		const sender = parseForwardableSender(parsed.email.from);
@@ -98,6 +100,7 @@ export function initIngestGmailImportHandler(deps: {
 			return {
 				outcome: mayIngest ? "skipped-sender-mismatch" : "cancelled",
 				receivedAtMessageId: undefined,
+				rawDisposable: true,
 			};
 		}
 		const normalizedMessageId = normalizeMessageId(parsed.email.messageId);
@@ -105,6 +108,7 @@ export function initIngestGmailImportHandler(deps: {
 			return {
 				outcome: mayIngest ? "skipped-no-message-id" : "cancelled",
 				receivedAtMessageId: undefined,
+				rawDisposable: true,
 			};
 		}
 
@@ -116,9 +120,9 @@ export function initIngestGmailImportHandler(deps: {
 		};
 		const proposedReceivedAtMessageId = `${detail.internalDate}#${parsed.email.messageId}`;
 		if (await resumeAcceptedGmailEmail({ userId, receivedAtMessageId: proposedReceivedAtMessageId, rawEmailS3Key: detail.rawEmailS3Key, origin: "gmail-import", gmailOrigin })) {
-			return { outcome: "imported", receivedAtMessageId: proposedReceivedAtMessageId };
+			return { outcome: "imported", receivedAtMessageId: proposedReceivedAtMessageId, rawDisposable: false };
 		}
-		if (!mayIngest) return { outcome: "cancelled", receivedAtMessageId: undefined };
+		if (!mayIngest) return { outcome: "cancelled", receivedAtMessageId: undefined, rawDisposable: false };
 
 		const [destinationAddress, ...additionalAddresses] =
 			detail.destinationAddresses.map((address) =>
@@ -132,7 +136,7 @@ export function initIngestGmailImportHandler(deps: {
 				destination.disabledAt !== undefined ||
 				destination.userId !== userId
 			) {
-				return { outcome: "cancelled", receivedAtMessageId: undefined };
+				return { outcome: "cancelled", receivedAtMessageId: undefined, rawDisposable: false };
 			}
 		}
 
@@ -151,7 +155,7 @@ export function initIngestGmailImportHandler(deps: {
 		});
 		if (!resolution.proceed) {
 			await recordDuplicateGmailOrigin({ userId, receivedAtMessageId: resolution.receivedAtMessageId, origin: gmailOrigin });
-			return { outcome: "already-imported", receivedAtMessageId: undefined };
+			return { outcome: "already-imported", receivedAtMessageId: undefined, rawDisposable: true };
 		}
 
 		await ingest({
@@ -173,7 +177,18 @@ export function initIngestGmailImportHandler(deps: {
 		return {
 			outcome: "imported",
 			receivedAtMessageId: resolution.receivedAtMessageId,
+			rawDisposable: false,
 		};
+	};
+
+	const ingestFetchedMessage = async (
+		detail: GmailHistoryImportMessageFetchedDetail,
+	): Promise<IngestionOutcome & { rawDisposable: boolean }> => {
+		const job = await findImportJob({ userId: detail.userId, jobId: GmailHistoryImportJobIdSchema.parse(detail.jobId) });
+		if (job === undefined) return { outcome: "cancelled", receivedAtMessageId: undefined, rawDisposable: false };
+		const raw = await readRawEmail(detail.rawEmailS3Key);
+		const decided = await decideFetchedMessage({ detail, job, raw });
+		return { ...decided, rawDisposable: decided.rawDisposable && job.generation === detail.generation };
 	};
 
 	return initSqsRecordHandler({
@@ -182,7 +197,7 @@ export function initIngestGmailImportHandler(deps: {
 		failure: { message: "[ingest-gmail-import] record failed" },
 		malformed: { policy: "retry" },
 		handle: async (detail) => {
-			const { outcome, receivedAtMessageId } = await ingestFetchedMessage(detail);
+			const { outcome, receivedAtMessageId, rawDisposable } = await ingestFetchedMessage(detail);
 			await publishEvent(GmailHistoryImportMessageIngestedEvent, {
 				userId: detail.userId,
 				jobId: detail.jobId,
@@ -191,6 +206,7 @@ export function initIngestGmailImportHandler(deps: {
 				outcome,
 				receivedAtMessageId,
 			});
+			if (rawDisposable) await deleteRawEmail(detail.rawEmailS3Key);
 			logger.info("[ingest-gmail-import] ingested", {
 				jobId: detail.jobId,
 				outcome,

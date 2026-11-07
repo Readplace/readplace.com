@@ -1,17 +1,21 @@
 import assert from "node:assert/strict";
 import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
-import { GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
+import { AliasNameSchema, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
+import type { GmailMonitoringCheckpoint, GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import type { RevokeGmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
+import { initInMemoryGmailFilters } from "@packages/test-fixtures/providers/gmail-filters";
+import { initInMemoryGmailMonitoring } from "@packages/test-fixtures/providers/gmail-monitoring";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
 import { initCancelGmailHistoryImports } from "./cancel-gmail-history-imports";
 import { initDisconnectGmail } from "./disconnect-gmail";
+import { initRewriteGmailFilter } from "./rewrite-gmail-filter";
 import type { RewriteGmailFilterOutcome } from "./rewrite-gmail-filter";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
@@ -19,12 +23,38 @@ const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
 const NOW = new Date("2026-08-27T00:00:00.000Z");
 const SCOPE = "https://www.googleapis.com/auth/gmail.settings.basic";
+const MAILBOX = "mailbox-1";
+const NO_MONITOR_ROWS = {
+	checkpoint: undefined,
+	observations: { observations: [], nextPageToken: undefined },
+	notices: { notices: [], nextPageToken: undefined },
+	batch: undefined,
+};
+
+async function monitorRows(monitoring: GmailMonitoringStore) {
+	return {
+		checkpoint: await monitoring.findCheckpoint(USER),
+		observations: await monitoring.listObservations({ userId: USER, mailboxId: MAILBOX }),
+		notices: await monitoring.listNotices({ userId: USER }),
+		batch: await monitoring.findNoticeBatch(USER),
+	};
+}
+
+async function seedMonitor(monitoring: GmailMonitoringStore, gatewayAddress: GmailMonitoringCheckpoint["gatewayAddress"]) {
+	const checkpoint: GmailMonitoringCheckpoint = { userId: USER, generation: "run", page: 0, mailboxId: MAILBOX, accountEmail: ACCOUNT, gatewayAddress, mode: "arrivals", initializing: false, historyId: "100", pageToken: undefined, scannedCount: 0, lastCheckedAt: NOW.getTime() };
+	assert(await monitoring.startRun({ checkpoint, previous: undefined }));
+	assert(await monitoring.observeSender({ checkpoint, observation: { email: TLDR, name: "TLDR", approved: true }, notify: true }));
+	assert(await monitoring.claimNoticeBatch({ userId: USER, senders: [TLDR], message: { from: "hello@readplace.com", to: ACCOUNT, subject: "TLDR can reach Readplace", html: "<p>TLDR</p>" }, lastSentBefore: 0 }));
+	const seeded = await monitorRows(monitoring);
+	assert.deepEqual([seeded.checkpoint?.mailboxId, seeded.observations.observations.length, seeded.notices.notices.length, seeded.batch?.status], [MAILBOX, 1, 1, "sending"]);
+}
 
 async function makeHarness(options: {
 	rewritten?: RewriteGmailFilterOutcome;
 	revoked?: RevokeGmailGrantResult;
 	connected?: boolean;
 	credentialed?: boolean;
+	gmail?: ReturnType<typeof initInMemoryGmailFilters>;
 } = {}) {
 	const connections = initInMemoryGmailConnection({ now: () => NOW });
 	const credentials = initInMemoryGmailCredentials({ now: () => NOW });
@@ -32,7 +62,9 @@ async function makeHarness(options: {
 	const discovery = initInMemoryGmailDiscovery({ now: () => NOW });
 	const addresses = initInMemoryInboxAddress({ now: () => NOW });
 	const imports = initInMemoryGmailHistoryImport();
+	const monitoring = initInMemoryGmailMonitoring({ now: () => NOW });
 	const rewrites: string[] = [];
+	const monitorRowsWhenGoogleAsked: Awaited<ReturnType<typeof monitorRows>>[] = [];
 	const revokes: string[] = [];
 	const gatewayEntry = await addresses.createAddress({
 		userId: USER,
@@ -65,11 +97,22 @@ async function makeHarness(options: {
 		credentials,
 		senders,
 		discovery,
+		monitoring,
 		addresses,
-		removeGmailFilter: async ({ userId }) => {
-			rewrites.push(userId);
-			return options.rewritten ?? { ok: true, filterCount: 0, senderCount: 0 };
-		},
+		removeGmailFilter: options.gmail === undefined
+			? async ({ userId }) => {
+				rewrites.push(userId);
+				monitorRowsWhenGoogleAsked.push(await monitorRows(monitoring));
+				return options.rewritten ?? { ok: true, filterCount: 0, senderCount: 0 };
+			}
+			: initRewriteGmailFilter({
+				filters: options.gmail.api,
+				connections,
+				mappings: { listMappings: async () => [] },
+				addresses,
+				now: () => NOW,
+				logger: Logger.from(noopLogger),
+			}),
 		revokeGmailGrant: async ({ refreshToken }) => {
 			revokes.push(refreshToken);
 			return options.revoked ?? { ok: true };
@@ -78,7 +121,7 @@ async function makeHarness(options: {
 		logger: Logger.from(noopLogger),
 	});
 
-	return { disconnect, connections, credentials, senders, discovery, addresses, gateway, rewrites, revokes, imports };
+	return { disconnect, connections, credentials, senders, discovery, monitoring, addresses, gateway, rewrites, revokes, imports, monitorRowsWhenGoogleAsked };
 }
 
 describe("initDisconnectGmail", () => {
@@ -122,6 +165,54 @@ describe("initDisconnectGmail", () => {
 		assert.deepEqual(harness.revokes, ["refresh-1"]);
 		assert.equal(await harness.credentials.findRefreshTokenByUserId(USER), undefined);
 		assert.equal(await harness.discovery.findDiscoveryByUserId(USER), undefined);
+	});
+
+	it("removes the gateway filter and leaves the reader's own filters", async () => {
+		const gmail = initInMemoryGmailFilters();
+		const harness = await makeHarness({ gmail });
+		const saveByEmail = await harness.addresses.createAddress({
+			userId: USER,
+			domain: "read.place",
+			name: AliasNameSchema.parse("reading"),
+			purpose: "user-alias",
+		});
+		const readersFilter = { id: "f-reader", query: "from:(boss@work.com)", forwardTo: saveByEmail.address };
+		gmail.store.set("f-gateway", { id: "f-gateway", query: "from:(dan@tldr.tech)", forwardTo: harness.gateway });
+		gmail.store.set(readersFilter.id, readersFilter);
+
+		const result = await harness.disconnect({ userId: USER });
+
+		assert.deepEqual(result, { ok: true, filterRemoved: true, grantRevoked: true });
+		assert.deepEqual(gmail.deleted, ["f-gateway"]);
+		assert.deepEqual([...gmail.store.values()], [readersFilter]);
+	});
+
+	it("leaves no observation, notice or checkpoint row of the mailbox", async () => {
+		const harness = await makeHarness();
+		await seedMonitor(harness.monitoring, harness.gateway);
+
+		assert.deepEqual(await harness.disconnect({ userId: USER }), { ok: true, filterRemoved: true, grantRevoked: true });
+		assert.deepEqual(await monitorRows(harness.monitoring), NO_MONITOR_ROWS);
+	});
+
+	it("clears the monitor's rows even when the connection is already gone", async () => {
+		const harness = await makeHarness({ connected: false });
+		await seedMonitor(harness.monitoring, harness.gateway);
+
+		assert.deepEqual(await harness.disconnect({ userId: USER }), { ok: false, reason: "not-connected" });
+		assert.deepEqual(await monitorRows(harness.monitoring), NO_MONITOR_ROWS);
+	});
+
+	it("clears the rows before Google is asked, so an outage retry finds nothing to redo", async () => {
+		const harness = await makeHarness({ rewritten: { ok: false, reason: "unavailable", status: 503 } });
+		await seedMonitor(harness.monitoring, harness.gateway);
+
+		assert.deepEqual(await harness.disconnect({ userId: USER }), { ok: false, reason: "unavailable" });
+		assert.deepEqual(harness.monitorRowsWhenGoogleAsked, [NO_MONITOR_ROWS]);
+
+		assert.deepEqual(await harness.disconnect({ userId: USER }), { ok: false, reason: "unavailable" });
+		assert.deepEqual(harness.monitorRowsWhenGoogleAsked, [NO_MONITOR_ROWS, NO_MONITOR_ROWS]);
+		assert.deepEqual(await monitorRows(harness.monitoring), NO_MONITOR_ROWS);
 	});
 
 	it("deletes the connection and retires the gateway so a leftover rule no longer routes", async () => {

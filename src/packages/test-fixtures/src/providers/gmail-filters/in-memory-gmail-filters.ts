@@ -8,7 +8,10 @@ export function initInMemoryGmailFilters(seed: GmailFilter[] = []) {
 	let nextId = 100;
 
 	const api: GmailFilters = {
-		listFilters: async () => ({ ok: true, value: [...store.values()] }),
+		listFilters: async () => ({
+			ok: true,
+			value: [...store.values()].map((filter) => ({ id: filter.id, forwardTo: filter.forwardTo })),
+		}),
 		createForwardingFilter: async ({ query, forwardTo }) => {
 			created.push({ query, forwardTo });
 			nextId += 1;

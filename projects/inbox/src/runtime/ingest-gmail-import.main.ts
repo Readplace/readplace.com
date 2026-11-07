@@ -20,6 +20,7 @@ import {
 	initDynamoDbGmailHistoryImport,
 	initDynamoDbInboxAddress,
 	initDynamoDbInboxEmail,
+	initS3DeleteObjects,
 	initS3ReadRawEmail,
 	initS3WriteEmailContent,
 } from "@packages/inbox-store";
@@ -95,6 +96,7 @@ export const handler = initIngestGmailImportHandler({
 		client: s3Client,
 		bucketName: rawEmailBucketName,
 	}),
+	deleteRawEmail: (s3Key) => initS3DeleteObjects({ client: s3Client, bucketName: rawEmailBucketName })([s3Key]),
 	parseEmail,
 	findByAddress: initDynamoDbInboxAddress({
 		client: dynamoClient,

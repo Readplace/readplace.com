@@ -4,19 +4,24 @@ import type {
 	GmailApiResult,
 	GmailFilter,
 	GmailFilters,
+	GmailFilterSummary,
 } from "@packages/provider-contracts/gmail-filters";
 import { classify, initCallGmail } from "./gmail-call";
 
 const FILTERS_ENDPOINT = "https://gmail.googleapis.com/gmail/v1/users/me/settings/filters";
+const FILTER_SUMMARIES_ENDPOINT = `${FILTERS_ENDPOINT}?fields=filter(id,action/forward)`;
 
-const GmailFilterResponse = z.object({
+const GmailFilterSummaryResponse = z.object({
 	id: z.string(),
-	criteria: z.object({ query: z.string().optional() }).optional(),
 	action: z.object({ forward: z.string().optional() }).optional(),
 });
 
+const GmailFilterResponse = GmailFilterSummaryResponse.extend({
+	criteria: z.object({ query: z.string().optional() }).optional(),
+});
+
 const GmailFilterListResponse = z.object({
-	filter: z.array(GmailFilterResponse).optional(),
+	filter: z.array(GmailFilterSummaryResponse).optional(),
 });
 
 function toFilter(raw: z.infer<typeof GmailFilterResponse>): GmailFilter {
@@ -25,6 +30,10 @@ function toFilter(raw: z.infer<typeof GmailFilterResponse>): GmailFilter {
 		query: raw.criteria?.query,
 		forwardTo: raw.action?.forward,
 	};
+}
+
+function toFilterSummary(raw: z.infer<typeof GmailFilterSummaryResponse>): GmailFilterSummary {
+	return { id: raw.id, forwardTo: raw.action?.forward };
 }
 
 export function initGmailFilters(deps: {
@@ -43,7 +52,7 @@ export function initGmailFilters(deps: {
 
 	return {
 		listFilters: async ({ userId }) =>
-			classify(await callGmail(userId, { url: FILTERS_ENDPOINT, method: "GET" }), async (response) => {
+			classify(await callGmail(userId, { url: FILTER_SUMMARIES_ENDPOINT, method: "GET" }), async (response) => {
 				const parsed = GmailFilterListResponse.safeParse(await response.json());
 				if (!parsed.success) {
 					return {
@@ -53,7 +62,7 @@ export function initGmailFilters(deps: {
 						message: "malformed filter list",
 					};
 				}
-				return { ok: true, value: (parsed.data.filter ?? []).map(toFilter) };
+				return { ok: true, value: (parsed.data.filter ?? []).map(toFilterSummary) };
 			}),
 		createForwardingFilter: async ({ userId, query, forwardTo }) =>
 			classify(

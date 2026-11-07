@@ -7,8 +7,10 @@ import {
 	type GmailHistoryImportJob,
 	type GmailHistoryImportJobId,
 	type GmailHistoryImportStore,
+	type ForwardableSender,
 	type GmailMappingStore,
 	gmailHistoryImportRawKey,
+	parseGmailFrom,
 	resolveGmailDeliveryMode,
 } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
@@ -16,6 +18,10 @@ import type { GmailHistoryImportMessageFetchedDetail } from "@packages/infra-com
 import type { GmailHistory, GmailHistoryResult, GmailHttpOperation, ObserveGmailHttpAttempt, PutGmailImportRaw } from "@packages/provider-contracts/gmail-history";
 import { errorClassName } from "./error-class-name";
 import type { GmailHistoryImportObservation, ObserveGmailHistoryImport } from "./gmail-history-import-observation.types";
+
+function fromSender(input: { from: string | undefined; sender: ForwardableSender }): boolean {
+	return input.from !== undefined && parseGmailFrom(input.from).some((address) => address.email === input.sender);
+}
 
 export interface GmailHistoryImportPage {
 	userId: UserId;
@@ -153,19 +159,30 @@ export function initGmailHistoryImport(deps: {
 		observe({ kind: "page-listed", messageCount: listing.value.messageIds.length, nextPagePresent: listing.value.nextPageToken !== undefined });
 
 		for (const [index, gmailMessageId] of listing.value.messageIds.entries()) {
+			const metadataAttempts = observeCallAttempts(observe);
+			const metadata = await history.fetchMessageMetadata({ userId: input.userId, messageId: gmailMessageId, observe: metadataAttempts.observe });
+			if (!metadata.ok) return fail({ job, connection, operation: "messages.get", lastAttemptOperation: metadataAttempts.lastAttemptOperation(), failure: metadata, observe });
+			if ("notFound" in metadata.value) {
+				observe({ kind: "message-processed", index, outcome: "not-found" });
+				continue;
+			}
+			if (metadata.value.labelIds.some((label) => UNLISTED_LABELS.has(label))) {
+				observe({ kind: "message-processed", index, outcome: "unlisted-label" });
+				continue;
+			}
+			if (!metadata.value.labelIds.includes(UNREAD_LABEL)) {
+				observe({ kind: "message-processed", index, outcome: "already-read" });
+				continue;
+			}
+			if (!fromSender({ from: metadata.value.from, sender: job.senderEmail })) {
+				observe({ kind: "message-processed", index, outcome: "sender-mismatch" });
+				continue;
+			}
 			const fetchAttempts = observeCallAttempts(observe);
 			const message = await history.fetchRawMessage({ userId: input.userId, messageId: gmailMessageId, observe: fetchAttempts.observe });
 			if (!message.ok) return fail({ job, connection, operation: "messages.get", lastAttemptOperation: fetchAttempts.lastAttemptOperation(), failure: message, observe });
 			if ("notFound" in message.value) {
 				observe({ kind: "message-processed", index, outcome: "not-found" });
-				continue;
-			}
-			if (message.value.labelIds.some((label) => UNLISTED_LABELS.has(label))) {
-				observe({ kind: "message-processed", index, outcome: "unlisted-label" });
-				continue;
-			}
-			if (!message.value.labelIds.includes(UNREAD_LABEL)) {
-				observe({ kind: "message-processed", index, outcome: "already-read" });
 				continue;
 			}
 			const rawEmailS3Key = gmailHistoryImportRawKey({ userId: input.userId, jobId: input.jobId, gmailMessageId });
@@ -187,7 +204,7 @@ export function initGmailHistoryImport(deps: {
 					destinationAddresses: job.destinationAddresses,
 					deliveryMode: resolveGmailDeliveryMode(mapping),
 					rawEmailS3Key,
-					internalDate: message.value.internalDate,
+					internalDate: metadata.value.internalDate,
 				});
 			} catch (error) {
 				observe({ kind: "message-publication-failed", index, errorName: errorClassName(error) });

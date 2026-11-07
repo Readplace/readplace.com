@@ -33,8 +33,9 @@ function listable(message: InMemoryGmailMessage, input: { userId: UserId; sender
 export function initInMemoryGmailHistory() {
 	const messages = new Map<GmailMessageId, InMemoryGmailMessage>();
 	const listRequests: { sender: ForwardableSender; window: GmailHistoryImportWindow; pageToken: string | undefined }[] = [];
-	const failures: { listMessageIds: GmailHistoryFailure[]; fetchRawMessage: GmailHistoryFailure[] } = {
+	const failures: { listMessageIds: GmailHistoryFailure[]; fetchMessageMetadata: GmailHistoryFailure[]; fetchRawMessage: GmailHistoryFailure[] } = {
 		listMessageIds: [],
+		fetchMessageMetadata: [],
 		fetchRawMessage: [],
 	};
 
@@ -56,12 +57,19 @@ export function initInMemoryGmailHistory() {
 				},
 			};
 		},
+		fetchMessageMetadata: async ({ userId, messageId }) => {
+			const failure = failures.fetchMessageMetadata.shift();
+			if (failure !== undefined) return failure;
+			const message = messages.get(messageId);
+			if (message === undefined || message.userId !== userId) return { ok: true, value: { notFound: true } };
+			return { ok: true, value: { from: message.sender, internalDate: message.internalDate, labelIds: message.labelIds } };
+		},
 		fetchRawMessage: async ({ userId, messageId }) => {
 			const failure = failures.fetchRawMessage.shift();
 			if (failure !== undefined) return failure;
 			const message = messages.get(messageId);
 			if (message === undefined || message.userId !== userId) return { ok: true, value: { notFound: true } };
-			return { ok: true, value: { raw: message.raw, internalDate: message.internalDate, labelIds: message.labelIds } };
+			return { ok: true, value: { raw: message.raw } };
 		},
 	};
 

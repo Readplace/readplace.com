@@ -20,8 +20,13 @@ export interface GmailFilter {
 	forwardTo: string | undefined;
 }
 
+export interface GmailFilterSummary {
+	id: string;
+	forwardTo: string | undefined;
+}
+
 export interface GmailFilters {
-	listFilters: (input: { userId: UserId }) => Promise<GmailApiResult<GmailFilter[]>>;
+	listFilters: (input: { userId: UserId }) => Promise<GmailApiResult<GmailFilterSummary[]>>;
 	createForwardingFilter: (input: {
 		userId: UserId;
 		query: string;

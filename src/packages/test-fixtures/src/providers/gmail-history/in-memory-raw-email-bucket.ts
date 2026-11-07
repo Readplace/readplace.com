@@ -10,6 +10,9 @@ export function initInMemoryRawEmailBucket() {
 	return {
 		put,
 		read: async (key: string): Promise<Buffer | undefined> => objects.get(key),
+		delete: async (key: string): Promise<void> => {
+			objects.delete(key);
+		},
 		keys: () => [...objects.keys()],
 	};
 }

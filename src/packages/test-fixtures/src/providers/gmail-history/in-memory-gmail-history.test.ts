@@ -49,7 +49,7 @@ describe("initInMemoryGmailHistory", () => {
 		gmail.markRead(id);
 		gmail.markRead(GmailMessageIdSchema.parse("missing"));
 
-		const fetched = await gmail.history.fetchRawMessage({ userId: READER, messageId: id, observe: IGNORED_ATTEMPTS });
+		const fetched = await gmail.history.fetchMessageMetadata({ userId: READER, messageId: id, observe: IGNORED_ATTEMPTS });
 		assert.deepEqual(fetched.ok && "labelIds" in fetched.value ? fetched.value.labelIds : undefined, ["INBOX"]);
 	});
 
@@ -79,14 +79,24 @@ describe("initInMemoryGmailHistory", () => {
 		assert.deepEqual(second, { ok: true, value: { messageIds: ["m00"], nextPageToken: undefined } });
 	});
 
-	it("fetches the raw bytes, date and labels of the reader's message", async () => {
+	it("fetches the raw bytes of the reader's message", async () => {
 		const gmail = initInMemoryGmailHistory();
 		const stored = message({ messageId: GmailMessageIdSchema.parse("abc") });
 		gmail.addMessage(stored);
 
 		const fetched = await gmail.history.fetchRawMessage({ userId: READER, messageId: stored.messageId, observe: IGNORED_ATTEMPTS });
 
-		assert.deepEqual(fetched, { ok: true, value: { raw: stored.raw, internalDate: stored.internalDate, labelIds: stored.labelIds } });
+		assert.deepEqual(fetched, { ok: true, value: { raw: stored.raw } });
+	});
+
+	it("fetches the sender, date and labels of the reader's message", async () => {
+		const gmail = initInMemoryGmailHistory();
+		const stored = message({ messageId: GmailMessageIdSchema.parse("abc") });
+		gmail.addMessage(stored);
+
+		const fetched = await gmail.history.fetchMessageMetadata({ userId: READER, messageId: stored.messageId, observe: IGNORED_ATTEMPTS });
+
+		assert.deepEqual(fetched, { ok: true, value: { from: stored.sender, internalDate: stored.internalDate, labelIds: stored.labelIds } });
 	});
 
 	it("answers not found for a deleted message or another reader's message", async () => {
@@ -101,6 +111,14 @@ describe("initInMemoryGmailHistory", () => {
 			ok: true,
 			value: { notFound: true },
 		});
+		assert.deepEqual(await gmail.history.fetchMessageMetadata({ userId: READER, messageId: GmailMessageIdSchema.parse("gone"), observe: IGNORED_ATTEMPTS }), {
+			ok: true,
+			value: { notFound: true },
+		});
+		assert.deepEqual(await gmail.history.fetchMessageMetadata({ userId: READER, messageId: GmailMessageIdSchema.parse("theirs"), observe: IGNORED_ATTEMPTS }), {
+			ok: true,
+			value: { notFound: true },
+		});
 	});
 
 	it("returns each queued failure once, per method", async () => {
@@ -109,6 +127,7 @@ describe("initInMemoryGmailHistory", () => {
 		gmail.addMessage(stored);
 		gmail.failNext({ method: "listMessageIds", failure: { ok: false, reason: "readonly-permission-required" } });
 		gmail.failNext({ method: "fetchRawMessage", failure: { ok: false, reason: "unavailable", status: 503 } });
+		gmail.failNext({ method: "fetchMessageMetadata", failure: { ok: false, reason: "reauth-required" } });
 
 		const listing = { userId: READER, sender: TLDR, window: WINDOW, pageToken: undefined, observe: IGNORED_ATTEMPTS };
 		assert.deepEqual(await gmail.history.listMessageIds(listing), { ok: false, reason: "readonly-permission-required" });
@@ -119,6 +138,11 @@ describe("initInMemoryGmailHistory", () => {
 			status: 503,
 		});
 		assert.equal((await gmail.history.fetchRawMessage({ userId: READER, messageId: stored.messageId, observe: IGNORED_ATTEMPTS })).ok, true);
+		assert.deepEqual(await gmail.history.fetchMessageMetadata({ userId: READER, messageId: stored.messageId, observe: IGNORED_ATTEMPTS }), {
+			ok: false,
+			reason: "reauth-required",
+		});
+		assert.equal((await gmail.history.fetchMessageMetadata({ userId: READER, messageId: stored.messageId, observe: IGNORED_ATTEMPTS })).ok, true);
 	});
 });
 
@@ -132,5 +156,16 @@ describe("initInMemoryRawEmailBucket", () => {
 		assert.deepEqual(bucket.keys(), ["gmail-import/u/j/a.eml"]);
 		assert.equal((await bucket.read("gmail-import/u/j/a.eml"))?.toString(), "again");
 		assert.equal(await bucket.read("gmail-import/u/j/missing.eml"), undefined);
+	});
+
+	it("deletes raw mail by key, ignoring a key it does not hold", async () => {
+		const bucket = initInMemoryRawEmailBucket();
+		await bucket.put({ key: "gmail-import/u/j/a.eml", raw: Buffer.from("first") });
+		await bucket.put({ key: "gmail-import/u/j/b.eml", raw: Buffer.from("second") });
+
+		await bucket.delete("gmail-import/u/j/a.eml");
+		await bucket.delete("gmail-import/u/j/missing.eml");
+
+		assert.deepEqual(bucket.keys(), ["gmail-import/u/j/b.eml"]);
 	});
 });

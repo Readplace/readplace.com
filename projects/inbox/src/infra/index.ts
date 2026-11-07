@@ -643,6 +643,13 @@ const ingestGmailImportLambda = new Lambda("inbox-ingest-gmail-import", {
 		...ingestGmailImportIdentities.policies,
 		...ingestGmailImportLookups.policies,
 		...S3ReadWrite.readPoliciesForBucket("inbox-ingest-gmail-import-raw-read", rawEmailBucketName),
+		{
+			name: "inbox-ingest-gmail-import-raw-delete",
+			policy: JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [{ Effect: "Allow", Action: ["s3:DeleteObject"], Resource: `arn:aws:s3:::${rawEmailBucketName}/gmail-import/*` }],
+			}),
+		},
 		...S3ReadWrite.writePoliciesForBucket("inbox-ingest-gmail-import-content-write", contentBucketName),
 	],
 });

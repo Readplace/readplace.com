@@ -8,7 +8,7 @@ import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/g
 import { initInMemoryGmailFilters } from "@packages/test-fixtures/providers/gmail-filters";
 import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
-import { AliasNameSchema } from "@packages/domain/inbox";
+import { AliasNameSchema, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import { initRewriteGmailFilter } from "./rewrite-gmail-filter";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
@@ -136,6 +136,31 @@ describe("initRewriteGmailFilter", () => {
 		assert.deepEqual(gmail.created, []);
 		assert.deepEqual(gmail.deleted, []);
 		assert.equal((await connections.findConnectionByUserId(USER))?.filterCount, 1);
+	});
+
+	it("reads an owned filter back before deciding it is live", async () => {
+		const gmail = initInMemoryGmailFilters([
+			{ id: "f-live", query: "from:(dan@tldr.tech)", forwardTo: GATEWAY },
+			{ id: "f-theirs", query: "from:(boss@work.com)", forwardTo: "them@work.com" },
+			{ id: "f-label", query: "from:(boss@work.com)", forwardTo: undefined },
+		]);
+		const readIds: string[] = [];
+		const { rewrite } = await makeHarness({
+			gmail: {
+				...gmail.api,
+				getFilter: async (input) => {
+					readIds.push(input.filterId);
+					return gmail.api.getFilter(input);
+				},
+			},
+		});
+
+		const result = await rewrite({ userId: USER });
+
+		assert.deepEqual(result, { ok: true, filterCount: 1, senderCount: 1 });
+		assert.deepEqual(readIds, ["f-live"]);
+		assert.deepEqual(gmail.created, []);
+		assert.deepEqual(gmail.deleted, []);
 	});
 
 	it("collapses a duplicate pair back to exactly one filter", async () => {
@@ -355,6 +380,49 @@ describe("initRewriteGmailFilter", () => {
 		});
 	});
 
+	it("stops and records why when an owned filter cannot be read back", async () => {
+		const gmail = initInMemoryGmailFilters([
+			{ id: "f-live", query: "from:(dan@tldr.tech)", forwardTo: GATEWAY },
+		]);
+		const { rewrite, connections } = await makeHarness({
+			gmail: {
+				...gmail.api,
+				getFilter: async () => ({
+					ok: false,
+					reason: "rejected",
+					status: 404,
+					message: "Requested entity was not found.",
+				}),
+			},
+		});
+
+		const result = await rewrite({ userId: USER });
+
+		assert.deepEqual(result, { ok: false, reason: "rejected", message: "Requested entity was not found." });
+		assert.deepEqual(gmail.created, []);
+		assert.deepEqual(gmail.deleted, []);
+		const error = (await connections.findConnectionByUserId(USER))?.lastFilterError;
+		assert(error?.code === "rejected");
+		assert.equal(error.message, "Requested entity was not found.");
+	});
+
+	it("passes an outage reading an owned filter back for redrive without touching any filter", async () => {
+		const gmail = initInMemoryGmailFilters([
+			{ id: "f-old", query: "from:(old@example.com)", forwardTo: GATEWAY },
+		]);
+		const { rewrite, connections } = await makeHarness({
+			gmail: {
+				...gmail.api,
+				getFilter: async () => ({ ok: false, reason: "unavailable", status: 503 }),
+			},
+		});
+
+		assert.deepEqual(await rewrite({ userId: USER }), { ok: false, reason: "unavailable", status: 503 });
+		assert.deepEqual(gmail.created, []);
+		assert.deepEqual(gmail.deleted, []);
+		assert.equal((await connections.findConnectionByUserId(USER))?.lastFilterError, undefined);
+	});
+
 	it("stops when the superseded filter cannot be deleted", async () => {
 		const gmail = initInMemoryGmailFilters([
 			{ id: "f-old", query: "from:(old@example.com)", forwardTo: GATEWAY },
@@ -420,25 +488,63 @@ describe("initRewriteGmailFilter", () => {
 		]);
 	});
 
-	it("replaces a stale filter that forwards to an owned inbox", async () => {
-		const { rewrite, gmail, addresses, mappings } = await makeHarness({ onFilter: [TLDR] });
-		const tech = await addresses.createAddress({
+	it("replaces a stale filter that forwards to an earlier, retired gateway", async () => {
+		const { rewrite, gmail, addresses } = await makeHarness({ onFilter: [TLDR] });
+		const earlier = await addresses.createAddress({
 			userId: USER,
 			domain: "read.place",
-			name: AliasNameSchema.parse("tech"),
-			purpose: "gmail-mapped",
+			name: GMAIL_FORWARDING_ALIAS,
+			purpose: "gmail-forwarding",
 		});
-		await mappings.mapSenderToAddress({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [tech.address], deliveryMode: "links" });
-		gmail.store.set("f-tech", {
-			id: "f-tech",
+		await addresses.disableAddress({ userId: USER, address: earlier.address });
+		gmail.store.set("f-earlier", {
+			id: "f-earlier",
 			query: "from:(dan@tldr.tech)",
-			forwardTo: tech.address,
+			forwardTo: earlier.address,
 		});
 
 		const result = await rewrite({ userId: USER });
 
 		assert.deepEqual(result, { ok: true, filterCount: 1, senderCount: 1 });
 		assert.deepEqual(gmail.created, [{ query: "from:(dan@tldr.tech)", forwardTo: GATEWAY }]);
-		assert.deepEqual(gmail.deleted, ["f-tech"]);
+		assert.deepEqual(gmail.deleted, ["f-earlier"]);
+	});
+
+	it("leaves alone a filter the reader made to their save-by-email address", async () => {
+		const { rewrite, gmail, addresses } = await makeHarness({ onFilter: [TLDR] });
+		const saveByEmail = await addresses.createAddress({
+			userId: USER,
+			domain: "read.place",
+			name: AliasNameSchema.parse("reading"),
+			purpose: "user-alias",
+		});
+		const readersFilter = { id: "f-reader", query: "from:(boss@work.com)", forwardTo: saveByEmail.address };
+		gmail.store.set(readersFilter.id, readersFilter);
+
+		const result = await rewrite({ userId: USER });
+
+		assert.deepEqual(result, { ok: true, filterCount: 1, senderCount: 1 });
+		assert.deepEqual(gmail.deleted, []);
+		assert.deepEqual(gmail.created, [{ query: "from:(dan@tldr.tech)", forwardTo: GATEWAY }]);
+		assert.deepEqual(gmail.store.get(readersFilter.id), readersFilter);
+	});
+
+	it("leaves alone a filter forwarding to a mapped inbox", async () => {
+		const { rewrite, gmail, addresses } = await makeHarness({ onFilter: [TLDR] });
+		const tech = await addresses.createAddress({
+			userId: USER,
+			domain: "read.place",
+			name: AliasNameSchema.parse("tech"),
+			purpose: "gmail-mapped",
+		});
+		const mappedFilter = { id: "f-tech", query: "from:(editor@weekly.example)", forwardTo: tech.address };
+		gmail.store.set(mappedFilter.id, mappedFilter);
+
+		const result = await rewrite({ userId: USER });
+
+		assert.deepEqual(result, { ok: true, filterCount: 1, senderCount: 1 });
+		assert.deepEqual(gmail.deleted, []);
+		assert.deepEqual(gmail.created, [{ query: "from:(dan@tldr.tech)", forwardTo: GATEWAY }]);
+		assert.deepEqual(gmail.store.get(mappedFilter.id), mappedFilter);
 	});
 });

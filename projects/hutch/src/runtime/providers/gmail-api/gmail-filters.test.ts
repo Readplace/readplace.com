@@ -65,14 +65,15 @@ function makeHarness(
 }
 
 describe("initGmailFilters", () => {
-	it("lists the filters Gmail holds, flattening the ones that forward", async () => {
+	it("lists only each filter's id and forward target, and asks Gmail for nothing more", async () => {
 		const { filters, requests } = makeHarness([
 			{
 				status: 200,
 				body: {
 					filter: [
 						{ id: "f-1", criteria: { query: "from:(dan@tldr.tech)" }, action: { forward: GATEWAY } },
-						{ id: "f-2" },
+						{ id: "f-2", action: {} },
+						{ id: "f-3" },
 					],
 				},
 			},
@@ -83,15 +84,16 @@ describe("initGmailFilters", () => {
 		assert.deepEqual(result, {
 			ok: true,
 			value: [
-				{ id: "f-1", query: "from:(dan@tldr.tech)", forwardTo: GATEWAY },
-				{ id: "f-2", query: undefined, forwardTo: undefined },
+				{ id: "f-1", forwardTo: GATEWAY },
+				{ id: "f-2", forwardTo: undefined },
+				{ id: "f-3", forwardTo: undefined },
 			],
 		});
 		assert.equal(requests[0].method, "GET");
 		assert.equal(requests[0].authorization, "Bearer at-1");
 		assert.equal(
 			requests[0].url,
-			"https://gmail.googleapis.com/gmail/v1/users/me/settings/filters",
+			"https://gmail.googleapis.com/gmail/v1/users/me/settings/filters?fields=filter(id,action/forward)",
 		);
 	});
 

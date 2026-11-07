@@ -7,7 +7,12 @@ import type {
 	ObserveGmailHttpAttempt,
 } from "@packages/provider-contracts/gmail-history";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
-import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import {
+	GMAIL_MODIFY_SCOPE,
+	GMAIL_READONLY_SCOPE,
+	GMAIL_SCOPES,
+	GMAIL_SETTINGS_SCOPE,
+} from "@packages/provider-contracts/gmail-oauth";
 import { initGmailAccessToken, initGmailReadonlyAccessToken } from "./gmail-access-token";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
@@ -160,6 +165,34 @@ describe("initGmailAccessToken", () => {
 
 		assert.deepEqual(forced, { ok: true, value: "at-2" });
 		assert.equal(harness.requests.length, 2);
+	});
+
+	it("asks Google for a token narrowed to forwarding settings and message metadata, whatever else the reader granted", async () => {
+		const harness = makeHarness([json(200, { access_token: "at-1", expires_in: 3600 })]);
+		await harness.credentials.saveCredentials({
+			userId: USER,
+			refreshToken: "refresh-1",
+			grantedScope: `${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE} ${GMAIL_MODIFY_SCOPE}`,
+		});
+
+		assert.deepEqual(await harness.accessToken({ userId: USER, forceRefresh: false }), { ok: true, value: "at-1" });
+		assert.deepEqual(
+			harness.sent.map(({ href, body }) => ({ href, body })),
+			[
+				{
+					href: TOKEN_ENDPOINT,
+					body: "client_id=client-id&client_secret=client-secret&refresh_token=refresh-1&grant_type=refresh_token&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.settings.basic+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.metadata",
+				},
+			],
+		);
+	});
+
+	it("asks for forwarding settings alone when the reader's grant has no message metadata permission", async () => {
+		const harness = makeHarness([json(200, { access_token: "at-1", expires_in: 3600 })]);
+		await harness.credentials.saveCredentials({ userId: USER, refreshToken: "refresh-1", grantedScope: `${SCOPE} ${GMAIL_MODIFY_SCOPE}` });
+
+		assert.deepEqual(await harness.accessToken({ userId: USER, forceRefresh: false }), { ok: true, value: "at-1" });
+		assert.equal(harness.requests[0].get("scope"), GMAIL_SETTINGS_SCOPE);
 	});
 
 	it("asks the user to reconnect when there is no stored refresh token", async () => {
@@ -386,7 +419,7 @@ describe("initGmailReadonlyAccessToken", () => {
 		);
 	});
 
-	it("keeps its own cache apart from the granted-scope token for the same user", async () => {
+	it("keeps its own cache apart from the background token for the same user", async () => {
 		const harness = makeHarness([
 			json(200, { access_token: "granted-1", expires_in: 3600 }),
 			json(200, { access_token: "readonly-1", expires_in: 3600 }),
@@ -399,7 +432,7 @@ describe("initGmailReadonlyAccessToken", () => {
 		assert.deepEqual(await harness.accessToken({ userId: USER, forceRefresh: false }), { ok: true, value: "granted-1" });
 		assert.deepEqual(await readonlyToken({ userId: USER, forceRefresh: false, observe: harness.observe }), { ok: true, value: "readonly-1" });
 		assert.equal(harness.requests.length, 2);
-		assert.equal(harness.requests[0].get("scope"), null);
+		assert.equal(harness.requests[0].get("scope"), GMAIL_SETTINGS_SCOPE);
 		assert.equal(harness.requests[1].get("scope"), GMAIL_READONLY_SCOPE);
 		assert.equal(harness.attempts.length, 1);
 	});

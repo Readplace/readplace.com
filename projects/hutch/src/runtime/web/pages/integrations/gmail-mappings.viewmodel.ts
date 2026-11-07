@@ -342,8 +342,8 @@ function consentFor(input: {
 	return gmailConnectionPrompt({
 		canConnectGmail: input.canConnectGmail,
 		message: input.markOn
-			? "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender."
-			: "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender and leaves it unread.",
+			? "To import unread messages, Readplace needs permission to read your Gmail messages. It downloads only unread mail sent from this address; to find it, it reads the sender, labels and date of each message Gmail's search lists for the address."
+			: "To import unread messages, Readplace needs permission to read your Gmail messages. It downloads only unread mail sent from this address; to find it, it reads the sender, labels and date of each message Gmail's search lists for the address. It leaves that mail unread.",
 		content: "grant-import-permission",
 		label: "Grant permission",
 		variant: "neutral",

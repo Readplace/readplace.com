@@ -86,6 +86,12 @@ export function initRewriteGmailFilter(deps: {
 		});
 	}
 
+	async function surfaceAndRecordApiFailure(userId: UserId, failure: GmailApiFailure): Promise<GroupApiFailure> {
+		const surfaced = await surfaceApiFailure(userId, failure);
+		if (surfaced.reason === "rejected") await recordError({ userId, failure: surfaced });
+		return surfaced;
+	}
+
 	async function reconcileGroup(input: {
 		userId: UserId;
 		forwardTo: string;
@@ -149,18 +155,22 @@ export function initRewriteGmailFilter(deps: {
 		const gateway: string = connection.gatewayAddress;
 
 		const listed = await filters.listFilters({ userId });
-		if (!listed.ok) {
-			const failure = await surfaceApiFailure(userId, listed);
-			if (failure.reason === "rejected") await recordError({ userId, failure });
-			return failure;
-		}
+		if (!listed.ok) return surfaceAndRecordApiFailure(userId, listed);
 
 		const addressRows = await addresses.listAddressesByUserId(userId);
-		const ownedAddresses = new Set<string>([gateway, ...addressRows.map((row) => row.address)]);
-		const owned = listed.value.filter(
-			(filter): filter is GmailFilter & { forwardTo: string } =>
-				filter.forwardTo !== undefined && ownedAddresses.has(filter.forwardTo),
-		);
+		const gatewayAddresses = new Set<string>([
+			gateway,
+			...addressRows.filter((row) => row.purpose === "gmail-forwarding").map((row) => row.address),
+		]);
+		const ownedIds = listed.value
+			.filter((summary) => summary.forwardTo !== undefined && gatewayAddresses.has(summary.forwardTo))
+			.map((summary) => summary.id);
+		const owned: GmailFilter[] = [];
+		for (const filterId of ownedIds) {
+			const readBack = await filters.getFilter({ userId, filterId });
+			if (!readBack.ok) return surfaceAndRecordApiFailure(userId, readBack);
+			owned.push(readBack.value);
+		}
 		const result = await reconcileGroup({
 			userId,
 			forwardTo: gateway,

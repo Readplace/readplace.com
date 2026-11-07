@@ -8,7 +8,13 @@ import type {
 	GmailHttpClassification,
 	ObserveGmailHttpAttempt,
 } from "@packages/provider-contracts/gmail-history";
-import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import {
+	GMAIL_METADATA_SCOPE,
+	GMAIL_MODIFY_SCOPE,
+	GMAIL_READONLY_SCOPE,
+	GMAIL_SCOPES,
+	GMAIL_SETTINGS_SCOPE,
+} from "@packages/provider-contracts/gmail-oauth";
 import { readGoogleTokenError } from "../gmail-oauth/google-token-error";
 import {
 	GOOGLE_OAUTH_ORIGIN,
@@ -166,7 +172,12 @@ function initRefreshedAccessToken<TScopeRefusal extends { reason: GmailHttpClass
 export function initGmailAccessToken(deps: AccessTokenDependencies): GetGmailAccessToken {
 	const refreshed = initRefreshedAccessToken<never>({
 		...deps,
-		scope: { parameters: () => ({}), refusal: () => undefined },
+		scope: {
+			parameters: (grantedScope) => ({
+				scope: hasGmailScope({ grantedScope, scope: GMAIL_METADATA_SCOPE }) ? GMAIL_SCOPES : GMAIL_SETTINGS_SCOPE,
+			}),
+			refusal: () => undefined,
+		},
 	});
 	return ({ userId, forceRefresh }) => refreshed({ userId, forceRefresh, observe: unobserved });
 }

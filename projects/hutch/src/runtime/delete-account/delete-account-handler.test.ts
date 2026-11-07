@@ -140,6 +140,7 @@ function buildSubject(
 		credentials: gmail.bundle.gmailCredentialsStore,
 		senders: gmail.bundle.gmailSenderStore,
 		discovery: gmail.bundle.gmailDiscoveryStore,
+		monitoring: gmail.bundle.gmailMonitoringStore,
 		addresses: gmail.addresses,
 		removeGmailFilter: async ({ userId }) => {
 			rewriteCalls.push(userId);

@@ -289,7 +289,7 @@ One line per decision the importer or handler made. `ERROR` for `job-failed`, `g
 | `page-claimed` | | This delivery owns the page |
 | `page-listed` | `messageCount`, `nextPagePresent` | The listing call succeeded |
 | `gmail-call-failed` | `operation`, `lastAttemptOperation`, `reason`, `status` | A Gmail call failed. `operation` is the call the importer made (`messages.list` or `messages.get`). `lastAttemptOperation` is the operation of the last HTTP attempt observed during that call: `oauth.refresh` means Google's token endpoint produced the failure, `messages.list` or `messages.get` means Gmail's API did, and it is absent when the call failed without sending any request (no stored refresh token); see [Token endpoint or Gmail API](#token-endpoint-or-gmail-api). `reason` is the classification the call returned, and `status` the HTTP status that failure carried, absent for `reauth-required` and `readonly-permission-required`. |
-| `message-processed` | `index`, `outcome` | Message number `index` on the page: `published`, `not-found`, `unlisted-label` (spam or trash) or `already-settled` |
+| `message-processed` | `index`, `outcome` | Message number `index` on the page: `published`, `not-found`, `unlisted-label` (spam or trash), `already-read`, `sender-mismatch` or `already-settled` |
 | `message-publication-failed` | `index`, `errorName` | Publishing the fetched message failed; the record is retried |
 | `page-saved` | `nextPagePresent` | The page's progress was saved |
 | `connection-revoked` | `persisted` | The connection was marked revoked (`persisted` `false`: it had already changed) |

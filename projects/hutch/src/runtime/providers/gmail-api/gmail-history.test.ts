@@ -32,8 +32,14 @@ const LISTING_REQUEST: GmailHttpRequestSettings = {
 
 const RAW_MESSAGE_REQUEST: GmailHttpRequestSettings = {
 	operation: "messages.get",
-	fieldMask: "raw,internalDate,labelIds",
+	fieldMask: "raw",
 	format: "RAW",
+};
+
+const METADATA_MESSAGE_REQUEST: GmailHttpRequestSettings = {
+	operation: "messages.get",
+	fieldMask: "internalDate,labelIds,payload/headers",
+	format: "METADATA",
 };
 
 const NO_HEADERS: GmailHttpResponseHeaders = {
@@ -370,28 +376,28 @@ describe("initGmailHistory", () => {
 	});
 
 	describe("fetchRawMessage", () => {
-		it("returns the decoded RFC 822 bytes with the message's received time and labels", async () => {
+		it("returns the decoded RFC 822 bytes, asking Gmail for nothing else", async () => {
 			const raw = Buffer.from(RAW_MAIL).toString("base64url");
 			const { history, requests, attempts, observe } = harness(() => ({
 				status: 200,
-				body: { raw, internalDate: "1759190400000", labelIds: ["UNREAD", "INBOX"] },
+				body: { raw },
 			}));
 
 			const result = await history.fetchRawMessage({ userId: USER, messageId: MESSAGE_ID, observe });
 
 			assert.deepEqual(result, {
 				ok: true,
-				value: { raw: Buffer.from(RAW_MAIL), internalDate: "2025-09-30T00:00:00.000Z", labelIds: ["UNREAD", "INBOX"] },
+				value: { raw: Buffer.from(RAW_MAIL) },
 			});
 			const { url } = requests[0];
 			assert.equal(url.pathname, "/gmail/v1/users/me/messages/18c2f0a1b2");
 			assert.equal(url.searchParams.get("format"), "RAW");
-			assert.equal(url.searchParams.get("fields"), "raw,internalDate,labelIds");
+			assert.equal(url.searchParams.get("fields"), "raw");
 			assert.deepEqual(
 				requests.map(({ href, method, authorization }) => ({ href, method, authorization })),
 				[
 					{
-						href: "https://gmail.googleapis.com/gmail/v1/users/me/messages/18c2f0a1b2?format=RAW&fields=raw%2CinternalDate%2ClabelIds",
+						href: "https://gmail.googleapis.com/gmail/v1/users/me/messages/18c2f0a1b2?format=RAW&fields=raw",
 						method: "GET",
 						authorization: "Bearer cached",
 					},
@@ -403,18 +409,16 @@ describe("initGmailHistory", () => {
 			assert.deepEqual(attempts[0].response?.bodyReads[0].fields, {
 				rawPresent: true,
 				rawLength: raw.length,
-				internalDatePresent: true,
-				labelCount: 2,
 			});
 			assert.equal(attempts[0].classification, "ok");
 		});
 
-		it("treats a message without labels as unlabelled", async () => {
-			const { history, observe } = harness(() => ({ status: 200, body: { raw: "", internalDate: 0 } }));
+		it("returns an empty message as empty bytes", async () => {
+			const { history, observe } = harness(() => ({ status: 200, body: { raw: "" } }));
 
 			assert.deepEqual(await history.fetchRawMessage({ userId: USER, messageId: MESSAGE_ID, observe }), {
 				ok: true,
-				value: { raw: Buffer.alloc(0), internalDate: "1970-01-01T00:00:00.000Z", labelIds: [] },
+				value: { raw: Buffer.alloc(0) },
 			});
 		});
 
@@ -467,7 +471,82 @@ describe("initGmailHistory", () => {
 					outcome: "schema-rejected",
 					measuredBytes: Buffer.byteLength(JSON.stringify({ raw: 5, labelIds: "INBOX" })),
 					errorName: undefined,
-					fields: { rawPresent: true, rawLength: 0, internalDatePresent: false, labelCount: 0 },
+					fields: { rawPresent: true, rawLength: 0 },
+				},
+			]);
+		});
+	});
+
+	describe("fetchMessageMetadata", () => {
+		it("returns the From header, received time and labels, asking Gmail for no body", async () => {
+			const { history, requests, attempts, observe } = harness(() => ({
+				status: 200,
+				body: {
+					internalDate: "1759190400000",
+					labelIds: ["UNREAD", "INBOX"],
+					payload: { headers: [{ name: "Subject", value: "Today" }, { name: "FROM", value: "TLDR <dan@tldrnewsletter.com>" }] },
+				},
+			}));
+
+			const result = await history.fetchMessageMetadata({ userId: USER, messageId: MESSAGE_ID, observe });
+
+			assert.deepEqual(result, {
+				ok: true,
+				value: { from: "TLDR <dan@tldrnewsletter.com>", internalDate: "2025-09-30T00:00:00.000Z", labelIds: ["UNREAD", "INBOX"] },
+			});
+			assert.deepEqual(
+				requests.map(({ href, method, authorization }) => ({ href, method, authorization })),
+				[
+					{
+						href: "https://gmail.googleapis.com/gmail/v1/users/me/messages/18c2f0a1b2?format=METADATA&metadataHeaders=From&fields=internalDate%2ClabelIds%2Cpayload%2Fheaders",
+						method: "GET",
+						authorization: "Bearer cached",
+					},
+				],
+			);
+			assert.deepEqual(attempts[0].request, METADATA_MESSAGE_REQUEST);
+			assert.equal(attempts[0].requestedEndpoint, "gmail.messages.get");
+			assert.deepEqual(attempts[0].response?.bodyReads[0].fields, { internalDatePresent: true, labelCount: 2, headerCount: 2 });
+			assert.equal(attempts[0].classification, "ok");
+		});
+
+		it("treats a message without a From header, labels or payload as having none", async () => {
+			const { history, attempts, observe } = harness(() => ({ status: 200, body: { internalDate: 0 } }));
+
+			assert.deepEqual(await history.fetchMessageMetadata({ userId: USER, messageId: MESSAGE_ID, observe }), {
+				ok: true,
+				value: { from: undefined, internalDate: "1970-01-01T00:00:00.000Z", labelIds: [] },
+			});
+			assert.deepEqual(attempts[0].response?.bodyReads[0].fields, { internalDatePresent: true, labelCount: 0, headerCount: 0 });
+		});
+
+		it("reports a message deleted since it was listed as not found, without reading the body", async () => {
+			const notFound = new Response(JSON.stringify({ error: { message: "Not Found" } }), { status: 404 });
+			const { history, attempts, observe } = harness((url) => reachedAt({ url: url.href, redirected: false, response: notFound }));
+
+			assert.deepEqual(await history.fetchMessageMetadata({ userId: USER, messageId: MESSAGE_ID, observe }), { ok: true, value: { notFound: true } });
+			assert.equal(notFound.bodyUsed, false);
+			assert.deepEqual(outcomes(attempts), [
+				{ operation: "messages.get", attempt: 1, status: 404, classification: "not-found", bodyReads: [] },
+			]);
+		});
+
+		it("reports metadata it cannot read as retryable", async () => {
+			const body = { internalDate: "soon", labelIds: "INBOX", payload: { headers: [{ name: "From" }] } };
+			const { history, attempts, observe } = harness(() => ({ status: 200, body }));
+
+			assert.deepEqual(await history.fetchMessageMetadata({ userId: USER, messageId: MESSAGE_ID, observe }), {
+				ok: false,
+				reason: "unavailable",
+				status: 200,
+			});
+			assert.deepEqual(attempts[0].response?.bodyReads, [
+				{
+					source: "response",
+					outcome: "schema-rejected",
+					measuredBytes: Buffer.byteLength(JSON.stringify(body)),
+					errorName: undefined,
+					fields: { internalDatePresent: true, labelCount: 0, headerCount: 1 },
 				},
 			]);
 		});
@@ -778,6 +857,10 @@ describe("initGmailHistory", () => {
 					headers: sentinelHeaders,
 				}),
 				new Response(JSON.stringify({ error: { message: "Sentinel missing" } }), { status: 404, headers: sentinelHeaders }),
+				new Response(
+					JSON.stringify({ internalDate: "1", labelIds: ["SENTINEL"], payload: { headers: [{ name: "From", value: "Sentinel <sentinel@example.com>" }] } }),
+					{ status: 200, headers: sentinelHeaders },
+				),
 			];
 			const attempts: GmailHttpAttempt[] = [];
 			const observe: ObserveGmailHttpAttempt = (attempt) => {
@@ -803,6 +886,7 @@ describe("initGmailHistory", () => {
 			await history.fetchRawMessage({ userId: USER, messageId, observe });
 			await history.fetchRawMessage({ userId: USER, messageId, observe });
 			await history.fetchRawMessage({ userId: USER, messageId, observe });
+			await history.fetchMessageMetadata({ userId: USER, messageId, observe });
 			await assert.rejects(history.listMessageIds({ userId: USER, sender, window: WINDOW, pageToken: "page-sentinel", observe }));
 
 			assert.equal(failed, true);
@@ -816,6 +900,7 @@ describe("initGmailHistory", () => {
 					"messages.get:rejected",
 					"messages.get:ok",
 					"messages.get:not-found",
+					"messages.get:ok",
 					"messages.list:transport-failed",
 				],
 			);
