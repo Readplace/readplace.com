@@ -27,6 +27,25 @@ interface ArticleMarkdownInput {
 	summary: GeneratedSummary | undefined;
 }
 
+export interface ArticleFrontmatter {
+	title: string;
+	source: string;
+	site: string;
+	description?: string;
+	created: string;
+	published?: string;
+	words?: number;
+	readplace_id: string;
+	readplace_url: string;
+	readplace_status: SavedArticle["status"];
+	readplace_read_at?: string;
+	readplace_read_time?: SavedArticle["estimatedReadTime"];
+	readplace_readlists: string[];
+	readplace_content_status: ContentStatus;
+	readplace_summary_status?: "pending" | GeneratedSummary["status"];
+	readplace_summary?: string;
+}
+
 interface DocumentParts {
 	contentStatus: ContentStatus;
 	metadata: { title: string; siteName: string; excerpt: string; wordCount: number; publishedOn?: string };
@@ -68,7 +87,7 @@ export function articleMarkdown(input: ArticleMarkdownInput): string {
 	const readySummary =
 		summaryTracked && summary?.status === "ready" ? summary.summary : undefined;
 
-	const data = {
+	const data: ArticleFrontmatter = {
 		title: metadata.title,
 		source: article.destinationUrl,
 		site: metadata.siteName,

@@ -21,6 +21,10 @@
       "types": "./dist/design-system.styles.d.ts",
       "default": "./dist/design-system.styles.js"
     },
+    "./clipboard-copy.client": {
+      "types": "./dist/shared/clipboard-copy/clipboard-copy.client.d.ts",
+      "default": "./dist/shared/clipboard-copy/clipboard-copy.client.js"
+    },
     "./client-bundles": "./client-bundles.js"
   },
   "typesVersions": {
@@ -33,6 +37,9 @@
       ],
       "design-system.styles": [
         "./dist/design-system.styles.d.ts"
+      ],
+      "clipboard-copy.client": [
+        "./dist/shared/clipboard-copy/clipboard-copy.client.d.ts"
       ]
     }
   },

@@ -1,7 +1,14 @@
 import assert from "node:assert";
 import Handlebars from "handlebars";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
-import { ABSENT_ENCLOSURE, type EnclosureRead, isPrivateItemUrl, type SavedArticle } from "@packages/domain/article";
+import {
+	ABSENT_ENCLOSURE,
+	type CrawlRemainingEstimate,
+	type DisplayableReadTime,
+	type EnclosureRead,
+	isPrivateItemUrl,
+	type SavedArticle,
+} from "@packages/domain/article";
 import { displayableTime } from "../shared/displayable-time";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -16,6 +23,32 @@ import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer
 import { cardKindOf } from "../pages/readlist/readlist-card/card-kind-label";
 import { type CardPhase, cardProcessingOf } from "../pages/readlist/readlist-card/card-processing";
 import { staleNoticeHtml } from "../pages/readlist/readlist-card/stale-notice";
+
+export type ArticleEntityProperties = {
+	id: string;
+	url: string;
+	title: string;
+	siteName: string;
+	excerpt: string;
+	imageUrl: string | null;
+	readTime: DisplayableReadTime | null;
+	sectionCount?: number;
+	status: SavedArticle["status"];
+	savedAt: string;
+	publishedOn: string | null;
+	readAt: string | null;
+	isRead: boolean;
+	needsBrowserCapture: boolean;
+	contentVersion: string;
+	mediaKind: NonNullable<SavedArticle["media"]>["kind"] | null;
+	durationSeconds: number | null;
+	processing?: {
+		label: string;
+		estimate?: CrawlRemainingEstimate;
+		refresh: { href: string; afterSeconds: number };
+	};
+	messages?: SirenMessage[];
+};
 
 function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
 	if (crawl?.status !== "failed") return false;
@@ -87,51 +120,52 @@ export function toArticleSubEntity(
 		maxPolls: MAX_POLLS,
 	});
 	const messages = itemMessages({ article, phase });
+	const properties: ArticleEntityProperties = {
+		id,
+		// Display: the redirect destination when this article was merged onto one,
+		// else the saved URL. Navigation/mutation use `id`, so this is safe.
+		url: article.destinationUrl,
+		title: article.metadata.title,
+		siteName: article.metadata.siteName,
+		excerpt: article.metadata.excerpt,
+		imageUrl: article.metadata.imageUrl ?? null,
+		readTime: readTime ?? null,
+		...(article.media?.sectionCount === undefined ? {} : { sectionCount: article.media.sectionCount }),
+		status: article.status,
+		savedAt: article.savedAt.toISOString(),
+		publishedOn: article.metadata.publishedOn ?? null,
+		readAt: article.readAt?.toISOString() ?? null,
+		// An explicit presentational read-state so a client renders the read
+		// indicator from one server-authored boolean rather than re-deriving it
+		// from the `status` vocabulary it would otherwise have to hard-code.
+		isRead,
+		needsBrowserCapture: needsBrowserCapture(options.crawl),
+		contentVersion: computeArticleContentVersion({
+			article,
+			crawl: options.crawl,
+			summary: options.summary,
+		}),
+		mediaKind: article.media?.kind ?? null,
+		durationSeconds: enclosure.kind === "owned" ? enclosure.enclosure.durationSeconds : null,
+		...(phase.kind === "processing"
+			? {
+					processing: {
+						label,
+						...(phase.estimate === undefined ? {} : { estimate: phase.estimate }),
+						refresh: {
+							href: `/queue/${id}/card${hrefQuery}${hrefQuery === "" ? "?" : "&"}poll=${phase.pollCursor}`,
+							afterSeconds: POLL_INTERVAL_SECONDS,
+						},
+					},
+				}
+			: {}),
+		...(messages.length === 0 ? {} : { messages }),
+	};
 
 	return {
 		class: ["article"],
 		rel: ["item"],
-		properties: {
-			id,
-			// Display: the redirect destination when this article was merged onto one,
-			// else the saved URL. Navigation/mutation use `id`, so this is safe.
-			url: article.destinationUrl,
-			title: article.metadata.title,
-			siteName: article.metadata.siteName,
-			excerpt: article.metadata.excerpt,
-			imageUrl: article.metadata.imageUrl ?? null,
-			readTime: readTime ?? null,
-			...(article.media?.sectionCount === undefined ? {} : { sectionCount: article.media.sectionCount }),
-			status: article.status,
-			savedAt: article.savedAt.toISOString(),
-			publishedOn: article.metadata.publishedOn ?? null,
-			readAt: article.readAt?.toISOString() ?? null,
-			// An explicit presentational read-state so a client renders the read
-			// indicator from one server-authored boolean rather than re-deriving it
-			// from the `status` vocabulary it would otherwise have to hard-code.
-			isRead,
-			needsBrowserCapture: needsBrowserCapture(options.crawl),
-			contentVersion: computeArticleContentVersion({
-				article,
-				crawl: options.crawl,
-				summary: options.summary,
-			}),
-			mediaKind: article.media?.kind ?? null,
-			durationSeconds: enclosure.kind === "owned" ? enclosure.enclosure.durationSeconds : null,
-			...(phase.kind === "processing"
-				? {
-						processing: {
-							label,
-							...(phase.estimate === undefined ? {} : { estimate: phase.estimate }),
-							refresh: {
-								href: `/queue/${id}/card${hrefQuery}${hrefQuery === "" ? "?" : "&"}poll=${phase.pollCursor}`,
-								afterSeconds: POLL_INTERVAL_SECONDS,
-							},
-						},
-					}
-				: {}),
-			...(messages.length === 0 ? {} : { messages }),
-		},
+		properties,
 		links,
 		actions: [
 			{
