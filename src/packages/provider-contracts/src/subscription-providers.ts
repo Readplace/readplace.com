@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { EventInstant } from "@packages/domain/event-envelope";
 import type { UserId } from "@packages/domain/user";
 import type { SubscriptionNextCharge } from "./subscription-billing";
 import type { TrialNudgeKind } from "./trial-scheduler";
@@ -44,6 +45,7 @@ export interface SubscriptionRecord {
 	 * asks, and cleared by every mutation that ends the current subscription, so a
 	 * present value always belongs to the `subscriptionId` alongside it. */
 	nextCharge?: SubscriptionNextCharge;
+	statusEnteredAt?: string;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -79,6 +81,17 @@ export type MarkSubscriptionPendingCancellation = (input: {
 
 export type MarkSubscriptionCancelledByUserId = (input: {
 	userId: UserId;
+}) => Promise<void>;
+
+export type MarkSubscriptionCancelledByEvent = (input: {
+	userId: UserId;
+	eventTime: EventInstant;
+}) => Promise<void>;
+
+export type MarkSubscriptionPendingCancellationByEvent = (input: {
+	userId: UserId;
+	cancellationEffectiveAt: string;
+	eventTime: EventInstant;
 }) => Promise<void>;
 
 export type MarkSubscriptionActive = (input: { userId: UserId }) => Promise<void>;

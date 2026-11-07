@@ -33,6 +33,7 @@ export const SubscriptionProviderRow = z.object({
 	 * gate and the header banner — a strict parse here would turn one bad attribute
 	 * into a total account outage for the sake of a cosmetic line. */
 	nextCharge: dynamoField(SubscriptionNextChargeSchema.optional().catch(undefined)),
+	statusEnteredAt: dynamoField(z.string()),
 	createdAt: z.string(),
 	updatedAt: z.string(),
 });
@@ -79,6 +80,7 @@ export function toRecord(row: z.infer<typeof SubscriptionProviderRow>): Subscrip
 		...(row.founderNoteSentAt !== undefined ? { founderNoteSentAt: row.founderNoteSentAt } : {}),
 		...(row.plan !== undefined ? { plan: row.plan } : {}),
 		...(row.nextCharge !== undefined ? { nextCharge: row.nextCharge } : {}),
+		...(row.statusEnteredAt !== undefined ? { statusEnteredAt: row.statusEnteredAt } : {}),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};

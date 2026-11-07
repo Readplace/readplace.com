@@ -48,6 +48,8 @@ function buildSqsEvent(records: Array<{ messageId: string; body: string }>): SQS
 	};
 }
 
+const EVENT_TIME = "2026-06-06T00:00:00Z";
+
 function buildEventBridgeBody(detail: {
 	userId: string;
 	subscriptionId?: string;
@@ -59,6 +61,7 @@ function buildEventBridgeBody(detail: {
 			...(detail.subscriptionId !== undefined ? { subscriptionId: detail.subscriptionId } : {}),
 			reason: detail.reason ?? "stripe_webhook",
 		},
+		time: EVENT_TIME,
 	});
 }
 
@@ -67,7 +70,7 @@ describe("handle-subscription-cancelled-handler", () => {
 		const cancelledUserIds: string[] = [];
 		const { emit, captured } = makeEmit();
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelledByUserId: async ({ userId }) => { cancelledUserIds.push(userId); },
+			markCancelledByEvent: async ({ userId }) => { cancelledUserIds.push(userId); },
 			emit,
 			logger: Logger.from(noopLogger),
 		});
@@ -99,7 +102,7 @@ describe("handle-subscription-cancelled-handler", () => {
 	it("marks cancelled for a trial-initiated event with no subscriptionId", async () => {
 		const cancelledUserIds: string[] = [];
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelledByUserId: async ({ userId }) => { cancelledUserIds.push(userId); },
+			markCancelledByEvent: async ({ userId }) => { cancelledUserIds.push(userId); },
 			emit: makeNoopEmit(),
 			logger: Logger.from(noopLogger),
 		});
@@ -120,9 +123,9 @@ describe("handle-subscription-cancelled-handler", () => {
 		assert.deepStrictEqual(cancelledUserIds, [USER_ID]);
 	});
 
-	it("reports a batch item failure when markCancelledByUserId throws", async () => {
+	it("reports a batch item failure when markCancelledByEvent throws", async () => {
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelledByUserId: async () => { throw new Error("DynamoDB timeout"); },
+			markCancelledByEvent: async () => { throw new Error("DynamoDB timeout"); },
 			emit: makeNoopEmit(),
 			logger: Logger.from(noopLogger),
 		});
@@ -141,7 +144,7 @@ describe("handle-subscription-cancelled-handler", () => {
 	it("treats a missing subscription row (account deleted) as an idempotent no-op, not a failure", async () => {
 		const { emit, captured } = makeEmit();
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelledByUserId: async () => {
+			markCancelledByEvent: async () => {
 				throw new ConditionalCheckFailedException({ $metadata: {}, message: "row gone" });
 			},
 			emit,
@@ -161,7 +164,7 @@ describe("handle-subscription-cancelled-handler", () => {
 
 	it("reports a batch item failure for malformed JSON", async () => {
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelledByUserId: async () => {},
+			markCancelledByEvent: async () => {},
 			emit: makeNoopEmit(),
 			logger: Logger.from(noopLogger),
 		});
@@ -179,7 +182,7 @@ describe("handle-subscription-cancelled-handler", () => {
 
 	it("reports a batch item failure when the detail is missing userId", async () => {
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelledByUserId: async () => {},
+			markCancelledByEvent: async () => {},
 			emit: makeNoopEmit(),
 			logger: Logger.from(noopLogger),
 		});
@@ -198,7 +201,7 @@ describe("handle-subscription-cancelled-handler", () => {
 		const cancelled: string[] = [];
 		let callCount = 0;
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelledByUserId: async ({ userId }) => {
+			markCancelledByEvent: async ({ userId }) => {
 				callCount++;
 				if (userId === "user-boom") throw new Error("boom");
 				cancelled.push(userId);

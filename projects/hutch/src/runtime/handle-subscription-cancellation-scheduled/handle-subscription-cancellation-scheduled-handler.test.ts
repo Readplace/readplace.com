@@ -39,6 +39,7 @@ function buildEventBridgeBody(detail: {
 			...(detail.subscriptionId !== undefined ? { subscriptionId: detail.subscriptionId } : {}),
 			cancellationEffectiveAt: detail.cancellationEffectiveAt,
 		},
+		time: "2026-06-06T00:00:00Z",
 	});
 }
 
@@ -46,7 +47,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 	it("calls markPendingCancellation with the userId and cancellationEffectiveAt from the event", async () => {
 		const calls: Array<{ userId: string; cancellationEffectiveAt: string }> = [];
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
-			markPendingCancellation: async ({ userId, cancellationEffectiveAt }) => {
+			markPendingCancellationByEvent: async ({ userId, cancellationEffectiveAt }) => {
 				calls.push({ userId, cancellationEffectiveAt });
 			},
 			logger: Logger.from(noopLogger),
@@ -77,7 +78,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 	it("handles trial cancel events (no subscriptionId) by passing through to markPendingCancellation", async () => {
 		const calls: Array<{ userId: string; cancellationEffectiveAt: string }> = [];
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
-			markPendingCancellation: async ({ userId, cancellationEffectiveAt }) => {
+			markPendingCancellationByEvent: async ({ userId, cancellationEffectiveAt }) => {
 				calls.push({ userId, cancellationEffectiveAt });
 			},
 			logger: Logger.from(noopLogger),
@@ -106,7 +107,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 
 	it("reports a batch item failure when markPendingCancellation throws", async () => {
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
-			markPendingCancellation: async () => {
+			markPendingCancellationByEvent: async () => {
 				throw new Error("DynamoDB timeout");
 			},
 			logger: Logger.from(noopLogger),
@@ -133,7 +134,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 
 	it("reports a batch item failure for malformed JSON without dropping the batch", async () => {
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
-			markPendingCancellation: async () => {},
+			markPendingCancellationByEvent: async () => {},
 			logger: Logger.from(noopLogger),
 		});
 
@@ -159,7 +160,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 
 	it("reports a batch item failure when the detail is missing cancellationEffectiveAt", async () => {
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
-			markPendingCancellation: async () => {},
+			markPendingCancellationByEvent: async () => {},
 			logger: Logger.from(noopLogger),
 		});
 
@@ -178,7 +179,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 	it("idempotent on duplicate delivery — same userId + cancellationEffectiveAt routed twice produces a second markPendingCancellation that the provider treats as the same write", async () => {
 		const calls: Array<{ userId: string; cancellationEffectiveAt: string }> = [];
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
-			markPendingCancellation: async ({ userId, cancellationEffectiveAt }) => {
+			markPendingCancellationByEvent: async ({ userId, cancellationEffectiveAt }) => {
 				calls.push({ userId, cancellationEffectiveAt });
 			},
 			logger: Logger.from(noopLogger),

@@ -36,6 +36,7 @@ describe("subscription-charge-failed handler", () => {
 		};
 		const { emit, captured } = makeEmit();
 		const handler = initSubscriptionChargeFailedHandler({
+			findSubscriptionByUserId: async () => undefined,
 			publishCancelSubscriptionCommand,
 			emit,
 			logger: Logger.from(noopLogger),
@@ -47,6 +48,7 @@ describe("subscription-charge-failed handler", () => {
 					messageId: "msg-fail",
 					body: JSON.stringify({
 						detail: { userId: USER_ID, reason: "no_card_on_file" },
+						time: "2026-06-06T00:00:00Z",
 					}),
 				},
 			]),
@@ -72,6 +74,7 @@ describe("subscription-charge-failed handler", () => {
 		const published: Array<{ userId: string; reason?: string }> = [];
 		const { emit, captured } = makeEmit();
 		const handler = initSubscriptionChargeFailedHandler({
+			findSubscriptionByUserId: async () => undefined,
 			publishCancelSubscriptionCommand: async (params) => {
 				published.push({ userId: params.userId, reason: params.reason });
 			},
@@ -85,6 +88,7 @@ describe("subscription-charge-failed handler", () => {
 					messageId: "msg-fail-stripe",
 					body: JSON.stringify({
 						detail: { userId: USER_ID, reason: "stripe_error" },
+						time: "2026-06-06T00:00:00Z",
 					}),
 				},
 			]),
@@ -102,6 +106,7 @@ describe("subscription-charge-failed handler", () => {
 	it("reports a batch item failure for malformed JSON", async () => {
 		const { emit } = makeEmit();
 		const handler = initSubscriptionChargeFailedHandler({
+			findSubscriptionByUserId: async () => undefined,
 			publishCancelSubscriptionCommand: async () => {},
 			emit,
 			logger: Logger.from(noopLogger),
@@ -121,6 +126,7 @@ describe("subscription-charge-failed handler", () => {
 	it("reports a batch item failure when reason is invalid", async () => {
 		const { emit } = makeEmit();
 		const handler = initSubscriptionChargeFailedHandler({
+			findSubscriptionByUserId: async () => undefined,
 			publishCancelSubscriptionCommand: async () => {},
 			emit,
 			logger: Logger.from(noopLogger),
@@ -144,6 +150,7 @@ describe("subscription-charge-failed handler", () => {
 	it("reports a batch item failure when publishCancelSubscriptionCommand throws and does not emit (prevents duplicate on SQS retry)", async () => {
 		const { emit, captured } = makeEmit();
 		const handler = initSubscriptionChargeFailedHandler({
+			findSubscriptionByUserId: async () => undefined,
 			publishCancelSubscriptionCommand: async () => {
 				throw new Error("EventBridge unavailable");
 			},
@@ -157,6 +164,7 @@ describe("subscription-charge-failed handler", () => {
 					messageId: "msg-publish-fail",
 					body: JSON.stringify({
 						detail: { userId: USER_ID, reason: "no_card_on_file" },
+						time: "2026-06-06T00:00:00Z",
 					}),
 				},
 			]),

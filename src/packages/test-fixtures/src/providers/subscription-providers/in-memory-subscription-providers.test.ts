@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { EventInstantSchema } from "@packages/domain/event-envelope";
 import { UserIdSchema } from "@packages/domain/user";
+import { ConditionalCheckFailedException } from "@packages/storage-client";
 import { initInMemorySubscriptionProviders } from "./in-memory-subscription-providers";
 
 describe("initInMemorySubscriptionProviders", () => {
@@ -121,6 +123,86 @@ describe("initInMemorySubscriptionProviders", () => {
 		expect(row.cancellationEffectiveAt).toBeUndefined();
 		expect(row.subscriptionId).toBe("sub_paid");
 		expect(row.updatedAt).toBe("2026-06-01T00:00:00.000Z");
+	});
+
+	describe("event-fenced status writes", () => {
+		const statusEntered = "2026-05-22T10:00:00.000Z";
+
+		it("records the whole second a status was entered", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T10:00:00.750Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+
+			expect((await subs.findByUserId(userId))?.statusEnteredAt).toBe("2026-05-22T10:00:00Z");
+		});
+
+		it("markCancelledByEvent cancels a row whose status is not newer than the event", async () => {
+			const clock = { iso: statusEntered };
+			const subs = initInMemorySubscriptionProviders({ now: () => new Date(clock.iso) });
+			await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+
+			clock.iso = "2026-05-23T00:00:00.000Z";
+			await subs.markCancelledByEvent({ userId, eventTime: EventInstantSchema.parse("2026-05-22T10:00:00Z") });
+
+			const row = await subs.findByUserId(userId);
+			expect(row?.status).toBe("cancelled");
+			expect(row?.trialEndsAt).toBeUndefined();
+			expect(row?.statusEnteredAt).toBe("2026-05-23T00:00:00Z");
+		});
+
+		it("markCancelledByEvent refuses a row whose status is newer than the event", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow(statusEntered) });
+			await subs.upsertActive({ userId, subscriptionId: "sub_new", customerId: "cus_new" });
+
+			await expect(
+				subs.markCancelledByEvent({ userId, eventTime: EventInstantSchema.parse("2026-05-22T09:59:59Z") }),
+			).rejects.toBeInstanceOf(ConditionalCheckFailedException);
+			expect((await subs.findByUserId(userId))?.status).toBe("active");
+		});
+
+		it("markCancelledByEvent refuses a missing row", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow(statusEntered) });
+
+			await expect(
+				subs.markCancelledByEvent({ userId, eventTime: EventInstantSchema.parse(statusEntered) }),
+			).rejects.toBeInstanceOf(ConditionalCheckFailedException);
+		});
+
+		it("markPendingCancellationByEvent moves a row with no recorded status time", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow(statusEntered) });
+			subs.seedRow({
+				userId,
+				provider: "stripe",
+				status: "active",
+				subscriptionId: "sub_old",
+				createdAt: statusEntered,
+				updatedAt: statusEntered,
+			});
+
+			await subs.markPendingCancellationByEvent({
+				userId,
+				cancellationEffectiveAt: "2026-07-01T00:00:00.000Z",
+				eventTime: EventInstantSchema.parse("2026-01-01T00:00:00Z"),
+			});
+
+			const row = await subs.findByUserId(userId);
+			expect(row?.status).toBe("pending_cancellation");
+			expect(row?.cancellationEffectiveAt).toBe("2026-07-01T00:00:00.000Z");
+			expect(row?.statusEnteredAt).toBe("2026-05-22T10:00:00Z");
+		});
+
+		it("markPendingCancellationByEvent refuses a row whose status is newer than the event", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow(statusEntered) });
+			await subs.upsertActive({ userId, subscriptionId: "sub_new", customerId: "cus_new" });
+
+			await expect(
+				subs.markPendingCancellationByEvent({
+					userId,
+					cancellationEffectiveAt: "2026-07-01T00:00:00.000Z",
+					eventTime: EventInstantSchema.parse("2026-05-22T09:59:59Z"),
+				}),
+			).rejects.toBeInstanceOf(ConditionalCheckFailedException);
+			expect((await subs.findByUserId(userId))?.cancellationEffectiveAt).toBeUndefined();
+		});
 	});
 
 	it("throws when markCancelledByUserId is called for an unknown user", async () => {

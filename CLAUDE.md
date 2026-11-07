@@ -131,6 +131,10 @@ Where a handler marks, the reader sees today's failure state. The message is the
 
 AWS documents the redrive at https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-configure-dead-letter-queue-redrive.html.
 
+### A subscription message older than the row's status does not act
+
+`subscription-events-dlq` holds six detail types and a redrive cannot pick between them, so a redrive can deliver a fact about a subscription the reader has since replaced, reactivated or re-opened. Every write that moves a subscription row into a status records the second in `statusEnteredAt`, and a message whose envelope `time` is older does nothing (grep for `messagePredatesStatus` and `markCancelledByEvent`). A new write that changes a row's status must set it, or stale messages will act on that status. An absent value means the status predates the field and is not a refusal: do not make it required, because armed schedules and old rows both depend on that. Redrive this queue with `aws sqs start-message-move-task`, and no row needs reading first.
+
 ### User-facing copy comes from the translation files
 
 Readplace serves en-US today and will add en-AU and other languages. A literal string in a template, view model, email or Siren title cannot be translated, and one key missing from one locale ships a blank or English string to every reader of that locale. Copy therefore lives in the translations workspace package (`pnpm nx show projects` names it; its README table lists each surface and its purpose), whose types make every supported locale carry every key with the same `{name}` placeholders.

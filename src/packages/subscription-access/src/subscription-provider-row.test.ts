@@ -32,6 +32,7 @@ describe("toRecord", () => {
 			founderNoteSentAt: "2026-05-21T10:00:00.000Z",
 			plan: "triennial",
 			nextCharge,
+			statusEnteredAt: "2026-05-22T10:00:00Z",
 			createdAt: "2026-05-20T10:00:00.000Z",
 			updatedAt: "2026-05-22T10:00:00.000Z",
 		});
@@ -57,6 +58,7 @@ describe("toRecord", () => {
 			founderNoteSentAt: "2026-05-21T10:00:00.000Z",
 			plan: "triennial",
 			nextCharge,
+			statusEnteredAt: "2026-05-22T10:00:00Z",
 			createdAt: "2026-05-20T10:00:00.000Z",
 			updatedAt: "2026-05-22T10:00:00.000Z",
 		});
