@@ -38,6 +38,14 @@ describe("getBuiltInClient", () => {
 		assert.ok(client.grants.includes("refresh_token"));
 	});
 
+	it("returns the registered Obsidian plugin client", () => {
+		const client = getBuiltInClient("obsidian-plugin");
+		assert(client, "Obsidian client should be defined");
+		assert.equal(client.name, "Readplace for Obsidian");
+		assert.ok(client.grants.includes("authorization_code"));
+		assert.ok(client.grants.includes("refresh_token"));
+	});
+
 	it("returns undefined for an unknown client ID", () => {
 		assert.equal(getBuiltInClient("unknown-client"), undefined);
 	});
@@ -151,6 +159,27 @@ describe("isBuiltInRedirectUri", () => {
 			false,
 		);
 	});
+
+	it.each([
+		"https://readplace.com/oauth/obsidian",
+		"https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com/oauth/obsidian",
+		"http://127.0.0.1:3000/oauth/obsidian",
+	])("accepts the %s handoff on the Obsidian plugin client", (redirectUri) => {
+		const obsidian = getBuiltInClient("obsidian-plugin");
+		assert(obsidian, "Obsidian client should be defined");
+
+		assert.equal(isBuiltInRedirectUri({ client: obsidian, redirectUri }), true);
+	});
+
+	it("rejects the Obsidian handoff on another loopback port, because the port exception covers only /oauth/callback", () => {
+		const obsidian = getBuiltInClient("obsidian-plugin");
+		assert(obsidian, "Obsidian client should be defined");
+
+		assert.equal(
+			isBuiltInRedirectUri({ client: obsidian, redirectUri: "http://127.0.0.1:3001/oauth/obsidian" }),
+			false,
+		);
+	});
 });
 
 describe("revokeDestroysGrantSessions", () => {
@@ -162,6 +191,10 @@ describe("revokeDestroysGrantSessions", () => {
 	it("keeps extension revocation scoped to the presented token", () => {
 		assert.equal(revokeDestroysGrantSessions("hutch-firefox-extension"), false);
 		assert.equal(revokeDestroysGrantSessions("hutch-chrome-extension"), false);
+	});
+
+	it("keeps Obsidian plugin revocation scoped to the presented token", () => {
+		assert.equal(revokeDestroysGrantSessions("obsidian-plugin"), false);
 	});
 
 	it("keeps dynamically registered client revocation scoped to the presented token", () => {

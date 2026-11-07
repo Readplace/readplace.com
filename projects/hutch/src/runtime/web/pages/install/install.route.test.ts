@@ -67,7 +67,7 @@ describe("GET /install", () => {
 		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"]);
 	});
 
-	it("should reveal the Android tab in roster order on ?feature=android, and keep the flag on every tab link so it survives switching tabs", async () => {
+	it("should reveal the hidden tabs in roster order on ?feature=android, and keep the flag on every tab link so it survives switching tabs", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=chrome&feature=android");
 		const doc = load(response.text);
@@ -81,6 +81,7 @@ describe("GET /install", () => {
 			"chatgpt",
 			"gemini",
 			"claude",
+			"obsidian",
 		]);
 		for (const tab of tabs) {
 			const href = tab.getAttribute("href");
@@ -97,6 +98,42 @@ describe("GET /install", () => {
 		expect(response.status).toBe(200);
 		expect(doc.querySelector('[data-test-panel="android"]')).not.toBeNull();
 		expect(doc.querySelector('[data-test-tab="android"]')).toBeNull();
+	});
+
+	it("should render the Obsidian panel from the registry with one availability line and no link, while its tab stays hidden before listing", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=obsidian");
+		const doc = load(response.text);
+
+		expect(response.status).toBe(200);
+		const panel = doc.querySelector('[data-test-panel="obsidian"]');
+		assert(panel, "obsidian panel must render");
+		const obsidian = SUPPORTED_CLIENTS.find((client) => client.name === "obsidian");
+		assert(obsidian, "obsidian must be in the roster");
+		expect(panel.querySelector(".install-page__panel-title")?.textContent).toBe("Readplace in Obsidian");
+		expect(panel.querySelector(".install-page__lead")?.textContent).toBe(obsidian.description);
+		expect(panel.querySelector('[data-test-section="obsidian-availability"]')?.textContent).toBe(
+			"The Readplace plugin is not in Obsidian's community directory yet.",
+		);
+		expect(panel.querySelectorAll("a")).toHaveLength(0);
+		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map((el) => el.getAttribute("data-test-tab"));
+		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"]);
+		const groups = Array.from(doc.querySelectorAll("[data-test-group]")).map((el) => el.getAttribute("data-test-group"));
+		expect(groups).toEqual(["browsers", "ai"]);
+	});
+
+	it("should put the Obsidian tab under a Notes Apps group on ?feature=android", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=obsidian&feature=android");
+		const doc = load(response.text);
+
+		const notes = doc.querySelector('[data-test-group="notes"]');
+		assert(notes, "notes group must render");
+		expect(notes.querySelector(".install-page__group-label")?.textContent).toBe("Notes Apps");
+		const notesTabs = Array.from(notes.querySelectorAll("[data-test-tab]")).map(
+			(el) => el.getAttribute("data-test-tab"),
+		);
+		expect(notesTabs).toEqual(["obsidian"]);
 	});
 
 	it("should split tabs into a Browsers & Devices group and an AI Assistants group", async () => {

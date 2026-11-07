@@ -6,7 +6,7 @@ import type { AlertContent } from "@packages/web-shell";
 
 const NOTICE_TEMPLATE = readFileSync(join(__dirname, "oauth-authorize-notice.template.html"), "utf-8");
 
-type ConsentAudience = "browserExtension" | "nativeApp" | "selfRegistered";
+type ConsentAudience = "browserExtension" | "nativeApp" | "notesApp" | "selfRegistered";
 
 type ConsentCopy = { heading: string; body: string; notice: AlertContent | undefined };
 
@@ -15,6 +15,7 @@ const AUDIENCE_BY_OAUTH_ID = {
 	"hutch-firefox-extension": "browserExtension",
 	"ios-app": "nativeApp",
 	"android-app": "nativeApp",
+	"obsidian-plugin": "notesApp",
 } as const satisfies {
 	[Id in BuiltInOAuthClientId]: Extract<SupportedClient, { auth: { oauthClientId: Id } }>["group"];
 };
@@ -28,6 +29,11 @@ const COPY_BY_AUDIENCE = {
 	nativeApp: ({ clientName }) => ({
 		heading: `Connect the ${clientName}`,
 		body: `Allow the ${clientName} to access your readlists so you can save, manage, and remove articles from your phone.`,
+		notice: undefined,
+	}),
+	notesApp: ({ clientName }) => ({
+		heading: `Connect ${clientName}`,
+		body: `Allow ${clientName} to read your readlists so it can copy the articles you save into your vault as notes. It receives the same access as every Readplace app.`,
 		notice: undefined,
 	}),
 	selfRegistered: ({ clientName, redirectHost }) => ({

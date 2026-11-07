@@ -64,7 +64,7 @@ describe("analytics metric filters", () => {
 describe("first-party refresh-refused metric filter", () => {
 	it("counts a refused refresh only when the grant names one of our own shipped clients, the reader neither disconnected it nor changed or reset their password, and the request was not the nonce challenge that opens a DPoP-bound refresh; the string aws logs test-metric-filter matched a real production chrome-extension rotation refusal and the nonce_expired, proof_invalid and unknown variants of a real nonce challenge against, and refused the real nonce_required challenge both bare and behind its Lambda preamble, its ios-app variant, and the disconnect and logout-all variants", () => {
 		expect(firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern()).toBe(
-			'{ $.stream = "analytics" && $.event = "oauth_token_refused" && $.grant_type = "refresh_token" && ($.client_id = "hutch-firefox-extension" || $.client_id = "hutch-chrome-extension" || $.client_id = "ios-app" || $.client_id = "android-app") && $.refresh_refusal.reason != "disconnect" && $.refresh_refusal.reason != "logout-all" && $.refresh_refusal.reason != "nonce_required" }',
+			'{ $.stream = "analytics" && $.event = "oauth_token_refused" && $.grant_type = "refresh_token" && ($.client_id = "hutch-firefox-extension" || $.client_id = "hutch-chrome-extension" || $.client_id = "ios-app" || $.client_id = "android-app" || $.client_id = "obsidian-plugin") && $.refresh_refusal.reason != "disconnect" && $.refresh_refusal.reason != "logout-all" && $.refresh_refusal.reason != "nonce_required" }',
 		);
 	});
 

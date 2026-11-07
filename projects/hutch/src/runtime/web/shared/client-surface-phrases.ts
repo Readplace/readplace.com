@@ -1,16 +1,21 @@
-import type { AdvertisedClientName, AdvertisedClientNameInGroup, ClientGroup } from "@packages/supported-clients";
+import type {
+	AdvertisedClientName,
+	AdvertisedClientNameInGroup,
+	ClientGroupInCategory,
+	SavingClientCategory,
+} from "@packages/supported-clients";
 import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 /**
- * User-facing copy enumerates client GROUPS, not individual clients: a new
- * client in an existing group needs no copy change, while a new group is a
- * compile error in every map below until its phrase is written.
+ * User-facing copy enumerates the client GROUPS that save, not individual
+ * clients: a new client in an existing group needs no copy change, while a new
+ * saving group is a compile error in every map below until its phrase is written.
  */
 const POSSESSIVE_SURFACES = {
 	browserExtension: "your browser",
 	nativeApp: "your phone",
 	aiAssistant: "your AI assistant",
-} satisfies Record<ClientGroup, string>;
+} satisfies Record<ClientGroupInCategory<SavingClientCategory>, string>;
 
 export const SAVE_SURFACES_PHRASE = `${POSSESSIVE_SURFACES.browserExtension}, ${POSSESSIVE_SURFACES.nativeApp}, or ${POSSESSIVE_SURFACES.aiAssistant}`;
 
@@ -18,7 +23,7 @@ const SHORT_SURFACES = {
 	browserExtension: "your browser",
 	nativeApp: "phone",
 	aiAssistant: "AI assistant",
-} satisfies Record<ClientGroup, string>;
+} satisfies Record<ClientGroupInCategory<SavingClientCategory>, string>;
 
 export const SAVE_SURFACES_SHORT_PHRASE = `${SHORT_SURFACES.browserExtension}, ${SHORT_SURFACES.nativeApp}, or ${SHORT_SURFACES.aiAssistant}`;
 

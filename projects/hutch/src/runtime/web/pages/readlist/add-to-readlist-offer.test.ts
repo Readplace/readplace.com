@@ -5,7 +5,7 @@ describe("addToReadlistOfferForClient", () => {
 		expect(addToReadlistOfferForClient("hutch-firefox-extension")).toBe("withheld");
 	});
 
-	it.each(["hutch-chrome-extension", "ios-app", "android-app"])("advertises add-to-readlist to %s", (clientId) => {
+	it.each(["hutch-chrome-extension", "ios-app", "android-app", "obsidian-plugin"])("advertises add-to-readlist to %s", (clientId) => {
 		expect(addToReadlistOfferForClient(clientId)).toBe("advertised");
 	});
 

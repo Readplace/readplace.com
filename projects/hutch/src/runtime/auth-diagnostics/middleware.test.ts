@@ -58,7 +58,7 @@ describe("authentication request diagnostics", () => {
 	});
 
 	it.each([
-		["ios-app", "ios", "app"], ["android-app", "android", "app"],
+		["ios-app", "ios", "app"], ["android-app", "android", "app"], ["obsidian-plugin", "obsidian", "app"],
 		["hutch-firefox-extension", "firefox", "background"], ["registered-third-party", "external", "external"],
 	])("classifies %s without logging the supplied client identifier", async (clientId, client, surface) => {
 		const { app, events } = create();

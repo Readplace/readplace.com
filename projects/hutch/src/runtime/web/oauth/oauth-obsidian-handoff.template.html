@@ -1,0 +1,9 @@
+    <main class="auth-page">
+      <div class="auth-card">
+        <h1 class="auth-card__title">{{heading}}</h1>
+        <p class="oauth-callback__text">{{body}}</p>
+        {{#each returnLinks}}
+        <a class="btn {{variantClass}} oauth-obsidian__return" href="{{href}}" data-test-return>Return to Obsidian</a>
+        {{/each}}
+      </div>
+    </main>

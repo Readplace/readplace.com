@@ -38,12 +38,22 @@ describe("buildConnectedAppsSection", () => {
 		["hutch-chrome-extension", "chrome", "Chrome extension", "Save any page to Readplace with one click."],
 		["ios-app", "iphone", "iPhone app", "Save from any iPhone browser through the share sheet."],
 		["android-app", "android", "Android app", "Save from any Android browser through the share sheet."],
+		["obsidian-plugin", "obsidian", "Obsidian plugin", "Syncs the articles you save into your Obsidian vault as notes."],
 	])("names the built-in client %s as its app", (clientId, key, title, description) => {
 		const section = webSection([builtIn(clientId)]);
 
 		expect(section.state).toBe("listed");
 		expect(section.rows.map((row) => ({ key: row.key, clientId: row.clientId, logo: row.logo, title: row.title, description: row.description }))).toEqual([
 			{ key, clientId, logo: key, title, description },
+		]);
+	});
+
+	it("tells the reader disconnecting the Obsidian plugin stops the sync and leaves the vault's notes alone", () => {
+		const [row] = webSection([builtIn("obsidian-plugin")]).rows;
+		assert(row, "the plugin must have a row");
+
+		expect(row.disconnects.map((disconnect) => disconnect.body)).toEqual([
+			"It's signed out on every device and stops syncing your articles into Obsidian until you sign in to it again. Your saved articles stay in your readlist, and the notes already in your vault stay where they are.",
 		]);
 	});
 
@@ -76,6 +86,7 @@ describe("buildConnectedAppsSection", () => {
 		const section = webSection([
 			registered({ id: "dyn-unknown", name: "Mystery", redirectUri: "https://example.com/callback" }),
 			CLAUDE,
+			builtIn("obsidian-plugin"),
 			builtIn("android-app"),
 			registered({ id: "dyn-chatgpt", name: "ChatGPT", redirectUri: "https://chatgpt.com/connector_platform_oauth_redirect" }),
 			builtIn("ios-app"),
@@ -92,6 +103,7 @@ describe("buildConnectedAppsSection", () => {
 			"chatgpt",
 			"gemini",
 			"claude",
+			"obsidian",
 			"assistant",
 		]);
 	});

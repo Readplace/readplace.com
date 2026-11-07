@@ -85,6 +85,10 @@ describe("saveClientOf", () => {
 		);
 	});
 
+	it("reports the web client for the Obsidian plugin's bearer, a built-in client that saves nothing of its own", () => {
+		assert.equal(saveClientOf(reqWith({ oauthClientId: "obsidian-plugin" })), "web");
+	});
+
 	it("falls back to the web client for a dynamically registered OAuth client id", () => {
 		assert.equal(saveClientOf(reqWith({ oauthClientId: "some-registered-mcp-client" })), "web");
 	});

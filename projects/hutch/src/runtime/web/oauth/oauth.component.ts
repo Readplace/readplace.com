@@ -5,9 +5,11 @@ import type { PageBody } from "@packages/web-shell";
 import { AUTH_STYLES } from "../auth/auth.styles";
 import { consentCopyFor } from "./consent-copy";
 import { OAUTH_AUTHORIZE_STYLES } from "./oauth-authorize.styles";
+import { obsidianHandoffHref, type ObsidianHandoff } from "./obsidian-handoff";
 
 const OAUTH_AUTHORIZE_TEMPLATE = readFileSync(join(__dirname, "oauth-authorize.template.html"), "utf-8");
 const OAUTH_CALLBACK_TEMPLATE = readFileSync(join(__dirname, "oauth-callback.template.html"), "utf-8");
+const OAUTH_OBSIDIAN_HANDOFF_TEMPLATE = readFileSync(join(__dirname, "oauth-obsidian-handoff.template.html"), "utf-8");
 
 interface AuthorizePageParams {
 	clientName: string;
@@ -33,6 +35,45 @@ const OAUTH_CALLBACK_STYLES = `${AUTH_STYLES}
 	text-wrap: pretty;
 }
 `;
+
+const OAUTH_OBSIDIAN_HANDOFF_STYLES = `${OAUTH_CALLBACK_STYLES}
+.oauth-obsidian__return {
+	width: 100%;
+	margin-top: 16px;
+}
+`;
+
+interface ObsidianHandoffView {
+	heading: string;
+	body: string;
+	returnLinks: { href: string; variantClass: string }[];
+	statusCode: number;
+}
+
+function obsidianHandoffView(handoff: ObsidianHandoff): ObsidianHandoffView {
+	if (handoff.kind === "invalid") {
+		return {
+			heading: "This link is incomplete",
+			body: "Start the sign-in again from the Readplace settings in Obsidian.",
+			returnLinks: [],
+			statusCode: 400,
+		};
+	}
+	if (handoff.kind === "error") {
+		return {
+			heading: "Sign-in cancelled",
+			body: "Nothing was connected. You can return to Obsidian or close this window.",
+			returnLinks: [{ href: obsidianHandoffHref(handoff), variantClass: "btn--secondary" }],
+			statusCode: 200,
+		};
+	}
+	return {
+		heading: "Sign-in approved",
+		body: "Return to Obsidian to finish signing in.",
+		returnLinks: [{ href: obsidianHandoffHref(handoff), variantClass: "btn--primary" }],
+		statusCode: 200,
+	};
+}
 
 export function OAuthAuthorizePage(params: AuthorizePageParams): PageBody {
 	const copy = consentCopyFor(params);
@@ -68,5 +109,21 @@ export function OAuthCallbackPage(): PageBody {
 		styles: OAUTH_CALLBACK_STYLES,
 		bodyClass: "page-oauth-callback",
 		content: { html: render(OAUTH_CALLBACK_TEMPLATE, {}) },
+	};
+}
+
+export function OAuthObsidianHandoffPage(handoff: ObsidianHandoff): PageBody {
+	const { statusCode, ...view } = obsidianHandoffView(handoff);
+	return {
+		seo: {
+			title: "Return to Obsidian — Readplace",
+			description: "Return to Obsidian to finish signing in to Readplace.",
+			canonicalUrl: "/oauth/obsidian",
+			robots: "noindex, nofollow",
+		},
+		styles: OAUTH_OBSIDIAN_HANDOFF_STYLES,
+		bodyClass: "page-oauth-obsidian",
+		content: { html: render(OAUTH_OBSIDIAN_HANDOFF_TEMPLATE, view) },
+		statusCode,
 	};
 }
