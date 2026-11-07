@@ -23,6 +23,7 @@ import type {
 	PublishUpdateFetchTimestamp,
 } from "@packages/provider-contracts/events";
 import type { MarkCrawlStage } from "../../domain/crawl-article-state/crawl-stage.types";
+import type { FindArticlePurgedAt } from "./find-article-purged-at.types";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PrepareArticleIdentity } from "@packages/save-article";
@@ -58,6 +59,7 @@ import { deferredUnsupportedKind } from "../save-link/save-link-work";
 export type StaleCheckAction =
 	| "new"
 	| "skip"
+	| "purged"
 	| "first-save-in-flight"
 	| "backoff"
 	| "unchanged"
@@ -68,6 +70,7 @@ const logPrefix = "[StaleCheckRequested]";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initStaleCheckHandler(deps: {
+	findArticlePurgedAt: FindArticlePurgedAt;
 	findArticleFreshness: FindArticleFreshness;
 	prepareArticleIdentity: PrepareArticleIdentity;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -85,6 +88,7 @@ export function initStaleCheckHandler(deps: {
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
+		findArticlePurgedAt,
 		findArticleFreshness,
 		findArticleCrawlStatus,
 		crawlAndFinalizeArticle,
@@ -102,6 +106,8 @@ export function initStaleCheckHandler(deps: {
 	} = deps;
 
 	async function checkAndRefresh(url: string): Promise<StaleCheckAction> {
+		if ((await findArticlePurgedAt(url)) !== undefined) return "purged";
+
 		const freshness = await findArticleFreshness(url);
 		if (!freshness) return "new";
 

@@ -73,6 +73,7 @@ const noopFindArticleCrawlStatus: FindArticleCrawlStatus = async () => undefined
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initStaleCheckHandler({
 		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
+		findArticlePurgedAt: async () => undefined,
 		findArticleFreshness: noopFindArticleFreshness,
 		findArticleCrawlStatus: noopFindArticleCrawlStatus,
 		crawlAndFinalizeArticle: failingCrawlAndFinalize,
@@ -953,4 +954,167 @@ it.each<{ kind: "image" | "plain-text"; contentType: string; body: string }>([
 		expect(staged.html).toContain('<figure><img src="https://cdn.example.com/');
 	}
 	expect(parseHtml).toHaveBeenCalledTimes(0);
+});
+
+type StoredRow = {
+	url: string;
+	purgedAt?: string;
+	crawlStatus: "ready";
+	summaryStatus: "skipped" | "ready";
+	contentFetchedAt?: string;
+	crawlStage?: string;
+};
+
+const PURGED_AT = "2026-05-17T09:00:00.000Z";
+
+function tombstoneRow(): StoredRow {
+	return { url: URL_UNDER_TEST, purgedAt: PURGED_AT, crawlStatus: "ready", summaryStatus: "skipped" };
+}
+
+function createRowBackedHandler(row: StoredRow, overrides: Partial<HandlerDeps> = {}) {
+	const crawlAndFinalizeArticle = jest.fn(failingCrawlAndFinalize);
+	const publishRefreshArticleContent: PublishRefreshArticleContent = jest.fn().mockResolvedValue(undefined);
+	const publishSaveAnonymousLink: PublishSaveAnonymousLink = jest.fn().mockResolvedValue(undefined);
+	const emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+	const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = jest.fn(async ({ contentFetchedAt }) => {
+		row.contentFetchedAt = contentFetchedAt;
+	});
+	const markCrawlStage: MarkCrawlStage = jest.fn(async ({ stage }) => {
+		row.crawlStage = stage;
+	});
+	const handler = createHandler({
+		findArticlePurgedAt: async () => row.purgedAt,
+		findArticleFreshness: async () => ({
+			etag: undefined,
+			lastModified: undefined,
+			contentFetchedAt: row.contentFetchedAt,
+		}),
+		findArticleCrawlStatus: async () => ({ status: row.crawlStatus }),
+		crawlAndFinalizeArticle,
+		publishRefreshArticleContent,
+		publishSaveAnonymousLink,
+		emitSimpleCrawlUnsupported,
+		publishUpdateFetchTimestamp,
+		markCrawlStage,
+		...overrides,
+	});
+	return {
+		handler,
+		crawlAndFinalizeArticle,
+		publishRefreshArticleContent,
+		publishSaveAnonymousLink,
+		emitSimpleCrawlUnsupported,
+		publishUpdateFetchTimestamp,
+		markCrawlStage,
+	};
+}
+
+describe("a tombstoned article", () => {
+	it("does not crawl, publish or mark a tombstone whose message was queued before the purge", async () => {
+		const row = tombstoneRow();
+		const deps = createRowBackedHandler(row);
+
+		const result = await deps.handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(row).toEqual(tombstoneRow());
+		expect(deps.crawlAndFinalizeArticle).not.toHaveBeenCalled();
+		expect(deps.publishRefreshArticleContent).not.toHaveBeenCalled();
+		expect(deps.publishSaveAnonymousLink).not.toHaveBeenCalled();
+		expect(deps.emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
+		expect(deps.publishUpdateFetchTimestamp).not.toHaveBeenCalled();
+		expect(deps.markCrawlStage).not.toHaveBeenCalled();
+	});
+
+	it("does not re-publish a save for a tombstone that projects no freshness attributes", async () => {
+		const row = tombstoneRow();
+		const deps = createRowBackedHandler(row, { findArticleFreshness: async () => null });
+
+		await deps.handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(deps.publishSaveAnonymousLink).not.toHaveBeenCalled();
+		expect(row).toEqual(tombstoneRow());
+	});
+
+	it("logs the purged action", async () => {
+		const logged: unknown[][] = [];
+		const deps = createRowBackedHandler(tombstoneRow(), {
+			logger: { ...noopLogger, info: (...args) => { logged.push(args); } },
+		});
+
+		await deps.handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(logged).toContainEqual(["[StaleCheckRequested] no-op", { url: URL_UNDER_TEST, action: "purged" }]);
+	});
+
+	it("leaves the row identical when the same message runs twice", async () => {
+		const row = tombstoneRow();
+		const deps = createRowBackedHandler(row);
+		const event = createSqsEvent({ url: URL_UNDER_TEST });
+
+		const first = await deps.handler(event, buildLambdaContext(), () => {});
+		const second = await deps.handler(event, buildLambdaContext(), () => {});
+
+		expect(first).toEqual({ batchItemFailures: [] });
+		expect(second).toEqual({ batchItemFailures: [] });
+		expect(row).toEqual(tombstoneRow());
+		expect(deps.crawlAndFinalizeArticle).not.toHaveBeenCalled();
+	});
+
+	it("does not reprime a tombstone's skipped summary", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const loadArticle: LoadArticle = async () => ({
+			url: URL_UNDER_TEST,
+			metadata: { title: "t", siteName: "s", excerpt: "e", wordCount: 1 },
+			freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
+			estimatedReadTime: 1,
+			crawl: { kind: "ready" },
+			summary: { kind: "skipped", reason: "content-purged" },
+			summaryAutoHeal: { attempts: 0 },
+		});
+		const deps = createRowBackedHandler(tombstoneRow(), { loadArticle, transitionAndPersist });
+
+		await deps.handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("retries the record when the purge read fails", async () => {
+		const deps = createRowBackedHandler(tombstoneRow(), {
+			findArticlePurgedAt: async () => {
+				throw new Error("throttled");
+			},
+		});
+
+		const result = await deps.handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.crawlAndFinalizeArticle).not.toHaveBeenCalled();
+	});
+});
+
+describe("a stale check run again after a conflicting later fact", () => {
+	it("skips a stale message after the purge landed", async () => {
+		const row: StoredRow = {
+			url: URL_UNDER_TEST,
+			crawlStatus: "ready",
+			summaryStatus: "ready",
+			contentFetchedAt: "2026-04-01T00:00:00.000Z",
+		};
+		const deps = createRowBackedHandler(row);
+		const event = createSqsEvent({ url: URL_UNDER_TEST });
+
+		await deps.handler(event, buildLambdaContext(), () => {});
+		expect(deps.crawlAndFinalizeArticle).toHaveBeenCalledTimes(1);
+
+		row.purgedAt = PURGED_AT;
+		row.summaryStatus = "skipped";
+		delete row.contentFetchedAt;
+
+		const result = await deps.handler(event, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(deps.crawlAndFinalizeArticle).toHaveBeenCalledTimes(1);
+		expect(row).toEqual(tombstoneRow());
+	});
 });

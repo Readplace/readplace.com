@@ -26,6 +26,7 @@ import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initEmitSimpleCrawlUnsupported, initEventsDepBundle } from "./dep-bundles/events";
 import { initEventBridgeRefreshArticleContent, initPutRefreshHtml } from "@packages/refresh-article-content";
 import { initFindArticleFreshness } from "./providers/article-crawl/find-article-freshness";
+import { initFindArticlePurgedAt } from "./providers/article-crawl/find-article-purged-at";
 import { readEnv } from "@packages/require-env";
 import { STALE_CHECK_ENV } from "./stale-check.env";
 
@@ -98,6 +99,11 @@ const { findArticleFreshness } = initFindArticleFreshness({
 	tableName: articlesTable,
 });
 
+const { findArticlePurgedAt } = initFindArticlePurgedAt({
+	client: dynamoClient,
+	tableName: articlesTable,
+});
+
 const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 	client: dynamoClient,
 	tableName: articlesTable,
@@ -108,6 +114,7 @@ const sourceIdentity = initSourceIdentityDepBundle({ ...canonicalAliasStore, cra
 
 export const handler = initStaleCheckHandler({
 	prepareArticleIdentity: sourceIdentity.prepareArticleIdentity,
+	findArticlePurgedAt,
 	findArticleFreshness,
 	findArticleCrawlStatus,
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
