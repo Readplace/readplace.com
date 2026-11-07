@@ -92,9 +92,7 @@ interface PollResponseBodyInput {
 	title: string | undefined;
 	now: Date;
 	readerSection: ReaderSectionInput;
-	highlights:
-		| (PollHighlights & { canonicalContentHash: string | undefined })
-		| undefined;
+	highlights: PollHighlights | undefined;
 }
 
 function renderPollResponseBody(input: PollResponseBodyInput): string {
@@ -522,7 +520,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			appOrigin: deps.appOrigin,
 			readerNotice: undefined,
 			title: article?.metadata.title,
-			highlights: await pollHighlightsOf(params),
+			highlights: params.highlights,
 		}));
 	}
 
@@ -542,17 +540,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			articles: [{ url, ...loaded }],
 		});
 		return resolved.get(url) ?? loaded;
-	}
-
-	async function pollHighlightsOf(
-		params: HandlePollParams,
-	): Promise<PollResponseBodyInput["highlights"]> {
-		if (params.highlights === undefined) return undefined;
-		const freshness = await deps.findArticleFreshness(params.articleUrl);
-		return {
-			...params.highlights,
-			canonicalContentHash: freshness?.canonicalContentHash,
-		};
 	}
 
 	async function handleReaderPoll(params: HandlePollParams): Promise<Component> {
@@ -603,7 +590,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			appOrigin: deps.appOrigin,
 			readerNotice: undefined,
 			title: article?.metadata.title,
-			highlights: await pollHighlightsOf(params),
+			highlights: params.highlights,
 		}));
 	}
 

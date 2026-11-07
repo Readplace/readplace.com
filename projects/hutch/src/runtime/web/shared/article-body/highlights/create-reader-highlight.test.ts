@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type Highlight, HighlightIdSchema } from "@packages/domain/article";
+import { CandidateIdSchema, type Highlight, HighlightIdSchema } from "@packages/domain/article";
 import { HIGHLIGHT_MAX_EXACT_LENGTH } from "@packages/domain/article/highlight";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryHighlights } from "@packages/test-fixtures/providers/highlights";
@@ -68,11 +68,30 @@ describe("initCreateReaderHighlight", () => {
 		assert.equal(row.suffix, " jumps over the lazy dog. A");
 		assert.equal(row.highlightOf, url);
 		assert.equal(row.anchoredContentHash, contentHash);
+		assert.equal(Object.hasOwn(row, "anchoredCandidateId"), false);
 		assert.equal(row.anchorState, "anchored");
 		assert.equal(row.orderKey, row.start);
 		assert.equal(row.anchorRevision, 0);
 		assert.deepEqual(row.createdAt, NOW);
 		assert.deepEqual(row.updatedAt, NOW);
+	});
+
+	it("records the canonical candidate the highlight was anchored on", async () => {
+		const { store, createReaderHighlight } = setup();
+		const candidateId = CandidateIdSchema.parse("candidate-1");
+
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			candidateId,
+			userId,
+			url,
+			...rangeOf("brown fox"),
+		});
+
+		assert.equal(outcome.status, "created");
+		const [row] = await store.listArticleHighlights({ userId, url });
+		assert.equal(row.anchoredCandidateId, candidateId);
 	});
 
 	it("answers passage-changed when exact is not at [start, end)", async () => {

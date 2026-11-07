@@ -56,7 +56,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			readArticleContent: deps.readArticleContent,
 			requestResolutionOnView: deps.requestResolutionOnView,
 			listArticleHighlights: deps.listArticleHighlights,
-			findArticleFreshness: deps.findArticleFreshness,
+			readCanonicalSnapshot: deps.readCanonicalSnapshot,
 		},
 		shared,
 	);
@@ -76,7 +76,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			{
 				requireWriteAccess: deps.requireWriteAccess,
 				readArticleContent: deps.readArticleContent,
-				findArticleFreshness: deps.findArticleFreshness,
+				readCanonicalSnapshot: deps.readCanonicalSnapshot,
 				createReaderHighlight: deps.createReaderHighlight,
 				deleteHighlight: deps.deleteHighlight,
 				recordAnalyticsEvent: deps.recordAnalyticsEvent,
@@ -252,6 +252,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				recordAnalyticsEvent: deps.recordAnalyticsEvent,
 				salt: deps.salt,
 				listArticleHighlights: deps.listArticleHighlights,
+				readCanonicalSnapshot: deps.readCanonicalSnapshot,
 			},
 			shared,
 		),

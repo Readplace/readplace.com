@@ -1,3 +1,4 @@
+import type { CandidateId } from "@packages/article-state-types";
 import { type Highlight, HighlightIdSchema } from "@packages/domain/article";
 import {
 	anchorHighlight,
@@ -20,6 +21,7 @@ export type CreateReaderHighlightOutcome =
 export type CreateReaderHighlight = (params: {
 	text: string;
 	contentHash: string;
+	candidateId?: CandidateId;
 	userId: UserId;
 	url: string;
 	exact: string;
@@ -34,7 +36,7 @@ export function initCreateReaderHighlight(deps: {
 	now: () => Date;
 }): CreateReaderHighlight {
 	return async (params) => {
-		const { text, contentHash, userId, url } = params;
+		const { text, contentHash, candidateId, userId, url } = params;
 		if (params.exact.length > HIGHLIGHT_MAX_EXACT_LENGTH) {
 			return { status: "too-long" };
 		}
@@ -64,6 +66,7 @@ export function initCreateReaderHighlight(deps: {
 			highlightId: HighlightIdSchema.parse(deps.newHighlightId()),
 			highlightOf: url,
 			anchoredContentHash: contentHash,
+			...(candidateId === undefined ? {} : { anchoredCandidateId: candidateId }),
 			anchorState: "anchored",
 			orderKey: described.start,
 			createdAt: now,

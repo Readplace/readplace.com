@@ -4,11 +4,14 @@ import {
 	readabilityAdditions,
 } from "@packages/article-parser";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { CandidateIdSchema } from "@packages/article-state-types";
 import { HighlightIdSchema } from "@packages/domain/article";
 import {
 	collectTextChunks,
 	normaliseText,
 } from "@packages/domain/article/highlight";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import type { TestAppFixture } from "@packages/test-fixtures";
 import {
 	createDefaultTestAppFixture,
@@ -19,8 +22,11 @@ import {
 	createNoopLogError,
 	TEST_APP_ORIGIN,
 } from "@packages/test-fixtures";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { initReanchorHighlightsHandler } from "../../../highlights/reanchor-highlights-handler";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
 
@@ -718,6 +724,42 @@ describe("Highlights on the reader polls", () => {
 		).toBe("outerHTML");
 	});
 
+	it("takes the canonical snapshot's hash on the poll after the canonical content is replaced, keeping a row orphaned on that hash", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/highlight-poll-snapshot";
+		const { agent, articleId } = await saveArticle(harness, url);
+		const id = await createHighlight(agent, articleId, "readability parser");
+		await fixture.articleStore.replaceCanonicalContent({
+			url,
+			content: `${OPENING_PARAGRAPH}${SECOND_PARAGRAPH}`,
+			canonicalContentHash: "snapshot-hash",
+			canonicalCandidateId: CandidateIdSchema.parse("snapshot-candidate"),
+		});
+		const [{ userId, highlight }] =
+			await fixture.highlights.listHighlightsOfArticle(url);
+		await fixture.highlights.writeHighlightAnchor({
+			userId,
+			url: highlight.highlightOf,
+			highlightId: highlight.highlightId,
+			expectedRevision: highlight.anchorRevision,
+			anchor: {
+				start: highlight.start,
+				end: highlight.end,
+				anchorState: "orphaned",
+				anchoredContentHash: "snapshot-hash",
+				orderKey: highlight.orderKey,
+			},
+		});
+
+		const poll = (
+			await agent.get(`/queue/${articleId}/reader?poll=1&feature=highlight`)
+		).text;
+
+		expect(rowsOf(poll)).toEqual([{ id, state: "orphaned" }]);
+		expect(marksOf(poll)).toEqual([]);
+	});
+
 	it("emits no rail on the poll without the flag", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
@@ -830,6 +872,34 @@ const OPENING_PARAGRAPH =
 	"<p>Long enough body text for the readability parser to extract a clean article from.</p>";
 const SECOND_PARAGRAPH =
 	"<p>A second paragraph so the parser has more than the minimum word count to work with.</p>";
+const SECOND_PARAGRAPH_EDITED =
+	"<p>A second paragraph so the parser has more then the minimum word count to work with.</p>";
+
+async function runReanchorHandler(
+	fixture: TestAppFixture,
+	url: string,
+): Promise<void> {
+	const publishEvent: PublishEvent = async () => {};
+	const handler = initReanchorHighlightsHandler({
+		listHighlightsOfArticle: fixture.highlights.listHighlightsOfArticle,
+		readCanonicalSnapshot: fixture.articleStore.readCanonicalSnapshot,
+		readArticleContent: fixture.articleStore.readArticleContent,
+		writeHighlightAnchor: fixture.highlights.writeHighlightAnchor,
+		publishEvent,
+		appOrigin: TEST_APP_ORIGIN,
+		metricLog: noopLogger,
+		logger: Logger.from(noopLogger),
+	});
+	const response = await handler(
+		buildSqsEvent([
+			{ messageId: "msg-1", body: JSON.stringify({ detail: { url } }) },
+		]),
+		buildLambdaContext(),
+		() => {},
+	);
+	assert(response, "the handler always returns a batch response");
+	assert.deepEqual(response.batchItemFailures, []);
+}
 
 describe("Highlights when the served body changes", () => {
 	it("marks a highlight moved when a changed body still holds the quote", async () => {
@@ -868,6 +938,86 @@ describe("Highlights when the served body changes", () => {
 		expect(
 			row?.querySelector('[data-test-action="highlight-jump"]'),
 		).toBeNull();
+	});
+
+	it("re-anchors every row on the new hash when the reanchor handler runs, ordering them by the new body", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/highlight-reanchor-moved";
+		const { agent, articleId } = await saveArticle(harness, url);
+		const a = await createHighlight(agent, articleId, "readability parser");
+		const b = await createHighlight(
+			agent,
+			articleId,
+			"parser has more than the minimum",
+		);
+		const before = await fixture.highlights.listHighlightsOfArticle(url);
+		await fixture.articleStore.replaceCanonicalContent({
+			url,
+			content: `${SECOND_PARAGRAPH_EDITED}${OPENING_PARAGRAPH}`,
+			canonicalContentHash: "reanchor-hash",
+			canonicalCandidateId: CandidateIdSchema.parse("reanchor-candidate"),
+		});
+		const versionBefore = (await agent.get(viewPath(articleId))).headers[
+			ARTICLE_VERSION_HEADER.toLowerCase()
+		];
+
+		await runReanchorHandler(fixture, url);
+
+		const reopened = await agent.get(viewPath(articleId));
+		const after = await fixture.highlights.listHighlightsOfArticle(url);
+		expect(rowsOf(reopened.text).map((row) => row.id)).toEqual([b, a]);
+		for (const { highlight } of after) {
+			const previous = before.find(
+				(row) => row.highlight.highlightId === highlight.highlightId,
+			);
+			assert(previous, "every row existed before the handler ran");
+			expect(highlight.anchoredContentHash).toBe("reanchor-hash");
+			expect(highlight.anchorRevision).toBe(
+				previous.highlight.anchorRevision + 1,
+			);
+		}
+		expect(
+			after.find((row) => row.highlight.highlightId === b)?.highlight
+				.anchorState,
+		).toBe("moved");
+		expect(
+			doc(reopened.text).querySelector(`[data-highlight-id="${b}"]`)
+				?.textContent,
+		).toBe("parser has more then the minimum");
+		expect(reopened.headers[ARTICLE_VERSION_HEADER.toLowerCase()]).not.toBe(
+			versionBefore,
+		);
+	});
+
+	it("orphans a row on the new hash, keeping its orderKey, when the reanchor handler runs over a body that lost the quote", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/highlight-reanchor-orphaned";
+		const { agent, articleId } = await saveArticle(harness, url);
+		const id = await createHighlight(agent, articleId, "readability parser");
+		const [before] = await fixture.highlights.listHighlightsOfArticle(url);
+		await fixture.articleStore.replaceCanonicalContent({
+			url,
+			content: SECOND_PARAGRAPH,
+			canonicalContentHash: "reanchor-hash",
+			canonicalCandidateId: CandidateIdSchema.parse("reanchor-candidate"),
+		});
+
+		await runReanchorHandler(fixture, url);
+
+		const [after] = await fixture.highlights.listHighlightsOfArticle(url);
+		expect(after.highlight.anchorState).toBe("orphaned");
+		expect(after.highlight.anchoredContentHash).toBe("reanchor-hash");
+		expect(after.highlight.orderKey).toBe(before.highlight.orderKey);
+		const reopened = (await agent.get(viewPath(articleId))).text;
+		expect(
+			doc(reopened).querySelector(`[data-highlight-id="${id}"]`),
+		).toBeNull();
+		expect(
+			doc(reopened).querySelector(`[data-test-highlight-row="${id}"]`)
+				?.textContent,
+		).toContain("Not found in this version");
 	});
 
 	it("merges a create with a highlight whose stored offsets went stale where that highlight anchors now", async () => {

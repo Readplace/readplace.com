@@ -176,3 +176,14 @@ export {
 	type Highlight,
 	type TextQuoteSelector,
 } from "./highlight/highlight";
+export {
+	anchorHighlightFuzzy,
+	type FuzzyAnchorableHighlight,
+} from "./highlight/anchor-highlight-fuzzy";
+export {
+	reanchorArticleHighlights,
+	type ReanchorableHighlight,
+	type HighlightAnchorUpdate,
+	type HighlightAnchorWrite,
+	type ReanchorCounts,
+} from "./highlight/reanchor-article-highlights";

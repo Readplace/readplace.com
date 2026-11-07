@@ -62,7 +62,7 @@ export function initHighlightRoutes(
 		ReadlistDependencies,
 		| "requireWriteAccess"
 		| "readArticleContent"
-		| "findArticleFreshness"
+		| "readCanonicalSnapshot"
 		| "createReaderHighlight"
 		| "deleteHighlight"
 		| "recordAnalyticsEvent"
@@ -141,11 +141,12 @@ export function initHighlightRoutes(
 				offset >= 0,
 				"the served page's text must be a slice of the whole article's text",
 			);
-			const freshness = await deps.findArticleFreshness(article.url);
+			const snapshot = await deps.readCanonicalSnapshot(article.url);
 			const outcome = await deps.createReaderHighlight({
 				text: prepared.text,
 				contentHash:
-					freshness?.canonicalContentHash ?? servedContentHash(prepared.text),
+					snapshot?.canonicalContentHash ?? servedContentHash(prepared.text),
+				candidateId: snapshot?.canonicalCandidateId,
 				userId,
 				url: ArticleResourceUniqueId.parse(article.url).value,
 				exact: body.data.exact,

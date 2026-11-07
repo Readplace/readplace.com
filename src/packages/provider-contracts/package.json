@@ -33,6 +33,10 @@
       "types": "./dist/article-store.d.ts",
       "default": "./dist/article-store.js"
     },
+    "./canonical-snapshot": {
+      "types": "./dist/canonical-snapshot.d.ts",
+      "default": "./dist/canonical-snapshot.js"
+    },
     "./article-summary": {
       "types": "./dist/article-summary.d.ts",
       "default": "./dist/article-summary.js"
@@ -191,6 +195,7 @@
       "article-status-indexes": ["./dist/article-status-indexes.d.ts"],
       "article-store": ["./dist/article-store.d.ts"],
       "article-summary": ["./dist/article-summary.d.ts"],
+      "canonical-snapshot": ["./dist/canonical-snapshot.d.ts"],
       "auth": ["./dist/auth.d.ts"],
       "browser-handoff": ["./dist/browser-handoff.d.ts"],
       "email": ["./dist/email.d.ts"],

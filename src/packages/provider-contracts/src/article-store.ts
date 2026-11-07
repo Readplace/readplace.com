@@ -161,7 +161,6 @@ export interface ArticleFreshnessData {
 	lastModified?: string;
 	contentFetchedAt?: string;
 	bodyHash?: string;
-	canonicalContentHash?: string;
 }
 
 export type FindArticleFreshness = (

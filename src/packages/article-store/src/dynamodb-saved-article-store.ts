@@ -96,7 +96,6 @@ const ArticleFreshnessRow = z.object({
 	etag: dynamoField(z.string()),
 	lastModified: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
-	canonicalContentHash: dynamoField(z.string()),
 });
 
 const ArticleCrawlVersionsRow = z.object({
@@ -1126,14 +1125,13 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await articleFreshness.get(
 			{ url: articleResourceUniqueId.value },
-			{ projection: ["etag", "lastModified", "contentFetchedAt", "canonicalContentHash"] },
+			{ projection: ["etag", "lastModified", "contentFetchedAt"] },
 		);
 		if (!row) return null;
 		return {
 			etag: row.etag,
 			lastModified: row.lastModified,
 			contentFetchedAt: row.contentFetchedAt,
-			canonicalContentHash: row.canonicalContentHash,
 		};
 	};
 

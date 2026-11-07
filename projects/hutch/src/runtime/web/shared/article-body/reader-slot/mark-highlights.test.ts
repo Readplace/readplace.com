@@ -161,6 +161,56 @@ describe("markHighlights", () => {
 		expect(pieces(SECOND_ID)).toBe("two three");
 	});
 
+	it("gives identical and overlapping ranges each their own first mark, their own text and the passage text kept", () => {
+		const html = "<p>Alpha beta gamma delta</p>";
+		const THIRD_ID = HighlightIdSchema.parse(
+			"2d0b8e3a-4f5c-4d7e-8f1a-2b3c4d5e6f70",
+		);
+		const first = highlightOn({
+			html,
+			exact: "beta gamma",
+			highlightId: FIRST_ID,
+		});
+		const identical = highlightOn({
+			html,
+			exact: "beta gamma",
+			highlightId: SECOND_ID,
+		});
+		const overlapping = highlightOn({
+			html,
+			exact: "gamma delta",
+			highlightId: THIRD_ID,
+		});
+
+		const marked = markHighlights({
+			html,
+			highlights: {
+				rows: [first, identical, overlapping],
+				canonicalContentHash: CANONICAL_HASH,
+			},
+		});
+
+		const marks = marksOf(marked.html);
+		for (const [highlightId, text] of [
+			[FIRST_ID, "beta gamma"],
+			[SECOND_ID, "beta gamma"],
+			[THIRD_ID, "gamma delta"],
+		]) {
+			const own = marks.filter(
+				(mark) => mark.getAttribute("data-highlight-id") === highlightId,
+			);
+			expect(own[0].getAttribute("id")).toBe(`highlight-${highlightId}`);
+			expect(own.slice(1).map((mark) => mark.getAttribute("id"))).toEqual(
+				own.slice(1).map(() => null),
+			);
+			expect(own.map((mark) => mark.textContent).join("")).toBe(text);
+		}
+		const doc = new JSDOM(
+			`<!doctype html><html><body>${marked.html}</body></html>`,
+		).window.document;
+		expect(doc.body.textContent).toBe("Alpha beta gamma delta");
+	});
+
 	it("marks a passage across two table rows inside the cells only", () => {
 		const html =
 			"<table><tbody><tr><td>One</td></tr>\n  <tr><td>Two</td></tr></tbody></table>";

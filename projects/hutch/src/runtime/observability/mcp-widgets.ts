@@ -22,7 +22,7 @@ export function mcpWidgets(deps: {
 				"| sort calls desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 186, width: 12, height: 8,
+			x: 0, y: 194, width: 12, height: 8,
 			view: "table",
 		},
 		toolCallsPerDay: {
@@ -34,7 +34,7 @@ export function mcpWidgets(deps: {
 				...exclude,
 				"| stats count(*) as calls by bin(1d), outcome",
 			].join(" "),
-			x: 12, y: 186, width: 12, height: 8,
+			x: 12, y: 194, width: 12, height: 8,
 			view: "timeSeries",
 		},
 		calledButNeverSaved: {
@@ -48,7 +48,7 @@ export function mcpWidgets(deps: {
 				"| sort calls desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 194, width: 12, height: 8,
+			x: 0, y: 202, width: 12, height: 8,
 			view: "table",
 		},
 		transportRefusalsPerDay: {
@@ -59,7 +59,7 @@ export function mcpWidgets(deps: {
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.mcpRequestRefused}"`,
 				"| stats count(*) as refusals by bin(1d), reason, ua_client",
 			].join(" "),
-			x: 0, y: 312, width: 12, height: 8,
+			x: 0, y: 320, width: 12, height: 8,
 			view: "timeSeries",
 		},
 		handshakes: {
@@ -72,7 +72,7 @@ export function mcpWidgets(deps: {
 				"| sort calls desc",
 				"| limit 50",
 			].join(" "),
-			x: 12, y: 312, width: 12, height: 8,
+			x: 12, y: 320, width: 12, height: 8,
 			view: "table",
 		},
 	} satisfies Record<string, LogWidgetSpec>;

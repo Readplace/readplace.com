@@ -487,6 +487,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			setContentSourceTier: articleStoreMemory.setContentSourceTier,
 			setContentFetchedAt: articleStoreMemory.setContentFetchedAt,
 			setCanonicalContentHash: articleStoreMemory.setCanonicalContentHash,
+			readCanonicalSnapshot: articleStoreMemory.readCanonicalSnapshot,
+			replaceCanonicalContent: articleStoreMemory.replaceCanonicalContent,
 			setDisplayUrl: articleStoreMemory.setDisplayUrl,
 			claimAlias: articleStoreMemory.claimAlias,
 			resolveAlias: articleStoreMemory.resolveAlias,

@@ -1,4 +1,4 @@
-import type { Highlight, HighlightId } from "@packages/domain/article";
+import type { Highlight, HighlightAnchorUpdate, HighlightId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 
 export type ListArticleHighlights = (params: {
@@ -28,3 +28,22 @@ export type DeleteArticleHighlights = (params: {
 }) => Promise<void>;
 
 export type DeleteAllUserHighlights = (userId: UserId) => Promise<void>;
+
+export interface UserHighlight {
+	userId: UserId;
+	highlight: Highlight;
+}
+
+export type ListHighlightsOfArticle = (url: string) => Promise<readonly UserHighlight[]>;
+
+export type HighlightAnchor = HighlightAnchorUpdate;
+
+export type WriteHighlightAnchorOutcome = { outcome: "written" | "deleted" | "stale" };
+
+export type WriteHighlightAnchor = (params: {
+	userId: UserId;
+	url: string;
+	highlightId: HighlightId;
+	expectedRevision: number;
+	anchor: HighlightAnchor;
+}) => Promise<WriteHighlightAnchorOutcome>;

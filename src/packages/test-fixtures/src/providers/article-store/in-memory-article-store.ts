@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type {
 	ArticleDiscoveryQuery,
 	ArticleMetadata,
+	CandidateId,
 	ArticleStatus,
 	ItemMedia,
 	Minutes,
@@ -100,6 +101,7 @@ import type {
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
 import { DigestPageCursorSchema } from "@packages/provider-contracts/article-store";
+import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type { FindPersonalLibrary, SaveStarterPack } from "@packages/provider-contracts/engagement-starter";
 
 interface GlobalArticle {
@@ -120,6 +122,7 @@ interface GlobalArticle {
 	contentFetchedAt?: string;
 	bodyHash?: string;
 	canonicalContentHash?: string;
+	canonicalCandidateId?: CandidateId;
 	contentSourceTier?: "tier-0" | "tier-1" | "tier-2";
 	crawlVersions?: ArticleCrawlVersion[];
 	purgedAt?: Date;
@@ -279,6 +282,13 @@ export function initInMemoryArticleStore(): {
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" | "tier-2" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 	setCanonicalContentHash: (params: { url: string; canonicalContentHash: string }) => Promise<void>;
+	readCanonicalSnapshot: ReadCanonicalSnapshot;
+	replaceCanonicalContent: (params: {
+		url: string;
+		content: string;
+		canonicalContentHash: string;
+		canonicalCandidateId: CandidateId;
+	}) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	claimAlias: ClaimCanonicalAlias;
 	resolveAlias: (url: string) => Promise<string | undefined>;
@@ -1105,7 +1115,6 @@ export function initInMemoryArticleStore(): {
 			lastModified: article.lastModified,
 			contentFetchedAt: article.contentFetchedAt,
 			bodyHash: article.bodyHash,
-			canonicalContentHash: article.canonicalContentHash,
 		};
 	};
 
@@ -1238,6 +1247,29 @@ export function initInMemoryArticleStore(): {
 		const article = articles.get(articleResourceUniqueId.value);
 		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
 		article.canonicalContentHash = params.canonicalContentHash;
+	};
+
+	const readCanonicalSnapshot: ReadCanonicalSnapshot = async (url) => {
+		const article = articles.get(ArticleResourceUniqueId.parse(url).value);
+		if (article?.canonicalContentHash === undefined) return undefined;
+		return {
+			canonicalContentHash: article.canonicalContentHash,
+			...(article.canonicalCandidateId === undefined ? {} : { canonicalCandidateId: article.canonicalCandidateId }),
+		};
+	};
+
+	const replaceCanonicalContent = async (params: {
+		url: string;
+		content: string;
+		canonicalContentHash: string;
+		canonicalCandidateId: CandidateId;
+	}) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.content = params.content;
+		article.canonicalContentHash = params.canonicalContentHash;
+		article.canonicalCandidateId = params.canonicalCandidateId;
 	};
 
 	const setCrawlVersions = async (params: { url: string; versions: ArticleCrawlVersion[] }) => {
@@ -1384,6 +1416,8 @@ export function initInMemoryArticleStore(): {
 		setContentSourceTier,
 		setContentFetchedAt,
 		setCanonicalContentHash,
+		readCanonicalSnapshot,
+		replaceCanonicalContent,
 		setDisplayUrl,
 		claimAlias,
 		resolveAlias,

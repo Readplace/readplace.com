@@ -1,12 +1,12 @@
 import assert from "node:assert";
 import {
 	ARTICLE_HIGHLIGHT_ID_PREFIX,
+	anchorHighlightFuzzy,
 	type Highlight,
 	type HighlightId,
 } from "@packages/domain/article";
 import {
 	type Anchor,
-	anchorHighlight,
 	collectTextChunks,
 	normaliseText,
 } from "@packages/domain/article/highlight";
@@ -126,7 +126,7 @@ export function markHighlights(input: {
 		input.highlights.canonicalContentHash ?? servedContentHash(normalised.text);
 	const states = input.highlights.rows.map((highlight) => ({
 		highlight,
-		anchor: anchorHighlight({ text: normalised.text, contentHash, highlight }),
+		anchor: anchorHighlightFuzzy({ text: normalised.text, contentHash, highlight }),
 	}));
 	const minted = new Set<HighlightId>();
 	const byChunk = [...piecesByChunk({ states, spans: normalised.spans })].sort(

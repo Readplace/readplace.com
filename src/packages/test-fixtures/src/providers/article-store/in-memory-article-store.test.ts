@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
+import { CandidateIdSchema, MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
 import type { Minutes } from "@packages/domain/article";
 import { formatEmailLinkOrdinal } from "@packages/domain/inbox";
 import {
@@ -1011,24 +1011,47 @@ describe("initInMemoryArticleStore", () => {
 
 			expect(result).toBeNull();
 		});
+	});
 
-		it("findArticleFreshness leaves canonicalContentHash undefined until one is set", async () => {
+	describe("canonical snapshot", () => {
+		it("replaceCanonicalContent then readCanonicalSnapshot gives the new hash and candidate id", async () => {
 			const store = initInMemoryArticleStore();
 			await store.saveArticleGlobally({
-				url: "https://example.com/hashed",
+				url: "https://example.com/snapshot",
+				metadata: { title: "T", siteName: "S", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date("2026-11-01T00:00:00.000Z"),
+			});
+			await store.setCanonicalContentHash({ url: "https://example.com/snapshot", canonicalContentHash: "hash-1" });
+			const before = await store.readCanonicalSnapshot("https://example.com/snapshot");
+
+			await store.replaceCanonicalContent({
+				url: "https://example.com/snapshot",
+				content: "<p>new body</p>",
+				canonicalContentHash: "hash-2",
+				canonicalCandidateId: CandidateIdSchema.parse("candidate-2"),
+			});
+
+			expect(before).toEqual({ canonicalContentHash: "hash-1" });
+			expect(await store.readCanonicalSnapshot("https://EXAMPLE.com/snapshot")).toEqual({
+				canonicalContentHash: "hash-2",
+				canonicalCandidateId: "candidate-2",
+			});
+			expect(await store.readContent(ArticleResourceUniqueId.parse("https://example.com/snapshot"))).toBe("<p>new body</p>");
+		});
+
+		it("readCanonicalSnapshot is undefined for an article with no hash or an unknown url", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticleGlobally({
+				url: "https://example.com/unhashed",
 				metadata: { title: "T", siteName: "S", excerpt: "", wordCount: 0 },
 				estimatedReadTime: MinutesSchema.parse(1),
 				savedAt: new Date("2026-11-01T00:00:00.000Z"),
 			});
 
-			const before = await store.findArticleFreshness("https://example.com/hashed");
-			await store.setCanonicalContentHash({ url: "https://example.com/hashed", canonicalContentHash: "hash-1" });
-			const after = await store.findArticleFreshness("https://example.com/hashed");
-
-			expect(before?.canonicalContentHash).toBeUndefined();
-			expect(after?.canonicalContentHash).toBe("hash-1");
+			expect(await store.readCanonicalSnapshot("https://example.com/unhashed")).toBeUndefined();
+			expect(await store.readCanonicalSnapshot("https://unknown.com/page")).toBeUndefined();
 		});
-
 	});
 
 	describe("crawl versions", () => {

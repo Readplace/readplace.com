@@ -20,7 +20,7 @@ import {
 import { z } from "zod";
 import { HIGHLIGHT_KEY_PREFIX } from "./user-readlist-partition";
 
-const HighlightRow = z.object({
+export const HighlightRow = z.object({
 	userId: z.string(),
 	url: z.string(),
 	highlightId: HighlightIdSchema,
@@ -44,11 +44,11 @@ function articleHighlightsPrefix(url: string): string {
 	return `${HIGHLIGHT_KEY_PREFIX}${url}/`;
 }
 
-function highlightKey(params: { url: string; highlightId: string }): string {
+export function highlightKey(params: { url: string; highlightId: string }): string {
 	return `${articleHighlightsPrefix(params.url)}${params.highlightId}`;
 }
 
-function toHighlight(row: z.infer<typeof HighlightRow>): Highlight {
+export function toHighlight(row: z.infer<typeof HighlightRow>): Highlight {
 	return {
 		highlightId: row.highlightId,
 		highlightOf: row.highlightOf,

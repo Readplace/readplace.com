@@ -190,7 +190,7 @@ function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 
 export function initReaderPageRoutes(deps: Pick<
 		ReadlistDependencies,
-		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView" | "listArticleHighlights" | "findArticleFreshness" | "presignEnclosure" | "findArticleById"
+		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView" | "listArticleHighlights" | "readCanonicalSnapshot" | "presignEnclosure" | "findArticleById"
 	>, shared: ReadlistShared): { router: Router; renderOwnerReader: RenderOwnerReader } {
 	const router = express.Router();
 	const { requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
@@ -550,7 +550,7 @@ export function initReaderPageRoutes(deps: Pick<
 			? {
 					rows: highlightRows,
 					canonicalContentHash: (
-						await deps.findArticleFreshness(ownedArticle.url)
+						await deps.readCanonicalSnapshot(ownedArticle.url)
 					)?.canonicalContentHash,
 					createUrl: highlightPaths.createUrl,
 					deleteUrlFor: highlightPaths.deleteUrlFor,

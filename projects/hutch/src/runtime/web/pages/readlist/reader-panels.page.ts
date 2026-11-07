@@ -60,7 +60,7 @@ const HTMX_STOP_POLLING_STATUS = 286;
 export function initReaderPanelRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requireWriteAccess" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights"
+		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requireWriteAccess" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -86,6 +86,7 @@ export function initReaderPanelRoutes(
 						userId: article.userId,
 						url: ArticleResourceUniqueId.parse(article.url).value,
 					}),
+					canonicalContentHash: (await deps.readCanonicalSnapshot(article.url))?.canonicalContentHash,
 					deleteUrlFor: highlightPathsFor({ articleId: article.id.value, query: req.query }).deleteUrlFor,
 				}
 			: undefined;

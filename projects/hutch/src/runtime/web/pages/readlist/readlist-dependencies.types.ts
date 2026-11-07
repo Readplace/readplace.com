@@ -56,6 +56,7 @@ import type {
 	DeleteHighlight,
 	ListArticleHighlights,
 } from "@packages/provider-contracts/highlights";
+import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type { CreateReaderHighlight } from "../../shared/article-body/highlights/create-reader-highlight";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawPdfCommand, PublishSubmitLink } from "@packages/provider-contracts/events";
@@ -154,6 +155,7 @@ export interface ReadlistDependencies {
 	listUserSavesForUrls: ListUserSavesForUrls;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	listArticleHighlights: ListArticleHighlights;
+	readCanonicalSnapshot: ReadCanonicalSnapshot;
 	deleteHighlight: DeleteHighlight;
 	createReaderHighlight: CreateReaderHighlight;
 	addArticleToReadlist: AddArticleToReadlist;

@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { Highlight, HighlightId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
@@ -7,6 +8,8 @@ import type {
 	DeleteArticleHighlights,
 	DeleteHighlight,
 	ListArticleHighlights,
+	ListHighlightsOfArticle,
+	WriteHighlightAnchor,
 } from "@packages/provider-contracts/highlights";
 
 export interface InMemoryHighlights {
@@ -15,6 +18,8 @@ export interface InMemoryHighlights {
 	deleteHighlight: DeleteHighlight;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	deleteAllUserHighlights: DeleteAllUserHighlights;
+	listHighlightsOfArticle: ListHighlightsOfArticle;
+	writeHighlightAnchor: WriteHighlightAnchor;
 	setCreateCancelled: (cancelled: boolean) => void;
 	bumpAnchorRevision: (params: { userId: UserId; url: string; highlightId: HighlightId }) => void;
 }
@@ -60,12 +65,34 @@ export function initInMemoryHighlights(): InMemoryHighlights {
 		}
 	};
 
+	const listHighlightsOfArticle: ListHighlightsOfArticle = async (url) => {
+		const highlightOf = ArticleResourceUniqueId.parse(url).value;
+		return [...rows.values()]
+			.filter((row) => row.highlight.highlightOf === highlightOf)
+			.map((row) => ({ userId: row.userId, highlight: { ...row.highlight } }));
+	};
+
+	const writeHighlightAnchor: WriteHighlightAnchor = async ({ userId, url, highlightId, expectedRevision, anchor }) => {
+		const row = rows.get(keyOf({ userId, url, highlightId }));
+		if (row === undefined) return { outcome: "deleted" };
+		if (row.highlight.anchorRevision !== expectedRevision) return { outcome: "stale" };
+		const { anchoredCandidateId: _previous, ...current } = row.highlight;
+		row.highlight = {
+			...current,
+			...anchor,
+			anchorRevision: row.highlight.anchorRevision + 1,
+		};
+		return { outcome: "written" };
+	};
+
 	return {
 		listArticleHighlights,
 		createHighlight,
 		deleteHighlight,
 		deleteArticleHighlights,
 		deleteAllUserHighlights,
+		listHighlightsOfArticle,
+		writeHighlightAnchor,
 		setCreateCancelled: (cancelled) => {
 			createCancelled = cancelled;
 		},

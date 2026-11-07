@@ -6,6 +6,7 @@ export type * from "./article-store";
 export * from "./article-summary";
 export type * from "./auth";
 export * from "./browser-handoff";
+export type * from "./canonical-snapshot";
 export type * from "./email";
 export type * from "./email-verification";
 export type * from "./events";

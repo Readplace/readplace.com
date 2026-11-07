@@ -1676,3 +1676,16 @@ export const TranscribeJobStateChangedEvent = defineEvent({
 	}),
 });
 export type TranscribeJobStateChangedDetail = z.infer<typeof TranscribeJobStateChangedEvent.detailSchema>;
+
+export const HighlightsReanchoredEvent = defineEvent({
+	name: "highlights-reanchored",
+	source: "hutch.app",
+	detailType: "HighlightsReanchored",
+	detailSchema: z.object({
+		url: z.string(),
+		anchored: z.number().int().nonnegative(),
+		moved: z.number().int().nonnegative(),
+		orphaned: z.number().int().nonnegative(),
+	}),
+});
+export type HighlightsReanchoredDetail = z.infer<typeof HighlightsReanchoredEvent.detailSchema>;

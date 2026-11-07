@@ -58,7 +58,7 @@ import {
 import { initDynamoDbArticleCrawl, initDynamoDbClaimResolutionOnView } from "@packages/article-store";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { initS3ReadContent, initS3ReadArticleImage, initReadContentLocation } from "@packages/article-store";
+import { initS3ReadContent, initS3ReadArticleImage, initReadContentLocation, initReadCanonicalSnapshot } from "@packages/article-store";
 import { initStripeSubscriptions } from "./stripe-subscriptions/stripe-subscriptions";
 import { initStripePrices } from "./stripe-prices/stripe-prices";
 import { initStripePaymentMethods } from "./stripe-payment-methods/stripe-payment-methods";
@@ -593,6 +593,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		...articleStore,
 		deleteArticleHighlights: highlights.deleteArticleHighlights,
 		listArticleHighlights: highlights.listArticleHighlights,
+		readCanonicalSnapshot: initReadCanonicalSnapshot({ client, tableName: articlesTable }),
 		createHighlight: highlights.createHighlight,
 		deleteHighlight: highlights.deleteHighlight,
 		...queueDefinitions,

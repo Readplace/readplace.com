@@ -157,6 +157,7 @@ import type {
 	DeleteHighlight,
 	ListArticleHighlights,
 } from "@packages/provider-contracts/highlights";
+import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import { initCreateReaderHighlight } from "./web/shared/article-body/highlights/create-reader-highlight";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { FindIdentityRow, PinContentSource, SavePrivateItem, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
@@ -487,6 +488,7 @@ export interface AppDependencies {
 	listUserSavesForUrls: ListUserSavesForUrls;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	listArticleHighlights: ListArticleHighlights;
+	readCanonicalSnapshot: ReadCanonicalSnapshot;
 	createHighlight: CreateHighlight;
 	deleteHighlight: DeleteHighlight;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;

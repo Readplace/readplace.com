@@ -37,7 +37,7 @@ describe("DeepSeek cost widget", () => {
 		});
 	});
 
-	it("is the one widget on the analytics dashboard that reads Readplace/DeepSeek, placed in the free full-width band at y 238", () => {
+	it("is the one widget on the analytics dashboard that reads Readplace/DeepSeek, placed in the free full-width band at y 246", () => {
 		const widgets = buildAnalyticsDashboardBody({
 			region: "ap-southeast-2",
 			hutchLogGroupName: LOG_GROUPS.hutchHandler,
@@ -52,6 +52,6 @@ describe("DeepSeek cost widget", () => {
 				Array.isArray(w.properties.metrics) &&
 				w.properties.metrics.some((m) => Array.isArray(m) && m[0] === "Readplace/DeepSeek"),
 		);
-		expect(deepseekWidgets.map((w) => w.y)).toEqual([238]);
+		expect(deepseekWidgets.map((w) => w.y)).toEqual([246]);
 	});
 });

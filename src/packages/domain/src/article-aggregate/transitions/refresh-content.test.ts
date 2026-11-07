@@ -208,7 +208,7 @@ describe("refreshContent", () => {
 		assert.deepEqual(article.crawl, { kind: "ready" });
 	});
 
-	it("emits a generate-summary effect when canonical hash changed", () => {
+	it("publishes canonical-content-changed and no inline generate-summary when canonical hash changed, because a refresh is a recrawl", () => {
 		const before = buildArticle({
 			url: "https://example.com/post",
 			freshness: {
@@ -224,7 +224,7 @@ describe("refreshContent", () => {
 		}));
 
 		assert.deepEqual(effects, [
-			{ kind: "generate-summary", url: "https://example.com/post" },
+			{ kind: "publish-canonical-content-changed", url: "https://example.com/post" },
 		]);
 	});
 
@@ -362,6 +362,7 @@ describe("refreshContent", () => {
 		const result = refreshContent(before, buildInput({ canonicalContentHash: "same" }));
 		assert.deepEqual(result.article.summary, { kind: "pending", pendingSince: NOW });
 		assert.ok(result.writes.includes("summary"));
+		assert.deepEqual(result.effects, [{ kind: "publish-canonical-content-changed", url: before.url }]);
 	});
 
 	it.each([undefined, [CandidateIdSchema.parse("other")]])("keeps an unchanged summary whose canonical candidate was never revoked (%j)", (revokedCandidateIds) => {

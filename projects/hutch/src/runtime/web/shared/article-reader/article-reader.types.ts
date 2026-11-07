@@ -136,6 +136,7 @@ export interface ResolveReaderStateParams {
  */
 export interface PollHighlights {
 	rows: readonly Highlight[];
+	canonicalContentHash: string | undefined;
 	deleteUrlFor: (highlightId: HighlightId) => string;
 }
 

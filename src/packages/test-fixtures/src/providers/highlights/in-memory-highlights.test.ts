@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { type Highlight, type HighlightId, HighlightIdSchema } from "@packages/domain/article";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { CandidateIdSchema, type Highlight, type HighlightId, HighlightIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryHighlights } from "./in-memory-highlights";
 
@@ -152,5 +153,91 @@ describe("initInMemoryHighlights", () => {
 		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), []);
 		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: NESTED_ARTICLE }), []);
 		assert.deepEqual(await store.listArticleHighlights({ userId: OTHER_USER, url: ARTICLE }), [others]);
+	});
+});
+
+describe("initInMemoryHighlights anchors", () => {
+	const POST = ArticleResourceUniqueId.parse("https://example.com/post").value;
+	const OTHER_POST = ArticleResourceUniqueId.parse("https://example.com/other").value;
+	const anchor = {
+		start: 40,
+		end: 49,
+		anchorState: "moved" as const,
+		anchoredContentHash: "hash-2",
+		orderKey: 40,
+	};
+
+	it("lists every reader's highlights of an article by the url the parser normalises", async () => {
+		const store = initInMemoryHighlights();
+		const mine = aHighlight({ highlightOf: POST });
+		const theirs = aHighlight({ highlightOf: POST });
+		await store.createHighlight({ userId: USER, highlight: mine, replacedIds: [] });
+		await store.createHighlight({ userId: OTHER_USER, highlight: theirs, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlight: aHighlight({ highlightOf: OTHER_POST }), replacedIds: [] });
+
+		assert.deepEqual(await store.listHighlightsOfArticle("https://EXAMPLE.com/post"), [
+			{ userId: USER, highlight: mine },
+			{ userId: OTHER_USER, highlight: theirs },
+		]);
+	});
+
+	it("writes the anchor, bumps anchorRevision and keeps updatedAt", async () => {
+		const store = initInMemoryHighlights();
+		const seeded = aHighlight({ highlightOf: POST, anchoredCandidateId: CandidateIdSchema.parse("candidate-1") });
+		await store.createHighlight({ userId: USER, highlight: seeded, replacedIds: [] });
+
+		const result = await store.writeHighlightAnchor({
+			userId: USER,
+			url: POST,
+			highlightId: seeded.highlightId,
+			expectedRevision: 0,
+			anchor,
+		});
+
+		assert.deepEqual(result, { outcome: "written" });
+		const { anchoredCandidateId: _dropped, ...withoutCandidate } = seeded;
+		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: POST }), [
+			{ ...withoutCandidate, ...anchor, anchorRevision: 1 },
+		]);
+	});
+
+	it("writes the new candidate id with the anchor", async () => {
+		const store = initInMemoryHighlights();
+		const seeded = aHighlight({ highlightOf: POST });
+		await store.createHighlight({ userId: USER, highlight: seeded, replacedIds: [] });
+		const anchoredCandidateId = CandidateIdSchema.parse("candidate-2");
+
+		await store.writeHighlightAnchor({
+			userId: USER,
+			url: POST,
+			highlightId: seeded.highlightId,
+			expectedRevision: 0,
+			anchor: { ...anchor, anchoredCandidateId },
+		});
+
+		const [row] = await store.listArticleHighlights({ userId: USER, url: POST });
+		assert.equal(row?.anchoredCandidateId, anchoredCandidateId);
+	});
+
+	it("answers deleted for a missing row and stale for a moved-on revision", async () => {
+		const store = initInMemoryHighlights();
+		const seeded = aHighlight({ highlightOf: POST, anchorRevision: 2 });
+		await store.createHighlight({ userId: USER, highlight: seeded, replacedIds: [] });
+
+		assert.deepEqual(
+			await store.writeHighlightAnchor({ userId: USER, url: POST, highlightId: nextId(), expectedRevision: 0, anchor }),
+			{ outcome: "deleted" },
+		);
+		assert.deepEqual(
+			await store.writeHighlightAnchor({
+				userId: USER,
+				url: POST,
+				highlightId: seeded.highlightId,
+				expectedRevision: 1,
+				anchor,
+			}),
+			{ outcome: "stale" },
+		);
+		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: POST }), [seeded]);
 	});
 });

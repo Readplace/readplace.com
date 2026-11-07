@@ -1577,6 +1577,9 @@ importers:
       '@packages/supported-clients':
         specifier: workspace:*
         version: link:../supported-clients
+      approx-string-match:
+        specifier: 1.1.0
+        version: 1.1.0
       postal-mime:
         specifier: 2.7.4
         version: 2.7.4
@@ -4591,6 +4594,9 @@ packages:
   anymatch@3.1.3:
     resolution: {integrity: sha512-KMReFUr0B4t+D+OBkjR3KYqvocp2XaSzO55UcB6mgQMd3KbcE+mWTyvVV7D/zsdEbNnV6acZUutkiHQXvTr1Rw==}
     engines: {node: '>= 8'}
+
+  approx-string-match@1.1.0:
+    resolution: {integrity: sha512-j1yQB9XhfGWsvTfHEuNsR/SrUT4XQDkAc0PEjMifyi97931LmNQyLsO6HbuvZ3HeMx+3Dvk8m8XGkUF+8lCeqw==}
 
   arg@4.1.3:
     resolution: {integrity: sha512-58S9QDqG0Xx27YwPSt9fJxivjYl432YCwfDMfZ+71RAqUrZef7LrKQZ3LHLOwCS4FLNBplP533Zx895SeOCHvA==}
@@ -10099,6 +10105,8 @@ snapshots:
     dependencies:
       normalize-path: 3.0.0
       picomatch: 2.3.1
+
+  approx-string-match@1.1.0: {}
 
   arg@4.1.3:
     optional: true
