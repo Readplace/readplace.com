@@ -100,7 +100,13 @@ import type {
 	UpdateArticleStatus,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
-import { DigestPageCursorSchema } from "@packages/provider-contracts/article-store";
+import {
+	ArticlePurgedAfterRequest,
+	DigestPageCursorSchema,
+	type HasSaveLandedSince,
+	type SaveArticleAsRequested,
+	type SaveReadlistArticleAsRequested,
+} from "@packages/provider-contracts/article-store";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type { FindPersonalLibrary, SaveStarterPack } from "@packages/provider-contracts/engagement-starter";
 
@@ -234,6 +240,9 @@ export function initInMemoryArticleStore(): {
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	saveReadlistArticle: SaveReadlistArticle;
+	saveArticleAsRequested: SaveArticleAsRequested;
+	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
+	hasSaveLandedSince: HasSaveLandedSince;
 	findReadlistArticles: FindReadlistArticles;
 	countReadlistArticles: CountReadlistArticles;
 	findReadlistArticleById: FindReadlistArticleById;
@@ -425,18 +434,22 @@ export function initInMemoryArticleStore(): {
 		if (existing && existing.purgedAt === undefined) {
 			return { created: false };
 		}
-		const routeId = ReaderArticleHashId.from(params.url);
+		setFreshArticle(params, existing);
+		return { created: true };
+	};
+
+	function setFreshArticle(params: Parameters<SaveArticleGlobally>[0], existing: GlobalArticle | undefined): void {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		articles.set(articleResourceUniqueId.value, {
 			url: articleResourceUniqueId.value,
 			originalUrl: params.url,
 			displayUrl: existing?.displayUrl,
-			routeId,
+			routeId: ReaderArticleHashId.from(params.url),
 			metadata: params.metadata,
 			estimatedReadTime: params.estimatedReadTime,
 			savedAt: params.savedAt,
 		});
-		return { created: true };
-	};
+	}
 
 	const bumpArticleSavedAt: BumpArticleSavedAt = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -456,11 +469,27 @@ export function initInMemoryArticleStore(): {
 		if (!created) {
 			await bumpArticleSavedAt({ url: params.url, savedAt: globallySavedAt });
 		}
+		return writeUserRowUnless({
+			readlist,
+			params,
+			overtakes: (existing) => existing.savedAt.getTime() >= params.savedAt.getTime(),
+		});
+	};
+
+	const writeUserRowUnless = ({
+		readlist,
+		params,
+		overtakes,
+	}: {
+		readlist: ReadlistSlug | undefined;
+		params: SaveArticleParams;
+		overtakes: (existing: UserArticle) => boolean;
+	}) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 
 		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value, readlist);
 		const existing = userArticles.get(uaKey);
-		const newerSaveWon = existing !== undefined && existing.savedAt.getTime() >= params.savedAt.getTime();
+		const newerSaveWon = existing !== undefined && overtakes(existing);
 		if (!newerSaveWon) {
 			userArticles.set(uaKey, existing
 				? {
@@ -494,6 +523,41 @@ export function initInMemoryArticleStore(): {
 	const saveArticle: SaveArticle = (params) => saveInto(undefined, params);
 
 	const saveReadlistArticle: SaveReadlistArticle = ({ readlist, ...params }) => saveInto(readlist, params);
+
+	const saveAsRequested = async (
+		readlist: ReadlistSlug | undefined,
+		{ requestedAt, ...params }: SaveArticleParams & { requestedAt: Date },
+	) => {
+		const key = ArticleResourceUniqueId.parse(params.url).value;
+		const existingArticle = articles.get(key);
+		const globallySavedAt = new Date();
+		if (existingArticle === undefined || (existingArticle.purgedAt !== undefined && existingArticle.purgedAt < requestedAt)) {
+			setFreshArticle(
+				{ url: params.url, metadata: params.metadata, estimatedReadTime: params.estimatedReadTime, savedAt: globallySavedAt },
+				existingArticle,
+			);
+		} else if (existingArticle.purgedAt !== undefined) {
+			throw new ArticlePurgedAfterRequest(params.url);
+		} else {
+			existingArticle.savedAt = globallySavedAt;
+		}
+		return writeUserRowUnless({
+			readlist,
+			params,
+			overtakes: (existing) =>
+				existing.savedAt >= requestedAt || (existing.readAt !== undefined && existing.readAt >= requestedAt),
+		});
+	};
+
+	const saveArticleAsRequested: SaveArticleAsRequested = (params) => saveAsRequested(undefined, params);
+
+	const saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested = ({ readlist, ...params }) =>
+		saveAsRequested(readlist, params);
+
+	const hasSaveLandedSince: HasSaveLandedSince = async ({ userId, url, requestedAt }) => {
+		const row = userArticles.get(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value));
+		return row !== undefined && row.savedAt >= requestedAt;
+	};
 
 	const saveArticleKeepingPosition: SaveArticle = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -1378,6 +1442,9 @@ export function initInMemoryArticleStore(): {
 		markReaderReadyEmailSent,
 		findUnreadSavesForDigest,
 		saveReadlistArticle,
+		saveArticleAsRequested,
+		saveReadlistArticleAsRequested,
+		hasSaveLandedSince,
 		findReadlistArticles,
 		countReadlistArticles,
 		findReadlistArticleById,

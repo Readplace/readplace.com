@@ -7,10 +7,13 @@ import type {
 	ClaimCanonicalAlias,
 	FindIdentityRow,
 	FindQueueRowKeys,
+	HasSaveLandedSince,
 	PinContentSource,
 	QueueRowKey,
 	RecordPrivateItemFailure,
 	RecordPrivateItemSections,
+	SaveArticleAsRequested,
+	SaveReadlistArticleAsRequested,
 	SetArticleEnclosure,
 	SavePrivateItem,
 } from "@packages/provider-contracts/article-store";
@@ -458,6 +461,9 @@ export interface ArticleStoreBundle {
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
+	saveArticleAsRequested: SaveArticleAsRequested;
+	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
+	hasSaveLandedSince: HasSaveLandedSince;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;

@@ -19,11 +19,13 @@ import { initSubmitLinkCommandHandler } from "./domain/submit-link/submit-link-c
 import { initResolveArticleOnViewHandler } from "./domain/resolve-on-view/resolve-article-on-view-handler";
 import { initRunCrawlFromTier1 } from "./domain/save-link/run-crawl-from-tier1";
 import {
-	initFileArticleIntoReadlist,
 	initResolveSaveIdentity,
 	initSubmitFreshness,
 } from "@packages/save-article";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
+import { initDynamoDbIsAccountLive } from "@packages/account-liveness";
+import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
+import { initResolveSubmitterStanding } from "./domain/submit-link/resolve-submitter-standing";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
@@ -44,6 +46,8 @@ const eventBusName = env.EVENT_BUS_NAME;
 const imagesCdnBaseUrl = env.IMAGES_CDN_BASE_URL;
 const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 const crawlEgressProxyUrl = env.CRAWL_EGRESS_PROXY_URL;
+const usersTable = env.DYNAMODB_USERS_TABLE;
+const subscriptionProvidersTable = env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE;
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
@@ -129,10 +133,14 @@ const saveIdentityDeps = {
 	claimAlias: canonicalAliasStore.claimAlias,
 	now,
 };
+const resolveSaveIdentity = initResolveSaveIdentity({
+	...saveIdentityDeps,
+	resolveWrapperTarget: sourceIdentity.resolveWrapperTarget,
+});
 const { refreshArticleIfStale } = initSubmitFreshness({
 	findArticleByUrl: savedArticleStore.findArticleByUrl,
 	findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
-	resolveSaveIdentity: initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: sourceIdentity.resolveWrapperTarget }),
+	resolveSaveIdentity,
 	publishStaleCheckRequested: (params) => events.publishEvent(StaleCheckRequestedEvent, params),
 });
 
@@ -153,13 +161,19 @@ const crawlDeps = {
 const submitLinkHandler = initSubmitLinkCommandHandler({
 	...crawlDeps,
 	validateSaveableUrl,
-	saveArticle: savedArticleStore.saveArticle,
-	allocateSavedAt: savedArticleStore.allocateSavedAt,
-	fileArticleIntoReadlist: initFileArticleIntoReadlist({
-		allocateSavedAt: savedArticleStore.allocateSavedAt,
-		saveReadlistArticle: savedArticleStore.saveReadlistArticle,
-		updateArticleStatusAcrossReadlists: savedArticleStore.updateArticleStatusAcrossReadlists,
+	saveArticleAsRequested: savedArticleStore.saveArticleAsRequested,
+	saveReadlistArticleAsRequested: savedArticleStore.saveReadlistArticleAsRequested,
+	updateArticleStatusAcrossReadlists: savedArticleStore.updateArticleStatusAcrossReadlists,
+	assignSavedArticleToReadlist: savedArticleStore.assignSavedArticleToReadlist,
+	hasSaveLandedSince: savedArticleStore.hasSaveLandedSince,
+	resolveSaveIdentity,
+	resolveSubmitterStanding: initResolveSubmitterStanding({
+		isAccountLive: initDynamoDbIsAccountLive({ client: dynamoClient, usersTableName: usersTable }),
+		findSubscriptionByUserId: initDynamoDbSubscriptionRead({ client: dynamoClient, tableName: subscriptionProvidersTable })
+			.findByUserId,
+		now,
 	}),
+	allocateSavedAt: savedArticleStore.allocateSavedAt,
 	recordInboxArticleQueued: onboardingSignals.recordInboxArticleQueued,
 	updateArticleStatus: savedArticleStore.updateArticleStatus,
 	markCrawlPending: crawlStore.markCrawlPending,

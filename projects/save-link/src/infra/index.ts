@@ -127,6 +127,10 @@ const rateLimitsTableName = config.require("rateLimitsTableName");
 const rateLimitsTableArn = config.require("rateLimitsTableArn");
 const onboardingTableName = config.require("onboardingTableName");
 const onboardingTableArn = config.require("onboardingTableArn");
+const usersTableName = config.require("usersTableName");
+const usersTableArn = config.require("usersTableArn");
+const subscriptionProvidersTableName = config.require("subscriptionProvidersTableName");
+const subscriptionProvidersTableArn = config.require("subscriptionProvidersTableArn");
 // "<budget>/<windowSeconds>" ceiling on comprehensive-crawl runs (OCR + LLM
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
@@ -487,9 +491,25 @@ const submitLinkUserArticlesDynamodb = new DynamoDBAccess(
 	"submit-link-user-articles-dynamodb",
 	{
 		tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
-		actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
+		actions: [
+			"dynamodb:GetItem",
+			"dynamodb:PutItem",
+			"dynamodb:UpdateItem",
+			"dynamodb:Query",
+			"dynamodb:BatchGetItem",
+		],
 	},
 );
+
+const submitLinkUsersRead = new DynamoDBAccess("submit-link-users-read", {
+	tables: [{ arn: usersTableArn, includeIndexes: true }],
+	actions: ["dynamodb:Query", "dynamodb:GetItem"],
+});
+
+const submitLinkSubscriptionProvidersRead = new DynamoDBAccess("submit-link-subscription-providers-read", {
+	tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
 
 const submitLinkOnboardingDynamodb = new DynamoDBAccess("submit-link-onboarding-dynamodb", {
 	tables: [{ arn: onboardingTableArn, includeIndexes: false }],
@@ -508,6 +528,8 @@ const submitLinkLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
+		DYNAMODB_USERS_TABLE: usersTableName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
@@ -518,6 +540,8 @@ const submitLinkLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 		...submitLinkArticlesDynamodb.policies,
 		...submitLinkUserArticlesDynamodb.policies,
 		...submitLinkOnboardingDynamodb.policies,
+		...submitLinkUsersRead.policies,
+		...submitLinkSubscriptionProvidersRead.policies,
 		...contentBucket.readPolicies("submit-link-content-read"),
 		...contentBucket.writePolicies("submit-link-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "submit-link"),

@@ -989,6 +989,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.1057.0
         version: 3.1057.0
+      '@packages/account-liveness':
+        specifier: workspace:*
+        version: link:../../src/packages/account-liveness
       '@packages/ai-message':
         specifier: workspace:*
         version: link:../../src/packages/ai-message
@@ -1049,6 +1052,9 @@ importers:
       '@packages/storage-client':
         specifier: workspace:*
         version: link:../../src/packages/storage-client
+      '@packages/subscription-access':
+        specifier: workspace:*
+        version: link:../../src/packages/subscription-access
       '@packages/tier-source':
         specifier: workspace:*
         version: link:../../src/packages/tier-source

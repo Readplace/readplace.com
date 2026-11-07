@@ -13,6 +13,10 @@ config:
   save-link:rateLimitsTableArn: arn:aws:dynamodb:ap-southeast-2:572337278115:table/hutch-rate-limits-staging
   save-link:onboardingTableName: hutch-onboarding-staging
   save-link:onboardingTableArn: arn:aws:dynamodb:ap-southeast-2:572337278115:table/hutch-onboarding-staging
+  save-link:usersTableName: hutch-users-f90c09e
+  save-link:usersTableArn: arn:aws:dynamodb:ap-southeast-2:572337278115:table/hutch-users-f90c09e
+  save-link:subscriptionProvidersTableName: hutch-subscription-providers-staging
+  save-link:subscriptionProvidersTableArn: arn:aws:dynamodb:ap-southeast-2:572337278115:table/hutch-subscription-providers-staging
   save-link:paidCrawlBudget: 200/3600
   save-link:renderCrawlBudget: 200/3600
   save-link:renderRequestDiagnostics: hosts
