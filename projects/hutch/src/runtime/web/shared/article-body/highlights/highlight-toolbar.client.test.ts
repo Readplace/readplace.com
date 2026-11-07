@@ -13,7 +13,16 @@ import {
 	SELECTION_DEBOUNCE_MS,
 	type ToolbarRect,
 } from "./highlight-toolbar.client";
-import { ARTICLE_HIGHLIGHT_CLASS, renderHighlightToolbar } from "./highlight-toolbar.component";
+import {
+	renderHighlightNoteCreateForm,
+	renderHighlightNoteEditDialog,
+	renderHighlightNoteFallbackForm,
+} from "./highlight-note-dialog.component";
+import {
+	ARTICLE_HIGHLIGHT_CLASS,
+	HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS,
+	renderHighlightToolbar,
+} from "./highlight-toolbar.component";
 
 const READER_SECTION = { requested: undefined, readerPath: "/queue/abc/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 const READER_URL = "https://example.com/post";
@@ -41,11 +50,17 @@ function railHtml(): string {
 	return renderHighlightsRail({
 		rows: [{ highlight: row, state: "anchored" }],
 		deleteUrlFor: (id) => `/queue/abc/highlights/${id}/delete`,
+		noteUrlFor: (id) => `/queue/abc/highlights/${id}/note`,
 		oob: false,
 	}).html;
 }
 
-function mainHtml(input: { content?: string; marks?: boolean } = {}): string {
+function rowNoteFormsHtml(): string {
+	const action = `/queue/abc/highlights/${HIGHLIGHT_ID}/note`;
+	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", action })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", action })}</details>`;
+}
+
+function mainHtml(input: { content?: string; marks?: boolean; rowNoteForms?: boolean } = {}): string {
 	const content = input.content ?? CONTENT;
 	const reader = renderReaderReady({
 		readerSection: READER_SECTION,
@@ -53,7 +68,7 @@ function mainHtml(input: { content?: string; marks?: boolean } = {}): string {
 		content: articleBody(content),
 		appOrigin: APP_ORIGIN,
 	}).html;
-	return `<main>${renderHighlightToolbar({ createUrl: "/queue/abc/highlights?feature=highlight" })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
+	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${renderHighlightToolbar({ createUrl: "/queue/abc/highlights?feature=highlight" })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
 }
 
 interface Harness {
@@ -74,6 +89,8 @@ interface Harness {
 	scrollWindow(): void;
 	rects: ToolbarRect[];
 	submitted: HTMLFormElement[];
+	popoverSupported: boolean;
+	shownPopovers: Element[];
 }
 
 function harness(bodyHtml: string = mainHtml()): Harness {
@@ -114,6 +131,8 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		},
 		rects: [{ top: 300, bottom: 320, left: 400, width: 200 }],
 		submitted,
+		popoverSupported: true,
+		shownPopovers: [],
 		coarse: false,
 		scrollWindow() {
 			for (const entry of scrollListeners) if (entry.passive) entry.listener();
@@ -155,6 +174,8 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		},
 		rectsOf: () => h.rects,
 		isPopoverOpen: () => false,
+		supportsPopover: () => h.popoverSupported,
+		showPopover: (panel) => h.shownPopovers.push(panel),
 	});
 	const toolbar = toolbarOf(h);
 	Object.defineProperty(toolbar, "getBoundingClientRect", {
@@ -282,6 +303,8 @@ describe("initHighlightToolbar", () => {
 				timers: { setTimeout: () => undefined, clearTimeout: () => undefined },
 				rectsOf: () => [],
 				isPopoverOpen: () => false,
+				supportsPopover: () => true,
+				showPopover: () => undefined,
 			}),
 		).toThrow("the highlight script ships with its toolbar");
 	});
@@ -430,7 +453,7 @@ describe("initHighlightToolbar", () => {
 	it("disables its controls in flight on both the create and the delete forms", () => {
 		const h = harness(mainHtml({ marks: true }));
 
-		const forms = Array.from(h.doc.querySelectorAll("form"));
+		const forms = Array.from(h.doc.querySelectorAll("form:not(.highlight-note-form)"));
 		expect(forms.length).toBeGreaterThan(1);
 		for (const form of forms) expect(form.hasAttribute("hx-disabled-elt")).toBe(true);
 	});
@@ -563,6 +586,185 @@ describe("initHighlightToolbar", () => {
 
 		expect(() => click(h, mark)).not.toThrow();
 		expect(() => click(h, contentOf(h))).not.toThrow();
+	});
+
+	describe("Add note", () => {
+		const PASSAGE_CHANGED = "That passage changed; select it again";
+		const SHORTER_PASSAGE = "Select a shorter passage";
+		const NOTES_TOO_LONG = "Joined with the highlights it overlaps, the notes are over 8,191 characters.";
+
+		function addNoteOf(h: Harness): Element {
+			const button = h.doc.querySelector('[data-test-action="add-note"]');
+			assert(button);
+			return button;
+		}
+
+		function noteDialogOf(h: Harness): Element {
+			const dialog = h.doc.getElementById("note-highlight-dialog");
+			assert(dialog);
+			return dialog;
+		}
+
+		function noteFormOf(h: Harness): HTMLFormElement {
+			const form = noteDialogOf(h).querySelector("form");
+			assert(form);
+			return form;
+		}
+
+		function noteInputOf(form: Element): HTMLTextAreaElement {
+			const input = form.querySelector<HTMLTextAreaElement>("[data-test-highlight-note-input]");
+			assert(input);
+			return input;
+		}
+
+		function noteErrorOf(form: Element): Element {
+			const error = form.querySelector("[data-test-highlight-note-error]");
+			assert(error);
+			return error;
+		}
+
+		function passageFields(h: Harness, word: string): Record<string, string> {
+			const start = servedText(h).indexOf(word);
+			return { exact: word, start: String(start), end: String(start + word.length), origin: "mouse", answer: "dialog" };
+		}
+
+		function addNoteOn(h: Harness, word: string): void {
+			selectWords(h, { from: word });
+			settleSelection(h);
+			click(h, addNoteOf(h));
+		}
+
+		function replaceWithRefusal(h: Harness, input: { error: string; refusal?: "passage" }): void {
+			const form = noteFormOf(h);
+			const fields = formFields(form);
+			form.outerHTML = renderHighlightNoteCreateForm({
+				action: "/queue/abc/highlights?feature=highlight",
+				hiddenFields: HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS.map((field) => ({ name: field.name, value: fields[field.name] })),
+				value: noteInputOf(form).value,
+				error: input.error,
+				refusal: input.refusal,
+			});
+		}
+
+		it("fills the dialog's hidden inputs with the selection, opens the note dialog and hides the bar", () => {
+			const h = harness();
+
+			addNoteOn(h, "beta");
+
+			expect(formFields(noteFormOf(h))).toEqual(passageFields(h, "beta"));
+			expect(h.shownPopovers).toEqual([noteDialogOf(h)]);
+			expect(toolbarOf(h).hidden).toBe(true);
+			expect(h.submitted).toHaveLength(0);
+		});
+
+		it("does nothing without popover support, leaving the bar open", () => {
+			const h = harness();
+			h.popoverSupported = false;
+
+			addNoteOn(h, "beta");
+
+			expect(h.shownPopovers).toHaveLength(0);
+			expect(formFields(noteFormOf(h)).exact).toBe("");
+			expect(toolbarOf(h).hidden).toBe(false);
+		});
+
+		it("opens nothing when the article is gone by the time Add note is pressed", () => {
+			const h = harness();
+			selectWords(h, { from: "beta" });
+			settleSelection(h);
+			contentOf(h).remove();
+
+			click(h, addNoteOf(h));
+
+			expect(h.shownPopovers).toHaveLength(0);
+			expect(formFields(noteFormOf(h)).exact).toBe("");
+		});
+
+		it("keeps the selection in the hidden inputs after the textarea takes focus", () => {
+			const h = harness();
+			addNoteOn(h, "beta");
+
+			noteInputOf(noteFormOf(h)).focus();
+			h.doc.getSelection()?.collapseToStart();
+			settleSelection(h);
+
+			expect(formFields(noteFormOf(h))).toEqual(passageFields(h, "beta"));
+		});
+
+		it("fills the live form after a 422 replaces it", () => {
+			const h = harness();
+			addNoteOn(h, "beta");
+			replaceWithRefusal(h, { error: NOTES_TOO_LONG });
+
+			addNoteOn(h, "zeta");
+
+			expect(formFields(noteFormOf(h))).toEqual(passageFields(h, "zeta"));
+		});
+
+		it("empties a note typed before the dialog was hidden", () => {
+			const h = harness();
+			addNoteOn(h, "beta");
+			noteInputOf(noteFormOf(h)).value = "First thought";
+
+			addNoteOn(h, "zeta");
+
+			expect(noteInputOf(noteFormOf(h)).value).toBe("");
+		});
+
+		it("clears the note, the error line and aria-invalid after the over-cap 422", () => {
+			const h = harness();
+			addNoteOn(h, "beta");
+			noteInputOf(noteFormOf(h)).value = "A long note";
+			replaceWithRefusal(h, { error: NOTES_TOO_LONG });
+			expect(noteInputOf(noteFormOf(h)).getAttribute("aria-invalid")).toBe("true");
+
+			addNoteOn(h, "zeta");
+
+			const form = noteFormOf(h);
+			expect(noteInputOf(form).value).toBe("");
+			expect(noteErrorOf(form).textContent).toBe("");
+			expect(noteInputOf(form).getAttribute("aria-invalid")).toBeNull();
+		});
+
+		it.each([PASSAGE_CHANGED, SHORTER_PASSAGE])("keeps the typed note for a new selection after the 422 %s", (error) => {
+			const h = harness();
+			addNoteOn(h, "beta");
+			noteInputOf(noteFormOf(h)).value = "Keep this thought";
+			replaceWithRefusal(h, { error, refusal: "passage" });
+
+			addNoteOn(h, "zeta");
+
+			const form = noteFormOf(h);
+			expect(noteInputOf(form).value).toBe("Keep this thought");
+			expect(noteErrorOf(form).textContent).toBe("");
+			expect(formFields(form)).toEqual(passageFields(h, "zeta"));
+		});
+
+		it("fills the bar's dialog and leaves a rail row's dialog and fallback form untouched", () => {
+			const h = harness(mainHtml({ rowNoteForms: true }));
+			const rowForms = ["highlight-note-edit", "highlight-note-fallback"].map((key) => {
+				const form = h.doc.querySelector(`[data-test-form="${key}"]`);
+				assert(form);
+				return form;
+			});
+			const before = rowForms.map((form) => form.outerHTML);
+
+			addNoteOn(h, "beta");
+
+			expect(formFields(noteFormOf(h))).toEqual(passageFields(h, "beta"));
+			expect(rowForms.map((form) => form.outerHTML)).toEqual(before);
+		});
+
+		it("submits the create form, never the note form, from Highlight", () => {
+			const h = harness();
+			selectWords(h, { from: "beta" });
+			settleSelection(h);
+
+			click(h, buttonOf(h));
+
+			expect(h.submitted).toEqual([h.doc.querySelector("[data-test-highlight-create-form]")]);
+			expect(formFields(noteFormOf(h)).exact).toBe("");
+		});
 	});
 
 	describe("placement", () => {

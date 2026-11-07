@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { CandidateIdSchema } from "@packages/article-state-types";
 import { AnchorStateSchema, type Highlight, HighlightIdSchema } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
@@ -7,6 +8,7 @@ import type {
 	DeleteArticleHighlights,
 	DeleteHighlight,
 	ListArticleHighlights,
+	UpdateHighlightNote,
 } from "@packages/provider-contracts/highlights";
 import {
 	type DynamoDBDocumentClient,
@@ -39,6 +41,8 @@ export const HighlightRow = z.object({
 	updatedAt: z.string(),
 	anchorRevision: z.number(),
 });
+
+const UpdatedNoteRow = z.object({ note: dynamoField(z.string()) });
 
 function articleHighlightsPrefix(url: string): string {
 	return `${HIGHLIGHT_KEY_PREFIX}${url}/`;
@@ -100,9 +104,11 @@ export function initDynamoDbHighlights(deps: {
 	deleteHighlight: DeleteHighlight;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	deleteAllUserHighlights: DeleteAllUserHighlights;
+	updateHighlightNote: UpdateHighlightNote;
 } {
 	const tableName = deps.userArticlesTableName;
 	const highlights = defineDynamoTable({ client: deps.client, tableName, schema: HighlightRow });
+	const highlightNotes = defineDynamoTable({ client: deps.client, tableName, schema: UpdatedNoteRow });
 
 	const forEachArticleHighlightPage = (
 		params: { userId: UserId; url: string },
@@ -208,11 +214,33 @@ export function initDynamoDbHighlights(deps: {
 		);
 	};
 
+	const updateHighlightNote: UpdateHighlightNote = async ({ userId, url, highlightId, note, updatedAt }) => {
+		const write =
+			note === undefined
+				? { expression: "REMOVE #note SET updatedAt = :updatedAt", values: {} }
+				: { expression: "SET #note = :note, updatedAt = :updatedAt", values: { ":note": note } };
+		const outcome = await writeIfCondition(() =>
+			highlightNotes.update({
+				Key: { userId, url: highlightKey({ url, highlightId }) },
+				UpdateExpression: write.expression,
+				ConditionExpression: "attribute_exists(#url)",
+				ExpressionAttributeNames: { "#url": "url", "#note": "note" },
+				ExpressionAttributeValues: { ":updatedAt": updatedAt.toISOString(), ...write.values },
+				ReturnValues: "UPDATED_OLD",
+			}),
+		);
+		if (outcome.kind === "condition-failed") return { updated: false, hadNote: false };
+		const previous = outcome.result.Attributes;
+		assert(previous, "an UPDATED_OLD note write always returns the previous updatedAt");
+		return { updated: true, hadNote: previous.note !== undefined };
+	};
+
 	return {
 		listArticleHighlights,
 		createHighlight,
 		deleteHighlight,
 		deleteArticleHighlights,
 		deleteAllUserHighlights,
+		updateHighlightNote,
 	};
 }

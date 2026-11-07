@@ -249,8 +249,8 @@ describe("renderWizard", () => {
 			"hx-sync",
 			"hx-boost",
 			"hx-select",
-			"data-readlist-name-form",
-			"data-readlist-name-failure",
+			"data-dialog-form",
+			"data-dialog-form-failure",
 		];
 		const attributesOf = (element: Element) =>
 			Object.fromEntries(
@@ -264,10 +264,10 @@ describe("renderWizard", () => {
 			"hx-target": "this",
 			"hx-swap": "outerHTML show:none",
 			"hx-sync": "closest [popover]:drop",
-			"data-readlist-name-form": "",
-			"data-readlist-name-failure": FAILURE,
+			"data-dialog-form": "",
+			"data-dialog-form-failure": FAILURE,
 		});
-		expect(popover.querySelectorAll("[data-test-wizard-error][data-readlist-name-error]")).toHaveLength(1);
+		expect(popover.querySelectorAll("[data-test-wizard-error][data-dialog-form-error]")).toHaveLength(1);
 		expect(attributesOf(inline)).toEqual({
 			method: "POST",
 			action: "/signup/wizard?utm_source=signup",

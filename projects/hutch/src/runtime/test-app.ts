@@ -252,6 +252,7 @@ function flattenFixtureToAppDependencies(
 		readCanonicalSnapshot: fixture.articleStore.readCanonicalSnapshot,
 		createHighlight: fixture.highlights.createHighlight,
 		deleteHighlight: fixture.highlights.deleteHighlight,
+		updateHighlightNote: fixture.highlights.updateHighlightNote,
 		assignSavedArticleToReadlist: fixture.articleStore.assignSavedArticleToReadlist,
 		saveReadlistArticle: fixture.articleStore.saveReadlistArticle,
 		moveReadlistArticles: fixture.articleStore.moveReadlistArticles,

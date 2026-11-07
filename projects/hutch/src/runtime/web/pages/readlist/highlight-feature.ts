@@ -1,4 +1,5 @@
 import type { HighlightId } from "@packages/domain/article";
+import type { NextFunction, Request, Response } from "express";
 import {
 	QuerystringFeatureToggle,
 	withInternalTracking,
@@ -19,6 +20,14 @@ export function highlightFeatureEnabled(
 	query: Record<string, unknown>,
 ): boolean {
 	return featureToggle.isEnabled({ query }, HIGHLIGHT_FEATURE);
+}
+
+export function requireHighlightFeature(
+	req: Request,
+	_res: Response,
+	next: NextFunction,
+): void {
+	next(highlightFeatureEnabled(req.query) ? undefined : "router");
 }
 
 export function highlightFeatureParams(enabled: boolean): LinkParams {
@@ -42,6 +51,8 @@ export interface HighlightPaths {
 	viewPath: string;
 	createUrl: string;
 	deleteUrlFor: (highlightId: HighlightId) => string;
+	noteCreateUrl: string;
+	noteUrlFor: (highlightId: HighlightId) => string;
 }
 
 export function highlightPathsFor(input: {
@@ -81,6 +92,26 @@ export function highlightPathsFor(input: {
 					extra,
 				}),
 				{ source: "highlights-rail", content: "delete-highlight" },
+			),
+		noteCreateUrl: withInternalTracking(
+			withHighlightFeature({
+				path: `${base}/highlights`,
+				enabled: true,
+				extra,
+			}),
+			{
+				source: "highlight-toolbar",
+				content: "save-note",
+			},
+		),
+		noteUrlFor: (highlightId) =>
+			withInternalTracking(
+				withHighlightFeature({
+					path: `${base}/highlights/${highlightId}/note`,
+					enabled: true,
+					extra,
+				}),
+				{ source: "highlights-rail", content: "edit-note" },
 			),
 	};
 }

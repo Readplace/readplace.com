@@ -67,6 +67,18 @@ function createFakeTable(options: { transactionError?: Error } = {}) {
 				items.set(rowKey(item), item);
 				return {};
 			}
+			case "UpdateCommand": {
+				const key = rowKey(Object(input.Key));
+				const existing = items.get(key);
+				if (conditionFails(input, existing)) throw conditionalCheckFailed();
+				assert(existing);
+				const values = Object(input.ExpressionAttributeValues);
+				const { note: oldNote, ...rest } = existing;
+				const updated: Item = { ...rest, updatedAt: values[":updatedAt"] };
+				if (String(input.UpdateExpression).startsWith("SET #note")) updated.note = values[":note"];
+				items.set(key, updated);
+				return { Attributes: { updatedAt: existing.updatedAt, ...(oldNote === undefined ? {} : { note: oldNote }) } };
+			}
 			case "DeleteCommand": {
 				const key = rowKey(Object(input.Key));
 				if (conditionFails(input, items.get(key))) throw conditionalCheckFailed();
@@ -330,5 +342,91 @@ describe("initDynamoDbHighlights", () => {
 		);
 		const queries = table.sent.filter((command) => command.name === "QueryCommand");
 		assert.equal(queries.length > 1, true);
+	});
+
+	describe("updateHighlightNote", () => {
+		const EDITED_AT = new Date("2026-11-02T09:00:00.000Z");
+
+		it("sets the note and updatedAt, keeps the anchor revision, and reports a noteless row", async () => {
+			const table = createFakeTable();
+			const store = initStore(table.client);
+			const highlight = aHighlight({ anchorRevision: 3 });
+			await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+
+			const outcome = await store.updateHighlightNote({
+				userId: USER,
+				url: ARTICLE,
+				highlightId: highlight.highlightId,
+				note: "first line\nsecond line",
+				updatedAt: EDITED_AT,
+			});
+
+			assert.deepEqual(outcome, { updated: true, hadNote: false });
+			const update = table.sent.find((command) => command.name === "UpdateCommand");
+			assert(update);
+			assert.equal(update.input.UpdateExpression, "SET #note = :note, updatedAt = :updatedAt");
+			assert.equal(update.input.ConditionExpression, "attribute_exists(#url)");
+			assert.equal(update.input.ReturnValues, "UPDATED_OLD");
+			assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [
+				{ ...highlight, note: "first line\nsecond line", updatedAt: EDITED_AT },
+			]);
+		});
+
+		it("reports hadNote from the old image when it replaces a note", async () => {
+			const table = createFakeTable();
+			const store = initStore(table.client);
+			const highlight = aHighlight({ note: "old" });
+			await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+
+			const outcome = await store.updateHighlightNote({
+				userId: USER,
+				url: ARTICLE,
+				highlightId: highlight.highlightId,
+				note: "new",
+				updatedAt: EDITED_AT,
+			});
+
+			assert.deepEqual(outcome, { updated: true, hadNote: true });
+			const [listed] = await store.listArticleHighlights({ userId: USER, url: ARTICLE });
+			assert.equal(listed?.note, "new");
+		});
+
+		it("removes the note when none is given and reports the note it had", async () => {
+			const table = createFakeTable();
+			const store = initStore(table.client);
+			const highlight = aHighlight({ note: "old" });
+			await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+
+			const outcome = await store.updateHighlightNote({
+				userId: USER,
+				url: ARTICLE,
+				highlightId: highlight.highlightId,
+				updatedAt: EDITED_AT,
+			});
+
+			assert.deepEqual(outcome, { updated: true, hadNote: true });
+			const update = table.sent.find((command) => command.name === "UpdateCommand");
+			assert.equal(update?.input.UpdateExpression, "REMOVE #note SET updatedAt = :updatedAt");
+			const { note: _removed, ...withoutNote } = highlight;
+			assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [
+				{ ...withoutNote, updatedAt: EDITED_AT },
+			]);
+		});
+
+		it("answers updated false when the highlight is gone", async () => {
+			const table = createFakeTable();
+			const store = initStore(table.client);
+
+			const outcome = await store.updateHighlightNote({
+				userId: USER,
+				url: ARTICLE,
+				highlightId: nextId(),
+				note: "a note",
+				updatedAt: EDITED_AT,
+			});
+
+			assert.deepEqual(outcome, { updated: false, hadNote: false });
+			assert.deepEqual([...table.items.values()], []);
+		});
 	});
 });

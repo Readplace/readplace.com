@@ -138,6 +138,7 @@ export interface PollHighlights {
 	rows: readonly Highlight[];
 	canonicalContentHash: string | undefined;
 	deleteUrlFor: (highlightId: HighlightId) => string;
+	noteUrlFor: (highlightId: HighlightId) => string;
 }
 
 export interface HandlePollParams {

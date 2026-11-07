@@ -596,6 +596,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		readCanonicalSnapshot: initReadCanonicalSnapshot({ client, tableName: articlesTable }),
 		createHighlight: highlights.createHighlight,
 		deleteHighlight: highlights.deleteHighlight,
+		updateHighlightNote: highlights.updateHighlightNote,
 		...queueDefinitions,
 		...readlistFitOverrides,
 		createReadlistDefinition: initReportReadlistCap({

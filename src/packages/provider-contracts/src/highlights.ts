@@ -47,3 +47,11 @@ export type WriteHighlightAnchor = (params: {
 	expectedRevision: number;
 	anchor: HighlightAnchor;
 }) => Promise<WriteHighlightAnchorOutcome>;
+
+export type UpdateHighlightNote = (params: {
+	userId: UserId;
+	url: string;
+	highlightId: HighlightId;
+	note?: string;
+	updatedAt: Date;
+}) => Promise<{ updated: boolean; hadNote: boolean }>;

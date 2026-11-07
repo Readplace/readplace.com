@@ -122,6 +122,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 							? pendingHighlightsRailRows(input.highlights.rows)
 							: highlightsRailRowsFromStates(reader.states),
 					deleteUrlFor: input.highlights.deleteUrlFor,
+					noteUrlFor: input.highlights.noteUrlFor,
 					oob: true,
 				}).html;
 	const summarySlot = renderSummarySlot({

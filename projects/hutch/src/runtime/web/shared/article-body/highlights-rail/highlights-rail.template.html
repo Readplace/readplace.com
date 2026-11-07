@@ -7,6 +7,7 @@
               {{#each rows}}
               <li class="highlights-rail__row" data-highlight-row="{{highlightId}}" data-test-highlight-row="{{highlightId}}" data-test-highlight-state="{{state}}">
                 <blockquote class="highlights-rail__excerpt">{{exact}}</blockquote>
+                {{#if note}}<p class="highlight-note" data-test-highlight-note>{{note}}</p>{{/if}}
                 {{#if orphaned}}<p class="highlights-rail__chip" data-test-highlight-orphan>Not found in this version</p>{{/if}}
                 <div class="highlights-rail__actions">
                   {{#if jumpHref}}<a class="btn btn--neutral btn--s highlights-rail__jump" href="{{jumpHref}}" data-test-action="highlight-jump">Jump</a>{{/if}}
@@ -14,9 +15,15 @@
                     <button class="btn btn--neutral btn--s" type="submit" data-test-action="highlight-delete-fallback">Delete</button>
                   </form>
                   <button class="btn btn--neutral btn--s highlights-rail__delete-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="highlight-delete">Delete</button>
+                  <button class="btn btn--neutral btn--s highlight-note__trigger" type="button" popovertarget="{{notePopoverId}}" aria-haspopup="dialog" data-test-action="highlight-note">{{noteLabel}}</button>
                 </div>
+                <details class="highlight-note__fallback" data-test-highlight-note-fallback>
+                  <summary>{{noteLabel}}</summary>
+                  {{{noteFallbackHtml}}}
+                </details>
                 {{{popoverHtml}}}
               </li>
               {{/each}}
             </ol>
+            {{#each rows}}{{{noteDialogHtml}}}{{/each}}
           </details>{{/if}}</section>

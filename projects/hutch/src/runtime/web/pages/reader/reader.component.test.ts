@@ -258,6 +258,7 @@ describe("ReaderPage", () => {
 				canonicalContentHash: undefined,
 				createUrl: "/queue/abc/highlights?feature=highlight",
 				deleteUrlFor: (id) => `/queue/abc/highlights/${id}/delete?feature=highlight`,
+				noteUrlFor: (id) => `/queue/abc/highlights/${id}/note?feature=highlight`,
 			},
 		});
 
@@ -273,6 +274,7 @@ describe("ReaderPage", () => {
 				canonicalContentHash: undefined,
 				createUrl: "/queue/abc/highlights?feature=highlight",
 				deleteUrlFor: (id) => `/queue/abc/highlights/${id}/delete?feature=highlight`,
+				noteUrlFor: (id) => `/queue/abc/highlights/${id}/note?feature=highlight`,
 			},
 		});
 

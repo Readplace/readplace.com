@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { CandidateIdSchema, type Highlight, HighlightIdSchema } from "@packages/domain/article";
+import {
+	CandidateIdSchema,
+	HIGHLIGHT_NOTE_MAX_LENGTH,
+	type Highlight,
+	HighlightIdSchema,
+} from "@packages/domain/article";
 import { HIGHLIGHT_MAX_EXACT_LENGTH } from "@packages/domain/article/highlight";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryHighlights } from "@packages/test-fixtures/providers/highlights";
@@ -281,5 +286,128 @@ describe("initCreateReaderHighlight", () => {
 		});
 
 		assert.deepEqual(outcome, { status: "cancelled" });
+	});
+
+	it("stores the request's note on a new highlight", async () => {
+		const { store, createReaderHighlight } = setup();
+
+		await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown fox"),
+			note: "my note",
+		});
+
+		const [row] = await store.listArticleHighlights({ userId, url });
+		assert.equal(row.note, "my note");
+	});
+
+	it("stores no note when none is sent and none is replaced", async () => {
+		const { store, createReaderHighlight } = setup();
+
+		await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown fox"),
+		});
+
+		const [row] = await store.listArticleHighlights({ userId, url });
+		assert.equal(Object.hasOwn(row, "note"), false);
+	});
+
+	it("joins the request's note with the replaced rows' notes, newest first", async () => {
+		const { store, createReaderHighlight } = setup([ID_1]);
+		const quick = rangeOf("quick");
+		const fox = rangeOf("fox");
+		await store.createHighlight({
+			userId,
+			highlight: storedRow({
+				...quick,
+				highlightId: HighlightIdSchema.parse(ID_2),
+				note: "older note",
+				createdAt: new Date("2026-10-01T00:00:00.000Z"),
+				updatedAt: new Date("2026-10-30T00:00:00.000Z"),
+			}),
+			replacedIds: [],
+		});
+		await store.createHighlight({
+			userId,
+			highlight: storedRow({
+				...fox,
+				highlightId: HighlightIdSchema.parse(ID_3),
+				note: "newer note",
+				createdAt: new Date("2026-10-15T00:00:00.000Z"),
+				updatedAt: new Date("2026-10-15T00:00:00.000Z"),
+			}),
+			replacedIds: [],
+		});
+
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("quick brown fox"),
+			note: "request note",
+		});
+
+		assert.equal(outcome.status, "merged");
+		const rows = await store.listArticleHighlights({ userId, url });
+		assert.deepEqual(
+			rows.map((row) => [row.highlightId, row.note]),
+			[[ID_1, "request note\n\nnewer note\n\nolder note"]],
+		);
+	});
+
+	it("keeps a replaced row's note on a plain create", async () => {
+		const { store, createReaderHighlight } = setup([ID_1]);
+		await store.createHighlight({
+			userId,
+			highlight: storedRow({ ...rangeOf("quick brown"), note: "kept note" }),
+			replacedIds: [],
+		});
+
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown fox"),
+		});
+
+		assert.equal(outcome.status, "merged");
+		const [row] = await store.listArticleHighlights({ userId, url });
+		assert.equal(row.exact, "quick brown fox");
+		assert.equal(row.note, "kept note");
+	});
+
+	it("answers notes-too-long without writing when the joined notes are over the cap", async () => {
+		const { store, createReaderHighlight } = setup([ID_1]);
+		const stored = "a".repeat(HIGHLIGHT_NOTE_MAX_LENGTH - 5);
+		await store.createHighlight({
+			userId,
+			highlight: storedRow({ ...rangeOf("quick brown"), note: stored }),
+			replacedIds: [],
+		});
+
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown fox"),
+			note: "four",
+		});
+
+		assert.deepEqual(outcome, { status: "notes-too-long" });
+		const rows = await store.listArticleHighlights({ userId, url });
+		assert.deepEqual(
+			rows.map((row) => [row.highlightId, row.note]),
+			[[ID_3, stored]],
+		);
 	});
 });

@@ -99,4 +99,27 @@ describe("highlightPathsFor", () => {
 		expect(url.searchParams.get("utm_source")).toBe("highlights-rail");
 		expect(url.searchParams.get("utm_content")).toBe("delete-highlight");
 	});
+
+	it("tags the note create path as the toolbar's Save note and the note path as the rail's Edit note", () => {
+		const paths = highlightPathsFor({
+			articleId: "a",
+			query: { section: "2" },
+		});
+
+		const create = new URL(paths.noteCreateUrl, "https://readplace.com");
+		expect(create.pathname).toBe("/queue/a/highlights");
+		expect(create.searchParams.get("section")).toBe("2");
+		expect(create.searchParams.get("feature")).toBe("highlight");
+		expect(create.searchParams.get("utm_source")).toBe("highlight-toolbar");
+		expect(create.searchParams.get("utm_content")).toBe("save-note");
+		const note = new URL(
+			paths.noteUrlFor(highlightId),
+			"https://readplace.com",
+		);
+		expect(note.pathname).toBe(`/queue/a/highlights/${highlightId}/note`);
+		expect(note.searchParams.get("section")).toBe("2");
+		expect(note.searchParams.get("feature")).toBe("highlight");
+		expect(note.searchParams.get("utm_source")).toBe("highlights-rail");
+		expect(note.searchParams.get("utm_content")).toBe("edit-note");
+	});
 });

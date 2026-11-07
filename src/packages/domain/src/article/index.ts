@@ -175,6 +175,10 @@ export {
 	type AnchorState,
 	type Highlight,
 	type TextQuoteSelector,
+	HIGHLIGHT_NOTE_MAX_LENGTH,
+	HighlightNoteSchema,
+	joinNotes,
+	type JoinedNote,
 } from "./highlight/highlight";
 export {
 	anchorHighlightFuzzy,

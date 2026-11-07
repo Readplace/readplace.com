@@ -554,6 +554,7 @@ export function initReaderPageRoutes(deps: Pick<
 					)?.canonicalContentHash,
 					createUrl: highlightPaths.createUrl,
 					deleteUrlFor: highlightPaths.deleteUrlFor,
+					noteUrlFor: highlightPaths.noteUrlFor,
 				}
 			: undefined;
 		const settle = (component: Component, cacheControl: string): Component =>

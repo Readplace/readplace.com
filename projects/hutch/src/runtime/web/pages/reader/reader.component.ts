@@ -144,6 +144,7 @@ export function readerMarkStatusConfirm(input: {
 export interface ReaderPageHighlights extends ReaderHighlights {
 	createUrl: string;
 	deleteUrlFor: (highlightId: HighlightId) => string;
+	noteUrlFor: (highlightId: HighlightId) => string;
 }
 
 export function ReaderPage(
@@ -295,6 +296,7 @@ export function ReaderPage(
 							? pendingHighlightsRailRows(highlights.rows)
 							: highlightsRailRowsFromStates(highlightStates),
 					deleteUrlFor: highlights.deleteUrlFor,
+					noteUrlFor: highlights.noteUrlFor,
 					oob: false,
 				});
 	const innerContent =

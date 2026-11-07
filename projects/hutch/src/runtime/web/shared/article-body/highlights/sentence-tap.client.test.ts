@@ -96,6 +96,8 @@ function harness(): Harness {
 		},
 		rectsOf: () => [{ top: 300, bottom: 320, left: 100, width: 200 }],
 		isPopoverOpen: () => h.popoverOpen,
+		supportsPopover: () => true,
+		showPopover: () => undefined,
 	});
 	const marked = elementOf(h, ".article-body__content em");
 	const mark = doc.createElement("mark");

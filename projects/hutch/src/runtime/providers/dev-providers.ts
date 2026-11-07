@@ -610,6 +610,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		listArticleHighlights: highlights.listArticleHighlights,
 		createHighlight: highlights.createHighlight,
 		deleteHighlight: highlights.deleteHighlight,
+		updateHighlightNote: highlights.updateHighlightNote,
 		readArticleImage: initReadArticleImageByIdentity({
 			shared: articleStore.readArticleImage,
 			private: articleStore.readArticleImage,

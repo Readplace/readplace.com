@@ -13,6 +13,9 @@ const CONTENT_SELECTOR = ".article-body__content";
 const TOOLBAR_SELECTOR = "[data-highlight-toolbar]";
 const BUTTON_SELECTOR = "[data-highlight-toolbar-button]";
 const FORM_SELECTOR = "[data-highlight-create-form]";
+const NOTE_INPUT_SELECTOR = "textarea";
+const NOTE_ERROR_SELECTOR = "[data-dialog-form-error]";
+const PASSAGE_REFUSAL = "passage";
 
 export interface ToolbarRect {
 	readonly top: number;
@@ -46,6 +49,8 @@ interface HighlightToolbarDeps {
 	timers: HighlightToolbarTimers;
 	rectsOf: (range: Range) => readonly ToolbarRect[];
 	isPopoverOpen: () => boolean;
+	supportsPopover: () => boolean;
+	showPopover: (panel: Element) => void;
 }
 
 interface SelectedPassage {
@@ -177,12 +182,12 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		pending = deps.timers.setTimeout(check, delayMs);
 	};
 
-	const submit = (input: { range: Range; origin: string }): void => {
+	const fill = (input: { range: Range; origin: string; formSelector: string }): HTMLFormElement | undefined => {
 		const content = document.querySelector(CONTENT_SELECTOR);
-		const form = document.querySelector<HTMLFormElement>(FORM_SELECTOR);
-		if (content === null || form === null) return;
+		const form = document.querySelector<HTMLFormElement>(input.formSelector);
+		if (content === null || form === null) return undefined;
 		const passage = passageOf({ range: input.range, content });
-		if (passage === undefined) return;
+		if (passage === undefined) return undefined;
 		const values: Record<string, string> = {
 			exact: passage.exact,
 			start: String(passage.start),
@@ -194,9 +199,40 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 			assert(field, `the create form carries its ${name} field`);
 			field.value = value;
 		}
+		return form;
+	};
+
+	const submit = (input: { range: Range; origin: string; formSelector: string }): void => {
+		const form = fill(input);
+		if (form === undefined) return;
 		form.requestSubmit();
 		selectionOf().removeAllRanges();
 		hide();
+	};
+
+	const openNoteDialog = (input: { range: Range; origin: string; formSelector: string }): void => {
+		if (!deps.supportsPopover()) return;
+		const form = fill(input);
+		if (form === undefined) return;
+		const note = form.querySelector<HTMLTextAreaElement>(NOTE_INPUT_SELECTOR);
+		const error = form.querySelector(NOTE_ERROR_SELECTOR);
+		const dialog = form.closest("[popover]");
+		assert(note, "the note form carries its note field");
+		assert(error, "the note form carries its error line");
+		assert(dialog, "the note form sits in its dialog");
+		if (form.getAttribute("data-highlight-note-refusal") !== PASSAGE_REFUSAL) note.value = "";
+		note.removeAttribute("aria-invalid");
+		error.textContent = "";
+		deps.showPopover(dialog);
+		hide();
+	};
+
+	const press = (button: Element): void => {
+		if (shown === undefined) return;
+		const formSelector = button.getAttribute("data-highlight-form");
+		assert(formSelector, "each highlight toolbar button names its form");
+		const commit = button.getAttribute("data-highlight-commit") === "dialog" ? openNoteDialog : submit;
+		commit({ range: shown, origin: pressOrigin(shown), formSelector });
 	};
 
 	const reposition = (): void => {
@@ -221,10 +257,11 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 	document.addEventListener("htmx:afterSettle", hide);
 	document.addEventListener("click", (event) => {
 		const path = event.composedPath();
-		const button = document.querySelector(BUTTON_SELECTOR);
-		assert(button, "the highlight toolbar carries its button");
-		if (path.includes(button)) {
-			if (shown !== undefined) submit({ range: shown, origin: pressOrigin(shown) });
+		const buttons = Array.from(document.querySelectorAll(BUTTON_SELECTOR));
+		assert(buttons.length > 0, "the highlight toolbar carries its button");
+		const button = buttons.find((candidate) => path.includes(candidate));
+		if (button !== undefined) {
+			press(button);
 			return;
 		}
 		const mark = Array.from(document.querySelectorAll(`.${ARTICLE_HIGHLIGHT_CLASS}`))
@@ -238,7 +275,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		const origin = originOf(event);
 		const selection = selectionOf();
 		if (typeof origin !== "string" || selection.rangeCount === 0) return;
-		submit({ range: selection.getRangeAt(0).cloneRange(), origin });
+		submit({ range: selection.getRangeAt(0).cloneRange(), origin, formSelector: FORM_SELECTOR });
 	});
 	deps.window.visualViewport.addEventListener("scroll", reposition);
 	deps.window.visualViewport.addEventListener("resize", reposition);

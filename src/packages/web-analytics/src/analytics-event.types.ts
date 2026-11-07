@@ -188,6 +188,15 @@ export interface HighlightDeletedEvent {
 	highlight_id: HighlightId;
 }
 
+export interface HighlightNoteSavedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.highlightNoteSaved;
+	timestamp: string;
+	user_id: UserId;
+	visitor_hash: string | null;
+	action: "added" | "edited" | "removed";
+}
+
 /**
  * Carries `visitor_id` so it joins to the `user_created` conversion per device.
  */
@@ -497,4 +506,5 @@ export type AnalyticsEvent =
 	| OAuthTokenRevokedEvent
 	| EpubImagesOverBudgetEvent
 	| HighlightCreatedEvent
-	| HighlightDeletedEvent;
+	| HighlightDeletedEvent
+	| HighlightNoteSavedEvent;

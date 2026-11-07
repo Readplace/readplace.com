@@ -3,8 +3,8 @@ export interface ReadlistDeps {
 }
 
 const MENU_SELECTOR = ".readlist-nav__menu, .readlist-article__menu";
-const NAME_FORM_SELECTOR = "form[data-readlist-name-form]";
-const NAME_FORM = { errorAttr: "data-readlist-name-error", failureAttr: "data-readlist-name-failure" };
+const DIALOG_FORM_SELECTOR = "form[data-dialog-form]";
+const DIALOG_FORM = { errorAttr: "data-dialog-form-error", failureAttr: "data-dialog-form-failure" };
 const SAVE_LINK_FORM_SELECTOR = "form[data-save-link-form]";
 const SAVE_LINK_FORM = { errorAttr: "data-save-link-error", failureAttr: "data-save-link-failure" };
 const LANDING_SWAP = "outerHTML show:none scroll:html:top";
@@ -32,8 +32,8 @@ function formOf(event: Event, selector: string): Element | null {
 	return isElement(target) && target.matches(selector) ? target : null;
 }
 
-function nameFormOf(event: Event): Element | null {
-	return formOf(event, NAME_FORM_SELECTOR);
+function dialogFormOf(event: Event): Element | null {
+	return formOf(event, DIALOG_FORM_SELECTOR);
 }
 
 function answerOf(event: Event): { status: unknown; body: unknown; location: unknown } {
@@ -119,10 +119,10 @@ export function initReadlist(deps: ReadlistDeps): void {
 	);
 
 	deps.document.addEventListener("htmx:beforeSwap", (event) => {
-		const form = nameFormOf(event);
+		const form = dialogFormOf(event);
 		if (form === null || answerOf(event).status === REFUSED_STATUS) return;
 		Reflect.set(Object(Reflect.get(event, "detail")), "shouldSwap", false);
-		showFailure(form, NAME_FORM);
+		showFailure(form, DIALOG_FORM);
 	});
 
 	deps.document.addEventListener("htmx:beforeSwap", (event) => {
@@ -141,14 +141,14 @@ export function initReadlist(deps: ReadlistDeps): void {
 	});
 
 	deps.document.addEventListener("htmx:sendError", (event) => {
-		const nameForm = nameFormOf(event);
-		if (nameForm !== null) showFailure(nameForm, NAME_FORM);
+		const dialogForm = dialogFormOf(event);
+		if (dialogForm !== null) showFailure(dialogForm, DIALOG_FORM);
 		const saveLinkForm = formOf(event, SAVE_LINK_FORM_SELECTOR);
 		if (saveLinkForm !== null) showFailure(saveLinkForm, SAVE_LINK_FORM);
 	});
 
 	deps.document.addEventListener("htmx:afterRequest", (event) => {
-		if (nameFormOf(event) === null) return;
+		if (dialogFormOf(event) === null) return;
 		const { body, location } = answerOf(event);
 		if (typeof location !== "string" || typeof body !== "string" || body === "") return;
 		announce(deps.document, body);

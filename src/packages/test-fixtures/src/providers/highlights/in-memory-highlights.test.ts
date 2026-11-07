@@ -241,3 +241,80 @@ describe("initInMemoryHighlights anchors", () => {
 		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: POST }), [seeded]);
 	});
 });
+
+describe("initInMemoryHighlights notes", () => {
+	const EDITED_AT = new Date("2026-11-02T09:00:00.000Z");
+
+	it("sets a note on a noteless row, moves updatedAt and keeps the anchor revision", async () => {
+		const store = initInMemoryHighlights();
+		const highlight = aHighlight({ anchorRevision: 2 });
+		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+
+		const outcome = await store.updateHighlightNote({
+			userId: USER,
+			url: ARTICLE,
+			highlightId: highlight.highlightId,
+			note: "a note",
+			updatedAt: EDITED_AT,
+		});
+
+		assert.deepEqual(outcome, { updated: true, hadNote: false });
+		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [
+			{ ...highlight, note: "a note", updatedAt: EDITED_AT },
+		]);
+	});
+
+	it("replaces a note and reports that it had one", async () => {
+		const store = initInMemoryHighlights();
+		const highlight = aHighlight({ note: "old" });
+		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+
+		const outcome = await store.updateHighlightNote({
+			userId: USER,
+			url: ARTICLE,
+			highlightId: highlight.highlightId,
+			note: "new",
+			updatedAt: EDITED_AT,
+		});
+
+		assert.deepEqual(outcome, { updated: true, hadNote: true });
+		const [listed] = await store.listArticleHighlights({ userId: USER, url: ARTICLE });
+		assert.equal(listed?.note, "new");
+	});
+
+	it("clears the note when none is given", async () => {
+		const store = initInMemoryHighlights();
+		const highlight = aHighlight({ note: "old" });
+		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+
+		const outcome = await store.updateHighlightNote({
+			userId: USER,
+			url: ARTICLE,
+			highlightId: highlight.highlightId,
+			updatedAt: EDITED_AT,
+		});
+
+		assert.deepEqual(outcome, { updated: true, hadNote: true });
+		const { note: _removed, ...withoutNote } = highlight;
+		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [
+			{ ...withoutNote, updatedAt: EDITED_AT },
+		]);
+	});
+
+	it("answers updated false for a missing row or another reader's", async () => {
+		const store = initInMemoryHighlights();
+		const highlight = aHighlight();
+		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+
+		for (const params of [
+			{ userId: USER, highlightId: nextId() },
+			{ userId: OTHER_USER, highlightId: highlight.highlightId },
+		]) {
+			assert.deepEqual(
+				await store.updateHighlightNote({ ...params, url: ARTICLE, note: "x", updatedAt: EDITED_AT }),
+				{ updated: false, hadNote: false },
+			);
+		}
+		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [highlight]);
+	});
+});

@@ -2,7 +2,9 @@ import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
 	ARTICLE_HIGHLIGHT_ID_PREFIX,
+	HIGHLIGHT_NOTE_MAX_LENGTH,
 	HighlightIdSchema,
+	HighlightNoteSchema,
 	type ReaderArticleHashId,
 	ReaderArticleHashIdSchema,
 	type SavedArticle,
@@ -12,24 +14,30 @@ import {
 	collectTextChunks,
 	normaliseText,
 } from "@packages/domain/article/highlight";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { viewerOf } from "@packages/viewer-identity";
 import { hashIp } from "@packages/web-analytics";
 import { renderToast } from "@packages/web-shell";
-import type { NextFunction, Request, Response, Router } from "express";
+import type { Request, Response, Router } from "express";
 import express from "express";
 import { parseHTML } from "linkedom";
 import { z } from "zod";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
+import {
+	HIGHLIGHT_NOTE_DIALOG_ID,
+	renderHighlightNoteCreateForm,
+} from "../../shared/article-body/highlights/highlight-note-dialog.component";
 import { prepareReaderContent } from "../../shared/article-body/reader-slot/reader-content";
 import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/section-pages";
 import { servedContentHash } from "../../shared/article-body/reader-slot/served-content-hash";
 import {
-	highlightFeatureEnabled,
 	highlightPathsFor,
+	requireHighlightFeature,
 } from "./highlight-feature";
 import type { RenderOwnerReader } from "./reader-page.page";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
+import { answerReadlistNaming } from "./readlist-naming-answer";
 
 const CreateHighlightBodySchema = z
 	.object({
@@ -37,6 +45,8 @@ const CreateHighlightBodySchema = z
 		start: z.coerce.number().int().min(0),
 		end: z.coerce.number().int().min(0),
 		origin: z.enum(["mouse", "tap", "longpress"]),
+		note: HighlightNoteSchema.optional(),
+		answer: z.literal("dialog").optional(),
 	})
 	.refine((body) => body.start <= body.end);
 
@@ -45,8 +55,23 @@ const TOAST_DISMISS_MS = 6000;
 const OUTCOME_TOASTS = {
 	"passage-changed": "That passage changed; select it again",
 	"too-long": "Select a shorter passage",
+	"notes-too-long": `Joined with the highlights it overlaps, the notes are over ${HIGHLIGHT_NOTE_MAX_LENGTH.toLocaleString(DEFAULT_LOCALE)} characters.`,
 	cancelled: "That highlight just changed; try again",
 } as const;
+
+type HighlightRefusal = keyof typeof OUTCOME_TOASTS;
+
+const DIALOG_ERRORS: Record<HighlightRefusal, string> = {
+	...OUTCOME_TOASTS,
+	cancelled: "That highlight just changed; try again.",
+};
+
+const NEEDS_NEW_SELECTION: Record<HighlightRefusal, boolean> = {
+	"passage-changed": true,
+	"too-long": true,
+	"notes-too-long": false,
+	cancelled: false,
+};
 
 function servedTextOf(html: string): string {
 	const { document } = parseHTML(
@@ -81,10 +106,6 @@ export function initHighlightRoutes(
 ): Router {
 	const router = express.Router();
 
-	const flagOn = (req: Request, _res: Response, next: NextFunction): void => {
-		next(highlightFeatureEnabled(req.query) ? undefined : "router");
-	};
-
 	const ownedArticleOf = async (
 		req: Request<{ id: string }>,
 	): Promise<SavedArticle | null> => {
@@ -97,7 +118,7 @@ export function initHighlightRoutes(
 
 	router.post(
 		"/:id/highlights",
-		flagOn,
+		requireHighlightFeature,
 		requireNotLocked,
 		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),
@@ -118,16 +139,50 @@ export function initHighlightRoutes(
 				res.status(404).type("html").send("");
 				return;
 			}
+			const paths = highlightPathsFor({
+				articleId: article.id.value,
+				query: req.query,
+			});
+			const inDialog =
+				body.data.answer === "dialog" && req.get("HX-Request") === "true";
+			const refuse = async (status: HighlightRefusal): Promise<void> => {
+				if (inDialog) {
+					answerReadlistNaming(req, res, {
+						dialogId: HIGHLIGHT_NOTE_DIALOG_ID,
+						naming: {
+							refusal: paths.viewPath,
+							form: () =>
+								renderHighlightNoteCreateForm({
+									action: paths.noteCreateUrl,
+									hiddenFields: [
+										{ name: "exact", value: body.data.exact },
+										{ name: "start", value: String(body.data.start) },
+										{ name: "end", value: String(body.data.end) },
+										{ name: "origin", value: body.data.origin },
+										{ name: "answer", value: "dialog" },
+									],
+									value: body.data.note ?? "",
+									error: DIALOG_ERRORS[status],
+									...(NEEDS_NEW_SELECTION[status]
+										? { refusal: "passage" as const }
+										: {}),
+								}),
+						},
+					});
+					return;
+				}
+				await reader.renderOwnerReader(req, res, {
+					statusCode: 422,
+					toast: toastOf(OUTCOME_TOASTS[status]),
+					markViewed: false,
+				});
+			};
 			const stored = await deps.readArticleContent({
 				url: article.url,
 				viewer: viewerFor(userId),
 			});
 			if (stored.kind !== "article") {
-				await reader.renderOwnerReader(req, res, {
-					statusCode: 422,
-					toast: toastOf(OUTCOME_TOASTS["passage-changed"]),
-					markViewed: false,
-				});
+				await refuse("passage-changed");
 				return;
 			}
 			const prepared = prepareReaderContent({
@@ -152,6 +207,7 @@ export function initHighlightRoutes(
 				exact: body.data.exact,
 				start: body.data.start + offset,
 				end: body.data.end + offset,
+				note: body.data.note,
 			});
 			if (outcome.status === "created" || outcome.status === "merged") {
 				deps.recordAnalyticsEvent(req, {
@@ -163,27 +219,36 @@ export function initHighlightRoutes(
 					origin: body.data.origin,
 					highlight_id: outcome.highlight.highlightId,
 				});
-				const { viewPath } = highlightPathsFor({
-					articleId: article.id.value,
-					query: req.query,
-				});
+				if (body.data.note !== undefined) {
+					deps.recordAnalyticsEvent(req, {
+						stream: STREAMS.analytics,
+						event: ANALYTICS_EVENTS.highlightNoteSaved,
+						timestamp: deps.now().toISOString(),
+						user_id: userId,
+						visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
+						action: "added",
+					});
+				}
+				if (inDialog) {
+					answerReadlistNaming(req, res, {
+						dialogId: HIGHLIGHT_NOTE_DIALOG_ID,
+						naming: { landing: paths.viewPath, scroll: "stay-put" },
+					});
+					return;
+				}
 				res.redirect(
 					303,
-					`${viewPath}#${ARTICLE_HIGHLIGHT_ID_PREFIX}${outcome.highlight.highlightId}`,
+					`${paths.viewPath}#${ARTICLE_HIGHLIGHT_ID_PREFIX}${outcome.highlight.highlightId}`,
 				);
 				return;
 			}
-			await reader.renderOwnerReader(req, res, {
-				statusCode: 422,
-				toast: toastOf(OUTCOME_TOASTS[outcome.status]),
-				markViewed: false,
-			});
+			await refuse(outcome.status);
 		},
 	);
 
 	router.post(
 		"/:id/highlights/:highlightId/delete",
-		flagOn,
+		requireHighlightFeature,
 		requireNotLocked,
 		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),

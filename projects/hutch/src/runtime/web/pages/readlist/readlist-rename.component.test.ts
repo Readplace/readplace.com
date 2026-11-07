@@ -44,8 +44,8 @@ describe("renderReadlistRename", () => {
 
 		const form = doc.querySelector("form");
 		assert(form, "the panel must post through a form");
-		expect(form.hasAttribute("data-readlist-name-form")).toBe(true);
-		expect(form.getAttribute("data-readlist-name-failure")).toBe("Couldn't rename the readlist.");
+		expect(form.hasAttribute("data-dialog-form")).toBe(true);
+		expect(form.getAttribute("data-dialog-form-failure")).toBe("Couldn't rename the readlist.");
 	});
 
 	it("seeds the input with the readlist's current name and the server's length cap", () => {
