@@ -803,7 +803,6 @@ export const UpdateFetchTimestampCommand = defineEvent({
 	detailSchema: z.object({
 		url: z.string(),
 		contentFetchedAt: z.string(),
-		bodyHash: z.string().optional(),
 	}),
 });
 export type UpdateFetchTimestampDetail = z.infer<

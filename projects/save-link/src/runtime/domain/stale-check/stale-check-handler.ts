@@ -119,7 +119,6 @@ export function initStaleCheckHandler(deps: {
 			await publishUpdateFetchTimestamp({
 				url,
 				contentFetchedAt: now().toISOString(),
-				bodyHash: freshness.bodyHash,
 			});
 			return "backoff";
 		}
@@ -136,13 +135,9 @@ export function initStaleCheckHandler(deps: {
 		});
 
 		if (result.status === "not-modified") {
-			/* Carry forward the row's existing bodyHash so a row that had
-			 * none (e.g. a 304 from an origin honouring conditional headers)
-			 * stays consistent with whatever the gate just compared against. */
 			await publishUpdateFetchTimestamp({
 				url,
 				contentFetchedAt: now().toISOString(),
-				bodyHash: freshness.bodyHash,
 			});
 			return "unchanged";
 		}
@@ -155,7 +150,6 @@ export function initStaleCheckHandler(deps: {
 			await publishUpdateFetchTimestamp({
 				url,
 				contentFetchedAt: now().toISOString(),
-				bodyHash: freshness.bodyHash,
 			});
 			return "backoff";
 		}
@@ -170,7 +164,6 @@ export function initStaleCheckHandler(deps: {
 				await publishUpdateFetchTimestamp({
 					url,
 					contentFetchedAt: now().toISOString(),
-					bodyHash: freshness.bodyHash,
 				});
 				return "backoff";
 			}

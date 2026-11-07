@@ -206,7 +206,7 @@ describe("initStaleCheckHandler", () => {
 		expect(logger.info).toHaveBeenCalledWith("[StaleCheckRequested] no-op", { url: URL_UNDER_TEST, action: "refreshed" });
 	});
 
-	it("publishes UpdateFetchTimestamp on 304 Not Modified, carrying forward the row's existing bodyHash", async () => {
+	it("publishes UpdateFetchTimestamp on 304 Not Modified with only the url and the new clock", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: '"abc"',
 			lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
@@ -230,7 +230,6 @@ describe("initStaleCheckHandler", () => {
 		expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
 			contentFetchedAt: fixedNow().toISOString(),
-			bodyHash: "h".repeat(64),
 		});
 	});
 
@@ -422,13 +421,12 @@ describe("initStaleCheckHandler", () => {
 		expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
 			contentFetchedAt: fixedNow().toISOString(),
-			bodyHash: "h".repeat(64),
 		});
 		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
 		expect(markCrawlStage).not.toHaveBeenCalledWith({ url: URL_UNDER_TEST, stage: "comprehensive-fetching" });
 	});
 
-	it("backs off when crawl returns failed: resets the freshness clock (carrying the bodyHash) so the next attempt waits a full TTL", async () => {
+	it("backs off when crawl returns failed: resets the freshness clock so the next attempt waits a full TTL", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: undefined,
 			lastModified: undefined,
@@ -462,7 +460,6 @@ describe("initStaleCheckHandler", () => {
 		expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
 			contentFetchedAt: fixedNow().toISOString(),
-			bodyHash: "h".repeat(64),
 		});
 		expect(logger.info).toHaveBeenCalledWith("[StaleCheckRequested] backed off after refresh failure", {
 			url: URL_UNDER_TEST,
@@ -509,7 +506,6 @@ describe("initStaleCheckHandler", () => {
 		expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
 			contentFetchedAt: fixedNow().toISOString(),
-			bodyHash: "h".repeat(64),
 		});
 		expect(logger.info).toHaveBeenCalledWith("[StaleCheckRequested] backed off after refresh failure", {
 			url: URL_UNDER_TEST,
@@ -843,7 +839,7 @@ it("backs off without fetching or staging when the stored wrapper identity canno
 	expect(crawlAndFinalizeArticle).toHaveBeenCalledTimes(0);
 	expect(publishRefreshArticleContent).toHaveBeenCalledTimes(0);
 	expect(publishUpdateFetchTimestamp).toHaveBeenCalledTimes(1);
-	expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({ url: wrapperUrl, contentFetchedAt: fixedNow().toISOString(), bodyHash: "b".repeat(64) });
+	expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({ url: wrapperUrl, contentFetchedAt: fixedNow().toISOString() });
 });
 
 

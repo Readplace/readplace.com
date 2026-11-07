@@ -11,11 +11,16 @@ export type UpdateFetchTimestamp = (params: {
 	bodyHash?: string;
 }) => Promise<void>;
 
+export type AdvanceContentFetchedAt = (params: {
+	url: string;
+	contentFetchedAt: string;
+}) => Promise<"advanced" | "superseded">;
+
 export function initUpdateFetchTimestampHandler(deps: {
-	updateFetchTimestamp: UpdateFetchTimestamp;
+	advanceContentFetchedAt: AdvanceContentFetchedAt;
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { updateFetchTimestamp, logger } = deps;
+	const { advanceContentFetchedAt, logger } = deps;
 
 	return initSqsRecordHandler({
 		definition: UpdateFetchTimestampCommand,
@@ -25,9 +30,12 @@ export function initUpdateFetchTimestampHandler(deps: {
 		handle: async (detail) => {
 			logger.info("[UpdateFetchTimestamp] processing", { url: detail.url });
 
-			await updateFetchTimestamp(detail);
+			const outcome = await advanceContentFetchedAt({
+				url: detail.url,
+				contentFetchedAt: detail.contentFetchedAt,
+			});
 
-			logger.info("[UpdateFetchTimestamp] completed", { url: detail.url });
+			logger.info("[UpdateFetchTimestamp] completed", { url: detail.url, outcome });
 		},
 	});
 }

@@ -176,7 +176,6 @@ export type PublishSubscriptionReactivated = (params: {
 export type PublishUpdateFetchTimestamp = (params: {
 	url: string;
 	contentFetchedAt: string;
-	bodyHash?: string;
 }) => Promise<void>;
 
 export type ResolveOnViewSurface = "readlist-html" | "readlist-siren" | "reader" | "reader-capture-gave-up" | "queue-digest";
