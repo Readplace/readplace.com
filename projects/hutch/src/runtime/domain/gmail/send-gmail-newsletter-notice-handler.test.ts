@@ -66,6 +66,32 @@ function links(html: string) {
 }
 
 const sentEvent = (senderEmail: ForwardableSender) => ({ event: GmailNewsletterNoticeProcessedEvent, detail: { userId: USER, senderEmail, outcome: "sent" } });
+const suppressedEvent = (senderEmail: ForwardableSender) => ({ event: GmailNewsletterNoticeProcessedEvent, detail: { userId: USER, senderEmail, outcome: "suppressed" } });
+const LEASE_PASSED_MS = 120_001;
+
+type Harness = Awaited<ReturnType<typeof harness>>;
+
+async function stick(h: Harness, options: { leasePassed: boolean } = { leasePassed: true }) {
+	const sendEmail = h.deps.sendEmail;
+	h.deps.sendEmail = async (message) => { h.sent.push(message); throw new Error("Ambiguous acceptance"); };
+	assert.deepEqual(await h.run(), { batchItemFailures: [{ itemIdentifier: "notice" }] });
+	h.deps.sendEmail = sendEmail;
+	if (options.leasePassed) h.advance(LEASE_PASSED_MS);
+}
+
+async function reconnect(h: Harness) {
+	const gatewayAddress = InboxAddressSchema.parse("gmail-recon2@read.place");
+	await h.connections.createConnection({ userId: USER, gatewayAddress });
+	await h.connections.recordAccountEmail({ userId: USER, accountEmail: ACCOUNT });
+	const next: GmailMonitoringCheckpoint = { ...h.checkpoint, mailboxId: "new-mailbox", gatewayAddress };
+	await h.monitoring.startRun({ checkpoint: next, previous: h.checkpoint });
+	await h.monitoring.observeSender({ checkpoint: next, observation: { email: SENDER, name: undefined, approved: true }, notify: true });
+}
+
+function renameForFreshRender(h: Harness) {
+	h.deps.detectNewsletters = recognizing([[SENDER, "Renamed"]]);
+	h.deps.findEmailByUserId = async () => "renamed-account@example.com";
+}
 
 describe("approved Gmail newsletter notices", () => {
 	it("sends one newsletter's notice to the Readplace account email with a tracked sender-selected CTA and a permanent receipt", async () => {
@@ -254,13 +280,21 @@ describe("approved Gmail newsletter notices", () => {
 		assert.deepEqual(await h.run(), { batchItemFailures: [] });
 		assert.equal(h.sent.length, 1);
 	});
-	it("never retries unresolved delivery outside the provider window and leaves it failed for DLQ review", async () => {
+	it("unblocks a reader whose delivery stayed unresolved past the provider window, without resending, and notifies them after the interval", async () => {
 		const h = await harness();
-		h.deps.sendEmail = async (message) => { h.sent.push(message); throw new Error("Ambiguous acceptance"); };
-		await h.run(); h.advance(24 * 60 * 60 * 1_000);
-		assert.deepEqual(await h.run(), { batchItemFailures: [{ itemIdentifier: "notice" }] });
+		await stick(h);
+		h.advance(DAY_MS);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
 		assert.equal(h.sent.length, 1);
-		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "sending");
+		assert.deepEqual(await h.monitoring.findNoticeBatch(USER), { userId: USER, status: "idle", lastSentAt: NOW });
+		assert.equal(await h.status(SENDER), "pending");
+		renameForFreshRender(h);
+		h.advance(7 * DAY_MS - DAY_MS - LEASE_PASSED_MS);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 2);
+		assert.equal(h.sent[1].to, "renamed-account@example.com");
+		assert.equal(h.sent[1].subject, "Choose readlists for Renamed");
+		assert.equal(await h.status(SENDER), "sent");
 	});
 	it("retries event publication without resending an email the provider already accepted", async () => {
 		const h = await harness();
@@ -354,6 +388,142 @@ describe("approved Gmail newsletter notices", () => {
 			{ messageId: "valid", body: JSON.stringify({ "detail-type": SendGmailNewsletterNoticeCommand.detailType, detail: { userId: USER } }) },
 		]), { batchItemFailures: [{ itemIdentifier: "bad" }] });
 		assert.equal(h.sent.length, 1);
+	});
+});
+
+describe("redriving a stuck notice email", () => {
+	it("does not send a stuck email to a reader who disconnected Gmail, and keeps the notice for a later reconnect", async () => {
+		const h = await harness();
+		await stick(h);
+		await h.connections.deleteConnection(USER);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 1);
+		assert.deepEqual(await h.monitoring.findNoticeBatch(USER), { userId: USER, status: "idle", lastSentAt: NOW });
+		assert.equal(await h.status(SENDER), "pending");
+		assert.deepEqual(h.published, []);
+	});
+	it("a second run of the same message after abandoning sends nothing and changes nothing", async () => {
+		const h = await harness();
+		await stick(h);
+		await h.connections.deleteConnection(USER);
+		await h.run();
+		const batch = await h.monitoring.findNoticeBatch(USER);
+		const notice = await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER });
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 1);
+		assert.deepEqual(await h.monitoring.findNoticeBatch(USER), batch);
+		assert.deepEqual(await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }), notice);
+	});
+	it("announces the sender again after a reconnect once the interval has passed", async () => {
+		const h = await harness();
+		await stick(h);
+		await h.connections.deleteConnection(USER);
+		await h.run();
+		await reconnect(h);
+		renameForFreshRender(h);
+		h.advance(7 * DAY_MS - LEASE_PASSED_MS);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 2);
+		assert.equal(h.sent[1].to, "renamed-account@example.com");
+		assert.equal(h.sent[1].subject, "Choose readlists for Renamed");
+		assert.equal(await h.status(SENDER), "sent");
+		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "idle");
+		assert.deepEqual(h.published, [sentEvent(SENDER)]);
+	});
+	it.each(["revoked", "disconnecting", "changed-account", "changed-gateway", "changed-checkpoint"])("refuses the stored email when the connection is %s", async (condition) => {
+		const h = await harness();
+		await stick(h);
+		if (condition === "revoked") await h.connections.markRevoked({ userId: USER, reason: "invalid-grant" });
+		if (condition === "disconnecting") await h.connections.markDisconnectRequested({ userId: USER });
+		if (condition === "changed-account") await h.connections.recordAccountEmail({ userId: USER, accountEmail: GmailAccountEmailSchema.parse("other@gmail.com") });
+		if (condition === "changed-gateway") {
+			await h.connections.createConnection({ userId: USER, gatewayAddress: InboxAddressSchema.parse("gmail-others@read.place") });
+			await h.connections.recordAccountEmail({ userId: USER, accountEmail: ACCOUNT });
+		}
+		if (condition === "changed-checkpoint") await h.monitoring.startRun({ checkpoint: { ...h.checkpoint, mailboxId: "new-mailbox" }, previous: h.checkpoint });
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 1);
+		assert.deepEqual(await h.monitoring.findNoticeBatch(USER), { userId: USER, status: "idle", lastSentAt: NOW });
+		assert.equal(await h.status(SENDER), "pending");
+	});
+	it("sends the stored email when the reconnected mailbox has re-observed the sender", async () => {
+		const h = await harness();
+		await stick(h);
+		await h.connections.deleteConnection(USER);
+		await reconnect(h);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 2);
+		assert.deepEqual(h.sent[1], h.sent[0]);
+		assert.equal(await h.status(SENDER), "sent");
+		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "idle");
+	});
+	it("does not send a stored email listing a sender the reader has since mapped, and sends the others a fresh email after the interval", async () => {
+		const h = await harness();
+		await h.observe(SECOND);
+		await stick(h);
+		await h.mappings.addSenderToFilter({ userId: USER, accountEmail: ACCOUNT, senderEmail: SENDER });
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 1);
+		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "idle");
+		assert.deepEqual([await h.status(SENDER), await h.status(SECOND)], ["pending", "pending"]);
+		h.advance(7 * DAY_MS - LEASE_PASSED_MS);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 2);
+		assert.equal(h.sent[1].subject, "Choose readlists for Another Digest");
+		assert.deepEqual(links(h.sent[1].html).map((link) => link.sender), [SECOND]);
+		assert.deepEqual([await h.status(SENDER), await h.status(SECOND)], ["cancelled", "sent"]);
+		assert.deepEqual(h.published, [suppressedEvent(SENDER), sentEvent(SECOND)]);
+	});
+	it("does not send a stored email listing a sender the catalog no longer approves", async () => {
+		const h = await harness();
+		await stick(h);
+		h.deps.detectNewsletters = recognizing([]);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 1);
+		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "idle");
+		assert.equal(await h.status(SENDER), "pending");
+	});
+	it("a redrive a week after the first attempt finishes the work in one run", async () => {
+		const h = await harness();
+		await stick(h);
+		renameForFreshRender(h);
+		h.advance(7 * DAY_MS);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 2);
+		assert.equal(h.sent[1].to, "renamed-account@example.com");
+		assert.equal(h.sent[1].subject, "Choose readlists for Renamed");
+		assert.equal(await h.status(SENDER), "sent");
+		assert.deepEqual(await h.monitoring.findNoticeBatch(USER), { userId: USER, status: "idle", lastSentAt: NOW + LEASE_PASSED_MS + 7 * DAY_MS });
+	});
+	it("a redrive a week later for a disconnected reader cancels the notice and sends nothing", async () => {
+		const h = await harness();
+		await stick(h);
+		await h.connections.deleteConnection(USER);
+		h.advance(7 * DAY_MS);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(await h.status(SENDER), "cancelled");
+		assert.deepEqual(h.published, [suppressedEvent(SENDER)]);
+		assert.equal(h.sent.length, 1);
+		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "idle");
+	});
+	it("does not take a stuck batch from a worker holding its lease", async () => {
+		const h = await harness();
+		await stick(h, { leasePassed: false });
+		await h.connections.deleteConnection(USER);
+		assert.deepEqual(await h.run(), { batchItemFailures: [{ itemIdentifier: "notice" }] });
+		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "sending");
+		assert.equal(h.sent.length, 1);
+		h.advance();
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal((await h.monitoring.findNoticeBatch(USER))?.status, "idle");
+	});
+	it("leaves no rows behind when the account was erased before the redrive", async () => {
+		const h = await harness();
+		await stick(h);
+		await h.monitoring.deleteAllByUserId(USER);
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(await h.monitoring.findNoticeBatch(USER), undefined);
+		assert.equal(await h.monitoring.findNotice({ userId: USER, senderEmail: SENDER }), undefined);
 	});
 });
 

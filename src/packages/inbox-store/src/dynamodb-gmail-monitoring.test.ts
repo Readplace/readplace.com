@@ -291,6 +291,21 @@ describe("initDynamoDbGmailMonitoring", () => {
 		assert.equal(h.commands.length, 2);
 	});
 
+	it("abandons only a sending notice batch for the same attempt once its lease has passed, counting the attempt as the last send", async () => {
+		const firstAttemptAt = NOW.getTime() - 90_000_000;
+		const h = harness([{}, conditionFailure()]);
+		assert.equal(await h.store.abandonNoticeBatch({ userId: USER, firstAttemptAt }), true);
+		assert.equal(await h.store.abandonNoticeBatch({ userId: USER, firstAttemptAt }), false);
+		expect(h.commands[0]).toMatchObject({
+			Key: { userId: USER, key: "NOTICE_BATCH" },
+			UpdateExpression: "SET #status = :idle, lastSentAt = :firstAttemptAt REMOVE senders, #message, firstAttemptAt, claimUntil",
+			ConditionExpression: "#status = :sending AND firstAttemptAt = :firstAttemptAt AND claimUntil <= :now",
+			ExpressionAttributeNames: { "#status": "status", "#message": "message" },
+			ExpressionAttributeValues: { ":idle": "idle", ":sending": "sending", ":firstAttemptAt": firstAttemptAt, ":now": NOW.getTime() },
+		});
+		assert.equal(h.commands.length, 2);
+	});
+
 	it("erases all user state, mailbox observations and permanent receipts through paginated Query and Delete", async () => {
 		const checkpointKey = { userId: USER, key: "STATE" };
 		const observationKey = { userId: USER, key: `OBS#old-mailbox#${SENDER}` };

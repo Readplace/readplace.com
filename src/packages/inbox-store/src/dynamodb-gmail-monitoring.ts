@@ -132,6 +132,13 @@ export function initDynamoDbGmailMonitoring(deps: { client: DynamoDBDocumentClie
 				ExpressionAttributeValues: { ":idle": "idle", ":sending": "sending", ":now": deps.now().getTime() },
 			}));
 		},
+		abandonNoticeBatch: async ({ userId, firstAttemptAt }) => (await writeIfCondition(() => batches.update({
+			Key: { userId, key: NOTICE_BATCH_KEY },
+			UpdateExpression: "SET #status = :idle, lastSentAt = :firstAttemptAt REMOVE senders, #message, firstAttemptAt, claimUntil",
+			ConditionExpression: "#status = :sending AND firstAttemptAt = :firstAttemptAt AND claimUntil <= :now",
+			ExpressionAttributeNames: { "#status": "status", "#message": "message" },
+			ExpressionAttributeValues: { ":idle": "idle", ":sending": "sending", ":firstAttemptAt": firstAttemptAt, ":now": deps.now().getTime() },
+		}))).kind === "written",
 		deleteAllByUserId: async (userId) => {
 			await forEachQueryPage(keys, { KeyConditionExpression: "userId = :uid", ExpressionAttributeValues: { ":uid": userId }, ConsistentRead: true }, async (rows) => {
 				await Promise.all(rows.map((row) => keys.delete({ Key: row })));

@@ -61,5 +61,6 @@ export interface GmailMonitoringStore {
 	findNoticeBatch: (userId: UserId) => Promise<GmailNewsletterNoticeBatch | undefined>;
 	claimNoticeBatch: (input: { userId: UserId; senders: ForwardableSender[]; message: EmailMessage; lastSentBefore: number }) => Promise<Extract<GmailNewsletterNoticeBatch, { status: "sending" }> | undefined>;
 	finishNoticeBatch: (userId: UserId) => Promise<void>;
+	abandonNoticeBatch: (input: { userId: UserId; firstAttemptAt: number }) => Promise<boolean>;
 	deleteAllByUserId: (userId: UserId) => Promise<void>;
 }
