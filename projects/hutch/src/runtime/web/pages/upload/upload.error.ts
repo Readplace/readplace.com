@@ -21,6 +21,9 @@ export function uploadErrorMessageOf(input: {
 		: FIXED_UPLOAD_ERROR_MESSAGES[input.code];
 }
 
+export const UPLOAD_FAILED_MESSAGE =
+	"We couldn't open that upload. Check your readlist for the reason, or upload the file again.";
+
 export const UPLOAD_ERROR_STATUS: Record<UploadErrorCode, number> = {
 	upload_unsupported_type: 422,
 	upload_too_large: 413,

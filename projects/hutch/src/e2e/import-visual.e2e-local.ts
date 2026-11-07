@@ -35,14 +35,14 @@ const FROM_URL_ROW = ".import__from-url-row";
 const FROM_URL_FIELD = "[data-test-import-from-url-input]";
 const FETCH_BUTTON = '[data-test-action="import-from-url-submit"]';
 const FROM_URL_META = ".import__from-url-meta";
-const UPLOAD_FORM = '[data-test-form="import-file"]';
+const UPLOAD_FORM = '[data-test-form="upload-file"]';
 const FILE_INPUT = "[data-test-import-file-input]";
-const DROPZONE = "[data-import-dropzone]";
-const DROPZONE_DISC = `${DROPZONE} .import__dropzone-icon`;
-const UPLOAD_BUTTON = '[data-test-action="import-upload"]';
-const UPLOADING = '[data-import-region="uploading"]';
-const PROGRESS_BAR = "[data-import-progress-bar]";
-const PROGRESS_LABEL = "[data-import-progress-label]";
+const DROPZONE = "[data-upload-dropzone-zone]";
+const DROPZONE_DISC = `${DROPZONE} .upload-dropzone__icon`;
+const UPLOAD_BUTTON = '[data-test-action="upload-file"]';
+const UPLOADING = "[data-upload-dropzone-uploading]";
+const PROGRESS_BAR = "[data-upload-dropzone-progress-bar]";
+const PROGRESS_LABEL = "[data-upload-dropzone-progress-label]";
 const CARD_HEADERS = [
 	`${RAIL} .disclosure-card__header`,
 	`${SOURCES} .disclosure-card__header`,
@@ -236,7 +236,7 @@ async function phoneUploadGeometry(page: Page): Promise<void> {
 
 async function dragoverShown(page: Page): Promise<void> {
 	await restingPage(page);
-	await expect(page.locator(DROPZONE)).toHaveClass(/import__dropzone--dragover/);
+	await expect(page.locator(DROPZONE)).toHaveClass(/upload-dropzone--dragover/);
 }
 
 async function dragoverGeometry(page: Page): Promise<void> {
@@ -246,7 +246,7 @@ async function dragoverGeometry(page: Page): Promise<void> {
 
 async function uploadingShown(page: Page): Promise<void> {
 	await restingPage(page);
-	await expect(page.locator(UPLOAD_FORM)).toHaveAttribute("data-import-state", "uploading");
+	await expect(page.locator(UPLOAD_FORM)).toHaveAttribute("data-upload-state", "uploading");
 	await expect(page.locator(PROGRESS_LABEL)).toHaveText("Preparing upload…");
 }
 

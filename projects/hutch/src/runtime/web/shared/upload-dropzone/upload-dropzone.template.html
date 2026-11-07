@@ -1,0 +1,29 @@
+<form class="upload-dropzone-form" method="POST" action="{{importAction}}" enctype="multipart/form-data"
+  data-upload-dropzone data-upload-state="idle" data-test-form="upload-file"
+  data-book-start-action="{{bookStartAction}}" data-book-accept="{{bookAccept}}"
+  data-book-max-bytes="{{bookMaxBytes}}" data-import-max-bytes="{{importMaxBytes}}"
+  {{#if signInHref}}data-sign-in-href="{{signInHref}}"{{/if}}
+  data-message-unsupported="{{messages.unsupported}}"
+  data-message-import-too-large="{{messages.importTooLarge}}"
+  data-message-book-too-large="{{messages.bookTooLarge}}"
+  data-message-failed="{{messages.failed}}">
+  <div class="upload-dropzone__idle">
+    <label class="upload-dropzone" data-upload-dropzone-zone>
+      <input type="file" name="file" required class="upload-dropzone__file-input" id="{{idPrefix}}-file" data-test-import-file-input{{#if disabled}} disabled{{/if}}>
+      <span class="upload-dropzone__icon" aria-hidden="true">{{icon "upload"}}</span>
+      <span class="upload-dropzone__text">
+        <span class="upload-dropzone__primary">Choose a file or drag it here</span>
+        <span class="upload-dropzone__meta" data-upload-dropzone-meta>HTML, JSON, or plain text &middot; Max <span class="upload-dropzone__size">{{limits.maxFileSize}}</span> &middot; Up to {{limits.maxLinks}} links &middot; or a DRM-free EPUB up to <span class="upload-dropzone__size">{{bookCeilingLabel}}</span></span>
+      </span>
+    </label>
+    <p class="upload-dropzone__error" role="alert" data-upload-dropzone-error hidden></p>
+    <button class="btn btn--primary upload-dropzone__submit" type="submit" data-test-action="upload-file"{{#if disabled}} disabled{{/if}}>Upload</button>
+  </div>
+  <div class="upload-dropzone__uploading" data-upload-dropzone-uploading aria-live="polite">
+    <div class="upload-dropzone__progress-bar" data-upload-dropzone-progress-bar>
+      <div class="upload-dropzone__progress-fill" data-upload-dropzone-progress-fill style="width: 0%"></div>
+    </div>
+    <p class="upload-dropzone__progress-label" data-upload-dropzone-progress-label>Preparing upload&hellip;</p>
+  </div>
+  <noscript><p class="upload-dropzone__noscript">Reading a book? Use the <a href="{{bookFallbackHref}}" data-test-upload-dropzone-book-fallback>book upload page</a>.</p></noscript>
+</form>

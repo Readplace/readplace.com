@@ -2,6 +2,7 @@ import type { ImportSessionPage } from "@packages/domain/import-session";
 import type { ComponentError } from "../../shared/component-error.types";
 import { withInternalTracking } from "@packages/web-shell";
 import { UPLOAD_ENTRY_HREFS } from "../upload/upload-entry-ctas";
+import { UPLOAD_SIGN_IN_HREF } from "../upload/redirect-anonymous-to-upload-signup";
 import { buildImportToggleAllUrl, buildImportToggleUrl, buildImportUrl } from "./import.url";
 
 export type ImportMode = "upload" | "from-url";
@@ -24,7 +25,8 @@ export interface ImportAcquireViewModel {
 	 * visitor arrived with a `url` query param on the from-url tab. */
 	readonly prefillUrl: string;
 	readonly intro: string;
-	readonly uploadBookHref: string;
+	readonly bookFallbackHref: string;
+	readonly signInHref?: string;
 }
 
 const IMPORT_TABS_SOURCE = "import-tabs";
@@ -73,7 +75,8 @@ export function toImportAcquireViewModel(input: {
 		tabs,
 		prefillUrl: mode === "from-url" ? (input.url?.trim() ?? "") : "",
 		intro: input.isSignedIn ? IMPORT_INTRO : GUEST_IMPORT_INTRO,
-		uploadBookHref: UPLOAD_ENTRY_HREFS.importPage,
+		bookFallbackHref: UPLOAD_ENTRY_HREFS.importNoScript,
+		...(input.isSignedIn ? {} : { signInHref: UPLOAD_SIGN_IN_HREF }),
 	};
 }
 

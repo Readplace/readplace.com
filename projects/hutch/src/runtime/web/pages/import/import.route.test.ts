@@ -33,6 +33,16 @@ function findCookie(headers: { [key: string]: string | string[] | undefined }, p
 	return cookies.find((c) => c.startsWith(prefix));
 }
 
+function epubFile(): Buffer {
+	return Buffer.concat([
+		Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+		Buffer.alloc(26),
+		Buffer.from("mimetypeapplication/epub+zip https://example.com/inside-the-book"),
+	]);
+}
+
+const SIREN = "application/vnd.siren+json";
+
 function multipartBody(filename: string, content: Buffer): { body: Buffer; contentType: string } {
 	const boundary = "----TestBoundary123456";
 	const head = Buffer.from(
@@ -109,16 +119,13 @@ describe("Import routes", () => {
 			);
 		});
 
-		it("links a guest reading a book to the EPUB upload", async () => {
+		it("sends a guest who drops a book to sign up for the upload", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/import");
+			const response = await request(harness.server).get("/import?mode=upload");
 			const doc = new JSDOM(response.text).window.document;
-			const link = doc.querySelector("[data-test-import-upload-link]");
-			assert(link, "the import page must link to the EPUB upload");
-			expect(link.textContent).toBe("Upload a DRM-free EPUB");
-			expect(link.getAttribute("href")).toBe(
-				"/upload?utm_source=import-acquire&utm_medium=internal&utm_content=upload",
-			);
+			const form = doc.querySelector('[data-test-form="upload-file"]');
+			assert(form, "upload form must be rendered");
+			expect(form.getAttribute("data-sign-in-href")).toBe("/signup?return=%2Fupload");
 		});
 	});
 
@@ -145,10 +152,11 @@ describe("Import routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const form = doc.querySelector('[data-test-form="import-file"]');
+			const form = doc.querySelector('[data-test-form="upload-file"]');
 			assert(form, "upload form must be rendered");
 			expect(form.getAttribute("action")).toBe("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
-			const button = form.querySelector('[data-test-action="import-upload"]');
+			expect(form.hasAttribute("data-sign-in-href")).toBe(false);
+			const button = form.querySelector('[data-test-action="upload-file"]');
 			assert(button, "Upload button must remain in the DOM as the no-JS fallback");
 			expect(button.textContent).toBe("Upload");
 			const tabKeys = Array.from(doc.querySelectorAll("[data-test-import-tab]")).map(
@@ -162,7 +170,7 @@ describe("Import routes", () => {
 			const formIds = Array.from(doc.querySelectorAll("[data-test-form]")).map(
 				(el) => el.getAttribute("data-test-form"),
 			);
-			expect(formIds).toEqual(["import-file"]);
+			expect(formIds).toEqual(["upload-file"]);
 		});
 
 		it("renders the upload form in idle state with both idle and uploading regions", async () => {
@@ -172,17 +180,17 @@ describe("Import routes", () => {
 			const response = await agent.get("/import?mode=upload");
 
 			const doc = new JSDOM(response.text).window.document;
-			const form = doc.querySelector<HTMLFormElement>('[data-test-form="import-file"]');
+			const form = doc.querySelector<HTMLFormElement>('[data-test-form="upload-file"]');
 			assert(form, "upload form must be rendered");
-			expect(form.getAttribute("data-import-state")).toBe("idle");
-			expect(form.getAttribute("hx-post")).toBe("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file");
-			expect(form.getAttribute("hx-encoding")).toBe("multipart/form-data");
-			const idle = form.querySelector('[data-import-region="idle"]');
-			const uploading = form.querySelector('[data-import-region="uploading"]');
+			expect(form.getAttribute("data-upload-state")).toBe("idle");
+			expect(form.hasAttribute("hx-post")).toBe(false);
+			expect(form.getAttribute("enctype")).toBe("multipart/form-data");
+			const idle = form.querySelector(".upload-dropzone__idle");
+			const uploading = form.querySelector("[data-upload-dropzone-uploading]");
 			assert(idle, "idle region must always be rendered");
 			assert(uploading, "uploading region must always be rendered");
-			const fill = uploading.querySelector('[data-import-progress-fill]');
-			const label = uploading.querySelector('[data-import-progress-label]');
+			const fill = uploading.querySelector("[data-upload-dropzone-progress-fill]");
+			const label = uploading.querySelector("[data-upload-dropzone-progress-label]");
 			assert(fill, "progress fill must be rendered inside the uploading region");
 			assert(label, "progress label must be rendered inside the uploading region");
 		});
@@ -194,10 +202,12 @@ describe("Import routes", () => {
 			const response = await agent.get("/import?mode=upload");
 
 			const doc = new JSDOM(response.text).window.document;
-			const meta = doc.querySelector("[data-import-dropzone-meta]");
+			const meta = doc.querySelector("[data-upload-dropzone-meta]");
 			assert(meta, "the dropzone must name the formats and caps");
-			expect(meta.textContent).toBe("HTML, JSON, or plain text · Max 4.5 MB · Up to 2,000 links");
-			const size = meta.querySelector(".import__dropzone-size");
+			expect(meta.textContent).toBe(
+				"HTML, JSON, or plain text · Max 4.5 MB · Up to 2,000 links · or a DRM-free EPUB up to 200 MB",
+			);
+			const size = meta.querySelector(".upload-dropzone__size");
 			assert(size, "the size cap must sit in its own unbreakable span");
 			expect(size.textContent).toBe("4.5 MB");
 		});
@@ -209,12 +219,12 @@ describe("Import routes", () => {
 			const response = await agent.get("/import?mode=upload");
 
 			const doc = new JSDOM(response.text).window.document;
-			const dropzone = doc.querySelector('[data-import-region="idle"] > [data-import-dropzone]');
+			const dropzone = doc.querySelector(".upload-dropzone__idle > [data-upload-dropzone-zone]");
 			assert(dropzone, "the dropzone must sit in the idle region");
-			const next = dropzone.nextElementSibling;
-			assert(next, "an element must follow the dropzone");
-			expect(next.getAttribute("data-test-action")).toBe("import-upload");
-			expect(next.getAttribute("type")).toBe("submit");
+			const submit = dropzone.parentElement?.lastElementChild;
+			assert(submit, "an element must close the idle region");
+			expect(submit.getAttribute("data-test-action")).toBe("upload-file");
+			expect(submit.getAttribute("type")).toBe("submit");
 		});
 
 		it("includes the import client bundle on the upload page", async () => {
@@ -373,6 +383,67 @@ describe("Import routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/import?mode=upload&error_code=import_no_urls");
+		});
+
+		it("redirects with import_is_book when the file is an EPUB, and names the book upload page", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody("dune.epub", epubFile());
+
+			const response = await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/import?mode=upload&error_code=import_is_book");
+			const page = await agent.get(response.headers.location);
+			const doc = new JSDOM(page.text).window.document;
+			expect(doc.querySelector('[data-test-alert="import"] [data-test-alert-message]')?.textContent).toBe(
+				"That file is an EPUB book, not a list of links. Upload it from the book upload page.",
+			);
+		});
+
+		it("answers a Siren 422 error with import_no_urls when no URLs are found", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { body, contentType } = multipartBody("empty.txt", Buffer.from("just some prose"));
+
+			const response = await request(harness.server).post("/import").set("Accept", SIREN).set("Content-Type", contentType).send(body);
+
+			expect(response.status).toBe(422);
+			expect(response.headers["content-type"]).toContain(SIREN);
+			expect(response.body).toEqual({
+				class: ["error"],
+				properties: { code: "import_no_urls", message: "We couldn't find any links in that file." },
+			});
+		});
+
+		it("answers a Siren 422 error with import_is_book for an EPUB", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { body, contentType } = multipartBody("dune.epub", epubFile());
+
+			const response = await request(harness.server).post("/import").set("Accept", SIREN).set("Content-Type", contentType).send(body);
+
+			expect(response.status).toBe(422);
+			expect(response.body.properties.code).toBe("import_is_book");
+		});
+
+		it("answers a Siren 413 error with import_too_large when the upload exceeds the size cap", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { body, contentType } = multipartBody("big.bin", Buffer.alloc(6 * 1024 * 1024, 0x41));
+
+			const response = await request(harness.server).post("/import").set("Accept", SIREN).set("Content-Type", contentType).send(body);
+
+			expect(response.status).toBe(413);
+			expect(response.body.properties.code).toBe("import_too_large");
+			expect(response.body.properties.message).toContain("split the export into smaller files");
+		});
+
+		it("still redirects a Siren client to the review page when URLs are found", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { body, contentType } = multipartBody("pocket.html", Buffer.from("https://example.com/post-1"));
+
+			const response = await request(harness.server).post("/import").set("Accept", SIREN).set("Content-Type", contentType).send(body);
+
+			expect(response.status).toBe(303);
+			assert(response.headers.location.startsWith("/import/"), "expected redirect to /import/:id");
 		});
 	});
 

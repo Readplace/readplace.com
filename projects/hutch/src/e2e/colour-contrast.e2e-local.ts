@@ -662,7 +662,7 @@ test.describe("Import colour roles hold their WCAG contrast in both themes", () 
 			await auditRoot(page, { root: "main.import", theme, view: "import/paste" });
 
 			await page.goto(`${BASE_URL}/import?mode=upload`, { waitUntil: "domcontentloaded" });
-			await expect(page.locator("[data-import-dropzone]")).toBeVisible({ timeout: SETTLE_MS });
+			await expect(page.locator("[data-upload-dropzone-zone]")).toBeVisible({ timeout: SETTLE_MS });
 			await auditRoot(page, { root: "main.import", theme, view: "import/upload" });
 
 			await page.goto(`${BASE_URL}/import?error_code=import_url_fetch_failed`, { waitUntil: "domcontentloaded" });

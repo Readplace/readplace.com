@@ -7,6 +7,21 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { BROWSER_REQUEST_HEADERS, useTestServer, loginAgent } from "../../../test-app";
 
 const useApp = useTestServer();
+const SIREN = "application/vnd.siren+json";
+
+interface SirenActionBody {
+	name: string;
+	href: string;
+	method: string;
+	type?: string;
+	fields?: { name: string; type: string; value?: string }[];
+}
+
+function actionNamed(body: { actions?: SirenActionBody[] }, name: string): SirenActionBody {
+	const action = body.actions?.find((a) => a.name === name);
+	assert(action, `the entity must carry a ${name} action`);
+	return action;
+}
 const ONE_DAY_MS = 86_400_000;
 
 function epubPrefix(): Uint8Array {
@@ -371,6 +386,109 @@ describe("Upload routes", () => {
 		expect(commit.status).toBe(403);
 		expect(documentOf(commit.text).querySelector("h1")?.textContent).toBe("Your account is locked");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([]);
+	});
+
+	it("stages a Siren upload as an entity whose S3 post answers 201 and puts the file last", async () => {
+		const { harness, agent, userId } = await signedIn();
+		const response = await agent
+			.post("/upload")
+			.set("Accept", SIREN)
+			.type("form")
+			.send({ fileName: "dune.epub", byteLength: "1024" });
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toContain(SIREN);
+		expect(response.body.class).toEqual(["upload-staged"]);
+		const uploadContent = actionNamed(response.body, "upload-content");
+		expect(uploadContent).toMatchObject({ href: `${TEST_APP_ORIGIN}/e2e/s3-media`, method: "POST", type: "multipart/form-data" });
+		const fields = uploadContent.fields ?? [];
+		expect(fields.map((f) => f.name)).toEqual(["key", "success_action_status", "file"]);
+		expect(fields.find((f) => f.name === "success_action_status")?.value).toBe("201");
+		expect(fields[fields.length - 1]).toEqual({ name: "file", type: "file" });
+
+		const key = fields.find((f) => f.name === "key")?.value;
+		assert(key, "the post must carry the object key");
+		const uploadId = UploadIdSchema.parse(key.replace("pending/", "").replace("/original", ""));
+		expect(actionNamed(response.body, "confirm-received")).toEqual({
+			name: "confirm-received",
+			href: `/upload/${uploadId}/received`,
+			method: "POST",
+		});
+		expect((await harness.mediaUpload.findMediaUploadSession({ uploadId, userId }))?.fileName).toBe("dune.epub");
+	});
+
+	it("keeps the HTML S3 form on a redirect back to the upload", async () => {
+		const { agent } = await signedIn();
+		const response = await agent.post("/upload").type("form").send({});
+		const doc = documentOf(response.text);
+		const uploadId = stagedUploadId(doc);
+		expect(doc.querySelector('[data-test-upload-s3-form] input[name="success_action_redirect"]')?.getAttribute("value")).toBe(
+			`${TEST_APP_ORIGIN}/upload/${uploadId}`,
+		);
+		expect(doc.querySelector('[data-test-upload-s3-form] input[name="success_action_status"]')).toBeNull();
+	});
+
+	it.each([
+		{ code: "upload_too_large", status: 413, body: { byteLength: String(257 * 1024 * 1024) } },
+	])("answers a Siren $status error with $code", async ({ code, status, body }) => {
+		const { agent } = await signedIn();
+		const response = await agent.post("/upload").set("Accept", SIREN).type("form").send(body);
+		expect(response.status).toBe(status);
+		expect(response.body.class).toEqual(["error"]);
+		expect(response.body.properties.code).toBe(code);
+		expect(typeof response.body.properties.message).toBe("string");
+	});
+
+	it("confirms a Siren upload: not received, then committed with a redirect to the queue", async () => {
+		const { harness, agent } = await signedIn();
+		const staged = await agent.post("/upload").set("Accept", SIREN).type("form").send({});
+		const confirm = actionNamed(staged.body, "confirm-received").href;
+		const uploadId = UploadIdSchema.parse(confirm.split("/")[2]);
+
+		const notYet = await agent.post(confirm).set("Accept", SIREN);
+		expect(notYet.status).toBe(409);
+		expect(notYet.body.properties).toEqual({
+			code: "upload_not_received",
+			message: "We didn't receive your file. Choose it and upload it again.",
+		});
+
+		const landing = await agent.get(`/upload/${uploadId}`).set("Accept", SIREN);
+		expect(landing.status).toBe(200);
+		expect(actionNamed(landing.body, "confirm-received").href).toBe(confirm);
+
+		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: epubPrefix() });
+		const received = await agent.post(confirm).set("Accept", SIREN);
+		expect(received.status).toBe(303);
+		expect(received.headers.location).toBe("/queue");
+	});
+
+	it("answers Siren errors for an unrecognised file, an unknown session and a failed upload", async () => {
+		const { harness, agent, fixture } = await signedIn();
+		const staged = await agent.post("/upload").set("Accept", SIREN).type("form").send({});
+		const confirm = actionNamed(staged.body, "confirm-received").href;
+		const uploadId = UploadIdSchema.parse(confirm.split("/")[2]);
+		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: Buffer.from("not a zip at all") });
+
+		const unrecognised = await agent.post(confirm).set("Accept", SIREN);
+		expect(unrecognised.status).toBe(422);
+		expect(unrecognised.body.properties).toEqual({
+			code: "upload_unsupported_type",
+			message: "That file type isn't supported. Upload a DRM-free EPUB or an MP3 or M4A file.",
+		});
+
+		const unknown = await agent.get("/upload/0123456789abcdef0123456789abcdef").set("Accept", SIREN);
+		expect(unknown.status).toBe(404);
+		expect(unknown.body.properties.code).toBe("upload_session_not_found");
+
+		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: epubPrefix() });
+		expect((await agent.post(confirm).set("Accept", SIREN)).status).toBe(303);
+		await fixture.mediaUpload.failMediaUpload({ uploadId });
+		const failed = await agent.get(`/upload/${uploadId}`).set("Accept", SIREN);
+		expect(failed.status).toBe(422);
+		expect(failed.body.properties).toEqual({
+			code: "upload_failed",
+			message: "We couldn't open that upload. Check your readlist for the reason, or upload the file again.",
+		});
 	});
 
 	it("opens the owner's committed book in the reader", async () => {

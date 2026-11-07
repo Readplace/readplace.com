@@ -789,9 +789,9 @@ test.describe("Import interaction states hold their WCAG contrast in both themes
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(`${BASE_URL}/import?mode=upload`, { waitUntil: "domcontentloaded" });
 			const client = await auditContext(page);
-			await stamp(page, { selector: "[data-import-dropzone]", auditId: "dropzone" });
-			await stamp(page, { selector: "[data-import-dropzone] .import__dropzone-primary", auditId: "dropzone-primary" });
-			await stamp(page, { selector: "[data-import-dropzone] .import__dropzone-meta", auditId: "dropzone-meta" });
+			await stamp(page, { selector: "[data-upload-dropzone-zone]", auditId: "dropzone" });
+			await stamp(page, { selector: "[data-upload-dropzone-zone] .upload-dropzone__primary", auditId: "dropzone-primary" });
+			await stamp(page, { selector: "[data-upload-dropzone-zone] .upload-dropzone__meta", auditId: "dropzone-meta" });
 
 			for (const state of ["hover", "focus-within"]) {
 				await measure(page, client, "dropzone", [state]);

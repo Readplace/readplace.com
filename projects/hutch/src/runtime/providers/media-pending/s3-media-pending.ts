@@ -19,16 +19,20 @@ export function initS3MediaPending(deps: { presignerClient: S3Client; client: S3
 	const mintMediaPendingPost: MintMediaPendingPost = async ({
 		uploadId,
 		uploadCeilingBytes,
-		successActionRedirect,
+		successAction,
 	}) => {
+		const [successField, successValue] =
+			"redirect" in successAction
+				? ["success_action_redirect", successAction.redirect]
+				: ["success_action_status", successAction.status];
 		const { url, fields } = await createPresignedPost(deps.presignerClient, {
 			Bucket: deps.bucketName,
 			Key: pendingOriginalKey(uploadId),
 			Conditions: [
 				["content-length-range", 1, uploadCeilingBytes],
-				["eq", "$success_action_redirect", successActionRedirect],
+				["eq", `$${successField}`, successValue],
 			],
-			Fields: { success_action_redirect: successActionRedirect },
+			Fields: { [successField]: successValue },
 			Expires: POST_POLICY_TTL_SECONDS,
 		});
 		return { url, fields };

@@ -1,6 +1,8 @@
 import type { RequestHandler } from "express";
 import { UploadIdSchema } from "@packages/media-contracts";
 
+export const UPLOAD_SIGN_IN_HREF = `/signup?return=${encodeURIComponent("/upload")}`;
+
 export const redirectAnonymousToUploadSignup: RequestHandler = (req, res, next) => {
 	if (req.userId) {
 		next();
