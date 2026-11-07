@@ -161,7 +161,7 @@ extension uses. See [`../../../.claude/skills/hypermedia-api-design/SKILL.md`](.
 ```
 projects/native-apps/ios/
 ├── project.yml                  # XcodeGen spec (source of truth for the project)
-├── Makefile                     # make ipa / ipa-staging / generate / open / test / test-staging / run-local / clean
+├── Makefile                     # make ipa / ipa-staging / generate / open / test / test-staging / run-local / clean / clean-sim
 ├── scripts/build-unsigned-ipa.sh  # one command → installable unsigned .ipa
 ├── App/                         # the SwiftUI app target (lists + sign-in)
 ├── ShareExtension/              # the share-sheet target (renders + saves)
@@ -221,7 +221,9 @@ To run the app in a simulator against a local server, start `pnpm dev` in
 `projects/hutch` (it listens on `http://127.0.0.1:3000`, which the Simulator
 reaches as the Mac's own loopback) and run `make run-local`: it compiles the
 `LOCAL_SERVER` condition, then installs and launches the app on this checkout's own
-simulator, created on first use from the newest iPhone runtime.
+simulator, created on first use from the newest iPhone runtime. `make clean-sim`
+deletes that simulator (and any this checkout made on an older runtime), so the
+next `make test` or `make run-local` creates a fresh one.
 
 ---
 
