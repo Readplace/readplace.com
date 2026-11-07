@@ -159,7 +159,7 @@ import {
 	initResolveWrapperTarget,
 	neverResolveWrapperTarget,
 } from "@packages/save-article";
-import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
+import { ARTICLE_REFRESH_DEADLINE_MS, isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
@@ -187,7 +187,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const logInfo = (message: string) => logger.info(JSON.stringify({ level: "INFO", timestamp: new Date().toISOString(), message }));
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress, logInfo, egress: { kind: "direct" } });
-	const staleTtlMs = 86400000;
+	const staleTtlMs = ARTICLE_REFRESH_DEADLINE_MS;
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword, now: () => new Date() });
 	const articleStore = initInMemoryArticleStore();

@@ -167,6 +167,7 @@ export {
 	type ReadTimeBucketId,
 	type SavedWindowId,
 } from "./article-discovery";
+export { ARTICLE_REFRESH_DEADLINE_MS } from "./article-refresh-deadline";
 export { resolutionOnViewCoolDownCutoff } from "./resolution-on-view-cool-down";
 export {
 	HighlightIdSchema,
