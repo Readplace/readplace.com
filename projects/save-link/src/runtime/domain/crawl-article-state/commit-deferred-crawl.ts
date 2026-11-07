@@ -218,9 +218,7 @@ export function initCommitDeferredCrawl(deps: {
 				 * RefreshContentExtractedEvent and the downstream
 				 * refresh-content-extracted handler sets it via the refreshContent
 				 * aggregate transition, mirroring the existing in-place refresh
-				 * Lambda. Save / recrawl chains have no aggregate write that
-				 * persists etag/lastModified, so they still go through the
-				 * UpdateFetchTimestampCommand → update-fetch-timestamp Lambda. */
+				 * Lambda. */
 				if (!refresh && !liveFailed) {
 					await updateFetchTimestamp({
 						url,
