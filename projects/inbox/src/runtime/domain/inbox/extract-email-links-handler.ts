@@ -107,7 +107,7 @@ export function initExtractEmailLinksHandler(deps: {
 		readlist: ReadlistSlug;
 		saveTrigger: SaveTrigger;
 		saveAttemptId: SaveAttemptId;
-		emailOutput: EmailOutputCorrelation | undefined;
+		emailOutput: EmailOutputCorrelation;
 	}) => Promise<void>;
 	publishEmailLinksTriaged: (input: {
 		userId: UserId;
@@ -126,7 +126,7 @@ export function initExtractEmailLinksHandler(deps: {
 		senderName: string;
 		issueUrl: string;
 		readlists: ReadlistSlug[];
-		emailOutput: EmailOutputCorrelation | undefined;
+		emailOutput: EmailOutputCorrelation;
 	}) => Promise<void>;
 	findCompletion: EmailImportCompletionStore["findCompletion"];
 	selectOutputs: EmailImportCompletionStore["selectOutputs"];
@@ -295,10 +295,12 @@ export function initExtractEmailLinksHandler(deps: {
 					? resolveWriteAccess(await findSubscriptionByUserId(userId), now())
 					: undefined;
 				const tracksImport = routing.kind === "gmail" && writeAccess === "full";
-				const completion = tracksImport
+				const completion = writeAccess === "full"
 					? await findCompletion({ userId, receivedAtMessageId })
 					: undefined;
-				const frozenSelection = completion?.selection;
+				const frozenSelection = tracksImport ? completion?.selection : undefined;
+				const alreadySaved = (outputKey: EmailOutputKey) =>
+					completion?.savedOutputs.has(outputKey) === true;
 				// One batched triage call per email; `unavailable` fails open so previews
 				// never depend on the model being up.
 				let triage: Awaited<ReturnType<TriageEmailLinks>> | undefined;
@@ -366,10 +368,9 @@ export function initExtractEmailLinksHandler(deps: {
 				let kept = 0;
 				let skipped = 0;
 				let held = 0;
-				let eligibleForAll = 0;
 				let noticePublished = false;
 				let firstInboxNoticePublished = false;
-				const saveIssue = (emailOutput: EmailOutputCorrelation | undefined) =>
+				const saveIssue = (emailOutput: EmailOutputCorrelation) =>
 					publishSaveEmailIssue({
 						userId,
 						saveAttemptId: newSaveAttemptId(),
@@ -381,7 +382,7 @@ export function initExtractEmailLinksHandler(deps: {
 						readlists: [...customReadlists],
 						emailOutput,
 					});
-				const submitToAll = (input: { url: string; emailOutput: EmailOutputCorrelation | undefined }) =>
+				const submitToAll = (input: { url: string; emailOutput: EmailOutputCorrelation }) =>
 					publishSubmitLink({
 						userId,
 						url: input.url,
@@ -443,7 +444,7 @@ export function initExtractEmailLinksHandler(deps: {
 							status: "skipped",
 							skipReason: LLM_SKIP_REASONS[category],
 						});
-						if (routing.kind !== "gmail" || status === "skipped") {
+						if (status === "skipped") {
 							countStored(status);
 							continue;
 						}
@@ -460,7 +461,7 @@ export function initExtractEmailLinksHandler(deps: {
 					countStored(status);
 					const saveable =
 						canSubmit && fanOut.links && validateSaveableInboxLink(url).status === "SUCCESS";
-					if ((routing.kind === "gmail" || customReadlists.size > 0) && saveable && status !== "skipped") {
+					if (saveable && status !== "skipped") {
 						triagedLinks.push({ ordinal, url, anchorText });
 					}
 					// Triage verdicts are not deterministic across re-deliveries: a row a
@@ -469,13 +470,15 @@ export function initExtractEmailLinksHandler(deps: {
 					if (status !== "pending") continue;
 					// Submit BEFORE the preview publish: the preview consumer flips this
 					// row terminal, so a crash after the preview went out would make the
-					// retry's pending-gate skip a submit that never happened. A crash
-					// after the submit leaves the row pending and the retry re-publishes
-					// both; the duplicate submit converges in the subscriber.
+					// retry's pending-gate skip a submit that never happened.
 					if (saveable) {
-						eligibleForAll += 1;
 						if (writeAccess === "full") {
-							if (!tracksImport) await submitToAll({ url, emailOutput: undefined });
+							if (!tracksImport) {
+								const outputKey = linkOutputKey(ordinal);
+								if (!alreadySaved(outputKey)) {
+									await submitToAll({ url, emailOutput: { receivedAtMessageId, outputKey } });
+								}
+							}
 							if (routing.kind === "inbox" && !firstInboxNoticePublished) {
 								firstInboxNoticePublished = true;
 								await publishFirstInboxEmailNotice({
@@ -519,7 +522,7 @@ export function initExtractEmailLinksHandler(deps: {
 						},
 					});
 					for (const outputKey of selectedOutputs.outputs) {
-						if (completion?.savedOutputs.has(outputKey)) continue;
+						if (alreadySaved(outputKey)) continue;
 						const emailOutput = { receivedAtMessageId, outputKey };
 						const ordinal = outputLinkOrdinal(outputKey);
 						if (ordinal === undefined) {
@@ -581,7 +584,7 @@ export function initExtractEmailLinksHandler(deps: {
 						...(routing.kind === "gmail" && canSubmit && fanOut.links
 							? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld: writeAccess !== "full" }
 							: routing.kind === "inbox" && canSubmit && fanOut.links
-								? { selectedReadlists, eligibleArticleCount: customReadlists.size > 0 ? triagedLinks.length : eligibleForAll, savesHeld: writeAccess !== "full" }
+								? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld: writeAccess !== "full" }
 								: {}),
 						...(canSubmit && fanOut.issue
 							? { issueSave: { readlists: selectedReadlists, held: writeAccess !== "full" } }
