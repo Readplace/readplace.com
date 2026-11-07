@@ -25,7 +25,9 @@ struct ArticleRowPresentation: Equatable {
 	init(
 		isRead: Bool,
 		readTimeLabel: String?,
-		savedLabel: String?,
+		savedAt: Date?,
+		now: Date,
+		locale: Locale,
 		isAvailableOffline: Bool,
 		processing: ArticleProcessing? = nil,
 		processingReceivedAt: Date? = nil,
@@ -36,6 +38,7 @@ struct ArticleRowPresentation: Equatable {
 		statusLabel = isRead ? "Read" : "Unread"
 		titleColor = isRead ? .brandTextSecondary : .brandTextPrimary
 		fill = isRead ? .brandCard : .brandSecondary
+		let savedLabel = savedAt.map { Self.savedLabel(savedAt: $0, now: now, locale: locale) }
 		let parts = [readTimeLabel, savedLabel].compactMap { $0 }.filter { !$0.isEmpty }
 		metaText = parts.isEmpty || processing != nil ? nil : parts.joined(separator: " · ")
 		showsOfflineBadge = isAvailableOffline
@@ -59,6 +62,13 @@ struct ArticleRowPresentation: Equatable {
 	}
 
 	private static let almostThereLabel = "Almost there…"
+
+	private static func savedLabel(savedAt: Date, now: Date, locale: Locale) -> String {
+		let formatter = RelativeDateTimeFormatter()
+		formatter.unitsStyle = .abbreviated
+		formatter.locale = locale
+		return formatter.localizedString(for: savedAt, relativeTo: now)
+	}
 
 	private static func remainingLabel(_ seconds: Int) -> String {
 		seconds > 0 ? "~\(seconds) s left" : almostThereLabel

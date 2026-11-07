@@ -4662,7 +4662,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		let presentation = ArticleRowPresentation(
 			isRead: false,
 			readTimeLabel: nil,
-			savedLabel: nil,
+			savedAt: nil,
+			now: Date(timeIntervalSince1970: 110),
+			locale: Locale(identifier: "en_US"),
 			isAvailableOffline: false,
 			processing: row?.processing,
 			processingReceivedAt: viewModel.processingReceivedAt["a1"]

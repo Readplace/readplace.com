@@ -9,15 +9,22 @@
 import {
 	formatLocalInstant,
 	type LocalTimeStyle,
+	toRelativeOrDate,
 } from "./local-time.format";
 
 export interface LocalTimeDeps {
 	document: Document;
 	timeZone: () => string;
 	addSwapListener: (cb: () => void) => void;
+	now: () => Date;
+	every: (ms: number, cb: () => void) => void;
+	storage: () => { getItem(key: string): string | null };
 }
 
 const SELECTOR = "[data-local-time]";
+const TICK_SELECTOR = "[data-local-time-tick]";
+const TICK_OFF_KEY = "readplace:local-time-tick-off";
+const TICK_INTERVAL_MS = 60_000;
 
 function isParseableIso(iso: string | null): iso is string {
 	return iso !== null && !Number.isNaN(Date.parse(iso));
@@ -55,9 +62,33 @@ export function initLocalTime(deps: LocalTimeDeps): { attach(): void } {
 		}
 	}
 
+	function tick(): void {
+		const timeZone = deps.timeZone();
+		const now = deps.now();
+		const elements = deps.document.querySelectorAll(TICK_SELECTOR);
+		for (let i = 0; i < elements.length; i++) {
+			const el = elements[i];
+			const iso = el.getAttribute("datetime");
+			if (!isParseableIso(iso)) continue;
+			const current = toRelativeOrDate({ iso, now });
+			el.setAttribute("data-local-time", current.mode);
+			el.textContent = current.label;
+			localize(el, timeZone);
+		}
+	}
+
+	function isTickOptedOut(): boolean {
+		try {
+			return deps.storage().getItem(TICK_OFF_KEY) === "1";
+		} catch {
+			return false;
+		}
+	}
+
 	function attach(): void {
 		scan();
 		deps.addSwapListener(scan);
+		if (!isTickOptedOut()) deps.every(TICK_INTERVAL_MS, tick);
 	}
 
 	return { attach };

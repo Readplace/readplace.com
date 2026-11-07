@@ -11,6 +11,7 @@ import {
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
+import { disableLocalTimeTick } from "./reader-failed-notice-visual.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -111,6 +112,7 @@ async function seedReader(page: Page, stamp: string): Promise<void> {
 		});
 		assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
 	}
+	await page.addInitScript(disableLocalTimeTick);
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
 	await page.locator("#password").fill(PASSWORD);
