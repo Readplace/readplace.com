@@ -3,7 +3,16 @@ import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { SaveAttemptId, ValidateSaveableUrl } from "@packages/domain/article";
-import type { AllocateSavedAt } from "@packages/provider-contracts/article-store";
+import { EventEnvelope } from "@packages/domain/event-envelope";
+import {
+	type AllocateSavedAt,
+	ArticlePurgedAfterRequest,
+	type AssignSavedArticleToReadlist,
+	type HasSaveLandedSince,
+	type SaveArticleAsRequested,
+	type SaveReadlistArticleAsRequested,
+	type UpdateArticleStatusAcrossReadlists,
+} from "@packages/provider-contracts/article-store";
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { RecordInboxArticleQueued } from "@packages/provider-contracts/onboarding-signals";
 import type { PublishLinkSaved } from "@packages/provider-contracts/events";
@@ -22,9 +31,10 @@ import {
 } from "@packages/infra-components";
 import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
 import {
-	type FileArticleIntoReadlist,
+	initFileArticleIntoReadlist,
 	initSaveArticleAtReadlistTop,
 	initSaveArticleFromUrl,
+	type ResolveSaveIdentity,
 	type SaveArticleFromUrlDependencies,
 } from "@packages/save-article";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
@@ -39,17 +49,23 @@ import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import { initCrawlSaveCandidates } from "../save-link/crawl-save-candidates";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "./max-receive-count";
+import type { ResolveSubmitterStanding } from "./resolve-submitter-standing";
 
 export function initSubmitLinkCommandHandler(deps: {
 	validateSaveableUrl: ValidateSaveableUrl;
-	saveArticle: SaveArticleFromUrlDependencies["saveArticle"];
+	saveArticleAsRequested: SaveArticleAsRequested;
+	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
+	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
+	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
+	hasSaveLandedSince: HasSaveLandedSince;
+	resolveSubmitterStanding: ResolveSubmitterStanding;
+	resolveSaveIdentity: ResolveSaveIdentity;
 	updateArticleStatus: SaveArticleFromUrlDependencies["updateArticleStatus"];
 	markCrawlPending: SaveArticleFromUrlDependencies["markCrawlPending"];
 	markSummaryPending: SaveArticleFromUrlDependencies["markSummaryPending"];
 	publishUpdateFetchTimestamp: SaveArticleFromUrlDependencies["publishUpdateFetchTimestamp"];
 	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
 	allocateSavedAt: AllocateSavedAt;
-	fileArticleIntoReadlist: FileArticleIntoReadlist;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	pinContentSource: SaveArticleFromUrlDependencies["pinContentSource"];
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
@@ -151,6 +167,7 @@ export function initSubmitLinkCommandHandler(deps: {
 		malformed: { policy: "retry" },
 		handle: async (detail, record) => {
 			const { saveAttemptId } = detail;
+			const requestedAt = new Date(EventEnvelope.parse(JSON.parse(record.body)).time);
 			assert(
 				detail.rawHtml === undefined,
 				`${logPrefix} rawHtml (tier-0) submissions have no handler yet`,
@@ -166,10 +183,41 @@ export function initSubmitLinkCommandHandler(deps: {
 				`${logPrefix} url is not saveable: ${detail.url}`,
 			);
 			const url = prepareNewSaveUrl(validation.url);
+			const receiveCount = record.receiveCount;
+			const refusal = {
+				messageId: record.messageId,
+				requestedAt: requestedAt.toISOString(),
+				receiveCount,
+				saveAttemptId,
+				userId,
+			};
+			const refuse = async (reason: "read-only" | "purged-after-request") => {
+				logger.warn(`${logPrefix} save refused`, { ...refusal, reason, url: detail.url });
+				await publishEvent(LinkQueueFailedEvent, { url: detail.url, userId, reason, receiveCount });
+			};
+
+			const standing = await deps.resolveSubmitterStanding(userId);
+			if (standing === "account-gone") {
+				assert(receiveCount >= SUBMIT_LINK_MAX_RECEIVE_COUNT, "The submitter's account is not live");
+				logger.warn(`${logPrefix} save refused`, { ...refusal, reason: standing });
+				return;
+			}
+			if (standing === "read-only") {
+				const identity = await deps.resolveSaveIdentity(url);
+				if (identity.status === "unresolved") {
+					assert(receiveCount >= SUBMIT_LINK_MAX_RECEIVE_COUNT, "The wrapper original could not be resolved");
+					await refuse(standing);
+					return;
+				}
+				if (!(await deps.hasSaveLandedSince({ userId, url: identity.url, requestedAt }))) {
+					await refuse(standing);
+					return;
+				}
+			}
 
 			const enrichment: Parameters<PublishLinkSaved>[0][] = [];
 			const saveArticleFromUrl = initSaveArticleFromUrl({
-				saveArticle: deps.saveArticle,
+				saveArticle: (params) => deps.saveArticleAsRequested({ ...params, requestedAt }),
 				updateArticleStatus: deps.updateArticleStatus,
 				markCrawlPending: deps.markCrawlPending,
 				markSummaryPending: deps.markSummaryPending,
@@ -187,9 +235,13 @@ export function initSubmitLinkCommandHandler(deps: {
 				allocateSavedAt: deps.allocateSavedAt,
 				saveArticleFromUrl,
 			});
+			const fileArticleIntoReadlist = initFileArticleIntoReadlist({
+				allocateSavedAt: deps.allocateSavedAt,
+				saveReadlistArticle: (params) => deps.saveReadlistArticleAsRequested({ ...params, requestedAt }),
+				updateArticleStatusAcrossReadlists: deps.updateArticleStatusAcrossReadlists,
+			});
 			const freshness = await deps.refreshArticleIfStale({ url });
 			if (freshness.action === "unresolved") {
-				const receiveCount = record.receiveCount;
 				assert(receiveCount >= SUBMIT_LINK_MAX_RECEIVE_COUNT, "The wrapper original could not be resolved");
 				logger.warn(`${logPrefix} wrapper original unresolved on the final receive — giving up the save`, { url });
 				await publishEvent(LinkQueueFailedEvent, {
@@ -200,27 +252,41 @@ export function initSubmitLinkCommandHandler(deps: {
 				});
 				return;
 			}
-			const { saved, canonicalUrl, meteredLegs, crawlPending } = await saveArticleAtReadlistTop({
-				userId,
-				url,
-				freshness,
-				provenance,
-				saveTrigger: detail.saveTrigger,
-				saveAttemptId,
-			});
-			logger.info(`${logPrefix} saved`, {
-				url: canonicalUrl,
-				saveTrigger: detail.saveTrigger,
-				freshness: freshness.action,
-				meteredLegs,
-				contentSource: freshness.identity.contentSourceUrl !== undefined,
-				crawlPending,
-			});
-			if ("emailOutput" in detail && detail.emailOutput !== undefined) {
-				await publishEvent(EmailOutputSavedToAllEvent, { userId, ...detail.emailOutput });
-			}
-			if (readlist !== DEFAULT_READLIST_SLUG) {
-				await deps.fileArticleIntoReadlist({ userId, readlist, article: saved, provenance });
+			try {
+				const { saved, canonicalUrl, meteredLegs, crawlPending } = await saveArticleAtReadlistTop({
+					userId,
+					url,
+					freshness,
+					provenance,
+					saveTrigger: detail.saveTrigger,
+					saveAttemptId,
+				});
+				logger.info(`${logPrefix} saved`, {
+					url: canonicalUrl,
+					saveTrigger: detail.saveTrigger,
+					freshness: freshness.action,
+					meteredLegs,
+					contentSource: freshness.identity.contentSourceUrl !== undefined,
+					crawlPending,
+				});
+				if ("emailOutput" in detail && detail.emailOutput !== undefined) {
+					await publishEvent(EmailOutputSavedToAllEvent, { userId, ...detail.emailOutput });
+				}
+				if (readlist !== DEFAULT_READLIST_SLUG && saved.status === "read") {
+					await deps.assignSavedArticleToReadlist({
+						userId,
+						readlist,
+						from: DEFAULT_READLIST_SLUG,
+						url: saved.url,
+						savedAt: await deps.allocateSavedAt({ userId }),
+					});
+				} else if (readlist !== DEFAULT_READLIST_SLUG) {
+					await fileArticleIntoReadlist({ userId, readlist, article: saved, provenance });
+				}
+			} catch (error) {
+				if (!(error instanceof ArticlePurgedAfterRequest)) throw error;
+				await refuse("purged-after-request");
+				return;
 			}
 
 			if (provenance.kind === "email") {
@@ -239,7 +305,6 @@ export function initSubmitLinkCommandHandler(deps: {
 					if (link.captureUrl !== undefined) await crawlCapture({ ...link, captureUrl: link.captureUrl });
 					else await crawlTier1(link);
 				} catch (error) {
-					const receiveCount = record.receiveCount;
 					const classified = error instanceof ClassifiedCrawlError;
 					if (!classified && receiveCount < SUBMIT_LINK_MAX_RECEIVE_COUNT) throw error;
 					logger.warn(`${logPrefix} tier-1 crawl failed — terminalising in-process`, {

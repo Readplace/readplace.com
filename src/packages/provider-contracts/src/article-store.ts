@@ -65,6 +65,25 @@ export type SaveArticle = (
 	params: SaveArticleParams,
 ) => Promise<{ saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean }>;
 
+export class ArticlePurgedAfterRequest extends Error {
+	readonly url: string;
+	constructor(url: string) {
+		super(`The article was purged at or after the save was requested: ${url}`);
+		this.name = "ArticlePurgedAfterRequest";
+		this.url = url;
+	}
+}
+
+export type SaveArticleAsRequested = (
+	params: SaveArticleParams & { requestedAt: Date },
+) => ReturnType<SaveArticle>;
+
+export type HasSaveLandedSince = (params: {
+	userId: UserId;
+	url: string;
+	requestedAt: Date;
+}) => Promise<boolean>;
+
 export type AllocateSavedAt = (params: { userId: UserId }) => Promise<Date>;
 
 export type AllocateSavedAtSequence = (params: {
@@ -376,6 +395,10 @@ export interface SaveReadlistArticleParams extends SaveArticleParams {
 export type SaveReadlistArticle = (
 	params: SaveReadlistArticleParams,
 ) => Promise<{ saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean }>;
+
+export type SaveReadlistArticleAsRequested = (
+	params: SaveReadlistArticleParams & { requestedAt: Date },
+) => ReturnType<SaveReadlistArticle>;
 
 export interface FindReadlistArticlesQuery extends FindArticlesQuery {
 	readlist: ReadlistSlug;

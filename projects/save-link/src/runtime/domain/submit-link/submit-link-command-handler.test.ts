@@ -1,8 +1,10 @@
+import assert from "node:assert/strict";
 import { initFindSavedArticleForLink } from "@packages/article-store";
 import { type Logger, noopLogger } from "@packages/logger";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	MinutesSchema,
+	ReaderArticleHashId,
 	ReaderArticleHashIdSchema,
 	SaveableUrlSchema,
 	articleDestinationUrl,
@@ -25,6 +27,7 @@ import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
 import type { DecideReadlistFit } from "@packages/readlist-fit";
 import { initFileArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
+import { ArticlePurgedAfterRequest } from "@packages/provider-contracts/article-store";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type {
@@ -62,12 +65,14 @@ function createSqsEvent(
 		readlist?: string;
 		emailOutput?: { receivedAtMessageId: string; outputKey: string };
 	}>,
+	requestedAt = "2026-06-02T00:00:00Z",
 ): SQSEvent {
 	return {
 		Records: details.map((detail, index) => ({
 			messageId: `msg-${index + 1}`,
 			receiptHandle: `receipt-${index + 1}`,
 			body: JSON.stringify({
+				time: requestedAt,
 				detail:
 					detail.userId === undefined
 						? { saveAttemptId: `attempt-${index + 1}`, ...detail }
@@ -138,9 +143,14 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
 		resolveOriginalUrl: async (url) => url,
 		validateSaveableUrl,
-		saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
+		saveArticleAsRequested: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
 		allocateSavedAt: jest.fn().mockResolvedValue(allocatedSavedAt),
-		fileArticleIntoReadlist: jest.fn().mockResolvedValue({ createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false }),
+		saveReadlistArticleAsRequested: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
+		updateArticleStatusAcrossReadlists: jest.fn().mockResolvedValue(true),
+		assignSavedArticleToReadlist: jest.fn().mockResolvedValue(undefined),
+		hasSaveLandedSince: jest.fn().mockResolvedValue(false),
+		resolveSubmitterStanding: async () => "may-save",
+		resolveSaveIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
 		recordInboxArticleQueued: jest.fn().mockResolvedValue(undefined),
 		updateArticleStatus: jest.fn().mockResolvedValue(true),
 		markCrawlPending: jest.fn().mockResolvedValue({ kind: "marked" }),
@@ -194,10 +204,12 @@ describe("initSubmitLinkCommandHandler", () => {
 			await store.setReadlistDefinitionPurpose({ userId, slug, purpose: slug });
 		}
 		const submit = createHandler({
-			saveArticle: store.saveArticle,
+			saveArticleAsRequested: store.saveArticleAsRequested,
 			allocateSavedAt: store.allocateSavedAt,
 			updateArticleStatus: store.updateArticleStatus,
-			fileArticleIntoReadlist: initFileArticleIntoReadlist(store),
+			saveReadlistArticleAsRequested: store.saveReadlistArticleAsRequested,
+			updateArticleStatusAcrossReadlists: store.updateArticleStatusAcrossReadlists,
+			assignSavedArticleToReadlist: store.assignSavedArticleToReadlist,
 			refreshArticleIfStale: refreshAs("skip", () => ({ status: "resolved", url: canonical, originalUrl: canonical })),
 		});
 		const initial = createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letter@example.com" }, saveTrigger: "automatic" }]);
@@ -274,7 +286,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const markCrawlPending = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const putTierSource = jest.fn().mockResolvedValue(undefined);
-		const handler = createHandler({ saveArticle, markCrawlPending, publishEvent, putTierSource });
+		const handler = createHandler({ saveArticleAsRequested: saveArticle, markCrawlPending, publishEvent, putTierSource });
 
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
@@ -417,7 +429,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			publishEvent,
-			saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: false, wroteUserArticle: true }),
+			saveArticleAsRequested: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: false, wroteUserArticle: true }),
 		});
 
 		await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
@@ -433,7 +445,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle = jest.fn();
 		const handler = createHandler({
-			saveArticle,
+			saveArticleAsRequested: saveArticle,
 			publishEvent,
 			refreshArticleIfStale: refreshAs("skip"),
 			crawlAndFinalizeArticle: crawlAndFinalizeArticle as unknown as CrawlAndFinalizeArticle,
@@ -452,7 +464,7 @@ describe("initSubmitLinkCommandHandler", () => {
 	it("resurfaces a previously-read article back to unread, exactly like the queue save button", async () => {
 		const updateArticleStatus = jest.fn().mockResolvedValue(true);
 		const handler = createHandler({
-			saveArticle: jest
+			saveArticleAsRequested: jest
 				.fn()
 				.mockResolvedValue({ saved: makeSaved({ status: "read", readAt: new Date("2026-06-10T00:00:00.000Z") }), createdUserArticle: true, wroteUserArticle: true }),
 			updateArticleStatus,
@@ -468,7 +480,7 @@ describe("initSubmitLinkCommandHandler", () => {
 	it("completes the queue write and resurface before the tier-1 crawl starts", async () => {
 		const order: string[] = [];
 		const handler = createHandler({
-			saveArticle: jest.fn().mockImplementation(async () => {
+			saveArticleAsRequested: jest.fn().mockImplementation(async () => {
 				order.push("saveArticle");
 				return { saved: makeSaved({ status: "read", readAt: new Date() }), createdUserArticle: true, wroteUserArticle: true };
 			}),
@@ -508,7 +520,7 @@ describe("initSubmitLinkCommandHandler", () => {
 
 	it("fails a pre-provenance record still in flight at deploy, rather than reading it as an anonymous submission", async () => {
 		const saveArticle = jest.fn();
-		const handler = createHandler({ saveArticle });
+		const handler = createHandler({ saveArticleAsRequested: saveArticle });
 		const event = createSqsEvent([{ url: exampleUrl }]);
 		event.Records[0].body = JSON.stringify({ detail: { url: exampleUrl, userId } });
 
@@ -520,7 +532,7 @@ describe("initSubmitLinkCommandHandler", () => {
 
 	it("fails a pre-trigger record still in flight at deploy, so its dead letter re-offers the Save button", async () => {
 		const saveArticle = jest.fn();
-		const handler = createHandler({ saveArticle });
+		const handler = createHandler({ saveArticleAsRequested: saveArticle });
 		const event = createSqsEvent([{ url: exampleUrl }]);
 		event.Records[0].body = JSON.stringify({
 			detail: { saveAttemptId: "attempt-1", url: exampleUrl, userId, provenance: { kind: "web" }, readlist: "default" },
@@ -534,7 +546,7 @@ describe("initSubmitLinkCommandHandler", () => {
 
 	it("fails a pre-readlist record still in flight at deploy, so its dead letter re-offers the Save button", async () => {
 		const saveArticle = jest.fn();
-		const handler = createHandler({ saveArticle });
+		const handler = createHandler({ saveArticleAsRequested: saveArticle });
 		const event = createSqsEvent([{ url: exampleUrl }]);
 		event.Records[0].body = JSON.stringify({
 			detail: { saveAttemptId: "attempt-1", url: exampleUrl, userId, provenance: { kind: "web" }, saveTrigger: "manual" },
@@ -548,7 +560,7 @@ describe("initSubmitLinkCommandHandler", () => {
 
 	it("fails a record whose readlist is not a readlist id", async () => {
 		const saveArticle = jest.fn();
-		const handler = createHandler({ saveArticle });
+		const handler = createHandler({ saveArticleAsRequested: saveArticle });
 
 		const response = await run(
 			handler,
@@ -565,14 +577,14 @@ describe("initSubmitLinkCommandHandler", () => {
 		const publishEvent = jest.fn(async (event: { detailType: string }) => {
 			calls.push(event.detailType);
 		});
-		const fileArticleIntoReadlist = jest.fn(async () => {
+		const saveReadlistArticleAsRequested = jest.fn(async () => {
 			calls.push("filed");
-			return { createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false };
+			return { saved, createdUserArticle: true, wroteUserArticle: true };
 		});
 		const handler = createHandler({
 			publishEvent,
-			fileArticleIntoReadlist,
-			saveArticle: jest.fn().mockResolvedValue({ saved, createdUserArticle: true, wroteUserArticle: true }),
+			saveReadlistArticleAsRequested,
+			saveArticleAsRequested: jest.fn().mockResolvedValue({ saved, createdUserArticle: true, wroteUserArticle: true }),
 		});
 
 		const response = await run(
@@ -589,12 +601,15 @@ describe("initSubmitLinkCommandHandler", () => {
 		);
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(fileArticleIntoReadlist).toHaveBeenCalledWith({
-			userId,
-			readlist: "a1b2c3d4",
-			article: saved,
-			provenance: { kind: "email", senderEmail: "news@example.com" },
-		});
+		expect(saveReadlistArticleAsRequested).toHaveBeenCalledWith(
+			expect.objectContaining({
+				userId,
+				readlist: "a1b2c3d4",
+				url: saved.url,
+				provenance: { kind: "email", senderEmail: "news@example.com" },
+				requestedAt: new Date("2026-06-02T00:00:00Z"),
+			}),
+		);
 		expect(calls.slice(0, calls.indexOf("filed") + 1)).toEqual([
 			"LinkQueued",
 			"filed",
@@ -608,7 +623,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		});
 		const handler = createHandler({
 			publishEvent,
-			fileArticleIntoReadlist: jest.fn(async () => {
+			saveReadlistArticleAsRequested: jest.fn(async () => {
 				calls.push("filed");
 				throw new Error("custom readlist write failed");
 			}),
@@ -636,18 +651,18 @@ describe("initSubmitLinkCommandHandler", () => {
 	});
 
 	it("files nothing beyond All when the command names All", async () => {
-		const fileArticleIntoReadlist = jest.fn();
-		const handler = createHandler({ fileArticleIntoReadlist });
+		const saveReadlistArticleAsRequested = jest.fn();
+		const handler = createHandler({ saveReadlistArticleAsRequested });
 
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(fileArticleIntoReadlist).not.toHaveBeenCalled();
+		expect(saveReadlistArticleAsRequested).not.toHaveBeenCalled();
 	});
 
 	it("fails the record when filing into the readlist fails, so the retry files it", async () => {
 		const handler = createHandler({
-			fileArticleIntoReadlist: jest.fn().mockRejectedValue(new Error("dynamo unavailable")),
+			saveReadlistArticleAsRequested: jest.fn().mockRejectedValue(new Error("dynamo unavailable")),
 		});
 
 		const response = await run(
@@ -663,7 +678,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			refreshArticleIfStale: async () => ({ action: "unresolved", identity: { status: "unresolved" } }),
-			saveArticle,
+			saveArticleAsRequested: saveArticle,
 			publishEvent,
 		});
 		const lastReceive = createSqsEvent([{ url: "https://archive.ph/abc", userId }]);
@@ -691,7 +706,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const publishEvent = jest.fn();
 		const handler = createHandler({
 			refreshArticleIfStale: async () => ({ action: "unresolved", identity: { status: "unresolved" } }),
-			saveArticle,
+			saveArticleAsRequested: saveArticle,
 			pinContentSource,
 			markCrawlPending,
 			allocateSavedAt,
@@ -710,7 +725,7 @@ describe("initSubmitLinkCommandHandler", () => {
 
 	it("fails the record for an unsaveable URL instead of stub-saving garbage", async () => {
 		const saveArticle = jest.fn();
-		const handler = createHandler({ saveArticle });
+		const handler = createHandler({ saveArticleAsRequested: saveArticle });
 
 		const response = await run(
 			handler,
@@ -916,7 +931,7 @@ describe("initSubmitLinkCommandHandler", () => {
 	it("stamps after the queue write and before the tier-1 crawl", async () => {
 		const order: string[] = [];
 		const handler = createHandler({
-			saveArticle: jest.fn().mockImplementation(async () => {
+			saveArticleAsRequested: jest.fn().mockImplementation(async () => {
 				order.push("saveArticle");
 				return { saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true };
 			}),
@@ -984,7 +999,7 @@ describe("initSubmitLinkCommandHandler — a twitter.com link from an email", ()
 			return fetchedResult;
 		};
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
-		const handler = createHandler({ refreshArticleIfStale, saveArticle, crawlAndFinalizeArticle, publishEvent });
+		const handler = createHandler({ refreshArticleIfStale, saveArticleAsRequested: saveArticle, crawlAndFinalizeArticle, publishEvent });
 
 		const response = await run(handler, createSqsEvent([{ url: TWEET_ON_TWITTER, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" }]));
 
@@ -1000,7 +1015,7 @@ describe("initSubmitLinkCommandHandler — a twitter.com link from an email", ()
 
 	it("leaves a twitter.com subdomain link as it was emailed", async () => {
 		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
-		const handler = createHandler({ saveArticle });
+		const handler = createHandler({ saveArticleAsRequested: saveArticle });
 
 		await run(handler, createSqsEvent([{ url: "https://mobile.twitter.com/jack/status/20", userId }]));
 
@@ -1021,7 +1036,7 @@ describe("initSubmitLinkCommandHandler — an Amazon title link from an email", 
 			return fetchedResult;
 		};
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
-		const handler = createHandler({ refreshArticleIfStale, saveArticle, crawlAndFinalizeArticle, publishEvent });
+		const handler = createHandler({ refreshArticleIfStale, saveArticleAsRequested: saveArticle, crawlAndFinalizeArticle, publishEvent });
 
 		const response = await run(handler, createSqsEvent([{ url: TITLE, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" }]));
 
@@ -1075,5 +1090,499 @@ describe("initSubmitLinkCommandHandler — the per-save log line", () => {
 				crawlPending: { kind: "refused", crawlStatus: "pending", carriedMarker: false },
 			},
 		]);
+	});
+});
+
+describe("a redelivered save", () => {
+	const requestedAt = "2026-06-02T00:00:00Z";
+	const finalReceive = (event: SQSEvent): SQSEvent => {
+		event.Records[0].attributes = { ...stubAttributes, ApproximateReceiveCount: String(SUBMIT_LINK_MAX_RECEIVE_COUNT) };
+		return event;
+	};
+	const collectWarnings = () => {
+		const warnings: unknown[][] = [];
+		const logger: Logger = {
+			...noopLogger,
+			warn: (...args: unknown[]) => {
+				warnings.push(args);
+			},
+		};
+		return { warnings, logger };
+	};
+	const refusalContext = (reason: string, receiveCount: number) => ({
+		messageId: "msg-1",
+		reason,
+		requestedAt: "2026-06-02T00:00:00.000Z",
+		receiveCount,
+		saveAttemptId: "attempt-1",
+		userId,
+	});
+
+	it("refuses a save for an erased account on the final receive, logs it without the url and writes nothing", async () => {
+		const { warnings, logger } = collectWarnings();
+		const publishEvent = jest.fn();
+		const saveArticleAsRequested = jest.fn();
+		const handler = createHandler({ resolveSubmitterStanding: async () => "account-gone", publishEvent, saveArticleAsRequested, logger });
+
+		const response = await run(handler, finalReceive(createSqsEvent([{ url: exampleUrl, userId }])));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(saveArticleAsRequested).not.toHaveBeenCalled();
+		expect(publishEvent.mock.calls).toEqual([]);
+		expect(warnings).toEqual([["[SubmitLinkCommand] save refused", refusalContext("account-gone", SUBMIT_LINK_MAX_RECEIVE_COUNT)]]);
+	});
+
+	it("retries a save whose account is not visible yet on an earlier receive", async () => {
+		const publishEvent = jest.fn();
+		const handler = createHandler({ resolveSubmitterStanding: async () => "account-gone", publishEvent });
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		expect(publishEvent.mock.calls).toEqual([]);
+	});
+
+	it("refuses a save for a read-only reader whose save has not landed since the request", async () => {
+		const { warnings, logger } = collectWarnings();
+		const publishEvent = jest.fn();
+		const saveArticleAsRequested = jest.fn();
+		const refreshArticleIfStale = jest.fn();
+		const hasSaveLandedSince = jest.fn().mockResolvedValue(false);
+		const handler = createHandler({
+			resolveSubmitterStanding: async () => "read-only",
+			hasSaveLandedSince,
+			publishEvent,
+			saveArticleAsRequested,
+			refreshArticleIfStale,
+			logger,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(hasSaveLandedSince).toHaveBeenCalledWith({ userId, url: exampleUrl, requestedAt: new Date(requestedAt) });
+		expect(saveArticleAsRequested).not.toHaveBeenCalled();
+		expect(refreshArticleIfStale).not.toHaveBeenCalled();
+		expect(publishEvent.mock.calls).toEqual([
+			[LinkQueueFailedEvent, { url: exampleUrl, userId, reason: "read-only", receiveCount: 1 }],
+		]);
+		expect(warnings).toEqual([["[SubmitLinkCommand] save refused", { ...refusalContext("read-only", 1), url: exampleUrl }]]);
+	});
+
+	it("finishes a read-only reader's save that landed before access lapsed and acknowledges its Gmail output", async () => {
+		const { warnings, logger } = collectWarnings();
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const emailOutput = { receivedAtMessageId: "2026-10-27T00:00:00.000Z#<m@x>", outputKey: "link#0000" };
+		const handler = createHandler({
+			resolveSubmitterStanding: async () => "read-only",
+			hasSaveLandedSince: jest.fn().mockResolvedValue(true),
+			publishEvent,
+			logger,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId, emailOutput }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(publishedDetailTypes(publishEvent)).not.toContain("LinkQueueFailed");
+		expect(publishEvent).toHaveBeenCalledWith(EmailOutputSavedToAllEvent, { userId, ...emailOutput });
+		expect(warnings.filter(([message]) => message === "[SubmitLinkCommand] save refused")).toEqual([]);
+	});
+
+	it("retries a read-only save whose identity is unresolved until the final receive", async () => {
+		const publishEvent = jest.fn();
+		const handler = createHandler({
+			resolveSubmitterStanding: async () => "read-only",
+			resolveSaveIdentity: async () => ({ status: "unresolved" }),
+			publishEvent,
+		});
+
+		const early = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+		expect(early.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		expect(publishEvent.mock.calls).toEqual([]);
+
+		const final = await run(handler, finalReceive(createSqsEvent([{ url: exampleUrl, userId }])));
+		expect(final.batchItemFailures).toEqual([]);
+		expect(publishEvent.mock.calls).toEqual([
+			[LinkQueueFailedEvent, { url: exampleUrl, userId, reason: "read-only", receiveCount: SUBMIT_LINK_MAX_RECEIVE_COUNT }],
+		]);
+	});
+
+	it("refuses a save requested before the purge and does not crawl", async () => {
+		const { warnings, logger } = collectWarnings();
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle = jest.fn();
+		const handler = createHandler({
+			saveArticleAsRequested: jest.fn().mockRejectedValue(new ArticlePurgedAfterRequest(exampleUrl)),
+			crawlAndFinalizeArticle,
+			publishEvent,
+			logger,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
+		expect(publishEvent.mock.calls).toEqual([
+			[LinkQueueFailedEvent, { url: exampleUrl, userId, reason: "purged-after-request", receiveCount: 1 }],
+		]);
+		expect(warnings).toEqual([["[SubmitLinkCommand] save refused", { ...refusalContext("purged-after-request", 1), url: exampleUrl }]]);
+	});
+
+	it("refuses when the purge lands between the save and the filing", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			saveReadlistArticleAsRequested: jest.fn().mockRejectedValue(new ArticlePurgedAfterRequest(exampleUrl)),
+			publishEvent,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId, readlist: "a1b2c3d4" }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(publishedDetailTypes(publishEvent).at(-1)).toBe("LinkQueueFailed");
+		expect(publishEvent.mock.calls.at(-1)).toEqual([
+			LinkQueueFailedEvent,
+			{ url: exampleUrl, userId, reason: "purged-after-request", receiveCount: 1 },
+		]);
+	});
+
+	it("files a save that stayed read into the readlist as read, from All, at a fresh position", async () => {
+		const saved = makeSaved({ status: "read" });
+		const assignSavedArticleToReadlist = jest.fn().mockResolvedValue(undefined);
+		const saveReadlistArticleAsRequested = jest.fn();
+		const handler = createHandler({
+			saveArticleAsRequested: jest.fn().mockResolvedValue({ saved, createdUserArticle: false, wroteUserArticle: false }),
+			assignSavedArticleToReadlist,
+			saveReadlistArticleAsRequested,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId, readlist: "a1b2c3d4" }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(saveReadlistArticleAsRequested).not.toHaveBeenCalled();
+		expect(assignSavedArticleToReadlist).toHaveBeenCalledWith({
+			userId,
+			readlist: "a1b2c3d4",
+			from: DEFAULT_READLIST_SLUG,
+			url: saved.url,
+			savedAt: allocatedSavedAt,
+		});
+	});
+
+	it("fences the All save with the time the save was requested", async () => {
+		const saveArticleAsRequested = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
+		const handler = createHandler({ saveArticleAsRequested });
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId }], "2026-06-03T04:05:06Z"));
+
+		expect(saveArticleAsRequested).toHaveBeenCalledWith(expect.objectContaining({ requestedAt: new Date("2026-06-03T04:05:06Z") }));
+	});
+
+	it("rethrows any other save failure without a refusal", async () => {
+		const { warnings, logger } = collectWarnings();
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			saveArticleAsRequested: jest.fn().mockRejectedValue(new Error("dynamo unavailable")),
+			publishEvent,
+			logger,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		expect(publishedDetailTypes(publishEvent)).not.toContain("LinkQueueFailed");
+		expect(warnings.filter(([message]) => message === "[SubmitLinkCommand] save refused")).toEqual([]);
+	});
+});
+
+describe("a redelivered save against the stored rows", () => {
+	const beforeRequest = new Date("2026-06-01T00:00:00.000Z");
+	const afterRequest = new Date("2026-06-03T00:00:00.000Z");
+	const custom = ReadlistSlugSchema.parse("a1b2c3d4");
+	const id = ReaderArticleHashId.from(exampleUrl);
+	const seed = {
+		userId,
+		url: exampleUrl,
+		metadata: { title: "Post", siteName: "example.com", excerpt: "", wordCount: 10 },
+		estimatedReadTime: MinutesSchema.parse(1),
+		provenance: { kind: "web" } as const,
+	};
+
+	function storeHandler(store: ReturnType<typeof initInMemoryArticleStore>, overrides: Partial<HandlerDeps> = {}) {
+		return createHandler({
+			saveArticleAsRequested: store.saveArticleAsRequested,
+			allocateSavedAt: store.allocateSavedAt,
+			updateArticleStatus: store.updateArticleStatus,
+			saveReadlistArticleAsRequested: store.saveReadlistArticleAsRequested,
+			updateArticleStatusAcrossReadlists: store.updateArticleStatusAcrossReadlists,
+			assignSavedArticleToReadlist: store.assignSavedArticleToReadlist,
+			hasSaveLandedSince: store.hasSaveLandedSince,
+			...overrides,
+		});
+	}
+
+	const allRow = (store: ReturnType<typeof initInMemoryArticleStore>) => store.findArticleById(id, userId);
+	const customRow = (store: ReturnType<typeof initInMemoryArticleStore>) =>
+		store.findReadlistArticleById({ id, userId, readlist: custom });
+
+	async function seedPurged(at: Date) {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, userId: UserIdSchema.parse("00000000000000000000000000000002"), savedAt: beforeRequest });
+		await store.setPurgedAt({ url: exampleUrl, at });
+		return store;
+	}
+
+	it.each([
+		{ name: "before the purge", purgedAt: new Date("2026-06-02T00:00:01.000Z") },
+		{ name: "in the same second as the purge", purgedAt: new Date("2026-06-02T00:00:00.500Z") },
+	])("refuses a save requested $name", async ({ purgedAt }) => {
+		const store = await seedPurged(purgedAt);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle = jest.fn();
+
+		const response = await run(storeHandler(store, { publishEvent, crawlAndFinalizeArticle }), createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect((await store.findArticleByUrl(exampleUrl))?.purgedAt).toEqual(purgedAt);
+		expect(await allRow(store)).toBeNull();
+		expect(publishEvent.mock.calls).toEqual([
+			[LinkQueueFailedEvent, { url: exampleUrl, userId, reason: "purged-after-request", receiveCount: 1 }],
+		]);
+		expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
+	});
+
+	it("revives a URL purged before the save was requested", async () => {
+		const store = await seedPurged(new Date("2026-06-01T23:59:59.000Z"));
+
+		const response = await run(storeHandler(store), createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect((await store.findArticleByUrl(exampleUrl))?.purgedAt).toBeUndefined();
+		expect(await allRow(store)).not.toBeNull();
+	});
+
+	it("leaves the row alone when the same message runs twice", async () => {
+		const store = initInMemoryArticleStore();
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = storeHandler(store, { publishEvent });
+		const event = createSqsEvent([{ url: exampleUrl, userId }]);
+
+		await run(handler, event);
+		const first = await allRow(store);
+		await run(handler, event);
+
+		const second = await allRow(store);
+		expect(second?.savedAt).toEqual(first?.savedAt);
+		expect(second?.status).toBe(first?.status);
+		expect(publishedDetailTypes(publishEvent).filter((type) => type === "QueueEntryCreated")).toHaveLength(1);
+	});
+
+	it("keeps a later save's position", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: afterRequest });
+
+		await run(storeHandler(store), createSqsEvent([{ url: exampleUrl, userId }]));
+
+		expect((await allRow(store))?.savedAt).toEqual(afterRequest);
+	});
+
+	it("keeps a read article read when it was read after the request", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: beforeRequest });
+		await store.updateArticleStatus(id, userId, "read");
+		const read = await allRow(store);
+
+		await run(storeHandler(store), createSqsEvent([{ url: exampleUrl, userId }]));
+
+		const after = await allRow(store);
+		expect(after?.status).toBe("read");
+		expect(after?.readAt).toEqual(read?.readAt);
+		expect(after?.savedAt).toEqual(beforeRequest);
+	});
+
+	it("resurfaces an article read before the request", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: beforeRequest });
+		await store.updateArticleStatus(id, userId, "read");
+
+		await run(storeHandler(store), createSqsEvent([{ url: exampleUrl, userId }], "2099-01-01T00:00:00Z"));
+
+		const after = await allRow(store);
+		expect(after?.status).toBe("unread");
+		expect(after?.savedAt.getTime()).toBeGreaterThan(beforeRequest.getTime());
+	});
+
+	it("files both readlists when one save sends two messages in one second", async () => {
+		const store = initInMemoryArticleStore();
+		const handler = storeHandler(store);
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId, readlist: custom }]));
+
+		expect(await allRow(store)).not.toBeNull();
+		expect(await customRow(store)).not.toBeNull();
+	});
+
+	it("keeps a custom readlist's position on a stale message", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: afterRequest });
+		await store.saveReadlistArticle({ ...seed, readlist: custom, savedAt: afterRequest });
+
+		await run(storeHandler(store), createSqsEvent([{ url: exampleUrl, userId, readlist: custom }]));
+
+		expect((await allRow(store))?.savedAt).toEqual(afterRequest);
+		expect((await customRow(store))?.savedAt).toEqual(afterRequest);
+	});
+
+	it("keeps a custom readlist row read when it was read after the request", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: afterRequest });
+		await store.saveReadlistArticle({ ...seed, readlist: custom, savedAt: beforeRequest });
+		await store.setReadlistArticleStatus({ id, userId, readlist: custom, status: "read" });
+		const read = await customRow(store);
+
+		await run(storeHandler(store), createSqsEvent([{ url: exampleUrl, userId, readlist: custom }]));
+
+		const after = await customRow(store);
+		expect(after?.status).toBe("read");
+		expect(after?.readAt).toEqual(read?.readAt);
+		expect(after?.savedAt).toEqual(beforeRequest);
+		expect((await allRow(store))?.status).toBe("unread");
+	});
+
+	it("files a lost filing when All was overtaken", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: afterRequest });
+
+		await run(storeHandler(store), createSqsEvent([{ url: exampleUrl, userId, readlist: custom }]));
+
+		expect((await allRow(store))?.savedAt).toEqual(afterRequest);
+		expect((await customRow(store))?.status).toBe("unread");
+	});
+
+	it("files a lost filing as read when the reader read it after the request", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: beforeRequest });
+		await store.updateArticleStatus(id, userId, "read");
+		const all = await allRow(store);
+
+		await run(storeHandler(store), createSqsEvent([{ url: exampleUrl, userId, readlist: custom }]));
+
+		expect(await allRow(store)).toEqual(all);
+		const filed = await customRow(store);
+		expect(filed?.status).toBe("read");
+		expect(filed?.readAt).toEqual(all?.readAt);
+	});
+
+	it("leaves an older custom row in place when All stays read", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: beforeRequest });
+		await store.updateArticleStatus(id, userId, "read");
+		await store.saveReadlistArticle({ ...seed, readlist: custom, savedAt: beforeRequest });
+		const all = await allRow(store);
+
+		await run(storeHandler(store), createSqsEvent([{ url: exampleUrl, userId, readlist: custom }]));
+
+		expect(await allRow(store)).toEqual(all);
+		const kept = await customRow(store);
+		expect(kept?.status).toBe("unread");
+		expect(kept?.savedAt).toEqual(beforeRequest);
+	});
+
+	it("refuses a read-only reader whose row is older than the request", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: beforeRequest });
+		const before = await allRow(store);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		await run(
+			storeHandler(store, { resolveSubmitterStanding: async () => "read-only", publishEvent }),
+			createSqsEvent([{ url: exampleUrl, userId }]),
+		);
+
+		expect(await allRow(store)).toEqual(before);
+		expect(publishEvent.mock.calls).toEqual([
+			[LinkQueueFailedEvent, { url: exampleUrl, userId, reason: "read-only", receiveCount: 1 }],
+		]);
+	});
+
+	it("looks for the landed row under the resolved URL", async () => {
+		const store = initInMemoryArticleStore();
+		const wrapperUrl = "https://wrapper.example/redirect?to=post";
+		await store.saveArticle({ ...seed, savedAt: afterRequest });
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = storeHandler(store, {
+			resolveSubmitterStanding: async () => "read-only",
+			resolveSaveIdentity: async () => ({ status: "resolved", url: exampleUrl, originalUrl: exampleUrl }),
+			publishEvent,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: wrapperUrl, userId }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(publishedDetailTypes(publishEvent)).not.toContain("LinkQueueFailed");
+	});
+
+	it("acknowledges a Gmail output whose save landed before access lapsed", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle({ ...seed, savedAt: afterRequest });
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const emailOutput = { receivedAtMessageId: "2026-10-27T00:00:00.000Z#<m@x>", outputKey: "link#0000" };
+
+		await run(
+			storeHandler(store, { resolveSubmitterStanding: async () => "read-only", publishEvent }),
+			createSqsEvent([{ url: exampleUrl, userId, emailOutput }]),
+		);
+
+		expect(publishEvent).toHaveBeenCalledWith(EmailOutputSavedToAllEvent, { userId, ...emailOutput });
+	});
+
+	it("leaves a refused Gmail output unacknowledged", async () => {
+		const emailOutput = { receivedAtMessageId: "2026-10-27T00:00:00.000Z#<m@x>", outputKey: "link#0000" };
+		const readOnlyEvents = jest.fn().mockResolvedValue(undefined);
+		await run(
+			storeHandler(initInMemoryArticleStore(), { resolveSubmitterStanding: async () => "read-only", publishEvent: readOnlyEvents }),
+			createSqsEvent([{ url: exampleUrl, userId, emailOutput }]),
+		);
+		const purgedEvents = jest.fn().mockResolvedValue(undefined);
+		await run(
+			storeHandler(await seedPurged(new Date("2026-06-02T00:00:01.000Z")), { publishEvent: purgedEvents }),
+			createSqsEvent([{ url: exampleUrl, userId, emailOutput }]),
+		);
+
+		expect(readOnlyEvents.mock.calls).toEqual([
+			[LinkQueueFailedEvent, { url: exampleUrl, userId, reason: "read-only", receiveCount: 1 }],
+		]);
+		expect(purgedEvents.mock.calls).toEqual([
+			[LinkQueueFailedEvent, { url: exampleUrl, userId, reason: "purged-after-request", receiveCount: 1 }],
+		]);
+	});
+
+	it("finishes a save that landed before access lapsed across two receives", async () => {
+		const store = initInMemoryArticleStore();
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const standings: Array<"may-save" | "read-only"> = ["may-save", "read-only"];
+		const crawlAndFinalizeArticle = jest
+			.fn<ReturnType<CrawlAndFinalizeArticle>, Parameters<CrawlAndFinalizeArticle>>()
+			.mockRejectedValueOnce(new Error("crawl timed out"))
+			.mockResolvedValue(fetchedResult);
+		const handler = storeHandler(store, {
+			resolveSubmitterStanding: async () => {
+				const standing = standings.shift();
+				assert(standing, "only two receives");
+				return standing;
+			},
+			crawlAndFinalizeArticle,
+			publishEvent,
+		});
+		const event = createSqsEvent([{ url: exampleUrl, userId }]);
+
+		expect((await run(handler, event)).batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		const landed = await allRow(store);
+		const second = await run(handler, event);
+
+		expect(second.batchItemFailures).toEqual([]);
+		expect(crawlAndFinalizeArticle).toHaveBeenCalledTimes(2);
+		expect((await allRow(store))?.savedAt).toEqual(landed?.savedAt);
+		expect(publishedDetailTypes(publishEvent)).not.toContain("LinkQueueFailed");
 	});
 });

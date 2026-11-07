@@ -15,7 +15,6 @@ import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
 import type { CrawlAndFinalizeResult } from "@packages/finalize-article";
 import { TierContentExtractedEvent } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
-import { initFileArticleIntoReadlist } from "@packages/save-article";
 import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryArticleStore as initInMemoryArticleAggregateStore } from "@packages/test-fixtures/providers/article-aggregate";
@@ -80,7 +79,7 @@ function tierSource(params: { html: string; wordCount: number; httpStatus: numbe
 }
 
 function sqs(detail: unknown, messageId: string): SQSEvent {
-	return buildSqsEvent([{ messageId, body: JSON.stringify({ detail }) }]);
+	return buildSqsEvent([{ messageId, body: JSON.stringify({ time: "2026-06-02T00:00:00Z", detail }) }]);
 }
 
 function initPipeline(tier1: CrawlAndFinalizeResult) {
@@ -164,9 +163,14 @@ function initPipeline(tier1: CrawlAndFinalizeResult) {
 		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
 		resolveOriginalUrl: async (url) => url,
 		validateSaveableUrl,
-		saveArticle: userStore.saveArticle,
+		saveArticleAsRequested: userStore.saveArticleAsRequested,
 		allocateSavedAt: userStore.allocateSavedAt,
-		fileArticleIntoReadlist: initFileArticleIntoReadlist(userStore),
+		saveReadlistArticleAsRequested: userStore.saveReadlistArticleAsRequested,
+		updateArticleStatusAcrossReadlists: userStore.updateArticleStatusAcrossReadlists,
+		assignSavedArticleToReadlist: userStore.assignSavedArticleToReadlist,
+		hasSaveLandedSince: userStore.hasSaveLandedSince,
+		resolveSubmitterStanding: async () => "may-save",
+		resolveSaveIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
 		recordInboxArticleQueued: async () => {},
 		updateArticleStatus: userStore.updateArticleStatus,
 		markCrawlPending: crawl.markCrawlPending,

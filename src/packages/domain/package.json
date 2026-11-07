@@ -29,6 +29,10 @@
       "types": "./dist/user/index.d.ts",
       "default": "./dist/user/index.js"
     },
+    "./event-envelope": {
+      "types": "./dist/event-envelope/index.d.ts",
+      "default": "./dist/event-envelope/index.js"
+    },
     "./oauth": {
       "types": "./dist/oauth/index.d.ts",
       "default": "./dist/oauth/index.js"
@@ -73,6 +77,7 @@
       "article/highlight": ["./dist/article/highlight/index.d.ts"],
       "article-aggregate": ["./dist/article-aggregate/index.d.ts"],
       "user": ["./dist/user/index.d.ts"],
+      "event-envelope": ["./dist/event-envelope/index.d.ts"],
       "oauth": ["./dist/oauth/index.d.ts"],
       "import-session": ["./dist/import-session/index.d.ts"],
       "inbox": ["./dist/inbox/index.d.ts"],

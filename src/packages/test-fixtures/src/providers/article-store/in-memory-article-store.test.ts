@@ -10,6 +10,7 @@ import {
 	ReadlistSlugSchema,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { ArticlePurgedAfterRequest } from "@packages/provider-contracts/article-store";
 import { EnclosureSchema } from "@packages/media-contracts";
 import type { SaveArticleParams } from "./article-store.types";
 import { initInMemoryArticleStore } from "./in-memory-article-store";
@@ -515,6 +516,86 @@ describe("initInMemoryArticleStore", () => {
 
 			const found = await store.findArticleByUrl("https://example.com/missing");
 			expect(found).toBeNull();
+		});
+	});
+
+	describe("saves as requested", () => {
+		const REQUESTED_AT = new Date("2026-03-01T10:00:00.000Z");
+		const BEFORE = new Date("2026-03-01T09:00:00.000Z");
+		const AFTER = new Date("2026-03-01T11:00:00.000Z");
+
+		it("writes a user row for an absent article and reports it landed", async () => {
+			const store = initInMemoryArticleStore();
+
+			const result = await store.saveArticleAsRequested({ ...makeArticleParams({ savedAt: REQUESTED_AT }), requestedAt: REQUESTED_AT });
+
+			expect(result.wroteUserArticle).toBe(true);
+			expect(await store.hasSaveLandedSince({ userId: USER_A, url: URL, requestedAt: REQUESTED_AT })).toBe(true);
+		});
+
+		it("refuses an article purged at or after the request", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ userId: USER_B, savedAt: BEFORE }));
+			await store.setPurgedAt({ url: URL, at: REQUESTED_AT });
+
+			await expect(
+				store.saveArticleAsRequested({ ...makeArticleParams({ savedAt: REQUESTED_AT }), requestedAt: REQUESTED_AT }),
+			).rejects.toBeInstanceOf(ArticlePurgedAfterRequest);
+			expect((await store.findArticleByUrl(URL))?.purgedAt).toEqual(REQUESTED_AT);
+			expect(await store.hasSaveLandedSince({ userId: USER_A, url: URL, requestedAt: BEFORE })).toBe(false);
+		});
+
+		it("revives an article purged before the request", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ userId: USER_B, savedAt: BEFORE }));
+			await store.setPurgedAt({ url: URL, at: BEFORE });
+
+			await store.saveArticleAsRequested({ ...makeArticleParams({ savedAt: REQUESTED_AT }), requestedAt: REQUESTED_AT });
+
+			expect((await store.findArticleByUrl(URL))?.purgedAt).toBeUndefined();
+		});
+
+		it("bumps a live article and keeps a later save's position", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ savedAt: AFTER }));
+
+			const result = await store.saveArticleAsRequested({ ...makeArticleParams({ savedAt: REQUESTED_AT }), requestedAt: REQUESTED_AT });
+
+			expect(result.wroteUserArticle).toBe(false);
+			expect(result.saved.savedAt).toEqual(AFTER);
+		});
+
+		it("keeps a row read after the request read", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams({ savedAt: BEFORE }));
+			await store.updateArticleStatus(saved.id, USER_A, "read");
+			const readAfter = new Date(Date.now() - 1000);
+
+			const result = await store.saveArticleAsRequested({ ...makeArticleParams({ savedAt: readAfter }), requestedAt: readAfter });
+
+			expect(result.wroteUserArticle).toBe(false);
+			expect(result.saved.status).toBe("read");
+			expect(result.saved.savedAt).toEqual(BEFORE);
+		});
+
+		it("writes the readlist partition and leaves All alone", async () => {
+			const store = initInMemoryArticleStore();
+
+			const { saved } = await store.saveReadlistArticleAsRequested({
+				...makeArticleParams({ savedAt: REQUESTED_AT }),
+				readlist: WORK,
+				requestedAt: REQUESTED_AT,
+			});
+
+			expect((await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK }))?.savedAt).toEqual(REQUESTED_AT);
+			expect(await store.hasSaveLandedSince({ userId: USER_A, url: URL, requestedAt: REQUESTED_AT })).toBe(false);
+		});
+
+		it("reports no landed save when the row is older than the request", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ savedAt: BEFORE }));
+
+			expect(await store.hasSaveLandedSince({ userId: USER_A, url: URL, requestedAt: REQUESTED_AT })).toBe(false);
 		});
 	});
 

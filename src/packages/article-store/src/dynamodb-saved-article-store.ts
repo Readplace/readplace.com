@@ -77,7 +77,14 @@ import type {
 	UpdateArticleStatus,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
-import { DigestPageCursorSchema, type ContentProvider } from "@packages/provider-contracts/article-store";
+import {
+	ArticlePurgedAfterRequest,
+	DigestPageCursorSchema,
+	type ContentProvider,
+	type HasSaveLandedSince,
+	type SaveArticleAsRequested,
+	type SaveReadlistArticleAsRequested,
+} from "@packages/provider-contracts/article-store";
 import {
 	READLIST_DEFINITION_KEY_PREFIX,
 	READLIST_FIT_OVERRIDE_KEY_PREFIX,
@@ -255,6 +262,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	readContent: ContentProvider;
 	saveReadlistArticle: SaveReadlistArticle;
+	saveArticleAsRequested: SaveArticleAsRequested;
+	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
+	hasSaveLandedSince: HasSaveLandedSince;
 	findReadlistArticles: FindReadlistArticles;
 	countReadlistArticles: CountReadlistArticles;
 	findReadlistArticleById: FindReadlistArticleById;
@@ -362,7 +372,15 @@ export function initDynamoDbSavedArticleStore(deps: {
 		return row ?? null;
 	}
 
-	const saveArticleGlobally: SaveArticleGlobally = async (params) => {
+	const upsertArticleRowWhen = async ({
+		params,
+		condition,
+		conditionValues,
+	}: {
+		params: Parameters<SaveArticleGlobally>[0];
+		condition: string;
+		conditionValues: Record<string, string>;
+	}): Promise<{ created: boolean }> => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const routeId = ReaderArticleHashId.from(params.url);
 
@@ -382,14 +400,22 @@ export function initDynamoDbSavedArticleStore(deps: {
 					":estimatedReadTime": params.estimatedReadTime,
 					":savedAt": params.savedAt.toISOString(),
 					":one": 1,
+					...conditionValues,
 				},
-				ConditionExpression: "attribute_not_exists(#url) OR attribute_exists(purgedAt)",
+				ConditionExpression: condition,
 				ExpressionAttributeNames: { "#url": "url" },
 			}),
 		);
 		if (outcome.kind === "condition-failed") return { created: false };
 		return { created: true };
 	};
+
+	const saveArticleGlobally: SaveArticleGlobally = (params) =>
+		upsertArticleRowWhen({
+			params,
+			condition: "attribute_not_exists(#url) OR attribute_exists(purgedAt)",
+			conditionValues: {},
+		});
 
 	const bumpArticleSavedAt: BumpArticleSavedAt = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -406,11 +432,74 @@ export function initDynamoDbSavedArticleStore(deps: {
 		);
 	};
 
+	const writeUserArticleUnlessConditionLost = async ({
+		partition,
+		params,
+		condition,
+		conditionValues,
+	}: {
+		partition: string;
+		params: SaveArticleParams;
+		condition: string;
+		conditionValues: Record<string, string>;
+	}): Promise<{ createdUserArticle: boolean; wroteUserArticle: boolean }> => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const outcome = await writeIfCondition(() =>
+			userArticles.update({
+				Key: { userId: partition, url: articleResourceUniqueId.value },
+				UpdateExpression: `SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)${
+					params.suggestionAttribution === undefined
+						? ""
+						: ", suggestionAttribution = if_not_exists(suggestionAttribution, :attribution)"
+				}`,
+				ConditionExpression: condition,
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: {
+					":savedAt": params.savedAt.toISOString(),
+					":provenance": params.provenance,
+					":unread": "unread",
+					...(params.suggestionAttribution === undefined
+						? {}
+						: { ":attribution": params.suggestionAttribution }),
+					...conditionValues,
+				},
+				ReturnValues: "ALL_OLD",
+			}),
+		);
+		if (outcome.kind === "condition-failed") return { createdUserArticle: false, wroteUserArticle: false };
+		return { createdUserArticle: outcome.result.Attributes === undefined, wroteUserArticle: true };
+	};
+
+	const readBackSave = async ({
+		partition,
+		params,
+		written,
+	}: {
+		partition: string;
+		params: SaveArticleParams;
+		written: { createdUserArticle: boolean; wroteUserArticle: boolean };
+	}): ReturnType<SaveArticle> => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		// Strongly-consistent read-your-writes: a default eventually-consistent read
+		// can miss the row we just wrote and trip the asserts below on an otherwise
+		// successful save. ConsistentRead makes both reflect the writes above.
+		const [article, userArticle] = await Promise.all([
+			articles.get({ url: articleResourceUniqueId.value }, { consistentRead: true }),
+			userArticles.get({ userId: partition, url: articleResourceUniqueId.value }, { consistentRead: true }),
+		]);
+		assertItem(article, "article must exist immediately after save");
+		assertItem(userArticle, "user article must exist immediately after save");
+
+		return {
+			saved: toSavedArticle(article, { ...userArticle, userId: params.userId }),
+			...written,
+		};
+	};
+
 	const initSaveWrite = (userRowCondition: string) => async (
 		partition: string,
 		params: SaveArticleParams,
 	) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const globallySavedAt = now();
 
 		const upsertGlobal = async () => {
@@ -425,55 +514,50 @@ export function initDynamoDbSavedArticleStore(deps: {
 			}
 		};
 
-		const writeUserArticleUnlessConditionLost = async (): Promise<{
-			createdUserArticle: boolean;
-			wroteUserArticle: boolean;
-		}> => {
-			const outcome = await writeIfCondition(() =>
-				userArticles.update({
-					Key: { userId: partition, url: articleResourceUniqueId.value },
-					UpdateExpression: `SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)${
-						params.suggestionAttribution === undefined
-							? ""
-							: ", suggestionAttribution = if_not_exists(suggestionAttribution, :attribution)"
-					}`,
-					ConditionExpression: userRowCondition,
-					ExpressionAttributeNames: { "#status": "status" },
-					ExpressionAttributeValues: {
-						":savedAt": params.savedAt.toISOString(),
-						":provenance": params.provenance,
-						":unread": "unread",
-						...(params.suggestionAttribution === undefined
-							? {}
-							: { ":attribution": params.suggestionAttribution }),
-					},
-					ReturnValues: "ALL_OLD",
+		const [, written] = await Promise.all([
+			upsertGlobal(),
+			writeUserArticleUnlessConditionLost({ partition, params, condition: userRowCondition, conditionValues: {} }),
+		]);
+
+		return readBackSave({ partition, params, written });
+	};
+
+	const writeSaveAsRequested = async (
+		partition: string,
+		{ requestedAt, ...params }: SaveArticleParams & { requestedAt: Date },
+	): ReturnType<SaveArticle> => {
+		const requested = { ":requestedAt": requestedAt.toISOString() };
+		const globallySavedAt = now();
+		const { created } = await upsertArticleRowWhen({
+			params: {
+				url: params.url,
+				metadata: params.metadata,
+				estimatedReadTime: params.estimatedReadTime,
+				savedAt: globallySavedAt,
+			},
+			condition: "attribute_not_exists(#url) OR purgedAt < :requestedAt",
+			conditionValues: requested,
+		});
+		if (!created) {
+			const bumped = await writeIfCondition(() =>
+				articles.update({
+					Key: { url: ArticleResourceUniqueId.parse(params.url).value },
+					UpdateExpression: "SET savedAt = :savedAt",
+					ConditionExpression: "attribute_exists(#url) AND attribute_not_exists(purgedAt)",
+					ExpressionAttributeNames: { "#url": "url" },
+					ExpressionAttributeValues: { ":savedAt": globallySavedAt.toISOString() },
 				}),
 			);
-			if (outcome.kind === "condition-failed") return { createdUserArticle: false, wroteUserArticle: false };
-			return { createdUserArticle: outcome.result.Attributes === undefined, wroteUserArticle: true };
-		};
-
-		const [, { createdUserArticle, wroteUserArticle }] = await Promise.all([
-			upsertGlobal(),
-			writeUserArticleUnlessConditionLost(),
-		]);
-
-		// Strongly-consistent read-your-writes: a default eventually-consistent read
-		// can miss the row we just wrote and trip the asserts below on an otherwise
-		// successful save. ConsistentRead makes both reflect the writes above.
-		const [article, userArticle] = await Promise.all([
-			articles.get({ url: articleResourceUniqueId.value }, { consistentRead: true }),
-			userArticles.get({ userId: partition, url: articleResourceUniqueId.value }, { consistentRead: true }),
-		]);
-		assertItem(article, "article must exist immediately after save");
-		assertItem(userArticle, "user article must exist immediately after save");
-
-		return {
-			saved: toSavedArticle(article, { ...userArticle, userId: params.userId }),
-			createdUserArticle,
-			wroteUserArticle,
-		};
+			if (bumped.kind === "condition-failed") throw new ArticlePurgedAfterRequest(params.url);
+		}
+		const written = await writeUserArticleUnlessConditionLost({
+			partition,
+			params,
+			condition:
+				"(attribute_not_exists(savedAt) OR savedAt < :requestedAt) AND (attribute_not_exists(readAt) OR readAt < :requestedAt)",
+			conditionValues: requested,
+		});
+		return readBackSave({ partition, params, written });
 	};
 
 	const writeSave = initSaveWrite("attribute_not_exists(savedAt) OR savedAt < :savedAt");
@@ -484,6 +568,17 @@ export function initDynamoDbSavedArticleStore(deps: {
 		writeSaveKeepingPosition(params.userId, params);
 	const saveReadlistArticle: SaveReadlistArticle = ({ readlist, ...params }) =>
 		writeSave(readlistPartitionValue({ userId: params.userId, readlist }), params);
+	const saveArticleAsRequested: SaveArticleAsRequested = (params) => writeSaveAsRequested(params.userId, params);
+	const saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested = ({ readlist, ...params }) =>
+		writeSaveAsRequested(readlistPartitionValue({ userId: params.userId, readlist }), params);
+
+	const hasSaveLandedSince: HasSaveLandedSince = async ({ userId, url, requestedAt }) => {
+		const row = await userArticles.get(
+			{ userId, url: ArticleResourceUniqueId.parse(url).value },
+			{ consistentRead: true },
+		);
+		return row !== undefined && new Date(row.savedAt) >= requestedAt;
+	};
 
 	const findInPartition = async (
 		partition: string,
@@ -1472,6 +1567,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 		findUnreadSavesForDigest,
 		readContent,
 		saveReadlistArticle,
+		saveArticleAsRequested,
+		saveReadlistArticleAsRequested,
+		hasSaveLandedSince,
 		findReadlistArticles,
 		countReadlistArticles,
 		findReadlistArticleById,

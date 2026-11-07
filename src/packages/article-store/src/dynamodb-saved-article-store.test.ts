@@ -8,6 +8,7 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/read
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
 import { EnclosureSchema } from "@packages/media-contracts";
+import { ArticlePurgedAfterRequest } from "@packages/provider-contracts/article-store";
 import { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
 
 const USER = "abc123" as UserId;
@@ -3599,5 +3600,151 @@ describe("initDynamoDbSavedArticleStore discovery", () => {
 		const queries = queryCommands(commands);
 		expect(queries[0]?.input.Limit).toBe(21);
 		expect(queries[1]?.input.Select).toBe("COUNT");
+	});
+});
+
+describe("initDynamoDbSavedArticleStore saves as requested", () => {
+	const REQUESTED_AT = new Date("2026-11-03T10:00:00Z");
+	const conditionFailed = () => {
+		throw new ConditionalCheckFailedException({ $metadata: {}, message: "condition" });
+	};
+	const saveParams = {
+		userId: USER,
+		url: URL,
+		metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+		estimatedReadTime: TWO_MINUTES,
+		provenance,
+		savedAt: OPERATION_SAVED_AT,
+		requestedAt: REQUESTED_AT,
+	};
+	const userArticlesUpdates = (commands: CapturedCommand[]) =>
+		commands.filter((c) => c.name === "UpdateCommand" && c.input.TableName === "user-articles");
+	const articlesUpdates = (commands: CapturedCommand[]) =>
+		commands.filter((c) => c.name === "UpdateCommand" && c.input.TableName === "articles");
+
+	it("binds requestedAt with milliseconds", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+		});
+
+		await initStore(client).saveArticleAsRequested(saveParams);
+
+		const [upsert] = articlesUpdates(commands);
+		expect(upsert?.input.ExpressionAttributeValues?.[":requestedAt"]).toBe("2026-11-03T10:00:00.000Z");
+		expect(upsert?.input.ConditionExpression).toContain("purgedAt < :requestedAt");
+		const [userRow] = userArticlesUpdates(commands);
+		expect(userRow?.input.ExpressionAttributeValues?.[":requestedAt"]).toBe("2026-11-03T10:00:00.000Z");
+	});
+
+	it("does not write the user row when the purge condition fails", async () => {
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { default: conditionFailed },
+		});
+
+		await expect(initStore(client).saveArticleAsRequested(saveParams)).rejects.toBeInstanceOf(
+			ArticlePurgedAfterRequest,
+		);
+
+		expect(articlesUpdates(commands)).toHaveLength(2);
+		expect(userArticlesUpdates(commands)).toHaveLength(0);
+	});
+
+	it("bumps a live article and writes the user row", async () => {
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { readlist: [conditionFailed, {}, {}] },
+			GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+		});
+
+		const result = await initStore(client).saveArticleAsRequested(saveParams);
+
+		const [, bump] = articlesUpdates(commands);
+		expect(bump?.input.UpdateExpression).toBe("SET savedAt = :savedAt");
+		expect(bump?.input.ConditionExpression).toContain("attribute_not_exists(purgedAt)");
+		expect(bump?.input.ExpressionAttributeValues?.[":savedAt"]).toBe(STORE_NOW.toISOString());
+		const [userRow] = userArticlesUpdates(commands);
+		expect(userRow?.input.Key).toEqual({ userId: USER, url: RESOURCE_ID });
+		expect(userRow?.input.ConditionExpression).toContain("savedAt < :requestedAt");
+		expect(userRow?.input.ConditionExpression).toContain("readAt < :requestedAt");
+		expect(result.wroteUserArticle).toBe(true);
+		expect(result.createdUserArticle).toBe(true);
+	});
+
+	it("reports a lost user-row condition", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: { readlist: [{}, conditionFailed] },
+			GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+		});
+
+		const result = await initStore(client).saveArticleAsRequested(saveParams);
+
+		expect(result.wroteUserArticle).toBe(false);
+		expect(result.createdUserArticle).toBe(false);
+		expect(result.saved.url).toBe(URL);
+	});
+
+	it("rethrows a bump failure that is not a lost condition", async () => {
+		const { client } = createFakeClient({
+			UpdateCommand: {
+				readlist: [
+					conditionFailed,
+					() => {
+						throw new Error("throttled");
+					},
+				],
+			},
+		});
+
+		await expect(initStore(client).saveArticleAsRequested(saveParams)).rejects.toThrow("throttled");
+	});
+
+	it("leaves the existing saveArticle conditions unchanged", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] },
+		});
+
+		const { requestedAt: _requestedAt, ...onTime } = saveParams;
+		await initStore(client).saveArticle(onTime);
+
+		const [upsert] = articlesUpdates(commands);
+		expect(upsert?.input.ConditionExpression).toContain("attribute_exists(purgedAt)");
+		const [userRow] = userArticlesUpdates(commands);
+		expect(userRow?.input.ConditionExpression).toBe("attribute_not_exists(savedAt) OR savedAt < :savedAt");
+	});
+
+	it("fences the readlist partition", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { readlist: [{ Item: articleItem() }, { Item: userArticleItem({ userId: WORK_PARTITION }) }] },
+		});
+
+		const { saved } = await initStore(client).saveReadlistArticleAsRequested({ ...saveParams, readlist: WORK });
+
+		const [userRow] = userArticlesUpdates(commands);
+		expect(userRow?.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
+		expect(userRow?.input.ConditionExpression).toContain("savedAt < :requestedAt");
+		expect(userRow?.input.ExpressionAttributeValues?.[":requestedAt"]).toBe("2026-11-03T10:00:00.000Z");
+		expect(saved.userId).toBe(USER);
+	});
+
+	it.each([
+		{ name: "equal to", item: userArticleItem({ savedAt: "2026-11-03T10:00:00.000Z" }), landed: true },
+		{ name: "after", item: userArticleItem({ savedAt: "2026-11-03T10:00:01.000Z" }), landed: true },
+		{ name: "before", item: userArticleItem({ savedAt: "2026-11-03T09:59:59.999Z" }), landed: false },
+	])("reports a landed save when savedAt is $name requestedAt", async ({ item, landed }) => {
+		const { client, commands } = createFakeClient({ GetCommand: { default: { Item: item } } });
+
+		const result = await initStore(client).hasSaveLandedSince({ userId: USER, url: URL, requestedAt: REQUESTED_AT });
+
+		expect(result).toBe(landed);
+		const [get] = commands;
+		expect(get?.input.ConsistentRead).toBe(true);
+		expect(get?.input.Key).toEqual({ userId: USER, url: RESOURCE_ID });
+	});
+
+	it("reports no landed save when there is no user row", async () => {
+		const { client } = createFakeClient();
+
+		const result = await initStore(client).hasSaveLandedSince({ userId: USER, url: URL, requestedAt: REQUESTED_AT });
+
+		expect(result).toBe(false);
 	});
 });
