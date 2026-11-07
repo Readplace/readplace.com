@@ -244,6 +244,7 @@ function flattenFixtureToAppDependencies(
 		findReadlistArticleById: fixture.articleStore.findReadlistArticleById,
 		updateArticleStatusAcrossReadlists: fixture.articleStore.updateArticleStatusAcrossReadlists,
 		deleteReadlistArticle: fixture.articleStore.deleteReadlistArticle,
+		purgeReadlistArticle: fixture.articleStore.purgeReadlistArticle,
 		markReadlistArticleViewed: fixture.articleStore.markReadlistArticleViewed,
 		listUserSavesForUrl: fixture.articleStore.listUserSavesForUrl,
 		listUserSavesForUrls: fixture.articleStore.listUserSavesForUrls,

@@ -130,6 +130,7 @@ import type {
 	FindReadlistArticleById,
 	UpdateArticleStatusAcrossReadlists,
 	DeleteReadlistArticle,
+	PurgeReadlistArticle,
 	MarkReadlistArticleViewed,
 	AssignSavedArticleToReadlist,
 	SaveReadlistArticle,
@@ -485,6 +486,7 @@ export interface AppDependencies {
 	findReadlistArticleById: FindReadlistArticleById;
 	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
 	deleteReadlistArticle: DeleteReadlistArticle;
+	purgeReadlistArticle: PurgeReadlistArticle;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;

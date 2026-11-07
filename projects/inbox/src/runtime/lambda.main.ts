@@ -71,7 +71,7 @@ const { publishEvent } = initEventBridgePublisher({
 
 const articlesTableName = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const userArticlesTableName = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const readlistFitOverrides = initDynamoDbReadlistFitOverrides({ client, userArticlesTableName });
+const readlistFitOverrides = initDynamoDbReadlistFitOverrides({ client, userArticlesTableName, now: () => new Date() });
 const savedArticleStore = initDynamoDbSavedArticleStore({
 	client,
 	tableName: articlesTableName,

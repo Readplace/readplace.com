@@ -41,13 +41,13 @@ export function initReadlistQueueRoutes(
 	shared: ReadlistShared,
 ): Router {
 	const router = express.Router();
-	const { resolveReadlistContext, deleteArticleFromReadlistFor } = shared;
+	const { resolveReadlistContext, purgeArticleFromReadlistFor } = shared;
 
 	const purgeReadlistArticles = async (params: {
 		userId: UserId;
 		readlist: ReadlistSlug;
 	}): Promise<void> => {
-		const deleteOne = deleteArticleFromReadlistFor(params.readlist);
+		const deleteOne = purgeArticleFromReadlistFor(params.readlist);
 		for (;;) {
 			const { articles } = await deps.findReadlistArticles({
 				userId: params.userId,

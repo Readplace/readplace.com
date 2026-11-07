@@ -431,6 +431,34 @@ export type DeleteReadlistArticle = (params: {
 	readlist: ReadlistSlug;
 }) => Promise<boolean>;
 
+export type PurgeReadlistArticle = DeleteReadlistArticle;
+
+export type FindReadlistFiling = (params: {
+	userId: UserId;
+	readlist: ReadlistSlug;
+	url: string;
+}) => Promise<{ savedAt: Date; status: ArticleStatus; readAt?: Date } | undefined>;
+
+export type ReadlistFilingLandsAs = { status: "unread" } | { status: "read"; readAt: Date };
+
+export type FileIntoLiveReadlistOutcome =
+	| "filed"
+	| "newer-row-won"
+	| "readlist-gone"
+	| "removed-after-request"
+	| "not-in-all";
+
+export type FileIntoLiveReadlist = (params: {
+	userId: UserId;
+	readlist: ReadlistSlug;
+	url: string;
+	savedAt: Date;
+	provenance: SaveProvenance;
+	suggestionAttribution?: SuggestionAttribution;
+	requestedAt: Date;
+	landsAs: ReadlistFilingLandsAs;
+}) => Promise<{ outcome: FileIntoLiveReadlistOutcome }>;
+
 export type MarkReadlistArticleViewed = (params: {
 	userId: UserId;
 	readlist: ReadlistSlug;

@@ -350,6 +350,14 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			deleteArticleHighlights: deleteArticleHighlightsUnlessSavedElsewhere,
 		});
 
+	const purgeArticleFromReadlistFor = (readlist: ReadlistSlug) =>
+		initDeleteArticleFromReadlist({
+			...deps,
+			deleteArticle: (id, userId) => deps.purgeReadlistArticle({ id, userId, readlist }),
+			publishLinkDequeued: publishLinkDequeuedUnlessSavedElsewhere,
+			deleteArticleHighlights: deleteArticleHighlightsUnlessSavedElsewhere,
+		});
+
 	/** An onboarding signal is non-essential bookkeeping that sits on the critical
 	 * path of the app's readlist load and every save. Unlike the extension's
 	 * equivalent — a Set-Cookie header that cannot fail — these writes hit DynamoDB
@@ -760,6 +768,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		storeDiscoveryOf,
 		findNonEmptyReadlists,
 		deleteArticleFromReadlistFor,
+		purgeArticleFromReadlistFor,
 		recordOnboardingSignalBestEffort,
 		reader,
 		pollUrlBuilderFor,

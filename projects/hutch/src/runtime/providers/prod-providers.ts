@@ -225,7 +225,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger, now: () => new Date() });
 	const highlights = initDynamoDbHighlights({ client, userArticlesTableName: userArticlesTable });
 	const queueDefinitions = initDynamoDbReadlistDefinitions({ client, userArticlesTableName: userArticlesTable });
-	const readlistFitOverrides = initDynamoDbReadlistFitOverrides({ client, userArticlesTableName: userArticlesTable });
+	const readlistFitOverrides = initDynamoDbReadlistFitOverrides({ client, userArticlesTableName: userArticlesTable, now: () => new Date() });
 	const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
 	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ findIdentityRow: canonicalAlias.findIdentityRow });
 	const resolveWrapperTarget = initResolveWrapperTarget({

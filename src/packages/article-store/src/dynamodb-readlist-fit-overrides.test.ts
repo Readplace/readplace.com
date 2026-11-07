@@ -79,6 +79,7 @@ function initStore(responses: Parameters<typeof createFakeDynamo>[0], commands: 
 	return initDynamoDbReadlistFitOverrides({
 		client: createFakeDynamo(responses, commands),
 		userArticlesTableName: TABLE,
+		now: () => new Date("2026-11-03T10:00:00.750Z"),
 	});
 }
 
@@ -254,9 +255,9 @@ describe("purgeReadlistFitOverrides", () => {
 });
 
 describe("deleteReadlistArticleByUrl", () => {
-	it("deletes the saved row in the readlist's partition", async () => {
+	it("records the removal marker on the All row before deleting the saved row in the readlist's partition", async () => {
 		const commands: Captured[] = [];
-		const store = initStore([{}], commands);
+		const store = initStore([{}, {}], commands);
 
 		const deleted = await store.deleteReadlistArticleByUrl({
 			userId: USER,
@@ -265,12 +266,19 @@ describe("deleteReadlistArticleByUrl", () => {
 		});
 
 		assert.equal(deleted, true);
-		assert.deepEqual(commands[0]?.input.Key, { userId: `${USER}#queue/work`, url: "example.com/post" });
-		assert.equal(commands[0]?.input.ConditionExpression, "attribute_exists(savedAt)");
+		assert.deepEqual(
+			commands.map((command) => command.name),
+			["UpdateCommand", "DeleteCommand"],
+		);
+		assert.deepEqual(commands[0]?.input.Key, { userId: USER, url: "example.com/post" });
+		assert.deepEqual(commands[0]?.input.ExpressionAttributeNames, { "#removedAt": "readlistRemovedAt#work" });
+		assert.deepEqual(commands[1]?.input.Key, { userId: `${USER}#queue/work`, url: "example.com/post" });
+		assert.equal(commands[1]?.input.ConditionExpression, "attribute_exists(savedAt)");
 	});
 
 	it("answers false when the readlist no longer holds the article", async () => {
 		const store = initStore([
+			{},
 			() => {
 				throw conditionalCheckFailed();
 			},
@@ -284,6 +292,7 @@ describe("deleteReadlistArticleByUrl", () => {
 
 	it("passes on any other failure", async () => {
 		const store = initStore([
+			{},
 			() => {
 				throw new Error("throttled");
 			},

@@ -26,7 +26,7 @@ import {
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
 import type { DecideReadlistFit } from "@packages/readlist-fit";
-import { initFileArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
+import { initFileRequestedArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
 import { ArticlePurgedAfterRequest } from "@packages/provider-contracts/article-store";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -221,14 +221,18 @@ describe("initSubmitLinkCommandHandler", () => {
 				resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: store.findIdentityRow }),
 				findArticleById: store.findArticleById,
 			}),
-			fileArticleIntoReadlist: initFileArticleIntoReadlist(store),
+			listReadlistDefinitions: store.listReadlistDefinitions,
+			fileRequestedArticleIntoReadlist: initFileRequestedArticleIntoReadlist({
+				...store,
+				resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: store.findIdentityRow }),
+			}),
 			publishEvent: async () => {},
 			logger: noopLogger,
 		});
 		const terminal: unknown[] = [];
 		const publishEvent: PublishEvent = async (event, detail) => {
 			if (event.detailType === FileArticleIntoReadlistCommand.detailType) {
-				const result = await run(fileIntoReadlist, buildSqsEvent([{ messageId: "file", body: JSON.stringify({ detail }) }]));
+				const result = await run(fileIntoReadlist, buildSqsEvent([{ messageId: "file", body: JSON.stringify({ detail, time: fixedNow().toISOString() }) }]));
 				expect(result.batchItemFailures).toEqual([]);
 			}
 			if (event.detailType === EmailLinksFilteredEvent.detailType) terminal.push(detail);

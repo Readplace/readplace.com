@@ -2685,3 +2685,125 @@ describe("queue row keys", () => {
 		expect(store.hasQueueRow({ userId: `${USER_A}#queue/work`, url: "example.com/other" })).toBe(false);
 	});
 });
+
+describe("initInMemoryArticleStore readlist filing", () => {
+	const ID = ReaderArticleHashId.from(URL);
+	const past = () => new Date(Date.now() - 60_000);
+	const future = () => new Date(Date.now() + 60_000);
+	const filing = (overrides: Partial<Parameters<ReturnType<typeof initInMemoryArticleStore>["fileIntoLiveReadlist"]>[0]> = {}) => ({
+		userId: USER_A,
+		readlist: WORK,
+		url: URL,
+		savedAt: new Date(),
+		provenance: { kind: "web" as const },
+		requestedAt: future(),
+		landsAs: { status: "unread" as const },
+		...overrides,
+	});
+	const liveStore = async () => {
+		const store = initInMemoryArticleStore();
+		await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt: new Date() });
+		await store.saveArticle(makeArticleParams());
+		return store;
+	};
+
+	it("files an article held in All into a live readlist, unread", async () => {
+		const store = await liveStore();
+
+		expect(await store.fileIntoLiveReadlist(filing())).toEqual({ outcome: "filed" });
+
+		expect(await store.findReadlistFiling({ userId: USER_A, readlist: WORK, url: URL })).toEqual(
+			expect.objectContaining({ status: "unread" }),
+		);
+	});
+
+	it("answers readlist-gone without a definition, and not-in-all without an All row", async () => {
+		const noDefinition = initInMemoryArticleStore();
+		await noDefinition.saveArticle(makeArticleParams());
+		const noAllRow = initInMemoryArticleStore();
+		await noAllRow.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt: new Date() });
+
+		expect(await noDefinition.fileIntoLiveReadlist(filing())).toEqual({ outcome: "readlist-gone" });
+		expect(await noAllRow.fileIntoLiveReadlist(filing())).toEqual({ outcome: "not-in-all" });
+	});
+
+	it("refuses a filing requested before the reader's removal, and allows one requested after it", async () => {
+		const store = await liveStore();
+		await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+		await store.deleteReadlistArticle({ id: ID, userId: USER_A, readlist: WORK });
+
+		expect(await store.fileIntoLiveReadlist(filing({ requestedAt: past() }))).toEqual({ outcome: "removed-after-request" });
+		expect(await store.fileIntoLiveReadlist(filing({ requestedAt: future() }))).toEqual({ outcome: "filed" });
+	});
+
+	it("records a removal by URL as a marker too", async () => {
+		const store = await liveStore();
+		await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+
+		expect(await store.deleteReadlistArticleByUrl({ userId: USER_A, readlist: WORK, url: URL })).toBe(true);
+
+		expect(await store.fileIntoLiveReadlist(filing({ requestedAt: past() }))).toEqual({ outcome: "removed-after-request" });
+	});
+
+	it("records no marker for a purge, nor for an article absent from All", async () => {
+		const store = await liveStore();
+		await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+		await store.purgeReadlistArticle({ id: ID, userId: USER_A, readlist: WORK });
+		const other = "https://example.com/other";
+		await store.saveReadlistArticle({ ...makeArticleParams({ url: other }), readlist: WORK });
+		await store.deleteArticle(ReaderArticleHashId.from(other), USER_A);
+		await store.deleteReadlistArticle({ id: ReaderArticleHashId.from(other), userId: USER_A, readlist: WORK });
+		await store.saveArticle(makeArticleParams({ url: other }));
+
+		expect(await store.fileIntoLiveReadlist(filing({ requestedAt: past() }))).toEqual({ outcome: "filed" });
+		expect(await store.fileIntoLiveReadlist(filing({ url: other, requestedAt: past() }))).toEqual({ outcome: "filed" });
+	});
+
+	it("drops the markers with the All row, and with the account", async () => {
+		const store = await liveStore();
+		await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+		await store.deleteReadlistArticle({ id: ID, userId: USER_A, readlist: WORK });
+		await store.deleteArticle(ID, USER_A);
+		await store.saveArticle(makeArticleParams());
+		expect(await store.fileIntoLiveReadlist(filing({ requestedAt: past() }))).toEqual({ outcome: "filed" });
+
+		await store.deleteReadlistArticle({ id: ID, userId: USER_A, readlist: WORK });
+		await store.saveArticle(makeArticleParams({ userId: USER_B }));
+		await store.saveReadlistArticle({ ...makeArticleParams({ userId: USER_B }), readlist: WORK });
+		await store.deleteReadlistArticle({ id: ID, userId: USER_B, readlist: WORK });
+		await store.deleteAllUserArticles(USER_A);
+		await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt: new Date() });
+		await store.saveArticle(makeArticleParams());
+		expect(await store.fileIntoLiveReadlist(filing({ requestedAt: past() }))).toEqual({ outcome: "filed" });
+	});
+
+	it("answers newer-row-won when the readlist row holds a later save", async () => {
+		const store = await liveStore();
+		await store.saveReadlistArticle({ ...makeArticleParams({ savedAt: future() }), readlist: WORK });
+
+		expect(await store.fileIntoLiveReadlist(filing({ savedAt: new Date() }))).toEqual({ outcome: "newer-row-won" });
+	});
+
+	it("lands a new row read under the read variant, and leaves an existing row alone", async () => {
+		const store = await liveStore();
+		const readAt = new Date("2026-11-03T10:02:00.000Z");
+
+		expect(await store.fileIntoLiveReadlist(filing({ landsAs: { status: "read", readAt } }))).toEqual({ outcome: "filed" });
+		expect(await store.findReadlistFiling({ userId: USER_A, readlist: WORK, url: URL })).toEqual(
+			expect.objectContaining({ status: "read", readAt }),
+		);
+		expect(await store.fileIntoLiveReadlist(filing({ landsAs: { status: "read", readAt } }))).toEqual({
+			outcome: "newer-row-won",
+		});
+	});
+
+	it("answers no filing for a readlist that does not hold the article", async () => {
+		const store = await liveStore();
+
+		expect(
+			await store.deleteReadlistArticle({ id: ReaderArticleHashId.from("https://example.com/unknown"), userId: USER_A, readlist: WORK }),
+		).toBe(false);
+
+		expect(await store.findReadlistFiling({ userId: USER_A, readlist: WORK, url: URL })).toBeUndefined();
+	});
+});

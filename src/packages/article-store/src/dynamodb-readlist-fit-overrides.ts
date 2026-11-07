@@ -23,6 +23,7 @@ import type {
 	RecordReadlistFitOverride,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
+import { initRecordReadlistRemoval } from "./readlist-removal-marker";
 import {
 	readlistFitOverrideKey,
 	readlistFitOverridePrefix,
@@ -48,6 +49,7 @@ const UserArticleKeyRow = z.object({ userId: z.string(), url: z.string() });
 export function initDynamoDbReadlistFitOverrides(deps: {
 	client: DynamoDBDocumentClient;
 	userArticlesTableName: string;
+	now: () => Date;
 }): {
 	recordReadlistFitOverride: RecordReadlistFitOverride;
 	listReadlistFitOverrides: ListReadlistFitOverrides;
@@ -143,7 +145,10 @@ export function initDynamoDbReadlistFitOverrides(deps: {
 		);
 	};
 
+	const recordReadlistRemoval = initRecordReadlistRemoval(deps);
+
 	const deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl = async ({ userId, readlist, url }) => {
+		await recordReadlistRemoval({ userId, readlist, url });
 		const outcome = await writeIfCondition(() => keys.delete({
 			Key: {
 				userId: readlistPartitionValue({ userId, readlist }),

@@ -211,7 +211,7 @@ const webArticlesRead = new DynamoDBAccess("inbox-web-articles-read", {
 
 const webUserArticles = new DynamoDBAccess("inbox-web-user-articles", {
 	tables: [{ arn: tableArn(tableNames.userArticles), includeIndexes: false }],
-	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:DeleteItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:UpdateItem"],
 });
 
 const webLambda = new Lambda("inbox-web", {

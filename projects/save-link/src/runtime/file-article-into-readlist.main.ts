@@ -1,5 +1,7 @@
 import {
 	initCanonicalAliasStore,
+	initDynamoDbReadlistDefinitions,
+	initDynamoDbReadlistFitOverrides,
 	initDynamoDbSavedArticleStore,
 	initFindSavedArticleForLink,
 } from "@packages/article-store";
@@ -11,7 +13,7 @@ import { consoleLogger, Logger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { readEnv } from "@packages/require-env";
 import { FILE_ARTICLE_INTO_READLIST_ENV } from "./file-article-into-readlist.env";
-import { initFileArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
+import { initFileRequestedArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
 import { initFileArticleIntoReadlistCommandHandler } from "./domain/file-article-into-readlist/file-article-into-readlist-command-handler";
 
 const env = readEnv(FILE_ARTICLE_INTO_READLIST_ENV);
@@ -32,6 +34,16 @@ const savedArticleStore = initDynamoDbSavedArticleStore({
 	now,
 });
 const canonicalAlias = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
+const resolveCanonicalIdentity = initResolveCanonicalIdentity({ findIdentityRow: canonicalAlias.findIdentityRow });
+const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
+	client: dynamoClient,
+	userArticlesTableName: userArticlesTable,
+});
+const { listReadlistFitOverrides } = initDynamoDbReadlistFitOverrides({
+	client: dynamoClient,
+	userArticlesTableName: userArticlesTable,
+	now,
+});
 
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
@@ -40,12 +52,16 @@ const { publishEvent } = initEventBridgePublisher({
 
 export const handler = initFileArticleIntoReadlistCommandHandler({
 	findSavedArticleForLink: initFindSavedArticleForLink({
-		resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: canonicalAlias.findIdentityRow }),
+		resolveCanonicalIdentity,
 		findArticleById: savedArticleStore.findArticleById,
 	}),
-	fileArticleIntoReadlist: initFileArticleIntoReadlist({
+	listReadlistDefinitions,
+	fileRequestedArticleIntoReadlist: initFileRequestedArticleIntoReadlist({
+		listReadlistFitOverrides,
+		resolveCanonicalIdentity,
+		findReadlistFiling: savedArticleStore.findReadlistFiling,
+		fileIntoLiveReadlist: savedArticleStore.fileIntoLiveReadlist,
 		allocateSavedAt: savedArticleStore.allocateSavedAt,
-		saveReadlistArticle: savedArticleStore.saveReadlistArticle,
 		updateArticleStatusAcrossReadlists: savedArticleStore.updateArticleStatusAcrossReadlists,
 	}),
 	publishEvent,

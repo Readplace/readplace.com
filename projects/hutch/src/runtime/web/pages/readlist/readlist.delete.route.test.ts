@@ -191,6 +191,73 @@ describe("POST /queue/queues/:slug/delete", () => {
 		expect(dequeued).toEqual([]);
 	});
 
+	it("leaves a purged link free for an earlier filing request, because a readlist delete records no removal", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const dequeued: string[] = [];
+		const harness = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				deleteReadlistDefinition: async () => ({ deleted: false }),
+			},
+			events: {
+				...fixture.events,
+				publishLinkDequeued: async ({ url }) => {
+					dequeued.push(url);
+				},
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const requestedAt = new Date(Date.now() - 60 * 60 * 1000);
+		await agent.post("/queue/save").type("form").send({ url: "https://example.com/both" });
+		const slug = await createReadlist(agent, "New Readlist");
+		await seedInto(harness, slug, "https://example.com/both");
+		await seedInto(harness, slug, "https://example.com/only-here");
+
+		await deleteReadlist(agent, slug);
+
+		const userId = await userIdOf(harness);
+		const readlist = ReadlistSlugSchema.parse(slug);
+		expect((await harness.articleStore.findReadlistArticles({ userId, readlist })).articles).toEqual([]);
+		expect(dequeued).toEqual(["https://example.com/only-here"]);
+		const filing = await harness.articleStore.fileIntoLiveReadlist({
+			userId,
+			readlist,
+			url: "https://example.com/both",
+			savedAt: new Date(),
+			provenance: { kind: "web" },
+			requestedAt,
+			landsAs: { status: "unread" },
+		});
+		expect(filing.outcome).toBe("filed");
+	});
+
+	it("fences an earlier filing request once the reader removed the link from the readlist themselves", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const requestedAt = new Date(Date.now() - 60 * 60 * 1000);
+		await agent.post("/queue/save").type("form").send({ url: "https://example.com/both" });
+		const slug = await createReadlist(agent, "New Readlist");
+		await seedInto(harness, slug, "https://example.com/both");
+		const articleId = parse((await agent.get(`/queue?queue=${slug}`)).text)
+			.querySelector("[data-test-article]")
+			?.getAttribute("data-test-article");
+		assert(articleId, "the readlist must render the seeded card");
+
+		await agent.post(`/queue/${articleId}/delete?queue=${slug}`);
+
+		const filing = await harness.articleStore.fileIntoLiveReadlist({
+			userId: await userIdOf(harness),
+			readlist: ReadlistSlugSchema.parse(slug),
+			url: "https://example.com/both",
+			savedAt: new Date(),
+			provenance: { kind: "web" },
+			requestedAt,
+			landsAs: { status: "unread" },
+		});
+		expect(filing.outcome).toBe("removed-after-request");
+	});
+
 	it("sends the inboxes routed to the deleted readlist back to All, leaving the others where they go", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
