@@ -24,6 +24,7 @@ import {
 } from "@packages/test-fixtures";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import type { HighlightCreatedEvent } from "@packages/web-analytics";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { initReanchorHighlightsHandler } from "../../../highlights/reanchor-highlights-handler";
@@ -98,7 +99,18 @@ const viewPath = (articleId: string) =>
 const createPath = (articleId: string) =>
 	`/queue/${articleId}/highlights?feature=highlight`;
 
-async function rangeOf(agent: Agent, articleId: string, exact: string) {
+async function rangeOf(
+	agent: Agent,
+	{
+		articleId,
+		exact,
+		origin = "mouse",
+	}: {
+		articleId: string;
+		exact: string;
+		origin?: HighlightCreatedEvent["origin"];
+	},
+) {
 	const page = doc((await agent.get(viewPath(articleId))).text);
 	const content = page.querySelector(".article-body__content");
 	assert(content, "the reader must render its content");
@@ -109,7 +121,7 @@ async function rangeOf(agent: Agent, articleId: string, exact: string) {
 		exact,
 		start: String(start),
 		end: String(start + exact.length),
-		origin: "mouse",
+		origin,
 	};
 }
 
@@ -121,13 +133,16 @@ function highlightIdFrom(location: string): string {
 
 async function createHighlight(
 	agent: Agent,
-	articleId: string,
-	exact: string,
+	range: {
+		articleId: string;
+		exact: string;
+		origin?: HighlightCreatedEvent["origin"];
+	},
 ): Promise<string> {
 	const response = await agent
-		.post(createPath(articleId))
+		.post(createPath(range.articleId))
 		.type("form")
-		.send(await rangeOf(agent, articleId, exact));
+		.send(await rangeOf(agent, range));
 	assert.equal(response.status, 303);
 	return highlightIdFrom(response.headers.location);
 }
@@ -160,7 +175,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		const response = await agent
 			.post(createPath(articleId))
 			.type("form")
-			.send(await rangeOf(agent, articleId, "readability parser"));
+			.send(await rangeOf(agent, { articleId, exact: "readability parser" }));
 
 		expect(response.status).toBe(303);
 		const id = highlightIdFrom(response.headers.location);
@@ -179,7 +194,10 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			harness,
 			"https://example.com/highlight-readlist",
 		);
-		const body = await rangeOf(agent, articleId, "readability parser");
+		const body = await rangeOf(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		const response = await agent
 			.post(`/queue/${articleId}/highlights?order=asc&feature=highlight`)
@@ -199,7 +217,10 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-utm?utm_source=x";
 		const { agent, articleId } = await saveArticle(harness, url);
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		const user = await harness.auth.findUserByEmail("test@example.com");
 		assert(user);
 
@@ -224,8 +245,11 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			harness,
 			"https://example.com/highlight-merge",
 		);
-		await createHighlight(agent, articleId, "readability parser");
-		const merged = await createHighlight(agent, articleId, "parser to extract");
+		await createHighlight(agent, { articleId, exact: "readability parser" });
+		const merged = await createHighlight(agent, {
+			articleId,
+			exact: "parser to extract",
+		});
 
 		const reopened = (await agent.get(viewPath(articleId))).text;
 		expect(rowsOf(reopened)).toEqual([{ id: merged, state: "anchored" }]);
@@ -236,7 +260,10 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		const harness = useApp(parsedFixture());
 		const url = "https://example.com/highlight-moved";
 		const { agent, articleId } = await saveArticle(harness, url);
-		const body = await rangeOf(agent, articleId, "readability parser");
+		const body = await rangeOf(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		const before = await harness.articleStore.findUserArticlesByUrl(url);
 
 		const response = await agent
@@ -258,7 +285,10 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			harness,
 			"https://example.com/highlight-moved-htmx",
 		);
-		const body = await rangeOf(agent, articleId, "readability parser");
+		const body = await rangeOf(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		const response = await agent
 			.post(createPath(articleId))
@@ -311,7 +341,10 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			harness,
 			"https://example.com/highlight-cancelled",
 		);
-		const body = await rangeOf(agent, articleId, "readability parser");
+		const body = await rangeOf(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		fixture.highlights.setCreateCancelled(true);
 
 		const response = await agent
@@ -332,7 +365,10 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			url,
 			canonicalContentHash: "canonical-hash",
 		});
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		expect(rowsOf((await agent.get(viewPath(articleId))).text)).toEqual([
 			{ id, state: "anchored" },
@@ -357,6 +393,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			"an unknown origin",
 			{ exact: "a", start: "0", end: "1", origin: "keyboard" },
 		],
+		["the pen origin", { exact: "a", start: "0", end: "1", origin: "pen" }],
 	])("answers 400 for a body with %s", async (_label, body) => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
@@ -393,7 +430,10 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			harness,
 			"https://example.com/highlight-foreign",
 		);
-		const body = await rangeOf(agent, articleId, "readability parser");
+		const body = await rangeOf(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		await harness.auth.createUser({
 			email: "other@example.com",
 			password: "password123",
@@ -418,7 +458,10 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			harness,
 			"https://example.com/highlight-read-only",
 		);
-		const body = await rangeOf(agent, articleId, "readability parser");
+		const body = await rangeOf(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		const user = await harness.auth.findUserByEmail("test@example.com");
 		assert(user);
 		await harness.subscriptionProviders.upsertTrialing({
@@ -442,7 +485,10 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			harness,
 			"https://example.com/highlight-no-flag",
 		);
-		const body = await rangeOf(agent, articleId, "readability parser");
+		const body = await rangeOf(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		const response = await agent
 			.post(`/queue/${articleId}/highlights`)
@@ -458,7 +504,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			harness,
 			"https://example.com/highlight-analytics",
 		);
-		await createHighlight(agent, articleId, "readability parser");
+		await createHighlight(agent, { articleId, exact: "readability parser" });
 
 		const events = harness.analytics.events.filter(
 			(event) => event.event === "highlight_created",
@@ -466,6 +512,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(events).toHaveLength(1);
 		expect(Object.keys(events[0]).sort()).toEqual([
 			"event",
+			"highlight_id",
 			"origin",
 			"stream",
 			"timestamp",
@@ -473,6 +520,63 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			"visitor_hash",
 		]);
 		expect(events[0].origin).toBe("mouse");
+	});
+
+	it("records a tap create's origin and highlight id, keeping the flag in the redirect", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-tap",
+		);
+
+		const response = await agent
+			.post(createPath(articleId))
+			.type("form")
+			.send(
+				await rangeOf(agent, {
+					articleId,
+					exact: "readability parser",
+					origin: "tap",
+				}),
+			);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toContain("feature=highlight");
+		const events = harness.analytics.events.filter(
+			(event) => event.event === "highlight_created",
+		);
+		expect(events).toEqual([
+			expect.objectContaining({
+				origin: "tap",
+				highlight_id: highlightIdFrom(response.headers.location),
+			}),
+		]);
+	});
+
+	it("records a merging create under the merged row's id and its own origin", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-merge-analytics",
+		);
+		const first = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+		const merged = await createHighlight(agent, {
+			articleId,
+			exact: "parser to extract",
+			origin: "longpress",
+		});
+
+		const events = harness.analytics.events.filter(
+			(event) => event.event === "highlight_created",
+		);
+		expect(merged).not.toBe(first);
+		expect(events).toEqual([
+			expect.objectContaining({ origin: "mouse", highlight_id: first }),
+			expect.objectContaining({ origin: "longpress", highlight_id: merged }),
+		]);
 	});
 });
 
@@ -483,8 +587,14 @@ describe("Highlights (POST /queue/:id/highlights/:highlightId/delete)", () => {
 			harness,
 			"https://example.com/highlight-delete",
 		);
-		const first = await createHighlight(agent, articleId, "readability parser");
-		const second = await createHighlight(agent, articleId, "second paragraph");
+		const first = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+		const second = await createHighlight(agent, {
+			articleId,
+			exact: "second paragraph",
+		});
 
 		const response = await agent.post(
 			`/queue/${articleId}/highlights/${second}/delete?feature=highlight`,
@@ -503,11 +613,13 @@ describe("Highlights (POST /queue/:id/highlights/:highlightId/delete)", () => {
 		expect(events).toHaveLength(1);
 		expect(Object.keys(events[0]).sort()).toEqual([
 			"event",
+			"highlight_id",
 			"stream",
 			"timestamp",
 			"user_id",
 			"visitor_hash",
 		]);
+		expect(events[0].highlight_id).toBe(second);
 	});
 
 	it("answers 404 for an unknown highlight", async () => {
@@ -530,7 +642,10 @@ describe("Highlights (POST /queue/:id/highlights/:highlightId/delete)", () => {
 			harness,
 			"https://example.com/highlight-deleted-twice",
 		);
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		const deletePath = `/queue/${articleId}/highlights/${id}/delete?feature=highlight`;
 
 		const first = await agent.post(deletePath);
@@ -546,7 +661,10 @@ describe("Highlights (POST /queue/:id/highlights/:highlightId/delete)", () => {
 			harness,
 			"https://example.com/highlight-delete-foreign",
 		);
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		await harness.auth.createUser({
 			email: "other@example.com",
 			password: "password123",
@@ -627,12 +745,14 @@ describe("Highlights in the reader (GET /queue/:id/view)", () => {
 			harness,
 			"https://example.com/highlight-view-order",
 		);
-		const later = await createHighlight(agent, articleId, "second paragraph");
-		const earlier = await createHighlight(
-			agent,
+		const later = await createHighlight(agent, {
 			articleId,
-			"readability parser",
-		);
+			exact: "second paragraph",
+		});
+		const earlier = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		expect(
 			rowsOf((await agent.get(viewPath(articleId))).text).map((row) => row.id),
@@ -652,7 +772,10 @@ describe("Highlights in the reader (GET /queue/:id/view)", () => {
 				ARTICLE_VERSION_HEADER.toLowerCase()
 			];
 		const initial = await versionOf();
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		const created = await versionOf();
 		fixture.highlights.bumpAnchorRevision({
 			userId: user.userId,
@@ -667,7 +790,7 @@ describe("Highlights in the reader (GET /queue/:id/view)", () => {
 
 		expect(new Set([initial, created, bumped]).size).toBe(3);
 		expect(deleted).toBe(initial);
-		await createHighlight(agent, articleId, "readability parser");
+		await createHighlight(agent, { articleId, exact: "readability parser" });
 		const response = await agent.get(`${viewPath(articleId)}&v=${initial}`);
 		expect(response.headers["cache-control"]).toContain("no-cache");
 	});
@@ -694,7 +817,10 @@ describe("Highlights on the reader polls", () => {
 			harness,
 			"https://example.com/highlight-poll-reader",
 		);
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		const poll = (
 			await agent.get(`/queue/${articleId}/reader?poll=1&feature=highlight`)
@@ -729,7 +855,10 @@ describe("Highlights on the reader polls", () => {
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-poll-snapshot";
 		const { agent, articleId } = await saveArticle(harness, url);
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		await fixture.articleStore.replaceCanonicalContent({
 			url,
 			content: `${OPENING_PARAGRAPH}${SECOND_PARAGRAPH}`,
@@ -802,7 +931,7 @@ describe("Highlights when the article is deleted", () => {
 		const harness = useApp(parsedFixture());
 		const url = "https://example.com/highlight-deleted-resaved";
 		const { agent, articleId } = await saveArticle(harness, url);
-		await createHighlight(agent, articleId, "readability parser");
+		await createHighlight(agent, { articleId, exact: "readability parser" });
 
 		await agent.post(`/queue/${articleId}/delete`).type("form").send({});
 		await agent.post("/queue/save").type("form").send({ url });
@@ -824,7 +953,10 @@ describe("Highlights when the article is deleted", () => {
 		);
 		const work = await createReadlist(agent, "Work");
 		await fileInto(agent, { articleId, readlist: work });
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		const deleted = await agent
 			.post(`/queue/${articleId}/delete?queue=${work}`)
@@ -850,7 +982,10 @@ describe("Highlights when the article is deleted", () => {
 		const work = await createReadlist(agent, "Work");
 		const later = await createReadlist(agent, "Later");
 		await fileInto(agent, { articleId, readlist: work });
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		const moved = await agent
 			.post(`/queue/${articleId}/move?queue=${work}`)
@@ -907,7 +1042,10 @@ describe("Highlights when the served body changes", () => {
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-body-moved";
 		const { agent, articleId } = await saveArticle(harness, url);
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		await fixture.articleStore.writeContent({
 			url,
@@ -924,7 +1062,10 @@ describe("Highlights when the served body changes", () => {
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-body-orphaned";
 		const { agent, articleId } = await saveArticle(harness, url);
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		await fixture.articleStore.writeContent({ url, content: SECOND_PARAGRAPH });
 		const reopened = (await agent.get(viewPath(articleId))).text;
@@ -945,12 +1086,14 @@ describe("Highlights when the served body changes", () => {
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-reanchor-moved";
 		const { agent, articleId } = await saveArticle(harness, url);
-		const a = await createHighlight(agent, articleId, "readability parser");
-		const b = await createHighlight(
-			agent,
+		const a = await createHighlight(agent, {
 			articleId,
-			"parser has more than the minimum",
-		);
+			exact: "readability parser",
+		});
+		const b = await createHighlight(agent, {
+			articleId,
+			exact: "parser has more than the minimum",
+		});
 		const before = await fixture.highlights.listHighlightsOfArticle(url);
 		await fixture.articleStore.replaceCanonicalContent({
 			url,
@@ -995,7 +1138,10 @@ describe("Highlights when the served body changes", () => {
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-reanchor-orphaned";
 		const { agent, articleId } = await saveArticle(harness, url);
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		const [before] = await fixture.highlights.listHighlightsOfArticle(url);
 		await fixture.articleStore.replaceCanonicalContent({
 			url,
@@ -1025,13 +1171,19 @@ describe("Highlights when the served body changes", () => {
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-stale-merge";
 		const { agent, articleId } = await saveArticle(harness, url);
-		const stale = await createHighlight(agent, articleId, "readability parser");
+		const stale = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 
 		await fixture.articleStore.writeContent({
 			url,
 			content: `<p>A new opening paragraph pushes everything further down.</p>${OPENING_PARAGRAPH}${SECOND_PARAGRAPH}`,
 		});
-		const merged = await createHighlight(agent, articleId, "parser to extract");
+		const merged = await createHighlight(agent, {
+			articleId,
+			exact: "parser to extract",
+		});
 		const reopened = (await agent.get(viewPath(articleId))).text;
 
 		expect(rowsOf(reopened).map((row) => row.id)).toEqual([merged]);
@@ -1049,7 +1201,10 @@ describe("Highlights when the served body changes", () => {
 			content: `<p>\u{1F600} Long enough body text for the readability parser to extract a clean article from.</p>${SECOND_PARAGRAPH}`,
 		});
 
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		const reopened = (await agent.get(viewPath(articleId))).text;
 
 		expect(rowsOf(reopened)).toEqual([{ id, state: "anchored" }]);
@@ -1117,7 +1272,10 @@ describe("Highlights on the polls while the crawl is pending", () => {
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-recrawl-summary-poll";
 		const { agent, articleId } = await saveArticle(harness, url);
-		const id = await createHighlight(agent, articleId, "readability parser");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
 		await fixture.articleCrawl.forceMarkCrawlPending({ url });
 
 		const poll = (
@@ -1138,7 +1296,7 @@ describe("Highlights on the polls while the crawl is pending", () => {
 			harness,
 			"https://example.com/highlight-served-summary-poll",
 		);
-		await createHighlight(agent, articleId, "readability parser");
+		await createHighlight(agent, { articleId, exact: "readability parser" });
 
 		const poll = doc(
 			(await agent.get(`/queue/${articleId}/summary?poll=1&feature=highlight`))

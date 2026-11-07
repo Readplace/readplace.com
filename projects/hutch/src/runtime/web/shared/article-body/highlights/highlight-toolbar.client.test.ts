@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
+import { type Highlight, HighlightIdSchema } from "@packages/domain/article";
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
-import { HighlightIdSchema, type Highlight } from "@packages/domain/article";
 import { articleBody } from "@packages/test-fixtures";
 import { type DOMWindow, JSDOM } from "jsdom";
 import { renderHighlightsRail } from "../highlights-rail/highlights-rail.component";
@@ -8,10 +8,10 @@ import { renderReaderReady } from "../reader-slot/reader-ready.component";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../reader-slot/section-pages";
 import {
 	HIGHLIGHT_SELECTION_EVENT,
+	initHighlightToolbar,
 	POINTER_SETTLE_MS,
 	SELECTION_DEBOUNCE_MS,
 	type ToolbarRect,
-	initHighlightToolbar,
 } from "./highlight-toolbar.client";
 import { ARTICLE_HIGHLIGHT_CLASS, renderHighlightToolbar } from "./highlight-toolbar.component";
 
@@ -63,7 +63,15 @@ interface Harness {
 	pendingDelays(): number[];
 	runFrames(): void;
 	frameCount(): number;
-	viewport: { width: number; offsetLeft: number; offsetTop: number; fire(type: "scroll" | "resize"): void };
+	viewport: {
+		width: number;
+		height: number;
+		offsetLeft: number;
+		offsetTop: number;
+		fire(type: "scroll" | "resize"): void;
+	};
+	coarse: boolean;
+	scrollWindow(): void;
 	rects: ToolbarRect[];
 	submitted: HTMLFormElement[];
 }
@@ -75,6 +83,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 	let nextHandle = 1;
 	const frames: (() => void)[] = [];
 	const viewportListeners: { type: string; listener: () => void }[] = [];
+	const scrollListeners: { listener: () => void; passive: boolean }[] = [];
 	const submitted: HTMLFormElement[] = [];
 	dom.window.HTMLFormElement.prototype.requestSubmit = function (this: HTMLFormElement) {
 		submitted.push(this);
@@ -96,6 +105,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		frameCount: () => frames.length,
 		viewport: {
 			width: 1000,
+			height: 800,
 			offsetLeft: 0,
 			offsetTop: 0,
 			fire(type) {
@@ -104,6 +114,10 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		},
 		rects: [{ top: 300, bottom: 320, left: 400, width: 200 }],
 		submitted,
+		coarse: false,
+		scrollWindow() {
+			for (const entry of scrollListeners) if (entry.passive) entry.listener();
+		},
 	};
 	initHighlightToolbar({
 		document: doc,
@@ -111,6 +125,9 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 			visualViewport: {
 				get width() {
 					return h.viewport.width;
+				},
+				get height() {
+					return h.viewport.height;
 				},
 				get offsetLeft() {
 					return h.viewport.offsetLeft;
@@ -121,6 +138,10 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 				addEventListener: (type, listener) => viewportListeners.push({ type, listener }),
 			},
 			requestAnimationFrame: (callback) => frames.push(callback),
+			matchMedia: (query) => ({
+				matches: query === "(pointer: coarse)" && h.coarse,
+			}),
+			addEventListener: (_type, listener, options) => scrollListeners.push({ listener, passive: options.passive }),
 		},
 		timers: {
 			setTimeout: (callback, delayMs) => {
@@ -133,9 +154,13 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 			},
 		},
 		rectsOf: () => h.rects,
+		isPopoverOpen: () => false,
 	});
 	const toolbar = toolbarOf(h);
-	Object.defineProperty(toolbar, "getBoundingClientRect", { value: () => TOOLBAR_SIZE, configurable: true });
+	Object.defineProperty(toolbar, "getBoundingClientRect", {
+		value: () => TOOLBAR_SIZE,
+		configurable: true,
+	});
 	return h;
 }
 
@@ -160,12 +185,22 @@ function textNodeContaining(input: { h: Harness; root: Node; needle: string }): 
 }
 
 function pointAt(input: { h: Harness; root?: Node; needle: string; after?: boolean }): { node: Node; offset: number } {
-	const node = textNodeContaining({ h: input.h, root: input.root ?? contentOf(input.h), needle: input.needle });
+	const node = textNodeContaining({
+		h: input.h,
+		root: input.root ?? contentOf(input.h),
+		needle: input.needle,
+	});
 	const index = (node.nodeValue ?? "").indexOf(input.needle);
 	return { node, offset: input.after ? index + input.needle.length : index };
 }
 
-function select(h: Harness, input: { from: { node: Node; offset: number }; to: { node: Node; offset: number } }): void {
+function select(
+	h: Harness,
+	input: {
+		from: { node: Node; offset: number };
+		to: { node: Node; offset: number };
+	},
+): void {
 	const range = h.doc.createRange();
 	range.setStart(input.from.node, input.from.offset);
 	range.setEnd(input.to.node, input.to.offset);
@@ -178,7 +213,12 @@ function select(h: Harness, input: { from: { node: Node; offset: number }; to: {
 function selectWords(h: Harness, input: { from: string; to?: string; root?: Node }): void {
 	select(h, {
 		from: pointAt({ h, root: input.root, needle: input.from }),
-		to: pointAt({ h, root: input.root, needle: input.to ?? input.from, after: true }),
+		to: pointAt({
+			h,
+			root: input.root,
+			needle: input.to ?? input.from,
+			after: true,
+		}),
 	});
 }
 
@@ -228,11 +268,20 @@ describe("initHighlightToolbar", () => {
 			initHighlightToolbar({
 				document: dom.window.document,
 				window: {
-					visualViewport: { width: 0, offsetLeft: 0, offsetTop: 0, addEventListener: () => undefined },
+					visualViewport: {
+						width: 0,
+						height: 0,
+						offsetLeft: 0,
+						offsetTop: 0,
+						addEventListener: () => undefined,
+					},
 					requestAnimationFrame: () => undefined,
+					matchMedia: () => ({ matches: false }),
+					addEventListener: () => undefined,
 				},
 				timers: { setTimeout: () => undefined, clearTimeout: () => undefined },
 				rectsOf: () => [],
+				isPopoverOpen: () => false,
 			}),
 		).toThrow("the highlight script ships with its toolbar");
 	});
@@ -325,7 +374,12 @@ describe("initHighlightToolbar", () => {
 		const fields = formFields(h.submitted[0]);
 		const start = servedText(h).indexOf("beta");
 		expect(start).toBe(9);
-		expect(fields).toEqual({ exact: "beta", start: String(start), end: String(start + 4), origin: "mouse" });
+		expect(fields).toEqual({
+			exact: "beta",
+			start: String(start),
+			end: String(start + 4),
+			origin: "mouse",
+		});
 		expect(h.doc.getSelection()?.rangeCount).toBe(0);
 		expect(toolbarOf(h).hidden).toBe(true);
 	});
@@ -419,9 +473,18 @@ describe("initHighlightToolbar", () => {
 		const h = harness();
 		selectWords(h, { from: "beta" });
 
-		h.doc.dispatchEvent(new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, { detail: { origin: "tap" } }));
+		h.doc.dispatchEvent(
+			new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, {
+				detail: { origin: "tap" },
+			}),
+		);
 
-		expect(formFields(h.submitted[0])).toEqual({ exact: "beta", start: "9", end: "13", origin: "tap" });
+		expect(formFields(h.submitted[0])).toEqual({
+			exact: "beta",
+			start: "9",
+			end: "13",
+			origin: "tap",
+		});
 	});
 
 	it.each([
@@ -440,7 +503,11 @@ describe("initHighlightToolbar", () => {
 	it("ignores a selection event with no range", () => {
 		const h = harness();
 
-		h.doc.dispatchEvent(new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, { detail: { origin: "tap" } }));
+		h.doc.dispatchEvent(
+			new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, {
+				detail: { origin: "tap" },
+			}),
+		);
 
 		expect(h.submitted).toHaveLength(0);
 	});
@@ -451,7 +518,11 @@ describe("initHighlightToolbar", () => {
 		assert(outside);
 		selectWords(h, { from: "Outside", root: outside });
 
-		h.doc.dispatchEvent(new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, { detail: { origin: "tap" } }));
+		h.doc.dispatchEvent(
+			new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, {
+				detail: { origin: "tap" },
+			}),
+		);
 
 		expect(h.submitted).toHaveLength(0);
 	});
@@ -462,7 +533,11 @@ describe("initHighlightToolbar", () => {
 		assert(outside);
 		selectWords(h, { from: "Outside", root: outside });
 
-		h.doc.dispatchEvent(new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, { detail: { origin: "tap" } }));
+		h.doc.dispatchEvent(
+			new h.window.CustomEvent(HIGHLIGHT_SELECTION_EVENT, {
+				detail: { origin: "tap" },
+			}),
+		);
 
 		expect(h.submitted).toHaveLength(0);
 	});
@@ -473,7 +548,9 @@ describe("initHighlightToolbar", () => {
 		const row = h.doc.querySelector(`[data-highlight-row="${HIGHLIGHT_ID}"]`);
 		assert(row);
 		const scrolled: unknown[] = [];
-		Object.defineProperty(row, "scrollIntoView", { value: (options: unknown) => scrolled.push(options) });
+		Object.defineProperty(row, "scrollIntoView", {
+			value: (options: unknown) => scrolled.push(options),
+		});
 
 		click(h, mark);
 
@@ -498,7 +575,10 @@ describe("initHighlightToolbar", () => {
 		it("sits above the first rect, centred on it", () => {
 			const h = harness();
 
-			expect(shownAt(h)).toEqual({ top: `${300 - 44 - 10}px`, left: `${400 + 100 - 60}px` });
+			expect(shownAt(h)).toEqual({
+				top: `${300 - 44 - 10}px`,
+				left: `${400 + 100 - 60}px`,
+			});
 		});
 
 		it("flips below the last rect when there is no room above", () => {
@@ -517,7 +597,10 @@ describe("initHighlightToolbar", () => {
 			h.viewport.offsetLeft = 50;
 			h.viewport.offsetTop = 100;
 
-			expect(shownAt(h)).toEqual({ top: `${300 - 44 - 10}px`, left: `${16 + 50}px` });
+			expect(shownAt(h)).toEqual({
+				top: `${300 - 44 - 10}px`,
+				left: `${16 + 50}px`,
+			});
 		});
 
 		it("clamps 16 px inside the right edge of the visual viewport", () => {
@@ -557,6 +640,92 @@ describe("initHighlightToolbar", () => {
 			expect(toolbarOf(h).style.top).toBe(`${500 - 44 - 10}px`);
 			h.viewport.fire(type);
 			expect(h.frameCount()).toBe(1);
+		});
+
+		describe("on a coarse pointer", () => {
+			function coarseShownAt(h: Harness): string {
+				h.coarse = true;
+				return shownAt(h).top;
+			}
+
+			it("sits 10 px below the last rect", () => {
+				const h = harness();
+
+				expect(coarseShownAt(h)).toBe(`${320 + 10}px`);
+				expect(toolbarOf(h).style.left).toBe(`${400 + 100 - 60}px`);
+			});
+
+			it("flips above when a visualViewport resize leaves no room below", () => {
+				const h = harness();
+				coarseShownAt(h);
+				h.viewport.offsetTop = 0;
+				h.viewport.height = 360;
+
+				h.viewport.fire("resize");
+				h.runFrames();
+
+				expect(toolbarOf(h).style.top).toBe(`${300 - 10 - 44}px`);
+			});
+
+			it("repositions once for two visualViewport scrolls in one frame", () => {
+				const h = harness();
+				coarseShownAt(h);
+				h.rects = [{ top: 100, bottom: 120, left: 400, width: 200 }];
+
+				h.viewport.fire("scroll");
+				h.viewport.fire("scroll");
+				expect(h.frameCount()).toBe(1);
+				h.runFrames();
+
+				expect(toolbarOf(h).style.top).toBe(`${120 + 10}px`);
+			});
+
+			it("follows the selection on a passive window scroll", () => {
+				const h = harness();
+				coarseShownAt(h);
+				h.rects = [{ top: 200, bottom: 220, left: 400, width: 200 }];
+
+				h.scrollWindow();
+				h.runFrames();
+
+				expect(toolbarOf(h).style.top).toBe(`${220 + 10}px`);
+			});
+
+			it("leaves a hidden bar where it was on a window scroll", () => {
+				const h = harness();
+				coarseShownAt(h);
+				h.doc.dispatchEvent(
+					new h.window.KeyboardEvent("keydown", {
+						key: "Escape",
+						bubbles: true,
+					}),
+				);
+				h.rects = [{ top: 200, bottom: 220, left: 400, width: 200 }];
+
+				h.scrollWindow();
+				h.runFrames();
+
+				expect(toolbarOf(h).style.top).toBe(`${320 + 10}px`);
+			});
+
+			it("submits a long-pressed selection with origin longpress", () => {
+				const h = harness();
+				coarseShownAt(h);
+
+				click(h, buttonOf(h));
+
+				expect(formFields(h.submitted[0]).origin).toBe("longpress");
+			});
+		});
+
+		it("keeps the above-first-rect rule on a fine pointer", () => {
+			const h = harness();
+			h.rects = [
+				{ top: 300, bottom: 320, left: 400, width: 200 },
+				{ top: 320, bottom: 340, left: 100, width: 200 },
+			];
+
+			expect(shownAt(h).top).toBe(`${300 - 44 - 10}px`);
 		});
 
 		it("leaves a hidden bar where it is on a viewport change", () => {

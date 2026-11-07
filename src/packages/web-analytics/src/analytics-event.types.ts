@@ -1,3 +1,4 @@
+import type { HighlightId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	ANALYTICS_EVENTS,
@@ -174,7 +175,8 @@ export interface HighlightCreatedEvent {
 	timestamp: string;
 	user_id: UserId;
 	visitor_hash: string | null;
-	origin: "mouse";
+	origin: "mouse" | "tap" | "longpress";
+	highlight_id: HighlightId;
 }
 
 export interface HighlightDeletedEvent {
@@ -183,6 +185,7 @@ export interface HighlightDeletedEvent {
 	timestamp: string;
 	user_id: UserId;
 	visitor_hash: string | null;
+	highlight_id: HighlightId;
 }
 
 /**
