@@ -1,11 +1,11 @@
 ---
 title: "Introducing GMail integration"
-description: "A newsletter you chose arrives in Gmail between a receipt and a calendar invite, and gets cleared with the rest. Connect Gmail to Readplace, point a sender at a readlist, and each new issue lands there summarized, either as the issue itself or as the articles it links to, sorted out from the packaging. The subscription keeps its address, the mail stays unread, and connecting reads mail headers, not mail."
+description: "A newsletter you chose arrives in Gmail between a receipt and a calendar invite, and gets cleared with the rest. Connect Gmail to Readplace, point a sender at a readlist, and each new issue lands there summarized, either as the issue itself or as the articles it links to, sorted out from the packaging. The subscription keeps its address, the mail stays unread unless you turn on marking imported emails as read, and connecting reads who sent each message, not mail."
 excerpt: "Newsletters already arriving in Gmail can feed a readlist now, with nothing re-subscribed."
-tldr: "Week after week, the newsletters you chose lose to the email you didn't. Readplace now connects to Gmail: pick a sender, point it at a readlist, and each new issue lands there as one article, with a Save button beside each article it links to. A sender can save the linked articles instead, sorted out from the sponsor slots and the unsubscribe footer, or both. The subscription keeps its address, and the mail stays in Gmail, unread and unmoved. The connection comes with a paid Readplace subscription, reads mail headers, not the mail itself, and permission to read arrives only if you ask for the unread issues of the last 30 days, one sender at a time."
+tldr: "Week after week, the newsletters you chose lose to the email you didn't. Readplace now connects to Gmail: pick a sender, point it at a readlist, and each new issue lands there as one article, with a Save button beside each article it links to. A sender can save the linked articles instead, sorted out from the sponsor slots and the unsubscribe footer, or both. The subscription keeps its address, and the mail stays in Gmail, unmoved, and unread unless you turn on marking imported emails as read. The connection comes with a paid Readplace subscription, reads the sender, labels and date of each message, not the mail itself, and permission to read arrives only if you ask for the unread issues of the last 30 days, one sender at a time."
 slug: "introducing-gmail-integration"
 date: "2026-10-03"
-lastModified: "2026-10-10"
+lastModified: "2026-11-07"
 author: "Fayner Brack"
 keywords: "gmail integration, read gmail newsletters, gmail newsletter reader, save newsletters to read later, newsletter to read it later app, connect gmail to read it later, newsletter overload, gmail newsletters to readlist, readplace"
 tags: ["changelog"]
@@ -40,15 +40,15 @@ The same form asks what each issue should save, and a new mapping starts on "The
 
 ## Headers now, reading only on request
 
-The connection asks Google for 2 permissions, and neither reads mail. One manages Gmail settings, which is what writes the forwarding filter. The other reads message headers, the sender, subject and date lines, which is what builds the sender list. Message bodies don't travel through either scope, and that boundary is Google's to enforce rather than Readplace's to promise.
+Connecting asks Google for 2 permissions, and neither reads mail. One manages Gmail settings, which is what writes the forwarding filter. The other reads message metadata, and Readplace asks only for the sender, labels and date of each message, which is what builds the sender list. Message bodies don't travel through either scope, and that boundary is Google's to enforce rather than Readplace's to promise.
 
 > **Connecting shows Readplace who writes to you, not what they wrote.**
 
-A fresh mapping offers one exception, off until ticked: "Import unread messages from the last 30 days". Ticking it goes back to Google, which asks this time about reading, and the import that follows reads mail from that one sender and leaves every message unread. An issue that arrives twice, once forwarded and once imported, saves once: each one is claimed by its Message-ID.
+A fresh mapping offers one exception, off until ticked: "Import unread messages from the last 30 days". Ticking it goes back to Google, which asks this time about reading (unless you have already allowed Readplace to modify your mail), and the import that follows downloads only the unread mail from that one sender and leaves it unread, unless you also turn on marking imported emails as read. An issue that arrives twice, once forwarded and once imported, saves once: each one is claimed by its Message-ID.
 
 ## Gmail stays as it was
 
-Forwarding copies. The issues keep arriving in Gmail, unread state intact, at the address the subscription was made with years ago. Readplace archives nothing there and marks nothing read.
+Forwarding copies. The issues keep arriving in Gmail, unread by default, at the address the subscription was made with years ago. Readplace archives nothing there and, unless you turn on marking imported emails as read, marks nothing read.
 
 Removing a mapping stops the forwarding for that sender and keeps what was already saved. The notice on the page commits to it: "Newsletter removed. Articles you already saved stay in your readlists."
 
