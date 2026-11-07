@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { CandidateIdSchema, MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
 import type { Minutes } from "@packages/domain/article";
+import { toEventInstant } from "@packages/domain/event-envelope";
 import { formatEmailLinkOrdinal } from "@packages/domain/inbox";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -2743,6 +2744,21 @@ describe("initInMemoryArticleStore readlist filing", () => {
 		expect(await store.deleteReadlistArticleByUrl({ userId: USER_A, readlist: WORK, url: URL })).toBe(true);
 
 		expect(await store.fileIntoLiveReadlist(filing({ requestedAt: past() }))).toEqual({ outcome: "removed-after-request" });
+	});
+
+	it("answers a removal's whole-second marker under the URL as given, tracking parameters and all, and undefined before one", async () => {
+		const store = await liveStore();
+		const tracked = `${URL}?utm_source=newsletter`;
+		expect(await store.findReadlistRemoval({ userId: USER_A, readlist: WORK, url: tracked })).toBeUndefined();
+		await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+		const before = toEventInstant(new Date());
+
+		await store.deleteReadlistArticleByUrl({ userId: USER_A, readlist: WORK, url: URL });
+
+		const removedAt = await store.findReadlistRemoval({ userId: USER_A, readlist: WORK, url: tracked });
+		assert(removedAt !== undefined);
+		expect(removedAt >= before).toBe(true);
+		expect(removedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
 	});
 
 	it("records no marker for a purge, nor for an article absent from All", async () => {

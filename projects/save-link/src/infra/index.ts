@@ -131,6 +131,8 @@ const usersTableName = config.require("usersTableName");
 const usersTableArn = config.require("usersTableArn");
 const subscriptionProvidersTableName = config.require("subscriptionProvidersTableName");
 const subscriptionProvidersTableArn = config.require("subscriptionProvidersTableArn");
+const inboxEmailLinksTableName = config.require("inboxEmailLinksTableName");
+const inboxEmailLinksTableArn = config.require("inboxEmailLinksTableArn");
 // "<budget>/<windowSeconds>" ceiling on comprehensive-crawl runs (OCR + LLM
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
@@ -1679,7 +1681,25 @@ const filterEmailLinksQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.filterEmailLinks, {
 
 const filterEmailLinksUserArticlesDynamodb = new DynamoDBAccess("filter-email-links-user-articles-dynamodb", {
 	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:Query", "dynamodb:GetItem"],
+});
+
+const filterEmailLinksInboxEmailLinksDynamodb = new DynamoDBAccess("filter-email-links-inbox-email-links-dynamodb", {
+	tables: [{ arn: inboxEmailLinksTableArn, includeIndexes: false }],
 	actions: ["dynamodb:Query"],
+});
+
+const filterEmailLinksSubscriptionProvidersDynamodb = new DynamoDBAccess(
+	"filter-email-links-subscription-providers-dynamodb",
+	{
+		tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
+		actions: ["dynamodb:GetItem"],
+	},
+);
+
+const filterEmailLinksArticlesDynamodb = new DynamoDBAccess("filter-email-links-articles-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: true }],
+	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
 
 const filterEmailLinksLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.filterEmailLinks, {
@@ -1691,11 +1711,19 @@ const filterEmailLinksLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.filterEmailLink
 	environmentNames: FILTER_EMAIL_LINKS_ENV,
 	environment: {
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: inboxEmailLinksTableName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		READLIST_FIT_ENGINE: readlistFitEngine,
 	},
-	policies: [...filterEmailLinksUserArticlesDynamodb.policies],
+	policies: [
+		...filterEmailLinksUserArticlesDynamodb.policies,
+		...filterEmailLinksInboxEmailLinksDynamodb.policies,
+		...filterEmailLinksSubscriptionProvidersDynamodb.policies,
+		...filterEmailLinksArticlesDynamodb.policies,
+	],
 });
 
 eventBus.grantPublish(filterEmailLinksLambda);

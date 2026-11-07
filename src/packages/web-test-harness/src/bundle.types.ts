@@ -176,6 +176,7 @@ import type {
 	PurgeReadlistArticle,
 	FileIntoLiveReadlist,
 	FindReadlistFiling,
+	FindReadlistRemoval,
 	MarkReadlistArticleViewed,
 	AssignSavedArticleToReadlist,
 	MoveReadlistArticles,
@@ -501,6 +502,7 @@ export interface ArticleStoreBundle {
 	purgeReadlistArticle: PurgeReadlistArticle;
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
 	findReadlistFiling: FindReadlistFiling;
+	findReadlistRemoval: FindReadlistRemoval;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;

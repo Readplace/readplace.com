@@ -1019,6 +1019,9 @@ importers:
       '@packages/finalize-article':
         specifier: workspace:*
         version: link:../../src/packages/finalize-article
+      '@packages/inbox-store':
+        specifier: workspace:*
+        version: link:../../src/packages/inbox-store
       '@packages/infra-components':
         specifier: workspace:*
         version: link:../../src/packages/infra-components

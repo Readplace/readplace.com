@@ -11,7 +11,7 @@ import {
 	writeIfCondition,
 } from "@packages/storage-client";
 import { toEventInstant } from "@packages/domain/event-envelope";
-import { initRecordReadlistRemoval, readlistRemovedAtAttribute } from "./readlist-removal-marker";
+import { initFindReadlistRemoval, initRecordReadlistRemoval, readlistRemovedAtAttribute } from "./readlist-removal-marker";
 import { EnclosureSchema } from "@packages/media-contracts";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
@@ -53,6 +53,7 @@ import type {
 	DeleteReadlistArticle,
 	FileIntoLiveReadlist,
 	FindReadlistFiling,
+	FindReadlistRemoval,
 	PurgeReadlistArticle,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
@@ -279,6 +280,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	deleteReadlistArticle: DeleteReadlistArticle;
 	purgeReadlistArticle: PurgeReadlistArticle;
 	findReadlistFiling: FindReadlistFiling;
+	findReadlistRemoval: FindReadlistRemoval;
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
@@ -1686,6 +1688,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		deleteReadlistArticle,
 		purgeReadlistArticle,
 		findReadlistFiling,
+		findReadlistRemoval: initFindReadlistRemoval({ client, userArticlesTableName }),
 		fileIntoLiveReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,

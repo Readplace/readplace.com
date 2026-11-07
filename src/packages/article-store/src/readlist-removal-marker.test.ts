@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/storage-client";
-import { initRecordReadlistRemoval, readlistRemovedAtAttribute } from "./readlist-removal-marker";
+import { initFindReadlistRemoval, initRecordReadlistRemoval, readlistRemovedAtAttribute } from "./readlist-removal-marker";
 
 type Captured = { name: string; input: Record<string, unknown> };
 
@@ -70,5 +70,37 @@ describe("initRecordReadlistRemoval", () => {
 			}),
 			/throttled/,
 		);
+	});
+});
+
+describe("initFindReadlistRemoval", () => {
+	const find = (respond: () => Record<string, unknown>, commands: Captured[] = []) =>
+		initFindReadlistRemoval({ client: fakeClient(respond, commands), userArticlesTableName: "user-articles" })({
+			userId: USER,
+			readlist: WORK,
+			url: "https://example.com/post?utm_source=newsletter",
+		});
+
+	it("reads the slug's marker consistently from the All row keyed without tracking parameters", async () => {
+		const commands: Captured[] = [];
+
+		const removedAt = await find(() => ({ Item: { userId: USER, url: "example.com/post", "readlistRemovedAt#work": "2026-11-03T10:00:00Z" } }), commands);
+
+		assert.equal(removedAt, "2026-11-03T10:00:00Z");
+		assert.deepEqual(commands, [
+			{
+				name: "GetCommand",
+				input: {
+					TableName: "user-articles",
+					Key: { userId: USER, url: "example.com/post" },
+					ConsistentRead: true,
+				},
+			},
+		]);
+	});
+
+	it("answers undefined for an All row without the marker and for no All row", async () => {
+		assert.equal(await find(() => ({ Item: {} })), undefined);
+		assert.equal(await find(() => ({})), undefined);
 	});
 });

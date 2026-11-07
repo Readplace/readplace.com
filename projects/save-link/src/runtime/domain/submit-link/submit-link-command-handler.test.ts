@@ -39,6 +39,7 @@ import {
 import { ArticlePurgedAfterRequest } from "@packages/provider-contracts/article-store";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import { initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import type {
 	CrawlAndFinalizeArticle,
 	CrawlAndFinalizeResult,
@@ -50,6 +51,8 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initSubmitLinkCommandHandler } from "./submit-link-command-handler";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { initFileArticleIntoReadlistCommandHandler } from "../file-article-into-readlist/file-article-into-readlist-command-handler";
+import { initAdmitTriagedMessage } from "../filter-email-links/triaged-message-admission";
+import { initFilingsLeftToFile } from "../filter-email-links/filings-left-to-file";
 import { initFilterEmailLinksHandler } from "../filter-email-links/filter-email-links-handler";
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
@@ -348,9 +351,33 @@ describe("initSubmitLinkCommandHandler", () => {
 			warn: () => {},
 			debug: () => {},
 		};
+		const inboxEmailLinks = initInMemoryInboxEmailLink();
+		await inboxEmailLinks.putLinksMeta({
+			userId,
+			receivedAtMessageId: "2026-10-04#gmail-issue",
+			meta: {
+				truncated: false,
+				extractionFailed: false,
+				selectedReadlists: [accepted, rejected, unavailable].map((readlist) => ({ readlist, label: readlist })),
+			},
+		});
 		const filter = initFilterEmailLinksHandler({
 			listReadlistDefinitions: store.listReadlistDefinitions,
 			listReadlistFitOverrides: store.listReadlistFitOverrides,
+			admitTriagedMessage: initAdmitTriagedMessage({
+				listLinksByEmail: inboxEmailLinks.listLinksByEmail,
+				findSubscriptionByUserId: async () => undefined,
+				now: fixedNow,
+			}),
+			filingsLeftToFile: initFilingsLeftToFile({
+				listReadlistFitOverrides: store.listReadlistFitOverrides,
+				findSavedArticleForLink: initFindSavedArticleForLink({
+					resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: store.findIdentityRow }),
+					findArticleById: store.findArticleById,
+				}),
+				findReadlistRemoval: store.findReadlistRemoval,
+				logger: noopLogger,
+			}),
 			decideReadlistFit,
 			publishEvent,
 			logger: noopLogger,
@@ -365,7 +392,7 @@ describe("initSubmitLinkCommandHandler", () => {
 				userId, receivedAtMessageId: "2026-10-04#gmail-issue", readlist,
 				senderEmail: "letter@example.com", subject: "Weekly articles",
 				links: [{ ordinal: "0000", url: exampleUrl, anchorText: "Story" }],
-			} }),
+			}, time: fixedNow().toISOString() }),
 		})));
 		for (let attempt = 0; attempt < 2; attempt++) {
 			const response = await filter(deliveries, buildLambdaContext(), () => {});

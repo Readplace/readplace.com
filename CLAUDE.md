@@ -116,7 +116,7 @@ Each queue below dead-letters into its own `<queue>-dlq`, and nothing consumes i
 | `compute-related-articles` | Nothing is marked; Next read and Already read stay as they were |
 | `filter-email-links` | The handler marks that readlist's decision failed, and the email page shows its failed line. Every link is already in All |
 
-Before you redrive `filter-email-links-dlq`, read the readlist's current purpose and the account's write access: a redrive decides under today's purpose and does not recheck access.
+A redrive of `filter-email-links-dlq` checks the row itself. A decided readlist, an email that no longer selects it, or a read-only account costs no DeepSeek call, and a link the reader chose on that email is not filed again while that choice is among the readlist's 20 newest, nor is a link the reader removed from that readlist after the email arrived. A read-only account's message is consumed and leaves the `failed` line, so restore access before redriving if you want it decided. Anything else is decided under the readlist's purpose today, so read the purpose first if it has changed since the failure. Read the readlist's choices first too: when all 20 are newer than the message, an older choice may already be gone, and no row shows it. Delete the message then, because every link is already in All and the failed line still offers Keep.
 
 Where a handler marks, the reader sees today's failure state. The message is the only copy of the work: once the cause is fixed, a redrive lets the handler replace the failed state. Do not attach a consumer, purge the queue to quiet its alarm, or point the queue back at the shared dead-letter queue, because removing an own dead-letter queue from the Pulumi program deletes it and every message in it.
 

@@ -6,6 +6,7 @@ import {
 } from "@packages/ai-message";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
+import { EventEnvelope } from "@packages/domain/event-envelope";
 import { type EmailLinkOrdinal, EmailLinkOrdinalSchema } from "@packages/domain/inbox";
 import {
 	DEFAULT_READLIST_LABEL,
@@ -40,6 +41,8 @@ import {
 } from "@packages/readlist-fit";
 import { FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type { ReadlistFitDecidedLine, ReadlistFitUnsureLine } from "./readlist-fit-log-lines.types";
+import type { initFilingsLeftToFile } from "./filings-left-to-file";
+import type { initAdmitTriagedMessage } from "./triaged-message-admission";
 
 const FailedTriageIds = z.object({
 	detail: z.object({ userId: UserIdSchema, receivedAtMessageId: z.string(), readlist: z.string() }),
@@ -58,7 +61,7 @@ function failedTriageIds(body: string) {
 
 type FitEntry = { ordinal: EmailLinkOrdinal; verdict: ReadlistFitVerdict; reason: string };
 
-type Filing = { url: string; fit: FileArticleIntoReadlistDetail["fit"] };
+type Filing = { ordinal: EmailLinkOrdinal; url: string; fit: FileArticleIntoReadlistDetail["fit"] };
 
 type FilterDecision = {
 	readlistLabel: string;
@@ -82,6 +85,8 @@ function countVerdict(input: { fit: FitEntry[]; verdict: ReadlistFitVerdict }): 
 export function initFilterEmailLinksHandler(deps: {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	listReadlistFitOverrides: ListReadlistFitOverrides;
+	admitTriagedMessage: ReturnType<typeof initAdmitTriagedMessage>;
+	filingsLeftToFile: ReturnType<typeof initFilingsLeftToFile>;
 	decideReadlistFit: DecideReadlistFit;
 	publishEvent: PublishEvent;
 	logger: Logger;
@@ -93,6 +98,8 @@ export function initFilterEmailLinksHandler(deps: {
 	const {
 		listReadlistDefinitions,
 		listReadlistFitOverrides,
+		admitTriagedMessage,
+		filingsLeftToFile,
 		decideReadlistFit,
 		publishEvent,
 		logger,
@@ -122,6 +129,7 @@ export function initFilterEmailLinksHandler(deps: {
 				readlistLabel: definition.label,
 				decision: "no-purpose",
 				filings: links.map((link) => ({
+					ordinal: link.ordinal,
 					url: link.url,
 					fit: {
 						kind: "no-purpose",
@@ -136,13 +144,16 @@ export function initFilterEmailLinksHandler(deps: {
 		}
 
 		const overrides = await listReadlistFitOverrides({ userId, readlist });
-		const examples = overrides.slice(0, READLIST_FIT_EXAMPLES_MAX).map(
-			(override): ReadlistFitExample => ({
-				text: override.anchorText,
-				host: override.host,
-				verdict: override.readerVerdict,
-			}),
-		);
+		const examples = overrides
+			.filter((override) => override.receivedAtMessageId !== receivedAtMessageId)
+			.slice(0, READLIST_FIT_EXAMPLES_MAX)
+			.map(
+				(override): ReadlistFitExample => ({
+					text: override.anchorText,
+					host: override.host,
+					verdict: override.readerVerdict,
+				}),
+			);
 
 		const startedAt = now();
 		const { decisions, engine, model, usage } = await decideReadlistFit({
@@ -165,6 +176,7 @@ export function initFilterEmailLinksHandler(deps: {
 				const url = urlByOrdinal.get(entry.ordinal);
 				assert(url !== undefined, `kept ordinal ${entry.ordinal} is not one of the email's links`);
 				return {
+					ordinal: entry.ordinal,
 					url,
 					fit: {
 						verdict: "keep",
@@ -257,14 +269,39 @@ export function initFilterEmailLinksHandler(deps: {
 				}
 			},
 		},
-		handle: async (detail) => {
+		handle: async (detail, record) => {
 			const { userId } = detail;
+			const triagedAt = EventEnvelope.parse(JSON.parse(record.body)).time;
 			const readlist = ReadlistSlugSchema.parse(detail.readlist);
 			assert(readlist !== DEFAULT_READLIST_SLUG, "All takes every link and is never filtered");
 			const links = detail.links.map((link) => ({
 				...link,
 				ordinal: EmailLinkOrdinalSchema.parse(link.ordinal),
 			}));
+
+			const admission = await admitTriagedMessage({
+				userId,
+				receivedAtMessageId: detail.receivedAtMessageId,
+				readlist,
+			});
+			if (admission.kind === "skip") {
+				logger.info("[filter-email-links] skipped", {
+					receivedAtMessageId: detail.receivedAtMessageId,
+					readlist,
+					reason: admission.reason,
+				});
+				return;
+			}
+			if (admission.kind === "write-access-lapsed") {
+				await publishEvent(EmailLinksFilterFailedEvent, {
+					userId,
+					receivedAtMessageId: detail.receivedAtMessageId,
+					readlist,
+					reason: "write-access-lapsed",
+					receiveCount: record.receiveCount,
+				});
+				return;
+			}
 
 			const definition = (await listReadlistDefinitions(userId)).find(
 				(candidate) => candidate.slug === readlist,
@@ -279,7 +316,14 @@ export function initFilterEmailLinksHandler(deps: {
 				links,
 			});
 
-			for (const filing of outcome.filings) {
+			const filings = await filingsLeftToFile({
+				userId,
+				readlist,
+				receivedAtMessageId: detail.receivedAtMessageId,
+				triagedAt,
+				filings: outcome.filings,
+			});
+			for (const filing of filings) {
 				await publishEvent(FileArticleIntoReadlistCommand, {
 					url: filing.url,
 					userId,

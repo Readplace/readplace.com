@@ -1,7 +1,8 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { toEventInstant } from "@packages/domain/event-envelope";
+import { EventInstantSchema, toEventInstant } from "@packages/domain/event-envelope";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import type { FindReadlistRemoval } from "@packages/provider-contracts/article-store";
 import { type DynamoDBDocumentClient, defineDynamoTable, writeIfCondition } from "@packages/storage-client";
 import { z } from "zod";
 
@@ -31,5 +32,24 @@ export function initRecordReadlistRemoval(deps: {
 				ExpressionAttributeValues: { ":removedAt": toEventInstant(deps.now()) },
 			}),
 		);
+	};
+}
+
+export function initFindReadlistRemoval(deps: {
+	client: DynamoDBDocumentClient;
+	userArticlesTableName: string;
+}): FindReadlistRemoval {
+	return async ({ userId, readlist, url }) => {
+		const attribute = readlistRemovedAtAttribute(readlist);
+		const markers = defineDynamoTable({
+			client: deps.client,
+			tableName: deps.userArticlesTableName,
+			schema: z.object({ [attribute]: EventInstantSchema.optional() }),
+		});
+		const row = await markers.get(
+			{ userId, url: ArticleResourceUniqueId.parse(url).value },
+			{ consistentRead: true },
+		);
+		return row?.[attribute];
 	};
 }

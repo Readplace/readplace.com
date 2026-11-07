@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { DeepseekCallFailedLogLine } from "@packages/ai-message";
+import { MinutesSchema } from "@packages/domain/article";
 import { EmailLinkOrdinalSchema } from "@packages/domain/inbox";
 import {
 	composeReadlistPurposeText,
@@ -8,18 +9,27 @@ import {
 	readlistFitOverrideId,
 	readlistPurposeVersion,
 } from "@packages/domain/readlist";
-import type { UserId } from "@packages/domain/user";
-import { type Logger, noopLogger } from "@packages/logger";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
+import type { Logger } from "@packages/logger";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { ReadlistDefinitionData, ReadlistFitOverride } from "@packages/provider-contracts/article-store";
 import type { DecideReadlistFit, ReadlistFitResult } from "@packages/readlist-fit";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
+import { initFindSavedArticleForLink } from "@packages/article-store";
+import { initResolveCanonicalIdentity } from "@packages/save-article";
+import { EmailLinksFilteredEvent, EmailLinksFilterFailedEvent } from "@packages/infra-components";
+import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
+import { initFilingsLeftToFile } from "./filings-left-to-file";
+import { initAdmitTriagedMessage } from "./triaged-message-admission";
 import { initFilterEmailLinksHandler } from "./filter-email-links-handler";
 import type { ReadlistFitDecidedLine, ReadlistFitUnsureLine } from "./readlist-fit-log-lines.types";
 
 const USER = "00000000000000000000000000000001";
 const RAM = "2026-09-23T09:00:00.000Z#<m-1@example.com>";
+const TRIAGED_TIME = "2026-09-23T09:00:00.000Z";
 const WORK = ReadlistSlugSchema.parse("a1b2c3d4");
 const PURPOSE = "Engineering practice: code review, testing, and shipping small changes.";
 const PURPOSE_VERSION = readlistPurposeVersion(PURPOSE);
@@ -96,13 +106,37 @@ function captureLines<T>() {
 	return { lines, log };
 }
 
+type Meta = Parameters<ReturnType<typeof initInMemoryInboxEmailLink>["putLinksMeta"]>[0]["meta"];
+
+const SELECTS_WORK: Meta = {
+	truncated: false,
+	extractionFailed: false,
+	selectedReadlists: [{ readlist: WORK, label: "Work" }],
+};
+
 function makeHarness(opts: {
 	definitions?: ReadlistDefinitionData[];
-	overrides?: ReadlistFitOverride[];
+	overrides?: ReadlistFitOverride[] | ((read: number) => ReadlistFitOverride[]);
 	decideReadlistFit?: DecideReadlistFit;
 	publishEvent?: PublishEvent;
 	receiveCount?: number;
+	meta?: Meta | null;
+	subscription?: () => SubscriptionRecord | undefined;
+	time?: string;
+	publishFails?: (detailType: string) => boolean;
+	inboxReadFails?: boolean;
 }) {
+	const store = initInMemoryArticleStore();
+	const inboxLinks = initInMemoryInboxEmailLink();
+	const metaSeeded =
+		opts.meta === null
+			? Promise.resolve()
+			: inboxLinks.putLinksMeta({ userId: UserIdSchema.parse(USER), receivedAtMessageId: RAM, meta: opts.meta ?? SELECTS_WORK });
+	const logLines: unknown[][] = [];
+	const capture = (...args: unknown[]) => {
+		logLines.push(args);
+	};
+	const logger: Logger = { info: capture, error: capture, warn: capture, debug: capture };
 	const published: { detailType: string; detail: unknown }[] = [];
 	const decisions: Parameters<DecideReadlistFit>[0][] = [];
 	const definitionReads: UserId[] = [];
@@ -119,8 +153,30 @@ function makeHarness(opts: {
 		},
 		listReadlistFitOverrides: async (params) => {
 			overrideReads.push(params);
-			return opts.overrides ?? [];
+			const overrides = opts.overrides ?? [];
+			return typeof overrides === "function" ? overrides(overrideReads.length) : overrides;
 		},
+		admitTriagedMessage: initAdmitTriagedMessage({
+			listLinksByEmail: async (params) => {
+				if (opts.inboxReadFails) throw new Error("DynamoDB unavailable");
+				return inboxLinks.listLinksByEmail(params);
+			},
+			findSubscriptionByUserId: async () => opts.subscription?.(),
+			now: () => new Date("2026-09-23T09:00:00.000Z"),
+		}),
+		filingsLeftToFile: initFilingsLeftToFile({
+			listReadlistFitOverrides: async (params) => {
+				overrideReads.push(params);
+				const overrides = opts.overrides ?? [];
+				return typeof overrides === "function" ? overrides(overrideReads.length) : overrides;
+			},
+			findSavedArticleForLink: initFindSavedArticleForLink({
+				resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: store.findIdentityRow }),
+				findArticleById: store.findArticleById,
+			}),
+			findReadlistRemoval: store.findReadlistRemoval,
+			logger,
+		}),
 		decideReadlistFit: async (input) => {
 			decisions.push(input);
 			return decide(input);
@@ -128,9 +184,31 @@ function makeHarness(opts: {
 		publishEvent:
 			opts.publishEvent ??
 			(async (event, detail) => {
+				if (opts.publishFails?.(event.detailType)) throw new Error("event bus unavailable");
 				published.push({ detailType: event.detailType, detail });
+				if (event.detailType === EmailLinksFilteredEvent.detailType) {
+					const fact = EmailLinksFilteredEvent.detailSchema.parse(detail);
+					await inboxLinks.putReadlistOutcome({
+						userId: fact.userId,
+						receivedAtMessageId: fact.receivedAtMessageId,
+						outcome: {
+							readlist: ReadlistSlugSchema.parse(fact.readlist),
+							readlistLabel: fact.readlistLabel,
+							decision: fact.decision,
+							fit: fact.fit.map((entry) => ({ ...entry, ordinal: EmailLinkOrdinalSchema.parse(entry.ordinal) })),
+						},
+					});
+				}
+				if (event.detailType === EmailLinksFilterFailedEvent.detailType) {
+					const fact = EmailLinksFilterFailedEvent.detailSchema.parse(detail);
+					await inboxLinks.putReadlistOutcome({
+						userId: fact.userId,
+						receivedAtMessageId: fact.receivedAtMessageId,
+						outcome: { readlist: ReadlistSlugSchema.parse(fact.readlist), readlistLabel: "Work", decision: "failed", fit: [] },
+					});
+				}
 			}),
-		logger: noopLogger,
+		logger,
 		fitDecidedLog: fitDecided.log,
 		fitUnsureLog: fitUnsure.log,
 		deepseekCallFailedLog: callFailed.log,
@@ -139,7 +217,8 @@ function makeHarness(opts: {
 			return new Date(clockMs);
 		},
 	});
-	const runBody = (body: string) => {
+	const runBody = async (body: string) => {
+		await metaSeeded;
 		const event = buildSqsEvent([{ messageId: "rec-1", body }]);
 		return handler(
 			{
@@ -152,8 +231,33 @@ function makeHarness(opts: {
 			() => {},
 		);
 	};
-	const run = (detail: unknown) => runBody(JSON.stringify({ detail }));
+	const run = (detail: unknown) => runBody(JSON.stringify({ detail, time: opts.time ?? TRIAGED_TIME }));
+	const finalOutcome = async () =>
+		(await inboxLinks.listLinksByEmail({ userId: UserIdSchema.parse(USER), receivedAtMessageId: RAM })).meta?.readlistOutcomes;
+	const saveToAll = (url: string) =>
+		store.saveArticle({
+			userId: UserIdSchema.parse(USER),
+			url,
+			metadata: { title: "T", siteName: "S", excerpt: "E", wordCount: 1 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-09-23T09:00:00.000Z"),
+		});
+	const seedFailedOutcome = async () => {
+		await metaSeeded;
+		await inboxLinks.putReadlistOutcome({
+			userId: UserIdSchema.parse(USER),
+			receivedAtMessageId: RAM,
+			outcome: { readlist: WORK, readlistLabel: "Work", decision: "failed", fit: [] },
+		});
+	};
 	return {
+		store,
+		inboxLinks,
+		saveToAll,
+		seedFailedOutcome,
+		logLines,
+		finalOutcome,
 		published,
 		decisions,
 		definitionReads,
@@ -234,7 +338,10 @@ describe("initFilterEmailLinksHandler", () => {
 
 			await harness.run(TRIAGED);
 
-			expect(harness.overrideReads).toEqual([{ userId: USER, readlist: WORK }]);
+			expect(harness.overrideReads).toEqual([
+				{ userId: USER, readlist: WORK },
+				{ userId: USER, readlist: WORK },
+			]);
 			expect(harness.decisions.map((decision) => decision.examples)).toEqual([
 				[
 					{ text: "How to cut a dovetail by hand", host: "finewoodworking.com", verdict: "keep" },
@@ -453,7 +560,7 @@ describe("initFilterEmailLinksHandler", () => {
 		await harness.run(TRIAGED);
 
 		expect(harness.decisions).toEqual([]);
-		expect(harness.overrideReads).toEqual([]);
+		expect(harness.overrideReads).toEqual([{ userId: USER, readlist: WORK }]);
 		expect(submissions(harness.published)).toEqual([]);
 		expect(filings(harness.published)).toEqual(
 			TRIAGED.links.map((link) => ({
@@ -628,5 +735,312 @@ describe("initFilterEmailLinksHandler", () => {
 		assert(result);
 		expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
 		expect(harness.definitionReads).toEqual([]);
+	});
+
+	describe("a redriven message", () => {
+		it("costs no model call and files nothing again once the readlist holds a decision for the email", async () => {
+			const harness = makeHarness({ definitions: [workDefinition(undefined)] });
+			await harness.run(TRIAGED);
+			const publishedAfterFirst = harness.published.length;
+
+			const result = await harness.run(TRIAGED);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([]);
+			expect(harness.published.length).toBe(publishedAfterFirst);
+			expect(harness.decisions).toEqual([]);
+			expect(harness.logLines).toContainEqual([
+				"[filter-email-links] skipped",
+				{ receivedAtMessageId: RAM, readlist: WORK, reason: "already-decided" },
+			]);
+		});
+
+		it("costs no model call when the email no longer selects the readlist", async () => {
+			const harness = makeHarness({ meta: null });
+
+			const result = await harness.run(TRIAGED);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([]);
+			expect(harness.published).toEqual([]);
+			expect(harness.decisions).toEqual([]);
+			expect(harness.logLines).toContainEqual([
+				"[filter-email-links] skipped",
+				{ receivedAtMessageId: RAM, readlist: WORK, reason: "no-longer-selected" },
+			]);
+		});
+	});
+
+	describe("the redrive fence", () => {
+		const keepsTwo: DecideReadlistFit = async () =>
+			fitResult([
+				{ id: "0000", verdict: "keep", reason: "Shipping small changes." },
+				{ id: "0002", verdict: "drop", reason: "A product sale, not engineering practice." },
+				{ id: "0005", verdict: "keep", reason: "Testing practice." },
+			]);
+
+		const thisEmailChoice = (params: { ordinal: string; readerVerdict: "keep" | "drop" }): ReadlistFitOverride => {
+			const createdAt = new Date("2026-09-23T09:30:00.000Z");
+			const ordinal = EmailLinkOrdinalSchema.parse(params.ordinal);
+			return {
+				id: readlistFitOverrideId({ createdAt, receivedAtMessageId: RAM, ordinal }),
+				url: "https://a.test/small-prs",
+				anchorText: "Ship small PRs",
+				host: "a.test",
+				engineVerdict: params.readerVerdict === "keep" ? "drop" : "keep",
+				engineReason: "The judge's earlier call.",
+				readerVerdict: params.readerVerdict,
+				purposeVersion: PURPOSE_VERSION,
+				receivedAtMessageId: RAM,
+				ordinal,
+				createdAt,
+			};
+		};
+
+		const lapsed = (): SubscriptionRecord => ({
+			userId: UserIdSchema.parse(USER),
+			provider: "stripe",
+			status: "cancelled",
+			createdAt: "2026-01-01T00:00:00.000Z",
+			updatedAt: "2026-09-01T00:00:00.000Z",
+		});
+
+		const testingFiling = {
+			url: "https://c.test/testing",
+			userId: USER,
+			readlist: "a1b2c3d4",
+			provenance: EMAIL_PROVENANCE,
+			fit: {
+				verdict: "keep",
+				reason: "Testing practice.",
+				purposeVersion: PURPOSE_VERSION,
+				source: { kind: "email", receivedAtMessageId: RAM, ordinal: "0005" },
+			},
+		};
+
+		const announcedFit = (published: { detailType: string; detail: unknown }[]) =>
+			published
+				.filter((entry) => entry.detailType === "EmailLinksFiltered")
+				.map((entry) => EmailLinksFilteredEvent.detailSchema.parse(entry.detail).fit);
+
+		it("redrive under an engine keep leaves a link the reader dropped unfiled and stores the engine's verdict", async () => {
+			const harness = makeHarness({
+				decideReadlistFit: keepsTwo,
+				overrides: [thisEmailChoice({ ordinal: "0000", readerVerdict: "drop" })],
+			});
+			await harness.seedFailedOutcome();
+
+			await harness.run(TRIAGED);
+
+			expect(filings(harness.published)).toEqual([testingFiling]);
+			expect(announcedFit(harness.published)).toEqual([
+				[
+					{ ordinal: "0000", verdict: "keep", reason: "Shipping small changes." },
+					{ ordinal: "0002", verdict: "drop", reason: "A product sale, not engineering practice." },
+					{ ordinal: "0005", verdict: "keep", reason: "Testing practice." },
+				],
+			]);
+		});
+
+		it("redrive under no purpose files every link except the one the reader dropped", async () => {
+			const harness = makeHarness({
+				definitions: [workDefinition(undefined)],
+				overrides: [thisEmailChoice({ ordinal: "0002", readerVerdict: "drop" })],
+			});
+			await harness.seedFailedOutcome();
+
+			await harness.run(TRIAGED);
+
+			expect(filings(harness.published)).toEqual(
+				["0000", "0005"].map((ordinal) => ({
+					url: TRIAGED.links.find((link) => link.ordinal === ordinal)?.url,
+					userId: USER,
+					readlist: "a1b2c3d4",
+					provenance: EMAIL_PROVENANCE,
+					fit: { kind: "no-purpose", source: { kind: "email", receivedAtMessageId: RAM, ordinal } },
+				})),
+			);
+		});
+
+		it("a choice recorded during the model call stops that link's filing", async () => {
+			const harness = makeHarness({
+				overrides: (read) => (read === 1 ? [] : [thisEmailChoice({ ordinal: "0000", readerVerdict: "drop" })]),
+			});
+
+			await harness.run(TRIAGED);
+
+			expect(harness.overrideReads).toHaveLength(2);
+			expect(filings(harness.published)).toEqual([]);
+		});
+
+		it("an override from this email is not sent as an example while other emails' are", async () => {
+			const harness = makeHarness({
+				overrides: [
+					thisEmailChoice({ ordinal: "0002", readerVerdict: "drop" }),
+					choice({ minutesAgo: 5, anchorText: "Flaky test triage", host: "d.test", readerVerdict: "keep" }),
+				],
+			});
+
+			await harness.run(TRIAGED);
+
+			expect(harness.decisions.map((decision) => decision.examples)).toEqual([
+				[{ text: "Flaky test triage", host: "d.test", verdict: "keep" }],
+			]);
+		});
+
+		it("run twice leaves the first outcome and pays one model call", async () => {
+			const harness = makeHarness({});
+			await harness.run(TRIAGED);
+			const firstOutcome = await harness.finalOutcome();
+
+			await harness.run(TRIAGED);
+
+			expect(harness.decisions).toHaveLength(1);
+			expect(filings(harness.published)).toHaveLength(1);
+			expect(await harness.finalOutcome()).toEqual(firstOutcome);
+		});
+
+		it("a failed outcome with full access heals to a decided outcome with filings", async () => {
+			const harness = makeHarness({ decideReadlistFit: keepsTwo });
+			await harness.seedFailedOutcome();
+
+			await harness.run(TRIAGED);
+
+			expect(filings(harness.published)).toHaveLength(2);
+			expect((await harness.finalOutcome())?.map((outcome) => outcome.decision)).toEqual(["filtered"]);
+		});
+
+		it("a read-only account gets a failed fact, no model call, no filings, and the record succeeds", async () => {
+			const harness = makeHarness({ subscription: lapsed });
+
+			const result = await harness.run(TRIAGED);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([]);
+			expect(harness.decisions).toEqual([]);
+			expect(harness.published).toEqual([
+				{
+					detailType: "EmailLinksFilterFailed",
+					detail: {
+						userId: USER,
+						receivedAtMessageId: RAM,
+						readlist: "a1b2c3d4",
+						reason: "write-access-lapsed",
+						receiveCount: 1,
+					},
+				},
+			]);
+		});
+
+		it("run after access lapses on a failed row leaves it failed", async () => {
+			const harness = makeHarness({ subscription: lapsed });
+			await harness.seedFailedOutcome();
+
+			await harness.run(TRIAGED);
+
+			expect((await harness.finalOutcome())?.map((outcome) => outcome.decision)).toEqual(["failed"]);
+		});
+
+		it("a failure publishing the read-only fact fails the record", async () => {
+			const harness = makeHarness({
+				subscription: lapsed,
+				publishFails: (detailType) => detailType === "EmailLinksFilterFailed",
+			});
+
+			const result = await harness.run(TRIAGED);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		});
+
+		it("access restored before the redrive heals the failed row", async () => {
+			let accessLapsed = true;
+			const harness = makeHarness({ subscription: () => (accessLapsed ? lapsed() : undefined) });
+			await harness.run(TRIAGED);
+			accessLapsed = false;
+
+			await harness.run(TRIAGED);
+
+			expect(harness.decisions).toHaveLength(1);
+			expect((await harness.finalOutcome())?.map((outcome) => outcome.decision)).toEqual(["filtered"]);
+		});
+
+		it("purpose edited after the failure decides under today's purpose", async () => {
+			const edited = "Testing practice only.";
+			const harness = makeHarness({ definitions: [workDefinition(edited)] });
+			await harness.seedFailedOutcome();
+
+			await harness.run(TRIAGED);
+
+			expect(harness.decisions.map((decision) => decision.purpose.version)).toEqual([readlistPurposeVersion(edited)]);
+		});
+
+		it("readlist deleted after the failure ends as readlist-missing", async () => {
+			const harness = makeHarness({ definitions: [] });
+			await harness.seedFailedOutcome();
+
+			await harness.run(TRIAGED);
+
+			expect((await harness.finalOutcome())?.map((outcome) => outcome.decision)).toEqual(["readlist-missing"]);
+		});
+
+		it("a store read failure fails the record, and on the final receive publishes the failed fact", async () => {
+			const harness = makeHarness({ inboxReadFails: true, receiveCount: 2 });
+
+			const result = await harness.run(TRIAGED);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+			expect(harness.published).toEqual([
+				{
+					detailType: "EmailLinksFilterFailed",
+					detail: {
+						userId: USER,
+						receivedAtMessageId: RAM,
+						readlist: "a1b2c3d4",
+						reason: "decision-retries-exhausted",
+						receiveCount: 2,
+					},
+				},
+			]);
+		});
+
+		it("redrive after the reader removed a partially filed link from the readlist page leaves it out", async () => {
+			let announcementFails = true;
+			const harness = makeHarness({
+				decideReadlistFit: keepsTwo,
+				time: new Date(Date.now() - 2_000).toISOString(),
+				publishFails: (detailType) => detailType === "EmailLinksFiltered" && announcementFails,
+			});
+			const firstRun = await harness.run(TRIAGED);
+			assert(firstRun);
+			expect(firstRun.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+			expect(filings(harness.published)).toHaveLength(2);
+			announcementFails = false;
+			await harness.saveToAll("https://a.test/small-prs");
+			await harness.store.deleteReadlistArticleByUrl({
+				userId: UserIdSchema.parse(USER),
+				readlist: WORK,
+				url: "https://a.test/small-prs",
+			});
+			const publishedBeforeRedrive = harness.published.length;
+
+			await harness.run(TRIAGED);
+
+			const redrive = harness.published.slice(publishedBeforeRedrive);
+			expect(filings(redrive)).toEqual([testingFiling]);
+			expect(announcedFit(redrive)).toEqual([
+				[
+					{ ordinal: "0000", verdict: "keep", reason: "Shipping small changes." },
+					{ ordinal: "0002", verdict: "drop", reason: "A product sale, not engineering practice." },
+					{ ordinal: "0005", verdict: "keep", reason: "Testing practice." },
+				],
+			]);
+			expect(harness.logLines).toContainEqual([
+				"[filter-email-links] filing withheld",
+				{ userId: USER, readlist: WORK, receivedAtMessageId: RAM, ordinal: "0000", reason: "removed-after-triage" },
+			]);
+			expect((await harness.finalOutcome())?.map((outcome) => outcome.decision)).toEqual(["filtered"]);
+		});
 	});
 });

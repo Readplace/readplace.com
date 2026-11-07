@@ -331,6 +331,72 @@ describe("Inbox link fit route", () => {
 		expect(await overrides()).toEqual([]);
 	});
 
+	describe("a choice made while the decision had failed", () => {
+		const FAILED: InboxReadlistOutcome = { readlist: WORK, readlistLabel: "Work", decision: "failed", fit: [] };
+		const engineDecides = (fixture: Fixture, userId: UserId) =>
+			fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({ userId, receivedAtMessageId: SK, outcome: FILTERED });
+		const engineKeep = (userId: UserId) => ({
+			userId,
+			url: KEPT_URL,
+			readlist: WORK,
+			provenance: { kind: "email", senderEmail: "news@example.com" },
+			fit: {
+				verdict: "keep",
+				reason: "Engineering practice",
+				purposeVersion: PURPOSE_VERSION,
+				source: { kind: "email", receivedAtMessageId: SK, ordinal: "0000" },
+			},
+		});
+
+		it("undoes a drop made while choosing failed by filing the keep the engine later made", async () => {
+			const { fixture, harness, userId, choose, overrides } = await setUp({ outcome: FAILED });
+			await choose("0000", "drop");
+			await engineDecides(fixture, userId);
+
+			await choose("0000", "undo");
+
+			expect(harness.filedArticles).toEqual([engineKeep(userId)]);
+			expect(await overrides()).toEqual([]);
+		});
+
+		it("undoes a keep made while choosing failed by removing the link when the engine later dropped it", async () => {
+			const { fixture, userId, choose, overrides } = await setUp({ outcome: FAILED });
+			await choose("0001", "keep");
+			await saveInto(fixture, { userId, url: DROPPED_URL });
+			await engineDecides(fixture, userId);
+
+			await choose("0001", "undo");
+
+			expect(await countWork(fixture, userId)).toBe(0);
+			expect(await overrides()).toEqual([]);
+		});
+
+		it("undoes a keep made while choosing failed by filing when the engine later kept it", async () => {
+			const { fixture, harness, userId, choose, overrides } = await setUp({ outcome: FAILED });
+			await choose("0000", "keep");
+			await engineDecides(fixture, userId);
+
+			await choose("0000", "undo");
+
+			expect(harness.filedArticles.map(({ fit }) => fit)).toEqual([
+				{ verdict: "keep", purposeVersion: undefined, source: { kind: "reader" } },
+				engineKeep(userId).fit,
+			]);
+			expect(await overrides()).toEqual([]);
+		});
+
+		it("undo while the outcome is still failed removes the link", async () => {
+			const { fixture, userId, choose, overrides } = await setUp({ outcome: FAILED });
+			await choose("0000", "keep");
+			await saveInto(fixture, { userId, url: KEPT_URL });
+
+			await choose("0000", "undo");
+
+			expect(await countWork(fixture, userId)).toBe(0);
+			expect(await overrides()).toEqual([]);
+		});
+	});
+
 	it("answers an in-place choice with the card, the readlist line and an Undo toast", async () => {
 		const { choose } = await setUp();
 
