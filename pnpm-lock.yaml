@@ -468,6 +468,9 @@ importers:
       '@packages/time-left':
         specifier: workspace:*
         version: link:../../src/packages/time-left
+      '@packages/transcript-quota':
+        specifier: workspace:*
+        version: link:../../src/packages/transcript-quota
       '@packages/translations':
         specifier: workspace:*
         version: link:../../src/packages/translations
@@ -519,6 +522,9 @@ importers:
       linkedom:
         specifier: 0.18.12
         version: 0.18.12
+      music-metadata:
+        specifier: 12.3.3
+        version: 12.3.3
       resend:
         specifier: 6.12.4
         version: 6.12.4
@@ -622,6 +628,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.1057.0
         version: 3.1057.0
+      '@packages/account-liveness':
+        specifier: workspace:*
+        version: link:../../src/packages/account-liveness
       '@packages/ai-message':
         specifier: workspace:*
         version: link:../../src/packages/ai-message
@@ -791,12 +800,21 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 3.1057.0
         version: 3.1057.0
+      '@aws-sdk/client-transcribe':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: 3.1057.0
+        version: 3.1057.0
       '@packages/article-store':
         specifier: workspace:*
         version: link:../../src/packages/article-store
       '@packages/dead-letter-routing':
         specifier: workspace:*
         version: link:../../src/packages/dead-letter-routing
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../../src/packages/domain
       '@packages/infra-components':
         specifier: workspace:*
         version: link:../../src/packages/infra-components
@@ -809,6 +827,9 @@ importers:
       '@packages/media-object-store':
         specifier: workspace:*
         version: link:../../src/packages/media-object-store
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../../src/packages/provider-contracts
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../src/packages/require-env
@@ -818,6 +839,9 @@ importers:
       '@packages/tier-source':
         specifier: workspace:*
         version: link:../../src/packages/tier-source
+      '@packages/transcript-quota':
+        specifier: workspace:*
+        version: link:../../src/packages/transcript-quota
       music-metadata:
         specifier: 12.3.3
         version: 12.3.3
@@ -831,6 +855,9 @@ importers:
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../src/packages/test-phase-runner
+      '@pulumi/aws':
+        specifier: 7.32.0
+        version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
       '@pulumi/pulumi':
         specifier: 3.244.0
         version: 3.244.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
@@ -1202,6 +1229,37 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  src/packages/account-liveness:
+    dependencies:
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../storage-client
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   src/packages/ai-message:
     dependencies:
       openai:
@@ -1519,6 +1577,9 @@ importers:
       '@packages/supported-clients':
         specifier: workspace:*
         version: link:../supported-clients
+      approx-string-match:
+        specifier: 1.1.0
+        version: 1.1.0
       postal-mime:
         specifier: 2.7.4
         version: 2.7.4
@@ -1532,6 +1593,9 @@ importers:
       '@types/jest':
         specifier: 30.0.0
         version: 30.0.0
+      '@types/jsdom':
+        specifier: 21.1.7
+        version: 21.1.7
       '@types/sanitize-html':
         specifier: 2.16.1
         version: 2.16.1
@@ -1544,6 +1608,12 @@ importers:
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      linkedom:
+        specifier: 0.18.12
+        version: 0.18.12
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -2626,6 +2696,10 @@ packages:
 
   '@aws-sdk/client-ssm@3.1057.0':
     resolution: {integrity: sha512-h+uTW2MTycbCqqBVJ6tGUuvehRX9gpvu+pL260pNd5nv0sQBDC1a9a/Ihz4rD/8KwmBrcd4ifeDV3gEoXpmnew==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-transcribe@3.1057.0':
+    resolution: {integrity: sha512-LsI7ZkOM96wmSwPKj2d7GIj4TfJiHTyRkskoa9sO14Nlw5++8qugoVQuDgkxbhn4hNVlXGU3kGwJDV3VFzX4gg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/core@3.974.15':
@@ -4067,6 +4141,7 @@ packages:
   '@smithy/core@3.33.3':
     resolution: {integrity: sha512-CsOeKq/9kA3y6VJHt+/+VTCtBaxJ4OTFpgrjIUhPpDIKxBci1k2bJaQASF2h/ELWrulGp+t97DZ0mevfAD8idg==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.3.6':
     resolution: {integrity: sha512-tHhdiWZfG1ZIh2YcRfPJmY2gHcBmqbAzqm3ER4TIDFYsSEqTD5tICT7cgQ/kI8LRakxp12myOYyK68XPn7MnHw==}
@@ -4519,6 +4594,9 @@ packages:
   anymatch@3.1.3:
     resolution: {integrity: sha512-KMReFUr0B4t+D+OBkjR3KYqvocp2XaSzO55UcB6mgQMd3KbcE+mWTyvVV7D/zsdEbNnV6acZUutkiHQXvTr1Rw==}
     engines: {node: '>= 8'}
+
+  approx-string-match@1.1.0:
+    resolution: {integrity: sha512-j1yQB9XhfGWsvTfHEuNsR/SrUT4XQDkAc0PEjMifyi97931LmNQyLsO6HbuvZ3HeMx+3Dvk8m8XGkUF+8lCeqw==}
 
   arg@4.1.3:
     resolution: {integrity: sha512-58S9QDqG0Xx27YwPSt9fJxivjYl432YCwfDMfZ+71RAqUrZef7LrKQZ3LHLOwCS4FLNBplP533Zx895SeOCHvA==}
@@ -7975,6 +8053,19 @@ snapshots:
       '@smithy/types': 4.18.0
       tslib: 2.8.1
 
+  '@aws-sdk/client-transcribe@3.1057.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/core': 3.974.15
+      '@aws-sdk/credential-provider-node': 3.972.47
+      '@aws-sdk/types': 3.973.9
+      '@smithy/core': 3.33.3
+      '@smithy/fetch-http-handler': 5.4.5
+      '@smithy/node-http-handler': 4.7.5
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
   '@aws-sdk/core@3.974.15':
     dependencies:
       '@aws-sdk/types': 3.973.9
@@ -10015,6 +10106,8 @@ snapshots:
       normalize-path: 3.0.0
       picomatch: 2.3.1
 
+  approx-string-match@1.1.0: {}
+
   arg@4.1.3:
     optional: true
 
@@ -11785,7 +11878,7 @@ snapshots:
       whatwg-encoding: 3.1.1
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
-      ws: 8.21.0
+      ws: 8.22.0
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - bufferutil

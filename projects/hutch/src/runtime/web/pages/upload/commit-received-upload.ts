@@ -4,21 +4,31 @@ import type {
 	MediaUploadSession,
 	PublishMediaUploadCommitted,
 } from "@packages/domain";
-import { mintPrivateItemUrl } from "@packages/media-contracts";
+import { type MediaKindManifest, mintPrivateItemUrl } from "@packages/media-contracts";
 import type { SavePrivateItem } from "@packages/provider-contracts/article-store";
 import type { UploadOutcome } from "./upload.outcome";
+import type { UploadRefusalReason } from "./upload.refusal";
+
+export const COMMIT_ATTEMPT = 1;
 
 export type SettleReceivedUpload = (params: {
 	session: MediaUploadSession;
+	kind: MediaKindManifest;
 	etag: string;
 	size: number;
-}) => Promise<UploadOutcome<"committed">>;
+	chargedSeconds?: number;
+}) => Promise<UploadOutcome<"committed" | UploadRefusalReason>>;
 
 export type SettleAnyReceivedUpload = (params: {
 	session: AnyMediaUploadSession;
+	kind: MediaKindManifest;
 	etag: string;
 	size: number;
-}) => Promise<UploadOutcome<"committed" | "staged-for-review">>;
+}) => Promise<UploadOutcome<"committed" | "staged-for-review" | UploadRefusalReason>>;
+
+export function defaultFileNameOf(kind: MediaKindManifest): string {
+	return `${kind.label} upload`;
+}
 
 export function initCommitReceivedUpload(deps: {
 	savePrivateItem: SavePrivateItem;
@@ -26,11 +36,29 @@ export function initCommitReceivedUpload(deps: {
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	now: () => Date;
 }): SettleReceivedUpload {
-	return async ({ session, etag }) => {
-		const { uploadId, userId, kind, fileName, saveAttemptId } = session;
+	return async ({ session, kind, etag, chargedSeconds }) => {
+		const { uploadId, userId, saveAttemptId } = session;
 		const url = mintPrivateItemUrl(uploadId);
-		await deps.savePrivateItem({ url, ownerUserId: userId, media: { kind, fileName }, savedAt: deps.now() });
-		await deps.publishMediaUploadCommitted({ uploadId, kind, url, userId, saveAttemptId, etag, attempt: 1 });
+		const media = {
+			kind: kind.name,
+			fileName: session.fileName ?? defaultFileNameOf(kind),
+		};
+		await deps.savePrivateItem({
+			url,
+			ownerUserId: userId,
+			media,
+			savedAt: deps.now(),
+		});
+		await deps.publishMediaUploadCommitted({
+			uploadId,
+			kind: kind.name,
+			url,
+			userId,
+			saveAttemptId,
+			etag,
+			attempt: COMMIT_ATTEMPT,
+			...(chargedSeconds === undefined ? {} : { chargedSeconds }),
+		});
 		await deps.markMediaUploadCommitted({ uploadId, userId });
 		return { outcome: "committed", uploadId };
 	};

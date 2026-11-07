@@ -8,18 +8,30 @@ import type {
 	ClaimMediaUpload,
 	FindMediaUploadByCapability,
 } from "@packages/domain";
-import { type MediaKindManifest, type MediaKindName, UploadIdSchema } from "@packages/media-contracts";
+import {
+	AUDIO,
+	billableSeconds,
+	displayMinutes,
+	type MediaKindManifest,
+	type MediaKindName,
+	UploadIdSchema,
+} from "@packages/media-contracts";
 import { sendComponent, withInternalTracking } from "@packages/web-shell";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import type { SettleReceivedUpload } from "./commit-received-upload";
+import { defaultFileNameOf } from "./commit-received-upload";
 import { redirectAnonymousToUploadSignup } from "./redirect-anonymous-to-upload-signup";
-import { type UploadReviewView, UploadReviewPage } from "./upload-review.component";
 import { type UploadOutcome, type UploadOutcomeKey, writeUploadOutcome } from "./upload.outcome";
-import { StartUploadBody, UPLOAD_OUTCOME_HTML, kindAccepting } from "./upload.page";
+import { UPLOAD_OUTCOME_HTML } from "./upload.page";
+import { UPLOAD_REFUSAL_COPY } from "./upload.refusal";
+import { kindsForViewer } from "./upload.viewmodel";
+import { UploadReviewPage, type UploadReviewView } from "./upload-review.component";
 
 export const GUEST_UPLOAD_KINDS: readonly MediaKindName[] = ["book"];
+export const METERED_GUEST_UPLOAD_KINDS: readonly MediaKindName[] = ["book", "audio"];
+export const METERED_ONLY_UPLOAD_KINDS: readonly MediaKindName[] = ["video"];
 
 type ReviewViewState = "inspecting" | "ready" | "rejected";
 const REVIEW_VIEW_STATES: readonly string[] = ["inspecting", "ready", "rejected"] satisfies ReviewViewState[];
@@ -36,7 +48,12 @@ const REVIEW_SOURCE = "upload-review";
 
 const REVIEW_VIEWS: Record<
 	ReviewViewState,
-	(params: { session: ReviewableSession; poll: number; maxPolls: number }) => UploadReviewView
+	(params: {
+		session: ReviewableSession;
+		poll: number;
+		maxPolls: number;
+		transcriptAllowanceSeconds: number;
+	}) => UploadReviewView
 > = {
 	inspecting: ({ session, poll, maxPolls }) => {
 		if (poll > maxPolls) return { view: "overrun" };
@@ -47,14 +64,33 @@ const REVIEW_VIEWS: Record<
 			checkAgainUrl: withInternalTracking(next, { source: REVIEW_SOURCE, content: "check-again" }),
 		};
 	},
-	ready: ({ session }) => {
-		assert(session.facts, `ready upload ${session.uploadId} has no facts`);
+	ready: ({ session, transcriptAllowanceSeconds }) => {
+		const { facts } = session;
+		assert(facts, `ready upload ${session.uploadId} has no facts`);
+		const commitUrl = withInternalTracking(`/upload/${session.uploadId}/commit`, {
+			source: REVIEW_SOURCE,
+			content: "commit",
+		});
+		if (facts.kind === "book") {
+			return {
+				view: "review",
+				title: facts.title,
+				authors: facts.authors.join(", "),
+				sectionTitles: facts.sectionTitles,
+				commitUrl,
+			};
+		}
+		const seconds = billableSeconds(facts.durationSeconds);
+		if (seconds > transcriptAllowanceSeconds) {
+			return { view: "too-long", notice: UPLOAD_REFUSAL_COPY["transcript-too-long"] };
+		}
 		return {
-			view: "review",
-			title: session.facts.title,
-			authors: session.facts.authors.join(", "),
-			sectionTitles: session.facts.sectionTitles,
-			commitUrl: withInternalTracking(`/upload/${session.uploadId}/commit`, { source: REVIEW_SOURCE, content: "commit" }),
+			view: "timed-review",
+			heading: session.fileName ?? defaultFileNameOf(AUDIO),
+			durationMinutes: displayMinutes(facts.durationSeconds),
+			transcriptMinutes: displayMinutes(seconds),
+			allowanceMinutes: displayMinutes(transcriptAllowanceSeconds),
+			commitUrl,
 		};
 	},
 	rejected: ({ session }) => {
@@ -71,14 +107,25 @@ export function initAnonymousUploadRoutes(deps: {
 	requireWriteAccess: RequestHandler;
 	GUEST_UPLOAD_KINDS: readonly MediaKindName[];
 	MEDIA_KINDS: ReadonlyMap<MediaKindName, MediaKindManifest>;
+	transcriptAllowanceSeconds: number;
 	maxPolls: number;
 	buildBannerState: BuildBannerState;
 }): Router {
 	const router = express.Router();
-	const kinds = deps.MEDIA_KINDS;
-
-	async function write<K extends UploadOutcomeKey>(req: Request, res: Response, outcome: UploadOutcome<K>) {
-		const context = { req, bannerState: await deps.buildBannerState(req), kinds };
+	async function write<K extends UploadOutcomeKey>(
+		req: Request,
+		res: Response,
+		outcome: UploadOutcome<K>,
+	) {
+		const context = {
+			req,
+			bannerState: await deps.buildBannerState(req),
+			kinds: kindsForViewer({
+				kinds: deps.MEDIA_KINDS,
+				guestKinds: deps.GUEST_UPLOAD_KINDS,
+				isSignedIn: Boolean(req.userId),
+			}),
+		};
 		writeUploadOutcome({ writers: UPLOAD_OUTCOME_HTML, res, outcome, context });
 	}
 
@@ -99,18 +146,14 @@ export function initAnonymousUploadRoutes(deps: {
 			session,
 			poll: poll.success ? poll.data : 0,
 			maxPolls: deps.maxPolls,
+			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 		});
-		sendComponent(req, res, Base(UploadReviewPage({ state: view, uploadId: session.uploadId }), await deps.buildBannerState(req)));
-	});
-
-	router.post("/", async (req, res, next) => {
-		const body = StartUploadBody.safeParse(req.body);
-		const kind = body.success ? kindAccepting(kinds, body.data.contentType) : undefined;
-		if (req.userId || !kind || deps.GUEST_UPLOAD_KINDS.includes(kind.name)) {
-			next();
-			return;
-		}
-		await write(req, res, { outcome: "upload_unsupported_type" });
+		const page = UploadReviewPage({
+			state: view,
+			uploadId: session.uploadId,
+			media: session.kind === "audio" ? "audio" : "book",
+		});
+		sendComponent(req, res, Base(page, await deps.buildBannerState(req)));
 	});
 
 	router.post(
@@ -135,10 +178,17 @@ export function initAnonymousUploadRoutes(deps: {
 				await write(req, res, { outcome: "upload_session_not_found" });
 				return;
 			}
+			const kind = deps.MEDIA_KINDS.get(claimed.kind);
+			assert(kind, `claimed upload of unknown kind ${claimed.kind}`);
 			await write(
 				req,
 				res,
-				await deps.commitReceivedUpload({ session: claimed, etag: claimed.etag, size: claimed.byteLength ?? 0 }),
+				await deps.commitReceivedUpload({
+					session: claimed,
+					kind,
+					etag: claimed.etag,
+					size: claimed.byteLength ?? 0,
+				}),
 			);
 		},
 	);

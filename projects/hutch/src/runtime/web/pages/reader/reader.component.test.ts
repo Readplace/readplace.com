@@ -6,6 +6,7 @@ import {
 	SaveableUrlSchema,
 } from "@packages/domain/article";
 import { ABSENT_ENCLOSURE, type SavedArticle } from "@packages/domain/article";
+import { HighlightIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { generateCspNonce } from "@packages/web-shell";
 import { toAbsoluteDate, toAbsoluteTime } from "@packages/web-shell/local-time.format";
@@ -27,8 +28,9 @@ import { buildArticleDeletion } from "../readlist/readlist-card/delete-confirm.c
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { articleBody } from "@packages/test-fixtures";
 import { epubDownloadGuideFor } from "../../shared/epub/epub-download-guide";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 
-const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 
 const NO_QUEUE_FILING: ReaderReadlistFiling = {
 	tags: undefined,
@@ -230,6 +232,52 @@ describe("ReaderPage", () => {
 
 		expect(railLandmark(rail)).toEqual({ tag: "DIV", label: null });
 		expect(railChildTags(rail)).toEqual(["DIV", "SECTION", "NOSCRIPT", "A"]);
+	});
+
+	it("names the rail Article details when the highlights rail has rows, and places it above the table of contents", () => {
+		const rail = renderRail({
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
+			highlights: {
+				rows: [
+					{
+						highlightId: HighlightIdSchema.parse("6b9f6c1e-2f4a-4c3d-9e8b-1a2b3c4d5e6f"),
+						highlightOf: "example.com/article",
+						exact: "a passage",
+						prefix: "",
+						suffix: "",
+						start: 0,
+						end: 9,
+						anchoredContentHash: "hash",
+						anchorState: "anchored",
+						orderKey: 0,
+						createdAt: new Date("2026-11-05T10:00:00.000Z"),
+						updatedAt: new Date("2026-11-05T10:00:00.000Z"),
+						anchorRevision: 0,
+					},
+				],
+				canonicalContentHash: undefined,
+				createUrl: "/queue/abc/highlights?feature=highlight",
+				deleteUrlFor: (id) => `/queue/abc/highlights/${id}/delete?feature=highlight`,
+			},
+		});
+
+		expect(railLandmark(rail)).toEqual({ tag: "ASIDE", label: "Article details" });
+		expect(rail.firstElementChild?.id).toBe("highlights-rail");
+	});
+
+	it("keeps the rail an unnamed div when the highlights rail has no rows", () => {
+		const rail = renderRail({
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
+			highlights: {
+				rows: [],
+				canonicalContentHash: undefined,
+				createUrl: "/queue/abc/highlights?feature=highlight",
+				deleteUrlFor: (id) => `/queue/abc/highlights/${id}/delete?feature=highlight`,
+			},
+		});
+
+		expect(railLandmark(rail)).toEqual({ tag: "DIV", label: null });
+		expect(rail.querySelector("[data-test-highlights-rail]")).not.toBeNull();
 	});
 
 	it("stacks Article history, the stored copy's template and past reads in the rail when the page reads offline", () => {

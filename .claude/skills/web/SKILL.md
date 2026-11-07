@@ -34,14 +34,21 @@ const content = document.querySelector('meta[property="og:image"]')?.getAttribut
 
 ### Ids inside a saved article
 
-Captured markup must never claim the id of an element the page swaps out of band, so the sanitiser drops every id except a `section-` id on an h2 or h3, which is the reserved namespace of the table of contents' anchors. The one function that both the article body and the table of contents read runs the sanitiser twice:
+Captured markup must never claim the id of an element the page swaps out of band, so the sanitiser drops every id outside two reserved namespaces:
+
+| Namespace | Kept on | Whose anchors |
+|---|---|---|
+| `section-` | an h2 or h3 | the table of contents' rows |
+| `highlight-<uuid>` | a `<mark>` | the highlights rail's Jump links, one per reader highlight |
+
+The one function that both the article body and the table of contents read runs the sanitiser twice:
 
 | Step | Why |
 |---|---|
 | Sanitise, then mint a `section-` id on each listed heading and clear the id of any heading it does not list | The rows list only headings the body keeps, under the text it shows, and a publisher's `section-` id cannot shadow a minted one |
 | Sanitise again, as the last transform | A linkedom serialisation decodes one level of attribute escaping, so an entity-encoded `javascript:` href comes out live unless the sanitiser runs after it |
 
-The prefix is exported beside the sanitiser, and the minting step builds every id from it (grep the workspace packages' non-test sources for the quoted `"section-"` literal; the single hit is it). Nothing else adds ids to article content.
+Both prefixes are exported beside the sanitiser, and each minting step builds its ids from one of them (grep the workspace packages' non-test sources for the quoted `"section-"` or `"highlight-"` literal; the single hit for each is it). The highlight step strips any id a publisher's own `<mark>` carries before it wraps the reader's passages, so a captured `highlight-` id cannot shadow a minted one. Nothing else adds ids to article content.
 
 ## HTML Template Conventions
 

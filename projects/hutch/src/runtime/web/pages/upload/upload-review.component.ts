@@ -10,19 +10,38 @@ export type UploadReviewView =
 	| { view: "inspecting"; pollUrl: string; checkAgainUrl: string }
 	| { view: "overrun" }
 	| { view: "review"; title: string; authors: string; sectionTitles: readonly string[]; commitUrl: string }
+	| {
+			view: "timed-review";
+			heading: string;
+			durationMinutes: number;
+			transcriptMinutes: number;
+			allowanceMinutes: number;
+			commitUrl: string;
+		}
+	| { view: "too-long"; notice: string }
 	| { view: "rejected"; notice: string };
 
-export function UploadReviewPage(params: { state: UploadReviewView; uploadId: string }): PageBody {
+const REVIEW_COPY = {
+	book: { heading: "Upload a book", description: "Review an uploaded book before saving it to Readplace." },
+	audio: { heading: "Upload an audio file", description: "Review an uploaded audio file before saving it to Readplace." },
+} as const;
+
+export function UploadReviewPage(params: {
+	state: UploadReviewView;
+	uploadId: string;
+	media: keyof typeof REVIEW_COPY;
+}): PageBody {
 	const { state } = params;
+	const copy = REVIEW_COPY[params.media];
 	return {
 		seo: {
 			canonicalUrl: `/upload/${params.uploadId}`,
-			title: "Upload a book — Readplace",
-			description: "Review an uploaded book before saving it to Readplace.",
+			title: `${copy.heading} — Readplace`,
+			description: copy.description,
 			robots: "noindex, nofollow",
 		},
 		styles: UPLOAD_STYLES,
 		bodyClass: "page-upload",
-		content: { html: render(UPLOAD_REVIEW_TEMPLATE, { [state.view]: state }) },
+		content: { html: render(UPLOAD_REVIEW_TEMPLATE, { heading: copy.heading, [state.view.replace("-", "_")]: state }) },
 	};
 }

@@ -1,5 +1,5 @@
 /**
- * DDB scan logic for the failed-articles canary, extracted so the unit tests
+ * Status-index query logic for the failed-articles canary, extracted so the unit tests
  * can exercise the filter expression and row-shaping without bootstrapping
  * the top-level `test()` block (which requires AWS env vars at import).
  *
@@ -26,7 +26,7 @@
  * can never succeed. A dead link is a fact about the web, not a crawler
  * defect an operator can fix.
  *
- * The scan also accepts an optional lookback (in days) that gates rows on
+ * The queries also accept an optional lookback (in days) that gates rows on
  * `savedAt` — a value of `0` disables the gate and surfaces every historical
  * row, which is the default so the operator gets the full backlog and can
  * narrow it later by raising the value.
@@ -41,9 +41,14 @@ import {
 	SummaryStatusSchema,
 } from "@packages/article-state-types";
 import {
+	CRAWL_STATUS_INDEX,
+	SUMMARY_STATUS_INDEX,
+} from "@packages/provider-contracts/article-status-indexes";
+import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
+	forEachQueryPage,
 } from "@packages/storage-client";
 import { z } from "zod";
 import { isExcluded } from "./exclude-patterns";
@@ -52,7 +57,7 @@ import { isExcluded } from "./exclude-patterns";
 const FailedArticleRow = z.object({
 	url: z.string(),
 	originalUrl: dynamoField(z.string()),
-	/* Required (not dynamoField): the scan's `attribute_exists(...) AND <> :pending`
+	/* Required (not dynamoField): the `attribute_exists(...) AND <> :pending`
 	 * filter only returns rows where both axes are present and terminal. */
 	crawlStatus: CrawlStatusSchema,
 	crawlFailureReason: dynamoField(z.string()),
@@ -73,50 +78,52 @@ export interface FailedRow {
 	contentFetchedAt: string | undefined;
 }
 
-/* The articles table completes a real scan in under 10 pages. Crossing 50
- * means the FilterExpression stopped narrowing (or the table grew an order of
- * magnitude) — fail loud instead of burning the runner's 10-minute budget. */
-const MAX_PAGES = 50;
-
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * Build the DDB Scan input. When `lookbackDays` is `0` no time gate is
+ * When `lookbackDays` is `0` no time gate is
  * applied (every historical row is a candidate). For `lookbackDays > 0` the
  * gate is anchored to `savedAt` (always present, unlike `contentFetchedAt`
  * which only exists after a crawl produced content).
  */
-export function buildScanInput(now: Date, lookbackDays: number) {
+export function buildQueryInputs(now: Date, lookbackDays: number) {
 	assert(
 		Number.isInteger(lookbackDays) && lookbackDays >= 0,
 		`lookbackDays must be a non-negative integer (got ${lookbackDays})`,
 	);
-	const baseExpressionAttributeValues: Record<string, string> = {
+	const expressionAttributeValues: Record<string, string> = {
+		":failed": "failed",
 		":pending": "pending",
-		":crawlFailed": "failed",
-		":summaryFailed": "failed",
 	};
-	const terminalUnsuccessful =
-		"(crawlStatus = :crawlFailed OR summaryStatus = :summaryFailed)";
-	const bothAxesTerminal =
-		"attribute_exists(crawlStatus) AND attribute_exists(summaryStatus) " +
-		"AND crawlStatus <> :pending AND summaryStatus <> :pending";
-	const meteredLegsTried = "attribute_not_exists(meteredLegsDeferredSince)";
-	let filterExpression = `${bothAxesTerminal} AND ${terminalUnsuccessful} AND ${meteredLegsTried}`;
-	const expressionAttributeValues = { ...baseExpressionAttributeValues };
+	let sinceGate = "";
 	if (lookbackDays > 0) {
-		const since = new Date(now.getTime() - lookbackDays * MS_PER_DAY).toISOString();
-		filterExpression = `${filterExpression} AND savedAt >= :since`;
-		expressionAttributeValues[":since"] = since;
+		sinceGate = " AND savedAt >= :since";
+		expressionAttributeValues[":since"] = new Date(
+			now.getTime() - lookbackDays * MS_PER_DAY,
+		).toISOString();
 	}
-	return {
-		FilterExpression: filterExpression,
+	const shared = {
 		ProjectionExpression:
 			"originalUrl, #u, crawlStatus, crawlFailureReason, " +
 			"summaryStatus, summaryFailureReason, contentFetchedAt, savedAt",
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: expressionAttributeValues,
-	} as const;
+	};
+	const meteredLegsTried = "attribute_not_exists(meteredLegsDeferredSince)";
+	return [
+		{
+			...shared,
+			IndexName: CRAWL_STATUS_INDEX,
+			KeyConditionExpression: "crawlStatus = :failed",
+			FilterExpression: `attribute_exists(summaryStatus) AND summaryStatus <> :pending AND ${meteredLegsTried}${sinceGate}`,
+		},
+		{
+			...shared,
+			IndexName: SUMMARY_STATUS_INDEX,
+			KeyConditionExpression: "summaryStatus = :failed",
+			FilterExpression: `attribute_exists(crawlStatus) AND crawlStatus <> :pending AND ${meteredLegsTried}${sinceGate}`,
+		},
+	] as const;
 }
 
 function isSpendCappedBlock(reason: CrawlFailureReason | undefined): boolean {
@@ -162,34 +169,25 @@ export async function collectFailedRows(deps: {
 		tableName: deps.tableName,
 		schema: FailedArticleRow,
 	});
-	const failed: FailedRow[] = [];
-	let pageCount = 0;
-	let lastEvaluatedKey: Record<string, unknown> | undefined;
-	const scanInput = buildScanInput(deps.now(), deps.lookbackDays);
-	do {
-		pageCount += 1;
-		assert(
-			pageCount <= MAX_PAGES,
-			`pagination cap reached (${MAX_PAGES} pages) — refine FilterExpression or raise the cap if the table is legitimately growing`,
-		);
-		const page = await table.scan({
-			...scanInput,
-			ExclusiveStartKey: lastEvaluatedKey,
+	const candidates = new Map<string, z.infer<typeof FailedArticleRow>>();
+	for (const input of buildQueryInputs(deps.now(), deps.lookbackDays)) {
+		await forEachQueryPage(table, input, async (items) => {
+			for (const row of items) candidates.set(row.url, row);
 		});
-		for (const row of page.items) {
-			const effectiveUrl = row.originalUrl ?? row.url;
-			if (isExcluded(effectiveUrl, deps.excludePatterns)) continue;
-			const { axes, reasons } = classifyAxes(row);
-			if (axes.length === 0) continue;
-			failed.push({
-				originalUrl: effectiveUrl,
-				axes,
-				reasons,
-				savedAt: row.savedAt,
-				contentFetchedAt: row.contentFetchedAt,
-			});
-		}
-		lastEvaluatedKey = page.lastEvaluatedKey;
-	} while (lastEvaluatedKey !== undefined);
+	}
+	const failed: FailedRow[] = [];
+	for (const row of candidates.values()) {
+		const effectiveUrl = row.originalUrl ?? row.url;
+		if (isExcluded(effectiveUrl, deps.excludePatterns)) continue;
+		const { axes, reasons } = classifyAxes(row);
+		if (axes.length === 0) continue;
+		failed.push({
+			originalUrl: effectiveUrl,
+			axes,
+			reasons,
+			savedAt: row.savedAt,
+			contentFetchedAt: row.contentFetchedAt,
+		});
+	}
 	return failed;
 }

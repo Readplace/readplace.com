@@ -105,6 +105,7 @@ describe("filterReachable", () => {
 			fetch: fetchResolving(200),
 			timeoutMs: 1000,
 			concurrency: 4,
+			skipProbe: () => false,
 			log: (msg) => logged.push(msg),
 		});
 		assert.deepEqual(result, []);
@@ -121,6 +122,7 @@ describe("filterReachable", () => {
 			fetch: fetchResolving(200),
 			timeoutMs: 1000,
 			concurrency: 4,
+			skipProbe: () => false,
 			log: (msg) => logged.push(msg),
 		});
 		assert.deepEqual(result, rows);
@@ -146,6 +148,7 @@ describe("filterReachable", () => {
 			fetch: fakeFetch,
 			timeoutMs: 1000,
 			concurrency: 4,
+			skipProbe: () => false,
 			log: (msg) => logged.push(msg),
 		});
 		assert.deepEqual(result, [
@@ -167,10 +170,33 @@ describe("filterReachable", () => {
 			),
 			timeoutMs: 1000,
 			concurrency: 4,
+			skipProbe: () => false,
 			log: (msg) => logged.push(msg),
 		});
 		assert.deepEqual(result, []);
 		assert.deepEqual(logged, ["[info] excluded 2 row(s) as unreachable"]);
+	});
+
+	it("keeps a row whose probe is skipped without fetching it, while a throwing public row is dropped", async () => {
+		const fetched: string[] = [];
+		const privateRow = {
+			originalUrl: "https://uploads.readplace.invalid/upload-1",
+			ownerUserId: "user-1",
+		};
+		const publicRow = { originalUrl: "https://dead.test/", ownerUserId: undefined };
+		const fakeFetch: typeof fetch = async (url) => {
+			fetched.push(String(url));
+			throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ENOTFOUND" } });
+		};
+		const result = await filterReachable([privateRow, publicRow], {
+			fetch: fakeFetch,
+			timeoutMs: 1000,
+			concurrency: 4,
+			skipProbe: (row) => row.ownerUserId !== undefined,
+			log: NOOP_LOG,
+		});
+		assert.deepEqual(fetched, ["https://dead.test/"]);
+		assert.deepEqual(result, [privateRow]);
 	});
 
 	it("respects the concurrency bound", async () => {
@@ -191,6 +217,7 @@ describe("filterReachable", () => {
 			fetch: fakeFetch,
 			timeoutMs: 1000,
 			concurrency: 5,
+			skipProbe: () => false,
 			log: NOOP_LOG,
 		});
 		assert.ok(
@@ -211,6 +238,7 @@ describe("filterReachable", () => {
 			fetch: fetchResolving(200),
 			timeoutMs: 1000,
 			concurrency: 4,
+			skipProbe: () => false,
 			log: NOOP_LOG,
 		});
 		assert.equal(result[0]?.extra, 42);

@@ -9,8 +9,8 @@ description: Run the Readplace iOS app in a Simulator and see its screen. Use wh
 cd "$(git rev-parse --show-toplevel)"        # pnpm dev resolves from the repo root
 pnpm dev &                                   # the build below talks to http://127.0.0.1:3000
 cd "$(dirname "$(git grep -l xcodebuild -- ':/*Makefile')")"   # the iOS app's directory: the one Makefile that drives xcodebuild (`:/` searches from the repo root whatever the cwd)
-make run-local                               # local-server build: boots the newest iPhone simulator, installs, launches
-D=$(make -n run-local | grep -m1 -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}')   # the device make just booted (pass the same SIM= override, if any)
+make run-local                               # local-server build: boots this checkout's simulator (newest iPhone runtime; created on first use), installs, launches
+D=$(make -n run-local | grep -m1 -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}')   # the device make just booted; creates it if absent (pass the same SIM= override, if any)
 ```
 
 Every Xcode/`swiftc`/`xcrun` invocation goes through the wrapper that Makefile prefixes onto each
@@ -44,7 +44,8 @@ while it is set attaches a second framebuffer and opens *that* as its window. Cl
 preference does not fix the affected device: Simulator holds the value in memory and writes it
 back on relaunch, so the device keeps opening the phantom.
 
-Switch to a device that does not have it set. Confirm before spending time on it:
+Switch to a device that does not have it set. Pass `SIM='platform=iOS Simulator,id=<UDID>'`, or
+delete this checkout's device (`xcrun simctl delete "$D"`) so the next `make` creates a fresh one. Confirm before spending time on it:
 
 ```bash
 xcrun simctl io "$D" enumerate | grep -A4 "Class: Display" | grep "Default width"

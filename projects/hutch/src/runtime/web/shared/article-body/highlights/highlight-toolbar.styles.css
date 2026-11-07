@@ -1,0 +1,35 @@
+.article-highlight {
+  background-color: light-dark(
+    color-mix(in srgb, var(--color-highlight) 25%, transparent),
+    color-mix(in srgb, var(--color-highlight) 30%, transparent)
+  );
+  color: inherit;
+  border-radius: 2px;
+  cursor: pointer;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.highlight-toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+}
+
+.highlight-toolbar[hidden] {
+  display: none;
+}
+
+main:has(.highlight-toolbar__form.htmx-request) .article-body__content {
+  opacity: 0.6;
+  transition: opacity 150ms ease;
+}

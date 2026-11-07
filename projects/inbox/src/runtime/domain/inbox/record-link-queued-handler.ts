@@ -11,6 +11,7 @@ import {
 } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
 import type { InboxSavedLinkStore } from "@packages/domain/inbox";
+import type { RecordLinkFact } from "./record-queued-link";
 import { UserIdSchema } from "@packages/domain/user";
 import { z } from "zod";
 
@@ -25,8 +26,7 @@ const LinkFactSchema = z.object({ url: z.string(), userId: UserIdSchema });
  * terminal accept state, it exhausted its accept retries, or the reader deleted
  * the queue row a save produced — dispatched on the envelope's detail-type.
  *
- * Every write is unconditional, because every fact is re-published on SQS
- * redelivery and on every re-save of the same link. A URL the key derivation
+ * A URL the key derivation
  * cannot parse fails the record to the DLQ: the producer only ever publishes URLs
  * that already passed `validateSaveableUrl`, so an unparseable one is a contract
  * violation worth paging on, not a link to skip. A detail-type no rule delivers
@@ -34,20 +34,20 @@ const LinkFactSchema = z.object({ url: z.string(), userId: UserIdSchema });
  * how a deletion would be recorded as a save.
  */
 export function initRecordLinkQueuedHandler(deps: {
-	markLinkSaved: InboxSavedLinkStore["markLinkSaved"];
-	markLinkSaveFailed: InboxSavedLinkStore["markLinkSaveFailed"];
+	recordQueuedLink: RecordLinkFact;
+	recordFailedLink: RecordLinkFact;
 	retractLinkSaved: InboxSavedLinkStore["retractLinkSaved"];
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { markLinkSaved, markLinkSaveFailed, retractLinkSaved, logger } = deps;
+	const { recordQueuedLink, recordFailedLink, retractLinkSaved, logger } = deps;
 
-	const recorders: Record<
-		string,
-		{ record: InboxSavedLinkStore["markLinkSaved"]; outcome: string }
-	> = {
-		[LinkQueuedEvent.detailType]: { record: markLinkSaved, outcome: "save accepted" },
-		[LinkQueueFailedEvent.detailType]: { record: markLinkSaveFailed, outcome: "save failed" },
-		[LinkDequeuedEvent.detailType]: { record: retractLinkSaved, outcome: "save retracted" },
+	const recorders: Record<string, RecordLinkFact> = {
+		[LinkQueuedEvent.detailType]: recordQueuedLink,
+		[LinkQueueFailedEvent.detailType]: recordFailedLink,
+		[LinkDequeuedEvent.detailType]: async (fact) => {
+			await retractLinkSaved(fact);
+			return "save retracted";
+		},
 	};
 
 	return async (event): Promise<SQSBatchResponse> => {
@@ -67,8 +67,12 @@ export function initRecordLinkQueuedHandler(deps: {
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
-				await recorder.record(parsed.data);
-				logger.info(`[record-link-queued] ${recorder.outcome}`, { url: parsed.data.url });
+				const outcome = await recorder(parsed.data);
+				logger.info(`[record-link-queued] ${outcome}`, {
+					url: parsed.data.url,
+					userId: parsed.data.userId,
+					messageId: record.messageId,
+				});
 			} catch (error) {
 				logger.error("[record-link-queued] record failed", {
 					messageId: record.messageId,

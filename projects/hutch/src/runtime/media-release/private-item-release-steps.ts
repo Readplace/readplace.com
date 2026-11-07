@@ -22,6 +22,10 @@ export function bookImagesPrefix(url: string): string {
 	return `images/${uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url))}/`;
 }
 
+export function transcriptsPrefix(url: string): string {
+	return `transcripts/${uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url))}/`;
+}
+
 export function initPrivateItemReleaseSteps(deps: {
 	purgeArticleContent: PurgeArticleContent;
 	deleteMediaObjects: DeleteContentObjects;
@@ -34,6 +38,7 @@ export function initPrivateItemReleaseSteps(deps: {
 		({ url }) => deps.purgeArticleContent(url),
 		({ url }) => deps.deleteMediaObjects([pendingOriginalKey(url)]),
 		({ url }) => deps.listMediaKeys(bookImagesPrefix(url)).then(deps.deleteMediaObjects),
+		({ url }) => deps.listMediaKeys(transcriptsPrefix(url)).then(deps.deleteMediaObjects),
 		({ url }) => deps.deleteArticleRow(url),
 		({ url }) => deps.mediaObjects.unrefAll({ uploadId: uploadIdOfPrivateItemUrl(PrivateItemUrlSchema.parse(url)) }),
 		({ url }) => deps.deleteUserArticleLinks(url),

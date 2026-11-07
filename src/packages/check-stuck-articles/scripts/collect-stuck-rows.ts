@@ -3,7 +3,6 @@
  * canary logic without registering the top-level `test()` block (which fires
  * `requireEnv` at module load and aborts the test process).
  */
-import assert from "node:assert/strict";
 import {
 	CrawlStatusSchema,
 	SummaryStatusSchema,
@@ -12,7 +11,12 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
+	forEachQueryPage,
 } from "@packages/storage-client";
+import {
+	CRAWL_STATUS_INDEX,
+	SUMMARY_STATUS_INDEX,
+} from "@packages/provider-contracts/article-status-indexes";
 import { z } from "zod";
 import { checkTerminalState } from "./check-terminal-state";
 import type { StuckReason } from "./classify-row";
@@ -27,13 +31,14 @@ const StuckArticleRow = z.object({
 	crawlPendingSince: dynamoField(z.string()),
 	summaryPendingSince: dynamoField(z.string()),
 	savedAt: z.string(),
-	summarySkippedReason: dynamoField(z.string()),
+	ownerUserId: dynamoField(z.string()),
 });
 
 export interface StuckRow {
 	originalUrl: string;
 	reasons: StuckReason[];
 	contentFetchedAt: string | undefined;
+	ownerUserId: string | undefined;
 	/**
 	 * Surfaced in the failing test message so an operator reading the GitHub
 	 * Actions output knows which writer to suspect without cross-referencing
@@ -41,11 +46,6 @@ export interface StuckRow {
 	 */
 	terminalCheckMessage: string;
 }
-
-/* The articles table completes a real scan in under 10 pages. Crossing 50
- * means the FilterExpression stopped narrowing (or the table grew an order of
- * magnitude) — fail loud instead of burning the runner's 10-minute budget. */
-const MAX_PAGES = 50;
 
 /**
  * 1. Anchored to retry-chain wall-clock = visibility × maxReceiveCount per
@@ -63,6 +63,12 @@ export const CRAWL_MIN_AGE_MS = 20 * 60_000; /* 1 */
  *    occasionally drag an in-flight summary past the SQS budget without the
  *    chain failing.
  */
+/**
+ * 1. Private rows run prepare-transcription (up to 60 min of SQS retries),
+ *    Transcribe and render-transcript; 4 h covers the longest normal path.
+ */
+export const PRIVATE_CRAWL_MIN_AGE_MS = 4 * 60 * 60_000; /* 1 */
+
 export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
 
 /**
@@ -75,42 +81,46 @@ export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
  *      flight, for example).
  *   2. Legacy disjunct on contentFetchedAt/savedAt — covers rows saved
  *      before pendingSince existed.
- *   3. `summaryStatus = "skipped" AND summarySkippedReason = "ai-unavailable"`
- *      — `summaryPendingSince` is removed when the summary transitions to
- *      skipped, so the
- *      pending-age gates above can never match this state. Anchor the gate
- *      to `contentFetchedAt` (set by the freshness writer immediately
- *      before the summariser ran, so it bounds when the skip happened),
- *      falling back to `savedAt` for legacy rows missing contentFetchedAt.
  */
-export function buildScanInput(now: Date) {
+export function buildQueryInputs(now: Date) {
 	const crawlMinAge = new Date(now.getTime() - CRAWL_MIN_AGE_MS).toISOString();
+	const privateCrawlMinAge = new Date(now.getTime() - PRIVATE_CRAWL_MIN_AGE_MS).toISOString();
 	const summaryMinAge = new Date(now.getTime() - SUMMARY_MIN_AGE_MS).toISOString();
 	const legacyAgeGate = (axisMinAgeKey: string) =>
 		`(attribute_not_exists(crawlPendingSince) AND attribute_not_exists(summaryPendingSince) AND ` +
 		`(contentFetchedAt < ${axisMinAgeKey}` +
 		` OR (attribute_not_exists(contentFetchedAt) AND savedAt < ${axisMinAgeKey})))`;
-	return {
-		FilterExpression:
-			`(summaryStatus = :pending AND ` +
-			`(summaryPendingSince < :summaryMinAge OR ${legacyAgeGate(":summaryMinAge")})) ` +
-			`OR (crawlStatus = :pending AND ` +
-			`(crawlPendingSince < :crawlMinAge OR ${legacyAgeGate(":crawlMinAge")})) ` +
-			`OR (summaryStatus = :skipped AND summarySkippedReason = :aiUnavailable AND ` +
-			`(contentFetchedAt < :summaryMinAge OR (attribute_not_exists(contentFetchedAt) AND savedAt < :summaryMinAge)))`,
-		ProjectionExpression:
-			"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, " +
-			"crawlPendingSince, summaryPendingSince, savedAt, " +
-			"summarySkippedReason",
-		ExpressionAttributeNames: { "#u": "url" },
-		ExpressionAttributeValues: {
-			":pending": "pending",
-			":skipped": "skipped",
-			":aiUnavailable": "ai-unavailable",
-			":crawlMinAge": crawlMinAge,
-			":summaryMinAge": summaryMinAge,
+	const ProjectionExpression =
+		"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, " +
+		"crawlPendingSince, summaryPendingSince, savedAt, ownerUserId";
+	const ExpressionAttributeNames = { "#u": "url" };
+	return [
+		{
+			IndexName: SUMMARY_STATUS_INDEX,
+			KeyConditionExpression: "summaryStatus = :pending",
+			FilterExpression: `summaryPendingSince < :summaryMinAge OR ${legacyAgeGate(":summaryMinAge")}`,
+			ProjectionExpression,
+			ExpressionAttributeNames,
+			ExpressionAttributeValues: {
+				":pending": "pending",
+				":summaryMinAge": summaryMinAge,
+			},
 		},
-	} as const;
+		{
+			IndexName: CRAWL_STATUS_INDEX,
+			KeyConditionExpression: "crawlStatus = :pending",
+			FilterExpression:
+				`(attribute_not_exists(ownerUserId) AND (crawlPendingSince < :crawlMinAge OR ${legacyAgeGate(":crawlMinAge")})) ` +
+				`OR (attribute_exists(ownerUserId) AND (crawlPendingSince < :privateCrawlMinAge OR ${legacyAgeGate(":privateCrawlMinAge")}))`,
+			ProjectionExpression,
+			ExpressionAttributeNames,
+			ExpressionAttributeValues: {
+				":pending": "pending",
+				":crawlMinAge": crawlMinAge,
+				":privateCrawlMinAge": privateCrawlMinAge,
+			},
+		},
+	] as const;
 }
 
 export async function collectStuckRows(deps: {
@@ -123,32 +133,23 @@ export async function collectStuckRows(deps: {
 		tableName: deps.tableName,
 		schema: StuckArticleRow,
 	});
-	const stuck: StuckRow[] = [];
-	let pageCount = 0;
-	let lastEvaluatedKey: Record<string, unknown> | undefined;
-	const scanInput = buildScanInput(deps.now());
-	do {
-		pageCount += 1;
-		assert(
-			pageCount <= MAX_PAGES,
-			`pagination cap reached (${MAX_PAGES} pages) — refine FilterExpression or raise the cap if the table is legitimately growing`,
-		);
-		const page = await table.scan({
-			...scanInput,
-			ExclusiveStartKey: lastEvaluatedKey,
+	const candidates = new Map<string, z.infer<typeof StuckArticleRow>>();
+	for (const input of buildQueryInputs(deps.now())) {
+		await forEachQueryPage(table, input, async (items) => {
+			for (const row of items) candidates.set(row.url, row);
 		});
-		for (const row of page.items) {
-			const verdict = checkTerminalState(row);
-			if (verdict.terminal) continue;
-			const effectiveUrl = row.originalUrl ?? row.url;
-			stuck.push({
-				originalUrl: effectiveUrl,
-				reasons: verdict.reasons,
-				contentFetchedAt: row.contentFetchedAt,
-				terminalCheckMessage: verdict.message,
-			});
-		}
-		lastEvaluatedKey = page.lastEvaluatedKey;
-	} while (lastEvaluatedKey !== undefined);
+	}
+	const stuck: StuckRow[] = [];
+	for (const row of candidates.values()) {
+		const verdict = checkTerminalState(row);
+		if (verdict.terminal) continue;
+		stuck.push({
+			originalUrl: row.originalUrl ?? row.url,
+			reasons: verdict.reasons,
+			contentFetchedAt: row.contentFetchedAt,
+			ownerUserId: row.ownerUserId,
+			terminalCheckMessage: verdict.message,
+		});
+	}
 	return stuck;
 }

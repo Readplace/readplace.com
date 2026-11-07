@@ -68,31 +68,17 @@ describe("initDynamoDbInboxSavedLink", () => {
 		const { client, commands } = createFakeClient();
 		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
 
-		await store.markLinkSaved({ userId, url: "https://example.com/post?utm_source=news" });
+		await store.markLinkSaveFailed({ userId, url: "https://example.com/post?utm_source=news" });
 
 		const put = commands.find((command) => command.name === "PutCommand");
-		assert(put, "markLinkSaved must issue a PutCommand");
+		assert(put, "markLinkSaveFailed must issue a PutCommand");
 		expect(put.input.Item).toEqual({
 			userId,
 			linkKey: inboxSavedLinkKey("https://example.com/post"),
-			state: "saved",
+			state: "failed",
 			updatedAt: "2026-07-26T10:00:00.000Z",
 			url: "https://example.com/post?utm_source=news",
 		});
-	});
-
-	it("records a failed save under the same key, so a later success replaces it", async () => {
-		const { client, commands } = createFakeClient();
-		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
-
-		await store.markLinkSaveFailed({ userId, url: "https://example.com/post" });
-		await store.markLinkSaved({ userId, url: "https://example.com/post" });
-
-		const puts = commands.filter((command) => command.name === "PutCommand");
-		expect(puts.map((command) => (command.input.Item as { state: string }).state)).toEqual([
-			"failed",
-			"saved",
-		]);
 	});
 
 	it("returns state keyed by the caller's own url, not the normalized key", async () => {
@@ -155,26 +141,15 @@ describe("initDynamoDbInboxSavedLink", () => {
 		).rejects.toThrow("dynamo unavailable");
 	});
 
-	it("writes an accepted save unconditionally, so redelivery converges", async () => {
-		const { client, commands } = createFakeClient();
-		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
-
-		await store.markLinkSaved({ userId, url: "https://example.com/post" });
-
-		const put = commands.find((command) => command.name === "PutCommand");
-		assert(put, "markLinkSaved must issue a PutCommand");
-		expect(put.input.ConditionExpression).toBeUndefined();
-	});
-
 	it("keys a url far longer than a DynamoDB sort key allows", async () => {
 		const { client, commands } = createFakeClient();
 		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
 		const longUrl = `https://esp.example.com/click/${"a".repeat(2000)}`;
 
-		await store.markLinkSaved({ userId, url: longUrl });
+		await store.markLinkSaveFailed({ userId, url: longUrl });
 
 		const put = commands.find((command) => command.name === "PutCommand");
-		assert(put, "markLinkSaved must issue a PutCommand");
+		assert(put, "markLinkSaveFailed must issue a PutCommand");
 		const { linkKey } = put.input.Item as { linkKey: string };
 		expect(Buffer.byteLength(linkKey, "utf8")).toBeLessThanOrEqual(1024);
 	});
@@ -229,6 +204,17 @@ describe("initDynamoDbInboxSavedLink", () => {
 			{ userId, linkKey: inboxSavedLinkKey("https://example.com/two") },
 		]);
 	});
+
+	it("the sweep reads the user's partition with a consistent query", async () => {
+		const { client, commands } = createFakeClient([savedRow("https://example.com/one")]);
+		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
+
+		await store.deleteAllByUserId(userId);
+
+		const query = commands.find((command) => command.name === "QueryCommand");
+		assert(query, "the sweep must issue a QueryCommand");
+		expect(query.input.ConsistentRead).toBe(true);
+	});
 });
 
 describe("initDynamoDbInboxSavedLink — a tweet linked on twitter.com and x.com", () => {
@@ -275,7 +261,7 @@ describe("initDynamoDbInboxSavedLink — a tweet linked on twitter.com and x.com
 		const { client, commands } = createFakeClient();
 		const store = initDynamoDbInboxSavedLink({ client, tableName: TABLE, now });
 
-		await store.markLinkSaved({ userId, url: TWEET_ON_TWITTER });
+		await store.markLinkSaveFailed({ userId, url: TWEET_ON_TWITTER });
 		await store.retractLinkSaved({ userId, url: TWEET_ON_TWITTER });
 
 		const put = commands.find((command) => command.name === "PutCommand");

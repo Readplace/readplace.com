@@ -28,7 +28,7 @@ This canary is a **debug worklist**, not a pass/fail health check. The script al
 - **The stored `crawl-failed` / `summary-failed` reason strings on each row are the most direct signal of root cause.** Read them before reaching for logs. The schemas live in `src/packages/article-state-types/` (`CrawlFailureReasonSchema`, `SummaryFailureReasonSchema`).
 - **Never edit `src/packages/check-failed-articles/scripts/exclude-patterns.ts` to make the canary quiet.** Each entry must represent a class of URL that is genuinely unsupported by product policy. Adding a fixable failure URL silently hides the regression and tomorrow's cron emits a shorter (misleading) list.
 - **Never raise `FAILED_ARTICLES_LOOKBACK_DAYS` to hide a backlog.** That env var is for the operator to narrow the worklist once the historical tail is processed, not a way to make the next scan smaller without doing the work.
-- **Never lower `MAX_PAGES` in `collect-failed-rows.ts`.** The cap exists to fail loud on a runaway scan.
+- **Never switch `collect-failed-rows.ts` back to a table `Scan`.** It queries the `failed` partitions of the status indexes.
 
 ## Applicable Skills
 

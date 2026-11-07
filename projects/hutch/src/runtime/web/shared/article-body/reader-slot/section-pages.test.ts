@@ -14,9 +14,8 @@ const READER_PATH = "/queue/abc/view?platform=ios-app&queue=books";
 function paged(input: { requested: number | undefined; split?: "every-heading" | "chapter-headings" }) {
 	const page = pageReaderSections({
 		html: BOOK,
-		section: { requested: input.requested, readerPath: READER_PATH },
+		section: { requested: input.requested, readerPath: READER_PATH, thresholdBytes: 10 },
 		split: input.split ?? "chapter-headings",
-		thresholdBytes: 10,
 	});
 	if (page.kind !== "paged") throw new Error(`expected a paged body, got ${page.kind}`);
 	return page;
@@ -38,9 +37,8 @@ describe("pageReaderSections", () => {
 	it("returns a body at or under the threshold whole and unchanged", () => {
 		const page: SectionPage = pageReaderSections({
 			html: BOOK,
-			section: { requested: 2, readerPath: READER_PATH },
+			section: { requested: 2, readerPath: READER_PATH, thresholdBytes: Buffer.byteLength(BOOK) },
 			split: "chapter-headings",
-			thresholdBytes: Buffer.byteLength(BOOK),
 		});
 
 		expect(page).toEqual({ kind: "whole", html: BOOK });
@@ -52,9 +50,8 @@ describe("pageReaderSections", () => {
 		expect(
 			pageReaderSections({
 				html,
-				section: { requested: undefined, readerPath: READER_PATH },
+				section: { requested: undefined, readerPath: READER_PATH, thresholdBytes: 1 },
 				split: "every-heading",
-				thresholdBytes: 1,
 			}),
 		).toEqual({ kind: "whole", html });
 	});
@@ -96,9 +93,8 @@ describe("pageReaderSections", () => {
 	it("splits a body that one wrapper holds entirely, as Readability wraps every crawled page", () => {
 		const page = pageReaderSections({
 			html: `\n<div class="page" id="readability-page-1"><div>\n${BOOK}</div></div>\n`,
-			section: { requested: 3, readerPath: READER_PATH },
+			section: { requested: 3, readerPath: READER_PATH, thresholdBytes: 10 },
 			split: "chapter-headings",
-			thresholdBytes: 10,
 		});
 
 		if (page.kind !== "paged") throw new Error(`expected a paged body, got ${page.kind}`);
@@ -112,9 +108,8 @@ describe("pageReaderSections", () => {
 		expect(
 			pageReaderSections({
 				html,
-				section: { requested: undefined, readerPath: READER_PATH },
+				section: { requested: undefined, readerPath: READER_PATH, thresholdBytes: 1 },
 				split: "chapter-headings",
-				thresholdBytes: 1,
 			}),
 		).toEqual({ kind: "whole", html });
 	});

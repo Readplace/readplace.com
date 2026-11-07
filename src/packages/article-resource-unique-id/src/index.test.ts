@@ -254,6 +254,38 @@ describe("ArticleResourceUniqueId key-family prefixes", () => {
 	});
 });
 
+describe("ArticleResourceUniqueId keys at the longest unhashed segment", () => {
+	const longestUnhashedUrl = `https://example.com/${"a".repeat(886)}`;
+	const saveAttemptId = "123e4567-e89b-12d3-a456-426614174000";
+
+	it("keeps the URL segment unhashed at 900 encoded characters and hashes one character more", () => {
+		expect(ArticleResourceUniqueId.parse(longestUnhashedUrl).toS3ContentKey()).toBe(
+			`content/${encodeURIComponent(`example.com/${"a".repeat(886)}`)}/content.html`,
+		);
+		expect(ArticleResourceUniqueId.parse(longestUnhashedUrl).toS3ContentVersionsPrefix().length).toBe(
+			"content-versions/".length + 900 + "/".length,
+		);
+		expect(ArticleResourceUniqueId.parse(`${longestUnhashedUrl}a`).toS3ContentKey()).toMatch(
+			/^content\/sha256-[a-f0-9]{64}\/content\.html$/,
+		);
+	});
+
+	it("keeps every key a save writes within S3's 1024-byte limit", () => {
+		const id = ArticleResourceUniqueId.parse(longestUnhashedUrl);
+		const keys = [
+			id.toS3ContentKey(),
+			id.toS3PendingHtmlKey(saveAttemptId),
+			id.toS3PendingPdfKey(saveAttemptId),
+			id.toS3RefreshHtmlKey(saveAttemptId),
+			id.toS3RefreshEvaluationHtmlKey(saveAttemptId),
+			id.toS3ContentVersionKey({ minuteId: "2026-10-29T10:00Z" }),
+			...["tier-0", "tier-1", "tier-2"].flatMap((tier) => [id.toS3SourceKey({ tier }), id.toS3SourceMetadataKey({ tier })]),
+		];
+		const overLimit = keys.filter((key) => Buffer.byteLength(key) > 1024);
+		expect(overLimit).toEqual([]);
+	});
+});
+
 describe("toCrawlVersionMinuteId", () => {
 	it("truncates a full-precision instant to minute precision in UTC", () => {
 		expect(toCrawlVersionMinuteId("2026-07-10T09:41:32.123Z")).toBe("2026-07-10T09:41Z");

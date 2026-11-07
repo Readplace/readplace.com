@@ -25,6 +25,7 @@ import {
 	initDynamoDbReadlistDefinitions,
 	initDynamoDbReadlistFitOverrides,
 	initDynamoDbSavedArticleStore,
+	initDynamoDbHighlights,
 } from "@packages/article-store";
 import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, fallbackLinkTarget, initCrawlFetch, initFetchRedirectHop, initFetchTrackerHop, initResolveAppleNewsStoryUrl } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -57,7 +58,7 @@ import {
 import { initDynamoDbArticleCrawl, initDynamoDbClaimResolutionOnView } from "@packages/article-store";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { initS3ReadContent, initS3ReadArticleImage, initReadContentLocation } from "@packages/article-store";
+import { initS3ReadContent, initS3ReadArticleImage, initReadContentLocation, initReadCanonicalSnapshot } from "@packages/article-store";
 import { initStripeSubscriptions } from "./stripe-subscriptions/stripe-subscriptions";
 import { initStripePrices } from "./stripe-prices/stripe-prices";
 import { initStripePaymentMethods } from "./stripe-payment-methods/stripe-payment-methods";
@@ -101,7 +102,10 @@ import { initReadArticleImageByIdentity } from "./read-article-image-by-identity
 import { initEventBridgeMediaUploadCommitted } from "./events/eventbridge-media-upload-committed";
 import { initEventBridgeMediaUploadStaged } from "./events/eventbridge-media-upload-staged";
 import { initDynamoDbPrivateItem } from "@packages/article-store";
-import { mintUploadId } from "@packages/media-contracts";
+import { MEDIA_KINDS, mintUploadId } from "@packages/media-contracts";
+import { initDynamoDbTranscriptCharge, initDynamoDbTranscriptLedger } from "@packages/transcript-quota";
+import { initS3ReadTimedDuration } from "./media-duration/s3-read-timed-duration";
+import { transcriptAllowanceSecondsFromEnv } from "./transcript-allowance-env";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
 import { initGmailAccountEmail } from "./gmail-api/gmail-account";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
@@ -219,6 +223,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	});
 	const onboardingSignals = initOnboardingSignals({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 	const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger, now: () => new Date() });
+	const highlights = initDynamoDbHighlights({ client, userArticlesTableName: userArticlesTable });
 	const queueDefinitions = initDynamoDbReadlistDefinitions({ client, userArticlesTableName: userArticlesTable });
 	const readlistFitOverrides = initDynamoDbReadlistFitOverrides({ client, userArticlesTableName: userArticlesTable });
 	const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
@@ -438,6 +443,22 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const { presignMediaImage } = initS3PresignMediaImage({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") });
 	const { presignEnclosure } = initS3PresignEnclosure({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") });
 	const { publishMediaUploadCommitted } = initEventBridgeMediaUploadCommitted({ publishEvent });
+	const transcriptAllowanceSeconds = transcriptAllowanceSecondsFromEnv();
+	const transcriptLedgerDeps = {
+		client,
+		tableName: tables.media,
+		now: () => new Date(),
+		delay: (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)),
+	};
+	const { chargeTranscriptQuota } = initDynamoDbTranscriptCharge({
+		...transcriptLedgerDeps,
+		allowanceSeconds: transcriptAllowanceSeconds,
+	});
+	const { refundUnstartedCharge } = initDynamoDbTranscriptLedger(transcriptLedgerDeps);
+	const { readTimedDuration } = initS3ReadTimedDuration({
+		client: new S3Client({}),
+		bucketName: requireEnv("MEDIA_BUCKET_NAME"),
+	});
 	const { publishMediaUploadStaged } = initEventBridgeMediaUploadStaged({ publishEvent });
 	const importSessionStore = initDynamoDbImportSession({
 		client,
@@ -570,6 +591,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 		}),
 		...auth,
 		...articleStore,
+		deleteArticleHighlights: highlights.deleteArticleHighlights,
+		listArticleHighlights: highlights.listArticleHighlights,
+		readCanonicalSnapshot: initReadCanonicalSnapshot({ client, tableName: articlesTable }),
+		createHighlight: highlights.createHighlight,
+		deleteHighlight: highlights.deleteHighlight,
 		...queueDefinitions,
 		...readlistFitOverrides,
 		createReadlistDefinition: initReportReadlistCap({
@@ -591,6 +617,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 		presignMediaImage,
 		presignEnclosure,
 		publishMediaUploadCommitted,
+		mediaKinds: MEDIA_KINDS,
+		readDurationByMeter: new Map([["transcript-seconds" as const, readTimedDuration]]),
+		transcriptAllowanceSeconds,
+		chargeTranscriptQuota,
+		refundUnstartedCharge,
 		publishMediaUploadStaged,
 		mintUploadId: () => mintUploadId(randomBytes),
 		extractLinksFromPageUrl,

@@ -35,6 +35,7 @@ export type {
 	SubscriptionBillingBundle,
 	SubscriptionProvidersBundle,
 	RelatedArticlesBundle,
+	HighlightsBundle,
 	SummaryBundle,
 	TestAppFixture,
 	TrialSchedulerBundle,

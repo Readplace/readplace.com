@@ -123,7 +123,7 @@ describe("renderSummarySlot", () => {
 			true,
 		);
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/summary?poll=1");
-		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+		expect(slot.getAttribute("hx-trigger")).toBe("every 3s [document.visibilityState === 'visible']");
 		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
 	});
 
@@ -163,7 +163,7 @@ describe("renderSummarySlot", () => {
 			true,
 		);
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/summary?poll=1");
-		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+		expect(slot.getAttribute("hx-trigger")).toBe("every 3s [document.visibilityState === 'visible']");
 		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
 		expect(slot.children.length).toBe(0);
 	});

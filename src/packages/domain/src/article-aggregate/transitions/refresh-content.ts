@@ -63,7 +63,7 @@ export function refreshContent(
 	if (contentChanged || isCanonicalCandidateRevoked(article.contentSelection)) {
 		nextSummary = { kind: "pending", pendingSince: input.now };
 		writes.push("summary");
-		effects.push({ kind: "generate-summary", url: article.url });
+		effects.push({ kind: "publish-canonical-content-changed", url: article.url });
 	} else {
 		nextSummary = article.summary;
 	}

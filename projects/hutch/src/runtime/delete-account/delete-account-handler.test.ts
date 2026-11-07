@@ -15,6 +15,8 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/read
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryHighlights } from "@packages/test-fixtures/providers/highlights";
+import { HighlightIdSchema } from "@packages/domain/article";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import {
 	initInMemoryInboxAddress,
@@ -47,6 +49,11 @@ import { initRevokeGmailGrant } from "../providers/gmail-api/gmail-revoke";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { GmailAccountEmailSchema, ForwardableSenderSchema, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
+import {
+	initInMemoryTranscriptCharge,
+	initInMemoryTranscriptLedger,
+	initInMemoryTranscriptQuotaRows,
+} from "@packages/test-fixtures/providers/transcript-quota";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import type { TrialNudgeKind } from "@packages/provider-contracts/trial-scheduler";
 
@@ -75,6 +82,7 @@ function buildSubject(
 	});
 	const oauthDeps = initInMemoryOAuthModel();
 	const articleStore = initInMemoryArticleStore();
+	const highlights = initInMemoryHighlights();
 	const readerReady = initInMemoryReaderReadyState();
 	const onboarding = initInMemoryOnboardingSignals({ now: () => SEED_NOW });
 	const engagement = initInMemoryEngagementStarter({ library: articleStore });
@@ -85,6 +93,7 @@ function buildSubject(
 	const inboxAddress = initInMemoryInboxAddress({ now: () => SEED_NOW });
 	const gmail = initInMemoryGmailIntegration({ grant: { ok: false, reason: "exchange-failed", status: 400, error: undefined, errorDescription: undefined }, addresses: initInMemoryInboxAddress({ now: () => new Date() }) });
 	const identities = initInMemoryEmailIdentity();
+	const transcriptQuotaRows = initInMemoryTranscriptQuotaRows();
 
 	const deleteCustomerCalls: Array<{ customerId: string }> = [];
 	const deleteSubscriptionCalls: UserId[] = [];
@@ -156,6 +165,7 @@ function buildSubject(
 	// Test-only failure injection: the article-store fake throws for any user id
 	// added here, so a batch can carry one poisoned record beside a healthy one.
 	const articleDeleteThrowIds = new Set<string>();
+	let afterUserArticlesDeleted: (userId: UserId) => Promise<void> = async () => {};
 
 	// Content-purge captures. `otherSaversByUrl` lets a test declare a URL still
 	// saved by someone else, so the purge is skipped for it.
@@ -204,7 +214,10 @@ function buildSubject(
 		listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 		deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
 		deleteAllInboxLinks: inboxLink.deleteAllLinksByUserId,
-		deleteAllInboxSavedLinks: inboxSavedLink.deleteAllByUserId,
+		deleteAllInboxSavedLinks: async (userId: UserId) => {
+			teardownOrder.push("saved-links");
+			await inboxSavedLink.deleteAllByUserId(userId);
+		},
 		tombstoneInboxAddresses: async (userId: UserId) => {
 			teardownOrder.push("tombstone");
 			await inboxAddress.tombstoneUserAddresses(userId);
@@ -246,7 +259,11 @@ function buildSubject(
 				throw new Error("simulated deleteAllUserArticles failure");
 			}
 			await articleStore.deleteAllUserArticles(userId);
+			teardownOrder.push("user-articles");
+			await afterUserArticlesDeleted(userId);
 		},
+		deleteAllTranscriptQuota: initInMemoryTranscriptLedger({ rows: transcriptQuotaRows }).deleteAllTranscriptQuota,
+		deleteAllUserHighlights: highlights.deleteAllUserHighlights,
 		listUserArticleUrls: articleStore.listUserArticleUrls,
 		countOtherSaversByUrl: async ({ url }: { url: string; excludeUserId: string }) =>
 			otherSaversByUrl.get(url) ?? 0,
@@ -299,6 +316,7 @@ function buildSubject(
 		auth,
 		oauthDeps,
 		articleStore,
+		highlights,
 		readerReady,
 		onboarding,
 		engagement,
@@ -308,6 +326,7 @@ function buildSubject(
 		inboxAddress,
 		gmail,
 		identities,
+		transcriptQuotaRows,
 		deleteCustomerCalls,
 		deleteSubscriptionCalls,
 		trialEndCalls,
@@ -329,6 +348,10 @@ function buildSubject(
 		appleRevokeCalls,
 		rewriteCalls,
 		teardownOrder,
+		inboxSavedLink,
+		onUserArticlesDeleted: (hook: (userId: UserId) => Promise<void>): void => {
+			afterUserArticlesDeleted = hook;
+		},
 		gmailRevokeTokens,
 		purgeContentCalls,
 		tombstoneCalls,
@@ -816,6 +839,48 @@ describe("delete-account handler", () => {
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId, includeTotal: true })).total, 0);
 	});
 
+	it("deletes every highlight of the deleted account and leaves another account's", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "highlighter",
+			email: "highlighter@example.com",
+			subscription: "none",
+		});
+		const otherUserId = UserIdSchema.parse("other-highlighter");
+		const url = "example.com/highlighted";
+		const highlightFor = (highlightId: string) => ({
+			exact: "quote",
+			prefix: "",
+			suffix: "",
+			highlightId: HighlightIdSchema.parse(highlightId),
+			highlightOf: url,
+			start: 0,
+			end: 5,
+			anchoredContentHash: "hash",
+			anchorState: "anchored" as const,
+			orderKey: 0,
+			createdAt: SEED_NOW,
+			updatedAt: SEED_NOW,
+			anchorRevision: 0,
+		});
+		await s.highlights.createHighlight({
+			userId: account.userId,
+			highlight: highlightFor("00000000-0000-4000-8000-000000000001"),
+			replacedIds: [],
+		});
+		await s.highlights.createHighlight({
+			userId: otherUserId,
+			highlight: highlightFor("00000000-0000-4000-8000-000000000002"),
+			replacedIds: [],
+		});
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.deepEqual(await s.highlights.listArticleHighlights({ userId: account.userId, url }), []);
+		assert.equal((await s.highlights.listArticleHighlights({ userId: otherUserId, url })).length, 1);
+	});
+
 	it("leaves content another user still saves in place — delists the account but never purges a co-saved URL", async () => {
 		const s = buildSubject();
 		const account = await seedAccount(s, {
@@ -1180,6 +1245,31 @@ describe("delete-account handler", () => {
 		assert.equal((await monitoring.findNotice({ userId: bystander.userId, senderEmail }))?.status, "sent");
 	});
 
+	it("erases the deleted account's transcript allowance day and charge rows and leaves another account's", async () => {
+		const s = buildSubject();
+		const victim = await seedAccount(s, { label: "quota-1", email: "quota-1@example.com", subscription: "none" });
+		const bystander = await seedAccount(s, { label: "quota-2", email: "quota-2@example.com", subscription: "none" });
+		const { chargeTranscriptQuota } = initInMemoryTranscriptCharge({
+			rows: s.transcriptQuotaRows,
+			allowanceSeconds: 1250,
+			now: () => SEED_NOW,
+		});
+		for (const account of [victim, bystander]) {
+			await chargeTranscriptQuota({ userId: account.userId, uploadId: "0123456789abcdef0123456789abcdef", attempt: 1, seconds: 600 });
+		}
+		const rowsOf = (userId: string) =>
+			[...s.transcriptQuotaRows.charges, ...s.transcriptQuotaRows.spentSeconds].filter(([key]) => key.startsWith(`${userId}#`));
+		const day = SEED_NOW.toISOString().slice(0, 10);
+
+		assert.deepEqual((await run(s, [{ messageId: "msg", body: bodyFor(victim.userId) }])).batchItemFailures, []);
+
+		assert.deepEqual(rowsOf(victim.userId), []);
+		assert.deepEqual(rowsOf(bystander.userId), [
+			[`${bystander.userId}#0123456789abcdef0123456789abcdef#1`, { seconds: 600, state: "reserved", day }],
+			[`${bystander.userId}#${day}`, 600],
+		]);
+	});
+
 	it("runs the Gmail teardown before the addresses are tombstoned", async () => {
 		const s = buildSubject();
 		const account = await seedAccount(s, {
@@ -1191,7 +1281,33 @@ describe("delete-account handler", () => {
 		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 
 		assert.deepEqual(result.batchItemFailures, []);
-		assert.deepEqual(s.teardownOrder, ["imported-raw-email", "imports", "identities", "rewrite", "readlist-claims", "tombstone"]);
+		assert.deepEqual(s.teardownOrder, ["imported-raw-email", "imports", "identities", "rewrite", "readlist-claims", "tombstone", "user-articles", "saved-links"]);
+	});
+
+	it("sweeps saved links after deleting the user's articles", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, { label: "sweep", email: "sweep@example.com", subscription: "none" });
+
+		await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(
+			s.teardownOrder.filter((step) => step === "user-articles" || step === "saved-links"),
+			["user-articles", "saved-links"],
+		);
+	});
+
+	it("a saved link written between those two steps does not survive", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, { label: "race", email: "race@example.com", subscription: "none" });
+		const url = "https://example.com/written-during-erasure";
+		s.onUserArticlesDeleted(async (userId) => {
+			await s.inboxSavedLink.markLinkSaved({ userId, url });
+		});
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.equal((await s.inboxSavedLink.findSavedLinks({ userId: account.userId, urls: [url] })).size, 0);
 	});
 
 	it("redrives when Google cannot revoke the grant, then completes on the retry", async () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
+import { CandidateIdSchema, MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
 import type { Minutes } from "@packages/domain/article";
 import { formatEmailLinkOrdinal } from "@packages/domain/inbox";
 import {
@@ -1011,7 +1011,47 @@ describe("initInMemoryArticleStore", () => {
 
 			expect(result).toBeNull();
 		});
+	});
 
+	describe("canonical snapshot", () => {
+		it("replaceCanonicalContent then readCanonicalSnapshot gives the new hash and candidate id", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticleGlobally({
+				url: "https://example.com/snapshot",
+				metadata: { title: "T", siteName: "S", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date("2026-11-01T00:00:00.000Z"),
+			});
+			await store.setCanonicalContentHash({ url: "https://example.com/snapshot", canonicalContentHash: "hash-1" });
+			const before = await store.readCanonicalSnapshot("https://example.com/snapshot");
+
+			await store.replaceCanonicalContent({
+				url: "https://example.com/snapshot",
+				content: "<p>new body</p>",
+				canonicalContentHash: "hash-2",
+				canonicalCandidateId: CandidateIdSchema.parse("candidate-2"),
+			});
+
+			expect(before).toEqual({ canonicalContentHash: "hash-1" });
+			expect(await store.readCanonicalSnapshot("https://EXAMPLE.com/snapshot")).toEqual({
+				canonicalContentHash: "hash-2",
+				canonicalCandidateId: "candidate-2",
+			});
+			expect(await store.readContent(ArticleResourceUniqueId.parse("https://example.com/snapshot"))).toBe("<p>new body</p>");
+		});
+
+		it("readCanonicalSnapshot is undefined for an article with no hash or an unknown url", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticleGlobally({
+				url: "https://example.com/unhashed",
+				metadata: { title: "T", siteName: "S", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date("2026-11-01T00:00:00.000Z"),
+			});
+
+			expect(await store.readCanonicalSnapshot("https://example.com/unhashed")).toBeUndefined();
+			expect(await store.readCanonicalSnapshot("https://unknown.com/page")).toBeUndefined();
+		});
 	});
 
 	describe("crawl versions", () => {
@@ -2531,5 +2571,36 @@ describe("initInMemoryArticleStore private items", () => {
 		await store.setPurgedAt({ url: PRIVATE_URL, at: new Date("2026-11-05T11:00:00.000Z") });
 
 		assert.equal(await store.setArticleEnclosure({ url: PRIVATE_URL, enclosure }), "not-found");
+	});
+});
+
+describe("queue row keys", () => {
+	it("finds a default and a readlist queue row under the normalised key of a raw candidate", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams());
+		await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+
+		const keys = await store.findQueueRowKeys({ userId: USER_A, urls: ["https://example.com/article#top"] });
+
+		expect(keys).toEqual([
+			{ userId: USER_A, url: "example.com/article" },
+			{ userId: `${USER_A}#queue/work`, url: "example.com/article" },
+		]);
+	});
+
+	it("finds no queue row of another reader", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams());
+
+		expect(await store.findQueueRowKeys({ userId: USER_B, urls: [URL] })).toEqual([]);
+	});
+
+	it("answers whether a queue row is still there", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+
+		expect(store.hasQueueRow({ userId: `${USER_A}#queue/work`, url: "example.com/article" })).toBe(true);
+		expect(store.hasQueueRow({ userId: USER_A, url: "example.com/article" })).toBe(false);
+		expect(store.hasQueueRow({ userId: `${USER_A}#queue/work`, url: "example.com/other" })).toBe(false);
 	});
 });

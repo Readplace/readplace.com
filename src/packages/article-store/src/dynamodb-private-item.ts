@@ -2,6 +2,7 @@ import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
+import { MEDIA_KINDS } from "@packages/media-contracts";
 import {
 	type DynamoDBDocumentClient,
 	TransactWriteCommand,
@@ -33,6 +34,8 @@ export function initDynamoDbPrivateItem(deps: {
 	const savePrivateItem: SavePrivateItem = async (params) => {
 		const key = ArticleResourceUniqueId.parse(params.url).value;
 		const routeId = ReaderArticleHashId.from(params.url).value;
+		const manifest = MEDIA_KINDS.get(params.media.kind);
+		assert(manifest, `no media kind manifest for ${params.media.kind}`);
 		const savedAt = params.savedAt.toISOString();
 		const outcome = await transactIfConditions(() =>
 			deps.client.send(
@@ -46,7 +49,7 @@ export function initDynamoDbPrivateItem(deps: {
 									routeId,
 									originalUrl: params.url,
 									title: params.media.fileName,
-									siteName: "Book",
+									siteName: manifest.label,
 									excerpt: "",
 									wordCount: 0,
 									estimatedReadTime: 0,

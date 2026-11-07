@@ -45,10 +45,13 @@ export function combineInboxLinkSaveStates(
 	return undefined;
 }
 
+export type MarkLinkSavedWhileQueued = (input: {
+	userId: UserId;
+	url: string;
+	queueRowKey: { userId: string; url: string };
+}) => Promise<void>;
+
 export interface InboxSavedLinkStore {
-	/** Record an accepted save. Unconditional upsert: the fact is re-published on
-	 * every SQS redelivery and on every re-save of the same link. */
-	markLinkSaved: (input: { userId: UserId; url: string }) => Promise<void>;
 	/** Record a save that exhausted its accept-phase retries, unless an accepted
 	 * save is already recorded — then it is dropped.
 	 *

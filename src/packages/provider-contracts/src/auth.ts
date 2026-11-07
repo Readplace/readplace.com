@@ -122,6 +122,8 @@ export type FindUserByIdResult =
 
 export type FindUserById = (userId: UserId) => Promise<FindUserByIdResult>;
 
+export type IsAccountLive = (userId: UserId) => Promise<boolean>;
+
 export type CountEarlyIntentionalSave = (params: { userId: UserId; at: Date }) => Promise<
 	| { inWindow: false }
 	| { inWindow: true; count: number; registeredAt: string; signupOAuthClientId: OAuthClientId | null }

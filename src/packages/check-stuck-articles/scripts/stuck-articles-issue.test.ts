@@ -12,6 +12,7 @@ describe("toCanaryReportRow", () => {
 				originalUrl: "https://site.test/post?ref=feed&id=7",
 				reasons: ["summary-pending", "crawl-pending"],
 				contentFetchedAt: "2026-10-02T09:30:00.000Z",
+				ownerUserId: undefined,
 				terminalCheckMessage: "summaryStatus is 'pending'; crawlStatus is 'pending'",
 			}),
 			{
@@ -31,27 +32,31 @@ describe("formatStuckArticlesIssue", () => {
 			rows: [
 				{
 					originalUrl: "https://site.test/a?token=reader-7",
-					reasons: ["summary-skipped-ai-unavailable"],
+					reasons: ["summary-pending"],
 					contentFetchedAt: "2026-10-02T09:30:00.000Z",
-					terminalCheckMessage: "summaryStatus is 'skipped' with reason 'ai-unavailable'",
+					ownerUserId: undefined,
+					terminalCheckMessage: "summaryStatus is 'pending'",
 				},
 				{
 					originalUrl: "https://site.test/b",
-					reasons: ["summary-pending", "crawl-pending"],
+					reasons: ["summary-pending"],
 					contentFetchedAt: undefined,
-					terminalCheckMessage: "summaryStatus is 'pending'; crawlStatus is 'pending'",
+					ownerUserId: undefined,
+					terminalCheckMessage: "summaryStatus is 'pending'",
 				},
 				{
 					originalUrl: "https://site.test/c",
 					reasons: ["crawl-pending"],
 					contentFetchedAt: undefined,
+					ownerUserId: undefined,
 					terminalCheckMessage: "crawlStatus is 'pending'",
 				},
 				{
 					originalUrl: "https://site.test/d",
-					reasons: ["summary-pending"],
+					reasons: ["crawl-pending"],
 					contentFetchedAt: "2026-10-02T09:30:00.000Z",
-					terminalCheckMessage: "summaryStatus is 'pending'",
+					ownerUserId: undefined,
+					terminalCheckMessage: "crawlStatus is 'pending'",
 				},
 			],
 			runUrl: RUN_URL,
@@ -78,7 +83,6 @@ describe("formatStuckArticlesIssue", () => {
 				"## Breakdown by reason",
 				"- **crawl-pending**: 2",
 				"- **summary-pending**: 2",
-				"- **summary-skipped-ai-unavailable**: 1",
 			].join("\n"),
 		);
 		assert.deepEqual(issue.body.match(/https?:\/\/\S+/g), [RUN_URL, REPORT_URL]);
@@ -89,20 +93,23 @@ describe("formatStuckArticlesIssue", () => {
 			rows: [
 				{
 					originalUrl: "https://site.test/a",
-					reasons: ["summary-skipped-ai-unavailable"],
+					reasons: ["summary-pending"],
 					contentFetchedAt: undefined,
-					terminalCheckMessage: "summaryStatus is 'skipped' with reason 'ai-unavailable'",
+					ownerUserId: undefined,
+					terminalCheckMessage: "summaryStatus is 'pending'",
 				},
 				{
 					originalUrl: "https://site.test/b",
-					reasons: ["summary-skipped-ai-unavailable"],
+					reasons: ["summary-pending"],
 					contentFetchedAt: undefined,
-					terminalCheckMessage: "summaryStatus is 'skipped' with reason 'ai-unavailable'",
+					ownerUserId: undefined,
+					terminalCheckMessage: "summaryStatus is 'pending'",
 				},
 				{
 					originalUrl: "https://site.test/c",
 					reasons: ["crawl-pending"],
 					contentFetchedAt: undefined,
+					ownerUserId: undefined,
 					terminalCheckMessage: "crawlStatus is 'pending'",
 				},
 			],
@@ -114,7 +121,7 @@ describe("formatStuckArticlesIssue", () => {
 		const lines = issue.body.split("\n");
 		assert.deepEqual(lines.slice(lines.indexOf("## Breakdown by reason")), [
 			"## Breakdown by reason",
-			"- **summary-skipped-ai-unavailable**: 2",
+			"- **summary-pending**: 2",
 			"- **crawl-pending**: 1",
 		]);
 	});

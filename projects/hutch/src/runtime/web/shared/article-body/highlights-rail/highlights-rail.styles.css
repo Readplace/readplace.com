@@ -1,0 +1,69 @@
+.highlights-rail:empty {
+  display: none;
+}
+
+.highlights-rail__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.highlights-rail__row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.highlights-rail__row:first-child {
+  border-top: 0;
+}
+
+.highlights-rail__excerpt {
+  display: -webkit-box;
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--color-highlight);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--foreground);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+
+.highlights-rail__chip {
+  align-self: flex-start;
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.highlights-rail__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.highlights-rail__delete-form {
+  margin: 0;
+}
+
+.highlights-rail__delete-trigger {
+  display: none;
+}
+
+@supports selector(:popover-open) {
+  .highlights-rail__delete-trigger {
+    display: inline-flex;
+  }
+
+  .highlights-rail__delete-form--fallback {
+    display: none;
+  }
+}

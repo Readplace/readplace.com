@@ -13,6 +13,7 @@ export type ReaderSectionRequest = z.infer<typeof ReaderSectionQuery>;
 export interface ReaderSectionInput {
 	requested: ReaderSectionRequest;
 	readerPath: string;
+	thresholdBytes: number;
 }
 
 type ReaderSectionSplit = "every-heading" | "chapter-headings";
@@ -78,9 +79,8 @@ export function pageReaderSections(input: {
 	html: string;
 	section: ReaderSectionInput;
 	split: ReaderSectionSplit;
-	thresholdBytes: number;
 }): SectionPage {
-	if (Buffer.byteLength(input.html) <= input.thresholdBytes) return { kind: "whole", html: input.html };
+	if (Buffer.byteLength(input.html) <= input.section.thresholdBytes) return { kind: "whole", html: input.html };
 	const { document } = parseHTML(
 		`<!DOCTYPE html><html><body><div id="reader-section-pages-root">${input.html}</div></body></html>`,
 	);

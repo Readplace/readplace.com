@@ -89,15 +89,15 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 77 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 1 oauth-token-revocations, 1 mcp-refusals, 1 mcp-handshakes, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 79 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 1 oauth-token-revocations, 1 mcp-refusals, 1 mcp-handshakes, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer, 1 highlights, 1 highlights-reanchored) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(77);
+		expect(body.widgets).toHaveLength(79);
 	});
 
 	it.each([
 		{
 			title: "Checkout by source and offer",
-			layout: { x: 0, y: 318, width: 12, height: 8 },
+			layout: { x: 0, y: 334, width: 12, height: 8 },
 			view: "table",
 			clauses: [
 				`filter stream = "${STREAMS.subscriptions}" and event in ["${SUBSCRIPTION_EVENTS.checkoutStarted}","${SUBSCRIPTION_EVENTS.checkoutCompleted}"]`,
@@ -106,7 +106,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		},
 		{
 			title: "Activation threshold by signup client",
-			layout: { x: 12, y: 318, width: 12, height: 8 },
+			layout: { x: 12, y: 334, width: 12, height: 8 },
 			view: "bar",
 			clauses: [
 				`filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.activationThresholdReached}"`,
@@ -115,7 +115,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		},
 		{
 			title: "Trial emails sent per day by kind",
-			layout: { x: 0, y: 326, width: 12, height: 8 },
+			layout: { x: 0, y: 342, width: 12, height: 8 },
 			view: "timeSeries",
 			clauses: [
 				`filter stream = "${STREAMS.analytics}" and event = "${LIFECYCLE_EMAIL_EVENTS.sent}"`,
@@ -124,7 +124,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		},
 		{
 			title: "Keep offer shown vs clicked",
-			layout: { x: 12, y: 326, width: 12, height: 8 },
+			layout: { x: 12, y: 342, width: 12, height: 8 },
 			view: "table",
 			clauses: [
 				`filter stream = "${STREAMS.analytics}" and event in ["${ANALYTICS_EVENTS.keepOfferShown}","${ANALYTICS_EVENTS.keepOfferClicked}"]`,
@@ -147,7 +147,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		);
 		assert(widget, "the human-shaped EPUB downloads widget must exist");
 		expect(widget).toMatchObject({
-			type: "log", x: 0, y: 238, width: 12, height: 8,
+			type: "log", x: 0, y: 254, width: 12, height: 8,
 			properties: { view: "table" },
 		});
 		const query = widget.properties.query;
@@ -231,11 +231,11 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 					type, x, y, width, height, title: properties.title, view: properties.view,
 				})),
 			).toEqual([
-				{ type: "log", x: 0, y: 246, width: 24, height: 8, title: "Queue digest — sends per day by kind", view: "timeSeries" },
-				{ type: "log", x: 0, y: 254, width: 12, height: 8, title: "Queue digest — skipped users by reason × tier", view: "table" },
-				{ type: "log", x: 12, y: 254, width: 12, height: 8, title: "Queue digest — signed-in email clicks by source / link", view: "table" },
-				{ type: "log", x: 0, y: 262, width: 12, height: 8, title: "Queue digest — plans page views by terms", view: "bar" },
-				{ type: "log", x: 12, y: 262, width: 12, height: 8, title: "Queue digest — unsubscribes by method × email kind", view: "bar" },
+				{ type: "log", x: 0, y: 262, width: 24, height: 8, title: "Queue digest — sends per day by kind", view: "timeSeries" },
+				{ type: "log", x: 0, y: 270, width: 12, height: 8, title: "Queue digest — skipped users by reason × tier", view: "table" },
+				{ type: "log", x: 12, y: 270, width: 12, height: 8, title: "Queue digest — signed-in email clicks by source / link", view: "table" },
+				{ type: "log", x: 0, y: 278, width: 12, height: 8, title: "Queue digest — plans page views by terms", view: "bar" },
+				{ type: "log", x: 12, y: 278, width: 12, height: 8, title: "Queue digest — unsubscribes by method × email kind", view: "bar" },
 			]);
 		});
 
@@ -354,7 +354,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		);
 		assert(widget, "the homepage arm visitor and signup widget must exist");
 		expect(widget).toMatchObject({
-			type: "log", x: 0, y: 170, width: 12, height: 8,
+			type: "log", x: 0, y: 186, width: 12, height: 8,
 			properties: { view: "bar" },
 		});
 		const query = String(widget.properties.query);
@@ -372,7 +372,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		);
 		assert(widget, "the homepage arm and tier signup widget must exist");
 		expect(widget).toMatchObject({
-			type: "log", x: 12, y: 170, width: 12, height: 8,
+			type: "log", x: 12, y: 186, width: 12, height: 8,
 			properties: { view: "table" },
 		});
 		const query = String(widget.properties.query);
@@ -715,6 +715,23 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(metricWidgets[0]?.properties.metrics).toEqual([
 			[METRICS.importsCompleted.namespace, METRICS.importsCompleted.name, { stat: "Sum" }],
 		]);
+	});
+
+	it("charts the anchored, moved and orphaned Readplace/Highlights metrics in one row of their own below the highlights row", () => {
+		const metricWidgets = metricWidgetsIn(buildBody().widgets, METRICS.highlightsAnchored.namespace);
+		expect(metricWidgets).toHaveLength(1);
+		expect(metricWidgets[0]).toMatchObject({
+			x: 0, y: 114, width: 12, height: 8,
+			properties: {
+				title: "Highlights re-anchored after a recrawl — anchored, moved, orphaned per day",
+				view: "timeSeries",
+				metrics: [
+					[METRICS.highlightsAnchored.namespace, METRICS.highlightsAnchored.name, { stat: "Sum" }],
+					[METRICS.highlightsMoved.namespace, METRICS.highlightsMoved.name, { stat: "Sum" }],
+					[METRICS.highlightsOrphaned.namespace, METRICS.highlightsOrphaned.name, { stat: "Sum" }],
+				],
+			},
+		});
 	});
 
 	it("wires a singleValue counter to each Readplace/Gmail terminal-failure metric (one produced by hutch, one by inbox), so a filter that stops matching reads as a flat zero rather than vanishing", () => {

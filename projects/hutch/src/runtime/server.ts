@@ -151,6 +151,14 @@ import type {
 	SaveArticleGlobally,
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
+import type {
+	CreateHighlight,
+	DeleteArticleHighlights,
+	DeleteHighlight,
+	ListArticleHighlights,
+} from "@packages/provider-contracts/highlights";
+import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
+import { initCreateReaderHighlight } from "./web/shared/article-body/highlights/create-reader-highlight";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { FindIdentityRow, PinContentSource, SavePrivateItem, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
@@ -253,13 +261,20 @@ import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import { initUploadRouter, UPLOAD_OUTCOME_HTML } from "./web/pages/upload/upload.page";
 import { initCommitReceivedUpload } from "./web/pages/upload/commit-received-upload";
+import { initChargeBeforeSettle } from "./web/pages/upload/charge-before-settle";
+import { initChargeTranscript } from "./web/pages/upload/charge-transcript";
 import { initStageGatesByCaller } from "./web/pages/upload/stage-gates-by-caller";
 import { initSettleByCaller, initStageForReview } from "./web/pages/upload/stage-for-review";
-import { initAnonymousUploadRoutes } from "./web/pages/upload/upload-review.page";
+import {
+	initAnonymousUploadRoutes,
+	METERED_GUEST_UPLOAD_KINDS,
+	METERED_ONLY_UPLOAD_KINDS,
+} from "./web/pages/upload/upload-review.page";
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
 import { INSPECT_BOOK_TIMEOUT_SECONDS } from "@packages/infra-components";
-import { BOOK, MEDIA_KINDS, type MediaKindName, type UploadId } from "@packages/media-contracts";
+import { AUDIO, BOOK, type MediaKindManifest, type MediaKindName, type Meter, type UploadId } from "@packages/media-contracts";
+import type { ChargeTranscriptQuota, RefundUnstartedCharge } from "@packages/provider-contracts/transcript-quota";
 import type {
 	ClaimMediaUpload,
 	CreateAnyMediaUploadSession,
@@ -269,12 +284,14 @@ import type {
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
 	MarkMediaUploadInspecting,
+	RecordTimedMediaFacts,
 	MintMediaPendingPost,
 	PresignEnclosure,
 	PresignMediaImage,
 	PublishMediaUploadCommitted,
 	PublishMediaUploadStaged,
 	ReadMediaPendingPrefix,
+	ReadTimedDuration,
 } from "@packages/domain";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
@@ -386,6 +403,7 @@ import "./web/session.types";
 export const PORT = requireEnv("PORT");
 
 export interface AppDependencies {
+	readerSectionThresholdBytes: number;
 	recordEngagementActivity: RecordEngagementActivity;
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
@@ -468,6 +486,11 @@ export interface AppDependencies {
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
 	listUserSavesForUrls: ListUserSavesForUrls;
+	deleteArticleHighlights: DeleteArticleHighlights;
+	listArticleHighlights: ListArticleHighlights;
+	readCanonicalSnapshot: ReadCanonicalSnapshot;
+	createHighlight: CreateHighlight;
+	deleteHighlight: DeleteHighlight;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 	saveReadlistArticle: SaveReadlistArticle;
 	moveReadlistArticles: MoveReadlistArticles;
@@ -568,12 +591,18 @@ export interface AppDependencies {
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	savePrivateItem: SavePrivateItem;
+	mediaKinds: ReadonlyMap<MediaKindName, MediaKindManifest>;
+	readDurationByMeter: ReadonlyMap<Meter, ReadTimedDuration>;
+	transcriptAllowanceSeconds: number;
+	chargeTranscriptQuota: ChargeTranscriptQuota;
+	refundUnstartedCharge: RefundUnstartedCharge;
 	createMediaUploadSession: CreateMediaUploadSession;
 	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
 	findMediaUploadByCapability: FindMediaUploadByCapability;
 	markMediaUploadInspecting: MarkMediaUploadInspecting;
+	recordTimedMediaFacts: RecordTimedMediaFacts;
 	claimMediaUpload: ClaimMediaUpload;
 	publishMediaUploadStaged: PublishMediaUploadStaged;
 	guestUploadKinds: readonly MediaKindName[];
@@ -1200,7 +1229,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				backLink,
 				upload: isAppShell(req)
 					? undefined
-					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel, guest: !req.userId },
+					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel, audioCeilingLabel: AUDIO.ceilingLabel, guest: !req.userId },
 				platform: nativeSurfaceOf(req),
 				cspNonce: requireCspNonce(req),
 			}),
@@ -1466,6 +1495,12 @@ export function createApp(dependencies: AppDependencies): Express {
 	const keepOffer = initKeepOffer({ findUserById: deps.findUserById, getEffectiveAccess, now: deps.now, endsAt: deps.keepOfferEndsAt });
 
 	const queueRouter = initReadlistRoutes(readlistDependenciesFrom(deps, {
+		createReaderHighlight: initCreateReaderHighlight({
+			listArticleHighlights: deps.listArticleHighlights,
+			createHighlight: deps.createHighlight,
+			newHighlightId: randomUUID,
+			now: deps.now,
+		}),
 		keepOffer,
 		validateNewSaveUrl,
 		appOrigin,
@@ -1510,11 +1545,19 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * `requireNotLocked`/`requireWriteAccess` gates run as route middleware. */
 	app.use("/import", importRouter);
 
-	const commitReceivedUpload = initCommitReceivedUpload({
-		savePrivateItem: deps.savePrivateItem,
-		publishMediaUploadCommitted: deps.publishMediaUploadCommitted,
-		markMediaUploadCommitted: deps.markMediaUploadCommitted,
-		now: deps.now,
+	const commitReceivedUpload = initChargeBeforeSettle({
+		charge: initChargeTranscript({
+			readDurationByMeter: deps.readDurationByMeter,
+			chargeTranscriptQuota: deps.chargeTranscriptQuota,
+			allowanceSeconds: deps.transcriptAllowanceSeconds,
+		}),
+		settle: initCommitReceivedUpload({
+			savePrivateItem: deps.savePrivateItem,
+			publishMediaUploadCommitted: deps.publishMediaUploadCommitted,
+			markMediaUploadCommitted: deps.markMediaUploadCommitted,
+			now: deps.now,
+		}),
+		refund: deps.refundUnstartedCharge,
 	});
 	app.use(
 		"/upload",
@@ -1525,7 +1568,8 @@ export function createApp(dependencies: AppDependencies): Express {
 			requireNotLocked,
 			requireWriteAccess,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
-			MEDIA_KINDS,
+			MEDIA_KINDS: deps.mediaKinds,
+			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			maxPolls: inspectionPollBudget({ lambdaTimeoutSeconds: INSPECT_BOOK_TIMEOUT_SECONDS, marginSeconds: 30 }),
 			buildBannerState,
 		}),
@@ -1549,8 +1593,9 @@ export function createApp(dependencies: AppDependencies): Express {
 				commitReceivedUpload,
 				stageForReview: initStageForReview({
 					markMediaUploadInspecting: deps.markMediaUploadInspecting,
+					recordTimedMediaFacts: deps.recordTimedMediaFacts,
+					readDurationByMeter: deps.readDurationByMeter,
 					publishMediaUploadStaged: deps.publishMediaUploadStaged,
-					MEDIA_KINDS,
 					now: deps.now,
 				}),
 			}),
@@ -1560,7 +1605,11 @@ export function createApp(dependencies: AppDependencies): Express {
 			headMediaPendingOriginal: deps.headMediaPendingOriginal,
 			readMediaPendingPrefix: deps.readMediaPendingPrefix,
 			mintUploadId: deps.mintUploadId,
-			MEDIA_KINDS,
+			MEDIA_KINDS: deps.mediaKinds,
+			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
+			METERED_GUEST_UPLOAD_KINDS,
+			METERED_ONLY_UPLOAD_KINDS,
+			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickOutcomeWriters: () => UPLOAD_OUTCOME_HTML,
 			buildBannerState,
 			appOrigin,

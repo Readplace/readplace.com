@@ -52,29 +52,16 @@ export function initDynamoDbInboxSavedLink(deps: {
 		schema: InboxSavedLinkRow,
 	});
 
-	const putState = async (input: {
-		userId: string;
-		url: string;
-		state: InboxLinkSaveState;
-		/** Only a failure needs guarding — see markLinkSaveFailed's contract. */
-		onlyIfNotSaved?: boolean;
-	}): Promise<void> => {
-		const put = {
+	const putFailedUnlessSaved = async (input: { userId: string; url: string }): Promise<void> => {
+		// The link is already recorded as saved, which outranks the failure.
+		await writeIfCondition(() => table.put({
 			Item: {
 				userId: input.userId,
 				linkKey: inboxSavedLinkKey(input.url),
-				state: input.state,
+				state: "failed",
 				updatedAt: deps.now().toISOString(),
 				url: input.url,
 			},
-		};
-		if (input.onlyIfNotSaved !== true) {
-			await table.put(put);
-			return;
-		}
-		// The link is already recorded as saved, which outranks the failure.
-		await writeIfCondition(() => table.put({
-			...put,
 			ConditionExpression: "attribute_not_exists(linkKey) OR #state <> :saved",
 			ExpressionAttributeNames: { "#state": "state" },
 			ExpressionAttributeValues: { ":saved": "saved" },
@@ -82,9 +69,7 @@ export function initDynamoDbInboxSavedLink(deps: {
 	};
 
 	return {
-		markLinkSaved: ({ userId, url }) => putState({ userId, url, state: "saved" }),
-		markLinkSaveFailed: ({ userId, url }) =>
-			putState({ userId, url, state: "failed", onlyIfNotSaved: true }),
+		markLinkSaveFailed: ({ userId, url }) => putFailedUnlessSaved({ userId, url }),
 		retractLinkSaved: async ({ userId, url }) => {
 			await table.delete({ Key: { userId, linkKey: inboxSavedLinkKey(url) } });
 		},
@@ -111,6 +96,7 @@ export function initDynamoDbInboxSavedLink(deps: {
 				{
 					KeyConditionExpression: "userId = :u",
 					ExpressionAttributeValues: { ":u": userId },
+					ConsistentRead: true,
 				},
 				async (rows) => {
 					await Promise.all(

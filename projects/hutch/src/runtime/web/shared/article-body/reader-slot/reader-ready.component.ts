@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
+import type { ReaderHighlightState, ReaderHighlights } from "./mark-highlights";
 import { prepareReaderContent } from "./reader-content";
 import type { ArticleBody } from "@packages/domain/article";
 import type { ReaderSectionInput, SectionPage } from "./section-pages";
@@ -18,6 +19,12 @@ export interface ReaderReadyInput {
 	appOrigin: string;
 	url: string;
 	readerSection: ReaderSectionInput;
+	highlights?: ReaderHighlights;
+}
+
+interface RenderedReaderReady {
+	html: string;
+	states: readonly ReaderHighlightState[];
 }
 
 function pagerHtmlFor(page: SectionPage): string {
@@ -25,16 +32,20 @@ function pagerHtmlFor(page: SectionPage): string {
 	return render(PAGER_TEMPLATE, page.pager).trim();
 }
 
-export function renderReaderReady(input: ReaderReadyInput): string {
+export function renderReaderReady(input: ReaderReadyInput): RenderedReaderReady {
 	const page = prepareReaderContent({
 		content: input.content,
 		appOrigin: input.appOrigin,
 		url: input.url,
 		section: input.readerSection,
+		highlights: input.highlights,
 	});
-	return render(TEMPLATE, {
-		content: page.html,
-		pagerHtml: pagerHtmlFor(page),
-		oob: input.oob === true,
-	});
+	return {
+		html: render(TEMPLATE, {
+			content: page.html,
+			pagerHtml: pagerHtmlFor(page),
+			oob: input.oob === true,
+		}),
+		states: page.states,
+	};
 }

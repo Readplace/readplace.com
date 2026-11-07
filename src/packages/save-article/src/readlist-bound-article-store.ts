@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 import type {
 	DeleteArticle,
@@ -8,6 +9,8 @@ import type {
 	ListUserSavesForUrl,
 } from "@packages/provider-contracts/article-store";
 import type { PublishLinkDequeued } from "@packages/provider-contracts/events";
+import type { DeleteArticleHighlights } from "@packages/provider-contracts/highlights";
+import type { UserId } from "@packages/domain/user";
 
 export interface ReadlistBoundArticleStoreDependencies {
 	deleteReadlistArticle: DeleteReadlistArticle;
@@ -36,5 +39,16 @@ export function initPublishLinkDequeuedUnlessSavedElsewhere(deps: {
 		const remaining = await deps.listUserSavesForUrl({ userId, url });
 		if (remaining.length > 0) return;
 		await deps.publishLinkDequeued({ url, userId });
+	};
+}
+
+export function initDeleteArticleHighlightsUnlessSavedElsewhere(deps: {
+	listUserSavesForUrl: ListUserSavesForUrl;
+	deleteArticleHighlights: DeleteArticleHighlights;
+}): (params: { url: string; userId: UserId }) => Promise<void> {
+	return async ({ url, userId }) => {
+		const remaining = await deps.listUserSavesForUrl({ userId, url });
+		if (remaining.length > 0) return;
+		await deps.deleteArticleHighlights({ userId, url: ArticleResourceUniqueId.parse(url).value });
 	};
 }

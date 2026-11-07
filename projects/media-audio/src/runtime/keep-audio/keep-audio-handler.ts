@@ -1,23 +1,20 @@
 import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { initDynamoDbPrivateItemMedia } from "@packages/article-store";
-import { MediaProcessingFailedEvent, type MediaUploadCommittedDetail, MediaUploadCommittedEvent, TierContentExtractedEvent } from "@packages/infra-components";
+import { MediaProcessingFailedEvent, type MediaUploadCommittedDetail, MediaUploadCommittedEvent } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
 import { stagedObjectKey } from "@packages/media-contracts";
 import { ObjectSha256Schema, type RefObject, type UnrefAllForUpload } from "@packages/media-object-store";
-import { candidateProvenance, KIND_BY_TIER, type PutTierSource } from "@packages/tier-source";
 import { z } from "zod";
 import type { ProbeMedia } from "../probe/probe-media";
 import type { CopyStagedTo, ReadStagedObject } from "../s3/s3-staged-object";
-import { buildAudioBody } from "./audio-body";
+import type { WriteMinimalAudioBody } from "../minimal-body/write-minimal-audio-body";
 import { AUDIO_FAILURE_NOTICES } from "./audio-failure-notices";
 
 type PrivateItemMedia = ReturnType<typeof initDynamoDbPrivateItemMedia>;
 
-const TIER = "tier-0";
-
-const CommittedEnvelope = z.object({ time: z.string(), detail: MediaUploadCommittedEvent.detailSchema });
+const CommittedEnvelope = z.object({ time: z.string(), detail: MediaUploadCommittedEvent.detailSchema.extend({ chargedSeconds: z.number().int().positive().optional() }) });
 
 export function initKeepAudioHandler(deps: {
 	findArticleMedia: (params: { url: string }) => Promise<{ media?: { fileName: string } } | undefined>;
@@ -26,7 +23,7 @@ export function initKeepAudioHandler(deps: {
 	probeMedia: ProbeMedia;
 	mediaObjects: { ref: RefObject; unrefAll: UnrefAllForUpload };
 	setArticleEnclosure: PrivateItemMedia["setArticleEnclosure"];
-	putTierSource: PutTierSource;
+	writeMinimalAudioBody: WriteMinimalAudioBody;
 	publishEvent: PublishEvent;
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -72,32 +69,19 @@ export function initKeepAudioHandler(deps: {
 		});
 		if (recorded === "not-found") return release(detail);
 
-		const minutes = Math.ceil(probed.durationSeconds / 60);
-		const body = buildAudioBody({ title: probed.title, fileName: item.media.fileName, minutes });
-		const metadata = candidateProvenance({
-			metadata: {
-				title: body.title,
-				siteName: "Audio",
-				excerpt: body.excerpt,
-				wordCount: body.wordCount,
-				estimatedReadTime: minutes,
-				authorUserId: detail.userId,
-			},
-			html: body.html,
-			evaluationHtml: body.html,
-			attemptId: detail.saveAttemptId,
-			originalUrl: detail.url,
-			sourceUrl: detail.url,
-			kind: KIND_BY_TIER[TIER],
-			fetchedAt: time,
-		});
-		await deps.putTierSource({ url: detail.url, tier: TIER, html: body.html, evaluationHtml: body.html, metadata });
-		await deps.publishEvent(TierContentExtractedEvent, {
+		if (detail.chargedSeconds !== undefined) {
+			deps.logger.info("[keep-audio] audio kept for transcription", { uploadId: detail.uploadId, durationSeconds: probed.durationSeconds });
+			return;
+		}
+
+		await deps.writeMinimalAudioBody({
 			url: detail.url,
-			saveAttemptId: detail.saveAttemptId,
-			candidates: [{ id: metadata.id, tier: TIER }],
 			userId: detail.userId,
-			extractedAt: time,
+			saveAttemptId: detail.saveAttemptId,
+			title: probed.title,
+			fileName: item.media.fileName,
+			durationSeconds: probed.durationSeconds,
+			time,
 		});
 		deps.logger.info("[keep-audio] audio kept", {
 			uploadId: detail.uploadId,

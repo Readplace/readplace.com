@@ -17,7 +17,9 @@ import request from "supertest";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
-import { shownSummary } from "@packages/domain/article";
+import { HighlightIdSchema, shownSummary } from "@packages/domain/article";
+import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 
 const useApp = useTestServer();
 
@@ -359,5 +361,88 @@ describe("Reader view browser cache (GET /queue/:id/view)", () => {
 			expect.objectContaining({ id: articleId, contentVersion: after }),
 		]);
 		expect(staleReader.headers["cache-control"]).toBe("private, no-cache");
+	});
+});
+
+describe("Reader view browser cache with highlights (GET /queue/:id/view?feature=highlight)", () => {
+	type Agent = Awaited<ReturnType<typeof loginAgent>>;
+	const flagged = ({ articleId, version }: { articleId: string; version?: string }) =>
+		`/queue/${articleId}/view?${version === undefined ? "" : `v=${version}&`}feature=highlight`;
+
+	async function highlight(agent: Agent, articleId: string): Promise<string> {
+		const exact = "readability parser";
+		const content = new JSDOM((await agent.get(flagged({ articleId }))).text).window.document.querySelector(
+			".article-body__content",
+		);
+		assert(content, "the flagged reader must render its content");
+		const start = normaliseText(collectTextChunks<Node>(content)).text.indexOf(exact);
+		assert(start >= 0, "the served text must hold the passage");
+		const created = await agent
+			.post(`/queue/${articleId}/highlights?feature=highlight`)
+			.type("form")
+			.send({ exact, start: String(start), end: String(start + exact.length), origin: "mouse" });
+		assert.equal(created.status, 303);
+		const match = /#highlight-(.+)$/.exec(created.headers.location);
+		assert(match, "the create redirect must name the new highlight");
+		return match[1];
+	}
+
+	it("answers private, no-cache on the card's versioned link to a highlighted article", async () => {
+		const fixture = buildFixture({ summaryReady: true });
+		const harness = useApp(fixture);
+		const url = "https://example.com/reader-cache-highlighted";
+		const { agent, userId } = await saveArticle(harness, url);
+		await settleRelated(fixture, userId, url);
+		const { articleId, version } = readerVersionFrom((await agent.get("/queue")).text);
+		await highlight(agent, articleId);
+
+		const response = await agent.get(flagged({ articleId, version }));
+
+		expect(response.status).toBe(200);
+		expect(response.headers["cache-control"]).toBe("private, no-cache");
+	});
+
+	it("changes the version header on a create, an anchor revision bump and a delete", async () => {
+		const fixture = buildFixture({ summaryReady: true });
+		const harness = useApp(fixture);
+		const url = "https://example.com/reader-cache-highlight-version";
+		const { agent, userId } = await saveArticle(harness, url);
+		await settleRelated(fixture, userId, url);
+		const { articleId } = readerVersionFrom((await agent.get("/queue")).text);
+		const versionOf = async () =>
+			(await agent.get(flagged({ articleId }))).headers[ARTICLE_VERSION_HEADER.toLowerCase()];
+
+		const initial = await versionOf();
+		const id = await highlight(agent, articleId);
+		const created = await versionOf();
+		fixture.highlights.bumpAnchorRevision({
+			userId,
+			url: ArticleResourceUniqueId.parse(url).value,
+			highlightId: HighlightIdSchema.parse(id),
+		});
+		const bumped = await versionOf();
+		await agent.post(`/queue/${articleId}/highlights/${id}/delete?feature=highlight`);
+		const deleted = await versionOf();
+
+		expect([created === initial, bumped === created, deleted === bumped]).toEqual([false, false, false]);
+	});
+
+	it("keeps the 30-minute cache and the 304 for an article without highlights", async () => {
+		const fixture = buildFixture({ summaryReady: true });
+		const harness = useApp(fixture);
+		const url = "https://example.com/reader-cache-no-highlights";
+		const { agent, userId } = await saveArticle(harness, url);
+		await settleRelated(fixture, userId, url);
+		const { articleId, version } = readerVersionFrom((await agent.get("/queue")).text);
+
+		const fresh = await agent.get(flagged({ articleId, version }));
+		const etag = fresh.headers.etag;
+		assert(etag, "the reader must carry an ETag");
+		const revalidated = await agent.get(flagged({ articleId, version })).set("If-None-Match", etag);
+
+		expect(fresh.headers["cache-control"]).toBe("private, max-age=1800");
+		expect(fresh.headers[ARTICLE_VERSION_HEADER.toLowerCase()]).toBe(version);
+		expect(revalidated.status).toBe(304);
+		expect(revalidated.headers["cache-control"]).toBe("private, max-age=1800");
 	});
 });

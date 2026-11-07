@@ -34,6 +34,7 @@ import {
 	SendGmailNewsletterNoticeCommand,
 	SendTrialFeedbackEmailCommand,
 	SendFirstInboxEmailNoticeCommand,
+	CanonicalContentChangedEvent,
 	StartGmailHistoryImportCommand,
 	MarkGmailEmailImportedCommand,
 	GmailModifyPermissionGrantedEvent,
@@ -50,10 +51,10 @@ import {
 	MediaProcessingFailedEvent,
 	MediaRejectedEvent,
 } from "@packages/infra-components";
-import { PRIVATE_ITEM_HOST } from "@packages/media-contracts";
+import { allowanceSeconds, PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
-import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
+import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, HIGHLIGHTS_REANCHORED_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, DEEPSEEK_COST_METRIC, DEEPSEEK_COST_METRIC_FILTER, deepseekCostMetricFilterPattern, firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern, openAiScanToolsListedPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
 import { assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PARAMETER_NAME } from "../runtime/observability/excluded-identities";
@@ -94,6 +95,7 @@ import { SETTLE_MEDIA_FAILURE_ENV } from "../runtime/settle-media-failure.env";
 import { SUBSCRIPTION_EVENTS_ENV } from "../runtime/subscription-events.env";
 import { SEND_TRIAL_FEEDBACK_EMAIL_ENV } from "../runtime/send-trial-feedback-email.env";
 import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "../runtime/send-first-inbox-email-notice.env";
+import { REANCHOR_HIGHLIGHTS_ENV } from "../runtime/reanchor-highlights.env";
 import { FORWARD_ANALYTICS_ENV } from "../runtime/forward-analytics.env";
 import { EVALUATE_OAUTH_REFRESH_ENV } from "../runtime/evaluate-oauth-refresh.env";
 import { requireEnv } from "@packages/require-env";
@@ -125,6 +127,10 @@ const staticBucketName = config.require("staticBucketName");
 const contentBucketName = config.require("contentBucketName");
 const mediaBucketName = config.require("mediaBucketName");
 const mediaTableName = config.require("mediaTableName");
+const transcriptAllowanceSeconds = allowanceSeconds({
+	budgetMilliCents: config.requireNumber("transcriptDailyBudgetMilliCents"),
+	milliCentsPerSecond: config.requireNumber("transcribeMilliCentsPerSecond"),
+});
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const pendingPdfBucketName = config.require("pendingPdfBucketName");
 const userExportBucketName = config.require("userExportBucketName");
@@ -371,6 +377,10 @@ const webCanaryReportsRead = new DynamoDBAccess("hutch-web-canary-reports-read",
 	tables: [{ arn: storage.canaryReportsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:Query"],
 });
+const webMediaTranscriptQuota = new DynamoDBAccess("hutch-web-media-transcript-quota", {
+	tables: [{ arn: mediaTableArn(mediaTableName), includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+});
 
 const api = new aws.apigatewayv2.Api("hutch-api-gateway", {
 	name: "hutch-api-gateway",
@@ -492,6 +502,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 			pendingSignups: storage.pendingSignupsTable.name,
 			importSessions: storage.importSessionsTable.name,
 			mediaUploadSessions: storage.mediaUploadSessionsTable.name,
+			media: mediaTableName,
 			inboxAddresses: tableNames.inboxAddresses,
 			inboxEmailLinks: tableNames.inboxEmailLinks,
 			inboxSavedLinks: tableNames.inboxSavedLinks,
@@ -535,6 +546,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		ANALYTICS_SALT_GENERATION: String(analyticsSaltGeneration),
 		SSR_EDGE_SECRET: ssrEdgeSecret,
 		ADMIN_EMAILS: requireEnv("ADMIN_EMAILS"),
+		TRANSCRIPT_ALLOWANCE_SECONDS: String(transcriptAllowanceSeconds),
 		RECRAWL_SERVICE_TOKEN: requireEnv("RECRAWL_SERVICE_TOKEN"),
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
@@ -548,6 +560,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		...webUsersScan.policies,
 		...webIssueLinksRead.policies,
 		...webCanaryReportsRead.policies,
+		...webMediaTranscriptQuota.policies,
 		...S3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
 		...S3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
 		...S3ReadWrite.writePoliciesForBucket("hutch-pending-pdf", pendingPdfBucketName),
@@ -842,6 +855,7 @@ const userDataJobsMediaPendingDeletePolicy = {
 					`arn:aws:s3:::${mediaBucketName}/pending/*`,
 					`arn:aws:s3:::${mediaBucketName}/images/*`,
 					`arn:aws:s3:::${mediaBucketName}/objects/*`,
+					`arn:aws:s3:::${mediaBucketName}/transcripts/*`,
 				],
 			},
 			{
@@ -1475,6 +1489,7 @@ const mediaReleaseS3Policy = {
 					`arn:aws:s3:::${mediaBucketName}/pending/*`,
 					`arn:aws:s3:::${mediaBucketName}/images/*`,
 					`arn:aws:s3:::${mediaBucketName}/objects/*`,
+					`arn:aws:s3:::${mediaBucketName}/transcripts/*`,
 				],
 			},
 			{
@@ -1634,6 +1649,91 @@ const sendFirstInboxEmailNoticeWithSQS = new SqsBackedLambda("send-first-inbox-e
 });
 
 eventBus.subscribe(SendFirstInboxEmailNoticeCommand, sendFirstInboxEmailNoticeWithSQS);
+
+const reanchorHighlightsArticlesDynamodb = new DynamoDBAccess("reanchor-highlights-articles-dynamodb", {
+	tables: [{ arn: storage.articlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
+
+const reanchorHighlightsUserArticlesDynamodb = new DynamoDBAccess("reanchor-highlights-user-articles-dynamodb", {
+	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: true }],
+	actions: ["dynamodb:Query", "dynamodb:UpdateItem"],
+});
+
+const reanchorHighlightsQueue = new Sqs("reanchor-highlights", {
+	visibilityTimeoutSeconds: 120,
+});
+
+const reanchorHighlightsLambda = new Lambda("reanchor-highlights", {
+	entryPoint: "./src/runtime/reanchor-highlights.main.ts",
+	outputDir: ".lib/reanchor-highlights",
+	assetDir: "./src/runtime",
+	memorySize: 512,
+	timeout: 120,
+	environmentNames: REANCHOR_HIGHLIGHTS_ENV,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
+		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		APP_ORIGIN: appOrigin,
+	},
+	policies: [
+		...reanchorHighlightsArticlesDynamodb.policies,
+		...reanchorHighlightsUserArticlesDynamodb.policies,
+		...S3ReadWrite.readPoliciesForBucket("reanchor-highlights-content", contentBucketName),
+	],
+});
+
+eventBus.grantPublish(reanchorHighlightsLambda);
+
+const reanchorHighlightsWithSQS = new SqsBackedLambda("reanchor-highlights", {
+	lambda: reanchorHighlightsLambda,
+	queue: reanchorHighlightsQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(CanonicalContentChangedEvent, reanchorHighlightsWithSQS, { name: "hutch-reanchor-highlights" });
+
+new aws.cloudwatch.LogMetricFilter("highlights-anchored-filter", {
+	name: "highlights-anchored",
+	logGroupName: reanchorHighlightsLambda.logGroupName,
+	pattern: `{ $.event = "${HIGHLIGHTS_REANCHORED_EVENT}" }`,
+	metricTransformation: {
+		name: METRICS.highlightsAnchored.name,
+		namespace: METRICS.highlightsAnchored.namespace,
+		value: "$.anchored",
+		defaultValue: "0",
+		unit: "Count",
+	},
+});
+
+new aws.cloudwatch.LogMetricFilter("highlights-moved-filter", {
+	name: "highlights-moved",
+	logGroupName: reanchorHighlightsLambda.logGroupName,
+	pattern: `{ $.event = "${HIGHLIGHTS_REANCHORED_EVENT}" }`,
+	metricTransformation: {
+		name: METRICS.highlightsMoved.name,
+		namespace: METRICS.highlightsMoved.namespace,
+		value: "$.moved",
+		defaultValue: "0",
+		unit: "Count",
+	},
+});
+
+new aws.cloudwatch.LogMetricFilter("highlights-orphaned-filter", {
+	name: "highlights-orphaned",
+	logGroupName: reanchorHighlightsLambda.logGroupName,
+	pattern: `{ $.event = "${HIGHLIGHTS_REANCHORED_EVENT}" }`,
+	metricTransformation: {
+		name: METRICS.highlightsOrphaned.name,
+		namespace: METRICS.highlightsOrphaned.namespace,
+		value: "$.orphaned",
+		defaultValue: "0",
+		unit: "Count",
+	},
+});
 
 // --- Gmail forwarding filter worker ---
 

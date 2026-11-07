@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIRM_POPOVER_STYLES, MENU_STYLES } from "@packages/web-shell";
 import { ARTICLE_BODY_STYLES } from "../../shared/article-body/article-body.styles";
+import { HIGHLIGHT_TOOLBAR_STYLES } from "../../shared/article-body/highlights/highlight-toolbar.styles";
+import { HIGHLIGHTS_RAIL_STYLES } from "../../shared/article-body/highlights-rail/highlights-rail.styles";
 import { ISSUE_LINKS_STYLES } from "../../shared/issue-links/issue-links.styles";
 import { NEXT_READ_STYLES } from "../../shared/next-read/next-read.styles";
 import { PAST_READS_STYLES } from "../../shared/past-reads/past-reads.styles";
@@ -14,4 +16,4 @@ import { READLIST_NAME_FORM_STYLES } from "../readlist/readlist-name-form.styles
 const stylesPath = join(__dirname, "reader.styles.css");
 export const READER_ONLY_STYLES = readFileSync(stylesPath, "utf-8");
 
-export const READER_STYLES = `${MENU_STYLES}\n${ARTICLE_DELETE_STYLES}\n${ARTICLE_BODY_STYLES}\n${READING_LAYOUT_STYLES}\n${NEXT_READ_STYLES}\n${PAST_READS_STYLES}\n${ISSUE_LINKS_STYLES}\n${PLAYER_STYLES}\n${READER_ONLY_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${SHARE_DIALOG_STYLES}\n${READLIST_NAME_FORM_STYLES}`;
+export const READER_STYLES = `${MENU_STYLES}\n${ARTICLE_DELETE_STYLES}\n${ARTICLE_BODY_STYLES}\n${READING_LAYOUT_STYLES}\n${NEXT_READ_STYLES}\n${PAST_READS_STYLES}\n${ISSUE_LINKS_STYLES}\n${PLAYER_STYLES}\n${READER_ONLY_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${SHARE_DIALOG_STYLES}\n${READLIST_NAME_FORM_STYLES}\n${HIGHLIGHTS_RAIL_STYLES}\n${HIGHLIGHT_TOOLBAR_STYLES}`;

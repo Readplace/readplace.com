@@ -1,4 +1,10 @@
-import type { MediaKindName } from "@packages/media-contracts";
+import type { ReadTimedDuration } from "@packages/domain";
+import { MEDIA_KINDS, type MediaKindManifest, type MediaKindName, type Meter } from "@packages/media-contracts";
+import {
+	initInMemoryTranscriptCharge,
+	initInMemoryTranscriptLedger,
+	initInMemoryTranscriptQuotaRows,
+} from "@packages/test-fixtures/providers/transcript-quota";
 import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
 import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
@@ -37,6 +43,7 @@ import { createApp } from "./server";
 import { initFetchFirefoxDownloadUrl, type FetchFirefoxDownloadUrl } from "./web/pages/install";
 import { batchFromSingular } from "./batch-from-singular";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./web/shared/article-body/reader-slot/section-pages";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { isStaticAssetRequestPath } from "./web/static-asset-paths";
@@ -96,7 +103,12 @@ interface TestAppOverrides {
 	fetchFirefoxDownloadUrl?: FetchFirefoxDownloadUrl;
 	keepOfferEndsAt?: Date;
 	guestUploadKinds?: readonly MediaKindName[];
+	readerSectionThresholdBytes?: number;
+	mediaKinds?: ReadonlyMap<MediaKindName, MediaKindManifest>;
+	readDurationByMeter?: ReadonlyMap<Meter, ReadTimedDuration>;
 }
+
+export const TEST_TRANSCRIPT_ALLOWANCE_SECONDS = 1250;
 
 export const TEST_FIREFOX_XPI_FILENAME = "abc123-1.0.0.xpi";
 
@@ -155,6 +167,7 @@ function flattenFixtureToAppDependencies(
 	subscriptionBundle: SubscriptionEventsBundle,
 	funnelBundle: FunnelEventsBundle,
 ): Parameters<typeof createApp>[0] {
+	const transcriptQuotaRows = initInMemoryTranscriptQuotaRows();
 	const saveIdentityDeps = {
 		validateUrl: fixture.shared.validateSaveableUrl,
 		findIdentityRow: fixture.articleStore.findIdentityRow,
@@ -172,6 +185,7 @@ function flattenFixtureToAppDependencies(
 			{ selfHost: new URL(fixture.shared.appOrigin).host },
 		),
 		appOrigin: fixture.shared.appOrigin,
+		readerSectionThresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES,
 		staticBaseUrl: fixture.shared.staticBaseUrl,
 		baseUrl: fixture.shared.appOrigin,
 		logError: fixture.shared.logError,
@@ -233,6 +247,11 @@ function flattenFixtureToAppDependencies(
 		markReadlistArticleViewed: fixture.articleStore.markReadlistArticleViewed,
 		listUserSavesForUrl: fixture.articleStore.listUserSavesForUrl,
 		listUserSavesForUrls: fixture.articleStore.listUserSavesForUrls,
+		deleteArticleHighlights: fixture.highlights.deleteArticleHighlights,
+		listArticleHighlights: fixture.highlights.listArticleHighlights,
+		readCanonicalSnapshot: fixture.articleStore.readCanonicalSnapshot,
+		createHighlight: fixture.highlights.createHighlight,
+		deleteHighlight: fixture.highlights.deleteHighlight,
 		assignSavedArticleToReadlist: fixture.articleStore.assignSavedArticleToReadlist,
 		saveReadlistArticle: fixture.articleStore.saveReadlistArticle,
 		moveReadlistArticles: fixture.articleStore.moveReadlistArticles,
@@ -346,6 +365,15 @@ function flattenFixtureToAppDependencies(
 		importSessionStore: fixture.importSession.importSessionStore,
 		savePrivateItem: fixture.articleStore.savePrivateItem,
 		...fixture.mediaUpload,
+		mediaKinds: MEDIA_KINDS,
+		readDurationByMeter: new Map(),
+		transcriptAllowanceSeconds: TEST_TRANSCRIPT_ALLOWANCE_SECONDS,
+		...initInMemoryTranscriptCharge({
+			rows: transcriptQuotaRows,
+			allowanceSeconds: TEST_TRANSCRIPT_ALLOWANCE_SECONDS,
+			now: fixture.shared.now,
+		}),
+		refundUnstartedCharge: initInMemoryTranscriptLedger({ rows: transcriptQuotaRows }).refundUnstartedCharge,
 		extractLinksFromPageUrl: fixture.importSession.extractLinksFromPageUrl,
 		provisionInboxAddress: (userId: UserId) =>
 			fixture.inboxAddress.inboxAddressStore

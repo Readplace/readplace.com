@@ -6,13 +6,17 @@ import type {
 import type {
 	ClaimCanonicalAlias,
 	FindIdentityRow,
+	FindQueueRowKeys,
 	PinContentSource,
+	QueueRowKey,
 	RecordPrivateItemFailure,
 	RecordPrivateItemSections,
 	SetArticleEnclosure,
 	SavePrivateItem,
 } from "@packages/provider-contracts/article-store";
 import type { CrawlArticle } from "@packages/crawl-article";
+import type { CandidateId } from "@packages/domain/article";
+import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
@@ -43,10 +47,20 @@ import type { PublishResolveArticleOnView } from "@packages/provider-contracts/e
 import type {
 	ArticleMetadata,
 	ArticleStatus,
+	HighlightId,
 	Minutes,
 	ReaderArticleHashId,
 	ValidateSaveableUrl,
 } from "@packages/domain/article";
+import type {
+	CreateHighlight,
+	DeleteAllUserHighlights,
+	DeleteArticleHighlights,
+	DeleteHighlight,
+	ListArticleHighlights,
+	ListHighlightsOfArticle,
+	WriteHighlightAnchor,
+} from "@packages/provider-contracts/highlights";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type {
 	FindPastReads,
@@ -78,6 +92,7 @@ import type {
 	PublishMediaUploadStaged,
 	ReadMediaPendingPrefix,
 	RecordMediaInspection,
+	RecordTimedMediaFacts,
 } from "@packages/domain";
 import type {
 	InboxAddressStore,
@@ -449,6 +464,8 @@ export interface ArticleStoreBundle {
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;
+	findQueueRowKeys: FindQueueRowKeys;
+	hasQueueRow: (key: QueueRowKey) => boolean;
 	readSavedRowRelatedRequest: (params: {
 		userId: UserId;
 		url: string;
@@ -514,6 +531,14 @@ export interface ArticleStoreBundle {
 	}) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" | "tier-2" }) => Promise<void>;
 	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
+	setCanonicalContentHash: (params: { url: string; canonicalContentHash: string }) => Promise<void>;
+	readCanonicalSnapshot: ReadCanonicalSnapshot;
+	replaceCanonicalContent: (params: {
+		url: string;
+		content: string;
+		canonicalContentHash: string;
+		canonicalCandidateId: CandidateId;
+	}) => Promise<void>;
 	setDisplayUrl: (params: { url: string; displayUrl: string }) => Promise<void>;
 	claimAlias: ClaimCanonicalAlias;
 	resolveAlias: (url: string) => Promise<string | undefined>;
@@ -588,6 +613,18 @@ export interface PendingUploadBundle {
 export interface SummaryBundle {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
+}
+
+export interface HighlightsBundle {
+	listArticleHighlights: ListArticleHighlights;
+	createHighlight: CreateHighlight;
+	deleteHighlight: DeleteHighlight;
+	deleteArticleHighlights: DeleteArticleHighlights;
+	deleteAllUserHighlights: DeleteAllUserHighlights;
+	listHighlightsOfArticle: ListHighlightsOfArticle;
+	writeHighlightAnchor: WriteHighlightAnchor;
+	setCreateCancelled: (cancelled: boolean) => void;
+	bumpAnchorRevision: (params: { userId: UserId; url: string; highlightId: HighlightId }) => void;
 }
 
 export interface RelatedArticlesBundle {
@@ -749,6 +786,7 @@ export interface MediaUploadBundle {
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
 	markMediaUploadInspecting: MarkMediaUploadInspecting;
 	recordMediaInspection: RecordMediaInspection;
+	recordTimedMediaFacts: RecordTimedMediaFacts;
 	claimMediaUpload: ClaimMediaUpload;
 	findMediaUploadByCapability: FindMediaUploadByCapability;
 	mintMediaPendingPost: MintMediaPendingPost;
@@ -779,7 +817,9 @@ export interface InboxAddressBundle {
 export interface InboxEmailBundle {
 	inboxEmailStore: InboxEmailStore;
 	inboxEmailLinkStore: InboxEmailLinkStore;
-	inboxSavedLinkStore: InboxSavedLinkStore;
+	inboxSavedLinkStore: InboxSavedLinkStore & {
+		markLinkSaved: (input: { userId: UserId; url: string }) => Promise<void>;
+	};
 	readEmailContent: ContentProvider;
 }
 
@@ -825,6 +865,7 @@ export interface TestAppFixture {
 	pendingUpload: PendingUploadBundle;
 	summary: SummaryBundle;
 	relatedArticles: RelatedArticlesBundle;
+	highlights: HighlightsBundle;
 	pastReads: {
 		findPastReads: FindPastReads;
 		markPastReadsReady: MarkPastReadsReady;

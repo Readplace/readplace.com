@@ -1,4 +1,4 @@
-import { chapterSectionId, isChapterSectionId, sanitizeArticleHtml } from "./sanitize-article-html";
+import { ARTICLE_HIGHLIGHT_ID_PREFIX, chapterSectionId, isChapterSectionId, sanitizeArticleHtml } from "./sanitize-article-html";
 
 describe("sanitizeArticleHtml", () => {
 	it("keeps the prose, headings, lists and figures an article body is made of", () => {
@@ -177,6 +177,26 @@ describe("sanitizeArticleHtml", () => {
 		const elsewhere = '<h4 id="section-footnotes">Footnotes</h4><p id="section-body">Body copy.</p>';
 
 		expect(sanitizeArticleHtml(elsewhere)).toBe("<h4>Footnotes</h4><p>Body copy.</p>");
+	});
+});
+
+describe("sanitizeArticleHtml on a highlight mark", () => {
+	const highlightId = "0b8f6c1e-2d3a-4b5c-8d9e-0f1a2b3c4d5e";
+
+	it("keeps the reader's highlight class, its highlight- id and a uuid data-highlight-id on a mark", () => {
+		const mark = `<p><mark class="article-highlight" id="${ARTICLE_HIGHLIGHT_ID_PREFIX}${highlightId}" data-highlight-id="${highlightId}">kept</mark></p>`;
+
+		expect(sanitizeArticleHtml(mark)).toBe(mark);
+	});
+
+	it("drops a data-highlight-id that is not a uuid, an id outside the highlight- namespace and any other class", () => {
+		expect(
+			sanitizeArticleHtml('<p><mark class="pub-mark" id="note-1" data-highlight-id="javascript:alert(1)">text</mark></p>'),
+		).toBe("<p><mark>text</mark></p>");
+	});
+
+	it("drops a highlight- id from any element other than a mark", () => {
+		expect(sanitizeArticleHtml(`<h2 id="${ARTICLE_HIGHLIGHT_ID_PREFIX}${highlightId}">Heading</h2>`)).toBe("<h2>Heading</h2>");
 	});
 });
 

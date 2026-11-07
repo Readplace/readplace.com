@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { SavedArticle, ServedBody } from "@packages/domain/article";
+import type { Highlight, SavedArticle, ServedBody } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 
@@ -61,6 +61,29 @@ export function computeArticleContentVersion(input: ArticleContentVersionInput):
 	for (const field of fields) {
 		hash.update(field);
 		hash.update("|");
+	}
+	return hash.digest("hex").slice(0, 16);
+}
+
+export function withHighlightsVersion(params: {
+	contentVersion: string;
+	highlights: readonly Pick<Highlight, "highlightId" | "updatedAt" | "anchorRevision" | "anchorState">[];
+}): string {
+	if (params.highlights.length === 0) return params.contentVersion;
+	const hash = createHash("sha256");
+	hash.update(params.contentVersion);
+	hash.update("|");
+	const sorted = [...params.highlights].sort((a, b) => a.highlightId.localeCompare(b.highlightId));
+	for (const highlight of sorted) {
+		for (const field of [
+			highlight.highlightId,
+			highlight.updatedAt.toISOString(),
+			String(highlight.anchorRevision),
+			highlight.anchorState,
+		]) {
+			hash.update(field);
+			hash.update("|");
+		}
 	}
 	return hash.digest("hex").slice(0, 16);
 }

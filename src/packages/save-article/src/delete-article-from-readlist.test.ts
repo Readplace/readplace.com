@@ -12,9 +12,11 @@ const canonicalUrl = "https://example.com/post";
 function makeDeps(overrides: Partial<DeleteArticleFromReadlistDependencies> = {}): {
 	deps: DeleteArticleFromReadlistDependencies;
 	dequeued: Array<{ url: string; userId: string }>;
+	highlightsDeleted: Array<{ url: string; userId: string }>;
 	deleteCalls: number;
 } {
 	const dequeued: Array<{ url: string; userId: string }> = [];
+	const highlightsDeleted: Array<{ url: string; userId: string }> = [];
 	let deleteCalls = 0;
 	const deps: DeleteArticleFromReadlistDependencies = {
 		findArticleUrlById: async () => canonicalUrl,
@@ -25,11 +27,15 @@ function makeDeps(overrides: Partial<DeleteArticleFromReadlistDependencies> = {}
 		publishLinkDequeued: async (params) => {
 			dequeued.push(params);
 		},
+		deleteArticleHighlights: async (params) => {
+			highlightsDeleted.push(params);
+		},
 		...overrides,
 	};
 	return {
 		deps,
 		dequeued,
+		highlightsDeleted,
 		get deleteCalls() {
 			return deleteCalls;
 		},
@@ -63,5 +69,28 @@ describe("deleteArticleFromReadlist", () => {
 		expect(deleted).toBe(false);
 		expect(tracker.deleteCalls).toBe(0);
 		expect(tracker.dequeued).toEqual([]);
+		expect(tracker.highlightsDeleted).toEqual([]);
+	});
+
+	it("deletes the article's highlights with the URL its row was keyed by, after the row is gone", async () => {
+		const order: string[] = [];
+		const tracker = makeDeps({
+			deleteArticle: async () => {
+				order.push("deleteArticle");
+				return true;
+			},
+		});
+		const deps: DeleteArticleFromReadlistDependencies = {
+			...tracker.deps,
+			deleteArticleHighlights: async (params) => {
+				order.push("deleteArticleHighlights");
+				await tracker.deps.deleteArticleHighlights(params);
+			},
+		};
+
+		await initDeleteArticleFromReadlist(deps)({ articleId, userId });
+
+		expect(tracker.highlightsDeleted).toEqual([{ url: canonicalUrl, userId }]);
+		expect(order).toEqual(["deleteArticle", "deleteArticleHighlights"]);
 	});
 });

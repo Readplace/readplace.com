@@ -41,6 +41,7 @@ function bookLabel(input: { wordCount: number; estimatedReadTime: number; sectio
 }
 
 const AUDIO_KIND: CardKind = { name: "audio", label: "Audio", noun: "audio", icon: "file" };
+const VIDEO_KIND: CardKind = { name: "video", label: "Video", noun: "video", icon: "file-down" };
 
 describe("cardKindLabel", () => {
 	it("labels a book with its chapters and its read time", () => {
@@ -75,6 +76,18 @@ describe("cardKindLabel", () => {
 		).toBe("Audio · 47 min listen");
 	});
 
+	it("labels video with its listen time", () => {
+		expect(
+			cardKindLabel({
+				kind: VIDEO_KIND,
+				estimatedReadTime: minutes(0),
+				wordCount: 0,
+				sectionCount: undefined,
+				readTime: { value: "1", label: "1 min listen" },
+			}),
+		).toBe("Video · 1 min listen");
+	});
+
 	it("labels audio by its kind alone before its listen time is known", () => {
 		expect(
 			cardKindLabel({ kind: AUDIO_KIND, estimatedReadTime: minutes(0), wordCount: 0, sectionCount: undefined, readTime: undefined }),
@@ -89,6 +102,21 @@ describe("cardKindOf", () => {
 			label: "Book",
 			noun: "book",
 			icon: "book",
+		});
+	});
+
+	it("names the audio kind with its badge icon", () => {
+		const routeId = ReaderArticleHashId.from(
+			"https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef",
+		);
+		expect(
+			cardKindOf({ media: { kind: "audio", fileName: "talk.mp3", routeId } })
+				?.kind,
+		).toEqual({
+			name: "audio",
+			label: "Audio",
+			noun: "audio",
+			icon: "file",
 		});
 	});
 

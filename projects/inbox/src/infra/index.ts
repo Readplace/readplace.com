@@ -785,9 +785,22 @@ new aws.cloudwatch.MetricAlarm("inbox-gmail-forwarding-confirm-failed-alarm", {
 
 const recordLinkQueuedDynamodb = new DynamoDBAccess("inbox-record-link-queued-dynamodb", {
 	tables: [{ arn: inboxStorage.savedLinksTable.arn, includeIndexes: false }],
-	// Every write addresses one row by key — no read, no query. A retraction
-	// deletes that row, because absence is what this model means by "not saved".
 	actions: ["dynamodb:PutItem", "dynamodb:DeleteItem"],
+});
+
+const recordLinkQueuedQueueRowsRead = new DynamoDBAccess("inbox-record-link-queued-queue-rows-read", {
+	tables: [{ arn: tableArn(tableNames.userArticles), includeIndexes: false }],
+	actions: ["dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:ConditionCheckItem"],
+});
+
+const recordLinkQueuedUsersRead = new DynamoDBAccess("inbox-record-link-queued-users-read", {
+	tables: [{ arn: tableArn(tableNames.users), includeIndexes: true }],
+	actions: ["dynamodb:Query", "dynamodb:GetItem"],
+});
+
+const recordLinkQueuedArticlesRead = new DynamoDBAccess("inbox-record-link-queued-articles-read", {
+	tables: [{ arn: tableArn(tableNames.articles), includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
 });
 
 const RECORD_LINK_QUEUED_TIMEOUT_SECONDS = 30;
@@ -801,8 +814,16 @@ const recordLinkQueuedLambda = new Lambda("inbox-record-link-queued", {
 	environmentNames: RECORD_LINK_QUEUED_ENV,
 	environment: {
 		DYNAMODB_INBOX_SAVED_LINKS_TABLE: tableNames.inboxSavedLinks,
+		DYNAMODB_USER_ARTICLES_TABLE: tableNames.userArticles,
+		DYNAMODB_USERS_TABLE: tableNames.users,
+		DYNAMODB_ARTICLES_TABLE: tableNames.articles,
 	},
-	policies: [...recordLinkQueuedDynamodb.policies],
+	policies: [
+		...recordLinkQueuedDynamodb.policies,
+		...recordLinkQueuedQueueRowsRead.policies,
+		...recordLinkQueuedUsersRead.policies,
+		...recordLinkQueuedArticlesRead.policies,
+	],
 });
 
 // One rule per queue: eventBus.subscribe creates a QueuePolicy per call, and

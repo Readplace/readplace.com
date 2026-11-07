@@ -39,6 +39,7 @@ describe("renderPastReadsSection", () => {
 		expect(slot.getAttribute("data-topic-reads-status")).toBe("pending");
 		expect(slot.className).toContain("past-reads--hidden");
 		expect(slot.getAttribute("hx-get")).toBe("/queue/x/topic-reads?poll=2");
+		expect(slot.getAttribute("hx-trigger")).toBe("every 3s [document.visibilityState === 'visible']");
 		expect(slot.getAttribute("hx-swap-oob")).toBe(null);
 		expect(slot.querySelectorAll("[data-test-topic-read-item]")).toHaveLength(0);
 		// htmx auto-fire form (hidden) plus a no-JS fallback inside <noscript>.

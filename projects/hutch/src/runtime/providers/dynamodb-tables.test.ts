@@ -15,6 +15,7 @@ const TABLES: DynamoTables = {
 	pendingSignups: "hutch-pending-signups",
 	importSessions: "hutch-import-sessions",
 	mediaUploadSessions: "hutch-media-upload-sessions",
+	media: "hutch-media",
 	inboxAddresses: "hutch-inbox-addresses",
 	inboxEmailLinks: "hutch-inbox-email-links",
 	inboxSavedLinks: "hutch-inbox-saved-links",

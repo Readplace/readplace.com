@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { createDefaultTestAppFixture, TEST_APP_ORIGIN } from "@packages/test-fixtures";
+import { iconSvg } from "@packages/ui-icons";
 import { MAX_POLLS } from "@packages/web-shell";
 import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../../test-app";
 
@@ -128,5 +129,34 @@ describe("a book in the reader", () => {
 		const response = await agent.get(`/queue/${id}/view`).set(BROWSER_REQUEST_HEADERS);
 
 		expect(readerFactsIn(response.text)).toContain("original");
+	});
+});
+
+describe("a video card on the readlist", () => {
+	it("shows the Video badge with the video icon", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const owner = await harness.auth.createUser({ email: "owner@example.com", password: "password123" });
+		assert(owner.ok, "owner should be created");
+		await fixture.articleStore.savePrivateItem({
+			url: PRIVATE_URL,
+			ownerUserId: owner.userId,
+			media: { kind: "video", fileName: "talk.mp4" },
+			savedAt: new Date("2026-11-05T00:00:00.000Z"),
+		});
+		const agent = request.agent(harness.server);
+		await agent
+			.post("/login")
+			.set(BROWSER_REQUEST_HEADERS)
+			.type("form")
+			.send({ email: "owner@example.com", password: "password123" });
+
+		const badge = bookCardIn((await agent.get("/queue").set(BROWSER_REQUEST_HEADERS)).text).querySelector(
+			"[data-test-article-kind]",
+		);
+
+		expect(badge?.getAttribute("data-test-article-kind")).toBe("video");
+		expect(badge?.textContent?.trim()).toBe("Video");
+		expect(badge?.querySelector("svg")?.outerHTML).toBe(JSDOM.fragment(iconSvg("file-down")).firstElementChild?.outerHTML);
 	});
 });

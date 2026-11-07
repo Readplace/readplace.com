@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { MinutesSchema } from "@packages/domain/article";
+import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import { AliasNameSchema, emailIssueArticleUrl } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
@@ -73,6 +74,24 @@ function dialogKeys(html: string): string[] {
 	return Array.from(parse(html).querySelectorAll("[data-test-confirm-popover]"), (panel) =>
 		panel.getAttribute("data-test-confirm-popover") ?? "",
 	);
+}
+
+async function highlightedReaderPath(input: {
+	agent: Awaited<ReturnType<typeof loginAgent>>;
+	articleId: string;
+	exact: string;
+}): Promise<string> {
+	const path = `/queue/${input.articleId}/view?feature=highlight`;
+	const content = parse((await input.agent.get(path)).text).querySelector(".article-body__content");
+	assert(content, "the flagged reader must render its content");
+	const start = normaliseText(collectTextChunks<Node>(content)).text.indexOf(input.exact);
+	assert(start >= 0, `the served text must hold "${input.exact}"`);
+	const created = await input.agent
+		.post(`/queue/${input.articleId}/highlights?feature=highlight`)
+		.type("form")
+		.send({ exact: input.exact, start: String(start), end: String(start + input.exact.length), origin: "mouse" });
+	assert.equal(created.status, 303, "the highlight must be created");
+	return path;
 }
 
 function autofocusCount(scope: ParentNode): number {
@@ -162,6 +181,7 @@ describe("every popup opens on its first decision", () => {
 		await fixture.articleCrawl.markCrawlReady({ url: issueUrl });
 		const issue = await fixture.articleStore.findArticleByUrl(issueUrl);
 		assert(issue, "the seeded issue is saved");
+		const highlightedPath = await highlightedReaderPath({ agent, articleId: issue.id.value, exact: "commentary" });
 		const madeReadlist = createdSlug(
 			(await agent.post("/queue/queues").type("form").send({ label: "New Readlist" })).headers.location,
 		);
@@ -176,6 +196,7 @@ describe("every popup opens on its first decision", () => {
 		const gaps: string[] = [];
 		const keys = new Set<string>();
 		const readerKeys: string[] = [];
+		const highlightedKeys: string[] = [];
 		let drawerSeen = false;
 		for (const path of [
 			...MEMBER_PATHS,
@@ -184,18 +205,21 @@ describe("every popup opens on its first decision", () => {
 			`/queue/queues/${describedReadlist}/preferences`,
 			readerHref,
 			`/queue/${issue.id.value}/view`,
+			highlightedPath,
 		]) {
 			const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
 			expect({ path, status: response.status }).toEqual({ path, status: 200 });
 			gaps.push(...gapsOn({ path, html: response.text }));
 			for (const key of dialogKeys(response.text)) keys.add(key);
 			if (path === readerHref) readerKeys.push(...dialogKeys(response.text));
+			if (path === highlightedPath) highlightedKeys.push(...dialogKeys(response.text));
 			drawerSeen ||= parse(response.text).querySelector("[data-test-discovery-drawer]") !== null;
 		}
 
 		expect(gaps).toEqual([]);
 		expect(drawerSeen).toBe(true);
 		expect(readerKeys).toContain("delete");
+		expect(highlightedKeys).toContain("highlight-delete");
 		expect([...keys].sort()).toEqual([
 			"account-profile",
 			"add-link",
@@ -205,6 +229,7 @@ describe("every popup opens on its first decision", () => {
 			"disconnect-app",
 			"download-guide",
 			"exit-confirm",
+			"highlight-delete",
 			"mark-status",
 			"move",
 			"readlist-create",

@@ -23,7 +23,7 @@ describe("renderSummaryPending", () => {
 		expect(slot.getAttribute("data-summary-status")).toBe("pending");
 		expect(slot.hasAttribute("data-background-request")).toBe(true);
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/summary?poll=1");
-		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+		expect(slot.getAttribute("hx-trigger")).toBe("every 3s [document.visibilityState === 'visible']");
 		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
 
 		const title = slot.querySelector("[data-test-summary-pending-title]");

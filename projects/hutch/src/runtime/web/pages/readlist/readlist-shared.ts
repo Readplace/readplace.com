@@ -36,6 +36,7 @@ import { EPUB_GUIDE_CONTENT, epubDownloadGuideFor, KINDLE_GUIDE_PATH, type EpubD
 import { articleEpubHref } from "../../shared/epub/epub-link";
 import {
 	initDeleteArticleFromReadlist,
+	initDeleteArticleHighlightsUnlessSavedElsewhere,
 	initPublishLinkDequeuedUnlessSavedElsewhere,
 	initSaveArticleAtReadlistTop, initSaveArticleFromUrl,
 } from "@packages/save-article";
@@ -77,6 +78,7 @@ import {
 	type ReaderReadlistFiling,
 	buildReaderReadlistFiling,
 } from "./reader-readlist-filing";
+import { HIGHLIGHT_FEATURE, highlightFeatureEnabled } from "./highlight-feature";
 import { ReadlistPage } from "./readlist.component";
 import { initFindNonEmptyReadlists } from "./readlist-holdings";
 import { buildReadlistRail } from "./readlist-rail";
@@ -318,6 +320,11 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		publishLinkDequeued: deps.publishLinkDequeued,
 	});
 
+	const deleteArticleHighlightsUnlessSavedElsewhere = initDeleteArticleHighlightsUnlessSavedElsewhere({
+		listUserSavesForUrl: deps.listUserSavesForUrl,
+		deleteArticleHighlights: deps.deleteArticleHighlights,
+	});
+
 	/** The one place a request's readlist decides which rows it reads and writes.
 	 * The default readlist answers with the untouched mainline dependencies, so every
 	 * handler below runs today's code path byte for byte unless a reader addressed
@@ -340,6 +347,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			...deps,
 			deleteArticle: storeFor(readlist).deleteArticle,
 			publishLinkDequeued: publishLinkDequeuedUnlessSavedElsewhere,
+			deleteArticleHighlights: deleteArticleHighlightsUnlessSavedElsewhere,
 		});
 
 	/** An onboarding signal is non-essential bookkeeping that sits on the critical
@@ -379,7 +387,9 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const section = requestedReaderSection(req.query.section);
 		const surface = `${joinedSurfaceQuery(nativeSurfaceQuery(req))}${
 			readlist === DEFAULT_READLIST_SLUG ? "" : `&queue=${encodeURIComponent(readlist)}`
-		}${section === undefined ? "" : `&section=${section}`}`;
+		}${section === undefined ? "" : `&section=${section}`}${
+			highlightFeatureEnabled(req.query) ? `&feature=${HIGHLIGHT_FEATURE}` : ""
+		}`;
 		return {
 			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${surface}`,
 			reader: (n, capture) =>
@@ -392,6 +402,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		return {
 			requested: requestedReaderSection(req.query.section),
 			readerPath: readerPathForReadlist(req)(articleId, readlist === DEFAULT_READLIST_SLUG ? undefined : readlist),
+			thresholdBytes: deps.readerSectionThresholdBytes,
 		};
 	};
 

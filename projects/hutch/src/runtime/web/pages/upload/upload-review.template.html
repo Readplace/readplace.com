@@ -1,6 +1,6 @@
 <main class="upload" data-test-upload-page>
   <div class="upload__layout">
-    <h1 class="upload__title">Upload a book</h1>
+    <h1 class="upload__title">{{heading}}</h1>
     {{#if inspecting}}
     <section id="upload-status" data-upload-status="inspecting" data-test-upload-inspecting data-background-request hx-get="{{inspecting.pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-select="#upload-status" hx-swap="outerHTML">
       <p class="upload__description">Still checking your book…</p>
@@ -26,6 +26,26 @@
         <form method="post" action="{{review.commitUrl}}" data-test-upload-commit-form>
           <button class="btn btn--primary upload__submit" type="submit">Save to my queue</button>
         </form>
+      </div>
+    </section>
+    {{/if}}
+    {{#if timed_review}}
+    <section id="upload-status" data-upload-status="timed-review">
+      <div class="upload__panel" data-test-upload-timed-review>
+        <h2 data-test-upload-heading>{{timed_review.heading}}</h2>
+        <p class="upload__description" data-test-upload-duration>{{timed_review.durationMinutes}} min</p>
+        <p class="upload__description" data-test-transcript-minutes>Uses {{timed_review.transcriptMinutes}} of your {{timed_review.allowanceMinutes}} minutes today</p>
+        <form method="post" action="{{timed_review.commitUrl}}" data-test-upload-commit-form>
+          <button class="btn btn--primary upload__submit" type="submit">Save to my queue</button>
+        </form>
+      </div>
+    </section>
+    {{/if}}
+    {{#if too_long}}
+    <section id="upload-status" data-upload-status="too-long">
+      <div class="upload__panel">
+        <p class="upload__description" data-test-upload-notice>{{too_long.notice}}</p>
+        <a href="{{track '/upload' source='upload-review' content='upload-again'}}" data-test-upload-again>Upload again</a>
       </div>
     </section>
     {{/if}}

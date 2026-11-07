@@ -9,3 +9,5 @@ export function renderPlayer(input: { articleId: string; enclosure: EnclosureRea
 	if (input.enclosure.kind === "absent") return render(PLAYER_TEMPLATE, {});
 	return render(PLAYER_TEMPLATE, { src: `/queue/${input.articleId}/enclosure` });
 }
+
+export const PLAYER_SCRIPT = `<script src="/client-dist/player.client.js" defer></script>`;
