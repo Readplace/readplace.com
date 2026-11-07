@@ -38,6 +38,11 @@ open: generate
 # Kept lazy (`?=`) so `make clean/ipa/generate` never shell out to a simulator
 # probe, but memoised through `$(eval)` so the probe still runs at most once even
 # though `$(SIM)` is expanded several times (recipe, SIM_DEVICE, recursive make).
+#
+# Each checkout gets its own device, Readplace-<hash of this directory>-<runtime>,
+# so two checkouts' `make test` runs never install `com.readplace` over each
+# other's test host. It is created from the last-listed iPhone's device type and
+# runtime, so snapshot baselines stay on the same runtime.
 SIM_UDID = $(eval SIM_UDID := $(shell ref=$$(./scripts/xc.sh xcrun simctl list devices available | grep -E '^[[:space:]]+iPhone' | tail -n1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}') && [ -n "$$ref" ] && set -- $$(./scripts/xc.sh xcrun simctl list devices available -j | ./scripts/xc.sh python3 -c 'import json,sys; ref,prefix=sys.argv[1:3]; devices=json.load(sys.stdin)["devices"]; runtime,kind=next((key,d["deviceTypeIdentifier"]) for key,ds in devices.items() for d in ds if d["udid"]==ref); name=prefix+runtime.rsplit(".",1)[1]; print(name,kind,runtime,*[d["udid"] for d in devices[runtime] if d["name"]==name])' "$$ref" '$(SIM_NAME_PREFIX)') && { [ -n "$$4" ] && echo "$$4" || ./scripts/xc.sh xcrun simctl create "$$1" "$$2" "$$3"; }))$(SIM_UDID)
 SIM_NAME_PREFIX = Readplace-$(shell printf '%s' '$(CURDIR)' | shasum | cut -c1-8)-
 SIM ?= platform=iOS Simulator,id=$(SIM_UDID)
@@ -67,6 +72,7 @@ test: generate require-sim
 		-enableCodeCoverage YES -resultBundlePath $(COVERAGE_RESULT)
 	./scripts/xc.sh python3 scripts/check-coverage.py $(COVERAGE_RESULT)
 	$(MAKE) test-staging SIM='$(SIM)'
+# Shut down only a device this run booted; one the reader booted (run-local) or passed via SIM stays as it was.
 	$(if $(filter file,$(origin SIM)),$(if $(SIM_WAS_BOOTED),,./scripts/xc.sh xcrun simctl shutdown '$(SIM_DEVICE)'))
 
 # Compile the STAGING condition and smoke-test it. The full suite can't run under
