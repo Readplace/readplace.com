@@ -24,6 +24,7 @@ import {
 	initDynamoDbGmailSender,
 	initDynamoDbInboxAddress,
 	initDynamoDbInboxEmail,
+	initDynamoDbInboxEmailLink,
 	initS3ReadRawEmail,
 	initS3WriteEmailContent,
 } from "@packages/inbox-store";
@@ -37,12 +38,14 @@ import { initIngestParsedEmail } from "./domain/inbox/ingest-parsed-email";
 import { initInterceptGmailConfirmation } from "./domain/inbox/intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "./domain/inbox/receive-email-handler";
 import { initResolveEmailIdentity } from "./domain/inbox/resolve-email-identity";
+import { initSettleExtractedEmail } from "./domain/inbox/settle-extracted-email";
 import { initStoreEmailBody } from "./domain/inbox/store-email-body";
 import { initS3PutImageObject } from "./providers/article-image/s3-put-image-object";
 
 const env = readEnv(RECEIVE_EMAIL_ENV);
 
 const inboxEmailsTable = env.DYNAMODB_INBOX_EMAILS_TABLE;
+const inboxEmailLinksTable = env.DYNAMODB_INBOX_EMAIL_LINKS_TABLE;
 const inboxAddressesTable = env.DYNAMODB_INBOX_ADDRESSES_TABLE;
 const gmailSendersTable = env.DYNAMODB_GMAIL_SENDERS_TABLE;
 const gmailConnectionsTable = env.DYNAMODB_GMAIL_CONNECTIONS_TABLE;
@@ -73,6 +76,10 @@ const emailImportCompletion = initDynamoDbEmailImportCompletion({
 	client: dynamoClient,
 	tableName: inboxEmailsTable,
 });
+const inboxEmailLinkStore = initDynamoDbInboxEmailLink({
+	client: dynamoClient,
+	tableName: inboxEmailLinksTable,
+});
 const gmailConnections = initDynamoDbGmailConnection({
 	client: dynamoClient,
 	tableName: gmailConnectionsTable,
@@ -81,6 +88,13 @@ const gmailConnections = initDynamoDbGmailConnection({
 const { publishEvent } = initEventBridgePublisher({
 	client: eventBridgeClient,
 	eventBusName,
+});
+const recordDuplicateGmailOrigin = initRecordDuplicateGmailOrigin({
+	addGmailOrigins: emailImportCompletion.addGmailOrigins,
+	evaluate: initEvaluateGmailImportCompletion({
+		findCompletion: emailImportCompletion.findCompletion,
+		publishEvent,
+	}),
 });
 // The same SSRF-guarded crawlFetch the link-preview crawler uses: every connect
 // and redirect hop runs isBlockedIpAddress, so an image URL that resolves to a
@@ -118,12 +132,11 @@ export const handler = initReceiveEmailHandler({
 		addGmailOrigins: emailImportCompletion.addGmailOrigins,
 		publishEvent,
 	}),
-	recordDuplicateGmailOrigin: initRecordDuplicateGmailOrigin({
-		addGmailOrigins: emailImportCompletion.addGmailOrigins,
-		evaluate: initEvaluateGmailImportCompletion({
-			findCompletion: emailImportCompletion.findCompletion,
-			publishEvent,
-		}),
+	recordDuplicateGmailOrigin,
+	settleExtractedEmail: initSettleExtractedEmail({
+		getEmail: inboxEmailStore.getEmail,
+		findLinksMeta: inboxEmailLinkStore.findLinksMeta,
+		recordDuplicateGmailOrigin,
 	}),
 	readRawEmail: initS3ReadRawEmail({
 		client: s3Client,

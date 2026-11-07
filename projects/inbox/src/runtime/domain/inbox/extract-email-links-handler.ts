@@ -295,9 +295,10 @@ export function initExtractEmailLinksHandler(deps: {
 					? resolveWriteAccess(await findSubscriptionByUserId(userId), now())
 					: undefined;
 				const tracksImport = routing.kind === "gmail" && writeAccess === "full";
-				const frozenSelection = tracksImport
-					? (await findCompletion({ userId, receivedAtMessageId }))?.selection
+				const completion = tracksImport
+					? await findCompletion({ userId, receivedAtMessageId })
 					: undefined;
+				const frozenSelection = completion?.selection;
 				// One batched triage call per email; `unavailable` fails open so previews
 				// never depend on the model being up.
 				let triage: Awaited<ReturnType<TriageEmailLinks>> | undefined;
@@ -518,6 +519,7 @@ export function initExtractEmailLinksHandler(deps: {
 						},
 					});
 					for (const outputKey of selectedOutputs.outputs) {
+						if (completion?.savedOutputs.has(outputKey)) continue;
 						const emailOutput = { receivedAtMessageId, outputKey };
 						const ordinal = outputLinkOrdinal(outputKey);
 						if (ordinal === undefined) {

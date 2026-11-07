@@ -26,7 +26,7 @@ import { initInMemoryGmailHeldMail } from "@packages/test-fixtures/providers/gma
 import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
-import { initInMemoryEmailImportCompletion, initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
+import { initInMemoryEmailImportCompletion, initInMemoryInboxEmail, initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import { initEvaluateGmailImportCompletion } from "../gmail-import-completion/evaluate-gmail-import-completion";
 import { initRecordDuplicateGmailOrigin } from "../gmail-import-completion/record-gmail-origin";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -34,6 +34,7 @@ import type { z } from "zod";
 import { initIngestParsedEmail } from "../inbox/ingest-parsed-email";
 import { initInterceptGmailConfirmation } from "../inbox/intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "../inbox/receive-email-handler";
+import { initSettleExtractedEmail } from "../inbox/settle-extracted-email";
 import { initResolveEmailIdentity } from "../inbox/resolve-email-identity";
 import { initConfirmForwardingAddress } from "./confirm-forwarding-address";
 import { initConfirmGmailForwardingHandler } from "./confirm-gmail-forwarding-handler";
@@ -56,6 +57,7 @@ function makeInbox() {
 	const now = () => new Date(RECEIVED_AT);
 	const addresses = initInMemoryInboxAddress({ now });
 	const emails = initInMemoryInboxEmail();
+	const links = initInMemoryInboxEmailLink();
 	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail, listEmailsByUserId: emails.listEmailsByUserId });
 	const connections = initInMemoryGmailConnection({ now });
 	const mappings = initInMemoryGmailMapping({ now });
@@ -93,6 +95,7 @@ function makeInbox() {
 	const receive = initReceiveEmailHandler({
 		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, addGmailOrigins: completion.addGmailOrigins, publishEvent }),
 		recordDuplicateGmailOrigin,
+		settleExtractedEmail: initSettleExtractedEmail({ getEmail: emails.getEmail, findLinksMeta: links.findLinksMeta, recordDuplicateGmailOrigin }),
 		readRawEmail: async (key) => rawMap.get(key),
 		findByAddress: addresses.findByAddress,
 		putEmail: emails.putEmail,

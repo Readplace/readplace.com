@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import {
 	AliasNameSchema,
 	type EmailLinkOrdinal,
+	type EmailOutputKey,
 	type EmailOutputSelection,
+	ISSUE_OUTPUT_KEY,
 	formatEmailLinkOrdinal,
 	linkOutputKey,
 	EmailLinkOrdinalSchema,
@@ -140,6 +142,8 @@ function makeHarness(opts?: {
 	failMeta?: boolean;
 	failCustomPublish?: boolean;
 	frozenSelection?: EmailOutputSelection;
+	savedOutputs?: Set<EmailOutputKey>;
+	completionMissing?: boolean;
 	readlistDefinitions?: ReadlistDefinitionData[];
 }) {
 	const definitionReads: UserId[] = [];
@@ -238,7 +242,7 @@ function makeHarness(opts?: {
 			issues.push(input);
 			if (emailOutput !== undefined) correlations.push({ kind: "issue", outputKey: emailOutput.outputKey });
 		},
-		findCompletion: async () => ({ selection: storedSelection, savedOutputs: new Set(), origins: [] }),
+		findCompletion: async () => opts?.completionMissing === true ? undefined : ({ selection: storedSelection, savedOutputs: opts?.savedOutputs ?? new Set(), origins: [] }),
 		selectOutputs: async ({ selection }) => {
 			selectionWrites.push(selection);
 			storedSelection ??= selection;
@@ -1850,8 +1854,9 @@ it("preserves a Gmail article's first eligibility when custom publication retrie
 	expect(meta?.selectedReadlists).toEqual([{ readlist: WORK, label: "Work" }]);
 });
 
+const gmailLinks: EmailReceivedDetail["routing"] = { kind: "gmail", destinationAddresses: ["all-abc123@read.place"], deliveryMode: "links" };
+
 describe("frozen All selection for Gmail-mapped mail", () => {
-	const gmailLinks = { kind: "gmail" as const, destinationAddresses: ["all-abc123@read.place"] as [string], deliveryMode: "links" as const };
 
 	it("selects every eligible link, dispatches each with its output key, then announces the selection", async () => {
 		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
@@ -2109,5 +2114,70 @@ describe("direct social links in forwarded mail", () => {
 		]);
 		expect(harness.published.map((p) => p.url)).toEqual([ARTICLE]);
 		expect(harness.countsWrites).toEqual([{ kept: 1, skipped: 1, truncated: true }]);
+	});
+});
+
+describe("a frozen selection replayed after some outputs reached All", () => {
+	const twoLinks = { outputs: [linkOutputKey(formatEmailLinkOrdinal(0)), linkOutputKey(formatEmailLinkOrdinal(1))], truncated: false, selectedAt: NOW };
+
+	it("skips an output already saved to All and submits the rest", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }), frozenSelection: twoLinks, savedOutputs: new Set([linkOutputKey(formatEmailLinkOrdinal(0))]) });
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.correlations).toEqual([{ kind: "submit", outputKey: "link#0001", url: "https://b.test/y" }]);
+		expect(harness.outputsSelected).toEqual([{ userId: USER, receivedAtMessageId: RAM, outputCount: 2 }]);
+	});
+
+	it("skips a saved issue output", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }),
+			frozenSelection: { outputs: [ISSUE_OUTPUT_KEY, linkOutputKey(formatEmailLinkOrdinal(0))], truncated: false, selectedAt: NOW },
+			savedOutputs: new Set([ISSUE_OUTPUT_KEY]),
+		});
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.correlations).toEqual([{ kind: "submit", outputKey: "link#0000", url: "https://a.test/x" }]);
+	});
+
+	it("dispatches nothing when every output is saved, and still announces the full count", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }), frozenSelection: twoLinks, savedOutputs: new Set(twoLinks.outputs) });
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.correlations).toEqual([]);
+		expect(harness.outputsSelected).toEqual([{ userId: USER, receivedAtMessageId: RAM, outputCount: 2 }]);
+	});
+
+	it("dispatches the same unsaved outputs when run twice", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }), frozenSelection: twoLinks, savedOutputs: new Set([linkOutputKey(formatEmailLinkOrdinal(0))]) });
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.correlations).toEqual([
+			{ kind: "submit", outputKey: "link#0001", url: "https://b.test/y" },
+			{ kind: "submit", outputKey: "link#0001", url: "https://b.test/y" },
+		]);
+	});
+
+	it("does not resubmit an output the reader removed from All after it was saved", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }), frozenSelection: twoLinks, savedOutputs: new Set([linkOutputKey(formatEmailLinkOrdinal(0))]) });
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.correlations).toEqual([{ kind: "submit", outputKey: "link#0001", url: "https://b.test/y" }]);
+		expect(harness.outputsSelected).toEqual([{ userId: USER, receivedAtMessageId: RAM, outputCount: 2 }]);
+	});
+
+	it("submits every output when the completion row cannot be read", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }), completionMissing: true });
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.correlations.map(({ outputKey }) => outputKey)).toEqual(["link#0000", "link#0001"]);
+		expect(harness.outputsSelected).toEqual([{ userId: USER, receivedAtMessageId: RAM, outputCount: 2 }]);
 	});
 });
