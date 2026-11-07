@@ -5,7 +5,7 @@ import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { initJudgeUnderLedger } from "./judge-under-ledger";
 import { candidateProvenance, type TierSource, type VerifiedTierSource } from "@packages/tier-source";
-import { initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
+import { type SelectionMode, initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import type { SelectMostCompleteContent } from "./select-content";
 import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 
@@ -49,7 +49,7 @@ function setup(sources: TierSource[], overrides: Partial<Parameters<typeof initP
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => ({ originalUrl: URL, sourceUrl: ARCHIVE }),
 		...overrides,
 	});
-	return { prepare: (candidates?: Parameters<typeof prepare>[0]["candidates"]) => prepare({ url: URL, saveAttemptId: ATTEMPT, claimId: "message-1", candidates }), judge };
+	return { prepare: (candidates?: Parameters<typeof prepare>[0]["candidates"], mode: SelectionMode = "save") => prepare({ url: URL, saveAttemptId: ATTEMPT, claimId: "message-1", mode, candidates }), judge };
 }
 
 describe("verified direct resource selection", () => {
@@ -93,7 +93,7 @@ describe("verified direct resource selection", () => {
 			}),
 		});
 
-		const result = await prepare([{ id: fresh.metadata.id, tier: fresh.tier }]);
+		const result = await prepare([{ id: fresh.metadata.id, tier: fresh.tier }], "recrawl");
 
 		expect(judge).toHaveBeenCalledTimes(0);
 		expect(result).toMatchObject({ outcome: "selected", selectionRule: "direct-resource" });

@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import type { S3Client } from "@aws-sdk/client-s3";
-import { initPersistCandidateArtifact, type CandidateProvenance } from "@packages/tier-source";
+import { LEGACY_DIRECT_CANONICAL_ATTEMPT_ID, initPersistCandidateArtifact, type CandidateProvenance } from "@packages/tier-source";
 import type { WriteCanonicalContent } from "../../domain/select-content/tier-source-access.types";
 
 export type { WriteCanonicalContent } from "../../domain/select-content/tier-source-access.types";
@@ -10,7 +10,7 @@ export function initWriteCanonicalContent(deps: { s3Client: Pick<S3Client, "send
 	const writeCanonicalContent: WriteCanonicalContent = async (params) => {
 		let metadata: CandidateProvenance = params.source.metadata;
 		if (metadata.htmlLocation === undefined) {
-			assert(metadata.attemptId === "legacy-direct-canonical", "selected candidate must already be persisted");
+			assert(metadata.attemptId === LEGACY_DIRECT_CANONICAL_ATTEMPT_ID, "selected candidate must already be persisted");
 			metadata = await persistCandidateArtifact({ url: params.url, tier: params.source.tier, html: params.source.html, evaluationHtml: params.source.evaluationHtml, metadata });
 		}
 		return { contentLocation: `s3://${deps.bucketName}/${metadata.htmlLocation}`, candidateId: metadata.id, tier: params.source.tier };

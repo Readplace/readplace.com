@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { CandidateIdSchema, type CaptureTrigger, type SaveAttemptId } from "@packages/domain/article";
-import type { CandidateProvenance, TierSourceMetadata } from "./tier-source.types";
+import type { CandidateProvenance, LEGACY_DIRECT_CANONICAL_ATTEMPT_ID, TierSourceMetadata } from "./tier-source.types";
 
 export function candidateProvenance(params: {
 	metadata: TierSourceMetadata;
 	evaluationHtml: string;
 	html: string;
-	attemptId: SaveAttemptId | "legacy-direct-canonical";
+	attemptId: SaveAttemptId | typeof LEGACY_DIRECT_CANONICAL_ATTEMPT_ID;
 	originalUrl: string;
 	sourceUrl: string;
 	kind: CandidateProvenance["kind"];

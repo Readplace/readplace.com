@@ -2,6 +2,8 @@ import { CandidateIdSchema, CaptureTriggerSchema, SaveAttemptIdSchema } from "@p
 import { z } from "zod";
 import type { ContentTier } from "@packages/article-state-types";
 
+export const LEGACY_DIRECT_CANONICAL_ATTEMPT_ID = "legacy-direct-canonical";
+
 export type Tier = ContentTier;
 
 export const TierSourceMetadataSchema = z.object({
@@ -20,7 +22,7 @@ export const TierSourceMetadataSchema = z.object({
 	authorUserId: z.string().optional(),
 	sourceUrl: z.string().optional(),
 	id: CandidateIdSchema.optional(),
-	attemptId: z.union([SaveAttemptIdSchema, z.literal("legacy-direct-canonical")]).optional(),
+	attemptId: z.union([SaveAttemptIdSchema, z.literal(LEGACY_DIRECT_CANONICAL_ATTEMPT_ID)]).optional(),
 	contentHash: z.string().optional(),
 	originalUrl: z.string().optional(),
 	kind: z.enum(["live", "wrapper", "extension"]).optional(),

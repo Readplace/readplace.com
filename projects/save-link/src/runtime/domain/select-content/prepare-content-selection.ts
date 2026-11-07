@@ -7,14 +7,17 @@ import type { Article, LoadArticle } from "@packages/domain/article-aggregate";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import type { Logger } from "@packages/logger";
 import type { CrawlFailureReason } from "@packages/article-state-types";
-import { CandidateProvenanceSchema, KIND_BY_TIER, candidateProvenance, type CandidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
+import { CandidateProvenanceSchema, KIND_BY_TIER, LEGACY_DIRECT_CANONICAL_ATTEMPT_ID, candidateProvenance, type CandidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import type { ListAvailableTierSources, CandidateReference } from "./list-available-tier-sources";
 import type { ContentDecision, SelectMostCompleteContent, SelectionAudit } from "./select-content";
 import type { JudgeCandidates } from "./judge-under-ledger";
 import { chooseTiedCandidate } from "./resolve-tie";
+import { canonicalSupersedes } from "./canonical-supersedes";
 import { COMPARISON_COMPLETED } from "./comparison-log";
 import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import type { FindArticleContent } from "../save-link/article-content.types";
+
+export type SelectionMode = "save" | "recrawl" | "refresh";
 
 export interface PreparedContentSelection {
 	article: Article;
@@ -23,7 +26,7 @@ export interface PreparedContentSelection {
 	selected: VerifiedTierSource | undefined;
 	outcome: "selected" | "retained" | "no-readable";
 	reason: string;
-	selectionRule: "first-capture" | "direct-resource" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict" | "lone-body" | "lone-error-status" | "judge-deferred" | "video-card-fallback";
+	selectionRule: "first-capture" | "superseded-by-canonical" | "direct-resource" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict" | "lone-body" | "lone-error-status" | "judge-deferred" | "video-card-fallback";
 	ownCaptureFailed: boolean;
 	readableIds: ReadonlySet<CandidateId>;
 	audit?: SelectionAudit;
@@ -143,8 +146,8 @@ export function initPrepareContentSelection(deps: {
 	judge: JudgeCandidates;
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	verifyWrapperSource: VerifyWrapperSource;
-}): (params: { url: string; saveAttemptId: SaveAttemptId; claimId: string; candidates?: readonly CandidateReference[] }) => Promise<PreparedContentSelection> {
-	return async ({ url, saveAttemptId, claimId, candidates }) => {
+}): (params: { url: string; saveAttemptId: SaveAttemptId; claimId: string; mode: SelectionMode; candidates?: readonly CandidateReference[] }) => Promise<PreparedContentSelection> {
+	return async ({ url, saveAttemptId, claimId, mode, candidates }) => {
 		const proseHashes = new Map<string, string>();
 		const proseHashOf = (html: string): string => {
 			const known = proseHashes.get(html);
@@ -171,7 +174,7 @@ export function initPrepareContentSelection(deps: {
 			if (sourceMetadata.id === undefined && legacyDirectTier === source.tier &&
 				proseHashOf(source.html) === article.freshness.canonicalContentHash &&
 				(sourceMetadata.sourceUrl === undefined || !isWrapperUrl(sourceMetadata.sourceUrl))) {
-				sourceMetadata = candidateProvenance({ metadata: sourceMetadata, html: source.html, evaluationHtml: source.evaluationHtml ?? source.html, attemptId: "legacy-direct-canonical", originalUrl, sourceUrl: originalUrl, kind: KIND_BY_TIER[source.tier], fetchedAt: article.freshness.contentFetchedAt });
+				sourceMetadata = candidateProvenance({ metadata: sourceMetadata, html: source.html, evaluationHtml: source.evaluationHtml ?? source.html, attemptId: LEGACY_DIRECT_CANONICAL_ATTEMPT_ID, originalUrl, sourceUrl: originalUrl, kind: KIND_BY_TIER[source.tier], fetchedAt: article.freshness.contentFetchedAt });
 				legacyCanonicalId = sourceMetadata.id;
 			}
 			const parsed = CandidateProvenanceSchema.safeParse(sourceMetadata);
@@ -195,7 +198,7 @@ export function initPrepareContentSelection(deps: {
 			if (persisted !== undefined && proseHashOf(persisted.content) === article.freshness.canonicalContentHash) {
 				legacyCanonicalWithheld = legacyDirectTier === "tier-0" && legacyDirectSource === undefined;
 				if (!legacyCanonicalWithheld) {
-					const metadata = candidateProvenance({ metadata: { ...article.metadata, estimatedReadTime: article.estimatedReadTime, authorUserId: legacyDirectSource?.metadata.authorUserId }, html: persisted.content, evaluationHtml: persisted.content, attemptId: "legacy-direct-canonical", originalUrl, sourceUrl: originalUrl, kind: KIND_BY_TIER[legacyDirectTier], fetchedAt: article.freshness.contentFetchedAt });
+					const metadata = candidateProvenance({ metadata: { ...article.metadata, estimatedReadTime: article.estimatedReadTime, authorUserId: legacyDirectSource?.metadata.authorUserId }, html: persisted.content, evaluationHtml: persisted.content, attemptId: LEGACY_DIRECT_CANONICAL_ATTEMPT_ID, originalUrl, sourceUrl: originalUrl, kind: KIND_BY_TIER[legacyDirectTier], fetchedAt: article.freshness.contentFetchedAt });
 					sources.push({ tier: legacyDirectTier, html: persisted.content, metadata });
 					legacyCanonicalId = metadata.id;
 				}
@@ -205,6 +208,9 @@ export function initPrepareContentSelection(deps: {
 		const isFirstContent = article.freshness.canonicalContentHash === undefined ||
 			(article.freshness.canonicalContentHash === EMPTY_TEXT_HASH && previous === undefined);
 		const firstCapture = firstCaptureOf({ isFirstContent, sources });
+		const freshIds = new Set(candidates?.map((candidate) => candidate.id));
+		const considered = mode === "recrawl" ? sources.filter((source) => freshIds.has(source.metadata.id)) : [];
+		const superseded = considered.length > 0 && considered.every((source) => canonicalSupersedes({ source, canonical: previous, saveAttemptId })) ? previous : undefined;
 		const directResources = directResourcesOf({ sources, saveAttemptId });
 		const proseUnchanged = previous !== undefined && sources.length > 1 &&
 			sources.every((source) => proseHashOf(source.html) === article.freshness.canonicalContentHash && candidateIsReadable(source));
@@ -213,6 +219,8 @@ export function initPrepareContentSelection(deps: {
 		const loneAccepted = loneBody !== undefined && !loneErrorStatus && loneBody.metadata.wordCount >= LONE_BODY_MIN_WORDS && !isWrapperUrl(loneBody.metadata.sourceUrl);
 		const decision = firstCapture !== undefined
 			? { kind: "winner", candidateId: firstCapture.metadata.id, reason: "the reader's capture is the article's first content", readability: [{ candidateId: firstCapture.metadata.id, readable: true }], judgedBodies: 0 } as const
+			: superseded !== undefined
+			? { kind: "tie", candidateIds: [superseded.metadata.id], reason: "every considered candidate was fetched before the committed canonical", readability: [{ candidateId: superseded.metadata.id, readable: true }], judgedBodies: 0 } as const
 			: directResources.length > 0
 			? { kind: "tie", candidateIds: directResources.map((source) => source.metadata.id), reason: "verified direct resource fetched in this save attempt", readability: directResources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
 			: proseUnchanged
@@ -226,11 +234,11 @@ export function initPrepareContentSelection(deps: {
 		const chooseAmong = (tied: readonly VerifiedTierSource[]) => chooseTiedCandidate({
 			sources: tied,
 			canonicalId: previous?.metadata.id,
-			freshIds: new Set(candidates?.map((candidate) => candidate.id)),
+			freshIds,
 			canonicalNeedsRetry: article.summary.kind === "skipped" && article.summary.reason === "content-too-short",
 		});
 		let selected: VerifiedTierSource | undefined;
-		let selectionRule: PreparedContentSelection["selectionRule"] = firstCapture !== undefined ? "first-capture" : directResources.length > 0 ? "direct-resource" : proseUnchanged ? "unchanged-content" : loneErrorStatus ? "lone-error-status" : loneAccepted ? "lone-body" : decision.kind === "deferred" ? "judge-deferred" : "judge";
+		let selectionRule: PreparedContentSelection["selectionRule"] = firstCapture !== undefined ? "first-capture" : superseded !== undefined ? "superseded-by-canonical" : directResources.length > 0 ? "direct-resource" : proseUnchanged ? "unchanged-content" : loneErrorStatus ? "lone-error-status" : loneAccepted ? "lone-body" : decision.kind === "deferred" ? "judge-deferred" : "judge";
 		if (decision.kind === "winner") selected = sources.find((source) => source.metadata.id === decision.candidateId);
 		if (decision.kind === "tie") selected = chooseAmong(sources.filter((source) => decision.candidateIds.includes(source.metadata.id)));
 		if (audit?.responseStatus === "rejected") {

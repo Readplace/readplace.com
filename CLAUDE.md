@@ -104,7 +104,7 @@ ChatGPT readers call the tool definitions OpenAI's plugin directory published fr
 
 ### A DeepSeek dead letter is kept to be redriven
 
-**Read the row first.** In the 30 days to 2026-10-24 every judge and summary dead letter moved on without a redrive: of 31 judge rows, 27 were ready on 2026-10-24 and 4 had failed again with a parse error, and the 3 summary rows settled. A late redrive is therefore usually stale. Before you redrive a message, read its article row, and delete the message instead when the row has already moved on. SQS cannot edit a message on the way back, so a redrive runs the old command against the row as it is now.
+**Read the row first.** In the 30 days to 2026-10-24 every judge and summary dead letter moved on without a redrive: of 31 judge rows, 27 were ready on 2026-10-24 and 4 had failed again with a parse error, and the 3 summary rows settled. A late redrive is therefore usually stale. Before you redrive a message, read its article row, and delete the message instead when the row has already moved on. SQS cannot edit a message on the way back, so a redrive runs the old command against the row as it is now. A stale `recrawl-content-extracted` dead letter, one whose candidates were all fetched before the committed canonical, keeps that canonical and pays no judge call; the comparison line logs it as `superseded-by-canonical`.
 
 Each queue below dead-letters into its own `<queue>-dlq`, and nothing consumes it.
 
