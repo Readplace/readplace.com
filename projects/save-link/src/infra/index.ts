@@ -1567,14 +1567,11 @@ eventBus.subscribe(AnonymousLinkSavedEvent, anonymousLinkSavedLambdaWithSQS);
 
 // --- CanonicalContentChanged handler ---
 // Subscribes to CanonicalContentChangedEvent (published by the tier selector
-// when the canonical tier flips or the readable text changes) and re-primes the
-// summary axis via markSummaryPending so the generate-summary worker regenerates
-// against the new canonical instead of cache-hitting a stale terminal summary.
+// when the canonical tier flips or the readable text changes).
 // This is the OCP seam: future derived-artifact consumers (transcript,
 // embeddings) attach as new eventBus.subscribe(CanonicalContentChangedEvent, …)
 // without touching the publisher. No dedicated DLQ event handler — the crawl has
-// already succeeded, so there is no terminal row state to flip on the rare
-// read-your-writes lag; the SqsBackedLambda DLQ + email alarm is the
+// already succeeded, so there is no terminal row state to flip; the SqsBackedLambda DLQ + email alarm is the
 	// operator signal.
 
 const canonicalContentChangedQueue = new Sqs("canonical-content-changed", {

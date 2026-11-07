@@ -3,11 +3,10 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "a
 import type { Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import {
-	isCanonicalCandidateRevoked,
+	isSummarySettledForCanonical,
 	markSummaryExhausted,
 	markSummaryReady,
 	markSummarySkipped,
-	summaryMatchesCanonical,
 	type LoadArticle,
 	type SelectionExpected,
 	type TransitionAndPersist,
@@ -48,15 +47,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				/* `failed` is retryable on redrive so a new attempt re-runs the AI. */
 				const existing = await loadArticle(command.url);
 				const selectionExpected: SelectionExpected = { scope: "canonical-content", snapshot: existing?.contentSelection };
-				const candidateRevoked = isCanonicalCandidateRevoked(existing?.contentSelection);
-				const validReadySummary = existing?.summary.kind === "ready" &&
-					summaryMatchesCanonical({ candidateId: existing.contentSelection?.candidateId, summarySourceContentHash: existing.summary.sourceContentHash, canonicalContentHash: existing.freshness.canonicalContentHash });
-				if (
-					existing &&
-					!candidateRevoked &&
-					(validReadySummary ||
-						existing.summary.kind === "skipped")
-				) {
+				if (existing && isSummarySettledForCanonical(existing)) {
 					logger.info("[GenerateSummary] cache hit", {
 						url: command.url,
 						kind: existing.summary.kind,

@@ -558,10 +558,7 @@ export type CrawlArticleCompletedDetail = z.infer<
 
 /** Irreversible fact: the content-selection authority (re)established the
  * canonical readable content for a URL. Published by the tier selector when the
- * canonical tier flipped OR the canonical readable text changed. The
- * `canonical-content-changed` Lambda subscribes and re-primes the summary axis
- * so the generate-summary worker regenerates against the new canonical instead
- * of cache-hitting a stale terminal summary. Derived-artifact consumers added
+ * canonical tier flipped OR the canonical readable text changed. Derived-artifact consumers added
  * later (transcript, embeddings) attach as new `eventBus.subscribe`s without
  * touching the publisher (OCP) — staleness comparison lives here, once, not in
  * each consumer. */
