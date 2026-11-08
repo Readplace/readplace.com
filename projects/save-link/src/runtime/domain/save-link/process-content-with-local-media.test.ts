@@ -57,7 +57,7 @@ describe("processContentWithLocalMedia", () => {
 		expect(result).toBe('<p>Read <a href="https://www.facebook.com/tr?id=1">this</a>.</p><img src="https://example.com/photo.png">');
 	});
 
-	it("drops beacon renditions before rewriting the allowed ones to the CDN, without borrowing another image's URL", async () => {
+	it("drops beacon renditions before rewriting the allowed ones, and the picture's fallback src, to the CDN without borrowing another image's URL", async () => {
 		const media: DownloadedMedia[] = [
 			{ originalUrl: "https://example.com/figure.webp", cdnUrl: "https://cdn.example.com/images/figure.webp" },
 			{ originalUrl: "https://example.com/other.png", cdnUrl: "https://cdn.example.com/images/other.png" },
@@ -73,7 +73,7 @@ describe("processContentWithLocalMedia", () => {
 
 		expect(result).toBe(
 			'<img src="https://cdn.example.com/images/other.png">' +
-				'<picture><source srcset="https://cdn.example.com/images/figure.webp 1x"><img alt="Figure"></picture>',
+				'<picture><source srcset="https://cdn.example.com/images/figure.webp 1x"><img src="https://cdn.example.com/images/figure.webp" alt="Figure"></picture>',
 		);
 		expect(result).not.toMatch(/facebook\.com\/tr|hotstar|akam|src=""/);
 	});

@@ -45,7 +45,13 @@ describe("stripTrackingImageSources", () => {
 		expect(stripTrackingImageSources(html)).toBe("<p>Before</p><p>After</p>");
 	});
 
-	it("keeps a picture's valid sibling sources and drops only the all-beacon source and beacon fallback src", () => {
+	it("returns a body with no img or source element unchanged", () => {
+		const html = `<p>See ${FACEBOOK_PIXEL}</p><table><tr><td>cell</td></tr></table>`;
+
+		expect(stripTrackingImageSources(html)).toBe(html);
+	});
+
+	it("keeps a picture's valid sibling sources and gives its fallback img the first remaining rendition as src", () => {
 		const html =
 			"<picture>" +
 			`<source srcset="${SEC_PIXEL}">` +
@@ -54,7 +60,7 @@ describe("stripTrackingImageSources", () => {
 			"</picture>";
 
 		expect(stripTrackingImageSources(html)).toBe(
-			'<picture><source srcset="https://example.com/figure.webp 1x" type="image/webp"><img alt="Figure"></picture>',
+			'<picture><source srcset="https://example.com/figure.webp 1x" type="image/webp"><img src="https://example.com/figure.webp" alt="Figure"></picture>',
 		);
 	});
 

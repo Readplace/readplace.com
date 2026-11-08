@@ -5,7 +5,10 @@ import parseSrcset from "parse-srcset";
 
 type SrcsetCandidate = ReturnType<typeof parseSrcset>[number];
 
+const IMAGE_SOURCE_TAG = /<(?:img|source)/i;
+
 export function stripTrackingImageSources(html: string): string {
+	if (!IMAGE_SOURCE_TAG.test(html)) return html;
 	const { document } = parseHTML(`<div id="root">${html}</div>`);
 	const root = document.querySelector("#root");
 	assert(root, "parseHTML('<div id=\"root\">…') must produce the root element");
@@ -42,8 +45,10 @@ export function stripTrackingImageSources(html: string): string {
 
 	for (const img of touchedImages) {
 		if (img.hasAttribute("src") || img.hasAttribute("srcset")) continue;
-		if (img.closest("picture")?.querySelector("source[srcset]")) continue;
-		img.remove();
+		const pictureSrcset = img.closest("picture")?.querySelector("source[srcset]")?.getAttribute("srcset");
+		const [fallback] = pictureSrcset ? parseSrcset(pictureSrcset) : [];
+		if (fallback) img.setAttribute("src", fallback.url);
+		else img.remove();
 	}
 
 	return root.innerHTML;
