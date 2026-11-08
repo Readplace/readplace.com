@@ -1,4 +1,5 @@
 const assert = require('node:assert');
+const { globSync } = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { playwrightImage } = require('@packages/test-phase-runner');
@@ -14,7 +15,9 @@ const renderer = {
 };
 
 const cores = os.availableParallelism();
-const jestShards = Math.max(1, Math.floor((cores * 80) / 100));
+const concurrentShards = Math.max(1, Math.floor((cores * 80) / 100));
+const testFiles = globSync('dist/**/*.test.js', { cwd: __dirname }).length;
+const jestShards = Math.max(concurrentShards, Math.ceil(testFiles / 60));
 
 module.exports = {
   projectName: 'Readplace',
@@ -25,6 +28,7 @@ module.exports = {
       testMatch: '**/dist/**/*.test.js',
       timeout: 10000,
       shards: jestShards,
+      concurrentShards,
     },
     {
       type: 'jest',
