@@ -4,6 +4,7 @@ import type { GmailConnectionStore } from "@packages/domain/gmail";
 import { GMAIL_FORWARDING_ALIAS, InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
+import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
 import type { RevokeGmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
@@ -90,7 +91,7 @@ async function makeHarness(options: {
 		filters: [...gmail.store.values()],
 	});
 
-	return { disconnect, store, credentials, discovery, addresses, gmail, revokes, gateway, connect, snapshot };
+	return { disconnect, store, credentials, discovery, monitoring, addresses, gmail, revokes, gateway, connect, snapshot };
 }
 
 describe("initDisconnectGmailWhenRequested", () => {
@@ -118,14 +119,17 @@ describe("initDisconnectGmailWhenRequested", () => {
 		assert.deepEqual(harness.revokes, ["refresh-1"]);
 	});
 
-	it("clears discovery left by a teardown that died after deleting the row", async () => {
+	it("clears discovery and monitoring left by a teardown that died after deleting the row", async () => {
 		const harness = await makeHarness();
 		await harness.discovery.startDiscovery({ checkedMessageCount: 0, userId: USER, accountEmail: ACCOUNT, gatewayAddress: harness.gateway, generation: "initial", mode: "profile", historyId: undefined });
+		const checkpoint: GmailMonitoringCheckpoint = { userId: USER, generation: "run", page: 0, mailboxId: "mailbox-1", accountEmail: ACCOUNT, gatewayAddress: harness.gateway, mode: "arrivals", initializing: false, historyId: "100", pageToken: undefined, scannedCount: 0, lastCheckedAt: NOW.getTime() };
+		assert(await harness.monitoring.startRun({ checkpoint, previous: undefined }));
 
 		const result = await harness.disconnect({ userId: USER });
 
 		assert.deepEqual(result, { ok: false, reason: "not-connected" });
 		assert.equal(await harness.discovery.findDiscoveryByUserId(USER), undefined);
+		assert.equal(await harness.monitoring.findCheckpoint(USER), undefined);
 	});
 
 	it("leaves a connection created just after the fence read alone", async () => {
