@@ -188,7 +188,7 @@ describe("jest phase resolution", () => {
 
 		const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "jest" }>;
 		expect(phase.command).toBe(
-			`seq 1 11 | xargs -P 3 -I{} sh -c 'node_modules/.bin/jest --testMatch="**/dist/**/*.test.js" --testTimeout=10000 --shard={}/11 --forceExit'`,
+			`seq 1 11 | xargs -P 3 -I{} sh -c '"$@" --shard={}/11 --forceExit || exit 1' sh node_modules/.bin/jest --testMatch="**/dist/**/*.test.js" --testTimeout=10000`,
 		);
 	});
 

@@ -147,7 +147,7 @@ export interface TestPhaseRunnerDeps {
  * merged coverage to the un-sharded run. */
 function shardedJestCommand(base: string, shards: number, concurrentShards: number): string {
 	if (concurrentShards < shards) {
-		return `seq 1 ${shards} | xargs -P ${concurrentShards} -I{} sh -c '${base} --shard={}/${shards} --forceExit'`;
+		return `seq 1 ${shards} | xargs -P ${concurrentShards} -I{} sh -c '"$@" --shard={}/${shards} --forceExit || exit 1' sh ${base}`;
 	}
 	const lines: string[] = [];
 	for (let i = 1; i <= shards; i++) {

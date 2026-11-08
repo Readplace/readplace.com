@@ -14,10 +14,11 @@ const renderer = {
   forwardEnv: ['HEADLESS', 'E2E_PORT', 'NODE_V8_COVERAGE'],
 };
 
+const maxTestFilesPerShard = 60;
 const cores = os.availableParallelism();
 const concurrentShards = Math.max(1, Math.floor((cores * 80) / 100));
 const testFiles = globSync('dist/**/*.test.js', { cwd: __dirname }).length;
-const jestShards = Math.max(concurrentShards, Math.ceil(testFiles / 60));
+const jestShards = Math.max(concurrentShards, Math.ceil(testFiles / maxTestFilesPerShard));
 
 module.exports = {
   projectName: 'Readplace',
