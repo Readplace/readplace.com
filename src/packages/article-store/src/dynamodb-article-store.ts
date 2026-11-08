@@ -65,6 +65,8 @@ const ArticleAggregateRow = z.object({
 	summaryAutoHealAttempts: dynamoField(z.number()),
 	summaryAutoHealLastAttemptAt: dynamoField(z.string()),
 	readerAvailableAt: dynamoField(z.string()),
+	savedAt: dynamoField(z.string()),
+	purgedAt: dynamoField(z.string()),
 	contentSelectionRevision: dynamoField(z.number()),
 	contentLocation: dynamoField(z.string()),
 	...VerificationFields,
@@ -196,6 +198,8 @@ function rowToArticle(url: string, row: RowShape): Article {
 		summary: rowToSummaryState(row),
 		summaryAutoHeal,
 		readerAvailableAt: row.readerAvailableAt,
+		savedAt: row.savedAt,
+		purgedAt: row.purgedAt,
 		contentSelection: contentSelectionFromRow(row),
 	};
 }

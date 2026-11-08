@@ -11,6 +11,7 @@ import type {
 import {
 	AUDIO,
 	billableSeconds,
+	chargedMinutes,
 	displayMinutes,
 	type MediaKindManifest,
 	type MediaKindName,
@@ -26,6 +27,7 @@ import { redirectAnonymousToUploadSignup } from "./redirect-anonymous-to-upload-
 import { type UploadOutcome, type UploadOutcomeKey, writeUploadOutcome } from "./upload.outcome";
 import { UPLOAD_OUTCOME_HTML } from "./upload.page";
 import { UPLOAD_REFUSAL_COPY } from "./upload.refusal";
+import { uploadStartPathOf } from "./upload-features";
 import { kindsForViewer } from "./upload.viewmodel";
 import { UploadReviewPage, type UploadReviewView } from "./upload-review.component";
 
@@ -46,6 +48,13 @@ const PollSchema = z.coerce.number().int().min(0);
 
 const REVIEW_SOURCE = "upload-review";
 
+function uploadAgainUrlOf(session: ReviewableSession): string {
+	return withInternalTracking(uploadStartPathOf(session.metered === true), {
+		source: REVIEW_SOURCE,
+		content: "upload-again",
+	});
+}
+
 const REVIEW_VIEWS: Record<
 	ReviewViewState,
 	(params: {
@@ -56,7 +65,7 @@ const REVIEW_VIEWS: Record<
 	}) => UploadReviewView
 > = {
 	inspecting: ({ session, poll, maxPolls }) => {
-		if (poll > maxPolls) return { view: "overrun" };
+		if (poll > maxPolls) return { view: "overrun", uploadAgainUrl: uploadAgainUrlOf(session) };
 		const next = `/upload/${session.uploadId}?poll=${poll + 1}`;
 		return {
 			view: "inspecting",
@@ -82,20 +91,24 @@ const REVIEW_VIEWS: Record<
 		}
 		const seconds = billableSeconds(facts.durationSeconds);
 		if (seconds > transcriptAllowanceSeconds) {
-			return { view: "too-long", notice: UPLOAD_REFUSAL_COPY["transcript-too-long"] };
+			return {
+				view: "too-long",
+				notice: UPLOAD_REFUSAL_COPY["transcript-too-long"],
+				uploadAgainUrl: uploadAgainUrlOf(session),
+			};
 		}
 		return {
 			view: "timed-review",
 			heading: session.fileName ?? defaultFileNameOf(AUDIO),
 			durationMinutes: displayMinutes(facts.durationSeconds),
-			transcriptMinutes: displayMinutes(seconds),
+			transcriptMinutes: chargedMinutes(seconds),
 			allowanceMinutes: displayMinutes(transcriptAllowanceSeconds),
 			commitUrl,
 		};
 	},
 	rejected: ({ session }) => {
 		assert(session.notice, `rejected upload ${session.uploadId} has no notice`);
-		return { view: "rejected", notice: session.notice };
+		return { view: "rejected", notice: session.notice, uploadAgainUrl: uploadAgainUrlOf(session) };
 	},
 };
 
@@ -125,6 +138,8 @@ export function initAnonymousUploadRoutes(deps: {
 				guestKinds: deps.GUEST_UPLOAD_KINDS,
 				isSignedIn: Boolean(req.userId),
 			}),
+			metered: false,
+			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 		};
 		writeUploadOutcome({ writers: UPLOAD_OUTCOME_HTML, res, outcome, context });
 	}

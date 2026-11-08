@@ -51,7 +51,7 @@ function requestLog(page: Page): string[] {
 test.describe("Signing a connected app out from all devices on the account page", () => {
 	test.use({ viewport: { width: 1280, height: 900 } });
 
-	test("Cancel, Esc and the scrim close the dialog, keep the app and return focus to its Sign out from all devices", async ({
+	test("Cancel, Esc and the scrim close the dialog, keep the app and return focus to its Disconnect", async ({
 		page,
 	}, testInfo) => {
 		await signInWithChrome(page, `connected-apps-dismiss-${testInfo.workerIndex}-${Date.now()}@example.com`);
@@ -65,11 +65,11 @@ test.describe("Signing a connected app out from all devices on the account page"
 
 		for (const { name, dismiss } of dismissals) {
 			await openDisconnectDialog(page);
-			await expect(page.locator(COMMIT), `the dialog opens on its Sign out from all devices before ${name}`).toBeFocused();
+			await expect(page.locator(COMMIT), `the dialog opens on its Disconnect before ${name}`).toBeFocused();
 			await dismiss(page);
 			await expect(page.locator(`${DIALOG}:popover-open`), `${name} closes the dialog`).toHaveCount(0);
 			await expect(page.locator(CHROME_ROW), `${name} keeps the Chrome row`).toHaveCount(1);
-			await expect(page.locator(OPEN), `${name} returns focus to the row's Sign out from all devices`).toBeFocused();
+			await expect(page.locator(OPEN), `${name} returns focus to the row's Disconnect`).toBeFocused();
 		}
 
 		await page.reload({ waitUntil: "domcontentloaded" });
@@ -78,7 +78,7 @@ test.describe("Signing a connected app out from all devices on the account page"
 		expect(requests.filter((line) => line.startsWith("POST "))).toEqual([]);
 	});
 
-	test("Sign out from all devices swaps the page in place and leaves the empty row with its way to save", async ({
+	test("Disconnect swaps the page in place and leaves the empty row with its way to save", async ({
 		page,
 	}, testInfo) => {
 		await signInWithChrome(page, `connected-apps-commit-${testInfo.workerIndex}-${Date.now()}@example.com`);

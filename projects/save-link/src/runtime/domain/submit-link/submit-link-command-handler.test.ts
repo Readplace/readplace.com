@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { initFindSavedArticleForLink } from "@packages/article-store";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { initCanonicalAliasStore, initFindSavedArticleForLink } from "@packages/article-store";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
+import { z } from "zod";
 import { type Logger, noopLogger } from "@packages/logger";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
@@ -22,14 +25,21 @@ import {
 	TierContentExtractedEvent,
 	EmailOutputSavedToAllEvent,
 	LinkQueueFailedEvent,
+	LinkQueuedEvent,
 } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
 import type { DecideReadlistFit } from "@packages/readlist-fit";
-import { initFileRequestedArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
+import {
+	initFileRequestedArticleIntoReadlist,
+	initResolveCanonicalIdentity,
+	initResolveSaveIdentity,
+	initSubmitFreshness,
+} from "@packages/save-article";
 import { ArticlePurgedAfterRequest } from "@packages/provider-contracts/article-store";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import { initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import type {
 	CrawlAndFinalizeArticle,
 	CrawlAndFinalizeResult,
@@ -41,6 +51,8 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initSubmitLinkCommandHandler } from "./submit-link-command-handler";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { initFileArticleIntoReadlistCommandHandler } from "../file-article-into-readlist/file-article-into-readlist-command-handler";
+import { initAdmitTriagedMessage } from "../filter-email-links/triaged-message-admission";
+import { initFilingsLeftToFile } from "../filter-email-links/filings-left-to-file";
 import { initFilterEmailLinksHandler } from "../filter-email-links/filter-email-links-handler";
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
@@ -193,6 +205,89 @@ async function run(handler: ReturnType<typeof createHandler>, event: SQSEvent) {
 }
 
 describe("initSubmitLinkCommandHandler", () => {
+	it("saves an oversized newsletter tracker at its destination and reuses the bounded alias on a repeated submission", async () => {
+		const tracker = `https://link.mail.beehiiv.com/ss/c/u001.${"a".repeat(2800)}`;
+		const destination = "https://publisher.example/article";
+		const rows = new Map<string, Record<string, unknown>>();
+		const storageKeys: string[] = [];
+		const commandSchema = z.object({ input: z.object({
+			Key: z.object({ url: z.string() }),
+			UpdateExpression: z.string().optional(),
+			ExpressionAttributeValues: z.record(z.string(), z.string()).optional(),
+		}) });
+		// The SDK's overloaded send signature requires this isolated fake assertion;
+		// every command is parsed and checked before its alias read or write runs.
+		const client = { send: async (command: unknown) => {
+			const { input } = commandSchema.parse(command);
+			const key = input.Key.url;
+			assert(Buffer.byteLength(key, "utf8") <= 2048, "an alias operation must fit DynamoDB's partition key limit");
+			storageKeys.push(key);
+			if (input.UpdateExpression === undefined) return { Item: rows.get(key) };
+			assert(input.UpdateExpression.startsWith("SET "), "the alias fake accepts only SET writes");
+			const values = input.ExpressionAttributeValues;
+			assert(values, "an alias write must carry its values");
+			const row = { ...rows.get(key) };
+			for (const assignment of input.UpdateExpression.slice(4).split(", ")) {
+				const [field, value] = assignment.split(" = ");
+				assert(field !== undefined && value !== undefined && values[value] !== undefined, "every alias assignment must name a value");
+				row[field] = values[value];
+			}
+			rows.set(key, row);
+			return {};
+		} } as unknown as DynamoDBDocumentClient;
+		const aliases = initCanonicalAliasStore({ client, tableName: "articles" });
+		const store = initInMemoryArticleStore();
+		const redirectRequests: string[] = [];
+		const articleOperations: string[] = [];
+		const recordArticle = (url: string) => {
+			expect(url).toBe(destination);
+			articleOperations.push(url);
+		};
+		const { refreshArticleIfStale } = initSubmitFreshness({
+			resolveSaveIdentity: initResolveSaveIdentity({
+				validateUrl: validateSaveableUrl,
+				findIdentityRow: aliases.findIdentityRow,
+				claimAlias: aliases.claimAlias,
+				resolveWrapperTarget: async (url) => {
+					redirectRequests.push(url);
+					return { url: destination, contentSourceUrl: tracker };
+				},
+				now: fixedNow,
+			}),
+			findArticleByUrl: async (url) => { recordArticle(url); return store.findArticleByUrl(url); },
+			findArticleCrawlStatus: async (url) => { recordArticle(url); return { status: "ready" }; },
+			publishStaleCheckRequested: async ({ url }) => { recordArticle(url); },
+		});
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			refreshArticleIfStale,
+			saveArticleAsRequested: async (params) => { recordArticle(params.url); return store.saveArticleAsRequested(params); },
+			saveReadlistArticleAsRequested: async (params) => { recordArticle(params.url); return store.saveReadlistArticleAsRequested(params); },
+			allocateSavedAt: store.allocateSavedAt,
+			markCrawlPending: async ({ url }) => { recordArticle(url); return { kind: "marked" }; },
+			markSummaryPending: async ({ url }) => { recordArticle(url); },
+			publishUpdateFetchTimestamp: async ({ url }) => { recordArticle(url); },
+			crawlAndFinalizeArticle: async (params) => { recordArticle(params.url); return fetchedResult; },
+			publishEvent,
+		});
+		const submission = createSqsEvent([{ url: tracker, userId, provenance: { kind: "email", senderEmail: "letter@example.com" }, saveTrigger: "automatic" }]);
+
+		expect((await run(handler, submission)).batchItemFailures).toEqual([]);
+		expect((await run(handler, submission)).batchItemFailures).toEqual([]);
+
+		expect(redirectRequests).toEqual([tracker]);
+		expect(await aliases.resolveAlias(tracker)).toBe(destination);
+		expect(new Set(storageKeys).size).toBe(2);
+		expect(new Set(articleOperations)).toEqual(new Set([destination]));
+		expect(await store.findQueueRowKeys({ userId, urls: [destination] })).toEqual([
+			{ userId, url: ArticleResourceUniqueId.parse(destination).value },
+		]);
+		expect(publishEvent.mock.calls.filter(([event]) => event === LinkQueuedEvent).map(([, detail]) => detail)).toEqual([
+			{ userId, url: tracker },
+			{ userId, url: tracker },
+		]);
+	});
+
 	it("converges duplicate Gmail saves on one canonical membership in All and each accepted custom list", async () => {
 		const store = initInMemoryArticleStore();
 		const accepted = ReadlistSlugSchema.parse("engineering");
@@ -256,9 +351,33 @@ describe("initSubmitLinkCommandHandler", () => {
 			warn: () => {},
 			debug: () => {},
 		};
+		const inboxEmailLinks = initInMemoryInboxEmailLink();
+		await inboxEmailLinks.putLinksMeta({
+			userId,
+			receivedAtMessageId: "2026-10-04#gmail-issue",
+			meta: {
+				truncated: false,
+				extractionFailed: false,
+				selectedReadlists: [accepted, rejected, unavailable].map((readlist) => ({ readlist, label: readlist })),
+			},
+		});
 		const filter = initFilterEmailLinksHandler({
 			listReadlistDefinitions: store.listReadlistDefinitions,
 			listReadlistFitOverrides: store.listReadlistFitOverrides,
+			admitTriagedMessage: initAdmitTriagedMessage({
+				listLinksByEmail: inboxEmailLinks.listLinksByEmail,
+				findSubscriptionByUserId: async () => undefined,
+				now: fixedNow,
+			}),
+			filingsLeftToFile: initFilingsLeftToFile({
+				listReadlistFitOverrides: store.listReadlistFitOverrides,
+				findSavedArticleForLink: initFindSavedArticleForLink({
+					resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: store.findIdentityRow }),
+					findArticleById: store.findArticleById,
+				}),
+				findReadlistRemoval: store.findReadlistRemoval,
+				logger: noopLogger,
+			}),
 			decideReadlistFit,
 			publishEvent,
 			logger: noopLogger,
@@ -273,7 +392,7 @@ describe("initSubmitLinkCommandHandler", () => {
 				userId, receivedAtMessageId: "2026-10-04#gmail-issue", readlist,
 				senderEmail: "letter@example.com", subject: "Weekly articles",
 				links: [{ ordinal: "0000", url: exampleUrl, anchorText: "Story" }],
-			} }),
+			}, time: fixedNow().toISOString() }),
 		})));
 		for (let attempt = 0; attempt < 2; attempt++) {
 			const response = await filter(deliveries, buildLambdaContext(), () => {});

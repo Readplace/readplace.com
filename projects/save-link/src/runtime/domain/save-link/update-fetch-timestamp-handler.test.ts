@@ -1,7 +1,7 @@
-import { noopLogger } from "@packages/logger";
-import { initUpdateFetchTimestampHandler } from "./update-fetch-timestamp-handler";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { type Logger, noopLogger } from "@packages/logger";
+import { type AdvanceContentFetchedAt, initUpdateFetchTimestampHandler } from "./update-fetch-timestamp-handler";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -10,7 +10,10 @@ const stubAttributes: SQSRecordAttributes = {
 	ApproximateFirstReceiveTimestamp: "1620000000001",
 };
 
-function createSqsEvent(detail: { url: string; contentFetchedAt: string }): SQSEvent {
+const URL_UNDER_TEST = "https://example.com/article";
+const FETCHED_AT = "2026-04-10T12:00:00.000Z";
+
+function createSqsEvent(detail: Record<string, unknown>): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
@@ -26,48 +29,78 @@ function createSqsEvent(detail: { url: string; contentFetchedAt: string }): SQSE
 	};
 }
 
+function createFakeAdvance(answer: () => Promise<"advanced" | "superseded">) {
+	const calls: Parameters<AdvanceContentFetchedAt>[0][] = [];
+	const advanceContentFetchedAt: AdvanceContentFetchedAt = async (params) => {
+		calls.push(params);
+		return answer();
+	};
+	return { advanceContentFetchedAt, calls };
+}
+
+function createRecordingLogger() {
+	const infoLines: unknown[][] = [];
+	const logger: Logger = {
+		...noopLogger,
+		info: (...args: unknown[]) => {
+			infoLines.push(args);
+		},
+	};
+	return { logger, infoLines };
+}
+
 describe("initUpdateFetchTimestampHandler", () => {
-	it("calls updateFetchTimestamp with parsed detail", async () => {
-		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
+	it("ignores a dead-lettered message's stale bodyHash", async () => {
+		const { advanceContentFetchedAt, calls } = createFakeAdvance(async () => "advanced");
+		const handler = initUpdateFetchTimestampHandler({ advanceContentFetchedAt, logger: noopLogger });
 
-		const handler = initUpdateFetchTimestampHandler({
-			updateFetchTimestamp,
-			logger: noopLogger,
+		const result = await handler(
+			createSqsEvent({ url: URL_UNDER_TEST, contentFetchedAt: FETCHED_AT, bodyHash: "stale" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(calls).toStrictEqual([{ url: URL_UNDER_TEST, contentFetchedAt: FETCHED_AT }]);
+		expect(result).toEqual({ batchItemFailures: [] });
+	});
+
+	it.each(["superseded", "advanced"] as const)("treats a %s stamp as success and logs the outcome", async (outcome) => {
+		const { advanceContentFetchedAt } = createFakeAdvance(async () => outcome);
+		const { logger, infoLines } = createRecordingLogger();
+		const handler = initUpdateFetchTimestampHandler({ advanceContentFetchedAt, logger });
+
+		const result = await handler(
+			createSqsEvent({ url: URL_UNDER_TEST, contentFetchedAt: FETCHED_AT }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(infoLines).toContainEqual(["[UpdateFetchTimestamp] completed", { url: URL_UNDER_TEST, outcome }]);
+	});
+
+	it("reports a provider failure as a batch failure", async () => {
+		const { advanceContentFetchedAt } = createFakeAdvance(async () => {
+			throw new Error("throttled");
 		});
+		const handler = initUpdateFetchTimestampHandler({ advanceContentFetchedAt, logger: noopLogger });
 
-		await handler(createSqsEvent({
-			url: "https://example.com/article",
-			contentFetchedAt: "2026-04-10T12:00:00Z",
-		}), buildLambdaContext(), () => {});
+		const result = await handler(
+			createSqsEvent({ url: URL_UNDER_TEST, contentFetchedAt: FETCHED_AT }),
+			buildLambdaContext(),
+			() => {},
+		);
 
-		expect(updateFetchTimestamp).toHaveBeenCalledTimes(1);
-		expect(updateFetchTimestamp).toHaveBeenCalledWith({
-			url: "https://example.com/article",
-			contentFetchedAt: "2026-04-10T12:00:00Z",
-		});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
 	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
-		const handler = initUpdateFetchTimestampHandler({
-			updateFetchTimestamp: jest.fn(),
-			logger: noopLogger,
-		});
+		const { advanceContentFetchedAt, calls } = createFakeAdvance(async () => "advanced");
+		const handler = initUpdateFetchTimestampHandler({ advanceContentFetchedAt, logger: noopLogger });
 
-		const invalidEvent: SQSEvent = {
-			Records: [{
-				messageId: "msg-1",
-				receiptHandle: "receipt-1",
-				body: JSON.stringify({ detail: { invalid: true } }),
-				attributes: stubAttributes,
-				messageAttributes: {},
-				md5OfBody: "",
-				eventSource: "aws:sqs",
-				eventSourceARN: "arn:aws:sqs:ap-southeast-2:123456789:UpdateFetchTimestamp",
-				awsRegion: "ap-southeast-2",
-			}],
-		};
+		const result = await handler(createSqsEvent({ invalid: true }), buildLambdaContext(), () => {});
 
-		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(calls).toEqual([]);
 	});
 });

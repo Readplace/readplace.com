@@ -445,6 +445,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			purgeReadlistArticle: articleStoreMemory.purgeReadlistArticle,
 			fileIntoLiveReadlist: articleStoreMemory.fileIntoLiveReadlist,
 			findReadlistFiling: articleStoreMemory.findReadlistFiling,
+			findReadlistRemoval: articleStoreMemory.findReadlistRemoval,
 			markReadlistArticleViewed: articleStoreMemory.markReadlistArticleViewed,
 			listUserSavesForUrl: articleStoreMemory.listUserSavesForUrl,
 			listUserSavesForUrls: articleStoreMemory.listUserSavesForUrls,

@@ -19,6 +19,7 @@ export const SubscriptionProviderRow = z.object({
 	trialFeedbackEmailSentAt: dynamoField(z.string()),
 	trialReminderEmailSentAt: dynamoField(z.string()),
 	automationSavesHeldEmailSentAt: dynamoField(z.string()),
+	paymentFailedEmailAttempt: dynamoField(z.string()),
 	payDigestEmailSentAt: dynamoField(z.string()),
 	payDigestMessageId: dynamoField(z.string()),
 	payDigestUrls: dynamoField(z.array(z.string())),
@@ -33,6 +34,7 @@ export const SubscriptionProviderRow = z.object({
 	 * gate and the header banner — a strict parse here would turn one bad attribute
 	 * into a total account outage for the sake of a cosmetic line. */
 	nextCharge: dynamoField(SubscriptionNextChargeSchema.optional().catch(undefined)),
+	statusEnteredAt: dynamoField(z.string()),
 	createdAt: z.string(),
 	updatedAt: z.string(),
 });
@@ -57,6 +59,9 @@ export function toRecord(row: z.infer<typeof SubscriptionProviderRow>): Subscrip
 		...(row.automationSavesHeldEmailSentAt !== undefined
 			? { automationSavesHeldEmailSentAt: row.automationSavesHeldEmailSentAt }
 			: {}),
+		...(row.paymentFailedEmailAttempt !== undefined
+			? { paymentFailedEmailAttempt: row.paymentFailedEmailAttempt }
+			: {}),
 		...(row.payDigestEmailSentAt !== undefined
 			? { payDigestEmailSentAt: row.payDigestEmailSentAt }
 			: {}),
@@ -79,6 +84,7 @@ export function toRecord(row: z.infer<typeof SubscriptionProviderRow>): Subscrip
 		...(row.founderNoteSentAt !== undefined ? { founderNoteSentAt: row.founderNoteSentAt } : {}),
 		...(row.plan !== undefined ? { plan: row.plan } : {}),
 		...(row.nextCharge !== undefined ? { nextCharge: row.nextCharge } : {}),
+		...(row.statusEnteredAt !== undefined ? { statusEnteredAt: row.statusEnteredAt } : {}),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};

@@ -7,6 +7,7 @@ export type {
 	SummaryState,
 } from "./article.types";
 export { isCanonicalCandidateRevoked, summaryMatchesCanonical } from "./content-selection.types";
+export { isSummarySettledForCanonical } from "./summary-settled-for-canonical";
 export type { CanonicalCommit, ContentSelectionSnapshot, SelectionExpected } from "./content-selection.types";
 export {
 	CanonicalImageUrlSchema,

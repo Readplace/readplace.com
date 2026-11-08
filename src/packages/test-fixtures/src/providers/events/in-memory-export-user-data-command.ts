@@ -9,7 +9,6 @@ export function initInMemoryExportUserDataCommand(deps: {
 	const publishExportUserDataCommand: PublishExportUserDataCommand = async (params) => {
 		logger.info("[ExportUserDataCommand] published (in-memory no-op)", {
 			userId: params.userId,
-			email: params.email,
 			requestedAt: params.requestedAt,
 		});
 	};

@@ -4,6 +4,7 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 } from "@packages/storage-client";
+import { EventInstantSchema } from "@packages/domain/event-envelope";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbSubscriptionProviders } from "./dynamodb-subscription-providers";
 
@@ -20,6 +21,29 @@ function createFakeClient(
 const TABLE = "test-subscription-providers";
 const NOW = () => new Date("2026-05-22T10:00:00.000Z");
 const USER_ID = UserIdSchema.parse("u-1");
+const EVENT_TIME = EventInstantSchema.parse("2026-05-22T09:00:00Z");
+
+const CapturedFencedCommand = z.object({
+	input: z.object({
+		UpdateExpression: z.string(),
+		ConditionExpression: z.string(),
+		ExpressionAttributeValues: z.record(z.string(), z.unknown()),
+	}),
+});
+
+function initCapturingProviders() {
+	const sent: unknown[] = [];
+	const client = createFakeClient((input) => {
+		sent.push(input);
+		return {};
+	});
+	const subs = initDynamoDbSubscriptionProviders({
+		client: client as DynamoDBDocumentClient,
+		tableName: TABLE,
+		now: () => new Date("2026-05-22T10:00:00.750Z"),
+	});
+	return { subs, sent };
+}
 
 const CapturedUpdateCommand = z.object({
 	input: z.object({
@@ -319,7 +343,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 		});
 	});
 
-	describe("markPendingCancellation", () => {
+	describe("markPendingCancellationByEvent", () => {
 		it("issues a guarded Update that sets pending_cancellation and effective date", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {
@@ -332,9 +356,10 @@ describe("initDynamoDbSubscriptionProviders", () => {
 				now: NOW,
 			});
 
-			await subs.markPendingCancellation({
+			await subs.markPendingCancellationByEvent({
 				userId: USER_ID,
 				cancellationEffectiveAt: "2026-06-22T00:00:00.000Z",
+				eventTime: EVENT_TIME,
 			});
 
 			const command = received as {
@@ -362,7 +387,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 		});
 	});
 
-	describe("markCancelledByUserId", () => {
+	describe("markCancelledByEvent", () => {
 		it("issues a guarded Update that sets cancelled and removes trialEndsAt + cancellationEffectiveAt + nextCharge", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {
@@ -375,7 +400,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 				now: NOW,
 			});
 
-			await subs.markCancelledByUserId({ userId: USER_ID });
+			await subs.markCancelledByEvent({ userId: USER_ID, eventTime: EVENT_TIME });
 
 			const command = received as {
 				input: {
@@ -396,6 +421,59 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.ExpressionAttributeValues?.[":now"]).toBe(
 				"2026-05-22T10:00:00.000Z",
 			);
+		});
+	});
+
+	describe("status time marker", () => {
+		it("upsertTrialing, upsertActive, markActive, markCancelledByEvent and markPendingCancellationByEvent record the whole second they entered the status", async () => {
+			const { subs, sent } = initCapturingProviders();
+
+			await subs.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+			await subs.upsertActive({ userId: USER_ID, subscriptionId: "sub_1", customerId: "cus_1" });
+			await subs.markActive({ userId: USER_ID });
+			await subs.markCancelledByEvent({ userId: USER_ID, eventTime: EVENT_TIME });
+			await subs.markPendingCancellationByEvent({
+				userId: USER_ID,
+				cancellationEffectiveAt: "2026-06-22T00:00:00.000Z",
+				eventTime: EVENT_TIME,
+			});
+
+			assert.equal(sent.length, 5);
+			for (const input of sent) {
+				const command = CapturedUpdateCommand.parse(input);
+				expect(command.input.UpdateExpression).toContain("statusEnteredAt = :statusEnteredAt");
+				expect(command.input.ExpressionAttributeValues[":statusEnteredAt"]).toBe("2026-05-22T10:00:00Z");
+			}
+		});
+
+		it("markCancelledByEvent refuses a row whose status is newer than the event", async () => {
+			const { subs, sent } = initCapturingProviders();
+
+			await subs.markCancelledByEvent({ userId: USER_ID, eventTime: EVENT_TIME });
+
+			const command = CapturedFencedCommand.parse(sent[0]);
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.ConditionExpression).toContain(
+				"attribute_not_exists(statusEnteredAt) OR statusEnteredAt <= :eventTime",
+			);
+			expect(command.input.ExpressionAttributeValues[":eventTime"]).toBe("2026-05-22T09:00:00Z");
+		});
+
+		it("markPendingCancellationByEvent refuses a row whose status is newer than the event", async () => {
+			const { subs, sent } = initCapturingProviders();
+
+			await subs.markPendingCancellationByEvent({
+				userId: USER_ID,
+				cancellationEffectiveAt: "2026-06-22T00:00:00.000Z",
+				eventTime: EVENT_TIME,
+			});
+
+			const command = CapturedFencedCommand.parse(sent[0]);
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.ConditionExpression).toContain(
+				"attribute_not_exists(statusEnteredAt) OR statusEnteredAt <= :eventTime",
+			);
+			expect(command.input.ExpressionAttributeValues[":eventTime"]).toBe("2026-05-22T09:00:00Z");
 		});
 	});
 
@@ -591,6 +669,63 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.ExpressionAttributeValues?.[":now"]).toBe(
 				"2026-05-22T10:00:00.000Z",
 			);
+		});
+	});
+
+	describe("markPaymentFailedEmailSent", () => {
+		it("issues a guarded Update that records the emailed attempt and bumps updatedAt", async () => {
+			const { subs, sent } = initCapturingProviders();
+
+			await subs.markPaymentFailedEmailSent({ userId: USER_ID, attempt: "in_1Open/2" });
+
+			const command = CapturedFencedCommand.parse(sent[0]);
+			expect(command.input.UpdateExpression).toContain(
+				"paymentFailedEmailAttempt = :attempt",
+			);
+			expect(command.input.UpdateExpression).toContain("updatedAt = :now");
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.ExpressionAttributeValues[":attempt"]).toBe("in_1Open/2");
+			expect(command.input.ExpressionAttributeValues[":now"]).toBe(
+				"2026-05-22T10:00:00.750Z",
+			);
+		});
+	});
+
+	describe("findByUserId with paymentFailedEmailAttempt", () => {
+		const BASE_ITEM = {
+			userId: USER_ID,
+			provider: "stripe",
+			status: "active",
+			createdAt: "2026-05-20T10:00:00.000Z",
+			updatedAt: "2026-06-04T00:00:00.000Z",
+		};
+
+		it("reads back the emailed attempt a row holds", async () => {
+			const client = createFakeClient(() => ({
+				Item: { ...BASE_ITEM, paymentFailedEmailAttempt: "in_1Open/1" },
+			}));
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const row = await subs.findByUserId(USER_ID);
+			assert(row, "row must be returned");
+			expect(row.paymentFailedEmailAttempt).toBe("in_1Open/1");
+		});
+
+		it("reads a row written before the attribute existed without it", async () => {
+			const client = createFakeClient(() => ({ Item: BASE_ITEM }));
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const row = await subs.findByUserId(USER_ID);
+			assert(row, "row must be returned");
+			expect("paymentFailedEmailAttempt" in row).toBe(false);
 		});
 	});
 

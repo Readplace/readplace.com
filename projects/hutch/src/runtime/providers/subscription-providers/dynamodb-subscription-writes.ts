@@ -10,9 +10,10 @@ import {
 	type ReleaseTrialNudge,
 	type DeleteSubscription,
 	type MarkAutomationSavesHeldEmailSent,
+	type MarkPaymentFailedEmailSent,
 	type MarkSubscriptionActive,
-	type MarkSubscriptionCancelledByUserId,
-	type MarkSubscriptionPendingCancellation,
+	type MarkSubscriptionCancelledByEvent,
+	type MarkSubscriptionPendingCancellationByEvent,
 	type MarkTrialFeedbackEmailSent,
 	type MarkTrialReminderEmailSent,
 	type RecordFounderNote,
@@ -22,6 +23,7 @@ import {
 	type UpsertActiveSubscription,
 	type UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
+import { toEventInstant } from "@packages/domain/event-envelope";
 import { SubscriptionProviderRow } from "@packages/subscription-access";
 
 /** The write half of the subscription table, wired independently from the read
@@ -34,12 +36,13 @@ export function initDynamoDbSubscriptionWrites(deps: {
 }): {
 	upsertTrialing: UpsertTrialingSubscription;
 	upsertActive: UpsertActiveSubscription;
-	markPendingCancellation: MarkSubscriptionPendingCancellation;
-	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
+	markPendingCancellationByEvent: MarkSubscriptionPendingCancellationByEvent;
+	markCancelledByEvent: MarkSubscriptionCancelledByEvent;
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
+	markPaymentFailedEmailSent: MarkPaymentFailedEmailSent;
 	claimPayDigest: ClaimPayDigest;
 	releasePayDigest: ReleasePayDigest;
 	claimTrialNudge: ClaimTrialNudge;
@@ -59,7 +62,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt, trialReminderEmailSentAt, trialFeedbackEmailSentAt, automationSavesHeldEmailSentAt, payDigestEmailSentAt, payDigestMessageId, payDigestUrls, nextCharge, #plan",
+				"SET #provider = :provider, #status = :status, trialEndsAt = :trialEndsAt, statusEnteredAt = :statusEnteredAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE subscriptionId, customerId, cancellationEffectiveAt, trialReminderEmailSentAt, trialFeedbackEmailSentAt, automationSavesHeldEmailSentAt, payDigestEmailSentAt, payDigestMessageId, payDigestUrls, nextCharge, #plan",
 			ExpressionAttributeNames: {
 				"#provider": "provider",
 				"#status": "status",
@@ -69,6 +72,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 				":provider": "stripe",
 				":status": "trialing",
 				":trialEndsAt": trialEndsAt,
+				":statusEnteredAt": toEventInstant(deps.now()),
 				":now": nowIso,
 			},
 		});
@@ -85,7 +89,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		const planRemove = plan === undefined ? ", #plan" : "";
 		await table.update({
 			Key: { userId },
-			UpdateExpression: `SET #provider = :provider, #status = :status, subscriptionId = :subscriptionId, customerId = :customerId${planSet}, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, automationSavesHeldEmailSentAt, nextCharge${planRemove}`,
+			UpdateExpression: `SET #provider = :provider, #status = :status, subscriptionId = :subscriptionId, customerId = :customerId${planSet}, statusEnteredAt = :statusEnteredAt, createdAt = if_not_exists(createdAt, :now), updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, automationSavesHeldEmailSentAt, nextCharge${planRemove}`,
 			ExpressionAttributeNames: {
 				"#provider": "provider",
 				"#status": "status",
@@ -97,35 +101,47 @@ export function initDynamoDbSubscriptionWrites(deps: {
 				":subscriptionId": subscriptionId,
 				":customerId": customerId,
 				...(plan === undefined ? {} : { ":plan": plan }),
+				":statusEnteredAt": toEventInstant(deps.now()),
 				":now": nowIso,
 			},
 		});
 	};
 
-	const markPendingCancellation: MarkSubscriptionPendingCancellation = async ({ userId, cancellationEffectiveAt }) => {
+	const STATUS_NOT_NEWER_THAN_EVENT =
+		"attribute_exists(userId) AND (attribute_not_exists(statusEnteredAt) OR statusEnteredAt <= :eventTime)";
+
+	const markPendingCancellationByEvent: MarkSubscriptionPendingCancellationByEvent = async ({
+		userId,
+		cancellationEffectiveAt,
+		eventTime,
+	}) => {
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #status = :status, cancellationEffectiveAt = :effectiveAt, updatedAt = :now REMOVE nextCharge",
-			ConditionExpression: "attribute_exists(userId)",
+				"SET #status = :status, cancellationEffectiveAt = :effectiveAt, statusEnteredAt = :statusEnteredAt, updatedAt = :now REMOVE nextCharge",
+			ConditionExpression: STATUS_NOT_NEWER_THAN_EVENT,
 			ExpressionAttributeNames: { "#status": "status" },
 			ExpressionAttributeValues: {
 				":status": "pending_cancellation",
 				":effectiveAt": cancellationEffectiveAt,
+				":eventTime": eventTime,
+				":statusEnteredAt": toEventInstant(deps.now()),
 				":now": deps.now().toISOString(),
 			},
 		});
 	};
 
-	const markCancelledByUserId: MarkSubscriptionCancelledByUserId = async ({ userId }) => {
+	const markCancelledByEvent: MarkSubscriptionCancelledByEvent = async ({ userId, eventTime }) => {
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
-				"SET #status = :cancelled, updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, nextCharge",
-			ConditionExpression: "attribute_exists(userId)",
+				"SET #status = :cancelled, statusEnteredAt = :statusEnteredAt, updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, nextCharge",
+			ConditionExpression: STATUS_NOT_NEWER_THAN_EVENT,
 			ExpressionAttributeNames: { "#status": "status" },
 			ExpressionAttributeValues: {
 				":cancelled": "cancelled",
+				":eventTime": eventTime,
+				":statusEnteredAt": toEventInstant(deps.now()),
 				":now": deps.now().toISOString(),
 			},
 		});
@@ -134,11 +150,13 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	const markActive: MarkSubscriptionActive = async ({ userId }) => {
 		await table.update({
 			Key: { userId },
-			UpdateExpression: "SET #status = :status, updatedAt = :now REMOVE cancellationEffectiveAt, automationSavesHeldEmailSentAt",
+			UpdateExpression:
+				"SET #status = :status, statusEnteredAt = :statusEnteredAt, updatedAt = :now REMOVE cancellationEffectiveAt, automationSavesHeldEmailSentAt",
 			ConditionExpression: "attribute_exists(userId)",
 			ExpressionAttributeNames: { "#status": "status" },
 			ExpressionAttributeValues: {
 				":status": "active",
+				":statusEnteredAt": toEventInstant(deps.now()),
 				":now": deps.now().toISOString(),
 			},
 		});
@@ -163,6 +181,18 @@ export function initDynamoDbSubscriptionWrites(deps: {
 			ConditionExpression: "attribute_exists(userId)",
 			ExpressionAttributeValues: {
 				":sentAt": sentAt,
+				":now": deps.now().toISOString(),
+			},
+		});
+	};
+
+	const markPaymentFailedEmailSent: MarkPaymentFailedEmailSent = async ({ userId, attempt }) => {
+		await table.update({
+			Key: { userId },
+			UpdateExpression: "SET paymentFailedEmailAttempt = :attempt, updatedAt = :now",
+			ConditionExpression: "attribute_exists(userId)",
+			ExpressionAttributeValues: {
+				":attempt": attempt,
 				":now": deps.now().toISOString(),
 			},
 		});
@@ -313,12 +343,13 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	return {
 		upsertTrialing,
 		upsertActive,
-		markPendingCancellation,
-		markCancelledByUserId,
+		markPendingCancellationByEvent,
+		markCancelledByEvent,
 		markActive,
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent,
+		markPaymentFailedEmailSent,
 		claimPayDigest,
 		releasePayDigest,
 		claimTrialNudge,

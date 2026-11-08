@@ -1,5 +1,7 @@
 import assert from "node:assert";
+import { type EventInstant, toEventInstant } from "@packages/domain/event-envelope";
 import type { UserId } from "@packages/domain/user";
+import { ConditionalCheckFailedException } from "@packages/storage-client";
 import {
 	type ClaimPayDigest,
 	type ClaimTrialNudge,
@@ -9,11 +11,14 @@ import {
 	type FindSubscriptionByUserId,
 	type ListUserIdsBySubscriptionStatus,
 	type MarkSubscriptionActive,
+	type MarkSubscriptionCancelledByEvent,
 	type MarkSubscriptionCancelledByUserId,
 	type MarkSubscriptionPendingCancellation,
+	type MarkSubscriptionPendingCancellationByEvent,
 	type MarkTrialFeedbackEmailSent,
 	type MarkTrialReminderEmailSent,
 	type MarkAutomationSavesHeldEmailSent,
+	type MarkPaymentFailedEmailSent,
 	type RecordFounderNote,
 	type ReleasePayDigest,
 	type SetSubscriptionNextCharge,
@@ -47,10 +52,13 @@ export function initInMemorySubscriptionProviders(opts: {
 	upsertActive: UpsertActiveSubscription;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
+	markPendingCancellationByEvent: MarkSubscriptionPendingCancellationByEvent;
+	markCancelledByEvent: MarkSubscriptionCancelledByEvent;
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
+	markPaymentFailedEmailSent: MarkPaymentFailedEmailSent;
 	claimPayDigest: ClaimPayDigest;
 	releasePayDigest: ReleasePayDigest;
 	claimTrialNudge: ClaimTrialNudge;
@@ -83,6 +91,7 @@ export function initInMemorySubscriptionProviders(opts: {
 			provider: "stripe",
 			status: "trialing",
 			trialEndsAt,
+			statusEnteredAt: toEventInstant(opts.now()),
 			createdAt: existing?.createdAt ?? nowIso,
 			updatedAt: nowIso,
 		});
@@ -104,32 +113,64 @@ export function initInMemorySubscriptionProviders(opts: {
 			customerId,
 			status: "active",
 			...(plan === undefined ? {} : { plan }),
+			statusEnteredAt: toEventInstant(opts.now()),
 			createdAt: existing?.createdAt ?? nowIso,
 			updatedAt: nowIso,
 		});
 	};
 
-	const markPendingCancellation: MarkSubscriptionPendingCancellation = async ({ userId, cancellationEffectiveAt }) => {
-		const existing = rows.get(userId);
-		assert(existing, `No subscription row for user ${userId}`);
+	const writePendingCancellation = (existing: SubscriptionRecord, cancellationEffectiveAt: string): void => {
 		const { nextCharge: _nc, ...rest } = existing;
-		rows.set(userId, {
+		rows.set(existing.userId, {
 			...rest,
 			status: "pending_cancellation",
 			cancellationEffectiveAt,
+			statusEnteredAt: toEventInstant(opts.now()),
 			updatedAt: opts.now().toISOString(),
 		});
+	};
+
+	const writeCancelled = (existing: SubscriptionRecord): void => {
+		const { trialEndsAt: _t, cancellationEffectiveAt: _ca, nextCharge: _nc, ...rest } = existing;
+		rows.set(existing.userId, {
+			...rest,
+			status: "cancelled",
+			statusEnteredAt: toEventInstant(opts.now()),
+			updatedAt: opts.now().toISOString(),
+		});
+	};
+
+	const rowAcceptingEvent = (params: { userId: UserId; eventTime: EventInstant }): SubscriptionRecord => {
+		const existing = rows.get(params.userId);
+		const newer = existing?.statusEnteredAt !== undefined && existing.statusEnteredAt > params.eventTime;
+		if (existing === undefined || newer) {
+			throw new ConditionalCheckFailedException({ message: "The conditional request failed", $metadata: {} });
+		}
+		return existing;
+	};
+
+	const markPendingCancellation: MarkSubscriptionPendingCancellation = async ({ userId, cancellationEffectiveAt }) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		writePendingCancellation(existing, cancellationEffectiveAt);
 	};
 
 	const markCancelledByUserId: MarkSubscriptionCancelledByUserId = async ({ userId }) => {
 		const existing = rows.get(userId);
 		assert(existing, `No subscription row for user ${userId}`);
-		const { trialEndsAt: _t, cancellationEffectiveAt: _ca, nextCharge: _nc, ...rest } = existing;
-		rows.set(userId, {
-			...rest,
-			status: "cancelled",
-			updatedAt: opts.now().toISOString(),
-		});
+		writeCancelled(existing);
+	};
+
+	const markPendingCancellationByEvent: MarkSubscriptionPendingCancellationByEvent = async ({
+		userId,
+		cancellationEffectiveAt,
+		eventTime,
+	}) => {
+		writePendingCancellation(rowAcceptingEvent({ userId, eventTime }), cancellationEffectiveAt);
+	};
+
+	const markCancelledByEvent: MarkSubscriptionCancelledByEvent = async ({ userId, eventTime }) => {
+		writeCancelled(rowAcceptingEvent({ userId, eventTime }));
 	};
 
 	const markActive: MarkSubscriptionActive = async ({ userId }) => {
@@ -143,6 +184,7 @@ export function initInMemorySubscriptionProviders(opts: {
 		rows.set(userId, {
 			...rest,
 			status: "active",
+			statusEnteredAt: toEventInstant(opts.now()),
 			updatedAt: opts.now().toISOString(),
 		});
 	};
@@ -169,6 +211,16 @@ export function initInMemorySubscriptionProviders(opts: {
 		rows.set(userId, {
 			...existing,
 			trialReminderEmailSentAt: sentAt,
+			updatedAt: opts.now().toISOString(),
+		});
+	};
+
+	const markPaymentFailedEmailSent: MarkPaymentFailedEmailSent = async ({ userId, attempt }) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		rows.set(userId, {
+			...existing,
+			paymentFailedEmailAttempt: attempt,
 			updatedAt: opts.now().toISOString(),
 		});
 	};
@@ -309,10 +361,13 @@ export function initInMemorySubscriptionProviders(opts: {
 		upsertActive,
 		markPendingCancellation,
 		markCancelledByUserId,
+		markPendingCancellationByEvent,
+		markCancelledByEvent,
 		markActive,
 		markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent,
+		markPaymentFailedEmailSent,
 		claimPayDigest,
 		releasePayDigest,
 		claimTrialNudge,

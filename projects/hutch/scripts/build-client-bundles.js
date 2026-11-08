@@ -497,6 +497,26 @@ const BUNDLES = [
       "});",
     ].join("\n"),
   },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
+      "src/runtime/web/pages/developers/developers.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "developers.client.js"),
+    globalName: "Developers",
+    footer: [
+      "Developers.initDevelopers({",
+      "  document: window.document,",
+      "  navigator: window.navigator,",
+      "  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+      "  clearTimeoutFn: function (id) { window.clearTimeout(id); },",
+      "  observeIntersections: function (onChange, options) { return new IntersectionObserver(onChange, options); },",
+      "  headerOffset: function () { return parseFloat(window.getComputedStyle(window.document.documentElement).scrollPaddingTop); },",
+      "  isNarrowViewport: function () { return window.matchMedia('(max-width: 1023px)').matches; },",
+      "  addSettleListener: function (listener) { window.document.body.addEventListener('htmx:afterSettle', listener); }",
+      "});",
+    ].join("\n"),
+  },
 ];
 
 const ALL_BUNDLES = [

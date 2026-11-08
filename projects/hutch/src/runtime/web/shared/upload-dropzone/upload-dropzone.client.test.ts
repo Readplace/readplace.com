@@ -1,24 +1,33 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { classifyFile, formatBytes, initUploadDropzone, type UploadProgress, type UploadRequest } from "./upload-dropzone.client";
+import { acceptsFile, classifyFile, formatBytes, initUploadDropzone, type UploadProgress, type UploadRequest } from "./upload-dropzone.client";
 
 const ORIGIN = "https://readplace.com";
-const BOOK_ACCEPT = "application/epub+zip:.epub";
+const BOOK_ACCEPT = "application/epub+zip,.epub";
 const IMPORT_URL = `${ORIGIN}/import?utm_source=test`;
 const SIREN = "application/vnd.siren+json";
 
-function formMarkup(input: { signInHref?: string; disabled?: boolean } = {}): string {
+interface MarkupInput {
+	signInHref?: string;
+	disabled?: boolean;
+	uploadOnChoose?: boolean;
+}
+
+function formMarkup(input: MarkupInput = {}): string {
 	const signIn = input.signInHref ? ` data-sign-in-href="${input.signInHref}"` : "";
 	const disabled = input.disabled ? " disabled" : "";
+	const uploadOnChoose = input.uploadOnChoose ?? true;
 	return `<form id="form" method="POST" action="/import?utm_source=test" enctype="multipart/form-data"
 	data-upload-dropzone data-upload-state="idle" data-test-form="upload-file"
-	data-book-start-action="/upload" data-book-accept="${BOOK_ACCEPT}"
-	data-book-max-bytes="1000" data-import-max-bytes="100"${signIn}
+	data-upload-start-action="/upload" data-import-max-bytes="100"${signIn}
+	data-upload-on-choose="${uploadOnChoose}"
 	data-message-unsupported="Unsupported" data-message-import-too-large="Import too large"
-	data-message-book-too-large="Book too large" data-message-failed="Failed">
+	data-message-failed="Failed">
+	<span hidden data-upload-kind="book" data-accept="${BOOK_ACCEPT}" data-max-bytes="1000" data-message-too-large="Book too large"></span>
 	<div class="upload-dropzone__idle">
 		<label id="zone" data-upload-dropzone-zone>
 			<input id="input" type="file" name="file"${disabled}>
+			<span id="primary" data-upload-dropzone-primary>Choose a file</span>
 			<span id="meta" data-upload-dropzone-meta>HTML, JSON</span>
 		</label>
 		<p id="error" data-upload-dropzone-error hidden></p>
@@ -84,7 +93,7 @@ function fakeRequest(): FakeRequest {
 	return request;
 }
 
-function setup(input: { signInHref?: string; disabled?: boolean } = {}) {
+function setup(input: MarkupInput = {}) {
 	const dom = new JSDOM(`<!doctype html><html><body>${formMarkup(input)}</body></html>`, { url: `${ORIGIN}/import` });
 	const document = dom.window.document;
 	const requests: FakeRequest[] = [];
@@ -115,9 +124,9 @@ function setup(input: { signInHref?: string; disabled?: boolean } = {}) {
 
 describe("classifyFile", () => {
 	it.each([
-		[{ name: "book.epub", type: "application/epub+zip" }, "book"],
-		[{ name: "BOOK.EPUB", type: "" }, "book"],
-		[{ name: "renamed", type: "application/epub+zip" }, "book"],
+		[{ name: "book.epub", type: "application/epub+zip" }, "upload"],
+		[{ name: "BOOK.EPUB", type: "" }, "upload"],
+		[{ name: "renamed", type: "application/epub+zip" }, "upload"],
 		[{ name: "bookmarks.html", type: "text/html" }, "links"],
 		[{ name: "export.json", type: "application/json" }, "links"],
 		[{ name: "feed.opml", type: "application/rss+xml" }, "links"],
@@ -126,11 +135,24 @@ describe("classifyFile", () => {
 		[{ name: "paper.pdf", type: "application/pdf" }, "unsupported"],
 		[{ name: "photo.png", type: "image/png" }, "unsupported"],
 	])("classifies %o as %s", (file, expected) => {
-		expect(classifyFile(file, BOOK_ACCEPT)).toBe(expected);
+		expect(classifyFile(file, [BOOK_ACCEPT])).toBe(expected);
 	});
 
-	it("ignores a book entry with no extension list", () => {
-		expect(classifyFile({ name: "a.epub", type: "" }, "nonsense")).toBe("links");
+	it("routes a file to upload when any offered kind accepts it", () => {
+		expect(classifyFile({ name: "talk.mp3", type: "audio/mpeg" }, [BOOK_ACCEPT, "audio/mpeg,.mp3"])).toBe("upload");
+	});
+
+	it("leaves a type no kind is offered for to the link import or refuses it", () => {
+		expect(classifyFile({ name: "book.epub", type: "" }, [])).toBe("links");
+		expect(classifyFile({ name: "talk.mp3", type: "audio/mpeg" }, [BOOK_ACCEPT])).toBe("unsupported");
+	});
+});
+
+describe("acceptsFile", () => {
+	it("matches an accept list's types exactly and its extensions case-blind", () => {
+		expect(acceptsFile({ name: "a.EPUB", type: "" }, " .Epub ,application/epub+zip")).toBe(true);
+		expect(acceptsFile({ name: "a", type: "application/epub+zip" }, BOOK_ACCEPT)).toBe(true);
+		expect(acceptsFile({ name: "a.epub.txt", type: "text/plain" }, BOOK_ACCEPT)).toBe(false);
 	});
 });
 
@@ -405,7 +427,7 @@ describe("initUploadDropzone", () => {
 		const [start] = requests;
 		expect(start.url).toBe(`${ORIGIN}/upload`);
 		expect(start.headers["Content-Type"]).toBe("application/x-www-form-urlencoded");
-		expect(new URLSearchParams(String(start.body)).toString()).toBe("contentType=application%2Fepub%2Bzip&fileName=book.epub&byteLength=2");
+		expect(new URLSearchParams(String(start.body)).toString()).toBe("fileName=book.epub&byteLength=2");
 		start.respond({ status: 200, contentType: SIREN, body: stagedEntity() });
 
 		const storage = requests[1];
@@ -423,19 +445,6 @@ describe("initUploadDropzone", () => {
 		confirm.respond({ status: 200, responseURL: `${ORIGIN}/queue`, contentType: "text/html" });
 
 		expect(navigations).toEqual([`${ORIGIN}/queue`]);
-	});
-
-	it("uses the book type a file's extension names when the browser names none", () => {
-		const { requests } = startBook();
-
-		expect(new URLSearchParams(String(requests[0].body)).get("contentType")).toBe("application/epub+zip");
-	});
-
-	it("keeps the book type the browser names", () => {
-		const { choose, file, requests } = setup();
-		choose(file(["PK"], "renamed", "application/epub+zip"));
-
-		expect(new URLSearchParams(String(requests[0].body)).get("contentType")).toBe("application/epub+zip");
 	});
 
 	it("reports storage refusing the book as a failed upload", () => {
@@ -566,5 +575,57 @@ describe("initUploadDropzone", () => {
 		});
 
 		expect(byId("error").textContent).toBe("Too big");
+	});
+});
+
+describe("initUploadDropzone when choosing a file waits for Send", () => {
+	it("keeps a chosen file in the input, names it and clears an earlier error, without uploading", () => {
+		const { byId, choose, file, input, requests } = setup({ uploadOnChoose: false });
+		byId("error").textContent = "Earlier";
+		byId("error").hidden = false;
+		input.setAttribute("aria-invalid", "true");
+
+		choose(file(["PK"], "book.epub", "application/epub+zip"));
+
+		expect(byId("primary").textContent).toBe("book.epub");
+		expect(byId("error").hidden).toBe(true);
+		expect(input.hasAttribute("aria-invalid")).toBe(false);
+		expect(requests).toEqual([]);
+	});
+
+	it("keeps a dropped file in the input without uploading", () => {
+		const { dom, byId, input, file, requests } = setup({ uploadOnChoose: false });
+		Object.defineProperty(input, "files", { configurable: true, writable: true, value: [] });
+		const dropped = [file(["https://a.example"], "links.txt", "text/plain")];
+		const drop = new dom.window.Event("drop", { bubbles: true, cancelable: true });
+		Object.defineProperty(drop, "dataTransfer", { value: { files: dropped } });
+
+		byId("zone").dispatchEvent(drop);
+
+		expect(input.files).toBe(dropped);
+		expect(byId("primary").textContent).toBe("links.txt");
+		expect(requests).toEqual([]);
+	});
+
+	it("leaves the dropzone alone when the picker closes without a file or the input is disabled", () => {
+		const { dom, byId, input, requests } = setup({ uploadOnChoose: false, disabled: true });
+		Object.defineProperty(input, "files", { configurable: true, value: [] });
+		input.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+		Object.defineProperty(input, "files", { configurable: true, value: [new dom.window.File(["x"], "a.txt")] });
+		input.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+		expect(byId("primary").textContent).toBe("Choose a file");
+		expect(requests).toEqual([]);
+	});
+
+	it("uploads the kept file when the form is submitted", () => {
+		const { dom, choose, file, requests, document } = setup({ uploadOnChoose: false });
+		choose(file(["https://a.example"], "links.txt", "text/plain"));
+		const form = document.getElementById("form");
+		assert(form);
+
+		form.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
+
+		expect(requests.map((request) => request.url)).toEqual([IMPORT_URL]);
 	});
 });

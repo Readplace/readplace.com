@@ -103,7 +103,7 @@ export async function openAddLink(page: Page): Promise<Locator> {
 export async function saveWithAddLink(page: Page, url: string): Promise<void> {
 	const form = await openAddLink(page)
 	await form.locator('input[name="url"]').fill(url)
-	await clickAndWaitForPageReload(page, form.locator('button[type="submit"]'))
+	await clickAndWaitForPageReload(page, page.locator('#add-link [data-test-action="add-link-save"]'))
 	await expect(page.locator('#add-link:popover-open')).toHaveCount(0, { timeout: 15000 })
 }
 

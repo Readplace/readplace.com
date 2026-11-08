@@ -1,7 +1,10 @@
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import { EventEnvelope } from "@packages/domain/event-envelope";
 import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import { SubscriptionChargeFailedEvent } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
+import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
+import { messagePredatesStatus } from "@packages/subscription-access";
 import type {
 	CancelSubscriptionReason,
 	PublishCancelSubscriptionCommand,
@@ -18,6 +21,7 @@ const cancelReasonByChargeFailure: Record<
 };
 
 export function initSubscriptionChargeFailedHandler(deps: {
+	findSubscriptionByUserId: FindSubscriptionByUserId;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	emit: EmitSubscriptionEvent;
 	logger: Logger;
@@ -27,8 +31,18 @@ export function initSubscriptionChargeFailedHandler(deps: {
 		logger: deps.logger,
 		failure: { message: "[charge-failed] record failed" },
 		malformed: { policy: "retry" },
-		handle: async (detail) => {
+		handle: async (detail, record) => {
 			const { userId } = detail;
+			const { time: eventTime } = EventEnvelope.parse(JSON.parse(record.body));
+			const row = await deps.findSubscriptionByUserId(userId);
+			if (messagePredatesStatus({ statusEnteredAt: row?.statusEnteredAt, eventTime })) {
+				deps.logger.info("[charge-failed] message predates row status — noop", {
+					userId,
+					eventTime,
+					status: row?.status,
+				});
+				return;
+			}
 			deps.logger.info("[charge-failed] dispatching cancel", {
 				userId,
 				reason: detail.reason,

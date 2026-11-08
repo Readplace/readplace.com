@@ -19,7 +19,7 @@ const STRIPE_PRICE_IDS = {
 };
 
 function buildEventBridgeBody(userId: string): string {
-	return JSON.stringify({ detail: { userId } });
+	return JSON.stringify({ detail: { userId }, time: "2026-06-06T00:00:00Z" });
 }
 
 interface Subject {

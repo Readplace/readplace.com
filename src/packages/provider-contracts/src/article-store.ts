@@ -9,6 +9,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ItemMedia, ReaderArticleHashId, StoredArticleBody, Viewer } from "@packages/domain/article";
+import type { EventInstant } from "@packages/domain/event-envelope";
 import type { EmailLinkOrdinal } from "@packages/domain/inbox";
 import type {
 	ReadlistFitEngineVerdict,
@@ -438,6 +439,12 @@ export type FindReadlistFiling = (params: {
 	readlist: ReadlistSlug;
 	url: string;
 }) => Promise<{ savedAt: Date; status: ArticleStatus; readAt?: Date } | undefined>;
+
+export type FindReadlistRemoval = (params: {
+	userId: UserId;
+	readlist: ReadlistSlug;
+	url: string;
+}) => Promise<EventInstant | undefined>;
 
 export type ReadlistFilingLandsAs = { status: "unread" } | { status: "read"; readAt: Date };
 

@@ -53,7 +53,7 @@ describe("buildConnectedAppsSection", () => {
 		assert(row, "the plugin must have a row");
 
 		expect(row.disconnects.map((disconnect) => disconnect.body)).toEqual([
-			"It's signed out on every device and stops syncing your articles into Obsidian until you sign in to it again. Your saved articles stay in your readlist, and the notes already in your vault stay where they are.",
+			"It stops syncing your articles into Obsidian until you sign in to it again. Your saved articles stay in your library, and the notes already in your vault stay where they are.",
 		]);
 	});
 
@@ -128,7 +128,7 @@ describe("buildConnectedAppsSection", () => {
 		]);
 	});
 
-	it("posts a web sign-out to the client's own route, tagged as an account click", () => {
+	it("posts a web disconnect to the client's own route, tagged as an account click", () => {
 		const section = webSection([builtIn("hutch-chrome-extension")]);
 
 		expect(section.rows.map((row) => row.disconnects.map((disconnect) => disconnect.href))).toEqual([
@@ -137,7 +137,7 @@ describe("buildConnectedAppsSection", () => {
 		expect(section.rows.map((row) => row.links)).toEqual([[]]);
 	});
 
-	it("keeps the app sheet's markers on a sign-out posted from inside it", () => {
+	it("keeps the app sheet's markers on a disconnect posted from inside it", () => {
 		const section = buildConnectedAppsSection({ apps: [{ client: builtIn("hutch-chrome-extension"), latestSignIn: undefined }], now: NOW, appShell: true, platform: "ios" });
 
 		expect(section.rows.map((row) => row.disconnects.map((disconnect) => disconnect.href))).toEqual([
@@ -145,7 +145,7 @@ describe("buildConnectedAppsSection", () => {
 		]);
 	});
 
-	it("asks before signing a built-in app out, naming it and saying it signs out on every device", () => {
+	it("asks before disconnecting a built-in app, naming it and explaining how saving resumes", () => {
 		const section = webSection([builtIn("hutch-chrome-extension")]);
 
 		expect(section.dialogs).toEqual([
@@ -153,25 +153,25 @@ describe("buildConnectedAppsSection", () => {
 				id: "disconnect-app-1",
 				clientId: "hutch-chrome-extension",
 				href: "/account/connected-apps/hutch-chrome-extension/disconnect?utm_source=account&utm_medium=internal&utm_content=disconnect-app",
-				title: "Sign out Chrome extension from all devices?",
+				title: "Disconnect Chrome extension?",
 				lead: "Save any page to Readplace with one click.",
-				body: "It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
+				body: "It can't save to Readplace until you sign in to it again. Your saved articles stay in your library.",
 			},
 		]);
 		expect(section.rows.map((row) => row.disconnects.map((disconnect) => disconnect.body))).toEqual([
-			["It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist."],
+			["It can't save to Readplace until you sign in to it again. Your saved articles stay in your library."],
 		]);
 	});
 
-	it("asks before signing an assistant out everywhere, leading with where it connects from", () => {
+	it("explains that disconnecting an assistant can leave its Readplace pages signed in, leading with where it connects from", () => {
 		const section = webSection([
 			CLAUDE,
 			registered({ id: "dyn-unknown", name: "Mystery", redirectUri: "https://example.com/callback" }),
 		]);
 
 		expect(section.dialogs.map((dialog) => [dialog.title, dialog.lead, dialog.body])).toEqual([
-			["Sign out Claude from all devices?", "Connected from claude.ai.", "It's signed out everywhere and can't reach your readlist until you connect it again. Your saved articles stay in your readlist."],
-			["Sign out AI assistant from all devices?", "Connected from example.com.", "It's signed out everywhere and can't reach your readlist until you connect it again. Your saved articles stay in your readlist."],
+			["Disconnect Claude?", "Connected from claude.ai.", "Its Readplace connection stops working until you connect it again. Readplace pages opened inside the app may stay signed in. Change your Readplace password to sign them out. Your saved articles stay in your library."],
+			["Disconnect AI assistant?", "Connected from example.com.", "Its Readplace connection stops working until you connect it again. Readplace pages opened inside the app may stay signed in. Change your Readplace password to sign them out. Your saved articles stay in your library."],
 		]);
 	});
 

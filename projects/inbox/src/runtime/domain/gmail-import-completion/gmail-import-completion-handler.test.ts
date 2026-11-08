@@ -71,7 +71,7 @@ async function setup(input: { origins?: GmailMessageOrigin[]; emailExists?: bool
 	const select = (outputs: EmailOutputKey[], truncated = false) =>
 		completion.selectOutputs({ userId, receivedAtMessageId, selection: { outputs, truncated, selectedAt: "2026-10-27T00:00:01.000Z" } });
 	const recordDuplicate = initRecordDuplicateGmailOrigin({ addGmailOrigins: completion.addGmailOrigins, evaluate });
-	return { run, select, marks, recordDuplicate };
+	return { run, select, marks, recordDuplicate, evaluate, findCompletion: completion.findCompletion };
 }
 
 describe("gmail import completion", () => {
@@ -161,6 +161,16 @@ describe("gmail import completion", () => {
 			{ userId, receivedAtMessageId, origin: HISTORY },
 			{ userId, receivedAtMessageId, origin: FORWARDED },
 		]);
+	});
+
+	it("records an acknowledgement for mail with no selection and requests no mark", async () => {
+		const { run, marks, evaluate, findCompletion } = await setup({ origins: [] });
+
+		assert.deepEqual(await run([savedBody(LINK)]), { batchItemFailures: [] });
+
+		assert.deepEqual((await findCompletion({ userId, receivedAtMessageId }))?.savedOutputs, new Set([LINK]));
+		assert.equal(await evaluate({ userId, receivedAtMessageId }), "not-saved");
+		assert.deepEqual(marks, []);
 	});
 
 	it("does nothing for an email with no Gmail copy", async () => {

@@ -8,7 +8,7 @@ const UPLOAD_REVIEW_TEMPLATE = readFileSync(join(__dirname, "upload-review.templ
 
 export type UploadReviewView =
 	| { view: "inspecting"; pollUrl: string; checkAgainUrl: string }
-	| { view: "overrun" }
+	| { view: "overrun"; uploadAgainUrl: string }
 	| { view: "review"; title: string; authors: string; sectionTitles: readonly string[]; commitUrl: string }
 	| {
 			view: "timed-review";
@@ -18,8 +18,8 @@ export type UploadReviewView =
 			allowanceMinutes: number;
 			commitUrl: string;
 		}
-	| { view: "too-long"; notice: string }
-	| { view: "rejected"; notice: string };
+	| { view: "too-long"; notice: string; uploadAgainUrl: string }
+	| { view: "rejected"; notice: string; uploadAgainUrl: string };
 
 const REVIEW_COPY = {
 	book: { heading: "Upload a book", description: "Review an uploaded book before saving it to Readplace." },

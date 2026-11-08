@@ -2,6 +2,7 @@ import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SaveableUrlErrorCode } from "@packages/domain/article";
+import { BOOK } from "@packages/media-contracts";
 import {
 	type AlertContent,
 	render,
@@ -27,11 +28,17 @@ import { UPLOAD_ENTRY_HREFS } from "../upload/upload-entry-ctas";
 
 const CONTROL_TEMPLATE = readFileSync(join(__dirname, "readlist-add-link.template.html"), "utf-8");
 const FORM_TEMPLATE = readFileSync(join(__dirname, "readlist-add-link-form.template.html"), "utf-8");
+const TABS_TEMPLATE = readFileSync(join(__dirname, "readlist-add-link-tabs.template.html"), "utf-8");
 const PENDING_TEMPLATE = readFileSync(join(__dirname, "readlist-add-link-pending.template.html"), "utf-8");
 const FEEDBACK_TEMPLATE = readFileSync(join(__dirname, "readlist-save-feedback.template.html"), "utf-8");
 const SKIPPED_TEMPLATE = readFileSync(join(__dirname, "readlist-save-feedback-skipped.template.html"), "utf-8");
 
 export const ADD_LINK_POPOVER_ID = "add-link";
+
+const ADD_ARTICLE_MODES = [
+	{ value: "link", label: "Link", checked: true },
+	{ value: "file", label: "File", checked: false },
+];
 
 const ADD_LINK_TITLE = "Add article";
 
@@ -112,6 +119,7 @@ export function renderReadlistAddLink(input: {
 			pendingHtml: render(PENDING_TEMPLATE, {
 				title: ADD_LINK_TITLE,
 				body: ADD_LINK_BODY,
+				accessIsReadOnly: input.accessIsReadOnly,
 				formHtml: form({ value: input.saveUrl, autoSubmit: true, autofocus: false }),
 			}),
 		};
@@ -127,12 +135,20 @@ export function renderReadlistAddLink(input: {
 			title: ADD_LINK_TITLE,
 			body: ADD_LINK_BODY,
 			actionsHtml: [
-				form({ value: "", autoSubmit: false, autofocus: true }),
-				renderUploadDropzone({
-					importAction: ADD_ARTICLE_IMPORT_ACTION,
-					bookFallbackHref: UPLOAD_ENTRY_HREFS.addArticleFallback,
-					disabled: input.accessIsReadOnly,
-					idPrefix: "add-article",
+				render(TABS_TEMPLATE, {
+					modes: ADD_ARTICLE_MODES,
+					accessIsReadOnly: input.accessIsReadOnly,
+					linkFormHtml: form({ value: "", autoSubmit: false, autofocus: true }),
+					dropzoneHtml: renderUploadDropzone({
+						importAction: ADD_ARTICLE_IMPORT_ACTION,
+						bookFallbackHref: UPLOAD_ENTRY_HREFS.addArticleFallback,
+						disabled: input.accessIsReadOnly,
+						idPrefix: "add-article",
+						formId: "add-article-upload-form",
+						showSubmit: false,
+						uploadOnChoose: false,
+						kinds: [BOOK],
+					}),
 				}),
 				input.saveTip.html,
 			].join("\n"),

@@ -1,5 +1,6 @@
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { z } from "zod";
+import { type EventInstant, EventEnvelope } from "@packages/domain/event-envelope";
 import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import { SubscriptionStartRequestCommand } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
@@ -11,6 +12,7 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	ResolvePriceId,
 } from "@packages/provider-contracts/subscription-billing";
+import { messagePredatesStatus } from "@packages/subscription-access";
 import type {
 	PublishSubscriptionChargeFailed,
 	PublishSubscriptionChargeSucceeded,
@@ -32,7 +34,7 @@ interface HandlerDeps {
 export function initSubscriptionStartRequestHandler(
 	deps: HandlerDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	async function processRecord(detail: SubscriptionStartRequestDetail): Promise<void> {
+	async function processRecord(detail: SubscriptionStartRequestDetail, eventTime: EventInstant): Promise<void> {
 		const { userId } = detail;
 		const row = await deps.findSubscriptionByUserId(userId);
 
@@ -41,6 +43,11 @@ export function initSubscriptionStartRequestHandler(
 				userId,
 				status: row?.status,
 			});
+			return;
+		}
+
+		if (messagePredatesStatus({ statusEnteredAt: row.statusEnteredAt, eventTime })) {
+			deps.logger.info("[start-request] message predates row status — noop", { userId, eventTime });
 			return;
 		}
 
@@ -77,6 +84,6 @@ export function initSubscriptionStartRequestHandler(
 		logger: deps.logger,
 		failure: { message: "[start-request] record failed" },
 		malformed: { policy: "retry" },
-		handle: processRecord,
+		handle: (detail, record) => processRecord(detail, EventEnvelope.parse(JSON.parse(record.body)).time),
 	});
 }

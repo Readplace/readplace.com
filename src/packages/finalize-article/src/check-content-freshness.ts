@@ -59,7 +59,6 @@ export function initRefreshArticleIfStale(deps: {
 			await deps.publishUpdateFetchTimestamp({
 				url,
 				contentFetchedAt: deps.now().toISOString(),
-				bodyHash: freshness.bodyHash,
 			});
 			return { action: "unchanged" };
 		}

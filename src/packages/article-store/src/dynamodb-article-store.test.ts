@@ -166,6 +166,35 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(article?.readerAvailableAt).toBe("2026-05-13T12:00:00.000Z");
 		});
 
+		it("hydrates savedAt and purgedAt, projecting both columns on the load", async () => {
+			const requests: unknown[] = [];
+			const client = createFakeClient((input) => {
+				requests.push(input);
+				return {
+					Item: {
+						title: "Title",
+						siteName: "Example",
+						excerpt: "Excerpt",
+						wordCount: 100,
+						estimatedReadTime: 1,
+						contentFetchedAt: "2026-01-01T00:00:00.000Z",
+						crawlStatus: "ready",
+						summaryStatus: "pending",
+						savedAt: "2026-05-12T12:00:00.000Z",
+						purgedAt: "2026-05-13T12:00:00.000Z",
+					},
+				};
+			});
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+
+			const article = await store.load(URL);
+
+			expect(article?.savedAt).toBe("2026-05-12T12:00:00.000Z");
+			expect(article?.purgedAt).toBe("2026-05-13T12:00:00.000Z");
+			const projected = Object.values(z.object({ input: z.object({ ExpressionAttributeNames: z.record(z.string(), z.string()) }) }).parse(requests[0]).input.ExpressionAttributeNames);
+			expect(projected).toEqual(expect.arrayContaining(["savedAt", "purgedAt"]));
+		});
+
 		it("leaves readerAvailableAt undefined for rows that never recorded one", async () => {
 			const client = createFakeClient(() => ({
 				Item: {

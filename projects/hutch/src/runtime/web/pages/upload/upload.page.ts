@@ -70,11 +70,18 @@ function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, 
 		sendPage(context, res, {
 			...UploadPage({
 				view: "start",
-				start: toUploadStartViewModel(
-					context.kinds,
-					Boolean(context.req.userId),
-					uploadStartPathOf(isMeteredStart(context.req.query)),
-				),
+				start: {
+					...toUploadStartViewModel(
+						context.kinds,
+						Boolean(context.req.userId),
+						uploadStartPathOf(context.metered),
+					),
+					transcriptAllowanceMinutes: transcriptAllowanceMinutesOf({
+						kinds: context.kinds,
+						metered: context.metered,
+						allowanceSeconds: context.transcriptAllowanceSeconds,
+					}),
+				},
 				error: {
 					code,
 					message: uploadErrorMessageOf({ code, kinds: context.kinds }),
@@ -180,11 +187,14 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 		req: Request,
 		res: Response,
 		outcome: UploadOutcome<K>,
+		metered = isMeteredStart(req.query),
 	) {
 		const context: UploadWriteContext = {
 			req,
 			bannerState: await deps.buildBannerState(req),
-			kinds: viewerKinds(req),
+			kinds: viewerKinds(req, metered),
+			metered,
+			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 		};
 		writeUploadOutcome({
 			writers: deps.pickUploadProtocol(req).writers,
@@ -277,13 +287,14 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 			await write(req, res, { outcome: "upload_session_not_found" });
 			return;
 		}
+		const metered = session.metered === true;
 		if (session.status !== "staged") {
-			await write(req, res, { outcome: RECEIVED_AGAIN[session.status], uploadId: session.uploadId });
+			await write(req, res, { outcome: RECEIVED_AGAIN[session.status], uploadId: session.uploadId }, metered);
 			return;
 		}
 		const head = await deps.headMediaPendingOriginal({ uploadId: session.uploadId });
 		if (!head) {
-			await write(req, res, { outcome: "upload_not_received" });
+			await write(req, res, { outcome: "upload_not_received" }, metered);
 			return;
 		}
 		const prefix = await deps.readMediaPendingPrefix({
@@ -293,16 +304,16 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 		});
 		const kind = detectUploadKind({
 			kinds: deps.MEDIA_KINDS,
-			offered: viewerKinds(req, session.metered === true),
+			offered: viewerKinds(req, metered),
 			fileName: session.fileName,
 			prefix,
 		});
 		if (!kind) {
-			await write(req, res, { outcome: "upload_unsupported_type" });
+			await write(req, res, { outcome: "upload_unsupported_type" }, metered);
 			return;
 		}
 		if (head.size > kind.uploadCeilingBytes) {
-			await write(req, res, { outcome: "upload_too_large" });
+			await write(req, res, { outcome: "upload_too_large" }, metered);
 			return;
 		}
 		await write(
@@ -314,6 +325,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 				etag: head.etag,
 				size: head.size,
 			}),
+			metered,
 		);
 	});
 

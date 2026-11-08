@@ -32,6 +32,7 @@ import type { IngestParsedEmail } from "./ingest-parsed-email";
 import type { InterceptGmailConfirmation } from "./intercept-gmail-confirmation";
 import type { ResumeAcceptedGmailEmail } from "./resume-accepted-gmail-email";
 import type { ResolveEmailIdentity } from "./resolve-email-identity";
+import type { SettleExtractedEmail } from "./settle-extracted-email";
 
 /** The SES "Received" notification SES publishes (via the S3 action's topic) for
  * each inbound message. Only the fields the receive path needs are validated. */
@@ -59,6 +60,7 @@ export function initReceiveEmailHandler(deps: {
 	interceptGmailConfirmation: InterceptGmailConfirmation;
 	routeGmailForwardedEmail: RouteGmailForwardedEmail;
 	recordDuplicateGmailOrigin: RecordDuplicateGmailOrigin;
+	settleExtractedEmail: SettleExtractedEmail;
 	findConnectedGmailAccount: (userId: UserId) => Promise<GmailAccountEmail | undefined>;
 	logger: Logger;
 	maxEmailBytes: number;
@@ -75,6 +77,7 @@ export function initReceiveEmailHandler(deps: {
 		interceptGmailConfirmation,
 		routeGmailForwardedEmail,
 		recordDuplicateGmailOrigin,
+		settleExtractedEmail,
 		findConnectedGmailAccount,
 		logger,
 	} = deps;
@@ -286,6 +289,10 @@ export function initReceiveEmailHandler(deps: {
 					const gmailOrigin = isGmail && sender !== undefined && normalizedMessageId !== undefined
 						? await forwardedGmailOrigin({ userId, senderEmail: sender, rfcMessageId: normalizedMessageId })
 						: undefined;
+					if (await settleExtractedEmail({ userId, receivedAtMessageId, rawEmailS3Key: s3Key, deliversGmail: isGmail, gmailOrigin })) {
+						logger.info("[receive-email] already extracted", { userId, deliveryAddress: recipientAddress });
+						continue;
+					}
 					if (isGmail && await resumeAcceptedGmailEmail({ userId, receivedAtMessageId, rawEmailS3Key: s3Key, origin: "receive", gmailOrigin })) continue;
 					const gmailDelivery =
 						resolved.purpose === "gmail-forwarding" ||

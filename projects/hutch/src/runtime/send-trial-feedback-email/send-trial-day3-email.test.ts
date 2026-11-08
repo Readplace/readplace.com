@@ -58,6 +58,8 @@ function buildSubject(options: { contact?: UserContact | null; sendEmail?: SendE
 		markTrialFeedbackEmailSent: providers.markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent: providers.markAutomationSavesHeldEmailSent,
+		markPaymentFailedEmailSent: providers.markPaymentFailedEmailSent,
+		findOpenInvoiceFailure: async () => undefined,
 		claimTrialNudge: providers.claimTrialNudge,
 		releaseTrialNudge: options.releaseTrialNudge ?? providers.releaseTrialNudge,
 		findUserContactByUserId: async () => contact,

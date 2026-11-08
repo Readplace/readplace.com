@@ -258,6 +258,81 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("findExportRecipient and markExportDelivered", () => {
+		it("returns the address with no deletedAt and no marker before a first delivery", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "reader@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			expect(await auth.findExportRecipient(created.userId)).toEqual({
+				email: "reader@example.com",
+				deletedAt: undefined,
+				exportDeliveredRequestedAt: undefined,
+			});
+		});
+
+		it("returns null for an unknown userId", async () => {
+			const auth = makeAuth();
+
+			expect(await auth.findExportRecipient(UserIdSchema.parse("nobody"))).toBeNull();
+		});
+
+		it("returns deletedAt once the account is marked deleted", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "reader@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.markAccountDeleted({ userId: created.userId, at: "2026-08-31T00:00:00.000Z" });
+
+			expect(await auth.findExportRecipient(created.userId)).toEqual({
+				email: "reader@example.com",
+				deletedAt: "2026-08-31T00:00:00.000Z",
+				exportDeliveredRequestedAt: undefined,
+			});
+		});
+
+		it("moves the marker forward only to a newer request", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "reader@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+			const mark = (requestedAt: string) =>
+				auth.markExportDelivered({ userId: created.userId, email: "reader@example.com", requestedAt });
+
+			await mark("2026-08-30T00:00:00.000Z");
+			await mark("2026-08-31T00:00:00.000Z");
+			await mark("2026-08-29T00:00:00.000Z");
+
+			expect(await auth.findExportRecipient(created.userId)).toEqual({
+				email: "reader@example.com",
+				deletedAt: undefined,
+				exportDeliveredRequestedAt: "2026-08-31T00:00:00.000Z",
+			});
+		});
+
+		it("leaves a row owned by another userId and a missing row untouched", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "reader@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.markExportDelivered({
+				userId: UserIdSchema.parse("someone-else"),
+				email: "reader@example.com",
+				requestedAt: "2026-08-31T00:00:00.000Z",
+			});
+			await auth.markExportDelivered({
+				userId: created.userId,
+				email: "gone@example.com",
+				requestedAt: "2026-08-31T00:00:00.000Z",
+			});
+
+			expect(await auth.findExportRecipient(created.userId)).toEqual({
+				email: "reader@example.com",
+				deletedAt: undefined,
+				exportDeliveredRequestedAt: undefined,
+			});
+		});
+	});
+
 	describe("verifyCredentials", () => {
 		it("should verify correct password", async () => {
 			const auth = makeAuth();

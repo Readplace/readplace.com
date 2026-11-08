@@ -7,7 +7,7 @@ import { initJudgeUnderLedger } from "./judge-under-ledger";
 import type { Article } from "@packages/domain/article-aggregate";
 import { candidateProvenance, type TierSource, type VerifiedTierSource } from "@packages/tier-source";
 import { labelForIndex } from "./select-content-prompt";
-import { initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
+import { type SelectionMode, initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import { OWN_CAPTURE_FAILED_METRIC } from "./comparison-log";
 import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 
@@ -104,7 +104,7 @@ function setup(overrides: Partial<Dependencies> = {}) {
 	};
 	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 });
 	const prepare = initPrepareContentSelection({ ...deps, judge });
-	return { prepare: (params: Omit<Parameters<typeof prepare>[0], "saveAttemptId" | "claimId">) => prepare({ ...params, saveAttemptId: FRESH, claimId: "message-1" }), deps };
+	return { prepare: (params: Omit<Parameters<typeof prepare>[0], "saveAttemptId" | "claimId" | "mode"> & { mode?: SelectionMode }) => prepare({ mode: "save", ...params, saveAttemptId: FRESH, claimId: "message-1" }), deps };
 }
 
 describe("initPrepareContentSelection", () => {
@@ -752,7 +752,7 @@ describe("initPrepareContentSelection", () => {
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [live],
 			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
-		const result = await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1", candidates: [{ tier: "tier-1", id: cid("live") }] });
+		const result = await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1", mode: "save", candidates: [{ tier: "tier-1", id: cid("live") }] });
 		expect(result.audit?.responseStatus).toBe("rejected");
 		expect(result.selectionRule).toBe("provider-rejected-fallback");
 		expect(result.outcome).toBe("selected");
@@ -768,7 +768,7 @@ describe("initPrepareContentSelection", () => {
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [blank],
 			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
-		expect((await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1" })).outcome).toBe("no-readable");
+		expect((await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1", mode: "save" })).outcome).toBe("no-readable");
 	});
 
 	describe("a lone body on an article with no content yet", () => {

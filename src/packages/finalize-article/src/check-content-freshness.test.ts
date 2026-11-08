@@ -127,23 +127,26 @@ describe("refreshArticleIfStale", () => {
 		expect(result.action).toBe("skip");
 	});
 
-	it("returns action 'unchanged' when crawlArticle returns not-modified and publishes fetch timestamp", async () => {
-		const publishCalled: string[] = [];
+	it("returns action 'unchanged' when crawlArticle returns not-modified and publishes only the url and the new clock", async () => {
+		const published: Parameters<FreshnessDependencies["publishUpdateFetchTimestamp"]>[0][] = [];
 		const deps = createDeps({
 			findArticleFreshness: async () => ({
 				etag: '"abc"',
 				contentFetchedAt: "2026-03-19T00:00:00Z",
+				bodyHash: "h".repeat(64),
 			}),
 			findArticleCrawlStatus: async () => ({ status: "ready" as const }),
 			crawlArticle: async () => ({ status: "not-modified" as const }),
-			publishUpdateFetchTimestamp: async () => { publishCalled.push("timestamp"); },
+			publishUpdateFetchTimestamp: async (params) => { published.push(params); },
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
 		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
 
 		expect(result.action).toBe("unchanged");
-		expect(publishCalled).toContain("timestamp");
+		expect(published).toStrictEqual([
+			{ url: "https://example.com/article", contentFetchedAt: "2026-03-20T10:00:00.000Z" },
+		]);
 	});
 
 	it("passes existing etag and lastModified to crawlArticle when stale", async () => {

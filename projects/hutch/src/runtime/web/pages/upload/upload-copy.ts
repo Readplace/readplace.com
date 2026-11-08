@@ -21,12 +21,12 @@ export function uploadDescriptionsOf(
 	);
 }
 
+export function uploadFormatsOf(kinds: readonly MediaKindManifest[]): string {
+	return either.format(kinds.map((kind) => t(`upload.kinds.${kind.name}.format`)));
+}
+
 export function unsupportedTypeMessageOf(
 	kinds: readonly MediaKindManifest[],
 ): string {
-	return t("upload.unsupportedType", {
-		formats: either.format(
-			kinds.map((kind) => t(`upload.kinds.${kind.name}.format`)),
-		),
-	});
+	return t("upload.unsupportedType", { formats: uploadFormatsOf(kinds) });
 }

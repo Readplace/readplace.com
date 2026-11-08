@@ -306,6 +306,11 @@ const receiveEmailIdentities = new DynamoDBAccess("inbox-receive-email-identitie
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
+const receiveEmailLinksRead = new DynamoDBAccess("inbox-receive-email-links-read", {
+	tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
+
 const receiveEmailByMessageId = new DynamoDBAccess("inbox-receive-email-by-message-id", {
 	tables: [{ arn: inboxStorage.emailsTable.arn, includeIndexes: true }],
 	actions: ["dynamodb:Query"],
@@ -328,6 +333,7 @@ const receiveEmailLambda = new Lambda("inbox-receive-email", {
 	environmentNames: RECEIVE_EMAIL_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: inboxStorage.emailsTable.name,
+		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_GMAIL_SENDERS_TABLE: tableNames.gmailSenders,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: tableNames.gmailConnections,
@@ -345,6 +351,7 @@ const receiveEmailLambda = new Lambda("inbox-receive-email", {
 		...receiveEmailDynamodb.policies,
 		...receiveEmailGmailMappings.policies,
 		...receiveEmailIdentities.policies,
+		...receiveEmailLinksRead.policies,
 		...receiveEmailByMessageId.policies,
 		// Reads the raw bucket (the .eml) and only writes the content bucket (the
 		// sanitized body and the rehosted images) — no content-bucket read.

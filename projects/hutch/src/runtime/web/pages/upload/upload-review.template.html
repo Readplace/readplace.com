@@ -11,7 +11,7 @@
     <section id="upload-status" data-upload-status="overrun">
       <div class="upload__panel" data-test-upload-inspection-overrun>
         <p class="upload__description">We couldn't finish checking this book. Upload it again.</p>
-        <a href="{{track '/upload' source='upload-review' content='upload-again'}}" data-test-upload-again>Upload again</a>
+        <a href="{{overrun.uploadAgainUrl}}" data-test-upload-again>Upload again</a>
       </div>
     </section>
     {{/if}}
@@ -34,7 +34,7 @@
       <div class="upload__panel" data-test-upload-timed-review>
         <h2 data-test-upload-heading>{{timed_review.heading}}</h2>
         <p class="upload__description" data-test-upload-duration>{{timed_review.durationMinutes}} min</p>
-        <p class="upload__description" data-test-transcript-minutes>Uses {{timed_review.transcriptMinutes}} of your {{timed_review.allowanceMinutes}} minutes today</p>
+        <p class="upload__description" data-test-transcript-minutes>Uses {{timed_review.transcriptMinutes}} of your {{timed_review.allowanceMinutes}} transcript minutes today</p>
         <form method="post" action="{{timed_review.commitUrl}}" data-test-upload-commit-form>
           <button class="btn btn--primary upload__submit" type="submit">Save to my queue</button>
         </form>
@@ -45,7 +45,7 @@
     <section id="upload-status" data-upload-status="too-long">
       <div class="upload__panel">
         <p class="upload__description" data-test-upload-notice>{{too_long.notice}}</p>
-        <a href="{{track '/upload' source='upload-review' content='upload-again'}}" data-test-upload-again>Upload again</a>
+        <a href="{{too_long.uploadAgainUrl}}" data-test-upload-again>Upload again</a>
       </div>
     </section>
     {{/if}}
@@ -53,7 +53,7 @@
     <section id="upload-status" data-upload-status="rejected">
       <div class="upload__panel">
         <p class="upload__description" data-test-upload-notice>{{rejected.notice}}</p>
-        <a href="{{track '/upload' source='upload-review' content='upload-again'}}" data-test-upload-again>Upload again</a>
+        <a href="{{rejected.uploadAgainUrl}}" data-test-upload-again>Upload again</a>
       </div>
     </section>
     {{/if}}

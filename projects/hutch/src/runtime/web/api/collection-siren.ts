@@ -7,11 +7,11 @@ import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/r
 import type { AppearancePreference } from "@packages/domain/user";
 import { PLATFORM_QUERY } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
-import type { SirenEntity, SirenLink } from "./siren";
-import { buildPageList } from "./page-list";
-import { buildTabList, type StatusTab } from "./tab-list";
-import { buildSortList, type SortOption } from "./sort-list";
-import { buildReadlistList, type ReadlistOption } from "./readlist-list";
+import type { SirenEntity, SirenLink, SirenMessage } from "./siren";
+import { buildPageList, type PageListEntry } from "./page-list";
+import { buildTabList, type StatusTab, type TabListEntry } from "./tab-list";
+import { buildSortList, type SortListEntry, type SortOption } from "./sort-list";
+import { buildReadlistList, type ReadlistListEntry, type ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
 import { READLIST_CREATE_PATH, readlistDeletePath, readlistRenamePath } from "../pages/readlist/readlist.url";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
@@ -23,6 +23,27 @@ interface CollectionWarning {
 	readonly code: string;
 	readonly message: string;
 }
+
+export type CollectionProperties = {
+	pageSize: number;
+	pages: PageListEntry[];
+	tabs: TabListEntry[];
+	readlists: ReadlistListEntry[];
+	total?: { label: string };
+	sort?: SortListEntry[];
+	appearance?: AppearancePreference;
+	warning?: CollectionWarning;
+	messages?: SirenMessage[];
+};
+
+export const SEARCH_FIELDS = [
+	{ name: "status", type: "text" },
+	{ name: "order", type: "text" },
+	{ name: "page", type: "number" },
+	{ name: "url", type: "url" },
+] as const;
+
+export type SearchFieldName = (typeof SEARCH_FIELDS)[number]["name"];
 
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
@@ -85,7 +106,7 @@ export function toArticleCollectionEntity(
 		});
 	}
 
-	const properties: Record<string, unknown> = {
+	const properties: CollectionProperties = {
 		pageSize,
 		pages: buildPageList({
 			currentPage: page,
@@ -97,12 +118,12 @@ export function toArticleCollectionEntity(
 			currentStatus: queryParams.status,
 			hrefForStatus: (status) => `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status, order: queryParams.order })}`,
 		}),
+		readlists: buildReadlistList({
+			readlists: options.readlists,
+			currentReadlist: queryParams.readlist ?? DEFAULT_READLIST_SLUG,
+			hrefForReadlist: (readlist) => readlistHref({ readlist, readlistKey: queryParams.readlistKey }),
+		}),
 	};
-	properties.readlists = buildReadlistList({
-		readlists: options.readlists,
-		currentReadlist: queryParams.readlist ?? DEFAULT_READLIST_SLUG,
-		hrefForReadlist: (readlist) => readlistHref({ readlist, readlistKey: queryParams.readlistKey }),
-	});
 	if (options.totalLabel) properties.total = { label: options.totalLabel({ total }) };
 	if (options.sort) {
 		properties.sort = buildSortList({
@@ -181,12 +202,7 @@ export function toArticleCollectionEntity(
 				title: "Search",
 				href: "/queue",
 				method: "GET",
-				fields: [
-					{ name: "status", type: "text" },
-					{ name: "order", type: "text" },
-					{ name: "page", type: "number" },
-					{ name: "url", type: "url" },
-				],
+				fields: [...SEARCH_FIELDS],
 			},
 			// Mints a browser session cookie from the bearer token so a client's
 			// in-app reader can load the cookie-authenticated reader page. Advertised

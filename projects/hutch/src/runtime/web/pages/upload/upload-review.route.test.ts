@@ -275,6 +275,25 @@ describe("Guest upload routes", () => {
 		expect(again.searchParams.get("utm_content")).toBe("upload-again");
 	});
 
+	it.each([
+		{ startPath: "/upload?features=transcripts", features: "transcripts" },
+		{ startPath: "/upload", features: null },
+	])("keeps the start path $startPath on an overrun's Upload again", async ({ startPath, features }) => {
+		const harness = guestApp();
+		const staged = await request(harness.server).post(startPath).type("form").send({});
+		const uploadId = stagedUploadId(documentOf(staged.text));
+		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: epubPrefix() });
+		await request(harness.server).post(`/upload/${uploadId}/received`);
+
+		const response = await request(harness.server).get(`/upload/${uploadId}?poll=${MAX_POLLS + 1}`);
+
+		const again = urlOf(statusOf(response.text).querySelector("[data-test-upload-again]")?.getAttribute("href"));
+		expect({ pathname: again.pathname, features: again.searchParams.get("features") }).toEqual({
+			pathname: "/upload",
+			features,
+		});
+	});
+
 	it("shows a rejected book's notice inside the poll budget, not the overrun", async () => {
 		const harness = guestApp();
 		const { uploadId } = await guestReceive(harness);

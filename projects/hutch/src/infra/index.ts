@@ -1444,6 +1444,7 @@ const sendTrialFeedbackEmailLambda = new Lambda(
 			DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 			DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 			RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
+			STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 			STATIC_BASE_URL: staticAssets.baseUrl,
 			APP_ORIGIN: appOrigin,
 		},

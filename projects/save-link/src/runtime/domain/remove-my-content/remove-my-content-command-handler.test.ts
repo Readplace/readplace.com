@@ -24,7 +24,7 @@ function createSqsEvent(detail: unknown): SQSEvent {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail }),
+			body: JSON.stringify({ time: REQUESTED_AT, detail }),
 			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",
@@ -64,6 +64,7 @@ function legacyArticle(tier: TierSource["tier"]): Article {
 }
 
 const FIXED_NOW = new Date("2026-07-16T10:00:00.000Z");
+const REQUESTED_AT = "2026-07-16T09:59:58Z";
 const URL = "https://example.com/post";
 const AUTHORED_KEY = "content-versions/example.com%2Fpost/2026-07-10T09-41Z/content.html";
 const LEGACY_CANONICAL_KEY = "content/example.com%2Fpost/content.html";
@@ -111,6 +112,7 @@ describe("initRemoveMyContentCommandHandler", () => {
 			url: URL,
 			userId: "user-1",
 			versionMinuteId: MINUTE_ID,
+			requestedAt: REQUESTED_AT,
 		});
 		expect(deps.deleteContentObjects).toHaveBeenCalledWith([
 			"content-versions/example.com%2Fpost/2026-07-10T09-41Z/content.html",

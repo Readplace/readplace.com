@@ -252,6 +252,43 @@ describe("initDynamoDbGmailConnection", () => {
 		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":c": "yes", ":now": NOW.toISOString() });
 	});
 
+	const rowWrites: [string, (store: ReturnType<typeof harness>["store"]) => Promise<unknown>][] = [
+		["markForwardingConfirmed", (store) => store.markForwardingConfirmed({ userId: USER })],
+		["recordConfirmError", (store) => store.recordConfirmError({ userId: USER, error: { reason: "token-rejected", at: NOW.toISOString() } })],
+		["recordAccountEmail", (store) => store.recordAccountEmail({ userId: USER, accountEmail: ACCOUNT_EMAIL })],
+		["recordFilter", (store) => store.recordFilter({ userId: USER, filterCount: 1, filterSenderCount: 2 })],
+		["clearFilter", (store) => store.clearFilter({ userId: USER })],
+		["recordFilterError", (store) => store.recordFilterError({ userId: USER, error: { code: "rejected", message: "no", at: NOW.toISOString() } })],
+		["markRevoked", (store) => store.markRevoked({ userId: USER, reason: "invalid-grant" })],
+		["clearRevoked", (store) => store.clearRevoked({ userId: USER })],
+	];
+
+	it.each(rowWrites)("%s only updates an existing connection", async (_name, write) => {
+		const { store, commands } = harness();
+
+		await write(store);
+
+		assert.match(String(commands[0].input.ConditionExpression), /attribute_exists\(userId\)/);
+	});
+
+	it.each(rowWrites)("%s ignores a connection deleted before the write", async (_name, write) => {
+		const { store } = harness(() => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "connection gone" }); });
+
+		await assert.doesNotReject(write(store));
+	});
+
+	it.each(rowWrites)("%s propagates storage failures", async (_name, write) => {
+		const { store } = harness(() => { throw new Error("storage unavailable"); });
+
+		await assert.rejects(write(store), /storage unavailable/);
+	});
+
+	it("still answers with the reconnect time when the connection was deleted before the write", async () => {
+		const { store } = harness(() => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "connection gone" }); });
+
+		assert.equal(await store.clearRevoked({ userId: USER }), NOW.toISOString());
+	});
+
 	it("stamps the row when the reader asks to disconnect so the page stops calling it connected", async () => {
 		const { store, commands } = harness();
 

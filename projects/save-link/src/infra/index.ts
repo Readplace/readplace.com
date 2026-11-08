@@ -131,6 +131,8 @@ const usersTableName = config.require("usersTableName");
 const usersTableArn = config.require("usersTableArn");
 const subscriptionProvidersTableName = config.require("subscriptionProvidersTableName");
 const subscriptionProvidersTableArn = config.require("subscriptionProvidersTableArn");
+const inboxEmailLinksTableName = config.require("inboxEmailLinksTableName");
+const inboxEmailLinksTableArn = config.require("inboxEmailLinksTableArn");
 // "<budget>/<windowSeconds>" ceiling on comprehensive-crawl runs (OCR + LLM
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
@@ -575,7 +577,18 @@ const saveEmailIssueArticlesDynamodb = new DynamoDBAccess("save-email-issue-arti
 
 const saveEmailIssueUserArticlesDynamodb = new DynamoDBAccess("save-email-issue-user-articles-dynamodb", {
 	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
+	actions: [
+		"dynamodb:GetItem",
+		"dynamodb:UpdateItem",
+		"dynamodb:Query",
+		"dynamodb:BatchGetItem",
+		"dynamodb:ConditionCheckItem",
+	],
+});
+
+const saveEmailIssueSubscriptionProvidersRead = new DynamoDBAccess("save-email-issue-subscription-providers-dynamodb", {
+	tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
 });
 
 const saveEmailIssueOnboardingDynamodb = new DynamoDBAccess("save-email-issue-onboarding-dynamodb", {
@@ -596,10 +609,12 @@ const saveEmailIssueLambda = new Lambda("save-email-issue-command", {
 		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
 	},
 	policies: [
 		...saveEmailIssueArticlesDynamodb.policies,
 		...saveEmailIssueUserArticlesDynamodb.policies,
+		...saveEmailIssueSubscriptionProvidersRead.policies,
 		...saveEmailIssueOnboardingDynamodb.policies,
 		...contentBucket.readPolicies("save-email-issue-content-read"),
 		...contentBucket.writePolicies("save-email-issue-s3"),
@@ -1552,14 +1567,11 @@ eventBus.subscribe(AnonymousLinkSavedEvent, anonymousLinkSavedLambdaWithSQS);
 
 // --- CanonicalContentChanged handler ---
 // Subscribes to CanonicalContentChangedEvent (published by the tier selector
-// when the canonical tier flips or the readable text changes) and re-primes the
-// summary axis via markSummaryPending so the generate-summary worker regenerates
-// against the new canonical instead of cache-hitting a stale terminal summary.
+// when the canonical tier flips or the readable text changes).
 // This is the OCP seam: future derived-artifact consumers (transcript,
 // embeddings) attach as new eventBus.subscribe(CanonicalContentChangedEvent, …)
 // without touching the publisher. No dedicated DLQ event handler — the crawl has
-// already succeeded, so there is no terminal row state to flip on the rare
-// read-your-writes lag; the SqsBackedLambda DLQ + email alarm is the
+// already succeeded, so there is no terminal row state to flip; the SqsBackedLambda DLQ + email alarm is the
 	// operator signal.
 
 const canonicalContentChangedQueue = new Sqs("canonical-content-changed", {
@@ -1679,7 +1691,25 @@ const filterEmailLinksQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.filterEmailLinks, {
 
 const filterEmailLinksUserArticlesDynamodb = new DynamoDBAccess("filter-email-links-user-articles-dynamodb", {
 	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:Query", "dynamodb:GetItem"],
+});
+
+const filterEmailLinksInboxEmailLinksDynamodb = new DynamoDBAccess("filter-email-links-inbox-email-links-dynamodb", {
+	tables: [{ arn: inboxEmailLinksTableArn, includeIndexes: false }],
 	actions: ["dynamodb:Query"],
+});
+
+const filterEmailLinksSubscriptionProvidersDynamodb = new DynamoDBAccess(
+	"filter-email-links-subscription-providers-dynamodb",
+	{
+		tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
+		actions: ["dynamodb:GetItem"],
+	},
+);
+
+const filterEmailLinksArticlesDynamodb = new DynamoDBAccess("filter-email-links-articles-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: true }],
+	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
 
 const filterEmailLinksLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.filterEmailLinks, {
@@ -1691,11 +1721,19 @@ const filterEmailLinksLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.filterEmailLink
 	environmentNames: FILTER_EMAIL_LINKS_ENV,
 	environment: {
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: inboxEmailLinksTableName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		READLIST_FIT_ENGINE: readlistFitEngine,
 	},
-	policies: [...filterEmailLinksUserArticlesDynamodb.policies],
+	policies: [
+		...filterEmailLinksUserArticlesDynamodb.policies,
+		...filterEmailLinksInboxEmailLinksDynamodb.policies,
+		...filterEmailLinksSubscriptionProvidersDynamodb.policies,
+		...filterEmailLinksArticlesDynamodb.policies,
+	],
 });
 
 eventBus.grantPublish(filterEmailLinksLambda);

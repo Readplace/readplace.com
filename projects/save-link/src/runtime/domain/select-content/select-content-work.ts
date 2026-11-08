@@ -24,7 +24,7 @@ import type { RecordCrawlVersion } from "./crawl-versions";
 import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
 import { resolveCanonicalPublishedOn } from "./resolve-canonical-published-on";
-import { type LiveAttempt, type PreparedContentSelection, initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
+import { type LiveAttempt, type PreparedContentSelection, type SelectionMode, initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import { markNoReadableArticle } from "./mark-no-readable-article";
 import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { SELECT_CONTENT_TIMEOUTS } from "./timeouts";
@@ -56,9 +56,9 @@ type SelectContentRequest = {
 	liveAttempt?: LiveAttempt;
 	extractedAt?: string;
 } & (
-	| { mode: "save"; candidates?: readonly CandidateReference[] }
-	| { mode: "recrawl"; candidates: readonly CandidateReference[] }
-	| { mode: "refresh"; candidates?: readonly CandidateReference[]; refresh: { etag?: string; lastModified?: string; contentFetchedAt: string; bodyHash: string } }
+	| { mode: Extract<SelectionMode, "save">; candidates?: readonly CandidateReference[] }
+	| { mode: Extract<SelectionMode, "recrawl">; candidates: readonly CandidateReference[] }
+	| { mode: Extract<SelectionMode, "refresh">; candidates?: readonly CandidateReference[]; refresh: { etag?: string; lastModified?: string; contentFetchedAt: string; bodyHash: string } }
 );
 
 function freshTierOneDisplay(params: { selection: PreparedContentSelection; candidates: readonly CandidateReference[] }) {
@@ -103,6 +103,10 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 	const logContentSelection = initLogContentSelection(deps);
 	return async (params: SelectContentRequest & { claimId: string }): Promise<void> => {
 		const prepared = await prepare(params);
+		if (prepared.outcome === "refused") {
+			deps.logger.info("[RefreshContentExtracted] refused", { url: params.url, saveAttemptId: params.saveAttemptId, reason: prepared.reason, rowFetchedAt: prepared.article.freshness.contentFetchedAt, extractedAt: params.extractedAt });
+			return;
+		}
 		const keepRow = params.liveAttempt?.outcome === "deferred" || prepared.legacyCanonicalWithheld;
 		const nothingReadable = prepared.selected === undefined && !keepRow && prepared.selectionRule !== "judge-deferred";
 		const card = nothingReadable ? await recoverVideoCard(deps, { url: params.url, saveAttemptId: params.saveAttemptId, originalUrl: prepared.originalUrl }) : undefined;

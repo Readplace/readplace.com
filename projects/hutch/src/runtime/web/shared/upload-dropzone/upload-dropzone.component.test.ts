@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { BOOK } from "@packages/media-contracts";
 import { parseHTML } from "linkedom";
 import {
 	renderUploadDropzone,
@@ -12,6 +13,10 @@ const BASE_INPUT: UploadDropzoneInput = {
 	bookFallbackHref: "/upload?utm_source=test",
 	disabled: false,
 	idPrefix: "test",
+	formId: "test-upload-form",
+	showSubmit: true,
+	uploadOnChoose: true,
+	kinds: [BOOK],
 };
 
 function renderForm(overrides: Partial<UploadDropzoneInput> = {}) {
@@ -53,13 +58,29 @@ describe("renderUploadDropzone", () => {
 		);
 	});
 
-	it("hands the client the book types, the starting action and both byte caps", () => {
+	it("hands the client each offered kind's accept list and byte cap, the starting action and the import cap", () => {
 		const { form } = renderForm();
 
-		expect(form.getAttribute("data-book-accept")).toBe("application/epub+zip:.epub");
-		expect(form.getAttribute("data-book-start-action")).toBe("/upload");
-		expect(form.getAttribute("data-book-max-bytes")).toBe(String(200 * 1024 * 1024));
+		const kinds = Array.from(form.querySelectorAll("[data-upload-kind]"));
+		expect(kinds.map((kind) => kind.getAttribute("data-upload-kind"))).toEqual(["book"]);
+		expect(kinds[0].getAttribute("data-accept")).toBe("application/epub+zip,.epub");
+		expect(kinds[0].getAttribute("data-max-bytes")).toBe(String(200 * 1024 * 1024));
+		expect(kinds[0].getAttribute("data-message-too-large")).toBe("That book is too large. The limit is 200 MB.");
+		expect(form.getAttribute("data-upload-start-action")).toBe("/upload");
 		expect(Number(form.getAttribute("data-import-max-bytes"))).toBeGreaterThan(0);
+	});
+
+	it("names its form with the given id", () => {
+		expect(renderForm({ formId: "add-article-upload-form" }).form.getAttribute("id")).toBe("add-article-upload-form");
+	});
+
+	it("tells the client whether choosing a file starts the upload", () => {
+		expect(renderForm({ uploadOnChoose: true }).form.getAttribute("data-upload-on-choose")).toBe("true");
+		expect(renderForm({ uploadOnChoose: false }).form.getAttribute("data-upload-on-choose")).toBe("false");
+	});
+
+	it("leaves the Upload button out when the caller supplies its own submit", () => {
+		expect(renderForm({ showSubmit: false }).form.querySelector('[data-test-action="upload-file"]')).toBeNull();
 	});
 
 	it("tells a reader with a file over the import cap to split the export", () => {
@@ -68,8 +89,9 @@ describe("renderUploadDropzone", () => {
 		expect(form.getAttribute("data-message-import-too-large")).toContain(
 			"split the export into smaller files and import them one at a time",
 		);
-		expect(form.getAttribute("data-message-book-too-large")).toBe("That book is too large. The limit is 200 MB.");
-		expect(form.getAttribute("data-message-unsupported")).toContain("isn't supported");
+		expect(form.getAttribute("data-message-unsupported")).toBe(
+			"That file type isn't supported. Choose a list of links (HTML, JSON, CSV, or plain text) or a DRM-free EPUB.",
+		);
 		expect(form.getAttribute("data-message-failed")).toBe("The upload didn't go through. Try again.");
 	});
 

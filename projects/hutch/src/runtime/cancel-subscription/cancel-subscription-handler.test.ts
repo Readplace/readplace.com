@@ -16,7 +16,7 @@ const USER_ID = UserIdSchema.parse("4".repeat(32));
 const STRIPE_PERIOD_END = "2026-06-22T10:00:00.000Z";
 
 function buildEventBridgeBody(userId: string, reason?: string): string {
-	return JSON.stringify({ detail: reason ? { userId, reason } : { userId } });
+	return JSON.stringify({ detail: reason ? { userId, reason } : { userId }, time: "2026-05-23T10:00:00Z" });
 }
 
 interface Subject {
@@ -56,11 +56,13 @@ function buildSubject(opts?: { scheduleCancellationAtPeriodEndReturns?: string }
 		findSubscriptionByUserId: providers.findByUserId,
 		scheduleCancellationAtPeriodEnd: stripeSubscriptions.scheduleCancellationAtPeriodEnd,
 		createDeferredCancellationSchedule: trialScheduler.createDeferredCancellationSchedule,
+		deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,
 		deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 		deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
 		deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
 		publishSubscriptionCancellationScheduled,
 		publishSubscriptionCancelled,
+		now: () => new Date("2026-05-23T10:00:00.000Z"),
 		logger: Logger.from(noopLogger),
 	});
 	return {
@@ -337,11 +339,13 @@ describe("cancel-subscription handler", () => {
 				throw new Error("Stripe is down");
 			},
 			createDeferredCancellationSchedule: trialScheduler.createDeferredCancellationSchedule,
+			deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,
 			deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 			deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
 			deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
 			publishSubscriptionCancellationScheduled: async () => {},
 			publishSubscriptionCancelled: async () => {},
+			now: () => new Date("2026-05-23T10:00:00.000Z"),
 			logger: Logger.from(noopLogger),
 		});
 

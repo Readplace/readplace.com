@@ -256,7 +256,7 @@ describe("Readlist routes", () => {
 					{ surface: "readlist-filters-clear", targets: ".readlist-listing" },
 					{ surface: "readlist-filters", targets: "closest form, .readlist-listing" },
 					{ surface: "readlist-filters-clear", targets: ".readlist-listing" },
-					{ surface: "save-article", targets: "closest form, .readlist-save-skeleton" },
+					{ surface: "save-article", targets: "closest form, .readlist-save-skeleton, #add-link-save" },
 				]);
 			}
 		});
@@ -331,7 +331,8 @@ describe("Readlist routes", () => {
 			expect(pending.hasAttribute("popover")).toBe(false);
 			expect(pending.parentElement?.className).toBe("readlist__lead");
 			expect(doc.querySelectorAll('[data-test-action="add-link"]')).toHaveLength(0);
-			expect(forms[0]?.querySelector('button[type="submit"]')?.hasAttribute("disabled")).toBe(false);
+			const save = pending?.querySelector(`button[type="submit"][form="${forms[0]?.id}"]`);
+			expect(save?.hasAttribute("disabled")).toBe(false);
 		});
 
 		it("should include auto-submit script", async () => {

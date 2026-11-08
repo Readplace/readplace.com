@@ -1,5 +1,6 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { newSaveAttemptId } from "@packages/domain/article";
+import { EventEnvelope } from "@packages/domain/event-envelope";
 import { isCanonicalCandidateRevoked, type LoadArticle, type SaveArticle } from "@packages/domain/article-aggregate";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
@@ -54,12 +55,13 @@ export function initRemoveMyContentCommandHandler(deps: {
 		logger,
 		failure: { message: "[RemoveMyContent] record failed" },
 		malformed: { policy: "retry" },
-		handle: async (detail) => {
-
+		handle: async (detail, record) => {
+			const { time: requestedAt } = EventEnvelope.parse(JSON.parse(record.body));
 			const authored = await resolveAuthoredContentKeys({
 				url: detail.url,
 				userId: detail.userId,
 				versionMinuteId: detail.versionMinuteId,
+				requestedAt,
 			});
 			await deps.revokeContentCandidates({ url: detail.url, candidateIds: authored.candidateIds });
 			await deleteContentObjects(authored.objectKeys);

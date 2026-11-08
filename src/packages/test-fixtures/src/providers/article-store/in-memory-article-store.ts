@@ -13,7 +13,7 @@ import type {
 	ServedBody,
 } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { toEventInstant } from "@packages/domain/event-envelope";
+import { type EventInstant, toEventInstant } from "@packages/domain/event-envelope";
 import {
 	ReaderArticleHashId,
 	articleDestinationUrl,
@@ -55,6 +55,7 @@ import type {
 	DeleteReadlistArticle,
 	FileIntoLiveReadlist,
 	FindReadlistFiling,
+	FindReadlistRemoval,
 	PurgeReadlistArticle,
 	ListReadlistDefinitions,
 	ListReadlistFitOverrides,
@@ -254,6 +255,7 @@ export function initInMemoryArticleStore(): {
 	deleteReadlistArticle: DeleteReadlistArticle;
 	purgeReadlistArticle: PurgeReadlistArticle;
 	findReadlistFiling: FindReadlistFiling;
+	findReadlistRemoval: FindReadlistRemoval;
 	fileIntoLiveReadlist: FileIntoLiveReadlist;
 	markReadlistArticleViewed: MarkReadlistArticleViewed;
 	listUserSavesForUrl: ListUserSavesForUrl;
@@ -345,7 +347,7 @@ export function initInMemoryArticleStore(): {
 		string,
 		{ userId: UserId; readlist: ReadlistSlug; override: ReadlistFitOverride }
 	>();
-	const readlistRemovals = new Map<string, { userId: UserId; removedAt: string }>();
+	const readlistRemovals = new Map<string, { userId: UserId; removedAt: EventInstant }>();
 	const readlistRemovalKey = (removal: { userId: UserId; readlist: ReadlistSlug; url: string }) =>
 		`${userArticleKey(removal.userId, ArticleResourceUniqueId.parse(removal.url).value)}|${removal.readlist}`;
 	const recordReadlistRemoval = (removal: { userId: UserId; readlist: ReadlistSlug; url: string }) => {
@@ -849,6 +851,9 @@ export function initInMemoryArticleStore(): {
 		if (row === undefined) return undefined;
 		return { savedAt: row.savedAt, status: row.status, readAt: row.readAt };
 	};
+
+	const findReadlistRemoval: FindReadlistRemoval = async (params) =>
+		readlistRemovals.get(readlistRemovalKey(params))?.removedAt;
 
 	const fileIntoLiveReadlist: FileIntoLiveReadlist = async (params) => {
 		if (!readlistDefinitions.has(readlistDefinitionKey(params.userId, params.readlist))) {
@@ -1525,6 +1530,7 @@ export function initInMemoryArticleStore(): {
 		deleteReadlistArticle,
 		purgeReadlistArticle,
 		findReadlistFiling,
+		findReadlistRemoval,
 		fileIntoLiveReadlist,
 		markReadlistArticleViewed,
 		listUserSavesForUrl,

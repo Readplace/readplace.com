@@ -1,3 +1,4 @@
+import type { EmailReceivedDetail } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import { initResumeAcceptedGmailEmail } from "./resume-accepted-gmail-email";
 import assert from "node:assert/strict";
@@ -26,7 +27,7 @@ import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
-import { initInMemoryEmailImportCompletion, initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
+import { initInMemoryEmailImportCompletion, initInMemoryInboxEmail, initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { RouteGmailForwardedEmail } from "../gmail/route-gmail-forwarded-email";
 import { initEvaluateGmailImportCompletion } from "../gmail-import-completion/evaluate-gmail-import-completion";
@@ -35,6 +36,7 @@ import { initIngestParsedEmail } from "./ingest-parsed-email";
 import type { InterceptGmailConfirmation } from "./intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "./receive-email-handler";
 import { initResolveEmailIdentity } from "./resolve-email-identity";
+import { initSettleExtractedEmail } from "./settle-extracted-email";
 import type { StoreEmailBody } from "./store-email-body";
 
 const OWNER = UserIdSchema.parse("00000000000000000000000000000001");
@@ -107,6 +109,7 @@ function makeHarness(opts?: {
 	const addressStore = initInMemoryInboxAddress({ now: () => new Date() });
 	const emailStore = initInMemoryInboxEmail();
 	const completion = initInMemoryEmailImportCompletion({ getEmail: emailStore.getEmail, listEmailsByUserId: emailStore.listEmailsByUserId });
+	const linkStore = initInMemoryInboxEmailLink();
 	const marks: unknown[] = [];
 	const identities = initInMemoryEmailIdentity();
 	const rawMap = new Map<string, Buffer>();
@@ -115,6 +118,7 @@ function makeHarness(opts?: {
 			receivedAtMessageId: string;
 			userId: string;
 			recipientAddress: string;
+			routing: EmailReceivedDetail["routing"];
 		};
 	}[] = [];
 	const imageDownloadCalls: { html: string }[] = [];
@@ -128,20 +132,23 @@ function makeHarness(opts?: {
 						receivedAtMessageId: string;
 						userId: string;
 						recipientAddress: string;
+						routing: EmailReceivedDetail["routing"];
 					},
 				});
 			};
+	const recordDuplicateGmailOrigin = initRecordDuplicateGmailOrigin({
+		addGmailOrigins: completion.addGmailOrigins,
+		evaluate: initEvaluateGmailImportCompletion({
+			findCompletion: completion.findCompletion,
+			publishEvent: async (_event, detail) => {
+				marks.push(detail);
+			},
+		}),
+	});
 	const handler = initReceiveEmailHandler({
 		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emailStore.getEmail, addGmailOrigins: completion.addGmailOrigins, publishEvent }),
-		recordDuplicateGmailOrigin: initRecordDuplicateGmailOrigin({
-			addGmailOrigins: completion.addGmailOrigins,
-			evaluate: initEvaluateGmailImportCompletion({
-				findCompletion: completion.findCompletion,
-				publishEvent: async (_event, detail) => {
-					marks.push(detail);
-				},
-			}),
-		}),
+		recordDuplicateGmailOrigin,
+		settleExtractedEmail: initSettleExtractedEmail({ getEmail: emailStore.getEmail, findLinksMeta: linkStore.findLinksMeta, recordDuplicateGmailOrigin }),
 		findConnectedGmailAccount: async () => (opts !== undefined && "connectedGmailAccount" in opts ? opts.connectedGmailAccount : GMAIL_ACCOUNT),
 		readRawEmail: async (key) => rawMap.get(key),
 		findByAddress: addressStore.findByAddress,
@@ -195,6 +202,7 @@ function makeHarness(opts?: {
 		addressStore,
 		emailStore,
 		completion,
+		linkStore,
 		marks,
 		identities,
 		rawMap,
@@ -1006,3 +1014,170 @@ for (const change of ["removed", "retired"] as const) {
 		expect(await listEmails(emailStore, OWNER)).toHaveLength(1);
 	});
 }
+
+describe("initReceiveEmailHandler redrive of a finished extraction", () => {
+	const RECEIVED_ROW = `${RECEIVED_AT}#<real@x>`;
+	const finishExtraction = (
+		linkStore: ReturnType<typeof initInMemoryInboxEmailLink>,
+		input: { userId: UserId; extractionFailed: boolean },
+	) =>
+		linkStore.putLinksMeta({
+			userId: input.userId,
+			receivedAtMessageId: RECEIVED_ROW,
+			meta: { truncated: false, extractionFailed: input.extractionFailed },
+		});
+	const failingOnSecondCall = () => {
+		const calls: unknown[] = [];
+		const storeBody: StoreEmailBody = async (input) => {
+			calls.push(input);
+			if (calls.length === 2) throw new Error("S3 down");
+			return "content/email/content.html";
+		};
+		return { calls, storeBody };
+	};
+
+	it("delivers the failed co-recipient on another account and repeats nothing for the finished one", async () => {
+		let failSecond = true;
+		let gmailB = "";
+		const { addressStore, emailStore, linkStore, rawMap, published, runMany } = makeHarness({
+			routeGmailForwardedEmail: async ({ recipientAddress }) => {
+				if (failSecond && recipientAddress === gmailB) throw new Error("mapping store down");
+				return { destinationAddresses: [recipientAddress], deliveryMode: "links" };
+			},
+		});
+		const gmailA = await mintGatewayAddress(addressStore);
+		gmailB = (await addressStore.createAddress({ userId: SECOND, domain: "read.place", name: GMAIL_FORWARDING_ALIAS, purpose: "gmail-forwarding" })).address;
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		expect((await runMany([gmailA, gmailB]))?.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		expect(published.map(({ detail }) => detail.userId)).toEqual([OWNER]);
+		const ownerRowAfterFirstRun = await listEmails(emailStore, OWNER);
+		await finishExtraction(linkStore, { userId: OWNER, extractionFailed: false });
+		failSecond = false;
+
+		expect((await runMany([gmailA, gmailB]))?.batchItemFailures).toEqual([]);
+		expect(published.map(({ detail }) => detail.userId)).toEqual([OWNER, SECOND]);
+		expect((await listEmails(emailStore, SECOND)).map(({ status }) => status)).toEqual(["received"]);
+		expect(await listEmails(emailStore, OWNER)).toEqual(ownerRowAfterFirstRun);
+
+		await finishExtraction(linkStore, { userId: SECOND, extractionFailed: false });
+		const publishedAfterSecondRun = [...published];
+
+		expect((await runMany([gmailA, gmailB]))?.batchItemFailures).toEqual([]);
+		expect(published).toEqual(publishedAfterSecondRun);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(1);
+		expect(await listEmails(emailStore, SECOND)).toHaveLength(1);
+	});
+
+	it("settles a same-account pair whose first recipient finished, instead of healing it", async () => {
+		const { calls, storeBody } = failingOnSecondCall();
+		const { addressStore, emailStore, linkStore, rawMap, published, imageDownloadCalls, runMany } = makeHarness({ storeBody });
+		const gmailA = await mintGatewayAddress(addressStore);
+		const aliasB = await mintAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		expect((await runMany([gmailA, aliasB]))?.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		const publishedAfterFirstRun = [...published];
+		await finishExtraction(linkStore, { userId: OWNER, extractionFailed: false });
+
+		expect((await runMany([gmailA, aliasB]))?.batchItemFailures).toEqual([]);
+		expect(published).toEqual(publishedAfterFirstRun);
+		expect(published).toHaveLength(1);
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(1);
+		expect(calls).toHaveLength(2);
+		expect(imageDownloadCalls).toHaveLength(1);
+	});
+
+	it("still delivers the Gmail routing of a Gmail recipient on an inbox row of the same account", async () => {
+		const { storeBody } = failingOnSecondCall();
+		const { addressStore, emailStore, linkStore, rawMap, published, runMany } = makeHarness({ storeBody });
+		const aliasB = await mintAddress(addressStore);
+		const gatewayA = await mintGatewayAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		expect((await runMany([aliasB, gatewayA]))?.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		await finishExtraction(linkStore, { userId: OWNER, extractionFailed: false });
+
+		expect((await runMany([aliasB, gatewayA]))?.batchItemFailures).toEqual([]);
+		expect(published).toHaveLength(2);
+		expect(published[1].detail.routing.kind).toBe("gmail");
+		expect(await listEmails(emailStore, OWNER)).toHaveLength(1);
+	});
+
+	const seedReceivedRow = (
+		emailStore: InboxEmailStore,
+		input: { recipientAddress: ReturnType<typeof InboxAddressSchema.parse>; gmail: boolean },
+	) =>
+		emailStore.putEmail({
+			userId: OWNER,
+			receivedAtMessageId: RECEIVED_ROW,
+			messageId: MessageIdSchema.parse("<real@x>"),
+			recipientAddress: input.recipientAddress,
+			...(input.gmail ? { gmailDestinationAddresses: [input.recipientAddress], gmailDeliveryMode: "links" as const } : {}),
+			senderEmail: "news@example.com",
+			subject: "Digest",
+			status: "received",
+			receivedAt: RECEIVED_AT,
+			rawEmailS3Key: RAW_KEY,
+			bodyS3Key: "content/email/original.html",
+			linkCounts: undefined,
+		});
+
+	it("does not ingest a finished inbox-purpose recipient again", async () => {
+		const bodies: unknown[] = [];
+		const { addressStore, emailStore, linkStore, rawMap, published, imageDownloadCalls, run } = makeHarness({
+			storeBody: async (input) => {
+				bodies.push(input);
+				return "content/email/content.html";
+			},
+		});
+		const address = await mintAddress(addressStore);
+		await seedReceivedRow(emailStore, { recipientAddress: address, gmail: false });
+		await finishExtraction(linkStore, { userId: OWNER, extractionFailed: false });
+		const rowsBefore = await listEmails(emailStore, OWNER);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		expect((await run(address))?.batchItemFailures).toEqual([]);
+		expect(imageDownloadCalls).toEqual([]);
+		expect(bodies).toEqual([]);
+		expect(published).toEqual([]);
+		expect(await listEmails(emailStore, OWNER)).toEqual(rowsBefore);
+	});
+
+	it("runs a failed extraction again and republishes", async () => {
+		const { addressStore, linkStore, rawMap, published, run } = makeHarness();
+		const address = await mintAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+		expect((await run(address))?.batchItemFailures).toEqual([]);
+		await finishExtraction(linkStore, { userId: OWNER, extractionFailed: true });
+		const publishedAfterFirstRun = published.length;
+
+		expect((await run(address))?.batchItemFailures).toEqual([]);
+		expect(published.slice(publishedAfterFirstRun).map(({ detail }) => detail.userId)).toEqual([OWNER]);
+	});
+
+	it("resumes a Gmail recipient with no extraction barrier", async () => {
+		const { addressStore, emailStore, rawMap, published, routings, run } = makeHarness();
+		const gateway = await mintGatewayAddress(addressStore);
+		await seedReceivedRow(emailStore, { recipientAddress: gateway, gmail: true });
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		expect((await run(gateway))?.batchItemFailures).toEqual([]);
+		expect(published.map(({ detail }) => detail.routing)).toEqual([{ kind: "gmail", destinationAddresses: [gateway], deliveryMode: "links" }]);
+		expect(routings).toEqual([]);
+	});
+
+	it("records the origin of a settled Gmail recipient and evaluates its completion", async () => {
+		const { addressStore, emailStore, completion, linkStore, marks, rawMap, published, run } = makeHarness();
+		const gateway = await mintGatewayAddress(addressStore);
+		await seedReceivedRow(emailStore, { recipientAddress: gateway, gmail: true });
+		await completion.selectOutputs({ userId: OWNER, receivedAtMessageId: RECEIVED_ROW, selection: { outputs: [], truncated: false, selectedAt: RECEIVED_AT } });
+		await finishExtraction(linkStore, { userId: OWNER, extractionFailed: false });
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		expect((await run(gateway))?.batchItemFailures).toEqual([]);
+		expect(published).toEqual([]);
+		assert.deepEqual((await completion.findCompletion({ userId: OWNER, receivedAtMessageId: RECEIVED_ROW }))?.origins, [FORWARDED_ORIGIN]);
+		assert.deepEqual(marks, [{ userId: OWNER, receivedAtMessageId: RECEIVED_ROW, origin: FORWARDED_ORIGIN }]);
+	});
+});

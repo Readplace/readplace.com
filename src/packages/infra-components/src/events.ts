@@ -558,10 +558,7 @@ export type CrawlArticleCompletedDetail = z.infer<
 
 /** Irreversible fact: the content-selection authority (re)established the
  * canonical readable content for a URL. Published by the tier selector when the
- * canonical tier flipped OR the canonical readable text changed. The
- * `canonical-content-changed` Lambda subscribes and re-primes the summary axis
- * so the generate-summary worker regenerates against the new canonical instead
- * of cache-hitting a stale terminal summary. Derived-artifact consumers added
+ * canonical tier flipped OR the canonical readable text changed. Derived-artifact consumers added
  * later (transcript, embeddings) attach as new `eventBus.subscribe`s without
  * touching the publisher (OCP) — staleness comparison lives here, once, not in
  * each consumer. */
@@ -684,6 +681,26 @@ export type RefreshContentExtractedDetail = z.infer<
 	typeof RefreshContentExtractedEvent.detailSchema
 >;
 
+export const RefreshArticleContentSkipReason = z.enum([
+	"purged",
+	"unsupported",
+	"superseded",
+	"staged-html-expired",
+]);
+export type RefreshArticleContentSkipReason = z.infer<typeof RefreshArticleContentSkipReason>;
+
+export const RefreshArticleContentSkippedEvent = defineEvent({
+	name: "refresh-article-content-skipped",
+	source: "hutch.save-link",
+	detailType: "RefreshArticleContentSkipped",
+	detailSchema: z.object({
+		url: z.string(),
+		saveAttemptId: SaveAttemptIdSchema,
+		contentFetchedAt: z.string(),
+		reason: RefreshArticleContentSkipReason,
+	}),
+});
+
 export const RecrawlCompletedEvent = defineEvent({
 	name: "recrawl-completed",
 	source: "hutch.save-link",
@@ -747,7 +764,6 @@ export const ExportUserDataCommand = defineEvent({
 	detailType: "ExportUserDataCommand",
 	detailSchema: z.object({
 		userId: UserIdSchema,
-		email: z.string(),
 		requestedAt: z.string(),
 	}),
 });
@@ -776,6 +792,19 @@ export const UserDataExportedEvent = defineEvent({
 });
 export type UserDataExportedDetail = z.infer<typeof UserDataExportedEvent.detailSchema>;
 
+export const UserDataExportSkippedEvent = defineEvent({
+	name: "user-data-export-skipped",
+	source: "hutch.export-user-data",
+	detailType: "UserDataExportSkipped",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		requestedAt: z.string(),
+		reason: z.enum(["account-gone", "account-deleting", "already-delivered"]),
+	}),
+});
+export type UserDataExportSkippedDetail = z.infer<typeof UserDataExportSkippedEvent.detailSchema>;
+export type UserDataExportSkipReason = UserDataExportSkippedDetail["reason"];
+
 export const UpdateFetchTimestampCommand = defineEvent({
 	name: "update-fetch-timestamp-command",
 	source: "hutch.api",
@@ -783,7 +812,6 @@ export const UpdateFetchTimestampCommand = defineEvent({
 	detailSchema: z.object({
 		url: z.string(),
 		contentFetchedAt: z.string(),
-		bodyHash: z.string().optional(),
 	}),
 });
 export type UpdateFetchTimestampDetail = z.infer<
@@ -1283,6 +1311,17 @@ export const GmailDisconnectedEvent = defineEvent({
 });
 export type GmailDisconnectedDetail = z.infer<typeof GmailDisconnectedEvent.detailSchema>;
 
+export const GmailDisconnectSkippedEvent = defineEvent({
+	name: "gmail-disconnect-skipped",
+	source: "hutch.app",
+	detailType: "GmailDisconnectSkipped",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		reason: z.enum(["not-connected", "not-requested"]),
+	}),
+});
+export type GmailDisconnectSkippedDetail = z.infer<typeof GmailDisconnectSkippedEvent.detailSchema>;
+
 export const StartGmailSenderDiscoveryCommand = defineEvent({
 	name: "start-gmail-sender-discovery",
 	source: "hutch.app",
@@ -1460,6 +1499,17 @@ export const EmailOutputSavedToAllEvent = defineEvent({
 	}),
 });
 export type EmailOutputSavedToAllDetail = z.infer<typeof EmailOutputSavedToAllEvent.detailSchema>;
+
+export const EmailIssueSaveSkippedEvent = defineEvent({
+	name: "email-issue-save-skipped",
+	source: "hutch.save-link",
+	detailType: "EmailIssueSaveSkipped",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		receivedAtMessageId: z.string(),
+		reason: z.enum(["removed-by-reader", "body-gone", "write-access-lapsed"]),
+	}),
+});
 
 export const MarkGmailEmailImportedCommand = defineEvent({
 	name: "mark-gmail-email-imported",

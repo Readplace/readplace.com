@@ -369,7 +369,7 @@ import { buildSaveTip } from "./web/shared/save-tip/save-tip.component";
 import { initSaveTipEventRoute } from "./web/shared/save-tip/save-tip.route";
 import { initPageDepthRoute } from "./web/shared/page-depth/page-depth.route";
 import { McpConnectPage, parseMcpGuideOrigin } from "./web/pages/mcp";
-import { DevelopersPage } from "./web/pages/developers";
+import { DEFAULT_SAMPLE_LANGUAGE, DevelopersPage, SampleLanguageSchema } from "./web/pages/developers";
 import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
 import { TermsPage } from "./web/pages/terms";
@@ -1091,7 +1091,9 @@ export function createApp(dependencies: AppDependencies): Express {
 	);
 
 	app.get("/developers", async (req: Request, res: Response) => {
-		sendComponent(req, res, Base(DevelopersPage(), await buildBannerState(req)));
+		const parsed = SampleLanguageSchema.safeParse(req.query.l);
+		const language = parsed.success ? parsed.data : DEFAULT_SAMPLE_LANGUAGE;
+		sendComponent(req, res, Base(DevelopersPage({ language }), await buildBannerState(req)));
 	});
 
 	const EXTENSION_ORIGIN_PATTERNS = {
@@ -1637,8 +1639,6 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const exportRouter = initExportRoutes({
 		publishExportUserDataCommand: deps.publishExportUserDataCommand,
-		findEmailByUserId: deps.findEmailByUserId,
-		logError: deps.logError,
 		now: () => new Date(),
 		buildBannerState,
 	});

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import matter from "gray-matter";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { SAMPLE_TEXT, discover, saveArticle } from "@packages/api-samples";
 import { MinutesSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
@@ -70,8 +71,33 @@ function marked(root: Element, attribute: string): string[] {
 	);
 }
 
-async function readPage(harness: Harness): Promise<Element> {
-	return pageRoot((await request(harness.server).get("/developers")).text);
+async function readPage(harness: Harness, query = ""): Promise<Element> {
+	return pageRoot((await request(harness.server).get(`/developers${query}`)).text);
+}
+
+function loopbackOrigin(harness: Harness): string {
+	const address = harness.server.address();
+	assert(address !== null && typeof address === "object", "the test server must listen on a TCP address");
+	return `http://127.0.0.1:${address.port}`;
+}
+
+function sampleTexts(root: Element): Record<string, string | null> {
+	return Object.fromEntries(
+		Array.from(root.querySelectorAll("[data-test-sample]"), (sample) => [
+			sample.getAttribute("data-test-sample"),
+			sample.textContent,
+		]),
+	);
+}
+
+function sampleCode(root: Element, name: string): Element {
+	const code = root.querySelector(`[data-test-sample="${name}"] code`);
+	assert(code, `the ${name} sample must render`);
+	return code;
+}
+
+function currentTab(root: Element): string | null | undefined {
+	return root.querySelector('[data-test-language][aria-current="page"]')?.getAttribute("data-test-language");
 }
 
 describe("GET /developers", () => {
@@ -140,6 +166,158 @@ describe("GET /developers", () => {
 		expect(response.text.split("```http\n").length - 1).toBe(11);
 		expect(response.text).not.toContain("<script");
 	});
+
+	it.each([
+		["typescript", SAMPLE_TEXT.typescript],
+		["swift", SAMPLE_TEXT.swift],
+	])("returns the %s samples as their own fences beside the other http ones", async (language, text) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const html = (await request(harness.server).get(`/developers?l=${language}`)).text;
+
+		const response = await request(harness.server).get(`/developers?l=${language}`).set("Accept", "text/markdown");
+
+		expect(response.text.split("\n")[0]).toBe("# Build on the Readplace API — Readplace");
+		expect(response.text.split("```http\n").length - 1).toBe(9);
+		expect(response.text.split(`\`\`\`${language}\n`).length - 1).toBe(2);
+		expect(response.text).toContain(`\`\`\`${language}\n${text.discover}\n\`\`\``);
+		expect(response.text).toContain(`\`\`\`${language}\n${text.saveArticle}\n\`\`\``);
+		expect(response.text).not.toContain("<script");
+		expect(response.text).not.toMatch(/\bCopy\b/);
+		expect(pageRoot(html).querySelectorAll("button")).toHaveLength(0);
+	});
+});
+
+describe("/developers sample languages", () => {
+	it.each(["", "?l=http", "?l=ruby"])("shows the HTTP samples for %p", async (query) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const root = await readPage(harness, query);
+
+		expect(currentTab(root)).toBe("http");
+		expect(sampleCode(root, "discovery").textContent).toBe(
+			[
+				"GET / HTTP/1.1",
+				"Host: readplace.com",
+				"Authorization: Bearer ACCESS_TOKEN",
+				`Accept: ${SIREN_MEDIA_TYPE}`,
+			].join("\n"),
+		);
+		expect(sampleCode(root, "discovery").className).toBe("language-http");
+	});
+
+	it.each([
+		["typescript", SAMPLE_TEXT.typescript],
+		["swift", SAMPLE_TEXT.swift],
+	])("swaps the discovery and save samples for %s and keeps the rest", async (language, text) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const defaults = sampleTexts(await readPage(harness));
+
+		const root = await readPage(harness, `?l=${language}`);
+
+		expect(currentTab(root)).toBe(language);
+		expect(sampleCode(root, "discovery").textContent).toBe(text.discover);
+		expect(sampleCode(root, "save-article").textContent).toBe(text.saveArticle);
+		expect([sampleCode(root, "discovery").className, sampleCode(root, "save-article").className]).toEqual([
+			`language-${language}`,
+			`language-${language}`,
+		]);
+		expect({
+			...sampleTexts(root),
+			discovery: null,
+			"save-article": null,
+		}).toEqual({
+			...defaults,
+			discovery: null,
+			"save-article": null,
+		});
+	});
+});
+
+describe("/developers on-this-page navigation", () => {
+	it("names every link after the heading it leads to", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const root = await readPage(harness);
+
+		const links = Array.from(root.querySelectorAll("[data-test-page-nav] a"), (link) => {
+			const target = root.querySelector(String(link.getAttribute("href")));
+			return [link.textContent, target?.querySelector("h2, h3")?.textContent];
+		});
+
+		expect(links.length).toBe(17);
+		for (const [linkText, headingText] of links) {
+			expect(headingText).toBe(linkText);
+		}
+	});
+
+	it("links each top-level entry to a section", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const root = await readPage(harness);
+
+		const topLevel = Array.from(root.querySelectorAll("[data-test-page-nav] .developers__nav-list > li > a"), (link) =>
+			String(link.getAttribute("href")).slice(1),
+		);
+
+		expect(topLevel).toEqual(
+			Array.from(root.querySelectorAll("[data-test-section]"), (section) => section.getAttribute("data-test-section")),
+		);
+	});
+});
+
+describe("code samples run against the API", () => {
+	it("discovers the collection and saves a link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+		const origin = loopbackOrigin(harness);
+
+		const collection = await discover({ origin, token });
+		const saved = await saveArticle({
+			origin,
+			token,
+			collection,
+			url: "https://example.com/sample",
+		});
+
+		expect(saved.class).toEqual(["article"]);
+		expect(saved.properties.url).toBe("https://example.com/sample");
+		const all = await openAll(harness, token);
+		expect(all.body.entities.map((entity: { properties: { url: string } }) => entity.properties.url)).toContain(
+			"https://example.com/sample",
+		);
+	});
+
+	it("files the saved link into the readlists it names", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+		const origin = loopbackOrigin(harness);
+		const created = await request(harness.server)
+			.post(actionNamed((await openAll(harness, token)).body, "create-readlist").href)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.type("form")
+			.send({ label: "Samples" })
+			.redirects(0);
+		expect(created.status).toBe(303);
+		const readlist = (await openAll(harness, token)).body.properties.readlists.find(
+			(entry: { label: string }) => entry.label === "Samples",
+		);
+		assert(readlist, "the created readlist must be advertised");
+
+		await saveArticle({
+			origin,
+			token,
+			collection: await discover({ origin, token }),
+			url: "https://example.com/sample",
+			readlists: [readlist.href],
+		});
+
+		const named = await followRedirects(harness, {
+			response: await sirenGet(harness, { path: readlist.href, token }),
+			token,
+		});
+		expect(named.body.entities.map((entity: { properties: { url: string } }) => entity.properties.url)).toEqual([
+			"https://example.com/sample",
+		]);
+	});
 });
 
 describe("/developers documents what the API emits", () => {
@@ -203,7 +381,7 @@ describe("/developers documents what the API emits", () => {
 		expect(marked(root, "data-test-field").sort()).toEqual((search.fields ?? []).map((field) => field.name).sort());
 	});
 
-	it("documents exactly the article entity's properties", async () => {
+	it("documents every property an article entity carries", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await createAccessToken(harness);
 		const root = await readPage(harness);
@@ -217,7 +395,8 @@ describe("/developers documents what the API emits", () => {
 
 		const all = await openAll(harness, token);
 
-		expect(marked(root, "data-test-property").sort()).toEqual(Object.keys(all.body.entities[0].properties).sort());
+		const emitted = new Set([...Object.keys(saved.body.properties), ...Object.keys(all.body.entities[0].properties)]);
+		expect(marked(root, "data-test-property")).toEqual(expect.arrayContaining([...emitted]));
 	});
 
 	it("documents every frontmatter key a fully populated article document carries", async () => {
@@ -302,7 +481,7 @@ describe("/developers copy", () => {
 			"app-listing":
 				"Connected apps lists your app as AI assistant, connected from the host of your first redirect URI, or from an app on your computer when that URI is on 127.0.0.1 or [::1]. A client_name that matches a supported assistant's name, in any letter case, lists your app as that assistant instead.",
 			"create-session":
-				"create-session, on every collection, answers 204 with a browser session cookie, for an app that opens Readplace's reader in its own web view. Most integrations skip it. Revoking the token, or the reader signing your app out from all devices, doesn't end a session it made, so clear the cookie from your web view when your app is disconnected. A password change or reset does end it.",
+				"create-session, on every collection, answers 204 with a browser session cookie, for an app that opens Readplace's reader in its own web view. Most integrations skip it. Revoking the token, or the reader disconnecting your app, doesn't end a session it made, so clear the cookie from your web view when your app is disconnected. A password change or reset does end it.",
 			redirects:
 				"Follow every redirect yourself, sending the token and the Accept header again. Some HTTP clients drop Authorization when they follow a redirect, and the API then answers 401.",
 			conflict:
@@ -347,12 +526,32 @@ describe("/developers copy", () => {
 		}).toEqual({ listed: ["Firefox", "Chrome", "iPhone"], named: ["Firefox", "Chrome", "iPhone"] });
 	});
 
-	it("links only to sign-up and Connected apps, both tracked", async () => {
+	it("links only to its own sample tabs and sections, sign-up and Connected apps, all tracked", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const hrefs = Array.from((await readPage(harness)).querySelectorAll("a"), (anchor) => anchor.getAttribute("href"));
 
 		expect(hrefs).toEqual([
+			"/developers?utm_source=developers&utm_medium=internal&utm_content=samples-http",
+			"/developers?l=typescript&utm_source=developers&utm_medium=internal&utm_content=samples-typescript",
+			"/developers?l=swift&utm_source=developers&utm_medium=internal&utm_content=samples-swift",
+			"#overview",
+			"#authentication",
+			"#register",
+			"#authorize",
+			"#get-tokens",
+			"#disconnect",
+			"#discovery",
+			"#collection",
+			"#articles",
+			"#saving",
+			"#status",
+			"#readlists",
+			"#caching",
+			"#errors",
+			"#limits",
+			"#not-in-the-api",
+			"#walkthrough",
 			"/signup?utm_source=developers&utm_medium=internal&utm_content=signup",
 			"/account?utm_source=developers&utm_medium=internal&utm_content=connected-apps#connected-apps",
 		]);

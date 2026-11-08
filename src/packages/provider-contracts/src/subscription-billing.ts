@@ -37,6 +37,12 @@ export type ListInvoices = (input: {
 	cursor: { startingAfter: InvoiceId } | { endingBefore: InvoiceId } | undefined;
 }) => Promise<{ invoices: InvoiceSummary[]; hasMore: boolean }>;
 
+export type OpenInvoiceFailure = { invoiceId: InvoiceId; attemptCount: number };
+
+export type FindOpenInvoiceFailure = (input: {
+	subscriptionId: string;
+}) => Promise<OpenInvoiceFailure | undefined>;
+
 export const INVOICE_PAGE_SIZE = 12;
 
 export type CancelSubscriptionImmediately = (input: {

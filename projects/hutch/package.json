@@ -51,6 +51,7 @@
     "@aws-sdk/s3-request-presigner": "3.1057.0",
     "@node-oauth/express-oauth-server": "4.1.5",
     "@node-oauth/oauth2-server": "5.3.0",
+    "@packages/api-samples": "workspace:*",
     "@packages/article-parser": "workspace:*",
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/article-state-types": "workspace:*",

@@ -83,23 +83,25 @@ export const handler = initHandleByDetailType({
 				findSubscriptionByUserId: subscriptionProviders.findByUserId,
 				scheduleCancellationAtPeriodEnd: stripeSubscriptions.scheduleCancellationAtPeriodEnd,
 				createDeferredCancellationSchedule: trialScheduler.createDeferredCancellationSchedule,
+				deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,
 				deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 				deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
 				deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
 				publishSubscriptionCancellationScheduled,
 				publishSubscriptionCancelled,
+				now,
 				logger,
 			}),
 		],
 		[SubscriptionCancellationScheduledEvent.detailType]: [
 			initHandleSubscriptionCancellationScheduledHandler({
-				markPendingCancellation: subscriptionProviders.markPendingCancellation,
+				markPendingCancellationByEvent: subscriptionProviders.markPendingCancellationByEvent,
 				logger,
 			}),
 		],
 		[SubscriptionCancelledEvent.detailType]: [
 			initHandleSubscriptionCancelledHandler({
-				markCancelledByUserId: subscriptionProviders.markCancelledByUserId,
+				markCancelledByEvent: subscriptionProviders.markCancelledByEvent,
 				emit,
 				logger,
 			}),
@@ -112,6 +114,7 @@ export const handler = initHandleByDetailType({
 		],
 		[SubscriptionChargeFailedEvent.detailType]: [
 			initSubscriptionChargeFailedHandler({
+				findSubscriptionByUserId: subscriptionProviders.findByUserId,
 				publishCancelSubscriptionCommand,
 				emit,
 				logger,

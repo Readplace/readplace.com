@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { EventInstant } from "@packages/domain/event-envelope";
 import type { UserId } from "@packages/domain/user";
 import type { SubscriptionNextCharge } from "./subscription-billing";
 import type { TrialNudgeKind } from "./trial-scheduler";
@@ -31,6 +32,7 @@ export interface SubscriptionRecord {
 	trialFeedbackEmailSentAt?: string;
 	trialReminderEmailSentAt?: string;
 	automationSavesHeldEmailSentAt?: string;
+	paymentFailedEmailAttempt?: string;
 	payDigestEmailSentAt?: string;
 	payDigestMessageId?: string;
 	payDigestUrls?: readonly string[];
@@ -44,6 +46,7 @@ export interface SubscriptionRecord {
 	 * asks, and cleared by every mutation that ends the current subscription, so a
 	 * present value always belongs to the `subscriptionId` alongside it. */
 	nextCharge?: SubscriptionNextCharge;
+	statusEnteredAt?: string;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -81,6 +84,17 @@ export type MarkSubscriptionCancelledByUserId = (input: {
 	userId: UserId;
 }) => Promise<void>;
 
+export type MarkSubscriptionCancelledByEvent = (input: {
+	userId: UserId;
+	eventTime: EventInstant;
+}) => Promise<void>;
+
+export type MarkSubscriptionPendingCancellationByEvent = (input: {
+	userId: UserId;
+	cancellationEffectiveAt: string;
+	eventTime: EventInstant;
+}) => Promise<void>;
+
 export type MarkSubscriptionActive = (input: { userId: UserId }) => Promise<void>;
 
 export type DeleteSubscription = (input: { userId: UserId }) => Promise<void>;
@@ -94,6 +108,8 @@ export type MarkTrialReminderEmailSent = (input: {
 	userId: UserId;
 	sentAt: string;
 }) => Promise<void>;
+
+export type MarkPaymentFailedEmailSent = (input: { userId: UserId; attempt: string }) => Promise<void>;
 
 export type MarkAutomationSavesHeldEmailSent = (input: {
 	userId: UserId;

@@ -11,6 +11,8 @@ import {
 } from "@packages/domain/user";
 import type {
 	CloseUserAccount,
+	FindExportRecipient,
+	MarkExportDelivered,
 	CountEarlyIntentionalSave,
 	CountUsers,
 	CreateAppleUser,
@@ -64,6 +66,7 @@ interface StoredUser {
 	queueDigestOptOutAt?: string;
 	activationThresholdReachedAt?: string;
 	keepOfferDismissedAt?: string;
+	exportDeliveredRequestedAt?: string;
 }
 
 interface StoredSession {
@@ -101,6 +104,8 @@ export function initInMemoryAuth(opts: {
 	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	closeUserAccount: CloseUserAccount;
 	markAccountDeleted: MarkAccountDeleted;
+	findExportRecipient: FindExportRecipient;
+	markExportDelivered: MarkExportDelivered;
 	countUsers: CountUsers;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markEmailVerified: MarkEmailVerified;
@@ -340,6 +345,26 @@ export function initInMemoryAuth(opts: {
 		}
 	};
 
+	const findExportRecipient: FindExportRecipient = async (userId) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				return {
+					email: user.email,
+					deletedAt: user.deletedAt,
+					exportDeliveredRequestedAt: user.exportDeliveredRequestedAt,
+				};
+			}
+		}
+		return null;
+	};
+
+	const markExportDelivered: MarkExportDelivered = async ({ userId, email, requestedAt }) => {
+		const user = users.get(email);
+		if (user === undefined || user.id !== userId) return;
+		if (user.exportDeliveredRequestedAt !== undefined && user.exportDeliveredRequestedAt >= requestedAt) return;
+		user.exportDeliveredRequestedAt = requestedAt;
+	};
+
 	const countUsers: CountUsers = async () => {
 		return users.size;
 	};
@@ -528,6 +553,8 @@ export function initInMemoryAuth(opts: {
 		destroyOAuthGrantSessions,
 		closeUserAccount,
 		markAccountDeleted,
+		findExportRecipient,
+		markExportDelivered,
 		countUsers,
 		countEarlyIntentionalSave,
 		markEmailVerified,

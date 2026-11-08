@@ -46,14 +46,14 @@ function filteredBody(detail: {
 	});
 }
 
-function filterFailedBody(): string {
+function filterFailedBody(reason = "decider-retries-exhausted"): string {
 	return JSON.stringify({
 		"detail-type": "EmailLinksFilterFailed",
 		detail: {
 			userId,
 			receivedAtMessageId: RAM,
 			readlist: WORK,
-			reason: "decider-retries-exhausted",
+			reason,
 			receiveCount: 3,
 		},
 	});
@@ -187,6 +187,16 @@ describe("recordEmailLinksFilteredHandler", () => {
 				decision: "failed",
 				fit: [],
 			},
+		]);
+	});
+
+	it("a failed fact with reason write-access-lapsed on an absent row stores failed", async () => {
+		const { store, run, read } = createHandler();
+		await snapshotDestinations(store);
+
+		expect(await run([filterFailedBody("write-access-lapsed")])).toEqual({ batchItemFailures: [] });
+		expect((await read()).meta?.readlistOutcomes).toEqual([
+			{ readlist: WORK, readlistLabel: "Work", decision: "failed", fit: [] },
 		]);
 	});
 

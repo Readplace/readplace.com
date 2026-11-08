@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { allowanceSeconds, billableSeconds, displayMinutes } from "./transcript-minutes";
+import { allowanceSeconds, billableSeconds, chargedMinutes, displayMinutes } from "./transcript-minutes";
 
 describe("billableSeconds", () => {
 	it("bills a file shorter than the 15-second minimum as 15 seconds", () => {
@@ -20,5 +20,11 @@ describe("allowanceSeconds", () => {
 describe("displayMinutes", () => {
 	it("shows whole minutes, rounding down", () => {
 		assert.deepEqual([displayMinutes(1250), displayMinutes(600)], [20, 10]);
+	});
+});
+
+describe("chargedMinutes", () => {
+	it("charges any part of a minute as a whole minute", () => {
+		assert.deepEqual([chargedMinutes(50), chargedMinutes(60), chargedMinutes(61)], [1, 1, 2]);
 	});
 });

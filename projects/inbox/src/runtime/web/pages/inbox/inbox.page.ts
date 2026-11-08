@@ -768,9 +768,12 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			};
 			if (verdict === "undo") {
 				assert(current, "an undo reverses the reader's current choice");
-				if (current.engineVerdict === "keep") {
-					assert(current.engineReason, "an engine keep carries its reason");
-					assert(current.purposeVersion, "an engine keep carries its purpose version");
+				const engineVerdict = current.engineVerdict ?? engineFit?.verdict;
+				const engineReason = current.engineReason ?? engineFit?.reason;
+				const purposeVersion = current.purposeVersion ?? outcome.purposeVersion;
+				if (engineVerdict === "keep") {
+					assert(engineReason, "an engine keep carries its reason");
+					assert(purposeVersion, "an engine keep carries its purpose version");
 					await deps.publishFileArticleIntoReadlist({
 						userId,
 						url: link.url,
@@ -778,8 +781,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						provenance,
 						fit: {
 							verdict: "keep",
-							reason: current.engineReason,
-							purposeVersion: current.purposeVersion,
+							reason: engineReason,
+							purposeVersion,
 							source: { kind: "email", receivedAtMessageId, ordinal },
 						},
 					});

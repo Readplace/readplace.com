@@ -139,11 +139,15 @@ export interface InMemoryMediaPending {
 	mintMediaPendingPost: MintMediaPendingPost;
 	headMediaPendingOriginal: HeadMediaPendingOriginal;
 	readMediaPendingPrefix: ReadMediaPendingPrefix;
-	receivePendingOriginal: (params: { uploadId: MediaUploadSession["uploadId"]; bytes: Uint8Array }) => void;
+	receivePendingOriginal: (params: {
+		uploadId: MediaUploadSession["uploadId"];
+		bytes: Uint8Array;
+		byteLength?: number;
+	}) => void;
 }
 
 export function initInMemoryMediaPending(deps: { uploadBaseUrl: string }): InMemoryMediaPending {
-	const originals = new Map<string, { bytes: Uint8Array; etag: string }>();
+	const originals = new Map<string, { bytes: Uint8Array; etag: string; size: number }>();
 
 	return {
 		mintMediaPendingPost: async ({ uploadId, successAction }) => ({
@@ -157,15 +161,15 @@ export function initInMemoryMediaPending(deps: { uploadBaseUrl: string }): InMem
 		}),
 		headMediaPendingOriginal: async ({ uploadId }) => {
 			const original = originals.get(uploadId);
-			return original ? { etag: original.etag, size: original.bytes.length } : undefined;
+			return original ? { etag: original.etag, size: original.size } : undefined;
 		},
 		readMediaPendingPrefix: async ({ uploadId, etag, bytes }) => {
 			const original = originals.get(uploadId);
 			assert(original?.etag === etag, `no pending original ${uploadId} with etag ${etag}`);
 			return original.bytes.subarray(0, bytes);
 		},
-		receivePendingOriginal: ({ uploadId, bytes }) => {
-			originals.set(uploadId, { bytes, etag: `"etag-${uploadId}"` });
+		receivePendingOriginal: ({ uploadId, bytes, byteLength = bytes.length }) => {
+			originals.set(uploadId, { bytes, etag: `"etag-${uploadId}"`, size: byteLength });
 		},
 	};
 }

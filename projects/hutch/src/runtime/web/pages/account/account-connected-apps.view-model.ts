@@ -73,14 +73,14 @@ const BUILT_IN_APP_COPY = {
 } satisfies Record<BuiltInClientName, { title: string; description: string }>;
 
 const ASSISTANT_DISCONNECT_BODY =
-	"It's signed out everywhere and can't reach your readlist until you connect it again. Your saved articles stay in your readlist.";
+	"Its Readplace connection stops working until you connect it again. Readplace pages opened inside the app may stay signed in. Change your Readplace password to sign them out. Your saved articles stay in your library.";
 
 const BUILT_IN_DISCONNECT_BODY = {
 	contentCapture:
-		"It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
+		"It can't save to Readplace until you sign in to it again. Your saved articles stay in your library.",
 	urlOnly: ASSISTANT_DISCONNECT_BODY,
 	notesSync:
-		"It's signed out on every device and stops syncing your articles into Obsidian until you sign in to it again. Your saved articles stay in your readlist, and the notes already in your vault stay where they are.",
+		"It stops syncing your articles into Obsidian until you sign in to it again. Your saved articles stay in your library, and the notes already in your vault stay where they are.",
 } satisfies Record<ClientCategory, string>;
 
 const BROWSER_LABEL = {
@@ -244,7 +244,7 @@ export function buildConnectedAppsSection(input: {
 			id,
 			clientId: app.client.id,
 			href,
-			title: `Sign out ${app.title} from all devices?`,
+			title: `Disconnect ${app.title}?`,
 			lead: app.description,
 			body: app.body,
 		};

@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import type { MarkAutomationSavesHeldEmailSent } from "@packages/provider-contracts/subscription-providers";
+import {
+	EmailKeyReusedError,
+	EmailRejectedError,
+	type EmailMessage,
+	type SendEmail,
+} from "@packages/provider-contracts/email";
+import {
+	type FindOpenInvoiceFailure,
+	InvoiceIdSchema,
+} from "@packages/provider-contracts/subscription-billing";
 import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryEmail } from "@packages/test-fixtures/providers/email";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
@@ -67,6 +77,49 @@ function fakeFindArticlesByUser(total: number): FindArticlesByUser {
 	});
 }
 
+type ResendStep = "accept-then-5xx" | "refuse-429" | "refuse-concurrent";
+
+function initResendLikeEmail(): {
+	sendEmail: SendEmail;
+	delivered: EmailMessage[];
+	failNext: (...steps: ResendStep[]) => void;
+} {
+	const delivered: EmailMessage[] = [];
+	const recorded = new Map<string, string>();
+	const steps: ResendStep[] = [];
+	const sendEmail: SendEmail = async (message) => {
+		const step = steps.shift();
+		if (step === "refuse-429") {
+			throw new EmailRejectedError({ statusCode: 429, message: "Resend rate_limit_exceeded" });
+		}
+		if (step === "refuse-concurrent") {
+			throw new EmailRejectedError({
+				statusCode: 409,
+				message: "Resend concurrent_idempotent_requests",
+			});
+		}
+		const { idempotencyKey, ...payload } = message;
+		assert(idempotencyKey, "every keyed send carries an idempotency key");
+		const body = JSON.stringify(payload);
+		const previous = recorded.get(idempotencyKey);
+		if (previous === body) return;
+		if (previous !== undefined) {
+			throw new EmailKeyReusedError({
+				statusCode: 409,
+				message: "Resend invalid_idempotent_request",
+			});
+		}
+		recorded.set(idempotencyKey, body);
+		delivered.push(message);
+		if (step === "accept-then-5xx") {
+			throw new Error("Resend internal_server_error");
+		}
+	};
+	return { sendEmail, delivered, failNext: (...next) => steps.push(...next) };
+}
+
+const OPEN_FAILURE = { invoiceId: InvoiceIdSchema.parse("in_1Open"), attemptCount: 1 };
+
 interface SubjectOverrides {
 	findEmail?: (userId: string) => Promise<string | null>;
 	findArticlesByUser?: FindArticlesByUser;
@@ -75,6 +128,8 @@ interface SubjectOverrides {
 	markAutomationSavesHeldEmailSent?: MarkAutomationSavesHeldEmailSent;
 	logger?: Logger;
 	sendEmail?: SendTrialFeedbackEmailDeps["sendEmail"];
+	findOpenInvoiceFailure?: FindOpenInvoiceFailure;
+	markFailures?: { remaining: number };
 }
 
 function buildSubject(overrides: SubjectOverrides = {}) {
@@ -86,16 +141,26 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 	const now = overrides.now ?? SENT_AT;
 	const lifecycleEvents: LifecycleEmailSentEvent[] = [];
 	const captureLifecycleEvent = (event: LifecycleEmailSentEvent) => { lifecycleEvents.push(event); };
+	const markFailures = overrides.markFailures ?? { remaining: 0 };
+	const failingMark = <Input>(mark: (input: Input) => Promise<void>) => async (input: Input) => {
+		if (markFailures.remaining > 0) {
+			markFailures.remaining -= 1;
+			throw new Error("DynamoDB UpdateItem failed");
+		}
+		await mark(input);
+	};
 	const deps: SendTrialFeedbackEmailDeps = {
 		findSubscriptionByUserId: providers.findByUserId,
 		findEmailByUserId,
 		findArticlesByUser:
 			overrides.findArticlesByUser ??
 			fakeFindArticlesByUser(overrides.articlesTotal ?? 0),
-		markTrialFeedbackEmailSent: providers.markTrialFeedbackEmailSent,
-		markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
+		markTrialFeedbackEmailSent: failingMark(providers.markTrialFeedbackEmailSent),
+		markTrialReminderEmailSent: failingMark(providers.markTrialReminderEmailSent),
 		markAutomationSavesHeldEmailSent:
 			overrides.markAutomationSavesHeldEmailSent ?? providers.markAutomationSavesHeldEmailSent,
+		markPaymentFailedEmailSent: failingMark(providers.markPaymentFailedEmailSent),
+		findOpenInvoiceFailure: overrides.findOpenInvoiceFailure ?? (async () => OPEN_FAILURE),
 		claimTrialNudge: providers.claimTrialNudge,
 		releaseTrialNudge: providers.releaseTrialNudge,
 		findUserContactByUserId: async () => null,
@@ -458,6 +523,8 @@ describe("send-trial-feedback-email handler", () => {
 			markTrialFeedbackEmailSent: providers.markTrialFeedbackEmailSent,
 			markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 			markAutomationSavesHeldEmailSent: providers.markAutomationSavesHeldEmailSent,
+			markPaymentFailedEmailSent: providers.markPaymentFailedEmailSent,
+			findOpenInvoiceFailure: async () => undefined,
 			claimTrialNudge: providers.claimTrialNudge,
 			releaseTrialNudge: providers.releaseTrialNudge,
 			findUserContactByUserId: async () => null,
@@ -910,7 +977,7 @@ describe("send-trial-feedback-email handler", () => {
 			});
 		}
 
-		it("sends the payment-failed email to an active subscriber without stamping any sent flag — each dunning attempt is a distinct failure worth an email", async () => {
+		it("sends for an open invoice failure, records the attempt, and keys the send on invoice and attempt", async () => {
 			const subject = buildSubject();
 			await seedActiveSubscriber(subject.providers);
 
@@ -929,9 +996,11 @@ describe("send-trial-feedback-email handler", () => {
 			assert.equal(sent.subject, "your Readplace payment didn't go through");
 			assert.ok(sent.text);
 			assert.ok(sent.text.includes("/account?utm_source=payment-failed"));
+			assert.equal(sent.idempotencyKey, "payment-failed/in_1Open/1");
 
 			const row = await subject.providers.findByUserId(USER_ID);
 			assert(row);
+			assert.equal(row.paymentFailedEmailAttempt, "in_1Open/1");
 			assert.equal(row.trialReminderEmailSentAt, undefined);
 			assert.equal(row.trialFeedbackEmailSentAt, undefined);
 		});
@@ -973,6 +1042,397 @@ describe("send-trial-feedback-email handler", () => {
 
 			assert.equal(subject.email.getSentEmails().length, 0);
 		});
+	});
+});
+
+describe("a redrive of a keyed kind", () => {
+	const TRIAL_ENDS_AT = "2026-06-20T00:00:00.000Z";
+	const CHARGE_AT = "2026-06-06T00:00:00.000Z";
+
+	type Subject = ReturnType<typeof buildSubject>;
+	type KeyedCase = {
+		kind: string;
+		body: string;
+		key: string;
+		seed: (subject: Subject) => Promise<void>;
+		changePayload: (subject: Subject, articles: { total: number }) => Promise<void>;
+		marker: (row: NonNullable<Awaited<ReturnType<Subject["providers"]["findByUserId"]>>>) => string | undefined;
+	};
+
+	const CASES: KeyedCase[] = [
+		{
+			kind: "feedback",
+			body: buildEventBridgeBody(USER_ID),
+			key: `trial-feedback/${USER_ID}`,
+			seed: (subject) => seedCancelledTrial(subject.providers),
+			changePayload: async (_subject, articles) => {
+				articles.total += 1;
+			},
+			marker: (row) => row.trialFeedbackEmailSentAt,
+		},
+		{
+			kind: "reminder",
+			body: buildReminderBody(USER_ID),
+			key: `trial-reminder/${USER_ID}/${TRIAL_ENDS_AT}`,
+			seed: (subject) =>
+				subject.providers.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_AT }),
+			changePayload: async (_subject, articles) => {
+				articles.total += 1;
+			},
+			marker: (row) => row.trialReminderEmailSentAt,
+		},
+		{
+			kind: "charge_reminder",
+			body: buildChargeReminderBody(USER_ID, CHARGE_AT),
+			key: `charge-reminder/${USER_ID}/${CHARGE_AT}`,
+			seed: (subject) =>
+				subject.providers.upsertActive({
+					userId: USER_ID,
+					subscriptionId: "sub_trial_preserving",
+					customerId: "cus_trial_preserving",
+				}),
+			changePayload: (subject) =>
+				subject.providers.upsertActive({
+					userId: USER_ID,
+					subscriptionId: "sub_trial_preserving",
+					customerId: "cus_trial_preserving",
+					plan: "yearly",
+				}),
+			marker: (row) => row.trialReminderEmailSentAt,
+		},
+	];
+
+	function setUp(markFailures = { remaining: 0 }) {
+		const resend = initResendLikeEmail();
+		const articles = { total: 4 };
+		const subject = buildSubject({
+			sendEmail: resend.sendEmail,
+			markFailures,
+			findArticlesByUser: async () => ({
+				articles: [],
+				total: articles.total,
+				hasMore: false,
+				page: 1,
+				pageSize: 20,
+			}),
+		});
+		return { resend, articles, subject };
+	}
+
+	async function deliver(subject: Subject, body: string) {
+		const result = await subject.handler(
+			buildSqsEvent([{ messageId: "msg-keyed", body }]),
+			buildLambdaContext(),
+			() => {},
+		);
+		assert(result);
+		return result.batchItemFailures.length;
+	}
+
+	async function markerOf(subject: Subject, testCase: KeyedCase) {
+		const row = await subject.providers.findByUserId(USER_ID);
+		assert(row, "row must still exist");
+		return testCase.marker(row);
+	}
+
+	describe.each(CASES)("kind=$kind", (testCase) => {
+		it("sends with the kind's idempotency key", async () => {
+			const { resend, subject } = setUp();
+			await testCase.seed(subject);
+
+			assert.equal(await deliver(subject, testCase.body), 0);
+
+			assert.deepEqual(
+				resend.delivered.map((message) => message.idempotencyKey),
+				[testCase.key],
+			);
+		});
+
+		it("run twice after an accepted send answered 5xx delivers one email and writes the marker", async () => {
+			const { resend, subject } = setUp();
+			await testCase.seed(subject);
+			resend.failNext("accept-then-5xx");
+
+			assert.equal(await deliver(subject, testCase.body), 1);
+			assert.equal(await markerOf(subject, testCase), undefined);
+			assert.equal(await deliver(subject, testCase.body), 0);
+
+			assert.equal(resend.delivered.length, 1);
+			assert.equal(await markerOf(subject, testCase), SENT_AT.toISOString());
+		});
+
+		it("a mark failure after an accepted send delivers one email once the retry succeeds", async () => {
+			const { resend, subject } = setUp({ remaining: 1 });
+			await testCase.seed(subject);
+
+			assert.equal(await deliver(subject, testCase.body), 1);
+			assert.equal(await deliver(subject, testCase.body), 0);
+
+			assert.equal(resend.delivered.length, 1);
+			assert.equal(await markerOf(subject, testCase), SENT_AT.toISOString());
+		});
+
+		it("a changed payload on retry counts as sent and writes the marker", async () => {
+			const { resend, articles, subject } = setUp();
+			await testCase.seed(subject);
+			resend.failNext("accept-then-5xx");
+
+			assert.equal(await deliver(subject, testCase.body), 1);
+			await testCase.changePayload(subject, articles);
+			assert.equal(await deliver(subject, testCase.body), 0);
+
+			assert.equal(resend.delivered.length, 1);
+			assert.equal(await markerOf(subject, testCase), SENT_AT.toISOString());
+		});
+
+		it("a concurrent-request refusal fails the record and writes no marker", async () => {
+			const { resend, subject } = setUp();
+			await testCase.seed(subject);
+			resend.failNext("refuse-concurrent");
+
+			assert.equal(await deliver(subject, testCase.body), 1);
+
+			assert.equal(resend.delivered.length, 0);
+			assert.equal(await markerOf(subject, testCase), undefined);
+		});
+
+		it("a refusal, then a later success, delivers one email and writes the marker", async () => {
+			const { resend, subject } = setUp();
+			await testCase.seed(subject);
+			resend.failNext("refuse-429");
+
+			assert.equal(await deliver(subject, testCase.body), 1);
+			assert.equal(await deliver(subject, testCase.body), 0);
+
+			assert.equal(resend.delivered.length, 1);
+			assert.equal(await markerOf(subject, testCase), SENT_AT.toISOString());
+		});
+	});
+});
+
+describe("a redrive of payment_failed", () => {
+	const INVOICE = InvoiceIdSchema.parse("in_1Open");
+	const NEXT_INVOICE = InvoiceIdSchema.parse("in_2Next");
+	const body = buildPaymentFailedBody(USER_ID);
+
+	type Subject = ReturnType<typeof buildSubject>;
+
+	function setUp(input: {
+		stripe: { answer: Awaited<ReturnType<FindOpenInvoiceFailure>> | Error };
+		markFailures?: { remaining: number };
+		findEmail?: (userId: string) => Promise<string | null>;
+	}) {
+		const resend = initResendLikeEmail();
+		const askedFor: string[] = [];
+		const subject = buildSubject({
+			sendEmail: resend.sendEmail,
+			...(input.markFailures ? { markFailures: input.markFailures } : {}),
+			...(input.findEmail ? { findEmail: input.findEmail } : {}),
+			findOpenInvoiceFailure: async ({ subscriptionId }) => {
+				askedFor.push(subscriptionId);
+				const { answer } = input.stripe;
+				if (answer instanceof Error) throw answer;
+				return answer;
+			},
+		});
+		return { resend, askedFor, subject };
+	}
+
+	async function seedDunning(subject: Subject, subscriptionId = "sub_dunning") {
+		await subject.providers.upsertActive({
+			userId: USER_ID,
+			subscriptionId,
+			customerId: "cus_dunning",
+		});
+	}
+
+	async function deliver(subject: Subject) {
+		const result = await subject.handler(
+			buildSqsEvent([{ messageId: "msg-pf-redrive", body }]),
+			buildLambdaContext(),
+			() => {},
+		);
+		assert(result);
+		return result.batchItemFailures.length;
+	}
+
+	async function emailedAttempt(subject: Subject) {
+		return (await subject.providers.findByUserId(USER_ID))?.paymentFailedEmailAttempt;
+	}
+
+	it("a paid invoice sends nothing and records nothing", async () => {
+		const stripe: { answer: Awaited<ReturnType<FindOpenInvoiceFailure>> } = {
+			answer: { invoiceId: INVOICE, attemptCount: 1 },
+		};
+		const { resend, subject } = setUp({ stripe });
+		await seedDunning(subject);
+		stripe.answer = undefined;
+
+		assert.equal(await deliver(subject), 0);
+
+		assert.equal(resend.delivered.length, 0);
+		assert.equal(await emailedAttempt(subject), undefined);
+	});
+
+	it("run twice for one attempt delivers one email", async () => {
+		const { resend, subject } = setUp({ stripe: { answer: { invoiceId: INVOICE, attemptCount: 1 } } });
+		await seedDunning(subject);
+
+		await deliver(subject);
+		await deliver(subject);
+
+		assert.equal(resend.delivered.length, 1);
+		assert.equal(await emailedAttempt(subject), "in_1Open/1");
+	});
+
+	it("a second attempt on the same invoice delivers a second email and records attempt 2", async () => {
+		const stripe: { answer: Awaited<ReturnType<FindOpenInvoiceFailure>> } = {
+			answer: { invoiceId: INVOICE, attemptCount: 1 },
+		};
+		const { resend, subject } = setUp({ stripe });
+		await seedDunning(subject);
+
+		await deliver(subject);
+		stripe.answer = { invoiceId: INVOICE, attemptCount: 2 };
+		await deliver(subject);
+
+		assert.deepEqual(
+			resend.delivered.map((message) => message.idempotencyKey),
+			["payment-failed/in_1Open/1", "payment-failed/in_1Open/2"],
+		);
+		assert.equal(await emailedAttempt(subject), "in_1Open/2");
+	});
+
+	it("a stale redrive after the next attempt was emailed delivers nothing and leaves the attempt at 2", async () => {
+		const { resend, subject } = setUp({ stripe: { answer: { invoiceId: INVOICE, attemptCount: 2 } } });
+		await seedDunning(subject);
+		await deliver(subject);
+
+		assert.equal(await deliver(subject), 0);
+
+		assert.equal(resend.delivered.length, 1);
+		assert.equal(await emailedAttempt(subject), "in_1Open/2");
+	});
+
+	it("a redrive before the next attempt's own message sends for that attempt, and the later message no-ops", async () => {
+		const stripe: { answer: Awaited<ReturnType<FindOpenInvoiceFailure>> } = {
+			answer: { invoiceId: INVOICE, attemptCount: 1 },
+		};
+		const { resend, subject } = setUp({ stripe });
+		await seedDunning(subject);
+		await deliver(subject);
+		stripe.answer = { invoiceId: INVOICE, attemptCount: 2 };
+
+		await deliver(subject);
+		await deliver(subject);
+
+		assert.deepEqual(
+			resend.delivered.map((message) => message.idempotencyKey),
+			["payment-failed/in_1Open/1", "payment-failed/in_1Open/2"],
+		);
+		assert.equal(await emailedAttempt(subject), "in_1Open/2");
+	});
+
+	it("a later invoice's failure delivers a new email", async () => {
+		const stripe: { answer: Awaited<ReturnType<FindOpenInvoiceFailure>> } = {
+			answer: { invoiceId: INVOICE, attemptCount: 1 },
+		};
+		const { resend, subject } = setUp({ stripe });
+		await seedDunning(subject);
+		await deliver(subject);
+		stripe.answer = { invoiceId: NEXT_INVOICE, attemptCount: 1 };
+
+		await deliver(subject);
+
+		assert.equal(resend.delivered.length, 2);
+		assert.equal(await emailedAttempt(subject), "in_2Next/1");
+	});
+
+	it("a row without a subscription id sends nothing and never calls Stripe", async () => {
+		const { resend, askedFor, subject } = setUp({
+			stripe: { answer: { invoiceId: INVOICE, attemptCount: 1 } },
+		});
+		subject.providers.seedRow({
+			userId: USER_ID,
+			provider: "stripe",
+			status: "active",
+			createdAt: "2026-06-01T00:00:00.000Z",
+			updatedAt: "2026-06-01T00:00:00.000Z",
+		});
+
+		assert.equal(await deliver(subject), 0);
+
+		assert.equal(resend.delivered.length, 0);
+		assert.deepEqual(askedFor, []);
+		assert.equal(await emailedAttempt(subject), undefined);
+	});
+
+	it("a new subscription's open failure is what the read asks for", async () => {
+		const { askedFor, subject } = setUp({
+			stripe: { answer: { invoiceId: INVOICE, attemptCount: 1 } },
+		});
+		await seedDunning(subject, "sub_old");
+		await seedDunning(subject, "sub_new");
+
+		await deliver(subject);
+
+		assert.deepEqual(askedFor, ["sub_new"]);
+	});
+
+	it("a Stripe read failure reports a batch item failure, and a later delivery heals", async () => {
+		const stripe: { answer: Awaited<ReturnType<FindOpenInvoiceFailure>> | Error } = {
+			answer: new Error("Stripe findOpenInvoiceFailure failed (500): boom"),
+		};
+		const { resend, subject } = setUp({ stripe });
+		await seedDunning(subject);
+
+		assert.equal(await deliver(subject), 1);
+		assert.equal(resend.delivered.length, 0);
+		stripe.answer = { invoiceId: INVOICE, attemptCount: 1 };
+		assert.equal(await deliver(subject), 0);
+
+		assert.equal(resend.delivered.length, 1);
+		assert.equal(await emailedAttempt(subject), "in_1Open/1");
+	});
+
+	it("a mark failure after the send: the retry delivers no second email and records the attempt", async () => {
+		const { resend, subject } = setUp({
+			stripe: { answer: { invoiceId: INVOICE, attemptCount: 1 } },
+			markFailures: { remaining: 1 },
+		});
+		await seedDunning(subject);
+
+		assert.equal(await deliver(subject), 1);
+		assert.equal(await emailedAttempt(subject), undefined);
+		assert.equal(await deliver(subject), 0);
+
+		assert.equal(resend.delivered.length, 1);
+		assert.equal(await emailedAttempt(subject), "in_1Open/1");
+	});
+
+	it("a deleted row sends nothing and creates no row", async () => {
+		const { resend, askedFor, subject } = setUp({
+			stripe: { answer: { invoiceId: INVOICE, attemptCount: 1 } },
+		});
+
+		assert.equal(await deliver(subject), 0);
+
+		assert.equal(resend.delivered.length, 0);
+		assert.deepEqual(askedFor, []);
+		assert.equal(await subject.providers.findByUserId(USER_ID), undefined);
+	});
+
+	it("no email on file sends nothing and records nothing", async () => {
+		const { resend, subject } = setUp({
+			stripe: { answer: { invoiceId: INVOICE, attemptCount: 1 } },
+			findEmail: async () => null,
+		});
+		await seedDunning(subject);
+
+		assert.equal(await deliver(subject), 0);
+
+		assert.equal(resend.delivered.length, 0);
+		assert.equal(await emailedAttempt(subject), undefined);
 	});
 });
 

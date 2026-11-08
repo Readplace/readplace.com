@@ -6,6 +6,7 @@ import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initResendEmail } from "./providers/email/resend-email";
+import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
 import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initSendTrialFeedbackEmailHandler } from "./send-trial-feedback-email/send-trial-feedback-email-handler";
 import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
@@ -47,6 +48,11 @@ const articleStore = initDynamoDbSavedArticleStore({
 	now: () => new Date(),
 });
 
+const stripeSubscriptions = initStripeSubscriptions({
+	apiKey: env.STRIPE_SECRET_KEY,
+	fetch: globalThis.fetch,
+});
+
 const { sendEmail } = initSkipReservedDomain({
 	...initResendEmail(resendApiKey),
 	logger: Logger.from(consoleLogger),
@@ -59,6 +65,8 @@ export const handler = initSendTrialFeedbackEmailHandler({
 	markTrialFeedbackEmailSent: subscriptionProviders.markTrialFeedbackEmailSent,
 	markTrialReminderEmailSent: subscriptionProviders.markTrialReminderEmailSent,
 	markAutomationSavesHeldEmailSent: subscriptionProviders.markAutomationSavesHeldEmailSent,
+	markPaymentFailedEmailSent: subscriptionProviders.markPaymentFailedEmailSent,
+	findOpenInvoiceFailure: stripeSubscriptions.findOpenInvoiceFailure,
 	claimTrialNudge: subscriptionProviders.claimTrialNudge,
 	releaseTrialNudge: subscriptionProviders.releaseTrialNudge,
 	findUserContactByUserId: auth.findUserContactByUserId,

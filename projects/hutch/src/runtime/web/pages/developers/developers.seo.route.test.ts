@@ -10,9 +10,9 @@ const CANONICAL_URL = "https://readplace.com/developers";
 const DESCRIPTION =
 	"Register an OAuth client, discover the Siren API from one URL, then save, list, read and file a reader's articles.";
 
-async function loadPage(): Promise<Document> {
+async function loadPage(query = ""): Promise<Document> {
 	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-	const response = await request(harness.server).get("/developers").set("Accept", "text/html");
+	const response = await request(harness.server).get(`/developers${query}`).set("Accept", "text/html");
 	return new JSDOM(response.text).window.document;
 }
 
@@ -36,6 +36,20 @@ describe("/developers SEO", () => {
 			canonical: CANONICAL_URL,
 			title: "Build on the Readplace API — Readplace",
 			description: DESCRIPTION,
+		});
+	});
+
+	it.each(["?l=typescript", "?l=swift", "?l=ruby"])("keeps %s on the same canonical, noindex and title", async (query) => {
+		const doc = await loadPage(query);
+
+		expect({
+			robots: doc.querySelector('meta[name="robots"]')?.getAttribute("content"),
+			canonical: doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+			title: doc.title,
+		}).toEqual({
+			robots: "noindex",
+			canonical: CANONICAL_URL,
+			title: "Build on the Readplace API — Readplace",
 		});
 	});
 

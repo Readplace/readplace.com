@@ -67,8 +67,12 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 		return all;
 	}
 
+	function withinRetryWindow(firstAttemptAt: number): boolean {
+		return deps.now().getTime() - firstAttemptAt < RETRY_WINDOW_MS;
+	}
+
 	function assertWithinRetryWindow(firstAttemptAt: number): void {
-		assert(deps.now().getTime() - firstAttemptAt < RETRY_WINDOW_MS, "Gmail newsletter notice delivery is unresolved outside the provider idempotency window; manual review required");
+		assert(withinRetryWindow(firstAttemptAt), "Gmail newsletter notice delivery is unresolved outside the provider idempotency window; manual review required");
 	}
 
 	async function recordDelivered(input: { userId: UserId; senders: ForwardableSender[] }): Promise<void> {
@@ -84,23 +88,32 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 		await recordDelivered({ userId: input.userId, senders: batch.senders });
 	}
 
-	async function eligibleNewsletters(userId: UserId, pending: GmailNewsletterNotice[]): Promise<{ eligible: EligibleNewsletter[]; email: string | null }> {
+	async function readEligibility(userId: UserId, pending: GmailNewsletterNotice[]): Promise<{ eligible: EligibleNewsletter[]; ineligible: ForwardableSender[]; email: string | null }> {
 		const detection = await deps.detectNewsletters(pending.map((notice) => notice.senderEmail));
 		if (detection.status === "unavailable") throw new Error("Newsletter catalog unavailable before notification");
 		const [connection, checkpoint, email] = await Promise.all([
 			deps.connections.findConnectionByUserId(userId), deps.monitoring.findCheckpoint(userId), deps.findEmailByUserId(userId),
 		]);
 		const eligible: EligibleNewsletter[] = [];
+		const ineligible: ForwardableSender[] = [];
 		for (const notice of pending) {
 			const mapping = await deps.mappings.findMapping({ userId, accountEmail: notice.accountEmail, senderEmail: notice.senderEmail });
 			const matching = connection !== undefined && connection.revokedAt === undefined && connection.disconnectRequestedAt === undefined && connection.gatewayAddress === notice.gatewayAddress && connection.accountEmail?.toLowerCase() === notice.accountEmail.toLowerCase() && checkpoint?.mailboxId === notice.mailboxId;
 			const recognition = detection.recognized.get(notice.senderEmail);
 			if (!matching || mapping?.addedToFilterAt !== undefined || recognition === undefined || email === null) {
-				await deps.monitoring.cancelNotice({ userId, senderEmail: notice.senderEmail });
-				await publish({ userId, senderEmail: notice.senderEmail, outcome: "suppressed" });
+				ineligible.push(notice.senderEmail);
 			} else {
 				eligible.push({ senderEmail: notice.senderEmail, newsletterName: recognition.name, pendingSince: notice.pendingSince });
 			}
+		}
+		return { eligible, ineligible, email };
+	}
+
+	async function eligibleNewsletters(userId: UserId, pending: GmailNewsletterNotice[]): Promise<{ eligible: EligibleNewsletter[]; email: string | null }> {
+		const { eligible, ineligible, email } = await readEligibility(userId, pending);
+		for (const senderEmail of ineligible) {
+			await deps.monitoring.cancelNotice({ userId, senderEmail });
+			await publish({ userId, senderEmail, outcome: "suppressed" });
 		}
 		return { eligible, email };
 	}
@@ -128,10 +141,16 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 	async function notifyPending(userId: UserId, notices: GmailNewsletterNotice[], batch: GmailNewsletterNoticeBatch | undefined): Promise<void> {
 		if (batch?.status === "sending") {
 			const statusOf = (senderEmail: ForwardableSender) => notices.find((notice) => notice.senderEmail === senderEmail)?.status;
-			if (batch.senders.some((senderEmail) => statusOf(senderEmail) === "pending")) {
-				assertWithinRetryWindow(batch.firstAttemptAt);
-				await claimAndDeliver({ userId, senders: batch.senders, message: batch.message });
-				return;
+			const listedPending = notices.filter((notice) => notice.status === "pending" && batch.senders.includes(notice.senderEmail));
+			if (listedPending.length > 0) {
+				const resendable = withinRetryWindow(batch.firstAttemptAt) && (await readEligibility(userId, listedPending)).ineligible.length === 0;
+				if (resendable) {
+					await claimAndDeliver({ userId, senders: batch.senders, message: batch.message });
+					return;
+				}
+				assert(await deps.monitoring.abandonNoticeBatch({ userId, firstAttemptAt: batch.firstAttemptAt }), "Gmail newsletter notice batch already claimed; retry after the lease");
+				deps.logger.info("[gmail-newsletter-notice] abandoned a stored email that can no longer be sent", { userId, firstAttemptAt: batch.firstAttemptAt, listed: batch.senders.length });
+				return notifyPending(userId, notices, { userId, status: "idle", lastSentAt: batch.firstAttemptAt });
 			}
 			await recordDelivered({ userId, senders: batch.senders.filter((senderEmail) => statusOf(senderEmail) === "sent") });
 			return;

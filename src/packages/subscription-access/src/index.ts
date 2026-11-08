@@ -3,3 +3,4 @@ export { SubscriptionProviderRow, toRecord } from "./subscription-provider-row";
 export { initGetEffectiveAccess, resolveEffectiveAccess } from "./effective-access";
 export type { EffectiveAccess, FullAccessTier, InactiveAccess, GetEffectiveAccess } from "./effective-access";
 export { initDynamoDbSubscriptionRead } from "./dynamodb-subscription-read";
+export { messagePredatesStatus } from "./message-predates-status";

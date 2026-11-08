@@ -81,17 +81,57 @@ describe("Add article", () => {
 		expect(element(doc, `label[for="${input.id}"]`).textContent).toBe("Article link");
 	});
 
-	it("dismisses with Cancel and saves with Save", () => {
+	it("offers Link and File as underline tabs, Link chosen, in a named radio group", () => {
 		const doc = addLinkDoc();
 
-		const form = element(doc, '#add-link [data-test-form="save-article"]');
-		const cancel = element(form, '[data-test-action="add-link-cancel"]');
+		const group = element(doc, '#add-link [role="radiogroup"]');
+		expect(group.classList.contains("underline-tabs")).toBe(true);
+		expect(group.getAttribute("aria-label")).toBe("Add from");
+		const radios = Array.from(group.querySelectorAll<HTMLInputElement>('input[type="radio"]'));
+		expect(radios.map((radio) => [radio.name, radio.value, radio.checked])).toEqual([
+			["add-article-mode", "link", true],
+			["add-article-mode", "file", false],
+		]);
+		const labels = radios.map((radio) => radio.closest("label.underline-tabs__tab")?.querySelector(".underline-tabs__label"));
+		expect(labels.map((label) => [label?.getAttribute("data-widest"), label?.textContent])).toEqual([
+			["Link", "Link"],
+			["File", "File"],
+		]);
+		expect(element(doc, '[data-test-add-article-panel="link"] [data-test-form="save-article"]').id).toBe("add-link-form");
+		expect(element(doc, '[data-test-add-article-panel="file"] [data-test-form="upload-file"]').id).toBe("add-article-upload-form");
+	});
+
+	it("closes the dialog with one footer holding Cancel and a Send for each tab, each submitting its own form", () => {
+		const doc = addLinkDoc();
+
+		const dialog = element(doc, "#add-link");
+		const footers = dialog.querySelectorAll(".confirm-popover__buttons");
+		expect(footers).toHaveLength(1);
+		const footer = footers[0];
+		expect(footer.closest("form")).toBeNull();
+		const cancel = element(footer, '[data-test-action="add-link-cancel"]');
 		expect(cancel.getAttribute("popovertarget")).toBe("add-link");
 		expect(cancel.getAttribute("popovertargetaction")).toBe("hide");
 		expect(cancel.getAttribute("type")).toBe("button");
-		const save = element(form, '[data-test-action="add-link-save"]');
-		expect(save.getAttribute("type")).toBe("submit");
-		expect(save.classList.contains("btn--primary")).toBe(true);
+		const linkSend = element(footer, '[data-test-action="add-link-save"]');
+		expect(linkSend.getAttribute("type")).toBe("submit");
+		expect(linkSend.getAttribute("form")).toBe("add-link-form");
+		expect(linkSend.id).toBe("add-link-save");
+		expect(linkSend.classList.contains("readlist__save-btn")).toBe(true);
+		expect(element(linkSend, ".readlist__save-btn-label").textContent).toBe("Send");
+		expect(element(linkSend, ".readlist__save-btn-saving").textContent).toBe("Sending…");
+		const fileSend = element(footer, '[data-test-action="add-article-upload-send"]');
+		expect(fileSend.getAttribute("type")).toBe("submit");
+		expect(fileSend.getAttribute("form")).toBe("add-article-upload-form");
+		expect(fileSend.textContent).toBe("Send");
+		expect(dialog.querySelectorAll("form .confirm-popover__buttons, form button")).toHaveLength(0);
+		expect(dialog.querySelector(".upload-dropzone__submit")).toBeNull();
+	});
+
+	it("keeps a chosen file waiting for Send", () => {
+		const doc = addLinkDoc();
+
+		expect(element(doc, '[data-test-form="upload-file"]').getAttribute("data-upload-on-choose")).toBe("false");
 	});
 
 	it("nests the save advice inside the dialog, after the form rather than inside it", () => {
@@ -124,8 +164,9 @@ describe("Add article", () => {
 		expect(form.getAttribute("hx-target")).toBe("this");
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
 		expect(form.getAttribute("hx-sync")).toBe("this:drop");
-		expect(form.getAttribute("hx-disabled-elt")).toBe("find .readlist__save-btn");
-		expect(form.getAttribute("hx-indicator")).toBe("closest form, .readlist-save-skeleton");
+		expect(form.getAttribute("hx-disabled-elt")).toBe("#add-link-save");
+		expect(form.getAttribute("hx-indicator")).toBe("closest form, .readlist-save-skeleton, #add-link-save");
+		expect(doc.querySelectorAll(form.getAttribute("hx-disabled-elt") ?? "")).toHaveLength(1);
 		expect(form.getAttribute("data-save-link-failure")).toBe("Couldn't save the link.");
 		expect(form.hasAttribute("data-auto-submit")).toBe(false);
 	});
@@ -149,16 +190,11 @@ describe("Add article", () => {
 
 		const controls = Array.from(
 			doc.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
-				'[data-test-form^="save-article"] input[name="url"], [data-test-form^="save-article"] button[type="submit"]',
+				'[data-test-form^="save-article"] input[name="url"], [data-test-form^="save-article"] button[type="submit"], #add-link button[type="submit"]',
 			),
 		);
-		expect(controls).toHaveLength(4);
-		expect(controls.map((control) => control.disabled)).toEqual([
-			accessIsReadOnly,
-			accessIsReadOnly,
-			accessIsReadOnly,
-			accessIsReadOnly,
-		]);
+		expect(controls).toHaveLength(5);
+		expect(controls.map((control) => control.disabled)).toEqual(Array(5).fill(accessIsReadOnly));
 	});
 
 	it("offers a file dropzone in the dialog as its own form after the link form, posting to the tracked import", () => {
@@ -212,12 +248,24 @@ describe("Add article", () => {
 		const form = forms[0];
 		expect(form.hasAttribute("data-auto-submit")).toBe(true);
 		expect(element<HTMLInputElement>(form, 'input[name="url"]').value).toBe("https://example.com/article?x=1&y=2");
-		expect(element<HTMLButtonElement>(form, 'button[type="submit"]').disabled).toBe(false);
+		const save = element<HTMLButtonElement>(pending, 'button[type="submit"]');
+		expect(save.disabled).toBe(false);
+		expect(save.id).toBe("add-link-save");
+		expect(save.getAttribute("form")).toBe(form.id);
+		expect(form.contains(save)).toBe(false);
+		expect(element(save, ".readlist__save-btn-label").textContent).toBe("Save");
+		expect(element(save, ".readlist__save-btn-saving").textContent).toBe("Saving…");
+		expect(element(pending, '[data-test-action="add-link-cancel"]').getAttribute("type")).toBe("button");
+		expect(doc.querySelector('[role="radiogroup"]')).toBeNull();
 		expect(doc.querySelector("[autofocus]")).toBeNull();
 	});
 });
 
 describe("Add link form", () => {
+	it("leaves its buttons to the surface around it, so a refused save keeps them", () => {
+		expect(formDoc().querySelector("form button")).toBeNull();
+	});
+
 	it("keeps the entered link and describes it by an empty error line until the save is refused", () => {
 		const doc = formDoc({ value: "https://example.com/a" });
 

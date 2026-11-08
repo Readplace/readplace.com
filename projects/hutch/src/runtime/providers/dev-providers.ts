@@ -131,6 +131,8 @@ import {
 	initInMemoryPresignMediaImage,
 } from "@packages/test-fixtures/providers/media-upload-session";
 import { MEDIA_KINDS, mintUploadId } from "@packages/media-contracts";
+import { parseBuffer } from "music-metadata";
+import { initReadPendingTimedDuration } from "./media-duration/read-pending-timed-duration";
 import {
 	initInMemoryTranscriptCharge,
 	initInMemoryTranscriptLedger,
@@ -602,6 +604,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const rateLimitRules = parseRateLimitRules(requireEnv("RATE_LIMITS"));
 	const transcriptAllowanceSeconds = transcriptAllowanceSecondsFromEnv();
 	const transcriptQuotaRows = initInMemoryTranscriptQuotaRows();
+	const mediaPending = initInMemoryMediaPending({ uploadBaseUrl: `${input.appOrigin}/e2e/s3-media` });
 
 	return {
 		...auth,
@@ -623,12 +626,15 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		importSessionStore,
 		savePrivateItem: articleStore.savePrivateItem,
 		...initInMemoryMediaUploadSessions(),
-		...initInMemoryMediaPending({ uploadBaseUrl: `${input.appOrigin}/e2e/s3-media` }),
+		...mediaPending,
 		presignMediaImage: initInMemoryPresignMediaImage().presignMediaImage,
 		presignEnclosure: initInMemoryPresignEnclosure().presignEnclosure,
 		publishMediaUploadCommitted: initInMemoryMediaUploadCommitted().publishMediaUploadCommitted,
 		mediaKinds: MEDIA_KINDS,
-		readDurationByMeter: new Map(),
+		readDurationByMeter: new Map([["transcript-seconds" as const, initReadPendingTimedDuration({
+			...mediaPending,
+			parseTimedMetadata: (bytes) => parseBuffer(bytes, undefined, { duration: true, skipCovers: true }),
+		})]]),
 		transcriptAllowanceSeconds,
 		...initInMemoryTranscriptCharge({ rows: transcriptQuotaRows, allowanceSeconds: transcriptAllowanceSeconds, now: () => new Date() }),
 		refundUnstartedCharge: initInMemoryTranscriptLedger({ rows: transcriptQuotaRows }).refundUnstartedCharge,

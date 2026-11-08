@@ -32,7 +32,7 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
  * the CanonicalContentChanged event, promoteTier gated regeneration on
  * contentChanged only, so the summary stayed permanently skipped. This wires
  * the real selector → promoteTier → CanonicalContentChanged subscriber →
- * markSummaryPending → generate-summary worker and asserts the row recovers to
+ * generate-summary worker and asserts the row recovers to
  * `ready`.
  */
 
@@ -126,7 +126,7 @@ describe("summary recovery on canonical content change", () => {
 		};
 		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect, logCrawlSettled: () => {} });
 		summaryHandler = initGenerateSummaryHandler({ summarizeArticle, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => FIXED_NOW }), logger: noopLogger, now: () => FIXED_NOW }), findArticleContent, loadArticle: store.load, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger });
-		canonicalChangedHandler = initCanonicalContentChangedHandler({ findArticleContent, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger });
+		canonicalChangedHandler = initCanonicalContentChangedHandler({ findArticleContent, loadArticle: store.load, dispatchGenerateSummary: async (command) => { await summaryHandler(sqsEvent(command), buildLambdaContext(), () => {}); }, logger: noopLogger });
 		const judge = jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>();
 		const recordCrawlVersion = jest.fn(async () => {});
 		const work = initSelectContentWork({
@@ -186,8 +186,7 @@ describe("summary recovery on canonical content change", () => {
 		let canonicalContentChangedHandler: Handler<SQSEvent, SQSBatchResponse>;
 
 		/* The routing dispatcher closes the event loop in-process: a
-		 * publish-canonical-content-changed effect re-enters the subscriber, whose
-		 * markSummaryPending emits generate-summary, which re-enters the worker.
+		 * publish-canonical-content-changed effect re-enters the subscriber.
 		 * User-facing / pipeline-settling effects are intentionally not routed. */
 		const dispatchEffect: DispatchEffect = async (effect) => {
 			if (effect.kind === "publish-canonical-content-changed") {
@@ -215,8 +214,10 @@ describe("summary recovery on canonical content change", () => {
 		});
 		canonicalContentChangedHandler = initCanonicalContentChangedHandler({
 			findArticleContent,
-			transitionAndPersist,
-			now: () => FIXED_NOW,
+			loadArticle: store.load,
+			dispatchGenerateSummary: async (command) => {
+				await generateSummaryHandler(sqsEvent(command), buildLambdaContext(), () => {});
+			},
 			logger: noopLogger,
 		});
 

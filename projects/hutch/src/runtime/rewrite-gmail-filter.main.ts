@@ -12,11 +12,13 @@ import {
 } from "@packages/infra-components";
 import { initCancelGmailHistoryImports } from "./domain/gmail/cancel-gmail-history-imports";
 import { initDisconnectGmail } from "./domain/gmail/disconnect-gmail";
+import { initDisconnectGmailWhenRequested } from "./domain/gmail/disconnect-gmail-when-requested";
 import { initDisconnectGmailHandler } from "./domain/gmail/disconnect-gmail-handler";
 import { initGmailForwardingConfirmFailedHandler } from "./domain/gmail/gmail-forwarding-confirm-failed-handler";
 import { initGmailForwardingConfirmedHandler } from "./domain/gmail/gmail-forwarding-confirmed-handler";
 import { initRewriteGmailFilter } from "./domain/gmail/rewrite-gmail-filter";
 import { initRewriteGmailFilterHandler } from "./domain/gmail/rewrite-gmail-filter-handler";
+import { initRewriteGmailFilterUnlessDisconnecting } from "./domain/gmail/rewrite-gmail-filter-unless-disconnecting";
 import { initGmailAccessToken } from "./providers/gmail-api/gmail-access-token";
 import { initGmailFilters } from "./providers/gmail-api/gmail-filters";
 import { initRevokeGmailGrant } from "./providers/gmail-api/gmail-revoke";
@@ -83,8 +85,12 @@ const filterDeps = {
 
 const rewriteGmailFilter = initRewriteGmailFilter({ ...filterDeps, mappings });
 
+const discovery = initDynamoDbGmailDiscovery({ client, tableName: env.DYNAMODB_GMAIL_DISCOVERY_TABLE, now });
+
+const monitoring = initDynamoDbGmailMonitoring({ client, tableName: env.DYNAMODB_GMAIL_MONITORING_TABLE, now });
+
 const rewriteHandler = initRewriteGmailFilterHandler({
-	rewriteGmailFilter,
+	rewriteGmailFilter: initRewriteGmailFilterUnlessDisconnecting({ connections, rewriteGmailFilter }),
 	publishEvent,
 	metricLog: Logger.fromJSON<GmailFilterRewriteFailedLine>(),
 	logger,
@@ -101,20 +107,25 @@ export const handler = initHandleByDetailType({
 		],
 		[DisconnectGmailCommand.detailType]: [
 			initDisconnectGmailHandler({
-				disconnectGmail: initDisconnectGmail({
+				disconnectGmail: initDisconnectGmailWhenRequested({
 					connections,
-					credentials,
-					senders,
-					discovery: initDynamoDbGmailDiscovery({ client, tableName: env.DYNAMODB_GMAIL_DISCOVERY_TABLE, now }),
-					monitoring: initDynamoDbGmailMonitoring({ client, tableName: env.DYNAMODB_GMAIL_MONITORING_TABLE, now }),
-					addresses,
-					removeGmailFilter: initRewriteGmailFilter({ ...filterDeps, mappings: { listMappings: async () => [] } }),
-					revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
-					cancelGmailHistoryImports: initCancelGmailHistoryImports({
-						imports: initDynamoDbGmailHistoryImport({ client, tableName: env.DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE }),
-						now,
+					discovery,
+					monitoring,
+					disconnectGmail: initDisconnectGmail({
+						connections,
+						credentials,
+						senders,
+						discovery,
+						monitoring,
+						addresses,
+						removeGmailFilter: initRewriteGmailFilter({ ...filterDeps, mappings: { listMappings: async () => [] } }),
+						revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
+						cancelGmailHistoryImports: initCancelGmailHistoryImports({
+							imports: initDynamoDbGmailHistoryImport({ client, tableName: env.DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE }),
+							now,
+						}),
+						logger,
 					}),
-					logger,
 				}),
 				publishEvent,
 				logger,

@@ -1,11 +1,11 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { DisconnectGmailCommand, GmailDisconnectedEvent } from "@packages/infra-components";
+import { DisconnectGmailCommand, GmailDisconnectSkippedEvent, GmailDisconnectedEvent } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import type { DisconnectGmail } from "./disconnect-gmail";
+import type { DisconnectGmailWhenRequested } from "./disconnect-gmail-when-requested";
 
 export function initDisconnectGmailHandler(deps: {
-	disconnectGmail: DisconnectGmail;
+	disconnectGmail: DisconnectGmailWhenRequested;
 	publishEvent: PublishEvent;
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -44,7 +44,8 @@ export function initDisconnectGmailHandler(deps: {
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
-				logger.warn("[disconnect-gmail] nothing to disconnect", { userId });
+				await publishEvent(GmailDisconnectSkippedEvent, { userId, reason: result.reason });
+				logger.warn("[disconnect-gmail] nothing to disconnect", { userId, reason: result.reason });
 			} catch (error) {
 				logger.error("[disconnect-gmail] record failed", {
 					messageId: record.messageId,

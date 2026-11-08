@@ -3,12 +3,13 @@ import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { candidateProvenance } from "@packages/tier-source";
 import { createHash } from "node:crypto";
 import { noopLogger } from "@packages/logger";
-import { RefreshContentExtractedEvent } from "@packages/infra-components";
+import { RefreshArticleContentSkippedEvent, RefreshContentExtractedEvent } from "@packages/infra-components";
 import type { ReadRefreshHtml } from "@packages/test-fixtures/providers/refresh-html";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { PutTierSource } from "@packages/tier-source";
 import { initRefreshArticleContentHandler } from "./refresh-article-content-handler";
+import type { FindRefreshAdmissionRow } from "./decide-refresh-skip";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -71,6 +72,8 @@ const DETAIL: RefreshDetail = {
 	bodyHash: "a".repeat(64),
 };
 
+const admitRow: FindRefreshAdmissionRow = async () => ({ crawlStatus: "ready", contentFetchedAt: "2026-05-09T12:00:00.000Z" });
+
 describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", () => {
 	it("reads the staged HTML from S3 and writes it as a tier-1 source so the selector can compare it against an existing tier-0", async () => {
 		const readRefreshHtml: ReadRefreshHtml = jest.fn().mockResolvedValue(HTML);
@@ -78,6 +81,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			findRefreshAdmissionRow: admitRow,
 			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
@@ -106,6 +110,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			findRefreshAdmissionRow: admitRow,
 			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml: jest.fn().mockResolvedValue(HTML),
 			putTierSource,
@@ -126,6 +131,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			findRefreshAdmissionRow: admitRow,
 			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
@@ -151,6 +157,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			findRefreshAdmissionRow: admitRow,
 			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
@@ -183,6 +190,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		});
 
 		const handler = initRefreshArticleContentHandler({
+			findRefreshAdmissionRow: admitRow,
 			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
@@ -201,6 +209,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn();
 
 		const handler = initRefreshArticleContentHandler({
+			findRefreshAdmissionRow: admitRow,
 			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
@@ -232,14 +241,15 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("reports a batch failure and does not publish when readRefreshHtml throws (stale message with no staged S3 object)", async () => {
+	it("reports a batch failure and does not publish when readRefreshHtml throws", async () => {
 		const readRefreshHtml: ReadRefreshHtml = jest
 			.fn()
-			.mockRejectedValue(new Error("S3 NoSuchKey"));
+			.mockRejectedValue(new Error("S3 unavailable"));
 		const putTierSource: PutTierSource = jest.fn();
 		const publishEvent = jest.fn();
 
 		const handler = initRefreshArticleContentHandler({
+			findRefreshAdmissionRow: admitRow,
 			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
@@ -262,6 +272,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			findRefreshAdmissionRow: admitRow,
 			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml,
 			putTierSource,
@@ -277,7 +288,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 	it("binds candidate provenance to the staged attempt and the actual evaluation bytes", async () => {
 		const putTierSource: PutTierSource = jest.fn();
 		const publishEvent = jest.fn();
-		const handler = initRefreshArticleContentHandler({ resolveOriginalUrl: async () => URL, readRefreshHtml: async () => HTML, putTierSource, publishEvent, logger: noopLogger });
+		const handler = initRefreshArticleContentHandler({ findRefreshAdmissionRow: admitRow, resolveOriginalUrl: async () => URL, readRefreshHtml: async () => HTML, putTierSource, publishEvent, logger: noopLogger });
 		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ html: HTML, metadata: expect.objectContaining({ attemptId: "attempt-1", originalUrl: URL, sourceUrl: URL, kind: "live", contentHash: createHash("sha256").update(HTML).digest("hex") }) }));
 		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({ saveAttemptId: "attempt-1", candidates: [{ id: expect.any(String), tier: "tier-1" }] }));
@@ -290,7 +301,7 @@ it("preserves actual response identity and raw evaluation separately from finali
 	const raw = "<html><body>Raw origin response with chrome</body></html>";
 	const sourceUrl = "https://example.com/article?edition=current";
 	const putTierSource = jest.fn();
-	const handler = initRefreshArticleContentHandler({ resolveOriginalUrl: async () => URL, readRefreshHtml: async (_url, options) => options?.representation === "evaluation" ? raw : HTML, putTierSource, publishEvent: jest.fn(), logger: noopLogger });
+	const handler = initRefreshArticleContentHandler({ findRefreshAdmissionRow: admitRow, resolveOriginalUrl: async () => URL, readRefreshHtml: async (_url, options) => options?.representation === "evaluation" ? raw : HTML, putTierSource, publishEvent: jest.fn(), logger: noopLogger });
 	await expect(handler(createSqsEvent({ ...DETAIL, sourceUrl }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
 	expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ html: HTML, evaluationHtml: raw, metadata: expect.objectContaining({ kind: "live", sourceUrl, originalUrl: URL, contentHash: createHash("sha256").update(raw).digest("hex") }) }));
 });
@@ -298,7 +309,7 @@ it("preserves actual response identity and raw evaluation separately from finali
 it("rejects stale refresh original proof before reading or writing artifacts", async () => {
 	const readRefreshHtml = jest.fn();
 	const putTierSource = jest.fn();
-	const handler = initRefreshArticleContentHandler({ resolveOriginalUrl: async () => URL, readRefreshHtml, putTierSource, publishEvent: jest.fn(), logger: noopLogger });
+	const handler = initRefreshArticleContentHandler({ findRefreshAdmissionRow: admitRow, resolveOriginalUrl: async () => URL, readRefreshHtml, putTierSource, publishEvent: jest.fn(), logger: noopLogger });
 	await expect(handler(createSqsEvent({ ...DETAIL, sourceOriginalUrl: "https://different.example/article" }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	expect(readRefreshHtml).not.toHaveBeenCalled();
 	expect(putTierSource).not.toHaveBeenCalled();
@@ -311,6 +322,7 @@ it("logs, writes the tier-1 candidate, announces it, then logs again, with exact
 	};
 	const raw = "<html><body>Raw origin response</body></html>";
 	const handler = initRefreshArticleContentHandler({
+		findRefreshAdmissionRow: admitRow,
 		resolveOriginalUrl: async () => URL,
 		readRefreshHtml: async (_url, options) => options?.representation === "evaluation" ? raw : HTML,
 		putTierSource: async (params) => {
@@ -332,4 +344,178 @@ it("logs, writes the tier-1 candidate, announces it, then logs again, with exact
 		["publishEvent", RefreshContentExtractedEvent.detailType, { saveAttemptId: "attempt-1", candidates: [{ id: metadata.id, tier: "tier-1" }], url: URL, etag: DETAIL.etag, lastModified: DETAIL.lastModified, contentFetchedAt: DETAIL.contentFetchedAt, bodyHash: DETAIL.bodyHash }],
 		["info", "[RefreshArticleContent] tier-1 source written + event published", { url: URL }],
 	]);
+});
+
+describe("initRefreshArticleContentHandler admission gate", () => {
+	type Published = { detailType: string; detail: unknown };
+
+	function harness(deps: {
+		findRefreshAdmissionRow: FindRefreshAdmissionRow;
+		resolveOriginalUrl?: (url: string) => Promise<string>;
+		readRefreshHtml?: ReadRefreshHtml;
+		publishEvent?: (published: Published) => Promise<void>;
+	}) {
+		const tierWrites: Array<{ tier: string; html: string }> = [];
+		const published: Published[] = [];
+		const handler = initRefreshArticleContentHandler({
+			findRefreshAdmissionRow: deps.findRefreshAdmissionRow,
+			resolveOriginalUrl: deps.resolveOriginalUrl ?? (async (url) => url),
+			readRefreshHtml: deps.readRefreshHtml ?? (async () => HTML),
+			putTierSource: async (params) => {
+				tierWrites.push({ tier: params.tier, html: params.html });
+				return params.metadata;
+			},
+			publishEvent: async (event, detail) => {
+				const entry = { detailType: event.detailType, detail };
+				await deps.publishEvent?.(entry);
+				published.push(entry);
+			},
+			logger: noopLogger,
+		});
+		const run = () => handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
+		return { run, tierWrites, published };
+	}
+
+	function skipped(reason: string): Published {
+		return {
+			detailType: RefreshArticleContentSkippedEvent.detailType,
+			detail: { url: URL, saveAttemptId: "attempt-1", contentFetchedAt: DETAIL.contentFetchedAt, reason },
+		};
+	}
+
+	it("skips a purged row before resolving identity", async () => {
+		const { run, tierWrites, published } = harness({
+			findRefreshAdmissionRow: async () => ({ purgedAt: "2026-05-11T00:00:00.000Z", crawlStatus: "ready" }),
+			resolveOriginalUrl: async () => {
+				throw new Error("identity must not be resolved for a purged row");
+			},
+		});
+
+		assert.deepEqual(await run(), { batchItemFailures: [] });
+		assert.deepEqual(tierWrites, []);
+		assert.deepEqual(published, [skipped("purged")]);
+	});
+
+	it("does not recreate tier-1 after a purge then re-save", async () => {
+		const { run, tierWrites, published } = harness({
+			findRefreshAdmissionRow: async () => ({ savedAt: "2026-05-10T12:00:01.000Z" }),
+		});
+
+		assert.deepEqual(await run(), { batchItemFailures: [] });
+		assert.deepEqual(tierWrites, []);
+		assert.deepEqual(published, [skipped("superseded")]);
+	});
+
+	it("skips an unsupported row", async () => {
+		const { run, tierWrites, published } = harness({
+			findRefreshAdmissionRow: async () => ({ crawlStatus: "unsupported", contentFetchedAt: "2026-05-09T12:00:00.000Z" }),
+		});
+
+		assert.deepEqual(await run(), { batchItemFailures: [] });
+		assert.deepEqual(tierWrites, []);
+		assert.deepEqual(published, [skipped("unsupported")]);
+	});
+
+	it("admits a failed row older than the message", async () => {
+		const { run, tierWrites, published } = harness({
+			findRefreshAdmissionRow: async () => ({ crawlStatus: "failed", contentFetchedAt: "2026-05-09T12:00:00.000Z" }),
+		});
+
+		assert.deepEqual(await run(), { batchItemFailures: [] });
+		assert.deepEqual(tierWrites, [{ tier: "tier-1", html: HTML }]);
+		assert.deepEqual(published.map(({ detailType }) => detailType), [RefreshContentExtractedEvent.detailType]);
+	});
+
+	it("writes once and skips the second run of the same message after its commit", async () => {
+		let row: { crawlStatus: string; contentFetchedAt: string } = { crawlStatus: "ready", contentFetchedAt: "2026-05-09T12:00:00.000Z" };
+		const { run, tierWrites, published } = harness({
+			findRefreshAdmissionRow: async () => row,
+			publishEvent: async ({ detailType }) => {
+				if (detailType === RefreshContentExtractedEvent.detailType) row = { ...row, contentFetchedAt: DETAIL.contentFetchedAt };
+			},
+		});
+
+		assert.deepEqual(await run(), { batchItemFailures: [] });
+		assert.deepEqual(await run(), { batchItemFailures: [] });
+		assert.deepEqual(tierWrites, [{ tier: "tier-1", html: HTML }]);
+		assert.deepEqual(published.map(({ detailType }) => detailType), [RefreshContentExtractedEvent.detailType, RefreshArticleContentSkippedEvent.detailType]);
+		assert.deepEqual(published[1], skipped("superseded"));
+	});
+
+	it("skips a retry once a later commit has advanced the clock", async () => {
+		let row = { crawlStatus: "ready", contentFetchedAt: "2026-05-09T12:00:00.000Z" };
+		let eventBusDown = true;
+		const { run, tierWrites, published } = harness({
+			findRefreshAdmissionRow: async () => row,
+			publishEvent: async () => {
+				if (eventBusDown) throw new Error("event bus unavailable");
+			},
+		});
+
+		assert.deepEqual(await run(), { batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		row = { crawlStatus: "ready", contentFetchedAt: "2026-05-10T13:00:00.000Z" };
+		eventBusDown = false;
+		assert.deepEqual(await run(), { batchItemFailures: [] });
+
+		assert.deepEqual(tierWrites, [{ tier: "tier-1", html: HTML }]);
+		assert.deepEqual(published, [skipped("superseded")]);
+	});
+
+	it.each([
+		["body", undefined],
+		["evaluation copy", "evaluation"],
+	])("treats an expired staged %s as a skip", async (_label, expiredRepresentation) => {
+		const { run, tierWrites, published } = harness({
+			findRefreshAdmissionRow: admitRow,
+			readRefreshHtml: async (_url, options) => options.representation === expiredRepresentation ? undefined : HTML,
+		});
+
+		assert.deepEqual(await run(), { batchItemFailures: [] });
+		assert.deepEqual(tierWrites, []);
+		assert.deepEqual(published, [skipped("staged-html-expired")]);
+	});
+
+	it("still fails the record on a table read error", async () => {
+		const { run, tierWrites, published } = harness({
+			findRefreshAdmissionRow: async () => {
+				throw new Error("ProvisionedThroughputExceededException");
+			},
+		});
+
+		assert.deepEqual(await run(), { batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		assert.deepEqual(tierWrites, []);
+		assert.deepEqual(published, []);
+	});
+
+	it("fails the record when publishing the skip fact fails, so a retry decides again", async () => {
+		const { run, tierWrites, published } = harness({
+			findRefreshAdmissionRow: async () => ({ purgedAt: "2026-05-11T00:00:00.000Z" }),
+			publishEvent: async () => {
+				throw new Error("event bus unavailable");
+			},
+		});
+
+		assert.deepEqual(await run(), { batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		assert.deepEqual(tierWrites, []);
+		assert.deepEqual(published, []);
+	});
+
+	it("logs the skip with its reason and the message's fetch time", async () => {
+		const trace: unknown[][] = [];
+		const handler = initRefreshArticleContentHandler({
+			findRefreshAdmissionRow: async () => ({ crawlStatus: "unsupported" }),
+			resolveOriginalUrl: async (url) => url,
+			readRefreshHtml: async () => HTML,
+			putTierSource: async (params) => params.metadata,
+			publishEvent: async () => {},
+			logger: { info: (...args: unknown[]) => trace.push(args), warn: () => {}, error: () => {}, debug: () => {} },
+		});
+
+		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
+
+		assert.deepEqual(trace, [
+			["[RefreshArticleContent] processing", { url: URL }],
+			["[RefreshArticleContent] skipped", { url: URL, reason: "unsupported", contentFetchedAt: DETAIL.contentFetchedAt }],
+		]);
+	});
 });

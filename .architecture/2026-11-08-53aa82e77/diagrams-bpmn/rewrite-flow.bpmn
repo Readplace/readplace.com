@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_rewrite_flow" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_rewrite_flow" name="rewrite-flow" isExecutable="false">
+    <bpmn:sendTask id="n_Rewrite" name="RewriteGmailFilterCommand {userId}">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:startEvent id="n_Confirmed" name="GmailForwardingConfirmed">
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:startEvent id="n_ConfirmFailed" name="GmailForwardingConfirmFailed">
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:task id="n_Q" name="[&quot;rewrite-gmail-filter-q">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:incoming>f_17</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+      <bpmn:outgoing>f_16</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_DLQ" name="[&quot;rewrite-gmail-filter-dlq">
+      <bpmn:incoming>f_16</bpmn:incoming>
+      <bpmn:outgoing>f_17</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_RewriteHandler" name="rewrite-gmail-filter Lambda: rewrite handler">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="n_Gate" name="Rewrite gate: row marked disconnecting?">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="n_Reconcile" name="Reconcile the gateway filter with Gmail">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_Rewritten" name="GmailFilterRewritten">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_RewriteFailed" name="GmailFilterRewriteFailed">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_ConfirmedHandler" name="forwarding-confirmed handler: gateway fence">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_ConfirmFailedHandler" name="forwarding-confirm-failed handler: gateway fence">
+      <bpmn:incoming>f_13</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Conn" name="connection row: UpdateItem IF attribute_exists(userId)"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_Callback" name="OAuth callback: account email, clear revoked"></bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_Rewrite" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_Confirmed" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_ConfirmFailed" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_Q" targetRef="n_RewriteHandler" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_RewriteHandler" targetRef="n_Gate" />
+    <bpmn:sequenceFlow id="f_5" name="yes: not-connected" sourceRef="n_Gate" targetRef="n_RewriteFailed" />
+    <bpmn:sequenceFlow id="f_6" name="no" sourceRef="n_Gate" targetRef="n_Reconcile" />
+    <bpmn:sequenceFlow id="f_7" name="ok" sourceRef="n_Reconcile" targetRef="n_Rewritten" />
+    <bpmn:sequenceFlow id="f_8" name="failed" sourceRef="n_Reconcile" targetRef="n_RewriteFailed" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_Q" targetRef="n_ConfirmedHandler" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_ConfirmedHandler" targetRef="n_Rewrite" />
+    <bpmn:sequenceFlow id="f_13" name="" sourceRef="n_Q" targetRef="n_ConfirmFailedHandler" />
+    <bpmn:sequenceFlow id="f_16" name="after 3 receives" sourceRef="n_Q" targetRef="n_DLQ" />
+    <bpmn:sequenceFlow id="f_17" name="start-message-move-task" sourceRef="n_DLQ" targetRef="n_Q" />
+    <bpmn:association id="f_9" sourceRef="n_Reconcile" targetRef="n_Conn" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_ConfirmedHandler" targetRef="n_Conn" associationDirection="One" />
+    <bpmn:association id="f_14" sourceRef="n_ConfirmFailedHandler" targetRef="n_Conn" associationDirection="One" />
+    <bpmn:association id="f_15" sourceRef="n_Callback" targetRef="n_Conn" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_rewrite_flow">
+    <bpmndi:BPMNPlane id="Plane_rewrite_flow" bpmnElement="Process_rewrite_flow">
+      <bpmndi:BPMNShape id="n_Rewrite_di" bpmnElement="n_Rewrite">
+        <dc:Bounds x="438.75" y="38" width="197.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Confirmed_di" bpmnElement="n_Confirmed">
+        <dc:Bounds x="123.67" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ConfirmFailed_di" bpmnElement="n_ConfirmFailed">
+        <dc:Bounds x="308.17" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="365.75" y="158" width="186.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLQ_di" bpmnElement="n_DLQ">
+        <dc:Bounds x="28" y="266" width="197.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RewriteHandler_di" bpmnElement="n_RewriteHandler">
+        <dc:Bounds x="261.75" y="264" width="183.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Gate_di" bpmnElement="n_Gate">
+        <dc:Bounds x="416" y="374" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Reconcile_di" bpmnElement="n_Reconcile">
+        <dc:Bounds x="375" y="550" width="168" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Rewritten_di" bpmnElement="n_Rewritten">
+        <dc:Bounds x="238.44" y="670.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RewriteFailed_di" bpmnElement="n_RewriteFailed">
+        <dc:Bounds x="407.98" y="670.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ConfirmedHandler_di" bpmnElement="n_ConfirmedHandler">
+        <dc:Bounds x="716.5" y="264" width="173.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ConfirmFailedHandler_di" bpmnElement="n_ConfirmFailedHandler">
+        <dc:Bounds x="481.5" y="264" width="199" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Conn_di" bpmnElement="n_Conn">
+        <dc:Bounds x="536.03" y="660" width="185.02" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Callback_di" bpmnElement="n_Callback">
+        <dc:Bounds x="672" y="38" width="176.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="537.38" y="90" />
+        <di:waypoint x="537.38" y="124" />
+        <di:waypoint x="459" y="124" />
+        <di:waypoint x="459" y="158" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="143.67" y="68" />
+        <di:waypoint x="143.67" y="113" />
+        <di:waypoint x="459" y="113" />
+        <di:waypoint x="459" y="158" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="328.17" y="68" />
+        <di:waypoint x="328.17" y="113" />
+        <di:waypoint x="459" y="113" />
+        <di:waypoint x="459" y="158" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="459" y="206" />
+        <di:waypoint x="459" y="235" />
+        <di:waypoint x="353.63" y="235" />
+        <di:waypoint x="353.63" y="264" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="353.63" y="316" />
+        <di:waypoint x="353.63" y="345" />
+        <di:waypoint x="459" y="345" />
+        <di:waypoint x="459" y="374" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="459" y="460" />
+        <di:waypoint x="459" y="565.13" />
+        <di:waypoint x="427.98" y="565.13" />
+        <di:waypoint x="427.98" y="670.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="459" y="460" />
+        <di:waypoint x="459" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="459" y="602" />
+        <di:waypoint x="459" y="636.13" />
+        <di:waypoint x="258.44" y="636.13" />
+        <di:waypoint x="258.44" y="670.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="459" y="602" />
+        <di:waypoint x="459" y="636.13" />
+        <di:waypoint x="427.98" y="636.13" />
+        <di:waypoint x="427.98" y="670.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="459" y="206" />
+        <di:waypoint x="459" y="235" />
+        <di:waypoint x="803.25" y="235" />
+        <di:waypoint x="803.25" y="264" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="772.66" y="264" />
+        <di:waypoint x="567.96" y="90" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="459" y="206" />
+        <di:waypoint x="459" y="235" />
+        <di:waypoint x="581" y="235" />
+        <di:waypoint x="581" y="264" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="459" y="206" />
+        <di:waypoint x="459" y="236" />
+        <di:waypoint x="126.88" y="236" />
+        <di:waypoint x="126.88" y="266" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="200.68" y="266" />
+        <di:waypoint x="385.19" y="206" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="459" y="602" />
+        <di:waypoint x="459" y="631" />
+        <di:waypoint x="628.54" y="631" />
+        <di:waypoint x="628.54" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="803.25" y="316" />
+        <di:waypoint x="803.25" y="488" />
+        <di:waypoint x="628.54" y="488" />
+        <di:waypoint x="628.54" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="581" y="316" />
+        <di:waypoint x="581" y="488" />
+        <di:waypoint x="628.54" y="488" />
+        <di:waypoint x="628.54" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="760.13" y="90" />
+        <di:waypoint x="760.13" y="375" />
+        <di:waypoint x="628.54" y="375" />
+        <di:waypoint x="628.54" y="660" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

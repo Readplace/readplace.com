@@ -22,6 +22,7 @@ describe("toRecord", () => {
 			trialFeedbackEmailSentAt: "2026-06-04T00:00:00.000Z",
 			trialReminderEmailSentAt: "2026-06-03T00:00:00.000Z",
 			automationSavesHeldEmailSentAt: "2026-06-06T00:00:00.000Z",
+			paymentFailedEmailAttempt: "in_1/2",
 			payDigestEmailSentAt: "2026-06-01T06:00:00.000Z",
 			payDigestMessageId: "msg-pay-1",
 			payDigestUrls: ["https://example.com/listed"],
@@ -32,6 +33,7 @@ describe("toRecord", () => {
 			founderNoteSentAt: "2026-05-21T10:00:00.000Z",
 			plan: "triennial",
 			nextCharge,
+			statusEnteredAt: "2026-05-22T10:00:00Z",
 			createdAt: "2026-05-20T10:00:00.000Z",
 			updatedAt: "2026-05-22T10:00:00.000Z",
 		});
@@ -47,6 +49,7 @@ describe("toRecord", () => {
 			trialFeedbackEmailSentAt: "2026-06-04T00:00:00.000Z",
 			trialReminderEmailSentAt: "2026-06-03T00:00:00.000Z",
 			automationSavesHeldEmailSentAt: "2026-06-06T00:00:00.000Z",
+			paymentFailedEmailAttempt: "in_1/2",
 			payDigestEmailSentAt: "2026-06-01T06:00:00.000Z",
 			payDigestMessageId: "msg-pay-1",
 			payDigestUrls: ["https://example.com/listed"],
@@ -57,6 +60,7 @@ describe("toRecord", () => {
 			founderNoteSentAt: "2026-05-21T10:00:00.000Z",
 			plan: "triennial",
 			nextCharge,
+			statusEnteredAt: "2026-05-22T10:00:00Z",
 			createdAt: "2026-05-20T10:00:00.000Z",
 			updatedAt: "2026-05-22T10:00:00.000Z",
 		});
@@ -123,6 +127,7 @@ describe("toRecord", () => {
 		assert.equal("trialFeedbackEmailSentAt" in record, false);
 		assert.equal("trialReminderEmailSentAt" in record, false);
 		assert.equal("automationSavesHeldEmailSentAt" in record, false);
+		assert.equal("paymentFailedEmailAttempt" in record, false);
 		assert.equal("payDigestEmailSentAt" in record, false);
 		assert.equal("payDigestMessageId" in record, false);
 		assert.equal("payDigestUrls" in record, false);

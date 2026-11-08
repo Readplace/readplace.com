@@ -132,6 +132,20 @@ describe("initInMemoryGmailMonitoring", () => {
 		assert.deepEqual(await store.claimNoticeBatch({ userId: USER, senders: [other], message: MESSAGE, lastSentBefore: NOW.getTime() + 120_000 }), { userId: USER, status: "sending", senders: [other], message: MESSAGE, firstAttemptAt: NOW.getTime() + 120_000, claimUntil: NOW.getTime() + 240_000 });
 	});
 
+	it("abandons a sending batch only for its own attempt and only after its lease", async () => {
+		const { store, advance } = fixture();
+		const firstAttemptAt = NOW.getTime();
+		assert.equal(await store.abandonNoticeBatch({ userId: USER, firstAttemptAt }), false);
+		await store.claimNoticeBatch({ userId: USER, senders: [SENDER], message: MESSAGE, lastSentBefore: 0 });
+		assert.equal(await store.abandonNoticeBatch({ userId: USER, firstAttemptAt }), false);
+		advance(120_000);
+		assert.equal(await store.abandonNoticeBatch({ userId: USER, firstAttemptAt: firstAttemptAt + 1 }), false);
+		assert.equal(await store.abandonNoticeBatch({ userId: USER, firstAttemptAt }), true);
+		assert.deepEqual(await store.findNoticeBatch(USER), { userId: USER, status: "idle", lastSentAt: firstAttemptAt });
+		assert.equal(await store.abandonNoticeBatch({ userId: USER, firstAttemptAt }), false);
+		assert.deepEqual(await store.findNoticeBatch(USER), { userId: USER, status: "idle", lastSentAt: firstAttemptAt });
+	});
+
 	it("reopens only unsent cancelled notices when a sender qualifies again", async () => {
 		const { store, advance } = fixture();
 		await store.startRun({ checkpoint: CHECKPOINT, previous: undefined });

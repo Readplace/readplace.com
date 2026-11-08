@@ -59,6 +59,8 @@ function buildSubject(options: { contact?: UserContact; readAtOf?: Record<string
 		markTrialFeedbackEmailSent: providers.markTrialFeedbackEmailSent,
 		markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent: providers.markAutomationSavesHeldEmailSent,
+		markPaymentFailedEmailSent: providers.markPaymentFailedEmailSent,
+		findOpenInvoiceFailure: async () => undefined,
 		claimTrialNudge: providers.claimTrialNudge,
 		releaseTrialNudge: providers.releaseTrialNudge,
 		findUserContactByUserId: async () => options.contact ?? CONTACT,

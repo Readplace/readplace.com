@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { createHash } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { stubMetadataFor } from "@packages/domain/article";
 import {
@@ -19,12 +20,6 @@ import type {
 import { z } from "zod";
 
 /**
- * A canonical-alias marker lives in the SAME `hutch-articles` table, under the
- * partition key `id(terminalUrl)` — the identity a redirecting URL resolves to.
- * Sharing the key space with real article rows is deliberate: it lets a claim
- * and `saveArticleGlobally` contend on the one item so exactly one wins, and it
- * makes an alias reachable by the same `id(url)` lookup intake already performs.
- *
  * The columns are namespaced (`rowKind`/`aliasTargetUrl`/`aliasCreatedAt`) so
  * they never collide with article attributes, and the read schema keeps every
  * field optional (`dynamoField`) so a plain article row parses cleanly with
@@ -34,6 +29,7 @@ const CanonicalAliasRow = z.object({
 	rowKind: dynamoField(z.literal("alias")),
 	aliasTargetUrl: dynamoField(z.string()),
 	aliasCreatedAt: dynamoField(z.string()),
+	aliasOriginalUrl: dynamoField(z.string()),
 	originalUrl: dynamoField(z.string()),
 	// A real article's redirect destination, read back through this same table
 	// handle so a re-crawl can pin its fetch to the terminal (see findAdoptedFetchUrl).
@@ -70,6 +66,13 @@ export type FindContentSourceUrl = (url: string) => Promise<string | undefined>;
 
 export type AdoptArticleDestination = (params: { articleUrl: string; destinationUrl: string; now: Date }) => Promise<"adopted" | "declined">;
 
+function aliasIdentity(url: string) {
+	const normalized = ArticleResourceUniqueId.parse(url).value;
+	return Buffer.byteLength(normalized, "utf8") <= 2048
+		? { key: normalized, originalUrl: undefined }
+		: { key: `#alias-sha256-v1:${createHash("sha256").update(normalized).digest("hex")}`, originalUrl: url };
+}
+
 export function initCanonicalAliasStore(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -92,28 +95,30 @@ export function initCanonicalAliasStore(deps: {
 	});
 
 	const claimAlias: ClaimCanonicalAlias = async ({ aliasUrl, targetOriginalUrl, now, sourceBinding }) => {
+		const identity = aliasIdentity(aliasUrl);
 		await writeIfCondition(() => table.update({
-			Key: { url: ArticleResourceUniqueId.parse(aliasUrl).value },
-			UpdateExpression: `SET rowKind = :alias, aliasTargetUrl = :target, aliasCreatedAt = :now${sourceBinding === undefined ? "" : ", contentSourceUrl = :source, sourceOriginalUrl = :original"}`,
+			Key: { url: identity.key },
+			UpdateExpression: `SET rowKind = :alias, aliasTargetUrl = :target, aliasCreatedAt = :now${sourceBinding === undefined ? "" : ", contentSourceUrl = :source, sourceOriginalUrl = :original"}${identity.originalUrl === undefined ? "" : ", aliasOriginalUrl = :aliasOriginalUrl"}`,
 			ConditionExpression: sourceBinding === undefined ? "attribute_not_exists(#url)" : "attribute_not_exists(#url) OR (rowKind = :alias AND aliasTargetUrl = :target)",
 			ExpressionAttributeNames: { "#url": "url" },
 			ExpressionAttributeValues: {
 				":alias": "alias",
 				":target": targetOriginalUrl,
 				":now": now.toISOString(),
+				...(identity.originalUrl === undefined ? {} : { ":aliasOriginalUrl": identity.originalUrl }),
 				...(sourceBinding === undefined ? {} : { ":source": sourceBinding.contentSourceUrl, ":original": sourceBinding.sourceOriginalUrl }),
 			},
 		}));
 	};
 
 	const resolveAlias: ResolveCanonicalAlias = async (url) => {
-		const row = await table.get({ url: ArticleResourceUniqueId.parse(url).value });
+		const row = await table.get({ url: aliasIdentity(url).key });
 		if (row?.rowKind !== "alias") return undefined;
 		return row.aliasTargetUrl;
 	};
 
 	const findIdentityRow: FindIdentityRow = async (url) => {
-		const key = ArticleResourceUniqueId.parse(url).value;
+		const key = aliasIdentity(url).key;
 		const row = await table.get({ url: key }, { consistentRead: true });
 		if (!row) return { kind: "absent" };
 		const sourceBinding = row.contentSourceUrl !== undefined && row.sourceOriginalUrl !== undefined
@@ -168,18 +173,17 @@ export function initCanonicalAliasStore(deps: {
 	};
 
 	const findAdoptedFetchUrl: FindAdoptedFetchUrl = async (url) => {
-		const row = await table.get({ url: ArticleResourceUniqueId.parse(url).value }, { consistentRead: true });
-		// Only an adopted real article carries displayUrl; a normal article and an
-		// alias row both lack it, so the crawl falls back to fetching `url` as-is.
+		const row = await table.get({ url: aliasIdentity(url).key }, { consistentRead: true });
 		return row?.displayUrl;
 	};
 
 	const findContentSourceUrl: FindContentSourceUrl = async (url) => {
-		const row = await table.get({ url: ArticleResourceUniqueId.parse(url).value });
+		const row = await table.get({ url: aliasIdentity(url).key });
 		return row?.contentSourceUrl;
 	};
 
 	const adoptDestination: AdoptArticleDestination = async ({ articleUrl, destinationUrl, now }) => {
+		const destinationIdentity = aliasIdentity(destinationUrl);
 		const pinDestination = {
 			Key: { url: ArticleResourceUniqueId.parse(articleUrl).value },
 			UpdateExpression: "SET displayUrl = :destination",
@@ -190,11 +194,11 @@ export function initCanonicalAliasStore(deps: {
 			await deps.client.send(new TransactWriteCommand({ TransactItems: [
 				{ Update: {
 					TableName: deps.tableName,
-					Key: { url: ArticleResourceUniqueId.parse(destinationUrl).value },
-					UpdateExpression: "SET rowKind = :alias, aliasTargetUrl = :target, aliasCreatedAt = :now",
+					Key: { url: destinationIdentity.key },
+					UpdateExpression: `SET rowKind = :alias, aliasTargetUrl = :target, aliasCreatedAt = :now${destinationIdentity.originalUrl === undefined ? "" : ", aliasOriginalUrl = :aliasOriginalUrl"}`,
 					ConditionExpression: "attribute_not_exists(#url) OR (rowKind = :alias AND aliasTargetUrl = :target)",
 					ExpressionAttributeNames: { "#url": "url" },
-					ExpressionAttributeValues: { ":alias": "alias", ":target": articleUrl, ":now": now.toISOString() },
+					ExpressionAttributeValues: { ":alias": "alias", ":target": articleUrl, ":now": now.toISOString(), ...(destinationIdentity.originalUrl === undefined ? {} : { ":aliasOriginalUrl": destinationIdentity.originalUrl }) },
 				} },
 				{ Update: { TableName: deps.tableName, ...pinDestination } },
 			] }));

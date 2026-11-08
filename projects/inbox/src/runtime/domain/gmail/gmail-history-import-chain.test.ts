@@ -60,6 +60,7 @@ import { initIngestGmailImportHandler } from "../inbox/ingest-gmail-import-handl
 import { initIngestParsedEmail } from "../inbox/ingest-parsed-email";
 import { initInterceptGmailConfirmation } from "../inbox/intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "../inbox/receive-email-handler";
+import { initSettleExtractedEmail } from "../inbox/settle-extracted-email";
 import { initRecordEmailLinksFilteredHandler } from "../inbox/record-email-links-filtered-handler";
 import { initResolveEmailIdentity } from "../inbox/resolve-email-identity";
 import { initRouteGmailForwardedEmail } from "./route-gmail-forwarded-email";
@@ -162,6 +163,7 @@ function makePipeline() {
 	const receive = initReceiveEmailHandler({
 		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, addGmailOrigins: completion.addGmailOrigins, publishEvent }),
 		recordDuplicateGmailOrigin,
+		settleExtractedEmail: initSettleExtractedEmail({ getEmail: emails.getEmail, findLinksMeta: links.findLinksMeta, recordDuplicateGmailOrigin }),
 		readRawEmail,
 		findByAddress: addresses.findByAddress,
 		putEmail: emails.putEmail,
@@ -728,6 +730,32 @@ describe("gmail history import chain (inbox half)", () => {
 				{ userId: READER, receivedAtMessageId: `${INTERNAL_DATE}#<issue-42@tldr.tech>`, outputCount: 1 },
 				{ userId: READER, receivedAtMessageId: `${INTERNAL_DATE}#<issue-42@tldr.tech>`, outputCount: 1 },
 			],
+		);
+	});
+
+	it("repeats nothing when a notification is redelivered after its outputs are confirmed in All", async () => {
+		const pipeline = makePipeline();
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		const gateway = await pipeline.gatewayAddress();
+		await pipeline.mapGatewaySender(destinationAddress);
+		await pipeline.forward({ gateway, messageId: "<issue-42@tldr.tech>", sesMessageId: "ses-42" });
+		const received = pipeline.publishedOf(EmailReceivedEvent);
+		await pipeline.extractEach(received);
+		await pipeline.confirmSavedToAll();
+
+		await pipeline.forward({ gateway, messageId: "<issue-42@tldr.tech>", sesMessageId: "ses-42" });
+		await pipeline.extractEach(received);
+
+		assert.equal(pipeline.publishedOf(EmailReceivedEvent).length, 1);
+		assert.equal((await pipeline.rows()).length, 1);
+		assert.deepEqual(
+			pipeline.publishedOf(SubmitLinkCommand).map(({ detail }) => SaveCorrelation.parse(detail).emailOutput?.outputKey),
+			["link#0000"],
+		);
+		const forwardedMark = { userId: READER, receivedAtMessageId: `${FORWARDED_AT}#<issue-42@tldr.tech>`, origin: FORWARDED_ORIGIN };
+		assert.deepEqual(
+			pipeline.publishedOf(MarkGmailEmailImportedCommand).map(({ detail }) => detail),
+			[forwardedMark, forwardedMark],
 		);
 	});
 

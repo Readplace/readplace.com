@@ -91,6 +91,8 @@ targets:
         # rewrites the very bytes the comparison is pinned to.
         excludes:
           - "*.swift-snapshots/**"
+      - path: ../../../src/packages/api-samples/src/samples/swift
+        name: APISamples
     dependencies:
       - target: Readplace
     settings:

@@ -165,6 +165,20 @@ export type FindUserContactByUserId = (
 	userId: UserId,
 ) => Promise<UserContact | null>;
 
+export type ExportRecipient = {
+	email: string;
+	deletedAt?: string;
+	exportDeliveredRequestedAt?: string;
+};
+
+export type FindExportRecipient = (userId: UserId) => Promise<ExportRecipient | null>;
+
+export type MarkExportDelivered = (input: {
+	userId: UserId;
+	email: string;
+	requestedAt: string;
+}) => Promise<void>;
+
 export type CreateGoogleUser = (user: {
 	email: string;
 	userId: UserId;

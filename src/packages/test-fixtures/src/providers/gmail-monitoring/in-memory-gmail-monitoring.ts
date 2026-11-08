@@ -104,6 +104,12 @@ export function initInMemoryGmailMonitoring(deps: { now: () => Date }): GmailMon
 		finishNoticeBatch: async (userId) => {
 			if (batches.get(userId)?.status === "sending") batches.set(userId, { userId, status: "idle", lastSentAt: deps.now().getTime() });
 		},
+		abandonNoticeBatch: async ({ userId, firstAttemptAt }) => {
+			const current = batches.get(userId);
+			if (current?.status !== "sending" || current.firstAttemptAt !== firstAttemptAt || current.claimUntil > deps.now().getTime()) return false;
+			batches.set(userId, { userId, status: "idle", lastSentAt: firstAttemptAt });
+			return true;
+		},
 		deleteAllByUserId: async (userId) => {
 			checkpoints.delete(userId);
 			batches.delete(userId);

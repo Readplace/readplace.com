@@ -4,6 +4,8 @@ import {
 	ExportUserDataCommand,
 	type ExportUserDataDetail,
 	UserDataExportedEvent,
+	UserDataExportSkippedEvent,
+	type UserDataExportSkipReason,
 } from "@packages/infra-components";
 import {
 	initSqsRecordHandler,
@@ -12,8 +14,13 @@ import {
 import type { FindArticlesAcrossReadlists } from "@packages/provider-contracts/article-store";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { EngagementStarterState } from "@packages/provider-contracts/engagement-starter";
+import type { FindExportRecipient, MarkExportDelivered } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
-import type { UploadUserDataExport } from "../providers/user-data-export/user-data-export.types";
+import type {
+	DeleteUserExports,
+	UploadUserDataExport,
+} from "../providers/user-data-export/user-data-export.types";
+import { decideExportDelivery } from "./decide-export-delivery";
 import {
 	type ExportEnvelope,
 	toExportArticle,
@@ -30,6 +37,9 @@ export interface ExportUserDataDependencies {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
 	uploadUserDataExport: UploadUserDataExport;
+	deleteUserExports: DeleteUserExports;
+	findExportRecipient: FindExportRecipient;
+	markExportDelivered: MarkExportDelivered;
 	sendEmail: SendEmail;
 	publishEvent: PublishEvent;
 	logger: Logger;
@@ -52,8 +62,17 @@ async function processCommand(
 	detail: ExportUserDataDetail,
 	deps: ExportUserDataDependencies,
 ): Promise<void> {
-	const { userId } = detail;
+	const { userId, requestedAt } = detail;
 	deps.logger.info("[ExportUserData] starting export", { userId: detail.userId });
+
+	const beforeExport = decideExportDelivery({
+		recipient: await deps.findExportRecipient(userId),
+		requestedAt,
+	});
+	if (beforeExport.outcome === "refused") {
+		await finishAsRefused({ detail, reason: beforeExport.reason, deps });
+		return;
+	}
 
 	const articles: ExportEnvelope["articles"] = [];
 	let page = 1;
@@ -98,10 +117,19 @@ async function processCommand(
 		bodyBytes: body.length,
 	});
 
+	const beforeSend = decideExportDelivery({
+		recipient: await deps.findExportRecipient(userId),
+		requestedAt,
+	});
+	if (beforeSend.outcome === "refused") {
+		await finishAsRefused({ detail, reason: beforeSend.reason, deps });
+		return;
+	}
+
 	await deps.sendEmail({
 		from: EMAIL_FROM,
 		replyTo: EMAIL_REPLY_TO,
-		to: detail.email,
+		to: beforeSend.email,
 		subject: "Your Readplace export is ready",
 		html: buildUserDataExportEmailHtml({
 			downloadUrl,
@@ -111,8 +139,9 @@ async function processCommand(
 	});
 	deps.logger.info("[ExportUserData] sent email", {
 		userId: detail.userId,
-		to: detail.email,
 	});
+
+	await deps.markExportDelivered({ userId, email: beforeSend.email, requestedAt });
 
 	await deps.publishEvent(UserDataExportedEvent, {
 		userId: detail.userId,
@@ -125,5 +154,23 @@ async function processCommand(
 		userId: detail.userId,
 		articleCount: articles.length,
 		s3Key,
+	});
+}
+
+async function finishAsRefused(input: {
+	detail: ExportUserDataDetail;
+	reason: UserDataExportSkipReason;
+	deps: ExportUserDataDependencies;
+}): Promise<void> {
+	const { detail, reason, deps } = input;
+	if (reason !== "already-delivered") await deps.deleteUserExports(detail.userId);
+	await deps.publishEvent(UserDataExportSkippedEvent, {
+		userId: detail.userId,
+		requestedAt: detail.requestedAt,
+		reason,
+	});
+	deps.logger.info("[ExportUserData] export skipped", {
+		userId: detail.userId,
+		reason,
 	});
 }

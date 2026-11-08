@@ -804,7 +804,7 @@ describe("starter delivery", () => {
 		await app.enroll(app.id);
 		await expect(app.send(app.id)).rejects.toThrow("timeout");
 		expect(app.events.at(-1)?.reason).toBe("email-attempt-failed");
-		app.contact.email = "changed@real.example";
+		app.contact.email = "changed@recipient.com";
 		app.picks.length = 0;
 		await app.send(app.id);
 		expect(messages).toHaveLength(2);
@@ -889,6 +889,108 @@ describe("starter delivery", () => {
 			change === "expiry" ? "sent" : "sending",
 		);
 		expect(app.events.at(-1)?.reason).toBe("email-attempt-failed");
+	});
+});
+
+async function frozenAttempt() {
+	const attempts: EmailMessage[] = [];
+	const app = await subject({
+		send: {
+			sendEmail: async (message) => {
+				attempts.push(message);
+				if (attempts.length === 1) throw new Error("timeout");
+			},
+		},
+	});
+	await app.enroll(app.id);
+	await expect(app.send(app.id)).rejects.toThrow("timeout");
+	const frozen = await app.state.findStarterPack(app.id);
+	assert(frozen?.message, "the first attempt froze its message");
+	return { app, attempts, frozen };
+}
+
+describe("a frozen starter attempt retried after the reader changed", () => {
+	it.each([
+		"preference",
+		"access",
+		"verification",
+		"contact",
+		"test-email",
+		"deletion",
+	])("rechecks %s before retrying a frozen attempt", async (change) => {
+		const { app, attempts, frozen } = await frozenAttempt();
+		if (change === "deletion") app.contact.deletedAt = NOW.toISOString();
+		if (change === "preference") app.contact.queueDigestOptOutAt = "opt-out";
+		if (change === "verification") app.contact.emailVerified = false;
+		if (change === "access") await app.subscriptions.markCancelledByUserId({ userId: app.id });
+		if (change === "contact") app.sendDeps.findUserContactByUserId = async () => null;
+		if (change === "test-email") app.contact.email = "reader@example.com";
+		expect(await app.send(app.id)).toBe(true);
+		expect(attempts).toHaveLength(1);
+		const pack = await app.state.findStarterPack(app.id);
+		expect(pack?.emailStatus).toBe("review");
+		expect(pack?.reason).toBe("recipient-ineligible-after-attempt");
+		expect(pack?.message).toEqual(frozen.message);
+		expect(app.events.at(-1)).toEqual({
+			userId: app.id,
+			campaignId: rollout.campaignId,
+			event: "failure",
+			reason: "recipient-ineligible-after-attempt",
+		});
+	});
+	it("settles a withheld attempt once when the same message is redriven twice", async () => {
+		const { app, attempts } = await frozenAttempt();
+		app.contact.queueDigestOptOutAt = NOW.toISOString();
+		await app.send(app.id);
+		const settled = await app.state.findStarterPack(app.id);
+		expect(await app.send(app.id)).toBe(false);
+		expect(await app.state.findStarterPack(app.id)).toEqual(settled);
+		expect(attempts).toHaveLength(1);
+		expect(
+			app.events.filter(
+				(event) => event.event === "failure" && event.reason === "recipient-ineligible-after-attempt",
+			),
+		).toHaveLength(1);
+	});
+	it("does not resend a withheld attempt after the reader becomes eligible again", async () => {
+		const { app, attempts } = await frozenAttempt();
+		app.contact.queueDigestOptOutAt = NOW.toISOString();
+		await app.send(app.id);
+		app.contact.queueDigestOptOutAt = undefined;
+		expect(await app.send(app.id)).toBe(false);
+		expect(attempts).toHaveLength(1);
+		expect((await app.state.findStarterPack(app.id))?.emailStatus).toBe("review");
+	});
+	it("leaves an accepted attempt marked sent when a stale worker withholds it", async () => {
+		const { app, attempts, frozen } = await frozenAttempt();
+		await app.state.markStarterEmailSent({ userId: app.id, at: NOW });
+		const lastEvent = app.events.at(-1);
+		app.contact.queueDigestOptOutAt = NOW.toISOString();
+		app.sendDeps.state = { ...app.state, findStarterPack: async () => frozen };
+		await app.send(app.id);
+		expect((await app.state.findStarterPack(app.id))?.emailStatus).toBe("sent");
+		expect(app.events.at(-1)).toEqual(lastEvent);
+		expect(attempts).toHaveLength(1);
+	});
+	it("sets an ineligible reader past the provider window aside as provider-window-expired", async () => {
+		const { app, attempts } = await frozenAttempt();
+		app.contact.queueDigestOptOutAt = NOW.toISOString();
+		app.clock.now = new Date(NOW.getTime() + STARTER_RETRY_WINDOW_MS);
+		await app.send(app.id);
+		const pack = await app.state.findStarterPack(app.id);
+		expect(pack?.emailStatus).toBe("review");
+		expect(pack?.reason).toBe("provider-window-expired");
+		expect(app.events.at(-1)?.event).toBe("failure");
+		expect(attempts).toHaveLength(1);
+	});
+	it("heals a frozen attempt for a reader still eligible", async () => {
+		const { app, attempts } = await frozenAttempt();
+		expect(await app.send(app.id)).toBe(true);
+		expect(attempts).toHaveLength(2);
+		expect(attempts[1]).toEqual(attempts[0]);
+		const pack = await app.state.findStarterPack(app.id);
+		expect(pack?.emailStatus).toBe("sent");
+		expect(pack?.sentAt).toBeDefined();
 	});
 });
 

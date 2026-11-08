@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { z } from "zod";
+import { type EventInstant, EventEnvelope } from "@packages/domain/event-envelope";
 import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import { CancelSubscriptionCommand } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
@@ -14,10 +15,12 @@ import type {
 	PublishSubscriptionCancellationScheduled,
 	PublishSubscriptionCancelled,
 } from "@packages/provider-contracts/events";
+import { messagePredatesStatus } from "@packages/subscription-access";
 import type { ScheduleCancellationAtPeriodEnd } from "@packages/provider-contracts/subscription-billing";
 import type {
 	CreateDeferredCancellationSchedule,
 	DeleteChargeReminderSchedule,
+	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
@@ -31,11 +34,13 @@ interface HandlerDeps {
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	createDeferredCancellationSchedule: CreateDeferredCancellationSchedule;
+	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
 	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
 	publishSubscriptionCancellationScheduled: PublishSubscriptionCancellationScheduled;
 	publishSubscriptionCancelled: PublishSubscriptionCancelled;
+	now: () => Date;
 	logger: Logger;
 }
 
@@ -46,8 +51,10 @@ interface HandlerDeps {
  * against a row already in pending_cancellation (which converges to cancelled). */
 const DEFERRED_CANCELLATION_DELAY_MS = 60 * 60 * 1000;
 
-function addOneHour(iso: string): string {
-	return new Date(Date.parse(iso) + DEFERRED_CANCELLATION_DELAY_MS).toISOString();
+function deferredFiresAt(params: { effectiveAt: string; now: Date }): string {
+	const afterEffective = Date.parse(params.effectiveAt) + DEFERRED_CANCELLATION_DELAY_MS;
+	const afterNow = params.now.getTime() + DEFERRED_CANCELLATION_DELAY_MS;
+	return new Date(Math.max(afterEffective, afterNow)).toISOString();
 }
 
 function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBranch> {
@@ -61,9 +68,10 @@ function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBran
 			// once the cancel is scheduled Stripe will not charge, so the reminder
 			// must not fire. Reactivation recreates it from Stripe's trial state.
 			await deps.deleteChargeReminderSchedule({ userId: row.userId });
+			await deps.deleteDeferredCancellationSchedule({ userId: row.userId });
 			await deps.createDeferredCancellationSchedule({
 				userId: row.userId,
-				firesAt: addOneHour(cancellationEffectiveAt),
+				firesAt: deferredFiresAt({ effectiveAt: cancellationEffectiveAt, now: deps.now() }),
 			});
 			await deps.publishSubscriptionCancellationScheduled({
 				userId: row.userId,
@@ -87,9 +95,10 @@ function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBran
 			// nudge. The handler's status guard would noop anyway; deleting the
 			// schedule is defence-in-depth plus scheduler hygiene.
 			await deps.deleteTrialReminderSchedule({ userId: row.userId });
+			await deps.deleteDeferredCancellationSchedule({ userId: row.userId });
 			await deps.createDeferredCancellationSchedule({
 				userId: row.userId,
-				firesAt: addOneHour(row.trialEndsAt),
+				firesAt: deferredFiresAt({ effectiveAt: row.trialEndsAt, now: deps.now() }),
 				reason,
 			});
 			await deps.publishSubscriptionCancellationScheduled({
@@ -136,11 +145,20 @@ export function initCancelSubscriptionHandler(
 
 	async function processRecord(
 		detail: z.infer<typeof CancelSubscriptionCommand.detailSchema>,
+		eventTime: EventInstant,
 	): Promise<void> {
 		const { userId } = detail;
 		const row = await deps.findSubscriptionByUserId(userId);
 		if (!row) {
 			deps.logger.warn("[cancel-subscription] no row for user — noop", { userId });
+			return;
+		}
+		if (messagePredatesStatus({ statusEnteredAt: row.statusEnteredAt, eventTime })) {
+			deps.logger.info("[cancel-subscription] message predates row status — noop", {
+				userId,
+				eventTime,
+				status: row.status,
+			});
 			return;
 		}
 		await branches[row.status](row, detail.reason);
@@ -151,6 +169,6 @@ export function initCancelSubscriptionHandler(
 		logger: deps.logger,
 		failure: { message: "[cancel-subscription] record failed" },
 		malformed: { policy: "retry" },
-		handle: processRecord,
+		handle: (detail, record) => processRecord(detail, EventEnvelope.parse(JSON.parse(record.body)).time),
 	});
 }

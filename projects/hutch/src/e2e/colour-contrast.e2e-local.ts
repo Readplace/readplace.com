@@ -85,7 +85,7 @@ async function signUpFreshUser(page: Page, email: string): Promise<void> {
 async function saveArticle(page: Page, url: string, expectedCards: number): Promise<void> {
 	const form = await openAddLink(page);
 	await form.locator('input[name="url"]').fill(url);
-	await form.locator('button[type="submit"]').click();
+	await page.locator('#add-link [data-test-action="add-link-save"]').click();
 	await expect(page.locator("[data-test-article]")).toHaveCount(expectedCards, {
 		timeout: SETTLE_MS,
 	});
@@ -305,7 +305,7 @@ async function auditAddLinkDialog(page: Page, where: { theme: string; view: stri
 	assertContrast(await stableMeasurements(page, READLIST_ROOT), { ...where, view: `${where.view}/add-link-dialog` });
 
 	await form.locator('input[name="url"]').fill("chrome://extensions/");
-	await form.locator('button[type="submit"]').click();
+	await page.locator('#add-link [data-test-action="add-link-save"]').click();
 	await expect(page.locator('#add-link [data-test-save-error]')).not.toBeEmpty({ timeout: SETTLE_MS });
 	await page.mouse.move(0, 0);
 	assertContrast(await stableMeasurements(page, READLIST_ROOT), { ...where, view: `${where.view}/add-link-dialog-error` });

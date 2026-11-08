@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { SaveAttemptIdSchema, CandidateIdSchema } from "@packages/domain/article";
+import { SaveAttemptIdSchema, CandidateIdSchema, type SaveAttemptId } from "@packages/domain/article";
 import { initSelectMostCompleteContent, type ContentDecision, type SelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
-import { type Article, type CanonicalCommit, type TransitionAndPersist, initTransitionAndPersist, requestRecrawl, promoteTier, recrawlPromoteTier, recrawlTieKeptCanonical, refreshContent } from "@packages/domain/article-aggregate";
+import { type Article, type CanonicalCommit, type Effect, type TransitionAndPersist, initTransitionAndPersist, requestRecrawl, promoteTier, recrawlPromoteTier, recrawlTieKeptCanonical, refreshContent } from "@packages/domain/article-aggregate";
 import { initSelectContentWork, type SelectContentDependencies } from "./select-content-work";
 import { candidateProvenance, type PutTierSource, type VerifiedTierSource } from "@packages/tier-source";
 import { labelForIndex } from "./select-content-prompt";
@@ -790,5 +790,162 @@ describe("the video card fallback", () => {
 
 		expect(later.deps.writeCanonicalContent).toHaveBeenCalledWith({ url: VIDEO_URL, source: expect.objectContaining({ html: CARD.html }) });
 		expect(comparisonLine(later.deps.logger)).toMatchObject({ outcome: "retained" });
+	});
+});
+
+describe("a redriven direct resource on the row it finds", () => {
+	const A0 = SaveAttemptIdSchema.parse("attempt-0");
+	const A1 = SaveAttemptIdSchema.parse("attempt-1");
+	const A2 = SaveAttemptIdSchema.parse("attempt-2");
+	const A3 = SaveAttemptIdSchema.parse("attempt-3");
+	function directSource(params: { id: string; attemptId: SaveAttemptId; fetchedAt: string }): VerifiedTierSource {
+		const html = `<pre>Plain text resource ${params.id}.</pre>`;
+		return { tier: "tier-1", html, metadata: { ...candidateProvenance({
+			metadata: { ...metadata, wordCount: 4, directResourceKind: "plain-text" }, html, evaluationHtml: html,
+			attemptId: params.attemptId, originalUrl: URL, sourceUrl: URL, kind: "live", fetchedAt: params.fetchedAt, httpStatus: 200,
+		}), id: cid(params.id) } };
+	}
+	const C0 = directSource({ id: "c0", attemptId: A0, fetchedAt: "2026-10-01T00:00:00.000Z" });
+	const C1 = directSource({ id: "c1", attemptId: A1, fetchedAt: "2026-10-02T00:00:00.000Z" });
+	const C2 = directSource({ id: "c2", attemptId: A2, fetchedAt: "2026-10-03T00:00:00.000Z" });
+	const C3 = directSource({ id: "c3", attemptId: A3, fetchedAt: "2026-10-04T00:00:00.000Z" });
+	const message = (candidate: VerifiedTierSource, saveAttemptId: SaveAttemptId) => ({ ...request, saveAttemptId, candidates: [{ id: candidate.metadata.id, tier: candidate.tier }] });
+	const committedAt = (params: { canonical: VerifiedTierSource; revision: number; overrides?: Partial<Article> }): Article => article({
+		freshness: { contentFetchedAt: params.canonical.metadata.fetchedAt, etag: `etag-${params.canonical.metadata.id}`, canonicalContentHash: computeCanonicalContentHash(params.canonical.html) },
+		contentSelection: { candidateId: params.canonical.metadata.id, tier: params.canonical.tier, revision: params.revision },
+		...params.overrides,
+	});
+
+	function setupRow(params: { row: Article; sources: VerifiedTierSource[]; onFirstLoad?: () => Article }) {
+		const rows = new Map([[URL, params.row]]);
+		const effects: Effect[] = [];
+		const order: string[] = [];
+		let onFirstLoad = params.onFirstLoad;
+		const { transitionAndPersist } = initTransitionAndPersist({
+			store: {
+				load: async (url) => rows.get(url),
+				save: async ({ article: next, canonicalCommit }) => {
+					assert(canonicalCommit, "selection always commits a candidate on these paths");
+					const held = rows.get(next.url)?.contentSelection?.revision;
+					if (canonicalCommit.expected?.revision !== held) throw new Error("selection revision changed");
+					order.push("commit");
+					rows.set(next.url, { ...next, contentSelection: { ...next.contentSelection, candidateId: canonicalCommit.candidateId, tier: canonicalCommit.tier, revision: (held ?? 0) + 1 } });
+				},
+			},
+			dispatchEffect: async (effect) => { effects.push(effect); },
+			logCrawlSettled: () => {},
+		});
+		const { work } = setup({
+			loadArticle: async (url) => {
+				const snapshot = rows.get(url);
+				if (onFirstLoad) { rows.set(url, onFirstLoad()); onFirstLoad = undefined; }
+				return snapshot;
+			},
+			listAvailableTierSources: async () => params.sources,
+			transitionAndPersist,
+			writeCanonicalContent: async ({ source }) => { order.push("upload"); return { contentLocation: "s3://bucket/immutable/content.html", candidateId: source.metadata.id, tier: source.tier }; },
+			recordCrawlVersion: async () => { order.push("version"); },
+		});
+		return { work, row: () => rows.get(URL), effects, order };
+	}
+
+	it("keeps a canonical fetched later by another attempt when an older attempt's message is redriven", async () => {
+		const start = committedAt({ canonical: C2, revision: 1 });
+		const { work, row, effects, order } = setupRow({ row: start, sources: [C1, C2] });
+
+		await work(message(C1, A1));
+
+		expect(row()?.contentSelection?.candidateId).toBe(C2.metadata.id);
+		expect(row()?.freshness).toEqual({ contentFetchedAt: NOW, etag: "etag-c2", canonicalContentHash: computeCanonicalContentHash(C2.html) });
+		expect(row()?.summary).toEqual(start.summary);
+		expect(effects).toEqual([{ kind: "publish-crawl-article-completed", url: URL }]);
+		expect(order).toEqual(["upload", "commit"]);
+	});
+
+	it("leaves the row as the first run left it when the same message is delivered twice", async () => {
+		const { work, row, order } = setupRow({ row: committedAt({ canonical: C2, revision: 1 }), sources: [C1, C2] });
+
+		await work(message(C1, A1));
+		const afterFirst = row();
+		await work(message(C1, A1));
+
+		assert(afterFirst?.contentSelection);
+		expect(row()).toEqual({ ...afterFirst, contentSelection: { ...afterFirst.contentSelection, revision: 3 } });
+		expect(order).toEqual(["upload", "commit", "upload", "commit"]);
+	});
+
+	it("heals a failed crawl onto the later canonical and regenerates its crawl-failed summary", async () => {
+		const start = committedAt({ canonical: C2, revision: 1, overrides: { crawl: { kind: "failed", reason: { kind: "parse-error", detail: "S3 timeout" } }, summary: { kind: "failed", reason: { kind: "crawl-failed" } } } });
+		const { work, row, effects } = setupRow({ row: start, sources: [C1, C2] });
+
+		await work(message(C1, A1));
+
+		expect(row()?.crawl).toEqual({ kind: "ready" });
+		expect(row()?.contentSelection?.candidateId).toBe(C2.metadata.id);
+		expect(row()?.summary).toMatchObject({ kind: "pending" });
+		expect(effects).toEqual([{ kind: "generate-summary", url: URL }, { kind: "publish-crawl-article-completed", url: URL }]);
+	});
+
+	it("promotes the message's resource when the row holds no canonical", async () => {
+		const start = article({ crawl: { kind: "failed", reason: { kind: "parse-error", detail: "S3 timeout" } }, summary: { kind: "failed", reason: { kind: "crawl-failed" } } });
+		const { work, row, effects, order } = setupRow({ row: start, sources: [C1] });
+
+		await work(message(C1, A1));
+
+		expect(row()?.contentSelection?.candidateId).toBe(C1.metadata.id);
+		expect(row()?.crawl).toEqual({ kind: "ready" });
+		expect(row()?.summary).toMatchObject({ kind: "pending" });
+		expect(effects).toEqual([{ kind: "publish-canonical-content-changed", url: URL }, { kind: "publish-crawl-article-completed", url: URL }]);
+		expect(order).toEqual(["upload", "commit", "version"]);
+	});
+
+	it("promotes the message's resource over an older canonical with a different body", async () => {
+		const { work, row, effects } = setupRow({ row: committedAt({ canonical: C0, revision: 1 }), sources: [C0, C1] });
+
+		await work(message(C1, A1));
+
+		expect(row()?.contentSelection?.candidateId).toBe(C1.metadata.id);
+		expect(effects).toEqual([{ kind: "publish-canonical-content-changed", url: URL }, { kind: "publish-crawl-article-completed", url: URL }]);
+	});
+
+	it.each([["A1 then A2", [[C1, A1], [C2, A2]]], ["A2 then A1", [[C2, A2], [C1, A1]]]] as const)("ends on the later attempt's resource when two dead letters are redriven %s", async (_order, messages) => {
+		const { work, row } = setupRow({ row: article(), sources: [C1, C2] });
+
+		for (const [candidate, attemptId] of messages) await work(message(candidate, attemptId));
+
+		expect(row()?.contentSelection?.candidateId).toBe(C2.metadata.id);
+	});
+
+	it("fails the commit that loses to a later commit and keeps that later canonical on the next receive", async () => {
+		const { work, row, order } = setupRow({
+			row: committedAt({ canonical: C0, revision: 1 }), sources: [C0, C1, C3],
+			onFirstLoad: () => committedAt({ canonical: C3, revision: 2 }),
+		});
+
+		await expect(work(message(C1, A1))).rejects.toThrow("selection revision changed");
+		await work(message(C1, A1));
+
+		expect(row()?.contentSelection?.candidateId).toBe(C3.metadata.id);
+		expect(order).toEqual(["upload", "upload", "commit"]);
+	});
+
+	it("keeps the later canonical through the recrawl tie when a recrawl message is redriven", async () => {
+		const start = committedAt({ canonical: C2, revision: 1 });
+		const { work, row, effects, order } = setupRow({ row: start, sources: [C1, C2] });
+
+		await work({ ...message(C1, A1), mode: "recrawl" });
+
+		expect(row()?.contentSelection?.candidateId).toBe(C2.metadata.id);
+		expect(row()?.freshness).toEqual(start.freshness);
+		expect(effects).toEqual([{ kind: "publish-recrawl-completed", url: URL }]);
+		expect(order).toEqual(["upload", "commit"]);
+	});
+
+	it("keeps the later canonical when a refresh message is redriven", async () => {
+		const { work, row } = setupRow({ row: committedAt({ canonical: C2, revision: 1 }), sources: [C1, C2] });
+
+		await work({ ...message(C1, A1), mode: "refresh", refresh: { etag: "etag-c1", bodyHash: "body-hash-c1", contentFetchedAt: C1.metadata.fetchedAt } });
+
+		expect(row()?.contentSelection?.candidateId).toBe(C2.metadata.id);
 	});
 });
