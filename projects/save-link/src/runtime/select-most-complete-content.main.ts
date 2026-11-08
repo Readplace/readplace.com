@@ -11,11 +11,13 @@ import {
 } from "@packages/infra-components/runtime";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
-import { readEnv } from "@packages/require-env";
+import { readEnv, requireEnv } from "@packages/require-env";
 import { SELECT_MOST_COMPLETE_CONTENT_ENV } from "./select-most-complete-content.env";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
-import { initSelectMostCompleteContentHandler } from "./domain/select-content/select-most-complete-content-handler";
+import { initForwardTierContentExtracted, initSelectMostCompleteContentHandler } from "./domain/select-content/select-most-complete-content-handler";
+import { SELECTION_INGRESS_ENV, type SelectionRoute } from "./selection-ingress.env";
+import { initSelectArticleContentDispatch } from "./dep-bundles/select-article-content-dispatch";
 import { initGenerateSummaryDispatch } from "./dep-bundles/generate-summary-dispatch";
 
 const env = readEnv(SELECT_MOST_COMPLETE_CONTENT_ENV);
@@ -25,6 +27,9 @@ const contentBucketName = env.CONTENT_BUCKET_NAME;
 const eventBusName = env.EVENT_BUS_NAME;
 const deepseekApiKey = env.DEEPSEEK_API_KEY;
 const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
+
+const selectionRoute = requireEnv<SelectionRoute>("SELECTION_ROUTE");
+const selectArticleContentQueueUrl = readEnv(SELECTION_INGRESS_ENV).SELECT_ARTICLE_CONTENT_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
@@ -76,10 +81,14 @@ const { transitionAndPersist } = initTransitionAndPersist({
 	logCrawlSettled,
 });
 
-export const handler = initSelectMostCompleteContentHandler({
+const selectHandler = initSelectMostCompleteContentHandler({
 	...selectContent,
 	loadArticle: store.load,
 	transitionAndPersist,
 	now: () => new Date(),
 	logger: consoleLogger,
 });
+
+export const handler = selectionRoute === "forward"
+	? initForwardTierContentExtracted({ dispatchSelectArticleContent: initSelectArticleContentDispatch({ sqsClient, selectArticleContentQueueUrl }), logger: consoleLogger })
+	: selectHandler;

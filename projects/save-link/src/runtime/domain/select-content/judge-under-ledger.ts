@@ -48,10 +48,25 @@ function replayVerdict(params: { outcome: string; sources: readonly VerifiedTier
 		: { kind: "winner", candidateId: winner, reason, readability, judgedBodies: 0 };
 }
 
+export class ContentJudgeClaimHeldError extends Error {
+	readonly url: string;
+	readonly claimTtlMs: number;
+
+	constructor(params: { url: string; claimTtlMs: number }) {
+		super(`another owner holds the content judge for ${params.url}`);
+		this.name = "ContentJudgeClaimHeldError";
+		this.url = params.url;
+		this.claimTtlMs = params.claimTtlMs;
+	}
+}
+
+export type HeldJudgeClaim = "assert" | "raise-ownership-anomaly";
+
 export function initJudgeUnderLedger(deps: {
 	selectMostCompleteContent: SelectMostCompleteContent;
 	runMeteredLeg: RunMeteredLeg;
 	claimTtlMs: number;
+	heldClaim: HeldJudgeClaim;
 }): JudgeCandidates {
 	return async ({ url, originalUrl, sources, proseHashOf, claimId, beforeProviderCall }) => {
 		if (sources.length === 0) return { kind: "none", reason: "no verified candidates", readability: [], judgedBodies: 0 };
@@ -72,6 +87,7 @@ export function initJudgeUnderLedger(deps: {
 			},
 		});
 		if (ran.kind === "deferred") return { kind: "deferred", reason: "the content judge waits for a reader to open the article", readability: [], judgedBodies: 0 };
+		if (ran.kind === "in-flight" && deps.heldClaim === "raise-ownership-anomaly") throw new ContentJudgeClaimHeldError({ url, claimTtlMs: deps.claimTtlMs });
 		assert(ran.kind !== "in-flight", `another delivery holds the content judge for ${url}`);
 		if (ran.kind === "settled") return replayVerdict({ outcome: ran.outcome, sources });
 		assert(judged.decision, "a run content judge leaves its decision");

@@ -105,7 +105,7 @@ it("judges the retained archive 429 after the retry and proxy fail, and keeps th
 		...initListAvailableTierSources({ readTierSource: async ({ tier, candidateId }) => stored.find((source) => source.tier === tier && source.metadata.id === candidateId) }),
 		resolveOriginalUrl: async () => ORIGINAL,
 		verifyWrapperSource,
-		judge: initJudgeUnderLedger({ ...initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger, deepseekCallFailedLog: noopLogger }), runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 }),
+		judge: initJudgeUnderLedger({ ...initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger, deepseekCallFailedLog: noopLogger }), runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "assert" }),
 	})({ url: ORIGINAL, saveAttemptId: ATTEMPT, claimId: "message-1", mode: "save", candidates: [capture] });
 
 	expect(primaryCalls).toBe(3);

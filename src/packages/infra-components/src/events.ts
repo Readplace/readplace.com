@@ -720,6 +720,18 @@ export const GenerateSummaryCommand = defineCommand({
 });
 export type GenerateSummaryDetail = z.infer<typeof GenerateSummaryCommand.detailSchema>;
 
+const SelectionWorkId = z.string().min(1);
+export const SelectArticleContentCommand = defineCommand({
+	detailSchema: z.discriminatedUnion("sourceKind", [
+		z.object({ sourceKind: z.literal("tier-content-extracted"), workId: SelectionWorkId, detail: TierContentExtractedEvent.detailSchema }),
+		z.object({ sourceKind: z.literal("recrawl-content-extracted"), workId: SelectionWorkId, detail: RecrawlContentExtractedEvent.detailSchema }),
+		z.object({ sourceKind: z.literal("refresh-content-extracted"), workId: SelectionWorkId, detail: RefreshContentExtractedEvent.detailSchema }),
+		z.object({ sourceKind: z.literal("reselect-after-removal"), workId: SelectionWorkId, detail: ReselectAfterRemovalEvent.detailSchema }),
+	]),
+});
+export type SelectArticleContentDetail = z.infer<typeof SelectArticleContentCommand.detailSchema>;
+export type SelectionSourceKind = SelectArticleContentDetail["sourceKind"];
+
 /** Refresh handler reads the freshly-fetched HTML from S3 (refresh-html/ prefix
  * in PENDING_HTML_BUCKET) using the same key derivation the publisher used.
  * Inlining the HTML in this detail

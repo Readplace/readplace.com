@@ -102,7 +102,7 @@ function setup(overrides: Partial<Dependencies> = {}) {
 		const decision = await deps.selectMostCompleteContent(params);
 		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: judgeReply(decision, params.candidates) } }] }), logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent(params);
 	};
-	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 });
+	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "assert" });
 	const prepare = initPrepareContentSelection({ ...deps, judge });
 	return { prepare: (params: Omit<Parameters<typeof prepare>[0], "saveAttemptId" | "claimId" | "mode"> & { mode?: SelectionMode }) => prepare({ mode: "save", ...params, saveAttemptId: FRESH, claimId: "message-1" }), deps };
 }
@@ -750,7 +750,7 @@ describe("initPrepareContentSelection", () => {
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [live],
-			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "assert" }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
 		const result = await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1", mode: "save", candidates: [{ tier: "tier-1", id: cid("live") }] });
 		expect(result.audit?.responseStatus).toBe("rejected");
@@ -766,7 +766,7 @@ describe("initPrepareContentSelection", () => {
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [blank],
-			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "assert" }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
 		expect((await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1", mode: "save" })).outcome).toBe("no-readable");
 	});
