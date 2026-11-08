@@ -145,7 +145,10 @@ export interface TestPhaseRunnerDeps {
  * likely. Forcing exit after the reporters finish is safe for coverage: the V8
  * profile is flushed on `process.exit()`, verified to produce byte-identical
  * merged coverage to the un-sharded run. */
-function shardedJestCommand(base: string, shards: number, concurrentShards: number): string {
+function shardedJestCommand(
+	base: string,
+	{ shards, concurrentShards }: { shards: number; concurrentShards: number },
+): string {
 	if (concurrentShards < shards) {
 		return `seq 1 ${shards} | xargs -P ${concurrentShards} -I{} sh -c '"$@" --shard={}/${shards} --forceExit || exit 1' sh ${base}`;
 	}
@@ -175,7 +178,7 @@ function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 	}
 	const base = parts.join(" ");
 	const command =
-		phase.shards && phase.shards > 1 ? shardedJestCommand(base, phase.shards, phase.concurrentShards ?? phase.shards) : base;
+		phase.shards && phase.shards > 1 ? shardedJestCommand(base, { shards: phase.shards, concurrentShards: phase.concurrentShards ?? phase.shards }) : base;
 	return { type: "jest", name: phase.name, command, skip: false, e2e: phase.e2e === true };
 }
 
