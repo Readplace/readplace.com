@@ -11,6 +11,7 @@ export {
 	isBuiltInOAuthClientId,
 	isClientName,
 	isContentCaptureOAuthClientId,
+	isSavingBuiltInOAuthClientId,
 	SUPPORTED_CLIENTS,
 	UNADVERTISED_CLIENTS,
 } from "./supported-clients";
@@ -31,6 +32,8 @@ export type {
 	ClientNameInCategory,
 	ClientNameInGroup,
 	InstallSource,
+	SavingBuiltInOAuthClientId,
+	SavingClientCategory,
 	SupportedClient,
 	UnadvertisedClientName,
 } from "./supported-clients";

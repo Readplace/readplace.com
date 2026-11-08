@@ -1,13 +1,15 @@
 import assert from "node:assert";
 
-export type ClientGroup = "browserExtension" | "nativeApp" | "aiAssistant";
+export type ClientGroup = "browserExtension" | "nativeApp" | "aiAssistant" | "notesApp";
 
 /**
- * How a saved link reaches Readplace, and the axis every client-listing surface
+ * What a client does with Readplace, and the axis every client-listing surface
  * splits on. A **content-capture** client (browser extension, iPhone app) sends
  * the page's rendered content, so it saves the full article even when a bare-URL
  * fetch is blocked or paywalled; a **url-only** client (an AI assistant over MCP)
- * sends just the URL for the server to crawl.
+ * sends just the URL for the server to crawl; a **notes-sync** client (the
+ * Obsidian plugin) saves nothing and copies what the reader already saved into
+ * their notes.
  *
  * Every surface that lists clients does so BY CATEGORY, keying its per-category
  * copy off `satisfies Record<ClientCategory, …>`. A new category is therefore a
@@ -16,7 +18,7 @@ export type ClientGroup = "browserExtension" | "nativeApp" | "aiAssistant";
  * blog posts: they are point-in-time snapshots, so a new client or category earns
  * its own new post rather than an edit to an old one.
  */
-export type ClientCategory = "contentCapture" | "urlOnly";
+export type ClientCategory = "contentCapture" | "urlOnly" | "notesSync";
 
 /** The category each group belongs to — the single mapping the category helpers
  * and type-level projections below are derived from. */
@@ -24,11 +26,12 @@ const GROUP_CATEGORY = {
 	browserExtension: "contentCapture",
 	nativeApp: "contentCapture",
 	aiAssistant: "urlOnly",
+	notesApp: "notesSync",
 } as const satisfies Record<ClientGroup, ClientCategory>;
 
 /** Every category in display order (content-capture before url-only). Surfaces
  * that render one block per category iterate this; pinned by a test. */
-export const CLIENT_CATEGORIES = ["contentCapture", "urlOnly"] as const satisfies readonly ClientCategory[];
+export const CLIENT_CATEGORIES = ["contentCapture", "urlOnly", "notesSync"] as const satisfies readonly ClientCategory[];
 
 export type InstallSource =
 	| { readonly kind: "store"; readonly url: string }
@@ -39,7 +42,8 @@ export type InstallSource =
 			readonly serverUrl: string;
 			readonly guidePath: string;
 			readonly directInstallUrl: string | null;
-	};
+	}
+	| { readonly kind: "communityDirectory"; readonly listingUrl: string; readonly pluginId: string };
 
 /** The storefront-less form. A region-prefixed link (`/au/`) shows a "not
  * available in your storefront" interstitial to everyone outside that region,
@@ -170,6 +174,19 @@ export const SUPPORTED_CLIENTS = [
 		auth: { kind: "dynamicRegistration" },
 		advertised: true,
 	},
+	{
+		name: "obsidian",
+		displayName: "Obsidian",
+		group: "notesApp",
+		description: "Syncs the articles you save into your Obsidian vault as Markdown notes.",
+		install: {
+			kind: "communityDirectory",
+			listingUrl: "https://community.obsidian.md/plugins/readplace",
+			pluginId: "readplace",
+		},
+		auth: { kind: "builtIn", oauthClientId: "obsidian-plugin" },
+		advertised: false,
+	},
 ] as const satisfies readonly ClientDefinition[];
 
 export type SupportedClient = (typeof SUPPORTED_CLIENTS)[number];
@@ -216,6 +233,11 @@ export type ClientGroupInCategory<C extends ClientCategory> = {
 /** The client names in category `C` (e.g. the content-capture platforms a device
  * can install), for consumers that constrain a value to one category's clients. */
 export type ClientNameInCategory<C extends ClientCategory> = ClientInGroup<ClientGroupInCategory<C>>["name"];
+export type SavingClientCategory = Exclude<ClientCategory, "notesSync">;
+export type SavingBuiltInOAuthClientId = Extract<
+	ClientInGroup<ClientGroupInCategory<SavingClientCategory>>["auth"],
+	{ kind: "builtIn" }
+>["oauthClientId"];
 
 export function clientCategoryOfGroup(group: ClientGroup): ClientCategory {
 	return GROUP_CATEGORY[group];
@@ -237,6 +259,18 @@ export function isBuiltInOAuthClientId(value: string): value is BuiltInOAuthClie
 	return BUILT_IN_OAUTH_CLIENT_IDS.has(value);
 }
 
+const SAVING_BUILT_IN_OAUTH_CLIENT_IDS: ReadonlySet<string> = new Set(
+	SUPPORTED_CLIENTS.flatMap((client) =>
+		client.auth.kind === "builtIn" && clientCategoryOfGroup(client.group) !== "notesSync"
+			? [client.auth.oauthClientId]
+			: [],
+	),
+);
+
+export function isSavingBuiltInOAuthClientId(value: string): value is SavingBuiltInOAuthClientId {
+	return SAVING_BUILT_IN_OAUTH_CLIENT_IDS.has(value);
+}
+
 export type BuiltInClientName = Extract<SupportedClient, { auth: { kind: "builtIn" } }>["name"];
 
 const CONTENT_CAPTURE_OAUTH_CLIENT_IDS: ReadonlySet<string> = new Set(
@@ -256,6 +290,7 @@ const BUILT_IN_CLIENT_NAME_BY_OAUTH_ID = {
 	"hutch-chrome-extension": "chrome",
 	"ios-app": "iphone",
 	"android-app": "android",
+	"obsidian-plugin": "obsidian",
 } as const satisfies Record<BuiltInOAuthClientId, BuiltInClientName>;
 
 export function clientNameForBuiltInOAuthClientId(oauthClientId: BuiltInOAuthClientId): BuiltInClientName {

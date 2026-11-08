@@ -7,7 +7,7 @@ import { initAuthDiagnosticPermits } from "./permit";
 export interface AuthDiagnosticContext {
 	request_id: string;
 	context_id: string;
-	client: "web" | "chrome" | "firefox" | "ios" | "android" | "external";
+	client: "web" | "chrome" | "firefox" | "ios" | "android" | "obsidian" | "external";
 	surface: "website" | "background" | "app" | "share" | "external";
 	operation_id?: string;
 	attempt_id?: string;

@@ -1,6 +1,6 @@
 import type { Request } from "express";
 import { readplaceNativeClientOf } from "@packages/web-analytics";
-import { type BuiltInOAuthClientId, isBuiltInOAuthClientId } from "@packages/supported-clients";
+import { type SavingBuiltInOAuthClientId, isSavingBuiltInOAuthClientId } from "@packages/supported-clients";
 import { SAVE_CLIENTS, type SaveClient } from "../../observability/events";
 import { isAppShell, isNativeSurface, nativeSurfaceOf } from "../onboarding/native-client";
 import type { NativeClientPlatform } from "../onboarding/native-client";
@@ -15,12 +15,12 @@ const SAVE_CLIENT_BY_OAUTH_ID = {
 	"hutch-firefox-extension": SAVE_CLIENTS.firefoxExtension,
 	"ios-app": SAVE_CLIENTS.iosApp,
 	"android-app": SAVE_CLIENTS.androidApp,
-} as const satisfies Record<BuiltInOAuthClientId, SaveClient>;
+} as const satisfies Record<SavingBuiltInOAuthClientId, SaveClient>;
 
 export function saveClientOf(req: Request): SaveClient {
 	const platform = nativeSurfaceOf(req) ?? readplaceNativeClientOf(req.get("user-agent"));
 	if (platform) return SAVE_CLIENT_BY_PLATFORM[platform];
-	if (req.oauthClientId !== undefined && isBuiltInOAuthClientId(req.oauthClientId)) {
+	if (req.oauthClientId !== undefined && isSavingBuiltInOAuthClientId(req.oauthClientId)) {
 		return SAVE_CLIENT_BY_OAUTH_ID[req.oauthClientId];
 	}
 	/* A sheet that names no platform can only be the shipped iOS build: it is the

@@ -82,6 +82,7 @@ const INSTALL_COPY_SCRIPT = `<script src="/client-dist/install.client.js" defer>
 const CATEGORY_TAB_GROUPS = {
 	contentCapture: { slug: "browsers", label: "Browsers & Devices" },
 	urlOnly: { slug: "ai", label: "AI Assistants" },
+	notesSync: { slug: "notes", label: "Notes Apps" },
 } as const satisfies Record<ClientCategory, { slug: string; label: string }>;
 
 type BucketKey = (typeof CATEGORY_TAB_GROUPS)[keyof typeof CATEGORY_TAB_GROUPS]["slug"];
@@ -243,6 +244,11 @@ type PanelCopy = {
 		outroTestId: string;
 	};
 	aiAssistant: { group: "aiAssistant"; intro: string; promptLabel: string; prompt: string; requirement: string };
+	notesApp: {
+		group: "notesApp";
+		title: string;
+		unavailable: { testId: string; text: string } | null;
+	};
 };
 
 type ClientGroupOf<N extends ClientName> = Extract<SupportedClient, { name: N }>["group"];
@@ -319,6 +325,14 @@ const PANEL_DATA = {
 		requirement:
 			"You sign in to Readplace once when you add the connector. The server URL above still works if you would rather add it as a custom connector yourself.",
 	},
+	obsidian: {
+		group: "notesApp",
+		title: "Readplace in Obsidian",
+		unavailable: {
+			testId: "obsidian-availability",
+			text: "The Readplace plugin is not in Obsidian's community directory yet.",
+		},
+	},
 } satisfies { [N in ClientName]: PanelCopy[ClientGroupOf<N>] };
 
 interface BrowserExtension {
@@ -351,10 +365,18 @@ interface NativeApp {
 	outroTestId: string;
 }
 
+interface NotesApp {
+	key: ClientName;
+	title: string;
+	lead: string;
+	unavailable: { testId: string; text: string } | null;
+}
+
 type PanelView =
 	| { type: "browserExtension"; browser: BrowserExtension }
 	| { type: "nativeApp"; app: NativeApp }
-	| { type: "aiAssistant"; assistant: AiAssistant };
+	| { type: "aiAssistant"; assistant: AiAssistant }
+	| { type: "notesApp"; app: NotesApp };
 
 function buildPanel(
 	active: InstallClient,
@@ -415,6 +437,16 @@ function buildPanel(
 					requirement: data.requirement,
 					directInstallUrl: client.install.directInstallUrl,
 					directInstallLabel: `Add Readplace to ${client.displayName}`,
+				},
+			};
+		case "notesApp":
+			return {
+				type: "notesApp",
+				app: {
+					key: client.name,
+					title: data.title,
+					lead: client.description,
+					unavailable: data.unavailable,
 				},
 			};
 	}

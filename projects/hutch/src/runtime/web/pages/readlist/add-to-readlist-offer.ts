@@ -7,6 +7,7 @@ const ADD_TO_READLIST_OFFER_BY_OAUTH_ID = {
 	"hutch-firefox-extension": "withheld",
 	"ios-app": "advertised",
 	"android-app": "advertised",
+	"obsidian-plugin": "advertised",
 } as const satisfies Record<BuiltInOAuthClientId, AddToReadlistOffer>;
 
 export function addToReadlistOfferForClient(oauthClientId: string | undefined): AddToReadlistOffer {

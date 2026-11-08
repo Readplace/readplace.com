@@ -2,8 +2,10 @@ import assert from "node:assert";
 import type { OAuthClient, OAuthSignIn, SignInBrowser, SignInOs } from "@packages/domain/oauth";
 import {
 	type BuiltInClientName,
+	type ClientCategory,
 	type ClientName,
 	SUPPORTED_CLIENTS,
+	clientCategoryOfGroup,
 	clientNameForBuiltInOAuthClientId,
 	isBuiltInOAuthClientId,
 } from "@packages/supported-clients";
@@ -67,13 +69,19 @@ const BUILT_IN_APP_COPY = {
 	chrome: { title: "Chrome extension", description: "Save any page to Readplace with one click." },
 	iphone: { title: "iPhone app", description: "Save from any iPhone browser through the share sheet." },
 	android: { title: "Android app", description: "Save from any Android browser through the share sheet." },
+	obsidian: { title: "Obsidian plugin", description: "Syncs the articles you save into your Obsidian vault as notes." },
 } satisfies Record<BuiltInClientName, { title: string; description: string }>;
-
-const BUILT_IN_DISCONNECT_BODY =
-	"It can't save to Readplace until you sign in to it again. Your saved articles stay in your library.";
 
 const ASSISTANT_DISCONNECT_BODY =
 	"Its Readplace connection stops working until you connect it again. Readplace pages opened inside the app may stay signed in. Change your Readplace password to sign them out. Your saved articles stay in your library.";
+
+const BUILT_IN_DISCONNECT_BODY = {
+	contentCapture:
+		"It can't save to Readplace until you sign in to it again. Your saved articles stay in your library.",
+	urlOnly: ASSISTANT_DISCONNECT_BODY,
+	notesSync:
+		"It stops syncing your articles into Obsidian until you sign in to it again. Your saved articles stay in your library, and the notes already in your vault stay where they are.",
+} satisfies Record<ClientCategory, string>;
 
 const BROWSER_LABEL = {
 	chrome: "Chrome",
@@ -138,6 +146,8 @@ function rosterRank(name: ClientName): number {
 
 function builtInApp(client: OAuthClient, name: BuiltInClientName): AppIdentity {
 	const copy = BUILT_IN_APP_COPY[name];
+	const rosterEntry = SUPPORTED_CLIENTS.find((candidate) => candidate.name === name);
+	assert(rosterEntry, `Client missing from SUPPORTED_CLIENTS: ${name}`);
 	return {
 		client,
 		rank: rosterRank(name),
@@ -146,7 +156,7 @@ function builtInApp(client: OAuthClient, name: BuiltInClientName): AppIdentity {
 		logo: name,
 		title: copy.title,
 		description: copy.description,
-		body: BUILT_IN_DISCONNECT_BODY,
+		body: BUILT_IN_DISCONNECT_BODY[clientCategoryOfGroup(rosterEntry.group)],
 	};
 }
 

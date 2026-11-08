@@ -42,6 +42,10 @@ When adding a capability the extension supports: add an understanding keyed by t
 
 iOS honours the discovery freshness headers only on the **share extension's** session, through a persistent `URLCache` — the share sheet is where a re-discovery round trip is latency the user watches, and the extension is killed between invocations, so the cache has to outlive the process to be worth anything. The main app's API session keeps a disk cache of its own, but its online list reads always revalidate or reload (offline, the app shows a stored copy of the list under a banner), which is what keeps its list views from painting a pre-mutation queue back over a save the user just made. Source: the shared iOS discovery cache — the `URLCache` stored in the on-device directory `discovery-http-cache`; grep the iOS Swift sources for that name and take the non-test hit.
 
+### Obsidian plugin
+
+The Obsidian plugin is a Siren client whose source lives in its own repo, `obsidian-readplace`, not in this monorepo. Its installed copies update only when the reader chooses, so no server change can ship alongside it and everything it reads is a published interface under [Evolvability Rules](../SKILL.md#evolvability-rules). It reads the `label`, `rel` and `href` of the `properties.readlists` and `properties.tabs` entries, reusing the `current` entry's response instead of fetching it again; `links[rel=next]`; the article properties `id`, `title`, `siteName`, `status`, `readAt` and `contentVersion`; the `read` link negotiated to `text/markdown`; and the frontmatter keys `readplace_content_status` and `readplace_summary_status`. It invokes no action, and it persists no href across runs: each sync walks every readlist and tab from the entry point, so the [Readlists](server-owned-state.md#readlists-are-server-owned--propertiesreadlists) rule holds without an exception.
+
 ### MCP: the same doctrine over a different transport
 
 MCP at `/mcp` follows this doctrine over a different transport. The Siren-to-MCP mapping, the divergences an MCP client must respect and the tool-catalogue rule are in the [MCP skill](../../mcp/SKILL.md).

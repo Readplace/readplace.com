@@ -45,10 +45,10 @@ describe("llms AI-discovery docs", () => {
 	);
 
 	it.each(DOCS_NAMING_WHAT_IS_MISSING.map((doc) => doc.name))(
-		"%s states the app gap for every unadvertised client, and never for an advertised one",
+		"%s states the app gap for every unadvertised native app, and never for an advertised one",
 		(name) => {
 			const text = docNamed(DOCS_NAMING_WHAT_IS_MISSING, name);
-			for (const client of UNADVERTISED_CLIENTS) {
+			for (const client of UNADVERTISED_CLIENTS.filter((candidate) => candidate.group === "nativeApp")) {
 				assert.equal(
 					text.includes(`no ${client.displayName} app`),
 					true,

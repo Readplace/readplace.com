@@ -7,7 +7,7 @@ import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { authDiagnosticContext, type AuthDiagnosticContext, type initAuthDiagnosticRecorder } from "./record";
 
 const clients: Record<string, AuthDiagnosticContext["client"]> = {
-	"hutch-chrome-extension": "chrome", "hutch-firefox-extension": "firefox", "ios-app": "ios", "android-app": "android",
+	"hutch-chrome-extension": "chrome", "hutch-firefox-extension": "firefox", "ios-app": "ios", "android-app": "android", "obsidian-plugin": "obsidian",
 };
 const requestFields = z.object({ client_id: z.string().optional().catch(undefined), action: z.string().optional().catch(undefined) });
 const responseFields = z.object({
@@ -54,7 +54,7 @@ export function initAuthDiagnosticMiddleware(deps: {
 		const context: AuthDiagnosticContext = {
 			request_id: gatewayRequestIdOf(req) ?? randomUUID(),
 			context_id: z.uuid().safeParse(req.get("X-Readplace-Auth-Context-Id")).data ?? flow ?? randomUUID(),
-			client, surface: client === "web" ? "website" : client === "ios" || client === "android" ? "app" : client === "external" ? "external" : "background",
+			client, surface: client === "web" ? "website" : client === "ios" || client === "android" || client === "obsidian" ? "app" : client === "external" ? "external" : "background",
 			attempt_id: z.uuid().safeParse(req.get("X-Readplace-Auth-Attempt-Id")).data,
 			operation_id: z.object({ readplace_refresh_operation_id: z.uuid() }).safeParse(req.body).data?.readplace_refresh_operation_id,
 			client_version: AuthDiagnosticEvent.shape.client_version.safeParse(req.get("X-Readplace-Client-Version")).data,

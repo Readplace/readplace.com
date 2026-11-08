@@ -30,7 +30,8 @@ export function isDeliberateReaderRequest(req: Request): boolean {
 		req.query.poll === undefined &&
 		req.get("X-Purpose") !== "preview" &&
 		!req.get("Purpose")?.includes("prefetch") &&
-		!req.get("Sec-Purpose")?.includes("prefetch")
+		!req.get("Sec-Purpose")?.includes("prefetch") &&
+		!req.get("Authorization")?.startsWith("Bearer ")
 	);
 }
 
