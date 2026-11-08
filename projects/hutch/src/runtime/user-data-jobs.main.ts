@@ -366,6 +366,7 @@ export const handler = initHandleByDetailType({
 				engagementState,
 				listReadlistDefinitions: readlistDefinitions.listReadlistDefinitions,
 				findArticlesAcrossReadlists: articleStore.findArticlesAcrossReadlists,
+				listAllUserHighlights: highlights.listAllUserHighlights,
 				uploadUserDataExport,
 				deleteUserExports,
 				findExportRecipient: auth.findExportRecipient,

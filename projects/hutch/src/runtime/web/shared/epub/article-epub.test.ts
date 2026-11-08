@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { DOMParser } from "linkedom";
 import { strFromU8, unzipSync } from "fflate";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ReaderArticleHashId, SaveAttemptIdSchema } from "@packages/domain/article";
+import { type Highlight, HighlightIdSchema, ReaderArticleHashId, SaveAttemptIdSchema } from "@packages/domain/article";
+import { describeRange } from "@packages/domain/article/highlight";
 import { UserIdSchema } from "@packages/domain/user";
 import { mediaFilename } from "@packages/finalize-article";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
@@ -10,6 +11,8 @@ import { destinationUrl } from "../../test-helpers/article-fixtures";
 import { epubFilename, initBuildArticleEpub } from "./article-epub";
 import { EPUB_DOWNLOAD_RAW_BYTE_LIMIT } from "./epub-image-budget";
 import { articleBody } from "@packages/test-fixtures";
+import { prepareReaderContent } from "../article-body/reader-slot/reader-content";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../article-body/reader-slot/section-pages";
 
 const ARTICLE_URL = "https://example.com/article";
 const ID = ArticleResourceUniqueId.parse(ARTICLE_URL);
@@ -369,6 +372,142 @@ describe("initBuildArticleEpub", () => {
 			.filter(([element]) => element === "p")
 			.map(([, text]) => text);
 		expect(paragraphs.slice(-2)).toEqual(["Body copy.", "Read the Web, not the Slop."]);
+	});
+});
+
+describe("initBuildArticleEpub with highlights", () => {
+	const APP_ORIGIN = "https://readplace.com";
+	const CANONICAL_HASH = "canonical-hash";
+	const FIRST_ID = HighlightIdSchema.parse("0b8f6c1e-2d3a-4b5c-8d9e-0f1a2b3c4d5e");
+	const SECOND_ID = HighlightIdSchema.parse("1c9a7d2f-3e4b-4c6d-9e0f-1a2b3c4d5e6f");
+
+	function servedTextOf(content: string): string {
+		return prepareReaderContent({
+			content: articleBody(content),
+			appOrigin: APP_ORIGIN,
+			url: ARTICLE_URL,
+			section: { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES },
+		}).text;
+	}
+
+	function highlightOn(input: { content: string; exact: string; highlightId: Highlight["highlightId"]; orderKey: number }): Highlight {
+		const text = servedTextOf(input.content);
+		const start = text.indexOf(input.exact);
+		assert.ok(start >= 0, `"${input.exact}" must be in the served text`);
+		return {
+			...describeRange({ text, start, end: start + input.exact.length }),
+			highlightId: input.highlightId,
+			highlightOf: "example.com/article",
+			anchoredContentHash: CANONICAL_HASH,
+			anchorState: "anchored",
+			orderKey: input.orderKey,
+			createdAt: new Date("2026-11-01T00:00:00.000Z"),
+			updatedAt: new Date("2026-11-01T00:00:00.000Z"),
+			anchorRevision: 0,
+		};
+	}
+
+	async function chapterXhtml(params: { content: string; rows?: readonly Highlight[] }): Promise<string> {
+		const build = initBuildArticleEpub({ readArticleImage: readerFor({}), logError: jest.fn(), now: NOW });
+		const { bytes } = await build({
+			articleUrl: ARTICLE_URL,
+			title: "The Article",
+			siteName: "example.com",
+			excerpt: "",
+			summary: undefined,
+			contentHtml: articleBody(params.content),
+			...(params.rows === undefined
+				? {}
+				: { highlighted: { highlights: { rows: params.rows, canonicalContentHash: CANONICAL_HASH }, appOrigin: APP_ORIGIN } }),
+		});
+		return strFromU8(unzipSync(bytes)["OEBPS/content.xhtml"]);
+	}
+
+	function bodyOf(xhtml: string) {
+		const body = new DOMParser().parseFromString(xhtml, "text/xml").querySelector("body");
+		assert(body, "content.xhtml must carry a body");
+		return body;
+	}
+
+	function sectionEntries(body: ReturnType<typeof bodyOf>): [string, string][] {
+		const headings = Array.from(body.querySelectorAll("h2"));
+		const heading = headings[headings.length - 1];
+		assert.equal(heading.textContent, "Highlights");
+		const entries: [string, string][] = [];
+		for (let sibling = heading.nextElementSibling; sibling !== null && sibling.localName !== "hr"; sibling = sibling.nextElementSibling) {
+			entries.push([sibling.localName, sibling.textContent ?? ""]);
+		}
+		return entries;
+	}
+
+	function markIdsOf(body: ReturnType<typeof bodyOf>): (string | null)[] {
+		return Array.from(body.querySelectorAll("mark[data-highlight-id]"), (mark) => mark.getAttribute("data-highlight-id"));
+	}
+
+	const CONTENT = "<p>Alpha beta gamma delta.</p><p>Epsilon zeta eta theta.</p>";
+
+	it("marks an anchored passage and lists every highlight in a closing Highlights section", async () => {
+		const anchored = { ...highlightOn({ content: CONTENT, exact: "beta gamma", highlightId: FIRST_ID, orderKey: 10 }), note: "A note" };
+		const orphan = {
+			...highlightOn({ content: CONTENT, exact: "zeta eta", highlightId: SECOND_ID, orderKey: 20 }),
+			exact: "Words that are nowhere",
+		};
+
+		const body = bodyOf(await chapterXhtml({ content: CONTENT, rows: [orphan, anchored] }));
+
+		expect(markIdsOf(body)).toEqual([FIRST_ID]);
+		expect(body.querySelector(`mark[data-highlight-id="${FIRST_ID}"]`)?.textContent).toBe("beta gamma");
+		expect(sectionEntries(body)).toEqual([
+			["blockquote", "beta gamma"],
+			["p", "A note"],
+			["blockquote", "Words that are nowhere (not found in the current version)"],
+		]);
+	});
+
+	it("mints one id for a highlight split across elements and marks each piece", async () => {
+		const content = "<p>a <em>b</em> c</p>";
+		const highlight = highlightOn({ content, exact: "a b c", highlightId: FIRST_ID, orderKey: 0 });
+
+		const xhtml = await chapterXhtml({ content, rows: [highlight] });
+
+		expect(xhtml.split(`id="highlight-${FIRST_ID}"`)).toHaveLength(2);
+		expect(markIdsOf(bodyOf(xhtml)).length).toBeGreaterThan(1);
+	});
+
+	it("keeps an encoded javascript: href dead in the marked chapter", async () => {
+		const content = '<p><a href="&#106;avascript:alert(1)">bad link</a> then words</p>';
+		const highlight = highlightOn({ content, exact: "bad link then", highlightId: FIRST_ID, orderKey: 0 });
+
+		const xhtml = await chapterXhtml({ content, rows: [highlight] });
+
+		expect(xhtml).not.toMatch(/javascript/i);
+		expect(markIdsOf(bodyOf(xhtml))).toContain(FIRST_ID);
+	});
+
+	it("marks and lists a highlight the fuzzy pass re-anchors after the text changed", async () => {
+		const stored = highlightOn({
+			content: "<p>Intro words. The quick brown fox jumps over the lazy dog today.</p>",
+			exact: "quick brown fox jumps over the lazy dog",
+			highlightId: FIRST_ID,
+			orderKey: 0,
+		});
+		const content = "<p>Intro words, then more words first. The quick brown fox leaps over the lazy dog today.</p>";
+
+		const body = bodyOf(await chapterXhtml({ content, rows: [{ ...stored, anchoredContentHash: "older-hash" }] }));
+
+		expect(markIdsOf(body)).toContain(FIRST_ID);
+		expect(sectionEntries(body)).toEqual([["blockquote", "quick brown fox jumps over the lazy dog"]]);
+	});
+
+	it("builds today's chapter when the highlight list is empty", async () => {
+		expect(await chapterXhtml({ content: CONTENT, rows: [] })).toBe(await chapterXhtml({ content: CONTENT }));
+	});
+
+	it("adds no Highlights section without highlights", async () => {
+		const body = bodyOf(await chapterXhtml({ content: CONTENT }));
+
+		expect(Array.from(body.querySelectorAll("h2"), (heading) => heading.textContent)).toEqual([]);
+		expect(markIdsOf(body)).toEqual([]);
 	});
 });
 

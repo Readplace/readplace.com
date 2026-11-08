@@ -280,3 +280,65 @@ describe("GET /queue/:id/view Download on a platform with no EPUB reader", () =>
 		expect(slotShape(document)).toEqual({ children: ["BUTTON", "DETAILS"], opener: "reader-download-guide" });
 	});
 });
+
+const ownerEpubHref = (articleId: string, utmTerm = ""): string =>
+	`/queue/${articleId}/view?format=epub&feature=highlight&utm_source=reader&utm_medium=internal&utm_content=download-epub${utmTerm}`;
+
+describe("GET /queue/:id/view Download with ?feature=highlight", () => {
+	it.each(["reader", "summary"])("reveals the owner Download when the %s poll receives ready content", async (poll) => {
+		const { harness, fixture, sessionCookie, articleId } = await openReaderHarness({ ready: false, query: "?feature=highlight" });
+		await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>The article is ready.</p>" });
+		await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+		const response = await request(harness.server)
+			.get(`/queue/${articleId}/${poll}?poll=1&feature=highlight`)
+			.set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		const slot = downloadsSlot(new JSDOM(response.text).window.document);
+		expect(slot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(slot.classList.contains("article-body__downloads-slot--visible")).toBe(true);
+		expect(Array.from(slot.querySelectorAll("[data-test-download]"), (link) => link.getAttribute("href"))).toEqual([
+			ownerEpubHref(articleId),
+		]);
+	});
+
+	it.each(["reader", "summary"])("preserves the iOS app attribution when the %s poll reveals the owner Download", async (poll) => {
+		const { harness, fixture, sessionCookie, articleId } = await openReaderHarness({
+			ready: false,
+			query: "?platform=ios&feature=highlight",
+		});
+		await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>The article is ready.</p>" });
+		await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+		const response = await request(harness.server)
+			.get(`/queue/${articleId}/${poll}?poll=1&platform=ios&feature=highlight`)
+			.set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		const slot = downloadsSlot(new JSDOM(response.text).window.document);
+		expect(Array.from(slot.querySelectorAll("[data-test-download]"), (link) => link.getAttribute("href"))).toEqual([
+			ownerEpubHref(articleId, "&utm_term=ios_app"),
+		]);
+	});
+
+	it("holds the owner download in the Windows guide", async () => {
+		const { document, articleId } = await openReaderHarness({
+			ready: true,
+			query: "?feature=highlight",
+			headers: BROWSER_REQUEST_HEADERS,
+		});
+
+		expect(slotShape(document)).toEqual({ children: ["BUTTON", "DETAILS"], opener: "reader-download-guide" });
+		expect(epubLinks(document)).toEqual([{ inDialog: true, href: ownerEpubHref(articleId) }]);
+	});
+
+	it("keeps the bare owner download link for a Mac browser", async () => {
+		const { document, articleId } = await openReaderHarness({
+			ready: true,
+			query: "?feature=highlight",
+			headers: MACOS_HEADERS,
+		});
+
+		expect(slotShape(document)).toEqual({ children: ["A"], opener: undefined });
+		expect(epubLinks(document)).toEqual([{ inDialog: false, href: ownerEpubHref(articleId) }]);
+	});
+});

@@ -60,6 +60,8 @@ const preparedWholeHtml = rememberLastCall({
 	},
 });
 
+export const WHOLE_DOCUMENT_SECTION: ReaderSectionInput = { requested: undefined, readerPath: "/", thresholdBytes: Number.POSITIVE_INFINITY };
+
 export const prepareReaderContent = rememberLastCall({
 	keyOf: (input: PrepareReaderContentInput) => [
 		input.content,

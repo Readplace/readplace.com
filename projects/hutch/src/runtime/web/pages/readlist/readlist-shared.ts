@@ -15,7 +15,7 @@ import {
 } from "@packages/domain/inbox";
 import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import type { UserId } from "@packages/domain/user";
-import { buildKeepOfferShownEvent, KEEP_OFFER_SURFACES, classifyDeviceClass, classifyOsFamily, } from "@packages/web-analytics";
+import { buildKeepOfferShownEvent, KEEP_OFFER_SURFACES, classifyDeviceClass, classifyOsFamily, type SaveClient, } from "@packages/web-analytics";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
 import type {
@@ -33,7 +33,7 @@ import { initArticleReader } from "../../shared/article-reader/article-reader";
 import { captureWatchQuery, } from "../../shared/article-reader/capture-watch";
 import type { PollUrlBuilder, } from "../../shared/article-reader/article-reader.types";
 import { EPUB_GUIDE_CONTENT, epubDownloadGuideFor, KINDLE_GUIDE_PATH, type EpubDownloadGuide } from "../../shared/epub/epub-download-guide";
-import { articleEpubHref } from "../../shared/epub/epub-link";
+import { articleEpubHref, ownerArticleEpubHref } from "../../shared/epub/epub-link";
 import {
 	initDeleteArticleFromReadlist,
 	initDeleteArticleHighlightsUnlessSavedElsewhere,
@@ -98,6 +98,7 @@ import {
 } from "../../onboarding/extension-install";
 import {
 	isNativeSurface,
+	nativeSurfaceOf,
 	nativeSurfaceQuery,
 } from "../../onboarding/native-client";
 import type {
@@ -259,6 +260,17 @@ export const SAVE_INTENT_PATH = {
  * predating the query param — which cannot deploy in lockstep with the server —
  * still resolves to its chromeless reader. */
 export const isAppPlatform = (req: Request): boolean => isNativeSurface(req);
+
+export const downloadsOwnerEpub = (req: Request): boolean =>
+	highlightFeatureEnabled(req.query) && nativeSurfaceOf(req) !== "android";
+
+export const readerEpubHrefFor = (
+	req: Request,
+	params: { article: SavedArticle; appClient: SaveClient | undefined },
+): string =>
+	downloadsOwnerEpub(req)
+		? ownerArticleEpubHref({ articleId: params.article.id.value, appClient: params.appClient })
+		: articleEpubHref({ articleUrl: params.article.url, utmSource: "reader", appClient: params.appClient });
 
 export function readerReadlistFilingFrom(input: {
 	article: SavedArticle;
@@ -446,7 +458,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			? undefined
 			: epubDownloadGuideFor({
 					osFamily: classifyOsFamily(req.get("user-agent")),
-					downloadHref: articleEpubHref({ articleUrl: article.url, utmSource: "reader", appClient: undefined }),
+					downloadHref: readerEpubHrefFor(req, { article, appClient: undefined }),
 					learnMoreHref: withInternalTracking(KINDLE_GUIDE_PATH, { source: "reader", content: EPUB_GUIDE_CONTENT }),
 				});
 

@@ -69,7 +69,7 @@ import type {
 	StatPendingUpload,
 	ReadPendingUploadPrefix,
 } from "@packages/provider-contracts/pending-upload";
-import type { PinContentSource, ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { PinContentSource, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type {
 	FindSessionReadlistFilter,
 	FindUserById,
@@ -220,6 +220,7 @@ export interface ReadlistDependencies {
 	pinContentSource: PinContentSource;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
+	readArticleImage: ReadArticleImage;
 	resolveOwnedArticle: ResolveOwnedArticle;
 	markdownBearerAuth: RequestHandler;
 	webReader: RenderReaderActions;

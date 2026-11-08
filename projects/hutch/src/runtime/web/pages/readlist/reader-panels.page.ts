@@ -18,7 +18,7 @@ import { appClientOf, } from "../../shared/save-client";
 import { ReaderArticleHashIdSchema, nextReadDismissalOf } from "@packages/domain/article";
 import { ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { parseCaptureWatch } from "../../shared/article-reader/capture-watch";
-import { renderReaderDownloadsOob, } from "../../shared/article-body/reader-actions/reader-actions.component";
+import { renderReaderDownloadsOob, renderReaderDownloadsSlotOob } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollHighlights, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
 import {
 	sendComponent,
@@ -54,7 +54,7 @@ import { highlightFeatureEnabled } from "./highlight-feature";
 import { initReaderHighlightOptions } from "./reader-highlight-options";
 import { initRequestRelatedPasses } from "./request-related-passes";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, ISSUE_LINK_SAVED_PARAM } from "./readlist-shared";
+import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, ISSUE_LINK_SAVED_PARAM, downloadsOwnerEpub, readerEpubHrefFor } from "./readlist-shared";
 
 const HTMX_STOP_POLLING_STATUS = 286;
 
@@ -78,7 +78,13 @@ export function initReaderPanelRoutes(
 	const downloadsOobFor = (req: Request, article: SavedArticle): ((articleUrl: string) => string) | undefined =>
 		parseEmailIssueArticleUrl(article.url) === undefined
 			? (articleUrl) =>
-					renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req), guide: epubGuideFor(req, article) })
+					downloadsOwnerEpub(req)
+						? renderReaderDownloadsSlotOob({
+								downloadHref: readerEpubHrefFor(req, { article, appClient: appClientOf(req) }),
+								guide: epubGuideFor(req, article),
+								placements: ["toolbar", "menu"],
+							})
+						: renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req), guide: epubGuideFor(req, article) })
 			: undefined;
 
 	const pollHighlightsFor = async (req: Request, article: SavedArticle): Promise<PollHighlights | undefined> =>

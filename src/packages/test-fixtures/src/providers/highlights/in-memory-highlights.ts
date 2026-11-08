@@ -7,6 +7,7 @@ import type {
 	DeleteAllUserHighlights,
 	DeleteArticleHighlights,
 	DeleteHighlight,
+	ListAllUserHighlights,
 	ListArticleHighlights,
 	ListHighlightsOfArticle,
 	UpdateHighlightNote,
@@ -19,6 +20,7 @@ export interface InMemoryHighlights {
 	deleteHighlight: DeleteHighlight;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	deleteAllUserHighlights: DeleteAllUserHighlights;
+	listAllUserHighlights: ListAllUserHighlights;
 	listHighlightsOfArticle: ListHighlightsOfArticle;
 	writeHighlightAnchor: WriteHighlightAnchor;
 	updateHighlightNote: UpdateHighlightNote;
@@ -67,6 +69,9 @@ export function initInMemoryHighlights(): InMemoryHighlights {
 		}
 	};
 
+	const listAllUserHighlights: ListAllUserHighlights = async (userId) =>
+		[...rows.values()].filter((row) => row.userId === userId).map((row) => ({ ...row.highlight }));
+
 	const listHighlightsOfArticle: ListHighlightsOfArticle = async (url) => {
 		const highlightOf = ArticleResourceUniqueId.parse(url).value;
 		return [...rows.values()]
@@ -101,6 +106,7 @@ export function initInMemoryHighlights(): InMemoryHighlights {
 		deleteHighlight,
 		deleteArticleHighlights,
 		deleteAllUserHighlights,
+		listAllUserHighlights,
 		listHighlightsOfArticle,
 		writeHighlightAnchor,
 		updateHighlightNote,

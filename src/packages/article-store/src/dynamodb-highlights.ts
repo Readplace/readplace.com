@@ -7,6 +7,7 @@ import type {
 	DeleteAllUserHighlights,
 	DeleteArticleHighlights,
 	DeleteHighlight,
+	ListAllUserHighlights,
 	ListArticleHighlights,
 	UpdateHighlightNote,
 } from "@packages/provider-contracts/highlights";
@@ -104,6 +105,7 @@ export function initDynamoDbHighlights(deps: {
 	deleteHighlight: DeleteHighlight;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	deleteAllUserHighlights: DeleteAllUserHighlights;
+	listAllUserHighlights: ListAllUserHighlights;
 	updateHighlightNote: UpdateHighlightNote;
 } {
 	const tableName = deps.userArticlesTableName;
@@ -202,16 +204,27 @@ export function initDynamoDbHighlights(deps: {
 		await forEachArticleHighlightPage(params, deleteRows);
 	};
 
-	const deleteAllUserHighlights: DeleteAllUserHighlights = async (userId) => {
-		await forEachQueryPage(
+	const forEachUserHighlightPage = (userId: UserId, onPage: (rows: z.infer<typeof HighlightRow>[]) => Promise<void>) =>
+		forEachQueryPage(
 			highlights,
 			{
 				KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
 				ExpressionAttributeNames: { "#url": "url" },
 				ExpressionAttributeValues: { ":userId": userId, ":prefix": HIGHLIGHT_KEY_PREFIX },
 			},
-			deleteRows,
+			onPage,
 		);
+
+	const deleteAllUserHighlights: DeleteAllUserHighlights = async (userId) => {
+		await forEachUserHighlightPage(userId, deleteRows);
+	};
+
+	const listAllUserHighlights: ListAllUserHighlights = async (userId) => {
+		const rows: z.infer<typeof HighlightRow>[] = [];
+		await forEachUserHighlightPage(userId, async (page) => {
+			rows.push(...page);
+		});
+		return rows.map(toHighlight);
 	};
 
 	const updateHighlightNote: UpdateHighlightNote = async ({ userId, url, highlightId, note, updatedAt }) => {
@@ -241,6 +254,7 @@ export function initDynamoDbHighlights(deps: {
 		deleteHighlight,
 		deleteArticleHighlights,
 		deleteAllUserHighlights,
+		listAllUserHighlights,
 		updateHighlightNote,
 	};
 }

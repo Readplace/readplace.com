@@ -18,11 +18,17 @@ import { initReaderPanelRoutes } from "./reader-panels.page";
 import { initHighlightNoteRoutes } from "./highlight-note.page";
 import { initHighlightRoutes } from "./highlights.page";
 import { initReadlistCardRoutes } from "./readlist-card.page";
+import { initBuildArticleEpub } from "../../shared/epub/article-epub";
 
 export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	const router = express.Router();
 	const shared = initReadlistShared(deps);
 	const { findNonEmptyReadlists, resolveOnboardingSignals } = shared;
+	const buildArticleEpub = initBuildArticleEpub({
+		readArticleImage: deps.readArticleImage,
+		logError: deps.logError,
+		now: deps.now,
+	});
 
 	const readerPage = initReaderPageRoutes(
 		{
@@ -59,6 +65,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			listArticleHighlights: deps.listArticleHighlights,
 			readCanonicalSnapshot: deps.readCanonicalSnapshot,
 			canSaveContent: deps.canSaveContent,
+			buildArticleEpub,
 		},
 		shared,
 	);

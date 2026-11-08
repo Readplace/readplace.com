@@ -1,5 +1,6 @@
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
 	ExportUserDataCommand,
 	type ExportUserDataDetail,
@@ -14,6 +15,7 @@ import {
 import type { FindArticlesAcrossReadlists } from "@packages/provider-contracts/article-store";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { EngagementStarterState } from "@packages/provider-contracts/engagement-starter";
+import type { ListAllUserHighlights } from "@packages/provider-contracts/highlights";
 import type { FindExportRecipient, MarkExportDelivered } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
@@ -25,6 +27,7 @@ import {
 	type ExportEnvelope,
 	toExportArticle,
 } from "../web/pages/export/build-export-record";
+import { toExportHighlights } from "../web/pages/export/build-export-highlight";
 import { EXPORT_DOWNLOAD_TTL_DAYS } from "../web/pages/export/export-ttl";
 import { buildUserDataExportEmailHtml } from "../web/pages/export/user-data-export-email";
 
@@ -36,6 +39,7 @@ export interface ExportUserDataDependencies {
 	engagementState: Pick<EngagementStarterState, "findEngagement" | "findStarterPack">;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
+	listAllUserHighlights: ListAllUserHighlights;
 	uploadUserDataExport: UploadUserDataExport;
 	deleteUserExports: DeleteUserExports;
 	findExportRecipient: FindExportRecipient;
@@ -74,6 +78,7 @@ async function processCommand(
 		return;
 	}
 
+	const highlightsByArticle = toExportHighlights(await deps.listAllUserHighlights(userId));
 	const articles: ExportEnvelope["articles"] = [];
 	let page = 1;
 	while (true) {
@@ -84,7 +89,11 @@ async function processCommand(
 			order: "asc",
 			excludeContent: true,
 		});
-		for (const article of result.articles) articles.push(toExportArticle(article));
+		for (const article of result.articles) {
+			const exported = toExportArticle(article);
+			const highlights = highlightsByArticle.get(ArticleResourceUniqueId.parse(article.url).value);
+			articles.push(highlights === undefined ? exported : { ...exported, highlights });
+		}
 		deps.logger.info("[ExportUserData] fetched articles page", {
 			userId: detail.userId,
 			page,

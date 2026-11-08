@@ -4,8 +4,10 @@ import type { SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from 
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { z } from "zod";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryHighlights } from "@packages/test-fixtures/providers/highlights";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
-import { MinutesSchema } from "@packages/domain/article";
+import { type Highlight, HighlightIdSchema, MinutesSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { UserDataExportedEvent, UserDataExportSkippedEvent } from "@packages/infra-components";
@@ -71,6 +73,7 @@ interface HandlerHarness {
 	publishedEvents: Array<{ source: string; detailType: string; detail: unknown }>;
 	handler: ReturnType<typeof initExportUserDataHandler>;
 	store: ReturnType<typeof initInMemoryArticleStore>;
+	highlights: ReturnType<typeof initInMemoryHighlights>;
 	engagement: ReturnType<typeof initInMemoryEngagementStarter>;
 }
 
@@ -92,6 +95,7 @@ async function createHarness(hooks: HarnessHooks = {}): Promise<HandlerHarness> 
 	const auth = initTestAuth();
 	const userId = await signUp(auth, READER_EMAIL);
 	const store = initInMemoryArticleStore();
+	const highlights = initInMemoryHighlights();
 	const engagement = initInMemoryEngagementStarter({ library: store });
 	const uploadCalls: HandlerHarness["uploadCalls"] = [];
 	const objects: HandlerHarness["objects"] = new Map();
@@ -111,6 +115,7 @@ async function createHarness(hooks: HarnessHooks = {}): Promise<HandlerHarness> 
 		engagementState: engagement,
 		listReadlistDefinitions: store.listReadlistDefinitions,
 		findArticlesAcrossReadlists: store.findArticlesAcrossReadlists,
+		listAllUserHighlights: highlights.listAllUserHighlights,
 		uploadUserDataExport,
 		deleteUserExports: async (deletedUserId) => {
 			objects.delete(deletedUserId);
@@ -140,7 +145,7 @@ async function createHarness(hooks: HarnessHooks = {}): Promise<HandlerHarness> 
 		now: fixedNow,
 	});
 
-	return { userId, auth, uploadCalls, objects, emailCalls, publishedEvents, handler, store, engagement };
+	return { userId, auth, uploadCalls, objects, emailCalls, publishedEvents, handler, store, highlights, engagement };
 }
 
 async function invokeHandler(
@@ -352,6 +357,117 @@ describe("initExportUserDataHandler", () => {
 		]);
 	});
 
+	describe("highlights", () => {
+		const HIGHLIGHTED_URL = "https://example.com/highlighted?utm_source=x";
+
+		function aHighlight(overrides: Partial<Highlight> & Pick<Highlight, "highlightId" | "exact" | "orderKey">): Highlight {
+			return {
+				highlightOf: ArticleResourceUniqueId.parse(HIGHLIGHTED_URL).value,
+				prefix: "",
+				suffix: "",
+				start: 0,
+				end: overrides.exact.length,
+				anchoredContentHash: "hash-1",
+				anchorState: "anchored",
+				createdAt: new Date("2026-04-29T10:00:00.000Z"),
+				updatedAt: new Date("2026-04-29T10:00:00.000Z"),
+				anchorRevision: 0,
+				...overrides,
+			};
+		}
+
+		async function saveArticle(harness: HandlerHarness, url: string): Promise<void> {
+			await harness.store.saveArticle({
+				userId: harness.userId,
+				url,
+				metadata: { title: url, siteName: "example.com", excerpt: "x", wordCount: 100 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				provenance: { kind: "web" },
+				savedAt: new Date("2026-04-28T00:00:00.000Z"),
+			});
+		}
+
+		const ExportWithHighlightsSchema = z.object({
+			articles: z.array(z.looseObject({ url: z.string() })),
+		});
+
+		it("exports an article's highlights in reading order with their anchor state", async () => {
+			const harness = await createHarness();
+			await saveArticle(harness, HIGHLIGHTED_URL);
+			for (const highlight of [
+				aHighlight({
+					highlightId: HighlightIdSchema.parse("00000000-0000-4000-8000-000000000002"),
+					exact: "second passage",
+					orderKey: 20,
+					anchorState: "orphaned",
+				}),
+				aHighlight({
+					highlightId: HighlightIdSchema.parse("00000000-0000-4000-8000-000000000001"),
+					exact: "first passage",
+					orderKey: 10,
+					note: "keep this",
+				}),
+			]) {
+				const created = await harness.highlights.createHighlight({
+					userId: harness.userId,
+					highlight,
+					replacedIds: [],
+				});
+				assert.equal(created.status, "created");
+			}
+
+			await invokeHandler(harness, { userId: harness.userId, requestedAt: "2026-04-30T11:59:00.000Z" });
+
+			const body = ExportWithHighlightsSchema.parse(harness.uploadCalls[0].parsedBody);
+			const [article] = body.articles;
+			expect(article.url).toBe(HIGHLIGHTED_URL);
+			expect(article.highlights).toEqual([
+				{
+					quote: "first passage",
+					prefix: "",
+					suffix: "",
+					note: "keep this",
+					state: "anchored",
+					createdAt: "2026-04-29T10:00:00.000Z",
+					updatedAt: "2026-04-29T10:00:00.000Z",
+				},
+				{
+					quote: "second passage",
+					prefix: "",
+					suffix: "",
+					state: "orphaned",
+					createdAt: "2026-04-29T10:00:00.000Z",
+					updatedAt: "2026-04-29T10:00:00.000Z",
+				},
+			]);
+		});
+
+		it("writes no highlights key on an article without highlights", async () => {
+			const harness = await createHarness();
+			await saveArticle(harness, HIGHLIGHTED_URL);
+			await saveArticle(harness, "https://example.com/plain");
+			const created = await harness.highlights.createHighlight({
+				userId: harness.userId,
+				highlight: aHighlight({
+					highlightId: HighlightIdSchema.parse("00000000-0000-4000-8000-000000000003"),
+					exact: "a passage",
+					orderKey: 1,
+				}),
+				replacedIds: [],
+			});
+			assert.equal(created.status, "created");
+
+			await invokeHandler(harness, { userId: harness.userId, requestedAt: "2026-04-30T11:59:00.000Z" });
+
+			const body = ExportWithHighlightsSchema.parse(harness.uploadCalls[0].parsedBody);
+			const plain = body.articles.find((a) => a.url === "https://example.com/plain");
+			assert(plain, "plain article missing from the export");
+			expect(Object.keys(plain).sort()).toEqual(
+				["excerpt", "provenance", "readAt", "readTime", "savedAt", "siteName", "status", "title", "url", "wordCount"],
+			);
+		});
+	});
+
 	it("emits an empty export when the user has no articles", async () => {
 		const harness = await createHarness();
 		const { userId } = harness;
@@ -427,6 +543,7 @@ describe("initExportUserDataHandler", () => {
 			},
 			listReadlistDefinitions: async () => [],
 			findArticlesAcrossReadlists,
+			listAllUserHighlights: async () => [],
 			uploadUserDataExport: async ({ userId: uid, body }) => {
 				uploadCalls.push({ parsedBody: JSON.parse(body) });
 				return { s3Key: `exports/${uid}/x.json`, downloadUrl: "https://example.com/d" };

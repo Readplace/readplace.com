@@ -29,6 +29,8 @@ export type DeleteArticleHighlights = (params: {
 
 export type DeleteAllUserHighlights = (userId: UserId) => Promise<void>;
 
+export type ListAllUserHighlights = (userId: UserId) => Promise<readonly Highlight[]>;
+
 export interface UserHighlight {
 	userId: UserId;
 	highlight: Highlight;

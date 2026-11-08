@@ -17,7 +17,6 @@ import { FILED_READLIST_PARAM } from "../../shared/filing-flash";
 import { calculateReadTime, hostStubMetadata, } from "@packages/domain/article";
 import { ABSENT_ENCLOSURE, ReaderArticleHashIdSchema, mayReadItem, ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { MediaImageFileSchema, PrivateItemUrlSchema, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
-import { articleEpubHref } from "../../shared/epub/epub-link";
 import { readerContentUnavailable, readerNoticeOf, transcriptNoticeOf } from "../../shared/article-reader/reader-view";
 import type {
 	PastReads,
@@ -37,6 +36,8 @@ import { RedirectComponent, type Redirect } from "../../redirect.component";
 import { FreshForComponent } from "../../conditional-get";
 import { initReaderPermalink } from "./reader-permalink";
 import { initOwnerArticleMarkdown, isDeliberateReaderRequest } from "./reader-markdown";
+import { initOwnerArticleEpub } from "./reader-epub";
+import type { BuildArticleEpub } from "../../shared/epub/article-epub";
 import {
 	parseReadlistUrl,
 	READLIST_PATH,
@@ -78,7 +79,7 @@ import type { ReadlistDependencies } from "./readlist-dependencies.types";
 import { highlightFeatureEnabled } from "./highlight-feature";
 import { highlightActionUrl } from "./highlight-surface";
 import { highlightFormScopeFor, initReaderHighlightOptions } from "./reader-highlight-options";
-import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM } from "./readlist-shared";
+import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM, readerEpubHrefFor } from "./readlist-shared";
 
 const pastReadsComputeUrlFor = (params: {
 	articleId: string;
@@ -193,7 +194,7 @@ function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 export function initReaderPageRoutes(deps: Pick<
 		ReadlistDependencies,
 		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView" | "listArticleHighlights" | "readCanonicalSnapshot" | "presignEnclosure" | "findArticleById" | "canSaveContent"
-	>, shared: ReadlistShared): { router: Router; renderOwnerReader: RenderOwnerReader } {
+	> & { buildArticleEpub: BuildArticleEpub }, shared: ReadlistShared): { router: Router; renderOwnerReader: RenderOwnerReader } {
 	const router = express.Router();
 	const readerHighlightOptions = initReaderHighlightOptions(deps);
 	const { requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
@@ -241,7 +242,7 @@ export function initReaderPageRoutes(deps: Pick<
 	const epubHrefFor = (req: Request, article: SavedArticle, content: string | undefined): string | undefined =>
 		content === undefined || parseEmailIssueArticleUrl(article.url) !== undefined
 			? undefined
-			: articleEpubHref({ articleUrl: article.url, utmSource: "reader", appClient: appClientOf(req) });
+			: readerEpubHrefFor(req, { article, appClient: appClientOf(req) });
 
 	/** Public share-able permalink. Users copy this URL from the browser
 	 * address bar to share an article, so any visitor — owner, different
@@ -498,6 +499,7 @@ export function initReaderPageRoutes(deps: Pick<
 		noindexMiddleware,
 		deps.markdownBearerAuth,
 		initOwnerArticleMarkdown(deps),
+		initOwnerArticleEpub(deps),
 	);
 
 	const renderOwnerReader: RenderOwnerReader = async (req, res, options) => {

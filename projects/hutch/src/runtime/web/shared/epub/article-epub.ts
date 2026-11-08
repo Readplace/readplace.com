@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { deflateSync, strToU8 } from "fflate";
 import { type ArticleBody, type ArticleDestinationUrl, articleDestinationHost } from "@packages/domain/article";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
@@ -5,6 +6,9 @@ import { articleEpubXhtml, collectArticleImages } from "./epub-xhtml";
 import { type ArticleFrontMatter, articleFrontMatterXhtml, COLOPHON_XHTML } from "./article-front-matter";
 import { epubImageBudgetFor } from "./epub-image-budget";
 import { buildEpub } from "./epub-package";
+import type { ReaderHighlights } from "../article-body/reader-slot/mark-highlights";
+import { prepareReaderContent, WHOLE_DOCUMENT_SECTION } from "../article-body/reader-slot/reader-content";
+import { highlightsXhtml } from "./highlights-xhtml";
 
 type SkippedImage = { filename: string; bytes: number };
 
@@ -15,8 +19,32 @@ export type ArticleEpubBuild = {
 };
 
 export type BuildArticleEpub = (
-	params: ArticleFrontMatter & { articleUrl: string; contentHtml: ArticleBody },
+	params: ArticleFrontMatter & {
+		articleUrl: string;
+		contentHtml: ArticleBody;
+		highlighted?: { highlights: ReaderHighlights; appOrigin: string };
+	},
 ) => Promise<ArticleEpubBuild>;
+
+function chapterBodyOf(params: {
+	articleUrl: string;
+	contentHtml: ArticleBody;
+	highlighted?: { highlights: ReaderHighlights; appOrigin: string };
+}): { bodyHtml: string; highlightsHtml: string } {
+	const { highlighted } = params;
+	if (highlighted === undefined || highlighted.highlights.rows.length === 0) {
+		return { bodyHtml: params.contentHtml, highlightsHtml: "" };
+	}
+	const prepared = prepareReaderContent({
+		content: params.contentHtml,
+		appOrigin: highlighted.appOrigin,
+		url: params.articleUrl,
+		section: WHOLE_DOCUMENT_SECTION,
+		highlights: highlighted.highlights,
+	});
+	assert(prepared.kind === "whole", "an EPUB chapter is never split into reader sections");
+	return { bodyHtml: prepared.html, highlightsHtml: highlightsXhtml(prepared.states) };
+}
 
 type BuildArticleEpubDependencies = {
 	readArticleImage: ReadArticleImage;
@@ -49,11 +77,12 @@ export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildA
 			summary: params.summary,
 		});
 
-		const chapterHtml = frontMatter + params.contentHtml + COLOPHON_XHTML;
+		const { bodyHtml, highlightsHtml } = chapterBodyOf(params);
+		const chapterHtml = frontMatter + bodyHtml + highlightsHtml + COLOPHON_XHTML;
 		const imageBudget = epubImageBudgetFor({ deflatedBodyBytes: deflateSync(strToU8(chapterHtml)).length });
 
 		const candidates = collectArticleImages({
-			contentHtml: params.contentHtml,
+			contentHtml: bodyHtml,
 			articleUrl: params.articleUrl,
 		});
 
