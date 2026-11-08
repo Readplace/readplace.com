@@ -2,6 +2,7 @@ import type { ErrorRequestHandler } from "express";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { megabytesLabel } from "../../shared/bytes-to-mb";
+import type { LogError } from "@packages/logger";
 
 /**
  * Translates body-parser `entity.too.large` errors on the save-content route
@@ -10,7 +11,7 @@ import { megabytesLabel } from "../../shared/bytes-to-mb";
  * path.
  */
 export function initSaveContentLimitHandler(deps: {
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	maxBytes: number;
 }): ErrorRequestHandler {
 	const { maxBytes } = deps;

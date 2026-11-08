@@ -10,6 +10,7 @@ import {
 import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-article";
 import { initCommitDeferredCrawl } from "./commit-deferred-crawl";
 import { candidateProvenance } from "@packages/tier-source";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 type CommitDeps = Parameters<typeof initCommitDeferredCrawl>[0];
 
@@ -31,6 +32,7 @@ const renderedArticle: FinalizedArticle = {
 const okFinalize: FinalizeArticle = async () => ({ ok: true, article: renderedArticle });
 
 function createCommit(overrides: Partial<CommitDeps> = {}) {
+	const { publishEvent, published } = initRecordingPublishEvent();
 	const deps: CommitDeps = {
 		resolveOriginalUrl: async (u) => u,
 		finalizeArticle: okFinalize,
@@ -39,7 +41,7 @@ function createCommit(overrides: Partial<CommitDeps> = {}) {
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		adoptCanonicalIdentity: jest.fn().mockResolvedValue(undefined),
-		publishEvent: jest.fn().mockResolvedValue(undefined),
+		publishEvent,
 		now: () => new Date("2026-10-29T00:00:00.000Z"),
 		logger: noopLogger,
 		logParseError: jest.fn(),
@@ -48,7 +50,7 @@ function createCommit(overrides: Partial<CommitDeps> = {}) {
 		logPrefix: "[Test]",
 		...overrides,
 	};
-	return { deps, ...initCommitDeferredCrawl(deps) };
+	return { deps, published, ...initCommitDeferredCrawl(deps) };
 }
 
 const renderedBody = {
@@ -61,9 +63,9 @@ const renderedBody = {
 describe("initCommitDeferredCrawl", () => {
 	describe("commitFetchedBody", () => {
 		it("stores a tier-1 live candidate and emits TierContentExtractedEvent for a first save", async () => {
-			const { deps, commitFetchedBody } = createCommit();
+			const { deps, published, commitFetchedBody } = createCommit();
 
-			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, userId: UserIdSchema.parse("user-1") });
+			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, trigger: "save", userId: UserIdSchema.parse("user-1") });
 
 			expect(outcome).toEqual({ via: "deferred-to-event", readable: true, candidate: { id: expect.any(String), tier: "tier-1" } });
 			expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
@@ -88,64 +90,64 @@ describe("initCommitDeferredCrawl", () => {
 				recrawl: false,
 			});
 			expect(deps.logCrawlOutcome).toHaveBeenCalledWith(expect.objectContaining({ thisTier: "tier-1", thisTierStatus: "success" }));
-			expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				url,
 				userId: "user-1",
 				saveAttemptId,
 				candidates: [expect.objectContaining({ tier: "tier-1" })],
-			}));
+			}) });
 		});
 
 		it("hands an unreadable body to selection beside existing candidates and says it was unreadable", async () => {
 			const { commitFetchedBody } = createCommit({ finalizeArticle: async () => ({ ok: false, reason: "empty document" }) });
 
-			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, candidates: [{ id: CandidateIdSchema.parse("wrapper-candidate"), tier: "tier-2" }] });
+			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, trigger: "save", candidates: [{ id: CandidateIdSchema.parse("wrapper-candidate"), tier: "tier-2" }] });
 
 			expect(outcome).toEqual({ via: "deferred-to-event", readable: false, candidate: { id: expect.any(String), tier: "tier-1" } });
 		});
 
 		it("emits RecrawlContentExtractedEvent on a recrawl", async () => {
-			const { deps, commitFetchedBody } = createCommit();
+			const { published, commitFetchedBody } = createCommit();
 
-			await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, recrawl: true });
+			await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, trigger: "recrawl" });
 
-			expect(deps.publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({ url, saveAttemptId }));
+			expect(published).toContainEqual({ detailType: RecrawlContentExtractedEvent.detailType, detail: expect.objectContaining({ url, saveAttemptId }) });
 		});
 
 		it("carries freshness on RefreshContentExtractedEvent and skips the fetch-timestamp command on a refresh", async () => {
-			const { deps, commitFetchedBody } = createCommit();
+			const { deps, published, commitFetchedBody } = createCommit();
 
 			await commitFetchedBody({ ...renderedBody, etag: "\"v2\"", lastModified: "Tue, 28 Oct 2026 00:00:00 GMT" }, {
 				url,
 				originalUrl: url,
 				saveAttemptId,
-				refresh: true,
+				trigger: "refresh",
 			});
 
 			expect(deps.updateFetchTimestamp).not.toHaveBeenCalled();
-			expect(deps.publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: RefreshContentExtractedEvent.detailType, detail: expect.objectContaining({
 				url,
 				etag: "\"v2\"",
 				lastModified: "Tue, 28 Oct 2026 00:00:00 GMT",
 				bodyHash: renderedBody.bodyHash,
-			}));
+			}) });
 		});
 
 		it("returns unreadable without writing anything when finalize fails and no other candidate exists", async () => {
-			const { deps, commitFetchedBody } = createCommit({
+			const { deps, published, commitFetchedBody } = createCommit({
 				finalizeArticle: async () => ({ ok: false, reason: "no readable content" }),
 			});
 
-			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId });
+			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, trigger: "save" });
 
 			expect(outcome).toEqual({ via: "unreadable", reason: "no readable content" });
 			expect(deps.putTierSource).not.toHaveBeenCalled();
 			expect(deps.transitionAndPersist).not.toHaveBeenCalled();
-			expect(deps.publishEvent).not.toHaveBeenCalled();
+			expect(published).toEqual([]);
 		});
 
 		it("stores a failed live attempt beside the existing candidates when finalize fails", async () => {
-			const { deps, commitFetchedBody } = createCommit({
+			const { deps, published, commitFetchedBody } = createCommit({
 				finalizeArticle: async () => ({ ok: false, reason: "no readable content" }),
 			});
 			const archived = { id: CandidateIdSchema.parse("archive-candidate"), tier: "tier-2" as const };
@@ -154,6 +156,7 @@ describe("initCommitDeferredCrawl", () => {
 				url,
 				originalUrl: url,
 				saveAttemptId,
+				trigger: "save",
 				candidates: [archived],
 			});
 
@@ -161,15 +164,15 @@ describe("initCommitDeferredCrawl", () => {
 			expect(deps.updateFetchTimestamp).not.toHaveBeenCalled();
 			expect(deps.adoptCanonicalIdentity).toHaveBeenCalledWith(expect.objectContaining({ outcome: { kind: "crawl-failed" } }));
 			expect(deps.logCrawlOutcome).toHaveBeenCalledWith(expect.objectContaining({ thisTierStatus: "failed" }));
-			expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				candidates: [archived, expect.objectContaining({ tier: "tier-1" })],
-			}));
+			}) });
 		});
 
 		it("evaluates the raw body when other candidates exist and the fetch carries no evaluation html", async () => {
 			const { deps, commitFetchedBody } = createCommit();
 
-			await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, candidates: [] });
+			await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, trigger: "save", candidates: [] });
 
 			expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({ evaluationHtml: renderedBody.html }));
 		});
@@ -177,7 +180,7 @@ describe("initCommitDeferredCrawl", () => {
 		it("treats a non-2xx body as a failed live attempt", async () => {
 			const { deps, commitFetchedBody } = createCommit();
 
-			await commitFetchedBody({ ...renderedBody, httpStatus: 500 }, { url, originalUrl: url, saveAttemptId });
+			await commitFetchedBody({ ...renderedBody, httpStatus: 500 }, { url, originalUrl: url, saveAttemptId, trigger: "save" });
 
 			expect(deps.updateFetchTimestamp).not.toHaveBeenCalled();
 			expect(deps.adoptCanonicalIdentity).toHaveBeenCalledWith(expect.objectContaining({ outcome: { kind: "crawl-failed" } }));
@@ -186,7 +189,7 @@ describe("initCommitDeferredCrawl", () => {
 		it("treats a 1xx body as a failed live attempt", async () => {
 			const { deps, commitFetchedBody } = createCommit();
 
-			await commitFetchedBody({ ...renderedBody, httpStatus: 103 }, { url, originalUrl: url, saveAttemptId });
+			await commitFetchedBody({ ...renderedBody, httpStatus: 103 }, { url, originalUrl: url, saveAttemptId, trigger: "save" });
 
 			expect(deps.adoptCanonicalIdentity).toHaveBeenCalledWith(expect.objectContaining({ outcome: { kind: "crawl-failed" } }));
 		});
@@ -197,7 +200,7 @@ describe("initCommitDeferredCrawl", () => {
 
 			await commitFetchedBody(
 				{ html: "", bodyHash: "c".repeat(64), mediaType: "plain-text", plainText: "hello" },
-				{ url, originalUrl: "https://example-spa.test/original", saveAttemptId },
+				{ url, originalUrl: "https://example-spa.test/original", saveAttemptId, trigger: "save" },
 			);
 
 			expect(finalizeArticle).toHaveBeenCalledWith(expect.objectContaining({ mediaType: "plain-text", plainText: "hello" }));
@@ -258,8 +261,7 @@ describe("initCommitDeferredCrawl", () => {
 				saveAttemptId,
 				candidates: [archived],
 				userId: UserIdSchema.parse("user-1"),
-				recrawl: mode === "recrawl" ? true : undefined,
-				refresh: mode === "refresh" ? true : undefined,
+				trigger: mode,
 			});
 
 			const failed = httpStatus !== 200;
@@ -312,23 +314,23 @@ describe("initCommitDeferredCrawl", () => {
 
 	describe("commitReadableBody", () => {
 		it("returns unreadable without writing anything when finalize fails, even beside existing candidates", async () => {
-			const { deps, commitReadableBody } = createCommit({
+			const { deps, published, commitReadableBody } = createCommit({
 				finalizeArticle: async () => ({ ok: false, reason: "no readable content" }),
 			});
 			const archived = { id: CandidateIdSchema.parse("archive-candidate"), tier: "tier-2" as const };
 
-			const outcome = await commitReadableBody(renderedBody, { url, originalUrl: url, saveAttemptId, candidates: [archived] });
+			const outcome = await commitReadableBody(renderedBody, { url, originalUrl: url, saveAttemptId, trigger: "save", candidates: [archived] });
 
 			expect(outcome).toEqual({ via: "unreadable", reason: "no readable content" });
 			expect(deps.putTierSource).not.toHaveBeenCalled();
 			expect(deps.transitionAndPersist).not.toHaveBeenCalled();
-			expect(deps.publishEvent).not.toHaveBeenCalled();
+			expect(published).toEqual([]);
 		});
 
 		it("commits a readable body as a tier-1 live candidate the same way commitFetchedBody does", async () => {
-			const { deps, commitReadableBody } = createCommit();
+			const { deps, published, commitReadableBody } = createCommit();
 
-			const outcome = await commitReadableBody(renderedBody, { url, originalUrl: url, saveAttemptId, userId: UserIdSchema.parse("user-1") });
+			const outcome = await commitReadableBody(renderedBody, { url, originalUrl: url, saveAttemptId, trigger: "save", userId: UserIdSchema.parse("user-1") });
 
 			expect(outcome).toEqual({ via: "deferred-to-event", readable: true, candidate: { id: expect.any(String), tier: "tier-1" } });
 			expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
@@ -337,12 +339,12 @@ describe("initCommitDeferredCrawl", () => {
 				html: renderedArticle.html,
 				metadata: expect.objectContaining({ kind: "live", httpStatus: 200, sourceUrl: url }),
 			}));
-			expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				url,
 				userId: "user-1",
 				saveAttemptId,
 				candidates: [expect.objectContaining({ tier: "tier-1" })],
-			}));
+			}) });
 		});
 	});
 
@@ -381,7 +383,7 @@ describe("initCommitDeferredCrawl", () => {
 		it("marks the crawl blocked as spend-capped", async () => {
 			const { deps, resolveBudgetExhausted } = createCommit();
 
-			const outcome = await resolveBudgetExhausted({ url, saveAttemptId });
+			const outcome = await resolveBudgetExhausted({ url, saveAttemptId, trigger: "save" });
 
 			expect(outcome).toEqual({ via: "committed-in-process" });
 			expect(deps.logParseError).toHaveBeenCalledWith({ url, reason: "paid-crawl-budget-exhausted" });
@@ -394,42 +396,42 @@ describe("initCommitDeferredCrawl", () => {
 		it("leaves a refreshed article's prior canonical in place", async () => {
 			const { deps, resolveBudgetExhausted } = createCommit();
 
-			const outcome = await resolveBudgetExhausted({ url, saveAttemptId, refresh: true });
+			const outcome = await resolveBudgetExhausted({ url, saveAttemptId, trigger: "refresh" });
 
 			expect(outcome).toEqual({ via: "already-terminal" });
 			expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 		});
 
 		it("hands existing candidates to selection with no live body", async () => {
-			const { deps, resolveBudgetExhausted } = createCommit();
+			const { deps, published, resolveBudgetExhausted } = createCommit();
 			const archived = { id: CandidateIdSchema.parse("archive-candidate"), tier: "tier-2" as const };
 
-			const outcome = await resolveBudgetExhausted({ url, saveAttemptId, userId: UserIdSchema.parse("user-1"), candidates: [archived] });
+			const outcome = await resolveBudgetExhausted({ url, saveAttemptId, trigger: "save", userId: UserIdSchema.parse("user-1"), candidates: [archived] });
 
 			expect(outcome).toEqual({ via: "deferred-to-event" });
 			expect(deps.transitionAndPersist).not.toHaveBeenCalled();
-			expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: {
 				url,
 				userId: "user-1",
 				saveAttemptId,
 				candidates: [archived],
 				liveAttempt: { outcome: "no-body" },
 				extractedAt: "2026-10-29T00:00:00.000Z",
-			});
+			} });
 		});
 	});
 
 	describe("publishArchiveComparison", () => {
 		it("emits RecrawlContentExtractedEvent on a recrawl", async () => {
-			const { deps, publishArchiveComparison } = createCommit();
+			const { published, publishArchiveComparison } = createCommit();
 
 			const outcome = await publishArchiveComparison({ url, saveAttemptId, recrawl: true, candidates: [] });
 
 			expect(outcome).toEqual({ via: "deferred-to-event" });
-			expect(deps.publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: RecrawlContentExtractedEvent.detailType, detail: expect.objectContaining({
 				url,
 				liveAttempt: { outcome: "no-body" },
-			}));
+			}) });
 		});
 	});
 });

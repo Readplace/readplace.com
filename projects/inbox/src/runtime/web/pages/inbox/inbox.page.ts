@@ -38,7 +38,7 @@ import type {
 	RecordReadlistFitOverride,
 } from "@packages/provider-contracts/article-store";
 import type { FileArticleIntoReadlistDetail } from "@packages/infra-components";
-import type { Logger } from "@packages/logger";
+import type { Logger, LogError } from "@packages/logger";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
 import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
@@ -120,7 +120,7 @@ interface InboxDependencies extends InboxReadlistFitDependencies {
 	inboxSavedLinkStore: InboxSavedLinkStore;
 	readEmailContent: ContentProvider;
 	imagesCdnBaseUrl: string;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	buildBannerState: BuildBannerState;
 	publishSubmitLink: (input: {
 		userId: UserId;
@@ -216,7 +216,7 @@ type LinkClassificationVerdict = z.infer<typeof LinkFeedbackSchema>["verdict"];
  * `should-be-included` verdict, so the save route emits the same line instead of
  * asking the reader to also press a separate report button. */
 function logLinkClassificationFeedback(input: {
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	verdict: LinkClassificationVerdict;
 	receivedAtMessageId: string;
 	link: InboxEmailLinkEntry;

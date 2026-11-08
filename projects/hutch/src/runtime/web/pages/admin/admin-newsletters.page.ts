@@ -45,13 +45,14 @@ import {
 	parseAdminNewslettersListState,
 } from "./admin-newsletters.url";
 import { type AdminNewsletterFormState, findCatalogRecord, toAdminNewslettersViewModel } from "./admin-newsletters.viewmodel";
+import type { LogError } from "@packages/logger";
 
 export interface AdminNewslettersDependencies {
 	readNewsletterCatalog: ReadNewsletterCatalog;
 	updateNewsletterCatalog: UpdateNewsletterCatalog;
 	newsletterCatalogSeed: NewsletterCatalogSeed;
 	now: () => Date;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	buildBannerState: BuildBannerState;
 }
 

@@ -4,10 +4,11 @@ import { initCrawlArticle, rejectDocumentLandingPage, type CrawlArticleResult, t
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import { initArticleSiteRules } from "@packages/article-parser";
 import { noopLogger } from "@packages/logger";
-import { ComprehensiveCrawlCommand, RenderCrawlCommand } from "@packages/infra-components";
+import { ComprehensiveCrawlCommand, type CrawlTrigger, RenderCrawlCommand } from "@packages/infra-components";
 import { initSimpleCrawlUnsupportedPolicyHandler } from "./simple-crawl-unsupported-policy-handler";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -19,8 +20,7 @@ const stubAttributes: SQSRecordAttributes = {
 function createSqsEvent(detail: {
 	url: string;
 	userId?: string;
-	recrawl?: boolean;
-	refresh?: boolean;
+	trigger?: CrawlTrigger;
 	previousBodyHash?: string;
 	unsupportedReason?: string;
 	finalUrl?: string;
@@ -29,7 +29,7 @@ function createSqsEvent(detail: {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail: { ...detail, saveAttemptId: "attempt-1" } }),
+			body: JSON.stringify({ detail: { trigger: "save", ...detail, saveAttemptId: "attempt-1" } }),
 			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",
@@ -42,7 +42,7 @@ function createSqsEvent(detail: {
 
 describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 	it("dispatches ComprehensiveCrawlCommand with url and userId from the SimpleCrawlUnsupportedEvent", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
 			publishEvent,
@@ -55,19 +55,18 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+		expect(published).toHaveLength(1);
+		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId: "attempt-1",
 			userId: "user-1",
-			recrawl: undefined,
-			refresh: undefined,
+			trigger: "save",
 			previousBodyHash: undefined,
-		});
+		} });
 	});
 
-	it("dispatches ComprehensiveCrawlCommand with recrawl=true when the event carries the recrawl flag", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+	it("dispatches ComprehensiveCrawlCommand with the recrawl trigger when the event carries it", async () => {
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
 			publishEvent,
@@ -75,23 +74,22 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		});
 
 		await handler(
-			createSqsEvent({ url: "https://example.com/doc.pdf", recrawl: true }),
+			createSqsEvent({ url: "https://example.com/doc.pdf", trigger: "recrawl" }),
 			buildLambdaContext(),
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
-			recrawl: true,
-			refresh: undefined,
+			trigger: "recrawl",
 			previousBodyHash: undefined,
-		});
+		} });
 	});
 
-	it("dispatches ComprehensiveCrawlCommand with refresh=true when the event carries the refresh flag (stale-check chain)", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+	it("dispatches ComprehensiveCrawlCommand with the refresh trigger when the event carries it (stale-check chain)", async () => {
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
 			publishEvent,
@@ -99,23 +97,22 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		});
 
 		await handler(
-			createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }),
+			createSqsEvent({ url: "https://example.com/doc.pdf", trigger: "refresh" }),
 			buildLambdaContext(),
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
-			recrawl: undefined,
-			refresh: true,
+			trigger: "refresh",
 			previousBodyHash: undefined,
-		});
+		} });
 	});
 
 	it("forwards previousBodyHash so the downstream comprehensive Lambda can fire the byte-gate on PDF re-fetch", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
 			publishEvent,
@@ -125,25 +122,24 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		await handler(
 			createSqsEvent({
 				url: "https://example.com/doc.pdf",
-				refresh: true,
+				trigger: "refresh",
 				previousBodyHash: "h".repeat(64),
 			}),
 			buildLambdaContext(),
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
-			recrawl: undefined,
-			refresh: true,
+			trigger: "refresh",
 			previousBodyHash: "h".repeat(64),
-		});
+		} });
 	});
 
 	it("dispatches ComprehensiveCrawlCommand without userId for anonymous saves", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
 			publishEvent,
@@ -156,18 +152,17 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/blob",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
-			recrawl: undefined,
-			refresh: undefined,
+			trigger: "save",
 			previousBodyHash: undefined,
-		});
+		} });
 	});
 
 	it.each(["javascript-required", "blocked"])("dispatches RenderCrawlCommand with every forwarded field when the tier-1 crawl deferred a %s page", async (unsupportedReason) => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
 			publishEvent,
@@ -178,7 +173,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			createSqsEvent({
 				url: "https://example-spa.test/post",
 				userId: "user-1",
-				refresh: true,
+				trigger: "refresh",
 				previousBodyHash: "h".repeat(64),
 				unsupportedReason,
 			}),
@@ -186,20 +181,19 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith(RenderCrawlCommand, {
+		expect(published).toHaveLength(1);
+		expect(published).toContainEqual({ detailType: RenderCrawlCommand.detailType, detail: {
 			url: "https://example-spa.test/post",
 			saveAttemptId: "attempt-1",
 			unsupportedReason,
 			userId: "user-1",
-			recrawl: undefined,
-			refresh: true,
+			trigger: "refresh",
 			previousBodyHash: "h".repeat(64),
-		});
+		} });
 	});
 
 	it("forwards the page the free crawl reached to the render crawl so its paid legs start there", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
 			publishEvent,
@@ -212,16 +206,17 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledWith(RenderCrawlCommand, {
+		expect(published).toContainEqual({ detailType: RenderCrawlCommand.detailType, detail: {
 			url: "https://links.tracker.example/r/abc",
 			saveAttemptId: "attempt-1",
 			unsupportedReason: "blocked",
+			trigger: "save",
 			finalUrl: "https://publisher.example/story",
-		});
+		} });
 	});
 
 	it("keeps the comprehensive crawl's command as it was when the deferral carries an observed page", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
 			publishEvent,
@@ -234,18 +229,17 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://links.tracker.example/r/doc",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
-			recrawl: undefined,
-			refresh: undefined,
+			trigger: "save",
 			previousBodyHash: undefined,
-		});
+		} });
 	});
 
 	it.each(["non-html-content", "paywall"])("dispatches ComprehensiveCrawlCommand when the tier-1 crawl deferred a %s page", async (unsupportedReason) => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
 			publishEvent,
@@ -253,19 +247,18 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		});
 
 		await handler(
-			createSqsEvent({ url: "https://example.com/doc.pdf", recrawl: true, unsupportedReason }),
+			createSqsEvent({ url: "https://example.com/doc.pdf", trigger: "recrawl", unsupportedReason }),
 			buildLambdaContext(),
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
-			recrawl: true,
-			refresh: undefined,
+			trigger: "recrawl",
 			previousBodyHash: undefined,
-		});
+		} });
 	});
 
 	it.each([
@@ -275,7 +268,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
-			publishEvent: jest.fn().mockResolvedValue(undefined),
+			publishEvent: initRecordingPublishEvent().publishEvent,
 			logger,
 		});
 
@@ -288,8 +281,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		expect(logger.info).toHaveBeenCalledWith(message, {
 			url: "https://example-spa.test/post",
 			unsupportedReason,
-			recrawl: 0,
-			refresh: 0,
+			trigger: "save",
 		});
 	});
 
@@ -311,7 +303,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 	});
 
 	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
 			publishEvent,
@@ -334,13 +326,13 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 
 		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 });
 
 
 describe("GitHub PDF viewer simple-to-comprehensive routing", () => {
-	it.each([false, true])("extracts the declared PDF after simple deferral (recrawl=%s)", async (recrawl) => {
+	it.each(["save", "recrawl"] as const)("extracts the declared PDF after simple deferral (trigger=%s)", async (trigger) => {
 		const url = "https://github.com/sample/docs/blob/release%2Fnext/guides/paper.pdf?plain=1#page=2";
 		const rawUrl = "https://github.com/sample/docs/raw/refs/heads/release/next/guides/paper.pdf";
 		const pdf = Buffer.from("%PDF-1.4\nSynthetic PDF bytes for the injected extractor.");
@@ -374,9 +366,9 @@ describe("GitHub PDF viewer simple-to-comprehensive routing", () => {
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
 
 		expect(await simple({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
-		await policy(createSqsEvent({ url, recrawl }), buildLambdaContext(), () => {});
+		await policy(createSqsEvent({ url, trigger }), buildLambdaContext(), () => {});
 
-		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, recrawl, saveAttemptId: "attempt-1" }));
+		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, trigger, saveAttemptId: "attempt-1" }));
 		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: rawUrl, onProgress: undefined });
 		const [result] = extracted;
 		assert(result?.status === "fetched");
@@ -388,7 +380,7 @@ describe("GitHub PDF viewer simple-to-comprehensive routing", () => {
 });
 
 describe("OJS galley viewer simple-to-comprehensive routing", () => {
-	it.each([false, true])("extracts the declared galley PDF after simple deferral (recrawl=%s)", async (recrawl) => {
+	it.each(["save", "recrawl"] as const)("extracts the declared galley PDF after simple deferral (trigger=%s)", async (trigger) => {
 		const url = "https://journals.example.org/index.php/sample/article/view/37/33";
 		const downloadUrl = "https://journals.example.org/index.php/sample/article/download/37/33/527";
 		const pdf = Buffer.from("%PDF-1.4\nSynthetic galley PDF bytes for the injected extractor.");
@@ -421,9 +413,9 @@ describe("OJS galley viewer simple-to-comprehensive routing", () => {
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
 
 		expect(await simple({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
-		await policy(createSqsEvent({ url, recrawl }), buildLambdaContext(), () => {});
+		await policy(createSqsEvent({ url, trigger }), buildLambdaContext(), () => {});
 
-		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, recrawl, saveAttemptId: "attempt-1" }));
+		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, trigger, saveAttemptId: "attempt-1" }));
 		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: downloadUrl, onProgress: undefined });
 		const [result] = extracted;
 		assert(result?.status === "fetched");
@@ -435,7 +427,7 @@ describe("OJS galley viewer simple-to-comprehensive routing", () => {
 });
 
 describe("Gallup document simple-to-comprehensive routing", () => {
-	it.each([false, true])("extracts the declared report while preserving the original save attempt (recrawl=%s)", async (recrawl) => {
+	it.each(["save", "recrawl"] as const)("extracts the declared report while preserving the original save attempt (trigger=%s)", async (trigger) => {
 		const url = "https://www.gallup.com/analytics/123/sample-report.aspx";
 		const downloadUrl = "https://www.gallup.com/file/analytics/123/sample-report.pdf";
 		const pdf = Buffer.from("%PDF-1.4\nSynthetic report bytes for the injected extractor.");
@@ -464,9 +456,9 @@ describe("Gallup document simple-to-comprehensive routing", () => {
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
 
 		expect(await simple({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
-		await policy(createSqsEvent({ url, recrawl, unsupportedReason: "non-html-content" }), buildLambdaContext(), () => {});
+		await policy(createSqsEvent({ url, trigger, unsupportedReason: "non-html-content" }), buildLambdaContext(), () => {});
 
-		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, recrawl, saveAttemptId: "attempt-1" }));
+		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, trigger, saveAttemptId: "attempt-1" }));
 		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: downloadUrl, onProgress: undefined });
 		const [result] = extracted;
 		assert(result?.status === "fetched");

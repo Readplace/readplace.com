@@ -17,6 +17,7 @@ import { initGmailOAuthConsent } from "./gmail-oauth-consent";
 import { registerGmailPageRoutes } from "./gmail.page";
 import { IntegrationsIndexPage } from "./integrations-index.component";
 import { toIntegrationsIndexViewModel } from "./integrations-index.viewmodel";
+import type { LogError } from "@packages/logger";
 
 interface IntegrationsDependencies {
 	buildBannerState: BuildBannerState;
@@ -26,7 +27,7 @@ interface IntegrationsDependencies {
 	getEffectiveAccess: GetEffectiveAccess;
 	appOrigin: string;
 	secureCookies: boolean;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	now: () => Date;
 	gmail: GmailIntegrationDependencies | undefined;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];

@@ -45,6 +45,7 @@ import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { verifyState } from "./oauth-state";
 import { signAppleState } from "./apple-state";
+import type { LogError } from "@packages/logger";
 
 const CallbackBodySchema = z.object({
 	code: z.string().min(1),
@@ -90,7 +91,7 @@ interface AppleAuthDependencies {
 	upsertTrialing: UpsertTrialingSubscription;
 	trialScheduler: TrialSchedulerPort;
 	sendEmail: SendEmail;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	now: () => Date;
 	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;

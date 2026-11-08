@@ -114,6 +114,7 @@ import { overlayResolution } from "../../../domain/resolve-on-view/request-resol
 import { requestCanCapture } from "../../onboarding/capture-capable-request";
 import { isPrefetchOrBot } from "../../shared/prefetch-request";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
+import type { LogError } from "@packages/logger";
 
 /** Client devices dismiss the version of their applicable checklist. Accounts
  * eligible for Gmail include it in that version; other accounts retain their
@@ -130,7 +131,7 @@ export async function loadSummaries(
 	findGeneratedSummaries: FindGeneratedSummaries,
 	articles: readonly SavedArticle[],
 	viewer: Viewer,
-	logError: (message: string, error?: Error) => void,
+	logError: LogError,
 ): Promise<Map<string, ShownSummary | undefined>> {
 	const urls = articles.map((a) => a.url);
 	try {
@@ -148,7 +149,7 @@ export async function loadSummaries(
 export async function loadCrawls(
 	findArticleCrawlStatuses: FindArticleCrawlStatuses,
 	articles: readonly SavedArticle[],
-	logError: (message: string, error?: Error) => void,
+	logError: LogError,
 ): Promise<Map<string, ArticleCrawl | undefined>> {
 	const urls = articles.map((a) => a.url);
 	try {
@@ -173,7 +174,7 @@ export const relatedPollUrlFor = (params: {
 export async function loadRelatedArticles(
 	findRelatedArticles: FindRelatedArticles,
 	article: SavedArticle,
-	logError: (message: string, error?: Error) => void,
+	logError: LogError,
 ): Promise<RelatedArticles> {
 	try {
 		return await findRelatedArticles({
@@ -200,7 +201,7 @@ export async function loadPastReads(
 	findPastReads: FindPastReads,
 	article: SavedArticle,
 	sourceReadlist: ReadlistSlug,
-	logError: (message: string, error?: Error) => void,
+	logError: LogError,
 ): Promise<PastReads> {
 	try {
 		return await findPastReads({

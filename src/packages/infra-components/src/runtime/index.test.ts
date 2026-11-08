@@ -118,7 +118,7 @@ describe("initEventBridgePublisher", () => {
 		expect(commands).toHaveLength(1);
 	});
 
-	it("rejects when the detail fails schema validation so refinements (e.g. mutex flags) cannot reach subscribers as malformed payloads", async () => {
+	it("rejects when the detail fails schema validation so a payload the schema refuses cannot reach subscribers", async () => {
 		const { client } = createFakeClient();
 		const { publishEvent } = initEventBridgePublisher({
 			client,
@@ -129,8 +129,8 @@ describe("initEventBridgePublisher", () => {
 			publishEvent(SimpleCrawlUnsupportedEvent, {
 				url: "https://example.com/doc.pdf",
 				saveAttemptId: z.string().brand<"SaveAttemptId">().parse("attempt-1"),
-				recrawl: true,
-				refresh: true,
+				trigger: "save",
+				finalUrl: "ftp://example.com/doc.pdf",
 			}),
 		).rejects.toBeInstanceOf(z.ZodError);
 

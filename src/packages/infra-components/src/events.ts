@@ -37,18 +37,16 @@ function defineCommand<T extends z.ZodTypeAny>(definition: {
 const CandidateReferences = z.array(z.object({ id: CandidateIdSchema, tier: z.enum(["tier-0", "tier-1", "tier-2"]) }));
 const LiveAttempt = z.object({ outcome: z.enum(["body", "no-body", "deferred"]), failureReason: CrawlFailureReasonSchema.optional() });
 const ObservedFetchTarget = z.url({ protocol: /^https?$/ });
+export const CrawlTriggerSchema = z.enum(["save", "recrawl", "refresh"]);
+export type CrawlTrigger = z.infer<typeof CrawlTriggerSchema>;
 const DeferredCrawlFields = z.object({
 	url: z.string(),
 	saveAttemptId: SaveAttemptIdSchema,
 	candidates: CandidateReferences.optional(),
 	userId: UserIdSchema.optional(),
-	recrawl: z.boolean().optional(),
-	refresh: z.boolean().optional(),
+	trigger: CrawlTriggerSchema,
 	previousBodyHash: z.string().optional(),
 });
-const isRecrawlOrRefresh = (d: { recrawl?: boolean; refresh?: boolean }) => !(d.recrawl && d.refresh);
-const RECRAWL_OR_REFRESH = { message: "recrawl and refresh are mutually exclusive" };
-const DeferredCrawlDetailSchema = DeferredCrawlFields.refine(isRecrawlOrRefresh, RECRAWL_OR_REFRESH);
 
 export const SaveLinkCommand = defineEvent({
 	name: "save-link-command",
@@ -219,15 +217,7 @@ export type ArticleFiledIntoReadlistDetail = z.infer<typeof ArticleFiledIntoRead
  * concurrency slot is released immediately. The
  * `simple-crawl-unsupported-policy` Lambda subscribes to this event and
  * dispatches `ComprehensiveCrawlCommand` so the dedicated PDF-handling
- * Lambda picks up the URL.
- *
- * `recrawl=true` tells the comprehensive handler
- * to emit `RecrawlContentExtractedEvent` instead of
- * `TierContentExtractedEvent`, preserving the recrawl chain's
- * always-regenerate-summary semantics. `refresh=true` tells the comprehensive
- * handler to emit `RefreshContentExtractedEvent` so the stale-check chain's
- * tier-selection + canonical write still runs. `recrawl` and `refresh` are
- * mutually exclusive — each carries different downstream semantics. */
+ * Lambda picks up the URL. */
 export const SimpleCrawlUnsupportedEvent = defineEvent({
 	name: "simple-crawl-unsupported",
 	source: "hutch.save-link",
@@ -237,15 +227,11 @@ export const SimpleCrawlUnsupportedEvent = defineEvent({
 		saveAttemptId: SaveAttemptIdSchema,
 		candidates: CandidateReferences.optional(),
 		userId: UserIdSchema.optional(),
-		recrawl: z.boolean().optional(),
-		refresh: z.boolean().optional(),
+		trigger: CrawlTriggerSchema,
 		previousBodyHash: z.string().optional(),
 		unsupportedReason: z.enum(["non-html-content", "paywall", "javascript-required", "blocked"]).optional(),
 		finalUrl: ObservedFetchTarget.optional(),
-	}).refine(
-		(d) => !(d.recrawl && d.refresh),
-		{ message: "recrawl and refresh are mutually exclusive" },
-	),
+	}),
 });
 export type SimpleCrawlUnsupportedDetail = z.infer<
 	typeof SimpleCrawlUnsupportedEvent.detailSchema
@@ -258,19 +244,12 @@ export type SimpleCrawlUnsupportedDetail = z.infer<
  * the result through the same tier-1 happy path, and emits the appropriate
  * downstream event itself (TierContentExtractedEvent for saves,
  * RecrawlContentExtractedEvent for recrawls, RefreshContentExtractedEvent
- * for stale-check refreshes).
- *
- * `recrawl=true` tells the handler to emit
- * `RecrawlContentExtractedEvent` instead of `TierContentExtractedEvent`,
- * preserving the recrawl Lambda chain's always-regenerate-summary semantics.
- * `refresh=true` tells the handler to emit `RefreshContentExtractedEvent`,
- * keeping the stale-check tier-selection + canonical write flow intact.
- * `recrawl` and `refresh` are mutually exclusive. */
+ * for stale-check refreshes). */
 export const ComprehensiveCrawlCommand = defineEvent({
 	name: "comprehensive-crawl-command",
 	source: "hutch.save-link",
 	detailType: "ComprehensiveCrawlCommand",
-	detailSchema: DeferredCrawlDetailSchema,
+	detailSchema: DeferredCrawlFields,
 });
 export type ComprehensiveCrawlDetail = z.infer<
 	typeof ComprehensiveCrawlCommand.detailSchema
@@ -283,7 +262,7 @@ export const RenderCrawlCommand = defineEvent({
 	detailSchema: DeferredCrawlFields.extend({
 		unsupportedReason: z.enum(["javascript-required", "blocked"]),
 		finalUrl: ObservedFetchTarget.optional(),
-	}).refine(isRecrawlOrRefresh, RECRAWL_OR_REFRESH),
+	}),
 });
 export type RenderCrawlDetail = z.infer<
 	typeof RenderCrawlCommand.detailSchema
@@ -1635,7 +1614,7 @@ export const CheckGmailNewslettersCommand = defineEvent({
 });
 export const GmailNewsletterAccountsCheckedEvent = defineEvent({
 	name: "gmail-newsletter-accounts-checked", source: "hutch.app", detailType: "GmailNewsletterAccountsChecked",
-	detailSchema: z.object({ userIds: z.array(z.string()), nextAccountsPageToken: z.string().optional() }),
+	detailSchema: z.object({ userIds: z.array(UserIdSchema), nextAccountsPageToken: z.string().optional() }),
 });
 export const MonitorGmailNewslettersCommand = defineEvent({
 	name: "monitor-gmail-newsletters", source: "hutch.app", detailType: "MonitorGmailNewsletters",

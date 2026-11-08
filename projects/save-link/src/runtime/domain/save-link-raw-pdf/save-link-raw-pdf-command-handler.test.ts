@@ -14,6 +14,7 @@ import type { DownloadMedia } from "@packages/finalize-article";
 import type { PutTierSource } from "@packages/tier-source";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -68,7 +69,8 @@ const successfulExtractPdf: ExtractPdf = async ({ url: _url }) => ({
 
 type HandlerDeps = Parameters<typeof initSaveLinkRawPdfCommandHandler>[0];
 
-function createHandler(overrides: Partial<HandlerDeps> = {}) {
+function createHandler({ onPublish, ...overrides }: Partial<HandlerDeps> & { onPublish?: () => void } = {}) {
+	const recording = initRecordingPublishEvent();
 	const deps: HandlerDeps = {
 		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
 		resolveOriginalUrl: async (url) => url,
@@ -78,7 +80,10 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		downloadMedia: noopDownloadMedia,
 		processContent,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
-		publishEvent: jest.fn().mockResolvedValue(undefined),
+		publishEvent: async (event, detail) => {
+			await recording.publishEvent(event, detail);
+			onPublish?.();
+		},
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		now: () => new Date("2026-04-18T12:00:00.000Z"),
 		logger: noopLogger,
@@ -91,12 +96,12 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		}),
 		...overrides,
 	};
-	return { handler: initSaveLinkRawPdfCommandHandler(deps), deps };
+	return { handler: initSaveLinkRawPdfCommandHandler(deps), deps, published: recording.published };
 }
 
 describe("initSaveLinkRawPdfCommandHandler", () => {
 	it("reads pending PDF bytes, extracts to HTML, writes a tier-0 source, and emits TierContentExtractedEvent carrying userId", async () => {
-		const { handler, deps } = createHandler();
+		const { handler, deps, published } = createHandler();
 
 		await handler(
 			createSqsEvent({ url: "https://example.com/x.pdf", userId: "user-1" }),
@@ -119,11 +124,11 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 				authorUserId: "user-1",
 			}),
 		}));
-		expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 			url: "https://example.com/x.pdf",
 			userId: "user-1",
 			extractedAt: "2026-04-18T12:00:00.000Z",
-		}));
+		}) });
 	});
 
 	it("writes the tier-0 source before publishing TierContentExtractedEvent", async () => {
@@ -149,7 +154,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 		});
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { handler } = createHandler({
 			extractPdf: failingExtractPdf,
@@ -175,7 +180,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 			},
 		});
 		expect(putTierSource).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("routes terminal parse errors through markCrawlFailed and reports the record as a batch failure so SQS redelivers it", async () => {
@@ -185,7 +190,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 		});
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const error = jest.fn();
 		const logger = { ...noopLogger, error };
 
@@ -211,7 +216,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 			},
 		});
 		expect(putTierSource).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(error).toHaveBeenCalledWith(
 			"[SaveLinkRawPdfCommand] record failed",
 			expect.objectContaining({

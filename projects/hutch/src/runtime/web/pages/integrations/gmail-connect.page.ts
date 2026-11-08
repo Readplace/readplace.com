@@ -16,12 +16,13 @@ import { inspectGmailOAuthCallback } from "./gmail-oauth-diagnostics";
 import { GMAIL_OAUTH_STATE_COOKIE, GMAIL_OAUTH_STATE_TTL_MS, type GmailOAuthConsent } from "./gmail-oauth-consent";
 import { type ConnectIntent, ImportIntentBodySchema, MarkIntentBodySchema } from "./gmail-oauth-intent";
 import { initRequireGmailConnectionAccess } from "./require-gmail-connection-access";
+import type { LogError } from "@packages/logger";
 
 const CallbackQuerySchema = z.object({ code: z.string(), state: z.string() });
 const RETRYABLE_IMPORT_STATUSES: ReadonlySet<GmailHistoryImportSummary["status"]> = new Set(["failed", "partial-failure"]);
 
 export interface GmailConnectContext {
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	now: () => Date;
 	requireAuth: RequestHandler;
 	requireNotLocked: RequestHandler;

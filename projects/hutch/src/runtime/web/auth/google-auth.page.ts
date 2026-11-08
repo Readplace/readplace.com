@@ -43,6 +43,7 @@ import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { signState, verifyState } from "./oauth-state";
 import { viewerOf } from "@packages/viewer-identity";
+import type { LogError } from "@packages/logger";
 
 const CallbackQuerySchema = z.object({
 	code: z.string().min(1),
@@ -75,7 +76,7 @@ interface GoogleAuthDependencies {
 	upsertTrialing: UpsertTrialingSubscription;
 	trialScheduler: TrialSchedulerPort;
 	sendEmail: SendEmail;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	now: () => Date;
 	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;

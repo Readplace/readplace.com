@@ -231,7 +231,7 @@ import type {
 	ValidateAccessToken,
 	ValidateOAuthRedirectUri,
 } from "@packages/provider-contracts/oauth";
-import { Logger } from "@packages/logger";
+import { Logger, type LogError } from "@packages/logger";
 import {
 	type AnalyticsEvent,
 	createClickAttributionMiddleware,
@@ -521,7 +521,7 @@ export interface AppDependencies {
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	baseUrl: string;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	oauthModel: OAuthModel;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	revokeOtherUserOAuthGrants: RevokeOtherUserOAuthGrants;

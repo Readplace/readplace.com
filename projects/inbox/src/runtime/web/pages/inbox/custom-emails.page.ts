@@ -21,11 +21,12 @@ import type { InboxAddressStore } from "@packages/domain/inbox";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { InboxPage } from "./inbox.component";
+import type { LogError } from "@packages/logger";
 
 interface CustomEmailsDependencies {
 	inboxAddressStore: InboxAddressStore;
 	inboxAddressDomain: string;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	buildBannerState: BuildBannerState;
 	requireNotLocked: RequestHandler;
 	requireWriteAccess: RequestHandler;

@@ -9,6 +9,7 @@ import type { Article } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { TierSource } from "@packages/tier-source";
 import { initRemoveMyContentCommandHandler } from "./remove-my-content-command-handler";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 
@@ -71,7 +72,8 @@ const LEGACY_CANONICAL_KEY = "content/example.com%2Fpost/content.html";
 
 type HandlerDeps = Parameters<typeof initRemoveMyContentCommandHandler>[0];
 
-function createHandler(overrides: Partial<HandlerDeps> = {}) {
+function createHandler({ onPublish, ...overrides }: Partial<HandlerDeps> & { onPublish?: () => void } = {}) {
+	const recording = initRecordingPublishEvent();
 	const deps: HandlerDeps = {
 		loadArticle: jest.fn().mockResolvedValue(legacyArticle("tier-0")),
 		saveArticle: jest.fn().mockResolvedValue(undefined),
@@ -86,12 +88,15 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		countSaversByUrl: jest.fn().mockResolvedValue(0),
 		purgeArticleContent: jest.fn().mockResolvedValue(undefined),
 		tombstoneArticle: jest.fn().mockResolvedValue(undefined),
-		publishEvent: jest.fn().mockResolvedValue(undefined),
+		publishEvent: async (event, detail) => {
+			await recording.publishEvent(event, detail);
+			onPublish?.();
+		},
 		now: () => FIXED_NOW,
 		logger: noopLogger,
 		...overrides,
 	};
-	return { handler: initRemoveMyContentCommandHandler(deps), deps };
+	return { handler: initRemoveMyContentCommandHandler(deps), deps, published: recording.published };
 }
 
 const MINUTE_ID = "2026-07-10T09:41Z";
@@ -124,7 +129,7 @@ describe("initRemoveMyContentCommandHandler", () => {
 	});
 
 	it("leaves a canonical whose own source survived the removal untouched", async () => {
-		const { handler, deps } = createHandler({
+		const { handler, deps, published } = createHandler({
 			loadArticle: jest.fn().mockResolvedValue(legacyArticle("tier-1")),
 			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1")]),
 		});
@@ -134,7 +139,7 @@ describe("initRemoveMyContentCommandHandler", () => {
 		expect(deps.countSaversByUrl).not.toHaveBeenCalled();
 		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
 		expect(deps.tombstoneArticle).not.toHaveBeenCalled();
-		expect(deps.publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("keeps the legacy canonical copy while the tier source it was copied from is still served", async () => {
@@ -156,7 +161,7 @@ describe("initRemoveMyContentCommandHandler", () => {
 			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1", cid("surviving-crawl"))]),
 			saveArticle: jest.fn(async () => { steps.push("hash cleared"); }),
 			deleteContentObjects: async (keys) => { steps.push(`deleted ${keys.join(",")}`); },
-			publishEvent: jest.fn(async () => { steps.push("published"); }),
+			onPublish: () => { steps.push("published"); },
 		});
 
 		await handler(removalOf(), buildLambdaContext(), () => {});
@@ -168,29 +173,29 @@ describe("initRemoveMyContentCommandHandler", () => {
 		{ row: "no article row", stored: undefined },
 		{ row: "a row that never selected a tier", stored: { ...legacyArticle("tier-0"), contentSelection: undefined } },
 	])("skips the repair entirely for a URL that has no canonical yet: $row", async ({ stored }) => {
-		const { handler, deps } = createHandler({
+		const { handler, deps, published } = createHandler({
 			loadArticle: jest.fn().mockResolvedValue(stored),
 		});
 
 		await handler(removalOf(), buildLambdaContext(), () => {});
 
 		expect(deps.listAvailableTierSources).not.toHaveBeenCalled();
-		expect(deps.publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
 	});
 
 	it("re-selects the canonical when its source is gone but a judgeable candidate remains", async () => {
 		const steps: string[] = [];
-		const { handler, deps } = createHandler({
+		const { handler, deps, published } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1", cid("surviving-crawl"))]),
 			saveArticle: jest.fn(async () => { steps.push("hash cleared"); }),
-			publishEvent: jest.fn(async () => { steps.push("published"); }),
+			onPublish: () => { steps.push("published"); },
 		});
 
 		await handler(removalOf(), buildLambdaContext(), () => {});
 
 		expect(steps).toEqual(["hash cleared", "published"]);
-		expect(deps.publishEvent).toHaveBeenCalledWith(ReselectAfterRemovalEvent, { url: URL });
+		expect(published).toContainEqual({ detailType: ReselectAfterRemovalEvent.detailType, detail: { url: URL } });
 		expect(deps.countSaversByUrl).not.toHaveBeenCalled();
 		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
 		expect(deps.tombstoneArticle).not.toHaveBeenCalled();
@@ -199,12 +204,12 @@ describe("initRemoveMyContentCommandHandler", () => {
 	it("erases a legacy tier-0 copy once a co-saver's candidate has replaced the sidecar it was copied from", async () => {
 		const steps: string[] = [];
 		const stored = legacyArticle("tier-0");
-		const { handler, deps } = createHandler({
+		const { handler, deps, published } = createHandler({
 			loadArticle: jest.fn().mockResolvedValue(stored),
 			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-0", cid("co-saver-capture"))]),
 			saveArticle: jest.fn(async () => { steps.push("hash cleared"); }),
 			deleteContentObjects: async (keys) => { steps.push(`deleted ${keys.join(",")}`); },
-			publishEvent: jest.fn(async () => { steps.push("published"); }),
+			onPublish: () => { steps.push("published"); },
 		});
 
 		await handler(removalOf(), buildLambdaContext(), () => {});
@@ -215,18 +220,18 @@ describe("initRemoveMyContentCommandHandler", () => {
 			writes: ["freshness"],
 			selectionExpected: { snapshot: { tier: "tier-0" } },
 		});
-		expect(deps.publishEvent).toHaveBeenCalledWith(ReselectAfterRemovalEvent, { url: URL });
+		expect(published).toContainEqual({ detailType: ReselectAfterRemovalEvent.detailType, detail: { url: URL } });
 	});
 
 	it("forgets the erased legacy capture's hash, then re-crawls when only an unjudgeable legacy source remains", async () => {
 		const steps: string[] = [];
 		const stored = legacyArticle("tier-0");
-		const { handler, deps } = createHandler({
+		const { handler, deps, published } = createHandler({
 			loadArticle: jest.fn().mockResolvedValue(stored),
 			listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-1")]),
 			countSaversByUrl: jest.fn().mockResolvedValue(1),
 			saveArticle: jest.fn(async () => { steps.push("hash cleared"); }),
-			publishEvent: jest.fn(async () => { steps.push("published"); }),
+			onPublish: () => { steps.push("published"); },
 		});
 
 		await handler(removalOf(), buildLambdaContext(), () => {});
@@ -238,13 +243,13 @@ describe("initRemoveMyContentCommandHandler", () => {
 			writes: ["freshness"],
 			selectionExpected: { snapshot: { tier: "tier-0" } },
 		});
-		expect(deps.publishEvent).toHaveBeenCalledTimes(2);
-		expect(deps.publishEvent).toHaveBeenCalledWith(RecrawlLinkInitiatedEvent, { url: URL, saveAttemptId: expect.any(String) });
+		expect(published).toHaveLength(2);
+		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String) } });
 		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
 	});
 
 	it("re-crawls rather than purging while anyone still holds the URL — the remover included", async () => {
-		const { handler, deps } = createHandler({
+		const { handler, deps, published } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([]),
 			countSaversByUrl: jest.fn().mockResolvedValue(1),
 		});
@@ -252,13 +257,13 @@ describe("initRemoveMyContentCommandHandler", () => {
 		await handler(removalOf(), buildLambdaContext(), () => {});
 
 		expect(deps.countSaversByUrl).toHaveBeenCalledWith(URL);
-		expect(deps.publishEvent).toHaveBeenCalledWith(RecrawlLinkInitiatedEvent, { url: URL, saveAttemptId: expect.any(String) });
+		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String) } });
 		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
 		expect(deps.tombstoneArticle).not.toHaveBeenCalled();
 	});
 
 	it("purges every object and tombstones the row once nothing and nobody remains", async () => {
-		const { handler, deps } = createHandler({
+		const { handler, deps, published } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([]),
 			countSaversByUrl: jest.fn().mockResolvedValue(0),
 		});
@@ -267,11 +272,11 @@ describe("initRemoveMyContentCommandHandler", () => {
 
 		expect(deps.purgeArticleContent).toHaveBeenCalledWith(URL);
 		expect(deps.tombstoneArticle).toHaveBeenCalledWith({ url: URL, at: FIXED_NOW });
-		expect(deps.publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("still repairs on redelivery after the objects were already erased", async () => {
-		const { handler, deps } = createHandler({
+		const { handler, deps, published } = createHandler({
 			resolveAuthoredContentKeys: jest.fn().mockResolvedValue({
 				objectKeys: [],
 				candidateIds: [], manifestKeys: [], pruneMinuteIds: [],
@@ -283,11 +288,11 @@ describe("initRemoveMyContentCommandHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.deleteContentObjects).toHaveBeenCalledWith([]);
-		expect(deps.publishEvent).toHaveBeenCalledWith(ReselectAfterRemovalEvent, { url: URL });
+		expect(published).toContainEqual({ detailType: ReselectAfterRemovalEvent.detailType, detail: { url: URL } });
 	});
 
 	it("converges on redelivery once the repair has landed", async () => {
-		const { handler, deps } = createHandler({
+		const { handler, deps, published } = createHandler({
 			resolveAuthoredContentKeys: jest.fn().mockResolvedValue({
 				objectKeys: [],
 				candidateIds: [], manifestKeys: [], pruneMinuteIds: [],
@@ -298,7 +303,7 @@ describe("initRemoveMyContentCommandHandler", () => {
 
 		await handler(removalOf(), buildLambdaContext(), () => {});
 
-		expect(deps.publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
 		expect(deps.tombstoneArticle).not.toHaveBeenCalled();
 	});
@@ -329,53 +334,53 @@ const article = (revoked: readonly CandidateId[] | undefined) => ({ url: URL, me
 describe("immutable authored candidate removal", () => {
 	it("revokes before deletion and reselects even when another candidate occupies the same tier", async () => {
 		const order: string[] = [];
-		const { handler, deps } = createHandler({ resolveAuthoredContentKeys: async () => ({ objectKeys: ["owned"], pruneMinuteIds: [], candidateIds: [cid("removed")], manifestKeys: [] }), revokeContentCandidates: async ({ candidateIds }) => { expect(candidateIds).toEqual(["removed"]); order.push("revoked"); }, deleteContentObjects: async () => { order.push("deleted"); }, loadArticle: async () => article([cid("removed")]), listAvailableTierSources: async () => [tierSource("tier-0", cid("other"))] });
+		const { handler, published } = createHandler({ resolveAuthoredContentKeys: async () => ({ objectKeys: ["owned"], pruneMinuteIds: [], candidateIds: [cid("removed")], manifestKeys: [] }), revokeContentCandidates: async ({ candidateIds }) => { expect(candidateIds).toEqual(["removed"]); order.push("revoked"); }, deleteContentObjects: async () => { order.push("deleted"); }, loadArticle: async () => article([cid("removed")]), listAvailableTierSources: async () => [tierSource("tier-0", cid("other"))] });
 		await handler(removalOf(), buildLambdaContext(), () => {});
 		expect(order).toEqual(["revoked", "deleted", "deleted", "deleted"]);
-		expect(deps.publishEvent).toHaveBeenCalledWith(ReselectAfterRemovalEvent, { url: URL });
+		expect(published).toContainEqual({ detailType: ReselectAfterRemovalEvent.detailType, detail: { url: URL } });
 	});
 	it("re-crawls when only an unjudgeable legacy source survives the revoked canonical candidate", async () => {
-		const { handler, deps } = createHandler({
+		const { handler, published } = createHandler({
 			loadArticle: async () => article([cid("removed")]),
 			listAvailableTierSources: async () => [tierSource("tier-1")],
 			countSaversByUrl: jest.fn().mockResolvedValue(1),
 		});
 		await handler(removalOf(), buildLambdaContext(), () => {});
-		expect(deps.publishEvent).toHaveBeenCalledTimes(1);
-		expect(deps.publishEvent).toHaveBeenCalledWith(RecrawlLinkInitiatedEvent, { url: URL, saveAttemptId: expect.any(String) });
+		expect(published).toHaveLength(1);
+		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String) } });
 	});
 	it("re-crawls rather than re-selecting when only a failed live response survives the revoked canonical candidate", async () => {
 		const failedLive = tierSource("tier-1", cid("live-403"));
-		const { handler, deps } = createHandler({
+		const { handler, published } = createHandler({
 			loadArticle: async () => article([cid("removed")]),
 			listAvailableTierSources: async () => [{ ...failedLive, metadata: { ...failedLive.metadata, kind: "live", httpStatus: 403 } }],
 			countSaversByUrl: jest.fn().mockResolvedValue(1),
 		});
 		await handler(removalOf(), buildLambdaContext(), () => {});
-		expect(deps.publishEvent).toHaveBeenCalledTimes(1);
-		expect(deps.publishEvent).toHaveBeenCalledWith(RecrawlLinkInitiatedEvent, { url: URL, saveAttemptId: expect.any(String) });
-		expect(deps.publishEvent).not.toHaveBeenCalledWith(ReselectAfterRemovalEvent, expect.anything());
+		expect(published).toHaveLength(1);
+		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String) } });
+		expect(published).not.toContainEqual(expect.objectContaining({ detailType: ReselectAfterRemovalEvent.detailType }));
 	});
 	it("re-selects when a successful live response survives the revoked canonical candidate", async () => {
 		const live = tierSource("tier-1", cid("live-200"));
-		const { handler, deps } = createHandler({
+		const { handler, published } = createHandler({
 			loadArticle: async () => article([cid("removed")]),
 			listAvailableTierSources: async () => [{ ...live, metadata: { ...live.metadata, kind: "live", httpStatus: 200 } }],
 		});
 		await handler(removalOf(), buildLambdaContext(), () => {});
-		expect(deps.publishEvent).toHaveBeenCalledWith(ReselectAfterRemovalEvent, { url: URL });
+		expect(published).toContainEqual({ detailType: ReselectAfterRemovalEvent.detailType, detail: { url: URL } });
 	});
 	it("keeps a canonical immutable candidate that was not revoked", async () => {
-		const { handler, deps } = createHandler({ loadArticle: async () => article(undefined), listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-0")]) });
+		const { handler, deps, published } = createHandler({ loadArticle: async () => article(undefined), listAvailableTierSources: jest.fn().mockResolvedValue([tierSource("tier-0")]) });
 		expect(await handler(removalOf(), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		expect(deps.listAvailableTierSources).toHaveBeenCalledWith(URL);
-		expect(deps.publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 	it("erases the unreferenced legacy canonical copy once an immutable candidate is committed, revoked or not", async () => {
-		const { handler, deps } = createHandler({ loadArticle: async () => article(undefined), listAvailableTierSources: async () => [tierSource("tier-0")] });
+		const { handler, deps, published } = createHandler({ loadArticle: async () => article(undefined), listAvailableTierSources: async () => [tierSource("tier-0")] });
 		await handler(removalOf(), buildLambdaContext(), () => {});
 		expect(deps.deleteContentObjects).toHaveBeenLastCalledWith([LEGACY_CANONICAL_KEY]);
-		expect(deps.publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 });
 

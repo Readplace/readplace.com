@@ -2,6 +2,7 @@ import type { OAuthClientId } from "@packages/domain/oauth";
 import type { FindOAuthClient } from "@packages/provider-contracts/oauth";
 import { isBuiltInOAuthClientId } from "@packages/supported-clients";
 import { findRosterAssistant } from "../shared/assistant-roster";
+import type { LogError } from "@packages/logger";
 
 export type SignupClient = "chatgpt" | "claude" | "other";
 
@@ -20,7 +21,7 @@ export function initResolveSignupClient(deps: { findOAuthClient: FindOAuthClient
 
 export function signupClientOrOther(input: {
 	resolve: () => Promise<SignupClient>;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 }): Promise<SignupClient> {
 	return input.resolve().catch((err): SignupClient => {
 		input.logError("[Email] Signup client lookup failed", err instanceof Error ? err : new Error(String(err)));

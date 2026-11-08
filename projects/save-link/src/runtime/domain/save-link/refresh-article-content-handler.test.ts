@@ -10,6 +10,7 @@ import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { PutTierSource } from "@packages/tier-source";
 import { initRefreshArticleContentHandler } from "./refresh-article-content-handler";
 import type { FindRefreshAdmissionRow } from "./decide-refresh-skip";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -78,7 +79,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 	it("reads the staged HTML from S3 and writes it as a tier-1 source so the selector can compare it against an existing tier-0", async () => {
 		const readRefreshHtml: ReadRefreshHtml = jest.fn().mockResolvedValue(HTML);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent } = initRecordingPublishEvent();
 
 		const handler = initRefreshArticleContentHandler({
 			findRefreshAdmissionRow: admitRow,
@@ -114,7 +115,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			resolveOriginalUrl: async (url) => url,
 			readRefreshHtml: jest.fn().mockResolvedValue(HTML),
 			putTierSource,
-			publishEvent: jest.fn().mockResolvedValue(undefined),
+			publishEvent: initRecordingPublishEvent().publishEvent,
 			logger: noopLogger,
 		});
 
@@ -128,7 +129,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 	it("publishes RefreshContentExtractedEvent carrying url + freshness so the downstream selector handler can persist", async () => {
 		const readRefreshHtml: ReadRefreshHtml = jest.fn().mockResolvedValue(HTML);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initRefreshArticleContentHandler({
 			findRefreshAdmissionRow: admitRow,
@@ -141,20 +142,20 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 
 		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
-		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({
+		expect(published).toHaveLength(1);
+		expect(published).toContainEqual({ detailType: RefreshContentExtractedEvent.detailType, detail: expect.objectContaining({
 			url: URL,
 			etag: '"new-etag"',
 			lastModified: "Sun, 10 May 2026 12:00:00 GMT",
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
 			bodyHash: "a".repeat(64),
-		}));
+		}) });
 	});
 
 	it("forwards bodyHash from the command into RefreshContentExtractedEvent so the persister can land it on the freshness row", async () => {
 		const readRefreshHtml: ReadRefreshHtml = jest.fn().mockResolvedValue(HTML);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initRefreshArticleContentHandler({
 			findRefreshAdmissionRow: admitRow,
@@ -167,13 +168,13 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 
 		await handler(createSqsEvent({ ...DETAIL, bodyHash: "deadbeef".repeat(8) }), buildLambdaContext(), () => {});
 
-		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({
+		expect(published).toContainEqual({ detailType: RefreshContentExtractedEvent.detailType, detail: expect.objectContaining({
 			url: URL,
 			etag: '"new-etag"',
 			lastModified: "Sun, 10 May 2026 12:00:00 GMT",
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
 			bodyHash: "deadbeef".repeat(8),
-		}));
+		}) });
 	});
 
 	it("reads S3, writes the tier source, then publishes — in that order, so a fast downstream handler doesn't race a missing tier-1 read", async () => {
@@ -206,7 +207,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 	it("reports the record as a batch failure on invalid event detail (zod failure) without touching S3 or tier source or event bus", async () => {
 		const readRefreshHtml: ReadRefreshHtml = jest.fn();
 		const putTierSource: PutTierSource = jest.fn();
-		const publishEvent = jest.fn();
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initRefreshArticleContentHandler({
 			findRefreshAdmissionRow: admitRow,
@@ -238,7 +239,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(readRefreshHtml).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("reports a batch failure and does not publish when readRefreshHtml throws", async () => {
@@ -246,7 +247,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			.fn()
 			.mockRejectedValue(new Error("S3 unavailable"));
 		const putTierSource: PutTierSource = jest.fn();
-		const publishEvent = jest.fn();
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initRefreshArticleContentHandler({
 			findRefreshAdmissionRow: admitRow,
@@ -260,7 +261,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const result = await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
 		expect(putTierSource).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
@@ -269,7 +270,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		const putTierSource: PutTierSource = jest
 			.fn()
 			.mockRejectedValue(new Error("s3 throttled"));
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = initRefreshArticleContentHandler({
 			findRefreshAdmissionRow: admitRow,
@@ -282,16 +283,16 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 
 		const result = await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 	it("binds candidate provenance to the staged attempt and the actual evaluation bytes", async () => {
 		const putTierSource: PutTierSource = jest.fn();
-		const publishEvent = jest.fn();
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = initRefreshArticleContentHandler({ findRefreshAdmissionRow: admitRow, resolveOriginalUrl: async () => URL, readRefreshHtml: async () => HTML, putTierSource, publishEvent, logger: noopLogger });
 		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ html: HTML, metadata: expect.objectContaining({ attemptId: "attempt-1", originalUrl: URL, sourceUrl: URL, kind: "live", contentHash: createHash("sha256").update(HTML).digest("hex") }) }));
-		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({ saveAttemptId: "attempt-1", candidates: [{ id: expect.any(String), tier: "tier-1" }] }));
+		expect(published).toContainEqual({ detailType: RefreshContentExtractedEvent.detailType, detail: expect.objectContaining({ saveAttemptId: "attempt-1", candidates: [{ id: expect.any(String), tier: "tier-1" }] }) });
 	});
 
 });
@@ -301,7 +302,7 @@ it("preserves actual response identity and raw evaluation separately from finali
 	const raw = "<html><body>Raw origin response with chrome</body></html>";
 	const sourceUrl = "https://example.com/article?edition=current";
 	const putTierSource = jest.fn();
-	const handler = initRefreshArticleContentHandler({ findRefreshAdmissionRow: admitRow, resolveOriginalUrl: async () => URL, readRefreshHtml: async (_url, options) => options?.representation === "evaluation" ? raw : HTML, putTierSource, publishEvent: jest.fn(), logger: noopLogger });
+	const handler = initRefreshArticleContentHandler({ findRefreshAdmissionRow: admitRow, resolveOriginalUrl: async () => URL, readRefreshHtml: async (_url, options) => options?.representation === "evaluation" ? raw : HTML, putTierSource, publishEvent: initRecordingPublishEvent().publishEvent, logger: noopLogger });
 	await expect(handler(createSqsEvent({ ...DETAIL, sourceUrl }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
 	expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ html: HTML, evaluationHtml: raw, metadata: expect.objectContaining({ kind: "live", sourceUrl, originalUrl: URL, contentHash: createHash("sha256").update(raw).digest("hex") }) }));
 });
@@ -309,7 +310,7 @@ it("preserves actual response identity and raw evaluation separately from finali
 it("rejects stale refresh original proof before reading or writing artifacts", async () => {
 	const readRefreshHtml = jest.fn();
 	const putTierSource = jest.fn();
-	const handler = initRefreshArticleContentHandler({ findRefreshAdmissionRow: admitRow, resolveOriginalUrl: async () => URL, readRefreshHtml, putTierSource, publishEvent: jest.fn(), logger: noopLogger });
+	const handler = initRefreshArticleContentHandler({ findRefreshAdmissionRow: admitRow, resolveOriginalUrl: async () => URL, readRefreshHtml, putTierSource, publishEvent: initRecordingPublishEvent().publishEvent, logger: noopLogger });
 	await expect(handler(createSqsEvent({ ...DETAIL, sourceOriginalUrl: "https://different.example/article" }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	expect(readRefreshHtml).not.toHaveBeenCalled();
 	expect(putTierSource).not.toHaveBeenCalled();
