@@ -1,4 +1,4 @@
-import { DocumentLandingPageError, rejectDocumentLandingPage } from "./document-landing-page";
+import { DocumentLandingPageError, documentLandingPageFailure, rejectDocumentLandingPage } from "./document-landing-page";
 import { withResolvedUrl } from "./follow-redirects";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
@@ -2740,4 +2740,30 @@ it("extracts the recovered CIA PDF without attempting homepage thumbnails", asyn
 	expect(result).toMatchObject({ status: "fetched", finalUrl: url });
 	expect(calls).toEqual([url, "https://www.cia.gov/readingroom/"]);
 	expect(logError).toHaveBeenCalledTimes(0);
+});
+it("fails the CIA PDF as a wrong document without parsing or thumbnailing the homepage every transport returned", async () => {
+	const url = "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf";
+	const home = "https://www.cia.gov/readingroom/";
+	const calls: string[] = [];
+	const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
+	const homepage = () => withResolvedUrl(new Response('<html><head><meta property="og:image" content="/homepage.jpg"></head><body><img src="/seal.png"></body></html>', { status: 200, headers: { "content-type": "text/html" } }), home);
+	const crawl = initCrawl({
+		fetch: async (input) => { calls.push(String(input)); return String(input) === url ? new Response(null, { status: 302, headers: { location: home } }) : homepage(); },
+		fetchH2: async () => homepage(),
+		fetchCurl: async () => homepage(),
+		extractPdf,
+	});
+	const result = await crawl({ url, fetchThumbnail: true });
+	assert(result.status === "failed");
+	expect(result.finalUrl).toBe(url);
+	expect(documentLandingPageFailure(result.cause)).toMatchObject({ requestedUrl: url, landingPageUrl: home });
+	expect(calls).toEqual([url, home]);
+	expect(extractPdf).not.toHaveBeenCalled();
+});
+it("keeps the CIA reading-room homepage when it was the page requested", async () => {
+	const home = "https://www.cia.gov/readingroom/";
+	const crawl = initCrawl({
+		fetch: async () => withResolvedUrl(new Response("<html><head><title>Reading Room</title></head><body><article><p>Freedom of Information Act Electronic Reading Room</p></article></body></html>", { status: 200, headers: { "content-type": "text/html" } }), home),
+	});
+	expect(await crawl({ url: home })).toMatchObject({ status: "fetched", finalUrl: home });
 });
