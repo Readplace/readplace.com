@@ -1,7 +1,7 @@
 ---
 title: "Highlights that find their sentence again when the page changes"
 description: "Highlights and notes are in the Readplace reader, on the web and in the iPhone app. Each mark is stored as the quote it covers, so when a page's stored copy changes, Readplace finds the passage again, keeps a lost mark as \"Not found in this version\" instead of guessing, and carries every mark into the markdown, the EPUB and the account export."
-tldr: "Highlights and notes are in the reader for any signed-in account, on the web and in the iPhone app. Readplace stores each mark as the exact words it covers plus the text around them, and when a page's stored copy changes, it searches the new text for that quote. A mark it can't place again is kept and labelled \"Not found in this version\" rather than moved to a near miss. The marks travel into the markdown download, the EPUB and the account export, and an AI assistant connected over MCP can list them or make one from a quote."
+tldr: "Highlights and notes are in the reader for any account that can save, on the web and in the iPhone app. Readplace stores each mark as the exact words it covers plus the text around them, and when a page's stored copy changes, it searches the new text for that quote. A mark it can't place again is kept and labelled \"Not found in this version\" rather than moved to a near miss. The marks travel into the markdown download, the EPUB and the account export, and an AI assistant connected over MCP can list them or make one from a quote."
 excerpt: "Paper holds still under a pencil line. Web pages don't, so a highlight is stored as its quote."
 slug: "highlights-find-their-sentence-again"
 date: "2026-11-08"
@@ -13,7 +13,7 @@ Printed books hold still. The pencil line under a sentence in a paperback is und
 
 Web pages do. An edited paragraph, a late correction or a full redesign can replace the copy a mark was made on, and a highlight pinned to character 2,841 of the old text ends up midway through the wrong paragraph.
 
-Highlights and notes arrived in the Readplace reader this week, on the web and in the iPhone app, for any signed-in account. They're built around that problem: Readplace stores each mark as the words it covers, with the text around them, and not as a place on the page.
+Highlights and notes arrived in the Readplace reader this week, on the web and in the iPhone app, for any account that can save. They're built around that problem: Readplace stores each mark as the words it covers, with the text around them, and not as a place on the page.
 
 ## Marking a passage
 
@@ -21,7 +21,7 @@ Select a passage in the reader and a small toolbar appears with 2 buttons, Highl
 
 On a phone, a tap on a sentence selects the whole sentence. The tap replaces dragging selection handles across a 6-inch screen to catch the end of a quote.
 
-Each mark is also listed in a Highlights card in the reader's rail, with its quote, its note and a Jump link that scrolls the page back to the passage. Highlighting asks for the same sign-in that saving does.
+Each mark is also listed in a Highlights card in the reader's rail, with its quote, its note and a Jump link that scrolls the page back to the passage. An account that can save an article can highlight one.
 
 ## Stored as the quote
 
@@ -53,7 +53,7 @@ The markdown download of an article you own ends with a Highlights section, each
 
 ## An assistant highlights by quoting
 
-Claude, ChatGPT and Gemini read the same account over MCP, and 2 tools cover the marks. `list_highlights` returns the highlights and notes in 1 saved article. `create_highlight` makes a new one from a quoted passage, with an optional note.
+Claude and Gemini read the same account over MCP, and 2 tools cover the marks. `list_highlights` returns the highlights and notes in 1 saved article. `create_highlight` makes a new one from a quoted passage, with an optional note.
 
 The quote has to match the article's text in 1 place. A quote that matches nothing, or matches more than once, is refused rather than guessed at, so an assistant can't invent a mark the article doesn't support. 2 overlapping marks merge into 1, and the merge keeps each passage and every note.
 
