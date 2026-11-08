@@ -20,10 +20,11 @@ const env = readEnv(RENDER_TRANSCRIPT_ENV);
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
 
-const { findArticleMedia } = initDynamoDbPrivateItemMedia({
-	client: dynamoClient,
-	tableName: env.DYNAMODB_ARTICLES_TABLE,
-});
+const { findArticleMedia, recordTranscriptOutcome } =
+	initDynamoDbPrivateItemMedia({
+		client: dynamoClient,
+		tableName: env.DYNAMODB_ARTICLES_TABLE,
+	});
 const { readJobRequest, readTranscriptOutput, deletePrefix } =
 	initS3TranscriptFiles({
 		client: s3Client,
@@ -59,6 +60,7 @@ export const handler = initRenderTranscriptHandler({
 		putTierSource,
 		publishEvent,
 	}),
+	recordTranscriptOutcome,
 	settleTranscriptCharge,
 	logger: Logger.from(consoleLogger),
 });

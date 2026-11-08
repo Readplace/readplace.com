@@ -80,6 +80,7 @@ function setUp(
 		publishEvent,
 		writeMinimalAudioBody: async (params) =>
 			release.record("writeMinimalAudioBody", params, undefined),
+		recordTranscriptOutcome: release.recordTranscriptOutcome,
 		settleTranscriptCharge: release.settleTranscriptCharge,
 		logger: release.logger,
 	});
@@ -117,6 +118,17 @@ describe("initRenderTranscriptHandler", () => {
 		assert.match(
 			put.html,
 			/<h2>05:00<\/h2><p><a href="\?t=310">05:10<\/a> Later<\/p>/,
+		);
+	});
+
+	it("records no transcript outcome when the transcript has words", async () => {
+		const { handler, calls } = setUp();
+
+		await runJobEvent(handler, "COMPLETED");
+
+		assert.equal(
+			calls.some(([name]) => name === "recordTranscriptOutcome"),
+			false,
 		);
 	});
 
@@ -170,7 +182,8 @@ describe("initRenderTranscriptHandler", () => {
 		assert.equal(await runJobEvent(handler, "COMPLETED"), "acked");
 
 		assert.equal(puts.length, 0);
-		assert.deepEqual(calls.slice(-2), [
+		assert.deepEqual(calls.slice(-3), [
+			["recordTranscriptOutcome", { url: ITEM_URL, transcript: "no-speech" }],
 			["writeMinimalAudioBody", MINIMAL_BODY],
 			["settle", SETTLE_REF],
 		]);
@@ -181,7 +194,13 @@ describe("initRenderTranscriptHandler", () => {
 
 		assert.equal(await runJobEvent(handler, "FAILED"), "acked");
 
-		assert.deepEqual(calls.at(-1), ["writeMinimalAudioBody", MINIMAL_BODY]);
+		assert.deepEqual(calls.slice(-2), [
+			[
+				"recordTranscriptOutcome",
+				{ url: ITEM_URL, transcript: "transcript-failed" },
+			],
+			["writeMinimalAudioBody", MINIMAL_BODY],
+		]);
 		assert.deepEqual(ledgerCalls(calls), []);
 	});
 

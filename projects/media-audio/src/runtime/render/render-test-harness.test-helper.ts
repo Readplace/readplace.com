@@ -1,4 +1,5 @@
 import { Logger, noopLogger } from "@packages/logger";
+import type { RecordTranscriptOutcome } from "@packages/provider-contracts";
 import {
 	type JobRequest,
 	JobRequestSchema,
@@ -46,6 +47,8 @@ export function recordedReleaseCheck(overrides: {
 					? {}
 					: undefined,
 		);
+	const recordTranscriptOutcome: RecordTranscriptOutcome = async (params) =>
+		record("recordTranscriptOutcome", params, "recorded" as const);
 	const settleTranscriptCharge = async (params: unknown) =>
 		record("settle", params, { outcome: "done" as const });
 	const findReleasedTranscript = initFindReleasedTranscript({
@@ -63,6 +66,7 @@ export function recordedReleaseCheck(overrides: {
 		calls,
 		record,
 		findReleasedTranscript,
+		recordTranscriptOutcome,
 		settleTranscriptCharge,
 		logger: Logger.from(noopLogger),
 	};

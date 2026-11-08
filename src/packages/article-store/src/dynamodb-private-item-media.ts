@@ -8,7 +8,7 @@ import {
 	writeIfCondition,
 } from "@packages/storage-client";
 import { EnclosureSchema } from "@packages/media-contracts";
-import type { SetArticleEnclosure } from "@packages/provider-contracts/article-store";
+import type { RecordTranscriptOutcome, SetArticleEnclosure } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
 
 const PrivateItemMediaRow = z.object({
@@ -20,6 +20,7 @@ const PrivateItemMediaRow = z.object({
 
 export function initDynamoDbPrivateItemMedia(deps: { client: DynamoDBDocumentClient; tableName: string }): {
 	setArticleEnclosure: SetArticleEnclosure;
+	recordTranscriptOutcome: RecordTranscriptOutcome;
 	findArticleMedia: (params: { url: string }) => Promise<Pick<SavedArticle, "media" | "enclosure"> | undefined>;
 } {
 	const articles = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: PrivateItemMediaRow });
@@ -36,6 +37,18 @@ export function initDynamoDbPrivateItemMedia(deps: { client: DynamoDBDocumentCli
 		return outcome.kind === "written" ? "recorded" : "not-found";
 	};
 
+	const recordTranscriptOutcome: RecordTranscriptOutcome = async (params) => {
+		const outcome = await writeIfCondition(() =>
+			articles.update({
+				Key: { url: ArticleResourceUniqueId.parse(params.url).value },
+				UpdateExpression: "SET media.transcript = :transcript",
+				ConditionExpression: "attribute_exists(ownerUserId) AND attribute_not_exists(purgedAt)",
+				ExpressionAttributeValues: { ":transcript": params.transcript },
+			}),
+		);
+		return outcome.kind === "written" ? "recorded" : "not-found";
+	};
+
 	const findArticleMedia = async (params: { url: string }) => {
 		const row = await articles.get(
 			{ url: ArticleResourceUniqueId.parse(params.url).value },
@@ -45,5 +58,5 @@ export function initDynamoDbPrivateItemMedia(deps: { client: DynamoDBDocumentCli
 		return { media: row.media, enclosure: row.enclosure };
 	};
 
-	return { setArticleEnclosure, findArticleMedia };
+	return { setArticleEnclosure, recordTranscriptOutcome, findArticleMedia };
 }

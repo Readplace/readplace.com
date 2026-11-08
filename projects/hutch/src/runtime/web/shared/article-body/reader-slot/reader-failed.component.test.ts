@@ -22,6 +22,8 @@ const ALL_VARIANTS = [
 	"capture-unreadable",
 	"capture-missing",
 	"processing-failed",
+	"no-speech",
+	"transcript-failed",
 ] as const satisfies readonly ReaderFailedVariant[];
 
 function noticeFor(input: { variant: ReaderFailedVariant; extensionInstallUrl?: string }): Element {
@@ -67,6 +69,8 @@ describe("renderReaderFailed", () => {
 			"capture-unreadable": "Readplace copied the page, but it isn't an article",
 			"capture-missing": "The copy from your device didn't arrive",
 			"processing-failed": "We couldn't prepare this upload",
+			"no-speech": "Your audio is saved",
+			"transcript-failed": "Your audio is saved",
 		};
 		for (const variant of ALL_VARIANTS) {
 			const title = noticeFor({ variant }).querySelector(".article-body__reader-notice-title");
@@ -89,6 +93,8 @@ describe("renderReaderFailed", () => {
 			"capture-unreadable": "Read original article",
 			"capture-missing": "Read original article",
 			"processing-failed": "Upload again",
+			"no-speech": "Upload again",
+			"transcript-failed": "Upload again",
 		};
 		for (const variant of ALL_VARIANTS) {
 			const primary = noticeFor({ variant }).querySelector("[data-test-reader-failed-primary]");
@@ -97,7 +103,7 @@ describe("renderReaderFailed", () => {
 			assert.equal(primary.children.length, 0, `CTA for variant=${variant} carries no icon`);
 			assert.equal(
 				primary.getAttribute("href"),
-				variant === "processing-failed"
+				variant === "processing-failed" || variant === "transcript-failed"
 					? "/upload?utm_source=reader-failed&utm_medium=internal&utm_content=upload-again"
 					: "https://example.com/some-article",
 			);
@@ -124,6 +130,8 @@ describe("renderReaderFailed", () => {
 			"capture-missing":
 				"Readplace didn't receive a copy of this page from your device. You can capture it again, or read it on the original site.",
 			"processing-failed": "Readplace couldn't finish preparing this file. You can upload it again.",
+			"no-speech": "No speech was found in this file, so there's no transcript.",
+			"transcript-failed": "Readplace couldn't transcribe this file. You can upload it again.",
 		};
 		for (const variant of ALL_VARIANTS) {
 			const text = noticeFor({ variant }).querySelector(".article-body__reader-notice-text");
@@ -487,6 +495,20 @@ describe("renderReaderFailed", () => {
 			assert.equal(primary?.getAttribute("href"), "/upload?utm_source=reader-failed&utm_medium=internal&utm_content=upload-again");
 			assert.equal(notice.querySelector("[data-test-reader-failed-install]"), null);
 			assert.equal(notice.querySelector(".article-body__reader-notice-pitch")?.className, PITCH_HIDDEN_CLASS);
+		});
+
+		it("offers a failed transcript an Upload again link", () => {
+			const primary = privateNoticeFor({ variant: "transcript-failed" }).querySelector("[data-test-reader-failed-primary]");
+
+			assert.equal(primary?.textContent?.trim(), "Upload again");
+			assert.equal(primary?.getAttribute("href"), "/upload?utm_source=reader-failed&utm_medium=internal&utm_content=upload-again");
+		});
+
+		it("gives an audio file with no speech no button", () => {
+			const notice = privateNoticeFor({ variant: "no-speech" });
+
+			assert.equal(notice.querySelector(".article-body__reader-notice-title")?.textContent?.trim(), "Your audio is saved");
+			assert.equal(notice.querySelector("[data-test-reader-failed-primary]"), null);
 		});
 
 		it("gives a slow private item no link to its absent origin and no capture pitch", () => {

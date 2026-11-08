@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { offersSaveTip, readerContentUnavailable, readerNoticeOf, type ReaderView } from "./reader-view";
+import { ItemMediaSchema } from "@packages/domain/article";
+import { offersSaveTip, readerContentUnavailable, readerNoticeOf, type ReaderView, transcriptNoticeOf } from "./reader-view";
 
 const notAnArticle: ReaderView = { kind: "not-an-article" };
 const loading: ReaderView = { kind: "loading" };
@@ -31,5 +32,23 @@ describe("readerNoticeOf", () => {
 			[notAnArticle, loading, succeeded, failedWithContent, failedWithoutContent].map(readerNoticeOf),
 			["not-an-article", undefined, undefined, undefined, undefined],
 		);
+	});
+});
+
+describe("transcriptNoticeOf", () => {
+	const audio = ItemMediaSchema.parse({ kind: "audio", fileName: "episode-12.mp3", routeId: "0123456789abcdef0123456789abcdef" });
+
+	it("gives each recorded transcript outcome its own notice", () => {
+		assert.deepEqual(
+			[
+				transcriptNoticeOf({ ...audio, transcript: "no-speech" }),
+				transcriptNoticeOf({ ...audio, transcript: "transcript-failed" }),
+			],
+			["no-speech", "transcript-failed"],
+		);
+	});
+
+	it("gives no notice to an item without media or without a recorded outcome", () => {
+		assert.deepEqual([transcriptNoticeOf(undefined), transcriptNoticeOf(audio)], [undefined, undefined]);
 	});
 });

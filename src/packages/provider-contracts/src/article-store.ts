@@ -295,6 +295,11 @@ export type SetArticleEnclosure = (params: {
 	enclosure: NonNullable<SavedArticle["enclosure"]>;
 }) => Promise<"recorded" | "not-found">;
 
+export type RecordTranscriptOutcome = (params: {
+	url: string;
+	transcript: NonNullable<ItemMedia["transcript"]>;
+}) => Promise<"recorded" | "not-found">;
+
 export type ReadArticleImage = (params: {
 	url: string;
 	filename: string;

@@ -2622,6 +2622,28 @@ describe("initInMemoryArticleStore private items", () => {
 		assert.equal(await store.recordPrivateItemSections({ url: PRIVATE_URL, sectionCount: 3 }), "not-found");
 	});
 
+	it("records the transcript outcome on an owned row", async () => {
+		const store = initInMemoryArticleStore();
+		await store.savePrivateItem(SAVE);
+
+		assert.equal(await store.recordTranscriptOutcome({ url: PRIVATE_URL, transcript: "no-speech" }), "recorded");
+
+		const found = await store.findArticleById(ReaderArticleHashId.from(PRIVATE_URL), USER_A);
+		assert.equal(found?.media?.transcript, "no-speech");
+	});
+
+	it("answers not-found when recording a transcript outcome on a missing, unowned or purged row", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams());
+		assert.equal(await store.recordTranscriptOutcome({ url: PRIVATE_URL, transcript: "no-speech" }), "not-found");
+		assert.equal(await store.recordTranscriptOutcome({ url: URL, transcript: "no-speech" }), "not-found");
+
+		await store.savePrivateItem(SAVE);
+		await store.setPurgedAt({ url: PRIVATE_URL, at: new Date("2026-11-05T11:00:00.000Z") });
+
+		assert.equal(await store.recordTranscriptOutcome({ url: PRIVATE_URL, transcript: "transcript-failed" }), "not-found");
+	});
+
 	it("records an enclosure that findArticleById then returns on the owned row", async () => {
 		const store = initInMemoryArticleStore();
 		await store.savePrivateItem(SAVE);

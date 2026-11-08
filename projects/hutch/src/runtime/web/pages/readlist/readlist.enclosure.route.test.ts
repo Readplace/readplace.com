@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import { EnclosureSchema } from "@packages/media-contracts";
+import { JSDOM } from "jsdom";
 import { createDefaultTestAppFixture, TEST_APP_ORIGIN } from "@packages/test-fixtures";
 import request from "supertest";
 import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../../test-app";
@@ -93,5 +94,36 @@ describe("GET /queue/:id/enclosure", () => {
 
 		assert.equal(response.status, 404);
 		assert.deepEqual(fixture.mediaUpload.presignedEnclosures, []);
+	});
+});
+
+describe("an owned audio item whose transcript did not come", () => {
+	it.each([
+		["no-speech", "No speech was found in this file, so there's no transcript.", `/queue/${AUDIO_ID}/view`],
+		["transcript-failed", "Readplace couldn't transcribe this file. You can upload it again.", `/queue/${AUDIO_ID}/view?platform=ios`],
+	] as const)("shows the %s notice in the reader slot", async (transcript, explanation, path) => {
+		const { fixture, signIn } = await appWithOwnersAudio();
+		assert.equal(await fixture.articleStore.recordTranscriptOutcome({ url: AUDIO_URL, transcript }), "recorded");
+		const agent = await signIn(OWNER);
+
+		const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status")).toBe(transcript);
+		expect(doc.querySelector(".article-body__reader-notice-title")?.textContent?.trim()).toBe("Your audio is saved");
+		expect(doc.querySelector(".article-body__reader-notice-text")?.textContent?.trim()).toBe(explanation);
+	});
+
+	it("keeps the audio player on the page beside the notice", async () => {
+		const { fixture, signIn } = await appWithOwnersAudio();
+		await fixture.articleStore.recordTranscriptOutcome({ url: AUDIO_URL, transcript: "no-speech" });
+		const agent = await signIn(OWNER);
+
+		const response = await agent.get(`/queue/${AUDIO_ID}/view`).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector('[data-test-reader-player="audio"] audio[data-player-audio]')?.getAttribute("src")).toBe(
+			`/queue/${AUDIO_ID}/enclosure`,
+		);
 	});
 });

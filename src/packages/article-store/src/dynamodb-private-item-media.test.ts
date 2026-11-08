@@ -74,6 +74,38 @@ describe("initDynamoDbPrivateItemMedia setArticleEnclosure", () => {
 	});
 });
 
+describe("initDynamoDbPrivateItemMedia recordTranscriptOutcome", () => {
+	it("sets media.transcript on an owned row that was not purged", async () => {
+		const { store, sent } = harness(() => ({}));
+
+		assert.equal(await store.recordTranscriptOutcome({ url: PRIVATE_URL, transcript: "no-speech" }), "recorded");
+
+		assert.deepEqual(sent, [
+			{
+				command: "UpdateCommand",
+				input: {
+					TableName: "articles",
+					Key: { url: KEY },
+					UpdateExpression: "SET media.transcript = :transcript",
+					ConditionExpression: "attribute_exists(ownerUserId) AND attribute_not_exists(purgedAt)",
+					ExpressionAttributeValues: { ":transcript": "no-speech" },
+				},
+			},
+		]);
+	});
+
+	it("answers not-found when the row is missing or carries purgedAt", async () => {
+		const { store } = harness(() => {
+			throw new ConditionalCheckFailedException({ $metadata: {}, message: "missing or purged" });
+		});
+
+		assert.equal(
+			await store.recordTranscriptOutcome({ url: PRIVATE_URL, transcript: "transcript-failed" }),
+			"not-found",
+		);
+	});
+});
+
 describe("initDynamoDbPrivateItemMedia findArticleMedia", () => {
 	it("reads the row's media and enclosure with a consistent read", async () => {
 		const { store, sent } = harness(() => ({ Item: { media: MEDIA, enclosure: ENCLOSURE } }));

@@ -59,6 +59,8 @@ const TITLES: Record<ReaderFailedVariant, string> = {
 	"capture-unreadable": "Readplace copied the page, but it isn't an article",
 	"capture-missing": "The copy from your device didn't arrive",
 	"processing-failed": "We couldn't prepare this upload",
+	"no-speech": "Your audio is saved",
+	"transcript-failed": "Your audio is saved",
 };
 
 const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
@@ -72,6 +74,8 @@ const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	"capture-unreadable": "The saved copy of this page has no article in it to show in reader view. You can read it on the original site, or capture it again once the article has loaded.",
 	"capture-missing": "Readplace didn't receive a copy of this page from your device. You can capture it again, or read it on the original site.",
 	"processing-failed": "Readplace couldn't finish preparing this file. You can upload it again.",
+	"no-speech": "No speech was found in this file, so there's no transcript.",
+	"transcript-failed": "Readplace couldn't transcribe this file. You can upload it again.",
 };
 
 const CAPTURE_RESCUE_CLASS = {
@@ -90,6 +94,8 @@ const CTA_LABELS: Record<ReaderFailedVariant, string> = {
 	"capture-unreadable": "Read original article",
 	"capture-missing": "Read original article",
 	"processing-failed": "Upload again",
+	"no-speech": "Upload again",
+	"transcript-failed": "Upload again",
 };
 
 /* Every other variant can still be rescued by capturing the page from a client,
@@ -147,7 +153,7 @@ function renderCapturePitch(input: ReaderFailedInput): CapturePitch {
 const UPLOAD_AGAIN_HREF = withInternalTracking("/upload", { source: "reader-failed", content: "upload-again" });
 
 function primaryHrefFor(input: ReaderFailedInput): string | undefined {
-	if (input.variant === "processing-failed") return UPLOAD_AGAIN_HREF;
+	if (input.variant === "processing-failed" || input.variant === "transcript-failed") return UPLOAD_AGAIN_HREF;
 	if (isPrivateItemUrl(input.url)) return undefined;
 	return input.url;
 }

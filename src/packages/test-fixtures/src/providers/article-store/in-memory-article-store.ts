@@ -92,6 +92,7 @@ import type {
 	ReadArticleImage,
 	RecordPrivateItemFailure,
 	RecordPrivateItemSections,
+	RecordTranscriptOutcome,
 	SaveArticle,
 	SetArticleEnclosure,
 	SaveArticleGlobally,
@@ -287,6 +288,7 @@ export function initInMemoryArticleStore(): {
 	savePrivateItem: SavePrivateItem;
 	recordPrivateItemFailure: RecordPrivateItemFailure;
 	recordPrivateItemSections: RecordPrivateItemSections;
+	recordTranscriptOutcome: RecordTranscriptOutcome;
 	setArticleEnclosure: SetArticleEnclosure;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	readArticleImage: ReadArticleImage;
@@ -1331,6 +1333,15 @@ export function initInMemoryArticleStore(): {
 		return "recorded";
 	};
 
+	const recordTranscriptOutcome: RecordTranscriptOutcome = async (params) => {
+		const article = articles.get(ArticleResourceUniqueId.parse(params.url).value);
+		if (article?.ownerUserId === undefined || article.purgedAt !== undefined || article.media === undefined) {
+			return "not-found";
+		}
+		article.media = { ...article.media, transcript: params.transcript };
+		return "recorded";
+	};
+
 	const setArticleEnclosure: SetArticleEnclosure = async (params) => {
 		const article = articles.get(ArticleResourceUniqueId.parse(params.url).value);
 		if (article?.ownerUserId === undefined || article.purgedAt !== undefined) return "not-found";
@@ -1557,6 +1568,7 @@ export function initInMemoryArticleStore(): {
 		savePrivateItem,
 		recordPrivateItemFailure,
 		recordPrivateItemSections,
+		recordTranscriptOutcome,
 		setArticleEnclosure,
 		writeContent,
 		readArticleImage,

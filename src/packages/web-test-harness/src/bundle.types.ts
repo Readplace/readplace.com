@@ -12,6 +12,7 @@ import type {
 	QueueRowKey,
 	RecordPrivateItemFailure,
 	RecordPrivateItemSections,
+	RecordTranscriptOutcome,
 	SaveArticleAsRequested,
 	SaveReadlistArticleAsRequested,
 	SetArticleEnclosure,
@@ -529,6 +530,7 @@ export interface ArticleStoreBundle {
 	savePrivateItem: SavePrivateItem;
 	recordPrivateItemFailure: RecordPrivateItemFailure;
 	recordPrivateItemSections: RecordPrivateItemSections;
+	recordTranscriptOutcome: RecordTranscriptOutcome;
 	setArticleEnclosure: SetArticleEnclosure;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;

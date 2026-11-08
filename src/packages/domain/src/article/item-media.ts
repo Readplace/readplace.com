@@ -7,5 +7,6 @@ export const ItemMediaSchema = z.object({
 	fileName: z.string(),
 	routeId: ReaderArticleHashIdSchema,
 	sectionCount: z.number().int().nonnegative().optional(),
+	transcript: z.enum(["no-speech", "transcript-failed"]).optional(),
 });
 export type ItemMedia = z.infer<typeof ItemMediaSchema>;

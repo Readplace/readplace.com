@@ -18,7 +18,7 @@ import { calculateReadTime, hostStubMetadata, } from "@packages/domain/article";
 import { ABSENT_ENCLOSURE, ReaderArticleHashIdSchema, mayReadItem, ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { MediaImageFileSchema, PrivateItemUrlSchema, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
 import { articleEpubHref } from "../../shared/epub/epub-link";
-import { readerContentUnavailable, readerNoticeOf } from "../../shared/article-reader/reader-view";
+import { readerContentUnavailable, readerNoticeOf, transcriptNoticeOf } from "../../shared/article-reader/reader-view";
 import type {
 	PastReads,
 	RelatedArticles,
@@ -621,7 +621,7 @@ export function initReaderPageRoutes(deps: Pick<
 				exitConfirmScopes: [EXIT_CONFIRM_SCOPE.nextReadCard],
 				readerPathFor: readerPathFor(req),
 				markStatusConfirmReadlists: readlistFiling.markStatusConfirmReadlists,
-				readerNotice: readerNoticeOf(state.readerView),
+				readerNotice: readerNoticeOf(state.readerView) ?? transcriptNoticeOf(ownedArticle.media),
 				epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
 				issueLinks,
 				deletion,
@@ -709,7 +709,7 @@ export function initReaderPageRoutes(deps: Pick<
 						EXIT_CONFIRM_SCOPE.nextReadCard,
 					],
 					readerPathFor: readerPathFor(req),
-					readerNotice: readerNoticeOf(state.readerView),
+					readerNotice: readerNoticeOf(state.readerView) ?? transcriptNoticeOf(ownedArticle.media),
 					epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
 					epubDownloadGuide: epubGuideFor(req, ownedArticle),
 					issueLinks,

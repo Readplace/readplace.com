@@ -17,6 +17,8 @@ export const ReaderFailedVariantSchema = z.enum([
 	"capture-unreadable",
 	"capture-missing",
 	"processing-failed",
+	"no-speech",
+	"transcript-failed",
 ]);
 export type ReaderFailedVariant = z.infer<typeof ReaderFailedVariantSchema>;
 

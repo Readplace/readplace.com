@@ -10,7 +10,10 @@ import {
 } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import type { SettleTranscriptCharge } from "@packages/provider-contracts";
+import type {
+	RecordTranscriptOutcome,
+	SettleTranscriptCharge,
+} from "@packages/provider-contracts";
 import {
 	candidateProvenance,
 	KIND_BY_TIER,
@@ -36,6 +39,7 @@ export function initRenderTranscriptHandler(deps: {
 	putTierSource: PutTierSource;
 	publishEvent: PublishEvent;
 	writeMinimalAudioBody: WriteMinimalAudioBody;
+	recordTranscriptOutcome: RecordTranscriptOutcome;
 	settleTranscriptCharge: SettleTranscriptCharge;
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -57,6 +61,10 @@ export function initRenderTranscriptHandler(deps: {
 			time: envelope.time,
 		};
 		if (envelope.detail.TranscriptionJobStatus === "FAILED") {
+			await deps.recordTranscriptOutcome({
+				url,
+				transcript: "transcript-failed",
+			});
 			await deps.writeMinimalAudioBody(minimalBody);
 			deps.logger.error("[render-transcript] transcription job failed", {
 				uploadId: job.uploadId,
@@ -69,6 +77,7 @@ export function initRenderTranscriptHandler(deps: {
 			),
 		);
 		if (transcript.wordCount === 0) {
+			await deps.recordTranscriptOutcome({ url, transcript: "no-speech" });
 			await deps.writeMinimalAudioBody(minimalBody);
 		} else {
 			const metadata = candidateProvenance({

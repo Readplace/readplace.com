@@ -1,4 +1,5 @@
 import type { ReaderFailedVariant } from "@packages/article-state-types";
+import type { ItemMedia } from "@packages/domain/article";
 import { NOT_AN_ARTICLE } from "./article-reader";
 
 export type ReaderView =
@@ -17,4 +18,14 @@ export function readerContentUnavailable(view: ReaderView): boolean {
 
 export function readerNoticeOf(view: ReaderView): ReaderFailedVariant | undefined {
 	return view.kind === "not-an-article" ? NOT_AN_ARTICLE : undefined;
+}
+
+const TRANSCRIPT_NOTICES = {
+	"no-speech": "no-speech",
+	"transcript-failed": "transcript-failed",
+} as const satisfies Record<NonNullable<ItemMedia["transcript"]>, ReaderFailedVariant>;
+
+export function transcriptNoticeOf(media: ItemMedia | undefined): ReaderFailedVariant | undefined {
+	const transcript = media?.transcript;
+	return transcript === undefined ? undefined : TRANSCRIPT_NOTICES[transcript];
 }
