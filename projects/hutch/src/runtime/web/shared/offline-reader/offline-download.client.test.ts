@@ -519,6 +519,26 @@ describe("initOfflineDownload", () => {
 			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
 		});
 
+		it("walks and queues the later pages as prefetches while a card on page 1 is still settling", async () => {
+			const LATER = `${ORIGIN}/queue/c3/view?v=three`;
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: { body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 300 }], next: TO_PAGE_2 }) },
+					[PAGE_2]: { body: listingPage({ cards: [], next: TO_PAGE_3 }) },
+					[PAGE_3]: { body: listingPage({ cards: ["/queue/c3/view?v=three"] }) },
+					[HELD_URL]: { body: readerPage(STILL_READING) },
+					[LATER]: { body: readerPage("<p>Three</p>") },
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(PREFETCH_LISTING_REQUEST)[0]).toBe(PAGE_3);
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([LATER, HELD_URL]);
+			expect(page.status()).toBe("1 available offline, 1 not ready");
+		});
+
 		it("stops waiting on a card that no re-fetched page lists any more, handing it over as last seen", async () => {
 			const page = startDownload({
 				routes: {
@@ -596,7 +616,7 @@ describe("initOfflineDownload", () => {
 			await flush();
 
 			expect(page.sent.filter((call) => call.url === PAGE_2)).toHaveLength(2);
-			expect(page.sentTo(PREFETCH_LISTING_REQUEST)).toEqual([PAGE_2, PAGE_3]);
+			expect(page.sentTo(PREFETCH_LISTING_REQUEST)).toEqual([PAGE_3, PAGE_2]);
 			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
 			expect(page.status()).toBe("1 available offline");
 		});

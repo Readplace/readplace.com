@@ -432,12 +432,15 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 			}
 			page = nextListingPage(listingPage, page);
 		}
-		await waitForHeldCards({ ...input, held, pages: resolvingPages });
-		while (page && !input.stopped()) {
-			const listingPage = await loadListing({ cache: input.cache, page, request: PREFETCH_LISTING_REQUEST });
-			for (const card of listedCards(listingPage, page)) input.found(card);
-			page = nextListingPage(listingPage, page);
-		}
+		const prefetchRest = async (from: URL | undefined) => {
+			let rest = from;
+			while (rest && !input.stopped()) {
+				const listingPage = await loadListing({ cache: input.cache, page: rest, request: PREFETCH_LISTING_REQUEST });
+				for (const card of listedCards(listingPage, rest)) input.found(card);
+				rest = nextListingPage(listingPage, rest);
+			}
+		};
+		await Promise.all([waitForHeldCards({ ...input, held, pages: resolvingPages }), prefetchRest(page)]);
 	}
 
 	async function keepImage(cache: DownloadCache, input: { source: string; article: URL }): Promise<void> {
