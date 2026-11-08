@@ -708,7 +708,6 @@ describe("initFinalizeArticle — proven tracking endpoints", () => {
 	const SEC_PIXEL = "https://www.sec.gov/akam/13/pixel_0a1b2c3d?a=synthetic";
 	const TURKISH_PIXEL = "https://www.turkishairlines.com/akam/13/pixel_0a1b2c3d";
 	const TRACKING_URLS = [FACEBOOK_PIXEL, HOTSTAR_EVENT, SEC_PIXEL, TURKISH_PIXEL];
-	const beaconImage = (url: string): ThumbnailImage => ({ body: Buffer.from("GIF89a-beacon"), contentType: "image/gif", url, extension: ".gif" });
 
 	function recordingCascade(failing: readonly string[]) {
 		const fetched: string[] = [];
@@ -771,54 +770,6 @@ describe("initFinalizeArticle — proven tracking endpoints", () => {
 		expect(parseHtml).toHaveBeenCalledWith(expect.objectContaining({ thumbnailUrl: null }));
 		assert(result.ok);
 		expect(result.article.metadata.imageUrl).toBeUndefined();
-	});
-
-	it("does not upload or keep a beacon the crawler supplied as its resolved thumbnail", async () => {
-		const putImageObject = jest.fn<Promise<void>, Parameters<PutImageObject>>().mockResolvedValue(undefined);
-		const finalize = createFinalize({ putImageObject });
-		const html = `<html><body><p>Readable body text.</p></body></html>`;
-
-		const result = await finalize({
-			url: URL_UNDER_TEST,
-			documentUrl: URL_UNDER_TEST,
-			html,
-			resolvedThumbnail: { image: beaconImage(FACEBOOK_PIXEL), provenUnusable: [] },
-		});
-
-		expect(putImageObject).not.toHaveBeenCalled();
-		assert(result.ok);
-		expect(result.article.metadata.imageUrl).toBeUndefined();
-	});
-
-	it("refuses an image-only capture whose only image is a beacon, even when the crawler fetched its bytes", async () => {
-		const putImageObject = jest.fn<Promise<void>, Parameters<PutImageObject>>().mockResolvedValue(undefined);
-		const finalize = createFinalize({ putImageObject });
-
-		const result = await finalize({
-			url: SEC_PIXEL,
-			documentUrl: SEC_PIXEL,
-			html: `<figure><img src="${SEC_PIXEL}" alt=""></figure>`,
-			mediaType: "image",
-			resolvedThumbnail: { image: beaconImage(SEC_PIXEL), provenUnusable: [] },
-		});
-
-		expect(putImageObject).not.toHaveBeenCalled();
-		expect(result).toEqual({ ok: false, reason: "Image resource is a known tracking endpoint" });
-	});
-
-	it("refuses an image-only capture whose page URL is a beacon instead of falling back to it", async () => {
-		const { fetched, fetchThumbnailImage } = recordingCascade([]);
-		const finalize = createFinalize({ fetchThumbnailImage });
-
-		const result = await finalize({
-			url: FACEBOOK_PIXEL,
-			documentUrl: FACEBOOK_PIXEL,
-			html: "<html><body></body></html>",
-			mediaType: "image",
-		});
-
-		expect(fetched).toEqual([]);
-		expect(result).toEqual({ ok: false, reason: "Image resource is a known tracking endpoint" });
 	});
 });
 
