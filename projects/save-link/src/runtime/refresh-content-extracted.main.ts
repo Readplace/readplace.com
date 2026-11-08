@@ -6,7 +6,7 @@ import { consoleLogger, Logger } from "@packages/logger";
 import { type CrawlSettledEvent, initLogCrawlSettled } from "@packages/infra-components";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initForwardRefreshContentExtracted, initRefreshContentExtractedHandler } from "./domain/select-content/refresh-content-extracted-handler";
-import { SELECTION_INGRESS_ENV, type SelectionRoute } from "./selection-ingress.env";
+import type { SelectionRoute } from "./selection-ingress.env";
 import { initSelectArticleContentDispatch } from "./dep-bundles/select-article-content-dispatch";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
@@ -24,7 +24,7 @@ const deepseekApiKey = env.DEEPSEEK_API_KEY;
 const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const selectionRoute = requireEnv<SelectionRoute>("SELECTION_ROUTE");
-const selectArticleContentQueueUrl = readEnv(SELECTION_INGRESS_ENV).SELECT_ARTICLE_CONTENT_QUEUE_URL;
+const selectArticleContentQueueUrl = requireEnv("SELECT_ARTICLE_CONTENT_QUEUE_URL");
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();

@@ -8,7 +8,7 @@ import { createDynamoDocumentClient } from "@packages/storage-client";
 import { readEnv, requireEnv } from "@packages/require-env";
 import { RECRAWL_CONTENT_EXTRACTED_ENV } from "./recrawl-content-extracted.env";
 import { initForwardRecrawlContentExtracted, initRecrawlContentExtractedHandler } from "./domain/select-content/recrawl-content-extracted-handler";
-import { SELECTION_INGRESS_ENV, type SelectionRoute } from "./selection-ingress.env";
+import type { SelectionRoute } from "./selection-ingress.env";
 import { initSelectArticleContentDispatch } from "./dep-bundles/select-article-content-dispatch";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initEventsDepBundle } from "./dep-bundles/events";
@@ -24,7 +24,7 @@ const deepseekApiKey = env.DEEPSEEK_API_KEY;
 const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const selectionRoute = requireEnv<SelectionRoute>("SELECTION_ROUTE");
-const selectArticleContentQueueUrl = readEnv(SELECTION_INGRESS_ENV).SELECT_ARTICLE_CONTENT_QUEUE_URL;
+const selectArticleContentQueueUrl = requireEnv("SELECT_ARTICLE_CONTENT_QUEUE_URL");
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
