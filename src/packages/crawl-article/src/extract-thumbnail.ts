@@ -6,6 +6,7 @@ import { initLogFetchFailure, type LogFetchFailure } from "./log-fetch-failure";
 import { BodyTooLargeError, readBodyWithCap } from "./read-capped-body";
 import { describeRejection } from "./describe-rejection";
 import { sniffImageContentType } from "./image-formats";
+import { isProvenTrackingImageUrl } from "./is-proven-tracking-image-url";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
 const MAX_THUMBNAIL_CANDIDATE_FETCHES = 5;
@@ -30,7 +31,7 @@ export function extractThumbnailCandidates(params: {
 
 	function push(raw: string | null | undefined) {
 		const resolved = resolveIfRelative(raw, baseUrl);
-		if (resolved && isValidHttpUrl(resolved) && !seen.has(resolved)) {
+		if (resolved && isValidHttpUrl(resolved) && !isProvenTrackingImageUrl(resolved) && !seen.has(resolved)) {
 			seen.add(resolved);
 			candidates.push(resolved);
 		}
@@ -100,6 +101,10 @@ export function initFetchThumbnailImage(deps: {
 		const provenUnusable: string[] = [];
 		const fetched: string[] = [];
 		for (const candidateUrl of candidates) {
+			if (isProvenTrackingImageUrl(candidateUrl)) {
+				provenUnusable.push(candidateUrl);
+				continue;
+			}
 			if (fetched.length === MAX_THUMBNAIL_CANDIDATE_FETCHES) {
 				logError(
 					`[CrawlArticle] Thumbnail candidate cap reached: fetched ${fetched.length} of ${candidates.length} candidates for ${referer}`,

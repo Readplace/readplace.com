@@ -1,4 +1,10 @@
-import { describeRejection, extensionFromContentType, isValidHttpUrl, MAX_IMAGE_BYTES } from "@packages/crawl-article";
+import {
+	describeRejection,
+	extensionFromContentType,
+	isProvenTrackingImageUrl,
+	isValidHttpUrl,
+	MAX_IMAGE_BYTES,
+} from "@packages/crawl-article";
 import { parseHTML } from "linkedom";
 import parseSrcset from "parse-srcset";
 import type { CrawlFetch } from "@packages/crawl-article";
@@ -69,7 +75,7 @@ type DomElement = NonNullable<ReturnType<DomDocument["querySelector"]>>;
 function selectImageUrls(html: string): string[] {
 	const seen = new Set<string>();
 	const urls: string[] = [];
-	for (const group of extractImageGroups(html).slice(0, MAX_IMAGES)) {
+	for (const group of withoutTrackingImages(extractImageGroups(html)).slice(0, MAX_IMAGES)) {
 		for (const url of group.slice(0, MAX_RENDITIONS_PER_IMAGE)) {
 			if (seen.has(url)) continue;
 			seen.add(url);
@@ -77,6 +83,13 @@ function selectImageUrls(html: string): string[] {
 		}
 	}
 	return urls;
+}
+
+function withoutTrackingImages(groups: string[][]): string[][] {
+	return groups.flatMap((group) => {
+		const allowed = group.filter((url) => !isProvenTrackingImageUrl(url));
+		return allowed.length === 0 && group.length > 0 ? [] : [allowed];
+	});
 }
 
 /* Group rendition URLs by their owning image — every <source srcset> entry and

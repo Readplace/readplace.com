@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { parseHTML } from "linkedom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ParseHtml } from "@packages/article-parser";
-import type { FetchThumbnailImage, ThumbnailImage } from "@packages/crawl-article";
+import { initFetchThumbnailImage, type CrawlFetch, type FetchThumbnailImage, type ThumbnailImage } from "@packages/crawl-article";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import type { DownloadMedia } from "./download-media.types";
@@ -699,6 +699,77 @@ describe("initFinalizeArticle", () => {
 		if (result.ok) {
 			expect(result.article.html).not.toContain(oversized);
 		}
+	});
+});
+
+describe("initFinalizeArticle — proven tracking endpoints", () => {
+	const FACEBOOK_PIXEL = "https://www.facebook.com/tr?id=1&ev=PageView&noscript=1";
+	const HOTSTAR_EVENT = "https://hspx.hotstar.com/v1/events/track/cp_page_view?pi=synthetic";
+	const SEC_PIXEL = "https://www.sec.gov/akam/13/pixel_0a1b2c3d?a=synthetic";
+	const TURKISH_PIXEL = "https://www.turkishairlines.com/akam/13/pixel_0a1b2c3d";
+	const TRACKING_URLS = [FACEBOOK_PIXEL, HOTSTAR_EVENT, SEC_PIXEL, TURKISH_PIXEL];
+
+	function recordingCascade(failing: readonly string[]) {
+		const fetched: string[] = [];
+		const crawlFetch: CrawlFetch = async (url) => {
+			fetched.push(String(url));
+			return failing.includes(String(url))
+				? new Response("gone", { status: 404 })
+				: new Response(Buffer.from("png-bytes"), { status: 200, headers: { "content-type": "image/png" } });
+		};
+		const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+		return { fetched, fetchThumbnailImage };
+	}
+
+	it("walks past a failed og:image and every beacon to the article figure without requesting a beacon", async () => {
+		const { fetched, fetchThumbnailImage } = recordingCascade(["https://example.com/og-broken.png"]);
+		const uploaded: string[] = [];
+		const putImageObject: PutImageObject = async ({ key }) => { uploaded.push(key); };
+		const finalize = createFinalize({ fetchThumbnailImage, putImageObject });
+		const html = `<html><head>
+			<meta property="og:image" content="https://example.com/og-broken.png">
+		</head><body>
+			${TRACKING_URLS.map((url) => `<img src="${url.replaceAll("&", "&amp;")}" width="1" height="1">`).join("")}
+			<figure><img src="https://example.com/figure.png" alt="A chart"></figure>
+		</body></html>`;
+
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
+
+		expect(fetched).toEqual(["https://example.com/og-broken.png", "https://example.com/figure.png"]);
+		expect(uploaded).toHaveLength(1);
+		assert(result.ok);
+		expect(result.article.metadata.imageUrl).toMatch(/^https:\/\/cdn\.example\.com\/content\/.+\.png$/);
+	});
+
+	it("falls through an excluded og:image to the twitter:image for display, keeping allowed order", async () => {
+		const parseHtml = jest.fn(stubParseHtml);
+		const finalize = createFinalize({ parseHtml });
+		const html = `<html><head>
+			<meta property="og:image" content="${FACEBOOK_PIXEL.replaceAll("&", "&amp;")}">
+			<meta name="twitter:image" content="https://example.com/twitter.png">
+		</head><body><img src="https://example.com/figure.png"><p>Body</p></body></html>`;
+
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
+
+		expect(parseHtml).toHaveBeenCalledWith(expect.objectContaining({ thumbnailUrl: "https://example.com/twitter.png" }));
+		assert(result.ok);
+		expect(result.article.metadata.imageUrl).toBe("https://example.com/twitter.png");
+	});
+
+	it("finishes a readable text article without a thumbnail when every candidate is a beacon", async () => {
+		const { fetched, fetchThumbnailImage } = recordingCascade([]);
+		const parseHtml = jest.fn(stubParseHtml);
+		const finalize = createFinalize({ parseHtml, fetchThumbnailImage });
+		const html = `<html><head>
+			<meta property="og:image" content="${SEC_PIXEL}">
+		</head><body><img src="${HOTSTAR_EVENT}"><p>Readable body text.</p></body></html>`;
+
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
+
+		expect(fetched).toEqual([]);
+		expect(parseHtml).toHaveBeenCalledWith(expect.objectContaining({ thumbnailUrl: null }));
+		assert(result.ok);
+		expect(result.article.metadata.imageUrl).toBeUndefined();
 	});
 });
 
