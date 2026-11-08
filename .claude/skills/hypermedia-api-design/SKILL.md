@@ -49,6 +49,7 @@ Why 303 over the entry point: the server decides where the collection lives; ren
 | Link `rel`s it supports (`self`, `read`) | Entity URLs for reading or status changes |
 | Markdown media type (`text/markdown`) and the frontmatter keys it reads, for a client that uses an article's Markdown | Where that Markdown lives: the article's `read` link `href` |
 | The article's `processing` property and its keys, for a client that shows background work | Whether an item is in flight, its label and estimate, and where and when to fetch its next representation |
+| The article's `contentState` property and its three values (`available`, `processing`, `unavailable`), for a client that keeps articles offline | Whether an item has readable content, from the same classification that decides `processing`; the HTML card and reader page carry it as `data-content-state` |
 
 Anything in the right column that the client hard-codes is a future breaking change waiting to happen.
 

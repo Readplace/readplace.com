@@ -15,6 +15,7 @@ export interface DownloadResponse {
 	status: number;
 	ok: boolean;
 	redirected: boolean;
+	url: string;
 	headers: { get(name: string): string | null };
 	text(): Promise<string>;
 	clone(): DownloadResponse;
@@ -28,13 +29,22 @@ interface DownloadCache {
 }
 
 const LISTING_REQUEST = { credentials: "same-origin", headers: { Accept: "text/html" } } as const;
+const PREFETCH_LISTING_REQUEST = {
+	credentials: "same-origin",
+	cache: "no-store",
+	headers: { Purpose: "prefetch", Accept: "text/html" },
+} as const;
 const ARTICLE_REQUEST = {
 	credentials: "same-origin",
 	headers: { Purpose: "prefetch", Accept: "text/html" },
 } as const;
 const IMAGE_REQUEST = { mode: "cors", credentials: "omit" } as const;
 
-export type DownloadRequest = typeof LISTING_REQUEST | typeof ARTICLE_REQUEST | typeof IMAGE_REQUEST;
+export type DownloadRequest =
+	| typeof LISTING_REQUEST
+	| typeof PREFETCH_LISTING_REQUEST
+	| typeof ARTICLE_REQUEST
+	| typeof IMAGE_REQUEST;
 
 export interface DownloadRunRecord {
 	read(): string | null;
@@ -50,6 +60,7 @@ export interface OfflineDownloadDeps {
 	addSettleListener: (listener: () => void) => void;
 	addPageHideListener: (listener: () => void) => void;
 	now: () => number;
+	delay: (ms: number) => Promise<void>;
 	stampCopy: (response: DownloadResponse, savedAt: number) => DownloadResponse;
 	markOwner: (answer: DownloadResponse, savedAt: number) => DownloadResponse;
 	runRecord: DownloadRunRecord;
@@ -71,6 +82,30 @@ const STILL_GENERATING = "#article-body-reader-slot[hx-get], #article-body-summa
 const LISTING_UNAVAILABLE = "Couldn't load your unread articles";
 const PREPARING = "Preparing download…";
 const ARTICLES_IN_FLIGHT = 6;
+const RESOLVING_LISTING_PAGES = 2;
+const SETTLE_WAIT_CAP_MS = 15 * 60 * 1000;
+const CARD = ".readlist-article";
+const CARD_POLL_INTERVAL = /\bevery\s+(\d+(?:\.\d+)?)s\b/;
+
+interface ListedArticle {
+	article: URL;
+	contentState: string | null;
+}
+
+interface ListedCard extends ListedArticle {
+	key: string;
+	processing: boolean;
+	pollIntervalMs: number;
+}
+
+interface HeldCard extends ListedCard {
+	page: string;
+}
+
+type Refetch =
+	| { kind: "answered"; cards: ListedCard[] }
+	| { kind: "gone" }
+	| { kind: "failed" };
 
 interface DownloadState {
 	running: boolean;
@@ -239,6 +274,24 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 		return withoutCampaignParams(new URL(attribute(link, "href"), deps.document.baseURI));
 	}
 
+	function listedCards(listingPage: Document, page: URL): ListedCard[] {
+		return Array.from(listingPage.querySelectorAll(READER_LINKS), (link) => {
+			const card = link.closest(CARD);
+			assert(card, "a card title always sits inside its card");
+			const article = withoutCampaignParams(new URL(attribute(link, "href"), page));
+			const processing = card.hasAttribute("hx-get");
+			const interval = CARD_POLL_INTERVAL.exec(card.getAttribute("hx-trigger") ?? "");
+			assert(!processing || interval !== null, "a polling card always states its interval");
+			return {
+				article,
+				key: offlineCacheKey(article),
+				contentState: card.getAttribute("data-content-state"),
+				processing,
+				pollIntervalMs: interval === null ? 0 : Number(interval[1]) * 1000,
+			};
+		});
+	}
+
 	function tagCard(link: Element, available: boolean): void {
 		const card = link.closest(".readlist-article");
 		assert(card, "a card title always sits inside its card");
@@ -273,25 +326,117 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 		}
 	}
 
+	async function loadListing(input: { cache: DownloadCache; page: URL; request: DownloadRequest }): Promise<Document> {
+		const response = await deps.fetchFn(input.page.href, input.request);
+		if (response.redirected) throw new SignedOut();
+		await ownership.adopt(input.cache, response);
+		if (!isWholePage(response)) throw new Error(`the unread listing at ${input.page.href} answered ${response.status}`);
+		await keep(input.cache, offlineCacheKey(input.page), response.clone());
+		return deps.parseHtml(await response.text());
+	}
+
+	function nextListingPage(listingPage: Document, page: URL): URL | undefined {
+		const next = listingPage.querySelector(NEXT_PAGE);
+		return next ? withoutCampaignParams(new URL(attribute(next, "href"), page)) : undefined;
+	}
+
+	function isAnotherListingPage(input: { listing: URL; page: URL; target: string }): boolean {
+		const target = new URL(input.target, input.page);
+		return target.pathname === input.listing.pathname && target.href !== input.page.href;
+	}
+
+	async function refetchListing(input: { cache: DownloadCache; listing: URL; page: URL }): Promise<Refetch> {
+		let response: DownloadResponse;
+		try {
+			response = await deps.fetchFn(input.page.href, PREFETCH_LISTING_REQUEST);
+		} catch {
+			return { kind: "failed" };
+		}
+		if (response.redirected) {
+			if (isAnotherListingPage({ listing: input.listing, page: input.page, target: response.url })) return { kind: "gone" };
+			throw new SignedOut();
+		}
+		await ownership.adopt(input.cache, response);
+		if (!isWholePage(response)) return { kind: "failed" };
+		await keep(input.cache, offlineCacheKey(input.page), response.clone());
+		return { kind: "answered", cards: listedCards(deps.parseHtml(await response.text()), input.page) };
+	}
+
+	async function waitForHeldCards(input: {
+		cache: DownloadCache;
+		listing: URL;
+		held: Map<string, HeldCard>;
+		pages: URL[];
+		found: (listed: ListedArticle) => void;
+		stopped: () => boolean;
+	}): Promise<void> {
+		const { held } = input;
+		const release = (card: HeldCard) => {
+			held.delete(card.key);
+			input.found(card);
+		};
+		const waitStarted = deps.now();
+		while (held.size > 0 && !input.stopped() && deps.now() - waitStarted < SETTLE_WAIT_CAP_MS) {
+			await deps.delay(Math.min(...Array.from(held.values(), (card) => card.pollIntervalMs)));
+			if (input.stopped()) return;
+			const holding = new Set(Array.from(held.values(), (card) => card.page));
+			const answered = new Set<string>();
+			const observed = new Set<string>();
+			for (const page of input.pages.filter((candidate) => holding.has(candidate.href))) {
+				const outcome = await refetchListing({ cache: input.cache, listing: input.listing, page });
+				if (outcome.kind === "failed") continue;
+				if (outcome.kind === "gone") {
+					for (const card of Array.from(held.values())) {
+						if (card.page === page.href && !observed.has(card.key)) release(card);
+					}
+					continue;
+				}
+				answered.add(page.href);
+				for (const card of outcome.cards) {
+					const waiting = held.get(card.key);
+					if (waiting === undefined) {
+						input.found(card);
+					} else if (card.processing) {
+						observed.add(card.key);
+						held.set(card.key, { ...card, page: page.href });
+					} else {
+						release({ ...card, page: page.href });
+					}
+				}
+			}
+			for (const card of Array.from(held.values())) {
+				if (answered.has(card.page) && !observed.has(card.key)) release(card);
+			}
+		}
+		for (const card of Array.from(held.values())) release(card);
+	}
+
 	async function walkListing(input: {
 		cache: DownloadCache;
 		listing: URL;
-		found: (article: URL) => void;
+		found: (listed: ListedArticle) => void;
 		stopped: () => boolean;
 	}): Promise<void> {
+		const held = new Map<string, HeldCard>();
+		const resolvingPages: URL[] = [];
 		let page: URL | undefined = input.listing;
-		while (page && !input.stopped()) {
-			const response = await deps.fetchFn(page.href, LISTING_REQUEST);
-			if (response.redirected) throw new SignedOut();
-			await ownership.adopt(input.cache, response);
-			if (!isWholePage(response)) throw new Error(`the unread listing at ${page.href} answered ${response.status}`);
-			await keep(input.cache, offlineCacheKey(page), response.clone());
-			const listingPage = deps.parseHtml(await response.text());
-			for (const link of listingPage.querySelectorAll(READER_LINKS)) {
-				input.found(withoutCampaignParams(new URL(attribute(link, "href"), page)));
+		while (page && resolvingPages.length < RESOLVING_LISTING_PAGES && !input.stopped()) {
+			const listingPage = await loadListing({ cache: input.cache, page, request: LISTING_REQUEST });
+			resolvingPages.push(page);
+			for (const card of listedCards(listingPage, page)) {
+				if (card.processing) {
+					if (!held.has(card.key)) held.set(card.key, { ...card, page: page.href });
+				} else {
+					input.found(card);
+				}
 			}
-			const next = listingPage.querySelector(NEXT_PAGE);
-			page = next ? withoutCampaignParams(new URL(attribute(next, "href"), page)) : undefined;
+			page = nextListingPage(listingPage, page);
+		}
+		await waitForHeldCards({ ...input, held, pages: resolvingPages });
+		while (page && !input.stopped()) {
+			const listingPage = await loadListing({ cache: input.cache, page, request: PREFETCH_LISTING_REQUEST });
+			for (const card of listedCards(listingPage, page)) input.found(card);
+			page = nextListingPage(listingPage, page);
 		}
 	}
 
@@ -306,11 +451,16 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 		}
 	}
 
-	async function currentCopy(cache: DownloadCache, article: URL): Promise<Document | undefined> {
+	async function currentCopy(cache: DownloadCache, listed: ListedArticle): Promise<Document | undefined> {
+		const { article } = listed;
 		const stored = await freshMatch(cache, offlineCacheKey(article));
 		if (stored === undefined || !isCurrentCopy(stored, article)) return undefined;
-		await keep(cache, offlineCacheKey(article), stored.clone());
-		return deps.parseHtml(await stored.text());
+		const copy = stored.clone();
+		const readerPage = deps.parseHtml(await stored.text());
+		const storedState = readerPage.querySelector("main")?.getAttribute("data-content-state");
+		if (listed.contentState === null || storedState !== listed.contentState) return undefined;
+		await keep(cache, offlineCacheKey(article), copy);
+		return readerPage;
 	}
 
 	async function freshCopy(cache: DownloadCache, article: URL): Promise<Document | undefined> {
@@ -325,9 +475,10 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 		return readerPage;
 	}
 
-	async function keepArticle(cache: DownloadCache, article: URL): Promise<boolean> {
+	async function keepArticle(cache: DownloadCache, listed: ListedArticle): Promise<boolean> {
+		const { article } = listed;
 		try {
-			const readerPage = (await currentCopy(cache, article)) ?? (await freshCopy(cache, article));
+			const readerPage = (await currentCopy(cache, listed)) ?? (await freshCopy(cache, article));
 			if (readerPage === undefined) return false;
 			const images = Array.from(imageSources(readerPage), (source) => keepImage(cache, { source, article }));
 			await Promise.all(images);
@@ -341,7 +492,7 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 	async function download(listingHref: string): Promise<string> {
 		const listing = new URL(listingHref, deps.document.baseURI);
 		const headerTotal = knownTabTotal(deps.document);
-		const queue: URL[] = [];
+		const queue: ListedArticle[] = [];
 		const seen = new Set<string>();
 		const waiting: Array<() => void> = [];
 		const run: { walking: boolean; kept: number; notReady: number; failure: unknown } = {
@@ -370,18 +521,18 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 
 		async function worker(): Promise<void> {
 			while (run.failure === undefined) {
-				const article = queue.shift();
-				if (article === undefined) {
+				const listed = queue.shift();
+				if (listed === undefined) {
 					if (!run.walking) return;
 					await new Promise<void>((resume) => waiting.push(resume));
 					continue;
 				}
 				try {
-					const kept = await keepArticle(cache, article);
+					const kept = await keepArticle(cache, listed);
 					if (page.leaving) return;
 					if (kept) {
 						run.kept += 1;
-						tagKeptArticle(article);
+						tagKeptArticle(listed.article);
 					} else {
 						run.notReady += 1;
 					}
@@ -399,11 +550,11 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 		const walk = walkListing({
 			cache,
 			listing,
-			found: (article) => {
-				const key = offlineCacheKey(article);
+			found: (listed) => {
+				const key = offlineCacheKey(listed.article);
 				if (seen.has(key)) return;
 				seen.add(key);
-				queue.push(article);
+				queue.push({ article: listed.article, contentState: listed.contentState });
 				if (headerTotal !== undefined) state.total = Math.max(headerTotal, seen.size);
 				wake();
 			},
