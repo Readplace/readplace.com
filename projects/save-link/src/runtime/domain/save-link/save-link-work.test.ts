@@ -49,8 +49,8 @@ function createWork(overrides: Partial<WorkDeps> = {}) {
 
 describe("initSaveLinkWork", () => {
 	it.each<Awaited<ReturnType<CrawlAndFinalizeArticle>>>([
-		{ status: "failed", reason: "crawl-failed" },
-		{ status: "failed", reason: "parse failure" },
+		{ status: "failed", decision: undefined, reason: "crawl-failed" },
+		{ status: "failed", decision: undefined, reason: "parse failure" },
 		{ status: "unsupported", reason: "oversized", unsupportedReason: { kind: "content-too-large", bytes: 100_000_000 } },
 	])("leaves a paired archive attempt's terminal state to the combined selector after %j", async (result) => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
@@ -137,7 +137,7 @@ describe("initSaveLinkWork", () => {
 
 	it("still reports the crawl failure as CrawlFailedError when the snapshot read throws, so the storage error cannot masquerade as an unclassified record failure", async () => {
 		const logCrawlOutcome = jest.fn();
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("KeyTooLongError: Your key is too long"));
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, readTierSnapshot, logCrawlOutcome });
@@ -157,7 +157,7 @@ describe("initSaveLinkWork", () => {
 	it("persists the classified origin-unreachable reason via markCrawlFailed before the CrawlFailedError that dead-letters the record", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
-			status: "failed",
+			status: "failed", decision: undefined,
 			reason: "crawl-failed",
 			failure: { kind: "origin-unreachable", httpStatus: 522 },
 		});
@@ -176,7 +176,7 @@ describe("initSaveLinkWork", () => {
 
 	it("surfaces the inline write's error when the network-failure terminal-state write fails, so the record dead-letters and the DLQ handler still terminalises it", async () => {
 		const transitionAndPersist = jest.fn().mockRejectedValue(new Error("conditional check failed"));
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist });
 
@@ -186,7 +186,7 @@ describe("initSaveLinkWork", () => {
 	it("reports a parse-class failure to both telemetry sinks even when the terminal-state write fails, and still surfaces the persistence error", async () => {
 		const logParseError = jest.fn();
 		const logCrawlOutcome = jest.fn();
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "Readability returned null" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "Readability returned null" });
 		const transitionAndPersist = jest.fn().mockRejectedValue(new Error("conditional check failed"));
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist, logParseError, logCrawlOutcome });
@@ -208,7 +208,7 @@ describe("initSaveLinkWork", () => {
 	it("emits the failure outcome before the terminal-state write, so a persistence throw can no longer suppress the record", async () => {
 		const logCrawlOutcome = jest.fn();
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "Readability returned null" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "Readability returned null" });
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, transitionAndPersist, logCrawlOutcome });
 
@@ -388,7 +388,7 @@ describe("initSaveLinkWork", () => {
 		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const timedOutCrawl: CrawlAndFinalizeArticle = async () => ({
-			status: "failed",
+			status: "failed", decision: undefined,
 			reason: "crawl-failed",
 			cause: Object.assign(new Error("timed out"), { name: "TimeoutError" }),
 		});
@@ -428,7 +428,7 @@ describe("initSaveLinkWork", () => {
 	])("fails the crawl on $label with no deferral to the proxy", async ({ cause }) => {
 		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const hardFailure: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed", cause });
+		const hardFailure: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed", cause });
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: hardFailure, emitSimpleCrawlUnsupported, transitionAndPersist });
 
@@ -507,7 +507,7 @@ describe("initSaveLinkWork", () => {
 	it("claims the redirect destination on the retryable failure path, before the throw that dead-letters the message", async () => {
 		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
 		const unreachableDestination: CrawlAndFinalizeArticle = async () => ({
-			status: "failed",
+			status: "failed", decision: undefined,
 			reason: "crawl-failed",
 			finalUrl: "https://dest.example/article",
 		});
@@ -554,7 +554,7 @@ describe("initSaveLinkWork", () => {
 	it("claims the redirect destination on a parse-error failure too", async () => {
 		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
 		const unparseableAtDestination: CrawlAndFinalizeArticle = async () => ({
-			status: "failed",
+			status: "failed", decision: undefined,
 			reason: "readability crashed",
 			finalUrl: "https://dest.example/article",
 		});
@@ -762,7 +762,7 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 	it("keeps the last redirect hop the free crawl reached before an ordinary timeout", async () => {
 		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
 		const timedOutAfterHop: CrawlAndFinalizeArticle = async () => ({
-			status: "failed",
+			status: "failed", decision: undefined,
 			reason: "crawl-failed",
 			finalUrl: PUBLISHER,
 			cause: Object.assign(new Error("timed out"), { name: "TimeoutError" }),

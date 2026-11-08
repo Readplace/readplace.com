@@ -13,6 +13,7 @@ import type {
 } from "./crawl-article.types";
 import { type CrawlFetch, PROXIED_CRAWL_HEADERS_MILLISECONDS } from "./crawl-fetch";
 import { isBufferedFastlyClientChallenge } from "./fastly-client-challenge";
+import { decideFetchFailure, type FetchRetryDecision } from "./fetch-retry-decision";
 import { extractThumbnailCandidates, initFetchThumbnailImage, type LogThumbnailNotDelivered } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
 import { MAX_HTML_BYTES } from "./html-body-limit";
@@ -202,7 +203,7 @@ type ConditionalGetParams = {
 type FetchOutcome =
 	| { status: "ok"; response: Response; buffer: Buffer }
 	| { status: "not-modified" }
-	| { status: "failed"; finalUrl?: string; failure?: FetchFailureClassification; cause?: unknown }
+	| { status: "failed"; finalUrl?: string; failure?: FetchFailureClassification; cause?: unknown; decision: FetchRetryDecision | undefined }
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string };
 
@@ -283,7 +284,7 @@ function initConditionalGet(deps: {
 					status: response.status,
 					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${suffix}${describeEdgeHeaders(response.headers)}`,
 				});
-				return { status: "failed", finalUrl, failure: classifyFailedResponse({ httpStatus: response.status }) };
+				return { status: "failed", finalUrl, failure: classifyFailedResponse({ httpStatus: response.status }), decision: undefined };
 			}
 			budgetTimer = setTimeout(() => {
 				controller.abort(fetchTimeoutReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
@@ -312,6 +313,7 @@ function initConditionalGet(deps: {
 				finalUrl: failureUrl,
 				failure: classifyFetchError(error),
 				cause: error,
+				decision: decideFetchFailure({ error, parentSignal: controller.signal }),
 			};
 		}
 	};
@@ -334,7 +336,7 @@ function withRedirectStubHop(deps: {
 		if (followed.status === "ok") return followed;
 		if (followed.status === "not-modified") return followed;
 		if (followed.status === "script-redirect") {
-			return { status: "failed", finalUrl: target, failure: classifyFailedResponse({ httpStatus: followed.httpStatus }) };
+			return { status: "failed", finalUrl: target, failure: classifyFailedResponse({ httpStatus: followed.httpStatus }), decision: undefined };
 		}
 		return { ...followed, finalUrl: followed.finalUrl ?? target };
 	};
@@ -485,11 +487,11 @@ export function initCrawlArticle(deps: {
 				logError(
 					`[CrawlArticle] Too many site-rule redirects (>${MAX_SITE_RULE_REDIRECTS}) for ${params.url}`,
 				);
-				return { status: "failed" };
+				return { status: "failed", decision: undefined };
 			}
 			if (!URL.canParse(currentUrl)) {
 				logError(`[CrawlArticle] Invalid URL ${currentUrl}`);
-				return { status: "failed" };
+				return { status: "failed", decision: undefined };
 			}
 			/* Site-specific crawl override: the first matching site whose `onCrawl`
 			 * returns content (e.g. X/Twitter oembed), redirects the crawl (e.g. the
@@ -518,10 +520,10 @@ export function initCrawlArticle(deps: {
 						`[CrawlArticle] Site onCrawl threw for ${currentUrl}`,
 						error instanceof Error ? error : undefined,
 					);
-					return { status: "failed" };
+					return { status: "failed", decision: undefined };
 				}
 				if (outcome.kind === "skip") continue;
-				if (outcome.kind === "failed") return { status: "failed" };
+				if (outcome.kind === "failed") return { status: "failed", decision: undefined };
 				if (outcome.kind === "redirect") {
 					siteRedirect = outcome.url;
 					break;

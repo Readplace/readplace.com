@@ -184,7 +184,7 @@ describe("deferJavascriptShells", () => {
 	});
 
 	it.each<CrawlAndFinalizeResult>([
-		{ status: "failed", reason: "crawl-failed" },
+		{ status: "failed", decision: undefined, reason: "crawl-failed" },
 		{ status: "blocked", httpStatus: 403 },
 		{ status: "not-found", httpStatus: 404 },
 		{ status: "not-modified" },

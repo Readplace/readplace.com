@@ -65,7 +65,7 @@ function createSqsEvent(detail: { url: string }): SQSEvent {
 
 type HandlerDeps = Parameters<typeof initStaleCheckHandler>[0];
 
-const failingCrawlAndFinalize: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+const failingCrawlAndFinalize: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 
 const noopFindArticleFreshness: FindArticleFreshness = async () => null;
 const noopFindArticleCrawlStatus: FindArticleCrawlStatus = async () => undefined;
@@ -434,7 +434,7 @@ describe("initStaleCheckHandler", () => {
 			contentFetchedAt: "2026-04-01T00:00:00.000Z",
 			bodyHash: "h".repeat(64),
 		});
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 		const publishRefreshArticleContent: PublishRefreshArticleContent = jest
 			.fn()
 			.mockResolvedValue(undefined);

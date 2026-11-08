@@ -59,7 +59,7 @@ describe("initCrawlArchiveCapture", () => {
 	});
 
 	it.each<{ result: CrawlAndFinalizeResult; reason: string }>([
-		{ result: { status: "failed", reason: "crawl-failed" }, reason: "failed: crawl-failed" },
+		{ result: { status: "failed", decision: undefined, reason: "crawl-failed" }, reason: "failed: crawl-failed" },
 		{ result: { status: "unsupported", reason: "application/pdf" }, reason: "unsupported: application/pdf" },
 		{ result: { status: "not-found", httpStatus: 404 }, reason: "not-found" },
 		{ result: { status: "blocked", httpStatus: 429 }, reason: "blocked" },

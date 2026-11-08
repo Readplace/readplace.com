@@ -5,7 +5,7 @@ function captureCrawl(): { crawlArticle: CrawlArticle; urls: string[] } {
 	const urls: string[] = [];
 	const crawlArticle: CrawlArticle = async (params) => {
 		urls.push(params.url);
-		return { status: "failed" };
+		return { status: "failed", decision: undefined };
 	};
 	return { crawlArticle, urls };
 }

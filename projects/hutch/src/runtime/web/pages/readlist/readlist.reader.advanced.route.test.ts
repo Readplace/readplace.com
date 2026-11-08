@@ -605,7 +605,7 @@ describe("Readlist routes", () => {
 
 	describe("Parse failure", () => {
 		it("should save article without content when fetch fails", async () => {
-			const crawlArticle = async () => ({ status: "failed" as const });
+			const crawlArticle = async () => ({ status: "failed" as const, decision: undefined });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -649,7 +649,7 @@ describe("Readlist routes", () => {
 		});
 
 		it("should show fallback title from hostname when fetch fails", async () => {
-			const crawlArticle = async () => ({ status: "failed" as const });
+			const crawlArticle = async () => ({ status: "failed" as const, decision: undefined });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -694,7 +694,7 @@ describe("Readlist routes", () => {
 		});
 
 		it("should show the reader-failed slot on read page when fetch fails", async () => {
-			const crawlArticle = async () => ({ status: "failed" as const });
+			const crawlArticle = async () => ({ status: "failed" as const, decision: undefined });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -751,7 +751,7 @@ describe("Readlist routes", () => {
 		});
 
 		it("should link article title to reader view when article has no content", async () => {
-			const crawlArticle = async () => ({ status: "failed" as const });
+			const crawlArticle = async () => ({ status: "failed" as const, decision: undefined });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({

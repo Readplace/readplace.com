@@ -2741,3 +2741,32 @@ it("extracts the recovered CIA PDF without attempting homepage thumbnails", asyn
 	expect(calls).toEqual([url, "https://www.cia.gov/readingroom/"]);
 	expect(logError).toHaveBeenCalledTimes(0);
 });
+
+describe("the retry decision on a failed crawl", () => {
+	function resetEveryLeg(): never {
+		throw new TypeError("fetch failed", { cause: Object.assign(new Error("socket hang up"), { code: "ECONNRESET" }) });
+	}
+
+	it("is durable-retryable when the direct ladder fails with a reset on every leg", async () => {
+		const crawl = initCrawl({
+			fetch: async () => resetEveryLeg(),
+			fetchH2: async () => resetEveryLeg(),
+			fetchCurl: async () => resetEveryLeg(),
+			siteRules: [],
+		});
+
+		const result = await crawl({ url: "https://publisher.example/article" });
+
+		assert(result.status === "failed", "a ladder that resets on every leg fails the crawl");
+		expect(result.decision).toEqual({ kind: "retryable", scope: "durable", cause: result.cause });
+	});
+
+	it("is absent when the origin answered with an HTTP status", async () => {
+		const crawl = initCrawl({ fetch: async () => new Response("down", { status: 503 }), siteRules: [] });
+
+		const result = await crawl({ url: "https://publisher.example/article" });
+
+		assert(result.status === "failed", "a 503 fails the crawl");
+		expect(result).toHaveProperty("decision", undefined);
+	});
+});

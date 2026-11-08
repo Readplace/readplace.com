@@ -604,7 +604,7 @@ describe("POST /queue (Siren save article)", () => {
 	});
 
 	it("returns 201 with fallback article when fetch fails", async () => {
-		const crawlArticle = async () => ({ status: "failed" as const });
+		const crawlArticle = async () => ({ status: "failed" as const, decision: undefined });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 		const applyParseResult = createFakeApplyParseResult({

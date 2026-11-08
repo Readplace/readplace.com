@@ -144,7 +144,7 @@ describe("initSaveLinkCommandHandler", () => {
 	it("does not write a tier source or publish anything when the crawl fails (record reported as batch failure for SQS redelivery)", async () => {
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, putTierSource, publishEvent });
 
@@ -161,7 +161,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 	it("reports failures via logParseError so the parse-errors dashboard reflects them", async () => {
 		const logParseError = jest.fn();
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "readability crashed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "readability crashed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logParseError });
 
@@ -201,7 +201,7 @@ describe("initSaveLinkCommandHandler", () => {
 			tier1Status: "not_attempted",
 			pickedTier: "tier-0",
 		});
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logCrawlOutcome, readTierSnapshot });
 
@@ -218,7 +218,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 	it("routes terminal parse-error failures through markCrawlFailed via transitionAndPersist so readers see failure at t+0 instead of waiting ~90s for the DLQ", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "Readability returned null" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "Readability returned null" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
 
@@ -277,7 +277,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 	it("persists the crawl failure inline via markCrawlFailed before the record dead-letters, so the reader sees a terminal row on the next poll instead of after the DLQ delay", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
 
@@ -293,7 +293,7 @@ describe("initSaveLinkCommandHandler", () => {
 	it("persists the classified origin-unreachable reason inline when the crawl carries one", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
-			status: "failed",
+			status: "failed", decision: undefined,
 			reason: "crawl-failed",
 			failure: { kind: "origin-unreachable", httpStatus: 522 },
 		});
@@ -412,7 +412,7 @@ describe("initSaveLinkCommandHandler", () => {
 	it("logs a tier-1 crawl-failed at warn with messageId (not error, and no parse-error line) so it stays off the errors dashboard yet stays DLQ-correlatable, still reporting a batch failure for retry", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const logParseError = jest.fn();
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logger, logParseError });
 
@@ -434,7 +434,7 @@ describe("initSaveLinkCommandHandler", () => {
 	it("keeps the tier-1 crawl-failed classification (warn, not an opaque record failure) and still emits one outcome record when the snapshot read throws", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const logCrawlOutcome = jest.fn();
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("KeyTooLongError: Your key is too long"));
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logger, logCrawlOutcome, readTierSnapshot });
@@ -534,7 +534,7 @@ describe("initSaveLinkCommandHandler", () => {
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
-				crawlAndFinalizeArticle: async () => ({ status: "failed", reason: "crawl-failed" }),
+				crawlAndFinalizeArticle: async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" }),
 				publishEvent,
 				transitionAndPersist,
 			});
