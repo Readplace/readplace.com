@@ -523,9 +523,9 @@ const extractEmailLinksLambda = new Lambda("inbox-extract-email-links", {
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
-		// A typical newsletter has < 30 links; 200 is generous headroom before the
-		// per-email cap truncates and the working path still ships the first 200.
-		INBOX_MAX_LINKS_PER_EMAIL: String(200),
+		// A production email carried 205 links on 2026-11-06 and truncated at the
+		// old 200 cap; 300 leaves headroom, and a longer email still ships its first 300.
+		INBOX_MAX_LINKS_PER_EMAIL: String(300),
 		EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL: truncationAlertQueue.url,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: tableNames.subscriptionProviders,
 		APP_ORIGIN: hutchApiUrl,

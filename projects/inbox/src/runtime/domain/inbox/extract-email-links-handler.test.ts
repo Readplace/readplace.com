@@ -290,7 +290,7 @@ function makeHarness(opts?: {
 		now: () => new Date(NOW),
 		triageEmailLinks: opts?.triageEmailLinks ?? everythingIsAnArticle,
 		logger: Logger.from(noopLogger),
-		maxLinks: opts?.maxLinks ?? 200,
+		maxLinks: opts?.maxLinks ?? 300,
 		appOrigin: "https://readplace.com",
 	});
 
