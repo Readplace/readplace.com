@@ -18,6 +18,7 @@ import { appClientOf, } from "../../shared/save-client";
 import { ReaderArticleHashIdSchema, nextReadDismissalOf } from "@packages/domain/article";
 import { ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { parseCaptureWatch } from "../../shared/article-reader/capture-watch";
+import { transcriptNoticeOf } from "../../shared/article-reader/reader-view";
 import { renderReaderDownloadsOob, renderReaderDownloadsSlotOob } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollHighlights, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
 import {
@@ -126,6 +127,7 @@ export function initReaderPanelRoutes(
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
+			readerNotice: transcriptNoticeOf(article.media),
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
@@ -163,6 +165,7 @@ export function initReaderPanelRoutes(
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
+			readerNotice: transcriptNoticeOf(article.media),
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),

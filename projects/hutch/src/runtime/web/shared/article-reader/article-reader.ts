@@ -518,7 +518,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				render: params.readerViewFailedOob,
 			}),
 			appOrigin: deps.appOrigin,
-			readerNotice: undefined,
+			readerNotice: params.readerNotice,
 			title: article?.metadata.title,
 			highlights: params.highlights,
 		}));
@@ -588,7 +588,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				render: params.readerViewFailedOob,
 			}),
 			appOrigin: deps.appOrigin,
-			readerNotice: undefined,
+			readerNotice: params.readerNotice,
 			title: article?.metadata.title,
 			highlights: params.highlights,
 		}));

@@ -101,6 +101,8 @@ describe("an owned audio item whose transcript did not come", () => {
 	it.each([
 		["no-speech", "No speech was found in this file, so there's no transcript.", `/queue/${AUDIO_ID}/view`],
 		["transcript-failed", "Readplace couldn't transcribe this file. You can upload it again.", `/queue/${AUDIO_ID}/view?platform=ios`],
+		["no-speech", "No speech was found in this file, so there's no transcript.", `/queue/${AUDIO_ID}/reader?poll=1`],
+		["transcript-failed", "Readplace couldn't transcribe this file. You can upload it again.", `/queue/${AUDIO_ID}/reader?poll=1`],
 	] as const)("shows the %s notice in the reader slot", async (transcript, explanation, path) => {
 		const { fixture, signIn } = await appWithOwnersAudio();
 		assert.equal(await fixture.articleStore.recordTranscriptOutcome({ url: AUDIO_URL, transcript }), "recorded");
@@ -112,6 +114,18 @@ describe("an owned audio item whose transcript did not come", () => {
 		expect(doc.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status")).toBe(transcript);
 		expect(doc.querySelector(".article-body__reader-notice-title")?.textContent?.trim()).toBe("Your audio is saved");
 		expect(doc.querySelector(".article-body__reader-notice-text")?.textContent?.trim()).toBe(explanation);
+		expect(doc.querySelector("[data-test-reader-slot]")?.hasAttribute("hx-get")).toBe(false);
+	});
+
+	it("keeps the notice when the summary poll answers", async () => {
+		const { fixture, signIn } = await appWithOwnersAudio();
+		await fixture.articleStore.recordTranscriptOutcome({ url: AUDIO_URL, transcript: "no-speech" });
+		const agent = await signIn(OWNER);
+
+		const response = await agent.get(`/queue/${AUDIO_ID}/summary?poll=1`).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector(".article-body__reader-notice-title")?.textContent?.trim()).toBe("Your audio is saved");
 	});
 
 	it("keeps the audio player on the page beside the notice", async () => {
