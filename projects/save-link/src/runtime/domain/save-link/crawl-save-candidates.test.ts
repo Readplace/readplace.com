@@ -3,7 +3,7 @@ import { SaveAttemptIdSchema, CandidateIdSchema } from "@packages/domain/article
 import { initCrawlSaveCandidates } from "./crawl-save-candidates";
 import { ClassifiedCrawlError, initSaveLinkWork } from "./save-link-work";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
-import { initCrawlArticle } from "@packages/crawl-article";
+import { initCrawlArticle, rejectDocumentLandingPage } from "@packages/crawl-article";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import { noopLogger } from "@packages/logger";
@@ -22,7 +22,7 @@ describe("archive attempt orchestration", () => {
 		const article = `<p>${"A real article contains important facts and readable paragraphs. ".repeat(30)}</p>`;
 		const wrapperBody = `<html><head><title>Archived report</title></head><body><article>${article}</article></body></html>`;
 		const liveBody = `<html><head><title>Full report</title></head><body><nav>Fresh raw response navigation</nav><article>${article}<p>${"The original has an additional detailed section missing from the archive. ".repeat(20)}</p></article></body></html>`;
-		const crawlArticle = initCrawlArticle({ crawlFetch: async (target) => new Response(target === url ? liveBody : wrapperBody, { status: target === url ? 403 : 200, headers: { "content-type": "text/html" } }), siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (target) => new Response(target === url ? liveBody : wrapperBody, { status: target === url ? 403 : 200, headers: { "content-type": "text/html" } }), siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 		const { parseHtml } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: () => {} });
 		const finalizeArticle = initFinalizeArticle({ parseHtml, downloadMedia: async () => [], processContent: async ({ html }) => html, fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }), putImageObject: async () => {}, imagesCdnBaseUrl: "https://cdn.example.com" });
 		const stored: TierSource[] = [];
@@ -92,7 +92,7 @@ describe("archive attempt orchestration", () => {
 		expect(emit).toHaveBeenCalledWith({ url, unsupportedReason: "blocked", userId: "user-1", saveAttemptId: params.saveAttemptId, candidates: [wrapper], finalUrl: "https://publisher.example/story" });
 	});
 	it("records an empty live response as a live failure while the extracted archive still reaches selection", async () => {
-		const crawlArticle = initCrawlArticle({ crawlFetch: async (target) => new Response(target === url ? "" : `<html><head><title>Archived report</title></head><body><article><p>${"A real article contains important facts and readable paragraphs. ".repeat(30)}</p></article></body></html>`, { status: 200, headers: { "content-type": "text/html" } }), siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (target) => new Response(target === url ? "" : `<html><head><title>Archived report</title></head><body><article><p>${"A real article contains important facts and readable paragraphs. ".repeat(30)}</p></article></body></html>`, { status: 200, headers: { "content-type": "text/html" } }), siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 		const { parseHtml } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: () => {} });
 		const finalizeArticle = initFinalizeArticle({ parseHtml, downloadMedia: async () => [], processContent: async ({ html }) => html, fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }), putImageObject: async () => {}, imagesCdnBaseUrl: "https://cdn.example.com" });
 		const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle });

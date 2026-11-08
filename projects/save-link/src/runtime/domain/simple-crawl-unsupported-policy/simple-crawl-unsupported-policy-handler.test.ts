@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { initCrawlArticle, type CrawlArticleResult, type CrawlFetch, type ExtractPdf } from "@packages/crawl-article";
+import { initCrawlArticle, rejectDocumentLandingPage, type CrawlArticleResult, type CrawlFetch, type ExtractPdf } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import { initArticleSiteRules } from "@packages/article-parser";
 import { noopLogger } from "@packages/logger";
@@ -361,7 +361,7 @@ describe("GitHub PDF viewer simple-to-comprehensive routing", () => {
 			return response;
 		};
 		const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
-		const shared = { crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} };
+		const shared = { rejectDocumentLandingPage, crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} };
 		const simple = initCrawlArticle(shared);
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "Research handbook", html }));
 		const comprehensive = initCrawlArticle({ ...shared, extractPdf });
@@ -408,7 +408,7 @@ describe("OJS galley viewer simple-to-comprehensive routing", () => {
 			return response;
 		};
 		const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
-		const shared = { crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} };
+		const shared = { rejectDocumentLandingPage, crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} };
 		const simple = initCrawlArticle(shared);
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "A sample study", html }));
 		const comprehensive = initCrawlArticle({ ...shared, extractPdf });
@@ -451,7 +451,7 @@ describe("Gallup document simple-to-comprehensive routing", () => {
 			return response;
 		};
 		const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
-		const shared = { crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} };
+		const shared = { rejectDocumentLandingPage, crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} };
 		const simple = initCrawlArticle(shared);
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "Sample research report", html }));
 		const comprehensive = initCrawlArticle({ ...shared, extractPdf });

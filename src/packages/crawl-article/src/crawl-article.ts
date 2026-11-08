@@ -1,3 +1,4 @@
+import { documentLandingPageFailure, type RejectDocumentLandingPage } from "./document-landing-page";
 import { createHash } from "node:crypto";
 import { isAwsWafChallenge } from "./aws-waf-challenge";
 import {
@@ -216,11 +217,12 @@ type ScriptRedirect = { status: "script-redirect"; httpStatus: number; documentU
  */
 function initConditionalGet(deps: {
 	crawlFetch: CrawlFetch;
+	rejectDocumentLandingPage: RejectDocumentLandingPage;
 	logError: (message: string, error?: Error) => void;
 	logInfo: (message: string) => void;
 	fetchTimeouts: FetchTimeouts;
 }): (params: ConditionalGetParams) => Promise<FetchOutcome | ScriptRedirect> {
-	const { crawlFetch, logError, logInfo, fetchTimeouts } = deps;
+	const { crawlFetch, logError, logInfo, fetchTimeouts, rejectDocumentLandingPage } = deps;
 	const logFetchFailure = initLogFetchFailure({ logError, logInfo });
 	return async (params) => {
 		/* One AbortController spans both phases because undici ties the request
@@ -287,6 +289,7 @@ function initConditionalGet(deps: {
 				controller.abort(fetchTimeoutReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
 			}, fetchTimeouts.bodyMs);
 			const buffer = await readBodyWithCap(response, MAX_PDF_BYTES.bytes);
+			await rejectDocumentLandingPage(params.url, response, buffer);
 			/* c8 ignore next -- V8 async continuation phantom on the await above, see bcoe/c8#319 */
 			clearTimeout(budgetTimer);
 			if (isBufferedFastlyClientChallenge({ response, buffer })) {
@@ -296,11 +299,17 @@ function initConditionalGet(deps: {
 			return { status: "ok", response, buffer };
 		} catch (error) {
 			clearTimeout(budgetTimer);
+			const mismatch = documentLandingPageFailure(error);
+			let failureUrl = lastRedirectHop;
+			if (mismatch !== undefined && (lastRedirectHop === undefined || lastRedirectHop === mismatch.landingPageUrl)) {
+				failureUrl = mismatch.requestedUrl;
+			}
 			const suffix = redirectSuffix({ requestedUrl: params.url, responseUrl: lastRedirectHop });
-			logError(`[CrawlArticle] Network error for ${params.url}${suffix}`, error instanceof Error ? error : undefined);
+			const description = mismatch === undefined ? "Network error" : "Document response mismatch";
+			logError(`[CrawlArticle] ${description} for ${params.url}${suffix}`, error instanceof Error ? error : undefined);
 			return {
 				status: "failed",
-				finalUrl: lastRedirectHop,
+				finalUrl: failureUrl,
 				failure: classifyFetchError(error),
 				cause: error,
 			};
@@ -450,6 +459,7 @@ export async function parsePdfFromBuffer(input: {
  */
 export function initCrawlArticle(deps: {
 	crawlFetch: CrawlFetch;
+	rejectDocumentLandingPage: RejectDocumentLandingPage;
 	siteRules: readonly SiteRules[];
 	extractPdf?: ExtractPdf;
 	logError: (message: string, error?: Error) => void;
@@ -461,10 +471,10 @@ export function initCrawlArticle(deps: {
 	 * budgets so the timer-abort paths run for real. */
 	fetchTimeouts?: FetchTimeouts;
 }): CrawlArticle {
-	const { crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered } = deps;
+	const { crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered, rejectDocumentLandingPage } = deps;
 	const fetchTimeouts = deps.fetchTimeouts ?? DEFAULT_FETCH_TIMEOUTS;
 	const conditionalGet = withRedirectStubHop({
-		conditionalGet: initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts }),
+		conditionalGet: initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts, rejectDocumentLandingPage }),
 		logInfo,
 	});
 	return async (params) => {

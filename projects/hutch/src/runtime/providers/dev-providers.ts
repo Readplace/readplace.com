@@ -48,6 +48,7 @@ import {
 	CRAWL_PERSONAS,
 	DEFAULT_CRAWL_HEADERS,
 	initCrawlArticle,
+	rejectDocumentLandingPage,
 	initFetchPinnedCrawl,
 	initCrawlFetch,
 	fallbackLinkTarget,
@@ -407,7 +408,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
 	const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().warn;
 	const crawlArticle = initFetchPinnedCrawl({
-		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered }),
+		crawlArticle: initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered }),
 		findAdoptedFetchUrl: articleStore.findAdoptedFetchUrl,
 	});
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });

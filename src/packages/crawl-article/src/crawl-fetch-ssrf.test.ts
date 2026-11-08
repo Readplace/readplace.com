@@ -1,3 +1,4 @@
+import { rejectDocumentLandingPage } from "./document-landing-page";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { Agent, buildConnector } from "undici";
@@ -299,6 +300,7 @@ describe("SSRF guard — meta refresh hop", () => {
 			fetchCurl,
 		});
 		const crawlArticle = initCrawlArticle({
+		rejectDocumentLandingPage,
 			crawlFetch,
 			siteRules: [],
 			logError,

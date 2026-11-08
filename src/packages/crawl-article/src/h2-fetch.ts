@@ -1,10 +1,11 @@
 import http2 from "node:http2";
 import type { AssertHostAllowed, SocketLookup } from "./blocked-address-lookup";
-import { redirectable } from "./follow-redirects";
+import { type OnRedirect, redirectable } from "./follow-redirects";
 
 type FetchH2Init = {
 	headers?: Record<string, string>;
 	signal?: AbortSignal;
+	onRedirect?: OnRedirect;
 };
 
 type H2RequestResult = {

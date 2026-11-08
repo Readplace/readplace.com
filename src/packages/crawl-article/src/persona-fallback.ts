@@ -1,3 +1,4 @@
+import { DocumentLandingPageError } from "./document-landing-page";
 /**
  * Iterate through a list of request "personas" — coherent sets of headers
  * that together look like a single client to the origin — when the inner
@@ -47,6 +48,7 @@ export function isBlockClassResponse(response: Response): boolean {
 }
 
 export function isBlockClassError(error: unknown): boolean {
+	if (error instanceof DocumentLandingPageError) return true;
 	if (isHardCrawlFailure(error)) return false;
 	if (error instanceof TransportLadderFailure) {
 		return error.retryDisposition === "recoverable" && [...error.previousErrors, error.cause].some(isBlockClassError);

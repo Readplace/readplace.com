@@ -112,7 +112,7 @@ type RenderRecoveryEvent =
 	| { phase: "finished"; outcome: "committed" | "settled" | "failed" | "blocked" | "threw"; httpStatus?: number };
 
 export type RenderRecoveryAttempt = {
-	policyVersion: "mckinsey-web-unlocker-502-v1";
+	policyVersion: "residential-after-gateway-502-v1";
 	host: string;
 } & RenderRecoveryEvent;
 
@@ -359,8 +359,7 @@ export async function runRenderLadder(
 			residentialSkipped,
 		};
 	const recoveryUrl = URL.parse(legs.url);
-	const recoveryHost = recoveryUrl?.protocol === "https:" && recoveryUrl.port === "" &&
-		["www.mckinsey.com", "email.mckinsey.com"].includes(recoveryUrl.hostname)
+	const recoveryHost = recoveryUrl?.protocol === "https:" && recoveryUrl.port === ""
 		? recoveryUrl.hostname : undefined;
 	if (
 		recoveryHost !== undefined &&
@@ -381,7 +380,7 @@ export async function runRenderLadder(
 				residentialReport = TIME_EXHAUSTED;
 			} else {
 				const report = (attempt: RenderRecoveryEvent) =>
-					legs.reportRecoveryAttempt({ ...attempt, host: recoveryHost, policyVersion: "mckinsey-web-unlocker-502-v1" });
+					legs.reportRecoveryAttempt({ ...attempt, host: recoveryHost, policyVersion: "residential-after-gateway-502-v1" });
 				let recovery: LegOutcome;
 				try {
 					recovery = await underPermit(claim.permit, () => {

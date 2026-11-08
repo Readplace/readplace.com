@@ -4,7 +4,7 @@ import { noopLogger } from "@packages/logger";
 import { markCrawlFailed, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import { ClassifiedCrawlError, initSaveLinkWork } from "./save-link-work";
 import { type CrawlAndFinalizeArticle, type FinalizeArticle, initCrawlAndFinalizeArticle } from "@packages/finalize-article";
-import { type CrawlArticle, initCrawlArticle, initFetchPinnedCrawl } from "@packages/crawl-article";
+import { type CrawlArticle, initCrawlArticle, rejectDocumentLandingPage, initFetchPinnedCrawl } from "@packages/crawl-article";
 import type { AdoptArticleDestination } from "@packages/article-store";
 import { initAdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { PutTierSource } from "@packages/tier-source";
@@ -406,6 +406,7 @@ describe("initSaveLinkWork", () => {
 			throw new Error("a block page must not reach finalize");
 		};
 		const crawlArticle = initCrawlArticle({
+			rejectDocumentLandingPage,
 			crawlFetch: async () => new Response("<html><body>Access denied</body></html>", { status: 403, headers: { "content-type": "text/html" } }),
 			siteRules: [],
 			logError: () => {},
@@ -728,6 +729,7 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 
 	function realCrawl(crawlFetch: (url: string) => Promise<Response>, finalizeArticle: FinalizeArticle): CrawlAndFinalizeArticle {
 		const crawlArticle = initCrawlArticle({
+			rejectDocumentLandingPage,
 			crawlFetch: async (url) => crawlFetch(url),
 			siteRules: [],
 			logError: () => {},

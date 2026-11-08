@@ -9,6 +9,7 @@ import {
 	CRAWL_PERSONAS,
 	defaultCurlImpersonateProbe,
 	initCrawlArticle,
+	rejectDocumentLandingPage,
 	initCrawlFetch,
 	initFetchThumbnailImage,
 	type ThumbnailNotDeliveredEvent,
@@ -62,7 +63,7 @@ if (getEnv("AWS_LAMBDA_FUNCTION_NAME")) {
 }
 const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
 const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().warn;
-const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError, logInfo, logThumbnailNotDelivered });
+const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, logError, logInfo, logThumbnailNotDelivered });
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,
 	siteRules,

@@ -1,3 +1,5 @@
+import { rejectDocumentLandingPage } from "./document-landing-page";
+import { withResolvedUrl } from "./follow-redirects";
 import { createCrawlBudget } from "./crawl-budget";
 import { type Leg, type LegAttempt, type LegFetch, runTransportLadder } from "./transport-ladder";
 import { TransportLadderFailure } from "./transport-ladder-failure";
@@ -18,8 +20,23 @@ function budgetOf(totalMs: number, now: () => number = () => Date.now()) {
 }
 
 function ladderOf(legs: readonly Leg[], attempts: LegAttempt[]) {
-	return runTransportLadder({ legs, logAttempt: (attempt) => attempts.push(attempt), now: () => Date.now() });
+	return runTransportLadder({ rejectDocumentLandingPage, legs, logAttempt: (attempt) => attempts.push(attempt), now: () => Date.now() });
 }
+
+it("applies the injected document validation before accepting a transport response", async () => {
+	const response = new Response("article", { status: 200 });
+	const rejection = new Error("document validation rejected this response");
+	const validateDocument = jest.fn(async (_url: string, _response: Response) => { throw rejection; });
+	const ladder = runTransportLadder({
+		legs: [{ name: "primary", maxRunMs: 100, fetch: async () => response }],
+		rejectDocumentLandingPage: validateDocument,
+		logAttempt: () => {},
+		now: Date.now,
+	});
+	const url = "https://publisher.example/article";
+	await expect(ladder(url, { headers: {}, budget: budgetOf(1000) })).rejects.toMatchObject({ cause: rejection });
+	expect(validateDocument).toHaveBeenCalledWith(url, response);
+});
 
 describe("runTransportLadder", () => {
 	it("returns the first leg's answer and never opens a later transport", async () => {
@@ -521,4 +538,21 @@ it("exposes a typed failure without modifying a reused error's cause", async () 
 		await expect(ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).rejects.toBeInstanceOf(TransportLadderFailure);
 	}
 	expect(reused.cause).toBe(root);
+});
+
+const ciaUrl = "https://www.cia.gov/readingroom/docs/report.pdf";
+const ciaHomepage: LegFetch = async () => withResolvedUrl(new Response("<html>homepage</html>", { headers: { "content-type": "text/html" } }), "https://www.cia.gov/readingroom/");
+it("recovers a CIA PDF through curl after two misleading HTTP 200 homepages", async () => {
+	const attempts: LegAttempt[] = [];
+	const fetchIt = ladderOf([
+		{ name: "primary", maxRunMs: 100, fetch: ciaHomepage },
+		{ name: "h2", maxRunMs: 100, fetch: ciaHomepage },
+		{ name: "curl", maxRunMs: 100, fetch: answers(200, "%PDF-1.7") },
+	], attempts);
+	expect(await (await fetchIt(ciaUrl, { headers: {}, budget: budgetOf(1000) })).text()).toBe("%PDF-1.7");
+	expect(attempts.map(a => a.outcome)).toEqual(["escalated", "escalated", "answered"]);
+});
+it("fails when every CIA transport returns the homepage", async () => {
+	const fetchIt = ladderOf([{ name: "primary", maxRunMs: 100, fetch: ciaHomepage }], []);
+	await expect(fetchIt(ciaUrl, { headers: {}, budget: budgetOf(1000) })).rejects.toBeInstanceOf(TransportLadderFailure);
 });

@@ -1,4 +1,4 @@
-import { initCrawlArticle, type CrawlFetch } from "@packages/crawl-article";
+import { initCrawlArticle, rejectDocumentLandingPage, type CrawlFetch } from "@packages/crawl-article";
 import { initArticleSiteRules } from "./article-site-rules";
 
 it("defers the registered document landing's declared PDF to comprehensive extraction", async () => {
@@ -12,7 +12,7 @@ it("defers the registered document landing's declared PDF to comprehensive extra
 			: new Response(`<html><body><nav>Publisher navigation</nav><main class="sa-document"><article class="o-article"><div class="article-content"><p><a class="gel-icon-document-pdf-solid" href="${download}">Download report</a></p></div></article></main></body></html>`, { status: 200, headers: { "content-type": "text/html" } });
 	};
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
-	const crawl = initCrawlArticle({ crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 
 	expect(await crawl({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
 	expect(requested).toEqual([url, download]);

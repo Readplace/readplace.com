@@ -1,3 +1,4 @@
+import { documentLandingPageFailure, type RejectDocumentLandingPage } from "./document-landing-page";
 import assert from "node:assert";
 import { isAwsWafChallenge } from "./aws-waf-challenge";
 import { callerHasGivenUp, type CrawlBudget, type LegDeadline } from "./crawl-budget";
@@ -87,10 +88,11 @@ export async function bufferedCopyOf(response: Response): Promise<Response> {
 
 export function runTransportLadder(deps: {
 	legs: readonly Leg[];
+	rejectDocumentLandingPage: RejectDocumentLandingPage;
 	logAttempt: (attempt: LegAttempt) => void;
 	now: () => number;
 }): LadderFetch {
-	const { legs, logAttempt, now } = deps;
+	const { legs, logAttempt, now, rejectDocumentLandingPage } = deps;
 	assert(legs.length > 0, "runTransportLadder requires at least one leg");
 	assert(
 		legs.every((leg) => leg.maxRunMs > 0),
@@ -114,6 +116,7 @@ export function runTransportLadder(deps: {
 			try {
 				const response = await leg.fetch(url, { headers, deadline: lease.deadline, onRedirect });
 				budget.deadline.signal.throwIfAborted();
+				await rejectDocumentLandingPage(url, response);
 				const unlockerError = unlockerErrorOf(response.headers);
 				if (!ESCALATE_STATUS_CODES.has(response.status) && !isAwsWafChallenge(response)) {
 					logAttempt({
@@ -155,6 +158,7 @@ export function runTransportLadder(deps: {
 		}
 		budget.deadline.signal.throwIfAborted();
 		if (!allFailuresRecoverable) throw failure();
+		if (errors.some(error => documentLandingPageFailure(error) !== undefined)) throw failure();
 		if (lastResponse !== undefined) return lastResponse;
 		throw failure();
 	};

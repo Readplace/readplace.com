@@ -1,3 +1,4 @@
+import { rejectDocumentLandingPage } from "./document-landing-page";
 import { createCrawlBudget } from "./crawl-budget";
 import { CurlFetchFailure } from "./curl-fetch";
 import { isBlockClassError, withPersonaFallback } from "./persona-fallback";
@@ -13,6 +14,7 @@ function composedFetch(deps: { primary: LegFetch; h2: LegFetch; curl: LegFetch }
 	const attempts: string[] = [];
 	const now = () => 0;
 	const ladder = runTransportLadder({
+		rejectDocumentLandingPage,
 		legs: [
 			{ name: "primary", maxRunMs: 10_000, fetch: deps.primary },
 			{ name: "h2", maxRunMs: 10_000, fetch: deps.h2 },
@@ -124,6 +126,7 @@ function isSecondPersona(headers: Record<string, string>): boolean {
 it("returns curl's 403 from the ladder when the primary times out and the HTTP/2 leg fails with a protocol error", async () => {
 	const now = () => 0;
 	const ladder = runTransportLadder({
+		rejectDocumentLandingPage,
 		legs: [
 			{ name: "primary", maxRunMs: 10_000, fetch: async () => { throw legTimeout(); } },
 			{ name: "h2", maxRunMs: 10_000, fetch: async () => { throw protocolError(); } },

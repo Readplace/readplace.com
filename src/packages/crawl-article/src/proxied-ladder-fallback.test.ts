@@ -1,3 +1,4 @@
+import { DocumentLandingPageError } from "./document-landing-page";
 import { createCrawlBudget } from "./crawl-budget";
 import type { OnRedirect } from "./follow-redirects";
 import { isProxyWorthyError, isProxyWorthyResponse, withProxiedLadderFallback, withProxyOnlyLadder } from "./proxied-ladder-fallback";
@@ -831,4 +832,29 @@ describe("the exported proxy triggers", () => {
 	it("leave an unclassified error alone", () => {
 		expect(isProxyWorthyError(new Error("getaddrinfo ENOTFOUND"))).toBe(false);
 	});
+});
+
+it.each(["https://www.cia.gov/readingroom/", DEST_URL, undefined])("pins recovery away from rejected CIA homepage when last hop is %s", async (lastHop) => {
+	const pdf = "https://www.cia.gov/readingroom/docs/report.pdf";
+	const harness = makeHarness({ direct: async (_controller, _clock, onRedirect) => {
+		if (lastHop !== undefined) onRedirect?.({ fromUrl: pdf, toUrl: lastHop });
+		throw new TransportLadderFailure({ previousErrors: [], error: new DocumentLandingPageError({ requestedUrl: pdf, landingPageUrl: "https://www.cia.gov/readingroom/" }), retryDisposition: "recoverable" });
+	}, proxy: [async () => new Response("%PDF-1.7")] });
+	await harness.fetchIt();
+	expect(harness.proxyUrls).toEqual([lastHop === "https://www.cia.gov/readingroom/" ? pdf : lastHop ?? ENTRY_URL]);
+});
+
+it("retries the document after different transports reject different landing pages", async () => {
+	const pdf = "https://publisher.example/archive/docs/report.pdf";
+	const landingPages = ["https://publisher.example/archive/", "https://publisher.example/archive/docs/"];
+	const harness = makeHarness({ direct: async (_controller, _clock, onRedirect) => {
+		for (const landingPageUrl of landingPages) onRedirect?.({ fromUrl: pdf, toUrl: landingPageUrl });
+		throw new TransportLadderFailure({
+			previousErrors: landingPages.map(landingPageUrl => new DocumentLandingPageError({ requestedUrl: pdf, landingPageUrl })),
+			error: Object.assign(new Error("timeout"), { name: "TimeoutError" }),
+			retryDisposition: "recoverable",
+		});
+	}, proxy: [async () => new Response("%PDF-1.7")] });
+	await harness.fetchIt();
+	expect(harness.proxyUrls).toEqual([pdf]);
 });

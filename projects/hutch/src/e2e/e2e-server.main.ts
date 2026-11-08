@@ -70,7 +70,7 @@ import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-pro
 import { initFinalizeArticle, initRefreshArticleIfStale } from '@packages/finalize-article'
 import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget } from '@packages/save-article'
 import type { ExtractPdf, IsBlockedAddress, ThumbnailNotDeliveredEvent } from '@packages/crawl-article'
-import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch, initFetchThumbnailImage } from '@packages/crawl-article'
+import { CRAWL_PERSONAS, initCrawlArticle, rejectDocumentLandingPage, initCrawlFetch, initFetchThumbnailImage } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
 import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
@@ -136,7 +136,7 @@ const extractPdf: ExtractPdf = async () => ({
 })
 const { siteRules } = initArticleSiteRules({ crawlFetch, logError })
 const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().warn
-const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
+const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, readabilityAdditions, logError })
 const images = initInMemoryArticleImages()
 const finalizeArticle = initFinalizeArticle({

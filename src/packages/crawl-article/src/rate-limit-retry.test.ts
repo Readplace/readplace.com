@@ -1,3 +1,4 @@
+import { DocumentLandingPageError } from "./document-landing-page";
 import { createCrawlBudget } from "./crawl-budget";
 import { withRateLimitRetry } from "./rate-limit-retry";
 import { TransportLadderFailure } from "./transport-ladder-failure";
@@ -95,4 +96,19 @@ it("propagates an unclassified raw rejection after a 429", async () => {
 	const error = new Error("programming failure");
 	const innerFetch = jest.fn().mockResolvedValueOnce(new Response("slow down", { status: 429 })).mockRejectedValueOnce(error);
 	await expect(withRateLimitRetry(innerFetch, { delaysMs: [0] })("https://example.com", request())).rejects.toBe(error);
+});
+
+
+it("preserves document recovery evidence when a retry after 429 rejects a landing page", async () => {
+	const url = "https://publisher.example/archive/report.pdf";
+	const error = new TransportLadderFailure({
+		previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: "https://publisher.example/archive/" })],
+		error: Object.assign(new Error("later timeout"), { name: "TimeoutError" }),
+		retryDisposition: "recoverable",
+	});
+	const innerFetch = jest.fn().mockResolvedValueOnce(new Response("rate limited", { status: 429 })).mockRejectedValueOnce(error);
+	const retry = withRateLimitRetry(innerFetch, { delaysMs: [0] });
+
+	await expect(retry(url, request())).rejects.toBe(error);
+	expect(innerFetch).toHaveBeenCalledTimes(2);
 });

@@ -1,3 +1,4 @@
+import { documentLandingPageFailure } from "./document-landing-page";
 import { createCrawlBudget, deadlineReason } from "./crawl-budget";
 import { isFastlyClientChallenge } from "./fastly-client-challenge";
 import type { OnRedirect } from "./follow-redirects";
@@ -143,6 +144,10 @@ function frozenProxyTarget(params: {
 	lastDirectHopTarget: string | undefined;
 }): string {
 	const { entryUrl, directOutcome, lastDirectHopTarget } = params;
+	if ("thrown" in directOutcome) {
+		const mismatch = documentLandingPageFailure(directOutcome.thrown);
+		if (mismatch !== undefined && lastDirectHopTarget === mismatch.landingPageUrl) return mismatch.requestedUrl;
+	}
 	if ("response" in directOutcome) {
 		const stamped = directOutcome.response.url;
 		if (stamped !== "") return stamped;

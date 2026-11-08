@@ -698,19 +698,25 @@ describe("runRenderLadder", () => {
 		});
 	});
 
-	describe("the bounded McKinsey recovery after an unlocker browser 502", () => {
+	describe("bounded residential recovery after an unlocker browser 502", () => {
 		const gatewayFailure: RenderOutcome = { ...failedRender, detail: "main document answered HTTP 502", httpStatus: 502 };
 		const eligible = {
-			url: "https://www.mckinsey.com/article",
+			url: "https://publisher.test/article",
 			direct: blockedRender,
 			webUnlockerFetch: noBodyFetch,
 			webUnlockerRender: gatewayFailure,
 		};
 
-		it.each(["www.mckinsey.com", "email.mckinsey.com"])("tries the unused residential leg once on %s with exactly its remaining allowance", async (host) => {
+		it.each([
+			{ host: "publisher.test", port: "" },
+			{ host: "journal.example.org", port: ":443" },
+			{ host: "www.mckinsey.com", port: "" },
+			{ host: "email.mckinsey.com", port: "" },
+			{ host: "mckinsey.com", port: "" },
+		])("tries the unused residential leg once on $host$port with exactly its remaining allowance", async ({ host, port }) => {
 			const { run, steps, ledger, renderedEgresses, recoveryReports } = ladderWith({
 				...eligible,
-				url: `https://${host}/article?private-token=hidden`,
+				url: `https://${host}${port}/article?private-token=hidden`,
 				residential: renderedBody,
 				commits: { "residential-per-gb": committed },
 				remaining: [FETCH_THRESHOLD, WEB_UNLOCKER_RENDER_THRESHOLD, RESIDENTIAL_THRESHOLD, RESIDENTIAL_THRESHOLD],
@@ -722,12 +728,12 @@ describe("runRenderLadder", () => {
 			assert(steps.includes("commit residential-per-gb available"));
 			assert.deepEqual(ledger, ["release fetch", "release render", "settle residential candidate-1"]);
 			assert.deepEqual(recoveryReports, [
-				{ policyVersion: "mckinsey-web-unlocker-502-v1", host, phase: "started" },
-				{ policyVersion: "mckinsey-web-unlocker-502-v1", host, phase: "finished", outcome: "committed" },
+				{ policyVersion: "residential-after-gateway-502-v1", host, phase: "started" },
+				{ policyVersion: "residential-after-gateway-502-v1", host, phase: "finished", outcome: "committed" },
 			]);
 		});
 
-		it.each(["http://www.mckinsey.com/article", "https://www.mckinsey.com:444/article", "https://mckinsey.com/article", "https://www.mckinsey.com.evil.test/article", "https://other.test/article", "invalid"])("does not expand the HTTPS host experiment to %s", async (url) => {
+		it.each(["http://publisher.test/article", "https://publisher.test:444/article", "ftp://publisher.test/article", "invalid"])("does not retry outside standard HTTPS URLs: %s", async (url) => {
 			const { run, steps, recoveryReports } = ladderWith({ ...eligible, url });
 			assert.equal((await run()).kind, "unrendered");
 			assert(!steps.includes("claim residential"));
@@ -752,7 +758,7 @@ describe("runRenderLadder", () => {
 			{ route: "direct-egress", direct: renderedBody, webUnlockerFetch: noBodyFetch, webUnlockerRender: gatewayFailure },
 			{ route: "web-unlocker-fetch", direct: blockedRender, webUnlockerFetch: committed, webUnlockerRender: gatewayFailure },
 			{ route: "web-unlocker-render", direct: blockedRender, webUnlockerFetch: noBodyFetch, webUnlockerRender: renderedBody },
-		])("preserves a McKinsey success through $route", async ({ route, ...outcomes }) => {
+		])("preserves a success through $route", async ({ route, ...outcomes }) => {
 			const { run, steps, recoveryReports } = ladderWith({
 				...eligible, ...outcomes,
 				commits: { "direct-egress": committed, "web-unlocker-render": committed },
@@ -793,14 +799,14 @@ describe("runRenderLadder", () => {
 			const { run, ledger, recoveryReports } = ladderWith({ ...eligible, residential });
 			assert.deepEqual(await run(), { kind: "unrendered", direct: blockedRender, residential, webUnlockerFetch: noBodyFetch, webUnlockerRender: gatewayFailure });
 			assert.deepEqual(ledger, ["release fetch", "release render", "release residential"]);
-			assert.deepEqual(recoveryReports.at(-1), { policyVersion: "mckinsey-web-unlocker-502-v1", host: "www.mckinsey.com", phase: "finished", outcome: residential.kind, httpStatus: residential.httpStatus });
+			assert.deepEqual(recoveryReports.at(-1), { policyVersion: "residential-after-gateway-502-v1", host: "publisher.test", phase: "finished", outcome: residential.kind, httpStatus: residential.httpStatus });
 		});
 
 		it("does not count an unreadable recovery body as a successful article", async () => {
 			const { run, recoveryReports } = ladderWith({ ...eligible, residential: renderedBody, commits: { "residential-per-gb": { kind: "unreadable", detail: "challenge body" } } });
 			const result = await run();
 			assert.equal(result.kind, "unrendered");
-			assert.deepEqual(recoveryReports.at(-1), { policyVersion: "mckinsey-web-unlocker-502-v1", host: "www.mckinsey.com", phase: "finished", outcome: "failed", httpStatus: 200 });
+			assert.deepEqual(recoveryReports.at(-1), { policyVersion: "residential-after-gateway-502-v1", host: "publisher.test", phase: "finished", outcome: "failed", httpStatus: 200 });
 		});
 
 		it("retains the existing terminal settlement without calling another route", async () => {
@@ -814,7 +820,7 @@ describe("runRenderLadder", () => {
 			const { run, ledger, recoveryReports } = ladderWith({ ...eligible, residential: renderedBody });
 			await assert.rejects(run(), /the residential-per-gb commit was not expected to run/);
 			assert.deepEqual(ledger, ["release fetch", "release render", "release residential"]);
-			assert.deepEqual(recoveryReports.at(-1), { policyVersion: "mckinsey-web-unlocker-502-v1", host: "www.mckinsey.com", phase: "finished", outcome: "threw" });
+			assert.deepEqual(recoveryReports.at(-1), { policyVersion: "residential-after-gateway-502-v1", host: "publisher.test", phase: "finished", outcome: "threw" });
 		});
 	});
 

@@ -6,6 +6,7 @@ import type {
 } from "@packages/crawl-article";
 import {
 	initCrawlArticle,
+	rejectDocumentLandingPage,
 	initCrawlFetch,
 	initFetchPinnedCrawl,
 	CRAWL_PERSONAS,
@@ -58,6 +59,7 @@ export function initParserDepBundle(deps: {
 	const { siteRules, crawlClaimingSiteRules } = initArticleSiteRules({ crawlFetch, logError: deps.logError });
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({
+			rejectDocumentLandingPage,
 			crawlFetch,
 			siteRules,
 			logError: deps.logError,
@@ -108,6 +110,7 @@ export function initComprehensiveParserDepBundle(deps: {
 	const { siteRules, crawlClaimingSiteRules } = initArticleSiteRules({ crawlFetch, logError: deps.logError });
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({
+			rejectDocumentLandingPage,
 			crawlFetch,
 			siteRules,
 			extractPdf: deps.extractPdf,

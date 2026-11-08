@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { initPrepareArticleIdentity } from "@packages/save-article";
-import { initCrawlArticle, initFetchPinnedCrawl } from "@packages/crawl-article";
+import { initCrawlArticle, rejectDocumentLandingPage, initFetchPinnedCrawl } from "@packages/crawl-article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import { parseHTML } from "linkedom";
 import { initEventBridgeRefreshArticleContent } from "@packages/refresh-article-content";
@@ -863,7 +863,7 @@ it.each([
 	const raw = "<html><body><main>The real original article with navigation</main></body></html>";
 	const html = "<p>The real original article</p>";
 	const fetched: string[] = [];
-	const crawlArticle = initCrawlArticle({ crawlFetch: async (url) => { fetched.push(url); return new Response(raw, { headers: { "content-type": "text/html" } }); }, siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+	const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (url) => { fetched.push(url); return new Response(raw, { headers: { "content-type": "text/html" } }); }, siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 	const pinnedCrawl = initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl: async () => undefined });
 	const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({ crawlArticle: pinnedCrawl, finalizeArticle: async ({ url }) => {
 		expect(url).toBe(URL_UNDER_TEST);
@@ -908,6 +908,7 @@ it.each<{ kind: "image" | "plain-text"; contentType: string; body: string }>([
 		imagesCdnBaseUrl: "https://cdn.example.com",
 	});
 	const crawlArticle = initCrawlArticle({
+		rejectDocumentLandingPage,
 		crawlFetch: async () => new Response(body, { headers: { "content-type": contentType } }),
 		siteRules: [], logError: jest.fn(), logInfo: jest.fn(), logThumbnailNotDelivered: () => {},
 	});

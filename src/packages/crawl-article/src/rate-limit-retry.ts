@@ -1,3 +1,4 @@
+import { documentLandingPageFailure } from "./document-landing-page";
 import type { LadderFetch } from "./transport-ladder";
 import { TransportLadderFailure } from "./transport-ladder-failure";
 
@@ -36,6 +37,7 @@ export function withRateLimitRetry(
 			} catch (error) {
 				init.budget.deadline.signal.throwIfAborted();
 				if (!(error instanceof TransportLadderFailure) || error.retryDisposition !== "recoverable") throw error;
+				if (documentLandingPageFailure(error) !== undefined) throw error;
 				return response;
 			}
 		}

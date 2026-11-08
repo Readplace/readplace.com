@@ -4,6 +4,7 @@ import { initDefaultFetchAia, type PrimaryFetch, withAiaChasing } from "./aia-fe
 import { defaultResolveAll, type IsBlockedAddress, type ResolveAll } from "./blocked-address-lookup";
 import { createCrawlBudget, deadlineReason } from "./crawl-budget";
 import { type CurlFetch, initGuardedCurlFetch } from "./curl-fetch";
+import { rejectDocumentLandingPage } from "./document-landing-page";
 import { type OnRedirect, redirectable } from "./follow-redirects";
 import { createGuardedDispatcher } from "./guarded-dispatcher";
 import { type FetchH2, initFetchH2 } from "./h2-fetch";
@@ -101,20 +102,20 @@ export function initCrawlFetch(deps: {
 	const curlLeg = (curlFetch: CurlFetch, maxRunMs: number): Leg => ({
 		name: "curl",
 		maxRunMs,
-		fetch: (url, init) => curlFetch(url, { headers: init.headers, signal: init.deadline.signal }),
+		fetch: (url, init) => curlFetch(url, { headers: init.headers, signal: init.deadline.signal, onRedirect: init.onRedirect }),
 	});
 	const directLegs: readonly Leg[] = [
 		primaryLeg(buildPrimaryFetch(dispatcher, { chaseAia: true }), PRIMARY_LEG_MAX_MS),
 		{
 			name: "h2",
 			maxRunMs: H2_LEG_MAX_MS,
-			fetch: (url, init) => fetchH2(url, { headers: init.headers, signal: init.deadline.signal }),
+			fetch: (url, init) => fetchH2(url, { headers: init.headers, signal: init.deadline.signal, onRedirect: init.onRedirect }),
 		},
 		curlLeg(fetchCurl, CURL_LEG_MAX_MS),
 	];
 	const logAttempt = (attempt: LegAttempt) => logInfo(JSON.stringify({ stream: "crawl-legs", ...attempt }));
 	const directPipeline = withRateLimitRetry(
-		withPersonaFallback(runTransportLadder({ legs: directLegs, logAttempt, now: Date.now }), deps.personas),
+		withPersonaFallback(runTransportLadder({ legs: directLegs, logAttempt, now: Date.now, rejectDocumentLandingPage }), deps.personas),
 		{ delaysMs: deps.rateLimitRetryDelaysMs ?? RATE_LIMIT_RETRY_DELAYS_MS },
 	);
 	/* Node's http2 has no proxy path, so the proxied pass omits the h2 leg. */
@@ -126,7 +127,7 @@ export function initCrawlFetch(deps: {
 		const proxyLogAttempt = (attempt: LegAttempt) =>
 			logInfo(JSON.stringify({ stream: "crawl-legs", via: "proxy", ...attempt }));
 		return withPersonaFallback(
-			runTransportLadder({ legs: proxyLegs, logAttempt: proxyLogAttempt, now: Date.now }),
+			runTransportLadder({ legs: proxyLegs, logAttempt: proxyLogAttempt, now: Date.now, rejectDocumentLandingPage }),
 			deps.personas,
 		);
 	}

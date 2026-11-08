@@ -1,4 +1,4 @@
-import { initCrawlArticle, type CrawlFetch } from "@packages/crawl-article";
+import { initCrawlArticle, rejectDocumentLandingPage, type CrawlFetch } from "@packages/crawl-article";
 import { initArticleSiteRules } from "./article-site-rules";
 
 const VIEWER = "https://journals.example.org/index.php/sample/article/view/37/33";
@@ -36,6 +36,7 @@ it.each([
 	};
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
 	const crawl = initCrawlArticle({
+		rejectDocumentLandingPage,
 		crawlFetch,
 		siteRules,
 		logError: () => {},
@@ -57,6 +58,7 @@ it("defers the OJS PDF galley to the comprehensive crawl", async () => {
 	};
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
 	const crawl = initCrawlArticle({
+		rejectDocumentLandingPage,
 		crawlFetch,
 		siteRules,
 		logError: () => {},

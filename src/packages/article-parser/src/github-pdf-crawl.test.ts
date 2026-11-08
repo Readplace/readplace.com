@@ -1,4 +1,4 @@
-import { initCrawlArticle, type CrawlFetch } from "@packages/crawl-article";
+import { initCrawlArticle, rejectDocumentLandingPage, type CrawlFetch } from "@packages/crawl-article";
 import { initArticleSiteRules } from "./article-site-rules";
 
 it.each([
@@ -16,6 +16,7 @@ it.each([
 	};
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
 	const crawl = initCrawlArticle({
+		rejectDocumentLandingPage,
 		crawlFetch,
 		siteRules,
 		logError: () => {},
@@ -36,6 +37,7 @@ it("fails the registered viewer crawl when GitHub only serves its PDF loading sh
 	};
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
 	const crawl = initCrawlArticle({
+		rejectDocumentLandingPage,
 		crawlFetch,
 		siteRules,
 		logError: () => {},
@@ -57,6 +59,7 @@ it.each(["1", "true"])("preserves GitHub raw=%s PDF downloads through normal med
 	};
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
 	const crawl = initCrawlArticle({
+		rejectDocumentLandingPage,
 		crawlFetch,
 		siteRules,
 		logError: () => {},

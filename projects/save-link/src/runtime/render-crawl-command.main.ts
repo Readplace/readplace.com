@@ -8,7 +8,7 @@ import chromium from "@sparticuz/chromium";
 import { consoleLogger } from "@packages/logger";
 import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
-import { CRAWL_PERSONAS, defaultResolveAll, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
+import { CRAWL_PERSONAS, defaultResolveAll, initCrawlArticle, rejectDocumentLandingPage, initCrawlFetch } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { readEnv } from "@packages/require-env";
@@ -118,6 +118,7 @@ const renderPage = initPuppeteerRenderPage({
 });
 
 const proxiedCrawlArticle = initCrawlArticle({
+	rejectDocumentLandingPage,
 	crawlFetch: initCrawlFetch({
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,

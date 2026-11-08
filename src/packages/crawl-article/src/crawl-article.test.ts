@@ -1,3 +1,5 @@
+import { DocumentLandingPageError, rejectDocumentLandingPage } from "./document-landing-page";
+import { withResolvedUrl } from "./follow-redirects";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
 import {
@@ -97,6 +99,7 @@ function initCrawl(overrides: {
 	const crawlFetch = buildCrawlFetch(overrides);
 	const logError = overrides.logError ?? noopLogError;
 	return initCrawlArticle({
+		rejectDocumentLandingPage,
 		crawlFetch,
 		siteRules: overrides.siteRules ?? [initXTwitterSiteRules({ crawlFetch, logError })],
 		extractPdf: overrides.extractPdf,
@@ -2083,33 +2086,33 @@ describe("bounded wrapper response candidates", () => {
 	it("returns a fresh received body for comparison even when it matches the previous body hash", async () => {
 		const html = "<html><body><article>Unchanged readable article.</article></body></html>";
 		const bodyHash = createHash("sha256").update(html).digest("hex");
-		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status: 200, headers: { "content-type": "text/html", etag: '"capture-v1"' } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
+		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response(html, { status: 200, headers: { "content-type": "text/html", etag: '"capture-v1"' } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 		expect(await crawlArticle({ url: "https://example.com/article", previousBodyHash: bodyHash, retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash, httpStatus: 200, finalUrl: undefined, etag: '"capture-v1"' });
 	});
 	it.each([403, 429, 451])("reports a retained %i as blocked rather than a body for the judge", async (status) => {
-		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response("<html><body>Access denied</body></html>", { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
+		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response("<html><body>Access denied</body></html>", { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 		expect(await crawlArticle({ url: "https://example.com/article", retainResponseBody: true })).toEqual({ status: "blocked", httpStatus: status, finalUrl: undefined });
 	});
 	it("retains an error response without Content-Type for the article judge", async () => {
 		const html = "<html><body><article>Article returned without a media declaration.</article></body></html>";
-		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(Buffer.from(html), { status: 503 }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
+		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response(Buffer.from(html), { status: 503 }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 		expect(await crawlArticle({ url: "https://example.com/article", retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: 503, finalUrl: undefined });
 	});
 	it("defers a retained PDF response without an extractor and extracts it when comprehensive work resumes", async () => {
 		const shared = { crawlFetch: async () => new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} };
-		expect(await initCrawlArticle(shared)({ url: "https://example.com/report.pdf", retainResponseBody: true })).toMatchObject({ status: "unsupported" });
+		expect(await initCrawlArticle({ rejectDocumentLandingPage, ...shared })({ url: "https://example.com/report.pdf", retainResponseBody: true })).toMatchObject({ status: "unsupported" });
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "PDF article", html: "<html><body>Extracted PDF article</body></html>" }));
-		const result = await initCrawlArticle({ ...shared, extractPdf })({ url: "https://example.com/report.pdf", retainResponseBody: true });
+		const result = await initCrawlArticle({ rejectDocumentLandingPage, ...shared, extractPdf })({ url: "https://example.com/report.pdf", retainResponseBody: true });
 		expect(result).toMatchObject({ status: "fetched", html: "<html><body>Extracted PDF article</body></html>", httpStatus: 200 });
 		expect(extractPdf).toHaveBeenCalledTimes(1);
 	});
 	it("bounds an unknown retained body before parsing it as HTML", async () => {
-		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response("x".repeat(MAX_HTML_BYTES.bytes + 1), { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
+		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response("x".repeat(MAX_HTML_BYTES.bytes + 1), { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 		expect(await crawlArticle({ url: "https://example.com/unknown", retainResponseBody: true })).toMatchObject({ status: "unsupported", unsupportedReason: { kind: "content-too-large" } });
 	});
 	it.each([200, 403, 404, 410, 429, 500])("retains HTTP %i body for the article judge", async (status) => {
 		const html = "<html><body><h1>Verify you are human</h1></body></html>";
-		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
+		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response(html, { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 		const result = await crawlArticle({ url: "https://archive.ph/abcde", retainResponseBody: true, retainBlockedResponse: true });
 		expect(result).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: status, finalUrl: undefined });
 	});
@@ -2134,6 +2137,7 @@ describe.each([false, true])("AWS WAF classification with retainResponseBody=%s"
 		const logInfo = jest.fn();
 		const logError = jest.fn();
 		const crawlArticle = initCrawlArticle({
+		rejectDocumentLandingPage,
 			crawlFetch: async () => response,
 			siteRules: [],
 			logInfo,
@@ -2643,4 +2647,97 @@ window.self.location = redirecturl + anchor;
 		});
 		expect(requested).toEqual([TRACKER_URL, SECOND_TRACKER_URL]);
 	});
+});
+
+it("applies injected document validation before accepting or hashing the buffered article", async () => {
+	const url = "https://publisher.example/article";
+	const response = new Response("article", { status: 200, headers: { "content-type": "text/html" } });
+	const rejection = new Error("document validation rejected this response");
+	const validateDocument = jest.fn(async (_url: string, _response: Response, _buffer?: Buffer) => { throw rejection; });
+	const logError = jest.fn();
+	const crawl = initCrawlArticle({
+		crawlFetch: async () => response,
+		rejectDocumentLandingPage: validateDocument,
+		siteRules: [],
+		logError,
+		logInfo: noopLogInfo,
+		logThumbnailNotDelivered: () => {},
+	});
+	expect(await crawl({ url, previousBodyHash: createHash("sha256").update("article").digest("hex") })).toMatchObject({ status: "failed" });
+	expect(validateDocument).toHaveBeenCalledWith(url, response, Buffer.from("article"));
+	expect(logError).toHaveBeenCalledWith(expect.stringContaining("Network error"), rejection);
+});
+
+it("reports a crawl failure when the transport rejects with a non-Error value", async () => {
+	const url = "https://publisher.example/article";
+	const logError = jest.fn();
+	const crawl = initCrawlArticle({
+		crawlFetch: async () => { throw "connection closed"; },
+		rejectDocumentLandingPage,
+		siteRules: [],
+		logError,
+		logInfo: noopLogInfo,
+		logThumbnailNotDelivered: () => {},
+	});
+
+	expect(await crawl({ url })).toMatchObject({ status: "failed", failure: { kind: "fetch-failed" } });
+	expect(logError).toHaveBeenCalledTimes(1);
+	expect(logError).toHaveBeenCalledWith(`[CrawlArticle] Network error for ${url}`, undefined);
+});
+
+it.each([{}, { retainResponseBody: true }, { retainBlockedResponse: true }, { previousBodyHash: createHash("sha256").update("homepage").digest("hex") }])("rejects the CIA homepage at the crawl boundary with options %j", async (options) => {
+	const url = "https://www.cia.gov/readingroom/docs/report.pdf";
+	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => withResolvedUrl(new Response("homepage", { headers: { "content-type": "text/html" } }), "https://www.cia.gov/readingroom/"), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
+	expect(await crawl({ url, fetchThumbnail: true, ...options })).toMatchObject({ status: "failed", finalUrl: url, failure: { kind: "fetch-failed" } });
+});
+it("retains CIA PDF identity after a rejected redirect and later timeout", async () => {
+	const url = "https://www.cia.gov/readingroom/docs/report.pdf";
+	const home = "https://www.cia.gov/readingroom/";
+	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (_url, init) => {
+		init.onRedirect?.({ fromUrl: url, toUrl: home });
+		throw new TransportLadderFailure({ previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
+	}, siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
+	expect(await crawl({ url })).toMatchObject({ status: "failed", finalUrl: url });
+});
+
+it("reports one document mismatch after different rejected landing pages and a timeout exhaust recovery", async () => {
+	const url = "https://journal.example.org/archive/docs/report.pdf";
+	const landingPages = ["https://journal.example.org/archive/", "https://journal.example.org/archive/docs/"];
+	const logError = jest.fn();
+	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (_url, init) => {
+		for (const landingPageUrl of landingPages) init.onRedirect?.({ fromUrl: url, toUrl: landingPageUrl });
+		throw new TransportLadderFailure({
+			previousErrors: landingPages.map(landingPageUrl => new DocumentLandingPageError({ requestedUrl: url, landingPageUrl })),
+			error: new Error("timeout"),
+			retryDisposition: "recoverable",
+		});
+	}, siteRules: [], logError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
+	expect(await crawl({ url })).toMatchObject({ status: "failed", finalUrl: url });
+	expect(logError).toHaveBeenCalledTimes(1);
+	expect(logError).toHaveBeenCalledWith(expect.stringContaining("Document response mismatch"), expect.any(TransportLadderFailure));
+});
+
+it("does not replace an unrelated later redirect with the rejected CIA document", async () => {
+	const url = "https://www.cia.gov/readingroom/docs/report.pdf";
+	const home = "https://www.cia.gov/readingroom/";
+	const later = "https://www.cia.gov/different-document";
+	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (_url, init) => {
+		init.onRedirect?.({ fromUrl: home, toUrl: later });
+		throw new TransportLadderFailure({ previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
+	}, siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
+	expect(await crawl({ url })).toMatchObject({ status: "failed", finalUrl: later });
+});
+it("extracts the recovered CIA PDF without attempting homepage thumbnails", async () => {
+	const url = "https://www.cia.gov/readingroom/docs/report.pdf";
+	const calls: string[] = [];
+	const logError = jest.fn();
+	const homepage = () => withResolvedUrl(new Response('<html><img src="/tracking.jpg"></html>', { headers: { "content-type": "text/html" } }), "https://www.cia.gov/readingroom/");
+	const crawl = initCrawl({ logError, fetch: async (input) => { calls.push(String(input)); return String(input) === url ? new Response(null, { status: 302, headers: { location: "https://www.cia.gov/readingroom/" } }) : homepage(); }, fetchH2: async () => homepage(), fetchCurl: async () => withResolvedUrl(new Response(PDF_MAGIC_BUFFER, { headers: { "content-type": "application/pdf" } }), url), extractPdf: async ({ buffer }) => {
+		expect(buffer).toEqual(PDF_MAGIC_BUFFER);
+		return { kind: "fetched", html: "<article>Warren Commission</article>", title: "CIA report" };
+	} });
+	const result = await crawl({ url, fetchThumbnail: true });
+	expect(result).toMatchObject({ status: "fetched", finalUrl: url });
+	expect(calls).toEqual([url, "https://www.cia.gov/readingroom/"]);
+	expect(logError).toHaveBeenCalledTimes(0);
 });

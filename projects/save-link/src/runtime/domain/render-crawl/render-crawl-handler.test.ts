@@ -1443,8 +1443,8 @@ describe("initRenderCrawlHandler", () => {
 		expect(response).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
-	describe("the McKinsey recovery experiment", () => {
-		const target = "https://www.mckinsey.com/article?token=private-query";
+	describe("residential recovery after a gateway failure", () => {
+		const target = "https://publisher.test/article?token=private-query";
 		const gatewayFailure = failed("main document answered HTTP 502", 502);
 		const markerLines = (info: jest.Mock) => info.mock.calls
 			.filter(([message]) => message === "[RenderCrawlCommand] recovery attempt")
@@ -1459,13 +1459,13 @@ describe("initRenderCrawlHandler", () => {
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const renderPage = renderPageAnswering({ direct: failed("net::ERR_HTTP2_PROTOCOL_ERROR"), webUnlocker: gatewayFailure, residential: rendered({ finalUrl: target }) });
 			const handler = createHandler({ renderPage, residentialEgress, consumeRenderCrawlBudget, reportProxiedRenderAttempt, putTierSource, publishEvent, logger: { ...noopLogger, info } });
-			const detail = { url: target, unsupportedReason: "blocked" as const, saveAttemptId: "mckinsey-attempt" };
+			const detail = { url: target, unsupportedReason: "blocked" as const, saveAttemptId: "gateway-recovery-attempt" };
 
 			expect(await run(handler, detail)).toEqual({ batchItemFailures: [] });
 			expect(consumeRenderCrawlBudget).toHaveBeenCalledTimes(1);
 			expect(renderPage.mock.calls.map(([params]) => params.egress.kind)).toEqual(["direct", "web-unlocker", "residential"]);
 			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ renderedThrough: "residential-per-gb" }) }));
-			expect(reportProxiedRenderAttempt).toHaveBeenCalledWith(expect.objectContaining({ readability: "readable", saveAttemptId: "mckinsey-attempt", renderedThrough: "residential-per-gb" }));
+			expect(reportProxiedRenderAttempt).toHaveBeenCalledWith(expect.objectContaining({ readability: "readable", saveAttemptId: "gateway-recovery-attempt", renderedThrough: "residential-per-gb" }));
 			const recorded = publishEvent.mock.calls.find(([event]) => event === TierContentExtractedEvent)?.[1].candidates[0];
 
 			expect(await run(handler, detail)).toEqual({ batchItemFailures: [] });
@@ -1473,8 +1473,8 @@ describe("initRenderCrawlHandler", () => {
 			expect(putTierSource).toHaveBeenCalledTimes(1);
 			expect(publishEvent).toHaveBeenLastCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [recorded], liveAttempt: { outcome: "no-body" } }));
 			expect(markerLines(info)).toEqual([
-				{ stream: "render-recovery", policyVersion: "mckinsey-web-unlocker-502-v1", saveAttemptId: "mckinsey-attempt", host: "www.mckinsey.com", phase: "started" },
-				{ stream: "render-recovery", policyVersion: "mckinsey-web-unlocker-502-v1", saveAttemptId: "mckinsey-attempt", host: "www.mckinsey.com", phase: "finished", outcome: "committed" },
+				{ stream: "render-recovery", policyVersion: "residential-after-gateway-502-v1", saveAttemptId: "gateway-recovery-attempt", host: "publisher.test", phase: "started" },
+				{ stream: "render-recovery", policyVersion: "residential-after-gateway-502-v1", saveAttemptId: "gateway-recovery-attempt", host: "publisher.test", phase: "finished", outcome: "committed" },
 			]);
 		});
 
@@ -1491,7 +1491,7 @@ describe("initRenderCrawlHandler", () => {
 			expect(logParseError).toHaveBeenCalledWith({ url: target, reason: detail });
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, { url: target, input: { reason: { kind: "fetch-failed", detail, httpStatus: 502 }, receiveCount: 1 } });
 			expect(renderPage).toHaveBeenCalledTimes(3);
-			expect(markerLines(info).at(-1)).toEqual({ stream: "render-recovery", policyVersion: "mckinsey-web-unlocker-502-v1", saveAttemptId: "attempt-1", host: "www.mckinsey.com", phase: "finished", outcome: "failed", httpStatus: 502 });
+			expect(markerLines(info).at(-1)).toEqual({ stream: "render-recovery", policyVersion: "residential-after-gateway-502-v1", saveAttemptId: "attempt-1", host: "publisher.test", phase: "finished", outcome: "failed", httpStatus: 502 });
 		});
 
 		it.each([false, true])("honors a deferred recovery claim and preserves reader captures (carried: %s)", async (carried) => {

@@ -8,7 +8,7 @@ import {
 	type ResolveAll,
 	type ResolvePinnedAddress,
 } from "./blocked-address-lookup";
-import { redirectable } from "./follow-redirects";
+import { type OnRedirect, redirectable } from "./follow-redirects";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 
 const DEFAULT_PORTS = new Map([["http:", 80], ["https:", 443]]);
@@ -16,6 +16,7 @@ const DEFAULT_PORTS = new Map([["http:", 80], ["https:", 443]]);
 type CurlFetchInit = {
 	headers?: Record<string, string>;
 	signal: AbortSignal;
+	onRedirect?: OnRedirect;
 };
 
 type CurlChild = {
@@ -170,7 +171,7 @@ export function createCurlFetch(deps: {
 			(hopUrl, hopInit) => fetchOnce(hopUrl, { headers: hopInit?.headers, signal }),
 			"fetchCurl",
 		);
-		return followCurl(url, { headers: init.headers });
+		return followCurl(url, { headers: init.headers, onRedirect: init.onRedirect });
 	};
 }
 
