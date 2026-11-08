@@ -2,7 +2,7 @@
   <button class="btn btn--secondary btn--s highlight-toolbar__button" type="button" data-highlight-toolbar-button data-highlight-form="{{createFormSelector}}" data-highlight-commit="submit" data-test-action="highlight">Highlight</button>
   <button class="btn btn--secondary btn--s highlight-toolbar__button highlight-note__trigger" type="button" data-highlight-toolbar-button data-highlight-form="{{noteFormSelector}}" data-highlight-commit="dialog" data-test-action="add-note">Add note</button>
 </div>
-<form class="highlight-toolbar__form" method="POST" action="{{createUrl}}" hidden hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="[data-highlight-toolbar-button]" data-highlight-create-form data-test-highlight-create-form>
+<form class="highlight-toolbar__form" method="POST" action="{{createUrl}}" hidden hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="[data-highlight-toolbar-button]" data-highlight-create-form data-test-highlight-create-form>
   <input type="hidden" name="exact" value="">
   <input type="hidden" name="start" value="">
   <input type="hidden" name="end" value="">

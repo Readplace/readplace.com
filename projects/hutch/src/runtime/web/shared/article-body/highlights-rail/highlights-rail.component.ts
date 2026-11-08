@@ -8,7 +8,10 @@ import {
 } from "@packages/domain/article";
 import { render, renderConfirmPopover } from "@packages/web-shell";
 import {
+	type HighlightFormScope,
+	highlightFormUrl,
 	highlightNoteEditPopoverId,
+	pushesHistory,
 	renderHighlightNoteEditDialog,
 	renderHighlightNoteFallbackForm,
 } from "../highlights/highlight-note-dialog.component";
@@ -19,7 +22,7 @@ const HIGHLIGHTS_RAIL_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-const DELETE_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" hx-disabled-elt="find button">
+const DELETE_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="find button">
 	<button class="btn btn--primary" type="submit" data-test-action="highlight-delete-confirm" autofocus>Delete</button>
 </form>`;
 
@@ -32,8 +35,7 @@ export interface HighlightsRailRow {
 
 export interface HighlightsRailInput {
 	rows: readonly HighlightsRailRow[];
-	deleteUrlFor: (highlightId: HighlightId) => string;
-	noteUrlFor: (highlightId: HighlightId) => string;
+	scope: HighlightFormScope | undefined;
 	oob: boolean;
 }
 
@@ -68,32 +70,25 @@ function byOrder(a: HighlightsRailRow, b: HighlightsRailRow): number {
 		: a.highlight.highlightId.localeCompare(b.highlight.highlightId);
 }
 
-function rowView(input: {
-	row: HighlightsRailRow;
-	deleteUrlFor: HighlightsRailInput["deleteUrlFor"];
-	noteUrlFor: HighlightsRailInput["noteUrlFor"];
-}) {
-	const { highlight, state } = input.row;
+function editView(input: { highlight: Highlight; scope: HighlightFormScope }) {
+	const { highlight } = input;
 	const popoverId = deletePopoverId(highlight.highlightId);
-	const deleteUrl = input.deleteUrlFor(highlight.highlightId);
-	const noteAction = input.noteUrlFor(highlight.highlightId);
+	const deleteUrl = highlightFormUrl({
+		scope: input.scope,
+		path: `/highlights/${highlight.highlightId}/delete`,
+		source: "highlights-rail",
+		content: "delete-highlight",
+	});
+	const pushes = pushesHistory(input.scope);
 	const noteInput = {
 		highlightId: highlight.highlightId,
 		note: highlight.note,
-		action: noteAction,
+		scope: input.scope,
 	};
-	const markable = state === "anchored" || state === "moved";
 	return {
-		highlightId: highlight.highlightId,
-		exact: highlight.exact,
-		state,
-		orphaned: state === "orphaned",
-		jumpHref: markable
-			? `#${ARTICLE_HIGHLIGHT_ID_PREFIX}${highlight.highlightId}`
-			: "",
 		deleteUrl,
+		pushesHistory: pushes,
 		popoverId,
-		note: highlight.note,
 		noteLabel: highlight.note === undefined ? "Add note" : "Edit note",
 		notePopoverId: highlightNoteEditPopoverId(highlight.highlightId),
 		noteDialogHtml: renderHighlightNoteEditDialog(noteInput),
@@ -105,8 +100,27 @@ function rowView(input: {
 			close: {},
 			title: "Delete this highlight?",
 			body: "The passage stays in the article; only your highlight is removed.",
-			actionsHtml: render(DELETE_ACTIONS_TEMPLATE, { url: deleteUrl }),
+			actionsHtml: render(DELETE_ACTIONS_TEMPLATE, {
+				url: deleteUrl,
+				pushesHistory: pushes,
+			}),
 		}),
+	};
+}
+
+function rowView(input: { row: HighlightsRailRow; scope: HighlightFormScope | undefined }) {
+	const { highlight, state } = input.row;
+	const markable = state === "anchored" || state === "moved";
+	return {
+		highlightId: highlight.highlightId,
+		exact: highlight.exact,
+		state,
+		orphaned: state === "orphaned",
+		jumpHref: markable
+			? `#${ARTICLE_HIGHLIGHT_ID_PREFIX}${highlight.highlightId}`
+			: "",
+		note: highlight.note,
+		edit: input.scope === undefined ? undefined : editView({ highlight, scope: input.scope }),
 	};
 }
 
@@ -115,13 +129,7 @@ export function renderHighlightsRail(
 ): RenderedHighlightsRail {
 	const rows = [...input.rows]
 		.sort(byOrder)
-		.map((row) =>
-			rowView({
-				row,
-				deleteUrlFor: input.deleteUrlFor,
-				noteUrlFor: input.noteUrlFor,
-			}),
-		);
+		.map((row) => rowView({ row, scope: input.scope }));
 	return {
 		html: render(HIGHLIGHTS_RAIL_TEMPLATE, { rows, oob: input.oob }).trim(),
 		hasRows: rows.length > 0,

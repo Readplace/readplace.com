@@ -49,15 +49,14 @@ function railHtml(): string {
 	};
 	return renderHighlightsRail({
 		rows: [{ highlight: row, state: "anchored" }],
-		deleteUrlFor: (id) => `/queue/abc/highlights/${id}/delete`,
-		noteUrlFor: (id) => `/queue/abc/highlights/${id}/note`,
+		scope: { articleId: "abc", readlist: [], surface: [] },
 		oob: false,
 	}).html;
 }
 
 function rowNoteFormsHtml(): string {
-	const action = `/queue/abc/highlights/${HIGHLIGHT_ID}/note`;
-	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", action })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", action })}</details>`;
+	const scope = { articleId: "abc", readlist: [], surface: [] };
+	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", scope })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", scope })}</details>`;
 }
 
 function mainHtml(input: { content?: string; marks?: boolean; rowNoteForms?: boolean } = {}): string {
@@ -68,7 +67,7 @@ function mainHtml(input: { content?: string; marks?: boolean; rowNoteForms?: boo
 		content: articleBody(content),
 		appOrigin: APP_ORIGIN,
 	}).html;
-	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${renderHighlightToolbar({ createUrl: "/queue/abc/highlights?feature=highlight" })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
+	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
 }
 
 interface Harness {
@@ -376,7 +375,7 @@ describe("initHighlightToolbar", () => {
 	});
 
 	it("hides the bar when the page holds no reader content", () => {
-		const h = harness(`<main>${renderHighlightToolbar({ createUrl: "/queue/abc/highlights" })}<p id="outside">Outside</p></main>`);
+		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}<p id="outside">Outside</p></main>`);
 		const outside = h.doc.getElementById("outside");
 		assert(outside);
 
@@ -469,7 +468,6 @@ describe("initHighlightToolbar", () => {
 	it.each([
 		["Escape", "keydown", { key: "Escape" }, true],
 		["another key", "keydown", { key: "a" }, false],
-		["htmx:afterSettle", "htmx:afterSettle", {}, true],
 	] as const)("%s hides the bar: %s", (_label, type, init, hidden) => {
 		const h = harness();
 		selectWords(h, { from: "beta" });
@@ -479,6 +477,29 @@ describe("initHighlightToolbar", () => {
 		else fire(h, type);
 
 		expect(toolbarOf(h).hidden).toBe(hidden);
+	});
+
+	it("keeps the bar over a live selection when an unrelated slot settles", () => {
+		const h = harness();
+		selectWords(h, { from: "beta" });
+		settleSelection(h);
+
+		fire(h, "htmx:afterSettle");
+
+		expect(toolbarOf(h).hidden).toBe(false);
+	});
+
+	it("hides the bar when a settle has swapped the selected text away", () => {
+		const h = harness();
+		selectWords(h, { from: "beta" });
+		settleSelection(h);
+
+		const main = h.doc.querySelector("main");
+		assert(main);
+		main.outerHTML = mainHtml();
+		fire(h, "htmx:afterSettle");
+
+		expect(toolbarOf(h).hidden).toBe(true);
 	});
 
 	it("hides on a press outside the bar and stays open on a press inside it", () => {
@@ -551,7 +572,7 @@ describe("initHighlightToolbar", () => {
 	});
 
 	it("ignores a selection event on a page without reader content", () => {
-		const h = harness(`<main>${renderHighlightToolbar({ createUrl: "/queue/abc/highlights" })}<p id="outside">Outside</p></main>`);
+		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}<p id="outside">Outside</p></main>`);
 		const outside = h.doc.getElementById("outside");
 		assert(outside);
 		selectWords(h, { from: "Outside", root: outside });

@@ -22,9 +22,9 @@ import {
 	pendingHighlightsRailRows,
 	renderHighlightsRail,
 } from "../../shared/article-body/highlights-rail/highlights-rail.component";
+import type { HighlightFormScope } from "../../shared/article-body/highlights/highlight-note-dialog.component";
 import { HIGHLIGHT_TOOLBAR_SCRIPT, renderHighlightToolbar } from "../../shared/article-body/highlights/highlight-toolbar.component";
 import type { ReaderHighlights } from "../../shared/article-body/reader-slot/mark-highlights";
-import type { HighlightId } from "@packages/domain/article";
 import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import {
 	type MarkReadAction,
@@ -142,9 +142,7 @@ export function readerMarkStatusConfirm(input: {
 }
 
 export interface ReaderPageHighlights extends ReaderHighlights {
-	createUrl: string;
-	deleteUrlFor: (highlightId: HighlightId) => string;
-	noteUrlFor: (highlightId: HighlightId) => string;
+	scope: HighlightFormScope | undefined;
 }
 
 export function ReaderPage(
@@ -295,14 +293,13 @@ export function ReaderPage(
 						highlightStates.length === 0
 							? pendingHighlightsRailRows(highlights.rows)
 							: highlightsRailRowsFromStates(highlightStates),
-					deleteUrlFor: highlights.deleteUrlFor,
-					noteUrlFor: highlights.noteUrlFor,
+					scope: highlights.scope,
 					oob: false,
 				});
 	const innerContent =
-		highlights === undefined
+		highlights?.scope === undefined
 			? articleBodyHtml
-			: articleBodyHtml + renderHighlightToolbar({ createUrl: highlights.createUrl });
+			: articleBodyHtml + renderHighlightToolbar({ scope: highlights.scope });
 	const railLandmark = railLandmarkFor({
 		hasCard:
 			highlightsRail?.hasRows === true ||
@@ -425,7 +422,7 @@ export function ReaderPage(
 				READER_OPEN_SCRIPT +
 				READER_TOP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT +
-				(highlights === undefined ? "" : HIGHLIGHT_TOOLBAR_SCRIPT),
+				(highlights?.scope === undefined ? "" : HIGHLIGHT_TOOLBAR_SCRIPT),
 		}),
 	};
 }

@@ -398,6 +398,7 @@ import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
+import { initCanSaveContent } from "./web/middleware/can-save-content";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { requireNotLocked } from "./web/middleware/require-not-locked.middleware";
 import { requireEnv, getEnv } from "@packages/require-env";
@@ -909,6 +910,10 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(markExtensionInstalled);
 
 	const requireWriteAccess = initRequireWriteAccess({
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		now: deps.now,
+	});
+	const canSaveContent = initCanSaveContent({
 		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
 		now: deps.now,
 	});
@@ -1524,6 +1529,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		resolveOwnedArticle,
 		resolveVerificationStatus,
 		requireWriteAccess,
+		canSaveContent,
 		getEffectiveAccess,
 		buildBannerState,
 		recordAnalyticsEvent,

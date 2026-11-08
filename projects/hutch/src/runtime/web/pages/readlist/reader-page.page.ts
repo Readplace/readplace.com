@@ -75,7 +75,9 @@ import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type { SavedArticle } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { highlightFeatureEnabled, highlightPathsFor } from "./highlight-feature";
+import { highlightFeatureEnabled } from "./highlight-feature";
+import { highlightActionUrl } from "./highlight-surface";
+import { highlightFormScopeFor, initReaderHighlightOptions } from "./reader-highlight-options";
 import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM } from "./readlist-shared";
 
 const pastReadsComputeUrlFor = (params: {
@@ -190,9 +192,10 @@ function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 
 export function initReaderPageRoutes(deps: Pick<
 		ReadlistDependencies,
-		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView" | "listArticleHighlights" | "readCanonicalSnapshot" | "presignEnclosure" | "findArticleById"
+		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView" | "listArticleHighlights" | "readCanonicalSnapshot" | "presignEnclosure" | "findArticleById" | "canSaveContent"
 	>, shared: ReadlistShared): { router: Router; renderOwnerReader: RenderOwnerReader } {
 	const router = express.Router();
+	const readerHighlightOptions = initReaderHighlightOptions(deps);
 	const { requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
 
 	const resolveReaderPermalinkIn = (readlist: ReadlistSlug) =>
@@ -530,9 +533,7 @@ export function initReaderPageRoutes(deps: Pick<
 			deletion,
 			provenance,
 		} = resolved;
-		const highlightsOn =
-			highlightFeatureEnabled(req.query) && !isAppPlatform(req);
-		const highlightRows = highlightsOn
+		const highlightRows = highlightFeatureEnabled(req.query)
 			? await deps.listArticleHighlights({
 					userId: ownedArticle.userId,
 					url: ArticleResourceUniqueId.parse(ownedArticle.url).value,
@@ -542,21 +543,10 @@ export function initReaderPageRoutes(deps: Pick<
 			contentVersion: resolved.contentVersion,
 			highlights: highlightRows,
 		});
-		const highlightPaths = highlightPathsFor({
-			articleId: ownedArticle.id.value,
-			query: req.query,
+		const highlights: ReaderPageHighlights | undefined = await readerHighlightOptions(req, {
+			article: ownedArticle,
+			rows: highlightRows,
 		});
-		const highlights: ReaderPageHighlights | undefined = highlightsOn
-			? {
-					rows: highlightRows,
-					canonicalContentHash: (
-						await deps.readCanonicalSnapshot(ownedArticle.url)
-					)?.canonicalContentHash,
-					createUrl: highlightPaths.createUrl,
-					deleteUrlFor: highlightPaths.deleteUrlFor,
-					noteUrlFor: highlightPaths.noteUrlFor,
-				}
-			: undefined;
 		const settle = (component: Component, cacheControl: string): Component =>
 			options.statusCode === 200
 				? FreshForComponent(component, {
@@ -582,7 +572,11 @@ export function initReaderPageRoutes(deps: Pick<
 		const currentPath =
 			options.statusCode === 200
 				? withoutFiledFlash(req.originalUrl)
-				: highlightPaths.viewPath;
+				: highlightActionUrl({
+						path: `${READLIST_PATH}/${ownedArticle.id.value}/view`,
+						...highlightFormScopeFor(req, ownedArticle.id.value),
+						enabled: true,
+					});
 		const issueLinks = await issueLinksFor(req, ownedArticle);
 		const readerSettled =
 			state.readerPollUrl === undefined &&
@@ -625,6 +619,7 @@ export function initReaderPageRoutes(deps: Pick<
 				epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
 				issueLinks,
 				deletion,
+				highlights,
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(

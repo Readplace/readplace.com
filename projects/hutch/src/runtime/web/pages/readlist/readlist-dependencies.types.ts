@@ -1,3 +1,4 @@
+import type { CanSaveContent } from "../../middleware/can-save-content";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type { PresignEnclosure, PresignMediaImage } from "@packages/domain";
 import type { initKeepOffer } from "../../../domain/engagement/keep-offer";
@@ -259,6 +260,7 @@ export interface ReadlistDependencies {
 	 * (cancelled or trial-expired). Mounted only on save routes — list, view,
 	 * mark-as-read, and delete remain reachable for read-only users. */
 	requireWriteAccess: RequestHandler;
+	canSaveContent: CanSaveContent;
 	secureCookies: boolean;
 	getEffectiveAccess: GetEffectiveAccess;
 	findUserById: FindUserById;

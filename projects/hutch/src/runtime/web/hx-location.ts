@@ -6,12 +6,18 @@ const SWAP_FOR_SCROLL = {
 
 export type HxLocationScroll = keyof typeof SWAP_FOR_SCROLL;
 
-export function hxLocationToMain(location: { path: string; source: string; scroll: HxLocationScroll }): string {
+export function hxLocationToMain(location: {
+	path: string;
+	source: string;
+	scroll: HxLocationScroll;
+	push?: false;
+}): string {
 	return JSON.stringify({
 		path: location.path,
 		source: location.source,
 		target: "main",
 		select: "main",
 		swap: SWAP_FOR_SCROLL[location.scroll],
+		...(location.push === false ? { push: "false" } : {}),
 	});
 }

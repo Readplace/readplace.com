@@ -20,6 +20,7 @@ function noteForm(
 			value: "",
 			hiddenFields: [],
 			answersInPlace: true,
+			pushesHistory: true,
 			autofocus: true,
 			...overrides,
 		})}</div>`,
@@ -233,5 +234,27 @@ describe("renderHighlightNoteForm", () => {
 		expect(
 			save?.querySelector(".readlist-name-form__loader.in-flight-dots"),
 		).not.toBeNull();
+	});
+
+	it("keeps history on a boosted form that pushes, and stops the push on one that does not", () => {
+		const pushing = formOf(
+			noteForm({ answersInPlace: false, pushesHistory: true }),
+		);
+		const inPlace = formOf(
+			noteForm({ answersInPlace: false, pushesHistory: false }),
+		);
+
+		expect(pushing.getAttribute("hx-boost")).toBe("true");
+		expect(pushing.hasAttribute("hx-push-url")).toBe(false);
+		expect(inPlace.getAttribute("hx-boost")).toBe("true");
+		expect(inPlace.getAttribute("hx-push-url")).toBe("false");
+	});
+
+	it("never adds a push attribute to a form that answers in place", () => {
+		expect(
+			formOf(
+				noteForm({ answersInPlace: true, pushesHistory: false }),
+			).hasAttribute("hx-push-url"),
+		).toBe(false);
 	});
 });

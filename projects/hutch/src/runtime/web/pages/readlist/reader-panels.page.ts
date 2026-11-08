@@ -50,7 +50,8 @@ import {
 } from "../../onboarding/native-client";
 import type { SavedArticle } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { highlightFeatureEnabled, highlightPathsFor } from "./highlight-feature";
+import { highlightFeatureEnabled } from "./highlight-feature";
+import { initReaderHighlightOptions } from "./reader-highlight-options";
 import { initRequestRelatedPasses } from "./request-related-passes";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
 import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, ISSUE_LINK_SAVED_PARAM } from "./readlist-shared";
@@ -60,12 +61,13 @@ const HTMX_STOP_POLLING_STATUS = 286;
 export function initReaderPanelRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requireWriteAccess" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot"
+		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requireWriteAccess" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot" | "canSaveContent"
 	>,
 	shared: ReadlistShared,
 ): Router {
 	const router = express.Router();
 	const requestRelatedPasses = initRequestRelatedPasses(deps);
+	const readerHighlightOptions = initReaderHighlightOptions(deps);
 	const { saveArticleAtReadlistTop, requestReadlistContext, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
 
 	const ownerReaderViewFailedOob = (req: Request): ReaderViewFailedOob =>
@@ -79,19 +81,16 @@ export function initReaderPanelRoutes(
 					renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req), guide: epubGuideFor(req, article) })
 			: undefined;
 
-	const pollHighlightsFor = async (req: Request, article: SavedArticle): Promise<PollHighlights | undefined> => {
-		if (!highlightFeatureEnabled(req.query) || isAppPlatform(req)) return undefined;
-		const { deleteUrlFor, noteUrlFor } = highlightPathsFor({ articleId: article.id.value, query: req.query });
-		return {
-			rows: await deps.listArticleHighlights({
-				userId: article.userId,
-				url: ArticleResourceUniqueId.parse(article.url).value,
-			}),
-			canonicalContentHash: (await deps.readCanonicalSnapshot(article.url))?.canonicalContentHash,
-			deleteUrlFor,
-			noteUrlFor,
-		};
-	};
+	const pollHighlightsFor = async (req: Request, article: SavedArticle): Promise<PollHighlights | undefined> =>
+		readerHighlightOptions(req, {
+			article,
+			rows: highlightFeatureEnabled(req.query)
+				? await deps.listArticleHighlights({
+						userId: article.userId,
+						url: ArticleResourceUniqueId.parse(article.url).value,
+					})
+				: [],
+		});
 
 	router.get("/:id/summary", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");

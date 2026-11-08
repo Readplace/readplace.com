@@ -124,6 +124,7 @@ class ReadingListViewModelTest {
 		onSessionExpired: () -> Unit = {},
 		now: () -> Instant = { Instant.EPOCH },
 		reportProcessingRefreshFailure: (String) -> Unit = {},
+		readerQuery: List<Pair<String, String>> = emptyList(),
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 	): ReadingListViewModel =
 		ReadingListViewModel(
@@ -139,6 +140,7 @@ class ReadingListViewModelTest {
 			onSessionExpired = onSessionExpired,
 			now = now,
 			reportProcessingRefreshFailure = reportProcessingRefreshFailure,
+			readerQuery = readerQuery,
 			scope = backgroundScope,
 		)
 
@@ -1552,6 +1554,19 @@ class ReadingListViewModelTest {
 			presentation.readerUrl,
 		)
 		assertEquals("a reader opened from a row is keyed by that row", "a1", presentation.id)
+	}
+
+	@Test
+	fun `openReader appends the reader query after the platform param`() = runTest {
+		val viewModel = viewModel(readerQuery = listOf("feature" to "highlight"))
+
+		viewModel.openReader(article(readHref = "/queue/a1/view"))
+
+		val presentation = checkNotNull(viewModel.state.value.readerPresentation)
+		assertEquals(
+			"${server.baseUrl}/queue/a1/view?platform=android&feature=highlight",
+			presentation.readerUrl,
+		)
 	}
 
 	@Test

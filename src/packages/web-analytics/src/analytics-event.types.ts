@@ -177,6 +177,7 @@ export interface HighlightCreatedEvent {
 	visitor_hash: string | null;
 	origin: "mouse" | "tap" | "longpress";
 	highlight_id: HighlightId;
+	surface: "web" | "ios" | "android";
 }
 
 export interface HighlightDeletedEvent {

@@ -3,7 +3,6 @@ import type {
 	ArticleMetadata,
 	CaptureTrigger,
 	Highlight,
-	HighlightId,
 	Minutes,
 	ShownSummary,
 	Viewer,
@@ -27,6 +26,7 @@ import type {
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import type { RequestResolutionOnView } from "../../../domain/resolve-on-view/request-resolution-on-view";
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
+import type { HighlightFormScope } from "../article-body/highlights/highlight-note-dialog.component";
 import type { ReaderSectionInput } from "../article-body/reader-slot/section-pages";
 import type { CaptureWatch } from "./capture-watch";
 import type { ReaderView } from "./reader-view";
@@ -137,8 +137,7 @@ export interface ResolveReaderStateParams {
 export interface PollHighlights {
 	rows: readonly Highlight[];
 	canonicalContentHash: string | undefined;
-	deleteUrlFor: (highlightId: HighlightId) => string;
-	noteUrlFor: (highlightId: HighlightId) => string;
+	scope: HighlightFormScope | undefined;
 }
 
 export interface HandlePollParams {

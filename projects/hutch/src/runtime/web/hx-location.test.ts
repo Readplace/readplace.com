@@ -45,4 +45,16 @@ describe("hxLocationToMain", () => {
 			swap: "outerHTML show:#latest-saved:top",
 		});
 	});
+
+	it("leaves push out so htmx pushes the landing as it does by default", () => {
+		const header = hxLocationToMain({ path: "/queue", source: "#add-link", scroll: "top" });
+
+		assert.equal("push" in JSON.parse(header), false);
+	});
+
+	it("tells htmx not to push the landing as the string htmx reads, since it reads a boolean false as a push", () => {
+		const header = hxLocationToMain({ path: "/queue", source: "#add-link", scroll: "top", push: false });
+
+		assert.equal(JSON.parse(header).push, "false");
+	});
 });

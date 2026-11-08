@@ -38,6 +38,15 @@ describe("blockTextOf", () => {
 		assert.equal(blockTextOf(elementOf({ document, selector: "p" })).text, "One two and three. Four.");
 	});
 
+	it("reads a line break wrapped into the source HTML as the space it renders as", () => {
+		const document = documentOf("<p>Starting with the most popular\nones. Then <code>git</code>\r\nconfig.</p>");
+
+		assert.equal(
+			blockTextOf(elementOf({ document, selector: "p" })).text,
+			"Starting with the most popular ones. Then git config.",
+		);
+	});
+
 	it("separates the items of a nested list with a line break", () => {
 		const document = documentOf('<ul><li id="outer">Parent.<ul><li>First</li><li>Second</li></ul></li></ul>');
 

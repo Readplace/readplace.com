@@ -8,6 +8,13 @@ import { subscriptionInactiveSirenError } from "../api/subscription-inactive-sir
 import { wantsSiren } from "../content-negotiation";
 import { tagSaveRefusal } from "../shared/save-refusal";
 
+export function hasFullWriteAccess(input: {
+	subscription: Parameters<typeof resolveWriteAccess>[0];
+	now: Date;
+}): boolean {
+	return resolveWriteAccess(input.subscription, input.now) === "full";
+}
+
 /**
  * Save-gate for an inactive (read-only) subscription. Content-negotiated like the
  * lock gate: an API/Siren client (the iOS Share Extension, the browser extension,
@@ -23,7 +30,7 @@ export function initRequireWriteAccess(deps: {
 	return async (req, res, next) => {
 		assert(req.userId, "requireWriteAccess must run after an authentication middleware");
 		const subscription = await deps.findSubscriptionByUserId(req.userId);
-		if (resolveWriteAccess(subscription, deps.now()) === "full") {
+		if (hasFullWriteAccess({ subscription, now: deps.now() })) {
 			next();
 			return;
 		}

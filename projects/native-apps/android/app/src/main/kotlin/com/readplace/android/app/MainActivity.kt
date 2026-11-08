@@ -137,6 +137,7 @@ class MainActivity : ComponentActivity() {
 				onSessionExpired = { session.forceLogout() },
 				now = { Instant.now() },
 				reportProcessingRefreshFailure = { failure -> Log.i("ProcessingRefresh", "row refresh failed: $failure") },
+				readerQuery = AppConfig.readerFeatureQuery(AppConfig.serverEnvironment),
 				scope = lifecycleScope,
 			)
 		}

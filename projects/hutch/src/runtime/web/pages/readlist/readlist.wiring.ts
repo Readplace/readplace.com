@@ -7,7 +7,7 @@ export function readlistDependenciesFrom(
 	deps: Pick<AppDependencies, "setSessionReadlistFilter" | "findSessionReadlistFilter" | "validateSaveableUrl" | "findUserById" | "findArticlesByUser" | "countArticlesByUser" | "findArticleById" | "findArticleByUrl" | "findItemOwner" | "findArticleFreshness" | "findArticleCrawlVersions" | "findArticleUrlById" | "saveArticle" | "saveArticleKeepingPosition" | "deleteArticle" | "updateArticleStatus" | "markArticleViewed" | "findReadlistArticles" | "countReadlistArticles" | "findReadlistArticleById" | "updateArticleStatusAcrossReadlists" | "deleteReadlistArticle" | "purgeReadlistArticle" | "markReadlistArticleViewed" | "listUserSavesForUrl" | "listUserSavesForUrls" | "deleteArticleHighlights" | "listArticleHighlights" | "readCanonicalSnapshot" | "deleteHighlight" | "updateHighlightNote" | "moveReadlistArticles" | "listReadlistDefinitions" | "renameReadlistDefinition" | "setReadlistDefinitionPurpose" | "clearReadlistDefinitionPurpose" | "purgeReadlistFitOverrides" | "listReadlistFitOverrides" | "deleteReadlistFitOverride" | "listInboxAddresses" | "setInboxAddressReadlist" | "markSummaryToggled" | "recordEngagementActivity" | "markRelatedDismissed" | "publishLinkSaved" | "publishLinkQueued" | "publishLinkDequeued" | "publishQueueEntryCreated" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "requestResolutionOnView" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "findRelatedArticles" | "findPastReads" | "listIssueLinks" | "findIssueLink" | "findIssueLinkSaveStates" | "publishRemoveMyContent" | "publishSaveLinkRawHtmlCommand" | "publishSaveLinkRawPdfCommand" | "putPendingHtml" | "putPendingPdf" | "createUploadSlot" | "statPendingUpload" | "readPendingUploadPrefix" | "findGeneratedSummary" | "findGeneratedSummaries" | "markSummaryPending" | "findArticleCrawlStatus" | "findArticleCrawlStatuses" | "markCrawlPending" | "refreshArticleIfStale" | "refreshArticleIfStaleStored" | "publishSubmitLink" | "allocateSavedAt" | "allocateSavedAtSequence" | "findSavedUrls" | "resolveFirstVisitIdentity" | "pinContentSource" | "publishUpdateFetchTimestamp" | "readArticleContent" | "httpErrorMessageMapping" | "getOnboardingSignals" | "recordNativeAppAnyActivity" | "recordNativeAppSavedArticle" | "recordNextReadMinimumReached" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "recordOnboardingOutstandingVersion" | "recordMarkReadAcrossQueuesAcknowledged" | "recordDeleteArticleAcknowledged" | "setKeepOfferDismissed" | "presignMediaImage" | "logError" | "salt" | "now" | "presignEnclosure" | "readerSectionThresholdBytes">,
 	built: Pick<
 		ReadlistDependencies,
-		"createReaderHighlight" | "keepOffer" | "validateNewSaveUrl" | "appOrigin" | "secureCookies" | "saveArticleWithoutActivity" | "addArticleToReadlist" | "fileArticleIntoReadlist" | "upsertReadlist" | "deleteReadlistDefinition" | "markdownBearerAuth" | "resolveOwnedArticle" | "resolveVerificationStatus" | "requireWriteAccess" | "getEffectiveAccess" | "buildBannerState" | "recordAnalyticsEvent" | "recordUngatedAnalyticsEvent"
+		"createReaderHighlight" | "keepOffer" | "validateNewSaveUrl" | "appOrigin" | "secureCookies" | "saveArticleWithoutActivity" | "addArticleToReadlist" | "fileArticleIntoReadlist" | "upsertReadlist" | "deleteReadlistDefinition" | "markdownBearerAuth" | "resolveOwnedArticle" | "resolveVerificationStatus" | "requireWriteAccess" | "canSaveContent" | "getEffectiveAccess" | "buildBannerState" | "recordAnalyticsEvent" | "recordUngatedAnalyticsEvent"
 	> & {
 		readerProvenanceNewsletters: Parameters<typeof initResolveReaderProvenance>[0]["detectNewsletters"];
 		gmailIntegration: ReadlistDependencies["gmail"];
@@ -32,6 +32,7 @@ export function readlistDependenciesFrom(
 		resolveOwnedArticle,
 		resolveVerificationStatus,
 		requireWriteAccess,
+		canSaveContent,
 		getEffectiveAccess,
 		buildBannerState,
 		recordAnalyticsEvent,
@@ -153,6 +154,7 @@ export function readlistDependenciesFrom(
 		resolveOwnedArticle,
 		resolveVerificationStatus,
 		requireWriteAccess,
+		canSaveContent,
 		getEffectiveAccess,
 		buildBannerState,
 		logError: deps.logError,

@@ -515,11 +515,13 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			"highlight_id",
 			"origin",
 			"stream",
+			"surface",
 			"timestamp",
 			"user_id",
 			"visitor_hash",
 		]);
 		expect(events[0].origin).toBe("mouse");
+		expect(events[0].surface).toBe("web");
 	});
 
 	it("records a tap create's origin and highlight id, keeping the flag in the redirect", async () => {

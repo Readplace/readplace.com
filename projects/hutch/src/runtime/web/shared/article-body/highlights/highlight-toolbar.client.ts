@@ -254,7 +254,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 	document.addEventListener("pointerdown", (event) => {
 		if (!event.composedPath().includes(toolbarOf())) hide();
 	});
-	document.addEventListener("htmx:afterSettle", hide);
+	document.addEventListener("htmx:afterSettle", check);
 	document.addEventListener("click", (event) => {
 		const path = event.composedPath();
 		const buttons = Array.from(document.querySelectorAll(BUTTON_SELECTOR));

@@ -41,7 +41,7 @@ function harness(): Harness {
 		appOrigin: "https://readplace.com",
 	}).html;
 	const dom = new JSDOM(
-		`<!doctype html><html><body><main>${renderHighlightToolbar({ createUrl: "/queue/abc/highlights?feature=highlight" })}<header><h1>Header title.</h1></header>${reader}<p id="outside">Outside the article.</p></main></body></html>`,
+		`<!doctype html><html><body><main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}<header><h1>Header title.</h1></header>${reader}<p id="outside">Outside the article.</p></main></body></html>`,
 	);
 	const doc = dom.window.document;
 	const timers = new Map<number, { callback: () => void; delayMs: number }>();

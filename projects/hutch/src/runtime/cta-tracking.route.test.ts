@@ -209,6 +209,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 						`/queue/queues/${describedReadlist}/preferences`,
 						`/queue/${articleId}/view?filed_readlist=${madeReadlist}`,
 						highlightedPath,
+						`/queue/${articleId}/view?platform=ios&feature=highlight`,
 					]
 				: [];
 
@@ -231,7 +232,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		};
 
 		expect(readerHref).toContain("/view");
-		expect(readlistPaths.length).toBe(7);
+		expect(readlistPaths.length).toBe(8);
 		expect(untracked).toEqual([]);
 		expect(noteFormUtm('#note-highlight-dialog form[data-test-form="highlight-note"]')).toEqual({
 			source: "highlight-toolbar",

@@ -57,6 +57,7 @@ import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import {
 	parseReadlistUrl,
 	READLIST_PATH,
+	readlistReturnQuery,
 	toArticleDiscoveryQuery,
 	type ReadlistUrlState,
 } from "./readlist.url";
@@ -391,11 +392,9 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		requestResolutionOnView: deps.requestResolutionOnView,
 	});
 	function pollUrlBuilderFor(req: Request, articleId: string): PollUrlBuilder {
-		const readlist = requestReadlistContext(req).state.readlist;
+		const readlist = readlistReturnQuery(parseReadlistUrl(req.query)).slice(1);
 		const section = requestedReaderSection(req.query.section);
-		const surface = `${joinedSurfaceQuery(nativeSurfaceQuery(req))}${
-			readlist === DEFAULT_READLIST_SLUG ? "" : `&queue=${encodeURIComponent(readlist)}`
-		}${section === undefined ? "" : `&section=${section}`}${
+		const surface = `${readlist === "" ? "" : `&${readlist}`}${joinedSurfaceQuery(nativeSurfaceQuery(req))}${section === undefined ? "" : `&section=${section}`}${
 			highlightFeatureEnabled(req.query) ? `&feature=${HIGHLIGHT_FEATURE}` : ""
 		}`;
 		return {

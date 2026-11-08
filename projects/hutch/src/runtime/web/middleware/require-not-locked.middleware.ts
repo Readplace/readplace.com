@@ -1,10 +1,14 @@
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler } from "express";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import { Base } from "../base.component";
 import { AccountLockedPage } from "../auth/auth.component";
 import { wantsSiren } from "../content-negotiation";
 import { SIREN_MEDIA_TYPE } from "../api/siren";
 import { accountLockedSirenError } from "../api/account-locked-siren";
+
+export function isAccountLocked(req: Pick<Request, "verificationStatus">): boolean {
+	return req.verificationStatus?.state === "locked";
+}
 
 /**
  * Save-gate for a locked account (unverified past its 7-day window, flagged by
@@ -21,7 +25,7 @@ import { accountLockedSirenError } from "../api/account-locked-siren";
  * itself names the address to email), shown in place of an HTML page.
  */
 export const requireNotLocked: RequestHandler = (req, res, next) => {
-	if (req.verificationStatus?.state !== "locked") {
+	if (!isAccountLocked(req)) {
 		next();
 		return;
 	}

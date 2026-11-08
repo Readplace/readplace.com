@@ -58,6 +58,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			requestResolutionOnView: deps.requestResolutionOnView,
 			listArticleHighlights: deps.listArticleHighlights,
 			readCanonicalSnapshot: deps.readCanonicalSnapshot,
+			canSaveContent: deps.canSaveContent,
 		},
 		shared,
 	);
@@ -271,6 +272,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				salt: deps.salt,
 				listArticleHighlights: deps.listArticleHighlights,
 				readCanonicalSnapshot: deps.readCanonicalSnapshot,
+				canSaveContent: deps.canSaveContent,
 			},
 			shared,
 		),

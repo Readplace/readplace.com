@@ -128,6 +128,15 @@ final class ReaderNavigationTests: XCTestCase {
 		)
 	}
 
+	func testHighlightJumpInAFlaggedReadlistReaderStaysInTheWebView() {
+		let flagged = URL(string: "https://readplace.com/queue/a1/view?queue=work&platform=ios&feature=highlight")!
+		let url = URL(string: "https://readplace.com/queue/a1/view?queue=work&platform=ios&feature=highlight#highlight-x")!
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: flagged),
+			.allow
+		)
+	}
+
 	func testInitialOtherLoadIsAllowed() {
 		XCTAssertEqual(
 			ReaderNavigation.decide(url: current, navigationType: .other, currentURL: nil),

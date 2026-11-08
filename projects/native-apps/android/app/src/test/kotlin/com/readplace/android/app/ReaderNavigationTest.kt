@@ -233,6 +233,19 @@ class ReaderNavigationTest {
 	}
 
 	@Test
+	fun highlightJumpOnTheFlaggedReaderStaysInTheWebView() {
+		val flagged = "https://readplace.com/queue/a1/view?queue=work&platform=android&feature=highlight"
+		assertEquals(
+			ReaderNavigationDecision.Allow,
+			ReaderNavigation.decide(
+				url = "$flagged#highlight-x",
+				isLinkActivated = true,
+				currentUrl = flagged,
+			),
+		)
+	}
+
+	@Test
 	fun fragmentOnADifferentSchemeOpensExternally() {
 		val url = "http://readplace.com/queue/a1/view?platform=android#footnote"
 		assertEquals(

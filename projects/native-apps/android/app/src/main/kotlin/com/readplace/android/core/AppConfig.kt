@@ -101,4 +101,7 @@ object AppConfig {
 	 * device class and the bot exemption off this exact shape. */
 	fun nativeUserAgent(versionCode: Int, osRelease: String): String =
 		"Readplace/$versionCode Android/$osRelease"
+
+	fun readerFeatureQuery(environment: String): List<Pair<String, String>> =
+		if (environment == "production") emptyList() else listOf("feature" to "highlight")
 }

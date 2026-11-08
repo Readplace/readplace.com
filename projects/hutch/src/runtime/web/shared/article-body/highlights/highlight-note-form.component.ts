@@ -30,6 +30,7 @@ export function renderHighlightNoteForm(input: {
 	refusal?: HighlightNoteRefusal;
 	hiddenFields: readonly { name: string; value: string }[];
 	answersInPlace: boolean;
+	pushesHistory: boolean;
 	autofocus: boolean;
 }): string {
 	return render(TEMPLATE, {

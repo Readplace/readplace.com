@@ -41,8 +41,14 @@ enum ReaderBootstrap: Equatable {
 
 enum ReaderRequest {
 	static func url(readHref: String?, baseURL: String) -> URL? {
+		url(readHref: readHref, baseURL: baseURL, extraQueryItems: AppConfig.serverEnvironment.readerFeatureQueryItems)
+	}
+
+	static func url(readHref: String?, baseURL: String, extraQueryItems: [URLQueryItem]) -> URL? {
 		guard let href = readHref, let resolved = Href.resolve(href, baseURL: baseURL) else { return nil }
-		return Href.appending(AppConfig.readerPlatformQueryItem, to: resolved)
+		return extraQueryItems.reduce(Href.appending(AppConfig.readerPlatformQueryItem, to: resolved)) { url, item in
+			url.flatMap { Href.appending(item, to: $0) }
+		}
 	}
 
 	static func open(url: URL, cachePolicy: URLRequest.CachePolicy) -> URLRequest {
