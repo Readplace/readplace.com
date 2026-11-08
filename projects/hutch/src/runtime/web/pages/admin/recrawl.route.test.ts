@@ -719,10 +719,6 @@ describe("Admin recrawl routes", () => {
 				estimatedReadTime: MinutesSchema.parse(1),
 				savedAt: new Date(),
 			});
-			// Summary was generated on a prior crawl. Wiping it here would mean
-			// a guaranteed DeepSeek call on every admin recrawl regardless of
-			// whether the readable content actually changed. The hash gate in
-			// recrawlPromoteTier / recrawlTieKeptCanonical now owns that decision.
 			harness.summary.markSummaryReady({
 				url: ARTICLE_URL,
 				summary: "Existing summary",
