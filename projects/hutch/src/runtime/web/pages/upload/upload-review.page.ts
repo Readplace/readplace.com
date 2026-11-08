@@ -9,7 +9,6 @@ import type {
 	FindMediaUploadByCapability,
 } from "@packages/domain";
 import {
-	AUDIO,
 	billableSeconds,
 	chargedMinutes,
 	displayMinutes,
@@ -26,7 +25,7 @@ import { defaultFileNameOf } from "./commit-received-upload";
 import { redirectAnonymousToUploadSignup } from "./redirect-anonymous-to-upload-signup";
 import { type UploadOutcome, type UploadOutcomeKey, writeUploadOutcome } from "./upload.outcome";
 import { UPLOAD_OUTCOME_HTML } from "./upload.page";
-import { UPLOAD_REFUSAL_COPY } from "./upload.refusal";
+import { uploadRefusalCopyOf } from "./upload.refusal";
 import { uploadStartPathOf } from "./upload-features";
 import { kindsForViewer } from "./upload.viewmodel";
 import { UploadReviewPage, type UploadReviewView } from "./upload-review.component";
@@ -62,6 +61,7 @@ const REVIEW_VIEWS: Record<
 		poll: number;
 		maxPolls: number;
 		transcriptAllowanceSeconds: number;
+		kind: MediaKindManifest;
 	}) => UploadReviewView
 > = {
 	inspecting: ({ session, poll, maxPolls }) => {
@@ -73,7 +73,7 @@ const REVIEW_VIEWS: Record<
 			checkAgainUrl: withInternalTracking(next, { source: REVIEW_SOURCE, content: "check-again" }),
 		};
 	},
-	ready: ({ session, transcriptAllowanceSeconds }) => {
+	ready: ({ session, transcriptAllowanceSeconds, kind }) => {
 		const { facts } = session;
 		assert(facts, `ready upload ${session.uploadId} has no facts`);
 		const commitUrl = withInternalTracking(`/upload/${session.uploadId}/commit`, {
@@ -93,13 +93,13 @@ const REVIEW_VIEWS: Record<
 		if (seconds > transcriptAllowanceSeconds) {
 			return {
 				view: "too-long",
-				notice: UPLOAD_REFUSAL_COPY["transcript-too-long"],
+				notice: uploadRefusalCopyOf(transcriptAllowanceSeconds)["transcript-too-long"],
 				uploadAgainUrl: uploadAgainUrlOf(session),
 			};
 		}
 		return {
 			view: "timed-review",
-			heading: session.fileName ?? defaultFileNameOf(AUDIO),
+			heading: session.fileName ?? defaultFileNameOf(kind),
 			durationMinutes: displayMinutes(facts.durationSeconds),
 			transcriptMinutes: chargedMinutes(seconds),
 			allowanceMinutes: displayMinutes(transcriptAllowanceSeconds),
@@ -157,16 +157,20 @@ export function initAnonymousUploadRoutes(deps: {
 			return;
 		}
 		const poll = PollSchema.safeParse(req.query.poll);
+		assert(session.kind, `reviewable upload ${session.uploadId} has no kind`);
+		const kind = deps.MEDIA_KINDS.get(session.kind);
+		assert(kind, `reviewable upload of unknown kind ${session.kind}`);
 		const view = REVIEW_VIEWS[session.status]({
 			session,
 			poll: poll.success ? poll.data : 0,
 			maxPolls: deps.maxPolls,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
+			kind,
 		});
 		const page = UploadReviewPage({
 			state: view,
 			uploadId: session.uploadId,
-			media: session.kind === "audio" ? "audio" : "book",
+			media: session.kind,
 		});
 		sendComponent(req, res, Base(page, await deps.buildBannerState(req)));
 	});

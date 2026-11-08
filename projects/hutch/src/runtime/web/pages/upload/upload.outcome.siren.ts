@@ -3,7 +3,7 @@ import type { UploadId } from "@packages/media-contracts";
 import { SIREN_MEDIA_TYPE, type SirenEntity, sirenError } from "../../api/siren";
 import { UPLOAD_ERROR_STATUS, UPLOAD_FAILED_MESSAGE, type UploadErrorCode, uploadErrorMessageOf } from "./upload.error";
 import type { UploadOutcomeWriters, UploadWriteContext } from "./upload.outcome";
-import { UPLOAD_REFUSAL_COPY, type UploadRefusalReason } from "./upload.refusal";
+import { type UploadRefusalReason, uploadRefusalCopyOf } from "./upload.refusal";
 import type { UploadProtocol } from "./upload.page";
 
 function sendSiren(res: Response, status: number, entity: SirenEntity): void {
@@ -24,9 +24,15 @@ function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, 
 	};
 }
 
-function refusalWriter(reason: UploadRefusalReason): (res: Response) => void {
-	return (res) => {
-		sendSiren(res, 422, sirenError({ code: reason, message: UPLOAD_REFUSAL_COPY[reason] }));
+function refusalWriter(
+	reason: UploadRefusalReason,
+): (res: Response, _outcome: unknown, context: UploadWriteContext) => void {
+	return (res, _outcome, context) => {
+		sendSiren(
+			res,
+			422,
+			sirenError({ code: reason, message: uploadRefusalCopyOf(context.transcriptAllowanceSeconds)[reason] }),
+		);
 	};
 }
 

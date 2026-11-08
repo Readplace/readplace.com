@@ -157,6 +157,6 @@ describe("a video card on the readlist", () => {
 
 		expect(badge?.getAttribute("data-test-article-kind")).toBe("video");
 		expect(badge?.textContent?.trim()).toBe("Video");
-		expect(badge?.querySelector("svg")?.outerHTML).toBe(JSDOM.fragment(iconSvg("file-down")).firstElementChild?.outerHTML);
+		expect(badge?.querySelector("svg")?.outerHTML).toBe(JSDOM.fragment(iconSvg("video")).firstElementChild?.outerHTML);
 	});
 });

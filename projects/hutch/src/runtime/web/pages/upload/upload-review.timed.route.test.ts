@@ -90,7 +90,7 @@ describe("Guest audio review", () => {
 		const { view, doc } = await reviewOf(harness, uploadId);
 		expect(doc.querySelector("#upload-status")?.getAttribute("data-upload-status")).toBe("too-long");
 		expect(doc.querySelector("[data-test-upload-notice]")?.textContent).toBe(
-			"This file is longer than your 20 minutes of transcript a day. Split it into parts of 20 minutes or less and upload them one at a time.",
+			"This file is longer than your 20 minutes of transcript a day. Split it into parts of 20 minutes or less.",
 		);
 		expect(doc.querySelector("[data-test-upload-commit-form]")).toBeNull();
 		expect(findUntrackedCtas(view.text, { skipSelectors: [], ownOrigin: TEST_APP_ORIGIN })).toEqual([]);
@@ -108,7 +108,7 @@ describe("Guest audio review", () => {
 		const { doc } = await reviewOf(harness, uploadId);
 		expect(doc.querySelector("#upload-status")?.getAttribute("data-upload-status")).toBe("rejected");
 		expect(doc.querySelector("[data-test-upload-notice]")?.textContent).toBe(
-			"We couldn't read this audio file. Upload an MP3 or M4A that plays on your device.",
+			"Readplace couldn't read this audio file. Upload an MP3 or M4A that plays on your device.",
 		);
 		expect(featuresOfUploadAgain(doc)).toBe("transcripts");
 	});
@@ -162,7 +162,7 @@ describe("Guest timed review refused by the kind's own judgement", () => {
 		const { doc } = await reviewOf(harness, uploadId);
 		expect(doc.querySelector("#upload-status")?.getAttribute("data-upload-status")).toBe("rejected");
 		expect(doc.querySelector("[data-test-upload-notice]")?.textContent).toBe(
-			"This video has no audio track, so there is nothing to transcribe. Upload a video with sound.",
+			"This video has no sound, so there's nothing to transcribe.",
 		);
 		expect(doc.querySelector("[data-test-upload-commit-form]")).toBeNull();
 	});

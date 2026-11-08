@@ -109,7 +109,7 @@ describe("Metered upload commit", () => {
 		expect(alert?.getAttribute("role")).toBe("alert");
 		expect(alert?.getAttribute("data-test-alert-variant")).toBe("error");
 		expect(alert?.querySelector("[data-test-alert-message]")?.textContent).toBe(
-			"This file is longer than your 20 minutes of transcript a day. Split it into parts of 20 minutes or less and upload them one at a time.",
+			"This file is longer than your 20 minutes of transcript a day. Split it into parts of 20 minutes or less.",
 		);
 		expect(doc.querySelector("[data-test-upload-start]")?.getAttribute("action")).toMatch(/^\/upload\?features=transcripts&utm_/);
 	});
@@ -189,6 +189,6 @@ describe("Metered upload commit refused by the kind's own judgement", () => {
 		const page = await agent.get("/upload?refused=no-audio-track");
 		expect(
 			documentOf(page.text).querySelector('[data-test-alert="upload-refusal"] [data-test-alert-message]')?.textContent,
-		).toBe("This video has no audio track, so there is nothing to transcribe. Upload a video with sound.");
+		).toBe("This video has no sound, so there's nothing to transcribe.");
 	});
 });

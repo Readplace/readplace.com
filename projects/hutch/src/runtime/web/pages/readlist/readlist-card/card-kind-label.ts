@@ -20,7 +20,7 @@ interface KindLabelInput {
 
 type KindLabel = (input: KindLabelInput) => string;
 
-const KIND_BADGE_ICON: Record<MediaKindName, IconName> = { book: "book", audio: "file", video: "file-down" };
+const KIND_BADGE_ICON: Record<MediaKindName, IconName> = { book: "book", audio: "headphones", video: "video" };
 
 export function hoursAndMinutesRead(minutes: Minutes): string {
 	const hours = Math.floor(minutes / 60);

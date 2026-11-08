@@ -40,8 +40,8 @@ function bookLabel(input: { wordCount: number; estimatedReadTime: number; sectio
 	});
 }
 
-const AUDIO_KIND: CardKind = { name: "audio", label: "Audio", noun: "audio", icon: "file" };
-const VIDEO_KIND: CardKind = { name: "video", label: "Video", noun: "video", icon: "file-down" };
+const AUDIO_KIND: CardKind = { name: "audio", label: "Audio", noun: "audio", icon: "headphones" };
+const VIDEO_KIND: CardKind = { name: "video", label: "Video", noun: "video", icon: "video" };
 
 describe("cardKindLabel", () => {
 	it("labels a book with its chapters and its read time", () => {
@@ -116,7 +116,7 @@ describe("cardKindOf", () => {
 			name: "audio",
 			label: "Audio",
 			noun: "audio",
-			icon: "file",
+			icon: "headphones",
 		});
 	});
 

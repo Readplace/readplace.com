@@ -111,7 +111,7 @@ describe("Upload routes", () => {
 		expect(
 			documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]")?.textContent,
 		).toBe(
-			"Audio files get a timestamped transcript, up to 20 minutes a day. Split a longer file into parts of 20 minutes or less.",
+			"Audio and video files get a timestamped transcript, up to 20 minutes a day.",
 		);
 	});
 
@@ -132,7 +132,7 @@ describe("Upload routes", () => {
 		expect(
 			documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]")?.textContent,
 		).toBe(
-			"Audio files get a timestamped transcript, up to 20 minutes a day. Split a longer file into parts of 20 minutes or less.",
+			"Audio and video files get a timestamped transcript, up to 20 minutes a day.",
 		);
 	});
 

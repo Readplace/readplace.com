@@ -1603,6 +1603,7 @@ export function createApp(dependencies: AppDependencies): Express {
 					recordTimedMediaFacts: deps.recordTimedMediaFacts,
 					readDurationByMeter: deps.readDurationByMeter,
 					publishMediaUploadStaged: deps.publishMediaUploadStaged,
+					transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 					now: deps.now,
 				}),
 			}),

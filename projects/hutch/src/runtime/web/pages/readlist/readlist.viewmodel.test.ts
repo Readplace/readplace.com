@@ -463,7 +463,7 @@ describe("toReadlistViewModel — listen time", () => {
 			enclosureByUrl: new Map([[audioUrl, owned]]),
 		});
 
-		expect(vm.articles[0].kind?.icon).toBe("file");
+		expect(vm.articles[0].kind?.icon).toBe("headphones");
 		expect(vm.articles[0].kindLabel).toBe("Audio · 47 min listen");
 	});
 

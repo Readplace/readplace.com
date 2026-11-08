@@ -2,9 +2,10 @@
 title: "DRM-free EPUB books in the same reader as saved articles"
 description: "Upload a DRM-free EPUB at readplace.com/upload and the book joins your readlist next to saved articles. It opens in the same reader, with a table of contents and a section for each chapter."
 excerpt: "A book left in a Downloads folder doesn't come up when it's time to pick what to read."
-tldr: "DRM-free EPUB files go in at readplace.com/upload and come out as cards in the readlist, next to saved articles. The book opens in the same reader as an article, as a single long page with a table of contents at the top and a section for each chapter. It's private to the account that uploaded it, and deleting the card deletes the uploaded copy. Images aren't shown, MOBI and AZW3 aren't supported, a DRM-protected file is refused with a notice that says so, and the current limit is 200 MB per file."
+tldr: "DRM-free EPUB files go in at readplace.com/upload and come out as cards in the readlist, next to saved articles. The book opens in the same reader as an article, as a single long page with a table of contents at the top and a section for each chapter. It's private to the account that uploaded it, and deleting the card deletes the uploaded copy. MOBI and AZW3 aren't supported, a DRM-protected file is refused with a notice that says so, and the current limit is 200 MB per file."
 slug: "drm-free-epub-books-in-the-same-reader"
 date: "2026-11-05"
+lastModified: "2026-11-08"
 author: "Fayner Brack"
 keywords: "upload epub to read in browser, read drm-free epub online, read it later app that supports epub upload, read-it-later app for books and articles in one place, epub reader web app with chapter table of contents, readplace"
 ---
@@ -61,9 +62,9 @@ Neither touches the EPUB on the laptop.
 
 ## If the book has pictures
 
-The upload page says "images are not shown yet", so a novel arrives without its cover or the map at the front and a cookbook without its photos. The novel still reads fine. A textbook that explains with diagrams loses those explanations.
+The pictures come with the text. The map at the front of a novel, a cookbook's photos and the diagrams a textbook explains with sit where the EPUB puts them.
 
-The same line on the upload page reads "MOBI and AZW3 are not supported", and the page turns away a file in either format before it reaches the list.
+The upload page also says "MOBI and AZW3 are not supported", and the page turns away a file in either format before it reaches the list.
 
 A DRM-protected EPUB gets through the upload and stops at the card, which says the book is protected by DRM and asks for a DRM-free copy.
 

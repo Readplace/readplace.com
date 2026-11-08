@@ -89,6 +89,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"filter-horizontal",
 	"folder",
 	"folder-input",
+	"headphones",
 	"inbox",
 	"info",
 	"link",
@@ -110,6 +111,7 @@ const STROKE_NAMES: readonly IconName[] = [
 	"trash",
 	"upload",
 	"user",
+	"video",
 	"x",
 	"x-circle",
 ];

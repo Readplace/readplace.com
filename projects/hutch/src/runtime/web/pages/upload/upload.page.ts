@@ -215,7 +215,10 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 					view: "start",
 					start: {
 						...toUploadStartViewModel(kinds, Boolean(req.userId), uploadStartPathOf(metered)),
-						refusalMessage: uploadRefusalMessage(req.query),
+						refusalMessage: uploadRefusalMessage({
+							query: req.query,
+							allowanceSeconds: deps.transcriptAllowanceSeconds,
+						}),
 						transcriptAllowanceMinutes: transcriptAllowanceMinutesOf({
 							kinds,
 							metered,

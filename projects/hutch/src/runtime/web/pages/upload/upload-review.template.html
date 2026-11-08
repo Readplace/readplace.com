@@ -10,7 +10,7 @@
     {{#if overrun}}
     <section id="upload-status" data-upload-status="overrun">
       <div class="upload__panel" data-test-upload-inspection-overrun>
-        <p class="upload__description">We couldn't finish checking this book. Upload it again.</p>
+        <p class="upload__description">Readplace couldn't finish checking this book. Upload it again.</p>
         <a href="{{overrun.uploadAgainUrl}}" data-test-upload-again>Upload again</a>
       </div>
     </section>
@@ -24,7 +24,7 @@
           {{#each review.sectionTitles}}<li data-test-upload-section>{{this}}</li>{{/each}}
         </ol>
         <form method="post" action="{{review.commitUrl}}" data-test-upload-commit-form>
-          <button class="btn btn--primary upload__submit" type="submit">Save to my queue</button>
+          <button class="btn btn--primary upload__submit" type="submit">Save to my library</button>
         </form>
       </div>
     </section>
@@ -36,7 +36,7 @@
         <p class="upload__description" data-test-upload-duration>{{timed_review.durationMinutes}} min</p>
         <p class="upload__description" data-test-transcript-minutes>Uses {{timed_review.transcriptMinutes}} of your {{timed_review.allowanceMinutes}} transcript minutes today</p>
         <form method="post" action="{{timed_review.commitUrl}}" data-test-upload-commit-form>
-          <button class="btn btn--primary upload__submit" type="submit">Save to my queue</button>
+          <button class="btn btn--primary upload__submit" type="submit">Save to my library</button>
         </form>
       </div>
     </section>
