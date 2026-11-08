@@ -93,7 +93,7 @@ describe("GET /mcp (browser connection guide)", () => {
 		);
 	});
 
-	it("groups the reading-status tools with what the assistant does, leaving deleting app-only", async () => {
+	it("groups the reading-status and highlight tools with what the assistant does, leaving deleting app-only", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/mcp").set("Accept", "text/html");
 		const doc = load(response.text);
@@ -105,7 +105,12 @@ describe("GET /mcp (browser connection guide)", () => {
 		}
 
 		expect(operationsIn("capabilities")).toEqual(
-			expect.arrayContaining(["mark_as_read", "mark_as_unread"]),
+			expect.arrayContaining([
+				"mark_as_read",
+				"mark_as_unread",
+				"list_highlights",
+				"create_highlight",
+			]),
 		);
 		expect(operationsIn("app-only-operations")).toEqual(["get_article_deletion_steps"]);
 	});

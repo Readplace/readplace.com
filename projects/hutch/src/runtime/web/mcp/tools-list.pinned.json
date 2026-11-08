@@ -269,6 +269,71 @@
           "idempotentHint": true,
           "openWorldHint": false
         }
+      },
+      {
+        "name": "list_highlights",
+        "title": "List highlights in a saved article",
+        "description": "List the user's highlights and notes in one saved article, by the id from list_readlist_articles, in reading order. A highlight whose passage is gone from the current version is listed as not found. Saved-article results expose `url` for the user's private Readplace reader. Always link `url` when showing or recommending an article.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The article's id from a list_readlist_articles result (a 32-character hex string)."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "create_highlight",
+        "title": "Highlight a passage in a saved article",
+        "description": "Highlight a passage in one saved article by quoting it exactly as get_article_content shows it, optionally with a note. Pass text_before only when the quote appears more than once. A quote that is not in the article is refused and nothing is saved. A quote that overlaps or touches one of the user's highlights extends that highlight and adds the note to it; the result says merged and carries its new id. Saved-article results expose `url` for the user's private Readplace reader. Always link `url` when showing or recommending an article.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The article's id from a list_readlist_articles result (a 32-character hex string)."
+            },
+            "quote": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8191,
+              "description": "The passage to highlight, copied exactly from get_article_content's text."
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 8191,
+              "description": "An optional note the user wants kept with the passage."
+            },
+            "text_before": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "The text just before the passage, copied exactly. Pass it only when the quote appears more than once."
+            }
+          },
+          "required": [
+            "id",
+            "quote"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
       }
     ]
   }

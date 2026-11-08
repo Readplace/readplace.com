@@ -5,7 +5,13 @@ import type {
 	SubscriptionStatus,
 } from "@packages/provider-contracts/subscription-providers";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
-import { initResolveToolAccess } from "./tool-access";
+import {
+	CREATE_HIGHLIGHT_PHRASES,
+	SAVE_TOOL_PHRASES,
+	UNVERIFIED_ACCESS,
+	initResolveToolAccess,
+	toolRefusalMessage,
+} from "./tool-access";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 const NOW = new Date("2026-06-16T00:00:00.000Z");
@@ -34,7 +40,7 @@ function resolve(row: SubscriptionRecord | undefined) {
 		findSubscriptionByUserId,
 		now: () => NOW,
 	});
-	return initResolveToolAccess({ getEffectiveAccess, appOrigin: "https://readplace.test" })(userId);
+	return initResolveToolAccess({ getEffectiveAccess })(userId);
 }
 
 describe("initResolveToolAccess", () => {
@@ -81,19 +87,12 @@ describe("initResolveToolAccess", () => {
 		const access = await resolve(
 			sub({ status: "trialing", trialEndsAt: at(-1 * DAY_MS) }),
 		);
-		expect(access).toEqual({
-			state: "inactive",
-			message:
-				"Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account.",
-		});
+		expect(access).toEqual({ state: "inactive" });
 	});
 
 	it("gates a cancelled subscription with the same reactivation route", async () => {
 		const access = await resolve(sub({ status: "cancelled" }));
-		expect(access).toMatchObject({
-			state: "inactive",
-			message: expect.stringContaining("reactivated"),
-		});
+		expect(access).toEqual({ state: "inactive" });
 	});
 
 	it("gates a pending cancellation whose window has elapsed", async () => {
@@ -103,6 +102,40 @@ describe("initResolveToolAccess", () => {
 				cancellationEffectiveAt: at(-1 * DAY_MS),
 			}),
 		);
-		expect(access).toMatchObject({ state: "inactive" });
+		expect(access).toEqual({ state: "inactive" });
+	});
+});
+
+describe("UNVERIFIED_ACCESS", () => {
+	it("carries the unverified state only", () => {
+		expect(UNVERIFIED_ACCESS).toEqual({ state: "unverified" });
+	});
+});
+
+describe("toolRefusalMessage", () => {
+	const appOrigin = "https://readplace.test";
+
+	it("keeps the save tools' paused text when the subscription is inactive", () => {
+		expect(toolRefusalMessage({ state: "inactive", phrases: SAVE_TOOL_PHRASES, appOrigin })).toBe(
+			"Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account.",
+		);
+	});
+
+	it("keeps the save tools' check-failed text when the subscription check did not go through", () => {
+		expect(toolRefusalMessage({ state: "unverified", phrases: SAVE_TOOL_PHRASES, appOrigin })).toBe(
+			"This link wasn't saved because the subscription check didn't go through. Try again in a moment.",
+		);
+	});
+
+	it("names creating highlights as the paused action when the subscription is inactive", () => {
+		expect(toolRefusalMessage({ state: "inactive", phrases: CREATE_HIGHLIGHT_PHRASES, appOrigin })).toBe(
+			"Creating highlights is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account.",
+		);
+	});
+
+	it("names the highlight as unsaved when the subscription check did not go through", () => {
+		expect(toolRefusalMessage({ state: "unverified", phrases: CREATE_HIGHLIGHT_PHRASES, appOrigin })).toBe(
+			"This highlight wasn't saved because the subscription check didn't go through. Try again in a moment.",
+		);
 	});
 });

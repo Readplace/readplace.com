@@ -40,19 +40,27 @@ describe("MCP operations", () => {
 			"list_readlist_articles",
 			"get_article",
 			"get_article_content",
+			"list_highlights",
 			"create_readlist",
 			"add_to_readlist",
 			"mark_as_read",
 			"mark_as_unread",
+			"create_highlight",
 		]);
 		assert.deepEqual(appOnly, ["get_article_deletion_steps"]);
 		assert.equal(performed.length + appOnly.length, MCP_OPERATIONS.length);
 	});
 
-	it("counts the readlist writes and reading-status tools as writes the assistant makes itself", () => {
+	it("counts the readlist writes, reading-status tools and highlight creation as writes the assistant makes itself", () => {
 		assert.deepEqual(
 			mcpOperationsWithEffect("update").map((operation) => operation.name),
-			["create_readlist", "add_to_readlist", "mark_as_read", "mark_as_unread"],
+			[
+				"create_readlist",
+				"add_to_readlist",
+				"mark_as_read",
+				"mark_as_unread",
+				"create_highlight",
+			],
 		);
 	});
 

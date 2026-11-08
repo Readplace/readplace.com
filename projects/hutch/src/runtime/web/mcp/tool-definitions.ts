@@ -2,6 +2,11 @@ import {
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
 } from "@packages/domain/readlist";
+import {
+	HIGHLIGHT_NOTE_MAX_LENGTH,
+	HighlightNoteSchema,
+} from "@packages/domain/article";
+import { HIGHLIGHT_MAX_EXACT_LENGTH } from "@packages/domain/article/highlight";
 import { mcpOperationMetadata } from "@packages/domain/mcp";
 import { z } from "zod";
 
@@ -69,6 +74,15 @@ export const AddToReadlistArgs = z
 
 export const ArticleIdArgs = z.object({
 	id: z.string().min(1),
+});
+
+export const TEXT_BEFORE_MAX_LENGTH = 200;
+
+export const CreateHighlightArgs = z.object({
+	id: z.string().min(1),
+	quote: z.string().min(1).max(HIGHLIGHT_MAX_EXACT_LENGTH),
+	note: HighlightNoteSchema.optional(),
+	text_before: z.string().min(1).max(TEXT_BEFORE_MAX_LENGTH).optional(),
 });
 
 const ID_PROPERTY = {
@@ -296,6 +310,58 @@ export const GET_ARTICLE_DELETION_STEPS_TOOL: McpToolDefinition = {
 	},
 };
 
+export const LIST_HIGHLIGHTS_TOOL: McpToolDefinition = {
+	...mcpOperationMetadata("list_highlights"),
+	inputSchema: {
+		type: "object",
+		properties: { ...ID_PROPERTY },
+		required: ["id"],
+		additionalProperties: false,
+	},
+	annotations: {
+		readOnlyHint: true,
+		destructiveHint: false,
+		openWorldHint: false,
+	},
+};
+
+export const CREATE_HIGHLIGHT_TOOL: McpToolDefinition = {
+	...mcpOperationMetadata("create_highlight"),
+	inputSchema: {
+		type: "object",
+		properties: {
+			...ID_PROPERTY,
+			quote: {
+				type: "string",
+				minLength: 1,
+				maxLength: HIGHLIGHT_MAX_EXACT_LENGTH,
+				description:
+					"The passage to highlight, copied exactly from get_article_content's text.",
+			},
+			note: {
+				type: "string",
+				maxLength: HIGHLIGHT_NOTE_MAX_LENGTH,
+				description: "An optional note the user wants kept with the passage.",
+			},
+			text_before: {
+				type: "string",
+				minLength: 1,
+				maxLength: TEXT_BEFORE_MAX_LENGTH,
+				description:
+					"The text just before the passage, copied exactly. Pass it only when the quote appears more than once.",
+			},
+		},
+		required: ["id", "quote"],
+		additionalProperties: false,
+	},
+	annotations: {
+		readOnlyHint: false,
+		destructiveHint: false,
+		idempotentHint: false,
+		openWorldHint: false,
+	},
+};
+
 export const TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
 	SAVE_LINK_TOOL,
 	LIST_READLISTS_TOOL,
@@ -307,4 +373,6 @@ export const TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
 	MARK_AS_READ_TOOL,
 	MARK_AS_UNREAD_TOOL,
 	GET_ARTICLE_DELETION_STEPS_TOOL,
+	LIST_HIGHLIGHTS_TOOL,
+	CREATE_HIGHLIGHT_TOOL,
 ];

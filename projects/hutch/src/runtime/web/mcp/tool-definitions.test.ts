@@ -7,7 +7,10 @@ import {
 	ADD_TO_READLIST_TOOL,
 	CreateReadlistArgs,
 	CREATE_READLIST_TOOL,
+	CreateHighlightArgs,
+	CREATE_HIGHLIGHT_TOOL,
 	DELETE_ARTICLE_LEGACY_NAME,
+	LIST_HIGHLIGHTS_TOOL,
 	LIST_READLISTS_TOOL,
 	LIST_READLIST_ARTICLES_LEGACY_NAME,
 	ArticleIdArgs,
@@ -26,7 +29,7 @@ import {
 } from "./tool-definitions";
 
 describe("MCP tool definitions", () => {
-	it("exposes the save, list, by-id read and status-write tools plus the app-only delete", () => {
+	it("exposes the save, list, by-id read and status-write tools, the app-only delete and the highlight tools", () => {
 		expect(TOOL_DEFINITIONS.map((tool) => tool.name)).toEqual([
 			"save_link",
 			"list_readlists",
@@ -38,6 +41,8 @@ describe("MCP tool definitions", () => {
 			"mark_as_read",
 			"mark_as_unread",
 			"get_article_deletion_steps",
+			"list_highlights",
+			"create_highlight",
 		]);
 		expect(
 			TOOL_DEFINITIONS.filter(
@@ -87,6 +92,17 @@ describe("MCP tool definitions", () => {
 				openWorldHint: false,
 			});
 		}
+		expect(LIST_HIGHLIGHTS_TOOL.annotations).toEqual({
+			readOnlyHint: true,
+			destructiveHint: false,
+			openWorldHint: false,
+		});
+		expect(CREATE_HIGHLIGHT_TOOL.annotations).toEqual({
+			readOnlyHint: false,
+			destructiveHint: false,
+			idempotentHint: false,
+			openWorldHint: false,
+		});
 	});
 
 	describe("save_link", () => {
@@ -155,6 +171,7 @@ describe("MCP tool definitions", () => {
 		it.each([
 			["get_article", GET_ARTICLE_TOOL],
 			["get_article_content", GET_ARTICLE_CONTENT_TOOL],
+			["list_highlights", LIST_HIGHLIGHTS_TOOL],
 		])("requires an id in %s's JSON Schema", (_name, tool) => {
 			expect(tool.inputSchema).toMatchObject({
 				required: ["id"],
@@ -166,6 +183,44 @@ describe("MCP tool definitions", () => {
 			expect(ArticleIdArgs.safeParse({ id: "abc" }).success).toBe(true);
 			expect(ArticleIdArgs.safeParse({}).success).toBe(false);
 			expect(ArticleIdArgs.safeParse({ id: "" }).success).toBe(false);
+		});
+	});
+
+	describe("create_highlight", () => {
+		const properties = {
+			quote: { type: "string", minLength: 1, maxLength: 8191 },
+			note: { type: "string", maxLength: 8191 },
+			text_before: { type: "string", minLength: 1, maxLength: 200 },
+		};
+
+		it("requires an id and a quote in its JSON Schema, with bounded quote, note and text_before", () => {
+			expect(CREATE_HIGHLIGHT_TOOL.inputSchema).toMatchObject({
+				required: ["id", "quote"],
+				properties: { id: { type: "string" }, ...properties },
+			});
+		});
+
+		it("accepts in the validator exactly the bounds the JSON Schema advertises", () => {
+			const base = { id: "abc", quote: "a passage" };
+			expect(CreateHighlightArgs.safeParse({ id: "abc" }).success).toBe(false);
+			expect(CreateHighlightArgs.safeParse({ quote: "a passage" }).success).toBe(false);
+			expect(CreateHighlightArgs.safeParse({ id: "", quote: "a passage" }).success).toBe(false);
+			expect(CreateHighlightArgs.safeParse({ id: "abc", quote: "" }).success).toBe(false);
+			expect(CreateHighlightArgs.safeParse({ ...base, text_before: "" }).success).toBe(false);
+			expect(CreateHighlightArgs.safeParse({ ...base, text_before: "b".repeat(properties.text_before.maxLength) }).success).toBe(true);
+			expect(CreateHighlightArgs.safeParse({ ...base, text_before: "b".repeat(properties.text_before.maxLength + 1) }).success).toBe(false);
+			expect(CreateHighlightArgs.safeParse({ ...base, note: "n".repeat(properties.note.maxLength) }).success).toBe(true);
+			expect(CreateHighlightArgs.safeParse({ ...base, note: "n".repeat(properties.note.maxLength + 1) }).success).toBe(false);
+		});
+
+		it("counts a quote's length in UTF-16 code units, so an astral character ending at 8191 units is accepted and one ending at 8192 is refused", () => {
+			expect(CreateHighlightArgs.safeParse({ id: "abc", quote: `${"a".repeat(8189)}😀` }).success).toBe(true);
+			expect(CreateHighlightArgs.safeParse({ id: "abc", quote: `${"a".repeat(8190)}😀` }).success).toBe(false);
+		});
+
+		it("folds a CRLF note to LF and treats a whitespace-only note as absent", () => {
+			expect(CreateHighlightArgs.parse({ id: "abc", quote: "q", note: " one\r\ntwo " })).toEqual({ id: "abc", quote: "q", note: "one\ntwo" });
+			expect(CreateHighlightArgs.parse({ id: "abc", quote: "q", note: " \r\n " }).note).toBeUndefined();
 		});
 	});
 
@@ -237,6 +292,9 @@ describe("MCP tool definitions", () => {
 			).not.toHaveProperty("userId");
 			expect(
 				SaveLinkArgs.parse({ url: "https://example.com/", userId: "victim" }),
+			).not.toHaveProperty("userId");
+			expect(
+				CreateHighlightArgs.parse({ id: "abc", quote: "a passage", userId: "victim" }),
 			).not.toHaveProperty("userId");
 		});
 	});

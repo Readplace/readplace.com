@@ -60,7 +60,7 @@ Omnivore had years of head start. Readplace is younger, and I would rather show 
 | PDFs | Yes | Yes, scans read by OCR | Shipped |
 | Native mobile apps | Yes | iPhone and Mac | Shipped for iPhone and Mac, Android planned |
 | RSS feed reader | Yes | No | Not planned yet |
-| API access | Yes | MCP server with 12 tools | Shipped |
+| API access | Yes | MCP server with 14 tools | Shipped |
 
 The table shows what exists today. Rows marked Not built are gaps.
 

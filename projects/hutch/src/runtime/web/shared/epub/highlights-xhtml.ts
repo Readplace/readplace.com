@@ -1,7 +1,7 @@
 import type { ReaderHighlightState } from "../article-body/reader-slot/mark-highlights";
 import { escapeXmlText } from "./epub-xhtml";
 
-const ORPHAN_SUFFIX = " (not found in the current version)";
+export const ORPHAN_SUFFIX = " (not found in the current version)";
 
 function paragraph(text: string): string {
 	return `<p>${escapeXmlText(text)}</p>`;

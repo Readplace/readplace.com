@@ -192,3 +192,7 @@ export {
 	type HighlightAnchorWrite,
 	type ReanchorCounts,
 } from "./highlight/reanchor-article-highlights";
+export {
+	locateQuote,
+	type QuoteLocation,
+} from "./highlight/locate-quote";
