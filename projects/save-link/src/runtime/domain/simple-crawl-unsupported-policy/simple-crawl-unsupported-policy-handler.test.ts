@@ -55,14 +55,13 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(published).toHaveLength(1);
-		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
+		expect(published).toEqual([{ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId: "attempt-1",
 			userId: "user-1",
 			trigger: "save",
 			previousBodyHash: undefined,
-		} });
+		} }]);
 	});
 
 	it("dispatches ComprehensiveCrawlCommand with the recrawl trigger when the event carries it", async () => {
@@ -79,13 +78,13 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
+		expect(published).toEqual([{ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
 			trigger: "recrawl",
 			previousBodyHash: undefined,
-		} });
+		} }]);
 	});
 
 	it("dispatches ComprehensiveCrawlCommand with the refresh trigger when the event carries it (stale-check chain)", async () => {
@@ -102,13 +101,13 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
+		expect(published).toEqual([{ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
 			trigger: "refresh",
 			previousBodyHash: undefined,
-		} });
+		} }]);
 	});
 
 	it("forwards previousBodyHash so the downstream comprehensive Lambda can fire the byte-gate on PDF re-fetch", async () => {
@@ -129,13 +128,13 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
+		expect(published).toEqual([{ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
 			trigger: "refresh",
 			previousBodyHash: "h".repeat(64),
-		} });
+		} }]);
 	});
 
 	it("dispatches ComprehensiveCrawlCommand without userId for anonymous saves", async () => {
@@ -152,13 +151,13 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
+		expect(published).toEqual([{ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/blob",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
 			trigger: "save",
 			previousBodyHash: undefined,
-		} });
+		} }]);
 	});
 
 	it.each(["javascript-required", "blocked"])("dispatches RenderCrawlCommand with every forwarded field when the tier-1 crawl deferred a %s page", async (unsupportedReason) => {
@@ -181,15 +180,14 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(published).toHaveLength(1);
-		expect(published).toContainEqual({ detailType: RenderCrawlCommand.detailType, detail: {
+		expect(published).toEqual([{ detailType: RenderCrawlCommand.detailType, detail: {
 			url: "https://example-spa.test/post",
 			saveAttemptId: "attempt-1",
 			unsupportedReason,
 			userId: "user-1",
 			trigger: "refresh",
 			previousBodyHash: "h".repeat(64),
-		} });
+		} }]);
 	});
 
 	it("forwards the page the free crawl reached to the render crawl so its paid legs start there", async () => {
@@ -206,13 +204,13 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(published).toContainEqual({ detailType: RenderCrawlCommand.detailType, detail: {
+		expect(published).toEqual([{ detailType: RenderCrawlCommand.detailType, detail: {
 			url: "https://links.tracker.example/r/abc",
 			saveAttemptId: "attempt-1",
 			unsupportedReason: "blocked",
 			trigger: "save",
 			finalUrl: "https://publisher.example/story",
-		} });
+		} }]);
 	});
 
 	it("keeps the comprehensive crawl's command as it was when the deferral carries an observed page", async () => {
@@ -229,13 +227,13 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
+		expect(published).toEqual([{ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://links.tracker.example/r/doc",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
 			trigger: "save",
 			previousBodyHash: undefined,
-		} });
+		} }]);
 	});
 
 	it.each(["non-html-content", "paywall"])("dispatches ComprehensiveCrawlCommand when the tier-1 crawl deferred a %s page", async (unsupportedReason) => {
@@ -252,13 +250,13 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: {
+		expect(published).toEqual([{ detailType: ComprehensiveCrawlCommand.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId: "attempt-1",
 			userId: undefined,
 			trigger: "recrawl",
 			previousBodyHash: undefined,
-		} });
+		} }]);
 	});
 
 	it.each([

@@ -383,8 +383,8 @@ const recrawlLinkInitiatedQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.recrawlLinkIniti
 	sharedDlq: failuresDlq,
 });
 
-// Simple-only — PDF refreshes dispatch the comprehensive-crawl-command with
-// refresh=true so the comprehensive Lambda emits RefreshContentExtractedEvent.
+// Simple-only — PDF refreshes dispatch the comprehensive-crawl-command
+// so the comprehensive Lambda emits RefreshContentExtractedEvent.
 const staleCheckRequestedQueue = new Sqs("stale-check-requested", {
 	visibilityTimeoutSeconds: 480,
 });
@@ -1201,7 +1201,7 @@ eventBus.subscribe(SaveLinkRawPdfCommand, saveLinkRawPdfCommandLambdaWithSQS);
 // row publishes RefreshArticleContent (200) or UpdateFetchTimestamp (304); on
 // a failed/missing crawl status republishes SaveAnonymousLinkCommand to redrive
 // the crawl pipeline. PDFs (or any non-HTML body) emit SimpleCrawlUnsupportedEvent
-// with `refresh=true` so the policy → comprehensive-crawl-command chain runs the
+// so the policy → comprehensive-crawl-command chain runs the
 // OCR + tier-1 write off this Lambda's concurrency budget. No DLQ row-mutator
 // is wired: a stale-check failure must not flip the article to crawlStatus='failed' —
 // the row already has whatever state the upstream pipeline produced, and the
