@@ -46,7 +46,7 @@ it("judges the retained archive 429 after the retry and proxy fail, and keeps th
 		parseHtml,
 		downloadMedia: async () => [],
 		processContent: async ({ html }) => html,
-		fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }),
+		fetchThumbnailImage: async ({ candidates }) => ({ image: undefined, provenUnusable: [], fetched: candidates }),
 		putImageObject: async () => {},
 		imagesCdnBaseUrl: "https://cdn.example.com",
 	});

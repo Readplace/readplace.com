@@ -310,7 +310,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 				status: "fetched",
 				html: "<html></html>",
 				thumbnailUrl: "https://example.com/og.jpg",
-				thumbnail: { image: preFetched, provenUnusable: [] },
+				thumbnail: { image: preFetched, provenUnusable: [], fetched: [preFetched.url] },
 				bodyHash: "a".repeat(64),
 			}),
 			finalizeArticle,
@@ -322,7 +322,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 			url: URL_UNDER_TEST,
 			documentUrl: URL_UNDER_TEST,
 			html: "<html></html>",
-			resolvedThumbnail: { image: preFetched, provenUnusable: [] },
+			resolvedThumbnail: { image: preFetched, provenUnusable: [], fetched: [preFetched.url] },
 			mediaType: undefined,
 		});
 	});
@@ -340,7 +340,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 				status: "fetched",
 				mediaType: "image",
 				html: '<figure><img src="https://example.com/photo.jpg" alt=""></figure>',
-				thumbnail: { image: imageBytes, provenUnusable: [] },
+				thumbnail: { image: imageBytes, provenUnusable: [], fetched: [imageBytes.url] },
 				bodyHash: "a".repeat(64),
 			}),
 			finalizeArticle,
@@ -352,7 +352,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 			url: URL_UNDER_TEST,
 			documentUrl: URL_UNDER_TEST,
 			html: '<figure><img src="https://example.com/photo.jpg" alt=""></figure>',
-			resolvedThumbnail: { image: imageBytes, provenUnusable: [] },
+			resolvedThumbnail: { image: imageBytes, provenUnusable: [], fetched: [imageBytes.url] },
 			mediaType: "image",
 		});
 	});

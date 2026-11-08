@@ -8,6 +8,7 @@ import { describeRejection } from "./describe-rejection";
 import { sniffImageContentType } from "./image-formats";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
+const MAX_THUMBNAIL_CANDIDATE_FETCHES = 5;
 export const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
 
 /**
@@ -97,8 +98,15 @@ export function initFetchThumbnailImage(deps: {
 	const logFetchFailure = initLogFetchFailure({ logError, logInfo });
 	return async ({ candidates, referer }) => {
 		const provenUnusable: string[] = [];
-		let image: ThumbnailImage | undefined;
+		const fetched: string[] = [];
 		for (const candidateUrl of candidates) {
+			if (fetched.length === MAX_THUMBNAIL_CANDIDATE_FETCHES) {
+				logError(
+					`[CrawlArticle] Thumbnail candidate cap reached: fetched ${fetched.length} of ${candidates.length} candidates for ${referer}`,
+				);
+				break;
+			}
+			fetched.push(candidateUrl);
 			const outcome = await tryFetchImage({
 				crawlFetch,
 				logError,
@@ -107,13 +115,10 @@ export function initFetchThumbnailImage(deps: {
 				url: candidateUrl,
 				referer,
 			});
-			if (outcome.verdict === "image") {
-				image = outcome.image;
-				break;
-			}
+			if (outcome.verdict === "image") return { image: outcome.image, provenUnusable, fetched };
 			if (outcome.verdict === "proven-unusable") provenUnusable.push(candidateUrl);
 		}
-		return { image, provenUnusable };
+		return { image: undefined, provenUnusable, fetched };
 	};
 }
 

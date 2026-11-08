@@ -2,7 +2,7 @@ import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { finalizeInputOfFetchedPage } from "./fetched-page";
 
 const writeContext = { url: "https://saved.example/a", attemptId: SaveAttemptIdSchema.parse("attempt") };
-const thumbnail = { image: undefined, provenUnusable: [] };
+const thumbnail = { image: undefined, provenUnusable: [], fetched: [] };
 
 describe("finalizeInputOfFetchedPage", () => {
 	it("reads a redirected page from where the fetch landed", () => {

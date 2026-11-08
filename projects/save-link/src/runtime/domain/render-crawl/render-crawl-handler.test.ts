@@ -143,6 +143,7 @@ const finalizeOnImageRefusingOrigin = (): FinalizeArticle => initFinalizeArticle
 	fetchThumbnailImage: async ({ candidates }) => ({
 		image: candidates.some((candidate) => candidate.startsWith(CDN_BASE_URL)) ? hostedImage : undefined,
 		provenUnusable: [],
+		fetched: candidates,
 	}),
 	putImageObject: jest.fn().mockResolvedValue(undefined),
 	imagesCdnBaseUrl: CDN_BASE_URL,
@@ -710,7 +711,7 @@ describe("initRenderCrawlHandler", () => {
 					html: originFigure,
 					evaluationHtml: originFigure,
 					thumbnailUrl: undefined,
-					thumbnail: { image: { ...hostedImage, url: imageUrl }, provenUnusable: [] },
+					thumbnail: { image: { ...hostedImage, url: imageUrl }, provenUnusable: [], fetched: [imageUrl] },
 					mediaType: "image",
 					bodyHash: "proxied-hash",
 					finalUrl: imageUrl,
@@ -1365,7 +1366,7 @@ describe("initRenderCrawlHandler", () => {
 				parseHtml,
 				downloadMedia: async () => [],
 				processContent: async ({ html: content }) => content,
-				fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }),
+				fetchThumbnailImage: async ({ candidates }) => ({ image: undefined, provenUnusable: [], fetched: candidates }),
 				putImageObject: async () => {},
 				imagesCdnBaseUrl: CDN_BASE_URL,
 			});

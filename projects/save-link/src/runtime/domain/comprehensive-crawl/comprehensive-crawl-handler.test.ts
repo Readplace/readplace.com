@@ -166,7 +166,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		const crawlArticle: CrawlArticle = async () => ({
 			status: "fetched",
 			html: "<html><body>X</body></html>",
-			thumbnail: { image: resolvedImage, provenUnusable: [] },
+			thumbnail: { image: resolvedImage, provenUnusable: [], fetched: [resolvedImage.url] },
 			bodyHash: "a".repeat(64),
 		});
 		const finalizeArticle = jest.fn(okFinalize);
@@ -180,7 +180,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			writeContext: { url: "https://example.com/doc.pdf", attemptId: "attempt-1" },
 			documentUrl: "https://example.com/doc.pdf",
 			html: "<html><body>X</body></html>",
-			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
+			resolvedThumbnail: { image: resolvedImage, provenUnusable: [], fetched: [resolvedImage.url] },
 			mediaType: undefined,
 		});
 	});

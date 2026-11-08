@@ -12,6 +12,7 @@ export type ThumbnailImage = {
 export type ThumbnailCascade = {
 	image: ThumbnailImage | undefined;
 	provenUnusable: readonly string[];
+	readonly fetched: readonly string[];
 };
 
 export type CrawlArticleResult =

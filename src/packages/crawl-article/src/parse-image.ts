@@ -44,6 +44,7 @@ export function parseImageFromBuffer(input: {
 				extension: extensionFromContentType({ contentType: input.contentType, url: input.documentUrl }),
 			},
 			provenUnusable: [],
+			fetched: [input.documentUrl],
 		},
 		etag: headerOrUndefined(input.response.headers, "etag"),
 		lastModified: headerOrUndefined(input.response.headers, "last-modified"),
