@@ -11,12 +11,12 @@ import {
 } from "@packages/infra-components/runtime";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
-import { readEnv, requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
 import { SELECT_MOST_COMPLETE_CONTENT_ENV } from "./select-most-complete-content.env";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initForwardTierContentExtracted, initSelectMostCompleteContentHandler } from "./domain/select-content/select-most-complete-content-handler";
-import type { SelectionRoute } from "./selection-ingress.env";
+import { SELECTION_INGRESS_ENV, SelectionRouteSchema } from "./selection-ingress.env";
 import { initSelectArticleContentDispatch } from "./dep-bundles/select-article-content-dispatch";
 import { initGenerateSummaryDispatch } from "./dep-bundles/generate-summary-dispatch";
 
@@ -28,8 +28,9 @@ const eventBusName = env.EVENT_BUS_NAME;
 const deepseekApiKey = env.DEEPSEEK_API_KEY;
 const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
-const selectionRoute = requireEnv<SelectionRoute>("SELECTION_ROUTE");
-const selectArticleContentQueueUrl = requireEnv("SELECT_ARTICLE_CONTENT_QUEUE_URL");
+const ingressEnv = readEnv(SELECTION_INGRESS_ENV);
+const selectionRoute = SelectionRouteSchema.parse(ingressEnv.SELECTION_ROUTE);
+const selectArticleContentQueueUrl = ingressEnv.SELECT_ARTICLE_CONTENT_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();

@@ -1,5 +1,6 @@
 import { setTimeout } from "node:timers/promises";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
+import { z } from "zod";
 import type { SelectArticleContentDetail, SelectionSourceKind } from "@packages/infra-components";
 import type { DispatchSelectArticleContent } from "../../dep-bundles/select-article-content-dispatch";
 import { type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
@@ -296,12 +297,15 @@ export function initSelectionQueueHandler(policy: SelectionSourcePolicy): (deps:
 	};
 }
 
+const EventBridgeEnvelope = z.object({ id: z.string().min(1), detail: z.unknown() });
+
 export function initSelectionForwardHandler(policy: SelectionSourcePolicy): (deps: { dispatchSelectArticleContent: DispatchSelectArticleContent; logger: Logger }) => Handler<SQSEvent, SQSBatchResponse> {
 	return (deps) => async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 		for (const record of event.Records) {
 			try {
-				const command = policy.toCommand(JSON.parse(record.body).detail, record.messageId);
+				const envelope = EventBridgeEnvelope.parse(JSON.parse(record.body));
+				const command = policy.toCommand(envelope.detail, envelope.id);
 				await deps.dispatchSelectArticleContent(command);
 				deps.logger.info(`[${policy.tag}] forwarded to selection processing`, { sourceKind: command.sourceKind, workId: command.workId, messageId: record.messageId, receiveCount: Number(record.attributes.ApproximateReceiveCount) });
 			} catch (error) {

@@ -5,10 +5,10 @@ import { consoleLogger, Logger } from "@packages/logger";
 import { type CrawlSettledEvent, initLogCrawlSettled } from "@packages/infra-components";
 import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
-import { readEnv, requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
 import { RECRAWL_CONTENT_EXTRACTED_ENV } from "./recrawl-content-extracted.env";
 import { initForwardRecrawlContentExtracted, initRecrawlContentExtractedHandler } from "./domain/select-content/recrawl-content-extracted-handler";
-import type { SelectionRoute } from "./selection-ingress.env";
+import { SELECTION_INGRESS_ENV, SelectionRouteSchema } from "./selection-ingress.env";
 import { initSelectArticleContentDispatch } from "./dep-bundles/select-article-content-dispatch";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initEventsDepBundle } from "./dep-bundles/events";
@@ -23,8 +23,9 @@ const eventBusName = env.EVENT_BUS_NAME;
 const deepseekApiKey = env.DEEPSEEK_API_KEY;
 const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
-const selectionRoute = requireEnv<SelectionRoute>("SELECTION_ROUTE");
-const selectArticleContentQueueUrl = requireEnv("SELECT_ARTICLE_CONTENT_QUEUE_URL");
+const ingressEnv = readEnv(SELECTION_INGRESS_ENV);
+const selectionRoute = SelectionRouteSchema.parse(ingressEnv.SELECTION_ROUTE);
+const selectArticleContentQueueUrl = ingressEnv.SELECT_ARTICLE_CONTENT_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();

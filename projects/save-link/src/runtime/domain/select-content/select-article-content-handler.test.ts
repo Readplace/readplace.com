@@ -25,8 +25,8 @@ const article: Article = { url: URL, metadata: { title: "Old", siteName: "Exampl
 const candidateDetail = { url: URL, saveAttemptId: "save-attempt", candidates: [{ id: source.metadata.id, tier: source.tier }] };
 const refreshDetail = { ...candidateDetail, contentFetchedAt: "2026-10-05T00:00:00.000Z", bodyHash: "raw-hash", etag: "current-etag" };
 
-function sqsEvent(params: { body: unknown; messageId?: string; receiveCount?: number }): SQSEvent {
-	return { Records: [{ messageId: params.messageId ?? "physical-message", receiptHandle: "receipt", body: JSON.stringify({ detail: params.body }), attributes: { ApproximateReceiveCount: String(params.receiveCount ?? 1), SentTimestamp: "1", SenderId: "sender", ApproximateFirstReceiveTimestamp: "1" }, messageAttributes: {}, md5OfBody: "", eventSource: "aws:sqs", eventSourceARN: "arn:aws:sqs:ap-southeast-2:123:test", awsRegion: "ap-southeast-2" }] };
+function sqsEvent(params: { body: unknown; messageId?: string; receiveCount?: number; eventId?: string }): SQSEvent {
+	return { Records: [{ messageId: params.messageId ?? "physical-message", receiptHandle: "receipt", body: JSON.stringify({ id: params.eventId ?? "eventbridge-event", detail: params.body }), attributes: { ApproximateReceiveCount: String(params.receiveCount ?? 1), SentTimestamp: "1", SenderId: "sender", ApproximateFirstReceiveTimestamp: "1" }, messageAttributes: {}, md5OfBody: "", eventSource: "aws:sqs", eventSourceARN: "arn:aws:sqs:ap-southeast-2:123:test", awsRegion: "ap-southeast-2" }] };
 }
 
 function selectionDeps(overrides: Partial<Parameters<typeof initSelectArticleContentHandler>[0]> = {}) {
@@ -66,23 +66,37 @@ const KINDS = [
 ] as const;
 
 describe.each(KINDS)("$sourceKind ingress in forward mode", ({ sourceKind, forward, detail }) => {
-	it("forwards the validated detail under the ingress message as its work ID and acknowledges the record", async () => {
+	it("forwards the validated detail under its EventBridge event ID as the work ID and acknowledges the record", async () => {
 		const dispatchSelectArticleContent = jest.fn(async (_command: SelectArticleContentDetail) => {});
 		const handler = forward({ dispatchSelectArticleContent, logger: noopLogger });
 
-		const result = await handler(sqsEvent({ body: detail, messageId: "ingress-message" }), buildLambdaContext(), () => {});
+		const result = await handler(sqsEvent({ body: detail, messageId: "ingress-message", eventId: "eventbridge-event" }), buildLambdaContext(), () => {});
 
 		assert.deepEqual(result, { batchItemFailures: [] });
 		expect(dispatchSelectArticleContent).toHaveBeenCalledTimes(1);
-		expect(dispatchSelectArticleContent.mock.calls[0]?.[0]).toEqual({ sourceKind, workId: "ingress-message", detail: expect.objectContaining({ url: URL }) });
+		expect(dispatchSelectArticleContent.mock.calls[0]?.[0]).toEqual({ sourceKind, workId: "eventbridge-event", detail: expect.objectContaining({ url: URL }) });
 	});
 
 	it("leaves the ingress record unacknowledged when the forward send fails", async () => {
 		const handler = forward({ dispatchSelectArticleContent: async () => { throw new Error("SQS unavailable"); }, logger: noopLogger });
 
-		const result = await handler(sqsEvent({ body: detail, messageId: "ingress-message" }), buildLambdaContext(), () => {});
+		const result = await handler(sqsEvent({ body: detail, messageId: "ingress-message", eventId: "eventbridge-event" }), buildLambdaContext(), () => {});
 
 		assert.deepEqual(result, { batchItemFailures: [{ itemIdentifier: "ingress-message" }] });
+	});
+
+	it("forwards nothing for a body without an EventBridge event ID", async () => {
+		const dispatchSelectArticleContent = jest.fn(async () => {});
+		const handler = forward({ dispatchSelectArticleContent, logger: noopLogger });
+		const event = sqsEvent({ body: detail, messageId: "ingress-message" });
+		const [record] = event.Records;
+		assert(record);
+		record.body = JSON.stringify({ detail });
+
+		const result = await handler(event, buildLambdaContext(), () => {});
+
+		assert.deepEqual(result, { batchItemFailures: [{ itemIdentifier: "ingress-message" }] });
+		expect(dispatchSelectArticleContent).not.toHaveBeenCalled();
 	});
 
 	it("forwards nothing for a body its kind's schema refuses", async () => {
@@ -100,13 +114,58 @@ it("sends a forwarded record to the FIFO queue grouped by article identity and d
 	const send = jest.fn().mockResolvedValue({});
 	const handler = initForwardRecrawlContentExtracted({ dispatchSelectArticleContent: initSelectArticleContentDispatch({ sqsClient: { send }, selectArticleContentQueueUrl: "https://sqs.example/select.fifo" }), logger: noopLogger });
 
-	await handler(sqsEvent({ body: candidateDetail, messageId: "ingress-message" }), buildLambdaContext(), () => {});
+	await handler(sqsEvent({ body: candidateDetail, messageId: "ingress-message", eventId: "eventbridge-event" }), buildLambdaContext(), () => {});
 
 	const input = send.mock.calls[0]?.[0].input;
 	assert.equal(input.QueueUrl, "https://sqs.example/select.fifo");
 	assert.equal(input.MessageGroupId, articleMessageGroupId({ url: URL }));
-	assert.equal(input.MessageDeduplicationId, selectionDeduplicationId({ sourceKind: "recrawl-content-extracted", workId: "ingress-message" }));
-	assert.deepEqual(JSON.parse(input.MessageBody).detail, { sourceKind: "recrawl-content-extracted", workId: "ingress-message", detail: candidateDetail });
+	assert.equal(input.MessageDeduplicationId, selectionDeduplicationId({ sourceKind: "recrawl-content-extracted", workId: "eventbridge-event" }));
+	assert.deepEqual(JSON.parse(input.MessageBody).detail, { sourceKind: "recrawl-content-extracted", workId: "eventbridge-event", detail: candidateDetail });
+});
+
+function capturingForward() {
+	const send = jest.fn().mockResolvedValue({});
+	const handler = initForwardReselectAfterRemoval({ dispatchSelectArticleContent: initSelectArticleContentDispatch({ sqsClient: { send }, selectArticleContentQueueUrl: "https://sqs.example/select.fifo" }), logger: noopLogger });
+	const sentInputs = () => send.mock.calls.map(([command]) => command.input);
+	return { handler, sentInputs };
+}
+
+it("gives a re-forward of the same EventBridge event under a new ingress message the same deduplication ID", async () => {
+	const { handler, sentInputs } = capturingForward();
+
+	await handler(sqsEvent({ body: { url: URL }, messageId: "ingress-message", eventId: "eventbridge-event" }), buildLambdaContext(), () => {});
+	await handler(sqsEvent({ body: { url: URL }, messageId: "redriven-message", eventId: "eventbridge-event" }), buildLambdaContext(), () => {});
+
+	const [first, again] = sentInputs();
+	assert.equal(again.MessageDeduplicationId, first.MessageDeduplicationId);
+});
+
+it("gives two EventBridge events for the same URL with identical bodies different deduplication IDs", async () => {
+	const { handler, sentInputs } = capturingForward();
+
+	await handler(sqsEvent({ body: { url: URL }, messageId: "ingress-message", eventId: "first-event" }), buildLambdaContext(), () => {});
+	await handler(sqsEvent({ body: { url: URL }, messageId: "ingress-message", eventId: "second-event" }), buildLambdaContext(), () => {});
+
+	const [first, second] = sentInputs();
+	assert.notEqual(second.MessageDeduplicationId, first.MessageDeduplicationId);
+});
+
+it("gives a reselect forwarded twice from the same EventBridge event the same save attempt, and judges it once", async () => {
+	const { handler: forward, sentInputs } = capturingForward();
+	await forward(sqsEvent({ body: { url: URL }, messageId: "ingress-message", eventId: "eventbridge-event" }), buildLambdaContext(), () => {});
+	await forward(sqsEvent({ body: { url: URL }, messageId: "redriven-message", eventId: "eventbridge-event" }), buildLambdaContext(), () => {});
+	const commands = sentInputs().map((input) => JSON.parse(input.MessageBody).detail);
+	const { deps, judgeCalls } = selectionDeps();
+	const process = initSelectArticleContentHandler(deps);
+
+	const results = [
+		await process(sqsEvent({ body: commands[0], messageId: "first-processing-message" }), buildLambdaContext(), () => {}),
+		await process(sqsEvent({ body: commands[1], messageId: "second-processing-message" }), buildLambdaContext(), () => {}),
+	];
+
+	assert.deepEqual(results, [{ batchItemFailures: [] }, { batchItemFailures: [] }]);
+	expect(commands.map((command) => SELECTION_SOURCE_POLICIES["reselect-after-removal"].toRequest(command.detail, command.workId).saveAttemptId)).toEqual(["eventbridge-event", "eventbridge-event"]);
+	expect(judgeCalls).toHaveBeenCalledTimes(1);
 });
 
 describe.each(KINDS)("$sourceKind processing", ({ sourceKind, detail, transition, exhausts }) => {
@@ -152,10 +211,10 @@ it("fails a processing record whose command does not decode, without selecting",
 	assert.deepEqual(persisted, []);
 });
 
-it("derives a reselect's save attempt from the ingress work ID, not the processing message ID", () => {
-	const request = SELECTION_SOURCE_POLICIES["reselect-after-removal"].toRequest({ url: URL }, "ingress-message");
+it("derives a reselect's save attempt from the ingress EventBridge event ID, not the processing message ID", () => {
+	const request = SELECTION_SOURCE_POLICIES["reselect-after-removal"].toRequest({ url: URL }, "eventbridge-event");
 
-	assert.equal(request.saveAttemptId, "ingress-message");
+	assert.equal(request.saveAttemptId, "eventbridge-event");
 });
 
 it("claims the processing worker's judge for 360 seconds under the physical message ID", async () => {
@@ -165,6 +224,49 @@ it("claims the processing worker's judge for 360 seconds under the physical mess
 	await handler(sqsEvent({ body: { sourceKind: "tier-content-extracted", workId: "ingress-message", detail: candidateDetail }, messageId: "physical-message" }), buildLambdaContext(), () => {});
 
 	assert.deepEqual(judgeClaims, [{ claimId: "physical-message", claimTtlMs: 360_000 }]);
+});
+
+function redeliveryFixture(params: { seededClaimId?: string }) {
+	const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW });
+	const claimResults: Awaited<ReturnType<typeof ledger.claimMeteredLeg>>[] = [];
+	const runMeteredLeg = initRunMeteredLeg({
+		...ledger,
+		claimMeteredLeg: async (claim) => {
+			const result = await ledger.claimMeteredLeg(claim);
+			claimResults.push(result);
+			return result;
+		},
+		logger: noopLogger,
+		now: () => NOW,
+	});
+	const lines: { level: string; args: unknown[] }[] = [];
+	const record = (level: string) => (...args: unknown[]) => { lines.push({ level, args }); };
+	const logger = { info: record("info"), warn: record("warn"), error: record("error"), debug: record("debug") };
+	const seed = async () => {
+		if (params.seededClaimId === undefined) return;
+		await ledger.claimMeteredLeg({ url: URL, leg: "content-judge", inputHash: "first-receive", claimId: params.seededClaimId, expiresAt: new Date(NOW.getTime() + 360_000).toISOString() });
+	};
+	return { ...selectionDeps({ runMeteredLeg, logger }), claimResults, lines, seed };
+}
+
+it("grants a redelivered processing message the judge claim its own timed-out first receive still holds, and judges it without an ownership anomaly", async () => {
+	const body = { sourceKind: "tier-content-extracted", workId: "eventbridge-event", detail: candidateDetail };
+	const redelivered = redeliveryFixture({ seededClaimId: "physical-message" });
+	await redelivered.seed();
+	const firstDelivery = redeliveryFixture({});
+
+	const result = await initSelectArticleContentHandler(redelivered.deps)(sqsEvent({ body, messageId: "physical-message", receiveCount: 2 }), buildLambdaContext(), () => {});
+	await initSelectArticleContentHandler(firstDelivery.deps)(sqsEvent({ body, messageId: "physical-message", receiveCount: 1 }), buildLambdaContext(), () => {});
+
+	assert.deepEqual(result, { batchItemFailures: [] });
+	const [claim] = redelivered.claimResults;
+	assert(claim?.kind === "granted");
+	assert.equal(claim.permit.claimId, "physical-message");
+	expect(redelivered.judgeCalls).toHaveBeenCalledTimes(1);
+	assert.deepEqual(redelivered.lines[0]?.args, ["[SelectArticleContent] processing", { sourceKind: "tier-content-extracted", workId: "eventbridge-event", messageId: "physical-message", receiveCount: 2 }]);
+	assert.deepEqual(redelivered.lines.filter((line) => line.level === "error"), []);
+	const withoutReceiveCount = (lines: typeof redelivered.lines) => JSON.stringify(lines).replaceAll('"receiveCount":2', '"receiveCount":1');
+	assert.equal(withoutReceiveCount(redelivered.lines), JSON.stringify(firstDelivery.lines));
 });
 
 it("keeps the legacy selection handler's judge claim at its queue visibility", async () => {
