@@ -2,13 +2,12 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { consoleLogger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
-import { GenerateSummaryCommand } from "@packages/infra-components";
-import { initSqsCommandDispatcher } from "@packages/infra-components/runtime";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { readEnv } from "@packages/require-env";
 import { CANONICAL_CONTENT_CHANGED_ENV } from "./canonical-content-changed.env";
 import { initFindArticleContent } from "./providers/article-store/find-article-content";
 import { initCanonicalContentChangedHandler } from "./domain/save-link/canonical-content-changed-handler";
+import { initGenerateSummaryDispatch } from "./dep-bundles/generate-summary-dispatch";
 
 const env = readEnv(CANONICAL_CONTENT_CHANGED_ENV);
 
@@ -30,11 +29,7 @@ const { store } = initDynamoDbArticleStore({
 	tableName: articlesTable,
 });
 
-const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
-	sqsClient,
-	queueUrl: generateSummaryQueueUrl,
-	command: GenerateSummaryCommand,
-});
+const dispatchGenerateSummary = initGenerateSummaryDispatch({ sqsClient, generateSummaryQueueUrl });
 
 export const handler = initCanonicalContentChangedHandler({
 	loadArticle: store.load,

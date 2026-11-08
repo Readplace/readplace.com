@@ -282,9 +282,17 @@ const failuresDlq = new SharedDlq(SAVE_LINK_FAILURES_DLQ, {
 });
 
 const generateSummaryQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.generateSummary, {
-	visibilityTimeoutSeconds: GENERATE_SUMMARY_TIMEOUTS.sqsVisibilitySeconds,
+	visibilityTimeoutSeconds: GENERATE_SUMMARY_TIMEOUTS.legacySqsVisibilitySeconds,
 	dlqMaxReceiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT,
 });
+
+const generateSummaryFifoQueue = new Sqs(`${SAVE_LINK_DLQ_SOURCES.generateSummary}-fifo`, {
+	visibilityTimeoutSeconds: GENERATE_SUMMARY_TIMEOUTS.sqsVisibilitySeconds,
+	dlqMaxReceiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT,
+	fifo: true,
+});
+
+const SUMMARY_FIFO_CONSUMER_ENABLED = false;
 
 const linkSavedQueue = new Sqs("link-saved", {
 	visibilityTimeoutSeconds: 60,
@@ -408,12 +416,12 @@ new DLQEventHandler(SAVE_LINK_FAILURES_DLQ_CONSUMER, {
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
-	additionalPolicies: renamePolicies(
-		generateSummaryQueue.policies,
-		SAVE_LINK_FAILURES_DLQ_CONSUMER,
-	),
+	additionalPolicies: [
+		...renamePolicies(generateSummaryQueue.policies, SAVE_LINK_FAILURES_DLQ_CONSUMER),
+		...renamePolicies(generateSummaryFifoQueue.policies, SAVE_LINK_FAILURES_DLQ_CONSUMER),
+	],
 });
 
 // --- SaveLinkCommand handler ---
@@ -441,7 +449,7 @@ const saveLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCommand,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...saveLinkCommandDynamodb.policies,
@@ -449,6 +457,7 @@ const saveLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCommand,
 		...contentBucket.readPolicies("save-link-command-content-read"),
 		...contentBucket.writePolicies("save-link-command-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "save-link-command"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "save-link-command"),
 	],
 });
 
@@ -535,7 +544,7 @@ const submitLinkLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 		...crawlEgressProxyEnvironment,
 	},
 	policies: [
@@ -547,6 +556,7 @@ const submitLinkLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 		...contentBucket.readPolicies("submit-link-content-read"),
 		...contentBucket.writePolicies("submit-link-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "submit-link"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "submit-link"),
 	],
 });
 
@@ -655,7 +665,7 @@ const saveLinkRawHtmlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkR
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...saveLinkRawHtmlCommandDynamodb.policies,
@@ -666,6 +676,7 @@ const saveLinkRawHtmlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkR
 		...contentBucket.readPolicies("save-link-raw-html-command-content-read"),
 		...contentBucket.writePolicies("save-link-raw-html-command-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "save-link-raw-html-command"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "save-link-raw-html-command"),
 	],
 });
 
@@ -702,7 +713,7 @@ const saveAnonymousLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveAno
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...saveAnonymousLinkCommandDynamodb.policies,
@@ -710,6 +721,7 @@ const saveAnonymousLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveAno
 		...contentBucket.readPolicies("save-anonymous-link-command-content-read"),
 		...contentBucket.writePolicies("save-anonymous-link-command-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "save-anonymous-link-command"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "save-anonymous-link-command"),
 	],
 });
 
@@ -991,7 +1003,7 @@ const comprehensiveCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.compre
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 		PDF_PAGE_OCR_FUNCTION_NAME: pdfPageOcrLambda.functionName,
 		PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME: pdfPageLlmCleanupLambda.functionName,
 		PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME: pdfDocumentDiffReviewLambda.functionName,
@@ -1008,6 +1020,7 @@ const comprehensiveCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.compre
 		comprehensiveCrawlCommandInvokeDocumentDiffReview,
 		comprehensiveCrawlCommandInvokePageHtmlConvert,
 		...renamePolicies(generateSummaryQueue.policies, "comprehensive-crawl-command"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "comprehensive-crawl-command"),
 	],
 });
 
@@ -1055,7 +1068,7 @@ const renderCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCo
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 		AWS_LAMBDA_JS_RUNTIME: "nodejs22.x",
 	},
 	policies: [
@@ -1063,6 +1076,7 @@ const renderCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCo
 		...contentBucket.readPolicies("render-crawl-command-content-read"),
 		...contentBucket.writePolicies("render-crawl-command-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "render-crawl-command"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "render-crawl-command"),
 	],
 });
 
@@ -1149,7 +1163,7 @@ const saveLinkRawPdfCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRa
 		PENDING_PDF_BUCKET_NAME: pendingPdfBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 		PDF_PAGE_OCR_FUNCTION_NAME: pdfPageOcrLambda.functionName,
 		PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME: pdfPageLlmCleanupLambda.functionName,
 		PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME: pdfDocumentDiffReviewLambda.functionName,
@@ -1166,6 +1180,7 @@ const saveLinkRawPdfCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRa
 		saveLinkRawPdfCommandInvokeDocumentDiffReview,
 		saveLinkRawPdfCommandInvokePageHtmlConvert,
 		...renamePolicies(generateSummaryQueue.policies, "save-link-raw-pdf-command"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "save-link-raw-pdf-command"),
 	],
 });
 
@@ -1212,12 +1227,13 @@ const staleCheckRequestedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.staleCheckRe
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 	},
 	policies: [
 		...staleCheckRequestedDynamodb.policies,
 		...renamePolicies(generateSummaryQueue.policies, "stale-check-requested"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "stale-check-requested"),
 		// Stages the refreshed HTML under refresh-html/ before publishing
 		// RefreshArticleContentCommand; consumer reads from the same bucket.
 		...pendingHtmlBucket.writePolicies("stale-check-requested-refresh-html"),
@@ -1274,13 +1290,14 @@ const selectMostCompleteContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.select
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...selectMostCompleteContentDynamodb.policies,
 		...contentBucket.readPolicies("select-most-complete-content-content-read"),
 		...contentBucket.writePolicies("select-most-complete-content-content-write"),
 		...renamePolicies(generateSummaryQueue.policies, SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent),
+		...renamePolicies(generateSummaryFifoQueue.policies, SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent),
 	],
 });
 
@@ -1435,13 +1452,14 @@ const reselectAfterRemovalLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.reselectAft
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...reselectAfterRemovalDynamodb.policies,
 		...contentBucket.readPolicies("reselect-after-removal-content-read"),
 		...contentBucket.writePolicies("reselect-after-removal-content-write"),
 		...renamePolicies(generateSummaryQueue.policies, "reselect-after-removal"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "reselect-after-removal"),
 	],
 });
 
@@ -1477,23 +1495,33 @@ const generateSummaryLambda = new Lambda("generate-summary", {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		EVENT_BUS_NAME: eventBus.eventBusName,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...generateSummaryDynamodb.policies,
 		...renamePolicies(generateSummaryQueue.policies, "generate-summary"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "generate-summary"),
 		...contentBucket.readPolicies("generate-summary-s3"),
 	],
 });
 
 eventBus.grantPublish(generateSummaryLambda);
 
-new SqsBackedLambda("generate-summary", {
+const legacyGenerateSummaryConsumer = new SqsBackedLambda("generate-summary", {
 	lambda: generateSummaryLambda,
 	queue: generateSummaryQueue,
 	alertEmailDLQEntry: alertEmail,
 	batchSize: 1,
+	enabled: !SUMMARY_FIFO_CONSUMER_ENABLED,
 });
+
+new SqsBackedLambda("generate-summary-fifo", {
+	lambda: generateSummaryLambda,
+	queue: generateSummaryFifoQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+	enabled: SUMMARY_FIFO_CONSUMER_ENABLED,
+}, { dependsOn: [legacyGenerateSummaryConsumer] });
 
 // --- LinkSaved handler ---
 
@@ -1511,11 +1539,12 @@ const linkSavedLambda = new Lambda("link-saved", {
 	environmentNames: LINK_SAVED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...linkSavedDynamodb.policies,
 		...generateSummaryQueue.policies,
+		...generateSummaryFifoQueue.policies,
 		...contentBucket.readPolicies("link-saved-s3"),
 	],
 });
@@ -1545,13 +1574,14 @@ const anonymousLinkSavedLambda = new Lambda("anonymous-link-saved", {
 	environmentNames: ANONYMOUS_LINK_SAVED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...anonymousLinkSavedDynamodb.policies,
 		// Rename the shared queue's send-policy so the Pulumi URN doesn't
 		// collide with the link-saved Lambda's attachment of the same policy.
 		...renamePolicies(generateSummaryQueue.policies, "anonymous"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "anonymous"),
 		...contentBucket.readPolicies("anonymous-link-saved-s3"),
 	],
 });
@@ -1593,11 +1623,12 @@ const canonicalContentChangedLambda = new Lambda("canonical-content-changed", {
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...canonicalContentChangedDynamodb.policies,
 		...renamePolicies(generateSummaryQueue.policies, "canonical-content-changed"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "canonical-content-changed"),
 		...contentBucket.readPolicies("canonical-content-changed-s3"),
 	],
 });
@@ -1813,7 +1844,7 @@ const recrawlLinkInitiatedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.recrawlLink
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...recrawlLinkInitiatedDynamodb.policies,
@@ -1821,6 +1852,7 @@ const recrawlLinkInitiatedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.recrawlLink
 		...contentBucket.readPolicies("recrawl-link-initiated-content-read"),
 		...contentBucket.writePolicies("recrawl-link-initiated-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "recrawl-link-initiated"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "recrawl-link-initiated"),
 	],
 });
 
@@ -1860,13 +1892,14 @@ const recrawlContentExtractedLambda = new Lambda("recrawl-content-extracted", {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...recrawlContentExtractedDynamodb.policies,
 		...contentBucket.readPolicies("recrawl-content-extracted-content-read"),
 		...contentBucket.writePolicies("recrawl-content-extracted-content-write"),
 		...renamePolicies(generateSummaryQueue.policies, "recrawl"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "recrawl"),
 	],
 });
 
@@ -1998,13 +2031,14 @@ const refreshContentExtractedLambda = new Lambda("refresh-content-extracted", {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
 	},
 	policies: [
 		...refreshContentExtractedDynamodb.policies,
 		...contentBucket.readPolicies("refresh-content-extracted-content-read"),
 		...contentBucket.writePolicies("refresh-content-extracted-content-write"),
 		...renamePolicies(generateSummaryQueue.policies, "refresh-content-extracted"),
+		...renamePolicies(generateSummaryFifoQueue.policies, "refresh-content-extracted"),
 	],
 });
 

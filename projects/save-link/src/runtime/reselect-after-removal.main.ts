@@ -4,11 +4,10 @@ import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeeps
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { consoleLogger, Logger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
-import { type CrawlSettledEvent, GenerateSummaryCommand, initLogCrawlSettled } from "@packages/infra-components";
+import { type CrawlSettledEvent, initLogCrawlSettled } from "@packages/infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-	initSqsCommandDispatcher,
 } from "@packages/infra-components/runtime";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
@@ -17,6 +16,7 @@ import { RESELECT_AFTER_REMOVAL_ENV } from "./reselect-after-removal.env";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initReselectAfterRemovalHandler } from "./domain/remove-my-content/reselect-after-removal-handler";
+import { initGenerateSummaryDispatch } from "./dep-bundles/generate-summary-dispatch";
 
 const env = readEnv(RESELECT_AFTER_REMOVAL_ENV);
 
@@ -57,11 +57,7 @@ const { store } = initDynamoDbArticleStore({
 	tableName: articlesTable,
 });
 
-const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
-	sqsClient,
-	queueUrl: generateSummaryQueueUrl,
-	command: GenerateSummaryCommand,
-});
+const dispatchGenerateSummary = initGenerateSummaryDispatch({ sqsClient, generateSummaryQueueUrl });
 
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),

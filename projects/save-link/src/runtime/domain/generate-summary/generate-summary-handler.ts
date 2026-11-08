@@ -91,7 +91,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 					leg: "summary",
 					inputs: [sourceContentHash, existing?.summary.kind === "pending" ? existing.summary.pendingSince : ""],
 					claimId: record.messageId,
-					claimTtlMs: GENERATE_SUMMARY_TIMEOUTS.sqsVisibilitySeconds * 1000,
+					claimTtlMs: GENERATE_SUMMARY_TIMEOUTS.claimTtlSeconds * 1000,
 					run: async (permit) => {
 						const result = await summarizeArticle({
 							url: command.url,

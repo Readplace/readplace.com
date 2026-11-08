@@ -28,6 +28,7 @@ export class SqsBackedLambda extends pulumi.ComponentResource {
 			 * Valid range: 1–10 (AWS SQS EventSourceMapping limit for standard queues).
 			 */
 			batchSize: number;
+			enabled?: boolean;
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -56,6 +57,7 @@ export class SqsBackedLambda extends pulumi.ComponentResource {
 			eventSourceArn: args.queue.queueArn,
 			functionName: args.lambda.arn,
 			batchSize: args.batchSize,
+			enabled: args.enabled,
 			functionResponseTypes: ["ReportBatchItemFailures"],
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 

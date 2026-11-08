@@ -2,7 +2,6 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { initDeadLetterRouter } from "@packages/dead-letter-routing";
 import {
-	GenerateSummaryCommand,
 	SAVE_LINK_DLQ_SOURCE_QUEUES,
 	type CrawlSettledEvent,
 	initLogCrawlSettled,
@@ -10,7 +9,6 @@ import {
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-	initSqsCommandDispatcher,
 } from "@packages/infra-components/runtime";
 import { consoleLogger, Logger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
@@ -27,6 +25,7 @@ import { initSaveLinkRawHtmlDlqHandler } from "./domain/crawl-article-state/save
 import { initSaveLinkRawPdfDlqHandler } from "./domain/crawl-article-state/save-link-raw-pdf-dlq-handler";
 import { initSimpleCrawlUnsupportedPolicyDlqHandler } from "./domain/simple-crawl-unsupported-policy/simple-crawl-unsupported-policy-dlq-handler";
 import { initSubmitLinkDlqHandler } from "./domain/submit-link/submit-link-dlq-handler";
+import { initGenerateSummaryDispatch } from "./dep-bundles/generate-summary-dispatch";
 
 const env = readEnv(SAVE_LINK_FAILURES_DLQ_ENV);
 
@@ -42,11 +41,7 @@ const { store } = initDynamoDbArticleStore({
 	tableName: articlesTable,
 });
 
-const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
-	sqsClient,
-	queueUrl: generateSummaryQueueUrl,
-	command: GenerateSummaryCommand,
-});
+const dispatchGenerateSummary = initGenerateSummaryDispatch({ sqsClient, generateSummaryQueueUrl });
 
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),

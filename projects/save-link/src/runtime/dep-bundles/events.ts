@@ -4,18 +4,14 @@ import type { SQSClient } from "@aws-sdk/client-sqs";
 import {
 	type EventBridgeClient,
 	initEventBridgePublisher,
-	initSqsCommandDispatcher,
-	type DispatchCommand,
 	type PublishEvent,
 } from "@packages/infra-components/runtime";
 import {
 	SimpleCrawlUnsupportedEvent,
 	type SimpleCrawlUnsupportedDetail,
-	GenerateSummaryCommand,
 } from "@packages/infra-components";
 import type { CandidateReference } from "../domain/select-content/list-available-tier-sources";
-
-export type DispatchGenerateSummary = DispatchCommand<typeof GenerateSummaryCommand>;
+import { type DispatchGenerateSummary, initGenerateSummaryDispatch } from "./generate-summary-dispatch";
 
 /** Bridges the simple-only Lambdas' "simple unsupported, defer the
  * comprehensive crawl" branch to EventBridge by emitting
@@ -56,10 +52,9 @@ export function initEventsDepBundle(deps: {
 		client: deps.eventBridgeClient,
 		eventBusName: deps.eventBusName,
 	});
-	const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
+	const dispatchGenerateSummary = initGenerateSummaryDispatch({
 		sqsClient: deps.sqsClient,
-		queueUrl: deps.generateSummaryQueueUrl,
-		command: GenerateSummaryCommand,
+		generateSummaryQueueUrl: deps.generateSummaryQueueUrl,
 	});
 	return { publishEvent, dispatchGenerateSummary };
 }

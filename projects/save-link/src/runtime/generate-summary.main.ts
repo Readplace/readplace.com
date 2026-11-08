@@ -1,11 +1,10 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
-import { type CrawlSettledEvent, GenerateSummaryCommand, initLogCrawlSettled } from "@packages/infra-components";
+import { type CrawlSettledEvent, initLogCrawlSettled } from "@packages/infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-	initSqsCommandDispatcher,
 } from "@packages/infra-components/runtime";
 import { consoleLogger, Logger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
@@ -23,6 +22,7 @@ import { GENERATE_SUMMARY_TIMEOUTS } from "./domain/generate-summary/timeouts";
 import { readEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_ENV } from "./generate-summary.env";
 import { initFindArticleContent } from "./providers/article-store/find-article-content";
+import { initGenerateSummaryDispatch } from "./dep-bundles/generate-summary-dispatch";
 
 const env = readEnv(GENERATE_SUMMARY_ENV);
 
@@ -88,11 +88,7 @@ const { store } = initDynamoDbArticleStore({
 	tableName: articlesTable,
 });
 
-const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
-	sqsClient,
-	queueUrl: generateSummaryQueueUrl,
-	command: GenerateSummaryCommand,
-});
+const dispatchGenerateSummary = initGenerateSummaryDispatch({ sqsClient, generateSummaryQueueUrl });
 
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),

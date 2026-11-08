@@ -6,6 +6,10 @@ import {
 	type SharedDlq,
 } from "./shared-dlq";
 
+export type QueueDeadLetterMode =
+	| { sharedDlq?: SharedDlq; fifo?: false }
+	| { fifo: true; sharedDlq?: undefined };
+
 export class SqsQueue extends pulumi.ComponentResource {
 	public readonly queueArn: aws.sqs.Queue["arn"];
 	public readonly queueUrl: aws.sqs.Queue["url"];
@@ -21,8 +25,7 @@ export class SqsQueue extends pulumi.ComponentResource {
 			visibilityTimeoutSeconds?: number;
 			dlqMaxReceiveCount?: number;
 			dlqRetentionSeconds?: number;
-			sharedDlq?: SharedDlq;
-		},
+		} & QueueDeadLetterMode,
 		opts?: pulumi.ComponentResourceOptions,
 	) {
 		super("hutch:infra:HutchSqsQueue", name, {}, opts);
@@ -30,19 +33,24 @@ export class SqsQueue extends pulumi.ComponentResource {
 		const visibilityTimeout = args?.visibilityTimeoutSeconds ?? 60;
 		const maxReceiveCount = args?.dlqMaxReceiveCount ?? 3;
 		const dlqRetention = args?.dlqRetentionSeconds ?? DEFAULT_DLQ_RETENTION_SECONDS;
+		const fifo = args?.fifo === true;
+		const nameSuffix = fifo ? ".fifo" : "";
+		const fifoArgs = fifo ? { fifoQueue: true } : {};
 
 		const dlq = args?.sharedDlq ?? new aws.sqs.Queue(`${name}-dlq`, {
-			name: `${name}-dlq`,
+			name: `${name}-dlq${nameSuffix}`,
 			messageRetentionSeconds: dlqRetention,
+			...fifoArgs,
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
 		const queue = new aws.sqs.Queue(`${name}-q`, {
-			name: `${name}-q`,
+			name: `${name}-q${nameSuffix}`,
 			visibilityTimeoutSeconds: visibilityTimeout,
 			redrivePolicy: pulumi.jsonStringify({
 				deadLetterTargetArn: dlq.arn,
 				maxReceiveCount,
 			}),
+			...fifoArgs,
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
 		this.queueArn = queue.arn;

@@ -1,7 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import type { LambdaPolicy } from "./lambda";
-import type { SharedDlq } from "./shared-dlq";
-import { SqsQueue } from "./sqs-queue";
+import { type QueueDeadLetterMode, SqsQueue } from "./sqs-queue";
 
 export class Sqs extends pulumi.ComponentResource {
 	public readonly queueArn: SqsQueue["queueArn"];
@@ -17,8 +16,7 @@ export class Sqs extends pulumi.ComponentResource {
 		args: {
 			visibilityTimeoutSeconds: number;
 			dlqMaxReceiveCount?: number;
-			sharedDlq?: SharedDlq;
-		},
+		} & QueueDeadLetterMode,
 		opts?: pulumi.ComponentResourceOptions,
 	) {
 		super("hutch:infra:HutchSQS", name, {}, opts);
@@ -26,7 +24,7 @@ export class Sqs extends pulumi.ComponentResource {
 		const queue = new SqsQueue(name, {
 			visibilityTimeoutSeconds: args.visibilityTimeoutSeconds,
 			dlqMaxReceiveCount: args.dlqMaxReceiveCount,
-			sharedDlq: args.sharedDlq,
+			...(args.fifo === true ? { fifo: true } : { sharedDlq: args.sharedDlq }),
 		}, { parent: this });
 
 		this.queueArn = queue.queueArn;

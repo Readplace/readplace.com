@@ -3,32 +3,22 @@ import type { z } from "zod";
 import type { SQSClient } from "@aws-sdk/client-sqs";
 import { SendMessageCommand } from "@aws-sdk/client-sqs";
 import type { CommandDefinition } from "../events";
+import { buildCommandMessage, type CommandQueueDelivery } from "./command-message";
 
 export type DispatchCommand<C extends CommandDefinition<z.ZodTypeAny>> = (
 	detail: z.infer<C["detailSchema"]>,
 ) => Promise<void>;
 
-export function initSqsCommandDispatcher<C extends CommandDefinition<z.ZodTypeAny>>(deps: {
+export function initSqsCommandDispatcher<S extends z.ZodTypeAny>(deps: {
 	sqsClient: Pick<SQSClient, "send">;
 	queueUrl: string;
-	command: C;
-	/** Optional per-message delivery delay (0–900s, the SQS maximum). Passed
-	 * straight through to `SendMessageCommand.DelaySeconds`; `undefined`
-	 * serialises identically to omitting it, so existing callers are
-	 * unaffected. */
-	delaySeconds?: number;
-}): { dispatch: DispatchCommand<C> } {
-	const { sqsClient, queueUrl, command, delaySeconds } = deps;
+	command: CommandDefinition<S>;
+} & CommandQueueDelivery<z.output<S>>): { dispatch: DispatchCommand<CommandDefinition<S>> } {
+	const { sqsClient, queueUrl, command } = deps;
 
-	const dispatch: DispatchCommand<C> = async (detail) => {
+	const dispatch: DispatchCommand<CommandDefinition<S>> = async (detail) => {
 		const validated = command.detailSchema.parse(detail);
-		await sqsClient.send(
-			new SendMessageCommand({
-				QueueUrl: queueUrl,
-				MessageBody: JSON.stringify({ detail: validated }),
-				DelaySeconds: delaySeconds,
-			}),
-		);
+		await sqsClient.send(new SendMessageCommand(buildCommandMessage({ queueUrl, detail: validated, delivery: deps })));
 	};
 
 	return { dispatch };
