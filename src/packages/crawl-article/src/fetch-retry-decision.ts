@@ -30,6 +30,7 @@ function isEarlyTransient(error: object): boolean {
 }
 
 function classifyLadder(failure: TransportLadderFailure): FailureClass {
+	if (failure.escalatedStatuses.length > 0) return "terminal";
 	const legs = [...failure.previousErrors, failure.cause].map(classifyLeg);
 	return legs.includes("terminal") ? "terminal" : "durable";
 }

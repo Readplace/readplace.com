@@ -22,7 +22,7 @@ function curlFailure(exitCode: number | string): CurlFetchFailure {
 }
 
 function ladderFailure(legs: readonly unknown[]): TransportLadderFailure {
-	return new TransportLadderFailure({ error: legs.at(-1), previousErrors: legs.slice(0, -1), retryDisposition: "unclassified" });
+	return new TransportLadderFailure({ escalatedStatuses: [], error: legs.at(-1), previousErrors: legs.slice(0, -1), retryDisposition: "unclassified" });
 }
 
 const liveSignal = () => new AbortController().signal;
@@ -165,14 +165,14 @@ describe("decideFetchFailure", () => {
 			assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "retryable", scope: "durable", cause: error });
 		});
 
-		it("is durable when the primary leg answered 403 and the later legs reset, since the ladder records only the resets", async () => {
+		it("is terminal when the primary leg answered 403 and the later legs reset, since the edge is blocking us", async () => {
 			const error = await ladderRejection([
 				{ name: "primary", maxRunMs: 100, fetch: async () => new Response("denied", { status: 403 }) },
 				{ name: "h2", maxRunMs: 100, fetch: rejectsWith(codedError({ code: "ECONNRESET" })) },
 				{ name: "curl", maxRunMs: 100, fetch: rejectsWith(wrappedInFetchFailed(codedError({ code: "ECONNRESET" }))) },
 			]);
 
-			assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "retryable", scope: "durable", cause: error });
+			assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "terminal", cause: error });
 		});
 	});
 });

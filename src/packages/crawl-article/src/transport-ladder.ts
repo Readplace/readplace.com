@@ -102,9 +102,10 @@ export function runTransportLadder(deps: {
 		const { headers, budget, onRedirect } = init;
 		const errors: unknown[] = [];
 		let allFailuresRecoverable = true;
+		const escalatedStatuses: number[] = [];
 		let lastResponse: Response | undefined;
 		const failure = () => new TransportLadderFailure({
-			error: errors.at(-1), previousErrors: errors.slice(0, -1),
+			error: errors.at(-1), previousErrors: errors.slice(0, -1), escalatedStatuses,
 			retryDisposition: allFailuresRecoverable ? "recoverable" : "unclassified",
 		});
 		for (const [index, leg] of legs.entries()) {
@@ -136,6 +137,7 @@ export function runTransportLadder(deps: {
 					status: response.status,
 					unlockerError,
 				});
+				escalatedStatuses.push(response.status);
 				lastResponse = buffered;
 			} catch (error) {
 				const elapsedMs = now() - startedAt;

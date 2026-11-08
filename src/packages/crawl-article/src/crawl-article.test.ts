@@ -2695,7 +2695,7 @@ it("retains CIA PDF identity after a rejected redirect and later timeout", async
 	const home = "https://www.cia.gov/readingroom/";
 	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (_url, init) => {
 		init.onRedirect?.({ fromUrl: url, toUrl: home });
-		throw new TransportLadderFailure({ previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
+		throw new TransportLadderFailure({ escalatedStatuses: [], previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
 	}, siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 	expect(await crawl({ url })).toMatchObject({ status: "failed", finalUrl: url });
 });
@@ -2706,7 +2706,7 @@ it("reports one document mismatch after different rejected landing pages and a t
 	const logError = jest.fn();
 	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (_url, init) => {
 		for (const landingPageUrl of landingPages) init.onRedirect?.({ fromUrl: url, toUrl: landingPageUrl });
-		throw new TransportLadderFailure({
+		throw new TransportLadderFailure({ escalatedStatuses: [],
 			previousErrors: landingPages.map(landingPageUrl => new DocumentLandingPageError({ requestedUrl: url, landingPageUrl })),
 			error: new Error("timeout"),
 			retryDisposition: "recoverable",
@@ -2723,7 +2723,7 @@ it("does not replace an unrelated later redirect with the rejected CIA document"
 	const later = "https://www.cia.gov/different-document";
 	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (_url, init) => {
 		init.onRedirect?.({ fromUrl: home, toUrl: later });
-		throw new TransportLadderFailure({ previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
+		throw new TransportLadderFailure({ escalatedStatuses: [], previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
 	}, siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 	expect(await crawl({ url })).toMatchObject({ status: "failed", finalUrl: later });
 });
