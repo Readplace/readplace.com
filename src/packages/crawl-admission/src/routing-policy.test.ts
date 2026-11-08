@@ -12,6 +12,20 @@ describe("normalizeHostname", () => {
 		assert.equal(normalizeHostname(" WWW.CoinDesk.com. "), "www.coindesk.com");
 	});
 
+	it.each([
+		["https://a_b.example.com/", "a_b.example.com"],
+		["http://[::1]/", "[::1]"],
+		["http://[::ffff:127.0.0.1]/", "[::ffff:7f00:1]"],
+		["http://192.168.0.1/", "192.168.0.1"],
+		["https://xn--bcher-kva.example/", "xn--bcher-kva.example"],
+	])("accepts the hostname a URL parses from %s", (url, expected) => {
+		assert.equal(normalizeHostname(new URL(url).hostname), expected);
+	});
+
+	it("gives an underscore host the default policy", () => {
+		assert.equal(routingPolicyFor(normalizeHostname("a_b.example.com")).source, "default");
+	});
+
 	it("refuses a value that is not a hostname", () => {
 		assert.throws(() => normalizeHostname("example.com/path"));
 	});

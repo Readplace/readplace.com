@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const NormalizedHostSchema = z
 	.string()
-	.regex(/^[a-z0-9-]+(\.[a-z0-9-]+)*$/)
+	.regex(/^([a-z0-9_-]+(\.[a-z0-9_-]+)*|\[[0-9a-f:.]+\])$/)
 	.brand<"NormalizedHost">();
 export type NormalizedHost = z.infer<typeof NormalizedHostSchema>;
 
