@@ -25,8 +25,8 @@ test("preserves reader and EPUB identity through the public staging CDN", async 
 	const other = `SIBLING-BODY-${run}`;
 	const pathFor = (url: string) => `/view/${url.slice("https://".length)}`;
 	const doc = (html: string) => new JSDOM(html).window.document;
-	async function download(href: string, title: string, body: string, excluded: string) {
-		const response = await publicReader.get(href);
+	async function download(client: APIRequestContext, href: string, title: string, body: string, excluded: string) {
+		const response = await client.get(href);
 		expect(response.status(), `EPUB identity failed for ${href}`).toBe(200);
 		expect(response.headers()["content-type"]).toBe("application/epub+zip");
 		const files = unzipSync(await response.body());
@@ -90,12 +90,13 @@ test("preserves reader and EPUB identity through the public staging CDN", async 
 		const ownerDoc = await readyReader(owner, ownerHref, marker);
 		const epub = ownerDoc.querySelector('[data-test-download="epub"]')?.getAttribute("href");
 		assert(epub, "owner reader must render its actual EPUB link");
-		expect(new URL(epub, ORIGIN).pathname).toBe(pathFor(original));
+		const ownerUrl = new URL(ownerHref, ORIGIN);
+		expect(new URL(epub, ORIGIN).pathname).toBe(ownerUrl.pathname);
 		// First download BEFORE public HTML could create the collapsed sibling.
-		await download(epub, originalTitle, marker, other);
+		await download(owner, epub, originalTitle, marker, other);
 		const siblingHref = await upload(sibling, siblingTitle, other);
 		await readyReader(owner, siblingHref, other);
-		await download(epub, originalTitle, marker, other);
+		await download(owner, epub, originalTitle, marker, other);
 		const publicDoc = await readyReader(publicReader, pathFor(original), marker);
 		expect(publicDoc.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(original);
 		expect(publicDoc.querySelector('meta[property="og:url"]')?.getAttribute("content")).toBe(`https://readplace.com${pathFor(original)}`);
@@ -106,11 +107,11 @@ test("preserves reader and EPUB identity through the public staging CDN", async 
 		}
 		const publicEpub = publicDoc.querySelector('[data-test-download="epub"]')?.getAttribute("href");
 		assert(publicEpub);
-		await download(publicEpub, originalTitle, marker, other);
+		await download(publicReader, publicEpub, originalTitle, marker, other);
 		const missing = await publicReader.get(`${pathFor(original)}-missing?format=epub`);
 		expect(missing.status()).toBe(404);
-		await download(epub, originalTitle, marker, other);
-		await Promise.all([download(epub, originalTitle, marker, other), download(`${pathFor(sibling)}?format=epub`, siblingTitle, other, marker)]);
+		await download(owner, epub, originalTitle, marker, other);
+		await Promise.all([download(owner, epub, originalTitle, marker, other), download(publicReader, `${pathFor(sibling)}?format=epub`, siblingTitle, other, marker)]);
 		for (const size of [5000, 7800]) {
 			const longPath = `/view/readplace-staging.com/reader-path-check/${run}/${"a".repeat(size)}`;
 			// Canonical redirects exercise transport before the existing 2 KB
@@ -128,12 +129,11 @@ test("preserves reader and EPUB identity through the public staging CDN", async 
 			expect(response.statusCode, "long reader URL must reach the application without transport-size failure").toBe(301);
 			expect(response.headers.location).toBe(`${longPath}?format=epub`);
 		}
-		await download(epub, originalTitle, marker, other);
+		await download(owner, epub, originalTitle, marker, other);
 		const query = "?utm_source=reader-path-check&x=&x=2";
 		const redirect = await publicReader.get(`/view/https://${original.slice(8)}${query}`, { maxRedirects: 0 });
 		expect(redirect.status()).toBe(301);
 		expect(redirect.headers().location).toBe(pathFor(original) + query);
-		const ownerUrl = new URL(ownerHref, ORIGIN);
 		const legacyReader = await owner.get(ownerUrl.pathname.replace(/\/view$/, "/read") + query, { maxRedirects: 0 });
 		expect(legacyReader.status()).toBe(301);
 		expect(legacyReader.headers().location).toBe(ownerUrl.pathname + query);
