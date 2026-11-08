@@ -164,6 +164,56 @@ describe("jest phase resolution", () => {
 		expect(phase.command).toContain("wait $p1 || rc=1");
 		expect(phase.command).toContain("wait $p3 || rc=1");
 		expect(phase.command).toContain("exit $rc");
+		expect(phase.command).not.toContain("xargs");
+	});
+
+	it("runs the shards through a pool of concurrentShards when there are more shards than the pool", () => {
+		const runner = createRunner();
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "My Project",
+				phases: [
+					{
+						type: "jest",
+						name: "unit tests",
+						testMatch: "**/dist/**/*.test.js",
+						timeout: 10000,
+						shards: 11,
+						concurrentShards: 3,
+					},
+				],
+			},
+			projectRoot,
+		});
+
+		const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "jest" }>;
+		expect(phase.command).toBe(
+			`seq 1 11 | xargs -P 3 -I{} sh -c '"$@" --shard={}/11 --forceExit || exit 1' sh node_modules/.bin/jest --testMatch="**/dist/**/*.test.js" --testTimeout=10000`,
+		);
+	});
+
+	it("launches every shard at once when concurrentShards is not below shards", () => {
+		const runner = createRunner();
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "My Project",
+				phases: [
+					{
+						type: "jest",
+						name: "unit tests",
+						testMatch: "**/dist/**/*.test.js",
+						timeout: 10000,
+						shards: 3,
+						concurrentShards: 3,
+					},
+				],
+			},
+			projectRoot,
+		});
+
+		const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "jest" }>;
+		expect(phase.command).toContain("--shard=3/3 --forceExit & p3=$!");
+		expect(phase.command).not.toContain("xargs");
 	});
 
 	it("uses different timeout for integration tests", () => {

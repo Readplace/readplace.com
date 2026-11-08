@@ -28,6 +28,7 @@ interface JestPhase {
 	 * their per-file profiles merge into the identical coverage a single run
 	 * produces. Omitted or ≤1 means one process, exactly as before. */
 	shards?: number;
+	concurrentShards?: number;
 }
 
 interface NodeTestPhase {
@@ -144,7 +145,13 @@ export interface TestPhaseRunnerDeps {
  * likely. Forcing exit after the reporters finish is safe for coverage: the V8
  * profile is flushed on `process.exit()`, verified to produce byte-identical
  * merged coverage to the un-sharded run. */
-function shardedJestCommand(base: string, shards: number): string {
+function shardedJestCommand(
+	base: string,
+	{ shards, concurrentShards }: { shards: number; concurrentShards: number },
+): string {
+	if (concurrentShards < shards) {
+		return `seq 1 ${shards} | xargs -P ${concurrentShards} -I{} sh -c '"$@" --shard={}/${shards} --forceExit || exit 1' sh ${base}`;
+	}
 	const lines: string[] = [];
 	for (let i = 1; i <= shards; i++) {
 		lines.push(`${base} --shard=${i}/${shards} --forceExit & p${i}=$!`);
@@ -170,7 +177,8 @@ function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 		parts.push("--passWithNoTests");
 	}
 	const base = parts.join(" ");
-	const command = phase.shards && phase.shards > 1 ? shardedJestCommand(base, phase.shards) : base;
+	const command =
+		phase.shards && phase.shards > 1 ? shardedJestCommand(base, { shards: phase.shards, concurrentShards: phase.concurrentShards ?? phase.shards }) : base;
 	return { type: "jest", name: phase.name, command, skip: false, e2e: phase.e2e === true };
 }
 
