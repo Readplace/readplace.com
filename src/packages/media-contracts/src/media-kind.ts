@@ -18,6 +18,7 @@ export type MediaKindManifest = Readonly<
 		uploadCeilingBytes: number;
 		ceilingLabel: string;
 		sniff: (firstBytes: Uint8Array) => boolean;
+		sniffWithoutExtension?: (firstBytes: Uint8Array) => boolean;
 		listenTime?: (seconds: number) => number;
 	} & Metering
 >;

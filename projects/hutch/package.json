@@ -99,6 +99,7 @@
     "music-metadata": "12.3.3",
     "resend": "6.12.4",
     "serverless-http": "4.0.0",
+    "strtok3": "10.7.0",
     "zod": "4.4.3"
   },
   "devDependencies": {

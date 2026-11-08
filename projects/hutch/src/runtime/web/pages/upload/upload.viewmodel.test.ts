@@ -51,9 +51,23 @@ describe("detectUploadKind", () => {
 		);
 	});
 
-	it("sniffs every offered kind when the file has no name", () => {
+	it.each(["isom", "mp42"])("takes a nameless MPEG-4 file of brand %j as video", (brand) => {
 		assert.equal(
-			detectUploadKind({ kinds: MEDIA_KINDS, offered: [BOOK, AUDIO, VIDEO], fileName: undefined, prefix: mp4Prefix("isom") }),
+			detectUploadKind({ kinds: MEDIA_KINDS, offered: [BOOK, AUDIO, VIDEO], fileName: undefined, prefix: mp4Prefix(brand) }),
+			VIDEO,
+		);
+	});
+
+	it.each(["M4A ", "M4B "])("takes a nameless MPEG-4 file of brand %j as audio", (brand) => {
+		assert.equal(
+			detectUploadKind({ kinds: MEDIA_KINDS, offered: [BOOK, AUDIO, VIDEO], fileName: undefined, prefix: mp4Prefix(brand) }),
+			AUDIO,
+		);
+	});
+
+	it("takes an .m4a file of brand isom as audio", () => {
+		assert.equal(
+			detectUploadKind({ kinds: MEDIA_KINDS, offered: [BOOK, AUDIO, VIDEO], fileName: "talk.m4a", prefix: mp4Prefix("isom") }),
 			AUDIO,
 		);
 	});

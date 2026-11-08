@@ -35,6 +35,19 @@ describe("AUDIO", () => {
 		assert.equal(AUDIO.sniff(ftypBox(brand)), true);
 	});
 
+	it.each([
+		["M4A ", true],
+		["M4B ", true],
+		["mp42", false],
+		["isom", false],
+	])("sniffs a nameless MPEG-4 file of brand %j as audio: %j", (brand, isAudio) => {
+		assert.equal(AUDIO.sniffWithoutExtension(ftypBox(brand)), isAudio);
+	});
+
+	it("sniffs a nameless MP3 as audio", () => {
+		assert.equal(AUDIO.sniffWithoutExtension(Buffer.from("ID3\x04\x00\x00", "latin1")), true);
+	});
+
 	it("does not sniff an MPEG-4 file of another brand", () => {
 		assert.equal(AUDIO.sniff(ftypBox("qt  ")), false);
 	});

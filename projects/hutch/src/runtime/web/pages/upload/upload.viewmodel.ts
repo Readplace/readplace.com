@@ -32,7 +32,8 @@ export function detectUploadKind(input: {
 	const claimsExtension = (kind: MediaKindManifest) =>
 		Object.values(kind.accepts).some((extensions) => extensions.includes(extension));
 	const declared = [...input.kinds.values()].some(claimsExtension);
-	return input.offered.find((kind) => (!declared || claimsExtension(kind)) && kind.sniff(input.prefix));
+	if (declared) return input.offered.find((kind) => claimsExtension(kind) && kind.sniff(input.prefix));
+	return input.offered.find((kind) => (kind.sniffWithoutExtension ?? kind.sniff)(input.prefix));
 }
 
 export function toUploadStartViewModel(

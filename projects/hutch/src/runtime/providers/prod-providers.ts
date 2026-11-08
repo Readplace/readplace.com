@@ -458,6 +458,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const { readTimedDuration } = initS3ReadTimedDuration({
 		client: new S3Client({}),
 		bucketName: requireEnv("MEDIA_BUCKET_NAME"),
+		headMediaPendingOriginal,
 	});
 	const { publishMediaUploadStaged } = initEventBridgeMediaUploadStaged({ publishEvent });
 	const importSessionStore = initDynamoDbImportSession({

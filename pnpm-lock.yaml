@@ -534,6 +534,9 @@ importers:
       serverless-http:
         specifier: 4.0.0
         version: 4.0.0
+      strtok3:
+        specifier: 10.7.0
+        version: 10.7.0
       zod:
         specifier: 4.4.3
         version: 4.4.3
