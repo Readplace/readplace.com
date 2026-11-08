@@ -142,7 +142,7 @@ describe("summary recovery on canonical content change", () => {
 			now: () => FIXED_NOW, logger: noopLogger,
 		});
 
-		await work({ url: URL, saveAttemptId: attemptId, claimId: "message-1", candidates: [{ id: resource.metadata.id, tier: "tier-1" }], mode: "recrawl" });
+		await work({ url: URL, saveAttemptId: attemptId, claimId: "message-1", candidates: [{ id: resource.metadata.id, tier: "tier-1" }], mode: "recrawl", remainingTimeMs: () => 300_000 });
 
 		const persisted = await store.load(URL);
 		expect(judge).toHaveBeenCalledTimes(0);

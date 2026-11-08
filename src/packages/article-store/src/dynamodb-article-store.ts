@@ -17,6 +17,7 @@ import type {
 	CrawlState,
 	SummaryState,
 } from "@packages/domain/article-aggregate";
+import { SelectionSnapshotChangedError } from "@packages/domain/article-aggregate";
 import {
 	type DynamoDBDocumentClient,
 	assembleRowUpdate,
@@ -25,7 +26,7 @@ import {
 	writeIfCondition,
 } from "@packages/storage-client";
 import { z } from "zod";
-import { prepareCanonicalCommit, prepareExpectedSelection } from "./canonical-commit";
+import { classifyRefusedSelection, prepareCanonicalCommit, prepareExpectedSelection } from "./canonical-commit";
 import { SummaryStageColumn, decodeCrawlColumns, decodeSummaryColumns } from "./status-columns";
 import { VerificationFields } from "./verified-content";
 
@@ -434,7 +435,8 @@ export function initDynamoDbArticleStore(deps: {
 				}),
 			);
 			if (outcome.kind === "written" || outcome.oldItem?.purgedAt !== undefined || (canonicalCommit === undefined && selectionExpected === undefined)) return;
-			throw outcome.error;
+			if (outcome.oldItem === undefined) throw outcome.error;
+			throw new SelectionSnapshotChangedError(classifyRefusedSelection({ oldItem: outcome.oldItem, canonicalCommit, selectionExpected }));
 		},
 	};
 

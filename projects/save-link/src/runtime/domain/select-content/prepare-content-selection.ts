@@ -147,8 +147,8 @@ export function initPrepareContentSelection(deps: {
 	judge: JudgeCandidates;
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	verifyWrapperSource: VerifyWrapperSource;
-}): (params: { url: string; saveAttemptId: SaveAttemptId; claimId: string; mode: SelectionMode; candidates?: readonly CandidateReference[]; refresh?: { contentFetchedAt: string } }) => Promise<PreparedContentSelection> {
-	return async ({ url, saveAttemptId, claimId, mode, candidates, refresh }) => {
+}): (params: { url: string; saveAttemptId: SaveAttemptId; claimId: string; mode: SelectionMode; candidates?: readonly CandidateReference[]; refresh?: { contentFetchedAt: string }; beforeProviderCall?: () => void }) => Promise<PreparedContentSelection> {
+	return async ({ url, saveAttemptId, claimId, mode, candidates, refresh, beforeProviderCall }) => {
 		const proseHashes = new Map<string, string>();
 		const proseHashOf = (html: string): string => {
 			const known = proseHashes.get(html);
@@ -234,7 +234,7 @@ export function initPrepareContentSelection(deps: {
 			? { kind: "none", reason: `the only candidate answered HTTP ${loneBody.metadata.httpStatus}`, readability: [{ candidateId: loneBody.metadata.id, readable: false }], judgedBodies: 0 } as const
 			: loneBody !== undefined && loneAccepted
 			? { kind: "winner", candidateId: loneBody.metadata.id, reason: `the only candidate holds ${LONE_BODY_MIN_WORDS} words or more and the article has no content yet`, readability: [{ candidateId: loneBody.metadata.id, readable: true }], judgedBodies: 0 } as const
-			: await deps.judge({ url, originalUrl, sources, proseHashOf, claimId });
+			: await deps.judge({ url, originalUrl, sources, proseHashOf, claimId, beforeProviderCall });
 		const audit = "audit" in decision ? decision.audit : undefined;
 		const chooseAmong = (tied: readonly VerifiedTierSource[]) => chooseTiedCandidate({
 			sources: tied,

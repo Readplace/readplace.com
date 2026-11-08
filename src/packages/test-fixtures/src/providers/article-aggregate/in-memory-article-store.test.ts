@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { CandidateIdSchema } from "@packages/domain/article";
-import type { Article } from "@packages/domain/article-aggregate";
+import { type Article, type SelectionConflict, SelectionSnapshotChangedError } from "@packages/domain/article-aggregate";
 import { initInMemoryArticleStore } from "./in-memory-article-store";
+
+const refusedAs = (conflict: SelectionConflict) => (error: unknown) => error instanceof SelectionSnapshotChangedError && error.conflict === conflict;
 
 function buildArticle(url: string, summary: Article["summary"] = { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" }): Article {
 	return {
@@ -119,14 +121,53 @@ describe("initInMemoryArticleStore", () => {
 			const store = initInMemoryArticleStore();
 			store.seed({ ...buildArticle(url), contentSelection: { revision: 2, candidateId: CandidateIdSchema.parse("other"), contentLocation: "s3://bucket/other.html" } });
 
-			await assert.rejects(guarded(store, { revision: 1, ...canonical }), /canonical content changed/);
+			await assert.rejects(guarded(store, { revision: 1, ...canonical }), refusedAs("canonical-content-changed"));
 		});
 
 		it("fails when the canonical candidate was revoked", async () => {
 			const store = initInMemoryArticleStore();
 			store.seed({ ...buildArticle(url), contentSelection: { revision: 1, ...canonical, revokedCandidateIds: [canonical.candidateId] } });
 
-			await assert.rejects(guarded(store, { revision: 1, ...canonical }), /canonical content changed/);
+			await assert.rejects(guarded(store, { revision: 1, ...canonical }), refusedAs("candidate-revoked"));
+		});
+	});
+
+	describe("a canonical commit guarded on the selection snapshot", () => {
+		const url = "https://example.com/committed";
+		const commit = { expected: { revision: 1, candidateId: CandidateIdSchema.parse("first"), contentLocation: "s3://bucket/first.html" }, candidateId: CandidateIdSchema.parse("late"), contentLocation: "s3://bucket/late.html", originalUrl: url, tier: "tier-1" as const };
+		const committing = (store: ReturnType<typeof initInMemoryArticleStore>) => store.save({ article: buildArticle(url), writes: ["crawl"], canonicalCommit: commit });
+
+		it("lands on the expected snapshot and advances the revision", async () => {
+			const store = initInMemoryArticleStore();
+			store.seed({ ...buildArticle(url), contentSelection: commit.expected });
+
+			await committing(store);
+
+			assert.deepEqual((await store.load(url))?.contentSelection, { revision: 2, candidateId: commit.candidateId, contentLocation: commit.contentLocation, tier: "tier-1" });
+		});
+
+		it("fails when a competing selector committed first", async () => {
+			const store = initInMemoryArticleStore();
+			store.seed({ ...buildArticle(url), contentSelection: { ...commit.expected, revision: 2 } });
+
+			await assert.rejects(committing(store), refusedAs("selection-changed"));
+		});
+
+		it("fails when its candidate was revoked since preparation", async () => {
+			const store = initInMemoryArticleStore();
+			store.seed({ ...buildArticle(url), contentSelection: { ...commit.expected, revokedCandidateIds: [commit.candidateId] } });
+
+			await assert.rejects(committing(store), refusedAs("candidate-revoked"));
+		});
+
+		it("leaves a tombstoned row untouched", async () => {
+			const store = initInMemoryArticleStore();
+			const tombstoned = { ...buildArticle(url), purgedAt: "2026-01-02T00:00:00.000Z" };
+			store.seed(tombstoned);
+
+			await committing(store);
+
+			assert.deepEqual(await store.load(url), tombstoned);
 		});
 	});
 });

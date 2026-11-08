@@ -104,8 +104,8 @@ function setup(params: { seed: Article; loadable: readonly VerifiedTierSource[];
 	});
 	const candidatesOf = (sent: Message) => [{ id: sent.source.metadata.id, tier: sent.source.tier }];
 	return {
-		deliver: (sent: Message) => work({ url: URL, saveAttemptId: sent.saveAttemptId, candidates: candidatesOf(sent), extractedAt: sent.refresh.contentFetchedAt, refresh: sent.refresh, mode: "refresh", claimId: `claim-${sent.saveAttemptId}` }),
-		deliverAs: (mode: "save" | "recrawl", sent: Message) => work({ url: URL, saveAttemptId: sent.saveAttemptId, candidates: candidatesOf(sent), extractedAt: sent.refresh.contentFetchedAt, mode, claimId: `claim-${mode}` }),
+		deliver: (sent: Message) => work({ url: URL, saveAttemptId: sent.saveAttemptId, candidates: candidatesOf(sent), extractedAt: sent.refresh.contentFetchedAt, refresh: sent.refresh, mode: "refresh", claimId: `claim-${sent.saveAttemptId}`, remainingTimeMs: () => 300_000 }),
+		deliverAs: (mode: "save" | "recrawl", sent: Message) => work({ url: URL, saveAttemptId: sent.saveAttemptId, candidates: candidatesOf(sent), extractedAt: sent.refresh.contentFetchedAt, mode, claimId: `claim-${mode}`, remainingTimeMs: () => 300_000 }),
 		row: () => store.load(URL),
 		judgeCalls: () => judgeCalls,
 		refusedLines: () => infoLines.filter(([line]) => line === REFUSED),
@@ -200,10 +200,9 @@ describe("a refresh-content-extracted message yields to a row that moved on", ()
 		expect(harness.refusedLines()).toEqual([]);
 	});
 
-	it("fails the run when a newer commit lands between load and commit, then refuses on the retry", async () => {
+	it("reloads the row when a newer commit lands between load and commit, then refuses within the same delivery", async () => {
 		const harness = setup({ seed: atT0(), loadable: [C0, C1], onCanonicalWrite: (racing) => racing.seed(atT2({ contentSelection: { revision: 5, candidateId: C2.metadata.id, tier: "tier-1", contentLocation: locationOf(C2.metadata.id) } })) });
 
-		await expect(harness.deliver(message.t1)).rejects.toThrow("content selection changed");
 		await harness.deliver(message.t1);
 
 		const row = await harness.row();

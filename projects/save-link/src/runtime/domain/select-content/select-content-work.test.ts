@@ -70,8 +70,11 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 		const decision = await deps.selectMostCompleteContent(params);
 		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: judgeReply(decision, params.candidates) } }] }), logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent(params);
 	};
-	return { work: initSelectContentWork({ ...deps, selectMostCompleteContent }), deps, commit, events };
+	const work = initSelectContentWork({ ...deps, selectMostCompleteContent });
+	return { work: (params: WithoutBudget<Parameters<typeof work>[0]>) => work({ ...params, remainingTimeMs: () => LAMBDA_BUDGET_MS }), deps, commit, events };
 }
+const LAMBDA_BUDGET_MS = 300_000;
+type WithoutBudget<Request> = Request extends unknown ? Omit<Request, "remainingTimeMs"> : never;
 const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), claimId: "message-1", mode: "save" as const };
 const laterRequest = { ...request, saveAttemptId: SaveAttemptIdSchema.parse("later-attempt") };
 
@@ -322,7 +325,7 @@ describe("initSelectContentWork", () => {
 		live.metadata.httpStatus = 200;
 		const { deps } = setup({ listAvailableTierSources: async () => [live] });
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
-		await initSelectContentWork({ ...deps, selectMostCompleteContent: rejectingJudge })({ ...request, candidates: [{ id: cid("tier-1"), tier: "tier-1" }] });
+		await initSelectContentWork({ ...deps, selectMostCompleteContent: rejectingJudge })({ ...request, candidates: [{ id: cid("tier-1"), tier: "tier-1" }], remainingTimeMs: () => LAMBDA_BUDGET_MS });
 		expect(deps.transitionAndPersist).not.toHaveBeenCalledWith(markNoReadableArticle, expect.anything());
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(promoteTier, expect.objectContaining({ input: expect.objectContaining({ tier: "tier-1" }) }));
 		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({ url: URL, source: live });

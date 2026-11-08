@@ -3,6 +3,7 @@ import {
 	type AggregateField,
 	type Article,
 	type ArticleStore,
+	SelectionSnapshotChangedError,
 	isCanonicalCandidateRevoked,
 } from "@packages/domain/article-aggregate";
 
@@ -37,13 +38,16 @@ export function initInMemoryArticleStore(): ArticleStore & {
 		save: async ({ article, writes, canonicalCommit, selectionExpected }) => {
 			const current = rows.get(key(article.url));
 			const expected = canonicalCommit === undefined ? selectionExpected : { snapshot: canonicalCommit.expected };
+			if (expected !== undefined && current?.purgedAt !== undefined) return;
+			const selection = current?.contentSelection;
 			if (expected?.scope === "canonical-content") {
-				const selection = current?.contentSelection;
+				if (isCanonicalCandidateRevoked(selection)) throw new SelectionSnapshotChangedError("candidate-revoked");
 				const sameCanonical = selection?.candidateId === expected.snapshot?.candidateId && selection?.contentLocation === expected.snapshot?.contentLocation;
-				if (!sameCanonical || isCanonicalCandidateRevoked(selection)) throw new Error("canonical content changed");
+				if (!sameCanonical) throw new SelectionSnapshotChangedError("canonical-content-changed");
 			} else if (expected !== undefined) {
+				if (canonicalCommit !== undefined && selection?.revokedCandidateIds?.includes(canonicalCommit.candidateId)) throw new SelectionSnapshotChangedError("candidate-revoked");
 				for (const field of ["revision", "contentLocation", "displayUrl", "contentSourceUrl", "sourceOriginalUrl"] as const) {
-					if (current?.contentSelection?.[field] !== expected.snapshot?.[field]) throw new Error("content selection changed");
+					if (selection?.[field] !== expected.snapshot?.[field]) throw new SelectionSnapshotChangedError("selection-changed");
 				}
 			}
 			if (canonicalCommit !== undefined) {

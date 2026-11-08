@@ -16,6 +16,7 @@ export type JudgeCandidates = (params: {
 	sources: readonly VerifiedTierSource[];
 	proseHashOf: (html: string) => string;
 	claimId: string;
+	beforeProviderCall?: () => void;
 }) => Promise<JudgeDecision>;
 
 const SettledVerdictSchema = z.object({
@@ -52,7 +53,7 @@ export function initJudgeUnderLedger(deps: {
 	runMeteredLeg: RunMeteredLeg;
 	claimTtlMs: number;
 }): JudgeCandidates {
-	return async ({ url, originalUrl, sources, proseHashOf, claimId }) => {
+	return async ({ url, originalUrl, sources, proseHashOf, claimId, beforeProviderCall }) => {
 		if (sources.length === 0) return { kind: "none", reason: "no verified candidates", readability: [], judgedBodies: 0 };
 		const judged: { decision?: JudgeDecision } = {};
 		const ran = await deps.runMeteredLeg({
@@ -62,6 +63,7 @@ export function initJudgeUnderLedger(deps: {
 			claimId,
 			claimTtlMs: deps.claimTtlMs,
 			run: async () => {
+				beforeProviderCall?.();
 				const decision = await judgeCandidates({ sources, originalUrl, selectMostCompleteContent: deps.selectMostCompleteContent, proseHashOf });
 				judged.decision = decision;
 				return decision.audit.responseStatus === "rejected"

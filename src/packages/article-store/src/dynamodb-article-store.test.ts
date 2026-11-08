@@ -1,5 +1,6 @@
+import assert from "node:assert/strict";
 import { CandidateIdSchema } from "@packages/domain/article";
-import type { AggregateField, Article } from "@packages/domain/article-aggregate";
+import { type AggregateField, type Article, SelectionSnapshotChangedError } from "@packages/domain/article-aggregate";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -1703,10 +1704,35 @@ describe("atomic canonical selection", () => {
 		expect(z.object({ input: z.object({ ReturnValuesOnConditionCheckFailure: z.literal("ALL_OLD") }) }).safeParse(received).success).toBe(true);
 	});
 
-	it("propagates a lost selection race on a live row", async () => {
-		const client = createFakeClient(() => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "selection changed", Item: { contentSelectionRevision: { N: "2" } } }); });
+	const refusedRow = (row: ConstructorParameters<typeof ConditionalCheckFailedException>[0]["Item"]) => row;
+	const lateCommit = { expected: undefined, contentLocation: "s3://content/late.html", candidateId: CandidateIdSchema.parse("late"), originalUrl: URL, tier: "tier-1" as const };
+	it.each([
+		{ name: "a canonical commit after a competing selector committed", guard: { canonicalCommit: lateCommit }, row: refusedRow({ contentSelectionRevision: { N: "2" } }), conflict: "selection-changed" },
+		{ name: "a canonical commit of a candidate revoked since preparation", guard: { canonicalCommit: lateCommit }, row: refusedRow({ contentSelectionRevision: { N: "2" }, revokedCandidateIds: { SS: ["late"] } }), conflict: "candidate-revoked" },
+		{ name: "a no-readable terminalization after a readable candidate committed", guard: { selectionExpected: { snapshot: undefined } }, row: refusedRow({ contentSelectionRevision: { N: "2" } }), conflict: "selection-changed" },
+		{ name: "a canonical-content guard after the canonical moved", guard: { selectionExpected: { scope: "canonical-content" as const, snapshot: undefined } }, row: refusedRow({ canonicalCandidateId: { S: "newer" } }), conflict: "canonical-content-changed" },
+		{ name: "a canonical-content guard after the canonical was cleared", guard: { selectionExpected: { scope: "canonical-content" as const, snapshot: undefined } }, row: refusedRow({ revokedCandidateIds: { SS: ["erased"] } }), conflict: "canonical-content-changed" },
+	])("refuses $name on a live row as a changed selection snapshot", async ({ guard, row, conflict }) => {
+		const client = createFakeClient(() => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "The conditional request failed", Item: row }); });
 		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
-		await expect(store.save({ article: buildArticle(), writes: ["crawl"], selectionExpected: { snapshot: undefined } })).rejects.toThrow("selection changed");
+		const refused = await store.save({ article: buildArticle(), writes: ["crawl"], ...guard }).catch((error: unknown) => error);
+		assert(refused instanceof SelectionSnapshotChangedError, "a live row's refused selection guard is a changed snapshot");
+		expect(refused.conflict).toBe(conflict);
+	});
+
+	it("reports a canonical-content guard on a revoked canonical as a revocation", async () => {
+		const client = createFakeClient(() => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "The conditional request failed", Item: { canonicalCandidateId: { S: "erased" }, revokedCandidateIds: { SS: ["erased"] } } }); });
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		const refused = await store.save({ article: buildArticle(), writes: ["summary"], selectionExpected: { scope: "canonical-content", snapshot: { candidateId: CandidateIdSchema.parse("erased") } } }).catch((error: unknown) => error);
+		assert(refused instanceof SelectionSnapshotChangedError, "a revoked canonical refuses the canonical-content guard");
+		expect(refused.conflict).toBe("candidate-revoked");
+	});
+
+	it("keeps a refused guard on an absent row the storage's own condition failure", async () => {
+		const client = createFakeClient(() => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "row absent" }); });
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		const refused = await store.save({ article: buildArticle(), writes: ["crawl"], canonicalCommit: lateCommit }).catch((error: unknown) => error);
+		expect(refused).toBeInstanceOf(ConditionalCheckFailedException);
 	});
 
 	it("loads a legacy row that predates publish dates with no publish date", async () => {

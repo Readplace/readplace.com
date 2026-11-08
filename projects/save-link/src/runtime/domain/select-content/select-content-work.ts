@@ -1,3 +1,4 @@
+import { setTimeout } from "node:timers/promises";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 import { type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
@@ -8,6 +9,8 @@ import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFa
 import type { VerifyWrapperSource } from "@packages/save-article";
 import {
 	type LoadArticle,
+	type SelectionConflict,
+	SelectionSnapshotChangedError,
 	type TransitionAndPersist,
 	markCrawlAwaitingReader,
 	markCrawlExhausted,
@@ -61,6 +64,15 @@ type SelectContentRequest = {
 	| { mode: Extract<SelectionMode, "refresh">; candidates?: readonly CandidateReference[]; refresh: { etag?: string; lastModified?: string; contentFetchedAt: string; bodyHash: string } }
 );
 
+type DecidedSelection =
+	| { kind: "refused" }
+	| { kind: "settled"; selection: PreparedContentSelection }
+	| { kind: "committed"; selection: PreparedContentSelection; version: Parameters<RecordCrawlVersion>[0] | undefined };
+
+const MAX_DECISION_ATTEMPTS = 3;
+const DECISION_RETRY_DELAY_MS = 25;
+const COMMIT_RESERVE_MS = 5_000;
+
 function freshTierOneDisplay(params: { selection: PreparedContentSelection; candidates: readonly CandidateReference[] }) {
 	const { selection } = params;
 	const candidateIds = new Set(params.candidates.map((candidate) => candidate.id));
@@ -101,11 +113,11 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 	const judge = initJudgeUnderLedger({ selectMostCompleteContent: deps.selectMostCompleteContent, runMeteredLeg: deps.runMeteredLeg, claimTtlMs: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds * 1000 });
 	const prepare = initPrepareContentSelection({ ...deps, judge });
 	const logContentSelection = initLogContentSelection(deps);
-	return async (params: SelectContentRequest & { claimId: string }): Promise<void> => {
+	const decideAndCommit = async (params: SelectContentRequest & { claimId: string; beforeProviderCall?: () => void }): Promise<DecidedSelection> => {
 		const prepared = await prepare(params);
 		if (prepared.outcome === "refused") {
 			deps.logger.info("[RefreshContentExtracted] refused", { url: params.url, saveAttemptId: params.saveAttemptId, reason: prepared.reason, rowFetchedAt: prepared.article.freshness.contentFetchedAt, extractedAt: params.extractedAt });
-			return;
+			return { kind: "refused" };
 		}
 		const keepRow = params.liveAttempt?.outcome === "deferred" || prepared.legacyCanonicalWithheld;
 		const nothingReadable = prepared.selected === undefined && !keepRow && prepared.selectionRule !== "judge-deferred";
@@ -122,8 +134,7 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 			} else if (nothingReadable) {
 				await deps.transitionAndPersist(markNoReadableArticle, { url: params.url, input: { reason: noReadableReason({ selection, saveAttemptId: params.saveAttemptId, liveAttempt: params.liveAttempt }) }, selectionExpected: { snapshot: expected } });
 			}
-			logContentSelection({ saveAttemptId: params.saveAttemptId, selection, liveAttempt: params.liveAttempt });
-			return;
+			return { kind: "settled", selection };
 		}
 		const canonicalContentHash = computeCanonicalContentHash(source.html);
 		const crawledAt = deps.now().toISOString();
@@ -152,10 +163,34 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 			});
 		}
 		const freshWinner = source.metadata.attemptId === params.saveAttemptId;
-		if ((selection.outcome === "selected" && (expected?.tier !== source.tier || canonicalContentHash !== selection.article.freshness.canonicalContentHash)) || (selection.outcome === "retained" && freshWinner)) {
-			await deps.recordCrawlVersion({ url: params.url, crawledAt: params.extractedAt ?? crawledAt, authorUserId: source.metadata.authorUserId, canonicalCommit });
+		const changedBody = (selection.outcome === "selected" && (expected?.tier !== source.tier || canonicalContentHash !== selection.article.freshness.canonicalContentHash)) || (selection.outcome === "retained" && freshWinner);
+		return { kind: "committed", selection, version: changedBody ? { url: params.url, crawledAt: params.extractedAt ?? crawledAt, authorUserId: source.metadata.authorUserId, canonicalCommit } : undefined };
+	};
+	const decideWithinBudget = async (params: SelectContentRequest & { claimId: string; remainingTimeMs: () => number }): Promise<DecidedSelection> => {
+		const conflicts: SelectionConflict[] = [];
+		const beforeProviderCall = () => {
+			const remainingMs = params.remainingTimeMs();
+			if (remainingMs < SELECT_CONTENT_TIMEOUTS.deepseekMs + COMMIT_RESERVE_MS) {
+				throw new Error(`[SelectContent] ${remainingMs} ms left after a changed selection snapshot (${conflicts.join(", ")}); a fresh content judge call needs ${SELECT_CONTENT_TIMEOUTS.deepseekMs + COMMIT_RESERVE_MS} ms`);
+			}
+		};
+		for (;;) {
+			try {
+				const decided = await decideAndCommit({ ...params, beforeProviderCall: conflicts.length === 0 ? undefined : beforeProviderCall });
+				if (conflicts.length > 0) deps.logger.info("[SelectContent] recovered a changed selection snapshot", { url: params.url, saveAttemptId: params.saveAttemptId, conflicts, attempts: conflicts.length + 1 });
+				return decided;
+			} catch (error) {
+				if (!(error instanceof SelectionSnapshotChangedError) || conflicts.length + 1 >= MAX_DECISION_ATTEMPTS || params.remainingTimeMs() < COMMIT_RESERVE_MS + DECISION_RETRY_DELAY_MS) throw error;
+				conflicts.push(error.conflict);
+				await setTimeout(DECISION_RETRY_DELAY_MS);
+			}
 		}
-		logContentSelection({ saveAttemptId: params.saveAttemptId, selection, liveAttempt: params.liveAttempt });
+	};
+	return async (params: SelectContentRequest & { claimId: string; remainingTimeMs: () => number }): Promise<void> => {
+		const decided = await decideWithinBudget(params);
+		if (decided.kind === "refused") return;
+		if (decided.kind === "committed" && decided.version !== undefined) await deps.recordCrawlVersion(decided.version);
+		logContentSelection({ saveAttemptId: params.saveAttemptId, selection: decided.selection, liveAttempt: params.liveAttempt });
 	};
 }
 
@@ -167,14 +202,14 @@ export function initSelectionQueueHandler(queue: {
 }): (deps: SelectContentDependencies & { deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine> }) => Handler<SQSEvent, SQSBatchResponse> {
 	return (deps) => {
 		const selectContent = initSelectContentWork(deps);
-		return async (event) => {
+		return async (event, context) => {
 			const batchItemFailures: SQSBatchItemFailure[] = [];
 			for (const record of event.Records) {
 				let recordUrl: string | undefined;
 				try {
 					const request = queue.toRequest(JSON.parse(record.body).detail, record);
 					recordUrl = request.url;
-					await selectContent({ ...request, claimId: record.messageId });
+					await selectContent({ ...request, claimId: record.messageId, remainingTimeMs: () => context.getRemainingTimeInMillis() });
 				} catch (error) {
 					deps.logger.error(`[${queue.tag}] record failed`, { messageId: record.messageId, error });
 					const receiveCount = Number(record.attributes.ApproximateReceiveCount);

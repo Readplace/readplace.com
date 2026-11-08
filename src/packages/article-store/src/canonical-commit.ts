@@ -1,4 +1,5 @@
-import type { CanonicalCommit, ContentSelectionSnapshot, SelectionExpected } from "@packages/domain/article-aggregate";
+import { z } from "zod";
+import type { CanonicalCommit, ContentSelectionSnapshot, SelectionConflict, SelectionExpected } from "@packages/domain/article-aggregate";
 
 type Condition = { conditions: string[]; values: Record<string, unknown> };
 
@@ -64,4 +65,22 @@ export function prepareCanonicalCommit(commit: CanonicalCommit): {
 		conditions,
 		values,
 	};
+}
+
+const RefusedSelectionRow = z.object({
+	canonicalCandidateId: z.object({ S: z.string() }).optional(),
+	revokedCandidateIds: z.object({ SS: z.array(z.string()) }).optional(),
+});
+
+export function classifyRefusedSelection(params: {
+	oldItem: Record<string, unknown>;
+	canonicalCommit?: CanonicalCommit;
+	selectionExpected?: SelectionExpected;
+}): SelectionConflict {
+	const row = RefusedSelectionRow.parse(params.oldItem);
+	const revoked = row.revokedCandidateIds?.SS ?? [];
+	if (params.canonicalCommit !== undefined) return revoked.includes(params.canonicalCommit.candidateId) ? "candidate-revoked" : "selection-changed";
+	if (params.selectionExpected?.scope !== "canonical-content") return "selection-changed";
+	const canonical = row.canonicalCandidateId?.S;
+	return canonical !== undefined && revoked.includes(canonical) ? "candidate-revoked" : "canonical-content-changed";
 }

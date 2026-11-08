@@ -33,6 +33,7 @@ export type {
 	LoadArticle,
 	SaveArticle,
 } from "./storage.types";
+export { SelectionSnapshotChangedError, type SelectionConflict } from "./selection-snapshot-changed";
 export type { DispatchEffect } from "./effect-dispatcher.types";
 export {
 	refreshContent,

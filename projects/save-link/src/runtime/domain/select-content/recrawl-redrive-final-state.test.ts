@@ -186,21 +186,17 @@ describe("redriving a recrawl-content-extracted dead letter", () => {
 		]);
 	});
 
-	it("fails the record when a newer commit lands between read and write, then keeps that newer canonical on the retry", async () => {
+	it("reloads the row when a newer commit lands between read and write, and keeps that newer canonical within the same delivery", async () => {
 		const { deliver, store, readTierSource, judge, dispatchEffect } = setup({
 			seed: neverCommitted(), loadable: [C1, C2],
 			onCanonicalWrite: (racing) => racing.seed(committedToC2()),
 		});
 
-		expect(await deliver("delivery-1")).toEqual({ batchItemFailures: [{ itemIdentifier: "delivery-1" }] });
-		readTierSource.mockClear();
-		judge.mockClear();
-		dispatchEffect.mockClear();
-		expect(await deliver("delivery-2")).toEqual({ batchItemFailures: [] });
+		expect(await deliver("delivery-1")).toEqual({ batchItemFailures: [] });
 
 		const row = await store.load(URL);
 		expect(readTierSource).toHaveBeenCalledWith({ url: URL, tier: "tier-1", candidateId: C2.metadata.id });
-		expect(judge).toHaveBeenCalledTimes(0);
+		expect(judge).toHaveBeenCalledTimes(1);
 		expect(dispatchEffect.mock.calls.map(([effect]) => effect)).toEqual([{ kind: "publish-recrawl-completed", url: URL }]);
 		expect(row?.crawl).toEqual({ kind: "ready" });
 		expect(row?.contentSelection?.candidateId).toBe(C2.metadata.id);
