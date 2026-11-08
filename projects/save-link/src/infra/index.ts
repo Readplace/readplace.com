@@ -292,7 +292,7 @@ const generateSummaryFifoQueue = new Sqs(`${SAVE_LINK_DLQ_SOURCES.generateSummar
 	fifo: true,
 });
 
-const SUMMARY_FIFO_CONSUMER_ENABLED = false;
+const SUMMARY_FIFO_CONSUMER_ENABLED = true;
 
 const linkSavedQueue = new Sqs("link-saved", {
 	visibilityTimeoutSeconds: 60,
