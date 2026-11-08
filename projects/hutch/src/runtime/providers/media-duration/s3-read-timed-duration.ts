@@ -9,21 +9,25 @@ import { rangedTokenizer } from "./ranged-tokenizer";
 import { timedFactsOfMetadata } from "./timed-facts-of-metadata";
 
 const READ_AHEAD_BYTES = { initial: 1024 * 1024, maximum: 32 * 1024 * 1024 };
+const SCAN_BUDGET_MS = 6_000;
 
 export function initS3ReadTimedDuration(deps: {
 	client: S3Client;
 	bucketName: string;
 	headMediaPendingOriginal: HeadMediaPendingOriginal;
+	now: () => number;
 }): {
 	readTimedDuration: ReadTimedDuration;
 } {
 	const readTimedDuration: ReadTimedDuration = async ({ uploadId, etag }) => {
 		const head = await deps.headMediaPendingOriginal({ uploadId });
 		assert(head, `no pending original ${uploadId}`);
+		const deadline = deps.now() + SCAN_BUDGET_MS;
 		const tokenizer = rangedTokenizer({
 			size: head.size,
 			readAheadBytes: READ_AHEAD_BYTES,
 			endOfStream: () => new EndOfStreamError(),
+			budgetExhausted: () => deps.now() > deadline,
 			readRange: async ({ start, end }) => {
 				const object = await deps.client.send(
 					new GetObjectCommand({
@@ -37,7 +41,9 @@ export function initS3ReadTimedDuration(deps: {
 				return object.Body.transformToByteArray();
 			},
 		});
-		return timedFactsOfMetadata(parseFromTokenizer(tokenizer, { duration: true, skipCovers: true }));
+		return timedFactsOfMetadata(parseFromTokenizer(tokenizer, { duration: true, skipCovers: true }), {
+			truncated: tokenizer.truncated,
+		});
 	};
 	return { readTimedDuration };
 }

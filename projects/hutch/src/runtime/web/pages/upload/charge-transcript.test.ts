@@ -112,6 +112,28 @@ describe("initChargeTranscript", () => {
 		assert.deepEqual(quota.calls, []);
 	});
 
+	it("refuses a scan cut off past the allowance as too long, without charging", async () => {
+		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
+		const charge = chargeWith({ read: async () => ({ atLeastSeconds: 1251 }), quota: quota.chargeTranscriptQuota });
+
+		assert.deepEqual(await charge({ session, kind: METERED_AUDIO, etag: '"e1"' }), {
+			kind: "refuse",
+			reason: "transcript-too-long",
+		});
+		assert.deepEqual(quota.calls, []);
+	});
+
+	it("refuses a scan cut off inside the allowance as unreadable, without charging", async () => {
+		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
+		const charge = chargeWith({ read: async () => ({ atLeastSeconds: 600 }), quota: quota.chargeTranscriptQuota });
+
+		assert.deepEqual(await charge({ session, kind: METERED_AUDIO, etag: '"e1"' }), {
+			kind: "refuse",
+			reason: "unreadable-audio",
+		});
+		assert.deepEqual(quota.calls, []);
+	});
+
 	it("refuses with the reason the kind's own timed facts judgement gives, without charging", async () => {
 		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
 		const charge = chargeWith({ read: readingSeconds(600), quota: quota.chargeTranscriptQuota });

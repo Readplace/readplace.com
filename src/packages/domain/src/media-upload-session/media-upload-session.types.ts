@@ -44,7 +44,9 @@ export type HeadMediaPendingOriginal = (params: {
 export type ReadTimedDuration = (params: {
 	uploadId: UploadId;
 	etag: string;
-}) => Promise<{ durationSeconds: number; hasAudio: boolean; hasVideo: boolean } | { unreadable: true }>;
+}) => Promise<
+	{ durationSeconds: number; hasAudio: boolean; hasVideo: boolean } | { unreadable: true } | { atLeastSeconds: number }
+>;
 
 export type ReadMediaPendingPrefix = (params: { uploadId: UploadId; etag: string; bytes: number }) => Promise<Uint8Array>;
 
