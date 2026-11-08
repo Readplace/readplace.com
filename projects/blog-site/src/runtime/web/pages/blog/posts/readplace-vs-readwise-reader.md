@@ -5,7 +5,7 @@ excerpt: "Readwise Reader costs $119.88 a year and does more, so the question is
 tldr: "Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, a newsletter inbox, PDF and EPUB uploads, YouTube transcripts, podcasts, and listening. Readplace is simpler, with AI TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download and upload, Australian hosting, and source-available code. Pick Readwise if you need highlighting that syncs into a note-taking tool, or anything beyond reading text. Pick Readplace if you want AI summaries and privacy at a lower price."
 slug: "readplace-vs-readwise-reader"
 date: "2026-04-06"
-lastModified: "2026-11-05"
+lastModified: "2026-11-09"
 author: "Fayner Brack"
 keywords: "readplace vs readwise, read it later app, read it later AI"
 ---
@@ -24,7 +24,7 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 |---|---|---|
 | **Price** | [Plans on the home page](/?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=pricing#pricing) | $119.88/yr ($9.99/mo billed annually, $12.99 month to month) |
 | **AI summaries** | Global TL;DR (included) | Ghostreader (inline AI, Q&A, more advanced) |
-| **Highlights** | No | Full highlighting with sync to Obsidian, Notion, Logseq |
+| **Highlights** | One colour, a note on each, no sync | Full highlighting with sync to Obsidian, Notion, Logseq |
 | **RSS reader** | No | Yes, built in |
 | **Newsletter inbox** | A forwarding address per newsletter, article links saved. A Gmail sender can save the whole issue | Dedicated email address |
 | **PDFs** | Link, extension or iPhone share sheet, scans read by OCR | Upload, up to 500 MB |
@@ -74,7 +74,7 @@ You can highlight passages, tag them, and review them later with spaced repetiti
 
 > **Highlighting that syncs into your notes is the one axis where Readwise is clearly ahead of Readplace.**
 
-Readplace has no highlights, so there's nothing here to compare against. If deep highlighting with Obsidian sync is part of how you read today, Readwise is the better choice and the comparison ends there.
+Readplace highlights in one colour, with a note on each, but nothing syncs to a note-taking tool. If deep highlighting with Obsidian sync is part of how you read today, Readwise is the better choice.
 
 ## RSS
 
@@ -135,7 +135,7 @@ Fewer features also means less to learn and less to get in your way. If you want
 
 ## Where the gap stands
 
-Readwise Reader does more than Readplace on most rows of the table above. Highlights, RSS, video, podcasts and listening all live in Reader and not in Readplace.
+Readwise Reader does more than Readplace on most rows of the table above. Highlight sync, RSS, video, podcasts and listening all live in Reader and not in Readplace.
 
 Readplace covers a narrower job. It saves articles, PDFs and newsletter links, puts a TL;DR on top of each, and keeps them readable if the subscription ends.
 

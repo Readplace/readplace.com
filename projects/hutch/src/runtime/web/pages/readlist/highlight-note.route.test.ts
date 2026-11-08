@@ -90,11 +90,11 @@ async function saveArticle(
 }
 
 const viewPath = (articleId: string) =>
-	`/queue/${articleId}/view?feature=highlight`;
+	`/queue/${articleId}/view`;
 const createPath = (articleId: string) =>
-	`/queue/${articleId}/highlights?feature=highlight`;
+	`/queue/${articleId}/highlights`;
 const notePath = (input: { articleId: string; highlightId: string }) =>
-	`/queue/${input.articleId}/highlights/${input.highlightId}/note?feature=highlight`;
+	`/queue/${input.articleId}/highlights/${input.highlightId}/note`;
 
 async function rangeOf(
 	agent: Agent,
@@ -217,7 +217,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		expect(noteTriggerOf(reopened, id)).toBe("Edit note");
 	});
 
-	it("answers an htmx dialog create with 204 and an HX-Location back to the flagged reader", async () => {
+	it("answers an htmx dialog create with 204 and an HX-Location back to the reader", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -234,7 +234,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 
 		expect(response.status).toBe(204);
 		expect(JSON.parse(response.headers["hx-location"])).toEqual({
-			path: `/queue/${articleId}/view?feature=highlight`,
+			path: `/queue/${articleId}/view`,
 			source: "#note-highlight-dialog",
 			target: "main",
 			select: "main",
@@ -579,7 +579,7 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
-			`/queue/${articleId}/view?feature=highlight#highlight-${id}`,
+			`/queue/${articleId}/view#highlight-${id}`,
 		);
 		const reopened = (await agent.get(viewPath(articleId))).text;
 		expect(notesOf(reopened)).toEqual(["After"]);
@@ -625,7 +625,7 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 			.send({ queue: work, returnTo: "/queue" });
 
 		const create = await agent
-			.post(`/queue/${articleId}/highlights?queue=${work}&feature=highlight`)
+			.post(`/queue/${articleId}/highlights?queue=${work}`)
 			.type("form")
 			.send({
 				...(await rangeOf(agent, { articleId, exact: "readability parser" })),
@@ -633,7 +633,7 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 			});
 		const id = highlightIdFrom(create.headers.location);
 		const edit = await agent
-			.post(`/queue/${articleId}/highlights/${id}/note?queue=${work}&feature=highlight`)
+			.post(`/queue/${articleId}/highlights/${id}/note?queue=${work}`)
 			.type("form")
 			.send({ note: "Still in Work" });
 
@@ -641,7 +641,7 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 		expect(create.headers.location).toContain(`queue=${work}`);
 		expect(edit.status).toBe(303);
 		expect(edit.headers.location).toBe(
-			`/queue/${articleId}/view?queue=${work}&feature=highlight#highlight-${id}`,
+			`/queue/${articleId}/view?queue=${work}#highlight-${id}`,
 		);
 	});
 
@@ -775,25 +775,6 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?inactive=1");
 		expect(notesOf((await agent.get(viewPath(articleId))).text)).toEqual([]);
-	});
-
-	it("answers 404 without the flag", async () => {
-		const harness = useApp(parsedFixture());
-		const { agent, articleId } = await saveArticle(
-			harness,
-			"https://example.com/note-no-flag",
-		);
-		const id = await createHighlight(agent, {
-			articleId,
-			exact: "readability parser",
-		});
-
-		const response = await agent
-			.post(`/queue/${articleId}/highlights/${id}/note`)
-			.type("form")
-			.send({ note: "Unflagged" });
-
-		expect(response.status).toBe(404);
 	});
 
 	it("offers Edit note on an orphaned row", async () => {

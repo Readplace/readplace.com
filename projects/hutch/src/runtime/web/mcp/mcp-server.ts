@@ -4,8 +4,9 @@ import {
 	UNKNOWN_MCP_TOOL,
 } from "@packages/web-analytics";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
-import { type ToolAccess, UNVERIFIED_ACCESS } from "./tool-access";
+import { CREATE_HIGHLIGHT_PHRASES, type RefusalPhrases, SAVE_TOOL_PHRASES, type ToolAccess, UNVERIFIED_ACCESS, toolRefusalMessage } from "./tool-access";
 import {
+	CREATE_HIGHLIGHT_TOOL,
 	CREATE_READLIST_TOOL,
 	ADD_TO_READLIST_TOOL,
 	DELETE_ARTICLE_LEGACY_NAME,
@@ -14,6 +15,7 @@ import {
 	GET_RELATED_ARTICLES_LEGACY_NAME,
 	GET_ARTICLE_DELETION_STEPS_TOOL,
 	GET_ARTICLE_TOOL,
+	LIST_HIGHLIGHTS_TOOL,
 	LIST_READLISTS_TOOL,
 	LIST_READLIST_ARTICLES_LEGACY_NAME,
 	LIST_READLIST_ARTICLES_TOOL,
@@ -29,11 +31,19 @@ import { initSaveLinkTool, submittedSaveUrl } from "./tools/save-link.tool";
 import { initReadlistTools, requestedSortOrder } from "./tools/readlist.tools";
 import { initArticleReadTools } from "./tools/article-read.tools";
 import { initArticleStatusTools } from "./tools/article-status.tools";
+import { initHighlightTools } from "./tools/highlight.tools";
 
 const GATE_OUTCOMES = {
 	inactive: MCP_TOOL_OUTCOMES.paywalled,
 	unverified: MCP_TOOL_OUTCOMES.accessCheckFailed,
 } as const satisfies Record<Exclude<ToolAccess["state"], "ok">, McpToolOutcome>;
+
+const PAYWALLED_TOOLS: ReadonlyMap<string, RefusalPhrases> = new Map<string, RefusalPhrases>([
+	[SAVE_LINK_TOOL.name, SAVE_TOOL_PHRASES],
+	[CREATE_READLIST_TOOL.name, SAVE_TOOL_PHRASES],
+	[ADD_TO_READLIST_TOOL.name, SAVE_TOOL_PHRASES],
+	[CREATE_HIGHLIGHT_TOOL.name, CREATE_HIGHLIGHT_PHRASES],
+]);
 
 export interface McpServer {
 	/** Handle one JSON-RPC message. Resolves to the response for a request, or
@@ -50,6 +60,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 	const { runSaveLink } = initSaveLinkTool(deps, { ...outputs, resolveReadlistIds });
 	const { runGetArticle, runGetArticleContent, runGetArticleSummary, runGetRelatedArticles } = initArticleReadTools(deps, outputs);
 	const { runMarkAsRead, runMarkAsUnread, runGetArticleDeletionSteps } = initArticleStatusTools(deps, outputs);
+	const { runListHighlights, runCreateHighlight } = initHighlightTools(deps, outputs);
 
 	function initializeResult(): unknown {
 		return {
@@ -57,7 +68,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata) and get_article_content (reader HTML). Each article's url opens its private Readplace reader view. A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. list_readlist_articles with no readlist lists every saved article once, combined across all the reader's readlists; pass a readlist id (including All) to list only that one. Pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: get_article_deletion_steps changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
+				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata) and get_article_content (reader HTML). Each article's url opens its private Readplace reader view. A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. list_readlist_articles with no readlist lists every saved article once, combined across all the reader's readlists; pass a readlist id (including All) to list only that one. Pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: get_article_deletion_steps changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read. list_highlights returns the user's highlights and notes for one article; create_highlight highlights a passage the user asks you to keep, quoted exactly from get_article_content, never one you chose yourself. Editing or deleting a highlight happens in the reader's Highlights rail in the Readplace app; get_article_deletion_steps is about whole articles.",
 		};
 	}
 
@@ -78,20 +89,22 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 	 * gate and the JSON-RPC envelope so the gate wraps the dispatch rather than
 	 * threading through every case. */
 	const toolEntries: readonly McpToolEntry[] = [
-		{ name: SAVE_LINK_TOOL.name, access: "paywalled", sortOrder: "not-recorded", run: runSaveLink },
-		{ name: LIST_READLISTS_TOOL.name, access: "open", sortOrder: "not-recorded", run: (_rawArgs, context) => runListReadlists(context) },
-		{ name: LIST_READLIST_ARTICLES_TOOL.name, access: "open", sortOrder: "recorded", run: runListReadlistArticles },
-		{ name: LIST_READLIST_ARTICLES_LEGACY_NAME, access: "open", sortOrder: "recorded", run: runListReadlistArticles },
-		{ name: GET_ARTICLE_TOOL.name, access: "open", sortOrder: "not-recorded", run: runGetArticle },
-		{ name: GET_ARTICLE_CONTENT_TOOL.name, access: "open", sortOrder: "not-recorded", run: runGetArticleContent },
-		{ name: GET_ARTICLE_SUMMARY_LEGACY_NAME, access: "open", sortOrder: "not-recorded", run: runGetArticleSummary },
-		{ name: GET_RELATED_ARTICLES_LEGACY_NAME, access: "open", sortOrder: "not-recorded", run: runGetRelatedArticles },
-		{ name: CREATE_READLIST_TOOL.name, access: "paywalled", sortOrder: "not-recorded", run: runCreateReadlist },
-		{ name: ADD_TO_READLIST_TOOL.name, access: "paywalled", sortOrder: "not-recorded", run: runAddToReadlist },
-		{ name: MARK_AS_READ_TOOL.name, access: "open", sortOrder: "not-recorded", run: runMarkAsRead },
-		{ name: MARK_AS_UNREAD_TOOL.name, access: "open", sortOrder: "not-recorded", run: runMarkAsUnread },
-		{ name: GET_ARTICLE_DELETION_STEPS_TOOL.name, access: "open", sortOrder: "not-recorded", run: () => runGetArticleDeletionSteps() },
-		{ name: DELETE_ARTICLE_LEGACY_NAME, access: "open", sortOrder: "not-recorded", run: () => runGetArticleDeletionSteps() },
+		{ name: SAVE_LINK_TOOL.name, sortOrder: "not-recorded", run: runSaveLink },
+		{ name: LIST_READLISTS_TOOL.name, sortOrder: "not-recorded", run: (_rawArgs, context) => runListReadlists(context) },
+		{ name: LIST_READLIST_ARTICLES_TOOL.name, sortOrder: "recorded", run: runListReadlistArticles },
+		{ name: LIST_READLIST_ARTICLES_LEGACY_NAME, sortOrder: "recorded", run: runListReadlistArticles },
+		{ name: GET_ARTICLE_TOOL.name, sortOrder: "not-recorded", run: runGetArticle },
+		{ name: GET_ARTICLE_CONTENT_TOOL.name, sortOrder: "not-recorded", run: runGetArticleContent },
+		{ name: GET_ARTICLE_SUMMARY_LEGACY_NAME, sortOrder: "not-recorded", run: runGetArticleSummary },
+		{ name: GET_RELATED_ARTICLES_LEGACY_NAME, sortOrder: "not-recorded", run: runGetRelatedArticles },
+		{ name: CREATE_READLIST_TOOL.name, sortOrder: "not-recorded", run: runCreateReadlist },
+		{ name: ADD_TO_READLIST_TOOL.name, sortOrder: "not-recorded", run: runAddToReadlist },
+		{ name: MARK_AS_READ_TOOL.name, sortOrder: "not-recorded", run: runMarkAsRead },
+		{ name: MARK_AS_UNREAD_TOOL.name, sortOrder: "not-recorded", run: runMarkAsUnread },
+		{ name: GET_ARTICLE_DELETION_STEPS_TOOL.name, sortOrder: "not-recorded", run: () => runGetArticleDeletionSteps() },
+		{ name: DELETE_ARTICLE_LEGACY_NAME, sortOrder: "not-recorded", run: () => runGetArticleDeletionSteps() },
+		{ name: LIST_HIGHLIGHTS_TOOL.name, sortOrder: "not-recorded", run: runListHighlights },
+		{ name: CREATE_HIGHLIGHT_TOOL.name, sortOrder: "not-recorded", run: runCreateHighlight },
 	];
 	const toolEntryByName = new Map(toolEntries.map((entry) => [entry.name, entry]));
 
@@ -169,10 +182,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			});
 		};
 
-		if (access.state !== "ok" && entry?.access === "paywalled") {
+		const refusalPhrases = PAYWALLED_TOOLS.get(parsed.data.name);
+		if (access.state !== "ok" && refusalPhrases !== undefined) {
 			record(GATE_OUTCOMES[access.state]);
 			if (access.state === "inactive" && parsed.data.name === "save_link") context.recordSaveRefused();
-			return success(id, toolError(access.message));
+			return success(id, toolError(toolRefusalMessage({ state: access.state, phrases: refusalPhrases, appOrigin: deps.appOrigin })));
 		}
 
 		const result = await entry?.run(rawArgs, context);

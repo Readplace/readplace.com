@@ -11,6 +11,6 @@ export function initReadPendingTimedDuration(deps: {
 		const head = await deps.headMediaPendingOriginal({ uploadId });
 		assert(head, `no pending original ${uploadId}`);
 		const bytes = await deps.readMediaPendingPrefix({ uploadId, etag, bytes: head.size });
-		return timedFactsOfMetadata(deps.parseTimedMetadata(bytes));
+		return timedFactsOfMetadata(deps.parseTimedMetadata(bytes), { truncated: () => false });
 	};
 }

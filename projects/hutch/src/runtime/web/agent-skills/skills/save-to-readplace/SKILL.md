@@ -66,6 +66,8 @@ Once connected, these are the operations:
 - mark_as_read: marks one saved article read in every readlist it is on; it stays in the readlist and leaves the unread list.
 - mark_as_unread: marks one saved article unread again in every readlist it is on; the undo for mark_as_read.
 - get_article_deletion_steps: answers with a note pointing the user to the app; deleting stays in Readplace.
+- list_highlights: returns the user's highlights and notes in one saved article.
+- create_highlight: highlights a quoted passage in one saved article, with an optional note.
 
 Call list_readlists to discover readlist names and ids. Pass its ids unchanged:
 use readlist to list one readlist, or readlists to save_link to file a new save
@@ -83,9 +85,10 @@ matched without regard to case. Readers can create up to 7 named readlists
 beside All. An unknown id or a reached limit is a refusal, so do not report a
 successful save or filing when the tool returns an error.
 
-An assistant saves links, organises readlists, and marks articles read or unread.
-Deleting stays with the user in the Readplace app. The human walkthrough lives
-at https://readplace.com/mcp.
+An assistant saves links, organises readlists, marks articles read or unread,
+and highlights passages the user quotes. Highlights are edited or removed in the
+reader. Deleting stays with the user in the Readplace app. The human walkthrough
+lives at https://readplace.com/mcp.
 
 ## Connect with raw OAuth (fallback)
 

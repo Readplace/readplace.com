@@ -3,6 +3,7 @@ import type { Highlight } from "@packages/domain/article";
 import { HighlightIdSchema } from "@packages/domain/article";
 import { JSDOM } from "jsdom";
 import {
+	type HighlightsRailInput,
 	type HighlightsRailRow,
 	highlightsRailRowsFromStates,
 	pendingHighlightsRailRows,
@@ -41,16 +42,21 @@ function highlight(input: {
 	};
 }
 
+const WEB_SCOPE = { articleId: "abc", readlist: [], surface: [] };
+
 const deleteUrlFor = (highlightId: string): string =>
-	`/queue/abc/highlights/${highlightId}/delete?feature=highlight`;
+	`/queue/abc/highlights/${highlightId}/delete?utm_source=highlights-rail&utm_medium=internal&utm_content=delete-highlight`;
 
 const noteUrlFor = (highlightId: string): string =>
-	`/queue/abc/highlights/${highlightId}/note?feature=highlight`;
+	`/queue/abc/highlights/${highlightId}/note?utm_source=highlights-rail&utm_medium=internal&utm_content=edit-note`;
 
-function railOf(rows: readonly HighlightsRailRow[], oob = false): Document {
-	return new JSDOM(
-		renderHighlightsRail({ rows, deleteUrlFor, noteUrlFor, oob }).html,
-	).window.document;
+function railOf(
+	rows: readonly HighlightsRailRow[],
+	oob = false,
+	scope: HighlightsRailInput["scope"] = WEB_SCOPE,
+): Document {
+	return new JSDOM(renderHighlightsRail({ rows, scope, oob }).html).window
+		.document;
 }
 
 function rowOf(doc: Document, highlightId: string): Element {
@@ -58,6 +64,25 @@ function rowOf(doc: Document, highlightId: string): Element {
 	assert(row, `the rail must list ${highlightId}`);
 	return row;
 }
+
+describe("renderHighlightsRail without a form scope", () => {
+	const row: HighlightsRailRow = {
+		highlight: { ...highlight({ highlightId: FIRST_ID, exact: "first", orderKey: 1 }), note: "kept" },
+		state: "anchored",
+	};
+
+	it("lists the row, its note and its Jump link with no forms, popovers or note controls", () => {
+		const doc = new JSDOM(renderHighlightsRail({ rows: [row], scope: undefined, oob: false }).html).window.document;
+
+		const listed = rowOf(doc, FIRST_ID);
+		expect(listed.querySelector("[data-test-highlight-note]")?.textContent).toBe("kept");
+		expect(listed.querySelector('[data-test-action="highlight-jump"]')?.getAttribute("href")).toBe(`#highlight-${FIRST_ID}`);
+		expect(doc.querySelectorAll("form")).toHaveLength(0);
+		expect(doc.querySelectorAll("[popover]")).toHaveLength(0);
+		expect(doc.querySelectorAll("[popovertarget]")).toHaveLength(0);
+		expect(doc.querySelector("[data-test-highlight-note-fallback]")).toBeNull();
+	});
+});
 
 describe("renderHighlightsRail", () => {
 	const first = highlight({
@@ -105,7 +130,6 @@ describe("renderHighlightsRail", () => {
 				expect(url.pathname).toBe(
 					`/queue/abc/highlights/${highlightId}/delete`,
 				);
-				expect(url.searchParams.get("feature")).toBe("highlight");
 				expect(action).toBe(deleteUrlFor(highlightId));
 			}
 		}
@@ -214,8 +238,7 @@ describe("renderHighlightsRail", () => {
 	it("renders the empty wrapper and reports no rows when there are none", () => {
 		const rendered = renderHighlightsRail({
 			rows: [],
-			deleteUrlFor,
-			noteUrlFor,
+			scope: WEB_SCOPE,
 			oob: false,
 		});
 		const wrapper = new JSDOM(rendered.html).window.document.querySelector(
@@ -232,8 +255,7 @@ describe("renderHighlightsRail", () => {
 	it("reports rows and swaps out of band when asked", () => {
 		const rendered = renderHighlightsRail({
 			rows: [{ highlight: first, state: "anchored" }],
-			deleteUrlFor,
-			noteUrlFor,
+			scope: WEB_SCOPE,
 			oob: true,
 		});
 		const wrapper = new JSDOM(rendered.html).window.document.getElementById(
@@ -246,7 +268,11 @@ describe("renderHighlightsRail", () => {
 
 	describe("notes", () => {
 		const noted = {
-			...highlight({ highlightId: FIRST_ID, exact: "First passage", orderKey: 10 }),
+			...highlight({
+				highlightId: FIRST_ID,
+				exact: "First passage",
+				orderKey: 10,
+			}),
 			note: "A line\nand another",
 		};
 
@@ -270,13 +296,11 @@ describe("renderHighlightsRail", () => {
 			expect(trigger?.getAttribute("popovertarget")).toBe(
 				`note-highlight-${FIRST_ID}`,
 			);
-			expect(trigger?.classList.contains("highlight-note__trigger")).toBe(
-				true,
-			);
+			expect(trigger?.classList.contains("highlight-note__trigger")).toBe(true);
 			const bareRow = rowOf(doc, SECOND_ID);
-			expect(bareRow.querySelectorAll("[data-test-highlight-note]")).toHaveLength(
-				0,
-			);
+			expect(
+				bareRow.querySelectorAll("[data-test-highlight-note]"),
+			).toHaveLength(0);
 			expect(
 				bareRow.querySelector('[data-test-action="highlight-note"]')
 					?.textContent,
@@ -290,7 +314,9 @@ describe("renderHighlightsRail", () => {
 			]);
 
 			const dialogs = Array.from(
-				doc.querySelectorAll('[data-test-confirm-popover="highlight-note-edit"]'),
+				doc.querySelectorAll(
+					'[data-test-confirm-popover="highlight-note-edit"]',
+				),
 			);
 			expect(
 				dialogs.map((dialog) =>
@@ -299,9 +325,9 @@ describe("renderHighlightsRail", () => {
 			).toEqual([FIRST_ID, SECOND_ID]);
 			for (const dialog of dialogs) {
 				expect(dialog.closest("ol")).toBeNull();
-				expect(
-					dialog.querySelector("form")?.getAttribute("action"),
-				).toBe(noteUrlFor(dialog.getAttribute("data-test-confirm-subject") ?? ""));
+				expect(dialog.querySelector("form")?.getAttribute("action")).toBe(
+					noteUrlFor(dialog.getAttribute("data-test-confirm-subject") ?? ""),
+				);
 			}
 			expect(dialogs[0].textContent).toContain("Edit note");
 			expect(dialogs[1].textContent).toContain("Add a note");
@@ -311,8 +337,9 @@ describe("renderHighlightsRail", () => {
 			const doc = railOf([{ highlight: noted, state: "orphaned" }]);
 
 			expect(
-				rowOf(doc, FIRST_ID).querySelector('[data-test-action="highlight-note"]')
-					?.textContent,
+				rowOf(doc, FIRST_ID).querySelector(
+					'[data-test-action="highlight-note"]',
+				)?.textContent,
 			).toBe("Edit note");
 			expect(doc.getElementById(`note-highlight-${FIRST_ID}`)).not.toBeNull();
 		});
@@ -371,5 +398,58 @@ describe("renderHighlightsRail", () => {
 					?.innerHTML,
 			).toBe("&lt;img src=x&gt;");
 		});
+	});
+
+	describe("in the app surface", () => {
+		const doc = railOf([{ highlight: first, state: "anchored" }], false, {
+			articleId: "abc",
+			readlist: [["queue", "work"]],
+			surface: [["platform", "ios"]],
+		});
+
+		it("posts every form with the readlist, then the surface", () => {
+			const actions = Array.from(
+				rowOf(doc, FIRST_ID).querySelectorAll("form"),
+				(form) =>
+					new URL(form.getAttribute("action") ?? "", "https://readplace.com")
+						.search,
+			);
+
+			expect(actions).toHaveLength(3);
+			for (const search of actions) {
+				expect(search).toMatch(
+					/^\?queue=work&platform=ios&utm_source=highlights-rail/,
+				);
+			}
+		});
+
+		it("stops every boosted delete and note form from pushing history", () => {
+			const forms = Array.from(doc.querySelectorAll("form[hx-boost]"));
+
+			expect(forms).toHaveLength(4);
+			for (const form of forms) {
+				expect(form.getAttribute("hx-push-url")).toBe("false");
+			}
+		});
+
+		it("keeps Jump an in-page fragment with no query", () => {
+			expect(
+				doc
+					.querySelector('[data-test-action="highlight-jump"]')
+					?.getAttribute("href"),
+			).toBe(`#highlight-${FIRST_ID}`);
+		});
+	});
+
+	it("lets the web reader's boosted forms push history", () => {
+		const doc = railOf([{ highlight: first, state: "anchored" }]);
+
+		expect(doc.querySelectorAll("form[hx-boost]")).toHaveLength(4);
+		expect(doc.querySelectorAll("[hx-push-url]")).toHaveLength(0);
+		expect(
+			doc
+				.querySelector('[data-test-action="highlight-jump"]')
+				?.getAttribute("href"),
+		).toBe(`#highlight-${FIRST_ID}`);
 	});
 });

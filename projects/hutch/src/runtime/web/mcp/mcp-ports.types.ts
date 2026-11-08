@@ -4,6 +4,7 @@ import type {
 } from "@packages/web-analytics";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
+	AnchorState,
 	ArticleStatus,
 	DisplayableReadTime,
 	ArticleBody,
@@ -126,6 +127,47 @@ export type ArticleStatusResult =
 	| { readonly status: "not_found" }
 	| { readonly status: "ok"; readonly article: McpArticle };
 
+export interface McpHighlight {
+	readonly id: string;
+	readonly quote: string;
+	readonly note?: string;
+	readonly state: AnchorState;
+	readonly createdAt: string;
+	readonly updatedAt: string;
+}
+
+export interface McpHighlightOutput extends McpHighlight {
+	readonly url: string;
+}
+
+type HighlightArticleUnavailable =
+	| { readonly status: "not_found" }
+	| { readonly status: "not_an_article" }
+	| { readonly status: "pending" };
+
+export type ListHighlightsResult =
+	| HighlightArticleUnavailable
+	| {
+			readonly status: "ready";
+			readonly articleId: string;
+			readonly readlist: ReadlistSlug;
+			readonly highlights: readonly McpHighlight[];
+		};
+
+export type CreateHighlightResult =
+	| HighlightArticleUnavailable
+	| {
+			readonly status: "created" | "merged";
+			readonly articleId: string;
+			readonly readlist: ReadlistSlug;
+			readonly highlight: McpHighlight;
+		}
+	| { readonly status: "quote_not_found" }
+	| { readonly status: "quote_ambiguous"; readonly matches: number }
+	| { readonly status: "too_long"; readonly limit: number }
+	| { readonly status: "conflict" }
+	| { readonly status: "access_denied"; readonly message: string };
+
 export interface ListReadlistResult {
 	readonly total: number;
 	readonly page: number;
@@ -193,6 +235,17 @@ export interface McpServerDeps {
 		userId: AuthenticatedUserId;
 		id: string;
 	}) => Promise<ArticleStatusResult>;
+	listHighlights: (params: {
+		userId: AuthenticatedUserId;
+		id: string;
+	}) => Promise<ListHighlightsResult>;
+	createHighlight: (params: {
+		userId: AuthenticatedUserId;
+		id: string;
+		quote: string;
+		note?: string;
+		textBefore?: string;
+	}) => Promise<CreateHighlightResult>;
 	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
 	recordToolCall: RecordMcpToolCall;
 	recordHandshake: RecordMcpHandshake;

@@ -5,6 +5,7 @@ import {
 } from "@packages/domain/article";
 import type { EngagementState, StarterPack } from "@packages/provider-contracts/engagement-starter";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
+import type { ExportHighlight } from "./build-export-highlight";
 
 export interface ExportArticle {
 	provenance?: SavedArticle["provenance"];
@@ -18,6 +19,7 @@ export interface ExportArticle {
 	status: SavedArticle["status"];
 	savedAt: string;
 	readAt: string | null;
+	highlights?: ExportHighlight[];
 }
 
 export function toExportArticle(article: SavedArticle): ExportArticle {

@@ -1,3 +1,4 @@
+import type { CanSaveContent } from "../../middleware/can-save-content";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type { PresignEnclosure, PresignMediaImage } from "@packages/domain";
 import type { initKeepOffer } from "../../../domain/engagement/keep-offer";
@@ -68,7 +69,7 @@ import type {
 	StatPendingUpload,
 	ReadPendingUploadPrefix,
 } from "@packages/provider-contracts/pending-upload";
-import type { PinContentSource, ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { PinContentSource, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type {
 	FindSessionReadlistFilter,
 	FindUserById,
@@ -219,6 +220,7 @@ export interface ReadlistDependencies {
 	pinContentSource: PinContentSource;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
+	readArticleImage: ReadArticleImage;
 	resolveOwnedArticle: ResolveOwnedArticle;
 	markdownBearerAuth: RequestHandler;
 	webReader: RenderReaderActions;
@@ -259,6 +261,7 @@ export interface ReadlistDependencies {
 	 * (cancelled or trial-expired). Mounted only on save routes — list, view,
 	 * mark-as-read, and delete remain reachable for read-only users. */
 	requireWriteAccess: RequestHandler;
+	canSaveContent: CanSaveContent;
 	secureCookies: boolean;
 	getEffectiveAccess: GetEffectiveAccess;
 	findUserById: FindUserById;

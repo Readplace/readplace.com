@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, withInternalTracking } from "@packages/web-shell";
-import { HIGHLIGHT_NOTE_DIALOG_ID, renderHighlightNoteDialog } from "./highlight-note-dialog.component";
+import { render } from "@packages/web-shell";
+import { READLIST_PATH } from "../../../pages/readlist/readlist.url";
+import {
+	HIGHLIGHT_NOTE_DIALOG_ID,
+	type HighlightFormScope,
+	highlightFormUrl,
+	pushesHistory,
+	renderHighlightNoteDialog,
+} from "./highlight-note-dialog.component";
 
 export { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 
@@ -17,13 +24,22 @@ export const HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS: readonly { name: string; value
 	{ name: "answer", value: "dialog" },
 ];
 
-export function renderHighlightToolbar(input: { createUrl: string }): string {
+export function renderHighlightToolbar(input: {
+	scope: HighlightFormScope;
+}): string {
 	return render(HIGHLIGHT_TOOLBAR_TEMPLATE, {
-		createUrl: withInternalTracking(input.createUrl, { source: "highlight-toolbar", content: "highlight" }),
+		createUrl: highlightFormUrl({
+			scope: input.scope,
+			path: "/highlights",
+			source: "highlight-toolbar",
+			content: "highlight",
+		}),
+		openedUrl: `${READLIST_PATH}/${input.scope.articleId}/highlights/opened`,
 		createFormSelector: "[data-highlight-create-form]",
+		pushesHistory: pushesHistory(input.scope),
 		noteFormSelector: `#${HIGHLIGHT_NOTE_DIALOG_ID} form`,
 		noteDialogHtml: renderHighlightNoteDialog({
-			action: withInternalTracking(input.createUrl, { source: "highlight-toolbar", content: "save-note" }),
+			scope: input.scope,
 			hiddenFields: HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS,
 		}),
 	}).trim();

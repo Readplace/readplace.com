@@ -18,7 +18,8 @@ import { appClientOf, } from "../../shared/save-client";
 import { ReaderArticleHashIdSchema, nextReadDismissalOf } from "@packages/domain/article";
 import { ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { parseCaptureWatch } from "../../shared/article-reader/capture-watch";
-import { renderReaderDownloadsOob, } from "../../shared/article-body/reader-actions/reader-actions.component";
+import { transcriptNoticeOf } from "../../shared/article-reader/reader-view";
+import { renderReaderDownloadsOob, renderReaderDownloadsSlotOob } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollHighlights, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
 import {
 	sendComponent,
@@ -50,22 +51,23 @@ import {
 } from "../../onboarding/native-client";
 import type { SavedArticle } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { highlightFeatureEnabled, highlightPathsFor } from "./highlight-feature";
+import { initReaderHighlightOptions } from "./reader-highlight-options";
 import { initRequestRelatedPasses } from "./request-related-passes";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, ISSUE_LINK_SAVED_PARAM } from "./readlist-shared";
+import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, ISSUE_LINK_SAVED_PARAM, downloadsOwnerEpub, readerEpubHrefFor } from "./readlist-shared";
 
 const HTMX_STOP_POLLING_STATUS = 286;
 
 export function initReaderPanelRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requireWriteAccess" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot"
+		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requireWriteAccess" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot" | "canSaveContent"
 	>,
 	shared: ReadlistShared,
 ): Router {
 	const router = express.Router();
 	const requestRelatedPasses = initRequestRelatedPasses(deps);
+	const readerHighlightOptions = initReaderHighlightOptions(deps);
 	const { saveArticleAtReadlistTop, requestReadlistContext, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
 
 	const ownerReaderViewFailedOob = (req: Request): ReaderViewFailedOob =>
@@ -76,22 +78,23 @@ export function initReaderPanelRoutes(
 	const downloadsOobFor = (req: Request, article: SavedArticle): ((articleUrl: string) => string) | undefined =>
 		parseEmailIssueArticleUrl(article.url) === undefined
 			? (articleUrl) =>
-					renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req), guide: epubGuideFor(req, article) })
+					downloadsOwnerEpub(req)
+						? renderReaderDownloadsSlotOob({
+								downloadHref: readerEpubHrefFor(req, { article, appClient: appClientOf(req) }),
+								guide: epubGuideFor(req, article),
+								placements: ["toolbar", "menu"],
+							})
+						: renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req), guide: epubGuideFor(req, article) })
 			: undefined;
 
-	const pollHighlightsFor = async (req: Request, article: SavedArticle): Promise<PollHighlights | undefined> => {
-		if (!highlightFeatureEnabled(req.query) || isAppPlatform(req)) return undefined;
-		const { deleteUrlFor, noteUrlFor } = highlightPathsFor({ articleId: article.id.value, query: req.query });
-		return {
+	const pollHighlightsFor = async (req: Request, article: SavedArticle): Promise<PollHighlights> =>
+		readerHighlightOptions(req, {
+			article,
 			rows: await deps.listArticleHighlights({
 				userId: article.userId,
 				url: ArticleResourceUniqueId.parse(article.url).value,
 			}),
-			canonicalContentHash: (await deps.readCanonicalSnapshot(article.url))?.canonicalContentHash,
-			deleteUrlFor,
-			noteUrlFor,
-		};
-	};
+		});
 
 	router.get("/:id/summary", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -121,6 +124,7 @@ export function initReaderPanelRoutes(
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
+			readerNotice: transcriptNoticeOf(article.media),
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
@@ -158,6 +162,7 @@ export function initReaderPanelRoutes(
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
+			readerNotice: transcriptNoticeOf(article.media),
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),

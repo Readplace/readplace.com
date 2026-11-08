@@ -15,6 +15,8 @@ function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
 }
 
+const SOURCE_LINE_BREAK = /[\r\n]/g;
+
 interface PlacedChunk {
 	readonly node: Node;
 	readonly start: number;
@@ -31,7 +33,7 @@ export function blockTextOf(block: Node): BlockText {
 			start: text.length,
 			end: text.length + chunk.text.length,
 		});
-		text += chunk.text;
+		text += chunk.text.replace(SOURCE_LINE_BREAK, " ");
 	}
 
 	const pointAt = (offset: number): BlockPoint => {

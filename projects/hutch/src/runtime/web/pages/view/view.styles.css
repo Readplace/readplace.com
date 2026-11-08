@@ -87,11 +87,11 @@
     padding-inline: 0;
   }
 
-  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, noscript, template)) ~ .view__end-cta .reading-frame {
+  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)) ~ .view__end-cta .reading-frame {
     grid-template-columns: minmax(0, 1fr) 340px;
   }
 
-  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, noscript, template)) ~ .view__end-cta .reading-frame > * {
+  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)) ~ .view__end-cta .reading-frame > * {
     grid-column: 1;
   }
 }

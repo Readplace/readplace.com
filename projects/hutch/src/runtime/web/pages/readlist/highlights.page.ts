@@ -1,7 +1,6 @@
 import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
-	ARTICLE_HIGHLIGHT_ID_PREFIX,
 	HIGHLIGHT_NOTE_MAX_LENGTH,
 	HighlightIdSchema,
 	HighlightNoteSchema,
@@ -24,20 +23,22 @@ import { parseHTML } from "linkedom";
 import { z } from "zod";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
+import { nativeSurfaceOf } from "../../onboarding/native-client";
 import {
 	HIGHLIGHT_NOTE_DIALOG_ID,
+	highlightFormUrl,
+	pushesHistory,
 	renderHighlightNoteCreateForm,
 } from "../../shared/article-body/highlights/highlight-note-dialog.component";
 import { prepareReaderContent } from "../../shared/article-body/reader-slot/reader-content";
 import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/section-pages";
 import { servedContentHash } from "../../shared/article-body/reader-slot/served-content-hash";
-import {
-	highlightPathsFor,
-	requireHighlightFeature,
-} from "./highlight-feature";
+import { highlightActionUrl, highlightReaderLocation } from "./highlight-surface";
+import { highlightFormScopeFor } from "./reader-highlight-options";
 import type { RenderOwnerReader } from "./reader-page.page";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
 import { answerReadlistNaming } from "./readlist-naming-answer";
+import { READLIST_PATH } from "./readlist.url";
 
 const CreateHighlightBodySchema = z
 	.object({
@@ -49,6 +50,11 @@ const CreateHighlightBodySchema = z
 		answer: z.literal("dialog").optional(),
 	})
 	.refine((body) => body.start <= body.end);
+
+const HighlightOpenedQuerySchema = z.object({
+	highlight: HighlightIdSchema,
+	origin: z.enum(["mark", "rail"]),
+});
 
 const TOAST_DISMISS_MS = 6000;
 
@@ -118,7 +124,6 @@ export function initHighlightRoutes(
 
 	router.post(
 		"/:id/highlights",
-		requireHighlightFeature,
 		requireNotLocked,
 		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),
@@ -139,9 +144,11 @@ export function initHighlightRoutes(
 				res.status(404).type("html").send("");
 				return;
 			}
-			const paths = highlightPathsFor({
-				articleId: article.id.value,
-				query: req.query,
+			const scope = highlightFormScopeFor(req, article.id.value);
+			const viewPath = highlightActionUrl({
+				path: `${READLIST_PATH}/${article.id.value}/view`,
+				readlist: scope.readlist,
+				surface: scope.surface,
 			});
 			const inDialog =
 				body.data.answer === "dialog" && req.get("HX-Request") === "true";
@@ -150,10 +157,15 @@ export function initHighlightRoutes(
 					answerReadlistNaming(req, res, {
 						dialogId: HIGHLIGHT_NOTE_DIALOG_ID,
 						naming: {
-							refusal: paths.viewPath,
+							refusal: viewPath,
 							form: () =>
 								renderHighlightNoteCreateForm({
-									action: paths.noteCreateUrl,
+									action: highlightFormUrl({
+										scope,
+										path: "/highlights",
+										source: "highlight-toolbar",
+										content: "save-note",
+									}),
 									hiddenFields: [
 										{ name: "exact", value: body.data.exact },
 										{ name: "start", value: String(body.data.start) },
@@ -218,6 +230,7 @@ export function initHighlightRoutes(
 					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					origin: body.data.origin,
 					highlight_id: outcome.highlight.highlightId,
+					surface: nativeSurfaceOf(req) ?? "web",
 				});
 				if (body.data.note !== undefined) {
 					deps.recordAnalyticsEvent(req, {
@@ -232,13 +245,20 @@ export function initHighlightRoutes(
 				if (inDialog) {
 					answerReadlistNaming(req, res, {
 						dialogId: HIGHLIGHT_NOTE_DIALOG_ID,
-						naming: { landing: paths.viewPath, scroll: "stay-put" },
+						naming: {
+							landing: viewPath,
+							scroll: "stay-put",
+							...(pushesHistory(scope) ? {} : { push: false as const }),
+						},
 					});
 					return;
 				}
 				res.redirect(
 					303,
-					`${paths.viewPath}#${ARTICLE_HIGHLIGHT_ID_PREFIX}${outcome.highlight.highlightId}`,
+					highlightReaderLocation({
+						...scope,
+						fragment: { highlightId: outcome.highlight.highlightId },
+					}),
 				);
 				return;
 			}
@@ -247,8 +267,35 @@ export function initHighlightRoutes(
 	);
 
 	router.post(
+		"/:id/highlights/opened",
+		async (req: Request<{ id: string }>, res: Response) => {
+			assert(
+				req.userId,
+				"userId required - route must be protected by requireAuth",
+			);
+			const article = await ownedArticleOf(req);
+			if (!article) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const opened = HighlightOpenedQuerySchema.safeParse(req.query);
+			if (opened.success) {
+				deps.recordAnalyticsEvent(req, {
+					stream: STREAMS.analytics,
+					event: ANALYTICS_EVENTS.highlightOpened,
+					timestamp: deps.now().toISOString(),
+					user_id: req.userId,
+					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
+					origin: opened.data.origin,
+					highlight_id: opened.data.highlight,
+				});
+			}
+			res.status(204).end();
+		},
+	);
+
+	router.post(
 		"/:id/highlights/:highlightId/delete",
-		requireHighlightFeature,
 		requireNotLocked,
 		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),
@@ -288,11 +335,13 @@ export function initHighlightRoutes(
 				visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 				highlight_id: highlightId.data,
 			});
-			const { viewPath } = highlightPathsFor({
-				articleId: article.id.value,
-				query: req.query,
-			});
-			res.redirect(303, `${viewPath}#highlights-rail`);
+			res.redirect(
+				303,
+				highlightReaderLocation({
+					...highlightFormScopeFor(req, article.id.value),
+					fragment: "rail",
+				}),
+			);
 		},
 	);
 

@@ -6,7 +6,7 @@ import {
 	GET_ARTICLE_TOOL,
 } from "../tool-definitions";
 import type { McpServerDeps, McpRequestContext } from "../mcp-ports.types";
-import { type ToolOutputs, type ToolResult, data, toolError, NOT_AN_ARTICLE_REPLY, fitOneMcpResponse, notFoundResult, formatArticle } from "../tool-result";
+import { type ToolOutputs, type ToolResult, data, toolError, NOT_AN_ARTICLE_REPLY, PENDING_REPLY, fitOneMcpResponse, notFoundResult, formatArticle } from "../tool-result";
 
 export function initArticleReadTools(
 	deps: Pick<McpServerDeps, "getArticle" | "getArticleContent" | "getArticleSummary" | "getRelatedArticles">,
@@ -56,10 +56,7 @@ export function initArticleReadTools(
 				case "not_an_article":
 					return data(NOT_AN_ARTICLE_REPLY, result);
 				case "pending":
-					return data(
-						"That article is still being fetched; its reader view isn't ready yet. Try again shortly.",
-						result,
-					);
+					return data(PENDING_REPLY, result);
 				case "ready":
 					return fitOneMcpResponse(data(result.content, result));
 			}

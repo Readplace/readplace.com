@@ -6,7 +6,7 @@ import { type ReadlistRefusal, refuseOverSiren } from "./readlist-siren-refusal"
 type SirenAnswer = { location: string } | ReadlistRefusal;
 
 export type ReadlistNaming =
-	| { landing: string; scroll: HxLocationScroll; announcement?: string; siren?: SirenAnswer }
+	| { landing: string; scroll: HxLocationScroll; push?: false; announcement?: string; siren?: SirenAnswer }
 	| { refusal: string; form: () => string; siren?: SirenAnswer };
 
 export function answerReadlistNaming(
@@ -33,7 +33,12 @@ export function answerReadlistNaming(
 	}
 	res.set(
 		"HX-Location",
-		hxLocationToMain({ path: naming.landing, source: `#${answer.dialogId}`, scroll: naming.scroll }),
+		hxLocationToMain({
+			path: naming.landing,
+			source: `#${answer.dialogId}`,
+			scroll: naming.scroll,
+			push: naming.push,
+		}),
 	);
 	if (naming.announcement === undefined) {
 		res.status(204).end();

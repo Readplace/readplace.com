@@ -102,6 +102,9 @@ async function saveAndGetFirstId(
 	return id;
 }
 
+const HIGHLIGHT_SENTENCE = "Readplace keeps the passages you highlight.";
+const HIGHLIGHT_BODY = `<p>${HIGHLIGHT_SENTENCE}</p>`;
+
 const useApp = useTestServer();
 
 describe("MCP server over the real app", () => {
@@ -332,7 +335,40 @@ describe("MCP server over the real app", () => {
 			"mark_as_read",
 			"mark_as_unread",
 			"get_article_deletion_steps",
+			"list_highlights",
+			"create_highlight",
 		]);
+	});
+
+	it("highlights a quoted passage over /mcp, lists it, and shows it in the reader's rail", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await obtainAccessToken(harness);
+		const id = await saveAndGetFirstId(harness, accessToken);
+		await harness.articleStore.writeContent({ url: "https://example.com/article", content: HIGHLIGHT_BODY });
+
+		const content = await callTool(harness, accessToken, tool("get_article_content", { id }));
+		expect(content.body.result.structuredContent.content).toBe(HIGHLIGHT_BODY);
+
+		const created = await callTool(harness, accessToken, tool("create_highlight", { id, quote: HIGHLIGHT_SENTENCE }));
+		expect(created.body.result.isError).toBeUndefined();
+		const highlightId = created.body.result.structuredContent.highlight.id;
+		expect(created.body.result.structuredContent).toMatchObject({
+			outcome: "created",
+			highlight: { quote: HIGHLIGHT_SENTENCE, state: "anchored" },
+		});
+
+		const listed = await callTool(harness, accessToken, tool("list_highlights", { id }));
+		expect(listed.body.result.structuredContent.highlights).toEqual([
+			expect.objectContaining({ id: highlightId, quote: HIGHLIGHT_SENTENCE, state: "anchored" }),
+		]);
+
+		const agent = request.agent(harness.server);
+		await agent.post("/login").type("form").send({ email: "mcp@example.com", password: "password123" });
+		const reader = await agent.get(`/queue/${id}/view`);
+		expect(reader.status).toBe(200);
+		expect(reader.text).toMatch(
+			new RegExp(`data-test-highlight-row="${highlightId}" data-test-highlight-state="anchored"`),
+		);
 	});
 
 	it("fetches a saved article's metadata, content, and summary by id", async () => {
@@ -645,15 +681,19 @@ describe("MCP server over the real app", () => {
 		});
 		const token = await obtainAccessToken(harness);
 		const id = await saveAndGetFirstId(harness, token);
+		await harness.articleStore.writeContent({ url: "https://example.com/article", content: HIGHLIGHT_BODY });
 		locked = true;
 		for (const body of [
 			tool("create_readlist", { name: "Work" }),
 			tool("add_to_readlist", { id, create_name: "Work" }),
+			tool("create_highlight", { id, quote: HIGHLIGHT_SENTENCE }),
 		]) {
 			const refused = await callTool(harness, token, body);
 			expect(refused.body.result.isError).toBe(true);
 			expect(refused.body.result.content[0].text).toContain("account is locked");
 		}
+		const highlights = await callTool(harness, token, tool("list_highlights", { id }));
+		expect(highlights.body.result.structuredContent.highlights).toEqual([]);
 		const discovered = await callTool(harness, token, tool("list_readlists"));
 		expect(discovered.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
 		const listed = await callTool(harness, token, { jsonrpc: "2.0", id: nextId++, method: "tools/list" });
@@ -666,6 +706,7 @@ describe("MCP server over the real app", () => {
 		const id = await saveAndGetFirstId(harness, token);
 		const user = await harness.auth.findUserByEmail("mcp@example.com");
 		assert(user);
+		await harness.articleStore.writeContent({ url: "https://example.com/article", content: HIGHLIGHT_BODY });
 		await harness.subscriptionProviders.upsertTrialing({ userId: user.userId, trialEndsAt: "2000-01-01T00:00:00.000Z" });
 		for (const body of [
 			tool("create_readlist", { name: "Work" }),
@@ -675,6 +716,11 @@ describe("MCP server over the real app", () => {
 			expect(refused.body.result.isError).toBe(true);
 			expect(refused.body.result.content[0].text).toContain("subscription");
 		}
+		const refusedHighlight = await callTool(harness, token, tool("create_highlight", { id, quote: HIGHLIGHT_SENTENCE }));
+		expect(refusedHighlight.body.result.isError).toBe(true);
+		expect(refusedHighlight.body.result.content[0].text).toContain("Creating highlights");
+		const highlights = await callTool(harness, token, tool("list_highlights", { id }));
+		expect(highlights.body.result.structuredContent.highlights).toEqual([]);
 		const discovered = await callTool(harness, token, tool("list_readlists"));
 		expect(discovered.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
 		const listed = await callTool(harness, token, { jsonrpc: "2.0", id: nextId++, method: "tools/list" });

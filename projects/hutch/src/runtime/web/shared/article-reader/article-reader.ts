@@ -121,8 +121,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 						reader.states.length === 0
 							? pendingHighlightsRailRows(input.highlights.rows)
 							: highlightsRailRowsFromStates(reader.states),
-					deleteUrlFor: input.highlights.deleteUrlFor,
-					noteUrlFor: input.highlights.noteUrlFor,
+					scope: input.highlights.scope,
 					oob: true,
 				}).html;
 	const summarySlot = renderSummarySlot({
@@ -519,7 +518,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				render: params.readerViewFailedOob,
 			}),
 			appOrigin: deps.appOrigin,
-			readerNotice: undefined,
+			readerNotice: params.readerNotice,
 			title: article?.metadata.title,
 			highlights: params.highlights,
 		}));
@@ -589,7 +588,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				render: params.readerViewFailedOob,
 			}),
 			appOrigin: deps.appOrigin,
-			readerNotice: undefined,
+			readerNotice: params.readerNotice,
 			title: article?.metadata.title,
 			highlights: params.highlights,
 		}));

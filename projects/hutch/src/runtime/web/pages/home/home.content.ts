@@ -263,7 +263,7 @@ export const HOME_CONTENT = {
 			{
 				question: "How do I get my readlist out?",
 				answer:
-					"Request an export from the account page, paying or not. You get one JSON file listing every article you saved — URL, title, site, excerpt, read status and dates — by an emailed link that works for 7 days. It does not include article text.",
+					"Request an export from the account page, paying or not. You get one JSON file listing every article you saved — URL, title, site, excerpt, read status and dates — with each article's highlights and notes, by an emailed link that works for 7 days. It does not include article text.",
 			},
 			{
 				question: "Can I bring my Pocket export?",

@@ -89,9 +89,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 80 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 1 oauth-token-revocations, 1 mcp-refusals, 1 mcp-handshakes, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer, 2 highlights, 1 highlights-reanchored) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 81 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 1 oauth-token-revocations, 1 mcp-refusals, 1 mcp-handshakes, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer, 3 highlights, 1 highlights-reanchored) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(80);
+		expect(body.widgets).toHaveLength(81);
 	});
 
 	it.each([
@@ -756,6 +756,27 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(query).toContain(
 			"| fields toMillis(@timestamp) as ms | stats earliest(origin) as origin, count(*) as events, max(ms) - min(ms) as lifeMs by highlight_id | filter ispresent(origin) | stats count(*) as creates, sum(events = 2 and lifeMs < 30000) as quickDeletes by origin",
 		);
+	});
+
+	it("charts highlight opens per day by where the reader clicked them, beside the re-anchored metrics", () => {
+		const widget = buildBody().widgets.find(
+			({ properties }) => properties.title === "Highlights opened per day, by where they were clicked",
+		);
+		assert(widget, "the highlights opened widget must exist");
+		expect(widget).toMatchObject({
+			type: "log",
+			x: 12,
+			y: 114,
+			width: 12,
+			height: 8,
+			properties: { view: "timeSeries" },
+		});
+		const query = widget.properties.query;
+		assert(typeof query === "string");
+		expect(query).toContain(
+			`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.highlightOpened}"`,
+		);
+		expect(query).toContain("| stats count(*) as opened by origin, bin(1d)");
 	});
 
 	it("charts the anchored, moved and orphaned Readplace/Highlights metrics in one row of their own below the highlights row", () => {

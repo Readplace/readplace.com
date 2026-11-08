@@ -17,7 +17,6 @@ import { FILED_READLIST_PARAM } from "../../shared/filing-flash";
 import { calculateReadTime, hostStubMetadata, } from "@packages/domain/article";
 import { ABSENT_ENCLOSURE, ReaderArticleHashIdSchema, mayReadItem, ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { MediaImageFileSchema, PrivateItemUrlSchema, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
-import { articleEpubHref } from "../../shared/epub/epub-link";
 import { readerContentUnavailable, readerNoticeOf, transcriptNoticeOf } from "../../shared/article-reader/reader-view";
 import type {
 	PastReads,
@@ -37,6 +36,8 @@ import { RedirectComponent, type Redirect } from "../../redirect.component";
 import { FreshForComponent } from "../../conditional-get";
 import { initReaderPermalink } from "./reader-permalink";
 import { initOwnerArticleMarkdown, isDeliberateReaderRequest } from "./reader-markdown";
+import { initOwnerArticleEpub } from "./reader-epub";
+import type { BuildArticleEpub } from "../../shared/epub/article-epub";
 import {
 	parseReadlistUrl,
 	READLIST_PATH,
@@ -75,8 +76,9 @@ import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type { SavedArticle } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { highlightFeatureEnabled, highlightPathsFor } from "./highlight-feature";
-import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM } from "./readlist-shared";
+import { highlightActionUrl } from "./highlight-surface";
+import { highlightFormScopeFor, initReaderHighlightOptions } from "./reader-highlight-options";
+import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM, readerEpubHrefFor } from "./readlist-shared";
 
 const pastReadsComputeUrlFor = (params: {
 	articleId: string;
@@ -190,9 +192,10 @@ function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 
 export function initReaderPageRoutes(deps: Pick<
 		ReadlistDependencies,
-		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView" | "listArticleHighlights" | "readCanonicalSnapshot" | "presignEnclosure" | "findArticleById"
-	>, shared: ReadlistShared): { router: Router; renderOwnerReader: RenderOwnerReader } {
+		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView" | "listArticleHighlights" | "readCanonicalSnapshot" | "presignEnclosure" | "findArticleById" | "canSaveContent"
+	> & { buildArticleEpub: BuildArticleEpub }, shared: ReadlistShared): { router: Router; renderOwnerReader: RenderOwnerReader } {
 	const router = express.Router();
+	const readerHighlightOptions = initReaderHighlightOptions(deps);
 	const { requestReadlistContext, storeFor, reader, pollUrlBuilderFor, ownerReaderSection, readerPathFor, readerPathForReadlist, readerReturnPath, epubGuideFor } = shared;
 
 	const resolveReaderPermalinkIn = (readlist: ReadlistSlug) =>
@@ -238,7 +241,7 @@ export function initReaderPageRoutes(deps: Pick<
 	const epubHrefFor = (req: Request, article: SavedArticle, content: string | undefined): string | undefined =>
 		content === undefined || parseEmailIssueArticleUrl(article.url) !== undefined
 			? undefined
-			: articleEpubHref({ articleUrl: article.url, utmSource: "reader", appClient: appClientOf(req) });
+			: readerEpubHrefFor(req, { article, appClient: appClientOf(req) });
 
 	/** Public share-able permalink. Users copy this URL from the browser
 	 * address bar to share an article, so any visitor — owner, different
@@ -495,6 +498,7 @@ export function initReaderPageRoutes(deps: Pick<
 		noindexMiddleware,
 		deps.markdownBearerAuth,
 		initOwnerArticleMarkdown(deps),
+		initOwnerArticleEpub(deps),
 	);
 
 	const renderOwnerReader: RenderOwnerReader = async (req, res, options) => {
@@ -530,33 +534,18 @@ export function initReaderPageRoutes(deps: Pick<
 			deletion,
 			provenance,
 		} = resolved;
-		const highlightsOn =
-			highlightFeatureEnabled(req.query) && !isAppPlatform(req);
-		const highlightRows = highlightsOn
-			? await deps.listArticleHighlights({
-					userId: ownedArticle.userId,
-					url: ArticleResourceUniqueId.parse(ownedArticle.url).value,
-				})
-			: [];
+		const highlightRows = await deps.listArticleHighlights({
+			userId: ownedArticle.userId,
+			url: ArticleResourceUniqueId.parse(ownedArticle.url).value,
+		});
 		const contentVersion = withHighlightsVersion({
 			contentVersion: resolved.contentVersion,
 			highlights: highlightRows,
 		});
-		const highlightPaths = highlightPathsFor({
-			articleId: ownedArticle.id.value,
-			query: req.query,
+		const highlights: ReaderPageHighlights = await readerHighlightOptions(req, {
+			article: ownedArticle,
+			rows: highlightRows,
 		});
-		const highlights: ReaderPageHighlights | undefined = highlightsOn
-			? {
-					rows: highlightRows,
-					canonicalContentHash: (
-						await deps.readCanonicalSnapshot(ownedArticle.url)
-					)?.canonicalContentHash,
-					createUrl: highlightPaths.createUrl,
-					deleteUrlFor: highlightPaths.deleteUrlFor,
-					noteUrlFor: highlightPaths.noteUrlFor,
-				}
-			: undefined;
 		const settle = (component: Component, cacheControl: string): Component =>
 			options.statusCode === 200
 				? FreshForComponent(component, {
@@ -582,7 +571,10 @@ export function initReaderPageRoutes(deps: Pick<
 		const currentPath =
 			options.statusCode === 200
 				? withoutFiledFlash(req.originalUrl)
-				: highlightPaths.viewPath;
+				: highlightActionUrl({
+						path: `${READLIST_PATH}/${ownedArticle.id.value}/view`,
+						...highlightFormScopeFor(req, ownedArticle.id.value),
+					});
 		const issueLinks = await issueLinksFor(req, ownedArticle);
 		const readerSettled =
 			state.readerPollUrl === undefined &&
@@ -625,6 +617,7 @@ export function initReaderPageRoutes(deps: Pick<
 				epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
 				issueLinks,
 				deletion,
+				highlights,
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(

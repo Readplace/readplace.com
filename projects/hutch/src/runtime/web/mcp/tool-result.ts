@@ -22,7 +22,7 @@ type ToolHandler = (
 	context: McpRequestContext,
 ) => Promise<ToolResult> | ToolResult;
 
-export type McpToolEntry = { name: string; access: "paywalled" | "open"; sortOrder: "recorded" | "not-recorded"; run: ToolHandler };
+export type McpToolEntry = { name: string; sortOrder: "recorded" | "not-recorded"; run: ToolHandler };
 
 /** A successful tool result that carries both a human-readable text block (for
  * clients that only render text) and the machine-readable `structuredContent`
@@ -37,6 +37,9 @@ export function toolError(value: string): ToolResult {
 
 export const NOT_AN_ARTICLE_REPLY =
 	"This link isn't an article, so there's no reader view — open the link itself.";
+
+export const PENDING_REPLY =
+	"That article is still being fetched; its reader view isn't ready yet. Try again shortly.";
 
 const TOO_LARGE_FOR_MCP_REPLY =
 	"This article is too large to read through the assistant. Open it in the Readplace reader instead.";

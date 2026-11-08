@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
-import { MCP_UA_CLIENTS } from "@packages/web-analytics";
+import { MCP_TOOL_OUTCOMES, MCP_UA_CLIENTS } from "@packages/web-analytics";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
 import { decodeReadlistCursor, encodeReadlistCursor } from "./cursor";
 import { initMcpServer } from "./mcp-server";
-import type { McpArticle, CreateReadlistResult, AddToReadlistResult, McpHandshakeRecord, McpServerDeps, McpToolCallRecord } from "./mcp-ports.types";
+import type { McpArticle, McpHighlight, CreateHighlightResult, ListHighlightsResult, CreateReadlistResult, AddToReadlistResult, McpHandshakeRecord, McpServerDeps, McpToolCallRecord } from "./mcp-ports.types";
 import {
 	GET_ARTICLE_SUMMARY_LEGACY_NAME,
 	GET_RELATED_ARTICLES_LEGACY_NAME,
@@ -37,6 +37,8 @@ function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 		getRelatedArticles: async () => ({ status: "not_found" }),
 		markAsRead: async () => ({ status: "not_found" }),
 		markAsUnread: async () => ({ status: "not_found" }),
+		listHighlights: async () => ({ status: "not_found" }),
+		createHighlight: async () => ({ status: "not_found" }),
 		resolveToolAccess: async () => ({ state: "ok" }),
 		recordToolCall: () => {},
 		recordHandshake: () => {},
@@ -108,6 +110,7 @@ describe("initMcpServer", () => {
 			"Each article's url opens its private Readplace reader view",
 			"get_article_deletion_steps changes nothing",
 			"Readplace app",
+			"list_highlights returns the user's highlights and notes for one article; create_highlight highlights a passage the user asks you to keep, quoted exactly from get_article_content, never one you chose yourself. Editing or deleting a highlight happens in the reader's Highlights rail in the Readplace app; get_article_deletion_steps is about whole articles.",
 		]) {
 			expect(response).toMatchObject({
 				result: { instructions: expect.stringContaining(claim) },
@@ -144,6 +147,8 @@ describe("initMcpServer", () => {
 					{ name: "mark_as_read", annotations: { readOnlyHint: false } },
 					{ name: "mark_as_unread", annotations: { readOnlyHint: false } },
 					{ name: "get_article_deletion_steps", annotations: { readOnlyHint: true } },
+					{ name: "list_highlights", annotations: { readOnlyHint: true } },
+					{ name: "create_highlight", annotations: { readOnlyHint: false, destructiveHint: false } },
 				],
 			},
 		});
@@ -1285,10 +1290,9 @@ describe("initMcpServer", () => {
 
 	describe("subscription gating", () => {
 		const UPSELL =
-			"Your subscription isn't active. Reactivate at https://readplace.com/account.";
+			"Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account.";
 		const inactive: McpServerDeps["resolveToolAccess"] = async () => ({
 			state: "inactive",
-			message: UPSELL,
 		});
 
 		it("refuses save_link with the renewal upsell when inactive, before the save runs", async () => {
@@ -1337,6 +1341,7 @@ describe("initMcpServer", () => {
 				"mark_as_unread",
 				"get_article_deletion_steps",
 				"delete_article",
+				"list_highlights",
 			]) {
 				const response = await call(server, 71, tool, { id: "x".repeat(32) });
 				expect(response).not.toMatchObject({ result: { isError: true } });
@@ -1433,6 +1438,7 @@ describe("initMcpServer", () => {
 				result: { structuredContent: { total: 1 } },
 			});
 			expect(listReadlist).toHaveBeenCalled();
+			expect(await call(server, 77, "list_highlights", { id: "x".repeat(32) })).not.toMatchObject({ result: { isError: true } });
 		});
 
 		it("lists every tool to a caller whose subscription is inactive", async () => {
@@ -1506,13 +1512,13 @@ describe("initMcpServer", () => {
 		it("explains the entitlement only on the call it actually blocked — the one placement both directories permit", async () => {
 			const server = initMcpServer(
 				fakeDeps({
-					resolveToolAccess: async () => ({ state: "inactive", message: "Saving is paused." }),
+					resolveToolAccess: async () => ({ state: "inactive" }),
 				}),
 			);
 			const response = await call(server, 73, "save_link", { url: "https://e.test/a" });
 			expect(response).toMatchObject({
 				id: 73,
-				result: { isError: true, content: [{ type: "text", text: "Saving is paused." }] },
+				result: { isError: true, content: [{ type: "text", text: "Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account." }] },
 			});
 		});
 	});
@@ -1603,7 +1609,7 @@ describe("initMcpServer", () => {
 
 		it("distinguishes a save refused by the subscription gate as outcome=paywalled", async () => {
 			const { server, records } = recording({
-				resolveToolAccess: async () => ({ state: "inactive", message: "lapsed" }),
+				resolveToolAccess: async () => ({ state: "inactive" }),
 			});
 			await call(server, 1, "save_link", { url: "https://example.com/a" });
 			expect(records[0]).toMatchObject({
@@ -1625,19 +1631,19 @@ describe("initMcpServer", () => {
 
 		it("records save_refused once for an inactive save_link and answers with the same tool error", async () => {
 			const { response, refusals } = callRecordingRefusals({
-				access: { state: "inactive", message: "lapsed" },
+				access: { state: "inactive" },
 				name: "save_link",
 				args: { url: "https://example.com/a" },
 			});
 			expect(await response).toMatchObject({
-				result: { isError: true, content: [{ type: "text", text: "lapsed" }] },
+				result: { isError: true, content: [{ type: "text", text: "Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account." }] },
 			});
 			expect(refusals()).toBe(1);
 		});
 
 		it("records no save_refused for an inactive create_readlist, which is not a save", async () => {
 			const { response, refusals } = callRecordingRefusals({
-				access: { state: "inactive", message: "lapsed" },
+				access: { state: "inactive" },
 				name: "create_readlist",
 				args: { name: "Work" },
 			});
@@ -1647,7 +1653,7 @@ describe("initMcpServer", () => {
 
 		it("records no save_refused when save_link is refused for a reason other than an inactive subscription", async () => {
 			const { response, refusals } = callRecordingRefusals({
-				access: { state: "unverified", message: "verify" },
+				access: { state: "unverified" },
 				name: "save_link",
 				args: { url: "https://example.com/a" },
 			});
@@ -2233,19 +2239,21 @@ describe("MCP readlist tools", () => {
 	it.each([
 		"create_readlist",
 		"add_to_readlist",
+		"create_highlight",
 	])("logs a failed %s write without exposing the cause", async (tool) => {
 		const fail = async (): Promise<never> => {
 			throw new Error("store unavailable");
 		};
 		const logError = jest.fn();
 		const server = initMcpServer(
-			fakeDeps({ createReadlist: fail, addToReadlist: fail, logError }),
+			fakeDeps({ createReadlist: fail, addToReadlist: fail, createHighlight: fail, logError }),
 		);
 		expect(
 			await call(server, 1, tool, {
 				name: "Work",
 				id: "article",
 				create_name: "Work",
+				quote: "a passage",
 			}),
 		).toMatchObject({
 			result: {
@@ -2266,18 +2274,20 @@ describe("MCP readlist tools", () => {
 	});
 
 	it.each([
-		"create_readlist",
-		"add_to_readlist",
-	])("gates %s when saving is paused", async (tool) => {
+		{ tool: "create_readlist", action: "Saving new links" },
+		{ tool: "add_to_readlist", action: "Saving new links" },
+		{ tool: "create_highlight", action: "Creating highlights" },
+	])("gates $tool when saving is paused", async ({ tool, action }) => {
 		const createReadlist = jest.fn(fakeDeps().createReadlist);
 		const addToReadlist = jest.fn(fakeDeps().addToReadlist);
+		const createHighlight = jest.fn(fakeDeps().createHighlight);
 		const server = initMcpServer(
 			fakeDeps({
 				createReadlist,
 				addToReadlist,
+				createHighlight,
 				resolveToolAccess: async () => ({
 					state: "inactive",
-					message: "Saving is paused.",
 				}),
 			}),
 		);
@@ -2286,12 +2296,35 @@ describe("MCP readlist tools", () => {
 				name: "Work",
 				id: "article",
 				create_name: "Work",
+				quote: "a passage",
 			}),
 		).toMatchObject({
-			result: { isError: true, content: [{ text: "Saving is paused." }] },
+			result: { isError: true, content: [{ text: `${action} is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account.` }] },
 		});
 		expect(createReadlist).toHaveBeenCalledTimes(0);
 		expect(addToReadlist).toHaveBeenCalledTimes(0);
+		expect(createHighlight).toHaveBeenCalledTimes(0);
+	});
+
+	it.each([
+		{ tool: "create_readlist", subject: "This link" },
+		{ tool: "create_highlight", subject: "This highlight" },
+	])("refuses $tool when the subscription check fails, naming what was not saved", async ({ tool, subject }) => {
+		const createHighlight = jest.fn(fakeDeps().createHighlight);
+		const server = initMcpServer(
+			fakeDeps({
+				createHighlight,
+				resolveToolAccess: async () => {
+					throw new Error("subscription store unavailable");
+				},
+			}),
+		);
+		expect(
+			await call(server, 1, tool, { name: "Work", id: "article", quote: "a passage" }),
+		).toMatchObject({
+			result: { isError: true, content: [{ text: `${subject} wasn't saved because the subscription check didn't go through. Try again in a moment.` }] },
+		});
+		expect(createHighlight).toHaveBeenCalledTimes(0);
 	});
 });
 
@@ -2474,5 +2507,242 @@ describe("recordHandshake", () => {
 		});
 		await server.handle({ jsonrpc: "2.0", id: 1, method: "initialize" }, context);
 		expect(logError).toHaveBeenCalledWith("MCP handshake analytics failed", undefined);
+	});
+});
+
+describe("MCP highlight tools", () => {
+	const articleId = "a".repeat(32);
+	const work = ReadlistSlugSchema.parse("work");
+	const anchored: McpHighlight = {
+		id: "11111111-1111-4111-8111-111111111111",
+		quote: "First paragraph.\nSecond paragraph.",
+		note: "Worth rereading.",
+		state: "anchored",
+		createdAt: "2026-11-01T00:00:00.000Z",
+		updatedAt: "2026-11-02T00:00:00.000Z",
+	};
+	const orphaned: McpHighlight = {
+		id: "22222222-2222-4222-8222-222222222222",
+		quote: "A passage that is gone.",
+		state: "orphaned",
+		createdAt: "2026-11-03T00:00:00.000Z",
+		updatedAt: "2026-11-03T00:00:00.000Z",
+	};
+	const readerUrl = `https://readplace.test/queue/${articleId}/view?from=mcp`;
+
+	it("lists quotes with every line quoted, notes and the not-found line, linking each passage that is still in the article", async () => {
+		const listHighlights = jest.fn(async (): Promise<ListHighlightsResult> => ({
+			status: "ready",
+			articleId,
+			readlist: DEFAULT_READLIST_SLUG,
+			highlights: [anchored, { ...orphaned, note: "Kept anyway." }],
+		}));
+		const server = initMcpServer(fakeDeps({ listHighlights }));
+		expect(await call(server, 1, "list_highlights", { id: articleId })).toEqual({
+			jsonrpc: "2.0",
+			id: 1,
+			result: {
+				content: [
+					{
+						type: "text",
+						text: "> First paragraph.\n> Second paragraph.\nWorth rereading.\n\n> A passage that is gone. (not found in the current version)\nKept anyway.",
+					},
+				],
+				structuredContent: {
+					articleId,
+					highlights: [
+						{ ...anchored, url: `${readerUrl}#highlight-${anchored.id}` },
+						{ ...orphaned, note: "Kept anyway.", url: readerUrl },
+					],
+				},
+			},
+		});
+		expect(listHighlights).toHaveBeenCalledWith({ userId, id: articleId });
+	});
+
+	it("links a highlight through the named readlist that holds its article", async () => {
+		const server = initMcpServer(
+			fakeDeps({
+				listHighlights: async () => ({ status: "ready", articleId, readlist: work, highlights: [orphaned] }),
+			}),
+		);
+		expect(await call(server, 1, "list_highlights", { id: articleId })).toMatchObject({
+			result: {
+				content: [{ text: "> A passage that is gone. (not found in the current version)" }],
+				structuredContent: { highlights: [{ url: `${readerUrl}&queue=work` }] },
+			},
+		});
+	});
+
+	it("says so when the article has no highlights", async () => {
+		const server = initMcpServer(
+			fakeDeps({
+				listHighlights: async () => ({ status: "ready", articleId, readlist: DEFAULT_READLIST_SLUG, highlights: [] }),
+			}),
+		);
+		expect(await call(server, 1, "list_highlights", { id: articleId })).toMatchObject({
+			result: {
+				content: [{ text: "This article has no highlights yet." }],
+				structuredContent: { articleId, highlights: [] },
+			},
+		});
+	});
+
+	it.each<{ tool: string; reply: string; outcome: ListHighlightsResult & CreateHighlightResult }>([
+		{ tool: "list_highlights", outcome: { status: "not_found" }, reply: `No saved article with id ${articleId} is in your readlist.` },
+		{ tool: "list_highlights", outcome: { status: "not_an_article" }, reply: "This link isn't an article, so there's no reader view — open the link itself." },
+		{ tool: "list_highlights", outcome: { status: "pending" }, reply: "That article is still being fetched; its reader view isn't ready yet. Try again shortly." },
+		{ tool: "create_highlight", outcome: { status: "not_found" }, reply: `No saved article with id ${articleId} is in your readlist.` },
+		{ tool: "create_highlight", outcome: { status: "not_an_article" }, reply: "This link isn't an article, so there's no reader view — open the link itself." },
+		{ tool: "create_highlight", outcome: { status: "pending" }, reply: "That article is still being fetched; its reader view isn't ready yet. Try again shortly." },
+	])("answers $tool for an article that is $outcome.status", async ({ tool, outcome, reply }) => {
+		const server = initMcpServer(
+			fakeDeps({ listHighlights: async () => outcome, createHighlight: async () => outcome }),
+		);
+		const response = await call(server, 1, tool, { id: articleId, quote: "a passage" });
+		expect(response).toMatchObject({ result: { content: [{ text: reply }] } });
+		expect(response).not.toMatchObject({ result: { isError: true } });
+	});
+
+	it.each([
+		{ tool: "list_highlights", args: {}, message: "list_highlights requires an `id` string." },
+		{ tool: "create_highlight", args: { id: articleId }, message: "create_highlight requires an `id` string and a `quote`" },
+	])("refuses $tool arguments it cannot read before calling the store", async ({ tool, args, message }) => {
+		const listHighlights = jest.fn(fakeDeps().listHighlights);
+		const createHighlight = jest.fn(fakeDeps().createHighlight);
+		const server = initMcpServer(fakeDeps({ listHighlights, createHighlight }));
+		expect(await call(server, 1, tool, args)).toMatchObject({
+			result: { isError: true, content: [{ text: expect.stringContaining(message) }] },
+		});
+		expect(listHighlights).toHaveBeenCalledTimes(0);
+		expect(createHighlight).toHaveBeenCalledTimes(0);
+	});
+
+	it("logs a failed list_highlights read without exposing the cause", async () => {
+		const logError = jest.fn();
+		const server = initMcpServer(
+			fakeDeps({
+				listHighlights: async () => {
+					throw new Error("store unavailable");
+				},
+				logError,
+			}),
+		);
+		expect(await call(server, 1, "list_highlights", { id: articleId })).toMatchObject({
+			result: {
+				isError: true,
+				content: [{ text: "Could not list the highlights — something went wrong on Readplace's side. Try again in a moment." }],
+			},
+		});
+		expect(logError).toHaveBeenCalledWith("MCP list_highlights failed", new Error("store unavailable"));
+	});
+
+	it("reports a created highlight with its quote, note and link, passing the quote, note and text_before through", async () => {
+		const createHighlight = jest.fn(async (): Promise<CreateHighlightResult> => ({
+			status: "created",
+			articleId,
+			readlist: DEFAULT_READLIST_SLUG,
+			highlight: anchored,
+		}));
+		const server = initMcpServer(fakeDeps({ createHighlight }));
+		const url = `${readerUrl}#highlight-${anchored.id}`;
+		expect(
+			await call(server, 1, "create_highlight", {
+				id: articleId,
+				quote: anchored.quote,
+				note: " Worth rereading.\r\n",
+				text_before: "Intro.",
+			}),
+		).toEqual({
+			jsonrpc: "2.0",
+			id: 1,
+			result: {
+				content: [
+					{
+						type: "text",
+						text: `Highlighted:\n> First paragraph.\n> Second paragraph.\nWorth rereading.\nOpen it: ${url}`,
+					},
+				],
+				structuredContent: { outcome: "created", highlight: { ...anchored, url } },
+			},
+		});
+		expect(createHighlight).toHaveBeenCalledWith({
+			userId,
+			id: articleId,
+			quote: anchored.quote,
+			note: "Worth rereading.",
+			textBefore: "Intro.",
+		});
+	});
+
+	it("reports a merge with the merged highlight's new id, and passes no note or text_before the caller left out", async () => {
+		const merged: McpHighlight = { ...anchored, id: "33333333-3333-4333-8333-333333333333", quote: "One passage.", note: undefined, state: "moved" };
+		const createHighlight = jest.fn(async (): Promise<CreateHighlightResult> => ({
+			status: "merged",
+			articleId,
+			readlist: work,
+			highlight: merged,
+		}));
+		const server = initMcpServer(fakeDeps({ createHighlight }));
+		const url = `${readerUrl}&queue=work#highlight-${merged.id}`;
+		expect(await call(server, 1, "create_highlight", { id: articleId, quote: "One passage." })).toMatchObject({
+			result: {
+				content: [
+					{
+						text: `Merged with an existing highlight, which now has the id ${merged.id}:\n> One passage.\nOpen it: ${url}`,
+					},
+				],
+				structuredContent: { outcome: "merged", highlight: { id: merged.id, state: "moved", url } },
+			},
+		});
+		expect(createHighlight).toHaveBeenCalledWith({ userId, id: articleId, quote: "One passage." });
+	});
+
+	it.each<{ outcome: CreateHighlightResult; message: string }>([
+		{
+			outcome: { status: "quote_not_found" },
+			message: "That quote is not in the article's current text. Copy it exactly from get_article_content.",
+		},
+		{
+			outcome: { status: "quote_ambiguous", matches: 3 },
+			message: "That quote appears 3 times in the article. Call create_highlight again with text_before holding the text just before the passage you mean.",
+		},
+		{
+			outcome: { status: "too_long", limit: 8191 },
+			message: "That highlight would be longer than 8191 characters, counting any highlight it merges with and its note. Quote a shorter passage or write a shorter note.",
+		},
+		{
+			outcome: { status: "conflict" },
+			message: "This article's highlights changed while saving this one, so nothing was saved. Call create_highlight again.",
+		},
+		{
+			outcome: { status: "access_denied", message: "Verify your email to create highlights." },
+			message: "Verify your email to create highlights.",
+		},
+	])("explains create_highlight refusal $outcome.status without logging it", async ({ outcome, message }) => {
+		const logError = jest.fn();
+		const server = initMcpServer(fakeDeps({ createHighlight: async () => outcome, logError }));
+		expect(await call(server, 1, "create_highlight", { id: articleId, quote: "a passage" })).toEqual({
+			jsonrpc: "2.0",
+			id: 1,
+			result: { isError: true, content: [{ type: "text", text: message }] },
+		});
+		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("records a create_highlight call as an MCP tool call and nothing else", async () => {
+		const records: McpToolCallRecord[] = [];
+		const server = initMcpServer(
+			fakeDeps({
+				createHighlight: async () => ({ status: "created", articleId, readlist: DEFAULT_READLIST_SLUG, highlight: anchored }),
+				recordToolCall: (record) => {
+					records.push(record);
+				},
+			}),
+		);
+		await call(server, 1, "create_highlight", { id: articleId, quote: anchored.quote });
+		expect(records).toEqual([
+			{ tool: "create_highlight", outcome: MCP_TOOL_OUTCOMES.ok, userId, oauthClientId: context.oauthClientId },
+		]);
 	});
 });

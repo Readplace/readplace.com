@@ -95,9 +95,9 @@ async function saveArticle(
 }
 
 const viewPath = (articleId: string) =>
-	`/queue/${articleId}/view?feature=highlight`;
+	`/queue/${articleId}/view`;
 const createPath = (articleId: string) =>
-	`/queue/${articleId}/highlights?feature=highlight`;
+	`/queue/${articleId}/highlights`;
 
 async function rangeOf(
 	agent: Agent,
@@ -165,7 +165,7 @@ function marksOf(html: string): string[] {
 }
 
 describe("Highlights (POST /queue/:id/highlights)", () => {
-	it("creates a highlight and redirects 303 to the flagged reader, which shows the mark and an anchored row", async () => {
+	it("creates a highlight and redirects 303 to the reader, which shows the mark and an anchored row", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -180,12 +180,34 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(response.status).toBe(303);
 		const id = highlightIdFrom(response.headers.location);
 		expect(response.headers.location).toBe(
-			`/queue/${articleId}/view?feature=highlight#highlight-${id}`,
+			`/queue/${articleId}/view#highlight-${id}`,
 		);
 		const reopened = (await agent.get(viewPath(articleId))).text;
 		expect(marksOf(reopened)).toEqual(["readability parser"]);
 		expect(rowsOf(reopened)).toEqual([{ id, state: "anchored" }]);
 		expect(doc(reopened).getElementById(`highlight-${id}`)).not.toBeNull();
+	});
+
+	it("creates from a form posted with the old feature parameter and redirects without it", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-pre-deploy-form",
+		);
+
+		const response = await agent
+			.post(`/queue/${articleId}/highlights?feature=highlight`)
+			.type("form")
+			.send(await rangeOf(agent, { articleId, exact: "readability parser" }));
+
+		expect(response.status).toBe(303);
+		const id = highlightIdFrom(response.headers.location);
+		expect(response.headers.location).toBe(
+			`/queue/${articleId}/view#highlight-${id}`,
+		);
+		expect(rowsOf((await agent.get(viewPath(articleId))).text)).toEqual([
+			{ id, state: "anchored" },
+		]);
 	});
 
 	it("keeps the readlist return state on the redirect", async () => {
@@ -200,14 +222,14 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		});
 
 		const response = await agent
-			.post(`/queue/${articleId}/highlights?order=asc&feature=highlight`)
+			.post(`/queue/${articleId}/highlights?order=asc`)
 			.type("form")
 			.send(body);
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toMatch(
 			new RegExp(
-				`^/queue/${articleId}/view\\?order=asc&feature=highlight#highlight-`,
+				`^/queue/${articleId}/view\\?order=asc#highlight-`,
 			),
 		);
 	});
@@ -234,7 +256,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		]);
 
 		await agent.post(
-			`/queue/${articleId}/highlights/${id}/delete?feature=highlight`,
+			`/queue/${articleId}/highlights/${id}/delete`,
 		);
 		expect(rowsOf((await agent.get(viewPath(articleId))).text)).toEqual([]);
 	});
@@ -417,7 +439,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		);
 
 		const response = await agent
-			.post("/queue/not-an-id/highlights?feature=highlight")
+			.post("/queue/not-an-id/highlights")
 			.type("form")
 			.send({ exact: "a", start: "0", end: "1", origin: "mouse" });
 
@@ -479,25 +501,6 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(rowsOf((await agent.get(viewPath(articleId))).text)).toEqual([]);
 	});
 
-	it("answers 404 without the flag", async () => {
-		const harness = useApp(parsedFixture());
-		const { agent, articleId } = await saveArticle(
-			harness,
-			"https://example.com/highlight-no-flag",
-		);
-		const body = await rangeOf(agent, {
-			articleId,
-			exact: "readability parser",
-		});
-
-		const response = await agent
-			.post(`/queue/${articleId}/highlights`)
-			.type("form")
-			.send(body);
-
-		expect(response.status).toBe(404);
-	});
-
 	it("records highlight_created with exactly its keys", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
@@ -515,14 +518,16 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			"highlight_id",
 			"origin",
 			"stream",
+			"surface",
 			"timestamp",
 			"user_id",
 			"visitor_hash",
 		]);
 		expect(events[0].origin).toBe("mouse");
+		expect(events[0].surface).toBe("web");
 	});
 
-	it("records a tap create's origin and highlight id, keeping the flag in the redirect", async () => {
+	it("records a tap create's origin and highlight id", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -541,7 +546,6 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toContain("feature=highlight");
 		const events = harness.analytics.events.filter(
 			(event) => event.event === "highlight_created",
 		);
@@ -597,12 +601,12 @@ describe("Highlights (POST /queue/:id/highlights/:highlightId/delete)", () => {
 		});
 
 		const response = await agent.post(
-			`/queue/${articleId}/highlights/${second}/delete?feature=highlight`,
+			`/queue/${articleId}/highlights/${second}/delete`,
 		);
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
-			`/queue/${articleId}/view?feature=highlight#highlights-rail`,
+			`/queue/${articleId}/view#highlights-rail`,
 		);
 		const reopened = (await agent.get(viewPath(articleId))).text;
 		expect(rowsOf(reopened)).toEqual([{ id: first, state: "anchored" }]);
@@ -630,7 +634,7 @@ describe("Highlights (POST /queue/:id/highlights/:highlightId/delete)", () => {
 		);
 
 		const response = await agent.post(
-			`/queue/${articleId}/highlights/${crypto.randomUUID()}/delete?feature=highlight`,
+			`/queue/${articleId}/highlights/${crypto.randomUUID()}/delete`,
 		);
 
 		expect(response.status).toBe(404);
@@ -646,7 +650,7 @@ describe("Highlights (POST /queue/:id/highlights/:highlightId/delete)", () => {
 			articleId,
 			exact: "readability parser",
 		});
-		const deletePath = `/queue/${articleId}/highlights/${id}/delete?feature=highlight`;
+		const deletePath = `/queue/${articleId}/highlights/${id}/delete`;
 
 		const first = await agent.post(deletePath);
 		const second = await agent.post(deletePath);
@@ -676,7 +680,7 @@ describe("Highlights (POST /queue/:id/highlights/:highlightId/delete)", () => {
 			.send({ email: "other@example.com", password: "password123" });
 
 		const response = await other.post(
-			`/queue/${articleId}/highlights/${id}/delete?feature=highlight`,
+			`/queue/${articleId}/highlights/${id}/delete`,
 		);
 
 		expect(response.status).toBe(404);
@@ -690,7 +694,7 @@ describe("Highlights (POST /queue/:id/highlights/:highlightId/delete)", () => {
 		);
 
 		const response = await agent.post(
-			`/queue/not-an-id/highlights/${crypto.randomUUID()}/delete?feature=highlight`,
+			`/queue/not-an-id/highlights/${crypto.randomUUID()}/delete`,
 		);
 
 		expect(response.status).toBe(404);
@@ -704,28 +708,127 @@ describe("Highlights (POST /queue/:id/highlights/:highlightId/delete)", () => {
 		);
 
 		const response = await agent.post(
-			`/queue/${articleId}/highlights/not-a-uuid/delete?feature=highlight`,
+			`/queue/${articleId}/highlights/not-a-uuid/delete`,
 		);
 
 		expect(response.status).toBe(400);
 	});
 });
 
-describe("Highlights in the reader (GET /queue/:id/view)", () => {
-	it("shows the ToC card and no highlights section without the flag", async () => {
+describe("Highlights (POST /queue/:id/highlights/opened)", () => {
+	const openedPath = (articleId: string, query: string) =>
+		`/queue/${articleId}/highlights/opened?${query}`;
+
+	it.each(["mark", "rail"] as const)(
+		"records highlight_opened from the %s with exactly its keys and answers 204",
+		async (origin) => {
+			const harness = useApp(parsedFixture());
+			const { agent, articleId } = await saveArticle(
+				harness,
+				`https://example.com/highlight-opened-${origin}`,
+			);
+			const highlightId = await createHighlight(agent, {
+				articleId,
+				exact: "readability parser",
+			});
+
+			const response = await agent.post(
+				openedPath(articleId, `highlight=${highlightId}&origin=${origin}`),
+			);
+
+			expect(response.status).toBe(204);
+			const events = harness.analytics.events.filter(
+				(event) => event.event === "highlight_opened",
+			);
+			expect(events).toHaveLength(1);
+			expect(Object.keys(events[0]).sort()).toEqual([
+				"event",
+				"highlight_id",
+				"origin",
+				"stream",
+				"timestamp",
+				"user_id",
+				"visitor_hash",
+			]);
+			expect(events[0]).toMatchObject({ origin, highlight_id: highlightId });
+		},
+	);
+
+	it.each([
+		["an unknown origin", "highlight=11111111-1111-4111-8111-111111111111&origin=toolbar"],
+		["a non-uuid highlight id", "highlight=not-a-uuid&origin=mark"],
+		["no query", ""],
+	])("answers 204 and records nothing for %s", async (_case, query) => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
-			"https://example.com/highlight-view-no-flag",
+			"https://example.com/highlight-opened-malformed",
 		);
 
-		const page = doc((await agent.get(`/queue/${articleId}/view`)).text);
+		const response = await agent.post(openedPath(articleId, query));
 
-		expect(page.querySelector("[data-test-highlights-rail]")).toBeNull();
-		expect(page.querySelector("[data-test-highlight-toolbar]")).toBeNull();
+		expect(response.status).toBe(204);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_opened"),
+		).toEqual([]);
 	});
 
-	it("renders an empty rail and the toolbar with the flag and no rows", async () => {
+	it("answers 404 and records nothing for another owner's article", async () => {
+		const harness = useApp(parsedFixture());
+		const { articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-opened-foreign",
+		);
+		await harness.auth.createUser({
+			email: "other@example.com",
+			password: "password123",
+		});
+		const other = request.agent(harness.server);
+		await other
+			.post("/login")
+			.type("form")
+			.send({ email: "other@example.com", password: "password123" });
+
+		const response = await other.post(
+			openedPath(articleId, "highlight=11111111-1111-4111-8111-111111111111&origin=mark"),
+		);
+
+		expect(response.status).toBe(404);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_opened"),
+		).toEqual([]);
+	});
+});
+
+describe("Highlights in the reader (GET /queue/:id/view)", () => {
+	it("lists a stored highlight and posts new ones to the plain create path with no query", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-view-plain",
+		);
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+
+		const html = (await agent.get(`/queue/${articleId}/view`)).text;
+		const page = doc(html);
+
+		expect(page.querySelector("[data-test-highlights-rail]")).not.toBeNull();
+		expect(rowsOf(html)).toEqual([
+			{ id, state: "anchored" },
+		]);
+		const action = page
+			.querySelector("[data-test-highlight-create-form]")
+			?.getAttribute("action");
+		assert(action, "the reader must render the create form");
+		expect(new URL(action, TEST_APP_ORIGIN).pathname).toBe(
+			`/queue/${articleId}/highlights`,
+		);
+	});
+
+	it("renders an empty rail and the toolbar with no rows", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -737,6 +840,25 @@ describe("Highlights in the reader (GET /queue/:id/view)", () => {
 		expect(page.querySelector("[data-test-highlights-rail]")).not.toBeNull();
 		expect(page.querySelectorAll("[data-test-highlight-row]")).toHaveLength(0);
 		expect(page.querySelector("[data-test-highlight-toolbar]")).not.toBeNull();
+	});
+
+	it("tags the Highlight and Add note actions with one Beta chip in their toolbar", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-view-beta",
+		);
+
+		const page = doc((await agent.get(viewPath(articleId))).text);
+
+		const toolbar = page.querySelector("[data-test-highlight-toolbar]");
+		assert(toolbar, "the reader must render the highlight toolbar");
+		expect(toolbar.querySelector('[data-test-action="highlight"]')).not.toBeNull();
+		expect(toolbar.querySelector('[data-test-action="add-note"]')).not.toBeNull();
+		const chips = page.querySelectorAll("[data-test-highlight-toolbar-beta]");
+		expect(chips).toHaveLength(1);
+		expect(toolbar.contains(chips[0])).toBe(true);
+		expect(chips[0].textContent).toBe("Beta");
 	});
 
 	it("lists rows in orderKey order", async () => {
@@ -784,20 +906,20 @@ describe("Highlights in the reader (GET /queue/:id/view)", () => {
 		});
 		const bumped = await versionOf();
 		await agent.post(
-			`/queue/${articleId}/highlights/${id}/delete?feature=highlight`,
+			`/queue/${articleId}/highlights/${id}/delete`,
 		);
 		const deleted = await versionOf();
 
 		expect(new Set([initial, created, bumped]).size).toBe(3);
 		expect(deleted).toBe(initial);
 		await createHighlight(agent, { articleId, exact: "readability parser" });
-		const response = await agent.get(`${viewPath(articleId)}&v=${initial}`);
+		const response = await agent.get(`${viewPath(articleId)}?v=${initial}`);
 		expect(response.headers["cache-control"]).toContain("no-cache");
 	});
 });
 
 describe("Highlights on the reader polls", () => {
-	it("carries the flag on the poll URL", async () => {
+	it("polls the summary on the plain reader URL", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -808,7 +930,7 @@ describe("Highlights on the reader polls", () => {
 
 		expect(
 			page.querySelector("[data-test-reader-summary]")?.getAttribute("hx-get"),
-		).toBe(`/queue/${articleId}/summary?poll=1&feature=highlight`);
+		).toBe(`/queue/${articleId}/summary?poll=1`);
 	});
 
 	it("emits the rail out of band with anchored rows on the reader poll", async () => {
@@ -823,7 +945,7 @@ describe("Highlights on the reader polls", () => {
 		});
 
 		const poll = (
-			await agent.get(`/queue/${articleId}/reader?poll=1&feature=highlight`)
+			await agent.get(`/queue/${articleId}/reader?poll=1`)
 		).text;
 
 		const rail = doc(poll).querySelector("[data-test-highlights-rail]");
@@ -840,7 +962,7 @@ describe("Highlights on the reader polls", () => {
 		await fixture.articleCrawl.forceMarkCrawlPending({ url });
 
 		const poll = (
-			await agent.get(`/queue/${articleId}/summary?poll=1&feature=highlight`)
+			await agent.get(`/queue/${articleId}/summary?poll=1`)
 		).text;
 
 		expect(
@@ -882,23 +1004,11 @@ describe("Highlights on the reader polls", () => {
 		});
 
 		const poll = (
-			await agent.get(`/queue/${articleId}/reader?poll=1&feature=highlight`)
+			await agent.get(`/queue/${articleId}/reader?poll=1`)
 		).text;
 
 		expect(rowsOf(poll)).toEqual([{ id, state: "orphaned" }]);
 		expect(marksOf(poll)).toEqual([]);
-	});
-
-	it("emits no rail on the poll without the flag", async () => {
-		const harness = useApp(parsedFixture());
-		const { agent, articleId } = await saveArticle(
-			harness,
-			"https://example.com/highlight-poll-no-flag",
-		);
-
-		const poll = (await agent.get(`/queue/${articleId}/reader?poll=1`)).text;
-
-		expect(doc(poll).querySelector("[data-test-highlights-rail]")).toBeNull();
 	});
 });
 
@@ -1256,7 +1366,7 @@ describe("Highlights on the polls while the crawl is pending", () => {
 		});
 		await fixture.articleCrawl.markCrawlReady({ url });
 		const poll = doc(
-			(await agent.get(`/queue/${articleId}/reader?poll=1&feature=highlight`))
+			(await agent.get(`/queue/${articleId}/reader?poll=1`))
 				.text,
 		);
 
@@ -1279,7 +1389,7 @@ describe("Highlights on the polls while the crawl is pending", () => {
 		await fixture.articleCrawl.forceMarkCrawlPending({ url });
 
 		const poll = (
-			await agent.get(`/queue/${articleId}/summary?poll=1&feature=highlight`)
+			await agent.get(`/queue/${articleId}/summary?poll=1`)
 		).text;
 
 		expect(
@@ -1299,7 +1409,7 @@ describe("Highlights on the polls while the crawl is pending", () => {
 		await createHighlight(agent, { articleId, exact: "readability parser" });
 
 		const poll = doc(
-			(await agent.get(`/queue/${articleId}/summary?poll=1&feature=highlight`))
+			(await agent.get(`/queue/${articleId}/summary?poll=1`))
 				.text,
 		);
 

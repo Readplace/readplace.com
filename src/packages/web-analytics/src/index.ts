@@ -137,6 +137,7 @@ export {
 	type HighlightCreatedEvent,
 	type HighlightDeletedEvent,
 	type HighlightNoteSavedEvent,
+	type HighlightOpenedEvent,
 	type ViewOpenedEvent,
 	type ViewCrawlLimitedEvent,
 	type EpubImagesOverBudgetEvent,

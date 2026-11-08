@@ -1,7 +1,7 @@
 Readplace is a read-it-later app; sign-in is required.
 
 GETTING STARTED
-- Tap "Login" or "Sign up". Sign-in runs INSIDE the app in an ASWebAuthenticationSession sheet, never in Safari or Chrome. Tap Continue on the "Readplace wants to use readplace.com to Sign In" alert; the sheet closes when done.
+- Tap "Login" or "Sign up". Sign-in runs INSIDE the app in an ASWebAuthenticationSession sheet, never in a browser. Tap Continue on the "Readplace wants to use readplace.com to Sign In" alert.
 - The demo account has an active subscription. Sign-up is self-serve: test ACCOUNT DELETION on a throwaway account, not the demo.
 
 SAVING ARTICLES
@@ -9,16 +9,17 @@ SAVING ARTICLES
 - On the first share, choose any extra readlists and tap "Done". Shares always go to the main readlist; each readlist's "Shared articles drop here" checkbox sets the extra destinations.
 
 CHANGES IN 1.0.132
-- Offline: an article opened once stays on the device; in Airplane Mode it opens from that copy, marked "Saved offline", and readlists show as last loaded.
+- Offline: an opened article stays on the device; in Airplane Mode it opens from that copy, marked "Saved offline"; readlists show as last loaded.
 - The download button atop a readlist fetches every unread article ahead of time; an interrupted download can resume.
-- Automatic page capture: if the server couldn't load an article from its site, opening it loads the page in an off-screen web view and uploads it to the user's account, once per article per device, never an error or CAPTCHA page. To see it, save and open a page from a site that blocks automated fetches.
-- Swiping a row fully left marks it read or unread.
-- An article being prepared shows a spinner, "Processing" and "~N s left" in its row and the reader; the row updates without a tap (share a new page, return to the list). Save times stay current on an open list.
+- Automatic page capture: if the server couldn't load an article, opening it loads the page in a hidden web view and uploads it to the account, once per article per device, never an error or CAPTCHA page. Try a site that blocks automated fetches.
+- A full left swipe on a row marks it read or unread.
+- An article being prepared shows "Processing" and "~N s left" in its row and the reader; the row updates without a tap. Save times stay current on an open list.
 - The consent page shows which account the app will connect to; Cancel closes the sheet with no error.
-- Account (person icon) has headed sections: display name, Change password (signs out other connected apps) and connected apps, each with its latest sign-in and "Sign out from all devices".
+- Account (person icon) has headed sections: display name, Change password (signs out other apps) and connected apps, each with its latest sign-in and "Sign out from all devices".
 - A readplace.com link (e.g. Account > Export data) opens the browser signed in there, via a single-use 60-second code.
-- The reader card shows tags, publish and save dates and icon-led facts. Under a loaded article (not a private newsletter issue, which explains why it can't be shared or downloaded) "Report this article" emails readplace+report@readplace.com. Books uploaded at readplace.com/upload open with chapters, long ones paged by chapter.
-- Fixes: re-sharing a read article confirms the save, the intro keeps its mute choice, an interrupted sign-in renewal no longer signs out, "Copying the page from your device" ends with the capture, signing out ends only this device's sessions, wide tables stack.
+- The reader shows tags, publish and save dates. Under a loaded article (not a private newsletter issue, which explains why it can't be shared) "Report this article" emails readplace+report@readplace.com. Books uploaded at readplace.com/upload open with chapters.
+- Highlights (Beta): in the reader, long-press text or tap a sentence, then tap Highlight; "Add note" adds a note. The Highlights list jumps to, edits or deletes each. Markdown and EPUB downloads include them.
+- Fixes: re-sharing a read article confirms the save, the intro keeps your mute choice, an interrupted sign-in renewal keeps you signed in, "Copying the page from your device" ends with the capture, signing out ends only this device's sessions, wide tables stack.
 
 NOTES FOR REVIEW
 - API traffic goes only to https://readplace.com. The reader and page-capture web views also load saved pages from their sites; NSAllowsArbitraryLoadsInWebContent is only for them, as some are http-only.
@@ -27,6 +28,6 @@ NOTES FOR REVIEW
 - TRACKING: the app does not track. No third-party SDK, no AppTrackingTransparency, IDFA or AdSupport reference, and no data shared with third parties or brokers. Its privacy manifest sets NSPrivacyTracking = false with empty NSPrivacyTrackingDomains; the email, user ID and reading history it collects only run the user's own reading list on our server.
 - ACCOUNT DELETION: in the Reading List tap "Account" (person icon, top-right); the account page opens in-app. Under "Danger zone" tap "Delete account". A dialog asks for the exact phrase
       delete my account permanently
-  Type it and tap "Delete account" (on iOS 16 the field and button appear under the row). The account, saved articles and reading history are deleted and the app returns to sign-in; same flow at readplace.com/account.
+  Type it and tap "Delete account" (on iOS 16 the field and button appear under the row). The account, saved articles, highlights and notes, and reading history are deleted and the app returns to sign-in; same flow at readplace.com/account.
 
 Demo account: in the App Review Information fields.

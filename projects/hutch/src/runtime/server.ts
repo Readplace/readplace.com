@@ -323,6 +323,7 @@ import { accountDependenciesFrom } from "./web/pages/account/account.wiring";
 import { initResolveOwnedArticle } from "./web/mcp/article-lookup";
 import { initResolveReadlistMembership } from "./web/mcp/readlist-membership";
 import { initMcpReadlistOperations } from "./web/mcp/readlist-operations";
+import { initMcpHighlightOperations } from "./web/mcp/highlight-operations";
 import { generateReadlistSlug } from "@packages/domain/readlist";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
@@ -398,6 +399,7 @@ import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
+import { initCanSaveContent } from "./web/middleware/can-save-content";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { requireNotLocked } from "./web/middleware/require-not-locked.middleware";
 import { requireEnv, getEnv } from "@packages/require-env";
@@ -757,7 +759,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		findUserById: deps.findUserById,
 		now: deps.now,
 	});
-	const resolveToolAccess = initResolveToolAccess({ getEffectiveAccess, appOrigin });
+	const resolveToolAccess = initResolveToolAccess({ getEffectiveAccess });
 	const resolveMcpSaveProvenance = initResolveMcpSaveProvenance({
 		findOAuthClient: deps.findOAuthClient,
 	});
@@ -812,10 +814,25 @@ export function createApp(dependencies: AppDependencies): Express {
 		resolveOwnedArticle,
 		resolveReadlistMembership,
 	});
+	const createReaderHighlight = initCreateReaderHighlight({
+		listArticleHighlights: deps.listArticleHighlights,
+		createHighlight: deps.createHighlight,
+		newHighlightId: randomUUID,
+		now: deps.now,
+	});
+	const highlightOperations = initMcpHighlightOperations({
+		resolveOwnedArticle,
+		readArticleContent: deps.readArticleContent,
+		readCanonicalSnapshot: deps.readCanonicalSnapshot,
+		listArticleHighlights: deps.listArticleHighlights,
+		createHighlight: createReaderHighlight,
+		appOrigin,
+	});
 	const mcpServer = initMcpServer(mcpServerDependenciesFrom(deps, {
 		appOrigin,
 		resolveToolAccess,
 		readlistOperations,
+		highlightOperations,
 		resolveSaveAccess,
 		recordUngatedAnalyticsEvent,
 		validateNewSaveUrl,
@@ -909,6 +926,10 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(markExtensionInstalled);
 
 	const requireWriteAccess = initRequireWriteAccess({
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		now: deps.now,
+	});
+	const canSaveContent = initCanSaveContent({
 		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
 		now: deps.now,
 	});
@@ -1502,12 +1523,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const keepOffer = initKeepOffer({ findUserById: deps.findUserById, getEffectiveAccess, now: deps.now, endsAt: deps.keepOfferEndsAt });
 
 	const queueRouter = initReadlistRoutes(readlistDependenciesFrom(deps, {
-		createReaderHighlight: initCreateReaderHighlight({
-			listArticleHighlights: deps.listArticleHighlights,
-			createHighlight: deps.createHighlight,
-			newHighlightId: randomUUID,
-			now: deps.now,
-		}),
+		createReaderHighlight,
 		keepOffer,
 		validateNewSaveUrl,
 		appOrigin,
@@ -1524,6 +1540,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		resolveOwnedArticle,
 		resolveVerificationStatus,
 		requireWriteAccess,
+		canSaveContent,
 		getEffectiveAccess,
 		buildBannerState,
 		recordAnalyticsEvent,

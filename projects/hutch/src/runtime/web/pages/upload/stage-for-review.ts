@@ -10,9 +10,10 @@ import type {
 	RecordTimedMediaFacts,
 } from "@packages/domain";
 import type { MediaKindManifest, Meter, TimedFactsRefusal } from "@packages/media-contracts";
+import { refusalOfLowerBound } from "./charge-transcript";
 import { defaultFileNameOf, type SettleAnyReceivedUpload, type SettleReceivedUpload } from "./commit-received-upload";
 import type { UploadOutcome } from "./upload.outcome";
-import { uploadRefusalCopyOf } from "./upload.refusal";
+import { type UploadRefusalReason, uploadRefusalCopyOf } from "./upload.refusal";
 
 export type StageForReview = (params: {
 	session: AnonymousMediaUploadSession;
@@ -21,7 +22,7 @@ export type StageForReview = (params: {
 	size: number;
 }) => Promise<UploadOutcome<"staged-for-review">>;
 
-function rejectedAs(params: { refusal: TimedFactsRefusal; allowanceSeconds: number }): MediaInspectionVerdict {
+function rejectedAs(params: { refusal: UploadRefusalReason; allowanceSeconds: number }): MediaInspectionVerdict {
 	return { verdict: "rejected", reason: "unreadable", notice: uploadRefusalCopyOf(params.allowanceSeconds)[params.refusal] };
 }
 
@@ -54,7 +55,15 @@ export function initStageForReview(deps: {
 				etag,
 				kind: kind.name,
 				inspection:
-					"unreadable" in facts
+					"atLeastSeconds" in facts
+						? rejectedAs({
+								refusal: refusalOfLowerBound({
+									atLeastSeconds: facts.atLeastSeconds,
+									allowanceSeconds: deps.transcriptAllowanceSeconds,
+								}),
+								allowanceSeconds: deps.transcriptAllowanceSeconds,
+							})
+						: "unreadable" in facts
 						? rejectedAs({ refusal: "unreadable-audio", allowanceSeconds: deps.transcriptAllowanceSeconds })
 						: timedInspection({
 								refusal: kind.refuseTimedFacts(facts),

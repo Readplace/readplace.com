@@ -15,6 +15,13 @@ export type ChargeTranscript = (params: {
 	etag: string;
 }) => Promise<ChargeDecision>;
 
+export function refusalOfLowerBound(p: {
+	atLeastSeconds: number;
+	allowanceSeconds: number;
+}): "transcript-too-long" | "unreadable-audio" {
+	return billableSeconds(p.atLeastSeconds) > p.allowanceSeconds ? "transcript-too-long" : "unreadable-audio";
+}
+
 export function initChargeTranscript(deps: {
 	readDurationByMeter: ReadonlyMap<Meter, ReadTimedDuration>;
 	chargeTranscriptQuota: ChargeTranscriptQuota;
@@ -26,6 +33,11 @@ export function initChargeTranscript(deps: {
 		assert(readDuration, `no duration reader for the ${kind.meter} meter`);
 		const facts = await readDuration({ uploadId: session.uploadId, etag });
 		if ("unreadable" in facts) return { kind: "refuse", reason: "unreadable-audio" };
+		if ("atLeastSeconds" in facts)
+			return {
+				kind: "refuse",
+				reason: refusalOfLowerBound({ atLeastSeconds: facts.atLeastSeconds, allowanceSeconds: deps.allowanceSeconds }),
+			};
 		const refusal = kind.refuseTimedFacts(facts);
 		if (refusal !== undefined) return { kind: "refuse", reason: refusal };
 		const seconds = billableSeconds(facts.durationSeconds);

@@ -1,7 +1,6 @@
 import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
-	ARTICLE_HIGHLIGHT_ID_PREFIX,
 	HighlightIdSchema,
 	HighlightNoteSchema,
 	type ReaderArticleHashId,
@@ -15,10 +14,8 @@ import express from "express";
 import { z } from "zod";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
-import {
-	highlightPathsFor,
-	requireHighlightFeature,
-} from "./highlight-feature";
+import { highlightReaderLocation } from "./highlight-surface";
+import { highlightFormScopeFor } from "./reader-highlight-options";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
 
 const UpdateHighlightNoteBodySchema = z.object({
@@ -53,7 +50,6 @@ export function initHighlightNoteRoutes(
 
 	router.post(
 		"/:id/highlights/:highlightId/note",
-		requireHighlightFeature,
 		requireNotLocked,
 		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),
@@ -102,13 +98,12 @@ export function initHighlightNoteRoutes(
 					action,
 				});
 			}
-			const { viewPath } = highlightPathsFor({
-				articleId: article.id.value,
-				query: req.query,
-			});
 			res.redirect(
 				303,
-				`${viewPath}#${ARTICLE_HIGHLIGHT_ID_PREFIX}${highlightId.data}`,
+				highlightReaderLocation({
+					...highlightFormScopeFor(req, article.id.value),
+					fragment: { highlightId: highlightId.data },
+				}),
 			);
 		},
 	);

@@ -364,21 +364,21 @@ describe("Reader view browser cache (GET /queue/:id/view)", () => {
 	});
 });
 
-describe("Reader view browser cache with highlights (GET /queue/:id/view?feature=highlight)", () => {
+describe("Reader view browser cache with highlights (GET /queue/:id/view)", () => {
 	type Agent = Awaited<ReturnType<typeof loginAgent>>;
-	const flagged = ({ articleId, version }: { articleId: string; version?: string }) =>
-		`/queue/${articleId}/view?${version === undefined ? "" : `v=${version}&`}feature=highlight`;
+	const readerPath = ({ articleId, version }: { articleId: string; version?: string }) =>
+		`/queue/${articleId}/view${version === undefined ? "" : `?v=${version}`}`;
 
 	async function highlight(agent: Agent, articleId: string): Promise<string> {
 		const exact = "readability parser";
-		const content = new JSDOM((await agent.get(flagged({ articleId }))).text).window.document.querySelector(
+		const content = new JSDOM((await agent.get(readerPath({ articleId }))).text).window.document.querySelector(
 			".article-body__content",
 		);
-		assert(content, "the flagged reader must render its content");
+		assert(content, "the reader must render its content");
 		const start = normaliseText(collectTextChunks<Node>(content)).text.indexOf(exact);
 		assert(start >= 0, "the served text must hold the passage");
 		const created = await agent
-			.post(`/queue/${articleId}/highlights?feature=highlight`)
+			.post(`/queue/${articleId}/highlights`)
 			.type("form")
 			.send({ exact, start: String(start), end: String(start + exact.length), origin: "mouse" });
 		assert.equal(created.status, 303);
@@ -396,7 +396,7 @@ describe("Reader view browser cache with highlights (GET /queue/:id/view?feature
 		const { articleId, version } = readerVersionFrom((await agent.get("/queue")).text);
 		await highlight(agent, articleId);
 
-		const response = await agent.get(flagged({ articleId, version }));
+		const response = await agent.get(readerPath({ articleId, version }));
 
 		expect(response.status).toBe(200);
 		expect(response.headers["cache-control"]).toBe("private, no-cache");
@@ -410,7 +410,7 @@ describe("Reader view browser cache with highlights (GET /queue/:id/view?feature
 		await settleRelated(fixture, userId, url);
 		const { articleId } = readerVersionFrom((await agent.get("/queue")).text);
 		const versionOf = async () =>
-			(await agent.get(flagged({ articleId }))).headers[ARTICLE_VERSION_HEADER.toLowerCase()];
+			(await agent.get(readerPath({ articleId }))).headers[ARTICLE_VERSION_HEADER.toLowerCase()];
 
 		const initial = await versionOf();
 		const id = await highlight(agent, articleId);
@@ -421,7 +421,7 @@ describe("Reader view browser cache with highlights (GET /queue/:id/view?feature
 			highlightId: HighlightIdSchema.parse(id),
 		});
 		const bumped = await versionOf();
-		await agent.post(`/queue/${articleId}/highlights/${id}/delete?feature=highlight`);
+		await agent.post(`/queue/${articleId}/highlights/${id}/delete`);
 		const deleted = await versionOf();
 
 		expect([created === initial, bumped === created, deleted === bumped]).toEqual([false, false, false]);
@@ -435,10 +435,10 @@ describe("Reader view browser cache with highlights (GET /queue/:id/view?feature
 		await settleRelated(fixture, userId, url);
 		const { articleId, version } = readerVersionFrom((await agent.get("/queue")).text);
 
-		const fresh = await agent.get(flagged({ articleId, version }));
+		const fresh = await agent.get(readerPath({ articleId, version }));
 		const etag = fresh.headers.etag;
 		assert(etag, "the reader must carry an ETag");
-		const revalidated = await agent.get(flagged({ articleId, version })).set("If-None-Match", etag);
+		const revalidated = await agent.get(readerPath({ articleId, version })).set("If-None-Match", etag);
 
 		expect(fresh.headers["cache-control"]).toBe("private, max-age=1800");
 		expect(fresh.headers[ARTICLE_VERSION_HEADER.toLowerCase()]).toBe(version);

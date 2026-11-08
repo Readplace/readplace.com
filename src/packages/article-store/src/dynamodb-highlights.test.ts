@@ -344,6 +344,26 @@ describe("initDynamoDbHighlights", () => {
 		assert.equal(queries.length > 1, true);
 	});
 
+	it("listAllUserHighlights reads every highlight of the user over several query pages, and nothing else", async () => {
+		const table = createFakeTable();
+		const store = initStore(table.client);
+		const mine = [ARTICLE, ARTICLE, NESTED_ARTICLE].map((url) => aHighlight({ highlightOf: url }));
+		for (const highlight of mine) {
+			await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		}
+		await store.createHighlight({ userId: OTHER_USER, highlight: aHighlight(), replacedIds: [] });
+		table.seed({ userId: USER, url: ARTICLE, savedAt: "2026-11-01T10:00:00.000Z" });
+
+		const listed = await store.listAllUserHighlights(USER);
+
+		assert.deepEqual(
+			listed.map((highlight) => highlight.highlightId).sort(),
+			mine.map((highlight) => highlight.highlightId).sort(),
+		);
+		const queries = table.sent.filter((command) => command.name === "QueryCommand");
+		assert.equal(queries.length, 2);
+	});
+
 	describe("updateHighlightNote", () => {
 		const EDITED_AT = new Date("2026-11-02T09:00:00.000Z");
 

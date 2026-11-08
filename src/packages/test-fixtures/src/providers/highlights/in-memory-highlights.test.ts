@@ -156,6 +156,19 @@ describe("initInMemoryHighlights", () => {
 	});
 });
 
+describe("initInMemoryHighlights listAllUserHighlights", () => {
+	it("returns every article's highlights of that reader only", async () => {
+		const store = initInMemoryHighlights();
+		const onX = aHighlight();
+		const onNested = aHighlight({ highlightOf: NESTED_ARTICLE });
+		await store.createHighlight({ userId: USER, highlight: onX, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlight: onNested, replacedIds: [] });
+		await store.createHighlight({ userId: OTHER_USER, highlight: aHighlight(), replacedIds: [] });
+
+		assert.deepEqual(await store.listAllUserHighlights(USER), [onX, onNested]);
+	});
+});
+
 describe("initInMemoryHighlights anchors", () => {
 	const POST = ArticleResourceUniqueId.parse("https://example.com/post").value;
 	const OTHER_POST = ArticleResourceUniqueId.parse("https://example.com/other").value;

@@ -1,11 +1,11 @@
 ---
 title: "Omnivore Alternative: A Read-It-Later App With No Investors"
-description: "Why Omnivore shut down 2 weeks after its team joined ElevenLabs, and a table of what Readplace matches and still lacks, like highlights and full-text search."
+description: "Why Omnivore shut down 2 weeks after its team joined ElevenLabs, and a table of what Readplace matches and still lacks, like full-text search."
 excerpt: "Omnivore users had 17 days between the ElevenLabs announcement and the start of data deletion."
 tldr: "Omnivore shut down 2 weeks after its team joined ElevenLabs. The cause was venture capital that needed an exit. Readplace is self-funded through subscriptions, with no investors. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, a JSON export of every saved article, and source-available code. It runs in Sydney under Australian privacy law."
 slug: "omnivore-alternative"
 date: "2026-05-06"
-lastModified: "2026-11-04"
+lastModified: "2026-11-09"
 author: "Fayner Brack"
 keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read it later app, ElevenLabs Omnivore, Readwise Reader alternative, Pocket alternative"
 ---
@@ -53,14 +53,14 @@ Omnivore had years of head start. Readplace is younger, and I would rather show 
 | Dark mode | Yes | Yes | Shipped |
 | Data export | Yes | JSON list, no article text | Shipped |
 | Open source | Yes (AGPL-3.0, repository still public) | Source-available | Shipped |
-| Highlights and notes | Yes | No | Not built |
+| Highlights and notes | Yes | One colour, a note on each | Shipped |
 | Full-text search | Yes | No | Planned |
 | Newsletter inbox | Yes | Forwarding address per newsletter | Shipped |
 | Labels / tags | Yes | Readlists, up to 7 | Shipped as readlists, no tags |
 | PDFs | Yes | Yes, scans read by OCR | Shipped |
 | Native mobile apps | Yes | iPhone and Mac | Shipped for iPhone and Mac, Android planned |
 | RSS feed reader | Yes | No | Not planned yet |
-| API access | Yes | MCP server with 12 tools | Shipped |
+| API access | Yes | MCP server with 14 tools | Shipped |
 
 The table shows what exists today. Rows marked Not built are gaps.
 

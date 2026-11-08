@@ -113,6 +113,28 @@ describe("Guest audio review", () => {
 		expect(featuresOfUploadAgain(doc)).toBe("transcripts");
 	});
 
+	it.each([
+		{
+			name: "past the allowance as too long",
+			atLeastSeconds: 1251,
+			notice: "This file is longer than your 20 minutes of transcript a day. Split it into parts of 20 minutes or less.",
+		},
+		{
+			name: "inside the allowance as unreadable",
+			atLeastSeconds: 600,
+			notice: "Readplace couldn't read this audio file. Upload an MP3 or M4A that plays on your device.",
+		},
+	])("rejects a flagged guest's audio whose scan was cut off $name", async ({ atLeastSeconds, notice }) => {
+		duration = { atLeastSeconds };
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { uploadId } = await guestAudio(harness);
+
+		const { doc } = await reviewOf(harness, uploadId);
+		expect(doc.querySelector("#upload-status")?.getAttribute("data-upload-status")).toBe("rejected");
+		expect(doc.querySelector("[data-test-upload-notice]")?.textContent).toBe(notice);
+		expect(doc.querySelector("[data-test-upload-commit-form]")).toBeNull();
+	});
+
 	it("charges the reader who saves a flagged guest's audio", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { uploadId } = await guestAudio(harness);

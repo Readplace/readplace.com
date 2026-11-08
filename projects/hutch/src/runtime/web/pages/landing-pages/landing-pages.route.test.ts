@@ -81,6 +81,21 @@ describe("landing pages", () => {
 		expect(rowHeaders).toEqual(comparison.rows.map((row) => row.feature));
 	});
 
+	it("renders the Highlights and notes row with the Readplace value the content declares", async () => {
+		const { doc } = await loadPage("readwise-reader-alternative");
+
+		const [comparison] = LANDING_PAGE_CONTENT["readwise-reader-alternative"].comparisons;
+		assert(comparison, "readwise-reader-alternative declares a comparison");
+		const declared = comparison.rows.find((row) => row.feature === "Highlights and notes");
+		assert(declared, "readwise-reader-alternative declares a Highlights and notes row");
+		const row = Array.from(doc.querySelectorAll("table.lp-comparison tbody tr")).find(
+			(tr) => tr.querySelector("th")?.textContent === "Highlights and notes",
+		);
+		assert(row, "the comparison table must render a Highlights and notes row");
+		const [readplaceCell] = Array.from(row.querySelectorAll("td"));
+		expect(readplaceCell?.textContent).toBe(declared.readplace);
+	});
+
 	it("sends the newsletter page's hero to signup and back to the inbox", async () => {
 		const { doc } = await loadPage("save-newsletter-links");
 

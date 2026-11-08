@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { READLIST_MAX_PER_USER } from "../readlist";
 
-/** What invoking the operation does to the readlist. An `appOnly` operation exists
+/** What invoking the operation does. An `appOnly` operation exists
  * so an assistant can answer the request, but it changes nothing: the user
  * performs it in the Readplace app. */
 export type McpOperationEffect = "save" | "read" | "update" | "appOnly";
@@ -116,6 +116,25 @@ export const MCP_OPERATIONS = [
 			"Return the steps for the user to delete a saved article themselves in the Readplace app, with a link to their readlist. Use this when the user asks you to delete or remove a saved article. Calling it changes nothing: deleting is done by the user in the app, never by the assistant.",
 		summary: "answers with a note pointing the user to the app; deleting stays in Readplace.",
 		effect: "appOnly",
+	},
+	{
+		name: "list_highlights",
+		title: "List highlights in a saved article",
+		description:
+			"List the user's highlights and notes in one saved article, by the id from list_readlist_articles, in reading order. A highlight whose passage is gone from the current version is listed as not found. " +
+			ARTICLE_LINK_GUIDANCE,
+		summary: "returns the user's highlights and notes in one saved article.",
+		effect: "read",
+	},
+	{
+		name: "create_highlight",
+		title: "Highlight a passage in a saved article",
+		description:
+			"Highlight a passage in one saved article by quoting it exactly as get_article_content shows it, optionally with a note. Pass text_before only when the quote appears more than once. A quote that is not in the article is refused and nothing is saved. A quote that overlaps or touches one of the user's highlights extends that highlight and adds the note to it; the result says merged and carries its new id. " +
+			ARTICLE_LINK_GUIDANCE,
+		summary:
+			"highlights a quoted passage in one saved article, with an optional note.",
+		effect: "update",
 	},
 ] as const satisfies readonly McpOperationShape[];
 

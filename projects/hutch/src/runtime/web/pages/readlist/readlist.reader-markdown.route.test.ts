@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import matter from "gray-matter";
+import { JSDOM } from "jsdom";
 import request from "supertest";
-import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
+import { CandidateIdSchema } from "@packages/article-state-types";
+import { HighlightIdSchema, MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
+import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
@@ -21,8 +24,9 @@ type Harness = ReturnType<typeof useApp>;
 
 function buildHarness() {
 	const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
-	const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary });
-	return { harness, summary };
+	const fixture = { ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary };
+	const harness = useApp(fixture);
+	return { harness, summary, fixture };
 }
 
 function sirenGet(harness: Harness, params: { path: string; token: string }) {
@@ -591,5 +595,130 @@ describe("Private upload reader Markdown (GET /queue/:id/view with Accept: text/
 		expect(response.text).not.toContain("PRIVATE-BOOK-BODY");
 		expect(matter(response.text).data.title).toBe("Private upload");
 		expect(response.text).not.toContain("A private book");
+	});
+});
+
+describe("Owner reader Markdown highlights (GET /queue/:id/view with Accept: text/markdown)", () => {
+	const url = "https://example.com/highlighted-post?utm_source=x";
+	const id = ReaderArticleHashId.from(url).value;
+	type Agent = Awaited<ReturnType<typeof loginAgent>>;
+
+	async function savedReadyArticle(
+		harness: Harness,
+		body = "<p>Opening line of the body.</p><p>A passage worth keeping for later.</p>",
+	) {
+		const { agent, userId } = await loggedInOwner(harness);
+		await harness.articleStore.saveArticle({
+			userId,
+			url,
+			metadata: { title: "Highlighted", siteName: "example.com", excerpt: "Blurb.", wordCount: 9 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+		});
+		await harness.articleStore.writeContent({
+			url,
+			content: body,
+		});
+		await harness.articleCrawl.markCrawlReady({ url });
+		return agent;
+	}
+
+	async function createHighlight(
+		agent: Agent,
+		exact: string,
+		occurrence: "first" | "last" = "first",
+	): Promise<string> {
+		const page = new JSDOM((await agent.get(`/queue/${id}/view`)).text).window.document;
+		const content = page.querySelector(".article-body__content");
+		assert(content, "the reader must render its content");
+		const text = normaliseText(collectTextChunks<Node>(content)).text;
+		const start = occurrence === "first" ? text.indexOf(exact) : text.lastIndexOf(exact);
+		assert(start >= 0, `the served text must hold "${exact}"`);
+		const response = await agent
+			.post(`/queue/${id}/highlights`)
+			.type("form")
+			.send({ exact, start: String(start), end: String(start + exact.length), origin: "mouse" });
+		assert.equal(response.status, 303);
+		const match = /#highlight-(.+)$/.exec(response.headers.location);
+		assert(match, "the create redirect must name the new highlight");
+		return HighlightIdSchema.parse(match[1]);
+	}
+
+	const markdownOf = (agent: Agent) =>
+		agent.get(`/queue/${id}/view`).set("Accept", "text/markdown");
+
+	it("ends the Markdown with a Highlights section holding each quote", async () => {
+		const { harness } = buildHarness();
+		const agent = await savedReadyArticle(harness);
+		await createHighlight(agent, "passage worth keeping");
+
+		const response = await markdownOf(agent);
+
+		expect(response.status).toBe(200);
+		expect(response.text.endsWith("## Highlights\n\n> passage worth keeping\n")).toBe(true);
+	});
+
+	it("lists the second of two identical passages without an orphan suffix when no canonical snapshot exists", async () => {
+		const { harness } = buildHarness();
+		const agent = await savedReadyArticle(
+			harness,
+			"<p>The same words again.</p><p>A middle line between them.</p><p>The same words again.</p>",
+		);
+		await createHighlight(agent, "same words again", "last");
+
+		const response = await markdownOf(agent);
+
+		expect(response.status).toBe(200);
+		expect(response.text.endsWith("## Highlights\n\n> same words again\n")).toBe(true);
+	});
+
+	it("anchors against the canonical snapshot's body, listing a quote it lost as not found", async () => {
+		const { harness, fixture } = buildHarness();
+		const agent = await savedReadyArticle(harness);
+		await createHighlight(agent, "passage worth keeping");
+		await fixture.articleStore.replaceCanonicalContent({
+			url,
+			content: "<p>Opening line of the body.</p><p>A rewritten second paragraph.</p>",
+			canonicalContentHash: "snapshot-hash",
+			canonicalCandidateId: CandidateIdSchema.parse("snapshot-candidate"),
+		});
+
+		const response = await markdownOf(agent);
+
+		expect(response.status).toBe(200);
+		expect(response.text).toContain("A rewritten second paragraph.");
+		expect(
+			response.text.endsWith("## Highlights\n\n> passage worth keeping (not found in the current version)\n"),
+		).toBe(true);
+	});
+
+	it("lists a stored orphan with its suffix while a recrawl is pending over the stored body", async () => {
+		const { harness, fixture } = buildHarness();
+		const agent = await savedReadyArticle(harness);
+		await createHighlight(agent, "passage worth keeping");
+		const [{ userId, highlight }] = await fixture.highlights.listHighlightsOfArticle(url);
+		await fixture.highlights.writeHighlightAnchor({
+			userId,
+			url: highlight.highlightOf,
+			highlightId: highlight.highlightId,
+			expectedRevision: highlight.anchorRevision,
+			anchor: {
+				start: highlight.start,
+				end: highlight.end,
+				anchorState: "orphaned",
+				anchoredContentHash: "older-hash",
+				orderKey: highlight.orderKey,
+			},
+		});
+		await harness.articleCrawl.forceMarkCrawlPending({ url });
+
+		const response = await markdownOf(agent);
+
+		expect(response.status).toBe(200);
+		expect(matter(response.text).data.readplace_content_status).toBe("processing");
+		expect(
+			response.text.endsWith("## Highlights\n\n> passage worth keeping (not found in the current version)\n"),
+		).toBe(true);
 	});
 });

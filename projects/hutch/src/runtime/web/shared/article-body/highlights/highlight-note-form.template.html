@@ -1,4 +1,4 @@
-<form class="confirm-popover__actions highlight-note-form" method="POST" action="{{action}}"{{#if answersInPlace}} hx-post="{{action}}" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-dialog-form data-dialog-form-failure="{{failureMessage}}"{{else}} hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{/if}}{{#if refusal}} data-highlight-note-refusal="{{refusal}}"{{/if}} data-test-form="{{key}}">
+<form class="confirm-popover__actions highlight-note-form" method="POST" action="{{action}}"{{#if answersInPlace}} hx-post="{{action}}" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-dialog-form data-dialog-form-failure="{{failureMessage}}"{{else}} hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}}{{/if}}{{#if refusal}} data-highlight-note-refusal="{{refusal}}"{{/if}} data-test-form="{{key}}">
   {{#each hiddenFields}}
   <input type="hidden" name="{{name}}" value="{{value}}">
   {{/each}}

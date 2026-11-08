@@ -4,6 +4,7 @@ import { initMcpSaveLink } from "./mcp-save-link";
 import { initRecordMcpHandshake, initRecordMcpToolCall } from "./mcp-analytics";
 import { initMcpArticleOperations } from "./article-operations";
 import type { initMcpReadlistOperations } from "./readlist-operations";
+import type { initMcpHighlightOperations } from "./highlight-operations";
 
 export function mcpServerDependenciesFrom(
 	deps: Pick<AppDependencies, "now" | "logError" | "findReadlistArticles" | "findArticlesByUser" | "findArticlesAcrossReadlists" | "readArticleContent" | "findGeneratedSummary" | "findRelatedArticles" | "updateArticleStatusAcrossReadlists" | "recordEngagementActivity" | "refreshArticleIfStale" | "publishSubmitLink" | "baseUrl">,
@@ -11,6 +12,7 @@ export function mcpServerDependenciesFrom(
 		appOrigin: McpServerDeps["appOrigin"];
 		resolveToolAccess: McpServerDeps["resolveToolAccess"];
 		readlistOperations: ReturnType<typeof initMcpReadlistOperations>;
+		highlightOperations: ReturnType<typeof initMcpHighlightOperations>;
 		recordUngatedAnalyticsEvent: Parameters<typeof initRecordMcpToolCall>[0]["recordUngatedAnalyticsEvent"];
 		resolveOwnedArticle: Parameters<typeof initMcpArticleOperations>[0]["resolveOwnedArticle"];
 	} & Pick<
@@ -22,6 +24,7 @@ export function mcpServerDependenciesFrom(
 		appOrigin,
 		resolveToolAccess,
 		readlistOperations,
+		highlightOperations,
 		resolveSaveAccess,
 		recordUngatedAnalyticsEvent,
 		validateNewSaveUrl,
@@ -54,6 +57,12 @@ export function mcpServerDependenciesFrom(
 			now: deps.now,
 		}),
 		logError: deps.logError,
+		listHighlights: highlightOperations.listHighlights,
+		createHighlight: async (params) => {
+			const access = await resolveSaveAccess(params.userId);
+			if (!access.allowed) return { status: "access_denied", message: access.message };
+			return highlightOperations.createHighlight(params);
+		},
 		saveLink: initMcpSaveLink({
 			resolveSaveAccess,
 			validateNewSaveUrl,

@@ -81,13 +81,13 @@ async function highlightedReaderPath(input: {
 	articleId: string;
 	exact: string;
 }): Promise<string> {
-	const path = `/queue/${input.articleId}/view?feature=highlight`;
+	const path = `/queue/${input.articleId}/view`;
 	const content = parse((await input.agent.get(path)).text).querySelector(".article-body__content");
-	assert(content, "the flagged reader must render its content");
+	assert(content, "the reader must render its content");
 	const start = normaliseText(collectTextChunks<Node>(content)).text.indexOf(input.exact);
 	assert(start >= 0, `the served text must hold "${input.exact}"`);
 	const created = await input.agent
-		.post(`/queue/${input.articleId}/highlights?feature=highlight`)
+		.post(`/queue/${input.articleId}/highlights`)
 		.type("form")
 		.send({
 			exact: input.exact,
@@ -383,7 +383,7 @@ describe("every popup opens on its first decision", () => {
 		const unserved = await fixture.articleStore.findArticleByUrl(unservedUrl);
 		assert(unserved, "the unserved article is saved");
 		const refusedNote = await agent
-			.post(`/queue/${unserved.id.value}/highlights?feature=highlight`)
+			.post(`/queue/${unserved.id.value}/highlights`)
 			.set("HX-Request", "true")
 			.type("form")
 			.send({ exact: "anything", start: "0", end: "8", origin: "mouse", note: "Kept", answer: "dialog" });

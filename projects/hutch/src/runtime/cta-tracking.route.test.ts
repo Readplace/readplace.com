@@ -103,15 +103,15 @@ async function highlightedReaderPath(input: {
 	articleId: string;
 	exact: string;
 }): Promise<string> {
-	const path = `/queue/${input.articleId}/view?feature=highlight`;
+	const path = `/queue/${input.articleId}/view`;
 	const content = new JSDOM((await input.agent.get(path)).text).window.document.querySelector(
 		".article-body__content",
 	);
-	assert(content, "the flagged reader must render its content");
+	assert(content, "the reader must render its content");
 	const start = normaliseText(collectTextChunks<Node>(content)).text.indexOf(input.exact);
 	assert(start >= 0, `the served text must hold "${input.exact}"`);
 	const created = await input.agent
-		.post(`/queue/${input.articleId}/highlights?feature=highlight`)
+		.post(`/queue/${input.articleId}/highlights`)
 		.type("form")
 		.send({ exact: input.exact, start: String(start), end: String(start + input.exact.length), origin: "mouse" });
 	assert.equal(created.status, 303, "the highlight must be created");
@@ -209,6 +209,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 						`/queue/queues/${describedReadlist}/preferences`,
 						`/queue/${articleId}/view?filed_readlist=${madeReadlist}`,
 						highlightedPath,
+						`/queue/${articleId}/view?platform=ios`,
 					]
 				: [];
 
@@ -231,7 +232,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		};
 
 		expect(readerHref).toContain("/view");
-		expect(readlistPaths.length).toBe(7);
+		expect(readlistPaths.length).toBe(8);
 		expect(untracked).toEqual([]);
 		expect(noteFormUtm('#note-highlight-dialog form[data-test-form="highlight-note"]')).toEqual({
 			source: "highlight-toolbar",

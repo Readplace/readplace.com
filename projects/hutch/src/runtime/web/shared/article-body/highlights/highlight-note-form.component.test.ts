@@ -16,10 +16,11 @@ function noteForm(
 			popoverId: "note-highlight-dialog",
 			key: "highlight-note",
 			inputId: "note-highlight-input",
-			action: "/queue/abc/highlights?feature=highlight",
+			action: "/queue/abc/highlights",
 			value: "",
 			hiddenFields: [],
 			answersInPlace: true,
+			pushesHistory: true,
 			autofocus: true,
 			...overrides,
 		})}</div>`,
@@ -55,7 +56,7 @@ describe("renderHighlightNoteForm", () => {
 
 		expect(form.getAttribute("method")).toBe("POST");
 		expect(form.getAttribute("action")).toBe(
-			"/queue/abc/highlights?feature=highlight",
+			"/queue/abc/highlights",
 		);
 		expect(form.getAttribute("data-test-form")).toBe("highlight-note");
 		expect(textareaOf(doc).getAttribute("name")).toBe(HIGHLIGHT_NOTE_FIELD);
@@ -136,7 +137,7 @@ describe("renderHighlightNoteForm", () => {
 		const form = formOf(noteForm({ answersInPlace: true }));
 
 		expect(form.getAttribute("hx-post")).toBe(
-			"/queue/abc/highlights?feature=highlight",
+			"/queue/abc/highlights",
 		);
 		expect(form.getAttribute("hx-target")).toBe("this");
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
@@ -233,5 +234,27 @@ describe("renderHighlightNoteForm", () => {
 		expect(
 			save?.querySelector(".readlist-name-form__loader.in-flight-dots"),
 		).not.toBeNull();
+	});
+
+	it("keeps history on a boosted form that pushes, and stops the push on one that does not", () => {
+		const pushing = formOf(
+			noteForm({ answersInPlace: false, pushesHistory: true }),
+		);
+		const inPlace = formOf(
+			noteForm({ answersInPlace: false, pushesHistory: false }),
+		);
+
+		expect(pushing.getAttribute("hx-boost")).toBe("true");
+		expect(pushing.hasAttribute("hx-push-url")).toBe(false);
+		expect(inPlace.getAttribute("hx-boost")).toBe("true");
+		expect(inPlace.getAttribute("hx-push-url")).toBe("false");
+	});
+
+	it("never adds a push attribute to a form that answers in place", () => {
+		expect(
+			formOf(
+				noteForm({ answersInPlace: true, pushesHistory: false }),
+			).hasAttribute("hx-push-url"),
+		).toBe(false);
 	});
 });

@@ -8,12 +8,18 @@ export function rangedTokenizer(deps: {
 	readRange: ReadRange;
 	readAheadBytes: { initial: number; maximum: number };
 	endOfStream: () => Error;
-}): IRandomAccessTokenizer {
+	budgetExhausted: () => boolean;
+}): IRandomAccessTokenizer & { truncated: () => boolean } {
 	let position = 0;
+	let truncated = false;
 	let window: { start: number; bytes: Uint8Array } = { start: 0, bytes: new Uint8Array(0) };
 	let nextReadAhead = deps.readAheadBytes.initial;
 
 	const fill = async (target: Uint8Array, range: { position: number; length: number }): Promise<number> => {
+		if (deps.budgetExhausted()) {
+			truncated = true;
+			return 0;
+		}
 		const available = Math.max(0, Math.min(range.length, deps.size - range.position));
 		if (available === 0) return 0;
 		const windowEnd = window.start + window.bytes.length;
@@ -78,5 +84,6 @@ export function rangedTokenizer(deps: {
 		close: async () => {},
 		abort: async () => {},
 		supportsRandomAccess: () => true,
+		truncated: () => truncated,
 	};
 }

@@ -12,6 +12,7 @@ function countingFile(file: Uint8Array, readAheadBytes = { initial: 4, maximum: 
 		size: file.length,
 		readAheadBytes,
 		endOfStream: () => new EndOfStream(),
+		budgetExhausted: () => false,
 		readRange: async (range) => {
 			fetched.push(range);
 			return file.subarray(range.start, range.end);
@@ -154,6 +155,38 @@ describe("rangedTokenizer", () => {
 		assert.equal(durationSeconds, 5025);
 		const fetchedBytes = fetched.reduce((total, range) => total + range.end - range.start, 0);
 		assert.ok(fetchedBytes < file.length / 10, `fetched ${fetchedBytes} of ${file.length} bytes`);
+	});
+
+	it("serves nothing and reports truncation once the budget is exhausted", async () => {
+		let exhausted = false;
+		const fetched: { start: number; end: number }[] = [];
+		const tokenizer = rangedTokenizer({
+			size: digits.length,
+			readAheadBytes: { initial: 4, maximum: 16 },
+			endOfStream: () => new EndOfStream(),
+			budgetExhausted: () => exhausted,
+			readRange: async (range) => {
+				fetched.push(range);
+				return digits.subarray(range.start, range.end);
+			},
+		});
+		const buffer = new Uint8Array(8);
+
+		assert.equal(await tokenizer.readBuffer(buffer), 8);
+		assert.equal(tokenizer.truncated(), false);
+		const fetchesBeforeExhaustion = fetched.length;
+		exhausted = true;
+		await assert.rejects(tokenizer.readBuffer(buffer), EndOfStream);
+		assert.equal(fetched.length, fetchesBeforeExhaustion);
+		assert.equal(tokenizer.truncated(), true);
+	});
+
+	it("reports no truncation when the whole file is read inside the budget", async () => {
+		const { tokenizer } = countingFile(digits);
+
+		assert.equal(await tokenizer.readBuffer(new Uint8Array(64)), 64);
+		assert.equal(await tokenizer.peekBuffer(new Uint8Array(8), { mayBeLess: true }), 0);
+		assert.equal(tokenizer.truncated(), false);
 	});
 
 	it("knows its size, offers random access and has nothing to release", async () => {

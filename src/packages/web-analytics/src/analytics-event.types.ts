@@ -177,6 +177,7 @@ export interface HighlightCreatedEvent {
 	visitor_hash: string | null;
 	origin: "mouse" | "tap" | "longpress";
 	highlight_id: HighlightId;
+	surface: "web" | "ios" | "android";
 }
 
 export interface HighlightDeletedEvent {
@@ -195,6 +196,16 @@ export interface HighlightNoteSavedEvent {
 	user_id: UserId;
 	visitor_hash: string | null;
 	action: "added" | "edited" | "removed";
+}
+
+export interface HighlightOpenedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.highlightOpened;
+	timestamp: string;
+	user_id: UserId;
+	visitor_hash: string | null;
+	origin: "mark" | "rail";
+	highlight_id: HighlightId;
 }
 
 /**
@@ -507,4 +518,5 @@ export type AnalyticsEvent =
 	| EpubImagesOverBudgetEvent
 	| HighlightCreatedEvent
 	| HighlightDeletedEvent
-	| HighlightNoteSavedEvent;
+	| HighlightNoteSavedEvent
+	| HighlightOpenedEvent;

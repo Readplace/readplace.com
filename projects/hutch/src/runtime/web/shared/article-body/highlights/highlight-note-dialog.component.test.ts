@@ -14,6 +14,20 @@ const HIGHLIGHT_ID = HighlightIdSchema.parse(
 	"0b7f7a52-3f0e-4f58-9a3a-2a8a0d8f6c11",
 );
 
+const WEB_SCOPE = { articleId: "abc", readlist: [], surface: [] };
+
+const APP_SCOPE = {
+	articleId: "abc",
+	readlist: [["queue", "work"]],
+	surface: [["platform", "ios"]],
+} as const;
+
+const NOTE_PATH = `/queue/abc/highlights/${HIGHLIGHT_ID}/note`;
+
+function trackedNoteUrl(search: string): string {
+	return `${NOTE_PATH}?${search}${search ? "&" : ""}utm_source=highlights-rail&utm_medium=internal&utm_content=edit-note`;
+}
+
 function parse(html: string): Document {
 	return new JSDOM(`<body>${html}</body>`).window.document;
 }
@@ -35,7 +49,7 @@ function textareaOf(doc: Document): HTMLTextAreaElement {
 describe("renderHighlightNoteDialog", () => {
 	const doc = parse(
 		renderHighlightNoteDialog({
-			action: "/queue/abc/highlights?feature=highlight",
+			scope: WEB_SCOPE,
 			hiddenFields: [
 				{ name: "exact", value: "" },
 				{ name: "answer", value: "dialog" },
@@ -70,7 +84,7 @@ describe("renderHighlightNoteDialog", () => {
 			true,
 		);
 		expect(doc.querySelector("form")?.getAttribute("hx-post")).toBe(
-			"/queue/abc/highlights?feature=highlight",
+			"/queue/abc/highlights?utm_source=highlight-toolbar&utm_medium=internal&utm_content=save-note",
 		);
 		expect(
 			doc
@@ -117,7 +131,7 @@ describe("renderHighlightNoteEditDialog", () => {
 		const doc = parse(
 			renderHighlightNoteEditDialog({
 				highlightId: HIGHLIGHT_ID,
-				action: "/note",
+				scope: WEB_SCOPE,
 			}),
 		);
 		const popover = popoverOf(doc);
@@ -142,7 +156,7 @@ describe("renderHighlightNoteEditDialog", () => {
 			renderHighlightNoteEditDialog({
 				highlightId: HIGHLIGHT_ID,
 				note: "my thought",
-				action: "/note?feature=highlight",
+				scope: WEB_SCOPE,
 			}),
 		);
 		const form = doc.querySelector("form");
@@ -153,7 +167,10 @@ describe("renderHighlightNoteEditDialog", () => {
 		expect(textareaOf(doc).value).toBe("my thought");
 		expect(textareaOf(doc).id).toBe(`note-highlight-${HIGHLIGHT_ID}-input`);
 		expect(doc.querySelectorAll("[autofocus]")).toHaveLength(1);
-		expect(form?.getAttribute("action")).toBe("/note?feature=highlight");
+		expect(form?.getAttribute("action")).toBe(
+			trackedNoteUrl(""),
+		);
+		expect(form?.hasAttribute("hx-push-url")).toBe(false);
 		expect(form?.getAttribute("hx-boost")).toBe("true");
 		expect(form?.hasAttribute("data-dialog-form")).toBe(false);
 		expect(
@@ -170,14 +187,17 @@ describe("renderHighlightNoteFallbackForm", () => {
 			renderHighlightNoteFallbackForm({
 				highlightId: HIGHLIGHT_ID,
 				note: "kept",
-				action: "/note",
+				scope: WEB_SCOPE,
 			}),
 		);
 
 		expect(doc.querySelector("form")?.getAttribute("data-test-form")).toBe(
 			"highlight-note-fallback",
 		);
-		expect(doc.querySelector("form")?.getAttribute("action")).toBe("/note");
+		expect(doc.querySelector("form")?.getAttribute("action")).toBe(
+			trackedNoteUrl(""),
+		);
+		expect(doc.querySelector("form")?.hasAttribute("hx-push-url")).toBe(false);
 		expect(textareaOf(doc).id).toBe(
 			`note-highlight-${HIGHLIGHT_ID}-fallback-input`,
 		);
@@ -190,10 +210,45 @@ describe("renderHighlightNoteFallbackForm", () => {
 		const doc = parse(
 			renderHighlightNoteFallbackForm({
 				highlightId: HIGHLIGHT_ID,
-				action: "/note",
+				scope: WEB_SCOPE,
 			}),
 		);
 
 		expect(textareaOf(doc).value).toBe("");
+	});
+});
+
+describe("note dialogs in the app surface", () => {
+	it("posts the bar's note dialog with the readlist, then the surface, both as action and hx-post", () => {
+		const form = parse(
+			renderHighlightNoteDialog({ scope: APP_SCOPE, hiddenFields: [] }),
+		).querySelector("form");
+		const expected =
+			"/queue/abc/highlights?queue=work&platform=ios&utm_source=highlight-toolbar&utm_medium=internal&utm_content=save-note";
+
+		expect(form?.getAttribute("action")).toBe(expected);
+		expect(form?.getAttribute("hx-post")).toBe(expected);
+		expect(form?.hasAttribute("hx-push-url")).toBe(false);
+	});
+
+	it("keeps the surface on the row's boosted note forms and stops them pushing history", () => {
+		for (const html of [
+			renderHighlightNoteEditDialog({
+				highlightId: HIGHLIGHT_ID,
+				scope: APP_SCOPE,
+			}),
+			renderHighlightNoteFallbackForm({
+				highlightId: HIGHLIGHT_ID,
+				scope: APP_SCOPE,
+			}),
+		]) {
+			const form = parse(html).querySelector("form");
+
+			expect(form?.getAttribute("action")).toBe(
+				trackedNoteUrl("queue=work&platform=ios"),
+			);
+			expect(form?.getAttribute("hx-boost")).toBe("true");
+			expect(form?.getAttribute("hx-push-url")).toBe("false");
+		}
 	});
 });

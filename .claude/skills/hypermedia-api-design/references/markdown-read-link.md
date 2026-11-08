@@ -20,6 +20,7 @@ A token belongs to a client acting for one account, so a valid token for someone
 - **A still-processing article is answered at once.** Every article the account holds returns a document whatever its state, with the state recorded in the frontmatter, so a client writes its copy straight away and fills it in on a later fetch instead of waiting for processing to finish. A document is **final** once nothing in the article's processing can still change it: the content status is `failed` or `not-an-article`, or it is `ready` and the summary status has settled to `ready`, `failed` or `skipped`. Every other combination is incomplete, so the client fetches it again later. Final is not frozen: the reader's read state, readlist membership and a re-crawl still change the bytes.
 - **Caching is ordinary HTTP.** The response is `Cache-Control: private, no-cache`, so a client may keep a copy but must revalidate before reusing it: a later fetch can return different bytes. Express may add a weak `ETag` and answer `304` to a matching `If-None-Match` on its own; the contract promises neither, so a client may use them when they appear and must not depend on them.
 - **A bearer fetch is not a reader opening the article.** A client syncing for the reader fetches documents nobody opened, and each `reader-open` engagement activity moves the account's quiet-account clock and can mark it engaged in the starter experiment. A bearer-authorised Markdown request therefore records none; the owner's session-cookie fetch still does. Neither stamps `viewedAt`.
+- **Highlights close the document.** When the article holds highlights, the document ends with a `## Highlights` section: each highlighted quote as a blockquote, followed by its note when it has one. An article without highlights has no such section.
 
 ### The Frontmatter Keys Are a Published Interface
 
@@ -29,7 +30,8 @@ The document opens with YAML frontmatter. This is a **published interface**: the
 |---|---|
 | Use Obsidian Web Clipper's name for a concept Readplace shares with it ([preset variables](https://obsidian.md/help/web-clipper/variables)) | A note sorts and filters alongside the reader's existing clippings |
 | Give every other key the `readplace_` prefix | Obsidian gives a property name [one type across the whole vault](https://obsidian.md/help/properties), so a plain name can collide with one the reader already uses |
-| Never emit `author`, `tags`, `highlights` or `notes`, not even empty | Readplace holds none of them, and a note must not imply it does; a client adds none on its side either |
+| Never emit `author` or `tags`, not even empty | Readplace holds none of them, and a note must not imply it does; a client adds none on its side either |
+| Never emit `highlights` or `notes` as keys, not even empty | They travel in the body's `## Highlights` section, never as properties; a client adds neither on its side either |
 | Write the publish date under `published`, Obsidian Web Clipper's name for it, as the `YYYY-MM-DD` calendar date the article holds, and omit it when none is known | A byline is a calendar date in the publisher's calendar; an instant would move it a day for a reader in another zone |
 | Omit a key whose value is absent; never write `null` | Absence has one encoding |
 | Write timestamps as ISO 8601 UTC strings | The form Siren's timestamps use |
