@@ -16,7 +16,7 @@ function noteForm(
 			popoverId: "note-highlight-dialog",
 			key: "highlight-note",
 			inputId: "note-highlight-input",
-			action: "/queue/abc/highlights?feature=highlight",
+			action: "/queue/abc/highlights",
 			value: "",
 			hiddenFields: [],
 			answersInPlace: true,
@@ -56,7 +56,7 @@ describe("renderHighlightNoteForm", () => {
 
 		expect(form.getAttribute("method")).toBe("POST");
 		expect(form.getAttribute("action")).toBe(
-			"/queue/abc/highlights?feature=highlight",
+			"/queue/abc/highlights",
 		);
 		expect(form.getAttribute("data-test-form")).toBe("highlight-note");
 		expect(textareaOf(doc).getAttribute("name")).toBe(HIGHLIGHT_NOTE_FIELD);
@@ -137,7 +137,7 @@ describe("renderHighlightNoteForm", () => {
 		const form = formOf(noteForm({ answersInPlace: true }));
 
 		expect(form.getAttribute("hx-post")).toBe(
-			"/queue/abc/highlights?feature=highlight",
+			"/queue/abc/highlights",
 		);
 		expect(form.getAttribute("hx-target")).toBe("this");
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");

@@ -48,7 +48,6 @@ describe("renderHighlightToolbar", () => {
 			"highlight-note",
 		);
 		expect(url.pathname).toBe("/queue/abc/highlights");
-		expect(url.searchParams.get("feature")).toBe("highlight");
 		expect(url.searchParams.get("utm_source")).toBe("highlight-toolbar");
 		expect(url.searchParams.get("utm_content")).toBe("save-note");
 		expect(
@@ -65,7 +64,7 @@ describe("renderHighlightToolbar", () => {
 		]);
 	});
 
-	it("posts the create form to the tracked, flagged url with the passage fields", () => {
+	it("posts the create form to the tracked url with the passage fields", () => {
 		const form = toolbarDocument().querySelector(
 			"[data-test-highlight-create-form]",
 		);
@@ -75,7 +74,6 @@ describe("renderHighlightToolbar", () => {
 		);
 
 		expect(url.pathname).toBe("/queue/abc/highlights");
-		expect(url.searchParams.get("feature")).toBe("highlight");
 		expect(url.searchParams.get("utm_source")).toBe("highlight-toolbar");
 		expect(url.searchParams.get("utm_content")).toBe("highlight");
 		expect(
@@ -86,7 +84,7 @@ describe("renderHighlightToolbar", () => {
 		expect(form?.getAttribute("hx-swap")).toBe("outerHTML show:none");
 	});
 
-	it("keeps the readlist and the app surface on both forms, readlist then surface then flag", () => {
+	it("keeps the readlist and the app surface on both forms, readlist then surface", () => {
 		const doc = toolbarDocument({
 			articleId: "abc",
 			readlist: [["queue", "work"]],
@@ -103,10 +101,10 @@ describe("renderHighlightToolbar", () => {
 			?.getAttribute("action");
 
 		expect(create).toBe(
-			"/queue/abc/highlights?queue=work&platform=android&shell=app&feature=highlight&utm_source=highlight-toolbar&utm_medium=internal&utm_content=highlight",
+			"/queue/abc/highlights?queue=work&platform=android&shell=app&utm_source=highlight-toolbar&utm_medium=internal&utm_content=highlight",
 		);
 		expect(note).toBe(
-			"/queue/abc/highlights?queue=work&platform=android&shell=app&feature=highlight&utm_source=highlight-toolbar&utm_medium=internal&utm_content=save-note",
+			"/queue/abc/highlights?queue=work&platform=android&shell=app&utm_source=highlight-toolbar&utm_medium=internal&utm_content=save-note",
 		);
 	});
 

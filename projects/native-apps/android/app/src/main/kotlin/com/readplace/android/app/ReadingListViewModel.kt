@@ -137,7 +137,6 @@ class ReadingListViewModel(
 	private val onSessionExpired: () -> Unit,
 	private val now: () -> Instant,
 	private val reportProcessingRefreshFailure: (String) -> Unit,
-	private val readerQuery: List<Pair<String, String>>,
 	private val scope: CoroutineScope,
 ) {
 	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP)))
@@ -665,8 +664,7 @@ class ReadingListViewModel(
 	fun openReader(article: Article) {
 		val href = article.readHref ?: return
 		val url = Href.resolve(href, api.baseUrl) ?: return
-		val platformUrl = Href.appending(url, AppConfig.PLATFORM_QUERY_NAME, AppConfig.PLATFORM_QUERY_VALUE)
-		val readerUrl = readerQuery.fold(platformUrl) { acc, (name, value) -> Href.appending(acc, name, value) }
+		val readerUrl = Href.appending(url, AppConfig.PLATFORM_QUERY_NAME, AppConfig.PLATFORM_QUERY_VALUE)
 		mutate { it.copy(readerPresentation = ReaderPresentation(readerUrl, article.id)) }
 	}
 

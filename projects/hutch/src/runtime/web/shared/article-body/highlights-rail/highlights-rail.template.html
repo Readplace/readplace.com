@@ -10,7 +10,7 @@
                 {{#if note}}<p class="highlight-note" data-test-highlight-note>{{note}}</p>{{/if}}
                 {{#if orphaned}}<p class="highlights-rail__chip" data-test-highlight-orphan>Not found in this version</p>{{/if}}
                 <div class="highlights-rail__actions">
-                  {{#if jumpHref}}<a class="btn btn--neutral btn--s highlights-rail__jump" href="{{jumpHref}}" data-test-action="highlight-jump">Jump</a>{{/if}}
+                  {{#if jumpHref}}<a class="btn btn--neutral btn--s highlights-rail__jump" href="{{jumpHref}}" data-highlight-jump="{{highlightId}}" data-test-action="highlight-jump">Jump</a>{{/if}}
                   {{#with edit}}<form method="POST" action="{{deleteUrl}}" class="highlights-rail__delete-form highlights-rail__delete-form--fallback" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="find button">
                     <button class="btn btn--neutral btn--s" type="submit" data-test-action="highlight-delete-fallback">Delete</button>
                   </form>

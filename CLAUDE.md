@@ -98,6 +98,14 @@ Only the functions that apply the rule can mint the body and summary brands (gre
 - A new renderer types its body input as the branded body. The generic HTML converters (markdown, EPUB XHTML) take plain strings because they also convert other HTML: hand them a body only from a branded value.
 - A surface's own host check drives behaviour only — no crawl, no polling, the not-an-article notice. It is not what keeps a webmail row private.
 
+### A highlight moves only when its passage moved
+
+An article's body is shared by everyone who saves its URL and is replaced whenever a recrawl or refresh commits new canonical content. A highlight is therefore stored as its quote with the text around it, never as a position, and the server re-anchors every highlight when the canonical body changes.
+
+- A highlight whose passage cannot be found again is kept and listed as "Not found in this version". It is never moved to a weaker match and never deleted: a mark that jumps to the wrong passage costs the reader's trust in every other mark.
+- The server anchors only against text it rendered itself. It never trusts offsets a client sends or a publisher's own `<mark>` elements; the highlight route tests and the sanitiser tests guard this.
+- The matching thresholds were tuned against real recrawled bodies: on 2026-11-07, 185 highlights over 37 staging recrawl pairs came out 29% anchored in place, 60% moved (almost all the exact quote at a new offset) and 11% not found, every one of those from a single archived page whose versions alternate between two different pages. Change a threshold only with a new measurement.
+
 ### ChatGPT runs the tools OpenAI's scan last published
 
 ChatGPT readers call the tool definitions OpenAI's plugin directory published from its last successful scan of our MCP server, not our live `tools/list`, and the scan runs on an OAuth grant of its own. Changing a tool, the scan's credential, the OAuth code, `ANALYTICS_SALT` or the OAuth table is governed by the [MCP skill](./.claude/skills/mcp/SKILL.md), whose guards refuse the dangerous change and name the approval each needs. The [MCP scanner runbook](./projects/hutch/docs/mcp-scanner-runbook.md) has the operations.

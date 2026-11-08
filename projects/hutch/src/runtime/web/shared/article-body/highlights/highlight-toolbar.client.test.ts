@@ -90,6 +90,7 @@ interface Harness {
 	submitted: HTMLFormElement[];
 	popoverSupported: boolean;
 	shownPopovers: Element[];
+	beacons: string[];
 }
 
 function harness(bodyHtml: string = mainHtml()): Harness {
@@ -132,6 +133,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		submitted,
 		popoverSupported: true,
 		shownPopovers: [],
+		beacons: [],
 		coarse: false,
 		scrollWindow() {
 			for (const entry of scrollListeners) if (entry.passive) entry.listener();
@@ -175,6 +177,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		isPopoverOpen: () => false,
 		supportsPopover: () => h.popoverSupported,
 		showPopover: (panel) => h.shownPopovers.push(panel),
+		sendBeacon: (url) => h.beacons.push(url),
 	});
 	const toolbar = toolbarOf(h);
 	Object.defineProperty(toolbar, "getBoundingClientRect", {
@@ -304,6 +307,7 @@ describe("initHighlightToolbar", () => {
 				isPopoverOpen: () => false,
 				supportsPopover: () => true,
 				showPopover: () => undefined,
+				sendBeacon: () => undefined,
 			}),
 		).toThrow("the highlight script ships with its toolbar");
 	});
@@ -601,6 +605,35 @@ describe("initHighlightToolbar", () => {
 		expect(scrolled).toEqual([{ block: "nearest" }]);
 	});
 
+	it("beacons a clicked mark as a highlight opened from the mark", () => {
+		const h = harness(mainHtml({ marks: true }));
+
+		click(h, markWord(h, "beta"));
+
+		expect(h.beacons).toEqual([`/queue/abc/highlights/opened?highlight=${HIGHLIGHT_ID}&origin=mark`]);
+	});
+
+	it("beacons a rail Jump click as a highlight opened from the rail", () => {
+		const h = harness(mainHtml({ marks: true }));
+		const jump = h.doc.querySelector(`[data-highlight-jump="${HIGHLIGHT_ID}"]`);
+		assert(jump);
+
+		click(h, jump);
+
+		expect(h.beacons).toEqual([`/queue/abc/highlights/opened?highlight=${HIGHLIGHT_ID}&origin=rail`]);
+	});
+
+	it("sends no beacon for a click on the rail outside a Jump link, or on the article outside a mark", () => {
+		const h = harness(mainHtml({ marks: true }));
+		const row = h.doc.querySelector(`[data-highlight-row="${HIGHLIGHT_ID}"]`);
+		assert(row);
+
+		click(h, row);
+		click(h, contentOf(h));
+
+		expect(h.beacons).toEqual([]);
+	});
+
 	it("ignores a mark click while the rail is not on the page, and a click elsewhere", () => {
 		const h = harness();
 		const mark = markWord(h, "beta");
@@ -659,7 +692,7 @@ describe("initHighlightToolbar", () => {
 			const form = noteFormOf(h);
 			const fields = formFields(form);
 			form.outerHTML = renderHighlightNoteCreateForm({
-				action: "/queue/abc/highlights?feature=highlight",
+				action: "/queue/abc/highlights",
 				hiddenFields: HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS.map((field) => ({ name: field.name, value: fields[field.name] })),
 				value: noteInputOf(form).value,
 				error: input.error,

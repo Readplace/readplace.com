@@ -36,11 +36,15 @@ const NO_HIGHLIGHTS: ReaderHighlights = {
 	canonicalContentHash: undefined,
 };
 
+function highlightsToMark(highlights: ReaderHighlights | undefined): ReaderHighlights {
+	return highlights === undefined || highlights.rows.length === 0 ? NO_HIGHLIGHTS : highlights;
+}
+
 const preparedWholeHtml = rememberLastCall({
 	keyOf: (input: PrepareReaderContentInput) => [
 		input.content,
 		input.appOrigin,
-		input.highlights,
+		highlightsToMark(input.highlights),
 	],
 	compute: (input: PrepareReaderContentInput) => {
 		const retargeted = keepSameHostLinksInSamePage({
@@ -50,7 +54,7 @@ const preparedWholeHtml = rememberLastCall({
 		const anchored = anchorArticleSections(sanitizeArticleHtml(retargeted));
 		const marked = markHighlights({
 			html: describeReaderTables(anchored),
-			highlights: input.highlights ?? NO_HIGHLIGHTS,
+			highlights: highlightsToMark(input.highlights),
 		});
 		return {
 			html: sanitizeArticleHtml(marked.html),
@@ -70,7 +74,7 @@ export const prepareReaderContent = rememberLastCall({
 		input.section.requested,
 		input.section.readerPath,
 		input.section.thresholdBytes,
-		input.highlights,
+		highlightsToMark(input.highlights),
 	],
 	compute: (input: PrepareReaderContentInput): PreparedReaderContent => {
 		const whole = preparedWholeHtml(input);

@@ -1,5 +1,5 @@
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
-import type { HighlightCreatedEvent } from "@packages/web-analytics";
+import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
 import { placeBelowSelection, TOOLBAR_GAP_PX, VIEWPORT_GUTTER_PX } from "./toolbar-placement-coarse";
@@ -16,6 +16,8 @@ const FORM_SELECTOR = "[data-highlight-create-form]";
 const NOTE_INPUT_SELECTOR = "textarea";
 const NOTE_ERROR_SELECTOR = "[data-dialog-form-error]";
 const PASSAGE_REFUSAL = "passage";
+const JUMP_SELECTOR = "[data-highlight-jump]";
+const OPENED_URL_ATTRIBUTE = "data-highlight-opened-url";
 
 export interface ToolbarRect {
 	readonly top: number;
@@ -51,6 +53,7 @@ interface HighlightToolbarDeps {
 	isPopoverOpen: () => boolean;
 	supportsPopover: () => boolean;
 	showPopover: (panel: Element) => void;
+	sendBeacon: (url: string) => void;
 }
 
 interface SelectedPassage {
@@ -235,6 +238,13 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		commit({ range: shown, origin: pressOrigin(shown), formSelector });
 	};
 
+	const opened = (input: { highlightId: string | null; origin: HighlightOpenedEvent["origin"] }): void => {
+		const url = toolbarOf().getAttribute(OPENED_URL_ATTRIBUTE);
+		assert(url, "the highlight toolbar names its opened beacon");
+		assert(input.highlightId, "an opened highlight carries its id");
+		deps.sendBeacon(`${url}?${new URLSearchParams({ highlight: input.highlightId, origin: input.origin })}`);
+	};
+
 	const reposition = (): void => {
 		if (frameRequested) return;
 		frameRequested = true;
@@ -264,11 +274,18 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 			press(button);
 			return;
 		}
+		const jump = Array.from(document.querySelectorAll(JUMP_SELECTOR)).find((candidate) => path.includes(candidate));
+		if (jump !== undefined) {
+			opened({ highlightId: jump.getAttribute("data-highlight-jump"), origin: "rail" });
+			return;
+		}
 		const mark = Array.from(document.querySelectorAll(`.${ARTICLE_HIGHLIGHT_CLASS}`))
 			.filter((candidate) => path.includes(candidate))
 			.at(-1);
 		if (mark === undefined) return;
-		const row = document.querySelector(`[data-highlight-row="${mark.getAttribute("data-highlight-id")}"]`);
+		const highlightId = mark.getAttribute("data-highlight-id");
+		opened({ highlightId, origin: "mark" });
+		const row = document.querySelector(`[data-highlight-row="${highlightId}"]`);
 		row?.scrollIntoView({ block: "nearest" });
 	});
 	document.addEventListener(HIGHLIGHT_SELECTION_EVENT, (event) => {

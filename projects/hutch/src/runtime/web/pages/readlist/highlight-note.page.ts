@@ -14,7 +14,6 @@ import express from "express";
 import { z } from "zod";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
-import { requireHighlightFeature } from "./highlight-feature";
 import { highlightReaderLocation } from "./highlight-surface";
 import { highlightFormScopeFor } from "./reader-highlight-options";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
@@ -51,7 +50,6 @@ export function initHighlightNoteRoutes(
 
 	router.post(
 		"/:id/highlights/:highlightId/note",
-		requireHighlightFeature,
 		requireNotLocked,
 		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),
@@ -104,7 +102,6 @@ export function initHighlightNoteRoutes(
 				303,
 				highlightReaderLocation({
 					...highlightFormScopeFor(req, article.id.value),
-					enabled: true,
 					fragment: { highlightId: highlightId.data },
 				}),
 			);

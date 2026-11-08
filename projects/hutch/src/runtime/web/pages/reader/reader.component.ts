@@ -174,7 +174,7 @@ export function ReaderPage(
 		crawlVersions?: ArticleVersion[];
 		articleHistoryRemoval?: ArticleHistoryRemoval;
 		offlineCopyRow?: boolean;
-		highlights?: ReaderPageHighlights;
+		highlights: ReaderPageHighlights;
 		statusToast?: string;
 		exitConfirmScopes?: ExitConfirmScopes;
 		readerPathFor: (articleId: string) => string;
@@ -285,24 +285,21 @@ export function ReaderPage(
 					}),
 	});
 	const highlights = options.highlights;
-	const highlightsRail =
-		highlights === undefined
-			? undefined
-			: renderHighlightsRail({
-					rows:
-						highlightStates.length === 0
-							? pendingHighlightsRailRows(highlights.rows)
-							: highlightsRailRowsFromStates(highlightStates),
-					scope: highlights.scope,
-					oob: false,
-				});
+	const highlightsRail = renderHighlightsRail({
+		rows:
+			highlightStates.length === 0
+				? pendingHighlightsRailRows(highlights.rows)
+				: highlightsRailRowsFromStates(highlightStates),
+		scope: highlights.scope,
+		oob: false,
+	});
 	const innerContent =
-		highlights?.scope === undefined
+		highlights.scope === undefined
 			? articleBodyHtml
 			: articleBodyHtml + renderHighlightToolbar({ scope: highlights.scope });
 	const railLandmark = railLandmarkFor({
 		hasCard:
-			highlightsRail?.hasRows === true ||
+			highlightsRail.hasRows ||
 			(options.crawlVersions ?? []).length > 0 ||
 			(pastReadsInput !== undefined && hasVisiblePastReads(pastReadsInput)) ||
 			isTableOfContentsVisible({
@@ -322,7 +319,7 @@ export function ReaderPage(
 		crawlVersions: options.crawlVersions,
 		articleHistoryRemoval: options.articleHistoryRemoval,
 		offlineCopyRow: options.offlineCopyRow,
-		highlightsHtml: highlightsRail?.html,
+		highlightsHtml: highlightsRail.html,
 		previouslyReadHtml:
 			pastReadsInput === undefined
 				? undefined
@@ -422,7 +419,7 @@ export function ReaderPage(
 				READER_OPEN_SCRIPT +
 				READER_TOP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT +
-				(highlights?.scope === undefined ? "" : HIGHLIGHT_TOOLBAR_SCRIPT),
+				(highlights.scope === undefined ? "" : HIGHLIGHT_TOOLBAR_SCRIPT),
 		}),
 	};
 }

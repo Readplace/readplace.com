@@ -78,7 +78,7 @@ async function openHighlightableReader(page: Page, stamp: string): Promise<void>
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
-	await page.goto(`${BASE_URL}/queue/${articleId}/view?feature=highlight`, {
+	await page.goto(`${BASE_URL}/queue/${articleId}/view`, {
 		waitUntil: "domcontentloaded",
 	});
 	await page.waitForSelector(READY_SLOT);
@@ -117,7 +117,6 @@ test.describe("Highlighting a passage on a phone", () => {
 		await expect(page.locator(MARK)).toHaveText(TAPPED_SENTENCE, {
 			timeout: SETTLE_MS,
 		});
-		expect(new URL(page.url()).searchParams.get("feature")).toBe("highlight");
 		await expect(page.locator(RAIL_ROW)).toHaveCount(1);
 		await expect(page.locator(RAIL_ROW)).toHaveAttribute("data-test-highlight-state", "anchored");
 	});

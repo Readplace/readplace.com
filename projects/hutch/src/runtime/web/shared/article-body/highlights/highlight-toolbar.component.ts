@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
+import { READLIST_PATH } from "../../../pages/readlist/readlist.url";
 import {
 	HIGHLIGHT_NOTE_DIALOG_ID,
 	type HighlightFormScope,
@@ -33,6 +34,7 @@ export function renderHighlightToolbar(input: {
 			source: "highlight-toolbar",
 			content: "highlight",
 		}),
+		openedUrl: `${READLIST_PATH}/${input.scope.articleId}/highlights/opened`,
 		createFormSelector: "[data-highlight-create-form]",
 		pushesHistory: pushesHistory(input.scope),
 		noteFormSelector: `#${HIGHLIGHT_NOTE_DIALOG_ID} form`,

@@ -859,7 +859,7 @@ test.describe("A highlighted passage in the reader holds its WCAG contrast in bo
 		});
 		assert.equal(seeded.status(), 201);
 		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
-		const readerUrl = `${BASE_URL}/queue/${articleId}/view?feature=highlight`;
+		const readerUrl = `${BASE_URL}/queue/${articleId}/view`;
 		await loginChipReader(page, email);
 		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', { timeout: SETTLE_MS });

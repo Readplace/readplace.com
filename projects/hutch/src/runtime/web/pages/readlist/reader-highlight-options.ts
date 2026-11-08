@@ -5,7 +5,6 @@ import type { CanSaveContent } from "../../middleware/can-save-content";
 import { isNativeSurface, nativeSurfaceQuery } from "../../onboarding/native-client";
 import type { HighlightFormScope } from "../../shared/article-body/highlights/highlight-note-dialog.component";
 import { requestedReaderSection } from "../../shared/article-body/reader-slot/section-pages";
-import { highlightFeatureEnabled } from "./highlight-feature";
 import { type LinkParams, parseReadlistUrl, readlistReturnQuery } from "./readlist.url";
 
 export interface ReaderHighlightOptions {
@@ -17,7 +16,7 @@ export interface ReaderHighlightOptions {
 export type ReaderHighlightOptionsFor = (
 	req: Request,
 	input: { article: { id: { value: string }; url: string }; rows: readonly Highlight[] },
-) => Promise<ReaderHighlightOptions | undefined>;
+) => Promise<ReaderHighlightOptions>;
 
 export function highlightFormScopeFor(req: Request, articleId: string): HighlightFormScope {
 	const section = requestedReaderSection(req.query.section);
@@ -37,7 +36,6 @@ export function initReaderHighlightOptions(deps: {
 	readCanonicalSnapshot: ReadCanonicalSnapshot;
 }): ReaderHighlightOptionsFor {
 	return async (req, { article, rows }) => {
-		if (!highlightFeatureEnabled(req.query)) return undefined;
 		const writable = !isNativeSurface(req) || (await deps.canSaveContent(req));
 		return {
 			rows,

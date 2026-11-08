@@ -1,1 +1,7 @@
-export const enUS = {} as const;
+export const enUS = {
+	articleBody: {
+		highlightToolbar: {
+			beta: "Beta",
+		},
+	},
+} as const;

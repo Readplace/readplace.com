@@ -46,7 +46,7 @@ async function savePagedBook(): Promise<{ agent: Agent; articleId: string }> {
 }
 
 const sectionPath = (articleId: string, section: number) =>
-	`/queue/${articleId}/view?section=${section}&feature=highlight`;
+	`/queue/${articleId}/view?section=${section}`;
 
 function rangeOn(page: Document, exact: string) {
 	const content = page.querySelector(".article-body__content");
@@ -119,7 +119,6 @@ describe("Highlights on a paged article", () => {
 		expect(response.status).toBe(303);
 		const location: string = response.headers.location;
 		expect(location).toContain("section=2");
-		expect(location).toContain("feature=highlight");
 		expect(location).toMatch(
 			new RegExp(`#${ARTICLE_HIGHLIGHT_ID_PREFIX}[0-9a-f-]+$`),
 		);

@@ -33,7 +33,6 @@ import {
 import { prepareReaderContent } from "../../shared/article-body/reader-slot/reader-content";
 import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/section-pages";
 import { servedContentHash } from "../../shared/article-body/reader-slot/served-content-hash";
-import { requireHighlightFeature } from "./highlight-feature";
 import { highlightActionUrl, highlightReaderLocation } from "./highlight-surface";
 import { highlightFormScopeFor } from "./reader-highlight-options";
 import type { RenderOwnerReader } from "./reader-page.page";
@@ -51,6 +50,11 @@ const CreateHighlightBodySchema = z
 		answer: z.literal("dialog").optional(),
 	})
 	.refine((body) => body.start <= body.end);
+
+const HighlightOpenedQuerySchema = z.object({
+	highlight: HighlightIdSchema,
+	origin: z.enum(["mark", "rail"]),
+});
 
 const TOAST_DISMISS_MS = 6000;
 
@@ -120,7 +124,6 @@ export function initHighlightRoutes(
 
 	router.post(
 		"/:id/highlights",
-		requireHighlightFeature,
 		requireNotLocked,
 		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),
@@ -146,7 +149,6 @@ export function initHighlightRoutes(
 				path: `${READLIST_PATH}/${article.id.value}/view`,
 				readlist: scope.readlist,
 				surface: scope.surface,
-				enabled: true,
 			});
 			const inDialog =
 				body.data.answer === "dialog" && req.get("HX-Request") === "true";
@@ -255,7 +257,6 @@ export function initHighlightRoutes(
 					303,
 					highlightReaderLocation({
 						...scope,
-						enabled: true,
 						fragment: { highlightId: outcome.highlight.highlightId },
 					}),
 				);
@@ -266,8 +267,35 @@ export function initHighlightRoutes(
 	);
 
 	router.post(
+		"/:id/highlights/opened",
+		async (req: Request<{ id: string }>, res: Response) => {
+			assert(
+				req.userId,
+				"userId required - route must be protected by requireAuth",
+			);
+			const article = await ownedArticleOf(req);
+			if (!article) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const opened = HighlightOpenedQuerySchema.safeParse(req.query);
+			if (opened.success) {
+				deps.recordAnalyticsEvent(req, {
+					stream: STREAMS.analytics,
+					event: ANALYTICS_EVENTS.highlightOpened,
+					timestamp: deps.now().toISOString(),
+					user_id: req.userId,
+					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
+					origin: opened.data.origin,
+					highlight_id: opened.data.highlight,
+				});
+			}
+			res.status(204).end();
+		},
+	);
+
+	router.post(
 		"/:id/highlights/:highlightId/delete",
-		requireHighlightFeature,
 		requireNotLocked,
 		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),
@@ -311,7 +339,6 @@ export function initHighlightRoutes(
 				303,
 				highlightReaderLocation({
 					...highlightFormScopeFor(req, article.id.value),
-					enabled: true,
 					fragment: "rail",
 				}),
 			);

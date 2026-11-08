@@ -1,3 +1,5 @@
+Highlight the passages you want to keep, in beta. In the reader, press and hold to select text or tap a sentence, then tap Highlight. Tap Add note to say why it matters. Every highlight is listed in the reader, where you can jump back to it, edit its note or delete it, and the article's markdown and EPUB downloads end with your highlights and notes.
+
 Read your saved articles offline. When there's no connection, Readplace opens the copy stored on your iPhone and shows your readlists as they last loaded.
 
 Download your unread articles ahead of time with the new button at the top of your readlist. Downloaded articles are marked Saved offline, and you can continue a download that was interrupted.

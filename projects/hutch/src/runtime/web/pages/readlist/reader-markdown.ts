@@ -18,7 +18,6 @@ import type { ReaderHighlightState } from "../../shared/article-body/reader-slot
 import { prepareReaderContent, WHOLE_DOCUMENT_SECTION } from "../../shared/article-body/reader-slot/reader-content";
 import { articleMarkdown } from "../../shared/article-markdown/article-markdown";
 import { highlightsMarkdown } from "../../shared/article-markdown/highlights-markdown";
-import { highlightFeatureEnabled } from "./highlight-feature";
 
 interface OwnerArticleMarkdownDeps {
 	recordEngagementActivity: RecordEngagementActivity;
@@ -92,17 +91,14 @@ export function initOwnerArticleMarkdown(deps: OwnerArticleMarkdownDeps) {
 		}
 
 		const { article, readlist } = owned;
-		const flagged = highlightFeatureEnabled(req.query);
 		const [crawl, summary, stored, definitions, saves, highlightRows, snapshot] = await Promise.all([
 			deps.findArticleCrawlStatus(article.url),
 			deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId) }),
 			deps.readArticleContent({ url: article.url, viewer: viewerFor(userId) }),
 			deps.listReadlistDefinitions(userId),
 			deps.listUserSavesForUrl({ userId, url: article.url }),
-			flagged
-				? deps.listArticleHighlights({ userId, url: ArticleResourceUniqueId.parse(article.url).value })
-				: [],
-			flagged ? deps.readCanonicalSnapshot(article.url) : undefined,
+			deps.listArticleHighlights({ userId, url: ArticleResourceUniqueId.parse(article.url).value }),
+			deps.readCanonicalSnapshot(article.url),
 		]);
 		const content = stored.kind === "article" ? stored.body : undefined;
 		const readlists = readlistsHoldingArticle({

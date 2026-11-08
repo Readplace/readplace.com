@@ -45,10 +45,10 @@ function highlight(input: {
 const WEB_SCOPE = { articleId: "abc", readlist: [], surface: [] };
 
 const deleteUrlFor = (highlightId: string): string =>
-	`/queue/abc/highlights/${highlightId}/delete?feature=highlight&utm_source=highlights-rail&utm_medium=internal&utm_content=delete-highlight`;
+	`/queue/abc/highlights/${highlightId}/delete?utm_source=highlights-rail&utm_medium=internal&utm_content=delete-highlight`;
 
 const noteUrlFor = (highlightId: string): string =>
-	`/queue/abc/highlights/${highlightId}/note?feature=highlight&utm_source=highlights-rail&utm_medium=internal&utm_content=edit-note`;
+	`/queue/abc/highlights/${highlightId}/note?utm_source=highlights-rail&utm_medium=internal&utm_content=edit-note`;
 
 function railOf(
 	rows: readonly HighlightsRailRow[],
@@ -130,7 +130,6 @@ describe("renderHighlightsRail", () => {
 				expect(url.pathname).toBe(
 					`/queue/abc/highlights/${highlightId}/delete`,
 				);
-				expect(url.searchParams.get("feature")).toBe("highlight");
 				expect(action).toBe(deleteUrlFor(highlightId));
 			}
 		}
@@ -408,7 +407,7 @@ describe("renderHighlightsRail", () => {
 			surface: [["platform", "ios"]],
 		});
 
-		it("posts every form with the readlist, then the surface, then the flag", () => {
+		it("posts every form with the readlist, then the surface", () => {
 			const actions = Array.from(
 				rowOf(doc, FIRST_ID).querySelectorAll("form"),
 				(form) =>
@@ -419,7 +418,7 @@ describe("renderHighlightsRail", () => {
 			expect(actions).toHaveLength(3);
 			for (const search of actions) {
 				expect(search).toMatch(
-					/^\?queue=work&platform=ios&feature=highlight&utm_source=highlights-rail/,
+					/^\?queue=work&platform=ios&utm_source=highlights-rail/,
 				);
 			}
 		});

@@ -51,7 +51,6 @@ import {
 } from "../../onboarding/native-client";
 import type { SavedArticle } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { highlightFeatureEnabled } from "./highlight-feature";
 import { initReaderHighlightOptions } from "./reader-highlight-options";
 import { initRequestRelatedPasses } from "./request-related-passes";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
@@ -88,15 +87,13 @@ export function initReaderPanelRoutes(
 						: renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req), guide: epubGuideFor(req, article) })
 			: undefined;
 
-	const pollHighlightsFor = async (req: Request, article: SavedArticle): Promise<PollHighlights | undefined> =>
+	const pollHighlightsFor = async (req: Request, article: SavedArticle): Promise<PollHighlights> =>
 		readerHighlightOptions(req, {
 			article,
-			rows: highlightFeatureEnabled(req.query)
-				? await deps.listArticleHighlights({
-						userId: article.userId,
-						url: ArticleResourceUniqueId.parse(article.url).value,
-					})
-				: [],
+			rows: await deps.listArticleHighlights({
+				userId: article.userId,
+				url: ArticleResourceUniqueId.parse(article.url).value,
+			}),
 		});
 
 	router.get("/:id/summary", async (req: Request, res: Response) => {

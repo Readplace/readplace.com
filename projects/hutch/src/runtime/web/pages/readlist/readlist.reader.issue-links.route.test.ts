@@ -202,7 +202,7 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 
 		const doc = parse((await agent.get(`/queue/${issueId}/view`)).text);
 
-		assertSharingOff(doc, ["exit-confirm", "delete", "sharing-off", "readlist-create"]);
+		assertSharingOff(doc, ["highlight-note", "exit-confirm", "delete", "sharing-off", "readlist-create"]);
 	});
 
 	it("dims Share and the EPUB download on a private newsletter issue in the app's chromeless reader", async () => {
@@ -211,7 +211,7 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 		const doc = parse((await agent.get(`/queue/${issueId}/view?shell=app`)).text);
 
 		assert.equal(doc.body.classList.contains("page-reader--chromeless"), true);
-		assertSharingOff(doc, ["exit-confirm", "delete", "sharing-off", "readlist-create"]);
+		assertSharingOff(doc, ["highlight-note", "exit-confirm", "delete", "sharing-off", "readlist-create"]);
 	});
 
 	it("swaps no EPUB download in when a reader poll for an issue settles", async () => {
@@ -221,6 +221,7 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 
 		const ids = Array.from(parse(response.text).querySelectorAll("[hx-swap-oob]")).map((el) => el.id);
 		assert.deepEqual(ids, [
+			"highlights-rail",
 			"article-body-summary-slot",
 			"table-of-contents",
 			"reader-article-title",

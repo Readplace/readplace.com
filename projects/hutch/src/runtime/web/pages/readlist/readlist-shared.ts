@@ -79,7 +79,6 @@ import {
 	type ReaderReadlistFiling,
 	buildReaderReadlistFiling,
 } from "./reader-readlist-filing";
-import { HIGHLIGHT_FEATURE, highlightFeatureEnabled } from "./highlight-feature";
 import { ReadlistPage } from "./readlist.component";
 import { initFindNonEmptyReadlists } from "./readlist-holdings";
 import { buildReadlistRail } from "./readlist-rail";
@@ -262,7 +261,7 @@ export const SAVE_INTENT_PATH = {
 export const isAppPlatform = (req: Request): boolean => isNativeSurface(req);
 
 export const downloadsOwnerEpub = (req: Request): boolean =>
-	highlightFeatureEnabled(req.query) && nativeSurfaceOf(req) !== "android";
+	nativeSurfaceOf(req) !== "android";
 
 export const readerEpubHrefFor = (
 	req: Request,
@@ -406,9 +405,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 	function pollUrlBuilderFor(req: Request, articleId: string): PollUrlBuilder {
 		const readlist = readlistReturnQuery(parseReadlistUrl(req.query)).slice(1);
 		const section = requestedReaderSection(req.query.section);
-		const surface = `${readlist === "" ? "" : `&${readlist}`}${joinedSurfaceQuery(nativeSurfaceQuery(req))}${section === undefined ? "" : `&section=${section}`}${
-			highlightFeatureEnabled(req.query) ? `&feature=${HIGHLIGHT_FEATURE}` : ""
-		}`;
+		const surface = `${readlist === "" ? "" : `&${readlist}`}${joinedSurfaceQuery(nativeSurfaceQuery(req))}${section === undefined ? "" : `&section=${section}`}`;
 		return {
 			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${surface}`,
 			reader: (n, capture) =>

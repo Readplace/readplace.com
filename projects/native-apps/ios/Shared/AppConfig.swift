@@ -18,13 +18,6 @@ enum ServerEnvironment {
 		case .local: return "http://127.0.0.1:3000"
 		}
 	}
-
-	var readerFeatureQueryItems: [URLQueryItem] {
-		switch self {
-		case .production: return []
-		case .staging, .local: return [URLQueryItem(name: "feature", value: "highlight")]
-		}
-	}
 }
 
 /// Central configuration for the Readplace iOS app.

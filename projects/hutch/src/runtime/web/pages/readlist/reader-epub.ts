@@ -9,7 +9,6 @@ import type { ListArticleHighlights } from "@packages/provider-contracts/highlig
 import type { ResolveOwnedArticle } from "../../mcp/article-lookup";
 import { type BuildArticleEpub, epubFilename } from "../../shared/epub/article-epub";
 import { isPrefetchRequest } from "../../shared/prefetch-request";
-import { highlightFeatureEnabled } from "./highlight-feature";
 
 interface OwnerArticleEpubDeps {
 	appOrigin: string;
@@ -24,7 +23,7 @@ interface OwnerArticleEpubDeps {
 export function initOwnerArticleEpub(deps: OwnerArticleEpubDeps) {
 	return async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
 		const { userId } = req;
-		if (req.query.format !== "epub" || !highlightFeatureEnabled(req.query) || userId === undefined) {
+		if (req.query.format !== "epub" || userId === undefined) {
 			next();
 			return;
 		}

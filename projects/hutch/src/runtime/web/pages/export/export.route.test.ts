@@ -42,6 +42,18 @@ describe("Export routes", () => {
 			expect(form?.getAttribute("method")?.toUpperCase()).toBe("POST");
 		});
 
+		it("lists highlights and notes in what's included and says when they are deleted", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/export");
+
+			const doc = new JSDOM(response.text).window.document;
+			const items = Array.from(doc.querySelectorAll(".export__list-item"), (item) => item.textContent);
+			expect(items).toContain("Highlights and notes, with the passage and your note");
+			expect(doc.body.textContent).toContain("Highlights and notes are deleted with the article, and with your account.");
+		});
+
 		it("renders a 'preparing' confirmation when ?status=preparing is present", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);

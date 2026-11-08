@@ -9,7 +9,7 @@ function track(path: string, content: string): string {
 }
 
 export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-04",
+	lastModified: "2026-11-09",
 	title: "A Read-It-Later App That Goes Read-Only, Not Dark | Readplace",
 	description:
 		"Cancel and your Readplace account keeps working for reading. You keep every article you saved, and the export route carries no subscription gate.",
@@ -44,7 +44,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 		},
 		{
 			heading: "The export is a JSON file",
-			body: "One indented JSON file readable in any text editor: URL, title, site name, excerpt, word count, estimated read time, read status, saved date and read date, one entry per article.",
+			body: "One indented JSON file readable in any text editor: URL, title, site name, excerpt, word count, estimated read time, read status, saved date and read date, with each article's highlights and notes, one entry per article.",
 		},
 	],
 	proof: {
@@ -61,7 +61,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
-		"The export lists what you saved — URL, title, excerpt and read history. It does not contain the full article text.",
+		"The export lists what you saved — URL, title, excerpt and read history — with each article's highlights and notes. It does not contain the full article text.",
 		"The export runs in the background and arrives as an emailed download link. The link works for 7 days; after that, request another.",
 		"A read-only account loses Import and Inbox. The readlist, the account page and the export stay.",
 		"Source-available is not open source. The code is on GitHub to read, but no licence grants you rights to reuse it.",
@@ -81,7 +81,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 		{
 			question: "What is in the export?",
 			answer:
-				"One JSON file with an entry per article: URL, title, site name, excerpt, word count, estimated read time, read status, saved date and read date. It does not include the article text.",
+				"One JSON file with an entry per article: URL, title, site name, excerpt, word count, estimated read time, read status, saved date and read date, with each article's highlights and notes. It does not include the article text.",
 		},
 		{
 			question: "How do I get the export file?",

@@ -198,6 +198,16 @@ export interface HighlightNoteSavedEvent {
 	action: "added" | "edited" | "removed";
 }
 
+export interface HighlightOpenedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.highlightOpened;
+	timestamp: string;
+	user_id: UserId;
+	visitor_hash: string | null;
+	origin: "mark" | "rail";
+	highlight_id: HighlightId;
+}
+
 /**
  * Carries `visitor_id` so it joins to the `user_created` conversion per device.
  */
@@ -508,4 +518,5 @@ export type AnalyticsEvent =
 	| EpubImagesOverBudgetEvent
 	| HighlightCreatedEvent
 	| HighlightDeletedEvent
-	| HighlightNoteSavedEvent;
+	| HighlightNoteSavedEvent
+	| HighlightOpenedEvent;

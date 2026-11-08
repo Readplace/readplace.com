@@ -1,6 +1,5 @@
 import type { SaveClient } from "@packages/web-analytics";
 import { withInternalTracking } from "@packages/web-shell";
-import { highlightActionUrl } from "../../pages/readlist/highlight-surface";
 import { READLIST_PATH } from "../../pages/readlist/readlist.url";
 import { viewPathFor } from "../../pages/view/view-path";
 
@@ -22,13 +21,7 @@ export function ownerArticleEpubHref(params: {
 	articleId: string;
 	appClient: SaveClient | undefined;
 }): string {
-	const path = highlightActionUrl({
-		path: `${READLIST_PATH}/${params.articleId}/view`,
-		readlist: [],
-		surface: [["format", "epub"]],
-		enabled: true,
-	});
-	return withInternalTracking(path, {
+	return withInternalTracking(`${READLIST_PATH}/${params.articleId}/view?format=epub`, {
 		source: "reader",
 		content: EPUB_DOWNLOAD_CONTENT,
 		term: params.appClient,

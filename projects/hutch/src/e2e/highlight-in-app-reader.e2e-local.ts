@@ -56,7 +56,7 @@ async function openAppReader(page: Page, stamp: string): Promise<void> {
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
-	await page.goto(`${BASE_URL}/queue/${articleId}/view?platform=android&feature=highlight`, {
+	await page.goto(`${BASE_URL}/queue/${articleId}/view?platform=android`, {
 		waitUntil: "domcontentloaded",
 	});
 	await page.waitForSelector(READY_SLOT);

@@ -133,19 +133,4 @@ class AppConfigTest {
 			AppConfig.nativeUserAgent(versionCode = 1, osRelease = "14"),
 		)
 	}
-
-	@Test
-	fun `production reader carries no feature query`() {
-		assertEquals(emptyList<Pair<String, String>>(), AppConfig.readerFeatureQuery("production"))
-	}
-
-	@Test
-	fun `staging reader carries the highlight feature query`() {
-		assertEquals(listOf("feature" to "highlight"), AppConfig.readerFeatureQuery("staging"))
-	}
-
-	@Test
-	fun `local reader carries the highlight feature query`() {
-		assertEquals(listOf("feature" to "highlight"), AppConfig.readerFeatureQuery("local"))
-	}
 }

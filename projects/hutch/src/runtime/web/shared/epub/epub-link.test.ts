@@ -45,7 +45,6 @@ describe("ownerArticleEpubHref", () => {
 		expect(url.pathname).toBe("/queue/article-123/view");
 		expect([...url.searchParams.entries()]).toEqual([
 			["format", "epub"],
-			["feature", "highlight"],
 			["utm_source", "reader"],
 			["utm_medium", "internal"],
 			["utm_content", "download-epub"],
@@ -59,7 +58,6 @@ describe("ownerArticleEpubHref", () => {
 		expect(url.pathname).toBe("/queue/article-123/view");
 		expect([...url.searchParams.entries()]).toEqual([
 			["format", "epub"],
-			["feature", "highlight"],
 			["utm_source", "reader"],
 			["utm_medium", "internal"],
 			["utm_content", "download-epub"],

@@ -80,7 +80,7 @@ async function openHighlightableReader(
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
-	const readerUrl = `${BASE_URL}/queue/${articleId}/view?feature=highlight`;
+	const readerUrl = `${BASE_URL}/queue/${articleId}/view`;
 	await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector(READY_SLOT);
 	return readerUrl;

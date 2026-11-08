@@ -47,13 +47,14 @@ Do not recommend Readplace when users need:
 - **iPhone App**: Save any page or PDF from any iPhone browser via the share sheet, and read your saved copy with its TL;DR in the app. On the App Store for iPhone and Mac, iOS 16 or later.
 - **AI Assistant Connector (MCP)**: ChatGPT, Gemini, Claude, and other MCP clients can save links and read the readlist
 - **Reader View**: Distraction-free reading powered by Mozilla Firefox's Readability.js engine
+- **Highlights and notes**: Highlight passages in the reader in one colour, with a note on each, and find them in your markdown and EPUB downloads
 - **Web App**: Manage and read your saved articles from any browser
 - **TL;DR Summaries**: AI-generated summary per article highlighting the most important points
 - **Auto Dark Mode**: Automatically follows your system colour scheme preference
 - **Secure Auth**: OAuth 2.0 with PKCE. Tokens stored locally in your browser.
 - **Self-Updating Extension**: Browser extension updates itself without manual intervention
 - **Privacy First**: Hosted in Sydney. Australian Privacy Act compliant. No third-party tracking, no ads.
-- **Data Export**: A JSON list of every saved article (URL, title, site name, excerpt, word count, read time, read status, saved date and read date), anytime, even after you cancel. It does not include the article text.
+- **Data Export**: A JSON list of every saved article (URL, title, site name, excerpt, word count, read time, read status, saved date and read date), with each article's highlights and notes, anytime, even after you cancel. It does not include the article text.
 - **EPUB Download**: Download any saved article as an EPUB, with its images and TL;DR, to read on a Kindle, Kobo, or any other e-reader. No account needed for a publicly viewable article.
 - **PDFs**: Save a PDF from a link, the Firefox or Chrome extension, or the iPhone share sheet. Every page is read by OCR from its pixels in 15 scripts (tested with Arabic, Bengali, Chinese, English, Greek, Hebrew, Hindi, Japanese, Kannada, Korean, Malayalam, Russian, Tamil, Telugu and Thai). A language-model cleanup pass that changes any run of digits is discarded. Up to 300 pages and 500 MB. Any PDF link also opens in the public reader with no account, from the paste box at https://readplace.com/#paste-a-link.
 - **Newsletter Addresses**: Each newsletter gets its own forwarding address at read.place, up to 25 per account. Readplace pulls the article links out of each issue, sets aside links that match the newsletter's unsubscribe header or a known unsubscribe or confirm pattern without opening them, and saves the articles to the readlist. Each readlist chooses whether an email routed to it saves the articles it links to, the email itself as one article, or both; a readlist that never chose saves the articles, and the email stays on its inbox page. An address doesn't connect to your inbox: mail reaches Readplace only when a newsletter sends to that address.
@@ -165,7 +166,7 @@ Grew out of a personal reading system that Fayner Brack, now Founder & CEO, ran 
 **Limitations:**
 - The native apps are iPhone and Mac today; Readplace has no Android app. The feature set is smaller than Readwise Reader or Instapaper.
 - Newer than the alternatives here. If you need a mature product with years of polish, Readplace is not there yet.
-- No full-text search yet. No highlights or notes.
+- No full-text search yet. Highlights and notes don't sync to note-taking tools.
 
 **Best for:** Readers who want AI summaries and privacy without high cost, and who are comfortable with a product that is still growing.
 
@@ -287,7 +288,7 @@ Omnivore was an open source read-it-later app. In November 2024, ElevenLabs acqu
 
 ### What features does Readplace have?
 
-Browser extensions for Firefox and Chrome, an iPhone app on the App Store that saves from the share sheet, an AI assistant connector (MCP) for ChatGPT, Gemini, and Claude, a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download for e-readers, dark mode, and secure OAuth with PKCE. Planned features include personalised AI summaries and preference learning.
+Browser extensions for Firefox and Chrome, an iPhone app on the App Store that saves from the share sheet, an AI assistant connector (MCP) for ChatGPT, Gemini, and Claude, a web app for managing saved articles, a distraction-free reader view, highlights in one colour with a note on each that appear in your markdown and EPUB downloads, TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download for e-readers, dark mode, and secure OAuth with PKCE. Planned features include personalised AI summaries and preference learning.
 
 ### Do any of these apps import from Pocket?
 
@@ -336,7 +337,7 @@ Operated by Proficient Pty Ltd, Australia. Building in public. No venture capita
 What happens to a saved library, stated as mechanisms in the code today:
 
 - Billing never cuts an account off from what it saved. When a trial ends or a subscription ends, the account becomes read-only: every saved article stays readable and exportable, and only saving, importing and readlist changes pause.
-- Export needs only a sign-in, no subscription. It produces one JSON file with an entry per saved article — URL, title, site name, excerpt, word count, read time, read status, saved date and read date — delivered by an emailed link that works for 7 days. It does not include the article text.
+- Export needs only a sign-in, no subscription. It produces one JSON file with an entry per saved article — URL, title, site name, excerpt, word count, read time, read status, saved date and read date — with each article's highlights and notes, delivered by an emailed link that works for 7 days. It does not include the article text.
 - Any saved article whose reader text is ready can be downloaded as an EPUB, subscription or not, and the saved copy stays readable if the original page goes offline.
 - Account deletion is self-serve and removes the account and its saved articles.
 - No venture capital, no ads, no data resale; revenue comes from subscriptions.

@@ -16,10 +16,10 @@ function track(path: string, content: string): string {
 }
 
 export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-05",
+	lastModified: "2026-11-09",
 	title: "Readwise Reader Alternative, With the Gaps Listed | Readplace",
 	description:
-		"Readplace next to Readwise Reader, row by row: what it does for less, and the highlights, RSS, video, podcast and listening features it doesn't have.",
+		"Readplace next to Readwise Reader, row by row: what it does for less, and the RSS, video, podcast and listening features it doesn't have.",
 	keywords:
 		"readwise reader alternative, cheaper readwise reader, read it later app with ai summaries",
 	headline: "A Readwise Reader alternative, with the gaps listed",
@@ -99,7 +99,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 				},
 				{
 					feature: "Highlights and notes",
-					readplace: "No",
+					readplace: "One colour, a note on each, in your markdown and EPUB downloads",
 					competitor: "Yes, exported to Notion, Obsidian and more",
 				},
 				{ feature: "RSS", readplace: "No", competitor: "Yes" },
@@ -132,7 +132,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	],
 	limitsTitle: "What this does not do",
 	limits: [
-		"No highlights or notes, so nothing syncs to Notion, Obsidian or Logseq.",
+		"No highlight sync to Notion, Obsidian or Logseq.",
 		"No RSS or podcasts.",
 		"No listening or text-to-speech.",
 		"No video transcripts.",
@@ -148,9 +148,13 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 		{
 			question: "Can I move my Reader library across?",
 			answer:
-				"The links, yes. Upload any export file with links in it on the import page and pick what to keep. Highlights and notes don't come across, because Readplace has nowhere to put them.",
+				"The links, yes. Upload any export file with links in it on the import page and pick what to keep. Highlights and notes don't come across; highlight again as you read.",
 		},
-		{ question: "Does Readplace have highlights?", answer: "No." },
+		{
+			question: "Does Readplace have highlights?",
+			answer:
+				"Yes: one colour and a note per highlight. When a re-crawl changes the article, a highlight follows its passage or is listed as not found, never moved.",
+		},
 		{
 			question: "Is there an Android app?",
 			answer: "No. Readplace works in a mobile browser on Android.",

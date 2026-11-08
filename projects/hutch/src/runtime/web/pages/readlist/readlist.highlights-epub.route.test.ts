@@ -43,14 +43,14 @@ async function saveArticle(params: { harness: Harness; userId: string; url: stri
 }
 
 async function createHighlight(params: { agent: Agent; exact: string; occurrence: "first" | "last" }): Promise<string> {
-	const page = new JSDOM((await params.agent.get(`/queue/${ARTICLE_ID}/view?feature=highlight`)).text).window.document;
+	const page = new JSDOM((await params.agent.get(`/queue/${ARTICLE_ID}/view`)).text).window.document;
 	const content = page.querySelector(".article-body__content");
 	assert(content, "the reader must render its content");
 	const text = normaliseText(collectTextChunks<Node>(content)).text;
 	const start = params.occurrence === "first" ? text.indexOf(params.exact) : text.lastIndexOf(params.exact);
 	assert(start >= 0, `the served text must hold "${params.exact}"`);
 	const response = await params.agent
-		.post(`/queue/${ARTICLE_ID}/highlights?feature=highlight`)
+		.post(`/queue/${ARTICLE_ID}/highlights`)
 		.type("form")
 		.send({ exact: params.exact, start: String(start), end: String(start + params.exact.length), origin: "mouse" });
 	assert.equal(response.status, 303);
@@ -87,24 +87,22 @@ function sectionEntries(chapter: ReturnType<DOMParser["parseFromString"]>): stri
 	return entries;
 }
 
-describe("Owner reader EPUB with ?feature=highlight (GET /queue/:id/view?format=epub)", () => {
-	it("links the flagged reader's Download to the owner EPUB", async () => {
+describe("Owner reader EPUB (GET /queue/:id/view?format=epub)", () => {
+	it("links the reader's Download to the owner EPUB", async () => {
 		const { harness, agent, userId } = await signedInHarness();
 		await saveArticle({ harness, userId, url: ARTICLE_URL, body: ARTICLE_BODY });
 
-		const href = epubLink((await agent.get(`/queue/${ARTICLE_ID}/view?feature=highlight`)).text);
+		const href = epubLink((await agent.get(`/queue/${ARTICLE_ID}/view`)).text);
 
 		expect(href.startsWith(`/queue/${ARTICLE_ID}/view?`)).toBe(true);
 		const params = new URL(href, TEST_APP_ORIGIN).searchParams;
 		expect({
 			format: params.get("format"),
-			feature: params.get("feature"),
 			utmSource: params.get("utm_source"),
 			utmMedium: params.get("utm_medium"),
 			utmContent: params.get("utm_content"),
 		}).toEqual({
 			format: "epub",
-			feature: "highlight",
 			utmSource: "reader",
 			utmMedium: "internal",
 			utmContent: "download-epub",
@@ -115,7 +113,7 @@ describe("Owner reader EPUB with ?feature=highlight (GET /queue/:id/view?format=
 		const { harness, agent, userId } = await signedInHarness();
 		await saveArticle({ harness, userId, url: ARTICLE_URL, body: ARTICLE_BODY });
 		const highlightId = await createHighlight({ agent, exact: "passage worth keeping", occurrence: "first" });
-		const href = epubLink((await agent.get(`/queue/${ARTICLE_ID}/view?feature=highlight`)).text);
+		const href = epubLink((await agent.get(`/queue/${ARTICLE_ID}/view`)).text);
 
 		const { response, chapter } = await downloadChapter(agent, href);
 
@@ -137,7 +135,7 @@ describe("Owner reader EPUB with ?feature=highlight (GET /queue/:id/view?format=
 		});
 		const highlightId = await createHighlight({ agent, exact: "same words again", occurrence: "last" });
 
-		const { chapter } = await downloadChapter(agent, `/queue/${ARTICLE_ID}/view?format=epub&feature=highlight`);
+		const { chapter } = await downloadChapter(agent, `/queue/${ARTICLE_ID}/view?format=epub`);
 
 		const paragraphs = Array.from(chapter.querySelectorAll("p")).filter((p) => p.textContent === "The same words again.");
 		expect(paragraphs.map((p) => p.querySelector(`mark[data-highlight-id="${highlightId}"]`) !== null)).toEqual([
@@ -158,7 +156,7 @@ describe("Owner reader EPUB with ?feature=highlight (GET /queue/:id/view?format=
 			canonicalCandidateId: CandidateIdSchema.parse("snapshot-candidate"),
 		});
 
-		const { chapter } = await downloadChapter(agent, `/queue/${ARTICLE_ID}/view?format=epub&feature=highlight`);
+		const { chapter } = await downloadChapter(agent, `/queue/${ARTICLE_ID}/view?format=epub`);
 
 		expect(Array.from(chapter.querySelectorAll("p"), (p) => p.textContent)).toContain("A rewritten second paragraph.");
 		expect(
@@ -172,7 +170,7 @@ describe("Owner reader EPUB with ?feature=highlight (GET /queue/:id/view?format=
 		await saveArticle({ harness, userId, url: ARTICLE_URL, body: ARTICLE_BODY });
 
 		const response = await agent
-			.get(`/queue/${ARTICLE_ID}/view?format=epub&feature=highlight`)
+			.get(`/queue/${ARTICLE_ID}/view?format=epub`)
 			.set("Sec-Purpose", "prefetch");
 
 		expect(response.status).toBe(204);
@@ -182,7 +180,7 @@ describe("Owner reader EPUB with ?feature=highlight (GET /queue/:id/view?format=
 		const { harness, agent } = await signedInHarness();
 		await saveArticle({ harness, userId: "someone-else-456", url: ARTICLE_URL, body: ARTICLE_BODY });
 
-		const response = await agent.get(`/queue/${ARTICLE_ID}/view?format=epub&feature=highlight`);
+		const response = await agent.get(`/queue/${ARTICLE_ID}/view?format=epub`);
 
 		expect(response.status).toBe(302);
 		expect(response.headers.location).toBe(
@@ -190,32 +188,11 @@ describe("Owner reader EPUB with ?feature=highlight (GET /queue/:id/view?format=
 		);
 	});
 
-	it("links the unflagged reader's Download to the public EPUB", async () => {
-		const { harness, agent, userId } = await signedInHarness();
-		await saveArticle({ harness, userId, url: ARTICLE_URL, body: ARTICLE_BODY });
-
-		const href = epubLink((await agent.get(`/queue/${ARTICLE_ID}/view`)).text);
-
-		expect(href.startsWith("/view/")).toBe(true);
-	});
-
-	it("serves the reader page for an unflagged ?format=epub", async () => {
-		const { harness, agent, userId } = await signedInHarness();
-		await saveArticle({ harness, userId, url: ARTICLE_URL, body: ARTICLE_BODY });
-
-		const response = await agent.get(`/queue/${ARTICLE_ID}/view?format=epub`);
-
-		expect(response.headers["content-type"]).toContain("text/html");
-		const content = new JSDOM(response.text).window.document.querySelector(".article-body__content");
-		assert(content, "the reader must render its content");
-		expect(content.textContent).toContain("Opening line of the body.");
-	});
-
 	it("redirects a signed-out request to the public reader without the format", async () => {
 		const { harness, userId } = await signedInHarness();
 		await saveArticle({ harness, userId, url: ARTICLE_URL, body: ARTICLE_BODY });
 
-		const response = await request(harness.server).get(`/queue/${ARTICLE_ID}/view?format=epub&feature=highlight`);
+		const response = await request(harness.server).get(`/queue/${ARTICLE_ID}/view?format=epub`);
 
 		expect(response.status).toBe(302);
 		expect(response.headers.location).toBe(
@@ -228,7 +205,7 @@ describe("Owner reader EPUB with ?feature=highlight (GET /queue/:id/view?format=
 		const { harness, agent, userId } = await signedInHarness();
 		await saveArticle({ harness, userId, url: ARTICLE_URL, body: undefined });
 
-		const response = await agent.get(`/queue/${ARTICLE_ID}/view?format=epub&feature=highlight`);
+		const response = await agent.get(`/queue/${ARTICLE_ID}/view?format=epub`);
 
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toContain("text/html");
@@ -240,7 +217,7 @@ describe("Owner reader EPUB with ?feature=highlight (GET /queue/:id/view?format=
 		await saveArticle({ harness, userId, url: issueUrl, body: "<p>Today's links, with commentary.</p>" });
 
 		const response = await agent.get(
-			`/queue/${ReaderArticleHashId.from(issueUrl).value}/view?format=epub&feature=highlight`,
+			`/queue/${ReaderArticleHashId.from(issueUrl).value}/view?format=epub`,
 		);
 
 		expect(response.status).toBe(200);
@@ -251,8 +228,8 @@ describe("Owner reader EPUB with ?feature=highlight (GET /queue/:id/view?format=
 		const { harness, agent, userId } = await signedInHarness();
 		await saveArticle({ harness, userId, url: ARTICLE_URL, body: ARTICLE_BODY });
 
-		const pageHref = epubLink((await agent.get(`/queue/${ARTICLE_ID}/view?platform=android&feature=highlight`)).text);
-		const pollHref = epubLink((await agent.get(`/queue/${ARTICLE_ID}/reader?poll=1&platform=android&feature=highlight`)).text);
+		const pageHref = epubLink((await agent.get(`/queue/${ARTICLE_ID}/view?platform=android`)).text);
+		const pollHref = epubLink((await agent.get(`/queue/${ARTICLE_ID}/reader?poll=1&platform=android`)).text);
 
 		expect([pageHref.startsWith("/view/"), pollHref.startsWith("/view/")]).toEqual([true, true]);
 	});

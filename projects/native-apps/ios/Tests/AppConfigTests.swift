@@ -37,24 +37,6 @@ final class AppConfigTests: XCTestCase {
 		#endif
 	}
 
-	func testProductionReaderCarriesNoFeatureFlag() {
-		XCTAssertEqual(ServerEnvironment.production.readerFeatureQueryItems, [])
-	}
-
-	func testStagingReaderTurnsOnHighlights() {
-		XCTAssertEqual(
-			ServerEnvironment.staging.readerFeatureQueryItems,
-			[URLQueryItem(name: "feature", value: "highlight")]
-		)
-	}
-
-	func testLocalReaderTurnsOnHighlights() {
-		XCTAssertEqual(
-			ServerEnvironment.local.readerFeatureQueryItems,
-			[URLQueryItem(name: "feature", value: "highlight")]
-		)
-	}
-
 	func testPrivacyPolicyURLIsServedByTheTargetedStack() {
 		XCTAssertEqual(AppConfig.privacyPolicyURL.absoluteString, "\(AppConfig.serverBaseURL)/privacy")
 	}

@@ -91,36 +91,6 @@ final class ReaderBootstrapTests: XCTestCase {
 		)
 	}
 
-	func testTheReaderURLAppendsTheExtraQueryItemsAfterThePlatformParam() {
-		XCTAssertEqual(
-			ReaderRequest.url(
-				readHref: "/queue/a1/view?queue=work",
-				baseURL: "https://readplace.com",
-				extraQueryItems: [URLQueryItem(name: "feature", value: "highlight")]
-			)?.absoluteString,
-			"https://readplace.com/queue/a1/view?queue=work&platform=ios&feature=highlight"
-		)
-	}
-
-	func testTheReaderURLWithNoExtraQueryItemsCarriesOnlyThePlatformParam() {
-		XCTAssertEqual(
-			ReaderRequest.url(readHref: "/queue/a1/view", baseURL: "https://readplace.com", extraQueryItems: [])?
-				.absoluteString,
-			"https://readplace.com/queue/a1/view?platform=ios"
-		)
-	}
-
-	func testAnArticleWithoutAReadHrefHasNoReaderURLWhateverTheExtraQueryItems() {
-		XCTAssertEqual(
-			ReaderRequest.url(
-				readHref: nil,
-				baseURL: "https://readplace.com",
-				extraQueryItems: [URLQueryItem(name: "feature", value: "highlight")]
-			),
-			nil
-		)
-	}
-
 	func testAnArticleWithoutAReadHrefHasNoReaderURL() {
 		XCTAssertEqual(ReaderRequest.url(readHref: nil, baseURL: "https://readplace.com"), nil)
 	}

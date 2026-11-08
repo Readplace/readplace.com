@@ -36,7 +36,6 @@ export function highlightFormUrl(input: {
 			path: `${READLIST_PATH}/${input.scope.articleId}${input.path}`,
 			readlist: input.scope.readlist,
 			surface: input.scope.surface,
-			enabled: true,
 		}),
 		{ source: input.source, content: input.content },
 	);

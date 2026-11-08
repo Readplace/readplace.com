@@ -84,7 +84,7 @@ describe("renderHighlightNoteDialog", () => {
 			true,
 		);
 		expect(doc.querySelector("form")?.getAttribute("hx-post")).toBe(
-			"/queue/abc/highlights?feature=highlight&utm_source=highlight-toolbar&utm_medium=internal&utm_content=save-note",
+			"/queue/abc/highlights?utm_source=highlight-toolbar&utm_medium=internal&utm_content=save-note",
 		);
 		expect(
 			doc
@@ -168,7 +168,7 @@ describe("renderHighlightNoteEditDialog", () => {
 		expect(textareaOf(doc).id).toBe(`note-highlight-${HIGHLIGHT_ID}-input`);
 		expect(doc.querySelectorAll("[autofocus]")).toHaveLength(1);
 		expect(form?.getAttribute("action")).toBe(
-			trackedNoteUrl("feature=highlight"),
+			trackedNoteUrl(""),
 		);
 		expect(form?.hasAttribute("hx-push-url")).toBe(false);
 		expect(form?.getAttribute("hx-boost")).toBe("true");
@@ -195,7 +195,7 @@ describe("renderHighlightNoteFallbackForm", () => {
 			"highlight-note-fallback",
 		);
 		expect(doc.querySelector("form")?.getAttribute("action")).toBe(
-			trackedNoteUrl("feature=highlight"),
+			trackedNoteUrl(""),
 		);
 		expect(doc.querySelector("form")?.hasAttribute("hx-push-url")).toBe(false);
 		expect(textareaOf(doc).id).toBe(
@@ -219,12 +219,12 @@ describe("renderHighlightNoteFallbackForm", () => {
 });
 
 describe("note dialogs in the app surface", () => {
-	it("posts the bar's note dialog with the readlist, then the surface, then the flag, both as action and hx-post", () => {
+	it("posts the bar's note dialog with the readlist, then the surface, both as action and hx-post", () => {
 		const form = parse(
 			renderHighlightNoteDialog({ scope: APP_SCOPE, hiddenFields: [] }),
 		).querySelector("form");
 		const expected =
-			"/queue/abc/highlights?queue=work&platform=ios&feature=highlight&utm_source=highlight-toolbar&utm_medium=internal&utm_content=save-note";
+			"/queue/abc/highlights?queue=work&platform=ios&utm_source=highlight-toolbar&utm_medium=internal&utm_content=save-note";
 
 		expect(form?.getAttribute("action")).toBe(expected);
 		expect(form?.getAttribute("hx-post")).toBe(expected);
@@ -245,7 +245,7 @@ describe("note dialogs in the app surface", () => {
 			const form = parse(html).querySelector("form");
 
 			expect(form?.getAttribute("action")).toBe(
-				trackedNoteUrl("queue=work&platform=ios&feature=highlight"),
+				trackedNoteUrl("queue=work&platform=ios"),
 			);
 			expect(form?.getAttribute("hx-boost")).toBe("true");
 			expect(form?.getAttribute("hx-push-url")).toBe("false");

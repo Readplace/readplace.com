@@ -86,9 +86,9 @@ async function saveArticle(
 }
 
 const viewPath = (articleId: string) =>
-	`/queue/${articleId}/view?feature=highlight`;
+	`/queue/${articleId}/view`;
 const createPath = (articleId: string) =>
-	`/queue/${articleId}/highlights?feature=highlight`;
+	`/queue/${articleId}/highlights`;
 
 async function rangeOf(
 	agent: Agent,
@@ -174,31 +174,17 @@ function highlightFormsInMain(html: string): Element[] {
 }
 
 describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:id/view)", (platform) => {
-	it("renders the chromeless reader without a rail or highlight forms without the flag", async () => {
+	it("renders the rail and a create form carrying the surface", async () => {
 		const harness = useApp(parsedFixture());
-		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-no-flag`);
-
-		const html = (await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text;
-
-		const page = doc(html);
-		expect(page.querySelector("body.page-reader--chromeless")).not.toBeNull();
-		expect(page.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("readplace://reader/close");
-		expect(page.querySelector("[data-test-highlights-rail]")).toBeNull();
-		expect(highlightFormsInMain(html)).toEqual([]);
-	});
-
-	it("renders the rail and a create form carrying the surface and the flag with the flag", async () => {
-		const harness = useApp(parsedFixture());
-		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-flag`);
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-rail`);
 		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
 
-		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}&feature=highlight`)).text);
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
 
 		expect(page.querySelector("body.page-reader--chromeless")).not.toBeNull();
 		expect(page.querySelector("[data-test-highlights-rail]")).not.toBeNull();
 		const createAction = page.querySelector("[data-test-highlight-create-form]")?.getAttribute("action");
 		expect(createAction).toContain(`platform=${platform}`);
-		expect(createAction).toContain("feature=highlight");
 		expect(createAction).toContain("utm_source=highlight-toolbar");
 		expect(page.querySelector('[data-test-action="highlight-jump"]')?.getAttribute("href")).toBe(`#highlight-${id}`);
 		const deleteForm = page.querySelector(".highlights-rail__delete-form--fallback");
@@ -211,7 +197,7 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-note-forms`);
 		await createHighlight(agent, { articleId, exact: "readability parser" });
 
-		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}&feature=highlight`)).text);
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
 
 		const createNoteAction = page
 			.querySelector('#note-highlight-dialog form[data-test-form="highlight-note"]')
@@ -233,7 +219,7 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
 		await makeReadOnly(harness);
 
-		const html = (await agent.get(`/queue/${articleId}/view?platform=${platform}&feature=highlight`)).text;
+		const html = (await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text;
 
 		const page = doc(html);
 		expect(rowsOf(html)).toEqual([{ id, state: "anchored" }]);
@@ -249,7 +235,7 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-poll`);
 		await createHighlight(agent, { articleId, exact: "readability parser" });
 
-		const poll = (await agent.get(`/queue/${articleId}/reader?poll=1&platform=${platform}&feature=highlight`)).text;
+		const poll = (await agent.get(`/queue/${articleId}/reader?poll=1&platform=${platform}`)).text;
 
 		expect(marksOf(poll)).toEqual(["readability parser"]);
 		const actions = formActionsIn(doc(poll).querySelector("[data-test-highlights-rail]"));
@@ -268,7 +254,7 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		await createHighlight(agent, { articleId, exact: "readability parser" });
 		await fixture.articleCrawl.forceMarkCrawlPending({ url });
 
-		const poll = (await agent.get(`/queue/${articleId}/summary?poll=1&platform=${platform}&feature=highlight`)).text;
+		const poll = (await agent.get(`/queue/${articleId}/summary?poll=1&platform=${platform}`)).text;
 
 		const deleteForm = doc(poll).querySelector(
 			"[data-test-highlights-rail] .highlights-rail__delete-form--fallback",
@@ -283,7 +269,7 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
 		await makeReadOnly(harness);
 
-		const poll = (await agent.get(`/queue/${articleId}/reader?poll=1&platform=${platform}&feature=highlight`)).text;
+		const poll = (await agent.get(`/queue/${articleId}/reader?poll=1&platform=${platform}`)).text;
 
 		expect(rowsOf(poll)).toEqual([{ id, state: "anchored" }]);
 		expect(formActionsIn(doc(poll).querySelector("[data-test-highlights-rail]"))).toEqual([]);
@@ -298,7 +284,7 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		await makeReadOnly(harness);
 		await fixture.articleCrawl.forceMarkCrawlPending({ url });
 
-		const poll = (await agent.get(`/queue/${articleId}/summary?poll=1&platform=${platform}&feature=highlight`)).text;
+		const poll = (await agent.get(`/queue/${articleId}/summary?poll=1&platform=${platform}`)).text;
 
 		const rail = doc(poll).querySelector("[data-test-highlights-rail]");
 		expect(rail?.getAttribute("hx-swap-oob")).toBe("outerHTML");
@@ -312,26 +298,26 @@ describe("Highlights in the browser reader for a read-only account", () => {
 		const { agent, articleId } = await saveArticle(harness, "https://example.com/browser-read-only");
 		await makeReadOnly(harness);
 
-		const page = doc((await agent.get(`/queue/${articleId}/view?feature=highlight`)).text);
+		const page = doc((await agent.get(`/queue/${articleId}/view`)).text);
 
 		expect(page.querySelector("[data-test-highlight-toolbar]")).not.toBeNull();
 	});
 });
 
 describe("Poll URLs of the app reader", () => {
-	it("carries the readlist, then the surface, then the flag on a pending article's poll", async () => {
+	it("carries the readlist, then the surface on a pending article's poll", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const url = "https://example.com/app-poll-url";
 		const { agent, articleId } = await saveArticle(harness, url);
 
-		const page = doc((await agent.get(`/queue/${articleId}/view?order=asc&platform=ios&feature=highlight`)).text);
+		const page = doc((await agent.get(`/queue/${articleId}/view?order=asc&platform=ios`)).text);
 
 		expect(page.querySelector("[data-test-reader-summary]")?.getAttribute("hx-get")).toBe(
-			`/queue/${articleId}/summary?poll=1&order=asc&platform=ios&feature=highlight`,
+			`/queue/${articleId}/summary?poll=1&order=asc&platform=ios`,
 		);
 		const createAction = page.querySelector("[data-test-highlight-create-form]")?.getAttribute("action");
-		expect(createAction).toContain("order=asc&platform=ios&feature=highlight");
+		expect(createAction).toContain("order=asc&platform=ios");
 	});
 
 	it("carries a readlist that arrives as readlist= on a pending article's poll and create form", async () => {
@@ -342,10 +328,10 @@ describe("Poll URLs of the app reader", () => {
 		assert(work, "creating a readlist must land the reader on it");
 		await agent.post(`/queue/${articleId}/assign`).type("form").send({ queue: work, returnTo: "/queue" });
 
-		const page = doc((await agent.get(`/queue/${articleId}/view?readlist=${work}&platform=ios&feature=highlight`)).text);
+		const page = doc((await agent.get(`/queue/${articleId}/view?readlist=${work}&platform=ios`)).text);
 
 		expect(page.querySelector("[data-test-reader-summary]")?.getAttribute("hx-get")).toBe(
-			`/queue/${articleId}/summary?poll=1&queue=${work}&platform=ios&feature=highlight`,
+			`/queue/${articleId}/summary?poll=1&queue=${work}&platform=ios`,
 		);
 		const createAction = page.querySelector("[data-test-highlight-create-form]")?.getAttribute("action");
 		expect(createAction).toContain(`queue=${work}`);
@@ -354,7 +340,7 @@ describe("Poll URLs of the app reader", () => {
 });
 
 describe.each(["ios", "android"] as const)("Highlight posts from the %s app reader", (platform) => {
-	const appQuery = `platform=${platform}&feature=highlight`;
+	const appQuery = `platform=${platform}`;
 
 	it("redirects a create back to the app reader at the new highlight and records the surface", async () => {
 		const harness = useApp(parsedFixture());
@@ -388,7 +374,7 @@ describe.each(["ios", "android"] as const)("Highlight posts from the %s app read
 });
 
 describe("Highlight refusals and notes in the iOS app reader", () => {
-	const appQuery = "platform=ios&feature=highlight";
+	const appQuery = "platform=ios";
 
 	it("answers a create whose passage moved with the chromeless reader keeping the surface", async () => {
 		const harness = useApp(parsedFixture());

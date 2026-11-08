@@ -385,6 +385,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			new JSDOM(response.text).window.document.querySelectorAll("[hx-swap-oob]"),
 		).map((el) => el.id);
 		expect(ids).toEqual([
+			"highlights-rail",
 			"article-body-summary-slot",
 			"table-of-contents",
 			"reader-article-title",

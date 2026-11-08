@@ -657,6 +657,22 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	widgets.push(
+		logWidget({
+			region,
+			title: "Highlights opened per day, by where they were clicked",
+			logGroupNames: analyticsSource,
+			query: [
+				"fields @timestamp, origin",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.highlightOpened}"`,
+				...exclude,
+				"| stats count(*) as opened by origin, bin(1d)",
+			].join(" "),
+			x: 12, y: 114, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+	);
+
 	widgets.push({
 		type: "metric",
 		x: 0, y: 114, width: 12, height: 8,

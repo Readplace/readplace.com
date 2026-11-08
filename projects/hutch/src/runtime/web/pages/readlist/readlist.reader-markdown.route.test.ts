@@ -598,7 +598,7 @@ describe("Private upload reader Markdown (GET /queue/:id/view with Accept: text/
 	});
 });
 
-describe("Owner reader Markdown highlights (GET /queue/:id/view?feature=highlight with Accept: text/markdown)", () => {
+describe("Owner reader Markdown highlights (GET /queue/:id/view with Accept: text/markdown)", () => {
 	const url = "https://example.com/highlighted-post?utm_source=x";
 	const id = ReaderArticleHashId.from(url).value;
 	type Agent = Awaited<ReturnType<typeof loginAgent>>;
@@ -629,14 +629,14 @@ describe("Owner reader Markdown highlights (GET /queue/:id/view?feature=highligh
 		exact: string,
 		occurrence: "first" | "last" = "first",
 	): Promise<string> {
-		const page = new JSDOM((await agent.get(`/queue/${id}/view?feature=highlight`)).text).window.document;
+		const page = new JSDOM((await agent.get(`/queue/${id}/view`)).text).window.document;
 		const content = page.querySelector(".article-body__content");
 		assert(content, "the reader must render its content");
 		const text = normaliseText(collectTextChunks<Node>(content)).text;
 		const start = occurrence === "first" ? text.indexOf(exact) : text.lastIndexOf(exact);
 		assert(start >= 0, `the served text must hold "${exact}"`);
 		const response = await agent
-			.post(`/queue/${id}/highlights?feature=highlight`)
+			.post(`/queue/${id}/highlights`)
 			.type("form")
 			.send({ exact, start: String(start), end: String(start + exact.length), origin: "mouse" });
 		assert.equal(response.status, 303);
@@ -645,15 +645,15 @@ describe("Owner reader Markdown highlights (GET /queue/:id/view?feature=highligh
 		return HighlightIdSchema.parse(match[1]);
 	}
 
-	const markdownOf = (agent: Agent, query: string) =>
-		agent.get(`/queue/${id}/view${query}`).set("Accept", "text/markdown");
+	const markdownOf = (agent: Agent) =>
+		agent.get(`/queue/${id}/view`).set("Accept", "text/markdown");
 
-	it("ends the flagged Markdown with a Highlights section holding each quote", async () => {
+	it("ends the Markdown with a Highlights section holding each quote", async () => {
 		const { harness } = buildHarness();
 		const agent = await savedReadyArticle(harness);
 		await createHighlight(agent, "passage worth keeping");
 
-		const response = await markdownOf(agent, "?feature=highlight");
+		const response = await markdownOf(agent);
 
 		expect(response.status).toBe(200);
 		expect(response.text.endsWith("## Highlights\n\n> passage worth keeping\n")).toBe(true);
@@ -667,22 +667,10 @@ describe("Owner reader Markdown highlights (GET /queue/:id/view?feature=highligh
 		);
 		await createHighlight(agent, "same words again", "last");
 
-		const response = await markdownOf(agent, "?feature=highlight");
+		const response = await markdownOf(agent);
 
 		expect(response.status).toBe(200);
 		expect(response.text.endsWith("## Highlights\n\n> same words again\n")).toBe(true);
-	});
-
-	it("serves the document from before any highlight existed when the flag is off", async () => {
-		const { harness } = buildHarness();
-		const agent = await savedReadyArticle(harness);
-		const before = (await markdownOf(agent, "")).text;
-		await createHighlight(agent, "passage worth keeping");
-
-		const response = await markdownOf(agent, "");
-
-		expect(response.status).toBe(200);
-		expect(response.text).toBe(before);
 	});
 
 	it("anchors against the canonical snapshot's body, listing a quote it lost as not found", async () => {
@@ -696,7 +684,7 @@ describe("Owner reader Markdown highlights (GET /queue/:id/view?feature=highligh
 			canonicalCandidateId: CandidateIdSchema.parse("snapshot-candidate"),
 		});
 
-		const response = await markdownOf(agent, "?feature=highlight");
+		const response = await markdownOf(agent);
 
 		expect(response.status).toBe(200);
 		expect(response.text).toContain("A rewritten second paragraph.");
@@ -725,7 +713,7 @@ describe("Owner reader Markdown highlights (GET /queue/:id/view?feature=highligh
 		});
 		await harness.articleCrawl.forceMarkCrawlPending({ url });
 
-		const response = await markdownOf(agent, "?feature=highlight");
+		const response = await markdownOf(agent);
 
 		expect(response.status).toBe(200);
 		expect(matter(response.text).data.readplace_content_status).toBe("processing");

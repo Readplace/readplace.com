@@ -76,7 +76,6 @@ import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type { SavedArticle } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { highlightFeatureEnabled } from "./highlight-feature";
 import { highlightActionUrl } from "./highlight-surface";
 import { highlightFormScopeFor, initReaderHighlightOptions } from "./reader-highlight-options";
 import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM, readerEpubHrefFor } from "./readlist-shared";
@@ -535,17 +534,15 @@ export function initReaderPageRoutes(deps: Pick<
 			deletion,
 			provenance,
 		} = resolved;
-		const highlightRows = highlightFeatureEnabled(req.query)
-			? await deps.listArticleHighlights({
-					userId: ownedArticle.userId,
-					url: ArticleResourceUniqueId.parse(ownedArticle.url).value,
-				})
-			: [];
+		const highlightRows = await deps.listArticleHighlights({
+			userId: ownedArticle.userId,
+			url: ArticleResourceUniqueId.parse(ownedArticle.url).value,
+		});
 		const contentVersion = withHighlightsVersion({
 			contentVersion: resolved.contentVersion,
 			highlights: highlightRows,
 		});
-		const highlights: ReaderPageHighlights | undefined = await readerHighlightOptions(req, {
+		const highlights: ReaderPageHighlights = await readerHighlightOptions(req, {
 			article: ownedArticle,
 			rows: highlightRows,
 		});
@@ -577,7 +574,6 @@ export function initReaderPageRoutes(deps: Pick<
 				: highlightActionUrl({
 						path: `${READLIST_PATH}/${ownedArticle.id.value}/view`,
 						...highlightFormScopeFor(req, ownedArticle.id.value),
-						enabled: true,
 					});
 		const issueLinks = await issueLinksFor(req, ownedArticle);
 		const readerSettled =

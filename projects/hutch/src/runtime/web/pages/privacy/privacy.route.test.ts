@@ -103,7 +103,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 7 November 2026");
+		expect(response.text).toContain("Last updated: 9 November 2026");
 	});
 
 	it("lists a file uploaded before signing up among the data Readplace collects", async () => {
@@ -129,11 +129,36 @@ describe("GET /privacy", () => {
 		expect(response.text).toContain("the name you add on your Account page");
 	});
 
-	it("scopes the account-deletion claim to the saved list and reading history, not 'every saved article'", async () => {
+	it("scopes the account-deletion claim to the saved list, highlights and notes, and reading history, not 'every saved article'", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("along with your saved list and your reading history");
+		expect(response.text).toContain("along with your saved list, your highlights and notes, and your reading history");
+	});
+
+	it("lists highlights and notes among the data Readplace collects", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const items = Array.from(doc.querySelectorAll("li"), (item) => item.textContent);
+		expect(items).toContain("Highlights and notes: the passages you highlight in the reader and any note you add to one, stored with your account. They appear in your reader's markdown and EPUB downloads and in your account data export.");
+	});
+
+	it("says highlights and notes are deleted with the article and with the account", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const retention = Array.from(doc.querySelectorAll("p"), (p) => p.textContent).find((text) => text?.startsWith("Readplace keeps your account and saved articles"));
+		expect(retention).toContain("Highlights and notes are deleted with the article, and with your account.");
+	});
+
+	it("says the export carries highlights and notes", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("You can export a list of your saved articles, with their highlights and notes, at any time");
 	});
 
 	it("tells a disconnecting reader the forwarding address is theirs to remove", async () => {

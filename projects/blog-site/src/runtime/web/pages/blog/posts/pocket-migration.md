@@ -5,7 +5,7 @@ excerpt: "Pocket went offline on July 8, 2025, and old emails and browser histor
 tldr: "Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the export file, open the Import Links page and use the \"Upload a file\" tab. Pick the file, untick anything you don't want, then click Import. An account is needed only for that last click. Files over 4.5 MB or above 2,000 links have to be split into smaller files first."
 slug: "pocket-migration"
 date: "2026-05-06"
-lastModified: "2026-11-04"
+lastModified: "2026-11-09"
 author: "Fayner Brack"
 keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket, Pocket shut down 2025, Pocket replacement"
 ---
@@ -72,7 +72,7 @@ The [Pocket alternative page](/pocket-alternative?utm_source=blog-pocket-migrati
 | Reader view | Yes | Yes |
 | AI summaries | No | TL;DR for every article |
 | Tags | Yes | Readlists (up to 7), no tags |
-| Highlights | No | No |
+| Highlights | Yes | Yes |
 | Full-text search | Yes (Premium) | No |
 | Offline reading | Yes (mobile) | Planned |
 | Mobile app | iOS, Android | iPhone and Mac (App Store), mobile web elsewhere |

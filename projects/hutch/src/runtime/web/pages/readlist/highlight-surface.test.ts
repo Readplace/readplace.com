@@ -16,60 +16,40 @@ function readlistOf(query: Record<string, unknown>): LinkParams {
 }
 
 describe("highlightActionUrl", () => {
-	it("carries only the flag for a request with no native surface", () => {
-		const url = highlightActionUrl({ path: CREATE_PATH, readlist: [], surface: [], enabled: true });
-
-		assert.equal(url, `${CREATE_PATH}?feature=highlight`);
-	});
-
-	it("keeps the iOS surface ahead of the flag", () => {
+	it("keeps the iOS surface", () => {
 		const url = highlightActionUrl({
 			path: CREATE_PATH,
 			readlist: [],
 			surface: linkParams("platform=ios"),
-			enabled: true,
-		});
-
-		assert.equal(url, `${CREATE_PATH}?platform=ios&feature=highlight`);
-	});
-
-	it("keeps both native markers, then the flag", () => {
-		const url = highlightActionUrl({
-			path: CREATE_PATH,
-			readlist: [],
-			surface: linkParams("platform=android&shell=app"),
-			enabled: true,
-		});
-
-		assert.equal(url, `${CREATE_PATH}?platform=android&shell=app&feature=highlight`);
-	});
-
-	it("carries only the surface when the flag is off", () => {
-		const url = highlightActionUrl({
-			path: CREATE_PATH,
-			readlist: [],
-			surface: linkParams("platform=ios"),
-			enabled: false,
 		});
 
 		assert.equal(url, `${CREATE_PATH}?platform=ios`);
 	});
 
+	it("keeps both native markers", () => {
+		const url = highlightActionUrl({
+			path: CREATE_PATH,
+			readlist: [],
+			surface: linkParams("platform=android&shell=app"),
+		});
+
+		assert.equal(url, `${CREATE_PATH}?platform=android&shell=app`);
+	});
+
 	it("leaves the path bare when there is nothing to carry", () => {
-		const url = highlightActionUrl({ path: CREATE_PATH, readlist: [], surface: [], enabled: false });
+		const url = highlightActionUrl({ path: CREATE_PATH, readlist: [], surface: [] });
 
 		assert.equal(url, CREATE_PATH);
 	});
 
-	it("puts the readlist first, as the queue param, then the surface and the flag", () => {
+	it("puts the readlist first, as the queue param, then the surface", () => {
 		const url = highlightActionUrl({
 			path: CREATE_PATH,
 			readlist: readlistOf({ readlist: "work" }),
 			surface: linkParams("platform=ios"),
-			enabled: true,
 		});
 
-		assert.equal(url, `${CREATE_PATH}?queue=work&platform=ios&feature=highlight`);
+		assert.equal(url, `${CREATE_PATH}?queue=work&platform=ios`);
 	});
 });
 
@@ -79,11 +59,10 @@ describe("highlightReaderLocation", () => {
 			articleId: ARTICLE_ID,
 			readlist: [],
 			surface: linkParams("platform=ios"),
-			enabled: true,
 			fragment: { highlightId: HIGHLIGHT_ID },
 		});
 
-		assert.equal(location, `/queue/${ARTICLE_ID}/view?platform=ios&feature=highlight#highlight-${HIGHLIGHT_ID}`);
+		assert.equal(location, `/queue/${ARTICLE_ID}/view?platform=ios#highlight-${HIGHLIGHT_ID}`);
 	});
 
 	it("lands the reader on the rail after a delete", () => {
@@ -91,10 +70,9 @@ describe("highlightReaderLocation", () => {
 			articleId: ARTICLE_ID,
 			readlist: readlistOf({ readlist: "work" }),
 			surface: [],
-			enabled: true,
 			fragment: "rail",
 		});
 
-		assert.equal(location, `/queue/${ARTICLE_ID}/view?queue=work&feature=highlight#highlights-rail`);
+		assert.equal(location, `/queue/${ARTICLE_ID}/view?queue=work#highlights-rail`);
 	});
 });

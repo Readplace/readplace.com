@@ -13,7 +13,7 @@ import { toAbsoluteDate, toAbsoluteTime } from "@packages/web-shell/local-time.f
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { Base } from "../../base.component";
-import { ReaderPage } from "./reader.component";
+import { ReaderPage, type ReaderPageHighlights } from "./reader.component";
 import { READER_STYLES } from "./reader.styles";
 import { SHARE_DIALOG_STYLES } from "../../shared/share-dialog/share-dialog.styles";
 import { READLIST_NAME_FORM_STYLES } from "../readlist/readlist-name-form.styles";
@@ -30,6 +30,7 @@ import { articleBody } from "@packages/test-fixtures";
 import { epubDownloadGuideFor } from "../../shared/epub/epub-download-guide";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 
+const NO_HIGHLIGHTS: ReaderPageHighlights = { rows: [], canonicalContentHash: undefined, scope: undefined };
 const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 
 const NO_QUEUE_FILING: ReaderReadlistFiling = {
@@ -96,7 +97,7 @@ function renderReaderDocument(
 	readlistFiling: ReaderReadlistFiling = NO_QUEUE_FILING,
 ): Document {
 	const html = Base(
-		ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions, readlistFiling, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
+		ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions, readlistFiling, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 		{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 	).to("text/html").body;
 	return new JSDOM(html).window.document;
@@ -109,7 +110,7 @@ function versionAt(iso: string): ArticleVersion {
 function renderReaderPageDocument(options: Partial<Parameters<typeof ReaderPage>[1]>): Document {
 	const html = Base(
 		ReaderPage(makeArticle(), {
-			readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+			readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 			content: undefined,
 			appOrigin: DEFAULT_APP_ORIGIN,
 			backLink: TEST_BACK_LINK,
@@ -162,7 +163,7 @@ describe("ReaderPage", () => {
 		});
 
 		expect(railLandmark(rail)).toEqual({ tag: "ASIDE", label: "Article details" });
-		expect(railChildTags(rail)).toEqual(["DIV", "DETAILS", "A"]);
+		expect(railChildTags(rail)).toEqual(["SECTION", "DIV", "DETAILS", "A"]);
 		const card = rail.querySelector(":scope > details[data-test-article-history]");
 		assert(card, "Article history must be the rail's own child");
 		expect(
@@ -177,7 +178,7 @@ describe("ReaderPage", () => {
 	it("names the rail Article details when the table of contents is its only card", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: articleBody("<h2>Why it matters</h2><p>One</p>"),
 				crawl: { status: "ready" },
 				appOrigin: DEFAULT_APP_ORIGIN,
@@ -196,15 +197,16 @@ describe("ReaderPage", () => {
 
 		const rail = doc.querySelector(".reading-layout > [data-test-reader-rail]");
 		assert(rail, "the reader must render its rail beside the main track");
-		const tableOfContents = rail.firstElementChild;
-		assert(tableOfContents, "the rail must hold the table of contents first");
+		expect(rail.firstElementChild?.id).toBe("highlights-rail");
+		const tableOfContents = rail.firstElementChild?.nextElementSibling;
+		assert(tableOfContents, "the rail must hold the table of contents after the highlights rail");
 		expect(railLandmark(rail)).toEqual({ tag: "ASIDE", label: "Article details" });
 		expect([
 			tableOfContents.id,
 			tableOfContents.getAttribute("data-test-table-of-contents"),
 			tableOfContents.closest("[data-article-body]"),
 		]).toEqual(["table-of-contents", "listed", null]);
-		expect(railChildTags(rail)).toEqual(["DIV", "A"]);
+		expect(railChildTags(rail)).toEqual(["SECTION", "DIV", "A"]);
 	});
 
 	it("names the rail Article details when past reads has a card to show and the article has no version", () => {
@@ -216,7 +218,7 @@ describe("ReaderPage", () => {
 		});
 
 		expect(railLandmark(rail)).toEqual({ tag: "ASIDE", label: "Article details" });
-		expect(railChildTags(rail)).toEqual(["DIV", "SECTION", "A"]);
+		expect(railChildTags(rail)).toEqual(["SECTION", "DIV", "SECTION", "A"]);
 		expect(rail.querySelectorAll(":scope > [data-test-reader-topic-reads] details.past-reads__card")).toHaveLength(1);
 	});
 
@@ -231,7 +233,7 @@ describe("ReaderPage", () => {
 		});
 
 		expect(railLandmark(rail)).toEqual({ tag: "DIV", label: null });
-		expect(railChildTags(rail)).toEqual(["DIV", "SECTION", "NOSCRIPT", "A"]);
+		expect(railChildTags(rail)).toEqual(["SECTION", "DIV", "SECTION", "NOSCRIPT", "A"]);
 	});
 
 	it("names the rail Article details when the highlights rail has rows, and places it above the table of contents", () => {
@@ -288,9 +290,9 @@ describe("ReaderPage", () => {
 		const offline = renderRail({ ...cards, offlineCopyRow: true });
 		const online = renderRail(cards);
 
-		expect(railChildTags(offline)).toEqual(["DIV", "DETAILS", "TEMPLATE", "SECTION", "A"]);
+		expect(railChildTags(offline)).toEqual(["SECTION", "DIV", "DETAILS", "TEMPLATE", "SECTION", "A"]);
 		expect(offline.querySelector(":scope > template")?.hasAttribute("data-offline-copy-template")).toBe(true);
-		expect(railChildTags(online)).toEqual(["DIV", "DETAILS", "SECTION", "A"]);
+		expect(railChildTags(online)).toEqual(["SECTION", "DIV", "DETAILS", "SECTION", "A"]);
 	});
 
 	it("hands the owner's removal controls to the version they authored", () => {
@@ -310,7 +312,7 @@ describe("ReaderPage", () => {
 	it("renders the previously-read section when the owner reader supplies its reading-list link builder", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: undefined,
 				appOrigin: DEFAULT_APP_ORIGIN,
 				backLink: TEST_BACK_LINK,
@@ -341,7 +343,7 @@ describe("ReaderPage", () => {
 	it("omits the previously-read section when no reading-list link builder is supplied", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: undefined,
 				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				appOrigin: DEFAULT_APP_ORIGIN,
@@ -361,7 +363,7 @@ describe("ReaderPage", () => {
 		const rail = doc.querySelector("[data-test-reader-rail]");
 		assert(rail, "the rail must be rendered");
 		expect(railLandmark(rail)).toEqual({ tag: "DIV", label: null });
-		expect(railChildTags(rail)).toEqual(["DIV", "A"]);
+		expect(railChildTags(rail)).toEqual(["SECTION", "DIV", "A"]);
 	});
 
 	it("repeats ready past reads inside the article card, right after the summary, while the rail keeps its own copy", () => {
@@ -459,7 +461,7 @@ describe("ReaderPage", () => {
 		const downloadHref = "/view/inbox/owner?format=epub";
 		const html = Base(
 			ReaderPage(makeArticle({ url: "email://inbox/owner/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E" }), {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: articleBody("<p>Issue body</p>"),
 				appOrigin: DEFAULT_APP_ORIGIN,
 				backLink: TEST_BACK_LINK,
@@ -538,7 +540,7 @@ describe("ReaderPage", () => {
 
 	it("offers a report link naming the article's public view, against the supplied appOrigin", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, content: articleBody("<p>Body</p>"), appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
+			ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: articleBody("<p>Body</p>"), appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
@@ -560,7 +562,7 @@ describe("ReaderPage", () => {
 	});
 
 	it("opts the reader <main> out of htmx history snapshots so a boosted open never restores it", () => {
-		const html = Base(ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }), {
+		const html = Base(ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 			cspNonce: CSP_NONCE,
@@ -570,7 +572,7 @@ describe("ReaderPage", () => {
 	});
 
 	it("loads the reader-open client so a boosted queue open can fill the reader in place", () => {
-		const html = Base(ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }), {
+		const html = Base(ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 			cspNonce: CSP_NONCE,
@@ -587,7 +589,7 @@ describe("ReaderPage", () => {
 			destinationUrl: destinationUrl("https://example.com/post"),
 		});
 		const html = Base(
-			ReaderPage(article, { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
+			ReaderPage(article, { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
@@ -600,7 +602,7 @@ describe("ReaderPage", () => {
 	it("names when the owner saved the article, relative to the render time", () => {
 		const html = Base(
 			ReaderPage(makeArticle({ savedAt: new Date("2026-08-05T06:00:00.000Z") }), {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: undefined,
 				appOrigin: DEFAULT_APP_ORIGIN,
 				backLink: TEST_BACK_LINK,
@@ -624,7 +626,7 @@ describe("ReaderPage", () => {
 
 	it("points the toolbar back link at the supplied backLink href and renders no bottom bar", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
+			ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
@@ -644,7 +646,7 @@ describe("ReaderPage", () => {
 	it("renders the TL;DR collapsed by default (internal reader) — an expand is then a deliberate, measurable act", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: undefined,
 				appOrigin: DEFAULT_APP_ORIGIN,
 				summary: { status: "ready", summary: "Key points." },
@@ -670,7 +672,7 @@ describe("ReaderPage", () => {
 	it("stamps the summary <details> with its tracking URL and loads the summary-toggle beacon script", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: undefined,
 				appOrigin: DEFAULT_APP_ORIGIN,
 				summary: { status: "ready", summary: "Key points." },
@@ -703,7 +705,7 @@ describe("ReaderPage", () => {
 		};
 		const html = Base(
 			ReaderPage(makeArticle(), {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: undefined,
 				appOrigin: DEFAULT_APP_ORIGIN,
 				summary: { status: "skipped" },
@@ -733,7 +735,7 @@ describe("ReaderPage", () => {
 	it("loads the script that holds a device's capture-failed report until htmx can hear it", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: undefined,
 				appOrigin: DEFAULT_APP_ORIGIN,
 				summary: { status: "ready", summary: "Key points." },
@@ -759,7 +761,7 @@ describe("ReaderPage", () => {
 			'<a href="https://readplace.com/queue" target="_blank">my queue</a>' +
 				'<a href="https://example.com/other" target="_blank">elsewhere</a>',
 		);
-		const html = Base(ReaderPage(article, { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, appOrigin: "https://readplace.com", content: body, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }), {
+		const html = Base(ReaderPage(article, { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, appOrigin: "https://readplace.com", content: body, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 			cspNonce: CSP_NONCE,
@@ -793,7 +795,7 @@ describe("ReaderPage", () => {
 		});
 		const html = Base(
 			ReaderPage(article, {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: undefined,
 				appOrigin: DEFAULT_APP_ORIGIN,
 				backLink: TEST_BACK_LINK,
@@ -823,7 +825,7 @@ describe("ReaderPage", () => {
 	it("asks nothing on exit once the article is read, but still loads the script the next swap needs", () => {
 		const html = Base(
 			ReaderPage(makeArticle({ status: "read" }), {
-				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE,
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
 				content: undefined,
 				appOrigin: DEFAULT_APP_ORIGIN,
 				backLink: TEST_BACK_LINK,
@@ -849,7 +851,7 @@ describe("ReaderPage", () => {
 
 	it("renders the share dialog's link against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, content: undefined, appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
+			ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: undefined, appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
