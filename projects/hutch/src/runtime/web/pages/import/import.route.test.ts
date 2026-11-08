@@ -205,7 +205,7 @@ describe("Import routes", () => {
 			const meta = doc.querySelector("[data-upload-dropzone-meta]");
 			assert(meta, "the dropzone must name the formats and caps");
 			expect(meta.textContent).toBe(
-				"HTML, JSON, or plain text · Max 4.5 MB · Up to 2,000 links · or a DRM-free EPUB up to 200 MB",
+				"HTML, JSON, or plain text · Max 4.5 MB · Up to 2,000 links · or a DRM-free EPUB up to 200 MB · or an MP3 or M4A file up to 256 MB",
 			);
 			const size = meta.querySelector(".upload-dropzone__size");
 			assert(size, "the size cap must sit in its own unbreakable span");

@@ -270,7 +270,6 @@ import { initStageGatesByCaller } from "./web/pages/upload/stage-gates-by-caller
 import { initSettleByCaller, initStageForReview } from "./web/pages/upload/stage-for-review";
 import {
 	initAnonymousUploadRoutes,
-	METERED_GUEST_UPLOAD_KINDS,
 	METERED_ONLY_UPLOAD_KINDS,
 } from "./web/pages/upload/upload-review.page";
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
@@ -1632,8 +1631,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			mintUploadId: deps.mintUploadId,
 			MEDIA_KINDS: deps.mediaKinds,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
-			METERED_GUEST_UPLOAD_KINDS,
-			METERED_ONLY_UPLOAD_KINDS,
+					METERED_ONLY_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickUploadProtocol: (req) => (wantsSiren(req) ? UPLOAD_PROTOCOL_SIREN : UPLOAD_PROTOCOL_HTML),
 			buildBannerState,

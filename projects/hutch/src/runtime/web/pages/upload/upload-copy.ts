@@ -30,3 +30,9 @@ export function unsupportedTypeMessageOf(
 ): string {
 	return t("upload.unsupportedType", { formats: uploadFormatsOf(kinds) });
 }
+
+export function transcriptAllowanceCopyOf(input: { withVideo: boolean; minutes: number }): string {
+	return t(input.withVideo ? "upload.transcriptAllowance.audioAndVideo" : "upload.transcriptAllowance.audio", {
+		minutes: input.minutes,
+	});
+}

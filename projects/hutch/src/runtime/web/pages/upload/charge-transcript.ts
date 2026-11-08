@@ -28,7 +28,7 @@ export function initChargeTranscript(deps: {
 	allowanceSeconds: number;
 }): ChargeTranscript {
 	return async ({ session, kind, etag }) => {
-		if (!session.metered || kind.meter === undefined) return { kind: "proceed" };
+		if (kind.meter === undefined) return { kind: "proceed" };
 		const readDuration = deps.readDurationByMeter.get(kind.meter);
 		assert(readDuration, `no duration reader for the ${kind.meter} meter`);
 		const facts = await readDuration({ uploadId: session.uploadId, etag });

@@ -33,7 +33,7 @@ import {
 	detectUploadKind,
 	kindsForViewer,
 	toUploadStartViewModel,
-	transcriptAllowanceMinutesOf,
+	transcriptAllowanceOf,
 } from "./upload.viewmodel";
 
 const SNIFF_BYTES = 4096;
@@ -76,9 +76,8 @@ function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, 
 						Boolean(context.req.userId),
 						uploadStartPathOf(context.metered),
 					),
-					transcriptAllowanceMinutes: transcriptAllowanceMinutesOf({
+					transcriptAllowance: transcriptAllowanceOf({
 						kinds: context.kinds,
-						metered: context.metered,
 						allowanceSeconds: context.transcriptAllowanceSeconds,
 					}),
 				},
@@ -166,7 +165,6 @@ export interface UploadRouteDependencies {
 	mintUploadId: () => UploadId;
 	MEDIA_KINDS: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	GUEST_UPLOAD_KINDS: readonly MediaKindName[];
-	METERED_GUEST_UPLOAD_KINDS: readonly MediaKindName[];
 	METERED_ONLY_UPLOAD_KINDS: readonly MediaKindName[];
 	transcriptAllowanceSeconds: number;
 	pickUploadProtocol: (req: Request) => UploadProtocol;
@@ -179,7 +177,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 	const viewerKinds = (req: Request, metered = isMeteredStart(req.query)) =>
 		kindsForViewer({
 			kinds: deps.MEDIA_KINDS,
-			guestKinds: metered ? deps.METERED_GUEST_UPLOAD_KINDS : deps.GUEST_UPLOAD_KINDS,
+			guestKinds: deps.GUEST_UPLOAD_KINDS,
 			isSignedIn: Boolean(req.userId),
 		}).filter((kind) => metered || !deps.METERED_ONLY_UPLOAD_KINDS.includes(kind.name));
 
@@ -219,9 +217,8 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 							query: req.query,
 							allowanceSeconds: deps.transcriptAllowanceSeconds,
 						}),
-						transcriptAllowanceMinutes: transcriptAllowanceMinutesOf({
+						transcriptAllowance: transcriptAllowanceOf({
 							kinds,
-							metered,
 							allowanceSeconds: deps.transcriptAllowanceSeconds,
 						}),
 					},

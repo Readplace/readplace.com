@@ -104,7 +104,7 @@ describe("Guest upload routes", () => {
 		expect(session?.status).toBe("staged");
 	});
 
-	it("refuses a guest's audio upload, naming only the formats a guest may upload", async () => {
+	it("stages a guest's audio upload for review", async () => {
 		const harness = guestApp();
 		const uploadId = await guestStage(harness.server);
 		harness.mediaUpload.receivePendingOriginal({
@@ -115,17 +115,11 @@ describe("Guest upload routes", () => {
 			`/upload/${uploadId}/received`,
 		);
 
-		expect(received.status).toBe(422);
-		const error = documentOf(received.text).querySelector(
-			"[data-test-upload-error]",
-		);
-		expect(error?.getAttribute("data-test-upload-error")).toBe(
-			"upload_unsupported_type",
-		);
-		expect(error?.textContent).toContain(
-			"That file type isn't supported. Upload a DRM-free EPUB.",
-		);
-		expect(harness.mediaUpload.publishedMediaUploadStaged).toEqual([]);
+		expect(received.status).toBe(303);
+		expect(received.headers.location).toBe(`/upload/${uploadId}`);
+		const doc = documentOf((await request(harness.server).get(`/upload/${uploadId}`)).text);
+		expect(doc.querySelector("#upload-status")?.getAttribute("data-upload-status")).toBe("timed-review");
+		expect(doc.querySelector("[data-test-upload-commit-form]")).not.toBeNull();
 	});
 
 	it("keeps a signed-in upload on the member path without spending the guest allowance", async () => {

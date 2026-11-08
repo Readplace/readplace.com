@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { BOOK } from "@packages/media-contracts";
+import { AUDIO, BOOK } from "@packages/media-contracts";
 import { CONFIRM_POPOVER_STYLES, PAGINATION_STYLES, render, renderAlert, UNDERLINE_TABS_STYLES } from "@packages/web-shell";
 import type { CspNonce, PageBody } from "@packages/web-shell";
 
@@ -166,7 +166,7 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonc
 			formId: "import-upload-form",
 			showSubmit: true,
 			uploadOnChoose: true,
-			kinds: [BOOK],
+			kinds: [BOOK, AUDIO],
 		}),
 	};
 	const tabsHtml = render(IMPORT_TABS_TEMPLATE, data);

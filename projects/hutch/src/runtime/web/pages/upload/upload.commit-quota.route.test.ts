@@ -145,14 +145,14 @@ describe("Metered upload commit", () => {
 		]);
 	});
 
-	it("leaves an unflagged audio upload unmetered", async () => {
+	it("charges an unflagged audio upload for its transcript", async () => {
 		const signed = await signedIn();
 
 		const { uploadId } = await uploadAndReceive({ signed, startPath: "/upload", bytes: mp3Prefix() });
 
 		const [published] = signed.harness.mediaUpload.publishedMediaUploadCommitted;
 		expect(published).toEqual(expect.objectContaining({ uploadId, kind: "audio" }));
-		expect(published).not.toHaveProperty("chargedSeconds");
+		expect(published).toHaveProperty("chargedSeconds");
 	});
 });
 

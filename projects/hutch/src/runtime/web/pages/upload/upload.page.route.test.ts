@@ -115,15 +115,18 @@ describe("Upload routes", () => {
 		);
 	});
 
-	it("shows no transcript allowance to a member or a guest without the transcripts feature", async () => {
+	it("tells a member and a guest without the transcripts feature that audio files are transcribed", async () => {
 		const { agent, harness } = await signedIn();
 		const member = await agent.get("/upload");
 		const guest = await request(harness.server).get("/upload");
 		expect(
 			[member, guest].map((response) =>
-				documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]"),
+				documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]")?.textContent,
 			),
-		).toEqual([null, null]);
+		).toEqual([
+			"Audio files get a timestamped transcript, up to 20 minutes a day.",
+			"Audio files get a timestamped transcript, up to 20 minutes a day.",
+		]);
 	});
 
 	it("tells a guest on the transcripts feature that audio files are transcribed", async () => {
@@ -132,15 +135,15 @@ describe("Upload routes", () => {
 		expect(
 			documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]")?.textContent,
 		).toBe(
-			"Audio and video files get a timestamped transcript, up to 20 minutes a day.",
+			"Audio files get a timestamped transcript, up to 20 minutes a day.",
 		);
 	});
 
-	it("describes only books to a guest", async () => {
+	it("describes books and audio to a guest", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const doc = documentOf((await request(harness.server).get("/upload")).text);
 		expect(doc.querySelector("[data-test-upload-heading]")?.textContent).toBe(
-			"Upload a book",
+			"Upload a book or an audio file",
 		);
 		expect(
 			[...doc.querySelectorAll("[data-test-upload-description]")].map(
@@ -148,10 +151,14 @@ describe("Upload routes", () => {
 			),
 		).toEqual([
 			"Book: EPUB, DRM-free, up to 200 MB. MOBI and AZW3 are not supported.",
+			"Audio: MP3 or M4A, up to 256 MB.",
 		]);
+		expect(
+			doc.querySelector("[data-test-upload-transcript-allowance]")?.textContent,
+		).toBe("Audio files get a timestamped transcript, up to 20 minutes a day.");
 	});
 
-	it("accepts only EPUB files from a guest", async () => {
+	it("accepts EPUB and audio files from a guest", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const doc = documentOf(
 			(await request(harness.server).post("/upload").type("form").send({}))
@@ -159,22 +166,23 @@ describe("Upload routes", () => {
 		);
 		expect(
 			doc.querySelector("[data-test-upload-file]")?.getAttribute("accept"),
-		).toBe(".epub");
+		).toBe(".epub,.mp3,.m4a");
 		expect(
 			[...doc.querySelectorAll("[data-test-upload-staged-description]")].map(
 				(p) => p.textContent,
 			),
 		).toEqual([
 			"Book: EPUB, DRM-free, up to 200 MB. MOBI and AZW3 are not supported.",
+			"Audio: MP3 or M4A, up to 256 MB.",
 		]);
 	});
 
-	it("refuses a guest's declared size over the book ceiling", async () => {
+	it("refuses a guest's declared size over the audio ceiling", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server)
 			.post("/upload")
 			.type("form")
-			.send({ byteLength: String(201 * 1024 * 1024) });
+			.send({ byteLength: String(257 * 1024 * 1024) });
 		expect(response.status).toBe(413);
 		expect(errorCodeOf(response.text)).toBe("upload_too_large");
 	});
@@ -355,7 +363,7 @@ describe("Upload routes", () => {
 
 	it.each([
 		{ startPath: "/upload?features=transcripts", features: "transcripts", allowance: 1 },
-		{ startPath: "/upload", features: null, allowance: 0 },
+		{ startPath: "/upload", features: null, allowance: 1 },
 	])("keeps the start path $startPath on a received file's error page", async ({ startPath, features, allowance }) => {
 		const { harness, agent } = await signedIn();
 		const staged = await agent.post(startPath).type("form").send({});
@@ -376,7 +384,7 @@ describe("Upload routes", () => {
 
 	it.each([
 		{ startPath: "/upload?features=transcripts", features: "transcripts", allowance: 1 },
-		{ startPath: "/upload", features: null, allowance: 0 },
+		{ startPath: "/upload", features: null, allowance: 1 },
 	])("keeps the start path $startPath when a declared size is refused", async ({ startPath, features, allowance }) => {
 		const { agent } = await signedIn();
 

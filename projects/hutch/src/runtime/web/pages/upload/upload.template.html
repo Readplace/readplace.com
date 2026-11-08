@@ -7,7 +7,7 @@
     {{{refusalAlertHtml}}}
     <form class="upload__panel" method="post" action="{{track start.startPath source='upload-start' content='start'}}" data-test-upload-start>
       {{#each start.descriptions}}<p class="upload__description" data-test-upload-description>{{this}}</p>{{/each}}
-      {{#if start.transcriptAllowanceMinutes}}<p class="upload__description" data-test-upload-transcript-allowance>Audio and video files get a timestamped transcript, up to {{start.transcriptAllowanceMinutes}} minutes a day.</p>{{/if}}
+      {{#if start.transcriptAllowance}}<p class="upload__description" data-test-upload-transcript-allowance>{{start.transcriptAllowance}}</p>{{/if}}
       <button class="btn btn--primary upload__submit" type="submit">Choose a file</button>
     </form>
     {{/if}}

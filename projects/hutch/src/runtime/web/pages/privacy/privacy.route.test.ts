@@ -112,14 +112,14 @@ describe("GET /privacy", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		const items = Array.from(doc.querySelectorAll("li"), (item) => item.textContent);
-		expect(items).toContain("Files uploaded before signing up: the file, its name, and the title, authors and chapter titles read from it.");
+		expect(items).toContain("Files uploaded before signing up: the file, its name and size, and what Readplace reads from it: a book's title, authors and chapter titles, or an audio file's length.");
 	});
 
 	it("says how long a file uploaded before signing up is kept", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("A file you upload before signing up, with its name, title, authors and chapter titles, is deleted within a few days. Until you save it no account holds them, so you cannot delete them sooner. If you save it to your queue, the book stays with your saved articles until you remove it.");
+		expect(response.text).toContain("A file you upload before signing up, with its name and what was read from it, is deleted within 2 days. Until you save it no account holds them, so you can't delete them sooner. Once you save it to your library, the file stays with your saved articles until you remove it; an audio file's transcript stays with it, and the transcription service's own copy of that transcript is deleted after 14 days.");
 	});
 
 	it("lists the optional display name among the account information Readplace keeps", async () => {

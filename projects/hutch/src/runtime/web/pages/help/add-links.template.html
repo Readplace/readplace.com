@@ -226,14 +226,13 @@
       <p class="help__note" data-test-help-note>Sharing captures the full page — even on sites that block crawlers.</p>
       {{#if upload}}
       <section class="help__upload" data-test-help-upload>
-        <h2 class="help__upload-title" data-test-help-upload-title>{{#if upload.guest}}Add a book{{else}}Add a book or audio file{{/if}}</h2>
+        <h2 class="help__upload-title" data-test-help-upload-title>Add a book or audio file</h2>
         <p class="help__upload-lead" data-test-help-upload-lead>Upload a DRM-free EPUB of up to {{upload.ceilingLabel}}. MOBI and AZW3 are not supported.</p>
+        <p class="help__upload-lead" data-test-help-upload-audio>Upload an MP3 or M4A of up to {{upload.audioCeilingLabel}} to listen to it in the reader with a timestamped transcript.</p>
         {{#if upload.guest}}
-        <p class="help__upload-lead" data-test-help-upload-guest>You don't need an account to upload a book: sign up when you save it.</p>
-        {{else}}
-        <p class="help__upload-lead" data-test-help-upload-audio>Upload an MP3 or M4A of up to {{upload.audioCeilingLabel}} to listen to it in the reader.</p>
+        <p class="help__upload-lead" data-test-help-upload-guest>You don't need an account to upload a file: sign up when you save it.</p>
         {{/if}}
-        <a class="help__upload-link" href="{{upload.href}}" data-test-help-upload-link>{{#if upload.guest}}Upload a book{{else}}Upload a file{{/if}}</a>
+        <a class="help__upload-link" href="{{upload.href}}" data-test-help-upload-link>Upload a file</a>
       </section>
       {{/if}}
     </main>

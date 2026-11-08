@@ -106,7 +106,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 				{ feature: "YouTube", readplace: "No", competitor: "Watch and highlight the transcript" },
 				{
 					feature: "Podcasts",
-					readplace: "No",
+					readplace: "MP3 or M4A files you upload, with a timestamped transcript",
 					competitor: "Episodes from Spotify, Overcast and Apple Podcasts",
 				},
 				{ feature: "Listening", readplace: "No", competitor: "Yes, AI voices" },
@@ -133,7 +133,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	limitsTitle: "What this does not do",
 	limits: [
 		"No highlight sync to Notion, Obsidian or Logseq.",
-		"No RSS or podcasts.",
+		"No RSS or podcast subscriptions.",
 		"No listening or text-to-speech.",
 		"No video transcripts.",
 		"No Android app.",

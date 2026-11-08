@@ -37,7 +37,7 @@ describe("llms files", () => {
 	});
 
 	it("llms-full.txt says a file uploaded before signing up is collected and deleted unless saved", () => {
-		expect(FILES["llms-full.txt"]).toContain("- A file uploaded before signing up, and the title, authors and chapter titles read from it, deleted within a few days unless it is saved");
+		expect(FILES["llms-full.txt"]).toContain("- A file uploaded before signing up, and what was read from it, deleted within 2 days unless it is saved");
 	});
 
 	it("llms-full.txt quotes the readlist cap from its constant", () => {
