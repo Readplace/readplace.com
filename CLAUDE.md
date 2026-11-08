@@ -638,6 +638,10 @@ If Fable is unavailable or has hit the limit, Use Opus 5.5 Max in its place inst
 - Never brief a subagent or workflow step to run `pnpm check`, a project's full `check`, or a `git commit` that fires the hook. The session that spawned the agents runs the one full check once their changes are in; an agent fixing a failure that check surfaced re-runs only the failing test.
 - At most three heavy tasks run on the machine at once. A heavy task is a `pnpm check`, a project's full `check`, a `git commit` whose pre-commit hook runs the check, or a CI job on one of the self-hosted runners (`web-tests` on the OrbStack runner, the Visual Review on the macOS runner); a GitHub-hosted job is not on this machine and does not count. Count the ones already running and start yours while the count is below three: two running is fine. Each busy self-hosted runner counts as one (`gh api repos/{owner}/{repo}/actions/runners`), and each other session's running check counts as one by its `nx` root process, not the jest and Playwright children it spawns (the process list shows them). The cap replaced an idle-machine rule on 2026-11-06: the machine idles for seconds to a minute between checks, so sessions that waited for it found it busy again by the time they started, and queued while there was room to run. A `@claude` listener run starts the check its prompt asks for without waiting: on the OrbStack runner it holds the runner's only job slot.
 
+### Gmail settings under browser automation open from the Inbox
+
+A browser-automation session that loads a Gmail settings URL directly can get a degraded settings page. On 2026-11-08, `#settings/fwdandpop` opened cold showed a plain text box where "Add a forwarding address" should be, and saving it answered "Invalid forwarding address". Saving an already-verified address there can also switch on forward-all. Load the Inbox first, then open Settings from inside the app. The proper forwarding controls then appear.
+
 ## Architecture
 
 ### Project Structure
