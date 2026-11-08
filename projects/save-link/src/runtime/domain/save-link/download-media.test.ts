@@ -385,6 +385,50 @@ describe("initDownloadMedia", () => {
 		expect(originals).toContain("https://m.test/loop/full.png");
 	});
 
+	it("never requests an evidenced tracking endpoint from img src, img srcset or picture sources, and keeps every allowed rendition", async () => {
+		const { downloadMedia, fakeFetch } = createDownloadMedia();
+		const html =
+			'<img src="https://www.facebook.com/tr?id=1&amp;ev=PageView" width="1" height="1">' +
+			'<img src="https://example.com/photo.jpg" srcset="https://example.com/photo-640.jpg 640w, https://hspx.hotstar.com/v1/events/track/cp_page_view?pi=synthetic 2x">' +
+			"<picture>" +
+			'<source srcset="https://www.sec.gov/akam/13/pixel_0a1b2c3d 1x, https://example.com/figure.webp 2x">' +
+			'<source srcset="https://www.turkishairlines.com/akam/13/pixel_0a1b2c3d">' +
+			'<img src="https://example.com/figure.png">' +
+			"</picture>" +
+			'<img src="https://example.com/logo.svg"><img src="https://example.com/qr-code.png" width="16" height="16">';
+
+		const media = await downloadMedia({ html, referer: ARTICLE_URL, articleResourceUniqueId });
+
+		const requested = fakeFetch.mock.calls.map(([url]) => url);
+		expect(requested).toEqual([
+			"https://example.com/photo.jpg",
+			"https://example.com/photo-640.jpg",
+			"https://example.com/figure.webp",
+			"https://example.com/figure.png",
+			"https://example.com/logo.svg",
+			"https://example.com/qr-code.png",
+		]);
+		expect(media.map((m) => m.originalUrl)).toEqual(expect.arrayContaining(requested));
+	});
+
+	it("does not let beacon-only images use up the per-article image limit", async () => {
+		const { downloadMedia, fakeFetch } = createDownloadMedia();
+		const beacons = Array.from({ length: 20 }, (_, i) => `<img src="https://www.facebook.com/tr?id=${i}">`).join("");
+
+		await downloadMedia({ html: `${beacons}<img src="https://example.com/article-photo.jpg">`, referer: ARTICLE_URL, articleResourceUniqueId });
+
+		expect(fakeFetch.mock.calls.map(([url]) => url)).toEqual(["https://example.com/article-photo.jpg"]);
+	});
+
+	it("still counts an image with no fetchable source against the per-article image limit", async () => {
+		const { downloadMedia, fakeFetch } = createDownloadMedia();
+		const inlined = Array.from({ length: 20 }, () => '<img src="data:image/png;base64,iVBORw0KGgo=">').join("");
+
+		await downloadMedia({ html: `${inlined}<img src="https://example.com/article-photo.jpg">`, referer: ARTICLE_URL, articleResourceUniqueId });
+
+		expect(fakeFetch).not.toHaveBeenCalled();
+	});
+
 	it("skips data URLs", async () => {
 		const { downloadMedia, fakeFetch } = createDownloadMedia();
 

@@ -78,6 +78,29 @@ describe("extractThumbnailCandidates", () => {
 			]);
 	});
 
+	it("drops every evidenced tracking endpoint and keeps the order of the remaining candidates", () => {
+		const html = `
+			<html><head>
+				<meta property="og:image" content="https://www.facebook.com/tr?id=1&amp;ev=PageView">
+				<meta name="twitter:image" content="https://example.com/twitter.png">
+			</head><body>
+				<img src="https://hspx.hotstar.com/v1/events/track/cp_page_view?pi=synthetic">
+				<img src="https://example.com/figure.jpg">
+				<img src="https://www.sec.gov/akam/13/pixel_0a1b2c3d?a=synthetic">
+				<img src="https://www.turkishairlines.com/akam/13/pixel_0a1b2c3d">
+				<img src="https://example.com/logo.svg">
+				<img src="https://example.com/qr-code.png" width="1" height="1">
+			</body></html>
+		`;
+		expect(extractThumbnailCandidates({ html, baseUrl: "https://example.com/article" }))
+			.toEqual([
+				"https://example.com/twitter.png",
+				"https://example.com/figure.jpg",
+				"https://example.com/logo.svg",
+				"https://example.com/qr-code.png",
+			]);
+	});
+
 	it("dedupes identical URLs across the cascade", () => {
 		const html = `
 			<html><head>
@@ -245,6 +268,37 @@ describe("initFetchThumbnailImage", () => {
 		});
 
 		expect(result.provenUnusable).toEqual(["https://qsf.cf2.quoracdn.net/huge.png"]);
+	});
+
+	it("never fetches an evidenced tracking endpoint in a caller-supplied list and proves it unusable for display", async () => {
+		const fetched: string[] = [];
+		const crawlFetch: CrawlFetch = async (url) => {
+			fetched.push(String(url));
+			return url === "https://example.com/og-broken.png"
+				? new Response("gone", { status: 404 })
+				: new Response(Buffer.from("png-bytes"), { status: 200, headers: { "content-type": "image/png" } });
+		};
+		const errorLogs: string[] = [];
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: (message) => errorLogs.push(message), logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+
+		const result = await fetchThumbnail({
+			candidates: [
+				"https://example.com/og-broken.png",
+				"https://www.facebook.com/tr?id=1&ev=PageView",
+				"https://www.sec.gov/akam/13/pixel_0a1b2c3d",
+				"https://example.com/figure.png",
+			],
+			referer: "https://example.com/article",
+		});
+
+		expect(fetched).toEqual(["https://example.com/og-broken.png", "https://example.com/figure.png"]);
+		expect(result.image?.url).toBe("https://example.com/figure.png");
+		expect(result.provenUnusable).toEqual([
+			"https://example.com/og-broken.png",
+			"https://www.facebook.com/tr?id=1&ev=PageView",
+			"https://www.sec.gov/akam/13/pixel_0a1b2c3d",
+		]);
+		expect(errorLogs).toEqual([]);
 	});
 
 	it("walks past a disproved candidate to the next one and reports only what it disproved", async () => {

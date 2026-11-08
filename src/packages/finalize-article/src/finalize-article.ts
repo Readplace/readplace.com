@@ -3,6 +3,7 @@ import {
 	escapeHtmlText,
 	extractThumbnailCandidates,
 	type FetchThumbnailImage,
+	isProvenTrackingImageUrl,
 	type ThumbnailCascade,
 	type ThumbnailImage,
 } from "@packages/crawl-article";
@@ -122,8 +123,9 @@ export function initFinalizeArticle(deps: {
 			});
 		}
 
-		const thumbnail =
-			input.resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: input.documentUrl }));
+		const thumbnail = withoutTrackingImage(
+			input.resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: input.documentUrl })),
+		);
 		const thumbnailUrl = firstUsableCandidate(thumbnail) ?? null;
 
 		const parseResult = parseHtml({
@@ -232,17 +234,21 @@ async function finalizeImageArticle(args: {
 	fetchThumbnailImage: FetchThumbnailImage;
 	putImageObject: PutImageObject;
 	imagesCdnBaseUrl: string;
-}): Promise<{ ok: true; article: FinalizedArticle }> {
+}): Promise<FinalizeArticleResult> {
 	const { url, documentUrl, candidates, resolvedThumbnail, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
 	const { hostname, pathname } = pageHostUrl({ savedUrl: url, documentUrl });
 	const title = imageTitleFromPathname(pathname) || hostname;
 	const articleResourceUniqueId = ArticleResourceUniqueId.parse(args.writeContext?.url ?? url);
 
-	const thumbnail = resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: documentUrl }));
+	const thumbnail = withoutTrackingImage(resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: documentUrl })));
 	const image = thumbnail.image;
+	const originImageUrl = firstUsableCandidate(thumbnail) ?? documentUrl;
+	if (!image && isProvenTrackingImageUrl(originImageUrl)) {
+		return { ok: false, reason: "Image resource is a known tracking endpoint" };
+	}
 	const imageUrl = image
 		? await uploadThumbnail({ writeContext: args.writeContext, thumbnailImage: image, articleResourceUniqueId, putImageObject, imagesCdnBaseUrl })
-		: (firstUsableCandidate(thumbnail) ?? documentUrl);
+		: originImageUrl;
 
 	return {
 		ok: true,
@@ -259,6 +265,12 @@ async function finalizeImageArticle(args: {
 			},
 		},
 	};
+}
+
+function withoutTrackingImage(thumbnail: ThumbnailCascade): ThumbnailCascade {
+	const { image } = thumbnail;
+	if (image === undefined || !isProvenTrackingImageUrl(image.url)) return thumbnail;
+	return { image: undefined, provenUnusable: [...thumbnail.provenUnusable, image.url], fetched: thumbnail.fetched };
 }
 
 function firstUsableCandidate(thumbnail: ThumbnailCascade): string | undefined {
