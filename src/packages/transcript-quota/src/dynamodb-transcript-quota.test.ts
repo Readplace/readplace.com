@@ -95,6 +95,7 @@ describe("initDynamoDbTranscriptCharge", () => {
 								ConditionExpression: "attribute_not_exists(sk) OR #state = :refunded",
 								ExpressionAttributeNames: { "#state": "state" },
 								ExpressionAttributeValues: { ":refunded": "refunded" },
+								ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 							},
 						},
 						{
@@ -139,12 +140,17 @@ describe("initDynamoDbTranscriptCharge", () => {
 		assert.deepEqual(sent, []);
 	});
 
-	it("answers already-charged when the charge row condition fails", async () => {
+	it("answers already-charged, with the day on the existing charge row, when the charge row condition fails", async () => {
 		const { chargeTranscriptQuota } = charge({
-			outcomes: [cancelled([{ Code: "ConditionalCheckFailed" }, { Code: "None" }])],
+			outcomes: [
+				cancelled([{ Code: "ConditionalCheckFailed", Item: { day: { S: "2026-11-05" } } }, { Code: "None" }]),
+			],
 		});
 
-		assert.deepEqual(await chargeTranscriptQuota({ ...REF, seconds: 600 }), { outcome: "already-charged" });
+		assert.deepEqual(await chargeTranscriptQuota({ ...REF, seconds: 600 }), {
+			outcome: "already-charged",
+			day: "2026-11-05",
+		});
 	});
 
 	it("answers day-spent when the day row condition fails", async () => {

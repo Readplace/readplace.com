@@ -11,12 +11,14 @@ import type { UploadRefusalReason } from "./upload.refusal";
 
 export const COMMIT_ATTEMPT = 1;
 
+export type TranscriptCharge = { seconds: number; day: string };
+
 export type SettleReceivedUpload = (params: {
 	session: MediaUploadSession;
 	kind: MediaKindManifest;
 	etag: string;
 	size: number;
-	chargedSeconds?: number;
+	charge?: TranscriptCharge;
 }) => Promise<UploadOutcome<"committed" | UploadRefusalReason>>;
 
 export type SettleAnyReceivedUpload = (params: {
@@ -36,7 +38,7 @@ export function initCommitReceivedUpload(deps: {
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	now: () => Date;
 }): SettleReceivedUpload {
-	return async ({ session, kind, etag, chargedSeconds }) => {
+	return async ({ session, kind, etag, charge }) => {
 		const { uploadId, userId, saveAttemptId } = session;
 		const url = mintPrivateItemUrl(uploadId);
 		const media = {
@@ -49,16 +51,10 @@ export function initCommitReceivedUpload(deps: {
 			media,
 			savedAt: deps.now(),
 		});
-		await deps.publishMediaUploadCommitted({
-			uploadId,
-			kind: kind.name,
-			url,
-			userId,
-			saveAttemptId,
-			etag,
-			attempt: COMMIT_ATTEMPT,
-			...(chargedSeconds === undefined ? {} : { chargedSeconds }),
-		});
+		const committed = { uploadId, kind: kind.name, url, userId, saveAttemptId, etag, attempt: COMMIT_ATTEMPT };
+		await deps.publishMediaUploadCommitted(
+			charge === undefined ? committed : { ...committed, chargedSeconds: charge.seconds, chargedDay: charge.day },
+		);
 		await deps.markMediaUploadCommitted({ uploadId, userId });
 		return { outcome: "committed", uploadId };
 	};

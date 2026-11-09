@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { ReadTimedDuration } from "@packages/domain";
+import { ChargedMediaUploadCommittedDetailSchema } from "@packages/infra-components";
 import { AUDIO, MEDIA_KINDS, UploadIdSchema, defineMediaKind, mintPrivateItemUrl } from "@packages/media-contracts";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { useTestServer, loginAgent } from "../../../test-app";
@@ -72,7 +73,7 @@ describe("Metered upload commit", () => {
 		]);
 	});
 
-	it("charges a flagged audio upload and publishes the seconds charged", async () => {
+	it("charges a flagged audio upload and publishes the charge media-audio transcribes from", async () => {
 		const signed = await signedIn();
 
 		const { uploadId, received } = await uploadAndReceive({
@@ -82,9 +83,10 @@ describe("Metered upload commit", () => {
 		});
 
 		expect(received.status).toBe(303);
-		expect(signed.harness.mediaUpload.publishedMediaUploadCommitted).toEqual([
-			expect.objectContaining({ uploadId, kind: "audio", chargedSeconds: 600 }),
-		]);
+		const [published] = signed.harness.mediaUpload.publishedMediaUploadCommitted;
+		expect(ChargedMediaUploadCommittedDetailSchema.parse(published)).toEqual(
+			expect.objectContaining({ uploadId, kind: "audio", chargedSeconds: 600, chargedDay: expect.any(String) }),
+		);
 	});
 
 	it("refuses the flagged upload that would pass the day's allowance and keeps the flag on the retry", async () => {
@@ -152,7 +154,7 @@ describe("Metered upload commit", () => {
 
 		const [published] = signed.harness.mediaUpload.publishedMediaUploadCommitted;
 		expect(published).toEqual(expect.objectContaining({ uploadId, kind: "audio" }));
-		expect(published).toHaveProperty("chargedSeconds");
+		expect(ChargedMediaUploadCommittedDetailSchema.safeParse(published).success).toBe(true);
 	});
 });
 

@@ -50,7 +50,7 @@ describe("initChargeTranscript", () => {
 		assert.deepEqual(quota.calls, [{ ...ref, seconds: 600 }]);
 		assert.deepEqual(decision, {
 			kind: "proceed",
-			chargedSeconds: 600,
+			charge: { seconds: 600, day: "2026-11-07" },
 			freshCharge: { ...ref, seconds: 600, day: "2026-11-07" },
 		});
 	});
@@ -65,13 +65,13 @@ describe("initChargeTranscript", () => {
 		assert.equal(decision.kind, "proceed");
 	});
 
-	it("proceeds without a fresh charge when the commit was already charged", async () => {
-		const quota = chargeAnswering({ outcome: "already-charged" });
+	it("proceeds with the earlier charge's day and no fresh charge when the commit was already charged", async () => {
+		const quota = chargeAnswering({ outcome: "already-charged", day: "2026-11-06" });
 		const charge = chargeWith({ read: readingSeconds(600), quota: quota.chargeTranscriptQuota });
 
 		assert.deepEqual(await charge({ session, kind: METERED_AUDIO, etag: '"e1"' }), {
 			kind: "proceed",
-			chargedSeconds: 600,
+			charge: { seconds: 600, day: "2026-11-06" },
 		});
 	});
 

@@ -2,11 +2,11 @@ import assert from "node:assert";
 import type { MediaUploadSession, ReadTimedDuration } from "@packages/domain";
 import { type MediaKindManifest, type Meter, billableSeconds } from "@packages/media-contracts";
 import type { ChargeTranscriptQuota, ChargedTranscript } from "@packages/provider-contracts/transcript-quota";
-import { COMMIT_ATTEMPT } from "./commit-received-upload";
+import { COMMIT_ATTEMPT, type TranscriptCharge } from "./commit-received-upload";
 import type { UploadRefusalReason } from "./upload.refusal";
 
 export type ChargeDecision =
-	| { kind: "proceed"; chargedSeconds?: number; freshCharge?: ChargedTranscript }
+	| { kind: "proceed"; charge?: TranscriptCharge; freshCharge?: ChargedTranscript }
 	| { kind: "refuse"; reason: UploadRefusalReason };
 
 export type ChargeTranscript = (params: {
@@ -46,9 +46,9 @@ export function initChargeTranscript(deps: {
 		const charge = await deps.chargeTranscriptQuota({ ...ref, seconds });
 		switch (charge.outcome) {
 			case "charged":
-				return { kind: "proceed", chargedSeconds: seconds, freshCharge: { ...ref, seconds, day: charge.day } };
+				return { kind: "proceed", charge: { seconds, day: charge.day }, freshCharge: { ...ref, seconds, day: charge.day } };
 			case "already-charged":
-				return { kind: "proceed", chargedSeconds: seconds };
+				return { kind: "proceed", charge: { seconds, day: charge.day } };
 			case "day-spent":
 				return { kind: "refuse", reason: "transcript-quota" };
 			case "over-allowance":

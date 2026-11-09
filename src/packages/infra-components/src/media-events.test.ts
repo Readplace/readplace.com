@@ -4,6 +4,7 @@ import {
 	MediaInspectedEvent,
 	MediaProcessingFailedEvent,
 	MediaRejectedEvent,
+	ChargedMediaUploadCommittedDetailSchema,
 	MediaUploadCommittedEvent,
 	MediaUploadStagedEvent,
 	TranscribeJobStateChangedEvent,
@@ -64,10 +65,17 @@ describe("MediaUploadCommittedEvent", () => {
 		assert.deepEqual(MediaUploadCommittedEvent.detailSchema.parse(committedDetail), committedDetail);
 	});
 
-	it("keeps the seconds charged for a metered upload", () => {
-		const charged = { ...committedDetail, chargedSeconds: 600 };
+	it("keeps the seconds and day charged for a metered upload", () => {
+		const charged = { ...committedDetail, chargedSeconds: 600, chargedDay: "2026-11-09" };
 
 		assert.deepEqual(MediaUploadCommittedEvent.detailSchema.parse(charged), charged);
+		assert.deepEqual(ChargedMediaUploadCommittedDetailSchema.parse(charged), charged);
+	});
+
+	it("is not a charged upload without the day it was charged on", () => {
+		const undated = { ...committedDetail, chargedSeconds: 600 };
+
+		assert.equal(ChargedMediaUploadCommittedDetailSchema.safeParse(undated).success, false);
 	});
 
 	it("is published from the media source", () => {

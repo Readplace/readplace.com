@@ -1,13 +1,13 @@
 import assert from "node:assert";
-import { MediaUploadCommittedEvent } from "@packages/infra-components";
+import {
+	ChargedMediaUploadCommittedDetailSchema,
+	MediaUploadCommittedEvent,
+} from "@packages/infra-components";
 import { type UploadId, UploadIdSchema } from "@packages/media-contracts";
 import { z } from "zod";
 
 export const ChargedCommittedDetailSchema =
-	MediaUploadCommittedEvent.detailSchema.extend({
-		chargedSeconds: z.number().int().positive(),
-		chargedDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-	});
+	ChargedMediaUploadCommittedDetailSchema;
 export type ChargedCommittedDetail = z.infer<
 	typeof ChargedCommittedDetailSchema
 >;

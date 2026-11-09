@@ -1666,6 +1666,8 @@ export const GmailNewsletterNoticeProcessedEvent = defineEvent({
 	detailSchema: z.object({ userId: UserIdSchema, senderEmail: z.string(), outcome: z.enum(["sent", "suppressed"]) }),
 });
 
+const TranscriptChargeDaySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
 export const MediaUploadCommittedEvent = defineEvent({
 	name: "media-upload-committed", source: "hutch.media", detailType: "MediaUploadCommitted",
 	detailSchema: z.object({
@@ -1677,9 +1679,16 @@ export const MediaUploadCommittedEvent = defineEvent({
 		etag: z.string().min(1),
 		attempt: z.number().int().positive(),
 		chargedSeconds: z.number().int().positive().optional(),
+		chargedDay: TranscriptChargeDaySchema.optional(),
 	}),
 });
 export type MediaUploadCommittedDetail = z.infer<typeof MediaUploadCommittedEvent.detailSchema>;
+
+export const ChargedMediaUploadCommittedDetailSchema = MediaUploadCommittedEvent.detailSchema.extend({
+	chargedSeconds: z.number().int().positive(),
+	chargedDay: TranscriptChargeDaySchema,
+});
+export type ChargedMediaUploadCommittedDetail = z.infer<typeof ChargedMediaUploadCommittedDetailSchema>;
 
 export const MediaProcessingFailedEvent = defineEvent({
 	name: "media-processing-failed", source: "hutch.media", detailType: "MediaProcessingFailed",

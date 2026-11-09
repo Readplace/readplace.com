@@ -48,13 +48,13 @@ describe("initChargeBeforeSettle", () => {
 		const { settled, settle } = recordingSettle(async () => ({ outcome: "committed", uploadId }));
 		const { refunded, refund } = recordingRefund();
 		const commit = initChargeBeforeSettle({
-			charge: deciding({ kind: "proceed", chargedSeconds: 600, freshCharge }),
+			charge: deciding({ kind: "proceed", charge: { seconds: 600, day: "2026-11-07" }, freshCharge }),
 			settle,
 			refund,
 		});
 
 		assert.deepEqual(await commit(params), { outcome: "committed", uploadId });
-		assert.deepEqual(settled, [{ ...params, chargedSeconds: 600 }]);
+		assert.deepEqual(settled, [{ ...params, charge: { seconds: 600, day: "2026-11-07" } }]);
 		assert.deepEqual(refunded, []);
 	});
 
@@ -76,7 +76,7 @@ describe("initChargeBeforeSettle", () => {
 		});
 		const { refunded, refund } = recordingRefund();
 		const commit = initChargeBeforeSettle({
-			charge: deciding({ kind: "proceed", chargedSeconds: 600, freshCharge }),
+			charge: deciding({ kind: "proceed", charge: { seconds: 600, day: "2026-11-07" }, freshCharge }),
 			settle,
 			refund,
 		});
@@ -91,7 +91,7 @@ describe("initChargeBeforeSettle", () => {
 		});
 		const { refunded, refund } = recordingRefund();
 		const commit = initChargeBeforeSettle({
-			charge: deciding({ kind: "proceed", chargedSeconds: 600 }),
+			charge: deciding({ kind: "proceed", charge: { seconds: 600, day: "2026-11-07" } }),
 			settle,
 			refund,
 		});

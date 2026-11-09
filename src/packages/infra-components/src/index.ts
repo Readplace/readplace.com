@@ -255,6 +255,8 @@ export {
 export {
 	MediaUploadCommittedEvent,
 	type MediaUploadCommittedDetail,
+	ChargedMediaUploadCommittedDetailSchema,
+	type ChargedMediaUploadCommittedDetail,
 	MediaProcessingFailedEvent,
 	type MediaProcessingFailedDetail,
 	MediaUploadStagedEvent,

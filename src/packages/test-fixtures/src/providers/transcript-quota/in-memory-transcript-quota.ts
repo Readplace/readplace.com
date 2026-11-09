@@ -36,7 +36,7 @@ export function initInMemoryTranscriptCharge(deps: {
 	const chargeTranscriptQuota: ChargeTranscriptQuota = async (p) => {
 		if (p.seconds > deps.allowanceSeconds) return { outcome: "over-allowance" };
 		const existing = deps.rows.charges.get(chargeKey(p));
-		if (existing && existing.state !== "refunded") return { outcome: "already-charged" };
+		if (existing && existing.state !== "refunded") return { outcome: "already-charged", day: existing.day };
 		const day = deps.now().toISOString().slice(0, 10);
 		const spent = deps.rows.spentSeconds.get(dayKey({ userId: p.userId, day })) ?? 0;
 		if (spent > deps.allowanceSeconds - p.seconds) return { outcome: "day-spent" };

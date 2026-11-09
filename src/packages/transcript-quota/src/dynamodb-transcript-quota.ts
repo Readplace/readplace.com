@@ -34,6 +34,8 @@ const ReturnedChargeStateSchema = z.object({
 	state: z.object({ S: z.enum(["started", "settled", "refunded"]) }),
 });
 
+const ReturnedChargeDaySchema = z.object({ day: z.object({ S: z.string() }) });
+
 type LedgerDeps = {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -87,6 +89,7 @@ export function initDynamoDbTranscriptCharge(deps: LedgerDeps & { allowanceSecon
 							ConditionExpression: "attribute_not_exists(sk) OR #state = :refunded",
 							ExpressionAttributeNames: { "#state": "state" },
 							ExpressionAttributeValues: { ":refunded": "refunded" },
+							ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 						},
 					},
 					{
@@ -107,7 +110,10 @@ export function initDynamoDbTranscriptCharge(deps: LedgerDeps & { allowanceSecon
 			},
 			onCancelled: (error) => {
 				const [chargeCode, dayCode] = cancellationCodes(error);
-				if (chargeCode === "ConditionalCheckFailed") return { outcome: "already-charged" as const };
+				if (chargeCode === "ConditionalCheckFailed") {
+					const { day } = ReturnedChargeDaySchema.parse(error.CancellationReasons?.[0]?.Item);
+					return { outcome: "already-charged" as const, day: day.S };
+				}
 				if (dayCode === "ConditionalCheckFailed") return { outcome: "day-spent" as const };
 				return undefined;
 			},

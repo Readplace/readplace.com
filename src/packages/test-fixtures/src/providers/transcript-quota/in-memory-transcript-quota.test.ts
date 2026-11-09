@@ -38,11 +38,14 @@ describe("in-memory transcript charge", () => {
 		assert.equal(quota.spentOn(DAY), undefined);
 	});
 
-	it("answers already-charged for a redelivered commit", async () => {
+	it("answers already-charged, with the day it was charged on, for a redelivered commit", async () => {
 		const quota = createQuota();
 		await quota.chargeTranscriptQuota({ ...REF, seconds: 600 });
 
-		assert.deepEqual(await quota.chargeTranscriptQuota({ ...REF, seconds: 600 }), { outcome: "already-charged" });
+		assert.deepEqual(await quota.chargeTranscriptQuota({ ...REF, seconds: 600 }), {
+			outcome: "already-charged",
+			day: DAY,
+		});
 		assert.equal(quota.spentOn(DAY), 600);
 	});
 

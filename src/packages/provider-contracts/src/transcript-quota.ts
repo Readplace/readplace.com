@@ -9,7 +9,7 @@ export type ChargedTranscript = TranscriptChargeRef & { seconds: number; day: st
 
 export type ChargeTranscriptQuota = (p: TranscriptChargeRef & { seconds: number }) => Promise<
 	| { outcome: "charged"; day: string }
-	| { outcome: "already-charged" }
+	| { outcome: "already-charged"; day: string }
 	| { outcome: "day-spent" }
 	| { outcome: "over-allowance" }
 >;
