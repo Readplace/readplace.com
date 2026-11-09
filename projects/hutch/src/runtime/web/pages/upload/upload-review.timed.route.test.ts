@@ -77,8 +77,21 @@ describe("Guest audio review", () => {
 		const { uploadId } = await guestAudio(harness);
 
 		const { doc } = await reviewOf(harness, uploadId);
+		expect(doc.querySelector("[data-test-upload-duration]")?.textContent).toBe("1 min");
 		expect(doc.querySelector("[data-test-transcript-minutes]")?.textContent).toBe(
 			"Uses 1 of your 20 transcript minutes today",
+		);
+	});
+
+	it("shows a file metadata reads a frame over two minutes as 2 minutes on both lines", async () => {
+		duration = { durationSeconds: 120.046, hasAudio: true, hasVideo: false };
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { uploadId } = await guestAudio(harness);
+
+		const { doc } = await reviewOf(harness, uploadId);
+		expect(doc.querySelector("[data-test-upload-duration]")?.textContent).toBe("2 min");
+		expect(doc.querySelector("[data-test-transcript-minutes]")?.textContent).toBe(
+			"Uses 2 of your 20 transcript minutes today",
 		);
 	});
 

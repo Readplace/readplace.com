@@ -6,8 +6,8 @@ describe("billableSeconds", () => {
 		assert.equal(billableSeconds(14.2), 15);
 	});
 
-	it("rounds a longer file up to the next whole second", () => {
-		assert.equal(billableSeconds(61.1), 62);
+	it("charges the nearest whole second, so a metadata overshoot of a frame does not cost a second", () => {
+		assert.deepEqual([billableSeconds(120.046), billableSeconds(50.077), billableSeconds(61.6)], [120, 50, 62]);
 	});
 });
 

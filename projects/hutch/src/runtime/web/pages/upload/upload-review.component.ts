@@ -14,7 +14,6 @@ export type UploadReviewView =
 	| {
 			view: "timed-review";
 			heading: string;
-			durationMinutes: number;
 			transcriptMinutes: number;
 			allowanceMinutes: number;
 			commitUrl: string;

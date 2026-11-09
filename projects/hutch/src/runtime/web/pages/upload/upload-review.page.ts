@@ -99,7 +99,6 @@ const REVIEW_VIEWS: Record<
 		return {
 			view: "timed-review",
 			heading: session.fileName ?? defaultFileNameOf(kind),
-			durationMinutes: displayMinutes(facts.durationSeconds),
 			transcriptMinutes: chargedMinutes(seconds),
 			allowanceMinutes: displayMinutes(transcriptAllowanceSeconds),
 			commitUrl,

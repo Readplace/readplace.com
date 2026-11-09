@@ -42,7 +42,7 @@ function chargeWith(params: { read: ReadTimedDuration; quota: ChargeTranscriptQu
 describe("initChargeTranscript", () => {
 	it("charges a metered upload its billable seconds once and keeps the charge to refund", async () => {
 		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
-		const charge = chargeWith({ read: readingSeconds(599.2), quota: quota.chargeTranscriptQuota });
+		const charge = chargeWith({ read: readingSeconds(599.6), quota: quota.chargeTranscriptQuota });
 
 		const decision = await charge({ session, kind: METERED_AUDIO, etag: '"e1"' });
 
@@ -53,6 +53,15 @@ describe("initChargeTranscript", () => {
 			charge: { seconds: 600, day: "2026-11-07" },
 			freshCharge: { ...ref, seconds: 600, day: "2026-11-07" },
 		});
+	});
+
+	it("charges a metered upload the nearest whole second, so a metadata overshoot of a frame does not cost a second", async () => {
+		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
+		const charge = chargeWith({ read: readingSeconds(120.046), quota: quota.chargeTranscriptQuota });
+
+		await charge({ session, kind: METERED_AUDIO, etag: '"e1"' });
+
+		assert.deepEqual(quota.calls, [{ userId, uploadId, attempt: 1, seconds: 120 }]);
 	});
 
 	it("charges a metered upload started without the transcripts feature", async () => {
