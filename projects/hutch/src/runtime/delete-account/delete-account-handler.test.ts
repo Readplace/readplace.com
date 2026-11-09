@@ -812,6 +812,7 @@ describe("delete-account handler", () => {
 								},
 							},
 							deleteUserArticleLinks: async () => {},
+							settleStartedCharge: async () => ({ outcome: "not-started" }),
 						}),
 					}),
 				})({ userId, urls }),

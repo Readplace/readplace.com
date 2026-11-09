@@ -39,6 +39,7 @@ function buildSubject(url: string) {
 				calls.push("links");
 				links.delete(itemUrl);
 			},
+			settleStartedCharge: async () => ({ outcome: "not-started" }),
 		}),
 	});
 	return { calls, links, holds, failures, releasePrivateItem };

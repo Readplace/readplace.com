@@ -4,6 +4,7 @@ import type {
 	MarkTranscriptStarted,
 	RefundTranscriptCharge,
 	RefundUnstartedCharge,
+	SettleStartedCharge,
 	SettleTranscriptCharge,
 	TranscriptChargeRef,
 	TranscriptChargeState,
@@ -50,6 +51,7 @@ export function initInMemoryTranscriptCharge(deps: {
 export function initInMemoryTranscriptLedger(deps: { rows: InMemoryTranscriptQuotaRows }): {
 	markTranscriptStarted: MarkTranscriptStarted;
 	settleTranscriptCharge: SettleTranscriptCharge;
+	settleStartedCharge: SettleStartedCharge;
 	refundTranscriptCharge: RefundTranscriptCharge;
 	refundUnstartedCharge: RefundUnstartedCharge;
 	deleteAllTranscriptQuota: DeleteAllTranscriptQuota;
@@ -73,6 +75,12 @@ export function initInMemoryTranscriptLedger(deps: { rows: InMemoryTranscriptQuo
 	return {
 		markTranscriptStarted: async (ref) => moveOpenCharge(ref, "started"),
 		settleTranscriptCharge: async (ref) => moveOpenCharge(ref, "settled"),
+		settleStartedCharge: async (ref) => {
+			const entry = charges.get(chargeKey(ref));
+			if (entry?.state !== "started") return { outcome: "not-started" };
+			entry.state = "settled";
+			return { outcome: "settled" };
+		},
 		refundTranscriptCharge: async (p) => {
 			const entry = charges.get(chargeKey(p));
 			if (!isOpen(entry)) return { outcome: "closed" };

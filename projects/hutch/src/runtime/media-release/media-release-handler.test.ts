@@ -5,6 +5,11 @@ import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import {
+	initInMemoryTranscriptCharge,
+	initInMemoryTranscriptLedger,
+	initInMemoryTranscriptQuotaRows,
+} from "@packages/test-fixtures/providers/transcript-quota";
 import { initMediaReleaseHandler } from "./media-release-handler";
 import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "./private-item-release-steps";
 
@@ -25,6 +30,14 @@ async function buildSubject(overrides: { failRowDelete?: boolean } = {}) {
 	});
 	await store.recordItemOwner({ url: PRIVATE_URL, ownerUserId: OWNER });
 	const calls: string[] = [];
+	const quotaRows = initInMemoryTranscriptQuotaRows();
+	const ledger = initInMemoryTranscriptLedger({ rows: quotaRows });
+	await initInMemoryTranscriptCharge({
+		rows: quotaRows,
+		allowanceSeconds: 1250,
+		now: () => new Date("2026-11-09T10:00:00.000Z"),
+	}).chargeTranscriptQuota({ userId: OWNER, uploadId: UPLOAD_ID, attempt: 1, seconds: 361 });
+	await ledger.markTranscriptStarted({ userId: OWNER, uploadId: UPLOAD_ID, attempt: 1 });
 	const steps = initPrivateItemReleaseSteps({
 		purgeArticleContent: async (url) => {
 			calls.push(`content:${url}`);
@@ -46,12 +59,17 @@ async function buildSubject(overrides: { failRowDelete?: boolean } = {}) {
 		deleteUserArticleLinks: async (url) => {
 			calls.push(`links:${url}`);
 		},
+		settleStartedCharge: async (ref) => {
+			const settled = await ledger.settleStartedCharge(ref);
+			calls.push(`charge:${ref.uploadId}:${settled.outcome}`);
+			return settled;
+		},
 	});
 	const handler = initMediaReleaseHandler({
 		releasePrivateItem: initReleasePrivateItem({ findItemOwner: store.findItemOwner, steps }),
 		logger: Logger.from(noopLogger),
 	});
-	return { calls, handler };
+	return { calls, handler, chargeState: () => quotaRows.charges.get(`${OWNER}#${UPLOAD_ID}#1`)?.state };
 }
 
 function dequeued(userId: string) {
@@ -59,7 +77,7 @@ function dequeued(userId: string) {
 }
 
 describe("initMediaReleaseHandler", () => {
-	it("releases the owner's item: content, pending original, book images, transcripts, row, then links", async () => {
+	it("releases the owner's item: content, pending original, book images, transcripts, started charge, row, then links", async () => {
 		const { calls, handler } = await buildSubject();
 
 		const result = await handler(dequeued(OWNER), buildLambdaContext(), () => {});
@@ -70,19 +88,29 @@ describe("initMediaReleaseHandler", () => {
 			`media:pending/${UPLOAD_ID}/original`,
 			`media:images/${UPLOAD_ID}/cover.png,images/${UPLOAD_ID}/figure-1.jpg`,
 			`media:transcripts/${UPLOAD_ID}/1.input.mp3,transcripts/${UPLOAD_ID}/1.json`,
+			`charge:${UPLOAD_ID}:settled`,
 			`row:${PRIVATE_URL}`,
 			`holdings:${UPLOAD_ID}`,
 			`links:${PRIVATE_URL}`,
 		]);
 	});
 
+	it("settles a started charge when the dequeue arrives while the job runs", async () => {
+		const { handler, chargeState } = await buildSubject();
+
+		await handler(dequeued(OWNER), buildLambdaContext(), () => {});
+
+		assert.equal(chargeState(), "settled");
+	});
+
 	it("runs no release step when a non-owner who holds the private url dequeues it", async () => {
-		const { calls, handler } = await buildSubject();
+		const { calls, handler, chargeState } = await buildSubject();
 
 		const result = await handler(dequeued(OTHER), buildLambdaContext(), () => {});
 
 		assert.deepEqual(result, { batchItemFailures: [] });
 		assert.deepEqual(calls, []);
+		assert.equal(chargeState(), "started");
 	});
 
 	it("fails the record when a step throws, so SQS retries it", async () => {
@@ -96,6 +124,7 @@ describe("initMediaReleaseHandler", () => {
 			`media:pending/${UPLOAD_ID}/original`,
 			`media:images/${UPLOAD_ID}/cover.png,images/${UPLOAD_ID}/figure-1.jpg`,
 			`media:transcripts/${UPLOAD_ID}/1.input.mp3,transcripts/${UPLOAD_ID}/1.json`,
+			`charge:${UPLOAD_ID}:settled`,
 		]);
 	});
 });

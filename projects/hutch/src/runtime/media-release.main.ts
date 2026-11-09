@@ -11,6 +11,7 @@ import { Logger, consoleLogger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initMediaObjectStore } from "@packages/media-object-store";
 import { readEnv } from "@packages/require-env";
+import { initDynamoDbTranscriptLedger } from "@packages/transcript-quota";
 import { MEDIA_RELEASE_ENV } from "./media-release.env";
 import { initMediaReleaseHandler } from "./media-release/media-release-handler";
 import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "./media-release/private-item-release-steps";
@@ -41,6 +42,12 @@ const releasePrivateItem = initReleasePrivateItem({
 		mediaObjects: initMediaObjectStore({ client: dynamoClient, tableName: mediaTableName, s3: s3Client, bucketName: mediaBucketName }),
 		deleteUserArticleLinks: initDeleteUserArticleLinks({ client: dynamoClient, tableName: userArticlesTable })
 			.deleteUserArticleLinks,
+		settleStartedCharge: initDynamoDbTranscriptLedger({
+			client: dynamoClient,
+			tableName: mediaTableName,
+			now: () => new Date(),
+			delay: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+		}).settleStartedCharge,
 	}),
 });
 

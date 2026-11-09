@@ -234,6 +234,40 @@ describe("initDynamoDbTranscriptLedger", () => {
 		});
 	});
 
+	describe("settleStartedCharge", () => {
+		it("settles a started charge with one update conditioned on started", async () => {
+			const subject = ledger();
+
+			assert.deepEqual(await subject.settleStartedCharge(REF), { outcome: "settled" });
+			assert.deepEqual(subject.sent, [
+				{
+					name: "UpdateCommand",
+					input: {
+						TableName: TABLE,
+						Key: CHARGE_KEY,
+						UpdateExpression: "SET #state = :settled",
+						ConditionExpression: "#state = :started",
+						ExpressionAttributeNames: { "#state": "state" },
+						ExpressionAttributeValues: { ":settled": "settled", ":started": "started" },
+					},
+				},
+			]);
+		});
+
+		it("answers not-started for a reserved, settled, refunded or missing row", async () => {
+			const subject = ledger([conditionFailed()]);
+
+			assert.deepEqual(await subject.settleStartedCharge(REF), { outcome: "not-started" });
+			assert.equal(subject.sent.length, 1);
+		});
+
+		it("rethrows any other error", async () => {
+			const subject = ledger([new Error("network down")]);
+
+			await assert.rejects(subject.settleStartedCharge(REF), /network down/);
+		});
+	});
+
 	describe("refundTranscriptCharge", () => {
 		it("refunds a reserved or started charge and gives its seconds back to the charged day", async () => {
 			const subject = ledger();

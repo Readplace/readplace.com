@@ -117,6 +117,21 @@ describe("in-memory transcript ledger", () => {
 		assert.deepEqual(await quota.settleTranscriptCharge(REF), { outcome: "done" });
 	});
 
+	it("settles a started charge when its item is released, and leaves a reserved one for the request path", async () => {
+		const quota = createQuota();
+		const RESERVED = { ...REF, uploadId: "upload-2" };
+		await quota.chargeTranscriptQuota({ ...REF, seconds: 600 });
+		await quota.chargeTranscriptQuota({ ...RESERVED, seconds: 60 });
+		await quota.markTranscriptStarted(REF);
+
+		assert.deepEqual(await quota.settleStartedCharge(REF), { outcome: "settled" });
+		assert.deepEqual(await quota.settleStartedCharge(REF), { outcome: "not-started" });
+		assert.deepEqual(await quota.settleStartedCharge(RESERVED), { outcome: "not-started" });
+		assert.deepEqual(await quota.settleStartedCharge({ ...REF, uploadId: "upload-3" }), { outcome: "not-started" });
+		assert.deepEqual(await quota.refundUnstartedCharge({ ...RESERVED, seconds: 60, day: DAY }), { outcome: "refunded" });
+		assert.equal(quota.spentOn(DAY), 600);
+	});
+
 	it("refunds a reserved charge on the request path", async () => {
 		const quota = createQuota();
 		await quota.chargeTranscriptQuota({ ...REF, seconds: 600 });

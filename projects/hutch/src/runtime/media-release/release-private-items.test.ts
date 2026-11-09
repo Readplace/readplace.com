@@ -57,6 +57,10 @@ async function buildSubject() {
 			calls.push(`links:${url}`);
 			await store.deleteArticle(ReaderArticleHashId.from(url), ACCOUNT);
 		},
+		settleStartedCharge: async ({ uploadId }) => {
+			calls.push(`charge:${uploadId}`);
+			return { outcome: "not-started" };
+		},
 	});
 	const releasePrivateItems = initReleasePrivateItems({
 		releasePrivateItem: initReleasePrivateItem({ findItemOwner: store.findItemOwner, steps }),
@@ -69,6 +73,7 @@ const OWN_ITEM_RELEASE = [
 	`media:pending/${OWN_UPLOAD_ID}/original`,
 	`media:images/${OWN_UPLOAD_ID}/cover.png,images/${OWN_UPLOAD_ID}/figure-1.jpg`,
 	`media:transcripts/${OWN_UPLOAD_ID}/1.input.mp3,transcripts/${OWN_UPLOAD_ID}/1.json`,
+	`charge:${OWN_UPLOAD_ID}`,
 	`row:${OWN_PRIVATE_URL}`,
 	`holdings:${OWN_UPLOAD_ID}`,
 	`links:${OWN_PRIVATE_URL}`,

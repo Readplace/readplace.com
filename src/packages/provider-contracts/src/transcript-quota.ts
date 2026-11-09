@@ -22,6 +22,10 @@ export type SettleTranscriptCharge = (
 	p: TranscriptChargeRef,
 ) => Promise<{ outcome: "done" } | { outcome: "closed" }>;
 
+export type SettleStartedCharge = (
+	p: TranscriptChargeRef,
+) => Promise<{ outcome: "settled" } | { outcome: "not-started" }>;
+
 export type RefundTranscriptCharge = (
 	p: ChargedTranscript,
 ) => Promise<{ outcome: "refunded" } | { outcome: "closed" }>;

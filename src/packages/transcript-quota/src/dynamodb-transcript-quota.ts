@@ -14,6 +14,7 @@ import type {
 	MarkTranscriptStarted,
 	RefundTranscriptCharge,
 	RefundUnstartedCharge,
+	SettleStartedCharge,
 	SettleTranscriptCharge,
 	TranscriptChargeRef,
 } from "@packages/provider-contracts/transcript-quota";
@@ -127,6 +128,7 @@ export function initDynamoDbTranscriptCharge(deps: LedgerDeps & { allowanceSecon
 export function initDynamoDbTranscriptLedger(deps: LedgerDeps): {
 	markTranscriptStarted: MarkTranscriptStarted;
 	settleTranscriptCharge: SettleTranscriptCharge;
+	settleStartedCharge: SettleStartedCharge;
 	refundTranscriptCharge: RefundTranscriptCharge;
 	refundUnstartedCharge: RefundUnstartedCharge;
 	deleteAllTranscriptQuota: DeleteAllTranscriptQuota;
@@ -148,6 +150,19 @@ export function initDynamoDbTranscriptLedger(deps: LedgerDeps): {
 			}),
 		);
 		return written.kind === "written" ? { outcome: "done" } : { outcome: "closed" };
+	};
+
+	const settleStartedCharge: SettleStartedCharge = async (ref) => {
+		const written = await writeIfCondition(() =>
+			table.update({
+				Key: chargeRowKey(ref),
+				UpdateExpression: "SET #state = :settled",
+				ConditionExpression: "#state = :started",
+				ExpressionAttributeNames: { "#state": "state" },
+				ExpressionAttributeValues: { ":settled": "settled", ":started": "started" },
+			}),
+		);
+		return written.kind === "written" ? { outcome: "settled" } : { outcome: "not-started" };
 	};
 
 	const refundInput = (p: {
@@ -222,6 +237,7 @@ export function initDynamoDbTranscriptLedger(deps: LedgerDeps): {
 	return {
 		markTranscriptStarted: (ref) => moveOpenCharge({ ref, to: "started" }),
 		settleTranscriptCharge: (ref) => moveOpenCharge({ ref, to: "settled" }),
+		settleStartedCharge,
 		refundTranscriptCharge,
 		refundUnstartedCharge,
 		deleteAllTranscriptQuota,
