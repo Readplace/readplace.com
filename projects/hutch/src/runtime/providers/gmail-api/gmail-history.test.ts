@@ -280,14 +280,14 @@ describe("initGmailHistory", () => {
 			}
 		});
 
-		it("reports a native empty 204 listing as retryable", async () => {
+		it("reports an empty last page when Gmail answers 204 because the sender has no mail in the window", async () => {
 			const { history, attempts, observe } = harness((url) =>
 				reachedAt({ url: url.href, redirected: false, response: new Response(null, { status: 204 }) }),
 			);
 
 			const result = await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe });
 
-			assert.deepEqual(result, { ok: false, reason: "unavailable", status: 204 });
+			assert.deepEqual(result, { ok: true, value: { messageIds: [], nextPageToken: undefined } });
 			assert.deepEqual(attempts[0].response, {
 				status: 204,
 				redirected: false,
@@ -295,11 +295,9 @@ describe("initGmailHistory", () => {
 				finalOriginExpected: true,
 				bodyNull: true,
 				headers: NO_HEADERS,
-				bodyReads: [
-					{ source: "response", outcome: "json-decode-failed", measuredBytes: 0, errorName: "SyntaxError", fields: {} },
-				],
+				bodyReads: [],
 			});
-			assert.equal(attempts[0].classification, "unavailable");
+			assert.equal(attempts[0].classification, "ok");
 		});
 
 		it("reports a listing body that is not JSON, or cannot be read, as retryable", async () => {

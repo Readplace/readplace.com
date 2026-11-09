@@ -256,6 +256,10 @@ export function initGmailHistory(deps: {
 				requestedEndpoint: "gmail.messages.list",
 				observe,
 			});
+			if (call.ok && call.value.response.status === 204) {
+				call.value.settle({ classification: "ok", bodyReads: [] });
+				return { ok: true, value: { messageIds: [], nextPageToken: undefined } };
+			}
 			const result = await read({ call, schema: MessagesResponse, summarize: listingFields });
 			if (!result.ok) return result;
 			return {
