@@ -2758,7 +2758,7 @@ it("fails the CIA PDF as a wrong document without parsing or thumbnailing the ho
 	expect(result.finalUrl).toBe(url);
 	expect(documentLandingPageFailure(result.cause)).toMatchObject({ requestedUrl: url, landingPageUrl: home });
 	expect(calls).toEqual([url, home]);
-	expect(extractPdf).not.toHaveBeenCalled();
+	expect(extractPdf).toHaveBeenCalledTimes(0);
 });
 it("keeps the CIA reading-room homepage when it was the page requested", async () => {
 	const home = "https://www.cia.gov/readingroom/";

@@ -1,5 +1,10 @@
 import assert from "node:assert";
-import { type DynamoDBDocumentClient, defineDynamoTable, writeIfCondition } from "@packages/storage-client";
+import {
+	type ConditionalWriteOutcome,
+	type DynamoDBDocumentClient,
+	defineDynamoTable,
+	writeIfCondition,
+} from "@packages/storage-client";
 import { z } from "zod";
 import type {
 	AdmitHost,
@@ -80,8 +85,9 @@ export function initDynamoDbHostAdmission(deps: {
 		const policy = routingPolicyFor(host);
 		const leaseExpiresAt = invocationHardDeadline.getTime() + LEASE_GRACE_AFTER_HARD_DEADLINE_MS;
 		const nextStartAt = nowMs + policy.startSpacingMs;
+		let outcome: ConditionalWriteOutcome<unknown>;
 		try {
-			const outcome = await writeIfCondition(() =>
+			outcome = await writeIfCondition(() =>
 				table.update({
 					Key: hostAdmissionKey(host),
 					UpdateExpression:
@@ -100,16 +106,16 @@ export function initDynamoDbHostAdmission(deps: {
 					ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 				}),
 			);
-			if (outcome.kind === "condition-failed") {
-				return deferralFrom({ oldItem: outcome.oldItem, nowMs });
-			}
-			return {
-				kind: "admitted",
-				lease: { host, ownerToken, leaseExpiresAt: new Date(leaseExpiresAt) },
-			};
 		} catch (error) {
 			return { kind: "store-unavailable", error };
 		}
+		if (outcome.kind === "condition-failed") {
+			return deferralFrom({ oldItem: outcome.oldItem, nowMs });
+		}
+		return {
+			kind: "admitted",
+			lease: { host, ownerToken, leaseExpiresAt: new Date(leaseExpiresAt) },
+		};
 	};
 
 	const admitHost: AdmitHost = async (request) => {

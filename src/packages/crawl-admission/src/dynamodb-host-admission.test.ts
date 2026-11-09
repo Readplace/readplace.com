@@ -281,15 +281,10 @@ describe("initDynamoDbHostAdmission", () => {
 			});
 		});
 
-		it.each([
-			["the store throws", () => new Error("ProvisionedThroughputExceededException")],
-			["the failed condition returns no row", () => conditionFailed(undefined)],
-			["the failed condition leaves no gate in the future", () => conditionFailed(marshalled({ pk: "p" }))],
-		])("reports store-unavailable, not contention, when %s", async (_case, failure) => {
-			const error = failure();
+		it("reports store-unavailable, not contention, when the store throws", async () => {
 			const { admitHost } = initDynamoDbHostAdmission({
 				client: clientFrom(() => {
-					throw error;
+					throw new Error("ProvisionedThroughputExceededException");
 				}),
 				tableName: TABLE,
 				now: () => new Date(T0),
@@ -303,6 +298,34 @@ describe("initDynamoDbHostAdmission", () => {
 			});
 
 			assert.equal(outcome.kind, "store-unavailable");
+		});
+
+		it.each([
+			["the failed condition returns no row", () => conditionFailed(undefined), z.ZodError],
+			[
+				"the failed condition leaves no gate in the future",
+				() => conditionFailed(marshalled({ pk: "p" })),
+				/a failed admission condition must leave at least one gate in the future/,
+			],
+		])("throws instead of reporting a store outage when %s", async (_case, failure, message) => {
+			const error = failure();
+			const { admitHost } = initDynamoDbHostAdmission({
+				client: clientFrom(() => {
+					throw error;
+				}),
+				tableName: TABLE,
+				now: () => new Date(T0),
+				delay: async () => {},
+			});
+
+			await assert.rejects(
+				admitHost({
+					host: host("example.com"),
+					ownerToken: owner("job-1"),
+					invocationHardDeadline: new Date(T0 + 300_000),
+				}),
+				message,
+			);
 		});
 	});
 
@@ -473,6 +496,29 @@ describe("initDynamoDbHostAdmission", () => {
 				reason: "host-busy",
 				nextEligibleAt: new Date(T0 + 315_000),
 			});
+		});
+
+		it("turns away the lease holder's own second admission until it releases", async () => {
+			const { time, worker } = twoWorkers();
+			const provider = worker();
+			const request = {
+				host: host("example.com"),
+				ownerToken: owner("job-a"),
+				invocationHardDeadline: deadlineIn(time, 300_000),
+			};
+			await provider.admitHost(request);
+			time.advance(2_000);
+
+			const reentry = await provider.admitHost(request);
+			await provider.releaseHostAdmission(request);
+			const afterRelease = await provider.admitHost(request);
+
+			assert.deepEqual(reentry, {
+				kind: "deferred",
+				reason: "host-busy",
+				nextEligibleAt: new Date(T0 + 315_000),
+			});
+			assert.equal(afterRelease.kind, "admitted");
 		});
 
 		it("lets jobs for different hosts both enter", async () => {

@@ -572,20 +572,20 @@ it("reports a wrong-document failure after trying each CIA transport once when a
 	expect(attempts.map(a => a.outcome)).toEqual(["escalated", "escalated", "escalated"]);
 });
 it("accepts a CIA PDF on the first transport", async () => {
-	const h2 = jest.fn(ciaHomepage);
+	const attempts: LegAttempt[] = [];
 	const fetchIt = ladderOf([
 		{ name: "primary", maxRunMs: 100, fetch: async () => withResolvedUrl(new Response("%PDF-1.7", { status: 200, headers: { "content-type": "application/pdf" } }), ciaUrl) },
-		{ name: "h2", maxRunMs: 100, fetch: h2 },
-	], []);
+		{ name: "h2", maxRunMs: 100, fetch: ciaHomepage },
+	], attempts);
 	expect(await (await fetchIt(ciaUrl, { headers: {}, budget: budgetOf(1000) })).text()).toBe("%PDF-1.7");
-	expect(h2).not.toHaveBeenCalled();
+	expect(attempts.map((a) => [a.leg, a.outcome])).toEqual([["primary", "answered"]]);
 });
 it("accepts the CIA reading-room homepage when it was the page requested", async () => {
-	const h2 = jest.fn(ciaHomepage);
+	const attempts: LegAttempt[] = [];
 	const fetchIt = ladderOf([
 		{ name: "primary", maxRunMs: 100, fetch: ciaHomepage },
-		{ name: "h2", maxRunMs: 100, fetch: h2 },
-	], []);
+		{ name: "h2", maxRunMs: 100, fetch: ciaHomepage },
+	], attempts);
 	expect(await (await fetchIt("https://www.cia.gov/readingroom/", { headers: {}, budget: budgetOf(1000) })).text()).toBe("<html>homepage</html>");
-	expect(h2).not.toHaveBeenCalled();
+	expect(attempts.map((a) => [a.leg, a.outcome])).toEqual([["primary", "answered"]]);
 });

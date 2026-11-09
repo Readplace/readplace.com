@@ -33,7 +33,7 @@ const DEFAULT_POLICY: HostOverride = {
 	routeOrder: DEFAULT_ROUTE_ORDER,
 	startSpacingMs: 2_000,
 	evidence:
-		"Plan 24 default: existing free direct transports first, two-second start spacing for every unlisted host",
+		"Default for every unlisted host: existing free direct transports first, two-second start spacing",
 	reviewBy: "2027-02-08",
 };
 
@@ -67,7 +67,7 @@ const TEN_SECOND_OVERRIDE: HostOverride = {
 	routeOrder: DEFAULT_ROUTE_ORDER,
 	startSpacingMs: 10_000,
 	evidence:
-		"Plan 24: observed HTTP 429 responses from this host; a conservative starting value, not a measured publisher allowance",
+		"Observed HTTP 429 responses from this host in the week to 2026-11-07; a conservative starting value, not a measured publisher allowance",
 	reviewBy: "2027-02-08",
 };
 
