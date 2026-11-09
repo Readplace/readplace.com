@@ -49,7 +49,7 @@ Skimming ahead of the playback is the point. A flat paragraph gets passed at rea
 
 Transcription draws on a daily allowance of transcript minutes, and the upload page states the day's figure. The review shows the recording's length and how much of the allowance it would use. The minutes come off when the file is saved, not when it's uploaded.
 
-The meter runs to the second, so a 90-second memo spends a minute and a half rather than 2.
+The review rounds up to whole minutes, so a 90-second memo shows 2, but the meter runs to the second: only the minute and a half comes off, and the other 30 seconds stay in the day's allowance.
 
 A recording longer than the whole day's allowance is turned back with a note to split it, instead of being transcribed up to a cut and stopped. The allowance resets at 00:00 UTC.
 
