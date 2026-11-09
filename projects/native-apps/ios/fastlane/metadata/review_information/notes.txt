@@ -8,7 +8,7 @@ SAVING ARTICLES
 - In any app (e.g. Safari) open a page, tap Share, choose Readplace; it appears in the reading list (pull to refresh).
 - On the first share, choose any extra readlists and tap "Done". Shares always go to the main readlist; each readlist's "Shared articles drop here" checkbox sets the extra destinations.
 
-CHANGES IN 1.0.132
+CHANGES IN 1.0.150
 - Offline: an opened article stays on the device; in Airplane Mode it opens from that copy, marked "Saved offline"; readlists show as last loaded.
 - The download button atop a readlist fetches every unread article ahead of time; an interrupted download can resume.
 - Automatic page capture: if the server couldn't load an article, opening it loads the page in a hidden web view and uploads it to the account, once per article per device, never an error or CAPTCHA page. Try a site that blocks automated fetches.
