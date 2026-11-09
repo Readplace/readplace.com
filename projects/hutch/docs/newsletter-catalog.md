@@ -14,7 +14,7 @@ A reader's own mapping never depends on the catalog. A reader can map any discov
 |---|---|---|
 | Bucket | `hutch-newsletter-catalog-staging` | `hutch-newsletter-catalog-prod` |
 | Object | `newsletter-catalog.json` | `newsletter-catalog.json` |
-| AWS account | default credentials | `--profile hutch-production` |
+| AWS account | `--profile hutch-staging` | `--profile hutch-production` |
 
 Both are in `ap-southeast-2`. The bucket is private. The web Lambda (`hutch`) and the `newsletter-catalog-suggestions` Lambda read and write it. Gmail monitoring and notification workers read it to check approval.
 
@@ -197,4 +197,4 @@ No record is ever deleted, so the evidence trail stays intact.
 
 4. If you started from an empty document, open `/admin/newsletters`, press **Import seed**, and re-approve the verified records. Reader submissions will re-add unknown senders as they come in.
 
-Use the staging bucket name and default credentials to rehearse in staging first.
+Use the staging bucket name and `--profile hutch-staging` to rehearse in staging first.

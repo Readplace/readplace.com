@@ -463,7 +463,7 @@ Never add a new command — a `package.json` script, a `scripts/*.js` entry poin
 
 ### AWS Accounts
 
-Default credentials target **staging**; prod is a separate account reached with `--profile hutch-production` (both `ap-southeast-2`). Node scripts must also unset `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`, which take precedence over `AWS_PROFILE`.
+Name the account on every command: staging is `--profile hutch-staging` and prod is `--profile hutch-production` (both `ap-southeast-2`). A machine's default credentials can reach neither: on 2026-11-09 one developer machine's defaults belonged to an unrelated, empty account. Node scripts must also unset `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`, which take precedence over `AWS_PROFILE`.
 
 ### Prefer Longhand Parameters
 

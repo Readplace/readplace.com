@@ -40,7 +40,7 @@ A handler that emits a structured stream (`crawl-legs`, `parse-errors`) is read 
 | Trap | What it looks like | Fix |
 |---|---|---|
 | Backticks around the leaf of a nested field | The column is blank on **every** row while the rest of the query works normally | Enclose the *whole* dotted path in one pair of backticks |
-| No profile or region | Zero rows, because default credentials target staging (CLAUDE.md → AWS Accounts) | Name the production profile and region explicitly |
+| No profile or region | Zero rows or `ResourceNotFoundException`, because default credentials may reach neither account (CLAUDE.md → AWS Accounts) | Name the profile and region explicitly |
 | Log groups typed by hand | `ResourceNotFoundException` — and the start-query call is rejected **whole**, so one wrong name returns nothing for every group | Enumerate structured-stream log groups from the package that maps Lambda names to log groups (above) |
 | Assuming a fixed number of rows per `@requestId` | Silent under- or over-counting of attempts | Count rows per id before pairing them |
 
