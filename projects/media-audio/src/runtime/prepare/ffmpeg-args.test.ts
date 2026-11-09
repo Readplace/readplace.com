@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
 	enclosureArgs,
 	transcriptionInputArgs,
-	transcriptionInputExtension,
+	transcriptionInputFormat,
 } from "./ffmpeg-args";
 
 const BASE = {
@@ -50,13 +50,13 @@ describe("transcriptionInputArgs", () => {
 	});
 });
 
-describe("transcriptionInputExtension", () => {
+describe("transcriptionInputFormat", () => {
 	it.each([
-		["mp3", "mp3"],
-		["aac", "m4a"],
-		["opus", "m4a"],
-	])("names a %s input %s", (codec, extension) => {
-		assert.equal(transcriptionInputExtension(codec), extension);
+		["mp3", "mp3", "audio/mpeg"],
+		["aac", "m4a", "audio/mp4"],
+		["opus", "m4a", "audio/mp4"],
+	])("names a %s input %s, typed %s", (codec, extension, mediaType) => {
+		assert.deepEqual(transcriptionInputFormat(codec), { extension, mediaType });
 	});
 });
 

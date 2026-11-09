@@ -17,7 +17,7 @@ export function initExtractAudio(deps: {
 	hashFile: HashFile;
 	mediaObjects: { ref: RefObject; unrefAll: UnrefAllForUpload };
 	setArticleEnclosure: PrivateItemMedia["setArticleEnclosure"];
-	putLocalFile: (params: { key: string; path: string }) => Promise<void>;
+	putLocalFile: (params: { key: string; path: string; contentType: string }) => Promise<void>;
 	removeFile: RemoveFile;
 	tmpDir: string;
 }): PrepareStep {
@@ -38,7 +38,7 @@ export function initExtractAudio(deps: {
 				uploadId: detail.uploadId,
 				size,
 				mediaType: RENDITION_MEDIA_TYPE,
-				putBytes: (key) => deps.putLocalFile({ key, path }),
+				putBytes: (key) => deps.putLocalFile({ key, path, contentType: RENDITION_MEDIA_TYPE }),
 			});
 			const { durationSeconds } = await deps.probeFileDuration({ file: path });
 			const recorded = await deps.setArticleEnclosure({

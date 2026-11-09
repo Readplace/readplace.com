@@ -23,7 +23,7 @@ import { type MediaAudioKind, MediaAudioKindSchema } from "../media-audio-kinds"
 import type { WriteMinimalAudioBody } from "../minimal-body/write-minimal-audio-body";
 import {
 	transcriptionInputArgs,
-	transcriptionInputExtension,
+	transcriptionInputFormat,
 } from "./ffmpeg-args";
 import { firstAudioCodec, type RunFfprobe } from "./run-ffprobe";
 import {
@@ -72,7 +72,11 @@ export function initPrepareTranscriptionHandler(deps: {
 	publishEvent: PublishEvent;
 	runFfprobe: RunFfprobe;
 	runFfmpeg: RunFfmpeg;
-	putTranscriptFile: (params: { key: string; path: string }) => Promise<void>;
+	putTranscriptFile: (params: {
+		key: string;
+		path: string;
+		contentType: string;
+	}) => Promise<void>;
 	removeTmpFile: (path: string) => Promise<void>;
 	putJobRequest: (params: {
 		key: string;
@@ -153,7 +157,7 @@ export function initPrepareTranscriptionHandler(deps: {
 			return stagedBytesGone(detail, item.media, time);
 		const codec = firstAudioCodec(probed.streams);
 		assert(codec, `${detail.url} has no audio stream`);
-		const extension = transcriptionInputExtension(codec);
+		const { extension, mediaType } = transcriptionInputFormat(codec);
 		const outputPath = `${deps.tmpDir}/${detail.uploadId}-${detail.attempt}.input.${extension}`;
 		const written = await deps.runFfmpeg(
 			transcriptionInputArgs({
@@ -171,7 +175,11 @@ export function initPrepareTranscriptionHandler(deps: {
 			attempt: detail.attempt,
 			extension,
 		});
-		await deps.putTranscriptFile({ key: mediaFileKey, path: outputPath });
+		await deps.putTranscriptFile({
+			key: mediaFileKey,
+			path: outputPath,
+			contentType: mediaType,
+		});
 		await deps.removeTmpFile(outputPath);
 
 		await deps.putJobRequest({

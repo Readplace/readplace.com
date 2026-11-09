@@ -30,15 +30,18 @@ export function initS3TranscriptFiles(deps: {
 	const putTranscriptFile = async ({
 		key,
 		path,
+		contentType,
 	}: {
 		key: string;
 		path: string;
+		contentType: string;
 	}): Promise<void> => {
 		await deps.client.send(
 			new PutObjectCommand({
 				Bucket: deps.bucketName,
 				Key: key,
 				Body: await readFile(path),
+				ContentType: contentType,
 			}),
 		);
 	};
