@@ -114,7 +114,11 @@ export function initComputeRelatedArticlesHandler(
 				return;
 			}
 			if (lookup.state === "absent") {
-				throw new MetadataNotReadyError({ url: entry.url, crawlStatus: undefined });
+				if (receiveCount < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
+					throw new MetadataNotReadyError({ url: entry.url, crawlStatus: undefined });
+				}
+				await skipNextRead({ save, reason: "article row gone after the wait" });
+				return;
 			}
 			const target = lookup.article;
 			if (target.crawlStatus === "pending") {
