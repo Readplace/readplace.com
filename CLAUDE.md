@@ -157,6 +157,7 @@ Readplace serves en-US today and will add en-AU and other languages. A literal s
 - Values never contain HTML. A sentence split around a link becomes `before` / `link` / `after` keys with the `<a>` kept in the template. Plurals are `one` / `other` sub-keys chosen with `Intl.PluralRules`, used only where the code compared a cardinal count `=== 1`.
 - Store a code, never a sentence: a row is shared by readers of every locale.
 - Read a locale tag from `DEFAULT_LOCALE` instead of writing `"en"` or `"en-US"`. A tag that is part of a contract (crawler `accept-language`, `en_US_POSIX` date parsing, `localeCompare` sorts) stays as written.
+- Every new or changed user-facing string goes into the translation files, including in a surface no copy checker covers yet. A literal string needs the human's explicit approval.
 - Each web deployable's `copy.test.ts` runs the copy checker over the directories it lists as migrated and fails on literal copy left in a template. Do not extend a checker's exempt list without the human's approval.
 
 Not translated by design: the home, landing, help, support, terms and privacy prose pages and the import FAQ; store and manifest metadata; admin pages and operator dashboards; MCP and WebMCP text; agent documents (`llms.txt`, `llms-full.txt`, `auth.md`, skills); blog posts; log lines; protocol text such as HTTP reason phrases and JSON-RPC bodies.
