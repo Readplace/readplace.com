@@ -425,7 +425,15 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		staticBaseUrl: fixture.shared.staticBaseUrl,
 		httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
 		logError,
-		now: gmailNow,
+		/** 1. The Gmail stores' clock runs ahead of Date.now() when it is called
+		 * twice in one millisecond. On the wall clock, a new import job's createdAt
+		 * could sort before its mapping's mappedAt, so the gmail-newsletters-a11y
+		 * import-state test rendered "none" instead of "awaiting-permission".
+		 * One clock for app and stores keeps that order. Verified 2026-11-08:
+		 * with the Gmail clock 5 ms ahead the test failed every run before this
+		 * line; after it the spec passed 240/240 under the lead and 960/960
+		 * (20x repeat) without it. */
+		now: gmailNow, /* 1 */
 	},
 }, { keepOfferEndsAt: new Date('2099-01-01T00:00:00.000Z') })
 
