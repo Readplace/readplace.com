@@ -69,6 +69,12 @@ describe("/view for a private upload", () => {
 		expect(response.status).toBe(200);
 		expect(response.text).toContain("PRIVATE-BOOK-BODY");
 		expect(response.text).not.toContain("Save to My Readlist");
+		const doc = new JSDOM(response.text).window.document;
+		expect([
+			doc.querySelectorAll('[data-test-action="share-open"]').length,
+			doc.querySelectorAll("[data-share-url]").length,
+			doc.querySelectorAll('a[href*=".invalid"]:not([href*="format=epub"])').length,
+		]).toEqual([0, 0, 0]);
 	});
 });
 

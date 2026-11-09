@@ -592,6 +592,38 @@ describe("withheld sharing", () => {
 	});
 });
 
+describe("share withheld, download offered", () => {
+	const SHARE_WITHHELD_BTNS = {
+		readlistPicker: undefined,
+		backLink: BACK,
+		shareWithheld: { popoverId: "reader-sharing-off", fallbackHtml: '<p class="sharing-off-fixture">Sharing is off</p>' },
+		epubDownloadHref: "/queue/private-book/view?format=epub",
+		menu: { deleteItemsHtml: '<button class="menu__item">Delete</button>' },
+	} satisfies ActionButtons;
+
+	it("dims Share in the toolbar and menu but keeps the EPUB download link", () => {
+		const doc = parse(WebReader({ actionBtns: SHARE_WITHHELD_BTNS }).top.to("text/html").body);
+
+		expect(
+			Array.from(
+				doc.querySelectorAll('[data-test-action="share-withheld"], [data-test-action="menu-share-withheld"]'),
+				(trigger) => [
+					trigger.getAttribute("data-test-action"),
+					trigger.getAttribute("popovertarget"),
+					trigger.getAttribute("aria-disabled"),
+				],
+			),
+		).toEqual([
+			["share-withheld", "reader-sharing-off", "true"],
+			["menu-share-withheld", "reader-sharing-off", "true"],
+		]);
+		expect([
+			doc.querySelectorAll('[data-test-action="share-open"], [data-test-action="download-withheld"], [data-test-action="menu-download-withheld"]').length,
+			doc.querySelectorAll('a[href="/queue/private-book/view?format=epub"]').length > 0,
+		]).toEqual([0, true]);
+	});
+});
+
 describe("mark-read confirmation", () => {
 	it("keeps one plain form, holding the action's own test hook, when nothing needs confirming", () => {
 		const { top } = WebReader({ actionBtns: ACTION_BTNS });

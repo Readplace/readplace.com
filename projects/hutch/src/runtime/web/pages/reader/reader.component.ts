@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
 import type { ArticleBody, ArticleStatus, SavedArticle } from "@packages/domain/article";
-import { nextReadDismissalOf } from "@packages/domain/article";
+import { isPrivateItemUrl, nextReadDismissalOf } from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
@@ -83,6 +83,7 @@ import {
 	SHARING_OFF_POPOVER_ID,
 	renderSharingOffDialog,
 	renderSharingOffNote,
+	type SharingOffReason,
 } from "./sharing-off-dialog.component";
 import { READER_TOP_SCRIPT } from "./reader-top-script";
 import { READER_STYLES } from "./reader.styles";
@@ -143,6 +144,51 @@ export function readerMarkStatusConfirm(input: {
 
 export interface ReaderPageHighlights extends ReaderHighlights {
 	scope: HighlightFormScope | undefined;
+}
+
+function sharingOffReasonFor(articleUrl: string): SharingOffReason | undefined {
+	if (parseEmailIssueArticleUrl(articleUrl) !== undefined) return "email-issue";
+	if (isPrivateItemUrl(articleUrl)) return "private-upload";
+	return undefined;
+}
+
+function readerSharingFor(input: {
+	articleUrl: string;
+	title: string;
+	appOrigin: string;
+	epubDownloadHref: string | undefined;
+	epubDownloadGuide: EpubDownloadGuide | undefined;
+}): { share: ShareInput | undefined; sharing: ReaderSharing; shareDialogHtml: string } {
+	const reason = sharingOffReasonFor(input.articleUrl);
+	if (reason === undefined) {
+		const share: ShareInput = {
+			shareUrl: `${input.appOrigin}${viewPathFor(input.articleUrl)}`,
+			title: input.title,
+			campaign: "reader-internal",
+		};
+		return {
+			share,
+			sharing: {
+				share: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
+				epubDownloadHref: input.epubDownloadHref,
+				epubDownloadGuide: input.epubDownloadGuide,
+			},
+			shareDialogHtml: renderShareDialog(share),
+		};
+	}
+	const off = { popoverId: SHARING_OFF_POPOVER_ID, fallbackHtml: renderSharingOffNote(reason) };
+	return {
+		share: undefined,
+		sharing:
+			reason === "email-issue"
+				? { withheld: off }
+				: {
+						shareWithheld: off,
+						epubDownloadHref: input.epubDownloadHref,
+						epubDownloadGuide: input.epubDownloadGuide,
+					},
+		shareDialogHtml: renderSharingOffDialog(reason),
+	};
 }
 
 export function ReaderPage(
@@ -210,22 +256,13 @@ export function ReaderPage(
 				: { confirmPopoverId: markStatusConfirm.popoverId }),
 		},
 	];
-	const share: ShareInput | undefined =
-		parseEmailIssueArticleUrl(article.url) === undefined
-			? {
-					shareUrl: `${options.appOrigin}${viewPathFor(article.url)}`,
-					title: article.metadata.title,
-					campaign: "reader-internal",
-				}
-			: undefined;
-	const sharing: ReaderSharing =
-		share === undefined
-			? { withheld: { popoverId: SHARING_OFF_POPOVER_ID, fallbackHtml: renderSharingOffNote() } }
-			: {
-					share: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
-					epubDownloadHref: options.epubDownloadHref,
-					epubDownloadGuide: options.epubDownloadGuide,
-				};
+	const { share, sharing, shareDialogHtml } = readerSharingFor({
+		articleUrl: article.url,
+		title: article.metadata.title,
+		appOrigin: options.appOrigin,
+		epubDownloadHref: options.epubDownloadHref,
+		epubDownloadGuide: options.epubDownloadGuide,
+	});
 	const picker = options.readlistFiling.picker;
 	const actions = options.renderActions({
 		actionBtns: {
@@ -332,7 +369,6 @@ export function ReaderPage(
 						},
 					}),
 	});
-	const shareDialogHtml = share === undefined ? renderSharingOffDialog() : renderShareDialog(share);
 	const downloadGuideHtml =
 		sharing.epubDownloadGuide === undefined ? "" : renderDownloadGuideDialog(sharing.epubDownloadGuide);
 	const readlistCreateHtml =

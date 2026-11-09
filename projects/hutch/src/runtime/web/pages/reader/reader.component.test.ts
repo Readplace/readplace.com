@@ -538,6 +538,63 @@ describe("ReaderPage", () => {
 		expect(report.classList.contains("article-body__report--withheld")).toBe(true);
 	});
 
+	it.each([
+		["WebReader", WebReader],
+		["ChromelessReader", ChromelessReader],
+	])("dims Share but keeps the EPUB download on a private upload in the %s, opening the dialog that says why", (_name, renderActions) => {
+		const downloadHref = "/queue/private-book/view?format=epub";
+		const html = Base(
+			ReaderPage(makeArticle({ url: "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef" }), {
+				readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
+				content: articleBody("<p>Book body</p>"),
+				appOrigin: DEFAULT_APP_ORIGIN,
+				backLink: TEST_BACK_LINK,
+				renderActions,
+				readlistFiling: NO_QUEUE_FILING,
+				provenance: undefined,
+				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
+				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
+				epubDownloadHref: downloadHref,
+			}),
+			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		expect(
+			Array.from(
+				doc.querySelectorAll('[data-test-action="share-withheld"], [data-test-action="menu-share-withheld"]'),
+				(trigger) => [
+					trigger.getAttribute("data-test-action"),
+					trigger.getAttribute("popovertarget"),
+					trigger.getAttribute("aria-disabled"),
+				],
+			),
+		).toEqual([
+			["share-withheld", "reader-sharing-off", "true"],
+			["menu-share-withheld", "reader-sharing-off", "true"],
+		]);
+		const dialog = doc.querySelector('[data-test-confirm-popover="sharing-off"]');
+		assert(dialog, "the sharing-off dialog must render");
+		expect([
+			dialog.querySelector(".confirm-popover__title")?.textContent,
+			dialog.querySelector(".confirm-popover__body")?.textContent,
+		]).toEqual([
+			"Sharing is off",
+			"This is your private upload, so only you can open it. It has no public link to share.",
+		]);
+		expect([
+			doc.querySelectorAll('[data-test-action="download-withheld"], [data-test-action="menu-download-withheld"]').length,
+			doc.querySelectorAll(`a[href="${downloadHref}"]`).length > 0,
+			doc.querySelectorAll("[data-share-url]").length,
+			doc.querySelectorAll('a[href*=".invalid"]').length,
+		]).toEqual([0, true, 0, 0]);
+		const report = doc.querySelector("[data-test-report-article]");
+		assert(report, "the reader must render the report slot");
+		expect(report.classList.contains("article-body__report--withheld")).toBe(true);
+	});
+
 	it("offers a report link naming the article's public view, against the supplied appOrigin", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: articleBody("<p>Body</p>"), appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),

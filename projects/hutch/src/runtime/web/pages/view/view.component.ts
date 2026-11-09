@@ -49,7 +49,7 @@ import { viewPathFor } from "./view-path";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { VIEW_STYLES } from "./view.styles";
-import { displayableReadTime } from "@packages/domain/article";
+import { displayableReadTime, isPrivateItemUrl } from "@packages/domain/article";
 import { reportArticleHref } from "../../shared/report-article/report-article-href";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
@@ -219,13 +219,18 @@ export interface ViewPageInput {
 export function ViewPage(input: ViewPageInput): PageBody {
 	const viewPath = viewPathFor(input.articleUrl);
 	const shareableViewUrl = `${input.appOrigin}${viewPath}`;
-	const share = { shareUrl: shareableViewUrl, title: input.metadata.title, campaign: "reader-public" } as const;
+	const share = isPrivateItemUrl(input.articleUrl)
+		? undefined
+		: ({ shareUrl: shareableViewUrl, title: input.metadata.title, campaign: "reader-public" } as const);
 	const actions = WebReader({
 		actionBtns: {
 			backLink: input.backLink,
 			readlistPicker: undefined,
 			markReadActions: undefined,
-			share: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
+			share:
+				share === undefined
+					? undefined
+					: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
 			epubDownloadHref: input.epubDownloadHref,
 			epubDownloadGuide: input.epubDownloadGuide,
 		},
@@ -253,7 +258,8 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
 		readerNotice: input.readerNotice,
-		reportHref: reportArticleHref({ viewUrl: shareableViewUrl, title: input.metadata.title }),
+		reportHref:
+			share === undefined ? undefined : reportArticleHref({ viewUrl: share.shareUrl, title: input.metadata.title }),
 	});
 	const crawlVersions = input.crawlVersions ?? [];
 	const railLandmark = railLandmarkFor({
@@ -288,7 +294,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		ctaItems,
 		endCtaHtml: renderViewEndCta(input.endCta),
 		saveTipHtml: input.saveTip.html,
-		shareDialogHtml: renderShareDialog(share),
+		shareDialogHtml: share === undefined ? "" : renderShareDialog(share),
 		downloadGuideHtml: input.epubDownloadGuide === undefined ? "" : renderDownloadGuideDialog(input.epubDownloadGuide),
 	});
 

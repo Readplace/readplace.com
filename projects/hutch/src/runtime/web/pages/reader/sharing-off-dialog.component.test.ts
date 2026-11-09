@@ -17,7 +17,7 @@ function parse(html: string): Document {
 
 describe("renderSharingOffDialog", () => {
 	it("titles the dialog with what is off and gives the reason in its body", () => {
-		const dialog = parse(renderSharingOffDialog()).querySelector("[data-test-confirm-popover]");
+		const dialog = parse(renderSharingOffDialog("email-issue")).querySelector("[data-test-confirm-popover]");
 		assert(dialog, "the dialog must render");
 
 		expect([
@@ -29,8 +29,25 @@ describe("renderSharingOffDialog", () => {
 		]).toEqual([SHARING_OFF_POPOVER_ID, "dialog", "sharing-off", TITLE, BODY]);
 	});
 
+	it("gives a private upload its own reason under the same dialog id", () => {
+		const dialog = parse(renderSharingOffDialog("private-upload")).querySelector("[data-test-confirm-popover]");
+		assert(dialog, "the dialog must render");
+
+		expect([
+			dialog.id,
+			dialog.getAttribute("data-test-confirm-popover"),
+			dialog.querySelector(".confirm-popover__title")?.textContent,
+			dialog.querySelector(".confirm-popover__body")?.textContent,
+		]).toEqual([
+			SHARING_OFF_POPOVER_ID,
+			"sharing-off",
+			"Sharing is off",
+			"This is your private upload, so only you can open it. It has no public link to share.",
+		]);
+	});
+
 	it("offers one neutral Close, which takes focus and hides the dialog", () => {
-		const doc = parse(renderSharingOffDialog());
+		const doc = parse(renderSharingOffDialog("email-issue"));
 
 		expect(
 			Array.from(doc.querySelectorAll("button"), (button) => [
@@ -45,7 +62,7 @@ describe("renderSharingOffDialog", () => {
 	});
 
 	it("leaves no focus gap and links nowhere", () => {
-		const html = renderSharingOffDialog();
+		const html = renderSharingOffDialog("email-issue");
 
 		expect(findPopoverFocusGaps(html)).toEqual([]);
 		expect(parse(html).querySelectorAll("[href]")).toHaveLength(0);
@@ -54,7 +71,7 @@ describe("renderSharingOffDialog", () => {
 
 describe("renderSharingOffNote", () => {
 	it("carries the same title and reason with no id, focus target or button, so each fallback can hold a copy", () => {
-		const doc = parse(renderSharingOffNote());
+		const doc = parse(renderSharingOffNote("email-issue"));
 		const note = doc.querySelector(".article-body__sharing-off-note");
 		assert(note, "the note must render");
 
@@ -65,5 +82,14 @@ describe("renderSharingOffNote", () => {
 			doc.querySelectorAll("[autofocus]").length,
 			doc.querySelectorAll("button").length,
 		]).toEqual([TITLE, BODY, 0, 0, 0]);
+	});
+
+	it("carries the private-upload reason when that is why sharing is off", () => {
+		const note = parse(renderSharingOffNote("private-upload")).querySelector(".article-body__sharing-off-note");
+		assert(note, "the note must render");
+
+		expect(note.querySelector(".confirm-popover__body")?.textContent).toBe(
+			"This is your private upload, so only you can open it. It has no public link to share.",
+		);
 	});
 });

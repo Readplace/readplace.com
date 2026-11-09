@@ -38,4 +38,12 @@ export const enUS = {
 			},
 		},
 	},
+	reader: {
+		sharingOff: {
+			privateUpload: {
+				title: "Sharing is off",
+				body: "This is your private upload, so only you can open it. It has no public link to share.",
+			},
+		},
+	},
 } as const;
