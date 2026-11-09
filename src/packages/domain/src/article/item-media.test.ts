@@ -1,4 +1,4 @@
-import { ItemMediaSchema } from "./item-media";
+import { ItemMediaSchema, offersEpubDownload } from "./item-media";
 import { ReaderArticleHashId } from "./reader-article-hash-id";
 
 describe("ItemMediaSchema", () => {
@@ -29,5 +29,16 @@ describe("ItemMediaSchema", () => {
 		const result = ItemMediaSchema.safeParse({ kind: "book", fileName: "dune.epub", routeId: "not-a-hash" });
 
 		expect(result.success).toBe(false);
+	});
+});
+
+describe("offersEpubDownload", () => {
+	it("offers the download for a link and for a book upload", () => {
+		expect(offersEpubDownload({})).toBe(true);
+		expect(offersEpubDownload({ media: { kind: "book" } })).toBe(true);
+	});
+
+	it.each(["audio", "video"] as const)("withholds it for a %s upload", (kind) => {
+		expect(offersEpubDownload({ media: { kind } })).toBe(false);
 	});
 });

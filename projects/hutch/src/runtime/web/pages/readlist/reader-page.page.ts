@@ -14,7 +14,7 @@ import type {
 import type { UserId } from "@packages/domain/user";
 import { appClientOf, } from "../../shared/save-client";
 import { FILED_READLIST_PARAM } from "../../shared/filing-flash";
-import { calculateReadTime, hostStubMetadata, } from "@packages/domain/article";
+import { calculateReadTime, hostStubMetadata, offersEpubDownload, } from "@packages/domain/article";
 import { ABSENT_ENCLOSURE, ReaderArticleHashIdSchema, mayReadItem, ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { MediaImageFileSchema, PrivateItemUrlSchema, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
 import { readerContentUnavailable, readerNoticeOf, transcriptNoticeOf } from "../../shared/article-reader/reader-view";
@@ -239,7 +239,7 @@ export function initReaderPageRoutes(deps: Pick<
 	};
 
 	const epubHrefFor = (req: Request, article: SavedArticle, content: string | undefined): string | undefined =>
-		content === undefined || parseEmailIssueArticleUrl(article.url) !== undefined
+		content === undefined || parseEmailIssueArticleUrl(article.url) !== undefined || !offersEpubDownload(article)
 			? undefined
 			: readerEpubHrefFor(req, { article, appClient: appClientOf(req) });
 
