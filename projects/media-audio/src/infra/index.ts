@@ -226,6 +226,11 @@ const renderTranscriptLedgerDynamodb = new DynamoDBAccess("media-audio-render-tr
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
+const renderTranscriptArticlesDynamodb = new DynamoDBAccess("media-audio-render-transcript-articles-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
 const renderTranscriptLambda = new Lambda(MEDIA_AUDIO_DLQ_SOURCES.renderTranscript, {
 	entryPoint: "./src/runtime/render-transcript.main.ts",
 	outputDir: ".lib/media-audio-render-transcript",
@@ -245,7 +250,7 @@ const renderTranscriptLambda = new Lambda(MEDIA_AUDIO_DLQ_SOURCES.renderTranscri
 		...S3ReadWrite.readPoliciesForBucket("media-audio-render-transcript-content-read", contentBucketName),
 		...S3ReadWrite.writePoliciesForBucket("media-audio-render-transcript-content-write", contentBucketName),
 		...renderTranscriptLedgerDynamodb.policies,
-		...articleReadDynamodb.policies,
+		...renderTranscriptArticlesDynamodb.policies,
 	],
 });
 
