@@ -32,25 +32,17 @@ async function runJobEvent(
 const SPOKEN = {
 	results: {
 		items: [
-			{
-				type: "pronunciation",
-				start_time: "0.0",
-				end_time: "0.4",
-				speaker_label: "spk_0",
-				alternatives: [{ content: "Welcome" }],
-			},
-			{ type: "punctuation", alternatives: [{ content: "." }] },
-			{
-				type: "pronunciation",
-				start_time: "310.0",
-				end_time: "310.4",
-				speaker_label: "spk_0",
-				alternatives: [{ content: "Later" }],
-			},
+			{ type: "pronunciation" },
+			{ type: "punctuation" },
+			{ type: "pronunciation" },
+		],
+		audio_segments: [
+			{ start_time: "0.0", transcript: "Welcome." },
+			{ start_time: "310.0", transcript: "Later" },
 		],
 	},
 };
-const SILENT = { results: { items: [] } };
+const SILENT = { results: { items: [], audio_segments: [] } };
 
 type PutCall = Parameters<PutTierSource>[0];
 
