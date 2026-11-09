@@ -24,6 +24,7 @@ export class SharedDlq extends pulumi.ComponentResource {
 		args: {
 			alertEmailDLQEntry: string;
 			retentionSeconds?: number;
+			drainedByHandler?: true;
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -44,21 +45,23 @@ export class SharedDlq extends pulumi.ComponentResource {
 			endpoint: args.alertEmailDLQEntry,
 		}, { parent: this });
 
-		new aws.cloudwatch.MetricAlarm(`${name}-dlq-alarm`, {
-			name: `${name}-dlq-alarm`,
-			comparisonOperator: "GreaterThanOrEqualToThreshold",
-			evaluationPeriods: 1,
-			metricName: "ApproximateNumberOfMessagesVisible",
-			namespace: "AWS/SQS",
-			period: 300,
-			statistic: "Sum",
-			threshold: 1,
-			alarmDescription: `Message entered ${name} dead letter queue`,
-			dimensions: {
-				QueueName: queue.name,
-			},
-			alarmActions: [topic.arn],
-		}, { parent: this });
+		if (!args.drainedByHandler) {
+			new aws.cloudwatch.MetricAlarm(`${name}-dlq-alarm`, {
+				name: `${name}-dlq-alarm`,
+				comparisonOperator: "GreaterThanOrEqualToThreshold",
+				evaluationPeriods: 1,
+				metricName: "ApproximateNumberOfMessagesVisible",
+				namespace: "AWS/SQS",
+				period: 300,
+				statistic: "Sum",
+				threshold: 1,
+				alarmDescription: `Message entered ${name} dead letter queue`,
+				dimensions: {
+					QueueName: queue.name,
+				},
+				alarmActions: [topic.arn],
+			}, { parent: this });
+		}
 
 		const accountId = pulumi.output(
 			aws.getCallerIdentity({}, { parent: this }),

@@ -2023,6 +2023,7 @@ const gmailDiscoveryWithSqs = new SqsBackedLambda("gmail-discovery", {
 	queue: gmailDiscoveryQueue,
 	alertEmailDLQEntry: alertEmail,
 	batchSize: 1,
+	ownDlqDrainedByHandler: true,
 });
 eventBus.subscribeAll([StartGmailSenderDiscoveryCommand, GmailSenderDiscoveryProgressedEvent], gmailDiscoveryWithSqs, { name: "hutch-gmail-discovery" });
 const gmailDiscoveryOwnDlq = gmailDiscoveryWithSqs.ownDlq;
@@ -2063,7 +2064,7 @@ const newsletterCatalogSuggestionsWithSqs = new SqsBackedLambda("newsletter-cata
 });
 eventBus.subscribe(SubmitNewsletterSenderCommand, newsletterCatalogSuggestionsWithSqs, { name: "hutch-submit-newsletter-sender" });
 
-const gmailHistoryImportFailuresDlq = new SharedDlq("gmail-history-import-failures", { alertEmailDLQEntry: alertEmail });
+const gmailHistoryImportFailuresDlq = new SharedDlq("gmail-history-import-failures", { alertEmailDLQEntry: alertEmail, drainedByHandler: true });
 const gmailHistoryImportAccess = new DynamoDBAccess("hutch-gmail-history-import-tables", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
 	actions: [

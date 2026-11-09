@@ -37,6 +37,7 @@ const eventBus = EventBus.fromPlatformStack(config);
 
 const failuresDlq = new SharedDlq(MEDIA_AUDIO_FAILURES_DLQ, {
 	alertEmailDLQEntry: alertEmail,
+	drainedByHandler: true,
 });
 
 const mediaDynamodb = new DynamoDBAccess("media-audio-keep-audio-media-dynamodb", {

@@ -29,6 +29,7 @@ export class SqsBackedLambda extends pulumi.ComponentResource {
 			 */
 			batchSize: number;
 			enabled?: boolean;
+			ownDlqDrainedByHandler?: true;
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -73,21 +74,23 @@ export class SqsBackedLambda extends pulumi.ComponentResource {
 				endpoint: args.alertEmailDLQEntry,
 			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
-			new aws.cloudwatch.MetricAlarm(`${name}-dlq-alarm`, {
-				name: `${name}-dlq-alarm`,
-				comparisonOperator: "GreaterThanOrEqualToThreshold",
-				evaluationPeriods: 1,
-				metricName: "ApproximateNumberOfMessagesVisible",
-				namespace: "AWS/SQS",
-				period: 300,
-				statistic: "Sum",
-				threshold: 1,
-				alarmDescription: `Message entered ${name} dead letter queue`,
-				dimensions: {
-					QueueName: ownDlq.name,
-				},
-				alarmActions: [topic.arn],
-			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+			if (!args.ownDlqDrainedByHandler) {
+				new aws.cloudwatch.MetricAlarm(`${name}-dlq-alarm`, {
+					name: `${name}-dlq-alarm`,
+					comparisonOperator: "GreaterThanOrEqualToThreshold",
+					evaluationPeriods: 1,
+					metricName: "ApproximateNumberOfMessagesVisible",
+					namespace: "AWS/SQS",
+					period: 300,
+					statistic: "Sum",
+					threshold: 1,
+					alarmDescription: `Message entered ${name} dead letter queue`,
+					dimensions: {
+						QueueName: ownDlq.name,
+					},
+					alarmActions: [topic.arn],
+				}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+			}
 
 			this.ownDlq = {
 				arn: ownDlq.arn,

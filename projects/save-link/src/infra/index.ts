@@ -279,6 +279,7 @@ const eventBus = EventBus.fromPlatformStack(config);
 
 const failuresDlq = new SharedDlq(SAVE_LINK_FAILURES_DLQ, {
 	alertEmailDLQEntry: alertEmail,
+	drainedByHandler: true,
 });
 
 const generateSummaryQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.generateSummary, {
