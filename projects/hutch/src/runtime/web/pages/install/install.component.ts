@@ -247,7 +247,9 @@ type PanelCopy = {
 	notesApp: {
 		group: "notesApp";
 		title: string;
-		unavailable: { testId: string; text: string } | null;
+		ctaLabel: string;
+		ctaTestId: string;
+		setup: string;
 	};
 };
 
@@ -328,10 +330,9 @@ const PANEL_DATA = {
 	obsidian: {
 		group: "notesApp",
 		title: "Readplace in Obsidian",
-		unavailable: {
-			testId: "obsidian-availability",
-			text: "The Readplace plugin is not in Obsidian's community directory yet.",
-		},
+		ctaLabel: "Add Readplace to Obsidian",
+		ctaTestId: "obsidian-install",
+		setup: "On desktop, install and enable Readplace from Community plugins. In Settings → Readplace, sign in, approve the connection in your browser, then choose Return to Obsidian and run Sync now.",
 	},
 } satisfies { [N in ClientName]: PanelCopy[ClientGroupOf<N>] };
 
@@ -369,7 +370,8 @@ interface NotesApp {
 	key: ClientName;
 	title: string;
 	lead: string;
-	unavailable: { testId: string; text: string } | null;
+	cta: { href: string; label: string; testId: string };
+	setup: string;
 }
 
 type PanelView =
@@ -440,13 +442,18 @@ function buildPanel(
 				},
 			};
 		case "notesApp":
+			assert(
+				client.install.kind === "communityDirectory",
+				`${client.name} is a notes app, so it must install from the community directory`,
+			);
 			return {
 				type: "notesApp",
 				app: {
 					key: client.name,
 					title: data.title,
 					lead: client.description,
-					unavailable: data.unavailable,
+					cta: { href: client.install.listingUrl, label: data.ctaLabel, testId: data.ctaTestId },
+					setup: data.setup,
 				},
 			};
 	}
@@ -461,8 +468,8 @@ export function InstallPage(params: {
 	const panel = buildPanel(params.client, params.firefox, params.staticBaseUrl);
 	return {
 		seo: {
-			title: "Install Readplace — Browser, Phone & AI Assistants",
-			description: `Install the Readplace browser extension for ${BROWSER_EXTENSIONS_OR}, ${Object.values(NATIVE_APP_SEO).map((app) => app.pitch).join(", ")}, or connect your AI assistant to save and read your reading list.`,
+			title: "Install Readplace — Browser, Phone, AI & Obsidian",
+			description: `Install the Readplace browser extension for ${BROWSER_EXTENSIONS_OR}, ${Object.values(NATIVE_APP_SEO).map((app) => app.pitch).join(", ")}, connect your AI assistant, or sync saved articles into Obsidian.`,
 			canonicalUrl: "https://readplace.com/install",
 			appleItunesApp: APPLE_ITUNES_APP_META,
 			ogImage: `${params.staticBaseUrl}/screenshots/og-install-1200x630.png`,
@@ -472,7 +479,7 @@ export function InstallPage(params: {
 					"@context": "https://schema.org",
 					"@type": "SoftwareApplication",
 					name: "Readplace",
-					description: `Save any article to your Readplace reading list — from the ${BROWSER_EXTENSIONS_OR} browser extension, ${Object.values(NATIVE_APP_SEO).map((app) => app.shareSheet).join(", ")}, or a connected AI assistant.`,
+					description: `Save articles from the ${BROWSER_EXTENSIONS_OR} browser extension, ${Object.values(NATIVE_APP_SEO).map((app) => app.shareSheet).join(", ")}, or a connected AI assistant, and sync them into Obsidian.`,
 					applicationCategory: "ProductivityApplication",
 					operatingSystem: "Windows, macOS, Linux, ChromeOS, iOS",
 					url: "https://readplace.com/install",

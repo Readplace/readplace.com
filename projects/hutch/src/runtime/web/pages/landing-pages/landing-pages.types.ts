@@ -8,7 +8,8 @@ export type LandingPageSlug =
 	| "pdf-reflow"
 	| "save-newsletter-links"
 	| "article-to-epub"
-	| "readwise-reader-alternative";
+	| "readwise-reader-alternative"
+	| "obsidian-read-it-later";
 
 export interface LandingPageActionInput {
 	readonly name: string;

@@ -56,6 +56,7 @@ const GUEST_PATHS = [
 	"/save-newsletter-links",
 	"/article-to-epub",
 	"/readwise-reader-alternative",
+	"/obsidian-read-it-later",
 	"/queue",
 	"/save",
 	"/view/not-a-url",

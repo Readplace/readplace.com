@@ -185,7 +185,7 @@ export const SUPPORTED_CLIENTS = [
 			pluginId: "readplace",
 		},
 		auth: { kind: "builtIn", oauthClientId: "obsidian-plugin" },
-		advertised: false,
+		advertised: true,
 	},
 ] as const satisfies readonly ClientDefinition[];
 

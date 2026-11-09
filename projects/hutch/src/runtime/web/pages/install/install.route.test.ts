@@ -56,7 +56,7 @@ describe("GET /install", () => {
 		expect(doc.body.classList.contains("page-install")).toBe(true);
 	});
 
-	it("should render every client tab in order across both groups, with the Android tab held back until the app ships", async () => {
+	it("should render every client tab in order across all groups, with the Android tab held back until the app ships", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
@@ -64,7 +64,7 @@ describe("GET /install", () => {
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map(
 			(el) => el.getAttribute("data-test-tab"),
 		);
-		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"]);
+		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude", "obsidian"]);
 	});
 
 	it("should reveal the hidden tabs in roster order on ?feature=android, and keep the flag on every tab link so it survives switching tabs", async () => {
@@ -100,7 +100,7 @@ describe("GET /install", () => {
 		expect(doc.querySelector('[data-test-tab="android"]')).toBeNull();
 	});
 
-	it("should render the Obsidian panel from the registry with one availability line and no link, while its tab stays hidden before listing", async () => {
+	it("should offer the listed Obsidian plugin from its visible tab", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=obsidian");
 		const doc = load(response.text);
@@ -112,19 +112,29 @@ describe("GET /install", () => {
 		assert(obsidian, "obsidian must be in the roster");
 		expect(panel.querySelector(".install-page__panel-title")?.textContent).toBe("Readplace in Obsidian");
 		expect(panel.querySelector(".install-page__lead")?.textContent).toBe(obsidian.description);
-		expect(panel.querySelector('[data-test-section="obsidian-availability"]')?.textContent).toBe(
-			"The Readplace plugin is not in Obsidian's community directory yet.",
+		expect(obsidian.advertised).toBe(true);
+		expect(Array.from(panel.querySelectorAll("a")).map((link) => ({
+			href: link.getAttribute("href"),
+			label: link.textContent,
+			testId: link.getAttribute("data-test-cta"),
+		}))).toEqual([{
+			href: obsidian.install.listingUrl,
+			label: "Add Readplace to Obsidian",
+			testId: "obsidian-install",
+		}]);
+		expect(doc.querySelector('[data-test-tab="obsidian"]')?.getAttribute("aria-current")).toBe("page");
+		expect(panel.querySelector('[data-test-section="obsidian-setup"]')?.textContent).toBe(
+			"On desktop, install and enable Readplace from Community plugins. In Settings → Readplace, sign in, approve the connection in your browser, then choose Return to Obsidian and run Sync now.",
 		);
-		expect(panel.querySelectorAll("a")).toHaveLength(0);
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map((el) => el.getAttribute("data-test-tab"));
-		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"]);
+		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude", "obsidian"]);
 		const groups = Array.from(doc.querySelectorAll("[data-test-group]")).map((el) => el.getAttribute("data-test-group"));
-		expect(groups).toEqual(["browsers", "ai"]);
+		expect(groups).toEqual(["browsers", "ai", "notes"]);
 	});
 
-	it("should put the Obsidian tab under a Notes Apps group on ?feature=android", async () => {
+	it("should put the listed Obsidian tab under Notes Apps without a preview flag", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=obsidian&feature=android");
+		const response = await request(harness.server).get("/install?client=obsidian");
 		const doc = load(response.text);
 
 		const notes = doc.querySelector('[data-test-group="notes"]');
@@ -136,7 +146,7 @@ describe("GET /install", () => {
 		expect(notesTabs).toEqual(["obsidian"]);
 	});
 
-	it("should split tabs into a Browsers & Devices group and an AI Assistants group", async () => {
+	it("should group tabs by capture, AI assistants and notes apps", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
@@ -144,7 +154,7 @@ describe("GET /install", () => {
 		const groups = Array.from(doc.querySelectorAll("[data-test-group]")).map(
 			(el) => el.getAttribute("data-test-group"),
 		);
-		expect(groups).toEqual(["browsers", "ai"]);
+		expect(groups).toEqual(["browsers", "ai", "notes"]);
 
 		const devices = doc.querySelector('[data-test-group="browsers"]');
 		assert(devices, "browsers group must render");
@@ -169,7 +179,7 @@ describe("GET /install", () => {
 		const labels = Array.from(
 			doc.querySelectorAll(".install-page__group-label"),
 		).map((el) => el.textContent);
-		expect(labels).toEqual(["Browsers & Devices", "AI Assistants"]);
+		expect(labels).toEqual(["Browsers & Devices", "AI Assistants", "Notes Apps"]);
 	});
 
 	it("should expose each tab group to assistive tech via role=group and aria-labelledby", async () => {
@@ -178,7 +188,7 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const groups = Array.from(doc.querySelectorAll("[data-test-group]"));
-		expect(groups).toHaveLength(2);
+		expect(groups).toHaveLength(3);
 		for (const group of groups) {
 			expect(group.getAttribute("role")).toBe("group");
 			const labelledBy = group.getAttribute("aria-labelledby");
@@ -207,7 +217,7 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]"));
-		expect(tabs).toHaveLength(6);
+		expect(tabs).toHaveLength(7);
 		for (const tab of tabs) {
 			const icon = tab.querySelector(".install-page__tab-icon svg");
 			assert(icon, `tab ${tab.getAttribute("data-test-tab")} must render an inline icon`);
@@ -768,6 +778,7 @@ describe("GET /install", () => {
 		const description = doc.querySelector('meta[name="description"]');
 		expect(description?.getAttribute("content")).toContain("extension");
 		expect(description?.getAttribute("content")).toContain("AI assistant");
+		expect(description?.getAttribute("content")).toContain("sync saved articles into Obsidian");
 		expect(description?.getAttribute("content")?.startsWith("Install the Readplace browser extension for")).toBe(true);
 	});
 

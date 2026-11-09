@@ -34,7 +34,7 @@ describe("client surface phrases", () => {
 	});
 
 	it("pins the reset-password connected-apps phrase", () => {
-		assert.equal(CONNECTED_APPS_PHRASE, "the browser extension, the iPhone app, and AI assistants");
+		assert.equal(CONNECTED_APPS_PHRASE, "the browser extension, the iPhone app, AI assistants, and the Obsidian plugin");
 	});
 
 	it("never names a strict subset of a group's advertised clients", () => {

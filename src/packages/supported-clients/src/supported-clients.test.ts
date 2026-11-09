@@ -80,6 +80,17 @@ describe("SUPPORTED_CLIENTS", () => {
 		assert(iphone?.install.kind === "appStore", "the iPhone client must install from the App Store");
 		assert.equal(iphone.install.appleAppId, "6777107238");
 	});
+
+	it("advertises Obsidian with its community directory destination and plugin id", () => {
+		const obsidian = SUPPORTED_CLIENTS.find((client) => client.name === "obsidian");
+		assert(obsidian, "Obsidian must be in the client roster");
+		assert.equal(obsidian.advertised, true);
+		assert.deepEqual(obsidian.install, {
+			kind: "communityDirectory",
+			listingUrl: "https://community.obsidian.md/plugins/readplace",
+			pluginId: "readplace",
+		});
+	});
 });
 
 describe("appStoreUrl", () => {

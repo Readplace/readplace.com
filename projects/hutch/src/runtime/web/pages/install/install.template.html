@@ -1,7 +1,7 @@
   <main class="install-page">
     <div class="install-page__container">
       <h1 class="install-page__title">Install Readplace</h1>
-      <p class="install-page__subtitle">Save articles with a single click, a keyboard shortcut, your phone's share sheet, or straight from your AI assistant.</p>
+      <p class="install-page__subtitle">Save articles from your browser, phone or AI assistant, and sync them into your Obsidian vault.</p>
 
       <nav class="install-page__groups" aria-label="Platform" data-test-section="tabs">
         {{#each groups}}
@@ -81,9 +81,8 @@
         <h2 class="install-page__panel-title">{{panel.app.title}}</h2>
         <p class="install-page__lead">{{panel.app.lead}}</p>
 
-        {{#if panel.app.unavailable}}
-        <p class="install-page__unavailable" data-test-section="{{panel.app.unavailable.testId}}">{{panel.app.unavailable.text}}</p>
-        {{/if}}
+        <a href="{{panel.app.cta.href}}" class="btn btn--primary install-page__download" data-test-cta="{{panel.app.cta.testId}}">{{panel.app.cta.label}}</a>
+        <p class="install-page__foot-note" data-test-section="obsidian-setup">{{panel.app.setup}}</p>
       </section>
       {{/case}}
 

@@ -57,6 +57,7 @@ const CONNECTED_APP_NOUNS = {
 	chatgpt: "AI assistants",
 	gemini: "AI assistants",
 	claude: "AI assistants",
+	obsidian: "the Obsidian plugin",
 } satisfies Record<AdvertisedClientName, string>;
 
 export const CONNECTED_APPS_PHRASE = new Intl.ListFormat(DEFAULT_LOCALE, { type: "conjunction" }).format([
