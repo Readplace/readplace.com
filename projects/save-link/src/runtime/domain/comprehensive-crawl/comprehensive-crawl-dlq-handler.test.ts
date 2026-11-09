@@ -17,7 +17,7 @@ function attributes(receiveCount: number): SQSRecordAttributes {
 }
 
 function createSqsEvent(
-	detail: { url: string; userId?: string; trigger?: CrawlTrigger; recrawl?: boolean; candidates?: Array<{ id: string; tier: "tier-2" }> },
+	detail: { url: string; userId?: string; trigger?: CrawlTrigger; candidates?: Array<{ id: string; tier: "tier-2" }> },
 	receiveCount = 3,
 ): SQSEvent {
 	return {
@@ -196,7 +196,10 @@ describe("initComprehensiveCrawlDlqHandler with stored candidates", () => {
 	it("drains a dead letter published before the trigger field existed, comparing its stored candidates as a save", async () => {
 		const { handler, published } = createHandler();
 
-		const result = await handler(createSqsEvent({ url: "https://example.com/scan.pdf", trigger: undefined, recrawl: true, candidates: [wrapper] }, 1), buildLambdaContext(), () => {});
+		const event = createSqsEvent({ url: "https://example.com/scan.pdf", candidates: [wrapper] }, 1);
+		event.Records[0].body = JSON.stringify({ detail: { url: "https://example.com/scan.pdf", recrawl: true, candidates: [wrapper], saveAttemptId: "attempt-1" } });
+
+		const result = await handler(event, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(published.map((p) => p.detailType)).toEqual([TierContentExtractedEvent.detailType]);
