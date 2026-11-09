@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { initGenerateSummaryDispatch, summaryMessageGroupId } from "./generate-summary-dispatch";
+import { initGenerateSummaryDispatch, articleMessageGroupId } from "./generate-summary-dispatch";
 
 const QUEUE_URL = "https://sqs.ap-southeast-2.amazonaws.com/123456789012/generate-summary-fifo-q.fifo";
 
@@ -10,22 +10,22 @@ function capturingDispatch() {
 	return { dispatch, sentInputs };
 }
 
-describe("summaryMessageGroupId", () => {
+describe("articleMessageGroupId", () => {
 	it("is a fixed-length SHA-256 hex digest", () => {
-		assert.match(summaryMessageGroupId({ url: "https://example.com/a" }), /^[0-9a-f]{64}$/);
+		assert.match(articleMessageGroupId({ url: "https://example.com/a" }), /^[0-9a-f]{64}$/);
 	});
 
 	it("gives URLs that normalise to the same article identity the same group", () => {
 		assert.equal(
-			summaryMessageGroupId({ url: "https://example.com/post?utm_source=newsletter" }),
-			summaryMessageGroupId({ url: "http://example.com/post" }),
+			articleMessageGroupId({ url: "https://example.com/post?utm_source=newsletter" }),
+			articleMessageGroupId({ url: "http://example.com/post" }),
 		);
 	});
 
 	it("gives different articles different groups", () => {
 		assert.notEqual(
-			summaryMessageGroupId({ url: "https://example.com/post-a" }),
-			summaryMessageGroupId({ url: "https://example.com/post-b" }),
+			articleMessageGroupId({ url: "https://example.com/post-a" }),
+			articleMessageGroupId({ url: "https://example.com/post-b" }),
 		);
 	});
 });
@@ -39,7 +39,7 @@ describe("initGenerateSummaryDispatch", () => {
 		const [input] = sentInputs();
 		assert.equal(input.QueueUrl, QUEUE_URL);
 		assert.equal(input.MessageBody, JSON.stringify({ detail: { url: "https://example.com/post" } }));
-		assert.equal(input.MessageGroupId, summaryMessageGroupId({ url: "https://example.com/post" }));
+		assert.equal(input.MessageGroupId, articleMessageGroupId({ url: "https://example.com/post" }));
 		assert.equal(input.DelaySeconds, undefined);
 	});
 

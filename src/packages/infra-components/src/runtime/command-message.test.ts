@@ -50,4 +50,13 @@ describe("buildCommandMessage", () => {
 		assert.notEqual(first.MessageDeduplicationId, second.MessageDeduplicationId);
 		assert.equal(first.MessageBody, second.MessageBody);
 	});
+
+	it("takes the caller's deduplication key when one is given, so a redelivered forward of the same work is dropped", () => {
+		const delivery = { fifo: { messageGroupId: () => "group", deduplicationId: (detail: { url: string }) => `work:${detail.url}` } };
+		const first = buildCommandMessage({ queueUrl: FIFO_QUEUE_URL, detail: DETAIL, delivery });
+		const second = buildCommandMessage({ queueUrl: FIFO_QUEUE_URL, detail: DETAIL, delivery });
+
+		assert.equal(first.MessageDeduplicationId, "work:https://example.com/a");
+		assert.equal(second.MessageDeduplicationId, first.MessageDeduplicationId);
+	});
 });

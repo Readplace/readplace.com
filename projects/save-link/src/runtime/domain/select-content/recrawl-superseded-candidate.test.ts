@@ -54,7 +54,7 @@ function setup(params: { sources: VerifiedTierSource[]; article: Article; pick: 
 	const prepare = initPrepareContentSelection({
 		loadArticle: async () => params.article, readCanonicalContent: async () => undefined,
 		listAvailableTierSources: async () => params.sources,
-		judge: initJudgeUnderLedger({ selectMostCompleteContent: judge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 }),
+		judge: initJudgeUnderLedger({ selectMostCompleteContent: judge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "assert" }),
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => ({ originalUrl: URL, sourceUrl: ARCHIVE }),
 	});
 	return {

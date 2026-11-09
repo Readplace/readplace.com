@@ -5,7 +5,8 @@ import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-sou
 import { initRunMeteredLeg, type RunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import type { ContentDecision, SelectMostCompleteContent } from "./select-content";
-import { initJudgeUnderLedger } from "./judge-under-ledger";
+import assert from "node:assert/strict";
+import { ContentJudgeClaimHeldError, initJudgeUnderLedger } from "./judge-under-ledger";
 
 const URL = "https://example.com/article";
 const NOW = "2026-11-05T00:00:00.000Z";
@@ -34,7 +35,7 @@ function setup(params: { decision: ContentDecision; responseStatus?: "completed"
 		...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => params.legsDeferred ?? false, now: () => new Date(NOW) }),
 		logger: noopLogger, now: () => new Date(NOW),
 	});
-	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg, claimTtlMs: 60_000 });
+	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg, claimTtlMs: 60_000, heldClaim: "assert" });
 	return {
 		selectMostCompleteContent,
 		judge: (sources: readonly VerifiedTierSource[], claimId = "message-1") => judge({ url: URL, originalUrl: URL, sources, proseHashOf: computeCanonicalContentHash, claimId }),
@@ -44,7 +45,7 @@ function setup(params: { decision: ContentDecision; responseStatus?: "completed"
 describe("initJudgeUnderLedger", () => {
 	it("answers none without claiming the judge when there is no candidate", async () => {
 		const runMeteredLeg = jest.fn<ReturnType<RunMeteredLeg>, Parameters<RunMeteredLeg>>();
-		const judge = initJudgeUnderLedger({ selectMostCompleteContent: jest.fn(), runMeteredLeg, claimTtlMs: 60_000 });
+		const judge = initJudgeUnderLedger({ selectMostCompleteContent: jest.fn(), runMeteredLeg, claimTtlMs: 60_000, heldClaim: "assert" });
 
 		const decision = await judge({ url: URL, originalUrl: URL, sources: [], proseHashOf: computeCanonicalContentHash, claimId: "message-1" });
 
@@ -120,9 +121,22 @@ describe("initJudgeUnderLedger", () => {
 	});
 
 	it("fails the delivery while another delivery holds the judge", async () => {
-		const judge = initJudgeUnderLedger({ selectMostCompleteContent: jest.fn(), runMeteredLeg: async () => ({ kind: "in-flight" }), claimTtlMs: 60_000 });
+		const judge = initJudgeUnderLedger({ selectMostCompleteContent: jest.fn(), runMeteredLeg: async () => ({ kind: "in-flight" }), claimTtlMs: 60_000, heldClaim: "assert" });
 
 		await expect(judge({ url: URL, originalUrl: URL, sources: [source("first", FIRST_BODY)], proseHashOf: computeCanonicalContentHash, claimId: "message-2" }))
 			.rejects.toThrow(`another delivery holds the content judge for ${URL}`);
+	});
+
+	it("raises a typed ownership anomaly carrying the URL and its own claim lease when asked to, without calling the model", async () => {
+		const selectMostCompleteContent = jest.fn();
+		const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg: async () => ({ kind: "in-flight" }), claimTtlMs: 360_000, heldClaim: "raise-ownership-anomaly" });
+
+		const raised = await judge({ url: URL, originalUrl: URL, sources: [source("first", FIRST_BODY)], proseHashOf: computeCanonicalContentHash, claimId: "message-2" }).catch((error: unknown) => error);
+
+		assert(raised instanceof ContentJudgeClaimHeldError);
+		assert.equal(raised.url, URL);
+		assert.equal(raised.claimTtlMs, 360_000);
+		assert.equal(raised.message, `another owner holds the content judge for ${URL}`);
+		expect(selectMostCompleteContent).not.toHaveBeenCalled();
 	});
 });

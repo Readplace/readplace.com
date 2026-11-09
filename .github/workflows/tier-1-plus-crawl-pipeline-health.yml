@@ -41,7 +41,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ap-southeast-2
       CONTENT_BUCKET_NAME: hutch-article-content-prod
-      ARCHIVE_COMPARISON_LOG_GROUP: /aws/lambda/select-most-complete-content-handler
+      ARCHIVE_COMPARISON_LOG_GROUPS: /aws/lambda/select-most-complete-content-handler,/aws/lambda/select-article-content-handler
       ARCHIVE_HEALTH_REPORT_PATH: ${{ github.workspace }}/archive-health-report.json
     steps:
       - uses: actions/checkout@v6

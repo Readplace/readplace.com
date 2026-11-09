@@ -3,6 +3,7 @@ import type { SendMessageCommandInput } from "@aws-sdk/client-sqs";
 
 type FifoCommandMessage<D> = {
 	messageGroupId: (detail: D) => string;
+	deduplicationId?: (detail: D) => string;
 };
 
 export type CommandQueueDelivery<D> =
@@ -20,6 +21,6 @@ export function buildCommandMessage<D>(params: {
 	return {
 		...message,
 		MessageGroupId: delivery.fifo.messageGroupId(detail),
-		MessageDeduplicationId: randomUUID(),
+		MessageDeduplicationId: delivery.fifo.deduplicationId === undefined ? randomUUID() : delivery.fifo.deduplicationId(detail),
 	};
 }

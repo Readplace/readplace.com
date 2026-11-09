@@ -7,7 +7,9 @@ import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { readEnv } from "@packages/require-env";
 import { RECRAWL_CONTENT_EXTRACTED_ENV } from "./recrawl-content-extracted.env";
-import { initRecrawlContentExtractedHandler } from "./domain/select-content/recrawl-content-extracted-handler";
+import { initForwardRecrawlContentExtracted, initRecrawlContentExtractedHandler } from "./domain/select-content/recrawl-content-extracted-handler";
+import { SELECTION_INGRESS_ENV, SelectionRouteSchema } from "./selection-ingress.env";
+import { initSelectArticleContentDispatch } from "./dep-bundles/select-article-content-dispatch";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initEventsDepBundle } from "./dep-bundles/events";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
@@ -20,6 +22,10 @@ const contentBucketName = env.CONTENT_BUCKET_NAME;
 const eventBusName = env.EVENT_BUS_NAME;
 const deepseekApiKey = env.DEEPSEEK_API_KEY;
 const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
+
+const ingressEnv = readEnv(SELECTION_INGRESS_ENV);
+const selectionRoute = SelectionRouteSchema.parse(ingressEnv.SELECTION_ROUTE);
+const selectArticleContentQueueUrl = ingressEnv.SELECT_ARTICLE_CONTENT_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
@@ -51,10 +57,14 @@ const selectContent = initSelectContentDepBundle({
 	now: () => new Date(),
 });
 
-export const handler = initRecrawlContentExtractedHandler({
+const selectHandler = initRecrawlContentExtractedHandler({
 	...selectContent,
 	...articleAggregate,
 	loadArticle: articleAggregate.store.load,
 	now: () => new Date(),
 	logger: consoleLogger,
 });
+
+export const handler = selectionRoute === "forward"
+	? initForwardRecrawlContentExtracted({ dispatchSelectArticleContent: initSelectArticleContentDispatch({ sqsClient, selectArticleContentQueueUrl }), logger: consoleLogger })
+	: selectHandler;
