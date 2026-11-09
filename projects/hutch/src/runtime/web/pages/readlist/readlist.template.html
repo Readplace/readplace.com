@@ -19,7 +19,8 @@
             <div class="readlist__results">
               {{{discoveryHtml}}}
               <section class="readlist-listing" data-test-listing>
-                <p class="readlist-listing__offline-banner" role="status" hidden data-offline-content-banner="list" data-test-offline-content-banner="list">{{t "readlistOffline.banner.text"}}</p>
+                <p class="readlist-listing__offline-banner" role="status" hidden data-offline-content-banner="list" data-offline-content-state="processing" data-test-offline-content-banner="list-processing">{{t "readlistOffline.banner.processing"}}</p>
+                <p class="readlist-listing__offline-banner" role="status" hidden data-offline-content-banner="list" data-offline-content-state="unavailable" data-test-offline-content-banner="list-unavailable">{{t "readlistOffline.banner.unavailable"}}</p>
                 <header class="readlist-listing__header {{listingHeaderStateClass}}">
                   {{{countHtml}}}
                   <a class="readlist-listing__sort" href="{{sortUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-sort>{{sortLabel}} {{icon sortIconName}}</a>

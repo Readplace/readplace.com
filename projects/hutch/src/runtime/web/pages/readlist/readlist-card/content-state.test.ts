@@ -16,6 +16,7 @@ describe("contentStateOf", () => {
 		["a pending crawl", { url: ARTICLE_URL, crawl: PENDING, summary: undefined }, "processing"],
 		["neither pipeline started", { url: ARTICLE_URL, crawl: undefined, summary: undefined }, "processing"],
 		["a row from before the crawl state machine, with a summary", { url: ARTICLE_URL, crawl: undefined, summary: READY_SUMMARY }, "available"],
+		["a row from before the crawl state machine, with its summary still pending", { url: ARTICLE_URL, crawl: undefined, summary: PENDING_SUMMARY }, "available"],
 		["a failed crawl", { url: ARTICLE_URL, crawl: FAILED, summary: undefined }, "unavailable"],
 		["an unsupported crawl", { url: ARTICLE_URL, crawl: UNSUPPORTED, summary: { status: "skipped", reason: "awaiting-reader" } }, "unavailable"],
 		["a webmail page whose crawl reads ready", { url: "https://mail.google.com/mail/u/0/", crawl: { status: "ready" }, summary: READY_SUMMARY }, "unavailable"],

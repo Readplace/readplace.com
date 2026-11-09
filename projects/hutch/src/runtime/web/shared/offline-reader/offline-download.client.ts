@@ -375,6 +375,7 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 			held.delete(card.key);
 			input.found(card);
 		};
+		const releaseUnseen = (card: HeldCard) => release({ ...card, contentState: null });
 		const waitStarted = deps.now();
 		while (held.size > 0 && !input.stopped() && deps.now() - waitStarted < SETTLE_WAIT_CAP_MS) {
 			await deps.delay(Math.min(...Array.from(held.values(), (card) => card.pollIntervalMs)));
@@ -387,7 +388,7 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 				if (outcome.kind === "failed") continue;
 				if (outcome.kind === "gone") {
 					for (const card of Array.from(held.values())) {
-						if (card.page === page.href && !observed.has(card.key)) release(card);
+						if (card.page === page.href && !observed.has(card.key)) releaseUnseen(card);
 					}
 					continue;
 				}
@@ -405,7 +406,7 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 				}
 			}
 			for (const card of Array.from(held.values())) {
-				if (answered.has(card.page) && !observed.has(card.key)) release(card);
+				if (answered.has(card.page) && !observed.has(card.key)) releaseUnseen(card);
 			}
 		}
 		for (const card of Array.from(held.values())) release(card);

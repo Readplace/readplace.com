@@ -539,7 +539,7 @@ describe("initOfflineDownload", () => {
 			expect(page.status()).toBe("1 available offline, 1 not ready");
 		});
 
-		it("stops waiting on a card that no re-fetched page lists any more, handing it over as last seen", async () => {
+		it("stops waiting on a card that no re-fetched page lists any more, handing it over", async () => {
 			const page = startDownload({
 				routes: {
 					[PAGE_1]: {
@@ -554,6 +554,31 @@ describe("initOfflineDownload", () => {
 
 			expect(page.delays).toEqual([3000]);
 			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
+		});
+
+		it("fetches afresh a card no re-fetched page lists any more, instead of trusting the state it was held in", async () => {
+			const fresh = readerPage("<p>One</p>");
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: {
+						answers: [{ body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }] }) }, { body: listingPage({ cards: [] }) }],
+					},
+					[HELD_URL]: { body: fresh },
+				},
+				cached: {
+					[`${ORIGIN}/queue/a1/view`]: {
+						source: HELD_URL,
+						savedAt: SAVED_YESTERDAY,
+						body: readerPage("<p>Placeholder</p>", "", "processing"),
+					},
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
+			expect(page.storedBody(`${ORIGIN}/queue/a1/view`)).toBe(fresh);
 		});
 
 		it("re-fetches again after a re-fetch the network drops", async () => {

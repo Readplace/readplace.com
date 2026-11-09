@@ -5,8 +5,10 @@ import { offlineContentBannerScript } from "./offline-content-banner-script";
 
 const LIST_URL = "https://readplace.com/queue";
 const READER_URL = "https://readplace.com/queue/abc123/view?v=token";
-const LIST_BANNER = `<p hidden data-offline-content-banner="list">Open them online.</p>`;
-const READER_BANNER = `<p hidden data-offline-content-banner="reader">Open it online.</p>`;
+const BANNERS = (kind: "list" | "reader") =>
+	`<p hidden data-offline-content-banner="${kind}" data-offline-content-state="processing">Open online.</p><p hidden data-offline-content-banner="${kind}" data-offline-content-state="unavailable">No content.</p>`;
+const LIST_BANNER = BANNERS("list");
+const READER_BANNER = BANNERS("reader");
 
 function card(state: string): string {
 	return `<article class="readlist-article" data-content-state="${state}"><a class="readlist-article__title" href="/queue/a/view">T</a></article>`;
@@ -22,47 +24,58 @@ function openPage(input: { url: string; main: string; storedPath?: string }) {
 	return {
 		document,
 		window: dom.window,
-		hidden(kind: "list" | "reader"): boolean {
-			const banner = document.querySelector<HTMLElement>(`[data-offline-content-banner="${kind}"]`);
-			assert(banner, `the ${kind} banner must be on the page`);
-			return banner.hasAttribute("hidden");
+		shown(kind: "list" | "reader"): string[] {
+			return Array.from(
+				document.querySelectorAll<HTMLElement>(`[data-offline-content-banner="${kind}"]:not([hidden])`),
+				(banner) => String(banner.getAttribute("data-offline-content-state")),
+			);
 		},
 	};
 }
 
 describe("offlineContentBannerScript", () => {
-	it.each(["processing", "unavailable"])("shows the list banner on a stored list that holds a %s card", (state) => {
+	it.each(["processing", "unavailable"])("shows only the %s list banner on a stored list that holds such a card", (state) => {
 		const page = openPage({ url: LIST_URL, storedPath: "/queue", main: `<main>${LIST_BANNER}${card("available")}${card(state)}</main>` });
 
-		expect(page.hidden("list")).toBe(false);
+		expect(page.shown("list")).toEqual([state]);
+	});
+
+	it("shows both list banners on a stored list that holds a processing and an unavailable card", () => {
+		const page = openPage({
+			url: LIST_URL,
+			storedPath: "/queue",
+			main: `<main>${LIST_BANNER}${card("processing")}${card("unavailable")}</main>`,
+		});
+
+		expect(page.shown("list")).toEqual(["processing", "unavailable"]);
 	});
 
 	it("keeps the list banner hidden on a stored list whose cards are all available", () => {
 		const page = openPage({ url: LIST_URL, storedPath: "/queue", main: `<main>${LIST_BANNER}${card("available")}</main>` });
 
-		expect(page.hidden("list")).toBe(true);
+		expect(page.shown("list")).toEqual([]);
 	});
 
 	it("keeps the list banner hidden when the stored copy on record is another page's", () => {
 		const page = openPage({ url: LIST_URL, storedPath: "/queue/abc123/view", main: `<main>${LIST_BANNER}${card("unavailable")}</main>` });
 
-		expect(page.hidden("list")).toBe(true);
+		expect(page.shown("list")).toEqual([]);
 	});
 
-	it("shows the reader banner on a stored reader page whose article is unavailable", () => {
+	it.each(["processing", "unavailable"])("shows only the %s reader banner on a stored reader page in that state", (state) => {
 		const page = openPage({
 			url: READER_URL,
 			storedPath: "/queue/abc123/view",
-			main: `<main class="reader" data-content-state="unavailable">${READER_BANNER}</main>`,
+			main: `<main class="reader" data-content-state="${state}">${READER_BANNER}</main>`,
 		});
 
-		expect(page.hidden("reader")).toBe(false);
+		expect(page.shown("reader")).toEqual([state]);
 	});
 
 	it("keeps the reader banner hidden on a live reader page that is still processing", () => {
 		const page = openPage({ url: READER_URL, main: `<main class="reader" data-content-state="processing">${READER_BANNER}</main>` });
 
-		expect(page.hidden("reader")).toBe(true);
+		expect(page.shown("reader")).toEqual([]);
 	});
 
 	it("keeps the reader banner hidden on a stored reader page whose article is available", () => {
@@ -72,7 +85,7 @@ describe("offlineContentBannerScript", () => {
 			main: `<main class="reader" data-content-state="available">${READER_BANNER}</main>`,
 		});
 
-		expect(page.hidden("reader")).toBe(true);
+		expect(page.shown("reader")).toEqual([]);
 	});
 
 	it("shows the banner once the worker marks the page as a stored copy after it rendered", async () => {
@@ -80,7 +93,7 @@ describe("offlineContentBannerScript", () => {
 		page.document.documentElement.setAttribute("data-offline-copy-path", "/queue");
 		await new Promise((resolve) => setImmediate(resolve));
 
-		expect(page.hidden("list")).toBe(false);
+		expect(page.shown("list")).toEqual(["unavailable"]);
 	});
 
 	it("checks again after htmx swaps in a new main", () => {
@@ -90,6 +103,6 @@ describe("offlineContentBannerScript", () => {
 		main.outerHTML = `<main>${LIST_BANNER}${card("available")}</main>`;
 		page.document.body.dispatchEvent(new page.window.Event("htmx:afterSwap"));
 
-		expect(page.hidden("list")).toBe(true);
+		expect(page.shown("list")).toEqual([]);
 	});
 });

@@ -55,8 +55,10 @@ const FIXTURE_IMAGE_PATH = "/e2e/fixtures/image/";
 const EARLIER_LISTING_PATH = "/queue?order=asc";
 const SLOWER_THAN_THE_OLD_FALLBACK_MS = 4_000;
 const PAGE_OUTSIDE_THE_READLIST = "/account";
-const LIST_CONTENT_BANNER = '[data-test-offline-content-banner="list"]';
-const READER_CONTENT_BANNER = '[data-test-offline-content-banner="reader"]';
+const LIST_CONTENT_BANNERS = '[data-test-offline-content-banner^="list-"]';
+const READER_CONTENT_BANNERS = '[data-test-offline-content-banner^="reader-"]';
+const LIST_UNAVAILABLE_BANNER = '[data-test-offline-content-banner="list-unavailable"]';
+const READER_UNAVAILABLE_BANNER = '[data-test-offline-content-banner="reader-unavailable"]';
 const CLIENT_SCRIPTS = "**/client-dist/**";
 
 test.use({ serviceWorkers: "allow", timezoneId: READER_TIME_ZONE });
@@ -415,15 +417,17 @@ test.describe("Offline reading", () => {
 		await context.route(CLIENT_SCRIPTS, (route) => route.abort("internetdisconnected"));
 		await cutNetwork(context);
 		await page.goto(listingUrl, { waitUntil: "domcontentloaded" });
-		await expect(page.locator(LIST_CONTENT_BANNER)).toBeVisible();
-		await expect(page.locator(LIST_CONTENT_BANNER)).toHaveText(
-			"Some of these articles weren't downloaded with their content. Open them when you're back online to read them.",
+		await expect(page.locator(`${LIST_CONTENT_BANNERS}:not([hidden])`)).toHaveCount(1);
+		await expect(page.locator(LIST_UNAVAILABLE_BANNER)).toBeVisible();
+		await expect(page.locator(LIST_UNAVAILABLE_BANNER)).toHaveText(
+			"Readplace couldn't get the content of some of these articles, so they can't be read offline.",
 		);
 
 		await page.goto(new URL(href, BASE_URL).href, { waitUntil: "domcontentloaded" });
-		await expect(page.locator(READER_CONTENT_BANNER)).toBeVisible();
-		await expect(page.locator(READER_CONTENT_BANNER)).toHaveText(
-			"This article's content wasn't downloaded. Open it when you're back online to read it.",
+		await expect(page.locator(`${READER_CONTENT_BANNERS}:not([hidden])`)).toHaveCount(1);
+		await expect(page.locator(READER_UNAVAILABLE_BANNER)).toBeVisible();
+		await expect(page.locator(READER_UNAVAILABLE_BANNER)).toHaveText(
+			"Readplace couldn't get this article's content, so it can't be read offline.",
 		);
 	});
 
@@ -443,11 +447,13 @@ test.describe("Offline reading", () => {
 		await cutNetwork(context);
 		await page.goto(listingUrl, { waitUntil: "domcontentloaded" });
 		await expect(page.locator(CARD_TITLE)).toHaveCount(1);
-		await expect(page.locator(LIST_CONTENT_BANNER)).toHaveAttribute("hidden", "");
+		await expect(page.locator(LIST_CONTENT_BANNERS)).toHaveCount(2);
+		await expect(page.locator(`${LIST_CONTENT_BANNERS}:not([hidden])`)).toHaveCount(0);
 
 		await page.goto(new URL(href, BASE_URL).href, { waitUntil: "domcontentloaded" });
 		await expect(page.locator(READER_BODY)).toContainText("Offline download body 0.");
-		await expect(page.locator(READER_CONTENT_BANNER)).toHaveAttribute("hidden", "");
+		await expect(page.locator(READER_CONTENT_BANNERS)).toHaveCount(2);
+		await expect(page.locator(`${READER_CONTENT_BANNERS}:not([hidden])`)).toHaveCount(0);
 	});
 
 	test("waits for an article still being crawled on the first page to settle, then downloads it", async ({ page }, testInfo) => {
