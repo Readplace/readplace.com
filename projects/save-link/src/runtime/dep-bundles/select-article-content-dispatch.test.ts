@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { SendMessageCommand, SendMessageCommandInput } from "@aws-sdk/client-sqs";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { articleMessageGroupId } from "./generate-summary-dispatch";
 import { initSelectArticleContentDispatch, selectionDeduplicationId } from "./select-article-content-dispatch";
@@ -6,10 +7,13 @@ import { initSelectArticleContentDispatch, selectionDeduplicationId } from "./se
 const QUEUE_URL = "https://sqs.ap-southeast-2.amazonaws.com/123456789012/select-article-content-q.fifo";
 
 function capturingDispatch() {
-	const send = jest.fn().mockResolvedValue({});
+	const sent: SendMessageCommandInput[] = [];
+	const send = async (command: SendMessageCommand) => {
+		sent.push(command.input);
+		return {};
+	};
 	const dispatch = initSelectArticleContentDispatch({ sqsClient: { send }, selectArticleContentQueueUrl: QUEUE_URL });
-	const sentInputs = () => send.mock.calls.map(([command]) => command.input);
-	return { dispatch, sentInputs };
+	return { dispatch, sentInputs: () => sent };
 }
 
 describe("initSelectArticleContentDispatch", () => {
