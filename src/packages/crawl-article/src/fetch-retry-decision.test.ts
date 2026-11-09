@@ -117,6 +117,15 @@ describe("decideFetchFailure", () => {
 		assert.deepEqual(decision, { kind: "terminal", cause: error });
 	});
 
+	it.each([
+		["a deadline wrapping a certificate mismatch", () => Object.assign(deadlineReason("no response headers within 30000ms"), { cause: codedError({ code: "ERR_TLS_CERT_ALTNAME_INVALID" }) }), "durable"],
+		["a reset wrapping a curl TLS connect error", () => Object.assign(codedError({ code: "ECONNRESET" }), { cause: curlFailure(35) }), "local"],
+	] as const)("classifies %s by the outermost link it recognises", (_label, buildError, scope) => {
+		const error = buildError();
+
+		assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "retryable", scope, cause: error });
+	});
+
 	describe("a transport ladder failure, read across every leg it recorded", () => {
 		it("is durable when every leg failed on a transient class", () => {
 			const error = ladderFailure([
@@ -173,6 +182,16 @@ describe("decideFetchFailure", () => {
 			]);
 
 			assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "terminal", cause: error });
+		});
+
+		it("is durable when the primary leg answered 429 and the later legs reset, since a rate limit asks us to come back later", async () => {
+			const error = await ladderRejection([
+				{ name: "primary", maxRunMs: 100, fetch: async () => new Response("slow down", { status: 429 }) },
+				{ name: "h2", maxRunMs: 100, fetch: rejectsWith(codedError({ code: "ECONNRESET" })) },
+				{ name: "curl", maxRunMs: 100, fetch: rejectsWith(wrappedInFetchFailed(codedError({ code: "ECONNRESET" }))) },
+			]);
+
+			assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "retryable", scope: "durable", cause: error });
 		});
 	});
 });

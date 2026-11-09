@@ -18,6 +18,8 @@ const EARLY_TRANSIENT_CODES = new Set([
 
 const TRANSIENT_CURL_EXIT_CODES = new Set([52, 56]);
 
+const RATE_LIMITED_STATUS = 429;
+
 function isDeadlineReason(error: unknown): boolean {
 	return typeof error === "object" && error !== null && "name" in error && error.name === "TimeoutError";
 }
@@ -30,7 +32,7 @@ function isEarlyTransient(error: object): boolean {
 }
 
 function classifyLadder(failure: TransportLadderFailure): FailureClass {
-	if (failure.escalatedStatuses.length > 0) return "terminal";
+	if (failure.escalatedStatuses.some(status => status !== RATE_LIMITED_STATUS)) return "terminal";
 	const legs = [...failure.previousErrors, failure.cause].map(classifyLeg);
 	return legs.includes("terminal") ? "terminal" : "durable";
 }
