@@ -171,15 +171,15 @@ const summary = createFakeSummaryProvider({ findItemOwner: (url) => fixture.arti
 
 const fixture = createDefaultTestAppFixture(origin)
 
-let lastE2eInstant = 0
-const e2eNow = () => {
-	lastE2eInstant = Math.max(Date.now(), lastE2eInstant + 1)
-	return new Date(lastE2eInstant)
+let lastGmailInstant = 0
+const gmailNow = () => {
+	lastGmailInstant = Math.max(Date.now(), lastGmailInstant + 1)
+	return new Date(lastGmailInstant)
 }
 
 const gmailIntegration = initInMemoryGmailIntegration({
 	addresses: fixture.inboxAddress.inboxAddressStore,
-	now: e2eNow,
+	now: gmailNow,
 	grant: {
 		ok: true,
 		grant: {
@@ -235,7 +235,7 @@ async function completeGmailImport(input: {
 }): Promise<void> {
 	const imports = gmailIntegration.bundle.gmailHistoryImportStore
 	const { userId, jobId, generation } = input
-	const now = e2eNow()
+	const now = gmailNow()
 	assert(await imports.claimPage({ userId, jobId, generation, page: 0, now }))
 	const outcomes = GmailHistoryImportMessageOutcomeSchema.options.flatMap((outcome) =>
 		Array.from({ length: input.outcomeCounts[GMAIL_HISTORY_IMPORT_OUTCOME_COUNT[outcome]] ?? 0 }, () => outcome),
@@ -425,7 +425,7 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		staticBaseUrl: fixture.shared.staticBaseUrl,
 		httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
 		logError,
-		now: e2eNow,
+		now: gmailNow,
 	},
 }, { keepOfferEndsAt: new Date('2099-01-01T00:00:00.000Z') })
 
@@ -758,7 +758,7 @@ const SEED_GMAIL_CONNECTION: Record<
 		beforeSenders: (userId) =>
 			gmailIntegration.bundle.gmailConnectionStore.recordConfirmError({
 				userId,
-				error: { reason: 'token-rejected', at: e2eNow().toISOString() },
+				error: { reason: 'token-rejected', at: gmailNow().toISOString() },
 			}),
 		afterSenders: async () => {},
 	},
@@ -794,13 +794,13 @@ const SEED_GMAIL_FILTER_ERROR: Record<
 				forwardTo,
 				senderCount: senderCount + 1,
 				senderCapacity: senderCount,
-				at: e2eNow().toISOString(),
+				at: gmailNow().toISOString(),
 			},
 		}),
 	'failed-rejected': ({ userId }) =>
 		gmailIntegration.bundle.gmailConnectionStore.recordFilterError({
 			userId,
-			error: { code: 'rejected', message: 'Filter rejected by Gmail', at: e2eNow().toISOString() },
+			error: { code: 'rejected', message: 'Filter rejected by Gmail', at: gmailNow().toISOString() },
 		}),
 }
 
@@ -1038,7 +1038,7 @@ async function seedGmailImports(input: {
 	for (const entry of input.imports) {
 		const sender = await gmailMappingStore.findMapping({ userId, accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL, senderEmail: entry.sender })
 		assert(sender?.mappedAddresses, `a seeded import for ${entry.sender} needs that sender mapped in the same seed`)
-		const now = e2eNow()
+		const now = gmailNow()
 		const counts = {
 			imported: 0,
 			alreadyImported: 0,
@@ -1086,18 +1086,18 @@ async function seedGmailMarkBackfills(input: {
 		const ref = { userId, accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL, senderEmail: entry.sender }
 		const mapping = await gmailMappingStore.findMapping(ref)
 		assert(mapping?.markImportedAt, `a seeded backfill for ${entry.sender} needs that sender mapped with mark in the same seed`)
-		const start = await gmailMarkBackfillStore.startBackfill({ ...ref, optionEnabledAt: mapping.markImportedAt, now: e2eNow() })
+		const start = await gmailMarkBackfillStore.startBackfill({ ...ref, optionEnabledAt: mapping.markImportedAt, now: gmailNow() })
 		assert(start.started, `the backfill for ${entry.sender} must start`)
 		const { generation } = start.job
 		const counts = { ...ZERO_GMAIL_MARK_BACKFILL_COUNTS, ...entry.counts }
-		assert(await gmailMarkBackfillStore.claimPage({ ...ref, generation, page: 0, now: e2eNow() }))
+		assert(await gmailMarkBackfillStore.claimPage({ ...ref, generation, page: 0, now: gmailNow() }))
 		if (entry.state === 'complete') {
-			assert(await gmailMarkBackfillStore.complete({ ...ref, generation, page: 0, counts, now: e2eNow() }))
+			assert(await gmailMarkBackfillStore.complete({ ...ref, generation, page: 0, counts, now: gmailNow() }))
 			continue
 		}
-		assert(await gmailMarkBackfillStore.savePage({ ...ref, generation, page: 0, cursor: 'e2e-next', counts, now: e2eNow() }))
+		assert(await gmailMarkBackfillStore.savePage({ ...ref, generation, page: 0, cursor: 'e2e-next', counts, now: gmailNow() }))
 		if (entry.state === 'failed') {
-			assert.equal(await gmailMarkBackfillStore.failBackfill({ ...ref, generation, reason: entry.failureReason, now: e2eNow() }), 'failed')
+			assert.equal(await gmailMarkBackfillStore.failBackfill({ ...ref, generation, reason: entry.failureReason, now: gmailNow() }), 'failed')
 		}
 	}
 }
