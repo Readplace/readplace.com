@@ -27,17 +27,22 @@ describe("buildSiteWebmanifest", () => {
 		expect(purposes).toContain("maskable");
 	});
 
-	it("associates the site with the iPhone app's App Store listing", () => {
+	it("associates the site with the iPhone app's App Store listing and the Android app's Google Play listing", () => {
 		expect(manifest.related_applications).toEqual([
 			{
 				platform: "itunes",
 				url: "https://apps.apple.com/app/readplace/id6777107238",
 				id: "6777107238",
 			},
+			{
+				platform: "play",
+				url: "https://play.google.com/store/apps/details?id=com.readplace.app",
+				id: "com.readplace.app",
+			},
 		]);
 	});
 
-	it("keeps the installable web app preferred, since there is no Android app to prefer", () => {
+	it("keeps the installable web app preferred, since one manifest serves every platform", () => {
 		expect(manifest.prefer_related_applications).toBe(false);
 	});
 });

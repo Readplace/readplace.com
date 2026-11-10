@@ -1,8 +1,9 @@
-import { APPLE_APP_ID, IPHONE_APP_STORE_URL } from "@packages/supported-clients";
+import { ANDROID_PLAY_STORE_URL, APPLE_APP_ID, IPHONE_APP_STORE_URL } from "@packages/supported-clients";
 import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
 
 const RELATED_APPLICATION_BY_NATIVE_APP = {
 	iphone: { platform: "itunes", url: IPHONE_APP_STORE_URL, id: APPLE_APP_ID },
+	android: { platform: "play", url: ANDROID_PLAY_STORE_URL, id: "com.readplace.app" },
 } satisfies Record<
 	AdvertisedClientNameInGroup<"nativeApp">,
 	{ platform: string; url: string; id: string }
@@ -45,11 +46,9 @@ export function buildSiteWebmanifest(staticBaseUrl: string): string {
 			theme_color: "#2B3A55",
 			icons,
 			related_applications: Object.values(RELATED_APPLICATION_BY_NATIVE_APP),
-			/** One manifest is served to every platform, and the Android app has no
-			 * Play Store listing to name here yet, so preferring the native app would
-			 * suppress the installable web app on Android and desktop Chrome, where
-			 * there is still nothing to prefer. Safari ignores both fields, so this is
-			 * a Chrome-side signal only. */
+			/** One manifest is served to every platform, so preferring the native app
+			 * would suppress the installable web app on Android and desktop Chrome.
+			 * Safari ignores both fields, so this is a Chrome-side signal only. */
 			prefer_related_applications: false,
 		},
 		null,

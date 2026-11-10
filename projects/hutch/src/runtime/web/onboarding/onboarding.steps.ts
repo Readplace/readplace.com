@@ -69,6 +69,12 @@ const INSTALL_COPY: Record<PitchablePlatform, StepCopy> = {
 			"Add the Readplace iPhone app and sign in so you can save any page from the iOS share sheet.",
 		actions: [installAction("iphone")],
 	},
+	android: {
+		title: "Install the Readplace Android app",
+		description:
+			"Add the Readplace Android app and sign in so you can save any page from the Android share sheet.",
+		actions: [installAction("android")],
+	},
 	other: {
 		title: "Install a browser extension",
 		description: INSTALL_BROWSER_DESCRIPTION,
@@ -92,6 +98,12 @@ const SAVE_COPY: Record<PitchablePlatform, StepCopy> = {
 		description:
 			"Open any page in Safari, tap Share, and choose Readplace to save it for later.",
 		actions: [saveArticleAction("iphone")],
+	},
+	android: {
+		title: "Save your first article using the Android app",
+		description:
+			"Open any page in your browser, tap Share, and choose Readplace to save it for later.",
+		actions: [saveArticleAction("android")],
 	},
 	other: {
 		title: "Save your first article using a browser extension",

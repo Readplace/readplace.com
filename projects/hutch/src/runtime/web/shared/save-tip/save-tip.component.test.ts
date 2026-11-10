@@ -171,7 +171,7 @@ describe("buildSaveTip", () => {
 		["iPhone Safari", { userAgent: IPHONE_SAFARI }, "Use the Readplace iPhone app or other supported options to save articles in one tap and get a cleaner reading experience."],
 		["native app", { userAgent: IPHONE_SAFARI, iosClient: true }, "Use the Readplace share sheet to save articles in one tap and get a cleaner reading experience."],
 		["installed extension", { userAgent: DESKTOP_CHROME, cookies: { [ALIVE_COOKIE_NAME]: ALIVE_COOKIE_VALUE } }, "Use the Readplace browser extension or other supported options to save articles in one click and get a cleaner reading experience."],
-		["Android", { userAgent: ANDROID_CHROME }, "Use one of Readplace's supported options to save articles in one click and get a cleaner reading experience."],
+		["Android", { userAgent: ANDROID_CHROME }, "Use the Readplace Android app or other supported options to save articles in one tap and get a cleaner reading experience."],
 		["unrecognised device", { userAgent: "Unrecognised device" }, "Use one of Readplace's supported options to save articles in one click and get a cleaner reading experience."],
 	])("names the save method for %s", (_label, input, expected) => {
 		expect(bodyTextFor(request(input))).toBe(expected);
@@ -282,7 +282,7 @@ describe("buildSaveTip", () => {
 		});
 
 		it.each([
-			["no client", {}, "Some sites block Readplace from fetching article text. For individual articles, the browser extension and the iPhone app can save the full page."],
+			["no client", {}, "Some sites block Readplace from fetching article text. For individual articles, the browser extension and the iPhone or Android app can save the full page."],
 			["extension", { cookies: { [ALIVE_COOKIE_NAME]: ALIVE_COOKIE_VALUE } }, "Some sites block Readplace from fetching article text. For individual articles, the extension can save the full page."],
 			["app", { userAgent: IPHONE_SAFARI, iosClient: true }, "Some sites block Readplace from fetching article text. For individual articles, the Readplace share sheet can save the full page."],
 		])("explains the link-only outcome for the %s client", (_client, input, expected) => {

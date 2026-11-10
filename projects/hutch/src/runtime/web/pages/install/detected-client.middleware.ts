@@ -5,7 +5,6 @@ import type { ClientName } from "@packages/supported-clients";
 import { wantsMarkdown } from "@packages/web-shell";
 import { detectPlatform } from "../../onboarding/extension-install";
 import type { Platform } from "../../onboarding/onboarding.types";
-import { revealsHiddenTabs } from "./install.component";
 
 /**
  * 1. Every browser on the phone, not just the platform default: our extension
@@ -22,14 +21,10 @@ const CLIENT_BY_SURFACE = {
 	other: "chatgpt", /* 2 */
 } satisfies Record<Platform, ClientName>;
 
-const ANDROID_WHILE_TAB_HIDDEN: ClientName = "gemini";
-
 const PARSE_ORIGIN = "https://install.invalid";
 
 function detectedClient(req: Request): ClientName {
-	const platform = detectPlatform(req);
-	if (platform === "android" && !revealsHiddenTabs(req.query.feature)) return ANDROID_WHILE_TAB_HIDDEN;
-	return CLIENT_BY_SURFACE[platform];
+	return CLIENT_BY_SURFACE[detectPlatform(req)];
 }
 
 /** Carries the incoming query through, so the campaign params on the links into

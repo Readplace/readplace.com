@@ -171,7 +171,7 @@ describe("renderExtensionSuggestionBanner", () => {
 			);
 			assert(message, "not-installed message must be rendered");
 			expect(message.textContent?.trim()).toBe(
-				"Some sites don’t allow Readplace to save the full article. Use the browser extension or the iPhone app to save the complete page.",
+				"Some sites don’t allow Readplace to save the full article. Use the browser extension or the iPhone or Android app to save the complete page.",
 			);
 			expect(
 				Array.from(doc.querySelectorAll(".extension-suggestion-banner a")).map((link) =>
@@ -180,7 +180,7 @@ describe("renderExtensionSuggestionBanner", () => {
 			).toEqual([true]);
 		});
 
-		it("names every advertised content-capture surface — the browser extension and the iPhone app — and no other", () => {
+		it("names every advertised content-capture surface — the browser extension and the iPhone or Android app — and no other", () => {
 			const doc = parse(renderExtensionSuggestionBanner({ show: true, clickSurface: undefined }));
 
 			const message = doc.querySelector(
@@ -192,7 +192,7 @@ describe("renderExtensionSuggestionBanner", () => {
 			// "phone app" passes on the singular too, which is how this banner drifted
 			// out of step with the roster. The literal pin means a roster change lands
 			// here for a deliberate re-read of the sentence around it.
-			expect(text).toContain("the browser extension or the iphone app");
+			expect(text).toContain("the browser extension or the iphone or android app");
 		});
 	});
 

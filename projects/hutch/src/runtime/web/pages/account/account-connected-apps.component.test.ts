@@ -258,7 +258,7 @@ describe("renderConnectedApps", () => {
 		assert(row, "the empty row must render");
 		expect(row.querySelector(".account-row__title")?.textContent).toBe("No apps connected yet");
 		expect(row.querySelector(".account-row__description")?.textContent).toBe(
-			"Install the browser extension or the iPhone app, or connect an AI assistant, and it shows up here.",
+			"Install the browser extension or the iPhone or Android app, or connect an AI assistant, and it shows up here.",
 		);
 		expect([...row.querySelectorAll(".account-row__actions > *")].map((action) => action.outerHTML)).toEqual([
 			'<a class="btn btn--neutral btn--m" href="/install?utm_source=account&amp;utm_medium=internal&amp;utm_content=see-ways-to-save" data-test-connected-app-action="see-ways-to-save">See ways to save</a>',

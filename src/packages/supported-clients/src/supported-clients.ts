@@ -64,6 +64,12 @@ function chromeStoreUrl(): string {
 	return chrome.install.url;
 }
 
+function androidPlayStoreUrl(): string {
+	const android = SUPPORTED_CLIENTS.find((client) => client.name === "android");
+	assert(android?.install.kind === "store", "the Android client must install from a store");
+	return android.install.url;
+}
+
 export type AuthIdentity =
 	| { readonly kind: "builtIn"; readonly oauthClientId: string }
 	| { readonly kind: "dynamicRegistration" };
@@ -128,9 +134,9 @@ export const SUPPORTED_CLIENTS = [
 		displayName: "Android",
 		group: "nativeApp",
 		description: "Saves from any Android browser via the share sheet.",
-		install: { kind: "selfHostedPointer" },
+		install: { kind: "store", url: "https://play.google.com/store/apps/details?id=com.readplace.app" }, /* 2 */
 		auth: { kind: "builtIn", oauthClientId: "android-app" },
-		advertised: false,
+		advertised: true,
 	},
 	{
 		name: "chatgpt",
@@ -215,10 +221,9 @@ export const ADVERTISED_CLIENTS: readonly AdvertisedClient[] = SUPPORTED_CLIENTS
 	(client): client is AdvertisedClient => client.advertised,
 );
 
-export const UNADVERTISED_CLIENTS: readonly Extract<SupportedClient, { advertised: false }>[] =
-	SUPPORTED_CLIENTS.filter(
-		(client): client is Extract<SupportedClient, { advertised: false }> => !client.advertised,
-	);
+export const UNADVERTISED_CLIENTS: readonly SupportedClient[] = SUPPORTED_CLIENTS.filter(
+	(client) => !client.advertised,
+);
 export type ClientInGroup<G extends ClientGroup> = Extract<SupportedClient, { group: G }>;
 export type ClientNameInGroup<G extends ClientGroup> = ClientInGroup<G>["name"];
 export type BuiltInOAuthClientId = Extract<SupportedClient["auth"], { kind: "builtIn" }>["oauthClientId"];
@@ -300,5 +305,6 @@ export function clientNameForBuiltInOAuthClientId(oauthClientId: BuiltInOAuthCli
 export const APPLE_APP_ID = iphoneAppleAppId();
 export const IPHONE_APP_STORE_URL = appStoreUrl(APPLE_APP_ID);
 export const CHROME_STORE_URL = chromeStoreUrl();
+export const ANDROID_PLAY_STORE_URL = androidPlayStoreUrl();
 
 export const APPLE_ITUNES_APP_META = `app-id=${APPLE_APP_ID}`;

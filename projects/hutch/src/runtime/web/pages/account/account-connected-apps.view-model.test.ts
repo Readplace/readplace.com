@@ -225,7 +225,7 @@ describe("buildConnectedAppsSection", () => {
 					clientId: "",
 					logo: "plug",
 					title: "No apps connected yet",
-					description: "Install the browser extension or the iPhone app, or connect an AI assistant, and it shows up here.",
+					description: "Install the browser extension or the iPhone or Android app, or connect an AI assistant, and it shows up here.",
 					disconnects: [],
 					links: [
 						{

@@ -136,7 +136,6 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 		"No highlight sync to Notion, Obsidian or Logseq.",
 		"No RSS or podcast subscriptions.",
 		"No listening or text-to-speech.",
-		"No Android app.",
 		"No full-text search across saved articles.",
 		"Newsletters bring their article links across, not the email body as an article.",
 	],

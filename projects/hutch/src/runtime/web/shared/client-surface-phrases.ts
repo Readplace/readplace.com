@@ -38,7 +38,8 @@ export const SAVE_SURFACES_SHORT_PHRASE = `${SHORT_SURFACES.browserExtension}, $
 const FULL_PAGE_CAPTURE_NOUNS = {
 	firefox: "the browser extension",
 	chrome: "the browser extension",
-	iphone: "the iPhone app",
+	iphone: "the iPhone or Android app",
+	android: "the iPhone or Android app",
 } satisfies Record<
 	AdvertisedClientNameInGroup<"browserExtension"> | AdvertisedClientNameInGroup<"nativeApp">,
 	string
@@ -53,7 +54,8 @@ export const FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE = FULL_PAGE_CAPTURE_UNIQUE.jo
 const CONNECTED_APP_NOUNS = {
 	firefox: "the browser extension",
 	chrome: "the browser extension",
-	iphone: "the iPhone app",
+	iphone: "the iPhone or Android app",
+	android: "the iPhone or Android app",
 	chatgpt: "AI assistants",
 	gemini: "AI assistants",
 	claude: "AI assistants",

@@ -53,6 +53,7 @@ const SAVE_WAY_BY_PLATFORM = {
 	chrome: { lead: "the Readplace browser extension or other supported options", gesture: "one click" },
 	firefox: { lead: "the Readplace browser extension or other supported options", gesture: "one click" },
 	iphone: { lead: "the Readplace iPhone app or other supported options", gesture: "one tap" },
+	android: { lead: "the Readplace Android app or other supported options", gesture: "one tap" },
 } satisfies Record<Exclude<PitchablePlatform, "other">, SaveWay>;
 
 const SAVE_WAY_FALLBACK = {

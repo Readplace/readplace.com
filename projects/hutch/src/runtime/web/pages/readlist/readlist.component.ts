@@ -188,6 +188,10 @@ const NOTHING_SAVED_INVITES: Record<PitchablePlatform, { text: string; label: st
 		text: "Save your first article with the Article button, or use the Readplace iPhone app to save it from the share sheet.",
 		label: "Install iPhone app",
 	},
+	android: {
+		text: "Save your first article with the Article button, or use the Readplace Android app to save it from the share sheet.",
+		label: "Install Android app",
+	},
 	other: {
 		text: `Save your first article with the Article button, or set up one-tap saving from ${SAVE_SURFACES_SHORT_PHRASE}.`,
 		label: "Set up one-tap saving",

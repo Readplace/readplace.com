@@ -523,7 +523,7 @@ describe("/developers copy", () => {
 		expect({
 			listed: marked(root, "data-test-client"),
 			named: registryTerms.filter((term) => text.includes(term)),
-		}).toEqual({ listed: ["Firefox", "Chrome", "iPhone"], named: ["Firefox", "Chrome", "iPhone"] });
+		}).toEqual({ listed: ["Firefox", "Chrome", "iPhone", "Android"], named: ["Firefox", "Chrome", "iPhone", "Android"] });
 	});
 
 	it("links only to its own sample tabs and sections, sign-up and Connected apps, all tracked", async () => {

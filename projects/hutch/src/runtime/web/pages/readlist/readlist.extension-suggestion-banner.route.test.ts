@@ -15,10 +15,8 @@ import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/a
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { shownSummary } from "@packages/domain/article";
 
-/** Android's app is not advertised, so an Android visitor has no client the
- * banner could send them to install. */
-const ANDROID_CHROME_UA =
-	"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
+const DESKTOP_SAFARI_UA =
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
 
 const useApp = useTestServer();
 
@@ -350,11 +348,11 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			summary: { ...fixture.summary, findGeneratedSummary },
 		});
 		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndFindId(agent, "https://example.com/failed-poll-android");
+		const articleId = await saveAndFindId(agent, "https://example.com/failed-poll-desktop-safari");
 
 		const response = await agent
 			.get(`/queue/${articleId}/reader?poll=1`)
-			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": ANDROID_CHROME_UA });
+			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": DESKTOP_SAFARI_UA });
 
 		expect(response.status).toBe(200);
 		const ids = Array.from(

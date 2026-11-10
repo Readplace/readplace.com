@@ -24,6 +24,11 @@ const NATIVE_APP_SEO = {
 		keywords: "iPhone share sheet, share sheet saving",
 		deviceMention: "your iPhone",
 	},
+	android: {
+		feature: "Saving from the Android share sheet with the Google Play app",
+		keywords: "Android share sheet, Android read it later app",
+		deviceMention: "your Android phone",
+	},
 } satisfies Record<
 	AdvertisedClientNameInGroup<"nativeApp">,
 	{ feature: string; keywords: string; deviceMention: string }

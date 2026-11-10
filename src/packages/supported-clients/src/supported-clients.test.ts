@@ -51,7 +51,7 @@ describe("SUPPORTED_CLIENTS", () => {
 				firefox: "selfHostedPointer",
 				chrome: "store",
 				iphone: "appStore",
-				android: "selfHostedPointer",
+				android: "store",
 				chatgpt: "mcpConnector",
 				gemini: "mcpConnector",
 				claude: "mcpConnector",
