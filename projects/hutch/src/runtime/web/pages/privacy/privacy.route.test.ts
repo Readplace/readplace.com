@@ -119,7 +119,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("A file you upload before signing up, with its name and what was read from it, is deleted within 2 days. Until you save it no account holds them, so you can't delete them sooner. Once you save it to your library, the file stays with your saved articles until you remove it; an audio file's transcript stays with it, and the transcription service's own copy of that transcript is deleted after 14 days.");
+		expect(response.text).toContain("A file you upload before signing up, with its name and what was read from it, is deleted within 2 days. Until you save it no account holds them, so you can't delete them sooner. Once you save it to your library, the file stays with your saved articles until you remove it; an audio or video file's transcript stays with it, and the transcription service's own copy of that transcript is deleted after 14 days.");
 	});
 
 	it("lists the optional display name among the account information Readplace keeps", async () => {

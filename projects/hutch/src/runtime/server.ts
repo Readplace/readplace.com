@@ -275,7 +275,7 @@ import {
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
 import { INSPECT_BOOK_TIMEOUT_SECONDS } from "@packages/infra-components";
-import { AUDIO, BOOK, type MediaKindManifest, type MediaKindName, type Meter, type UploadId } from "@packages/media-contracts";
+import { AUDIO, BOOK, type MediaKindManifest, type MediaKindName, type Meter, type UploadId, VIDEO } from "@packages/media-contracts";
 import type { ChargeTranscriptQuota, RefundUnstartedCharge } from "@packages/provider-contracts/transcript-quota";
 import type {
 	ClaimMediaUpload,
@@ -1256,7 +1256,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				backLink,
 				upload: isAppShell(req)
 					? undefined
-					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel, audioCeilingLabel: AUDIO.ceilingLabel, guest: !req.userId },
+					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel, audioCeilingLabel: AUDIO.ceilingLabel, videoCeilingLabel: VIDEO.ceilingLabel, guest: !req.userId },
 				platform: nativeSurfaceOf(req),
 				cspNonce: requireCspNonce(req),
 			}),

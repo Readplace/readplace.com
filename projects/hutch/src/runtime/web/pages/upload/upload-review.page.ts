@@ -31,7 +31,7 @@ import { kindsForViewer } from "./upload.viewmodel";
 import { UploadReviewPage, type UploadReviewView } from "./upload-review.component";
 
 export const GUEST_UPLOAD_KINDS: readonly MediaKindName[] = ["book", "audio"];
-export const METERED_ONLY_UPLOAD_KINDS: readonly MediaKindName[] = ["video"];
+export const METERED_ONLY_UPLOAD_KINDS: readonly MediaKindName[] = [];
 
 type ReviewViewState = "inspecting" | "ready" | "rejected";
 const REVIEW_VIEW_STATES: readonly string[] = ["inspecting", "ready", "rejected"] satisfies ReviewViewState[];

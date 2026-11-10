@@ -300,7 +300,7 @@ describe("GET /help/add-links", () => {
 		);
 		expect(
 			doc.querySelector("[data-test-help-upload-title]")?.textContent,
-		).toBe("Add a book or audio file");
+		).toBe("Add a book, audio or video file");
 		expect(doc.querySelector("[data-test-help-upload-audio]")).not.toBeNull();
 		expect(doc.querySelector("[data-test-help-upload-link]")?.textContent).toBe(
 			"Upload a file",
@@ -328,11 +328,16 @@ describe("GET /help/add-links", () => {
 		expect(doc.querySelector("[data-test-help-upload-guest]")).toBeNull();
 		expect(
 			doc.querySelector("[data-test-help-upload-title]")?.textContent,
-		).toBe("Add a book or audio file");
+		).toBe("Add a book, audio or video file");
 		expect(
 			doc.querySelector("[data-test-help-upload-audio]")?.textContent,
 		).toBe(
 			"Upload an MP3 or M4A of up to 256 MB to listen to it in the reader with a timestamped transcript.",
+		);
+		expect(
+			doc.querySelector("[data-test-help-upload-video]")?.textContent,
+		).toBe(
+			"Upload an MP4 video of up to 2 GB to listen to its sound with a timestamped transcript. Audio and video share the same daily transcript minutes.",
 		);
 	});
 
