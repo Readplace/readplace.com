@@ -46,6 +46,9 @@
       "protobufjs",
       "spawn-sync",
       "unrs-resolver"
-    ]
+    ],
+    "patchedDependencies": {
+      "node-html-markdown@2.0.0": "patches/node-html-markdown@2.0.0.patch"
+    }
   }
 }

@@ -221,4 +221,22 @@ describe("htmlToMarkdown", () => {
 			].join("\n"),
 		);
 	});
+
+	it("converts a book-length body with inline links in time proportional to its size", () => {
+		const sentence =
+			"Chapter text about rivers, mountains and the quiet craft of reading slowly. ";
+		const paragraph = `<p>${sentence.repeat(2)}<em>${sentence}</em><a href="https://example.com/x">${sentence}</a></p>`;
+		const html = Array.from(
+			{ length: 10 },
+			(_, chapter) => `<h2>Chapter ${chapter + 1}</h2>${paragraph.repeat(1700)}`,
+		).join("");
+		const started = performance.now();
+
+		const markdown = htmlToMarkdown(html);
+
+		const elapsedMs = performance.now() - started;
+		expect(markdown.startsWith("## Chapter 1")).toBe(true);
+		expect(markdown).toContain("[Chapter text about rivers");
+		expect(elapsedMs).toBeLessThan(3_000);
+	});
 });

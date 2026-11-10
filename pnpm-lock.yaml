@@ -10,6 +10,11 @@ catalogs:
       specifier: 0.28.0
       version: 0.28.0
 
+patchedDependencies:
+  node-html-markdown@2.0.0:
+    hash: 455525da8e77ce4369cfdbb4a5cc2ad53a77fb39f7bb99fba3cdcba4ca0f2fa2
+    path: patches/node-html-markdown@2.0.0.patch
+
 importers:
 
   .:
@@ -2553,7 +2558,7 @@ importers:
         version: 0.18.12
       node-html-markdown:
         specifier: 2.0.0
-        version: 2.0.0
+        version: 2.0.0(patch_hash=455525da8e77ce4369cfdbb4a5cc2ad53a77fb39f7bb99fba3cdcba4ca0f2fa2)
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -12303,7 +12308,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  node-html-markdown@2.0.0:
+  node-html-markdown@2.0.0(patch_hash=455525da8e77ce4369cfdbb4a5cc2ad53a77fb39f7bb99fba3cdcba4ca0f2fa2):
     dependencies:
       node-html-parser: 6.1.13
 

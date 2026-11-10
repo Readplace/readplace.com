@@ -1,0 +1,122 @@
+diff --git a/dist/visitor.d.ts b/dist/visitor.d.ts
+index 771c8a4c0b90d9a5a0362002bdc6b3810157382d..e3140a3d7b4d6175ec5caa99ad3f71bc1f024cf3 100644
+--- a/dist/visitor.d.ts
++++ b/dist/visitor.d.ts
+@@ -15,7 +15,9 @@ export interface NodeMetadata {
+ }
+ export type NodeMetadataMap = Map<ElementNode, NodeMetadata>;
+ type VisitorResult = {
+-    text: string;
++    parts: string[];
++    length: number;
++    tail: string;
+     trailingNewlineStats: {
+         whitespace: number;
+         newLines: number;
+@@ -36,6 +38,7 @@ export declare class Visitor {
+     constructor(instance: NodeHtmlMarkdown, rootNode: HtmlNode, fileName?: string | undefined);
+     addOrGetUrlDefinition(url: string): number;
+     appendResult(s: string, startPos?: number, spaceIfRepeatingChar?: boolean): void;
++    resultSince(startPos: number): string;
+     appendNewlines(count: number): void;
+     /**
+      * Optimize tree, flagging nodes that have usable content
+diff --git a/dist/visitor.js b/dist/visitor.js
+index c3544c8af59bdbcfd7cee4e81e188f0c37d493ef..f0a0ebbe247887147327220cf6a7d86aaa3a4c97 100644
+--- a/dist/visitor.js
++++ b/dist/visitor.js
+@@ -22,7 +22,9 @@ class Visitor {
+         this.nodeMetadata = new Map();
+         this.urlDefinitions = [];
+         this.result = {
+-            text: '',
++            parts: [],
++            length: 0,
++            tail: '',
+             trailingNewlineStats: {
+                 whitespace: 0,
+                 newLines: 0
+@@ -45,10 +47,36 @@ class Visitor {
+         if (!s && startPos === undefined)
+             return;
+         const { result } = this;
+-        if (startPos !== undefined)
+-            result.text = result.text.substr(0, startPos);
+-        result.text += (spaceIfRepeatingChar && result.text.slice(-1) === s[0] ? ' ' : '') + s;
+-        result.trailingNewlineStats = (0, utilities_1.getTrailingWhitespaceInfo)(result.text);
++        if (startPos !== undefined) {
++            while (result.length > startPos) {
++                const part = result.parts.pop();
++                result.length -= part.length;
++                if (result.length < startPos) {
++                    const kept = part.slice(0, startPos - result.length);
++                    result.parts.push(kept);
++                    result.length += kept.length;
++                }
++            }
++            result.tail = '';
++            for (let i = result.parts.length - 1; i >= 0 && result.tail.length < 10; --i)
++                result.tail = result.parts[i].slice(-10) + result.tail;
++            result.tail = result.tail.slice(-10);
++        }
++        const text = (spaceIfRepeatingChar && result.tail.slice(-1) === s[0] ? ' ' : '') + s;
++        if (text) {
++            result.parts.push(text);
++            result.length += text.length;
++            result.tail = (result.tail + text).slice(-10);
++        }
++        result.trailingNewlineStats = (0, utilities_1.getTrailingWhitespaceInfo)(result.tail);
++    }
++    resultSince(startPos) {
++        const { result } = this;
++        let end = result.length;
++        let i = result.parts.length;
++        while (end > startPos)
++            end -= result.parts[--i].length;
++        return result.parts.slice(i).join('');
+     }
+     appendNewlines(count) {
+         const { newLines } = this.result.trailingNewlineStats;
+@@ -121,7 +149,7 @@ class Visitor {
+                 (_b = (_f = node).trimmedText) !== null && _b !== void 0 ? _b : (_f.trimmedText = (0, utilities_1.trimNewLines)(node.wholeText));
+             }
+             if (node.isWhitespace && !(metadata === null || metadata === void 0 ? void 0 : metadata.preserveWhitespace)) {
+-                return (!result.text.length || result.trailingNewlineStats.whitespace > 0) ? void 0 : this.appendResult(' ');
++                return (!result.length || result.trailingNewlineStats.whitespace > 0) ? void 0 : this.appendResult(' ');
+             }
+             // Fix for issues #61 and #34: Process original text to preserve trailing whitespace before inline elements
+             const sourceText = (metadata === null || metadata === void 0 ? void 0 : metadata.preserveWhitespace) ? node.text : node.text || node.trimmedText;
+@@ -189,7 +217,7 @@ class Visitor {
+             metadata = Object.assign(Object.assign({}, metadata), { translators: cfg.childTranslators });
+             this.nodeMetadata.set(node, metadata);
+         }
+-        const startPosOuter = result.text.length;
++        const startPosOuter = result.length;
+         /* Write opening */
+         if (cfg.surroundingNewlines)
+             this.appendNewlines(+cfg.surroundingNewlines);
+@@ -199,13 +227,13 @@ class Visitor {
+         if (typeof cfg.content === 'string')
+             this.appendResult(cfg.content, void 0, cfg.spaceIfRepeatingChar);
+         else {
+-            const startPos = result.text.length;
++            const startPos = result.length;
+             // Process child nodes
+             for (const child of (0, utilities_1.getChildNodes)(node))
+                 this.visitNode(child, (cfg.recurse === false), metadata);
+             /* Apply translator post-processing */
+             if (cfg.postprocess) {
+-                const postRes = cfg.postprocess(Object.assign(Object.assign({}, (ctx || (0, translator_1.createTranslatorContext)(this, node, metadata))), { content: result.text.substr(startPos) }));
++                const postRes = cfg.postprocess(Object.assign(Object.assign({}, (ctx || (0, translator_1.createTranslatorContext)(this, node, metadata))), { content: this.resultSince(startPos) }));
+                 // If remove flag sent, remove / omit everything for this node (prefix, newlines, content, postfix)
+                 if (postRes === translator_1.PostProcessResult.RemoveNode) {
+                     if (node.tagName === 'LI' && (metadata === null || metadata === void 0 ? void 0 : metadata.listItemNumber))
+@@ -231,7 +259,7 @@ exports.Visitor = Visitor;
+ function getMarkdownForHtmlNodes(instance, rootNode, fileName) {
+     (0, utilities_1.perfStart)('walk');
+     const visitor = new Visitor(instance, rootNode, fileName);
+-    let result = visitor.result.text;
++    let result = visitor.result.parts.join('');
+     (0, utilities_1.perfStop)('walk');
+     /* Post-processing */
+     // Add link references, if set
