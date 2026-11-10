@@ -10,7 +10,7 @@ android {
 	compileSdk = 36
 
 	defaultConfig {
-		applicationId = "com.readplace.android"
+		applicationId = "com.readplace.app"
 		minSdk = 29
 		targetSdk = 36
 		versionCode = providers.gradleProperty("readplace.versionCode").map(String::toInt).getOrElse(1)

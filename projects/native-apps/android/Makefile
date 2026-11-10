@@ -10,7 +10,7 @@ AX = ./scripts/ax.sh
 GRADLE = $(AX) ./gradlew
 AVD ?= readplace-android
 APK_STAGING = app/build/outputs/apk/staging/debug/app-staging-debug.apk
-APPLICATION_ID = com.readplace.android
+APPLICATION_ID = com.readplace.app
 
 .PHONY: test test-staging apk bundle apk-staging apk-local emulator-create emulator-boot emulator-window emulator-wait emulator-stop install-emulator install-emulator-local screenshot clean stop
 
@@ -43,7 +43,7 @@ apk-local:
 install-emulator-local: apk-local
 	$(AX) adb reverse tcp:3000 tcp:3000
 	$(AX) adb install -r app/build/outputs/apk/local/debug/app-local-debug.apk
-	$(AX) adb shell am start -n $(APPLICATION_ID)/.app.MainActivity
+	$(AX) adb shell am start -n $(APPLICATION_ID)/com.readplace.android.app.MainActivity
 
 emulator-create:
 	$(AX) avdmanager create avd --name $(AVD) \
@@ -74,7 +74,7 @@ emulator-stop:
 
 install-emulator: apk-staging
 	$(AX) adb install -r $(APK_STAGING)
-	$(AX) adb shell am start -n $(APPLICATION_ID)/.app.MainActivity
+	$(AX) adb shell am start -n $(APPLICATION_ID)/com.readplace.android.app.MainActivity
 
 ## Reads the device framebuffer, so it needs no visible window and cannot capture
 ## anything stacked on top — the `simctl io screenshot` analogue.
