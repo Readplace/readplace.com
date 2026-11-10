@@ -43,13 +43,13 @@ describe("initS3StagedObject", () => {
 		await assert.rejects(readStagedObject({ key: KEY, etag: '"abc"' }), /denied/);
 	});
 
-	it("copies the pending original to the object key only while its etag matches", async () => {
+	it("copies the pending original to the object key under the probed media type, only while its etag matches", async () => {
 		const { sent, copyStagedTo } = setUp(async () => ({}));
 
-		await copyStagedTo({ stagedKey: KEY, etag: '"abc"', targetKey: `objects/sha256/${"a".repeat(64)}/1` });
+		await copyStagedTo({ stagedKey: KEY, etag: '"abc"', targetKey: `objects/sha256/${"a".repeat(64)}/1`, contentType: "audio/mpeg" });
 
 		assert.deepEqual(sent, [
-			{ name: "CopyObjectCommand", input: { Bucket: "hutch-media-test", Key: `objects/sha256/${"a".repeat(64)}/1`, CopySource: `hutch-media-test/${KEY}`, CopySourceIfMatch: '"abc"' } },
+			{ name: "CopyObjectCommand", input: { Bucket: "hutch-media-test", Key: `objects/sha256/${"a".repeat(64)}/1`, CopySource: `hutch-media-test/${KEY}`, CopySourceIfMatch: '"abc"', ContentType: "audio/mpeg", MetadataDirective: "REPLACE" } },
 		]);
 	});
 });

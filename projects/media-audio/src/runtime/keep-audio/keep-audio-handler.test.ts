@@ -35,7 +35,7 @@ function setUp(overrides: { facts?: AudioStreamFacts | "unrecognised"; staged?: 
 	const state = { item: "item" in overrides ? overrides.item : { media: { fileName: "episode-12.mp3" } } };
 	const published: { event: string; detail: unknown }[] = [];
 	const stagedReads: Parameters<ReadStagedObject>[0][] = [];
-	const copies: { stagedKey: string; etag: string; targetKey: string }[] = [];
+	const copies: { stagedKey: string; etag: string; targetKey: string; contentType: string }[] = [];
 	const enclosures: { url: string; enclosure: Enclosure }[] = [];
 	const tierSources: Parameters<PutTierSource>[0][] = [];
 	const unrefs: { uploadId: string }[] = [];
@@ -103,7 +103,7 @@ describe("initKeepAudioHandler", () => {
 
 		const key = `objects/sha256/${SHA256}/1`;
 		assert.deepEqual(stagedReads, [{ key: stagedObjectKey(DETAIL.uploadId), etag: DETAIL.etag }]);
-		assert.deepEqual(copies, [{ stagedKey: stagedObjectKey(DETAIL.uploadId), etag: DETAIL.etag, targetKey: key }]);
+		assert.deepEqual(copies, [{ stagedKey: stagedObjectKey(DETAIL.uploadId), etag: DETAIL.etag, targetKey: key, contentType: "audio/mpeg" }]);
 		assert.deepEqual(enclosures, [{ url: DETAIL.url, enclosure: { object: key, mediaType: "audio/mpeg", durationSeconds: 2820 } }]);
 		assert.equal(tierSources.length, 1);
 		const [source] = tierSources;
@@ -132,11 +132,12 @@ describe("initKeepAudioHandler", () => {
 
 	it("records an M4A as audio/mp4", async () => {
 		const m4a = Buffer.from("\0\0\0\x1cftypM4A mdat");
-		const { run, enclosures } = setUp({ facts: { ...MP3, container: "M4A/isom/iso2", codec: "MPEG-4/AAC" }, staged: { body: Readable.from([m4a]), contentLength: m4a.length } });
+		const { run, enclosures, copies } = setUp({ facts: { ...MP3, container: "M4A/isom/iso2", codec: "MPEG-4/AAC" }, staged: { body: Readable.from([m4a]), contentLength: m4a.length } });
 
 		await run();
 
 		assert.equal(enclosures[0].enclosure.mediaType, "audio/mp4");
+		assert.equal(copies[0].contentType, "audio/mp4");
 	});
 
 	it("leaves the File line out for an upload without a file name and titles it by its tag", async () => {
