@@ -89,9 +89,6 @@ const MINIMAL_BODY = {
 	time: EVENT_TIME,
 };
 
-const ledgerCalls = (calls: [string, unknown][]) =>
-	calls.filter(([name]) => name === "settle");
-
 describe("initRenderTranscriptHandler", () => {
 	it("writes the transcript as the reader's own tier-0 capture", async () => {
 		const { handler, puts } = setUp();
@@ -181,19 +178,19 @@ describe("initRenderTranscriptHandler", () => {
 		]);
 	});
 
-	it("keeps a failed job's item playable and leaves its charge alone", async () => {
+	it("keeps a failed job's item playable, then settles its charge", async () => {
 		const { handler, calls } = setUp();
 
 		assert.equal(await runJobEvent(handler, "FAILED"), "acked");
 
-		assert.deepEqual(calls.slice(-2), [
+		assert.deepEqual(calls.slice(-3), [
 			[
 				"recordTranscriptOutcome",
 				{ url: ITEM_URL, transcript: "transcript-failed" },
 			],
 			["writeMinimalAudioBody", MINIMAL_BODY],
+			["settle", SETTLE_REF],
 		]);
-		assert.deepEqual(ledgerCalls(calls), []);
 	});
 
 	it("clears the transcripts prefix and writes nothing when the job request is gone", async () => {
