@@ -560,18 +560,18 @@ jobs:
       - name: Run the unit suite, the coverage ratchet, and the staging config pins
         run: make test
 
-  # android-play-publish:
-  #   if: >-
-  #     always()
-  #     && github.event_name != 'pull_request'
-  #     && needs.web-tests.result == 'success'
-  #     && needs.android-tests.result == 'success'
-  #     && needs.detect-android.outputs.android-affected == 'true'
-  #   needs: [web-tests, detect-android, android-tests]
-  #   permissions:
-  #     contents: write
-  #   uses: ./.github/workflows/publish-android-play.yml
-  #   secrets: inherit
+  android-play-publish:
+    if: >-
+      always()
+      && github.event_name != 'pull_request'
+      && needs.web-tests.result == 'success'
+      && needs.android-tests.result == 'success'
+      && needs.detect-android.outputs.android-affected == 'true'
+    needs: [web-tests, detect-android, android-tests]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-android-play.yml
+    secrets: inherit
 
   # iOS code OR tests change; publish stays scoped to shipping code via
   # ios-affected (⊆ ios-test-affected), so this always runs when publish would.
