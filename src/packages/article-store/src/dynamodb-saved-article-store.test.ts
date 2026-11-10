@@ -2363,6 +2363,19 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		expect(data?.metadata.publishedOn).toBe("2025-10-08");
 	});
 
+	it("findArticleByUrl projects a private item's media and maps it", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { default: { Item: articleItem({ media: { kind: "audio", fileName: "talk.mp3", routeId: ROUTE_ID }, content: undefined }) } },
+		});
+
+		const data = await initStore(client).findArticleByUrl(URL);
+
+		const get = commands.find((c) => c.name === "GetCommand");
+		const projected = Object.values(get?.input.ExpressionAttributeNames ?? {});
+		expect(projected).toContain("media");
+		expect(data?.media).toEqual({ kind: "audio", fileName: "talk.mp3", routeId: ReaderArticleHashId.fromHash(ROUTE_ID) });
+	});
+
 	it("findArticleByUrl hydrates readerAvailableAt, the instant the digest gate measures presence against", async () => {
 		const { client } = createFakeClient({
 			GetCommand: {

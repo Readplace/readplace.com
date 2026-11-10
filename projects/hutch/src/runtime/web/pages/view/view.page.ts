@@ -7,7 +7,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
-import { ABSENT_ENCLOSURE, newSaveAttemptId, articleDestinationUrl, calculateReadTime, hostStubMetadata, isArchiveHost, isPrivateItemUrl, isPubliclyWithheld, isWrapperUrl, unwrapWrapperUrl, viewerFor, wrapperFamilyOf } from "@packages/domain/article";
+import { ABSENT_ENCLOSURE, newSaveAttemptId, articleDestinationUrl, calculateReadTime, hostStubMetadata, isArchiveHost, isPrivateItemUrl, isPubliclyWithheld, isWrapperUrl, offersEpubDownload, unwrapWrapperUrl, viewerFor, wrapperFamilyOf } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
 	FindItemOwner,
@@ -485,6 +485,7 @@ function handleViewArticle(
 		// eventually consistent), so a transient miss renders the row we already
 		// had or the stub we just wrote — pending, never a 500.
 		const articleSnapshot = await deps.findArticleByUrl(articleUrl);
+		const epubOffered = offersEpubDownload(articleSnapshot ?? existing ?? {});
 		const pendingSnapshot: { metadata: SavedArticle["metadata"]; estimatedReadTime: Minutes } =
 			existing ?? { metadata: renderStub, estimatedReadTime: stubReadTime };
 		const snapshot = gated
@@ -515,7 +516,7 @@ function handleViewArticle(
 			return;
 		}
 
-		const epubDownloadGuide = viewEpubGuideFor(req, articleUrl);
+		const epubDownloadGuide = epubOffered ? viewEpubGuideFor(req, articleUrl) : undefined;
 		const endCta: ViewEndCta | undefined =
 			req.userId === undefined && state.content !== undefined
 				? {
@@ -593,7 +594,7 @@ function handleViewArticle(
 					summary: state.summary,
 					summaryPollUrl: state.summaryPollUrl,
 					actions,
-					epubDownloadHref: state.content === undefined ? undefined : viewEpubHref(articleUrl),
+					epubDownloadHref: state.content === undefined || !epubOffered ? undefined : viewEpubHref(articleUrl),
 					epubDownloadGuide,
 					saveTip,
 					extensionInstallUrl: readerPublicInstallUrl(req),
@@ -640,7 +641,9 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			readerNotice: undefined,
 			saved: undefined,
 			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
-			renderDownloadsOob: (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) }),
+			renderDownloadsOob: offersEpubDownload(existing ?? {})
+				? (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) })
+				: undefined,
 		});
 		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));
@@ -678,7 +681,9 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			readerNotice: undefined,
 			saved: undefined,
 			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
-			renderDownloadsOob: (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) }),
+			renderDownloadsOob: offersEpubDownload(existing ?? {})
+				? (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) })
+				: undefined,
 		});
 		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));
