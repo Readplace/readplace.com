@@ -359,4 +359,35 @@ describe("GET /queue/:id/view Download on an uploaded audio or video item", () =
 		expect(downloadsSlot(doc).classList.contains("article-body__downloads-slot--visible")).toBe(true);
 		expect(doc.querySelector('[data-test-download="epub"]')).not.toBeNull();
 	});
+
+	it.each([
+		{ kind: "audio" as const, fileName: "talk.mp3" },
+		{ kind: "video" as const, fileName: "talk.mp4" },
+	])("serves the reader page, not an EPUB, to a direct ?format=epub request for a transcribed $kind upload", async (media) => {
+		const { harness, sessionCookie, markTranscribed } = await openUploadHarness(media);
+		await markTranscribed();
+
+		const response = await request(harness.server)
+			.get(`/queue/${UPLOAD_ID}/view?format=epub`)
+			.set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toContain("text/html");
+		expect(response.headers["content-disposition"]).toBeUndefined();
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-reader-content]")?.textContent).toContain("Welcome to the talk");
+	});
+
+	it("still builds the EPUB for a direct ?format=epub request on a book upload", async () => {
+		const { harness, sessionCookie, markTranscribed } = await openUploadHarness({ kind: "book", fileName: "dune.epub" });
+		await markTranscribed();
+
+		const response = await request(harness.server)
+			.get(`/queue/${UPLOAD_ID}/view?format=epub`)
+			.set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toContain("application/epub+zip");
+		expect(response.headers["content-disposition"]).toMatch(/^attachment; filename=/);
+	});
 });
