@@ -754,7 +754,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(query).toContain(`| filter stream = "${STREAMS.analytics}"`);
 		expect(query).toContain(`| filter event in ["${ANALYTICS_EVENTS.highlightCreated}", "${ANALYTICS_EVENTS.highlightDeleted}"]`);
 		expect(query).toContain(
-			"| fields toMillis(@timestamp) as ms | stats earliest(origin) as origin, count(*) as events, max(ms) - min(ms) as lifeMs by highlight_id | filter ispresent(origin) | stats count(*) as creates, sum(events = 2 and lifeMs < 30000) as quickDeletes by origin",
+			"| fields toMillis(@timestamp) as ms | stats earliest(origin) as first_origin, count(*) as events, max(ms) - min(ms) as lifeMs by highlight_id | filter ispresent(first_origin) | stats count(*) as creates, sum(events = 2 and lifeMs < 30000) as quickDeletes by first_origin",
 		);
 	});
 
