@@ -54,7 +54,7 @@
     "@packages/logger": "workspace:*",
     "@packages/media-contracts": "workspace:*",
     "esbuild": "catalog:",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@packages/test-fixtures": "workspace:*",

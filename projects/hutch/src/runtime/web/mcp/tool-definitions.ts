@@ -80,7 +80,7 @@ export const TEXT_BEFORE_MAX_LENGTH = 200;
 
 export const CreateHighlightArgs = z.object({
 	id: z.string().min(1),
-	quote: z.string().min(1).max(HIGHLIGHT_MAX_EXACT_LENGTH),
+	quote: z.string().min(1).refine((quote) => quote.length <= HIGHLIGHT_MAX_EXACT_LENGTH),
 	note: HighlightNoteSchema.optional(),
 	text_before: z.string().min(1).max(TEXT_BEFORE_MAX_LENGTH).optional(),
 });

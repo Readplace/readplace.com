@@ -17,7 +17,7 @@
     "@packages/domain": "workspace:*",
     "@packages/storage-client": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

@@ -33,7 +33,7 @@ export const HIGHLIGHT_NOTE_MAX_LENGTH = 8191;
 export const HighlightNoteSchema = z
 	.string()
 	.transform((value) => value.replace(/\r\n/g, "\n").trim())
-	.pipe(z.string().max(HIGHLIGHT_NOTE_MAX_LENGTH))
+	.refine((value) => value.length <= HIGHLIGHT_NOTE_MAX_LENGTH)
 	.transform((value) => (value === "" ? undefined : value));
 
 export type JoinedNote = { ok: true; note?: string } | { ok: false };

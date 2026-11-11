@@ -42,13 +42,13 @@
     "@packages/web-analytics": "workspace:*",
     "@packages/web-session": "workspace:*",
     "@packages/web-shell": "workspace:*",
-    "compression": "1.8.1",
+    "compression": "1.8.2",
     "cookie-parser": "1.4.7",
-    "express": "5.2.1",
+    "express": "5.3.0",
     "helmet": "8.2.0",
     "linkedom": "0.18.12",
     "serverless-http": "4.0.0",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@packages/check-unused-css": "workspace:*",

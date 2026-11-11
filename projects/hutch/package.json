@@ -86,13 +86,13 @@
     "@packages/web-session": "workspace:*",
     "@packages/web-shell": "workspace:*",
     "browser-extension-core": "workspace:*",
-    "compression": "1.8.1",
+    "compression": "1.8.2",
     "cookie-parser": "1.4.7",
     "cors": "2.8.6",
-    "express": "5.2.1",
+    "express": "5.3.0",
     "fflate": "0.8.2",
     "gray-matter": "4.0.3",
-    "handlebars": "4.7.9",
+    "handlebars": "4.7.10",
     "helmet": "8.2.0",
     "isbot": "5.1.40",
     "linkedom": "0.18.12",
@@ -100,7 +100,7 @@
     "resend": "6.12.4",
     "serverless-http": "4.0.0",
     "strtok3": "10.7.0",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@aws-sdk/client-cloudfront": "3.1057.0",

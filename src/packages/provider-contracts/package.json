@@ -246,7 +246,7 @@
     "@packages/article-parser": "workspace:*",
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/domain": "workspace:*",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "concurrently": "10.0.0",

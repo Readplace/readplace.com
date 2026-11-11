@@ -20,8 +20,8 @@
     "@packages/site-rules": "workspace:*",
     "escape-html": "1.0.3",
     "linkedom": "0.18.12",
-    "undici": "6.21.0",
-    "zod": "4.4.3"
+    "undici": "6.29.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/escape-html": "1.0.4",

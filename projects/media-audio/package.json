@@ -31,7 +31,7 @@
     "@packages/tier-source": "workspace:*",
     "@packages/transcript-quota": "workspace:*",
     "music-metadata": "12.3.3",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@packages/test-fixtures": "workspace:*",

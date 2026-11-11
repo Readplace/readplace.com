@@ -74,7 +74,7 @@
     "@packages/web-shell": "workspace:*",
     "esbuild": "catalog:",
     "js-base64": "3.7.8",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@packages/check-unused-css": "workspace:*",
