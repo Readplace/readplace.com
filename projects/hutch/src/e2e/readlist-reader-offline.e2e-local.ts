@@ -452,7 +452,7 @@ test.describe("Offline reading", () => {
 
 		await page.goto(new URL(href, BASE_URL).href, { waitUntil: "domcontentloaded" });
 		await expect(page.locator(READER_BODY)).toContainText("Offline download body 0.");
-		await expect(page.locator(READER_CONTENT_BANNERS)).toHaveCount(2);
+		await expect(page.locator(READER_CONTENT_BANNERS)).toHaveCount(1);
 		await expect(page.locator(`${READER_CONTENT_BANNERS}:not([hidden])`)).toHaveCount(0);
 	});
 
