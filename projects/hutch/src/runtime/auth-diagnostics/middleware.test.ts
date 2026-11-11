@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import express from "express";
 import request from "supertest";
 import { useLoopbackServer } from "@packages/web-test-harness";
@@ -31,6 +32,37 @@ describe("authentication request diagnostics", () => {
 		expect(events[0]).toMatchObject({ event: "oauth_exchange_finished", outcome: "success", grant_id: "new-grant", subject_ref: diagnostics.permits.reference({ kind: "subject", value: "private-user" }) });
 		expect(JSON.stringify(events).includes("private-")).toBe(false);
 		expect(JSON.stringify(events).includes(permit)).toBe(false);
+	});
+	it("records a refused refresh answered by the OAuth router mounted under /oauth", async () => {
+		const { app, events } = create();
+		const installation = randomUUID();
+		const oauthRouter = express.Router();
+		oauthRouter.post("/token", (_req, res) => res.status(400).json({ error: "invalid_grant" }));
+		app.use("/oauth", oauthRouter);
+		await request(serve(app)).post("/oauth/token").set("X-Readplace-Client-Version", "1.0.680")
+			.set("X-Readplace-Installation-Id", installation)
+			.send({ client_id: "ios-app", grant_type: "refresh_token", refresh_token: "private-refresh" });
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ event: "oauth_exchange_finished", outcome: "failure", http_status: 400, client: "ios",
+			reason: "unknown", installation_ref: installation, client_version: "1.0.680" });
+	});
+	it("records only the real token exchange and session bridge behind their CORS preflights", async () => {
+		const { app, events } = create();
+		const preflight = cors({ origin: "chrome-extension://readplace", allowedHeaders: ["Content-Type", "X-Readplace-Installation-Id"] });
+		app.use("/oauth/token", preflight);
+		app.use("/auth/session", preflight);
+		app.post("/oauth/token", (_req, res) => res.json({ access_token: "private-access" }));
+		app.post("/auth/session", (_req, res) => res.sendStatus(204));
+		for (const path of ["/oauth/token", "/auth/session"]) {
+			await request(serve(app)).options(path).set("Origin", "chrome-extension://readplace")
+				.set("Access-Control-Request-Method", "POST").set("Access-Control-Request-Headers", "X-Readplace-Installation-Id");
+			await request(serve(app)).post(path).send({ client_id: "hutch-chrome-extension" });
+		}
+		const outcomes = events.filter((event) => event.event === "oauth_exchange_finished" || event.event === "session_bridge_completed");
+		expect(outcomes).toEqual([
+			expect.objectContaining({ event: "oauth_exchange_finished", outcome: "success", http_status: 200 }),
+			expect.objectContaining({ event: "session_bridge_completed", outcome: "success", http_status: 204 }),
+		]);
 	});
 	it("correlates server arrivals with one application attempt and keeps response credentials out of events", async () => {
 		const { app, events, diagnostics } = create();

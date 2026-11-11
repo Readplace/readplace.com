@@ -45,6 +45,7 @@ export function initAuthDiagnosticMiddleware(deps: {
 	secureCookies: boolean;
 }): RequestHandler {
 	return (req, res, next) => {
+		const path = req.path;
 		const started = deps.now().getTime();
 		const parsedBody = requestFields.safeParse(req.body).data;
 		const parsedQuery = requestFields.safeParse(req.query).data;
@@ -61,12 +62,12 @@ export function initAuthDiagnosticMiddleware(deps: {
 			installation_ref: z.uuid().safeParse(req.get("X-Readplace-Installation-Id")).data,
 			reason: requestCause(req),
 		};
-		const boundary = loginStarts.has(req.path) || callbacks.has(req.path) || req.path === "/oauth/authorize" || req.path === "/auth/session" || req.path === "/auth/handoff";
-		if ((loginStarts.has(req.path) || req.path === "/oauth/authorize") && flow === undefined) {
+		const boundary = loginStarts.has(path) || callbacks.has(path) || path === "/oauth/authorize" || path === "/auth/session" || path === "/auth/handoff";
+		if ((loginStarts.has(path) || path === "/oauth/authorize") && flow === undefined) {
 			res.cookie(FLOW_COOKIE, context.context_id, { httpOnly: true, secure: deps.secureCookies, sameSite: "lax", maxAge: 30 * 60 * 1_000, path: "/" });
 		}
 		let tokenOutcome: z.infer<typeof responseFields> | undefined;
-		if (req.path === "/oauth/token") {
+		if (path === "/oauth/token") {
 			const json = res.json.bind(res);
 			res.json = (body: unknown) => {
 				tokenOutcome = responseFields.safeParse(body).data;
@@ -75,8 +76,9 @@ export function initAuthDiagnosticMiddleware(deps: {
 		}
 		const observe = (event: Record<string, unknown>) => authDiagnosticContext.run(context, () => deps.diagnostics.observe(event));
 		res.on("finish", () => {
+			if (req.method === "OPTIONS") return;
 			const common = { http_status: res.statusCode, duration_ms: Math.max(0, deps.now().getTime() - started) };
-			if (req.path === "/oauth/token") {
+			if (path === "/oauth/token") {
 				const permit = tokenOutcome?.readplace?.diagnostics_permit ?? tokenOutcome?.diagnostics_permit;
 				const owner = permit === undefined ? undefined : deps.diagnostics.permits.verify(permit);
 				observe({
@@ -87,24 +89,24 @@ export function initAuthDiagnosticMiddleware(deps: {
 					...(owner ? { subject_ref: owner.subject_ref } : {}),
 				});
 			}
-			if (req.path === "/auth/session") observe({ event: "session_bridge_completed", ...common, outcome: res.statusCode === 204 ? "success" : "failure", ...(context.auth_refusal_reason ? { reason: context.auth_refusal_reason } : {}) });
-			if (req.path === "/auth/handoff") {
+			if (path === "/auth/session") observe({ event: "session_bridge_completed", ...common, outcome: res.statusCode === 204 ? "success" : "failure", ...(context.auth_refusal_reason ? { reason: context.auth_refusal_reason } : {}) });
+			if (path === "/auth/handoff") {
 				const succeeded = req.method === "POST" ? res.statusCode === 200 : issuedSessionCookie(res);
 				observe({ event: "session_bridge_completed", ...common, outcome: succeeded ? "success" : "failure" });
 			}
-			if (req.path === "/logout") observe({ event: "logout_completed", ...common, outcome: res.statusCode === 303 ? "success" : "failure" });
-			if ((req.path === "/login" && req.method === "POST") || callbacks.has(req.path)) {
+			if (path === "/logout") observe({ event: "logout_completed", ...common, outcome: res.statusCode === 303 ? "success" : "failure" });
+			if ((path === "/login" && req.method === "POST") || callbacks.has(path)) {
 				const issued = issuedSessionCookie(res);
 				const reason = AuthDiagnosticReason.safeParse(res.locals.authDiagnosticReason).data;
 				observe({ event: "login_finished", ...common, outcome: issued ? "success" : reason === "user_cancelled" ? "cancelled" : "failure", ...(reason ? { reason } : {}) });
 			}
-			if (res.statusCode === 401 && !boundary && req.path !== "/diagnostics/auth") observe({ event: "authentication_refused", reason: context.auth_refusal_reason ?? "unknown", ...common });
+			if (res.statusCode === 401 && !boundary && path !== "/diagnostics/auth") observe({ event: "authentication_refused", reason: context.auth_refusal_reason ?? "unknown", ...common });
 		});
 		authDiagnosticContext.run(context, () => {
 			if (boundary && !req.cookies?.[SESSION_COOKIE_NAME]) observe({ event: "session_unavailable", reason: "cookie_absent" });
-			if (req.path === "/login" && req.method === "GET") observe({ event: "login_prompt_shown" });
-			if (loginStarts.has(req.path) && (req.method === "POST" || req.path.startsWith("/auth/"))) observe({ event: "login_started" });
-			if (callbacks.has(req.path)) observe({ event: "login_callback_received" });
+			if (path === "/login" && req.method === "GET") observe({ event: "login_prompt_shown" });
+			if (loginStarts.has(path) && (req.method === "POST" || path.startsWith("/auth/"))) observe({ event: "login_started" });
+			if (callbacks.has(path)) observe({ event: "login_callback_received" });
 			next();
 		});
 	};
