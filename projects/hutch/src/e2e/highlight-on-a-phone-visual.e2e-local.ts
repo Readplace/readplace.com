@@ -3,6 +3,7 @@ import { captureCheckpoint, expect, measuredBox, test, type VisualCheckpoint, wa
 import { requireEnv } from "@packages/require-env";
 import { devices, type Page } from "@playwright/test";
 import { z } from "zod";
+import { noteGlyphGeometry } from "./highlight-note-glyph.browser";
 import { pointInsideText, selectedText, toolbarBelowSelection } from "./highlight-on-a-phone.browser";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 import { MACOS_CHROME_USER_AGENT } from "./user-agents";
@@ -17,6 +18,8 @@ const CONTENT = "[data-test-reader-content]";
 const READY_SLOT = '[data-test-reader-slot][data-reader-status="ready"]';
 const TOOLBAR = "[data-test-highlight-toolbar]";
 const SHOWN_TOOLBAR = `${TOOLBAR}:not([hidden])`;
+const NOTE_END = `${CONTENT} mark.article-highlight--note-end`;
+const NOTE_DIALOG = "#note-highlight-dialog";
 const TAPPED_SENTENCE = "A single tap on this sentence selects it whole.";
 const ARTICLE = [
 	`<p>The reader holds the phone in one hand. ${TAPPED_SENTENCE} The bar waits underneath.</p>`,
@@ -113,6 +116,47 @@ function checkpoint(name: string): VisualCheckpoint {
 const TOOLBAR_UNDER_SENTENCE_LIGHT = checkpoint("highlight-phone-toolbar-light");
 const TOOLBAR_UNDER_SENTENCE_DARK = checkpoint("highlight-phone-toolbar-dark");
 
+async function noteTappedSentence(page: Page): Promise<void> {
+	await page.locator('[data-test-action="add-note"]').tap();
+	await page.locator("[data-test-highlight-note-input]").fill("Worth coming back to.");
+	await page.locator('[data-test-action="highlight-note-save"]').tap();
+	await expect(page.locator(NOTE_END)).toHaveText(TAPPED_SENTENCE, { timeout: SETTLE_MS });
+}
+
+async function notedSentenceSettled(page: Page): Promise<void> {
+	await expect(page.locator(NOTE_END)).toHaveCount(1);
+	await expect(page.locator(TOOLBAR)).toBeHidden();
+	await expect(page.locator(`${NOTE_DIALOG}[open]`)).toHaveCount(0);
+	await page.evaluate(neutraliseVolatileChrome, {
+		volatile: VOLATILE_CHROME,
+		times: [],
+	});
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function noteGlyphOnLastWordLine(page: Page): Promise<void> {
+	const glyph = await page.evaluate(noteGlyphGeometry, { mark: NOTE_END });
+	assert.ok(Math.abs(glyph.segmentTop - glyph.lastCharacterTop) <= 1, "the glyph sits on the last word's line");
+	assert.ok(
+		Math.abs(glyph.segmentRight - glyph.lastCharacterRight - 1.5 * glyph.fontSize) <= 1,
+		"the glyph's box follows the last character by 1.5em",
+	);
+}
+
+function notedCheckpoint(name: string): VisualCheckpoint {
+	return {
+		name,
+		settled: notedSentenceSettled,
+		geometry: noteGlyphOnLastWordLine,
+		target: CONTENT,
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
+const NOTED_SENTENCE_LIGHT = notedCheckpoint("highlight-phone-noted-light");
+const NOTED_SENTENCE_DARK = notedCheckpoint("highlight-phone-noted-dark");
+
 test.describe("The highlight bar on a phone", () => {
 	test.use({
 		...PIXEL_7,
@@ -130,5 +174,30 @@ test.describe("The highlight bar on a phone", () => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openTappedSentence(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
 		await captureCheckpoint(page, TOOLBAR_UNDER_SENTENCE_DARK);
+	});
+
+	test("shows a note glyph after a noted sentence (light)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openTappedSentence(page, `noted-light-${testInfo.workerIndex}-${Date.now()}`);
+		await noteTappedSentence(page);
+		await captureCheckpoint(page, NOTED_SENTENCE_LIGHT);
+	});
+
+	test("shows a note glyph after a noted sentence (dark)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		await openTappedSentence(page, `noted-dark-${testInfo.workerIndex}-${Date.now()}`);
+		await noteTappedSentence(page);
+		await captureCheckpoint(page, NOTED_SENTENCE_DARK);
+	});
+
+	test("keeps the note glyph on its last word's line at every phone width", async ({ page }, testInfo) => {
+		await openTappedSentence(page, `noted-sweep-${testInfo.workerIndex}-${Date.now()}`);
+		await noteTappedSentence(page);
+		const viewport = page.viewportSize();
+		assert(viewport, "the phone project sets a viewport");
+		for (let width = 320; width <= 420; width += 10) {
+			await page.setViewportSize({ width, height: viewport.height });
+			await noteGlyphOnLastWordLine(page);
+		}
 	});
 });

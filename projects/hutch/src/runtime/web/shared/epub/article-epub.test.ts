@@ -459,7 +459,7 @@ describe("initBuildArticleEpub with highlights", () => {
 		expect(body.querySelector(`mark[data-highlight-id="${FIRST_ID}"]`)?.textContent).toBe("beta gamma");
 		expect(sectionEntries(body)).toEqual([
 			["blockquote", "beta gamma"],
-			["p", "A note"],
+			["p", "1 A note"],
 			["blockquote", "Words that are nowhere (not found in the current version)"],
 		]);
 	});

@@ -286,6 +286,165 @@ describe("markHighlights", () => {
 		expect(marked.states).toEqual([]);
 	});
 
+	it("marks every segment of a noted highlight as having a note and only its last as the note's end", () => {
+		const html = "<p>Alpha <em>beta</em> gamma</p>";
+		const highlight = {
+			...highlightOn({ html, exact: "pha beta", highlightId: FIRST_ID }),
+			note: "My thought",
+		};
+
+		const marked = markHighlights({
+			html,
+			highlights: { rows: [highlight], canonicalContentHash: CANONICAL_HASH },
+		});
+
+		const marks = marksOf(marked.html);
+		expect(marks.map((mark) => mark.getAttribute("class"))).toEqual([
+			"article-highlight article-highlight--has-note",
+			"article-highlight article-highlight--has-note article-highlight--note-end",
+		]);
+		expect(marks.map((mark) => mark.getAttribute("id"))).toEqual([
+			`highlight-${FIRST_ID}`,
+			null,
+		]);
+	});
+
+	it("gives a highlight without a note the plain highlight class only", () => {
+		const html = "<p>One two three</p>";
+		const highlight = highlightOn({ html, exact: "two", highlightId: FIRST_ID });
+
+		const marked = markHighlights({
+			html,
+			highlights: { rows: [highlight], canonicalContentHash: CANONICAL_HASH },
+		});
+
+		expect(marksOf(marked.html).map((mark) => mark.getAttribute("class"))).toEqual([
+			"article-highlight",
+		]);
+	});
+
+	it("marks a noted outer highlight's segments and leaves an un-noted inner one plain", () => {
+		const html = "<p>One two three</p>";
+		const outer = {
+			...highlightOn({ html, exact: "One two three", highlightId: FIRST_ID }),
+			note: "Outer thought",
+		};
+		const inner = highlightOn({ html, exact: "two", highlightId: SECOND_ID });
+
+		const marked = markHighlights({
+			html,
+			highlights: {
+				rows: [outer, inner],
+				canonicalContentHash: CANONICAL_HASH,
+			},
+		});
+
+		expect(
+			marksOf(marked.html).map((mark) => [
+				mark.getAttribute("data-highlight-id"),
+				mark.getAttribute("class"),
+			]),
+		).toEqual([
+			[FIRST_ID, "article-highlight article-highlight--has-note"],
+			[FIRST_ID, "article-highlight article-highlight--has-note"],
+			[SECOND_ID, "article-highlight"],
+			[
+				FIRST_ID,
+				"article-highlight article-highlight--has-note article-highlight--note-end",
+			],
+		]);
+	});
+
+	it("marks the note's end on each of two noted highlights that end on the same character", () => {
+		const html = "<p>One two three</p>";
+		const first = {
+			...highlightOn({ html, exact: "two three", highlightId: FIRST_ID }),
+			note: "First thought",
+		};
+		const second = {
+			...highlightOn({ html, exact: "three", highlightId: SECOND_ID }),
+			note: "Second thought",
+		};
+
+		const marked = markHighlights({
+			html,
+			highlights: {
+				rows: [first, second],
+				canonicalContentHash: CANONICAL_HASH,
+			},
+		});
+
+		const lastSegmentClassOf = (highlightId: string) =>
+			marksOf(marked.html)
+				.filter((mark) => mark.getAttribute("data-highlight-id") === highlightId)
+				.at(-1)
+				?.getAttribute("class");
+		expect([lastSegmentClassOf(FIRST_ID), lastSegmentClassOf(SECOND_ID)]).toEqual([
+			"article-highlight article-highlight--has-note article-highlight--note-end",
+			"article-highlight article-highlight--has-note article-highlight--note-end",
+		]);
+	});
+
+	it("leaves an orphaned noted highlight unmarked and keeps its note in the states", () => {
+		const html = "<p>Nothing to see here</p>";
+		const orphaned = {
+			...highlightOn({ html, exact: "Nothing", highlightId: FIRST_ID }),
+			exact: "absent passage",
+			note: "Lost thought",
+		};
+		const anchored = {
+			...highlightOn({ html, exact: "see", highlightId: SECOND_ID }),
+			note: "Kept thought",
+		};
+
+		const marked = markHighlights({
+			html,
+			highlights: {
+				rows: [orphaned, anchored],
+				canonicalContentHash: CANONICAL_HASH,
+			},
+		});
+
+		expect(
+			marksOf(marked.html).map((mark) => mark.getAttribute("data-highlight-id")),
+		).toEqual([SECOND_ID]);
+		expect(
+			marked.states.map((state) => [
+				state.highlight.highlightId,
+				state.anchor.anchorState,
+				state.highlight.note,
+			]),
+		).toEqual([
+			[FIRST_ID, "orphaned", "Lost thought"],
+			[SECOND_ID, "anchored", "Kept thought"],
+		]);
+	});
+
+	it("moves a noted highlight's note end with the passage when re-anchoring finds it elsewhere", () => {
+		const original = "<p>Alpha beta gamma delta</p>";
+		const highlight = {
+			...highlightOn({
+				html: original,
+				exact: "beta gamma",
+				highlightId: FIRST_ID,
+			}),
+			note: "My thought",
+		};
+		const moved = "<p>A new opening paragraph.</p><p>Alpha beta gamma delta</p>";
+
+		const marked = markHighlights({
+			html: moved,
+			highlights: { rows: [highlight], canonicalContentHash: "new-hash" },
+		});
+
+		const doc = new JSDOM(
+			`<!doctype html><html><body>${marked.html}</body></html>`,
+		).window.document;
+		expect(doc.querySelectorAll("p")[1].outerHTML).toBe(
+			`<p>Alpha <mark id="highlight-${FIRST_ID}" data-highlight-id="${FIRST_ID}" class="article-highlight article-highlight--has-note article-highlight--note-end">beta gamma</mark> delta</p>`,
+		);
+	});
+
 	it("uses the served text's own hash as the fast path's hash when the article has no canonical hash", () => {
 		const html = "<p>x said a x</p>";
 		const highlight = {
