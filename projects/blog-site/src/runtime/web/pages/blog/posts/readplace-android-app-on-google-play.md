@@ -1,8 +1,8 @@
 ---
 title: "Readplace for Android Is on Google Play"
-description: "The Readplace Android app is on Google Play for Android 10 and later. Share a page or a PDF from any Android browser and it saves to your readlist in the background, then opens in the app with its TL;DR, on the same account as the laptop."
+description: "The Readplace Android app is on Google Play for Android 10 and later. Share a page or an online PDF from any Android browser and it saves to your readlist in the background, then opens in the app with its TL;DR, on the same account as the laptop."
 excerpt: "\"There is no Android app\" came off the comparison pages this week. It's on Google Play now."
-tldr: "Android phones now save to Readplace from the share sheet. The app is on Google Play for Android 10 and later: share a page or a PDF from any browser on the phone, the save runs in the background, and the saved copy opens in the app's reader with its TL;DR, on the same account as the laptop and the browser extension. Several PDFs selected together go through in one share. When a site blocks the crawler, the app can copy the page from the phone instead. Offline Mode hasn't reached Android yet, so reading in the app still needs a connection."
+tldr: "Android phones now save to Readplace from the share sheet. The app is on Google Play for Android 10 and later: share a page or an online PDF from any browser on the phone, the save runs in the background, and the saved copy opens in the app's reader with its TL;DR, on the same account as the laptop and the browser extension. When a site blocks the crawler, the app can copy the page from the phone instead. Offline Mode hasn't reached Android yet, so reading in the app still needs a connection."
 slug: "readplace-android-app-on-google-play"
 date: "2026-11-11"
 author: "Fayner Brack"
@@ -31,7 +31,9 @@ Android orders that sheet by whatever gets shared to most, so a fresh install st
 
 ## PDFs go through the same sheet
 
-A PDF shares the way a page does. The paper a browser just downloaded, or the one sitting in the files app, goes through the same Share menu, and a few selected together go in one share, each file arriving as its own save.
+A PDF open in the browser shares the way a page does. The browser shares its link, and the paper arrives as its own save.
+
+The save needs that link. A PDF shared from the files app carries none, so the sheet answers that it found no link to save.
 
 Scans count too.
 
