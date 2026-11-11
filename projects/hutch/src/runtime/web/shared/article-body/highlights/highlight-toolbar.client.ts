@@ -2,7 +2,8 @@ import { collectTextChunks, normaliseText } from "@packages/domain/article/highl
 import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
-import { placeBelowSelection, TOOLBAR_GAP_PX, VIEWPORT_GUTTER_PX } from "./toolbar-placement-coarse";
+import { placeClearOfPassage } from "./place-clear-of-passage";
+import { placeBelowSelection } from "./toolbar-placement-coarse";
 
 export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
 
@@ -82,22 +83,6 @@ function passageOf(input: { range: Range; content: Element }): SelectedPassage |
 	return start < 0 ? undefined : { exact: text.slice(start, end), start, end };
 }
 
-function placeAboveSelection(input: {
-	rects: readonly ToolbarRect[];
-	size: { width: number; height: number };
-	viewport: ToolbarViewport;
-}): { top: number; left: number } {
-	const { rects, size, viewport } = input;
-	const first = rects[0];
-	const last = rects[rects.length - 1];
-	const above = first.top - size.height - TOOLBAR_GAP_PX;
-	const top = above < viewport.offsetTop ? last.bottom + TOOLBAR_GAP_PX : above;
-	const centred = first.left + first.width / 2 - viewport.offsetLeft - size.width / 2;
-	const maxLeft = viewport.width - size.width - VIEWPORT_GUTTER_PX;
-	const left = Math.min(Math.max(centred, VIEWPORT_GUTTER_PX), maxLeft) + viewport.offsetLeft;
-	return { top, left };
-}
-
 function originOf(event: Event): unknown {
 	return Reflect.get(Object(Reflect.get(event, "detail")), "origin");
 }
@@ -137,21 +122,24 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 	const place = (range: Range): void => {
 		const toolbar = toolbarOf();
 		const rects = deps.rectsOf(range);
-		assert(rects.length > 0, "a selection holding text has client rects");
 		const viewport = deps.window.visualViewport;
 		const size = toolbar.getBoundingClientRect();
+		const panel = { width: size.width, height: size.height };
+		const visible = {
+			width: viewport.width,
+			height: viewport.height,
+			offsetLeft: viewport.offsetLeft,
+			offsetTop: viewport.offsetTop,
+		};
 		const { top, left } = isCoarse()
-			? placeBelowSelection({
+			? placeBelowSelection({ rects, toolbar: panel, viewport: visible })
+			: placeClearOfPassage({
 					rects,
-					toolbar: { width: size.width, height: size.height },
-					viewport: {
-						width: viewport.width,
-						height: viewport.height,
-						offsetLeft: viewport.offsetLeft,
-						offsetTop: viewport.offsetTop,
-					},
-				})
-			: placeAboveSelection({ rects, size, viewport });
+					panel,
+					viewport: visible,
+					order: ["above", "below"],
+					whenNoneFits: "last-side",
+				});
 		toolbar.style.top = `${top}px`;
 		toolbar.style.left = `${left}px`;
 	};
