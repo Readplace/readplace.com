@@ -163,6 +163,32 @@ test.describe("Highlighting a passage in the reader", () => {
 		await expect(markHolding(page, FIRST_PASSAGE)).toHaveCount(1);
 	});
 
+	test("a click on a highlight keeps the page where it was", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(
+			page,
+			`click-${testInfo.workerIndex}-${Date.now()}`,
+		);
+		await highlight(page, FIRST_PASSAGE);
+		const mark = markHolding(page, FIRST_PASSAGE);
+		await expect(mark).toHaveCount(1);
+		await mark.scrollIntoViewIfNeeded();
+		await expect(mark).toBeInViewport();
+		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
+		const before = await page.evaluate(() => window.scrollY);
+
+		const opened = page.waitForRequest((request) => {
+			const url = new URL(request.url());
+			return url.pathname.endsWith("/highlights/opened") && url.searchParams.get("origin") === "mark";
+		});
+		await mark.click();
+		await opened;
+
+		expect(await page.evaluate(() => window.scrollY)).toBe(before);
+		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
+	});
+
 	test("a passage the server no longer finds at its offsets answers with a toast", async ({
 		page,
 	}, testInfo) => {

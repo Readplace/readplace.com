@@ -590,7 +590,7 @@ describe("initHighlightToolbar", () => {
 		expect(h.submitted).toHaveLength(0);
 	});
 
-	it("scrolls the rail to a clicked mark's row", () => {
+	it("a mark click never scrolls the rail or the page", () => {
 		const h = harness(mainHtml({ marks: true }));
 		const mark = markWord(h, "beta");
 		const row = h.doc.querySelector(`[data-highlight-row="${HIGHLIGHT_ID}"]`);
@@ -599,10 +599,13 @@ describe("initHighlightToolbar", () => {
 		Object.defineProperty(row, "scrollIntoView", {
 			value: (options: unknown) => scrolled.push(options),
 		});
+		const scrollYBefore = h.window.scrollY;
 
 		click(h, mark);
 
-		expect(scrolled).toEqual([{ block: "nearest" }]);
+		expect(scrolled).toEqual([]);
+		expect(h.window.scrollY).toBe(scrollYBefore);
+		expect(h.beacons).toEqual([`/queue/abc/highlights/opened?highlight=${HIGHLIGHT_ID}&origin=mark`]);
 	});
 
 	it("beacons a clicked mark as a highlight opened from the mark", () => {
@@ -632,14 +635,6 @@ describe("initHighlightToolbar", () => {
 		click(h, contentOf(h));
 
 		expect(h.beacons).toEqual([]);
-	});
-
-	it("ignores a mark click while the rail is not on the page, and a click elsewhere", () => {
-		const h = harness();
-		const mark = markWord(h, "beta");
-
-		expect(() => click(h, mark)).not.toThrow();
-		expect(() => click(h, contentOf(h))).not.toThrow();
 	});
 
 	describe("Add note", () => {

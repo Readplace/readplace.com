@@ -283,10 +283,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 			.filter((candidate) => path.includes(candidate))
 			.at(-1);
 		if (mark === undefined) return;
-		const highlightId = mark.getAttribute("data-highlight-id");
-		opened({ highlightId, origin: "mark" });
-		const row = document.querySelector(`[data-highlight-row="${highlightId}"]`);
-		row?.scrollIntoView({ block: "nearest" });
+		opened({ highlightId: mark.getAttribute("data-highlight-id"), origin: "mark" });
 	});
 	document.addEventListener(HIGHLIGHT_SELECTION_EVENT, (event) => {
 		const origin = originOf(event);

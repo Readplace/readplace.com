@@ -121,7 +121,7 @@ test.describe("Highlighting a passage on a phone", () => {
 		await expect(page.locator(RAIL_ROW)).toHaveAttribute("data-test-highlight-state", "anchored");
 	});
 
-	test("a link tap follows the link, a drawn selection shows the bar, a mark tap reveals its row, and a tap elsewhere hides the bar", async ({
+	test("a link tap follows the link, a drawn selection shows the bar, a mark tap keeps the page in place, and a tap elsewhere hides the bar", async ({
 		page,
 	}, testInfo) => {
 		await openHighlightableReader(page, `taps-${testInfo.workerIndex}-${Date.now()}`);
@@ -160,8 +160,14 @@ test.describe("Highlighting a passage on a phone", () => {
 		await page.evaluate(scrollWindowToTop);
 		await expect.poll(() => page.evaluate(windowScrollY)).toBe(0);
 		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
+		const opened = page.waitForRequest((request) => {
+			const url = new URL(request.url());
+			return url.pathname.endsWith("/highlights/opened") && url.searchParams.get("origin") === "mark";
+		});
 		await tapText(page, TAPPED_SENTENCE);
-		await expect(page.locator(RAIL_ROW)).toBeInViewport({ timeout: SETTLE_MS });
+		await opened;
+		expect(await page.evaluate(windowScrollY)).toBe(0);
+		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
 		await expect(page.locator(HIDDEN_TOOLBAR)).toHaveCount(1);
 	});
 });
