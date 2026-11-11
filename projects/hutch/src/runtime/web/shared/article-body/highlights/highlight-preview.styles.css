@@ -24,3 +24,14 @@
   -webkit-line-clamp: 8;
   overflow: hidden;
 }
+
+.highlight-preview--pinned {
+  max-height: 50dvh;
+  overflow-y: auto;
+}
+
+.highlight-preview--pinned .highlight-preview__note {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}

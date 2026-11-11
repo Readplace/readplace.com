@@ -98,6 +98,8 @@ function harness(): Harness {
 		isPopoverOpen: () => h.popoverOpen,
 		supportsPopover: () => true,
 		showPopover: () => undefined,
+		hidePopover: () => undefined,
+		isFocusVisible: () => false,
 		sendBeacon: () => undefined,
 	});
 	const marked = elementOf(h, ".article-body__content em");

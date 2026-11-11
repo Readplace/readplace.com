@@ -34,3 +34,8 @@ main:has(.highlight-toolbar__form.htmx-request) .article-body__content {
   opacity: 0.6;
   transition: opacity 150ms ease;
 }
+
+.article-highlight:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

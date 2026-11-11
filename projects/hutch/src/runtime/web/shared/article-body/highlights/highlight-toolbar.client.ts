@@ -1,6 +1,7 @@
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
+import { initHighlightPreviews } from "./highlight-preview.client";
 import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
 import { placeClearOfPassage } from "./place-clear-of-passage";
 import { placeBelowSelection } from "./toolbar-placement-coarse";
@@ -54,6 +55,8 @@ interface HighlightToolbarDeps {
 	isPopoverOpen: () => boolean;
 	supportsPopover: () => boolean;
 	showPopover: (panel: Element) => void;
+	hidePopover: (panel: Element) => void;
+	isFocusVisible: (element: Element) => boolean;
 	sendBeacon: (url: string) => void;
 }
 
@@ -108,6 +111,18 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		selectionOf,
 	});
 
+	const previews = initHighlightPreviews({
+		document,
+		window: deps.window,
+		timers: deps.timers,
+		rectsOf: deps.rectsOf,
+		selectionOf,
+		supportsPopover: deps.supportsPopover,
+		showPopover: deps.showPopover,
+		hidePopover: deps.hidePopover,
+		isFocusVisible: deps.isFocusVisible,
+	});
+
 	const pressOrigin = (range: Range): HighlightCreatedEvent["origin"] => {
 		if (sentenceTap.isTapped(range)) return "tap";
 		return isCoarse() ? "longpress" : "mouse";
@@ -150,6 +165,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 	};
 
 	const show = (range: Range): void => {
+		previews.hide();
 		shown = range;
 		toolbarOf().hidden = false;
 		place(range);
@@ -214,6 +230,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		if (form.getAttribute("data-highlight-note-refusal") !== PASSAGE_REFUSAL) note.value = "";
 		note.removeAttribute("aria-invalid");
 		error.textContent = "";
+		previews.hide();
 		deps.showPopover(dialog);
 		hide();
 	};
@@ -239,6 +256,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		deps.window.requestAnimationFrame(() => {
 			frameRequested = false;
 			if (shown !== undefined) place(shown);
+			previews.reposition();
 		});
 	};
 

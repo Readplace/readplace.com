@@ -59,13 +59,33 @@ function rowNoteFormsHtml(): string {
 	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", scope })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", scope })}</details>`;
 }
 
-function mainHtml(input: { content?: string; marks?: boolean; rowNoteForms?: boolean } = {}): string {
+function notedBeta(): Highlight {
+	return {
+		highlightId: HIGHLIGHT_ID,
+		highlightOf: READER_URL,
+		exact: "beta",
+		prefix: "",
+		suffix: "",
+		start: 9,
+		end: 13,
+		anchoredContentHash: "hash",
+		anchorState: "anchored",
+		orderKey: 0,
+		createdAt: new Date("2026-11-01T00:00:00.000Z"),
+		updatedAt: new Date("2026-11-01T00:00:00.000Z"),
+		anchorRevision: 0,
+		note: "A note on beta",
+	};
+}
+
+function mainHtml(input: { content?: string; marks?: boolean; rowNoteForms?: boolean; noted?: boolean } = {}): string {
 	const content = input.content ?? CONTENT;
 	const reader = renderReaderReady({
 		readerSection: READER_SECTION,
 		url: READER_URL,
 		content: articleBody(content),
 		appOrigin: APP_ORIGIN,
+		...(input.noted ? { highlights: { rows: [notedBeta()], canonicalContentHash: "hash" } } : {}),
 	}).html;
 	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
 }
@@ -90,6 +110,7 @@ interface Harness {
 	submitted: HTMLFormElement[];
 	popoverSupported: boolean;
 	shownPopovers: Element[];
+	hiddenPopovers: Element[];
 	beacons: string[];
 }
 
@@ -133,6 +154,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		submitted,
 		popoverSupported: true,
 		shownPopovers: [],
+		hiddenPopovers: [],
 		beacons: [],
 		coarse: false,
 		scrollWindow() {
@@ -177,6 +199,8 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		isPopoverOpen: () => false,
 		supportsPopover: () => h.popoverSupported,
 		showPopover: (panel) => h.shownPopovers.push(panel),
+		hidePopover: (panel) => h.hiddenPopovers.push(panel),
+		isFocusVisible: () => true,
 		sendBeacon: (url) => h.beacons.push(url),
 	});
 	const toolbar = toolbarOf(h);
@@ -307,6 +331,8 @@ describe("initHighlightToolbar", () => {
 				isPopoverOpen: () => false,
 				supportsPopover: () => true,
 				showPopover: () => undefined,
+				hidePopover: () => undefined,
+				isFocusVisible: () => false,
 				sendBeacon: () => undefined,
 			}),
 		).toThrow("the highlight script ships with its toolbar");
@@ -614,6 +640,37 @@ describe("initHighlightToolbar", () => {
 		click(h, markWord(h, "beta"));
 
 		expect(h.beacons).toEqual([`/queue/abc/highlights/opened?highlight=${HIGHLIGHT_ID}&origin=mark`]);
+	});
+
+	it("beacons Enter on a keyboard-focused noted mark once, as a mark open", () => {
+		const h = harness(mainHtml({ noted: true }));
+		const mark = h.doc.querySelector(`mark#highlight-${HIGHLIGHT_ID}`);
+		assert(mark);
+		expect(mark.getAttribute("tabindex")).toBe("0");
+		mark.dispatchEvent(new h.window.FocusEvent("focusin", { bubbles: true }));
+
+		mark.dispatchEvent(new h.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+
+		expect(h.beacons).toEqual([`/queue/abc/highlights/opened?highlight=${HIGHLIGHT_ID}&origin=mark`]);
+	});
+
+	it("hides a pinned note preview when the bar shows for a selection, and moves it on a scroll", () => {
+		const h = harness(mainHtml({ noted: true }));
+		const mark = h.doc.querySelector(`mark#highlight-${HIGHLIGHT_ID}`);
+		const preview = h.doc.querySelector<HTMLElement>(`#preview-highlight-${HIGHLIGHT_ID}`);
+		assert(mark && preview);
+		Object.defineProperty(preview, "getBoundingClientRect", { value: () => ({ width: 100, height: 40 }) });
+		click(h, mark);
+		h.rects = [{ top: 500, bottom: 520, left: 400, width: 200 }];
+		h.scrollWindow();
+		h.runFrames();
+		expect(preview.style.top).toBe(`${500 - 10 - 40}px`);
+
+		selectWords(h, { from: "Delta" });
+		settleSelection(h);
+
+		expect(h.shownPopovers).toEqual([preview]);
+		expect(h.hiddenPopovers).toEqual([preview]);
 	});
 
 	it("beacons a rail Jump click as a highlight opened from the rail", () => {
