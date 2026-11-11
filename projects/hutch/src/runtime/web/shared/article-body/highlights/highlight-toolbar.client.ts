@@ -1,7 +1,7 @@
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
-import { initHighlightPreviews } from "./highlight-preview.client";
+import { type HighlightPreviews, initHighlightPreviews } from "./highlight-preview.client";
 import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
 import { placeClearOfPassage } from "./place-clear-of-passage";
 import { placeBelowSelection } from "./toolbar-placement-coarse";
@@ -90,17 +90,15 @@ function originOf(event: Event): unknown {
 	return Reflect.get(Object(Reflect.get(event, "detail")), "origin");
 }
 
-export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
+function startToolbar(input: {
+	deps: HighlightToolbarDeps;
+	previews: HighlightPreviews;
+	selectionOf: () => Selection;
+}): () => void {
+	const { deps, previews, selectionOf } = input;
 	const { document } = deps;
 	let shown: Range | undefined;
 	let pending: unknown;
-	let frameRequested = false;
-
-	const selectionOf = (): Selection => {
-		const selection = document.getSelection();
-		assert(selection, "a live reader document always has a selection");
-		return selection;
-	};
 
 	const isCoarse = (): boolean => deps.window.matchMedia(COARSE_POINTER_QUERY).matches;
 
@@ -109,18 +107,6 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		window: deps.window,
 		isPopoverOpen: deps.isPopoverOpen,
 		selectionOf,
-	});
-
-	const previews = initHighlightPreviews({
-		document,
-		window: deps.window,
-		timers: deps.timers,
-		rectsOf: deps.rectsOf,
-		selectionOf,
-		supportsPopover: deps.supportsPopover,
-		showPopover: deps.showPopover,
-		hidePopover: deps.hidePopover,
-		isFocusVisible: deps.isFocusVisible,
 	});
 
 	const pressOrigin = (range: Range): HighlightCreatedEvent["origin"] => {
@@ -250,16 +236,6 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		deps.sendBeacon(`${url}?${new URLSearchParams({ highlight: input.highlightId, origin: input.origin })}`);
 	};
 
-	const reposition = (): void => {
-		if (frameRequested) return;
-		frameRequested = true;
-		deps.window.requestAnimationFrame(() => {
-			frameRequested = false;
-			if (shown !== undefined) place(shown);
-			previews.reposition();
-		});
-	};
-
 	hide();
 	document.addEventListener("selectionchange", () => scheduleCheck(SELECTION_DEBOUNCE_MS));
 	document.addEventListener("pointerup", () => scheduleCheck(POINTER_SETTLE_MS));
@@ -297,6 +273,46 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		if (typeof origin !== "string" || selection.rangeCount === 0) return;
 		submit({ range: selection.getRangeAt(0).cloneRange(), origin, formSelector: FORM_SELECTOR });
 	});
+	return () => {
+		if (shown !== undefined) place(shown);
+	};
+}
+
+export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
+	const { document } = deps;
+	let frameRequested = false;
+
+	const selectionOf = (): Selection => {
+		const selection = document.getSelection();
+		assert(selection, "a live reader document always has a selection");
+		return selection;
+	};
+
+	const previews = initHighlightPreviews({
+		document,
+		window: deps.window,
+		timers: deps.timers,
+		rectsOf: deps.rectsOf,
+		selectionOf,
+		supportsPopover: deps.supportsPopover,
+		showPopover: deps.showPopover,
+		hidePopover: deps.hidePopover,
+		isFocusVisible: deps.isFocusVisible,
+	});
+
+	const placeToolbar =
+		document.querySelector(TOOLBAR_SELECTOR) === null ? undefined : startToolbar({ deps, previews, selectionOf });
+
+	const reposition = (): void => {
+		if (frameRequested) return;
+		frameRequested = true;
+		deps.window.requestAnimationFrame(() => {
+			frameRequested = false;
+			placeToolbar?.();
+			previews.reposition();
+		});
+	};
+
 	deps.window.visualViewport.addEventListener("scroll", reposition);
 	deps.window.visualViewport.addEventListener("resize", reposition);
 	deps.window.addEventListener("scroll", reposition, { passive: true });

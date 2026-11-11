@@ -78,7 +78,9 @@ function notedBeta(): Highlight {
 	};
 }
 
-function mainHtml(input: { content?: string; marks?: boolean; rowNoteForms?: boolean; noted?: boolean } = {}): string {
+function mainHtml(
+	input: { content?: string; marks?: boolean; rowNoteForms?: boolean; noted?: boolean; toolbar?: boolean } = {},
+): string {
 	const content = input.content ?? CONTENT;
 	const reader = renderReaderReady({
 		readerSection: READER_SECTION,
@@ -87,7 +89,7 @@ function mainHtml(input: { content?: string; marks?: boolean; rowNoteForms?: boo
 		appOrigin: APP_ORIGIN,
 		...(input.noted ? { highlights: { rows: [notedBeta()], canonicalContentHash: "hash" } } : {}),
 	}).html;
-	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
+	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${input.toolbar === false ? "" : renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
 }
 
 interface Harness {
@@ -181,7 +183,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 			},
 			requestAnimationFrame: (callback) => frames.push(callback),
 			matchMedia: (query) => ({
-				matches: query === "(pointer: coarse)" && h.coarse,
+				matches: query === "(pointer: coarse)" ? h.coarse : query === "(hover: hover)" && !h.coarse,
 			}),
 			addEventListener: (_type, listener, options) => scrollListeners.push({ listener, passive: options.passive }),
 		},
@@ -203,11 +205,13 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		isFocusVisible: () => true,
 		sendBeacon: (url) => h.beacons.push(url),
 	});
-	const toolbar = toolbarOf(h);
-	Object.defineProperty(toolbar, "getBoundingClientRect", {
-		value: () => TOOLBAR_SIZE,
-		configurable: true,
-	});
+	const toolbar = doc.querySelector("[data-test-highlight-toolbar]");
+	if (toolbar !== null) {
+		Object.defineProperty(toolbar, "getBoundingClientRect", {
+			value: () => TOOLBAR_SIZE,
+			configurable: true,
+		});
+	}
 	return h;
 }
 
@@ -309,33 +313,27 @@ function servedText(h: Harness): string {
 }
 
 describe("initHighlightToolbar", () => {
-	it("refuses to start on a page without its toolbar", () => {
-		const dom = new JSDOM("<main></main>");
-		expect(() =>
-			initHighlightToolbar({
-				document: dom.window.document,
-				window: {
-					visualViewport: {
-						width: 0,
-						height: 0,
-						offsetLeft: 0,
-						offsetTop: 0,
-						addEventListener: () => undefined,
-					},
-					requestAnimationFrame: () => undefined,
-					matchMedia: () => ({ matches: false }),
-					addEventListener: () => undefined,
-				},
-				timers: { setTimeout: () => undefined, clearTimeout: () => undefined },
-				rectsOf: () => [],
-				isPopoverOpen: () => false,
-				supportsPopover: () => true,
-				showPopover: () => undefined,
-				hidePopover: () => undefined,
-				isFocusVisible: () => false,
-				sendBeacon: () => undefined,
-			}),
-		).toThrow("the highlight script ships with its toolbar");
+	it("on a page without its toolbar, only the previews start", () => {
+		const h = harness(mainHtml({ noted: true, toolbar: false }));
+		const mark = h.doc.querySelector(`mark#highlight-${HIGHLIGHT_ID}`);
+		const preview = h.doc.querySelector<HTMLElement>(`#preview-highlight-${HIGHLIGHT_ID}`);
+		assert(mark && preview);
+		Object.defineProperty(preview, "getBoundingClientRect", { value: () => ({ width: 100, height: 40 }) });
+		const hover = new h.window.MouseEvent("pointerover", { bubbles: true });
+		Object.defineProperty(hover, "pointerType", { value: "mouse" });
+		Object.defineProperty(hover, "buttons", { value: 0 });
+
+		mark.dispatchEvent(hover);
+		h.runTimer(400);
+		expect(h.shownPopovers).toEqual([preview]);
+		click(h, mark);
+		expect(preview.classList.contains("highlight-preview--pinned")).toBe(true);
+		h.rects = [{ top: 500, bottom: 520, left: 400, width: 200 }];
+		h.scrollWindow();
+		h.runFrames();
+		expect(preview.style.top).toBe(`${500 - 10 - 40}px`);
+
+		expect(h.beacons).toEqual([]);
 	});
 
 	it("shows the bar for a selection inside the article, once the selection has rested 100 ms", () => {
@@ -671,6 +669,20 @@ describe("initHighlightToolbar", () => {
 
 		expect(h.shownPopovers).toEqual([preview]);
 		expect(h.hiddenPopovers).toEqual([preview]);
+	});
+
+	it("refuses a mark click when the toolbar names no opened beacon", () => {
+		const h = harness(mainHtml({ marks: true }));
+		toolbarOf(h).removeAttribute("data-highlight-opened-url");
+		const errors: string[] = [];
+		h.window.addEventListener("error", (event) => {
+			event.preventDefault();
+			errors.push(event.message);
+		});
+
+		click(h, markWord(h, "beta"));
+
+		expect(errors).toEqual(["the highlight toolbar names its opened beacon"]);
 	});
 
 	it("beacons a rail Jump click as a highlight opened from the rail", () => {

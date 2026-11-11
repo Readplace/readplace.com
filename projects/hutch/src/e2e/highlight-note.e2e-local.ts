@@ -44,7 +44,7 @@ const SeededArticle = z.object({ articleId: z.string() });
 async function openHighlightableReader(
 	page: Page,
 	stamp: string,
-): Promise<void> {
+): Promise<{ userId: string; articleId: string }> {
 	const email = `highlight-note-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -86,6 +86,7 @@ async function openHighlightableReader(
 		waitUntil: "domcontentloaded",
 	});
 	await page.waitForSelector(READY_SLOT);
+	return { userId, articleId };
 }
 
 async function rowNoteDialog(page: Page, highlightId: string) {
@@ -336,5 +337,33 @@ test.describe("Reading a note beside its highlight", () => {
 		await expect(page.locator("body")).toBeFocused();
 		await page.mouse.move(5, 5);
 		await expect(page.locator(SHOWN_PREVIEW)).toHaveCount(0);
+	});
+
+	test("a read-only account sees the note in the in-app reader, with no write action and no beacon", async ({
+		page,
+	}, testInfo) => {
+		const { userId, articleId } = await openHighlightableReader(page, `read-only-${testInfo.workerIndex}-${Date.now()}`);
+		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+		const lapsed = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+			data: { userId, state: "trialing", at: "2020-01-01T00:00:00.000Z" },
+		});
+		assert.equal(lapsed.status(), 201, "the subscription seed must lapse the account");
+		const opened: string[] = [];
+		page.on("request", (request) => {
+			if (new URL(request.url()).pathname.endsWith("/highlights/opened")) opened.push(request.url());
+		});
+
+		await page.goto(`${BASE_URL}/queue/${articleId}/view?platform=ios&shell=app`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector(READY_SLOT);
+		await expect(page.locator(TOOLBAR)).toHaveCount(0);
+		const mark = page.locator(`#highlight-${highlightId}`);
+		await expect(mark).toHaveAttribute("tabindex", "0", { timeout: SETTLE_MS });
+		await mark.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
+		await mark.click();
+
+		await expect(page.locator(`${SHOWN_PREVIEW}.highlight-preview--pinned`)).toHaveJSProperty("textContent", FIRST_NOTE, {
+			timeout: SETTLE_MS,
+		});
+		expect(opened).toEqual([]);
 	});
 });
