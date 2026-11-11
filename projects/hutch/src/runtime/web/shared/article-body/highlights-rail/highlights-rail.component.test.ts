@@ -388,6 +388,115 @@ describe("renderHighlightsRail", () => {
 			}
 		});
 
+		function rowActionsOf(doc: Document, highlightId: string): (string | null)[] {
+			return Array.from(
+				rowOf(doc, highlightId).querySelectorAll(
+					".highlights-rail__actions [data-test-action]",
+				),
+				(action) => action.getAttribute("data-test-action"),
+			);
+		}
+
+		it("offers Delete note last in a noted row's actions, and not in a row without a note", () => {
+			const doc = railOf([
+				{ highlight: noted, state: "anchored" },
+				{ highlight: second, state: "anchored" },
+			]);
+
+			expect(rowActionsOf(doc, FIRST_ID)).toEqual([
+				"highlight-jump",
+				"highlight-delete-fallback",
+				"highlight-delete",
+				"highlight-note",
+				"highlight-note-delete",
+			]);
+			expect(rowActionsOf(doc, SECOND_ID)).toEqual([
+				"highlight-jump",
+				"highlight-delete-fallback",
+				"highlight-delete",
+				"highlight-note",
+			]);
+		});
+
+		it("deletes the note at once from the row, with no popover, and the edit dialog's Delete note submits that same form", () => {
+			const doc = railOf([{ highlight: noted, state: "anchored" }]);
+
+			const rowButton = rowOf(doc, FIRST_ID).querySelector(
+				'.highlights-rail__actions [data-test-action="highlight-note-delete"]',
+			);
+			assert(rowButton);
+			expect(rowButton.hasAttribute("popovertarget")).toBe(false);
+			const form = rowButton.closest("form");
+			assert(form);
+			expect(form.getAttribute("action")).toBe(
+				`/queue/abc/highlights/${FIRST_ID}/note?utm_source=highlights-rail&utm_medium=internal&utm_content=delete-note`,
+			);
+			const dialogButton = doc
+				.getElementById(`note-highlight-${FIRST_ID}`)
+				?.querySelector('[data-test-action="highlight-note-delete"]');
+			expect(dialogButton?.getAttribute("form")).toBe(form.id);
+		});
+
+		it("names the highlight on every Delete highlight control", () => {
+			const doc = railOf([{ highlight: noted, state: "anchored" }]);
+
+			for (const action of [
+				"highlight-delete-fallback",
+				"highlight-delete",
+				"highlight-delete-confirm",
+			]) {
+				expect(
+					rowOf(doc, FIRST_ID).querySelector(`[data-test-action="${action}"]`)
+						?.textContent,
+				).toBe("Delete highlight");
+			}
+		});
+
+		it("says in the Delete highlight confirm that the note goes too, only when there is one", () => {
+			const doc = railOf([
+				{ highlight: noted, state: "anchored" },
+				{ highlight: second, state: "anchored" },
+			]);
+
+			expect(
+				doc.getElementById(`delete-highlight-${FIRST_ID}`)?.textContent,
+			).toContain(
+				"The passage stays in the article; your highlight and its note are removed.",
+			);
+			expect(
+				doc.getElementById(`delete-highlight-${SECOND_ID}`)?.textContent,
+			).toContain(
+				"The passage stays in the article; only your highlight is removed.",
+			);
+		});
+
+		it("keeps the readlist and surface on Delete note in the app, and stops it pushing history", () => {
+			const doc = railOf([{ highlight: noted, state: "anchored" }], false, {
+				articleId: "abc",
+				readlist: [["queue", "work"]],
+				surface: [["platform", "ios"]],
+			});
+
+			const form = doc.getElementById(`delete-note-highlight-${FIRST_ID}`);
+			expect(
+				new URL(form?.getAttribute("action") ?? "", "https://readplace.com")
+					.search,
+			).toBe(
+				"?queue=work&platform=ios&utm_source=highlights-rail&utm_medium=internal&utm_content=delete-note",
+			);
+			expect(form?.getAttribute("hx-push-url")).toBe("false");
+		});
+
+		it("repeats no id across two noted rows", () => {
+			const doc = railOf([
+				{ highlight: noted, state: "anchored" },
+				{ highlight: { ...second, note: "another" }, state: "anchored" },
+			]);
+
+			const ids = Array.from(doc.querySelectorAll("[id]"), (el) => el.id);
+			expect(new Set(ids).size).toBe(ids.length);
+		});
+
 		it("escapes a stored note", () => {
 			const doc = railOf([
 				{ highlight: { ...noted, note: "<img src=x>" }, state: "anchored" },

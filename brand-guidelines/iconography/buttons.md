@@ -11,7 +11,7 @@ There is **one** button in the product. Every call to action is `.btn` plus exac
 | **`primary`** | `--primary` | `--primary-hover` | `--primary-fill` | `--primary-foreground` (white) | — | The amber CTA — the main action per screen (Save, Import, Subscribe, install, landing and pricing CTAs, the guest header's Log in) |
 | **`secondary`** (the kit's "Secondary") | `--secondary` | `--secondary-hover` | `--secondary-pressed` | `--primary-text-on-tint` | inset 1px `--color-brand` | The supporting action beside a primary (View on GitHub, Cancel, Back), and a list row's state action (Mark as read, Exclude) |
 | **`neutral`** (the kit's "Tertiary") | `--card` | `--neutral-hover` | `--neutral-pressed` | `--foreground` | inset 1px `--border` | A low-emphasis action standing alone, such as an empty state's next step or a toast's Undo, or the dismiss beside a dialog's `primary`, or the alternative beside the public reader bar's `primary`, or the dismiss beside the OAuth consent card's `primary` |
-| **`destructive`** | `--card` | `--error-fill` | `--error-fill-hover` | `--error-text` at rest; `--error-foreground` (white) when filled | inset 1px `--color-error` | Standalone destructive actions on account and integrations. The red hover and pressed fills are pinned across themes |
+| **`destructive`** | `--card` | `--error-fill` | `--error-fill-hover` | `--error-text` at rest; `--error-foreground` (white) when filled | inset 1px `--color-error` | Standalone destructive actions on account and integrations, and a highlight's Delete note, which deletes without a confirm. The red hover and pressed fills are pinned across themes |
 | **`on-dark`** | white | white, deepened | same as hover | `--secondary-foreground` | — | *Context modifier, not a priority level* — a primary sitting on the navy hero |
 | **`on-dark-ghost`** | translucent white | more opaque white | same as hover | white | translucent white inset | *Context modifier* — the secondary beside an `on-dark` primary |
 
@@ -30,7 +30,7 @@ Outside dialogs, when two buttons sit side by side, the **first is the primary a
 
 An *alternative path* is still a `secondary` button; a link in prose is still `--primary-text`.
 
-**In a dialog**, L buttons have 24px inline padding and sit in one auto-width row, 8px apart: dismiss (`neutral`) first, commit (`primary`) last. The row is right-aligned, or centred when the dialog is illustrated and holds no field. If a pair is too wide for the row, the commit wraps above the dismiss. Below the designed 534px content width, buttons stack full-width with the commit on top.
+**In a dialog**, L buttons have 24px inline padding and sit in one auto-width row, 8px apart: dismiss (`neutral`) first, commit (`primary`) last. The row is right-aligned, or centred when the dialog is illustrated and holds no field. If a pair is too wide for the row, the commit wraps above the dismiss. Below the designed 534px content width, buttons stack full-width with the commit on top. A dialog with a second action besides its commit puts that action's button first, before the dismiss, and the row stays right-aligned. The Edit note dialog is one: Delete note (`destructive`, because it deletes without a confirm), Cancel, Save note. Below 534px that row stacks Save note on top, then Cancel, then Delete note.
 
 **In the filter drawer's footer**, Clear all (`neutral`) and Apply filters (`primary`) pair the same way, 16px apart, with 24px inline padding; when they cannot share a line, Apply wraps above Clear all.
 

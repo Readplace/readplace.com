@@ -610,6 +610,71 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 		expect(noteTriggerOf(reopened, id)).toBe("Add note");
 	});
 
+	it("deletes a note with the rail's Delete note form, which the edit dialog's Delete note also submits, keeping the highlight and its mark", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/note-delete-button",
+		);
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+			note: "Delete me",
+		});
+		const page = doc((await agent.get(viewPath(articleId))).text);
+		const form = page
+			.querySelector(
+				`[data-test-highlight-row="${id}"] .highlights-rail__actions [data-test-action="highlight-note-delete"]`,
+			)
+			?.closest("form");
+		assert(form, "a noted row must offer Delete note");
+		expect(
+			page
+				.getElementById(`note-highlight-${id}`)
+				?.querySelector('[data-test-action="highlight-note-delete"]')
+				?.getAttribute("form"),
+		).toBe(form.id);
+		const fields = Object.fromEntries(
+			Array.from(form.querySelectorAll<HTMLInputElement>("input"), (input) => [
+				input.name,
+				input.value,
+			]),
+		);
+
+		const response = await agent
+			.post(form.getAttribute("action") ?? "")
+			.type("form")
+			.send(fields);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			`/queue/${articleId}/view#highlight-${id}`,
+		);
+		expect(noteEvents(harness).map((event) => event.action)).toEqual([
+			"added",
+			"removed",
+		]);
+		const reopened = (await agent.get(viewPath(articleId))).text;
+		expect(notesOf(reopened)).toHaveLength(0);
+		expect(noteTriggerOf(reopened, id)).toBe("Add note");
+		expect(
+			Array.from(
+				rowOf(reopened, id)?.querySelectorAll(
+					".highlights-rail__actions [data-test-action]",
+				) ?? [],
+				(action) => action.getAttribute("data-test-action"),
+			),
+		).toEqual([
+			"highlight-jump",
+			"highlight-delete-fallback",
+			"highlight-delete",
+			"highlight-note",
+		]);
+		expect(
+			doc(reopened).querySelectorAll(`mark[data-highlight-id="${id}"]`).length,
+		).toBeGreaterThan(0);
+	});
+
 	it("keeps a named readlist on the create and note redirects", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(

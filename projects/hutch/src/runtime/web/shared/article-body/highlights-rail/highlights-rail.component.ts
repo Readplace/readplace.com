@@ -6,16 +6,21 @@ import {
 	type Highlight,
 	type HighlightId,
 } from "@packages/domain/article";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
 import { render, renderConfirmPopover } from "@packages/web-shell";
 import {
 	type HighlightFormScope,
 	highlightFormUrl,
 	highlightNoteEditPopoverId,
 	pushesHistory,
+	renderHighlightNoteDeleteForm,
 	renderHighlightNoteEditDialog,
 	renderHighlightNoteFallbackForm,
 } from "../highlights/highlight-note-dialog.component";
 import type { ReaderHighlightState } from "../reader-slot/mark-highlights";
+
+const { t } = translator(hutchReader, DEFAULT_LOCALE);
 
 const HIGHLIGHTS_RAIL_TEMPLATE = readFileSync(
 	join(__dirname, "highlights-rail.template.html"),
@@ -23,7 +28,7 @@ const HIGHLIGHTS_RAIL_TEMPLATE = readFileSync(
 );
 
 const DELETE_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="find button">
-	<button class="btn btn--primary" type="submit" data-test-action="highlight-delete-confirm" autofocus>Delete</button>
+	<button class="btn btn--primary" type="submit" data-test-action="highlight-delete-confirm" autofocus>{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
 </form>`;
 
 export type HighlightsRailRowState = AnchorState | "pending";
@@ -93,13 +98,20 @@ function editView(input: { highlight: Highlight; scope: HighlightFormScope }) {
 		notePopoverId: highlightNoteEditPopoverId(highlight.highlightId),
 		noteDialogHtml: renderHighlightNoteEditDialog(noteInput),
 		noteFallbackHtml: renderHighlightNoteFallbackForm(noteInput),
+		noteDeleteHtml:
+			highlight.note === undefined
+				? undefined
+				: renderHighlightNoteDeleteForm(noteInput),
 		popoverHtml: renderConfirmPopover({
 			id: popoverId,
 			key: "highlight-delete",
 			subject: highlight.highlightId,
 			close: {},
 			title: "Delete this highlight?",
-			body: "The passage stays in the article; only your highlight is removed.",
+			body:
+				highlight.note === undefined
+					? t("articleBody.highlightsRail.deleteConfirm.body")
+					: t("articleBody.highlightsRail.deleteConfirm.bodyWithNote"),
 			actionsHtml: render(DELETE_ACTIONS_TEMPLATE, {
 				url: deleteUrl,
 				pushesHistory: pushes,

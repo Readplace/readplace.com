@@ -5,18 +5,23 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { selectPassage } from "./highlight-a-passage.browser";
 import { previewClearOfMarks } from "./highlight-on-a-phone.browser";
+import { pageOverflowsSideways } from "./page-measurements.browser";
 import { recordScrollAfterSwap } from "./readlist-scroll-stability.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
 const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const DESKTOP = { width: 1280, height: 900 };
+const PIXEL_7_VIEWPORT = { width: 412, height: 915 };
+const PHONE_320 = { width: 320, height: 568 };
 const SETTLE_MS = 45000;
 
 const CONTENT = "[data-test-reader-content]";
 const READY_SLOT = '[data-test-reader-slot][data-reader-status="ready"]';
 const TOOLBAR = "[data-test-highlight-toolbar]";
 const ADD_NOTE_BUTTON = '[data-test-action="add-note"]';
+const HIGHLIGHT_BUTTON = '[data-test-action="highlight"]';
+const DELETE_NOTE = '[data-test-action="highlight-note-delete"]';
 const NOTE_DIALOG = "#note-highlight-dialog";
 const OPEN_NOTE_DIALOG = `${NOTE_DIALOG}:popover-open`;
 const NOTE_INPUT = "[data-test-highlight-note-input]";
@@ -29,9 +34,12 @@ const FILLER =
 	"<p>Every filler paragraph of this seeded article repeats one sentence about keeping a long read in view, so the passage worth a note sits well below the fold of the first screen.</p>";
 const PASSAGE =
 	"The passage worth a note says why the reader stopped on this sentence.";
+const BARE_PASSAGE =
+	"A second passage is highlighted and keeps no note at all.";
 const ARTICLE = [
 	...Array.from({ length: 12 }, () => FILLER),
 	`<p>${PASSAGE} It sits in a paragraph of its own.</p>`,
+	`<p>${BARE_PASSAGE}</p>`,
 	...Array.from({ length: 6 }, () => FILLER),
 ].join("");
 
@@ -102,7 +110,7 @@ async function rowNoteDialog(page: Page, highlightId: string) {
 test.describe("Adding a note to a highlight", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("adds a two-line note from the bar without moving the page, then edits and clears it from the rail", async ({
+	test("adds a two-line note from the bar without moving the page, then edits it and deletes it from the rail", async ({
 		page,
 	}, testInfo) => {
 		await openHighlightableReader(
@@ -166,11 +174,17 @@ test.describe("Adding a note to a highlight", () => {
 			{ timeout: SETTLE_MS },
 		);
 
-		const clearDialog = await rowNoteDialog(page, highlightId);
-		await clearDialog.locator(NOTE_INPUT).fill("");
-		await clearDialog
-			.locator('[data-test-action="highlight-note-edit-save"]')
-			.click();
+		await page.evaluate(
+			(stamp) => document.documentElement.removeAttribute(stamp),
+			SCROLL_STAMP,
+		);
+		const deleteNote = `[data-test-highlight-row="${highlightId}"] ${DELETE_NOTE}`;
+		await page.evaluate(recordScrollAfterSwap, deleteNote);
+		const beforeDelete = await page.locator(deleteNote).evaluate((button) => {
+			button.scrollIntoView({ block: "nearest", behavior: "instant" });
+			return window.scrollY;
+		});
+		await page.locator(deleteNote).click();
 		const clearedRow = page.locator(
 			`[data-test-highlight-row="${highlightId}"]`,
 		);
@@ -178,11 +192,122 @@ test.describe("Adding a note to a highlight", () => {
 			timeout: SETTLE_MS,
 		});
 		await expect(clearedRow).toHaveCount(1);
+		await expect(clearedRow.locator(DELETE_NOTE)).toHaveCount(0);
 		await expect(page.locator(MARK).filter({ hasText: PASSAGE })).toHaveCount(
 			1,
 		);
+		await expect(page.locator("html")).toHaveAttribute(
+			SCROLL_STAMP,
+			String(beforeDelete),
+			{ timeout: SETTLE_MS },
+		);
+	});
+
+	test("deletes a note from inside its Edit note dialog, closing the dialog and keeping the highlight", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(
+			page,
+			`dialog-delete-${testInfo.workerIndex}-${Date.now()}`,
+		);
+		const highlightId = await highlightWithNote(page, FIRST_NOTE);
+
+		const dialog = await rowNoteDialog(page, highlightId);
+		const dialogDelete = `[id="note-highlight-${highlightId}"] ${DELETE_NOTE}`;
+		await page.evaluate(recordScrollAfterSwap, dialogDelete);
+		const beforeDelete = await page.evaluate(() => window.scrollY);
+		await dialog.locator(DELETE_NOTE).click();
+
+		const row = page.locator(`[data-test-highlight-row="${highlightId}"]`);
+		await expect(row.locator(RAIL_NOTE)).toHaveCount(0, {
+			timeout: SETTLE_MS,
+		});
+		await expect(row).toHaveCount(1);
+		await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+		await expect(page.locator(MARK).filter({ hasText: PASSAGE })).toHaveCount(
+			1,
+		);
+		await expect(page.locator("html")).toHaveAttribute(
+			SCROLL_STAMP,
+			String(beforeDelete),
+			{ timeout: SETTLE_MS },
+		);
+	});
+
+	test("keeps every rail button inside its row, with or without a note, at desktop, Pixel 7 and 320px widths", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(
+			page,
+			`width-${testInfo.workerIndex}-${Date.now()}`,
+		);
+		const notedId = await highlightWithNote(page, FIRST_NOTE);
+		await page
+			.locator(CONTENT)
+			.getByText(BARE_PASSAGE, { exact: false })
+			.evaluate((paragraph) =>
+				paragraph.scrollIntoView({ block: "center", behavior: "instant" }),
+			);
+		await page.evaluate(selectPassage, { root: CONTENT, exact: BARE_PASSAGE });
+		await expect(page.locator(TOOLBAR)).toBeVisible({ timeout: SETTLE_MS });
+		await page.locator(HIGHLIGHT_BUTTON).click();
+		await expect(page.locator(RAIL_ROW)).toHaveCount(2, { timeout: SETTLE_MS });
+		await expect(
+			page.locator(`[data-test-highlight-row="${notedId}"] ${DELETE_NOTE}`),
+		).toHaveCount(1);
+
+		for (const viewport of [DESKTOP, PIXEL_7_VIEWPORT, PHONE_320]) {
+			await page.setViewportSize(viewport);
+			expect(
+				await page.evaluate(pageOverflowsSideways),
+				`no sideways overflow at ${viewport.width}px`,
+			).toBe(false);
+			const escapes = await page.evaluate((rowSelector) => {
+				const found: string[] = [];
+				for (const row of document.querySelectorAll(rowSelector)) {
+					const box = row.getBoundingClientRect();
+					for (const button of row.querySelectorAll(
+						".highlights-rail__actions [data-test-action]",
+					)) {
+						const rect = button.getBoundingClientRect();
+						if (rect.width === 0 || rect.height === 0) continue;
+						if (
+							rect.left < box.left - 0.5 ||
+							rect.right > box.right + 0.5 ||
+							rect.top < box.top - 0.5 ||
+							rect.bottom > box.bottom + 0.5
+						) {
+							found.push(button.getAttribute("data-test-action") ?? "");
+						}
+					}
+				}
+				return found;
+			}, RAIL_ROW);
+			expect(escapes, `rail buttons outside their row at ${viewport.width}px`).toEqual([]);
+		}
 	});
 });
+
+async function highlightWithNote(page: Page, note: string): Promise<string> {
+	await page
+		.locator(CONTENT)
+		.getByText(PASSAGE, { exact: false })
+		.evaluate((paragraph) =>
+			paragraph.scrollIntoView({ block: "center", behavior: "instant" }),
+		);
+	await page.evaluate(selectPassage, { root: CONTENT, exact: PASSAGE });
+	await expect(page.locator(TOOLBAR)).toBeVisible({ timeout: SETTLE_MS });
+	await page.locator(ADD_NOTE_BUTTON).click();
+	const dialog = page.locator(OPEN_NOTE_DIALOG);
+	await expect(dialog).toHaveCount(1, { timeout: SETTLE_MS });
+	await dialog.locator(NOTE_INPUT).fill(note);
+	await dialog.locator('[data-test-action="highlight-note-save"]').click();
+	const row = page.locator(RAIL_ROW).filter({ has: page.locator(RAIL_NOTE) });
+	await expect(row).toHaveCount(1, { timeout: SETTLE_MS });
+	const highlightId = await row.getAttribute("data-test-highlight-row");
+	assert(highlightId, "the rail row names its highlight");
+	return highlightId;
+}
 
 const PREVIEW = "[data-test-highlight-preview]";
 const SHOWN_PREVIEW = `${PREVIEW}:popover-open`;
