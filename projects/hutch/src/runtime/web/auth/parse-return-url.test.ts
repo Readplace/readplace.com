@@ -31,6 +31,21 @@ describe("parseReturnUrl", () => {
 		expect(parseReturnUrl({ return: "https://evil.com" })).toBe("/queue");
 	});
 
+	it.each([
+		["a backslash authority", "/\\example.org"],
+		["a tab before a second slash", "/\t/example.org"],
+		["a newline before a second slash", "/\n/example.org"],
+		["a backslash after the first slash", "/\\/example.org"],
+		["a backslash authority no URL parser accepts", "/\\["],
+	])("should reject %s, which a browser resolves off-site", (_case, returnUrl) => {
+		expect(parseReturnUrl({ return: returnUrl })).toBe("/queue");
+		expect(extractReturnUrl({ return: returnUrl })).toBeUndefined();
+	});
+
+	it("should keep a same-origin path with a query and a fragment", () => {
+		expect(parseReturnUrl({ return: "/read/abc?tab=notes#h1" })).toBe("/read/abc?tab=notes#h1");
+	});
+
 	it("should reject URLs without leading slash", () => {
 		expect(parseReturnUrl({ return: "evil.com" })).toBe("/queue");
 	});
