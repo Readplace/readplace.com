@@ -128,12 +128,13 @@ async function createHighlight(
 		articleId: string;
 		exact: string;
 		origin?: HighlightCreatedEvent["origin"];
+		note?: string;
 	},
 ): Promise<string> {
 	const response = await agent
 		.post(createPath(range.articleId))
 		.type("form")
-		.send(await rangeOf(agent, range));
+		.send({ ...(await rangeOf(agent, range)), ...(range.note === undefined ? {} : { note: range.note }) });
 	assert.equal(response.status, 303);
 	return highlightIdFrom(response.headers.location);
 }
@@ -228,6 +229,26 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		expect(formActionsIn(page.querySelector("[data-test-highlights-rail]"))).toEqual([]);
 		expect(page.querySelector("[data-test-highlight-toolbar]")).toBeNull();
 		expect(page.querySelectorAll("main form").length).toBeGreaterThan(0);
+	});
+
+	it("renders a read-only account's note previews on the page and the reader poll", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-read-only-preview`);
+		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Read-only note" });
+		await makeReadOnly(harness);
+
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
+		const poll = doc((await agent.get(`/queue/${articleId}/reader?poll=1&platform=${platform}`)).text);
+
+		expect(page.querySelector("[data-test-highlight-toolbar]")).toBeNull();
+		for (const answer of [page, poll]) {
+			expect(
+				Array.from(answer.querySelectorAll("[data-test-highlight-preview]"), (preview) => ({
+					id: preview.getAttribute("data-highlight-preview"),
+					note: preview.textContent,
+				})),
+			).toEqual([{ id, note: "Read-only note" }]);
+		}
 	});
 
 	it("keeps the marks and the surface on the reader poll's rail", async () => {

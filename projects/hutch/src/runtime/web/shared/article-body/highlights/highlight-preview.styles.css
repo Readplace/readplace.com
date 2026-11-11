@@ -1,0 +1,26 @@
+.highlight-preview {
+  display: none;
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  max-width: min(20rem, calc(100vw - 32px));
+  padding: 12px;
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+}
+
+@supports selector(:popover-open) {
+  .highlight-preview:popover-open {
+    display: block;
+  }
+}
+
+.highlight-preview__note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  overflow: hidden;
+}
