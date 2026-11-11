@@ -33,8 +33,8 @@ const IPHONE_CHROME =
 	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.0.0 Mobile/15E148 Safari/604.1";
 
 describe("hasInstallableClient", () => {
-	it("returns false for Android while its app is not advertised — there is nothing to send the visitor to install", () => {
-		assert.equal(hasInstallableClient(requestWithUserAgent(ANDROID_CHROME)), false);
+	it("returns true for Android, whose app is advertised", () => {
+		assert.equal(hasInstallableClient(requestWithUserAgent(ANDROID_CHROME)), true);
 	});
 
 	it("returns false for desktop Safari (the unrecognised 'other' bucket)", () => {
@@ -62,7 +62,7 @@ describe("canOfferExtensionInstall", () => {
 	});
 
 	it("withholds the pitch when there is neither an extension nor an advertised client", () => {
-		assert.equal(canOfferExtensionInstall(requestWithUserAgent(ANDROID_CHROME)), false);
+		assert.equal(canOfferExtensionInstall(requestWithUserAgent(DESKTOP_SAFARI)), false);
 	});
 });
 
@@ -71,8 +71,8 @@ describe("advertisedPlatformOf", () => {
 		assert.equal(advertisedPlatformOf(requestWithUserAgent(DESKTOP_CHROME)), "chrome");
 	});
 
-	it("answers undefined for Android, whose app is not advertised", () => {
-		assert.equal(advertisedPlatformOf(requestWithUserAgent(ANDROID_CHROME)), undefined);
+	it("answers android for an Android visitor, whose app is advertised", () => {
+		assert.equal(advertisedPlatformOf(requestWithUserAgent(ANDROID_CHROME)), "android");
 	});
 
 	it("answers undefined for the unrecognised other bucket", () => {

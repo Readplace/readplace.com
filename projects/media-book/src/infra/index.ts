@@ -27,6 +27,7 @@ const eventBus = EventBus.fromPlatformStack(config);
 
 const failuresDlq = new SharedDlq(MEDIA_BOOK_FAILURES_DLQ, {
 	alertEmailDLQEntry: alertEmail,
+	drainedByHandler: true,
 });
 
 const articlesDynamodb = new DynamoDBAccess("media-book-process-book-dynamodb", {

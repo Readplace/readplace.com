@@ -11,7 +11,7 @@ export function initChargeBeforeSettle(deps: {
 		const decision = await deps.charge(params);
 		if (decision.kind === "refuse") return { outcome: decision.reason };
 		try {
-			return await deps.settle({ ...params, chargedSeconds: decision.chargedSeconds });
+			return await deps.settle({ ...params, charge: decision.charge });
 		} catch (error) {
 			if (decision.freshCharge) await deps.refund(decision.freshCharge);
 			throw error;

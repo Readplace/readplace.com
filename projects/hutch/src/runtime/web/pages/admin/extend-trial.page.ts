@@ -24,13 +24,14 @@ import {
 	toDateTimeLocalInput,
 	toExtendTrialViewModel,
 } from "./extend-trial.view-model";
+import type { LogError } from "@packages/logger";
 
 export interface AdminExtendTrialDependencies {
 	findUserByEmail: FindUserByEmail;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	upsertTrialing: UpsertTrialingSubscription;
 	trialScheduler: TrialSchedulerPort;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 }

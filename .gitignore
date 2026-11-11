@@ -49,3 +49,5 @@ playwright-report/
 # Claude Code runtime artifacts
 .claude/scheduled_tasks.lock
 .claude/worktrees
+
+.claude/settings.local.json

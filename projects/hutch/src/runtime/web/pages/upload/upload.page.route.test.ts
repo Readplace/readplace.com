@@ -93,7 +93,7 @@ describe("Upload routes", () => {
 			doc.querySelector('[data-test-upload-start] input[type="file"]'),
 		).toBeNull();
 		expect(doc.querySelector("[data-test-upload-heading]")?.textContent).toBe(
-			"Upload a book or an audio file",
+			"Upload a book, an audio file, or a video",
 		);
 		expect(
 			[...doc.querySelectorAll("[data-test-upload-description]")].map(
@@ -102,6 +102,7 @@ describe("Upload routes", () => {
 		).toEqual([
 			"Book: EPUB, DRM-free, up to 200 MB. MOBI and AZW3 are not supported.",
 			"Audio: MP3 or M4A, up to 256 MB.",
+			"Video: MP4, up to 2 GB.",
 		]);
 	});
 
@@ -115,15 +116,18 @@ describe("Upload routes", () => {
 		);
 	});
 
-	it("shows no transcript allowance to a member or a guest without the transcripts feature", async () => {
+	it("tells a member without the transcripts feature that audio and video files are transcribed, and a guest that audio files are", async () => {
 		const { agent, harness } = await signedIn();
 		const member = await agent.get("/upload");
 		const guest = await request(harness.server).get("/upload");
 		expect(
 			[member, guest].map((response) =>
-				documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]"),
+				documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]")?.textContent,
 			),
-		).toEqual([null, null]);
+		).toEqual([
+			"Audio and video files get a timestamped transcript, up to 20 minutes a day.",
+			"Audio files get a timestamped transcript, up to 20 minutes a day.",
+		]);
 	});
 
 	it("tells a guest on the transcripts feature that audio files are transcribed", async () => {
@@ -132,15 +136,15 @@ describe("Upload routes", () => {
 		expect(
 			documentOf(response.text).querySelector("[data-test-upload-transcript-allowance]")?.textContent,
 		).toBe(
-			"Audio and video files get a timestamped transcript, up to 20 minutes a day.",
+			"Audio files get a timestamped transcript, up to 20 minutes a day.",
 		);
 	});
 
-	it("describes only books to a guest", async () => {
+	it("describes books and audio to a guest", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const doc = documentOf((await request(harness.server).get("/upload")).text);
 		expect(doc.querySelector("[data-test-upload-heading]")?.textContent).toBe(
-			"Upload a book",
+			"Upload a book or an audio file",
 		);
 		expect(
 			[...doc.querySelectorAll("[data-test-upload-description]")].map(
@@ -148,10 +152,14 @@ describe("Upload routes", () => {
 			),
 		).toEqual([
 			"Book: EPUB, DRM-free, up to 200 MB. MOBI and AZW3 are not supported.",
+			"Audio: MP3 or M4A, up to 256 MB.",
 		]);
+		expect(
+			doc.querySelector("[data-test-upload-transcript-allowance]")?.textContent,
+		).toBe("Audio files get a timestamped transcript, up to 20 minutes a day.");
 	});
 
-	it("accepts only EPUB files from a guest", async () => {
+	it("accepts EPUB and audio files from a guest", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const doc = documentOf(
 			(await request(harness.server).post("/upload").type("form").send({}))
@@ -159,22 +167,23 @@ describe("Upload routes", () => {
 		);
 		expect(
 			doc.querySelector("[data-test-upload-file]")?.getAttribute("accept"),
-		).toBe(".epub");
+		).toBe(".epub,.mp3,.m4a");
 		expect(
 			[...doc.querySelectorAll("[data-test-upload-staged-description]")].map(
 				(p) => p.textContent,
 			),
 		).toEqual([
 			"Book: EPUB, DRM-free, up to 200 MB. MOBI and AZW3 are not supported.",
+			"Audio: MP3 or M4A, up to 256 MB.",
 		]);
 	});
 
-	it("refuses a guest's declared size over the book ceiling", async () => {
+	it("refuses a guest's declared size over the audio ceiling", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server)
 			.post("/upload")
 			.type("form")
-			.send({ byteLength: String(201 * 1024 * 1024) });
+			.send({ byteLength: String(257 * 1024 * 1024) });
 		expect(response.status).toBe(413);
 		expect(errorCodeOf(response.text)).toBe("upload_too_large");
 	});
@@ -199,7 +208,7 @@ describe("Upload routes", () => {
 		const response = await agent
 			.post("/upload")
 			.type("form")
-			.send({ byteLength: String(257 * 1024 * 1024) });
+			.send({ byteLength: String(2 * 1024 * 1024 * 1024 + 1) });
 		expect(response.status).toBe(413);
 		expect(documentOf(response.text).querySelector("[data-test-upload-error]")?.getAttribute("data-test-upload-error")).toBe(
 			"upload_too_large",
@@ -217,7 +226,7 @@ describe("Upload routes", () => {
 		const named = [...form.querySelectorAll("[name]")];
 		const last = named[named.length - 1];
 		expect(last?.getAttribute("name")).toBe("file");
-		expect(last?.getAttribute("accept")).toBe(".epub,.mp3,.m4a");
+		expect(last?.getAttribute("accept")).toBe(".epub,.mp3,.m4a,.mp4");
 		const uploadId = stagedUploadId(doc);
 		const session = await harness.mediaUpload.findMediaUploadSession({
 			uploadId,
@@ -282,7 +291,7 @@ describe("Upload routes", () => {
 			documentOf(received.text).querySelector("[data-test-upload-error]")
 				?.textContent,
 		).toContain(
-			"That file type isn't supported. Upload a DRM-free EPUB or an MP3 or M4A file.",
+			"That file type isn't supported. Upload a DRM-free EPUB, an MP3 or M4A file, or an MP4 file.",
 		);
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([]);
 	});
@@ -310,30 +319,18 @@ describe("Upload routes", () => {
 		expect(saved?.metadata.title).toBe("Audio upload");
 	});
 
-	it("offers a member video only with the transcripts feature", async () => {
-		const { agent } = await signedIn();
-		const [plain, metered] = await Promise.all([agent.get("/upload"), agent.get("/upload?features=transcripts")]);
-		expect(
-			[plain, metered].map((response) =>
-				documentOf(response.text).querySelector("[data-test-upload-heading]")?.textContent,
-			),
-		).toEqual(["Upload a book or an audio file", "Upload a book, an audio file, or a video"]);
-		expect(
-			[...documentOf(metered.text).querySelectorAll("[data-test-upload-description]")].map((p) => p.textContent),
-		).toContain("Video: MP4, up to 2 GB.");
-	});
-
-	it("answers upload_unsupported_type for a member's MP4 without the transcripts feature", async () => {
-		const { harness, agent } = await signedIn();
+	it("commits a member's MP4 as video without the transcripts feature", async () => {
+		const { harness, agent, userId } = await signedIn();
 		const staged = await agent.post("/upload").type("form").send({ fileName: "talk.mp4", byteLength: 64 });
 		const uploadId = stagedUploadId(documentOf(staged.text));
 		harness.mediaUpload.receivePendingOriginal({ uploadId, bytes: mp4Prefix() });
 
 		const received = await agent.post(`/upload/${uploadId}/received`);
 
-		expect(received.status).toBe(422);
-		expect(errorCodeOf(received.text)).toBe("upload_unsupported_type");
-		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([]);
+		expect(received.status).toBe(303);
+		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([
+			expect.objectContaining({ uploadId, userId, kind: "video" }),
+		]);
 	});
 
 	it("answers upload_too_large when the received file is over its detected kind's ceiling", async () => {
@@ -355,7 +352,7 @@ describe("Upload routes", () => {
 
 	it.each([
 		{ startPath: "/upload?features=transcripts", features: "transcripts", allowance: 1 },
-		{ startPath: "/upload", features: null, allowance: 0 },
+		{ startPath: "/upload", features: null, allowance: 1 },
 	])("keeps the start path $startPath on a received file's error page", async ({ startPath, features, allowance }) => {
 		const { harness, agent } = await signedIn();
 		const staged = await agent.post(startPath).type("form").send({});
@@ -376,7 +373,7 @@ describe("Upload routes", () => {
 
 	it.each([
 		{ startPath: "/upload?features=transcripts", features: "transcripts", allowance: 1 },
-		{ startPath: "/upload", features: null, allowance: 0 },
+		{ startPath: "/upload", features: null, allowance: 1 },
 	])("keeps the start path $startPath when a declared size is refused", async ({ startPath, features, allowance }) => {
 		const { agent } = await signedIn();
 
@@ -469,7 +466,7 @@ describe("Upload routes", () => {
 	});
 
 	it.each([
-		{ code: "upload_too_large", status: 413, body: { byteLength: String(257 * 1024 * 1024) } },
+		{ code: "upload_too_large", status: 413, body: { byteLength: String(2 * 1024 * 1024 * 1024 + 1) } },
 	])("answers a Siren $status error with $code", async ({ code, status, body }) => {
 		const { agent } = await signedIn();
 		const response = await agent.post("/upload").set("Accept", SIREN).type("form").send(body);
@@ -513,7 +510,7 @@ describe("Upload routes", () => {
 		expect(unrecognised.status).toBe(422);
 		expect(unrecognised.body.properties).toEqual({
 			code: "upload_unsupported_type",
-			message: "That file type isn't supported. Upload a DRM-free EPUB or an MP3 or M4A file.",
+			message: "That file type isn't supported. Upload a DRM-free EPUB, an MP3 or M4A file, or an MP4 file.",
 		});
 
 		const unknown = await agent.get("/upload/0123456789abcdef0123456789abcdef").set("Accept", SIREN);

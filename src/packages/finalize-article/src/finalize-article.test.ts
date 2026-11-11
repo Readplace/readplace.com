@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { parseHTML } from "linkedom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ParseHtml } from "@packages/article-parser";
-import type { FetchThumbnailImage, ThumbnailImage } from "@packages/crawl-article";
+import { initFetchThumbnailImage, type CrawlFetch, type FetchThumbnailImage, type ThumbnailImage } from "@packages/crawl-article";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import type { DownloadMedia } from "./download-media.types";
@@ -32,6 +32,7 @@ const noopProcessContent: ProcessContent = async ({ html }) => html;
 const noopFetchThumbnailImage: FetchThumbnailImage = async ({ candidates }) => ({
 	image: undefined,
 	provenUnusable: candidates.slice(0, 0),
+	fetched: candidates,
 });
 const noopPutImageObject: PutImageObject = async () => {};
 
@@ -106,7 +107,7 @@ describe("initFinalizeArticle — a crawl that landed somewhere else", () => {
 			url: WRAPPER_URL,
 			documentUrl: DESTINATION_URL,
 			html: "<html><body><p>Body</p></body></html>",
-			resolvedThumbnail: { image: hostedImage, provenUnusable: [] },
+			resolvedThumbnail: { image: hostedImage, provenUnusable: [], fetched: [hostedImage.url] },
 		});
 
 		const identityId = ArticleResourceUniqueId.parse(WRAPPER_URL);
@@ -209,7 +210,7 @@ describe("initFinalizeArticle", () => {
 			<meta property="og:image" content="https://example.com/og.jpg">
 		</head><body><p>Body</p></body></html>`;
 
-		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html, resolvedThumbnail: { image: resolvedImage, provenUnusable: [] } });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html, resolvedThumbnail: { image: resolvedImage, provenUnusable: [], fetched: [resolvedImage.url] } });
 
 		expect(fetchThumbnailImage).not.toHaveBeenCalled();
 		expect(putImageObject).toHaveBeenCalledWith(expect.objectContaining({
@@ -229,7 +230,7 @@ describe("initFinalizeArticle", () => {
 			url: "https://example.com/og.jpg",
 			extension: ".jpg",
 		};
-		const fetchThumbnailImage = jest.fn().mockResolvedValue({ image: fetchedThumbnail, provenUnusable: [] });
+		const fetchThumbnailImage = jest.fn().mockResolvedValue({ image: fetchedThumbnail, provenUnusable: [], fetched: [fetchedThumbnail.url] });
 		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
 		const finalize = createFinalize({ fetchThumbnailImage, putImageObject });
 		const html = `<html><head>
@@ -251,7 +252,7 @@ describe("initFinalizeArticle", () => {
 
 	it("falls back to the parser's raw imageUrl when the cascade found no image but disproved nothing (origin blocked the hotlinked image)", async () => {
 		const finalize = createFinalize({
-			fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }),
+			fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [], fetched: ["https://example.com/og.jpg"] }),
 		});
 		const html = `<html><head>
 			<meta property="og:image" content="https://example.com/og.jpg">
@@ -270,6 +271,7 @@ describe("initFinalizeArticle", () => {
 			fetchThumbnailImage: async () => ({
 				image: undefined,
 				provenUnusable: ["https://example.com/not-an-image"],
+				fetched: ["https://example.com/not-an-image", "https://example.com/maybe.png"],
 			}),
 		});
 		const html = `<html><head>
@@ -290,6 +292,7 @@ describe("initFinalizeArticle", () => {
 			fetchThumbnailImage: async () => ({
 				image: undefined,
 				provenUnusable: ["https://example.com/not-an-image"],
+				fetched: ["https://example.com/not-an-image"],
 			}),
 		});
 		const html = `<html><head>
@@ -304,6 +307,34 @@ describe("initFinalizeArticle", () => {
 		}
 	});
 
+	describe("a walk that stopped at the candidate cap", () => {
+		const candidates = Array.from({ length: 7 }, (_, index) => `https://example.com/candidate-${index + 1}.png`);
+		const firstFive = candidates.slice(0, 5);
+		const html = `<html><body><p>Body</p>${candidates.map((candidate) => `<img src="${candidate}">`).join("")}</body></html>`;
+		const cappedWalk = { image: undefined, provenUnusable: firstFive, fetched: firstFive };
+
+		it("stores no thumbnail rather than a candidate the walk never fetched", async () => {
+			const parseHtml = jest.fn(stubParseHtml);
+			const finalize = createFinalize({ parseHtml });
+
+			const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html, resolvedThumbnail: cappedWalk });
+
+			expect(parseHtml).toHaveBeenCalledWith(expect.objectContaining({ thumbnailUrl: null }));
+			assert(result.ok);
+			expect(result.article.metadata.imageUrl).toBeUndefined();
+		});
+
+		it("falls back to the document url for an image rather than a candidate the walk never fetched", async () => {
+			const documentUrl = "https://example.com/photo.jpg";
+			const finalize = createFinalize();
+
+			const result = await finalize({ url: documentUrl, documentUrl, html, mediaType: "image", resolvedThumbnail: cappedWalk });
+
+			assert(result.ok);
+			expect(result.article.metadata.imageUrl).toBe(documentUrl);
+		});
+	});
+
 	it("honours the crawler's own verdicts, so a candidate it disproved is not persisted by the finalizer either", async () => {
 		const fetchThumbnailImage = jest.fn(noopFetchThumbnailImage);
 		const finalize = createFinalize({ fetchThumbnailImage });
@@ -316,7 +347,7 @@ describe("initFinalizeArticle", () => {
 			url: URL_UNDER_TEST,
 			documentUrl: URL_UNDER_TEST,
 			html,
-			resolvedThumbnail: { image: undefined, provenUnusable: ["https://example.com/not-an-image"] },
+			resolvedThumbnail: { image: undefined, provenUnusable: ["https://example.com/not-an-image"], fetched: ["https://example.com/not-an-image", "https://example.com/maybe.png"] },
 		});
 
 		expect(fetchThumbnailImage).not.toHaveBeenCalled();
@@ -333,7 +364,7 @@ describe("initFinalizeArticle", () => {
 			<meta property="og:image" content="https://example.com/og.jpg">
 		</head><body><p>Body</p></body></html>`;
 
-		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html, resolvedThumbnail: { image: undefined, provenUnusable: [] } });
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html, resolvedThumbnail: { image: undefined, provenUnusable: [], fetched: ["https://example.com/og.jpg"] } });
 
 		expect(fetchThumbnailImage).not.toHaveBeenCalled();
 		expect(result.ok).toBe(true);
@@ -358,7 +389,7 @@ describe("initFinalizeArticle", () => {
 			url: URL_UNDER_TEST,
 			documentUrl: URL_UNDER_TEST,
 			html: "<html><body></body></html>",
-			resolvedThumbnail: { image: thumbnail, provenUnusable: [] },
+			resolvedThumbnail: { image: thumbnail, provenUnusable: [], fetched: [thumbnail.url] },
 		});
 
 		expect(putImageObject).toHaveBeenCalledWith(expect.objectContaining({
@@ -451,7 +482,7 @@ describe("initFinalizeArticle", () => {
 			documentUrl: "https://example.com/lean-engineering-638.jpg",
 			html: "<figure><img src=\"https://example.com/lean-engineering-638.jpg\" alt=\"\"></figure>",
 			mediaType: "image",
-			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
+			resolvedThumbnail: { image: resolvedImage, provenUnusable: [], fetched: [resolvedImage.url] },
 		});
 
 		expect(parseHtml).not.toHaveBeenCalled();
@@ -483,7 +514,7 @@ describe("initFinalizeArticle", () => {
 			extension: ".jpg",
 		};
 		const parseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(throwingParseHtml);
-		const fetchThumbnailImage = jest.fn().mockResolvedValue({ image: fetched, provenUnusable: [] });
+		const fetchThumbnailImage = jest.fn().mockResolvedValue({ image: fetched, provenUnusable: [], fetched: [fetched.url] });
 		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
 		const finalize = createFinalize({ parseHtml, fetchThumbnailImage, putImageObject });
 		const html = `<html><head><title>photo.jpg (638×359)</title></head><body><img src="https://example.com/photo.jpg"></body></html>`;
@@ -514,7 +545,7 @@ describe("initFinalizeArticle", () => {
 			extension: ".jpg",
 		};
 		const parseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(throwingParseHtml);
-		const fetchThumbnailImage = jest.fn().mockResolvedValue({ image: fetched, provenUnusable: [] });
+		const fetchThumbnailImage = jest.fn().mockResolvedValue({ image: fetched, provenUnusable: [], fetched: [fetched.url] });
 		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
 		const finalize = createFinalize({ parseHtml, fetchThumbnailImage, putImageObject });
 		const html = `<html><head><title>F1ab (638×359)</title></head><body><img src="https://example.com/media/F1ab?format=jpg"></body></html>`;
@@ -538,7 +569,7 @@ describe("initFinalizeArticle", () => {
 	});
 
 	it("falls back to the origin image URL when hosting the image fails (origin blocked the fetch)", async () => {
-		const finalize = createFinalize({ fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }) });
+		const finalize = createFinalize({ fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [], fetched: ["https://example.com/photo.jpg"] }) });
 		const html = `<html><body><img src="https://example.com/photo.jpg"></body></html>`;
 
 		const result = await finalize({ url: "https://example.com/photo.jpg", documentUrl: "https://example.com/photo.jpg", html, mediaType: "image" });
@@ -564,7 +595,7 @@ describe("initFinalizeArticle", () => {
 			documentUrl: "https://example.com/photo.jpg",
 			html,
 			mediaType: "image",
-			resolvedThumbnail: { image: undefined, provenUnusable: [] },
+			resolvedThumbnail: { image: undefined, provenUnusable: [], fetched: ["https://example.com/photo.jpg"] },
 		});
 
 		expect(fetchThumbnailImage).not.toHaveBeenCalled();
@@ -576,7 +607,7 @@ describe("initFinalizeArticle", () => {
 	});
 
 	it("falls back to the page URL as the <img> src when there is no image to host and no candidate", async () => {
-		const finalize = createFinalize({ fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }) });
+		const finalize = createFinalize({ fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [], fetched: [] }) });
 
 		const result = await finalize({
 			url: "https://example.com/photo.jpg",
@@ -609,7 +640,7 @@ describe("initFinalizeArticle", () => {
 			documentUrl: "https://example.com/",
 			html: "<html></html>",
 			mediaType: "image",
-			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
+			resolvedThumbnail: { image: resolvedImage, provenUnusable: [], fetched: [resolvedImage.url] },
 		});
 
 		expect(result.ok).toBe(true);
@@ -631,7 +662,7 @@ describe("initFinalizeArticle", () => {
 			documentUrl,
 			html: "<html></html>",
 			mediaType: "image",
-			resolvedThumbnail: { image: { body: Buffer.from([0x89]), contentType: "image/png", url: documentUrl, extension: ".png" }, provenUnusable: [] },
+			resolvedThumbnail: { image: { body: Buffer.from([0x89]), contentType: "image/png", url: documentUrl, extension: ".png" }, provenUnusable: [], fetched: [documentUrl] },
 		});
 
 		assert(result.ok);
@@ -668,6 +699,77 @@ describe("initFinalizeArticle", () => {
 		if (result.ok) {
 			expect(result.article.html).not.toContain(oversized);
 		}
+	});
+});
+
+describe("initFinalizeArticle — proven tracking endpoints", () => {
+	const FACEBOOK_PIXEL = "https://www.facebook.com/tr?id=1&ev=PageView&noscript=1";
+	const HOTSTAR_EVENT = "https://hspx.hotstar.com/v1/events/track/cp_page_view?pi=synthetic";
+	const SEC_PIXEL = "https://www.sec.gov/akam/13/pixel_0a1b2c3d?a=synthetic";
+	const TURKISH_PIXEL = "https://www.turkishairlines.com/akam/13/pixel_0a1b2c3d";
+	const TRACKING_URLS = [FACEBOOK_PIXEL, HOTSTAR_EVENT, SEC_PIXEL, TURKISH_PIXEL];
+
+	function recordingCascade(failing: readonly string[]) {
+		const fetched: string[] = [];
+		const crawlFetch: CrawlFetch = async (url) => {
+			fetched.push(String(url));
+			return failing.includes(String(url))
+				? new Response("gone", { status: 404 })
+				: new Response(Buffer.from("png-bytes"), { status: 200, headers: { "content-type": "image/png" } });
+		};
+		const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+		return { fetched, fetchThumbnailImage };
+	}
+
+	it("walks past a failed og:image and every beacon to the article figure without requesting a beacon", async () => {
+		const { fetched, fetchThumbnailImage } = recordingCascade(["https://example.com/og-broken.png"]);
+		const uploaded: string[] = [];
+		const putImageObject: PutImageObject = async ({ key }) => { uploaded.push(key); };
+		const finalize = createFinalize({ fetchThumbnailImage, putImageObject });
+		const html = `<html><head>
+			<meta property="og:image" content="https://example.com/og-broken.png">
+		</head><body>
+			${TRACKING_URLS.map((url) => `<img src="${url.replaceAll("&", "&amp;")}" width="1" height="1">`).join("")}
+			<figure><img src="https://example.com/figure.png" alt="A chart"></figure>
+		</body></html>`;
+
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
+
+		expect(fetched).toEqual(["https://example.com/og-broken.png", "https://example.com/figure.png"]);
+		expect(uploaded).toHaveLength(1);
+		assert(result.ok);
+		expect(result.article.metadata.imageUrl).toMatch(/^https:\/\/cdn\.example\.com\/content\/.+\.png$/);
+	});
+
+	it("falls through an excluded og:image to the twitter:image for display, keeping allowed order", async () => {
+		const parseHtml = jest.fn(stubParseHtml);
+		const finalize = createFinalize({ parseHtml });
+		const html = `<html><head>
+			<meta property="og:image" content="${FACEBOOK_PIXEL.replaceAll("&", "&amp;")}">
+			<meta name="twitter:image" content="https://example.com/twitter.png">
+		</head><body><img src="https://example.com/figure.png"><p>Body</p></body></html>`;
+
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
+
+		expect(parseHtml).toHaveBeenCalledWith(expect.objectContaining({ thumbnailUrl: "https://example.com/twitter.png" }));
+		assert(result.ok);
+		expect(result.article.metadata.imageUrl).toBe("https://example.com/twitter.png");
+	});
+
+	it("finishes a readable text article without a thumbnail when every candidate is a beacon", async () => {
+		const { fetched, fetchThumbnailImage } = recordingCascade([]);
+		const parseHtml = jest.fn(stubParseHtml);
+		const finalize = createFinalize({ parseHtml, fetchThumbnailImage });
+		const html = `<html><head>
+			<meta property="og:image" content="${SEC_PIXEL}">
+		</head><body><img src="${HOTSTAR_EVENT}"><p>Readable body text.</p></body></html>`;
+
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html });
+
+		expect(fetched).toEqual([]);
+		expect(parseHtml).toHaveBeenCalledWith(expect.objectContaining({ thumbnailUrl: null }));
+		assert(result.ok);
+		expect(result.article.metadata.imageUrl).toBeUndefined();
 	});
 });
 
@@ -762,7 +864,7 @@ it.each([undefined, "image"] as const)("hosts %s media under the storage row wit
 	const downloadMedia = jest.fn(noopDownloadMedia);
 	const putImageObject = jest.fn(noopPutImageObject);
 	const finalize = createFinalize({ downloadMedia, putImageObject });
-	const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html: "<p>article</p>", mediaType, writeContext, resolvedThumbnail: { image: { url: "https://example.com/photo.png", body: Buffer.from("image"), contentType: "image/png", extension: ".png" }, provenUnusable: [] } });
+	const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html: "<p>article</p>", mediaType, writeContext, resolvedThumbnail: { image: { url: "https://example.com/photo.png", body: Buffer.from("image"), contentType: "image/png", extension: ".png" }, provenUnusable: [], fetched: ["https://example.com/photo.png"] } });
 	expect(result.ok).toBe(true);
 	expect(putImageObject).toHaveBeenCalledWith({ key: expect.stringMatching(/^content\/archive.is%2Flegacy\/images\/attempts\/[a-f0-9]{32}\/[a-f0-9]{32}\.png$/), body: Buffer.from("image"), contentType: "image/png", writeContext });
 	if (mediaType === undefined) expect(downloadMedia).toHaveBeenCalledWith({ html: expect.any(String), referer: URL_UNDER_TEST, articleResourceUniqueId: ArticleResourceUniqueId.parse(writeContext.url), writeContext });

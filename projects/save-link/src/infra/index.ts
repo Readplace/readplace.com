@@ -99,6 +99,8 @@ import { SUMMARY_GENERATION_FAILED_ENV } from "../runtime/summary-generation-fai
 import { REFRESH_ARTICLE_CONTENT_ENV } from "../runtime/refresh-article-content.env";
 import { REFRESH_CONTENT_EXTRACTED_ENV } from "../runtime/refresh-content-extracted.env";
 import { UPDATE_FETCH_TIMESTAMP_ENV } from "../runtime/update-fetch-timestamp.env";
+import { SELECT_ARTICLE_CONTENT_ENV } from "../runtime/select-article-content.env";
+import { SELECTION_INGRESS_ENV, type SelectionRoute } from "../runtime/selection-ingress.env";
 
 /* Pulumi requires unique resource names per stack. Two Lambdas that attach
  * the same shared queue's send-policy would collide on the policy's name,
@@ -279,6 +281,7 @@ const eventBus = EventBus.fromPlatformStack(config);
 
 const failuresDlq = new SharedDlq(SAVE_LINK_FAILURES_DLQ, {
 	alertEmailDLQEntry: alertEmail,
+	drainedByHandler: true,
 });
 
 const generateSummaryQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.generateSummary, {
@@ -293,6 +296,16 @@ const generateSummaryFifoQueue = new Sqs(`${SAVE_LINK_DLQ_SOURCES.generateSummar
 });
 
 const SUMMARY_FIFO_CONSUMER_ENABLED = true;
+
+const selectArticleContentQueue = new Sqs(SAVE_LINK_LAMBDA_NAMES.selectArticleContent, {
+	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.processingSqsVisibilitySeconds,
+	dlqMaxReceiveCount: SELECT_CONTENT_MAX_RECEIVE_COUNT,
+	fifo: true,
+});
+
+const SELECTION_FIFO_PROCESSING_ENABLED = false;
+
+const SELECTION_ROUTE: SelectionRoute = "select";
 
 const linkSavedQueue = new Sqs("link-saved", {
 	visibilityTimeoutSeconds: 60,
@@ -383,8 +396,8 @@ const recrawlLinkInitiatedQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.recrawlLinkIniti
 	sharedDlq: failuresDlq,
 });
 
-// Simple-only — PDF refreshes dispatch the comprehensive-crawl-command with
-// refresh=true so the comprehensive Lambda emits RefreshContentExtractedEvent.
+// Simple-only — PDF refreshes dispatch the comprehensive-crawl-command
+// so the comprehensive Lambda emits RefreshContentExtractedEvent.
 const staleCheckRequestedQueue = new Sqs("stale-check-requested", {
 	visibilityTimeoutSeconds: 480,
 });
@@ -1201,7 +1214,7 @@ eventBus.subscribe(SaveLinkRawPdfCommand, saveLinkRawPdfCommandLambdaWithSQS);
 // row publishes RefreshArticleContent (200) or UpdateFetchTimestamp (304); on
 // a failed/missing crawl status republishes SaveAnonymousLinkCommand to redrive
 // the crawl pipeline. PDFs (or any non-HTML body) emit SimpleCrawlUnsupportedEvent
-// with `refresh=true` so the policy → comprehensive-crawl-command chain runs the
+// so the policy → comprehensive-crawl-command chain runs the
 // OCR + tier-1 write off this Lambda's concurrency budget. No DLQ row-mutator
 // is wired: a stale-check failure must not flip the article to crawlStatus='failed' —
 // the row already has whatever state the upstream pipeline produced, and the
@@ -1284,13 +1297,15 @@ const selectMostCompleteContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.select
 		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
-	environmentNames: SELECT_MOST_COMPLETE_CONTENT_ENV,
+	environmentNames: [...SELECT_MOST_COMPLETE_CONTENT_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
+		SELECTION_ROUTE: SELECTION_ROUTE,
+		SELECT_ARTICLE_CONTENT_QUEUE_URL: selectArticleContentQueue.queueUrl,
 	},
 	policies: [
 		...selectMostCompleteContentDynamodb.policies,
@@ -1298,6 +1313,7 @@ const selectMostCompleteContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.select
 		...contentBucket.writePolicies("select-most-complete-content-content-write"),
 		...renamePolicies(generateSummaryQueue.policies, SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent),
 		...renamePolicies(generateSummaryFifoQueue.policies, SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent),
+		...renamePolicies(selectArticleContentQueue.policies, `${SAVE_LINK_LAMBDA_NAMES.selectMostCompleteContent}-selection-ingress`),
 	],
 });
 
@@ -1312,9 +1328,62 @@ const selectMostCompleteContentLambdaWithSQS = new SqsBackedLambda(SAVE_LINK_LAM
 
 eventBus.subscribe(TierContentExtractedEvent, selectMostCompleteContentLambdaWithSQS);
 
+// --- SelectArticleContent processing worker ---
+
+const selectArticleContentDynamodb = new DynamoDBAccess(`${SAVE_LINK_LAMBDA_NAMES.selectArticleContent}-dynamodb`, {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const selectArticleContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.selectArticleContent, {
+	entryPoint: "./src/runtime/select-article-content.main.ts",
+	outputDir: ".lib/select-article-content",
+	assetDir: "./src",
+	memorySize: 3008,
+	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environmentNames: SELECT_ARTICLE_CONTENT_ENV,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		DEEPSEEK_API_KEY: deepseekApiKey,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
+	},
+	policies: [
+		...selectArticleContentDynamodb.policies,
+		...contentBucket.readPolicies("select-article-content-content-read"),
+		...contentBucket.writePolicies("select-article-content-content-write"),
+		...renamePolicies(generateSummaryQueue.policies, SAVE_LINK_LAMBDA_NAMES.selectArticleContent),
+		...renamePolicies(generateSummaryFifoQueue.policies, SAVE_LINK_LAMBDA_NAMES.selectArticleContent),
+	],
+});
+
+eventBus.grantPublish(selectArticleContentLambda);
+
+new SqsBackedLambda(SAVE_LINK_LAMBDA_NAMES.selectArticleContent, {
+	lambda: selectArticleContentLambda,
+	queue: selectArticleContentQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+	enabled: SELECTION_FIFO_PROCESSING_ENABLED,
+});
+
 new aws.cloudwatch.LogMetricFilter("select-content-own-capture-failed-filter", {
 	name: "select-content-own-capture-failed",
 	logGroupName: selectMostCompleteContentLambda.logGroupName,
+	pattern: OWN_CAPTURE_FAILED_METRIC.filterPattern,
+	metricTransformation: {
+		name: OWN_CAPTURE_FAILED_METRIC.name,
+		namespace: OWN_CAPTURE_FAILED_METRIC.namespace,
+		value: "1",
+		defaultValue: "0",
+		unit: "Count",
+	},
+});
+
+new aws.cloudwatch.LogMetricFilter("select-article-content-own-capture-failed-filter", {
+	name: "select-article-content-own-capture-failed",
+	logGroupName: selectArticleContentLambda.logGroupName,
 	pattern: OWN_CAPTURE_FAILED_METRIC.filterPattern,
 	metricTransformation: {
 		name: OWN_CAPTURE_FAILED_METRIC.name,
@@ -1446,13 +1515,15 @@ const reselectAfterRemovalLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.reselectAft
 	assetDir: "./src",
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
-	environmentNames: RESELECT_AFTER_REMOVAL_ENV,
+	environmentNames: [...RESELECT_AFTER_REMOVAL_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
+		SELECTION_ROUTE: SELECTION_ROUTE,
+		SELECT_ARTICLE_CONTENT_QUEUE_URL: selectArticleContentQueue.queueUrl,
 	},
 	policies: [
 		...reselectAfterRemovalDynamodb.policies,
@@ -1460,6 +1531,7 @@ const reselectAfterRemovalLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.reselectAft
 		...contentBucket.writePolicies("reselect-after-removal-content-write"),
 		...renamePolicies(generateSummaryQueue.policies, "reselect-after-removal"),
 		...renamePolicies(generateSummaryFifoQueue.policies, "reselect-after-removal"),
+		...renamePolicies(selectArticleContentQueue.policies, "reselect-after-removal-selection-ingress"),
 	],
 });
 
@@ -1886,13 +1958,15 @@ const recrawlContentExtractedLambda = new Lambda("recrawl-content-extracted", {
 		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
-	environmentNames: RECRAWL_CONTENT_EXTRACTED_ENV,
+	environmentNames: [...RECRAWL_CONTENT_EXTRACTED_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
+		SELECTION_ROUTE: SELECTION_ROUTE,
+		SELECT_ARTICLE_CONTENT_QUEUE_URL: selectArticleContentQueue.queueUrl,
 	},
 	policies: [
 		...recrawlContentExtractedDynamodb.policies,
@@ -1900,6 +1974,7 @@ const recrawlContentExtractedLambda = new Lambda("recrawl-content-extracted", {
 		...contentBucket.writePolicies("recrawl-content-extracted-content-write"),
 		...renamePolicies(generateSummaryQueue.policies, "recrawl"),
 		...renamePolicies(generateSummaryFifoQueue.policies, "recrawl"),
+		...renamePolicies(selectArticleContentQueue.policies, "recrawl-selection-ingress"),
 	],
 });
 
@@ -2025,13 +2100,15 @@ const refreshContentExtractedLambda = new Lambda("refresh-content-extracted", {
 		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
-	environmentNames: REFRESH_CONTENT_EXTRACTED_ENV,
+	environmentNames: [...REFRESH_CONTENT_EXTRACTED_ENV, ...SELECTION_INGRESS_ENV],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryFifoQueue.queueUrl,
+		SELECTION_ROUTE: SELECTION_ROUTE,
+		SELECT_ARTICLE_CONTENT_QUEUE_URL: selectArticleContentQueue.queueUrl,
 	},
 	policies: [
 		...refreshContentExtractedDynamodb.policies,
@@ -2039,6 +2116,7 @@ const refreshContentExtractedLambda = new Lambda("refresh-content-extracted", {
 		...contentBucket.writePolicies("refresh-content-extracted-content-write"),
 		...renamePolicies(generateSummaryQueue.policies, "refresh-content-extracted"),
 		...renamePolicies(generateSummaryFifoQueue.policies, "refresh-content-extracted"),
+		...renamePolicies(selectArticleContentQueue.policies, "refresh-content-extracted-selection-ingress"),
 	],
 });
 

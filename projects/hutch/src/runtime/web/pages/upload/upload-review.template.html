@@ -33,7 +33,7 @@
     <section id="upload-status" data-upload-status="timed-review">
       <div class="upload__panel" data-test-upload-timed-review>
         <h2 data-test-upload-heading>{{timed_review.heading}}</h2>
-        <p class="upload__description" data-test-upload-duration>{{timed_review.durationMinutes}} min</p>
+        <p class="upload__description" data-test-upload-duration>{{timed_review.transcriptMinutes}} min</p>
         <p class="upload__description" data-test-transcript-minutes>Uses {{timed_review.transcriptMinutes}} of your {{timed_review.allowanceMinutes}} transcript minutes today</p>
         <form method="post" action="{{timed_review.commitUrl}}" data-test-upload-commit-form>
           <button class="btn btn--primary upload__submit" type="submit">Save to my library</button>

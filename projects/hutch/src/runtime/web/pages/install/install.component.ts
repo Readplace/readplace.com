@@ -4,7 +4,7 @@ import assert from "node:assert";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 import {
-	UNADVERTISED_CLIENTS,
+	ANDROID_PLAY_STORE_URL,
 	APPLE_ITUNES_APP_META,
 	CLIENT_CATEGORIES,
 	clientCategoryOfGroup,
@@ -66,6 +66,32 @@ const NATIVE_APP_SEO = {
 			},
 		},
 	},
+	android: {
+		pitch: "get the Android app on Google Play",
+		shareSheet: "the Android share sheet",
+		structuredData: {
+			"@context": "https://schema.org",
+			"@type": "MobileApplication",
+			name: "Readplace for Android",
+			description:
+				"Save any page to your Readplace reading list from the Android share sheet, then read it in the app with its TL;DR.",
+			applicationCategory: "ProductivityApplication",
+			operatingSystem: "Android",
+			url: "https://readplace.com/install?client=android",
+			installUrl: ANDROID_PLAY_STORE_URL,
+			downloadUrl: ANDROID_PLAY_STORE_URL,
+			offers: {
+				"@type": "Offer",
+				price: "0",
+				priceCurrency: "USD",
+			},
+			publisher: {
+				"@type": "Organization",
+				name: "Readplace",
+				url: "https://readplace.com",
+			},
+		},
+	},
 } satisfies Record<
 	AdvertisedClientNameInGroup<"nativeApp">,
 	{ pitch: string; shareSheet: string; structuredData: object }
@@ -110,20 +136,6 @@ const MCP_OTHER_CLIENTS_GUIDE_HREF = withInternalTracking(MCP_GUIDE_PATH, {
 const CLIENT_ALIASES: Record<string, ClientName | undefined> = {
 	ai: "claude",
 };
-
-export const HIDDEN_TAB_REVEAL_QUERY = { name: "feature", value: "android" } as const;
-
-/** The tabs a visitor cannot see without the reveal query: derived from the
- * unadvertised roster, so flipping a client's advertised flag is what shows its
- * tab — no second list to update. The reveal keeps a preview path for checking
- * an unshipped client's page before the flag flips. */
-const HIDDEN_TAB_NAMES: ReadonlySet<string> = new Set(
-	UNADVERTISED_CLIENTS.map((client) => client.name),
-);
-
-export function revealsHiddenTabs(featureQuery: unknown): boolean {
-	return featureQuery === HIDDEN_TAB_REVEAL_QUERY.value;
-}
 
 export function parseClient(value: unknown): InstallClient {
 	if (value === undefined) return "chrome";
@@ -170,14 +182,12 @@ interface InstallTabGroup {
 	tabs: InstallTab[];
 }
 
-function buildTabGroups(active: ClientName, hiddenTabsRevealed: boolean): InstallTabGroup[] {
+function buildTabGroups(active: ClientName): InstallTabGroup[] {
 	const groups: InstallTabGroup[] = CLIENT_CATEGORIES.map((category) => {
 		const { slug, label } = CATEGORY_TAB_GROUPS[category];
 		return { key: slug, label, labelId: `install-group-${slug}`, tabs: [] };
 	});
-	const revealQuery = hiddenTabsRevealed ? `&${HIDDEN_TAB_REVEAL_QUERY.name}=${HIDDEN_TAB_REVEAL_QUERY.value}` : "";
 	for (const client of SUPPORTED_CLIENTS) {
-		if (HIDDEN_TAB_NAMES.has(client.name) && !hiddenTabsRevealed) continue;
 		const { slug } = CATEGORY_TAB_GROUPS[clientCategoryOfGroup(client.group)];
 		const target = groups.find((candidate) => candidate.key === slug);
 		assert(target, `no install tab group for category slug ${slug}`);
@@ -186,7 +196,7 @@ function buildTabGroups(active: ClientName, hiddenTabsRevealed: boolean): Instal
 			key: client.name,
 			label: client.displayName,
 			iconSvg: CLIENT_ICON_SVG[client.name],
-			href: withInternalTracking(`/install?client=${client.name}${revealQuery}`, {
+			href: withInternalTracking(`/install?client=${client.name}`, {
 				source: "install-tabs",
 				content: client.name,
 			}),
@@ -220,6 +230,13 @@ const IPHONE_DEMO = {
 	caption: "Tap Share in any browser, choose Readplace, and the page is in your readlist.",
 } satisfies NativeAppDemoCopy;
 
+const ANDROID_DEMO = {
+	platform: "android",
+	ariaLabel:
+		"Saving a page to Readplace from the Android share sheet, and the article arriving at the top of the reading list",
+	caption: "Tap Share in any browser, choose Readplace, and the page is in your readlist.",
+} satisfies NativeAppDemoCopy;
+
 /** The panel copy each client GROUP needs. Indexed by the group a client
  * actually belongs to, so a client cannot be given another group's panel: the
  * `group` tag is dictated by the roster rather than hand-written beside it. */
@@ -237,9 +254,8 @@ type PanelCopy = {
 		group: "nativeApp";
 		title: string;
 		lead: string;
-		cta: { href: string; label: string; testId: string } | null;
-		demo: NativeAppDemoCopy | null;
-		unavailable: { testId: string; text: string } | null;
+		cta: { href: string; label: string; testId: string };
+		demo: NativeAppDemoCopy;
 		outro: string;
 		outroTestId: string;
 	};
@@ -247,7 +263,9 @@ type PanelCopy = {
 	notesApp: {
 		group: "notesApp";
 		title: string;
-		unavailable: { testId: string; text: string } | null;
+		ctaLabel: string;
+		ctaTestId: string;
+		setup: string;
 	};
 };
 
@@ -281,7 +299,6 @@ const PANEL_DATA = {
 		lead: "Save links from any browser on your iPhone — no copy-paste, and no need to open the app to save. The same app runs on your Mac.",
 		cta: { href: IPHONE_APP_STORE_URL, label: "Install Readplace for iPhone", testId: "download-iphone" },
 		demo: IPHONE_DEMO,
-		unavailable: null,
 		outro: APP_SETUP_OUTRO,
 		outroTestId: "ios-setup-outro",
 	},
@@ -289,12 +306,8 @@ const PANEL_DATA = {
 		group: "nativeApp",
 		title: "Readplace on Android",
 		lead: "Save links from any browser on your Android phone — no copy-paste, and no need to open the app to save.",
-		cta: null,
-		demo: null,
-		unavailable: {
-			testId: "android-availability",
-			text: "The Android app is built, and its Play Store listing is on the way. Until it lands, readplace.com works in your Android browser, and a connected AI assistant can save links for you.",
-		},
+		cta: { href: ANDROID_PLAY_STORE_URL, label: "Install Readplace for Android", testId: "download-android" },
+		demo: ANDROID_DEMO,
 		outro: APP_SETUP_OUTRO,
 		outroTestId: "android-setup-outro",
 	},
@@ -328,10 +341,9 @@ const PANEL_DATA = {
 	obsidian: {
 		group: "notesApp",
 		title: "Readplace in Obsidian",
-		unavailable: {
-			testId: "obsidian-availability",
-			text: "The Readplace plugin is not in Obsidian's community directory yet.",
-		},
+		ctaLabel: "Add Readplace to Obsidian",
+		ctaTestId: "obsidian-install",
+		setup: "On desktop, install and enable Readplace from Community plugins. In Settings → Readplace, sign in, approve the connection in your browser, then choose Return to Obsidian and run Sync now.",
 	},
 } satisfies { [N in ClientName]: PanelCopy[ClientGroupOf<N>] };
 
@@ -358,9 +370,8 @@ interface NativeApp {
 	key: ClientName;
 	title: string;
 	lead: string;
-	cta: { href: string; label: string; testId: string } | null;
-	demo: (ShareDemoVideo & { ariaLabel: string; caption: string }) | null;
-	unavailable: { testId: string; text: string } | null;
+	cta: { href: string; label: string; testId: string };
+	demo: ShareDemoVideo & { ariaLabel: string; caption: string };
 	outro: string;
 	outroTestId: string;
 }
@@ -369,7 +380,8 @@ interface NotesApp {
 	key: ClientName;
 	title: string;
 	lead: string;
-	unavailable: { testId: string; text: string } | null;
+	cta: { href: string; label: string; testId: string };
+	setup: string;
 }
 
 type PanelView =
@@ -410,14 +422,11 @@ function buildPanel(
 					title: data.title,
 					lead: data.lead,
 					cta: data.cta,
-					demo: data.demo
-						? {
-								...buildShareDemoVideo(data.demo.platform, staticBaseUrl),
-								ariaLabel: data.demo.ariaLabel,
-								caption: data.demo.caption,
-							}
-						: null,
-					unavailable: data.unavailable,
+					demo: {
+						...buildShareDemoVideo(data.demo.platform, staticBaseUrl),
+						ariaLabel: data.demo.ariaLabel,
+						caption: data.demo.caption,
+					},
 					outro: data.outro,
 					outroTestId: data.outroTestId,
 				},
@@ -440,13 +449,18 @@ function buildPanel(
 				},
 			};
 		case "notesApp":
+			assert(
+				client.install.kind === "communityDirectory",
+				`${client.name} is a notes app, so it must install from the community directory`,
+			);
 			return {
 				type: "notesApp",
 				app: {
 					key: client.name,
 					title: data.title,
 					lead: client.description,
-					unavailable: data.unavailable,
+					cta: { href: client.install.listingUrl, label: data.ctaLabel, testId: data.ctaTestId },
+					setup: data.setup,
 				},
 			};
 	}
@@ -456,13 +470,12 @@ export function InstallPage(params: {
 	firefox: string | null;
 	client: InstallClient;
 	staticBaseUrl: string;
-	hiddenTabsRevealed: boolean;
 }): PageBody {
 	const panel = buildPanel(params.client, params.firefox, params.staticBaseUrl);
 	return {
 		seo: {
-			title: "Install Readplace — Browser, Phone & AI Assistants",
-			description: `Install the Readplace browser extension for ${BROWSER_EXTENSIONS_OR}, ${Object.values(NATIVE_APP_SEO).map((app) => app.pitch).join(", ")}, or connect your AI assistant to save and read your reading list.`,
+			title: "Install Readplace — Browser, Phone, AI & Obsidian",
+			description: `Install the Readplace browser extension for ${BROWSER_EXTENSIONS_OR}, ${Object.values(NATIVE_APP_SEO).map((app) => app.pitch).join(", ")}, connect your AI assistant, or sync saved articles into Obsidian.`,
 			canonicalUrl: "https://readplace.com/install",
 			appleItunesApp: APPLE_ITUNES_APP_META,
 			ogImage: `${params.staticBaseUrl}/screenshots/og-install-1200x630.png`,
@@ -472,7 +485,7 @@ export function InstallPage(params: {
 					"@context": "https://schema.org",
 					"@type": "SoftwareApplication",
 					name: "Readplace",
-					description: `Save any article to your Readplace reading list — from the ${BROWSER_EXTENSIONS_OR} browser extension, ${Object.values(NATIVE_APP_SEO).map((app) => app.shareSheet).join(", ")}, or a connected AI assistant.`,
+					description: `Save articles from the ${BROWSER_EXTENSIONS_OR} browser extension, ${Object.values(NATIVE_APP_SEO).map((app) => app.shareSheet).join(", ")}, or a connected AI assistant, and sync them into Obsidian.`,
 					applicationCategory: "ProductivityApplication",
 					operatingSystem: "Windows, macOS, Linux, ChromeOS, iOS",
 					url: "https://readplace.com/install",
@@ -515,7 +528,7 @@ export function InstallPage(params: {
 			html: render(
 				INSTALL_TEMPLATE,
 				{
-					groups: buildTabGroups(params.client, params.hiddenTabsRevealed),
+					groups: buildTabGroups(params.client),
 					panel,
 					browserOutro: BROWSER_SETUP_OUTRO,
 					mcpServerUrl: MCP_SERVER_URL,

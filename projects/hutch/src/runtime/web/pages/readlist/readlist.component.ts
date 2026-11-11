@@ -16,6 +16,7 @@ import { NAV_HIDE_SCRIPT } from "../../shared/reader-nav-script";
 import { OFFLINE_DOWNLOAD_SCRIPT } from "../../shared/offline-reader/offline-download-script";
 import { offlineCardOpenScript } from "../../shared/offline-reader/offline-card-open-script";
 import { offlineCopyRowScript } from "../../shared/article-body/article-history/offline-copy-row-script";
+import { offlineContentBannerScript } from "../../shared/offline-reader/offline-content-banner-script";
 import { SAVE_SURFACES_SHORT_PHRASE } from "../../shared/client-surface-phrases";
 import {
 	ONBOARDING_STYLES,
@@ -101,6 +102,7 @@ export function readlistPageScripts(cspNonce: CspNonce): string {
 		READER_PAGE_SCRIPTS,
 		OFFLINE_DOWNLOAD_SCRIPT,
 		offlineCopyRowScript(cspNonce),
+		offlineContentBannerScript(cspNonce),
 		offlineCardOpenScript(cspNonce),
 	].join("\n");
 }
@@ -187,6 +189,10 @@ const NOTHING_SAVED_INVITES: Record<PitchablePlatform, { text: string; label: st
 	iphone: {
 		text: "Save your first article with the Article button, or use the Readplace iPhone app to save it from the share sheet.",
 		label: "Install iPhone app",
+	},
+	android: {
+		text: "Save your first article with the Article button, or use the Readplace Android app to save it from the share sheet.",
+		label: "Install Android app",
 	},
 	other: {
 		text: `Save your first article with the Article button, or set up one-tap saving from ${SAVE_SURFACES_SHORT_PHRASE}.`,

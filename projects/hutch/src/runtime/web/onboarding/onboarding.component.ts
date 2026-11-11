@@ -89,6 +89,7 @@ const FOLD_OPEN_BY_PLATFORM = {
 	chrome: true,
 	firefox: true,
 	iphone: false,
+	android: false,
 	other: true,
 } satisfies Record<PitchablePlatform, boolean>;
 

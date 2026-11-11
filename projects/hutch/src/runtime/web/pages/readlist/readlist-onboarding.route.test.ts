@@ -584,19 +584,18 @@ describe("Readlist onboarding — no installable client", () => {
 		);
 	});
 
-	it("renders the no-client card (not an install step) for Android Chrome, whose app is not advertised", async () => {
+	it("renders the install steps (not the no-client card) for Android Chrome, whose app is advertised", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const response = await agent.get("/queue").set("User-Agent", ANDROID_CHROME_UA);
 
 		const doc = new JSDOM(response.text).window.document;
-		const noClient = doc.querySelector("[data-test-onboarding-no-client]");
-		assert(noClient, "no-client card must render while the Android app is unadvertised");
+		assert(doc.querySelector("[data-test-onboarding-steps]"), "the step checklist must render for Android");
 		assert.equal(
-			doc.querySelector("[data-test-onboarding-steps]"),
+			doc.querySelector("[data-test-onboarding-no-client]"),
 			null,
-			"the completion-gated step checklist must not render",
+			"the no-client card must not render for Android",
 		);
 	});
 

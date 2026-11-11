@@ -1,4 +1,5 @@
 import type { DownloadedMedia } from "@packages/finalize-article";
+import { stripTrackingImageSources } from "./strip-tracking-image-sources";
 
 export type RewriteHtmlUrls = (
 	html: string,
@@ -14,7 +15,8 @@ export function initProcessContentWithLocalMedia(deps: {
 		html: string;
 		media: DownloadedMedia[];
 	}): Promise<string> {
-		const { html, media } = params;
+		const html = stripTrackingImageSources(params.html);
+		const { media } = params;
 
 		if (media.length === 0) {
 			return Promise.resolve(html);

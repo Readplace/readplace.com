@@ -56,7 +56,7 @@ describe("GET /install", () => {
 		expect(doc.body.classList.contains("page-install")).toBe(true);
 	});
 
-	it("should render every client tab in order across both groups, with the Android tab held back until the app ships", async () => {
+	it("should render every client tab in order across all groups", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
@@ -64,43 +64,10 @@ describe("GET /install", () => {
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map(
 			(el) => el.getAttribute("data-test-tab"),
 		);
-		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"]);
+		expect(tabs).toEqual(["firefox", "chrome", "iphone", "android", "chatgpt", "gemini", "claude", "obsidian"]);
 	});
 
-	it("should reveal the hidden tabs in roster order on ?feature=android, and keep the flag on every tab link so it survives switching tabs", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=chrome&feature=android");
-		const doc = load(response.text);
-
-		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]"));
-		expect(tabs.map((el) => el.getAttribute("data-test-tab"))).toEqual([
-			"firefox",
-			"chrome",
-			"iphone",
-			"android",
-			"chatgpt",
-			"gemini",
-			"claude",
-			"obsidian",
-		]);
-		for (const tab of tabs) {
-			const href = tab.getAttribute("href");
-			assert(href, "every tab must link somewhere");
-			expect(new URL(href, TEST_APP_ORIGIN).searchParams.get("feature")).toBe("android");
-		}
-	});
-
-	it("should keep the Android panel reachable by its own link while the tab is hidden, because the links into it already exist", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=android");
-		const doc = load(response.text);
-
-		expect(response.status).toBe(200);
-		expect(doc.querySelector('[data-test-panel="android"]')).not.toBeNull();
-		expect(doc.querySelector('[data-test-tab="android"]')).toBeNull();
-	});
-
-	it("should render the Obsidian panel from the registry with one availability line and no link, while its tab stays hidden before listing", async () => {
+	it("should offer the listed Obsidian plugin from its visible tab", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=obsidian");
 		const doc = load(response.text);
@@ -112,19 +79,29 @@ describe("GET /install", () => {
 		assert(obsidian, "obsidian must be in the roster");
 		expect(panel.querySelector(".install-page__panel-title")?.textContent).toBe("Readplace in Obsidian");
 		expect(panel.querySelector(".install-page__lead")?.textContent).toBe(obsidian.description);
-		expect(panel.querySelector('[data-test-section="obsidian-availability"]')?.textContent).toBe(
-			"The Readplace plugin is not in Obsidian's community directory yet.",
+		expect(obsidian.advertised).toBe(true);
+		expect(Array.from(panel.querySelectorAll("a")).map((link) => ({
+			href: link.getAttribute("href"),
+			label: link.textContent,
+			testId: link.getAttribute("data-test-cta"),
+		}))).toEqual([{
+			href: obsidian.install.listingUrl,
+			label: "Add Readplace to Obsidian",
+			testId: "obsidian-install",
+		}]);
+		expect(doc.querySelector('[data-test-tab="obsidian"]')?.getAttribute("aria-current")).toBe("page");
+		expect(panel.querySelector('[data-test-section="obsidian-setup"]')?.textContent).toBe(
+			"On desktop, install and enable Readplace from Community plugins. In Settings → Readplace, sign in, approve the connection in your browser, then choose Return to Obsidian and run Sync now.",
 		);
-		expect(panel.querySelectorAll("a")).toHaveLength(0);
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map((el) => el.getAttribute("data-test-tab"));
-		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"]);
+		expect(tabs).toEqual(["firefox", "chrome", "iphone", "android", "chatgpt", "gemini", "claude", "obsidian"]);
 		const groups = Array.from(doc.querySelectorAll("[data-test-group]")).map((el) => el.getAttribute("data-test-group"));
-		expect(groups).toEqual(["browsers", "ai"]);
+		expect(groups).toEqual(["browsers", "ai", "notes"]);
 	});
 
-	it("should put the Obsidian tab under a Notes Apps group on ?feature=android", async () => {
+	it("should put the listed Obsidian tab under Notes Apps without a preview flag", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=obsidian&feature=android");
+		const response = await request(harness.server).get("/install?client=obsidian");
 		const doc = load(response.text);
 
 		const notes = doc.querySelector('[data-test-group="notes"]');
@@ -136,7 +113,7 @@ describe("GET /install", () => {
 		expect(notesTabs).toEqual(["obsidian"]);
 	});
 
-	it("should split tabs into a Browsers & Devices group and an AI Assistants group", async () => {
+	it("should group tabs by capture, AI assistants and notes apps", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
@@ -144,14 +121,14 @@ describe("GET /install", () => {
 		const groups = Array.from(doc.querySelectorAll("[data-test-group]")).map(
 			(el) => el.getAttribute("data-test-group"),
 		);
-		expect(groups).toEqual(["browsers", "ai"]);
+		expect(groups).toEqual(["browsers", "ai", "notes"]);
 
 		const devices = doc.querySelector('[data-test-group="browsers"]');
 		assert(devices, "browsers group must render");
 		const deviceTabs = Array.from(devices.querySelectorAll("[data-test-tab]")).map(
 			(el) => el.getAttribute("data-test-tab"),
 		);
-		expect(deviceTabs).toEqual(["firefox", "chrome", "iphone"]);
+		expect(deviceTabs).toEqual(["firefox", "chrome", "iphone", "android"]);
 
 		const ai = doc.querySelector('[data-test-group="ai"]');
 		assert(ai, "ai group must render");
@@ -169,7 +146,7 @@ describe("GET /install", () => {
 		const labels = Array.from(
 			doc.querySelectorAll(".install-page__group-label"),
 		).map((el) => el.textContent);
-		expect(labels).toEqual(["Browsers & Devices", "AI Assistants"]);
+		expect(labels).toEqual(["Browsers & Devices", "AI Assistants", "Notes Apps"]);
 	});
 
 	it("should expose each tab group to assistive tech via role=group and aria-labelledby", async () => {
@@ -178,7 +155,7 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const groups = Array.from(doc.querySelectorAll("[data-test-group]"));
-		expect(groups).toHaveLength(2);
+		expect(groups).toHaveLength(3);
 		for (const group of groups) {
 			expect(group.getAttribute("role")).toBe("group");
 			const labelledBy = group.getAttribute("aria-labelledby");
@@ -191,7 +168,7 @@ describe("GET /install", () => {
 
 	it("should label every tab with exactly its display name and no status chip", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=chrome&feature=android");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = load(response.text);
 
 		for (const client of SUPPORTED_CLIENTS) {
@@ -207,7 +184,7 @@ describe("GET /install", () => {
 		const doc = load(response.text);
 
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]"));
-		expect(tabs).toHaveLength(6);
+		expect(tabs).toHaveLength(8);
 		for (const tab of tabs) {
 			const icon = tab.querySelector(".install-page__tab-icon svg");
 			assert(icon, `tab ${tab.getAttribute("data-test-tab")} must render an inline icon`);
@@ -424,6 +401,49 @@ describe("GET /install", () => {
 
 		// The recording demonstrates the flow, so the panel never narrates it too.
 		expect(panel.textContent).not.toContain("Favourites");
+	});
+
+	it("should lead the Android panel with the Google Play CTA, then the recording, then the outro", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=android");
+		const doc = load(response.text);
+
+		const panel = doc.querySelector('[data-test-panel="android"]');
+		assert(panel, "the Android panel must render");
+		expect(doc.querySelector('[data-test-tab="android"]')?.getAttribute("aria-current")).toBe("page");
+		const cta = panel.querySelector('[data-test-cta="download-android"]');
+		expect(cta?.getAttribute("href")).toBe("https://play.google.com/store/apps/details?id=com.readplace.app");
+		expect(cta?.textContent).toBe("Install Readplace for Android");
+		const order = Array.from(
+			panel.querySelectorAll("[data-test-cta], [data-test-video], [data-test-section]"),
+		).map(
+			(el) =>
+				el.getAttribute("data-test-cta") ??
+				el.getAttribute("data-test-section") ??
+				"video",
+		);
+		expect(order).toEqual(["download-android", "video", "android-setup-outro"]);
+		const video = panel.querySelector("[data-test-video] video");
+		assert(video, "the Android panel must render its share recording");
+		expect(Array.from(video.querySelectorAll("source")).map((el) => el.getAttribute("src"))).toEqual([
+			"https://static.test/videos/android-share-demo-h264.mp4",
+		]);
+		expect([video.getAttribute("width"), video.getAttribute("height")]).toEqual(["540", "1212"]);
+	});
+
+	it("should describe the Android app as a MobileApplication installed from Google Play", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=android");
+		const doc = load(response.text);
+
+		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
+			(script) => JSON.parse(script.textContent ?? "{}"),
+		);
+		const app = schemas.find(
+			(schema) => schema["@type"] === "MobileApplication" && schema.operatingSystem === "Android",
+		);
+		assert(app, "the install page must publish the Android MobileApplication entity");
+		expect(app.installUrl).toBe("https://play.google.com/store/apps/details?id=com.readplace.app");
 	});
 
 	it("should offer Safari's Smart App Banner, so an iPhone visitor gets the native install prompt", async () => {
@@ -768,6 +788,7 @@ describe("GET /install", () => {
 		const description = doc.querySelector('meta[name="description"]');
 		expect(description?.getAttribute("content")).toContain("extension");
 		expect(description?.getAttribute("content")).toContain("AI assistant");
+		expect(description?.getAttribute("content")).toContain("sync saved articles into Obsidian");
 		expect(description?.getAttribute("content")?.startsWith("Install the Readplace browser extension for")).toBe(true);
 	});
 
@@ -881,18 +902,9 @@ describe("GET /install client detection", () => {
 		expect(await landingClient(IPHONE_EDGE)).toBe("/install?client=iphone");
 	});
 
-	it("sends Android to Gemini while the Android tab is held back, because landing on a panel whose tab is hidden would advertise an app that has not shipped", async () => {
-		expect(await landingClient(ANDROID_CHROME)).toBe("/install?client=gemini");
-		expect(await landingClient(ANDROID_FIREFOX)).toBe("/install?client=gemini");
-	});
-
-	it("sends Android to the Android app once ?feature=android reveals the tab, which every browser there can install even though none can take the extension", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		for (const userAgent of [ANDROID_CHROME, ANDROID_FIREFOX]) {
-			const response = await request(harness.server).get("/install?feature=android").set("User-Agent", userAgent);
-			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe("/install?feature=android&client=android");
-		}
+	it("sends every Android browser to the Android app, because no browser there can take the extension", async () => {
+		expect(await landingClient(ANDROID_CHROME)).toBe("/install?client=android");
+		expect(await landingClient(ANDROID_FIREFOX)).toBe("/install?client=android");
 	});
 
 	it("sends any browser with no first-party client to ChatGPT, because the MCP connector is the only route open to it", async () => {

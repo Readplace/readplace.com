@@ -49,6 +49,7 @@ import {
 	moveItemLabel,
 } from "./readlist-card/move-dialog.component";
 import { cardProcessingOf } from "./readlist-card/card-processing";
+import type { ContentState } from "./readlist-card/content-state";
 import { type CardKind, cardKindLabel, cardKindOf } from "./readlist-card/card-kind-label";
 import { readlistCardVia } from "./readlist-card/readlist-card-via";
 import type {
@@ -113,6 +114,7 @@ export interface ReadlistArticleViewModel {
 	 * stops ticking. See isCardTerminal for the rules.
 	 */
 	cardPollUrl?: string;
+	contentState: ContentState;
 	readerHref: string;
 	/**
 	 * True when the card stopped polling because the poll cap was reached
@@ -381,6 +383,7 @@ export function toReadlistArticleViewModel(params: {
 		move: toArticleMove(moveInput),
 		moveLocks: moveLock === undefined ? [] : [moveLock],
 		cardPollUrl: isProcessing ? buildCardPollUrl({ articleId: id, pollCount: phase.pollCursor, filters }) : undefined,
+		contentState: processing.contentState,
 		readerHref: versionedReaderHref({
 			articleId: id,
 			returnQuery: readlistReturnQuery(filters),

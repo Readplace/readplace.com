@@ -63,10 +63,10 @@ hold_node() {
   adb shell input swipe "${point[0]}" "${point[1]}" "${point[0]}" "${point[1]}" "$ms"
 }
 
-adb shell am force-stop com.readplace.android
-adb shell am start -n com.readplace.android/.app.MainActivity >/dev/null
+adb shell am force-stop com.readplace.app
+adb shell am start -n com.readplace.app/com.readplace.android.app.MainActivity >/dev/null
 await_node text "Reading List" 25 >/dev/null || { echo "sign in on the emulator first" >&2; exit 1; }
-adb shell am force-stop com.readplace.android
+adb shell am force-stop com.readplace.app
 
 adb shell settings put global sysui_demo_allowed 1
 adb shell am broadcast -a com.android.systemui.demo -e command enter >/dev/null

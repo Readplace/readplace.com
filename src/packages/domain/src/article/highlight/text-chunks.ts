@@ -83,10 +83,12 @@ export function collectTextChunks<N extends TextChunkNode<N>>(
 		if (SKIPPED_ELEMENTS.has(name)) return;
 		const isBlock = BLOCK_ELEMENTS.has(name);
 		if (isBlock) boundaryPending = true;
-		for (let i = 0; i < node.childNodes.length; i++) visit(node.childNodes[i]);
+		const children = node.childNodes;
+		for (let i = 0; i < children.length; i++) visit(children[i]);
 		if (isBlock) boundaryPending = true;
 	};
 
-	for (let i = 0; i < root.childNodes.length; i++) visit(root.childNodes[i]);
+	const rootChildren = root.childNodes;
+	for (let i = 0; i < rootChildren.length; i++) visit(rootChildren[i]);
 	return chunks;
 }

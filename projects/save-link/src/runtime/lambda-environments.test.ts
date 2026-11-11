@@ -31,6 +31,8 @@ import { SUMMARY_GENERATION_FAILED_ENV } from "./summary-generation-failed.env";
 import { REFRESH_ARTICLE_CONTENT_ENV } from "./refresh-article-content.env";
 import { REFRESH_CONTENT_EXTRACTED_ENV } from "./refresh-content-extracted.env";
 import { UPDATE_FETCH_TIMESTAMP_ENV } from "./update-fetch-timestamp.env";
+import { SELECTION_INGRESS_ENV } from "./selection-ingress.env";
+import { SELECT_ARTICLE_CONTENT_ENV } from "./select-article-content.env";
 
 const tuples = {
 	SAVE_LINK_FAILURES_DLQ_ENV,
@@ -66,6 +68,8 @@ const tuples = {
 	REFRESH_ARTICLE_CONTENT_ENV,
 	REFRESH_CONTENT_EXTRACTED_ENV,
 	UPDATE_FETCH_TIMESTAMP_ENV,
+	SELECTION_INGRESS_ENV,
+	SELECT_ARTICLE_CONTENT_ENV,
 };
 
 describe("Lambda environment tuples", () => {

@@ -27,7 +27,7 @@ describe("in-memory article image hosting", () => {
 			html: "",
 			mediaType: "image",
 			writeContext: scoped ? { url: URL, attemptId: SaveAttemptIdSchema.parse("local-attempt") } : undefined,
-			resolvedThumbnail: { image: { url: URL, body, contentType: "image/png", extension: ".png" }, provenUnusable: [] },
+			resolvedThumbnail: { image: { url: URL, body, contentType: "image/png", extension: ".png" }, provenUnusable: [], fetched: [URL] },
 		});
 
 		assert(result.ok);

@@ -1,6 +1,6 @@
 import { extname } from "node:path";
 import { type MediaKindManifest, type MediaKindName, displayMinutes } from "@packages/media-contracts";
-import { uploadDescriptionsOf, uploadHeadingOf } from "./upload-copy";
+import { transcriptAllowanceCopyOf, uploadDescriptionsOf, uploadHeadingOf } from "./upload-copy";
 
 export interface UploadStartViewModel {
 	readonly heading: string;
@@ -9,7 +9,7 @@ export interface UploadStartViewModel {
 	readonly showsGuestNotice: boolean;
 	readonly startPath: string;
 	readonly refusalMessage?: string;
-	readonly transcriptAllowanceMinutes?: number;
+	readonly transcriptAllowance?: string;
 }
 
 export function kindsForViewer(input: {
@@ -50,13 +50,16 @@ export function toUploadStartViewModel(
 	};
 }
 
-export function transcriptAllowanceMinutesOf(input: {
+export function transcriptAllowanceOf(input: {
 	kinds: readonly MediaKindManifest[];
-	metered: boolean;
 	allowanceSeconds: number;
-}): number | undefined {
-	if (!input.metered || !input.kinds.some((kind) => kind.meter !== undefined)) return undefined;
-	return displayMinutes(input.allowanceSeconds);
+}): string | undefined {
+	const metered = input.kinds.filter((kind) => kind.meter !== undefined);
+	if (metered.length === 0) return undefined;
+	return transcriptAllowanceCopyOf({
+		withVideo: metered.some((kind) => kind.name === "video"),
+		minutes: displayMinutes(input.allowanceSeconds),
+	});
 }
 
 export function acceptAttributeOf(kinds: readonly MediaKindManifest[]): string {

@@ -6,8 +6,10 @@ import { initLogFetchFailure, type LogFetchFailure } from "./log-fetch-failure";
 import { BodyTooLargeError, readBodyWithCap } from "./read-capped-body";
 import { describeRejection } from "./describe-rejection";
 import { sniffImageContentType } from "./image-formats";
+import { isProvenTrackingImageUrl } from "./is-proven-tracking-image-url";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
+const MAX_THUMBNAIL_CANDIDATE_FETCHES = 5;
 export const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
 
 /**
@@ -29,7 +31,7 @@ export function extractThumbnailCandidates(params: {
 
 	function push(raw: string | null | undefined) {
 		const resolved = resolveIfRelative(raw, baseUrl);
-		if (resolved && isValidHttpUrl(resolved) && !seen.has(resolved)) {
+		if (resolved && isValidHttpUrl(resolved) && !isProvenTrackingImageUrl(resolved) && !seen.has(resolved)) {
 			seen.add(resolved);
 			candidates.push(resolved);
 		}
@@ -97,8 +99,19 @@ export function initFetchThumbnailImage(deps: {
 	const logFetchFailure = initLogFetchFailure({ logError, logInfo });
 	return async ({ candidates, referer }) => {
 		const provenUnusable: string[] = [];
-		let image: ThumbnailImage | undefined;
+		const fetched: string[] = [];
 		for (const candidateUrl of candidates) {
+			if (isProvenTrackingImageUrl(candidateUrl)) {
+				provenUnusable.push(candidateUrl);
+				continue;
+			}
+			if (fetched.length === MAX_THUMBNAIL_CANDIDATE_FETCHES) {
+				logError(
+					`[CrawlArticle] Thumbnail candidate cap reached: fetched ${fetched.length} of ${candidates.length} candidates for ${referer}`,
+				);
+				break;
+			}
+			fetched.push(candidateUrl);
 			const outcome = await tryFetchImage({
 				crawlFetch,
 				logError,
@@ -107,13 +120,10 @@ export function initFetchThumbnailImage(deps: {
 				url: candidateUrl,
 				referer,
 			});
-			if (outcome.verdict === "image") {
-				image = outcome.image;
-				break;
-			}
+			if (outcome.verdict === "image") return { image: outcome.image, provenUnusable, fetched };
 			if (outcome.verdict === "proven-unusable") provenUnusable.push(candidateUrl);
 		}
-		return { image, provenUnusable };
+		return { image: undefined, provenUnusable, fetched };
 	};
 }
 

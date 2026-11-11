@@ -38,6 +38,46 @@ describe("collectTextChunks", () => {
 		]);
 	});
 
+	it("reads an element's children once, as a lazy DOM rebuilds childNodes on every read", () => {
+		const reads = new Map<string, number>();
+		const countedElement = (name: string, children: FakeNode[]): FakeNode => ({
+			nodeType: 1,
+			nodeName: name,
+			nodeValue: null,
+			get childNodes() {
+				reads.set(name, (reads.get(name) ?? 0) + 1);
+				return children;
+			},
+		});
+		const root = countedElement("div", [
+			countedElement("p", [fakeText("one"), fakeText("two")]),
+			fakeText("three"),
+			countedElement("em", [fakeText("four")]),
+		]);
+
+		assert.deepEqual(
+			collectTextChunks(root).map((chunk) => chunk.text),
+			["one", "two", "three", "four"],
+		);
+		assert.deepEqual(Object.fromEntries(reads), { div: 1, p: 1, em: 1 });
+	});
+
+	it("walks a root of 16,600 sibling paragraphs within the reader's request budget", () => {
+		const paragraph = `<p>${"A chapter sentence of a long book. ".repeat(10)}</p>`;
+		const { document } = parseHTML(
+			`<!doctype html><html><body><div id="content">${paragraph.repeat(16_600)}</div></body></html>`,
+		);
+		const root = document.getElementById("content");
+		assert(root);
+
+		const startedAt = performance.now();
+		const chunks = collectTextChunks<Node>(root);
+		const elapsedMs = performance.now() - startedAt;
+
+		assert.equal(chunks.length, 16_600);
+		assert(elapsedMs < 2_000, `walked in ${elapsedMs} ms`);
+	}, 60_000);
+
 	it("keeps the node each chunk was read from", () => {
 		const text = fakeText("kept");
 		const [chunk] = collectTextChunks(fakeElement("div", [text]));

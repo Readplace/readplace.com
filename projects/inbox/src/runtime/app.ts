@@ -20,7 +20,7 @@ import type { UserId } from "@packages/domain/user";
 import type { SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { ResolveLogin } from "@packages/web-session";
-import type { Logger } from "@packages/logger";
+import type { Logger, LogError } from "@packages/logger";
 import {
 	type AnalyticsEvent,
 	createAnalyticsMiddleware,
@@ -71,7 +71,7 @@ export function createInboxApp(
 			saveAttemptId: SaveAttemptId;
 		}) => Promise<void>;
 		recordEngagementActivity: RecordEngagementActivity;
-		logError: (message: string, error?: Error) => void;
+		logError: LogError;
 		now: () => Date;
 		analyticsLogger: Logger.Typed<AnalyticsEvent>;
 		salt: string;

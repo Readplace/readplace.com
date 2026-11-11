@@ -427,6 +427,7 @@ const RECEIVE_TO_INVOKE_GUARD_SECONDS = 60;
 
 const failuresDlq = new SharedDlq(INBOX_FAILURES_DLQ, {
 	alertEmailDLQEntry: alertEmail,
+	drainedByHandler: true,
 });
 
 const extractEmailLinksQueue = new Sqs(INBOX_DLQ_SOURCES.extractEmailLinks, {

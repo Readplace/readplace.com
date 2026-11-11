@@ -32,25 +32,17 @@ async function runJobEvent(
 const SPOKEN = {
 	results: {
 		items: [
-			{
-				type: "pronunciation",
-				start_time: "0.0",
-				end_time: "0.4",
-				speaker_label: "spk_0",
-				alternatives: [{ content: "Welcome" }],
-			},
-			{ type: "punctuation", alternatives: [{ content: "." }] },
-			{
-				type: "pronunciation",
-				start_time: "310.0",
-				end_time: "310.4",
-				speaker_label: "spk_0",
-				alternatives: [{ content: "Later" }],
-			},
+			{ type: "pronunciation" },
+			{ type: "punctuation" },
+			{ type: "pronunciation" },
+		],
+		audio_segments: [
+			{ start_time: "0.0", transcript: "Welcome." },
+			{ start_time: "310.0", transcript: "Later" },
 		],
 	},
 };
-const SILENT = { results: { items: [] } };
+const SILENT = { results: { items: [], audio_segments: [] } };
 
 type PutCall = Parameters<PutTierSource>[0];
 
@@ -96,9 +88,6 @@ const MINIMAL_BODY = {
 	durationSeconds: 400,
 	time: EVENT_TIME,
 };
-
-const ledgerCalls = (calls: [string, unknown][]) =>
-	calls.filter(([name]) => name === "settle");
 
 describe("initRenderTranscriptHandler", () => {
 	it("writes the transcript as the reader's own tier-0 capture", async () => {
@@ -189,19 +178,19 @@ describe("initRenderTranscriptHandler", () => {
 		]);
 	});
 
-	it("keeps a failed job's item playable and leaves its charge alone", async () => {
+	it("keeps a failed job's item playable, then settles its charge", async () => {
 		const { handler, calls } = setUp();
 
 		assert.equal(await runJobEvent(handler, "FAILED"), "acked");
 
-		assert.deepEqual(calls.slice(-2), [
+		assert.deepEqual(calls.slice(-3), [
 			[
 				"recordTranscriptOutcome",
 				{ url: ITEM_URL, transcript: "transcript-failed" },
 			],
 			["writeMinimalAudioBody", MINIMAL_BODY],
+			["settle", SETTLE_REF],
 		]);
-		assert.deepEqual(ledgerCalls(calls), []);
 	});
 
 	it("clears the transcripts prefix and writes nothing when the job request is gone", async () => {

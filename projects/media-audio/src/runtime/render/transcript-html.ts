@@ -1,27 +1,19 @@
 import { sanitizeArticleHtml } from "@packages/domain/article";
 import { z } from "zod";
 
-const PARAGRAPH_PAUSE_SECONDS = 2;
 const HEADING_INTERVAL_SECONDS = 300;
 
 const SecondsText = z.string().transform(Number).pipe(z.number().nonnegative());
 
-const TranscribeItemSchema = z.discriminatedUnion("type", [
-	z.object({
-		type: z.literal("pronunciation"),
-		start_time: SecondsText,
-		end_time: SecondsText,
-		speaker_label: z.string().optional(),
-		alternatives: z.array(z.object({ content: z.string() })).min(1),
-	}),
-	z.object({
-		type: z.literal("punctuation"),
-		alternatives: z.array(z.object({ content: z.string() })).min(1),
-	}),
-]);
-
 export const TranscribeOutputSchema = z.object({
-	results: z.object({ items: z.array(TranscribeItemSchema) }),
+	results: z.object({
+		items: z.array(
+			z.object({ type: z.enum(["pronunciation", "punctuation"]) }),
+		),
+		audio_segments: z.array(
+			z.object({ start_time: SecondsText, transcript: z.string() }),
+		),
+	}),
 });
 export type TranscribeOutput = z.infer<typeof TranscribeOutputSchema>;
 
@@ -50,26 +42,10 @@ function escapeHtml(text: string): string {
 }
 
 function paragraphsOf(output: TranscribeOutput): Paragraph[] {
-	const paragraphs: Paragraph[] = [];
-	let speaker: string | undefined;
-	let lastEnd = 0;
-	for (const item of output.results.items) {
-		const content = item.alternatives[0].content;
-		const current = paragraphs.at(-1);
-		if (item.type === "punctuation") {
-			if (current) current.text += content;
-			continue;
-		}
-		const turn =
-			current === undefined ||
-			item.speaker_label !== speaker ||
-			item.start_time - lastEnd >= PARAGRAPH_PAUSE_SECONDS;
-		if (turn) paragraphs.push({ startSeconds: item.start_time, text: content });
-		else current.text += ` ${content}`;
-		speaker = item.speaker_label;
-		lastEnd = item.end_time;
-	}
-	return paragraphs;
+	return output.results.audio_segments.map((segment) => ({
+		startSeconds: segment.start_time,
+		text: segment.transcript,
+	}));
 }
 
 export function transcriptHtml(output: TranscribeOutput): {

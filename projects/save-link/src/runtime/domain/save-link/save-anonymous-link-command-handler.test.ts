@@ -11,6 +11,7 @@ import type { PutTierSource } from "@packages/tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -75,7 +76,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		adoptCanonicalIdentity: jest.fn().mockResolvedValue(undefined),
 		isSiteRuleUrl: () => false,
-		publishEvent: jest.fn().mockResolvedValue(undefined),
+		publishEvent: initRecordingPublishEvent().publishEvent,
 		now: fixedNow,
 		logger: noopLogger,
 		logParseError: jest.fn(),
@@ -88,7 +89,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 describe("initSaveAnonymousLinkCommandHandler", () => {
 	it("writes a tier-1 source and emits TierContentExtractedEvent without userId", async () => {
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = createHandler({ putTierSource, publishEvent });
 
@@ -97,16 +98,16 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(putTierSource).toHaveBeenCalledWith(
 			expect.objectContaining({ url: "https://example.com/article", tier: "tier-1" }),
 		);
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 			url: "https://example.com/article",
 			extractedAt: "2026-04-30T12:00:00.000Z",
-		}));
+		}) });
 	});
 
 	it("terminalises an origin failure in-process with its classified reason and writes no tier source, so a refused origin never dead-letters", async () => {
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({ crawlAndFinalizeArticle, putTierSource, publishEvent, transitionAndPersist });
@@ -123,7 +124,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 			input: { reason: { kind: "fetch-failed" }, receiveCount: 1 },
 		});
 		expect(putTierSource).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("reports a batch failure when terminalising the origin failure itself fails, so the record is not lost", async () => {
@@ -168,7 +169,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 	it("terminalises a permanently-dead link (HTTP 410) via markCrawlNotFound and neither emits TierContentExtractedEvent nor reports a batch failure — an SQS retry can never revive a page the origin no longer serves", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "not-found", httpStatus: 410 });
 
@@ -185,14 +186,14 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 			url: "https://example.com/gone",
 			input: { reason: { kind: "not-found", httpStatus: 410 } },
 		});
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
 	it("defers an edge-blocked link (HTTP 451) to the render ladder and reports no batch failure", async () => {
 		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 451 });
 
@@ -207,7 +208,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ unsupportedReason: "blocked" }));
 		expect(transitionAndPersist).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
@@ -217,7 +218,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 			Parameters<EmitSimpleCrawlUnsupported>
 		>().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
 			status: "unsupported",
@@ -243,11 +244,11 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({
 			url: "https://example.com/blob",
 			userId: undefined,
-			recrawl: undefined,
+			trigger: "save",
 		}));
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
@@ -306,21 +307,21 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 		it("crawls the capture into the archive tier and announces it to the content judge", async () => {
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const handler = createHandler({ putTierSource, publishEvent });
 
 			await handler(createSqsEvent({ url: "https://example.com/article", captureUrl: capture }), buildLambdaContext(), () => {});
 
 			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/article", tier: "tier-2" }));
 			expect(putTierSource).toHaveBeenCalledTimes(2);
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				url: "https://example.com/article",
 				extractedAt: expect.any(String),
-			}));
+			}) });
 		});
 
 		it("hands the capture to the deferred crawl without a tier event when the live fetch is deferred, so the content judge runs once", async () => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				crawlAndFinalizeArticle: async (params) => params.fetchUrl === capture ? fetchedResult : { status: "blocked", httpStatus: 403 },
@@ -336,11 +337,11 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 				unsupportedReason: "blocked",
 				candidates: [{ id: expect.any(String), tier: "tier-2" }],
 			})]]);
-			expect(publishEvent.mock.calls).toEqual([]);
+			expect(published).toEqual([]);
 		});
 
 		it("announces a completed no-body attempt when neither source serves a body", async () => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const handler = createHandler({
 				crawlAndFinalizeArticle: async () => ({ status: "not-found", httpStatus: 404 }),
 				publishEvent,
@@ -348,7 +349,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 			await handler(createSqsEvent({ url: "https://example.com/article", captureUrl: capture }), buildLambdaContext(), () => {});
 
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [], liveAttempt: { outcome: "no-body" } }));
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: [], liveAttempt: { outcome: "no-body" } }) });
 		});
 	});
 });
@@ -356,8 +357,8 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 it("uses a recovered source binding for old anonymous wrapper work", async () => {
 	const url = "https://example.com/article";
 	const captureUrl = `https://web.archive.org/web/20081203/${url}`;
-	const publishEvent = jest.fn().mockResolvedValue(undefined);
+	const { publishEvent, published } = initRecordingPublishEvent();
 	const handler = createHandler({ prepareArticleIdentity: async () => ({ status: "resolved", url, originalUrl: url, contentSourceUrl: captureUrl, sourceOriginalUrl: url }), publishEvent });
 	await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
-	expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [{ id: expect.any(String), tier: "tier-1" }, { id: expect.any(String), tier: "tier-2" }] }));
+	expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: [{ id: expect.any(String), tier: "tier-1" }, { id: expect.any(String), tier: "tier-2" }] }) });
 });

@@ -644,16 +644,20 @@ describe("initGenerateSummaryHandler", () => {
 		expect(deps.summarizeArticle).not.toHaveBeenCalled();
 	});
 
-	it("keeps the assert → DLQ path when content is absent and no aggregate row exists (unknown row, not a terminal crawl)", async () => {
-		const URL = "https://example.com/no-row";
+	it("acknowledges the message without summarising when the article row is gone (a released private upload's row is hard-deleted)", async () => {
+		const URL = "https://uploads.readplace.invalid/416aae4eaadc6421de29e0d087e0e931";
+		const info = jest.fn();
 		const { handler, deps } = createHandler({
-			findArticleContent: jest.fn<ReturnType<FindArticleContent>, Parameters<FindArticleContent>>().mockResolvedValue(undefined),
 			loadArticle: jest.fn().mockResolvedValue(undefined),
+			logger: { ...noopLogger, info },
 		});
 
 		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
-		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(info).toHaveBeenCalledWith("[GenerateSummary] skipped — article row is gone", { url: URL, outcome: "row-absent" });
+		expect(deps.findArticleContent).not.toHaveBeenCalled();
+		expect(deps.summarizeArticle).not.toHaveBeenCalled();
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 	});
 

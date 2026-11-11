@@ -10,6 +10,7 @@ import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-artic
 import type { PutTierSource } from "@packages/tier-source";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -50,14 +51,18 @@ const okFinalize: FinalizeArticle = async () => ({ ok: true, article: stubFinali
 
 type HandlerDeps = Parameters<typeof initSaveLinkRawHtmlCommandHandler>[0];
 
-function createHandler(overrides: Partial<HandlerDeps> = {}) {
+function createHandler({ onPublish, ...overrides }: Partial<HandlerDeps> & { onPublish?: () => void } = {}) {
+	const recording = initRecordingPublishEvent();
 	const deps: HandlerDeps = {
 		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
 		resolveOriginalUrl: async (url) => url,
 		readPendingHtml: jest.fn().mockResolvedValue({ html: "<html><body><p>Article content</p></body></html>", capturedAt: "2026-10-01T00:00:00.000Z" }),
 		finalizeArticle: okFinalize,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
-		publishEvent: jest.fn().mockResolvedValue(undefined),
+		publishEvent: async (event, detail) => {
+			await recording.publishEvent(event, detail);
+			onPublish?.();
+		},
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		now: () => new Date("2026-04-18T12:00:00.000Z"),
 		logger: noopLogger,
@@ -70,12 +75,12 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		}),
 		...overrides,
 	};
-	return { handler: initSaveLinkRawHtmlCommandHandler(deps), deps };
+	return { handler: initSaveLinkRawHtmlCommandHandler(deps), deps, published: recording.published };
 }
 
 describe("initSaveLinkRawHtmlCommandHandler", () => {
 	it("reads pending HTML, writes a tier-0 source attributed to the saver, and emits TierContentExtractedEvent carrying userId", async () => {
-		const { handler, deps } = createHandler();
+		const { handler, deps, published } = createHandler();
 
 		await handler(
 			createSqsEvent({ url: "https://example.com/article", userId: "user-1", title: "Captured Title" }),
@@ -90,11 +95,11 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 			html: stubFinalizedArticle.html,
 			metadata: expect.objectContaining({ ...stubFinalizedArticle.metadata, authorUserId: "user-1" }),
 		}));
-		expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 			url: "https://example.com/article",
 			userId: "user-1",
 			extractedAt: "2026-04-18T12:00:00.000Z",
-		}));
+		}) });
 	});
 
 	it("threads the captured rawHtml through finalizeArticle without a resolvedThumbnail (the raw-html path has no inline crawler image)", async () => {
@@ -136,7 +141,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		const finalizeArticle: FinalizeArticle = async () => ({ ok: false, reason: "Readability returned null" });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const error = jest.fn();
 		const logger = { ...noopLogger, error };
 
@@ -160,7 +165,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 			input: { reason: { kind: "capture-unreadable", detail: "Readability returned null" } },
 		});
 		expect(putTierSource).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(error).toHaveBeenCalledWith(
 			"[SaveLinkRawHtmlCommand] record failed",
 			expect.objectContaining({
@@ -363,11 +368,11 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 
 it("submits a verified wrapper's unparsable raw response to the judge without fabricating a reader article", async () => {
 	const raw = "captcha response without html document";
-	const { handler, deps } = createHandler({ readPendingHtml: async () => ({ html: raw, capturedAt: "2026-10-01T00:00:00.000Z" }), finalizeArticle: async () => ({ ok: false, reason: "no html" }) });
+	const { handler, deps, published } = createHandler({ readPendingHtml: async () => ({ html: raw, capturedAt: "2026-10-01T00:00:00.000Z" }), finalizeArticle: async () => ({ ok: false, reason: "no html" }) });
 	const response = await handler(createSqsEvent({ url: "https://example.com/article", sourceUrl: "https://web.archive.org/web/20081203/https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 	expect(response).toEqual({ batchItemFailures: [] });
 	expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({ html: "", evaluationHtml: raw, metadata: expect.objectContaining({ wordCount: 0, kind: "extension", attemptId: "attempt-1" }) }));
-	expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ saveAttemptId: "attempt-1", candidates: [{ id: expect.any(String), tier: "tier-0" }] }));
+	expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ saveAttemptId: "attempt-1", candidates: [{ id: expect.any(String), tier: "tier-0" }] }) });
 });
 
 it("writes the tier-0 candidate, logs it, reads the snapshot, logs the outcome, then announces it, with exactly these arguments", async () => {

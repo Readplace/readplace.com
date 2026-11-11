@@ -33,7 +33,7 @@
 }
 
 /**
- * 1. Two labelled tab groups share a row and wrap as a unit when the viewport
+ * 1. Labelled tab groups share a row and wrap as a unit when the viewport
  *    runs out of width — flex-wrap alone.
  */
 .install-page__groups {

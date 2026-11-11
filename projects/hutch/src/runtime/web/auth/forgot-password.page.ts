@@ -24,6 +24,7 @@ import { ForgotPasswordPage, ResetPasswordPage } from "./auth.component";
 import { buildPasswordResetEmailHtml } from "./password-reset-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
+import type { LogError } from "@packages/logger";
 
 const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
 
@@ -39,7 +40,7 @@ interface ForgotPasswordDependencies {
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 	baseUrl: string;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	consumeRateLimit: ConsumeRateLimit;
 	rateLimitRule: RateLimitRule;
 	now: () => Date;

@@ -3,7 +3,7 @@ import type { CrawlFailureReason, UserId } from "@packages/article-state-types";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
 import type { CrawlArchiveCapture } from "./crawl-archive-capture";
-import { ClassifiedCrawlError, type SaveLinkWorkOptions, type SaveLinkWorkResult } from "./save-link-work";
+import { ClassifiedCrawlError, type SaveLinkWorkOptions, type SaveLinkWorkResult, saveCrawlTrigger } from "./save-link-work";
 
 export type SaveCandidates = {
 	candidates: CandidateReference[];
@@ -40,7 +40,7 @@ export function initCrawlSaveCandidates(deps: {
 		const liveCandidate = liveValue !== undefined && "candidate" in liveValue ? liveValue.candidate : undefined;
 		const candidates = [...(liveCandidate === undefined ? [] : [liveCandidate]), ...(wrapper.value === undefined ? [] : [wrapper.value])];
 		if (liveValue !== undefined && "deferred" in liveValue) {
-			await deps.emitSimpleCrawlUnsupported({ url: params.url, unsupportedReason: liveValue.deferred, userId: params.userId, recrawl: params.recrawl, saveAttemptId: params.saveAttemptId, candidates, finalUrl: liveValue.finalUrl });
+			await deps.emitSimpleCrawlUnsupported({ url: params.url, unsupportedReason: liveValue.deferred, userId: params.userId, trigger: saveCrawlTrigger(params.recrawl), saveAttemptId: params.saveAttemptId, candidates, finalUrl: liveValue.finalUrl });
 			return { deferredTo: "simple-crawl-unsupported", carriedCandidates: candidates.length };
 		}
 		if (failureReason !== undefined) return { candidates, liveAttempt: { outcome: "no-body", failureReason } };

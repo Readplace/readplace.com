@@ -14,7 +14,7 @@ import type {
 import type { UserId } from "@packages/domain/user";
 import { appClientOf, } from "../../shared/save-client";
 import { FILED_READLIST_PARAM } from "../../shared/filing-flash";
-import { calculateReadTime, hostStubMetadata, } from "@packages/domain/article";
+import { calculateReadTime, hostStubMetadata, offersEpubDownload, } from "@packages/domain/article";
 import { ABSENT_ENCLOSURE, ReaderArticleHashIdSchema, mayReadItem, ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { MediaImageFileSchema, PrivateItemUrlSchema, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
 import { readerContentUnavailable, readerNoticeOf, transcriptNoticeOf } from "../../shared/article-reader/reader-view";
@@ -62,6 +62,7 @@ import { requestCanCapture } from "../../onboarding/capture-capable-request";
 import { OFFLINE_READER_SCRIPT } from "../../shared/offline-reader/offline-reader-script";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
 import { offlineCopyRowScript } from "../../shared/article-body/article-history/offline-copy-row-script";
+import { offlineContentBannerScript } from "../../shared/offline-reader/offline-content-banner-script";
 import {
 	extensionInstallUrlIfMissing,
 	canOfferExtensionInstall,
@@ -186,7 +187,7 @@ function withStatusCode(component: Component, statusCode: number): Component {
 
 function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 	assert(page.scripts, "the reader page always sets its scripts");
-	return { ...page, scripts: page.scripts + OFFLINE_READER_SCRIPT + offlineCopyRowScript(cspNonce) };
+	return { ...page, scripts: page.scripts + OFFLINE_READER_SCRIPT + offlineCopyRowScript(cspNonce) + offlineContentBannerScript(cspNonce) };
 }
 
 
@@ -239,7 +240,7 @@ export function initReaderPageRoutes(deps: Pick<
 	};
 
 	const epubHrefFor = (req: Request, article: SavedArticle, content: string | undefined): string | undefined =>
-		content === undefined || parseEmailIssueArticleUrl(article.url) !== undefined
+		content === undefined || parseEmailIssueArticleUrl(article.url) !== undefined || !offersEpubDownload(article)
 			? undefined
 			: readerEpubHrefFor(req, { article, appClient: appClientOf(req) });
 

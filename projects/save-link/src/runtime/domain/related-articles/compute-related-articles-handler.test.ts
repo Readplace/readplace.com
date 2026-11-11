@@ -400,6 +400,35 @@ describe("initComputeRelatedArticlesHandler", () => {
 		]);
 	});
 
+	it("skips on the final receive when the article row is gone", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, skipped, published } = createHandler({
+			targetLookup: { state: "absent" },
+			logger,
+		});
+
+		const result = await handler(finalReceiveEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			trigger: "reader-request",
+			url: TARGET_URL,
+			reason: "article row gone after the wait",
+			receiveCount: 3,
+		});
+		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
+		expect(published).toEqual([
+			{
+				url: TARGET_URL,
+				userId: USER_ID,
+				outcome: "skipped",
+				relatedCount: 0,
+				inputTokens: 0,
+				outputTokens: 0,
+			},
+		]);
+	});
+
 	it("skips on the final receive when the crawl is still pending", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const { handler, skipped, published } = createHandler({

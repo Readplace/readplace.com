@@ -78,6 +78,29 @@ describe("extractThumbnailCandidates", () => {
 			]);
 	});
 
+	it("drops every evidenced tracking endpoint and keeps the order of the remaining candidates", () => {
+		const html = `
+			<html><head>
+				<meta property="og:image" content="https://www.facebook.com/tr?id=1&amp;ev=PageView">
+				<meta name="twitter:image" content="https://example.com/twitter.png">
+			</head><body>
+				<img src="https://hspx.hotstar.com/v1/events/track/cp_page_view?pi=synthetic">
+				<img src="https://example.com/figure.jpg">
+				<img src="https://www.sec.gov/akam/13/pixel_0a1b2c3d?a=synthetic">
+				<img src="https://www.turkishairlines.com/akam/13/pixel_0a1b2c3d">
+				<img src="https://example.com/logo.svg">
+				<img src="https://example.com/qr-code.png" width="1" height="1">
+			</body></html>
+		`;
+		expect(extractThumbnailCandidates({ html, baseUrl: "https://example.com/article" }))
+			.toEqual([
+				"https://example.com/twitter.png",
+				"https://example.com/figure.jpg",
+				"https://example.com/logo.svg",
+				"https://example.com/qr-code.png",
+			]);
+	});
+
 	it("dedupes identical URLs across the cascade", () => {
 		const html = `
 			<html><head>
@@ -247,6 +270,37 @@ describe("initFetchThumbnailImage", () => {
 		expect(result.provenUnusable).toEqual(["https://qsf.cf2.quoracdn.net/huge.png"]);
 	});
 
+	it("never fetches an evidenced tracking endpoint in a caller-supplied list and proves it unusable for display", async () => {
+		const fetched: string[] = [];
+		const crawlFetch: CrawlFetch = async (url) => {
+			fetched.push(String(url));
+			return url === "https://example.com/og-broken.png"
+				? new Response("gone", { status: 404 })
+				: new Response(Buffer.from("png-bytes"), { status: 200, headers: { "content-type": "image/png" } });
+		};
+		const errorLogs: string[] = [];
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: (message) => errorLogs.push(message), logInfo: () => {}, logThumbnailNotDelivered: () => {} });
+
+		const result = await fetchThumbnail({
+			candidates: [
+				"https://example.com/og-broken.png",
+				"https://www.facebook.com/tr?id=1&ev=PageView",
+				"https://www.sec.gov/akam/13/pixel_0a1b2c3d",
+				"https://example.com/figure.png",
+			],
+			referer: "https://example.com/article",
+		});
+
+		expect(fetched).toEqual(["https://example.com/og-broken.png", "https://example.com/figure.png"]);
+		expect(result.image?.url).toBe("https://example.com/figure.png");
+		expect(result.provenUnusable).toEqual([
+			"https://example.com/og-broken.png",
+			"https://www.facebook.com/tr?id=1&ev=PageView",
+			"https://www.sec.gov/akam/13/pixel_0a1b2c3d",
+		]);
+		expect(errorLogs).toEqual([]);
+	});
+
 	it("walks past a disproved candidate to the next one and reports only what it disproved", async () => {
 		const crawlFetch: CrawlFetch = async (url) =>
 			url === "https://example.com/not-an-image"
@@ -261,6 +315,122 @@ describe("initFetchThumbnailImage", () => {
 
 		expect(result.image?.url).toBe("https://example.com/real.png");
 		expect(result.provenUnusable).toEqual(["https://example.com/not-an-image"]);
+	});
+
+	const candidatesNumbered = (count: number) =>
+		Array.from({ length: count }, (_, index) => `https://example.com/candidate-${index + 1}.png`);
+
+	it("fetches at most five candidates whatever their outcomes and logs one error naming how many were left unfetched", async () => {
+		const fetchedUrls: string[] = [];
+		const errorLogs: string[] = [];
+		const candidates = candidatesNumbered(7);
+		const crawlFetch: CrawlFetch = async (url) => {
+			fetchedUrls.push(url);
+			if (url === candidates[1]) throw new TypeError("fetch failed");
+			if (url === candidates[0] || url === candidates[3]) return new Response("boom", { status: 500 });
+			return new Response("gone", { status: 404 });
+		};
+		const fetchThumbnail = initFetchThumbnailImage({
+			crawlFetch,
+			logError: (message) => errorLogs.push(message),
+			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
+		});
+
+		const result = await fetchThumbnail({ candidates, referer: "https://example.com/article" });
+
+		expect(result.image).toBeUndefined();
+		expect(fetchedUrls).toEqual(candidatesNumbered(5));
+		expect(result.fetched).toEqual(candidatesNumbered(5));
+		expect(result.provenUnusable).toEqual([candidates[2], candidates[4]]);
+		expect(errorLogs).toEqual([
+			"[CrawlArticle] Thumbnail HTTP 500 for https://example.com/candidate-1.png",
+			"[CrawlArticle] Thumbnail HTTP 500 for https://example.com/candidate-4.png",
+			"[CrawlArticle] Thumbnail candidate cap reached: fetched 5 of 7 candidates for https://example.com/article",
+		]);
+	});
+
+	it("logs the cap error when a sixth candidate is left unfetched", async () => {
+		const fetchedUrls: string[] = [];
+		const errorLogs: string[] = [];
+		const crawlFetch: CrawlFetch = async (url) => {
+			fetchedUrls.push(url);
+			return new Response("gone", { status: 404 });
+		};
+		const fetchThumbnail = initFetchThumbnailImage({
+			crawlFetch,
+			logError: (message) => errorLogs.push(message),
+			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
+		});
+
+		const result = await fetchThumbnail({
+			candidates: candidatesNumbered(6),
+			referer: "https://example.com/article",
+		});
+
+		expect(result.image).toBeUndefined();
+		expect(fetchedUrls).toEqual(candidatesNumbered(5));
+		expect(result.fetched).toEqual(candidatesNumbered(5));
+		expect(errorLogs).toEqual([
+			"[CrawlArticle] Thumbnail candidate cap reached: fetched 5 of 6 candidates for https://example.com/article",
+		]);
+	});
+
+	it("fetches all five candidates without a cap error when there are no more than five", async () => {
+		const fetchedUrls: string[] = [];
+		const errorLogs: string[] = [];
+		const crawlFetch: CrawlFetch = async (url) => {
+			fetchedUrls.push(url);
+			return new Response("gone", { status: 404 });
+		};
+		const fetchThumbnail = initFetchThumbnailImage({
+			crawlFetch,
+			logError: (message) => errorLogs.push(message),
+			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
+		});
+
+		const result = await fetchThumbnail({
+			candidates: candidatesNumbered(5),
+			referer: "https://example.com/article",
+		});
+
+		expect(result.image).toBeUndefined();
+		expect(fetchedUrls).toEqual(candidatesNumbered(5));
+		expect(result.fetched).toEqual(candidatesNumbered(5));
+		expect(errorLogs).toEqual([]);
+	});
+
+	it.each([
+		{ imageAt: 3, expectedFetched: candidatesNumbered(3) },
+		{ imageAt: 5, expectedFetched: candidatesNumbered(5) },
+	])("stops at the image at position $imageAt of seven without a cap error", async ({ imageAt, expectedFetched }) => {
+		const fetchedUrls: string[] = [];
+		const errorLogs: string[] = [];
+		const imageUrl = `https://example.com/candidate-${imageAt}.png`;
+		const crawlFetch: CrawlFetch = async (url) => {
+			fetchedUrls.push(url);
+			return url === imageUrl
+				? new Response(Buffer.from("png-bytes"), { status: 200, headers: { "content-type": "image/png" } })
+				: new Response("gone", { status: 404 });
+		};
+		const fetchThumbnail = initFetchThumbnailImage({
+			crawlFetch,
+			logError: (message) => errorLogs.push(message),
+			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
+		});
+
+		const result = await fetchThumbnail({
+			candidates: candidatesNumbered(7),
+			referer: "https://example.com/article",
+		});
+
+		expect(result.image?.url).toBe(imageUrl);
+		expect(fetchedUrls).toEqual(expectedFetched);
+		expect(result.fetched).toEqual(expectedFetched);
+		expect(errorLogs).toEqual([]);
 	});
 
 	const PNG_BYTES = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("png-body")]);

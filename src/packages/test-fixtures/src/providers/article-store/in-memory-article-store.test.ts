@@ -2565,6 +2565,17 @@ describe("initInMemoryArticleStore private items", () => {
 		assert.equal(await store.findItemOwner(PRIVATE_URL), USER_A);
 	});
 
+	it("returns the item's media when read by its URL", async () => {
+		const store = initInMemoryArticleStore();
+		await store.savePrivateItem({ ...SAVE, media: { kind: "audio", fileName: "talk.mp3" } });
+
+		const found = await store.findArticleByUrl(PRIVATE_URL, viewerFor(USER_A));
+
+		assert.equal(found?.media?.kind, "audio");
+		assert.equal(found?.media?.fileName, "talk.mp3");
+		assert.equal(found?.media?.routeId.value, ReaderArticleHashId.from(PRIVATE_URL).value);
+	});
+
 	it("answers already-saved on the owner's retry and keeps the first save", async () => {
 		const store = initInMemoryArticleStore();
 		await store.savePrivateItem(SAVE);

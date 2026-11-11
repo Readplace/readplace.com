@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { viewerFor } from "@packages/domain/article";
+import { offersEpubDownload, viewerFor } from "@packages/domain/article";
 import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -33,7 +33,11 @@ export function initOwnerArticleEpub(deps: OwnerArticleEpubDeps) {
 		}
 
 		const owned = await deps.resolveOwnedArticle({ userId, id: req.params.id });
-		if (owned === null || parseEmailIssueArticleUrl(owned.article.url) !== undefined) {
+		if (
+			owned === null ||
+			parseEmailIssueArticleUrl(owned.article.url) !== undefined ||
+			!offersEpubDownload(owned.article)
+		) {
 			next();
 			return;
 		}

@@ -117,10 +117,10 @@ describe("renderReaderFailed", () => {
 			unsupported:
 				"This type of page isn't supported in the Readplace reader yet. You can still open it on the original site.",
 			failed:
-				"Readplace couldn't load the full article from this site. You can still read it on the original website, or save the full page using the browser extension or the iPhone app.",
+				"Readplace couldn't load the full article from this site. You can still read it on the original website, or save the full page using the browser extension or the iPhone or Android app.",
 			slow: "Reader view is taking longer than usual.",
 			blocked:
-				"This site blocked Readplace from loading the full article. Use the browser extension or the iPhone app to save the complete page instead.",
+				"This site blocked Readplace from loading the full article. Use the browser extension or the iPhone or Android app to save the complete page instead.",
 			"origin-down":
 				"Readplace couldn't reach this site right now. It may be temporarily unavailable, so you can try again later.",
 			"not-found": "This page no longer appears to exist, so Readplace couldn't retrieve the article content.",
@@ -237,7 +237,7 @@ describe("renderReaderFailed", () => {
 			assert(alert, `info alert must be rendered for variant=${variant}`);
 			assert.equal(
 				alert.querySelector("[data-test-alert-title]")?.textContent,
-				"Want the full article in Readplace? Save it with the browser extension or the iPhone app.",
+				"Want the full article in Readplace? Save it with the browser extension or the iPhone or Android app.",
 			);
 			const installCta = alert.querySelector("[data-test-reader-failed-install]");
 			assert(installCta, `install link must be rendered for variant=${variant}`);

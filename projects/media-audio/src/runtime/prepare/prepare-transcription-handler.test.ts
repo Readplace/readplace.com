@@ -178,7 +178,11 @@ describe("initPrepareTranscriptionHandler", () => {
 			["runFfmpeg", `/tmp/${UPLOAD_ID}-1.input.mp3`],
 			[
 				"putTranscriptFile",
-				{ key: inputKey, path: `/tmp/${UPLOAD_ID}-1.input.mp3` },
+				{
+					key: inputKey,
+					path: `/tmp/${UPLOAD_ID}-1.input.mp3`,
+					contentType: "audio/mpeg",
+				},
 			],
 			["removeTmpFile", `/tmp/${UPLOAD_ID}-1.input.mp3`],
 			[

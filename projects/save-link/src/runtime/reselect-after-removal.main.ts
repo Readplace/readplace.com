@@ -15,7 +15,9 @@ import { readEnv } from "@packages/require-env";
 import { RESELECT_AFTER_REMOVAL_ENV } from "./reselect-after-removal.env";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
-import { initReselectAfterRemovalHandler } from "./domain/remove-my-content/reselect-after-removal-handler";
+import { initForwardReselectAfterRemoval, initReselectAfterRemovalHandler } from "./domain/remove-my-content/reselect-after-removal-handler";
+import { SELECTION_INGRESS_ENV, SelectionRouteSchema } from "./selection-ingress.env";
+import { initSelectArticleContentDispatch } from "./dep-bundles/select-article-content-dispatch";
 import { initGenerateSummaryDispatch } from "./dep-bundles/generate-summary-dispatch";
 
 const env = readEnv(RESELECT_AFTER_REMOVAL_ENV);
@@ -25,6 +27,10 @@ const contentBucketName = env.CONTENT_BUCKET_NAME;
 const eventBusName = env.EVENT_BUS_NAME;
 const deepseekApiKey = env.DEEPSEEK_API_KEY;
 const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
+
+const ingressEnv = readEnv(SELECTION_INGRESS_ENV);
+const selectionRoute = SelectionRouteSchema.parse(ingressEnv.SELECTION_ROUTE);
+const selectArticleContentQueueUrl = ingressEnv.SELECT_ARTICLE_CONTENT_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
@@ -76,10 +82,14 @@ const { transitionAndPersist } = initTransitionAndPersist({
 	logCrawlSettled,
 });
 
-export const handler = initReselectAfterRemovalHandler({
+const selectHandler = initReselectAfterRemovalHandler({
 	...selectContent,
 	loadArticle: store.load,
 	transitionAndPersist,
 	now: () => new Date(),
 	logger: consoleLogger,
 });
+
+export const handler = selectionRoute === "forward"
+	? initForwardReselectAfterRemoval({ dispatchSelectArticleContent: initSelectArticleContentDispatch({ sqsClient, selectArticleContentQueueUrl }), logger: consoleLogger })
+	: selectHandler;

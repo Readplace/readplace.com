@@ -61,7 +61,7 @@ export function initKeepAudioHandler(deps: {
 			uploadId: detail.uploadId,
 			size: staged.contentLength,
 			mediaType: probed.mediaType,
-			putBytes: (targetKey) => deps.copyStagedTo({ stagedKey, etag: detail.etag, targetKey }),
+			putBytes: (targetKey) => deps.copyStagedTo({ stagedKey, etag: detail.etag, targetKey, contentType: probed.mediaType }),
 		});
 		const recorded = await deps.setArticleEnclosure({
 			url: detail.url,

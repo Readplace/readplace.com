@@ -110,6 +110,8 @@ interface TestAppOverrides {
 
 export const TEST_TRANSCRIPT_ALLOWANCE_SECONDS = 1250;
 
+const readOneMinute: ReadTimedDuration = async () => ({ durationSeconds: 60, hasAudio: true, hasVideo: false });
+
 export const TEST_FIREFOX_XPI_FILENAME = "abc123-1.0.0.xpi";
 
 /** Answers the Firefox latest-pointer lookup the way the S3 pointer object
@@ -368,7 +370,7 @@ function flattenFixtureToAppDependencies(
 		savePrivateItem: fixture.articleStore.savePrivateItem,
 		...fixture.mediaUpload,
 		mediaKinds: MEDIA_KINDS,
-		readDurationByMeter: new Map(),
+		readDurationByMeter: new Map([["transcript-seconds" as const, readOneMinute]]),
 		transcriptAllowanceSeconds: TEST_TRANSCRIPT_ALLOWANCE_SECONDS,
 		...initInMemoryTranscriptCharge({
 			rows: transcriptQuotaRows,

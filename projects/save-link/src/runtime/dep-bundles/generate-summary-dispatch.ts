@@ -6,7 +6,7 @@ import { type DispatchCommand, initSqsCommandDispatcher } from "@packages/infra-
 
 export type DispatchGenerateSummary = DispatchCommand<typeof GenerateSummaryCommand>;
 
-export function summaryMessageGroupId(detail: { url: string }): string {
+export function articleMessageGroupId(detail: { url: string }): string {
 	return createHash("sha256").update(ArticleResourceUniqueId.parse(detail.url).value).digest("hex");
 }
 
@@ -18,6 +18,6 @@ export function initGenerateSummaryDispatch(deps: {
 		sqsClient: deps.sqsClient,
 		queueUrl: deps.generateSummaryQueueUrl,
 		command: GenerateSummaryCommand,
-		fifo: { messageGroupId: summaryMessageGroupId },
+		fifo: { messageGroupId: articleMessageGroupId },
 	}).dispatch;
 }

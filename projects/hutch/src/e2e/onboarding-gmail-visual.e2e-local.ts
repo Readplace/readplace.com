@@ -13,7 +13,6 @@ const CONNECT = `${STEP} [data-test-onboarding-action="connect-gmail"]`;
 const DISMISS = `${STEP} [data-test-onboarding-action="gmail-dismiss"]`;
 const CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 const SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
-const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
 
 async function login(page: Page, email: string): Promise<void> {
 	await page.goto(`${BASE_URL}/login`);
@@ -43,7 +42,7 @@ const DEVICES = [
 	{ name: "desktop", viewport: { width: 1280, height: 1000 }, userAgent: CHROME, hasClient: true },
 	{ name: "mobile", viewport: { width: 390, height: 1000 }, userAgent: CHROME, hasClient: true },
 	{ name: "safari", viewport: { width: 1280, height: 1000 }, userAgent: SAFARI, hasClient: false },
-	{ name: "android", viewport: { width: 390, height: 1000 }, userAgent: ANDROID, hasClient: false },
+	{ name: "narrow-safari", viewport: { width: 390, height: 1000 }, userAgent: SAFARI, hasClient: false },
 ] as const;
 
 for (const device of DEVICES) {

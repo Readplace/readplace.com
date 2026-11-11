@@ -28,7 +28,7 @@ const archiveAws = initArchiveHealthAws({
 	runAws: async (args) => (await runFile("aws", args, { maxBuffer: 32 * 1024 * 1024, timeout: 60_000 })).stdout,
 	region: requireEnv("AWS_REGION"),
 	contentBucket: requireEnv("CONTENT_BUCKET_NAME"),
-	comparisonLogGroup: requireEnv("ARCHIVE_COMPARISON_LOG_GROUP"),
+	comparisonLogGroups: requireEnv("ARCHIVE_COMPARISON_LOG_GROUPS").split(",").map((group) => group.trim()).filter(Boolean),
 });
 
 // 3s poll interval × 800 polls = 2400s (40 min) budget per source. A

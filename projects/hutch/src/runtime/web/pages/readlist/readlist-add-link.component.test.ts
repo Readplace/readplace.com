@@ -210,6 +210,9 @@ describe("Add article", () => {
 		expect(action.pathname).toBe("/import");
 		expect(action.searchParams.get("utm_source")).toBe("queue-add-article");
 		expect(element(dropzone, 'input[type="file"]').id).toBe("add-article-file");
+		expect(element(dropzone, "[data-upload-dropzone-meta]").textContent).toContain(
+			"or a DRM-free EPUB up to 200 MB · or an MP3 or M4A file up to 256 MB",
+		);
 	});
 
 	it.each([true, false])("sets the dropzone's file field disabled state for read-only access (%s)", (accessIsReadOnly) => {

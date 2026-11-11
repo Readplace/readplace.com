@@ -9,7 +9,7 @@ export type ChargedTranscript = TranscriptChargeRef & { seconds: number; day: st
 
 export type ChargeTranscriptQuota = (p: TranscriptChargeRef & { seconds: number }) => Promise<
 	| { outcome: "charged"; day: string }
-	| { outcome: "already-charged" }
+	| { outcome: "already-charged"; day: string }
 	| { outcome: "day-spent" }
 	| { outcome: "over-allowance" }
 >;
@@ -21,6 +21,10 @@ export type MarkTranscriptStarted = (
 export type SettleTranscriptCharge = (
 	p: TranscriptChargeRef,
 ) => Promise<{ outcome: "done" } | { outcome: "closed" }>;
+
+export type SettleStartedCharge = (
+	p: TranscriptChargeRef,
+) => Promise<{ outcome: "settled" } | { outcome: "not-started" }>;
 
 export type RefundTranscriptCharge = (
 	p: ChargedTranscript,

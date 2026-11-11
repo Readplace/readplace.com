@@ -54,16 +54,26 @@ interface OfferedSharing {
 	epubDownloadHref?: string;
 	epubDownloadGuide?: EpubDownloadGuide;
 	withheld?: never;
+	shareWithheld?: never;
 }
 
 interface WithheldSharing {
 	withheld: DialogTrigger;
 	share?: never;
+	shareWithheld?: never;
 	epubDownloadHref?: never;
 	epubDownloadGuide?: never;
 }
 
-export type ReaderSharing = OfferedSharing | WithheldSharing;
+interface ShareWithheldSharing {
+	shareWithheld: DialogTrigger;
+	share?: never;
+	withheld?: never;
+	epubDownloadHref?: string;
+	epubDownloadGuide?: EpubDownloadGuide;
+}
+
+export type ReaderSharing = OfferedSharing | WithheldSharing | ShareWithheldSharing;
 
 export type ActionButtons = {
 	backLink?: { topHref: string; bottomHref?: string; label: string };
@@ -125,6 +135,9 @@ function downloadsSlotView(params: { href: string | undefined; guide: EpubDownlo
 function shareTriggerView(actionBtns: ActionButtons) {
 	if (actionBtns.withheld !== undefined) {
 		return { ...actionBtns.withheld, testAction: "share-withheld", disabled: true };
+	}
+	if (actionBtns.shareWithheld !== undefined) {
+		return { ...actionBtns.shareWithheld, testAction: "share-withheld", disabled: true };
 	}
 	if (actionBtns.share === undefined) return undefined;
 	return { ...actionBtns.share, testAction: "share-open", disabled: false };

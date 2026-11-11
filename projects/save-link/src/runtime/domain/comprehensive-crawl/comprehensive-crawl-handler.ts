@@ -21,7 +21,7 @@ import {
 	markCrawlUnsupported,
 } from "@packages/domain/article-aggregate";
 import { crawlFailureReasonForFetchFailure } from "../save-link/crawl-failure-reason-for-fetch-failure";
-import { ComprehensiveCrawlCommand } from "@packages/infra-components";
+import { ComprehensiveCrawlCommand, type CrawlTrigger } from "@packages/infra-components";
 import type { MarkCrawlProgress, MarkCrawlStage } from "../crawl-article-state/crawl-stage.types";
 import type {
 	ConsumePaidCrawlBudget,
@@ -128,8 +128,7 @@ export function initComprehensiveCrawlHandler(deps: {
 		ctx: {
 			url: string;
 			originalUrl: string;
-			refresh?: boolean;
-			recrawl?: boolean;
+			trigger: CrawlTrigger;
 			userId?: UserId;
 			previousBodyHash?: string;
 			saveAttemptId: SaveAttemptId;
@@ -139,7 +138,7 @@ export function initComprehensiveCrawlHandler(deps: {
 	): Promise<CrawlTermination | { via: "deferred-to-event"; candidate: CandidateReference }> => {
 		const { url, previousBodyHash } = ctx;
 		if (ctx.candidates !== undefined && crawlResult.status !== "fetched") {
-			return publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
+			return publishArchiveComparison({ ...ctx, recrawl: ctx.trigger === "recrawl", candidates: ctx.candidates });
 		}
 		switch (crawlResult.status) {
 			case "unsupported": {
@@ -212,24 +211,19 @@ export function initComprehensiveCrawlHandler(deps: {
 		failure: { message: `${logPrefix} record failed` },
 		malformed: { policy: "retry" },
 		handle: async (detail, record) => {
-			const { url, userId, recrawl, refresh, previousBodyHash, saveAttemptId } = detail;
+			const { url, userId, trigger, previousBodyHash, saveAttemptId } = detail;
 			const identity = await deps.prepareArticleIdentity(url);
 			assert(identity.status === "resolved", "queued comprehensive article original is unresolved");
 			const candidates = detail.candidates;
 
-			logger.info(`${logPrefix} processing`, {
-				url,
-				recrawl: recrawl ? 1 : 0,
-				refresh: refresh ? 1 : 0,
-			});
+			logger.info(`${logPrefix} processing`, { url, trigger });
 
 			const ctx = {
 				url,
 				originalUrl: identity.originalUrl,
 				saveAttemptId,
 				candidates,
-				refresh,
-				recrawl,
+				trigger,
 				userId,
 				previousBodyHash,
 				receiveCount: record.receiveCount,
@@ -242,7 +236,7 @@ export function initComprehensiveCrawlHandler(deps: {
 				claimTtlMs: COMPREHENSIVE_CRAWL_TIMEOUTS.sqsVisibilitySeconds * 1000,
 				run: async (permit) => {
 					let runCandidates = candidates;
-					if (runCandidates === undefined && !refresh && identity.contentSourceUrl !== undefined) {
+					if (runCandidates === undefined && trigger !== "refresh" && identity.contentSourceUrl !== undefined) {
 						const capture = await crawlArchiveCapture(permit)({
 							url,
 							captureUrl: identity.contentSourceUrl,
@@ -262,7 +256,7 @@ export function initComprehensiveCrawlHandler(deps: {
 					const budget = await consumePaidCrawlBudget({ messageId: record.messageId });
 					if (!budget.allowed) {
 						logger.warn(`${logPrefix} paid-crawl budget exhausted — failing crawl gracefully`, { url });
-						await resolveBudgetExhausted({ url, refresh, recrawl, userId, saveAttemptId, candidates: runCandidates });
+						await resolveBudgetExhausted({ url, trigger, userId, saveAttemptId, candidates: runCandidates });
 						return { kind: "unsucceeded" };
 					}
 
@@ -332,13 +326,13 @@ export function initComprehensiveCrawlHandler(deps: {
 			});
 			if (leg.kind === "in-flight") logger.info(`${logPrefix} leg in flight under another message`, { url, leg: "comprehensive" });
 			if (leg.kind === "deferred") {
-				if (candidates !== undefined) await publishArchiveComparison({ ...ctx, candidates });
-				else if (!refresh) await transitionAndPersist(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
+				if (candidates !== undefined) await publishArchiveComparison({ ...ctx, recrawl: trigger === "recrawl", candidates });
+				else if (trigger !== "refresh") await transitionAndPersist(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
 				logger.info(`${logPrefix} comprehensive leg deferred until a reader opens the article`, { url });
 			}
-			if (leg.kind === "settled" && !refresh) {
+			if (leg.kind === "settled" && trigger !== "refresh") {
 				const recorded = RecordedComprehensiveCandidate.parse(JSON.parse(leg.outcome));
-				await publishArchiveComparison({ ...ctx, candidates: [...(candidates ?? []), recorded] });
+				await publishArchiveComparison({ ...ctx, recrawl: trigger === "recrawl", candidates: [...(candidates ?? []), recorded] });
 			}
 		},
 	});

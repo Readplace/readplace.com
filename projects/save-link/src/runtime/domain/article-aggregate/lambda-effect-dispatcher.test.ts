@@ -10,12 +10,13 @@ import {
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
 } from "@packages/infra-components";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 import { initLambdaEffectDispatcher } from "./lambda-effect-dispatcher";
 
 describe("initLambdaEffectDispatcher", () => {
 	it("forwards a generate-summary effect to dispatchGenerateSummary", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -31,12 +32,12 @@ describe("initLambdaEffectDispatcher", () => {
 		expect(dispatchGenerateSummary).toHaveBeenCalledWith({
 			url: "https://example.com/article",
 		});
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("forwards a dispatch-generate-summary-retry effect to dispatchGenerateSummary so the auto-heal re-prime fires", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -53,12 +54,12 @@ describe("initLambdaEffectDispatcher", () => {
 		expect(dispatchGenerateSummary).toHaveBeenCalledWith({
 			url: "https://example.com/article",
 		});
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("publishes a CrawlArticleFailedEvent for a publish-crawl-article-failed effect, carrying url/reason/receiveCount in detail", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -72,17 +73,17 @@ describe("initLambdaEffectDispatcher", () => {
 			receiveCount: 4,
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(CrawlArticleFailedEvent, {
+		expect(published).toContainEqual({ detailType: CrawlArticleFailedEvent.detailType, detail: {
 			url: "https://example.com/article",
 			reason: "exceeded SQS maxReceiveCount",
 			receiveCount: 4,
-		});
+		} });
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
 
 	it("publishes a RecrawlCompletedEvent for a publish-recrawl-completed effect, carrying only the url in detail", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -94,9 +95,9 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(RecrawlCompletedEvent, {
+		expect(published).toContainEqual({ detailType: RecrawlCompletedEvent.detailType, detail: {
 			url: "https://example.com/article",
-		});
+		} });
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
 
@@ -104,7 +105,7 @@ describe("initLambdaEffectDispatcher", () => {
 		const dispatchGenerateSummary = jest
 			.fn()
 			.mockRejectedValue(new Error("sqs send failed"));
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -140,7 +141,7 @@ describe("initLambdaEffectDispatcher", () => {
 
 	it("publishes a CrawlArticleCompletedEvent for a publish-crawl-article-completed effect, carrying only the url in detail", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -152,15 +153,15 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(CrawlArticleCompletedEvent, {
+		expect(published).toContainEqual({ detailType: CrawlArticleCompletedEvent.detailType, detail: {
 			url: "https://example.com/article",
-		});
+		} });
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
 
 	it("publishes a CanonicalContentChangedEvent for a publish-canonical-content-changed effect, carrying only the url in detail", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -172,15 +173,15 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(CanonicalContentChangedEvent, {
+		expect(published).toContainEqual({ detailType: CanonicalContentChangedEvent.detailType, detail: {
 			url: "https://example.com/article",
-		});
+		} });
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
 
 	it("publishes a SummaryGeneratedEvent for a publish-summary-generated effect, carrying url and token counts in detail", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -194,17 +195,17 @@ describe("initLambdaEffectDispatcher", () => {
 			outputTokens: 567,
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(SummaryGeneratedEvent, {
+		expect(published).toContainEqual({ detailType: SummaryGeneratedEvent.detailType, detail: {
 			url: "https://example.com/article",
 			inputTokens: 1234,
 			outputTokens: 567,
-		});
+		} });
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
 
 	it("publishes a SubmitLinkCommand for a dispatch-submit-link effect with only the url when no userId/rawHtml are set (anonymous /view save)", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -216,16 +217,16 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
+		expect(published).toContainEqual({ detailType: SubmitLinkCommand.detailType, detail: {
 			url: "https://example.com/article",
 			saveAttemptId: expect.any(String),
-		});
+		} });
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
 
 	it("includes userId in a SubmitLinkCommand detail so the submit-link handler can write the save to the authenticated user's library", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -238,19 +239,19 @@ describe("initLambdaEffectDispatcher", () => {
 			submitter: { userId: UserIdSchema.parse("user-123"), provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" },
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
+		expect(published).toContainEqual({ detailType: SubmitLinkCommand.detailType, detail: {
 			url: "https://example.com/article",
 			saveAttemptId: expect.any(String),
 			userId: "user-123",
 			provenance: { kind: "email", senderEmail: "news@example.com" },
 			saveTrigger: "automatic",
 			readlist: "default",
-		});
+		} });
 	});
 
 	it("publishes the url alone when no submitter owns the effect, which is the shape requestRecrawl emits", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -262,15 +263,15 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
+		expect(published).toContainEqual({ detailType: SubmitLinkCommand.detailType, detail: {
 			url: "https://example.com/article",
 			saveAttemptId: expect.any(String),
-		});
+		} });
 	});
 
 	it("keeps a submitter-less capture on the anonymous shape, so a tier-0 upload with no signed-in saver stays out of the authenticated one", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -283,16 +284,16 @@ describe("initLambdaEffectDispatcher", () => {
 			rawHtml: "<html>captured DOM</html>",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
+		expect(published).toContainEqual({ detailType: SubmitLinkCommand.detailType, detail: {
 			url: "https://example.com/article",
 			saveAttemptId: expect.any(String),
 			rawHtml: "<html>captured DOM</html>",
-		});
+		} });
 	});
 
 	it("includes rawHtml in a SubmitLinkCommand detail so the submit-link handler can write the tier-0 source for extension uploads", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -306,7 +307,7 @@ describe("initLambdaEffectDispatcher", () => {
 			rawHtml: "<html>captured DOM</html>",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
+		expect(published).toContainEqual({ detailType: SubmitLinkCommand.detailType, detail: {
 			url: "https://example.com/article",
 			saveAttemptId: expect.any(String),
 			userId: "user-123",
@@ -314,12 +315,12 @@ describe("initLambdaEffectDispatcher", () => {
 			saveTrigger: "manual",
 			readlist: "default",
 			rawHtml: "<html>captured DOM</html>",
-		});
+		} });
 	});
 
 	it("publishes a SummaryGenerationFailedEvent for a publish-summary-generation-failed effect, carrying url/reason/receiveCount in detail", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -333,17 +334,17 @@ describe("initLambdaEffectDispatcher", () => {
 			receiveCount: 4,
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(SummaryGenerationFailedEvent, {
+		expect(published).toContainEqual({ detailType: SummaryGenerationFailedEvent.detailType, detail: {
 			url: "https://example.com/article",
 			reason: "exceeded SQS maxReceiveCount",
 			receiveCount: 4,
-		});
+		} });
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
 
 	it("publishes a ReaderViewLoadingSucceeded for a publish-reader-view-loading-succeeded effect, carrying url/succeededAt/hasSummary in detail", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,
@@ -357,17 +358,17 @@ describe("initLambdaEffectDispatcher", () => {
 			hasSummary: true,
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith(ReaderViewLoadingSucceeded, {
+		expect(published).toContainEqual({ detailType: ReaderViewLoadingSucceeded.detailType, detail: {
 			url: "https://example.com/article",
 			succeededAt: "2026-05-30T12:00:00.000Z",
 			hasSummary: true,
-		});
+		} });
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
 
 	it("throws on unknown effect kind so an unhandled variant surfaces as a Lambda failure", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent } = initRecordingPublishEvent();
 
 		const { dispatchEffect } = initLambdaEffectDispatcher({
 			dispatchGenerateSummary,

@@ -73,7 +73,7 @@ export function initSubscriptionStartRequestHandler(
 		} catch (err) {
 			deps.logger.error("[start-request] Stripe error", {
 				userId,
-				error: err instanceof Error ? err.message : String(err),
+				error: err,
 			});
 			await deps.publishSubscriptionChargeFailed({ userId, reason: "stripe_error" });
 		}

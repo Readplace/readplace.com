@@ -26,15 +26,15 @@ describe("client surface phrases", () => {
 	});
 
 	it("pins the save-tip full-page-capture phrase", () => {
-		assert.equal(FULL_PAGE_CAPTURE_PHRASE, "the browser extension and the iPhone app");
+		assert.equal(FULL_PAGE_CAPTURE_PHRASE, "the browser extension and the iPhone or Android app");
 	});
 
 	it("pins the reader-failed full-page-capture alternatives phrase", () => {
-		assert.equal(FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE, "the browser extension or the iPhone app");
+		assert.equal(FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE, "the browser extension or the iPhone or Android app");
 	});
 
 	it("pins the reset-password connected-apps phrase", () => {
-		assert.equal(CONNECTED_APPS_PHRASE, "the browser extension, the iPhone app, and AI assistants");
+		assert.equal(CONNECTED_APPS_PHRASE, "the browser extension, the iPhone or Android app, AI assistants, and the Obsidian plugin");
 	});
 
 	it("never names a strict subset of a group's advertised clients", () => {

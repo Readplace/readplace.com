@@ -31,6 +31,6 @@ describe("client enumerations", () => {
 	});
 
 	it("names each advertised phone app as a device the visitor might own", () => {
-		assert.equal(NATIVE_APP_DEVICES_OR, "an iPhone");
+		assert.equal(NATIVE_APP_DEVICES_OR, "an iPhone or an Android phone");
 	});
 });

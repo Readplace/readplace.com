@@ -4,6 +4,7 @@ import type {
 	MarkTranscriptStarted,
 	RefundTranscriptCharge,
 	RefundUnstartedCharge,
+	SettleStartedCharge,
 	SettleTranscriptCharge,
 	TranscriptChargeRef,
 	TranscriptChargeState,
@@ -36,7 +37,7 @@ export function initInMemoryTranscriptCharge(deps: {
 	const chargeTranscriptQuota: ChargeTranscriptQuota = async (p) => {
 		if (p.seconds > deps.allowanceSeconds) return { outcome: "over-allowance" };
 		const existing = deps.rows.charges.get(chargeKey(p));
-		if (existing && existing.state !== "refunded") return { outcome: "already-charged" };
+		if (existing && existing.state !== "refunded") return { outcome: "already-charged", day: existing.day };
 		const day = deps.now().toISOString().slice(0, 10);
 		const spent = deps.rows.spentSeconds.get(dayKey({ userId: p.userId, day })) ?? 0;
 		if (spent > deps.allowanceSeconds - p.seconds) return { outcome: "day-spent" };
@@ -50,6 +51,7 @@ export function initInMemoryTranscriptCharge(deps: {
 export function initInMemoryTranscriptLedger(deps: { rows: InMemoryTranscriptQuotaRows }): {
 	markTranscriptStarted: MarkTranscriptStarted;
 	settleTranscriptCharge: SettleTranscriptCharge;
+	settleStartedCharge: SettleStartedCharge;
 	refundTranscriptCharge: RefundTranscriptCharge;
 	refundUnstartedCharge: RefundUnstartedCharge;
 	deleteAllTranscriptQuota: DeleteAllTranscriptQuota;
@@ -73,6 +75,12 @@ export function initInMemoryTranscriptLedger(deps: { rows: InMemoryTranscriptQuo
 	return {
 		markTranscriptStarted: async (ref) => moveOpenCharge(ref, "started"),
 		settleTranscriptCharge: async (ref) => moveOpenCharge(ref, "settled"),
+		settleStartedCharge: async (ref) => {
+			const entry = charges.get(chargeKey(ref));
+			if (entry?.state !== "started") return { outcome: "not-started" };
+			entry.state = "settled";
+			return { outcome: "settled" };
+		},
 		refundTranscriptCharge: async (p) => {
 			const entry = charges.get(chargeKey(p));
 			if (!isOpen(entry)) return { outcome: "closed" };

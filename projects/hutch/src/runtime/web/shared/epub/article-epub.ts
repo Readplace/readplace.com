@@ -9,6 +9,7 @@ import { buildEpub } from "./epub-package";
 import type { ReaderHighlights } from "../article-body/reader-slot/mark-highlights";
 import { prepareReaderContent, WHOLE_DOCUMENT_SECTION } from "../article-body/reader-slot/reader-content";
 import { highlightsXhtml } from "./highlights-xhtml";
+import type { LogError } from "@packages/logger";
 
 type SkippedImage = { filename: string; bytes: number };
 
@@ -48,7 +49,7 @@ function chapterBodyOf(params: {
 
 type BuildArticleEpubDependencies = {
 	readArticleImage: ReadArticleImage;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	now: () => Date;
 };
 

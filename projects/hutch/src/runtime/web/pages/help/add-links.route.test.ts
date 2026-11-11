@@ -289,21 +289,21 @@ describe("GET /help/add-links", () => {
 		expect(url.searchParams.get("utm_source")).toBe("help-add-links");
 	});
 
-	it("tells a logged-out visitor a book can be uploaded before signing up, beside the tracked upload link", async () => {
+	it("tells a logged-out visitor a file can be uploaded before signing up, beside the tracked upload link", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(server).get("/help/add-links");
 
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector("[data-test-help-upload-guest]")?.textContent).toBe(
-			"You don't need an account to upload a book: sign up when you save it.",
+			"You don't need an account to upload a file: sign up when you save it.",
 		);
 		expect(
 			doc.querySelector("[data-test-help-upload-title]")?.textContent,
-		).toBe("Add a book");
-		expect(doc.querySelector("[data-test-help-upload-audio]")).toBeNull();
+		).toBe("Add a book, audio or video file");
+		expect(doc.querySelector("[data-test-help-upload-audio]")).not.toBeNull();
 		expect(doc.querySelector("[data-test-help-upload-link]")?.textContent).toBe(
-			"Upload a book",
+			"Upload a file",
 		);
 		const href = doc
 			.querySelector("[data-test-help-upload-link]")
@@ -328,11 +328,16 @@ describe("GET /help/add-links", () => {
 		expect(doc.querySelector("[data-test-help-upload-guest]")).toBeNull();
 		expect(
 			doc.querySelector("[data-test-help-upload-title]")?.textContent,
-		).toBe("Add a book or audio file");
+		).toBe("Add a book, audio or video file");
 		expect(
 			doc.querySelector("[data-test-help-upload-audio]")?.textContent,
 		).toBe(
-			"Upload an MP3 or M4A of up to 256 MB to listen to it in the reader.",
+			"Upload an MP3 or M4A of up to 256 MB to listen to it in the reader with a timestamped transcript.",
+		);
+		expect(
+			doc.querySelector("[data-test-help-upload-video]")?.textContent,
+		).toBe(
+			"Upload an MP4 video of up to 2 GB to listen to its sound with a timestamped transcript. Audio and video share the same daily transcript minutes.",
 		);
 	});
 

@@ -4,6 +4,7 @@ import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import { tagSaveRefusal } from "../../shared/save-refusal";
 import { megabytesLabel } from "../../shared/bytes-to-mb";
+import type { LogError } from "@packages/logger";
 
 /**
  * Translates body-parser `entity.too.large` errors on the multipart
@@ -15,7 +16,7 @@ import { megabytesLabel } from "../../shared/bytes-to-mb";
  * whose headroom keeps a compliant request below this limit.
  */
 export function initSaveArticlesLimitHandler(deps: {
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	maxBytes: number;
 }): ErrorRequestHandler {
 	const { maxBytes } = deps;

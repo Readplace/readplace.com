@@ -45,7 +45,7 @@ import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/pr
 import type { FindCanaryReport, SaveCanaryReport } from "@packages/provider-contracts/canary-report";
 import type { MintBrowserHandoffCode, RedeemBrowserHandoffCode } from "@packages/provider-contracts/browser-handoff";
 import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
-import type { Logger } from "@packages/logger";
+import type { Logger, LogError } from "@packages/logger";
 import type { ClaimResolutionOnView } from "@packages/provider-contracts/article-resolution-on-view";
 import type { PublishResolveArticleOnView } from "@packages/provider-contracts/events";
 import type {
@@ -792,7 +792,7 @@ export interface SharedBundle {
 	appOrigin: string;
 	staticBaseUrl: string;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	now: () => Date;
 }
 

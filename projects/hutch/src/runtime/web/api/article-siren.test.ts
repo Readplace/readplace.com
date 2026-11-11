@@ -7,6 +7,7 @@ import { ABSENT_ENCLOSURE, type EnclosureRead, ReaderArticleHashId } from "@pack
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
 import { computeArticleContentVersion } from "../shared/article-content-version";
 import { toArticleSubEntity, toArticleEntity, toSavedArticleEntity } from "./article-siren";
@@ -80,6 +81,7 @@ describe("toArticleSubEntity", () => {
 				readAt: null,
 				isRead: false,
 				needsBrowserCapture: false,
+				contentState: "processing",
 				contentVersion: computeArticleContentVersion({ article, crawl: undefined, summary: undefined }),
 				mediaKind: null,
 				durationSeconds: null,
@@ -455,6 +457,33 @@ describe("toArticleSubEntity", () => {
 			const subEntity = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", now: NOW, crawl });
 			expect([label, subEntity.properties?.needsBrowserCapture]).toEqual([label, false]);
 		}
+	});
+
+	it("states whether the article has content beside whether it is still processing, from the one classification of its crawl and summary", () => {
+		const cases: Array<[string, ArticleCrawl | undefined, GeneratedSummary | undefined, string, boolean]> = [
+			["crawl ready, summary ready", { status: "ready" }, { status: "ready", summary: "S." }, "available", false],
+			["crawl ready, summary pending", { status: "ready" }, { status: "pending" }, "available", true],
+			["crawl pending", { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, undefined, "processing", true],
+			["neither pipeline started", undefined, undefined, "processing", true],
+			["no crawl row, summary ready", undefined, { status: "ready", summary: "S." }, "available", false],
+			["crawl failed", { status: "failed", outcomeRevision: 1, reason: "crawl-failed" }, undefined, "unavailable", false],
+			["crawl unsupported", { status: "unsupported", reason: "{}" }, { status: "skipped" }, "unavailable", false],
+		];
+
+		for (const [label, crawl, summary, contentState, processing] of cases) {
+			const properties = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", now: NOW, crawl, summary }).properties;
+			expect([label, properties?.contentState, properties?.processing !== undefined]).toEqual([label, contentState, processing]);
+		}
+	});
+
+	it("answers unavailable for a webmail page, which is never processing", () => {
+		const properties = toArticleSubEntity(makeArticle({ url: "https://mail.google.com/mail/u/0/" }), {
+			addToReadlist: "advertised",
+			now: NOW,
+			crawl: { status: "ready" },
+		}).properties;
+
+		expect([properties?.contentState, properties?.processing]).toEqual(["unavailable", undefined]);
 	});
 
 	it("maps readAt when present", () => {

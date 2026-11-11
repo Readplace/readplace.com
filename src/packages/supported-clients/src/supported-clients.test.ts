@@ -51,7 +51,7 @@ describe("SUPPORTED_CLIENTS", () => {
 				firefox: "selfHostedPointer",
 				chrome: "store",
 				iphone: "appStore",
-				android: "selfHostedPointer",
+				android: "store",
 				chatgpt: "mcpConnector",
 				gemini: "mcpConnector",
 				claude: "mcpConnector",
@@ -79,6 +79,17 @@ describe("SUPPORTED_CLIENTS", () => {
 		const iphone = SUPPORTED_CLIENTS.find((client) => client.name === "iphone");
 		assert(iphone?.install.kind === "appStore", "the iPhone client must install from the App Store");
 		assert.equal(iphone.install.appleAppId, "6777107238");
+	});
+
+	it("advertises Obsidian with its community directory destination and plugin id", () => {
+		const obsidian = SUPPORTED_CLIENTS.find((client) => client.name === "obsidian");
+		assert(obsidian, "Obsidian must be in the client roster");
+		assert.equal(obsidian.advertised, true);
+		assert.deepEqual(obsidian.install, {
+			kind: "communityDirectory",
+			listingUrl: "https://community.obsidian.md/plugins/readplace",
+			pluginId: "readplace",
+		});
 	});
 });
 

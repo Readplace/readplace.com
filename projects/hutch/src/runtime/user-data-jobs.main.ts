@@ -227,6 +227,13 @@ const { tombstoneArticle } = initTombstoneArticle({
 	tableName: articlesTableName,
 });
 
+const transcriptLedger = initDynamoDbTranscriptLedger({
+	client: dynamoClient,
+	tableName: env.MEDIA_TABLE_NAME,
+	now: () => new Date(),
+	delay: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+});
+
 const releasePrivateItems = initReleasePrivateItems({
 	releasePrivateItem: initReleasePrivateItem({
 		findItemOwner: initDynamoDbFindItemOwner({ client: dynamoClient, tableName: articlesTableName }).findItemOwner,
@@ -247,6 +254,7 @@ const releasePrivateItems = initReleasePrivateItems({
 				client: dynamoClient,
 				tableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 			}).deleteUserArticleLinks,
+			settleStartedCharge: transcriptLedger.settleStartedCharge,
 		}),
 	}),
 });
@@ -334,12 +342,7 @@ export const handler = initHandleByDetailType({
 				deleteEmailContentObjects,
 				deleteEmailImageObjects,
 				deleteAllUserArticles: articleStore.deleteAllUserArticles,
-				deleteAllTranscriptQuota: initDynamoDbTranscriptLedger({
-					client: dynamoClient,
-					tableName: env.MEDIA_TABLE_NAME,
-					now: () => new Date(),
-					delay: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-				}).deleteAllTranscriptQuota,
+				deleteAllTranscriptQuota: transcriptLedger.deleteAllTranscriptQuota,
 				deleteAllUserHighlights: highlights.deleteAllUserHighlights,
 				listUserArticleUrls: articleStore.listUserArticleUrls,
 				countOtherSaversByUrl,

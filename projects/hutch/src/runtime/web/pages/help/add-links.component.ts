@@ -59,6 +59,7 @@ export function HelpAddLinksPage(params: {
 		href: string;
 		ceilingLabel: string;
 		audioCeilingLabel: string;
+		videoCeilingLabel: string;
 		guest: boolean;
 	};
 }): Component {

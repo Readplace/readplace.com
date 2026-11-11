@@ -5,6 +5,7 @@ import { MAX_HTML_BYTES } from "@packages/crawl-article";
 import { markCrawlAwaitingReader, markCrawlBlocked, markCrawlExhausted, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import {
 	ComprehensiveCrawlCommand,
+	type CrawlTrigger,
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
 	TierContentExtractedEvent,
@@ -17,6 +18,7 @@ import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/
 import type { RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "./render-page.types";
 import { legInputHash } from "../metered-leg/leg-input-hash";
 import { initRenderCrawlHandler } from "./render-crawl-handler";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 const URL = "https://example-spa.test/post";
 const RENDERED_HTML = "<html><head><title>Post</title></head><body><article><p>Rendered body</p></article></body></html>";
@@ -37,8 +39,7 @@ function createSqsEvent(detail: {
 	saveAttemptId?: string;
 	candidates?: { id: string; tier: "tier-2" }[];
 	userId?: string;
-	recrawl?: boolean;
-	refresh?: boolean;
+	trigger?: CrawlTrigger;
 	previousBodyHash?: string;
 	unsupportedReason?: "javascript-required" | "blocked";
 	finalUrl?: string;
@@ -47,7 +48,7 @@ function createSqsEvent(detail: {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", unsupportedReason: "javascript-required", ...detail } }),
+			body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", unsupportedReason: "javascript-required", trigger: "save", ...detail } }),
 			attributes: {
 				ApproximateReceiveCount: "1",
 				SentTimestamp: "1620000000000",
@@ -143,6 +144,7 @@ const finalizeOnImageRefusingOrigin = (): FinalizeArticle => initFinalizeArticle
 	fetchThumbnailImage: async ({ candidates }) => ({
 		image: candidates.some((candidate) => candidate.startsWith(CDN_BASE_URL)) ? hostedImage : undefined,
 		provenUnusable: [],
+		fetched: candidates,
 	}),
 	putImageObject: jest.fn().mockResolvedValue(undefined),
 	imagesCdnBaseUrl: CDN_BASE_URL,
@@ -166,7 +168,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		consumeRenderCrawlBudget: jest.fn().mockResolvedValue({ allowed: true, consumed: true }),
 		...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date("2026-10-28T12:00:00.000Z") }),
 		adoptCanonicalIdentity: jest.fn().mockResolvedValue(undefined),
-		publishEvent: jest.fn().mockResolvedValue(undefined),
+		publishEvent: initRecordingPublishEvent().publishEvent,
 		renderPage: renderPageAnswering({ direct: rendered() }),
 		residentialEgress: () => RESIDENTIAL_EGRESS,
 		webUnlockerEgress: WEB_UNLOCKER_EGRESS,
@@ -189,7 +191,7 @@ describe("initRenderCrawlHandler", () => {
 		it("stores the rendered page as this save's tier-1 live candidate tagged with the direct leg, and hands it to selection", async () => {
 			const renderPage = renderPageAnswering({ direct: rendered() });
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const handler = createHandler({ renderPage, putTierSource, publishEvent });
 
 			const response = await run(handler, { url: URL, userId: "user-1" });
@@ -203,12 +205,12 @@ describe("initRenderCrawlHandler", () => {
 				html: finalizedArticle.html,
 				metadata: expect.objectContaining({ kind: "live", httpStatus: 200, renderedThrough: "direct-egress", attemptId: "attempt-1" }),
 			}));
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				url: URL,
 				userId: "user-1",
 				saveAttemptId: "attempt-1",
 				candidates: [{ id: expect.any(String), tier: "tier-1" }],
-			}));
+			}) });
 		});
 
 		it("commits a readable direct render on a blocked deferral without spending the render budget", async () => {
@@ -271,16 +273,16 @@ describe("initRenderCrawlHandler", () => {
 		});
 
 		it.each([
-			{ flag: { recrawl: true }, event: RecrawlContentExtractedEvent },
-			{ flag: { refresh: true }, event: RefreshContentExtractedEvent },
-		])("emits $event.detailType for a $flag render", async ({ flag, event }) => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			{ trigger: "recrawl" as const, event: RecrawlContentExtractedEvent },
+			{ trigger: "refresh" as const, event: RefreshContentExtractedEvent },
+		])("emits $event.detailType for a $trigger render", async ({ trigger, event }) => {
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const handler = createHandler({ publishEvent });
 
-			await run(handler, { url: URL, ...flag });
+			await run(handler, { url: URL, trigger });
 
-			expect(publishEvent).toHaveBeenCalledTimes(1);
-			expect(publishEvent).toHaveBeenCalledWith(event, expect.objectContaining({ url: URL }));
+			expect(published).toHaveLength(1);
+			expect(published).toContainEqual({ detailType: event.detailType, detail: expect.objectContaining({ url: URL }) });
 		});
 	});
 
@@ -309,7 +311,7 @@ describe("initRenderCrawlHandler", () => {
 
 		it("carries an unreadable residential render with candidates on to the Web Unlocker render without publishing it first", async () => {
 			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered(), webUnlocker: rendered() });
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const proxiedCrawlArticle = jest.fn(refusedProxiedCrawl);
 			const finalizeArticle = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>()
@@ -326,10 +328,10 @@ describe("initRenderCrawlHandler", () => {
 			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 				metadata: expect.objectContaining({ renderedThrough: "web-unlocker-render" }),
 			}));
-			expect(publishEvent).toHaveBeenCalledTimes(1);
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toHaveLength(1);
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				candidates: [...wrapperRefs, { id: expect.any(String), tier: "tier-1" }],
-			}));
+			}) });
 		});
 	});
 
@@ -358,15 +360,15 @@ describe("initRenderCrawlHandler", () => {
 		});
 
 		it("still offers it beside the reader's wrapper candidates for comparison", async () => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({ finalizeArticle: unreadableFinalize, publishEvent, transitionAndPersist });
 
 			await run(handler, { url: URL, candidates: wrapperRefs });
 
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				candidates: [...wrapperRefs, { id: expect.any(String), tier: "tier-1" }],
-			}));
+			}) });
 			expect(transitionAndPersist).not.toHaveBeenCalled();
 		});
 	});
@@ -464,8 +466,8 @@ describe("initRenderCrawlHandler", () => {
 			);
 		});
 
-		it.each([false, true])("hands the reader's wrapper candidates to selection with no live body (recrawl=%s)", async (recrawl) => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+		it.each(["save", "recrawl"] as const)("hands the reader's wrapper candidates to selection with no live body (trigger=%s)", async (trigger) => {
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				renderPage: renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: blocked(403) }),
@@ -473,13 +475,13 @@ describe("initRenderCrawlHandler", () => {
 				transitionAndPersist,
 			});
 
-			const response = await run(handler, { url: URL, candidates: wrapperRefs, recrawl });
+			const response = await run(handler, { url: URL, candidates: wrapperRefs, trigger });
 
 			expect(response).toEqual({ batchItemFailures: [] });
-			expect(publishEvent).toHaveBeenCalledWith(recrawl ? RecrawlContentExtractedEvent : TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: (trigger === "recrawl" ? RecrawlContentExtractedEvent : TierContentExtractedEvent).detailType, detail: expect.objectContaining({
 				candidates: wrapperRefs,
 				liveAttempt: { outcome: "no-body" },
-			}));
+			}) });
 			expect(transitionAndPersist).not.toHaveBeenCalled();
 		});
 
@@ -622,16 +624,16 @@ describe("initRenderCrawlHandler", () => {
 		});
 
 		it("hands the reader's wrapper candidates to selection with no live body", async () => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({ publishEvent, transitionAndPersist, renderPage: renderPageAnswering({ direct: rendered({ html: oversized }) }) });
 
 			await run(handler, { url: URL, candidates: wrapperRefs });
 
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				candidates: wrapperRefs,
 				liveAttempt: { outcome: "no-body" },
-			}));
+			}) });
 			expect(transitionAndPersist).not.toHaveBeenCalled();
 		});
 	});
@@ -651,7 +653,7 @@ describe("initRenderCrawlHandler", () => {
 			const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({ ...overrides, updateFetchTimestamp });
 
-			const response = await run(handler, { url: URL, refresh: true, previousBodyHash: "previous-hash" });
+			const response = await run(handler, { url: URL, trigger: "refresh", previousBodyHash: "previous-hash" });
 
 			expect(response).toEqual({ batchItemFailures: [] });
 			expect(updateFetchTimestamp).toHaveBeenCalledTimes(1);
@@ -659,8 +661,8 @@ describe("initRenderCrawlHandler", () => {
 		});
 
 		it.each([
-			{ label: "a first save", detail: { url: URL } },
-			{ label: "a recrawl", detail: { url: URL, recrawl: true } },
+			{ label: "a first save", detail: { url: URL, trigger: "save" as const } },
+			{ label: "a recrawl", detail: { url: URL, trigger: "recrawl" as const } },
 		])("leaves the freshness clock alone on $label that cannot render", async ({ detail }) => {
 			const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({ renderPage: renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: blocked(403) }), updateFetchTimestamp });
@@ -710,7 +712,7 @@ describe("initRenderCrawlHandler", () => {
 					html: originFigure,
 					evaluationHtml: originFigure,
 					thumbnailUrl: undefined,
-					thumbnail: { image: { ...hostedImage, url: imageUrl }, provenUnusable: [] },
+					thumbnail: { image: { ...hostedImage, url: imageUrl }, provenUnusable: [], fetched: [imageUrl] },
 					mediaType: "image",
 					bodyHash: "proxied-hash",
 					finalUrl: imageUrl,
@@ -768,13 +770,13 @@ describe("initRenderCrawlHandler", () => {
 			{ label: "found a javascript shell", overrides: { proxiedCrawlArticle: proxiedCrawlUnsupported({ kind: "javascript-required" }) } },
 		])("reaches the Web Unlocker render when the fetch $label", async ({ overrides }) => {
 			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403), webUnlocker: rendered() });
 			const handler = createHandler({ consumeRenderCrawlBudget, publishEvent, renderPage, ...overrides });
 
 			await run(handler, { url: URL });
 
-			expect(publishEvent).not.toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.anything());
+			expect(published).not.toContainEqual(expect.objectContaining({ detailType: ComprehensiveCrawlCommand.detailType }));
 			expect(consumeRenderCrawlBudget).toHaveBeenCalledTimes(1);
 			expect(renderPage).toHaveBeenCalledTimes(3);
 		});
@@ -785,7 +787,7 @@ describe("initRenderCrawlHandler", () => {
 			{ label: "no stated reason", reason: undefined },
 		];
 		it.each(deferrableReasons)("hands $label to the comprehensive crawl with no Web Unlocker render", async ({ reason }) => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const markCrawlStage = jest.fn().mockResolvedValue(undefined);
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403) });
@@ -797,17 +799,17 @@ describe("initRenderCrawlHandler", () => {
 				proxiedCrawlArticle: proxiedCrawlUnsupported(reason),
 			});
 
-			const response = await run(handler, { url: URL, userId: "user-1", recrawl: true, previousBodyHash: "previous-hash", candidates: wrapperRefs });
+			const response = await run(handler, { url: URL, userId: "user-1", trigger: "recrawl", previousBodyHash: "previous-hash", candidates: wrapperRefs });
 
 			expect(response).toEqual({ batchItemFailures: [] });
-			expect(publishEvent).toHaveBeenCalledTimes(1);
-			expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({
+			expect(published).toHaveLength(1);
+			expect(published).toContainEqual({ detailType: ComprehensiveCrawlCommand.detailType, detail: expect.objectContaining({
 				url: URL,
 				userId: "user-1",
-				recrawl: true,
+				trigger: "recrawl",
 				previousBodyHash: "previous-hash",
 				candidates: wrapperRefs,
-			}));
+			}) });
 			expect(markCrawlStage).toHaveBeenCalledWith({ url: URL, stage: "comprehensive-fetching" });
 			expect(renderPage).toHaveBeenCalledTimes(2);
 			expect(transitionAndPersist).not.toHaveBeenCalled();
@@ -815,7 +817,7 @@ describe("initRenderCrawlHandler", () => {
 
 		it("settles an oversized fetched body as unsupported with no Web Unlocker render", async () => {
 			const reason: CrawlUnsupportedReason = { kind: "content-too-large", bytes: 100_000_000 };
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403) });
 			const handler = createHandler({
@@ -828,12 +830,12 @@ describe("initRenderCrawlHandler", () => {
 			await run(handler, { url: URL });
 
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, { url: URL, input: { reason } });
-			expect(publishEvent).not.toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.anything());
+			expect(published).not.toContainEqual(expect.objectContaining({ detailType: ComprehensiveCrawlCommand.detailType }));
 			expect(renderPage).toHaveBeenCalledTimes(2);
 		});
 
 		it("offers the reader's wrapper candidates to selection when the fetched body is oversized", async () => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				publishEvent,
@@ -844,7 +846,7 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: URL, candidates: wrapperRefs });
 
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ url: URL, candidates: wrapperRefs }));
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ url: URL, candidates: wrapperRefs }) });
 			expect(transitionAndPersist).not.toHaveBeenCalled();
 		});
 
@@ -856,17 +858,17 @@ describe("initRenderCrawlHandler", () => {
 				proxiedCrawlArticle: proxiedCrawlUnsupported({ kind: "content-too-large", bytes: 100_000_000 }),
 			});
 
-			await run(handler, { url: URL, refresh: true, previousBodyHash: "previous-hash" });
+			await run(handler, { url: URL, trigger: "refresh", previousBodyHash: "previous-hash" });
 
 			expect(updateFetchTimestamp).toHaveBeenCalledWith(expect.objectContaining({ url: URL, bodyHash: "previous-hash" }));
 		});
 
 		it.each([
-			{ label: "no candidates", candidates: undefined, published: [{ id: expect.any(String), tier: "tier-1" }] },
-			{ label: "wrapper candidates", candidates: wrapperRefs, published: [...wrapperRefs, { id: expect.any(String), tier: "tier-1" }] },
-		])("reaches the Web Unlocker render without publishing when a fetched body cannot be committed ($label)", async ({ candidates, published }) => {
+			{ label: "no candidates", candidates: undefined, expectedCandidates: [{ id: expect.any(String), tier: "tier-1" }] },
+			{ label: "wrapper candidates", candidates: wrapperRefs, expectedCandidates: [...wrapperRefs, { id: expect.any(String), tier: "tier-1" }] },
+		])("reaches the Web Unlocker render without publishing when a fetched body cannot be committed ($label)", async ({ candidates, expectedCandidates }) => {
 			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403), webUnlocker: rendered() });
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const finalizeArticle = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>()
 				.mockResolvedValueOnce({ ok: true, article: finalizedArticle })
@@ -881,8 +883,8 @@ describe("initRenderCrawlHandler", () => {
 			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 				metadata: expect.objectContaining({ renderedThrough: "web-unlocker-render" }),
 			}));
-			expect(publishEvent).toHaveBeenCalledTimes(1);
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: published }));
+			expect(published).toHaveLength(1);
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: expectedCandidates }) });
 		});
 
 		it("runs straight after a failed direct render on a blocked deferral", async () => {
@@ -1091,21 +1093,21 @@ describe("initRenderCrawlHandler", () => {
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({ renderPage: renderPageAnswering({ direct: blocked(403) }), consumeRenderCrawlBudget: async () => ({ allowed: false }), transitionAndPersist });
 
-			await run(handler, { url: URL, refresh: true });
+			await run(handler, { url: URL, trigger: "refresh" });
 
 			expect(transitionAndPersist).not.toHaveBeenCalled();
 		});
 
 		it("hands the reader's wrapper candidates to selection once the window is spent", async () => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const handler = createHandler({ renderPage: renderPageAnswering({ direct: blocked(403) }), consumeRenderCrawlBudget: async () => ({ allowed: false }), publishEvent });
 
 			await run(handler, { url: URL, candidates: wrapperRefs });
 
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				candidates: wrapperRefs,
 				liveAttempt: { outcome: "no-body" },
-			}));
+			}) });
 		});
 	});
 
@@ -1241,7 +1243,7 @@ describe("initRenderCrawlHandler", () => {
 			{ captured: false, candidates: [{ id: expect.any(String), tier: "tier-1" }] },
 		])("crawls its capture before rendering and offers both for comparison (capture crawled: $captured)", async ({ captured, candidates }) => {
 			const crawled: string[] = [];
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const handler = createHandler({
 				prepareArticleIdentity: sourceBound,
 				crawlArticle: async ({ url }) => {
@@ -1254,14 +1256,14 @@ describe("initRenderCrawlHandler", () => {
 			await run(handler, { url: URL });
 
 			expect(crawled).toEqual([captureUrl]);
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates }));
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates }) });
 		});
 
 		it("does not re-crawl the capture on a refresh", async () => {
 			const crawlArticle = jest.fn(unusedCrawl);
 			const handler = createHandler({ prepareArticleIdentity: sourceBound, crawlArticle });
 
-			const response = await run(handler, { url: URL, refresh: true });
+			const response = await run(handler, { url: URL, trigger: "refresh" });
 
 			expect(response).toEqual({ batchItemFailures: [] });
 			expect(crawlArticle).not.toHaveBeenCalled();
@@ -1315,13 +1317,13 @@ describe("initRenderCrawlHandler", () => {
 			await run(handler, { url: TRACKER, finalUrl: PUBLISHER });
 			await run(handler, { url: TRACKER });
 
-			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] processing", { url: TRACKER, recrawl: 0, refresh: 0, resumedAtObservedPage: 1 });
-			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] processing", { url: TRACKER, recrawl: 0, refresh: 0, resumedAtObservedPage: 0 });
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] processing", { url: TRACKER, trigger: "save", resumedAtObservedPage: 1 });
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] processing", { url: TRACKER, trigger: "save", resumedAtObservedPage: 0 });
 		});
 
 		it("keeps the stored row, the save attempt and the selection hand-off on the tracker's identity", async () => {
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				prepareArticleIdentity: trackerIdentity,
@@ -1335,7 +1337,7 @@ describe("initRenderCrawlHandler", () => {
 
 			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: TRACKER, metadata: expect.objectContaining({ attemptId: "attempt-1", sourceUrl: PUBLISHER }) }));
 			expect(updateFetchTimestamp).toHaveBeenCalledWith(expect.objectContaining({ url: TRACKER }));
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ url: TRACKER, userId: "user-1", saveAttemptId: "attempt-1" }));
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ url: TRACKER, userId: "user-1", saveAttemptId: "attempt-1" }) });
 		});
 
 		it("escalates unreadable direct and residential renders of that page through the Web Unlocker fetch of the same page", async () => {
@@ -1365,7 +1367,7 @@ describe("initRenderCrawlHandler", () => {
 				parseHtml,
 				downloadMedia: async () => [],
 				processContent: async ({ html: content }) => content,
-				fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }),
+				fetchThumbnailImage: async ({ candidates }) => ({ image: undefined, provenUnusable: [], fetched: candidates }),
 				putImageObject: async () => {},
 				imagesCdnBaseUrl: CDN_BASE_URL,
 			});
@@ -1405,7 +1407,7 @@ describe("initRenderCrawlHandler", () => {
 			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([PINNED]);
 		});
 
-		it.each([{ recrawl: true }, { refresh: true }])("ignores the observed page on a %j crawl, which keeps its existing pin resolution", async (flag) => {
+		it.each([{ trigger: "recrawl" as const }, { trigger: "refresh" as const }])("ignores the observed page on a %j crawl, which keeps its existing pin resolution", async (flag) => {
 			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: rendered() });
 			const proxiedCrawlArticle = recordingProxiedCrawl({ status: "blocked", httpStatus: 403 });
 			const findAdoptedFetchUrl = jest.fn(async () => undefined);
@@ -1434,7 +1436,7 @@ describe("initRenderCrawlHandler", () => {
 
 	it.each([
 		{ label: "an article whose original is unresolved", overrides: { prepareArticleIdentity: async () => ({ status: "unresolved" as const }) }, detail: { url: URL } },
-		{ label: "a command that fails its schema", overrides: {}, detail: { url: URL, recrawl: true, refresh: true } },
+		{ label: "a command that fails its schema", overrides: {}, detail: { url: URL, trigger: undefined } },
 	])("reports $label as a failed record", async ({ overrides, detail }) => {
 		const handler = createHandler(overrides);
 
@@ -1456,7 +1458,7 @@ describe("initRenderCrawlHandler", () => {
 			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true, consumed: true });
 			const reportProxiedRenderAttempt = jest.fn();
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const renderPage = renderPageAnswering({ direct: failed("net::ERR_HTTP2_PROTOCOL_ERROR"), webUnlocker: gatewayFailure, residential: rendered({ finalUrl: target }) });
 			const handler = createHandler({ renderPage, residentialEgress, consumeRenderCrawlBudget, reportProxiedRenderAttempt, putTierSource, publishEvent, logger: { ...noopLogger, info } });
 			const detail = { url: target, unsupportedReason: "blocked" as const, saveAttemptId: "gateway-recovery-attempt" };
@@ -1466,12 +1468,12 @@ describe("initRenderCrawlHandler", () => {
 			expect(renderPage.mock.calls.map(([params]) => params.egress.kind)).toEqual(["direct", "web-unlocker", "residential"]);
 			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ renderedThrough: "residential-per-gb" }) }));
 			expect(reportProxiedRenderAttempt).toHaveBeenCalledWith(expect.objectContaining({ readability: "readable", saveAttemptId: "gateway-recovery-attempt", renderedThrough: "residential-per-gb" }));
-			const recorded = publishEvent.mock.calls.find(([event]) => event === TierContentExtractedEvent)?.[1].candidates[0];
+			const recorded = TierContentExtractedEvent.detailSchema.parse(published.find(({ detailType }) => detailType === TierContentExtractedEvent.detailType)?.detail).candidates[0];
 
 			expect(await run(handler, detail)).toEqual({ batchItemFailures: [] });
 			expect(residentialEgress).toHaveBeenCalledTimes(1);
 			expect(putTierSource).toHaveBeenCalledTimes(1);
-			expect(publishEvent).toHaveBeenLastCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [recorded], liveAttempt: { outcome: "no-body" } }));
+			expect(published.at(-1)).toEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: [recorded], liveAttempt: { outcome: "no-body" } }) });
 			expect(markerLines(info)).toEqual([
 				{ stream: "render-recovery", policyVersion: "residential-after-gateway-502-v1", saveAttemptId: "gateway-recovery-attempt", host: "publisher.test", phase: "started" },
 				{ stream: "render-recovery", policyVersion: "residential-after-gateway-502-v1", saveAttemptId: "gateway-recovery-attempt", host: "publisher.test", phase: "finished", outcome: "committed" },
@@ -1497,7 +1499,7 @@ describe("initRenderCrawlHandler", () => {
 		it.each([false, true])("honors a deferred recovery claim and preserves reader captures (carried: %s)", async (carried) => {
 			const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date("2026-10-28T12:00:00.000Z") });
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const residentialEgress = jest.fn(() => RESIDENTIAL_EGRESS);
 			const info = jest.fn();
 			const handler = createHandler({
@@ -1510,7 +1512,7 @@ describe("initRenderCrawlHandler", () => {
 			expect(residentialEgress).not.toHaveBeenCalled();
 			expect(markerLines(info)).toEqual([]);
 			if (carried) {
-				expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: wrapperRefs, liveAttempt: { outcome: "no-body" } }));
+				expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: wrapperRefs, liveAttempt: { outcome: "no-body" } }) });
 				expect(transitionAndPersist).not.toHaveBeenCalled();
 			} else {
 				expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlAwaitingReader, { url: target, input: { deferredLeg: "render-residential-per-gb" } });
@@ -1545,7 +1547,7 @@ describe("initRenderCrawlHandler", () => {
 		it("settles a residential render with the candidate it committed", async () => {
 			const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW });
 			const settleMeteredLeg = jest.fn(ledger.settleMeteredLeg);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const handler = createHandler({
 				...ledger,
 				settleMeteredLeg,
@@ -1555,7 +1557,7 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: URL });
 
-			const announced = publishEvent.mock.calls.find(([event]) => event === TierContentExtractedEvent)?.[1];
+			const announced = TierContentExtractedEvent.detailSchema.parse(published.find(({ detailType }) => detailType === TierContentExtractedEvent.detailType)?.detail);
 			expect(settleMeteredLeg).toHaveBeenCalledWith({
 				url: URL,
 				permit: expect.objectContaining({ leg: "render-residential-per-gb", claimId: "msg-1" }),
@@ -1566,29 +1568,29 @@ describe("initRenderCrawlHandler", () => {
 
 		it("replays a residential render already settled for the same page through the archive comparison instead of rendering again", async () => {
 			const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW });
-			const firstPublish = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent: firstPublish, published: firstPublished } = initRecordingPublishEvent();
 			await run(createHandler({
 				...ledger,
 				publishEvent: firstPublish,
 				renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered() }),
 			}), { url: URL });
-			const recorded = firstPublish.mock.calls.find(([event]) => event === TierContentExtractedEvent)?.[1].candidates[0];
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const recorded = TierContentExtractedEvent.detailSchema.parse(firstPublished.find(({ detailType }) => detailType === TierContentExtractedEvent.detailType)?.detail).candidates[0];
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") });
 
 			const response = await run(createHandler({ ...ledger, publishEvent, renderPage }), { url: URL });
 
 			expect(response).toEqual({ batchItemFailures: [] });
 			expect(renderPage).toHaveBeenCalledTimes(1);
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				candidates: [recorded],
 				liveAttempt: { outcome: "no-body" },
-			}));
+			}) });
 		});
 
 		it("replays a settled leg after the reader's carried candidates", async () => {
 			const recorded = { id: "recorded-candidate", tier: "tier-1" };
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const handler = createHandler({
 				claimMeteredLeg: async () => ({ kind: "settled", outcome: JSON.stringify(recorded) }),
 				publishEvent,
@@ -1597,22 +1599,22 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: URL, candidates: wrapperRefs });
 
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				candidates: [...wrapperRefs, recorded],
-			}));
+			}) });
 		});
 
 		it("acks without a write while another message holds the leg's claim", async () => {
 			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") });
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const handler = createHandler({ claimMeteredLeg: async () => ({ kind: "in-flight" }), renderPage, transitionAndPersist, publishEvent });
 
 			const response = await run(handler, { url: URL });
 
 			expect(response).toEqual({ batchItemFailures: [] });
 			expect(transitionAndPersist).not.toHaveBeenCalled();
-			expect(publishEvent).not.toHaveBeenCalled();
+			expect(published).toEqual([]);
 		});
 
 		it("renders a refresh again after a save-time render of the same page settled its leg", async () => {
@@ -1624,7 +1626,7 @@ describe("initRenderCrawlHandler", () => {
 			const claimMeteredLeg = jest.fn(ledger.claimMeteredLeg);
 			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered() });
 
-			await run(createHandler({ ...ledger, claimMeteredLeg, renderPage }), { url: URL, refresh: true, previousBodyHash: "previous-hash" });
+			await run(createHandler({ ...ledger, claimMeteredLeg, renderPage }), { url: URL, trigger: "refresh", previousBodyHash: "previous-hash" });
 
 			expect(await claimMeteredLeg.mock.results[0].value).toEqual(expect.objectContaining({ kind: "granted" }));
 			expect(renderPage).toHaveBeenCalledTimes(2);
@@ -1728,16 +1730,16 @@ describe("initRenderCrawlHandler", () => {
 		});
 
 		it("hands the reader's carried candidates to selection when the residential render is deferred", async () => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({ ...deferringLedger(), publishEvent, transitionAndPersist, renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") }) });
 
 			await run(handler, { url: URL, candidates: wrapperRefs });
 
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				candidates: wrapperRefs,
 				liveAttempt: { outcome: "no-body" },
-			}));
+			}) });
 			expect(transitionAndPersist).not.toHaveBeenCalled();
 		});
 

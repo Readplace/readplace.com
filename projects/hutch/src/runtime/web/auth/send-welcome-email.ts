@@ -5,6 +5,7 @@ import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email
 import { listUnsubscribeHeaders, unsubscribeUrlFor } from "../queue-digest-email";
 import type { SignupClient } from "./signup-client";
 import { buildWelcomeConnectorEmailHtml, buildWelcomeEmailHtml } from "./welcome-email";
+import type { LogError } from "@packages/logger";
 
 const WELCOME_EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
 const WELCOME_EMAIL_REPLY_TO = "fayner@readplace.com";
@@ -19,7 +20,7 @@ interface SendWelcomeEmailDeps {
 	sendEmail: SendEmail;
 	baseUrl: string;
 	staticBaseUrl: string;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 	now: () => Date;
 	signUnsubscribeToken: (userId: UserId) => string;

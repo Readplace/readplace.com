@@ -2,6 +2,12 @@ export const enUS = {
 	upload: {
 		heading: "Upload {kinds}",
 		unsupportedType: "That file type isn't supported. Upload {formats}.",
+		transcriptAllowance: {
+			audio:
+				"Audio files get a timestamped transcript, up to {minutes} minutes a day.",
+			audioAndVideo:
+				"Audio and video files get a timestamped transcript, up to {minutes} minutes a day.",
+		},
 		kinds: {
 			book: {
 				noun: "a book",

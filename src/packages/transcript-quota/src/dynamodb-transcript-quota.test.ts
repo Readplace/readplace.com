@@ -95,6 +95,7 @@ describe("initDynamoDbTranscriptCharge", () => {
 								ConditionExpression: "attribute_not_exists(sk) OR #state = :refunded",
 								ExpressionAttributeNames: { "#state": "state" },
 								ExpressionAttributeValues: { ":refunded": "refunded" },
+								ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 							},
 						},
 						{
@@ -139,12 +140,17 @@ describe("initDynamoDbTranscriptCharge", () => {
 		assert.deepEqual(sent, []);
 	});
 
-	it("answers already-charged when the charge row condition fails", async () => {
+	it("answers already-charged, with the day on the existing charge row, when the charge row condition fails", async () => {
 		const { chargeTranscriptQuota } = charge({
-			outcomes: [cancelled([{ Code: "ConditionalCheckFailed" }, { Code: "None" }])],
+			outcomes: [
+				cancelled([{ Code: "ConditionalCheckFailed", Item: { day: { S: "2026-11-05" } } }, { Code: "None" }]),
+			],
 		});
 
-		assert.deepEqual(await chargeTranscriptQuota({ ...REF, seconds: 600 }), { outcome: "already-charged" });
+		assert.deepEqual(await chargeTranscriptQuota({ ...REF, seconds: 600 }), {
+			outcome: "already-charged",
+			day: "2026-11-05",
+		});
 	});
 
 	it("answers day-spent when the day row condition fails", async () => {
@@ -225,6 +231,40 @@ describe("initDynamoDbTranscriptLedger", () => {
 			const subject = ledger([new Error("network down")]);
 
 			await assert.rejects(subject[port](REF), /network down/);
+		});
+	});
+
+	describe("settleStartedCharge", () => {
+		it("settles a started charge with one update conditioned on started", async () => {
+			const subject = ledger();
+
+			assert.deepEqual(await subject.settleStartedCharge(REF), { outcome: "settled" });
+			assert.deepEqual(subject.sent, [
+				{
+					name: "UpdateCommand",
+					input: {
+						TableName: TABLE,
+						Key: CHARGE_KEY,
+						UpdateExpression: "SET #state = :settled",
+						ConditionExpression: "#state = :started",
+						ExpressionAttributeNames: { "#state": "state" },
+						ExpressionAttributeValues: { ":settled": "settled", ":started": "started" },
+					},
+				},
+			]);
+		});
+
+		it("answers not-started for a reserved, settled, refunded or missing row", async () => {
+			const subject = ledger([conditionFailed()]);
+
+			assert.deepEqual(await subject.settleStartedCharge(REF), { outcome: "not-started" });
+			assert.equal(subject.sent.length, 1);
+		});
+
+		it("rethrows any other error", async () => {
+			const subject = ledger([new Error("network down")]);
+
+			await assert.rejects(subject.settleStartedCharge(REF), /network down/);
 		});
 	});
 

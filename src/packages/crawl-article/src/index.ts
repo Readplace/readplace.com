@@ -21,6 +21,7 @@ export {
 	type LogThumbnailNotDelivered,
 	type ThumbnailNotDeliveredEvent,
 } from "./extract-thumbnail";
+export { isProvenTrackingImageUrl } from "./is-proven-tracking-image-url";
 export type {
 	CrawlArticle,
 	CrawlArticleResult,

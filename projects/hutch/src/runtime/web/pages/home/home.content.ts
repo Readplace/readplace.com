@@ -66,6 +66,12 @@ export const HOME_WAY_LINK_BY_CLIENT = {
 		trackContent: "iphone",
 		order: 1,
 	},
+	android: {
+		label: "Get the Android app",
+		href: "/install?client=android",
+		trackContent: "android",
+		order: 1,
+	},
 } as const satisfies Record<
 	AdvertisedClientNameInGroup<"browserExtension"> | AdvertisedClientNameInGroup<"nativeApp">,
 	HomeWayLink
@@ -105,6 +111,19 @@ export const HOME_NATIVE_APP_ROW_BY_CLIENT = {
 			label: "App Store",
 			href: "/install?client=iphone",
 			trackContent: "iphone-app-store",
+		},
+		bodyTail:
+			", and it opens your saved copy with its one line summary and TL;DR without leaving the phone.",
+	},
+	android: {
+		name: "Your Android phone",
+		bodyLead: "Open an article anywhere, tap Share",
+		bodyIcon: "share",
+		bodyMid: ", choose Readplace. The app is on",
+		bodyLink: {
+			label: "Google Play",
+			href: "/install?client=android",
+			trackContent: "android-google-play",
 		},
 		bodyTail:
 			", and it opens your saved copy with its one line summary and TL;DR without leaving the phone.",
@@ -153,6 +172,7 @@ export const HOME_WAYS_WITHOUT_A_CLIENT: readonly HomeWayRow[] = [
  * the answer cannot keep naming a surface nobody can install. */
 const HOME_SHARE_SHEET_BY_CLIENT = {
 	iphone: "the iPhone share sheet",
+	android: "the Android share sheet",
 } as const satisfies Record<AdvertisedClientNameInGroup<"nativeApp">, string>;
 
 /** The mobile-app FAQ answer, one sentence per advertised phone app, so the
@@ -161,6 +181,7 @@ const HOME_SHARE_SHEET_BY_CLIENT = {
 const HOME_MOBILE_APP_FAQ_BY_CLIENT = {
 	iphone:
 		"An iPhone app on the App Store that saves from the share sheet, and it runs on Mac too.",
+	android: "An Android app on Google Play that saves from the share sheet.",
 } as const satisfies Record<AdvertisedClientNameInGroup<"nativeApp">, string>;
 
 export const HOME_CONTENT = {

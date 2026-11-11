@@ -62,5 +62,4 @@ export type PublishMediaUploadCommitted = (params: {
 	saveAttemptId: SaveAttemptId;
 	etag: string;
 	attempt: number;
-	chargedSeconds?: number;
-}) => Promise<void>;
+} & ({ chargedSeconds: number; chargedDay: string } | { chargedSeconds?: never; chargedDay?: never })) => Promise<void>;

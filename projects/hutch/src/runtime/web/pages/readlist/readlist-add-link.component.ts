@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SaveableUrlErrorCode } from "@packages/domain/article";
-import { BOOK } from "@packages/media-contracts";
+import { AUDIO, BOOK, VIDEO } from "@packages/media-contracts";
 import {
 	type AlertContent,
 	render,
@@ -147,7 +147,7 @@ export function renderReadlistAddLink(input: {
 						formId: "add-article-upload-form",
 						showSubmit: false,
 						uploadOnChoose: false,
-						kinds: [BOOK],
+						kinds: [BOOK, AUDIO, VIDEO],
 					}),
 				}),
 				input.saveTip.html,

@@ -173,7 +173,7 @@ import type { UserId } from "@packages/domain/user";
  * response during a freshness check, this stub fires a StaleCheckRequested
  * event and returns `failed` so refreshArticleIfStale skips inline; the
  * stale-check chain then routes the URL through `SimpleCrawlUnsupportedEvent`
- * → policy → `ComprehensiveCrawlCommand` (refresh=true), letting the
+ * → policy → `ComprehensiveCrawlCommand`, letting the
  * comprehensive Lambda re-fetch + OCR and emit `RefreshContentExtractedEvent`
  * without ever pulling mupdf into the hutch or stale-check process.
  */

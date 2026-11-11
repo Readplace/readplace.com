@@ -1984,7 +1984,7 @@ describe("Readlist routes", () => {
 			const notice = doc.querySelector("[data-test-reader-notice]");
 			assert(notice, "the blocked notice must be rendered");
 			expect(notice.querySelector(".article-body__reader-notice-text")?.textContent?.trim()).toBe(
-				"This site blocked Readplace from loading the full article. Use the browser extension or the iPhone app to save the complete page instead.",
+				"This site blocked Readplace from loading the full article. Use the browser extension or the iPhone or Android app to save the complete page instead.",
 			);
 			const actions = Array.from(notice.querySelectorAll("[data-test-reader-action]")).map(
 				(el) => el.getAttribute("data-test-reader-action"),
@@ -2197,7 +2197,7 @@ describe("Readlist routes", () => {
 			}).toEqual({
 				status: "failed",
 				explanation:
-					"Readplace couldn't load the full article from this site. You can still read it on the original website, or save the full page using the browser extension or the iPhone app.",
+					"Readplace couldn't load the full article from this site. You can still read it on the original website, or save the full page using the browser extension or the iPhone or Android app.",
 				offered: true,
 				pollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=2&captureTrigger=manual`,
 				automaticPollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=2&captureTrigger=automatic`,

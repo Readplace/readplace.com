@@ -61,7 +61,7 @@ describe("initRunCrawlFromTier1", () => {
 		const result = await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: false, sourceOriginalUrl: undefined });
 
 		expect(result).toBeUndefined();
-		expect(unsupported).toEqual([expect.objectContaining({ url: URL, recrawl: false, saveAttemptId: ATTEMPT })]);
+		expect(unsupported).toEqual([expect.objectContaining({ url: URL, trigger: "save", saveAttemptId: ATTEMPT })]);
 	});
 
 	it("crawls the content source alongside the live page when the article has one", async () => {
@@ -79,6 +79,6 @@ describe("initRunCrawlFromTier1", () => {
 		const result = await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: true, sourceOriginalUrl: URL });
 
 		expect(result).toBeUndefined();
-		expect(unsupported).toEqual([expect.objectContaining({ url: URL, recrawl: true })]);
+		expect(unsupported).toEqual([expect.objectContaining({ url: URL, trigger: "recrawl" })]);
 	});
 });

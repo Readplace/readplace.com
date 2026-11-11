@@ -297,6 +297,7 @@ describe("initSaveLinkWork", () => {
 			url: "https://example-spa.test/post",
 			unsupportedReason: "javascript-required",
 			userId: "user-1",
+			trigger: "save",
 			saveAttemptId,
 		});
 	});
@@ -334,7 +335,7 @@ describe("initSaveLinkWork", () => {
 			url: "https://example.com/walled",
 			unsupportedReason: "blocked",
 			userId: "u1",
-			recrawl: true,
+			trigger: "recrawl",
 			saveAttemptId,
 		});
 		expect(markCrawlStage).toHaveBeenCalledWith({ url: "https://example.com/walled", stage: "comprehensive-fetching" });
@@ -754,6 +755,7 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 			url: TRACKER,
 			unsupportedReason: "blocked",
 			userId: "user-1",
+			trigger: "save",
 			saveAttemptId,
 			finalUrl: PUBLISHER,
 		});
@@ -785,7 +787,7 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedAt, emitSimpleCrawlUnsupported });
 
 		await saveLinkWork(TRACKER, { saveAttemptId });
-		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", saveAttemptId });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", trigger: "save", saveAttemptId });
 	});
 
 	it("compares the terminal with the URL actually requested, the resolved original, not the stored row key", async () => {
@@ -795,7 +797,7 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedAtOriginal, emitSimpleCrawlUnsupported, resolveOriginalUrl: async () => PUBLISHER });
 
 		await saveLinkWork(TRACKER, { saveAttemptId });
-		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", saveAttemptId });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", trigger: "save", saveAttemptId });
 	});
 
 	it("keeps a same-host redirect, which is still a different page to start from", async () => {
@@ -818,7 +820,7 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedAtDetour, emitSimpleCrawlUnsupported });
 
 		await expect(saveLinkWork(TRACKER, { saveAttemptId })).resolves.toEqual({ deferred: "blocked" });
-		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", saveAttemptId });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", trigger: "save", saveAttemptId });
 	});
 
 	it("names no target when the free crawl ended on a site-rule URL, which keeps its bespoke crawl", async () => {
@@ -828,7 +830,7 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: unsupportedAtSiteRule, emitSimpleCrawlUnsupported, isSiteRuleUrl: (url) => url === PUBLISHER });
 
 		await expect(saveLinkWork(TRACKER, { saveAttemptId })).resolves.toEqual({ deferred: "javascript-required" });
-		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "javascript-required", saveAttemptId });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "javascript-required", trigger: "save", saveAttemptId });
 	});
 
 	it("leaves an admin recrawl on its pinned path with no observed target", async () => {
@@ -838,7 +840,7 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedAtPublisher, emitSimpleCrawlUnsupported });
 
 		await expect(saveLinkWork(TRACKER, { saveAttemptId, recrawl: true })).resolves.toEqual({ deferred: "blocked" });
-		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", recrawl: true, saveAttemptId });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", trigger: "recrawl", saveAttemptId });
 	});
 
 	it("still settles a dead destination as not-found rather than paying to retry it", async () => {
@@ -866,7 +868,7 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported, adoptCanonicalIdentity });
 
 		await expect(saveLinkWork(TRACKER, { saveAttemptId })).resolves.toEqual({ deferred: "javascript-required", finalUrl: PUBLISHER });
-		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "javascript-required", saveAttemptId, finalUrl: PUBLISHER });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "javascript-required", trigger: "save", saveAttemptId, finalUrl: PUBLISHER });
 		expect(adoptCanonicalIdentity).toHaveBeenCalledTimes(0);
 	});
 

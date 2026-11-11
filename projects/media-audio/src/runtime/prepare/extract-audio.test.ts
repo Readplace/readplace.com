@@ -70,7 +70,7 @@ function setUp(
 }
 
 describe("initExtractAudio", () => {
-	it("never content-addresses the video original: it stores an audio-only rendition as the enclosure", async () => {
+	it("never content-addresses the video original: it stores an audio-only rendition as the enclosure, typed audio/mp4", async () => {
 		const { run, calls } = setUp();
 
 		assert.equal(await run(), "proceed");
@@ -80,7 +80,7 @@ describe("initExtractAudio", () => {
 			["runFfmpeg", RENDITION],
 			["hashFile", RENDITION],
 			["ref", { sha256: SHA256, uploadId: UPLOAD_ID, size: 4096, mediaType: "audio/mp4", putBytes: undefined }],
-			["putLocalFile", { key: OBJECT_KEY, path: RENDITION }],
+			["putLocalFile", { key: OBJECT_KEY, path: RENDITION, contentType: "audio/mp4" }],
 			["probeFileDuration", { file: RENDITION }],
 			[
 				"setArticleEnclosure",

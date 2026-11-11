@@ -5,7 +5,7 @@ import {
 	detectUploadKind,
 	kindsForViewer,
 	toUploadStartViewModel,
-	transcriptAllowanceMinutesOf,
+	transcriptAllowanceOf,
 } from "./upload.viewmodel";
 
 describe("kindsForViewer", () => {
@@ -108,19 +108,23 @@ describe("toUploadStartViewModel", () => {
 	});
 });
 
-describe("transcriptAllowanceMinutesOf", () => {
-	it("shows a flagged viewer of a metered kind the allowance in whole minutes", () => {
-		assert.equal(transcriptAllowanceMinutesOf({ kinds: [BOOK, AUDIO], metered: true, allowanceSeconds: 1250 }), 20);
+describe("transcriptAllowanceOf", () => {
+	it("tells a viewer offered audio the allowance in whole minutes", () => {
+		assert.equal(
+			transcriptAllowanceOf({ kinds: [BOOK, AUDIO], allowanceSeconds: 1250 }),
+			"Audio files get a timestamped transcript, up to 20 minutes a day.",
+		);
 	});
 
-	it("shows no allowance to an unflagged viewer or to a viewer offered no metered kind", () => {
-		assert.deepEqual(
-			[
-				transcriptAllowanceMinutesOf({ kinds: [BOOK, AUDIO], metered: false, allowanceSeconds: 1250 }),
-				transcriptAllowanceMinutesOf({ kinds: [BOOK], metered: true, allowanceSeconds: 1250 }),
-			],
-			[undefined, undefined],
+	it("names video when a viewer is offered it", () => {
+		assert.equal(
+			transcriptAllowanceOf({ kinds: [BOOK, AUDIO, VIDEO], allowanceSeconds: 1250 }),
+			"Audio and video files get a timestamped transcript, up to 20 minutes a day.",
 		);
+	});
+
+	it("shows no allowance to a viewer offered no metered kind", () => {
+		assert.equal(transcriptAllowanceOf({ kinds: [BOOK], allowanceSeconds: 1250 }), undefined);
 	});
 });
 

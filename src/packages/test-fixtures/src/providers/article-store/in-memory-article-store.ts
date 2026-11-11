@@ -649,6 +649,7 @@ export function initInMemoryArticleStore(): {
 			estimatedReadTime: article.estimatedReadTime,
 			savedAt: article.savedAt,
 			contentSourceTier: article.contentSourceTier,
+			media: article.media,
 			purgedAt: article.purgedAt,
 			readerAvailableAt: article.readerAvailableAt,
 		};

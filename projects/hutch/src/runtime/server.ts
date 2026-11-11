@@ -231,7 +231,7 @@ import type {
 	ValidateAccessToken,
 	ValidateOAuthRedirectUri,
 } from "@packages/provider-contracts/oauth";
-import { Logger } from "@packages/logger";
+import { Logger, type LogError } from "@packages/logger";
 import {
 	type AnalyticsEvent,
 	createClickAttributionMiddleware,
@@ -270,13 +270,12 @@ import { initStageGatesByCaller } from "./web/pages/upload/stage-gates-by-caller
 import { initSettleByCaller, initStageForReview } from "./web/pages/upload/stage-for-review";
 import {
 	initAnonymousUploadRoutes,
-	METERED_GUEST_UPLOAD_KINDS,
 	METERED_ONLY_UPLOAD_KINDS,
 } from "./web/pages/upload/upload-review.page";
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
 import { INSPECT_BOOK_TIMEOUT_SECONDS } from "@packages/infra-components";
-import { AUDIO, BOOK, type MediaKindManifest, type MediaKindName, type Meter, type UploadId } from "@packages/media-contracts";
+import { AUDIO, BOOK, type MediaKindManifest, type MediaKindName, type Meter, type UploadId, VIDEO } from "@packages/media-contracts";
 import type { ChargeTranscriptQuota, RefundUnstartedCharge } from "@packages/provider-contracts/transcript-quota";
 import type {
 	ClaimMediaUpload,
@@ -522,7 +521,7 @@ export interface AppDependencies {
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	baseUrl: string;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	oauthModel: OAuthModel;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	revokeOtherUserOAuthGrants: RevokeOtherUserOAuthGrants;
@@ -1257,7 +1256,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				backLink,
 				upload: isAppShell(req)
 					? undefined
-					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel, audioCeilingLabel: AUDIO.ceilingLabel, guest: !req.userId },
+					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel, audioCeilingLabel: AUDIO.ceilingLabel, videoCeilingLabel: VIDEO.ceilingLabel, guest: !req.userId },
 				platform: nativeSurfaceOf(req),
 				cspNonce: requireCspNonce(req),
 			}),
@@ -1632,8 +1631,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			mintUploadId: deps.mintUploadId,
 			MEDIA_KINDS: deps.mediaKinds,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
-			METERED_GUEST_UPLOAD_KINDS,
-			METERED_ONLY_UPLOAD_KINDS,
+					METERED_ONLY_UPLOAD_KINDS,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
 			pickUploadProtocol: (req) => (wantsSiren(req) ? UPLOAD_PROTOCOL_SIREN : UPLOAD_PROTOCOL_HTML),
 			buildBannerState,

@@ -5,7 +5,7 @@ excerpt: "Omnivore users had 17 days between the ElevenLabs announcement and the
 tldr: "Omnivore shut down 2 weeks after its team joined ElevenLabs. The cause was venture capital that needed an exit. Readplace is self-funded through subscriptions, with no investors. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, a JSON export of every saved article, and source-available code. It runs in Sydney under Australian privacy law."
 slug: "omnivore-alternative"
 date: "2026-05-06"
-lastModified: "2026-11-09"
+lastModified: "2026-11-11"
 author: "Fayner Brack"
 keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read it later app, ElevenLabs Omnivore, Readwise Reader alternative, Pocket alternative"
 ---
@@ -58,7 +58,7 @@ Omnivore had years of head start. Readplace is younger, and I would rather show 
 | Newsletter inbox | Yes | Forwarding address per newsletter | Shipped |
 | Labels / tags | Yes | Readlists, up to 7 | Shipped as readlists, no tags |
 | PDFs | Yes | Yes, scans read by OCR | Shipped |
-| Native mobile apps | Yes | iPhone and Mac | Shipped for iPhone and Mac, Android planned |
+| Native mobile apps | Yes | iPhone, Mac and Android | Shipped |
 | RSS feed reader | Yes | No | Not planned yet |
 | API access | Yes | MCP server with 14 tools | Shipped |
 

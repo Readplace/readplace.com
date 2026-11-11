@@ -11,6 +11,7 @@ import type { PutTierSource } from "@packages/tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -75,7 +76,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		adoptCanonicalIdentity: jest.fn().mockResolvedValue(undefined),
 		isSiteRuleUrl: () => false,
-		publishEvent: jest.fn().mockResolvedValue(undefined),
+		publishEvent: initRecordingPublishEvent().publishEvent,
 		now: fixedNow,
 		logger: noopLogger,
 		logParseError: jest.fn(),
@@ -88,7 +89,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 describe("initSaveLinkCommandHandler", () => {
 	it("writes a tier-1 source with the finalizer's metadata and emits TierContentExtractedEvent carrying userId", async () => {
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = createHandler({ putTierSource, publishEvent });
 
@@ -100,11 +101,11 @@ describe("initSaveLinkCommandHandler", () => {
 			html: stubFinalizedArticle.html,
 			metadata: expect.objectContaining(stubFinalizedArticle.metadata),
 		}));
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 			url: "https://example.com/article",
 			userId: "user-1",
 			extractedAt: "2026-04-18T12:00:00.000Z",
-		}));
+		}) });
 	});
 
 	it("writes the tier-1 source before publishing TierContentExtractedEvent (selector relies on the source being listable)", async () => {
@@ -143,7 +144,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 	it("does not write a tier source or publish anything when the crawl fails (record reported as batch failure for SQS redelivery)", async () => {
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, putTierSource, publishEvent });
@@ -156,7 +157,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(putTierSource).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("reports failures via logParseError so the parse-errors dashboard reflects them", async () => {
@@ -232,7 +233,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 	it("terminalises a permanently-dead link (HTTP 404) via markCrawlNotFound and neither emits TierContentExtractedEvent nor reports a batch failure — an SQS retry can never revive a page the origin no longer serves", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "not-found", httpStatus: 404 });
 
@@ -249,14 +250,14 @@ describe("initSaveLinkCommandHandler", () => {
 			url: "https://example.com/gone",
 			input: { reason: { kind: "not-found", httpStatus: 404 } },
 		});
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
 	it("defers an edge-blocked link (HTTP 403) to the render ladder and reports no batch failure", async () => {
 		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403 });
 
@@ -271,7 +272,7 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ unsupportedReason: "blocked" }));
 		expect(transitionAndPersist).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
@@ -310,7 +311,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 	it("emits SimpleCrawlUnsupportedEvent carrying the userId when the crawl reports unsupported (the policy Lambda dispatches ComprehensiveCrawlCommand)", async () => {
 		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "unsupported", reason: "non-html content type: application/pdf" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported, publishEvent });
@@ -320,9 +321,9 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({
 			url: "https://example.com/article",
 			userId: "user-1",
-			recrawl: undefined,
+			trigger: "save",
 		}));
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("emits SimpleCrawlUnsupportedEvent carrying the javascript-required reason so the policy dispatches the render crawl", async () => {
@@ -475,7 +476,7 @@ describe("initSaveLinkCommandHandler", () => {
 		it("crawls the capture into the archive tier and announces it to the content judge, together with the live crawl", async () => {
 			const crawls: Parameters<CrawlAndFinalizeArticle>[0][] = [];
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const markCrawlStage = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				crawlAndFinalizeArticle: async (params) => {
@@ -498,15 +499,15 @@ describe("initSaveLinkCommandHandler", () => {
 			expect(crawls).toEqual(expect.arrayContaining([{ url: "https://example.com/article", fetchUrl: capture, retainResponseBody: true, writeContext }, { url: "https://example.com/article", retainResponseBody: true, writeContext }]));
 			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/article", tier: "tier-2" }));
 			expect(markCrawlStage).toHaveBeenCalled();
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				url: "https://example.com/article",
 				userId: "user-1",
 				extractedAt: "2026-04-18T12:00:00.000Z",
-			}));
+			}) });
 		});
 
 		it("hands the capture to the deferred crawl without a tier event when the live fetch is deferred, so the content judge runs once", async () => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				crawlAndFinalizeArticle: async (params) => params.fetchUrl === capture ? fetchedResult : { status: "blocked", httpStatus: 403 },
@@ -527,11 +528,11 @@ describe("initSaveLinkCommandHandler", () => {
 				unsupportedReason: "blocked",
 				candidates: [{ id: expect.any(String), tier: "tier-2" }],
 			})]]);
-			expect(publishEvent.mock.calls).toEqual([]);
+			expect(published).toEqual([]);
 		});
 
 		it("announces a completed no-body attempt when neither source serves a body", async () => {
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				crawlAndFinalizeArticle: async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" }),
@@ -546,7 +547,7 @@ describe("initSaveLinkCommandHandler", () => {
 			);
 
 			expect(result).toEqual({ batchItemFailures: [] });
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [], liveAttempt: { outcome: "no-body", failureReason: { kind: "fetch-failed" } } }));
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: [], liveAttempt: { outcome: "no-body", failureReason: { kind: "fetch-failed" } } }) });
 			expect(transitionAndPersist).not.toHaveBeenCalled();
 		});
 	});
@@ -555,8 +556,8 @@ describe("initSaveLinkCommandHandler", () => {
 it("rebuilds a repaired old wrapper command from both the recovered capture and original", async () => {
 	const url = "https://example.com/article";
 	const captureUrl = `https://web.archive.org/web/20081203/${url}`;
-	const publishEvent = jest.fn().mockResolvedValue(undefined);
+	const { publishEvent, published } = initRecordingPublishEvent();
 	const handler = createHandler({ prepareArticleIdentity: async () => ({ status: "resolved", url, originalUrl: url, contentSourceUrl: captureUrl, sourceOriginalUrl: url }), publishEvent });
 	await handler(createSqsEvent({ url, userId: "user" }), buildLambdaContext(), () => {});
-	expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [{ id: expect.any(String), tier: "tier-1" }, { id: expect.any(String), tier: "tier-2" }] }));
+	expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: [{ id: expect.any(String), tier: "tier-1" }, { id: expect.any(String), tier: "tier-2" }] }) });
 });

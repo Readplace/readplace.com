@@ -9,6 +9,7 @@ import {
 	markCrawlUnsupported,
 } from "@packages/domain/article-aggregate";
 import {
+	type CrawlTrigger,
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
 	TierContentExtractedEvent,
@@ -20,6 +21,7 @@ import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -34,8 +36,7 @@ function createSqsEvent(
 		saveAttemptId?: string;
 		candidates?: { id: string; tier: "tier-2" }[];
 		userId?: string;
-		recrawl?: boolean;
-		refresh?: boolean;
+		trigger?: CrawlTrigger;
 		previousBodyHash?: string;
 	},
 	opts: { receiveCount?: number } = {},
@@ -44,7 +45,7 @@ function createSqsEvent(
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", ...detail } }),
+			body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", trigger: "save", ...detail } }),
 			attributes: { ...stubAttributes, ApproximateReceiveCount: String(opts.receiveCount ?? 1) },
 			messageAttributes: {},
 			md5OfBody: "",
@@ -103,7 +104,7 @@ function createHandler({ crawlArticle = successfulComprehensiveCrawl, ...overrid
 		consumePaidCrawlBudget: jest.fn().mockResolvedValue({ allowed: true, consumed: true }),
 		refundPaidCrawlBudget: jest.fn().mockResolvedValue(undefined),
 		adoptCanonicalIdentity: jest.fn().mockResolvedValue(undefined),
-		publishEvent: jest.fn().mockResolvedValue(undefined),
+		publishEvent: initRecordingPublishEvent().publishEvent,
 		now: fixedNow,
 		logger: noopLogger,
 		logParseError: jest.fn(),
@@ -116,7 +117,7 @@ function createHandler({ crawlArticle = successfulComprehensiveCrawl, ...overrid
 describe("initComprehensiveCrawlHandler", () => {
 	it("writes a tier-1 source with the finalizer's metadata and emits TierContentExtractedEvent carrying userId", async () => {
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = createHandler({ putTierSource, publishEvent });
 
@@ -128,18 +129,18 @@ describe("initComprehensiveCrawlHandler", () => {
 			html: stubFinalizedArticle.html,
 			metadata: expect.objectContaining(stubFinalizedArticle.metadata),
 		}));
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 			url: "https://example.com/doc.pdf",
 			userId: "user-1",
 			extractedAt: "2026-04-18T12:00:00.000Z",
-		}));
+		}) });
 	});
 
-	it("folds recrawl and refresh into the adopt re-adopt guard (false on a first crawl, true on either flag)", async () => {
-		const cases: Array<{ detail: { url: string; recrawl?: boolean; refresh?: boolean }; expected: boolean }> = [
-			{ detail: { url: "https://example.com/doc.pdf" }, expected: false },
-			{ detail: { url: "https://example.com/doc.pdf", refresh: true }, expected: true },
-			{ detail: { url: "https://example.com/doc.pdf", recrawl: true }, expected: true },
+	it("folds the recrawl and refresh triggers into the adopt re-adopt guard (false on a first crawl, true on either trigger)", async () => {
+		const cases: Array<{ detail: { url: string; trigger: CrawlTrigger }; expected: boolean }> = [
+			{ detail: { url: "https://example.com/doc.pdf", trigger: "save" }, expected: false },
+			{ detail: { url: "https://example.com/doc.pdf", trigger: "refresh" }, expected: true },
+			{ detail: { url: "https://example.com/doc.pdf", trigger: "recrawl" }, expected: true },
 		];
 		for (const { detail, expected } of cases) {
 			const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
@@ -166,7 +167,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		const crawlArticle: CrawlArticle = async () => ({
 			status: "fetched",
 			html: "<html><body>X</body></html>",
-			thumbnail: { image: resolvedImage, provenUnusable: [] },
+			thumbnail: { image: resolvedImage, provenUnusable: [], fetched: [resolvedImage.url] },
 			bodyHash: "a".repeat(64),
 		});
 		const finalizeArticle = jest.fn(okFinalize);
@@ -180,42 +181,42 @@ describe("initComprehensiveCrawlHandler", () => {
 			writeContext: { url: "https://example.com/doc.pdf", attemptId: "attempt-1" },
 			documentUrl: "https://example.com/doc.pdf",
 			html: "<html><body>X</body></html>",
-			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
+			resolvedThumbnail: { image: resolvedImage, provenUnusable: [], fetched: [resolvedImage.url] },
 			mediaType: undefined,
 		});
 	});
 
 	it("emits TierContentExtractedEvent without userId when none was provided (anonymous save path)", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = createHandler({ publishEvent });
 
 		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), buildLambdaContext(), () => {});
 
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 			url: "https://example.com/doc.pdf",
 			userId: undefined,
 			extractedAt: "2026-04-18T12:00:00.000Z",
-		}));
+		}) });
 	});
 
-	it("emits RecrawlContentExtractedEvent (and NOT TierContentExtractedEvent) when the command was dispatched with recrawl=true", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+	it("emits RecrawlContentExtractedEvent (and NOT TierContentExtractedEvent) when the command was dispatched with the recrawl trigger", async () => {
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = createHandler({ publishEvent });
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", recrawl: true }), buildLambdaContext(), () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", trigger: "recrawl" }), buildLambdaContext(), () => {});
 
-		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({
+		expect(published).toHaveLength(1);
+		expect(published).toContainEqual({ detailType: RecrawlContentExtractedEvent.detailType, detail: expect.objectContaining({
 			url: "https://example.com/doc.pdf",
 			extractedAt: "2026-04-18T12:00:00.000Z",
-		}));
+		}) });
 	});
 
 	it("short-circuits to updateFetchTimestamp (carrying forward bodyHash) when crawlArticle returns not-modified — pre-parse byte gate", async () => {
 		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const crawlArticle: CrawlArticle = async () => ({ status: "not-modified" });
 
@@ -229,7 +230,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		const result = await handler(
 			createSqsEvent({
 				url: "https://example.com/doc.pdf",
-				refresh: true,
+				trigger: "refresh",
 				previousBodyHash: "h".repeat(64),
 			}),
 			buildLambdaContext(),
@@ -242,7 +243,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			contentFetchedAt: "2026-04-18T12:00:00.000Z",
 			bodyHash: "h".repeat(64),
 		});
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
@@ -258,7 +259,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		await handler(
 			createSqsEvent({
 				url: "https://example.com/doc.pdf",
-				refresh: true,
+				trigger: "refresh",
 				previousBodyHash: "h".repeat(64),
 			}),
 			buildLambdaContext(),
@@ -270,8 +271,8 @@ describe("initComprehensiveCrawlHandler", () => {
 		);
 	});
 
-	it("emits RefreshContentExtractedEvent (with re-fetch freshness) and skips updateFetchTimestamp when refresh=true", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+	it("emits RefreshContentExtractedEvent (with re-fetch freshness) and skips updateFetchTimestamp on the refresh trigger", async () => {
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
 		const crawlArticle = jest.fn().mockResolvedValue({
 			status: "fetched",
@@ -283,17 +284,17 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const handler = createHandler({ publishEvent, updateFetchTimestamp, crawlArticle });
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }), buildLambdaContext(), () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", trigger: "refresh" }), buildLambdaContext(), () => {});
 
 		expect(updateFetchTimestamp).not.toHaveBeenCalled();
-		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({
+		expect(published).toHaveLength(1);
+		expect(published).toContainEqual({ detailType: RefreshContentExtractedEvent.detailType, detail: expect.objectContaining({
 			url: "https://example.com/doc.pdf",
 			etag: '"refreshed-pdf"',
 			lastModified: "Sat, 17 May 2026 00:00:00 GMT",
 			contentFetchedAt: "2026-04-18T12:00:00.000Z",
 			bodyHash: "deadbeef".repeat(8),
-		}));
+		}) });
 	});
 
 	it("flips the row to terminal unsupported when crawlArticle reports unsupported (e.g. scanned PDF after OCR fallback failed)", async () => {
@@ -302,7 +303,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			reason: "pdf extraction failed: text-layer empty and OCR returned no text",
 		});
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({
@@ -323,7 +324,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			url: "https://example.com/scan.pdf",
 			input: { reason: { kind: "non-html-content", contentType: "pdf extraction failed: text-layer empty and OCR returned no text" } },
 		});
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
@@ -382,7 +383,7 @@ describe("initComprehensiveCrawlHandler", () => {
 	it("ends the row in process and consumes the message when crawlArticle returns 'failed'", async () => {
 		const failingComprehensiveCrawl: CrawlArticle = async () => ({ status: "failed", decision: undefined, failure: { kind: "origin-unreachable", code: "ETIMEDOUT" } });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const logParseError = jest.fn();
 		const logCrawlOutcome = jest.fn();
 
@@ -407,7 +408,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 		expect(logParseError).toHaveBeenCalledWith({ url: "https://example.com/doc.pdf", reason: "crawl-failed" });
 		expect(logCrawlOutcome).toHaveBeenCalledWith(expect.objectContaining({ thisTier: "tier-1", thisTierStatus: "failed", pickedTier: "none" }));
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("reports the record as a batch failure when the terminal write for a failed crawl throws", async () => {
@@ -428,7 +429,7 @@ describe("initComprehensiveCrawlHandler", () => {
 	it("consumes the message (empty batchItemFailures, no SQS retry) and terminalises via markCrawlNotFound when the origin says the page is permanently gone — a retry can never resurrect a 404", async () => {
 		const notFoundComprehensiveCrawl: CrawlArticle = async () => ({ status: "not-found", httpStatus: 404 });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const logParseError = jest.fn();
 
 		const handler = createHandler({
@@ -450,14 +451,14 @@ describe("initComprehensiveCrawlHandler", () => {
 			input: { reason: { kind: "not-found", httpStatus: 404 } },
 		});
 		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(logParseError).toHaveBeenCalledTimes(0);
 	});
 
 	it("consumes the message (empty batchItemFailures, no SQS retry) and terminalises via markCrawlBlocked with cause edge-block when the origin's edge refuses this egress IP", async () => {
 		const blockedComprehensiveCrawl: CrawlArticle = async () => ({ status: "blocked", httpStatus: 403 });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const logParseError = jest.fn();
 
 		const handler = createHandler({
@@ -479,7 +480,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			input: { reason: { kind: "blocked", cause: "edge-block" } },
 		});
 		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(logParseError).toHaveBeenCalledWith({
 			url: "https://example.com/walled.pdf",
 			reason: "crawl-blocked: HTTP 403",
@@ -522,7 +523,7 @@ describe("initComprehensiveCrawlHandler", () => {
 	it("terminalises a refresh's 404 through the same markCrawlNotFound transition — its crawl-ready guard preserves a served row while a stuck-pending row still lands terminal", async () => {
 		const notFoundComprehensiveCrawl: CrawlArticle = async () => ({ status: "not-found", httpStatus: 404 });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const handler = createHandler({
 			crawlArticle: notFoundComprehensiveCrawl,
@@ -531,7 +532,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 
 		const result = await handler(
-			createSqsEvent({ url: "https://example.com/gone.pdf", refresh: true }),
+			createSqsEvent({ url: "https://example.com/gone.pdf", trigger: "refresh" }),
 			buildLambdaContext(),
 			() => {},
 		);
@@ -541,7 +542,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			url: "https://example.com/gone.pdf",
 			input: { reason: { kind: "not-found", httpStatus: 404 } },
 		});
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 
 	it("still consumes a permanently-gone message when the tier-1 failure outcome log fails — a telemetry hiccup must not dead-letter a row that is already terminal", async () => {
@@ -831,7 +832,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		it("fails the crawl gracefully past the budget: no crawl, terminal failed row, message consumed", async () => {
 			const crawlArticle = jest.fn(successfulComprehensiveCrawl);
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 			const logParseError = jest.fn();
 
 			const handler = createHandler({
@@ -861,7 +862,7 @@ describe("initComprehensiveCrawlHandler", () => {
 				input: { reason: { kind: "blocked", cause: "spend-capped" } },
 			});
 			expect(transitionAndPersist).toHaveBeenCalledTimes(1);
-			expect(publishEvent).not.toHaveBeenCalled();
+			expect(published).toEqual([]);
 			expect(logParseError).toHaveBeenCalledWith({
 				url: "https://example.com/doc.pdf",
 				reason: "paid-crawl-budget-exhausted",
@@ -900,7 +901,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		it("leaves a refresh's row untouched past the budget — the prior canonical keeps serving", async () => {
 			const crawlArticle = jest.fn(successfulComprehensiveCrawl);
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 
 			const handler = createHandler({
 				crawlArticle,
@@ -910,7 +911,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			});
 
 			const result = await handler(
-				createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }),
+				createSqsEvent({ url: "https://example.com/doc.pdf", trigger: "refresh" }),
 				buildLambdaContext(),
 				() => {},
 			);
@@ -918,12 +919,12 @@ describe("initComprehensiveCrawlHandler", () => {
 			expect(result).toEqual({ batchItemFailures: [] });
 			expect(crawlArticle).not.toHaveBeenCalled();
 			expect(transitionAndPersist).not.toHaveBeenCalled();
-			expect(publishEvent).not.toHaveBeenCalled();
+			expect(published).toEqual([]);
 		});
 
 		it("runs the crawl normally while the budget allows it, keying the consume on the message id", async () => {
 			const consumePaidCrawlBudget = jest.fn().mockResolvedValue({ allowed: true, consumed: true });
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 
 			const handler = createHandler({ consumePaidCrawlBudget, publishEvent });
 
@@ -935,11 +936,11 @@ describe("initComprehensiveCrawlHandler", () => {
 
 			expect(result).toEqual({ batchItemFailures: [] });
 			expect(consumePaidCrawlBudget).toHaveBeenCalledWith({ messageId: "msg-1" });
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				url: "https://example.com/doc.pdf",
 				userId: undefined,
 				extractedAt: "2026-04-18T12:00:00.000Z",
-			}));
+			}) });
 		});
 
 		it("re-runs the budget gate on an SQS redelivery; an idempotent re-consume (consumed=false) still completes the crawl", async () => {
@@ -949,7 +950,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			// transient first-receive error can't let a later receive bypass the cap.
 			const consumePaidCrawlBudget = jest.fn().mockResolvedValue({ allowed: true, consumed: false });
 			const crawlArticle = jest.fn(successfulComprehensiveCrawl);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const { publishEvent, published } = initRecordingPublishEvent();
 
 			const handler = createHandler({ consumePaidCrawlBudget, crawlArticle, publishEvent });
 
@@ -962,11 +963,11 @@ describe("initComprehensiveCrawlHandler", () => {
 			expect(result).toEqual({ batchItemFailures: [] });
 			expect(consumePaidCrawlBudget).toHaveBeenCalledWith({ messageId: "msg-1" });
 			expect(crawlArticle).toHaveBeenCalledTimes(1);
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 				url: "https://example.com/doc.pdf",
 				userId: undefined,
 				extractedAt: "2026-04-18T12:00:00.000Z",
-			}));
+			}) });
 		});
 
 		it("does not refund an idempotent re-consume (consumed=false) even when the crawl is not-modified — its slot was accounted on the first receive", async () => {
@@ -979,7 +980,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			const result = await handler(
 				createSqsEvent({
 					url: "https://example.com/doc.pdf",
-					refresh: true,
+					trigger: "refresh",
 					previousBodyHash: "h".repeat(64),
 				}, { receiveCount: 2 }),
 				buildLambdaContext(),
@@ -999,7 +1000,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			await handler(
 				createSqsEvent({
 					url: "https://example.com/doc.pdf",
-					refresh: true,
+					trigger: "refresh",
 					previousBodyHash: "h".repeat(64),
 				}),
 				buildLambdaContext(),
@@ -1020,7 +1021,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			const result = await handler(
 				createSqsEvent({
 					url: "https://example.com/doc.pdf",
-					refresh: true,
+					trigger: "refresh",
 					previousBodyHash: "h".repeat(64),
 				}),
 				buildLambdaContext(),
@@ -1052,29 +1053,29 @@ describe("deferred archive attempt completion", () => {
 		const extractPdf = jest.fn(async () => ({ kind: "fetched" as const, title: "PDF report", html: "<html><body><p>Complete PDF article</p></body></html>" }));
 		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response(pdf, { status: 200, headers: { "content-type": "application/pdf" } }), siteRules: [], extractPdf, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 		const putTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({ crawlArticle, putTierSource, publishEvent });
 		expect(await handler(createSqsEvent({ url: "https://example.com/report.pdf", saveAttemptId: "original-attempt", candidates: refs }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		expect(extractPdf).toHaveBeenCalledTimes(1);
 		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ tier: "tier-1", evaluationHtml: "<html><body><p>Complete PDF article</p></body></html>", metadata: expect.objectContaining({ attemptId: "original-attempt", kind: "live", httpStatus: 200 }) }));
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ saveAttemptId: "original-attempt", candidates: [...refs, { tier: "tier-1", id: expect.any(String) }] }));
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ saveAttemptId: "original-attempt", candidates: [...refs, { tier: "tier-1", id: expect.any(String) }] }) });
 	});
-	it.each([false, true])("publishes final no-body with the same wrapper refs after network failure (recrawl=%s)", async (recrawl) => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+	it.each(["save", "recrawl"] as const)("publishes final no-body with the same wrapper refs after network failure (trigger=%s)", async (trigger) => {
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({ crawlArticle: async () => ({ status: "failed", decision: undefined }), publishEvent });
-		const response = await handler(createSqsEvent({ url: "https://example.com/article", saveAttemptId: "save", candidates: refs, recrawl }), buildLambdaContext(), () => {});
+		const response = await handler(createSqsEvent({ url: "https://example.com/article", saveAttemptId: "save", candidates: refs, trigger }), buildLambdaContext(), () => {});
 		expect(response).toEqual({ batchItemFailures: [] });
-		expect(publishEvent).toHaveBeenCalledWith(recrawl ? RecrawlContentExtractedEvent : TierContentExtractedEvent, expect.objectContaining({ candidates: refs, saveAttemptId: "save", liveAttempt: { outcome: "no-body" } }));
+		expect(published).toContainEqual({ detailType: (trigger === "recrawl" ? RecrawlContentExtractedEvent : TierContentExtractedEvent).detailType, detail: expect.objectContaining({ candidates: refs, saveAttemptId: "save", liveAttempt: { outcome: "no-body" } }) });
 	});
 	it("includes the received live body after its reader extraction fails", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const putTierSource = jest.fn().mockResolvedValue(undefined);
 		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
 		const logCrawlOutcome = jest.fn();
 		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({ finalizeArticle: async () => ({ ok: false, reason: "empty document" }), publishEvent, putTierSource, updateFetchTimestamp, logCrawlOutcome, adoptCanonicalIdentity });
 		await handler(createSqsEvent({ url: "https://example.com/article", saveAttemptId: "save", candidates: refs }), buildLambdaContext(), () => {});
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [...refs, { id: expect.any(String), tier: "tier-1" }] }));
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: [...refs, { id: expect.any(String), tier: "tier-1" }] }) });
 		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ html: "", evaluationHtml: "<html><body><p>Extracted PDF content</p></body></html>" }));
 		expect(updateFetchTimestamp).toHaveBeenCalledTimes(0);
 		expect(logCrawlOutcome).toHaveBeenCalledWith(expect.objectContaining({ thisTier: "tier-1", thisTierStatus: "failed" }));
@@ -1084,7 +1085,7 @@ describe("deferred archive attempt completion", () => {
 		{ httpStatus: 403, tierStatus: "failed", outcome: { kind: "crawl-failed" }, freshnessWrites: 0 },
 		{ httpStatus: 200, tierStatus: "success", outcome: { kind: "finalized", wordCount: 10 }, freshnessWrites: 1 },
 	])("offers a retained HTTP $httpStatus live body for comparison and records its crawl as $tierStatus", async ({ httpStatus, tierStatus, outcome, freshnessWrites }) => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
 		const logCrawlOutcome = jest.fn();
 		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
@@ -1093,23 +1094,23 @@ describe("deferred archive attempt completion", () => {
 			publishEvent, updateFetchTimestamp, logCrawlOutcome, adoptCanonicalIdentity,
 		});
 		await handler(createSqsEvent({ url: "https://example.com/article", saveAttemptId: "save", candidates: refs }), buildLambdaContext(), () => {});
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: [...refs, { id: expect.any(String), tier: "tier-1" }] }));
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: [...refs, { id: expect.any(String), tier: "tier-1" }] }) });
 		expect(updateFetchTimestamp).toHaveBeenCalledTimes(freshnessWrites);
 		expect(logCrawlOutcome).toHaveBeenCalledWith(expect.objectContaining({ thisTier: "tier-1", thisTierStatus: tierStatus }));
 		expect(adoptCanonicalIdentity).toHaveBeenCalledWith(expect.objectContaining({ outcome }));
 	});
 	it("completes wrapper comparison when paid PDF capacity is exhausted", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({ consumePaidCrawlBudget: async () => ({ allowed: false }), publishEvent });
 		await handler(createSqsEvent({ url: "https://example.com/article", candidates: refs }), buildLambdaContext(), () => {});
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: refs, liveAttempt: { outcome: "no-body" } }));
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: refs, liveAttempt: { outcome: "no-body" } }) });
 	});
 });
 
 it.each([true, false])("recovers a legacy wrapper source before deferred live work when capture succeeds=%s", async (captureSucceeds) => {
 	const url = "https://example.com/article";
 	const captureUrl = `https://web.archive.org/web/20081203/${url}`;
-	const publishEvent = jest.fn().mockResolvedValue(undefined);
+	const { publishEvent, published } = initRecordingPublishEvent();
 	const handler = createHandler({
 		prepareArticleIdentity: async () => ({ status: "resolved", url, originalUrl: url, contentSourceUrl: captureUrl, sourceOriginalUrl: url }),
 		crawlArticle: async ({ url: requestedUrl }) => requestedUrl === captureUrl && captureSucceeds ? { status: "fetched", html: "<html><body>archived</body></html>", bodyHash: "hash" } : { status: "failed", decision: undefined },
@@ -1117,7 +1118,7 @@ it.each([true, false])("recovers a legacy wrapper source before deferred live wo
 	});
 	const response = await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
 	expect(response).toEqual({ batchItemFailures: [] });
-	expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: captureSucceeds ? [{ id: expect.any(String), tier: "tier-2" }] : [], liveAttempt: { outcome: "no-body" } }));
+	expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: captureSucceeds ? [{ id: expect.any(String), tier: "tier-2" }] : [], liveAttempt: { outcome: "no-body" } }) });
 });
 
 it("defers a wrapper save to the reader without fetching the capture while paid legs wait for a reader", async () => {
@@ -1125,7 +1126,7 @@ it("defers a wrapper save to the reader without fetching the capture while paid 
 	const captureUrl = `https://web.archive.org/web/20081203/${url}`;
 	const crawlArticle = jest.fn(successfulComprehensiveCrawl);
 	const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-	const publishEvent = jest.fn().mockResolvedValue(undefined);
+	const { publishEvent, published } = initRecordingPublishEvent();
 	const handler = createHandler({
 		prepareArticleIdentity: async () => ({ status: "resolved", url, originalUrl: url, contentSourceUrl: captureUrl, sourceOriginalUrl: url }),
 		crawlArticle,
@@ -1139,7 +1140,7 @@ it("defers a wrapper save to the reader without fetching the capture while paid 
 	expect(response).toEqual({ batchItemFailures: [] });
 	expect(crawlArticle).not.toHaveBeenCalled();
 	expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
-	expect(publishEvent).not.toHaveBeenCalled();
+	expect(published).toEqual([]);
 });
 
 describe("deferred refresh of a source-bound article", () => {
@@ -1150,7 +1151,7 @@ describe("deferred refresh of a source-bound article", () => {
 	it("bumps freshness on an unchanged body without re-fetching the capture or starting a selection", async () => {
 		const crawled: string[] = [];
 		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({
 			prepareArticleIdentity: sourceBound,
 			crawlArticle: async ({ url: requestedUrl }) => {
@@ -1161,16 +1162,16 @@ describe("deferred refresh of a source-bound article", () => {
 			publishEvent,
 		});
 
-		const response = await handler(createSqsEvent({ url, refresh: true, previousBodyHash: "b".repeat(64) }), buildLambdaContext(), () => {});
+		const response = await handler(createSqsEvent({ url, trigger: "refresh", previousBodyHash: "b".repeat(64) }), buildLambdaContext(), () => {});
 
 		expect(response).toEqual({ batchItemFailures: [] });
 		expect(crawled).toEqual([url]);
 		expect(updateFetchTimestamp).toHaveBeenCalledWith({ url, contentFetchedAt: "2026-04-18T12:00:00.000Z", bodyHash: "b".repeat(64) });
-		expect(publishEvent).toHaveBeenCalledTimes(0);
+		expect(published).toEqual([]);
 	});
 
 	it("leaves the served row untouched past the paid-crawl budget", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const logParseError = jest.fn();
 		const handler = createHandler({
@@ -1181,11 +1182,11 @@ describe("deferred refresh of a source-bound article", () => {
 			logParseError,
 		});
 
-		const response = await handler(createSqsEvent({ url, refresh: true }), buildLambdaContext(), () => {});
+		const response = await handler(createSqsEvent({ url, trigger: "refresh" }), buildLambdaContext(), () => {});
 
 		expect(response).toEqual({ batchItemFailures: [] });
 		expect(logParseError).toHaveBeenCalledWith({ url, reason: "paid-crawl-budget-exhausted" });
-		expect(publishEvent).toHaveBeenCalledTimes(0);
+		expect(published).toEqual([]);
 		expect(transitionAndPersist).toHaveBeenCalledTimes(0);
 	});
 });
@@ -1197,7 +1198,7 @@ it.each<{ contentType: string; kind: "image" | "plain-text" }>([
 	const url = "https://example.com/resource";
 	const parseHtml = jest.fn();
 	const putTierSource = jest.fn();
-	const publishEvent = jest.fn();
+	const { publishEvent, published } = initRecordingPublishEvent();
 	const finalizeArticle = initFinalizeArticle({
 		parseHtml, downloadMedia: jest.fn(), processContent: jest.fn(), fetchThumbnailImage: jest.fn(),
 		putImageObject: jest.fn(), imagesCdnBaseUrl: "https://cdn.example.com",
@@ -1208,11 +1209,11 @@ it.each<{ contentType: string; kind: "image" | "plain-text" }>([
 		siteRules: [], logError: jest.fn(), logInfo: jest.fn(), logThumbnailNotDelivered: () => {},
 	});
 	const handler = createHandler({ crawlArticle, finalizeArticle, putTierSource, publishEvent });
-	await expect(handler(createSqsEvent({ url, refresh: true }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
+	await expect(handler(createSqsEvent({ url, trigger: "refresh" }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
 	expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 		url, tier: "tier-1", metadata: expect.objectContaining({ directResourceKind: kind, kind: "live", attemptId: "attempt-1" }),
 	}));
-	expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({ url }));
+	expect(published).toContainEqual({ detailType: RefreshContentExtractedEvent.detailType, detail: expect.objectContaining({ url }) });
 	expect(parseHtml).toHaveBeenCalledTimes(0);
 });
 
@@ -1252,7 +1253,7 @@ describe("comprehensive crawl under the metered-leg ledger", () => {
 	});
 
 	it("publishes the archive comparison over the carried candidates when the leg is deferred", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			publishEvent,
@@ -1262,12 +1263,12 @@ describe("comprehensive crawl under the metered-leg ledger", () => {
 
 		await handler(createSqsEvent({ url, candidates: refs }), buildLambdaContext(), () => {});
 
-		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: refs, liveAttempt: { outcome: "no-body" } }));
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: refs, liveAttempt: { outcome: "no-body" } }) });
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
 
 	it("leaves a refresh's row and events untouched when the leg is deferred", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			publishEvent,
@@ -1275,40 +1276,40 @@ describe("comprehensive crawl under the metered-leg ledger", () => {
 			runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => true }),
 		});
 
-		const result = await handler(createSqsEvent({ url, refresh: true }), buildLambdaContext(), () => {});
+		const result = await handler(createSqsEvent({ url, trigger: "refresh" }), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
 
 	it("replays the committed tier-1 candidate instead of crawling again when the same inputs already settled", async () => {
 		const crawlArticle = jest.fn(successfulComprehensiveCrawl);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({ crawlArticle, publishEvent, runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }) });
 
 		await handler(createSqsEvent({ url, previousBodyHash: "hash-1" }), buildLambdaContext(), () => {});
-		const committed = publishEvent.mock.calls[0][1].candidates;
+		const committed = TierContentExtractedEvent.detailSchema.parse(published[0].detail).candidates;
 		await handler(createSqsEvent({ url, previousBodyHash: "hash-1", candidates: refs, saveAttemptId: "attempt-2" }), buildLambdaContext(), () => {});
 
 		expect(crawlArticle).toHaveBeenCalledTimes(1);
 		expect(committed).toEqual([{ id: expect.any(String), tier: "tier-1" }]);
-		expect(publishEvent).toHaveBeenLastCalledWith(TierContentExtractedEvent, expect.objectContaining({
+		expect(published.at(-1)).toEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({
 			saveAttemptId: "attempt-2",
 			candidates: [...refs, ...committed],
 			liveAttempt: { outcome: "no-body" },
-		}));
+		}) });
 	});
 
 	it("replays the recorded candidate alone when the settled save carries no archive candidates", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({ publishEvent, runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }) });
 
 		await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
-		const committed = publishEvent.mock.calls[0][1].candidates;
-		await handler(createSqsEvent({ url, recrawl: true }), buildLambdaContext(), () => {});
+		const committed = TierContentExtractedEvent.detailSchema.parse(published[0].detail).candidates;
+		await handler(createSqsEvent({ url, trigger: "recrawl" }), buildLambdaContext(), () => {});
 
-		expect(publishEvent).toHaveBeenLastCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({ candidates: committed }));
+		expect(published.at(-1)).toEqual({ detailType: RecrawlContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: committed }) });
 	});
 
 	it("crawls again once the previous body hash changes the leg's inputs", async () => {
@@ -1322,15 +1323,15 @@ describe("comprehensive crawl under the metered-leg ledger", () => {
 	});
 
 	it("acks a settled refresh without publishing, since the served canonical already holds the recorded body", async () => {
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({ publishEvent, runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }) });
 
-		await handler(createSqsEvent({ url, refresh: true }), buildLambdaContext(), () => {});
-		const result = await handler(createSqsEvent({ url, refresh: true }), buildLambdaContext(), () => {});
+		await handler(createSqsEvent({ url, trigger: "refresh" }), buildLambdaContext(), () => {});
+		const result = await handler(createSqsEvent({ url, trigger: "refresh" }), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({ url }));
+		expect(published).toHaveLength(1);
+		expect(published).toContainEqual({ detailType: RefreshContentExtractedEvent.detailType, detail: expect.objectContaining({ url }) });
 	});
 
 	it("records nothing for a crawl that committed no candidate, so the next delivery crawls again", async () => {
@@ -1356,7 +1357,7 @@ describe("comprehensive crawl under the metered-leg ledger", () => {
 	it("acks without a write while another message holds the leg", async () => {
 		const crawlArticle = jest.fn(successfulComprehensiveCrawl);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({ crawlArticle, transitionAndPersist, publishEvent, runMeteredLeg: async () => ({ kind: "in-flight" }) });
 
 		const result = await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
@@ -1364,6 +1365,6 @@ describe("comprehensive crawl under the metered-leg ledger", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(crawlArticle).not.toHaveBeenCalled();
 		expect(transitionAndPersist).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
 	});
 });

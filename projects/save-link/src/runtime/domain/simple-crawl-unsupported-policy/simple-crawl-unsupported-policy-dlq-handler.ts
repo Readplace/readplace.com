@@ -4,7 +4,7 @@ import type { Logger } from "@packages/logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import { initPublishArchiveComparison } from "../crawl-leg/publish-archive-comparison";
-import { SimpleCrawlUnsupportedEvent } from "@packages/infra-components";
+import { DeadLetteredDeferredCrawl } from "../crawl-leg/dead-lettered-deferred-crawl";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSimpleCrawlUnsupportedPolicyDlqHandler(
@@ -19,7 +19,7 @@ export function initSimpleCrawlUnsupportedPolicyDlqHandler(
 	const publishArchiveComparison = initPublishArchiveComparison({ publishEvent: deps.publishEvent, now });
 
 	return initSqsRecordHandler({
-		definition: SimpleCrawlUnsupportedEvent,
+		definition: DeadLetteredDeferredCrawl,
 		logger,
 		failure: { message: "[SimpleCrawlUnsupportedPolicyDlq] record failed" },
 		malformed: { policy: "retry" },
@@ -28,7 +28,7 @@ export function initSimpleCrawlUnsupportedPolicyDlqHandler(
 				await publishArchiveComparison({
 					url: detail.url,
 					userId: detail.userId,
-					recrawl: detail.recrawl,
+					recrawl: detail.trigger === "recrawl",
 					saveAttemptId: detail.saveAttemptId,
 					candidates: detail.candidates,
 					failureReason: { kind: "exhausted-retries", receiveCount },

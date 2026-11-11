@@ -1604,6 +1604,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 					"purgedAt",
 					"readerAvailableAt",
 					"ownerUserId",
+					"media",
 				],
 			},
 		);
@@ -1634,6 +1635,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 			estimatedReadTime: row.estimatedReadTime,
 			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),
 			contentSourceTier: row.contentSourceTier,
+			media: row.media,
 			purgedAt: toOptionalDate(row.purgedAt),
 			readerAvailableAt: toOptionalDate(row.readerAvailableAt),
 		};

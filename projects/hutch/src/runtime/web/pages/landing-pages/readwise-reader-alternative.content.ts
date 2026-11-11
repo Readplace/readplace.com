@@ -16,7 +16,7 @@ function track(path: string, content: string): string {
 }
 
 export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-09",
+	lastModified: "2026-11-10",
 	title: "Readwise Reader Alternative, With the Gaps Listed | Readplace",
 	description:
 		"Readplace next to Readwise Reader, row by row: what it does for less, and the RSS, video, podcast and listening features it doesn't have.",
@@ -106,9 +106,10 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 				{ feature: "YouTube", readplace: "No", competitor: "Watch and highlight the transcript" },
 				{
 					feature: "Podcasts",
-					readplace: "No",
+					readplace: "MP3 or M4A files you upload, with a timestamped transcript",
 					competitor: "Episodes from Spotify, Overcast and Apple Podcasts",
 				},
+				{ feature: "Video files", readplace: "MP4 files you upload, with a timestamped transcript", competitor: "Not reported" },
 				{ feature: "Listening", readplace: "No", competitor: "Yes, AI voices" },
 				{
 					feature: "Kindle",
@@ -118,7 +119,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 				{ feature: "Offline reading", readplace: "Yes, web and iPhone", competitor: "Yes" },
 				{
 					feature: "Apps",
-					readplace: "iPhone and Mac, Chrome and Firefox extensions",
+					readplace: "iPhone, Mac and Android, Chrome and Firefox extensions",
 					competitor: "iOS, Android, Mac, Windows, Chrome, Firefox and Safari extensions",
 				},
 				{
@@ -133,10 +134,8 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	limitsTitle: "What this does not do",
 	limits: [
 		"No highlight sync to Notion, Obsidian or Logseq.",
-		"No RSS or podcasts.",
+		"No RSS or podcast subscriptions.",
 		"No listening or text-to-speech.",
-		"No video transcripts.",
-		"No Android app.",
 		"No full-text search across saved articles.",
 		"Newsletters bring their article links across, not the email body as an article.",
 	],
@@ -157,7 +156,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Is there an Android app?",
-			answer: "No. Readplace works in a mobile browser on Android.",
+			answer: "Yes. The Readplace Android app is on Google Play and saves from the share sheet.",
 		},
 		{
 			question: "Do I need an account to try it?",

@@ -24,7 +24,7 @@ describe("archive attempt orchestration", () => {
 		const liveBody = `<html><head><title>Full report</title></head><body><nav>Fresh raw response navigation</nav><article>${article}<p>${"The original has an additional detailed section missing from the archive. ".repeat(20)}</p></article></body></html>`;
 		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (target) => new Response(target === url ? liveBody : wrapperBody, { status: target === url ? 403 : 200, headers: { "content-type": "text/html" } }), siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 		const { parseHtml } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: () => {} });
-		const finalizeArticle = initFinalizeArticle({ parseHtml, downloadMedia: async () => [], processContent: async ({ html }) => html, fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }), putImageObject: async () => {}, imagesCdnBaseUrl: "https://cdn.example.com" });
+		const finalizeArticle = initFinalizeArticle({ parseHtml, downloadMedia: async () => [], processContent: async ({ html }) => html, fetchThumbnailImage: async ({ candidates }) => ({ image: undefined, provenUnusable: [], fetched: candidates }), putImageObject: async () => {}, imagesCdnBaseUrl: "https://cdn.example.com" });
 		const stored: TierSource[] = [];
 		const now = () => new Date("2026-10-05T00:00:00.000Z");
 		const shared = {
@@ -89,12 +89,12 @@ describe("archive attempt orchestration", () => {
 		const emit = jest.fn().mockResolvedValue(undefined);
 		const save = initCrawlSaveCandidates({ crawlArchiveCapture: async () => wrapper, saveLinkWork: async () => ({ deferred: "blocked", finalUrl: "https://publisher.example/story" }), emitSimpleCrawlUnsupported: emit });
 		await save({ ...params, userId: UserIdSchema.parse("user-1") });
-		expect(emit).toHaveBeenCalledWith({ url, unsupportedReason: "blocked", userId: "user-1", saveAttemptId: params.saveAttemptId, candidates: [wrapper], finalUrl: "https://publisher.example/story" });
+		expect(emit).toHaveBeenCalledWith({ url, unsupportedReason: "blocked", userId: "user-1", trigger: "save", saveAttemptId: params.saveAttemptId, candidates: [wrapper], finalUrl: "https://publisher.example/story" });
 	});
 	it("records an empty live response as a live failure while the extracted archive still reaches selection", async () => {
 		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (target) => new Response(target === url ? "" : `<html><head><title>Archived report</title></head><body><article><p>${"A real article contains important facts and readable paragraphs. ".repeat(30)}</p></article></body></html>`, { status: 200, headers: { "content-type": "text/html" } }), siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 		const { parseHtml } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: () => {} });
-		const finalizeArticle = initFinalizeArticle({ parseHtml, downloadMedia: async () => [], processContent: async ({ html }) => html, fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }), putImageObject: async () => {}, imagesCdnBaseUrl: "https://cdn.example.com" });
+		const finalizeArticle = initFinalizeArticle({ parseHtml, downloadMedia: async () => [], processContent: async ({ html }) => html, fetchThumbnailImage: async ({ candidates }) => ({ image: undefined, provenUnusable: [], fetched: candidates }), putImageObject: async () => {}, imagesCdnBaseUrl: "https://cdn.example.com" });
 		const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle });
 		const putTierSource = jest.fn<ReturnType<PutTierSource>, Parameters<PutTierSource>>(async (params) => params.metadata);
 		const readTierSnapshot = async () => ({ tier0Status: "not_attempted" as const, tier1Status: "failed" as const, pickedTier: "none" as const });

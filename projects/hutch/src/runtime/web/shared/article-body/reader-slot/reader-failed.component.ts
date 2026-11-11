@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import { type ArticleDestinationUrl, isPrivateItemUrl } from "@packages/domain/article";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
 import { render, renderAlert, renderIllustration, withInternalTracking } from "@packages/web-shell";
 import { FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE } from "../../client-surface-phrases";
 import type { CapturePollUrls } from "../../article-reader/article-reader.types";
@@ -17,6 +19,8 @@ const MARKER_TEMPLATE = readFileSync(
 	join(__dirname, "reader-notice-marker.template.html"),
 	"utf-8",
 );
+
+const { t } = translator(hutchReader, DEFAULT_LOCALE);
 
 export type { ReaderFailedVariant };
 
@@ -49,33 +53,33 @@ export interface ReaderRegions {
 }
 
 const TITLES: Record<ReaderFailedVariant, string> = {
-	unsupported: "Your link is saved",
-	failed: "Your link is saved",
-	blocked: "Your link is saved",
-	slow: "Your link is saved",
-	"origin-down": "Your link is saved",
-	"not-found": "Link saved, but the article is unavailable",
-	"not-an-article": "Your link is saved",
-	"capture-unreadable": "Readplace copied the page, but it isn't an article",
-	"capture-missing": "The copy from your device didn't arrive",
-	"processing-failed": "We couldn't prepare this upload",
-	"no-speech": "Your audio is saved",
-	"transcript-failed": "Your audio is saved",
+	unsupported: t("articleBody.readerFailed.title.linkSaved"),
+	failed: t("articleBody.readerFailed.title.linkSaved"),
+	blocked: t("articleBody.readerFailed.title.linkSaved"),
+	slow: t("articleBody.readerFailed.title.linkSaved"),
+	"origin-down": t("articleBody.readerFailed.title.linkSaved"),
+	"not-found": t("articleBody.readerFailed.title.notFound"),
+	"not-an-article": t("articleBody.readerFailed.title.linkSaved"),
+	"capture-unreadable": t("articleBody.readerFailed.title.captureUnreadable"),
+	"capture-missing": t("articleBody.readerFailed.title.captureMissing"),
+	"processing-failed": t("articleBody.readerFailed.title.processingFailed"),
+	"no-speech": t("articleBody.readerFailed.title.audioSaved"),
+	"transcript-failed": t("articleBody.readerFailed.title.audioSaved"),
 };
 
 const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
-	unsupported: "This type of page isn't supported in the Readplace reader yet. You can still open it on the original site.",
-	failed: `Readplace couldn't load the full article from this site. You can still read it on the original website, or save the full page using ${FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE}.`,
-	blocked: `This site blocked Readplace from loading the full article. Use ${FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE} to save the complete page instead.`,
-	slow: "Reader view is taking longer than usual.",
-	"origin-down": "Readplace couldn't reach this site right now. It may be temporarily unavailable, so you can try again later.",
-	"not-found": "This page no longer appears to exist, so Readplace couldn't retrieve the article content.",
-	"not-an-article": "This link isn't an article, so it can't be shown in reader view.",
-	"capture-unreadable": "The saved copy of this page has no article in it to show in reader view. You can read it on the original site, or capture it again once the article has loaded.",
-	"capture-missing": "Readplace didn't receive a copy of this page from your device. You can capture it again, or read it on the original site.",
-	"processing-failed": "Readplace couldn't finish preparing this file. You can upload it again.",
-	"no-speech": "No speech was found in this file, so there's no transcript.",
-	"transcript-failed": "Readplace couldn't transcribe this file. You can upload it again.",
+	unsupported: t("articleBody.readerFailed.explanation.unsupported"),
+	failed: t("articleBody.readerFailed.explanation.failed", { alternatives: FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE }),
+	blocked: t("articleBody.readerFailed.explanation.blocked", { alternatives: FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE }),
+	slow: t("articleBody.readerFailed.explanation.slow"),
+	"origin-down": t("articleBody.readerFailed.explanation.originDown"),
+	"not-found": t("articleBody.readerFailed.explanation.notFound"),
+	"not-an-article": t("articleBody.readerFailed.explanation.notAnArticle"),
+	"capture-unreadable": t("articleBody.readerFailed.explanation.captureUnreadable"),
+	"capture-missing": t("articleBody.readerFailed.explanation.captureMissing"),
+	"processing-failed": t("articleBody.readerFailed.explanation.processingFailed"),
+	"no-speech": t("articleBody.readerFailed.explanation.noSpeech"),
+	"transcript-failed": t("articleBody.readerFailed.explanation.transcriptFailed"),
 };
 
 const CAPTURE_RESCUE_CLASS = {
@@ -84,18 +88,18 @@ const CAPTURE_RESCUE_CLASS = {
 } satisfies Record<CaptureRescue, string>;
 
 const CTA_LABELS: Record<ReaderFailedVariant, string> = {
-	unsupported: "Read original article",
-	failed: "Read original article",
-	blocked: "Read original article",
-	slow: "Read original article",
-	"origin-down": "Read original article",
-	"not-found": "Visit original page",
-	"not-an-article": "Read original article",
-	"capture-unreadable": "Read original article",
-	"capture-missing": "Read original article",
-	"processing-failed": "Upload again",
-	"no-speech": "Upload again",
-	"transcript-failed": "Upload again",
+	unsupported: t("articleBody.readerFailed.cta.readOriginal"),
+	failed: t("articleBody.readerFailed.cta.readOriginal"),
+	blocked: t("articleBody.readerFailed.cta.readOriginal"),
+	slow: t("articleBody.readerFailed.cta.readOriginal"),
+	"origin-down": t("articleBody.readerFailed.cta.readOriginal"),
+	"not-found": t("articleBody.readerFailed.cta.visitOriginal"),
+	"not-an-article": t("articleBody.readerFailed.cta.readOriginal"),
+	"capture-unreadable": t("articleBody.readerFailed.cta.readOriginal"),
+	"capture-missing": t("articleBody.readerFailed.cta.readOriginal"),
+	"processing-failed": t("articleBody.readerFailed.cta.uploadAgain"),
+	"no-speech": t("articleBody.readerFailed.cta.uploadAgain"),
+	"transcript-failed": t("articleBody.readerFailed.cta.uploadAgain"),
 };
 
 /* Every other variant can still be rescued by capturing the page from a client,
@@ -110,9 +114,9 @@ const CAPTURE_PITCH_VARIANTS: ReadonlySet<ReaderFailedVariant> = new Set([
 
 const CAPTURE_PITCH_KEY = "reader-capture-pitch";
 
-const CAPTURE_PITCH_TITLE = `Want the full article in Readplace? Save it with ${FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE}.`;
+const CAPTURE_PITCH_TITLE = t("articleBody.readerFailed.capturePitch.title", { alternatives: FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE });
 
-const CAPTURE_PITCH_LINK_TEMPLATE = '<a href="{{href}}" data-test-reader-failed-install>See ways to save</a>';
+const CAPTURE_PITCH_LINK_TEMPLATE = '<a href="{{href}}" data-test-reader-failed-install>{{t "articleBody.readerFailed.capturePitch.link"}}</a>';
 
 const PITCH_CLASSES = {
 	visible: "article-body__reader-notice-pitch article-body__reader-notice-pitch--visible",

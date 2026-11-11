@@ -11,4 +11,11 @@ describe("SELECT_CONTENT_TIMEOUTS", () => {
 			SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 		);
 	});
+
+	it("the processing worker's judge claim outlives its Lambda and expires before the next eligible FIFO retry", () => {
+		expect(SELECT_CONTENT_TIMEOUTS.lambdaSeconds).toBeLessThan(SELECT_CONTENT_TIMEOUTS.processingJudgeClaimSeconds);
+		expect(SELECT_CONTENT_TIMEOUTS.processingJudgeClaimSeconds).toBeLessThan(SELECT_CONTENT_TIMEOUTS.processingSqsVisibilitySeconds);
+		expect(SELECT_CONTENT_TIMEOUTS.processingJudgeClaimSeconds).toBe(360);
+		expect(SELECT_CONTENT_TIMEOUTS.processingSqsVisibilitySeconds).toBe(1800);
+	});
 });

@@ -1,14 +1,5 @@
-import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { ReselectAfterRemovalEvent } from "@packages/infra-components";
-import { initSelectionQueueHandler } from "../select-content/select-content-work";
+import { initSelectionForwardHandler, initSelectionQueueHandler } from "../select-content/select-content-work";
+import { SELECTION_SOURCE_POLICIES } from "../select-content/selection-source-policies";
 
-export const initReselectAfterRemovalHandler = initSelectionQueueHandler({
-	tag: "ReselectAfterRemoval",
-	feature: "reselect-after-removal",
-	onExhaustion: "mark-crawl-exhausted",
-	toRequest: (detail, record) => ({
-		url: ReselectAfterRemovalEvent.detailSchema.parse(detail).url,
-		saveAttemptId: SaveAttemptIdSchema.parse(record.messageId),
-		mode: "save",
-	}),
-});
+export const initReselectAfterRemovalHandler = initSelectionQueueHandler(SELECTION_SOURCE_POLICIES["reselect-after-removal"]);
+export const initForwardReselectAfterRemoval = initSelectionForwardHandler(SELECTION_SOURCE_POLICIES["reselect-after-removal"]);

@@ -142,7 +142,7 @@ export function initRenderCrawlHandler(deps: {
 	});
 
 	const backOffRefresh = async (ctx: DeferredCrawlContext): Promise<void> => {
-		if (!ctx.refresh) return;
+		if (ctx.trigger !== "refresh") return;
 		await deps.updateFetchTimestamp({
 			url: ctx.url,
 			contentFetchedAt: deps.now().toISOString(),
@@ -159,8 +159,7 @@ export function initRenderCrawlHandler(deps: {
 			await deps.publishEvent(ComprehensiveCrawlCommand, {
 				url,
 				userId: ctx.userId,
-				recrawl: ctx.recrawl,
-				refresh: ctx.refresh,
+				trigger: ctx.trigger,
 				previousBodyHash: ctx.previousBodyHash,
 				saveAttemptId: ctx.saveAttemptId,
 				candidates: ctx.candidates,
@@ -169,7 +168,7 @@ export function initRenderCrawlHandler(deps: {
 			return { kind: "settled" };
 		}
 		if (ctx.candidates !== undefined) {
-			await publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
+			await publishArchiveComparison({ ...ctx, recrawl: ctx.trigger === "recrawl", candidates: ctx.candidates });
 		} else {
 			await emitTier1FailureOutcome({ url });
 			await transitionAndPersist(markCrawlUnsupported, { url, input: { reason: terminalReason } });
@@ -225,7 +224,7 @@ export function initRenderCrawlHandler(deps: {
 	const settleTooLarge = async (render: LadderRender, ctx: DeferredCrawlContext): Promise<void> => {
 		const { url } = ctx;
 		if (ctx.candidates !== undefined) {
-			await publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
+			await publishArchiveComparison({ ...ctx, recrawl: ctx.trigger === "recrawl", candidates: ctx.candidates });
 			return;
 		}
 		const bytes = Buffer.byteLength(render.html);
@@ -273,7 +272,7 @@ export function initRenderCrawlHandler(deps: {
 
 	const settleWithoutBody = async (rendered: Unrendered, ctx: DeferredCrawlContext, receiveCount: number): Promise<CrawlTermination> => {
 		const { url } = ctx;
-		if (ctx.candidates !== undefined) return publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
+		if (ctx.candidates !== undefined) return publishArchiveComparison({ ...ctx, recrawl: ctx.trigger === "recrawl", candidates: ctx.candidates });
 		const { direct, residential, webUnlockerFetch, webUnlockerRender } = rendered;
 		if (webUnlockerRender.kind === "blocked") return resolveBlocked({ url, httpStatus: webUnlockerRender.httpStatus });
 		if (residential.kind === "blocked") return resolveBlocked({ url, httpStatus: residential.httpStatus });
@@ -314,13 +313,13 @@ export function initRenderCrawlHandler(deps: {
 		if (rendered.kind === "recorded") {
 			const candidate = RecordedCandidateSchema.parse(JSON.parse(rendered.outcome));
 			logger.info(`${logPrefix} replaying a settled render leg`, { url, leg: rendered.leg });
-			await publishArchiveComparison({ ...ctx, candidates: [...(ctx.candidates ?? []), candidate] });
+			await publishArchiveComparison({ ...ctx, recrawl: ctx.trigger === "recrawl", candidates: [...(ctx.candidates ?? []), candidate] });
 			return;
 		}
 		if (rendered.kind === "deferred") {
 			logger.info(`${logPrefix} paid render legs deferred until a reader asks`, { url, awaiting: rendered.awaiting, direct: rendered.direct });
 			if (ctx.candidates !== undefined) {
-				await publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
+				await publishArchiveComparison({ ...ctx, recrawl: ctx.trigger === "recrawl", candidates: ctx.candidates });
 				return;
 			}
 			await transitionAndPersist(markCrawlAwaitingReader, { url, input: { deferredLeg: rendered.awaiting } });
@@ -355,11 +354,11 @@ export function initRenderCrawlHandler(deps: {
 			failure: { message: `${logPrefix} record failed` },
 			malformed: { policy: "retry" },
 			handle: async (detail, record) => {
-				const { url, userId, recrawl, refresh, saveAttemptId, previousBodyHash, unsupportedReason, finalUrl } = detail;
+				const { url, userId, trigger, saveAttemptId, previousBodyHash, unsupportedReason, finalUrl } = detail;
 				const identity = await deps.prepareArticleIdentity(url);
 				assert(identity.status === "resolved", "queued render article original is unresolved");
 				let candidates = detail.candidates;
-				if (candidates === undefined && !refresh && identity.contentSourceUrl !== undefined) {
+				if (candidates === undefined && trigger !== "refresh" && identity.contentSourceUrl !== undefined) {
 					const capture = await crawlArchiveCapture({
 						url,
 						captureUrl: identity.contentSourceUrl,
@@ -374,17 +373,15 @@ export function initRenderCrawlHandler(deps: {
 					originalUrl: identity.originalUrl,
 					saveAttemptId,
 					candidates,
-					refresh,
-					recrawl,
+					trigger,
 					userId,
 					previousBodyHash,
 				};
-				const resumedAt = await resumableTarget({ url, observedUrl: recrawl || refresh ? undefined : finalUrl });
+				const resumedAt = await resumableTarget({ url, observedUrl: trigger === "save" ? finalUrl : undefined });
 				const fetchUrl = resumedAt ?? identity.originalUrl;
 				logger.info(`${logPrefix} processing`, {
 					url,
-					recrawl: recrawl ? 1 : 0,
-					refresh: refresh ? 1 : 0,
+					trigger,
 					resumedAtObservedPage: resumedAt === undefined ? 0 : 1,
 				});
 				let budgetConsumed = false;

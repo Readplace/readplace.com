@@ -142,7 +142,13 @@ export function initComputeRelatedPastReadsHandler(
 					continue;
 				}
 				if (lookup.state === "absent") {
-					throw new MetadataNotReadyError(entry.url);
+					if (receiveCount < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
+						throw new MetadataNotReadyError(entry.url);
+					}
+					logger.info("[ComputeRelatedPastReads] skipped; article row gone after the wait", {
+						url: entry.url,
+					});
+					continue;
 				}
 				const target = lookup.article;
 				if (target.crawlStatus === "pending") {

@@ -86,3 +86,29 @@ it.each([true, false])("uses the latest rejected landing page when the final att
 	});
 	expect(documentLandingPageFailure(wrapped)).toBe(latest);
 });
+
+describe("CIA reading-room PDF", () => {
+	const ciaPdf = "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf";
+	const ciaHome = "https://www.cia.gov/readingroom/";
+
+	it.each([ciaHome, "https://www.cia.gov/readingroom"])("rejects the reading-room homepage answered for the PDF at %s", async (terminal) => {
+		const answer = response("<html>Reading Room</html>", terminal, "text/html; charset=utf-8", 200);
+		await expect(rejectDocumentLandingPage(ciaPdf, answer)).rejects.toMatchObject({ requestedUrl: ciaPdf, landingPageUrl: terminal });
+	});
+
+	it("accepts the PDF answered at the requested URL", async () => {
+		const answer = response("%PDF-1.4 scanned", ciaPdf, "application/pdf", 200);
+		await rejectDocumentLandingPage(ciaPdf, answer);
+		expect(await answer.text()).toBe("%PDF-1.4 scanned");
+	});
+
+	it("accepts the PDF signature from the reading-room root despite an HTML content type", async () => {
+		await rejectDocumentLandingPage(ciaPdf, response("%PDF-1.4 scanned", ciaHome, "text/html", 200), Buffer.from("%PDF-1.4 scanned"));
+	});
+
+	it("accepts the reading-room homepage when the homepage itself was requested", async () => {
+		const answer = response("<html>Reading Room</html>", ciaHome, "text/html", 200);
+		await rejectDocumentLandingPage(ciaHome, answer);
+		expect(await answer.text()).toBe("<html>Reading Room</html>");
+	});
+});

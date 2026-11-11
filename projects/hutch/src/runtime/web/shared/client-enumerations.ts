@@ -34,6 +34,7 @@ export const AI_ASSISTANTS_OR = orPhrase(AI_ASSISTANT_NAMES);
  * phone whose app nobody can install. */
 const NATIVE_APP_DEVICES = {
 	iphone: "an iPhone",
+	android: "an Android phone",
 } satisfies Record<AdvertisedClientNameInGroup<"nativeApp">, string>;
 
 export const NATIVE_APP_DEVICES_OR = Object.values(NATIVE_APP_DEVICES).join(" or ");

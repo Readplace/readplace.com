@@ -6,6 +6,7 @@ import { strFromU8, unzipSync } from "fflate";
 import type { ParseArticle } from "@packages/article-parser";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { calculateReadTime, type Minutes } from "@packages/domain/article";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import type { EpubImagesOverBudgetEvent } from "@packages/web-analytics";
 import { useTestServer, BROWSER_REQUEST_HEADERS } from "../../../test-app";
 import {
@@ -635,5 +636,80 @@ describe("GET /view/<url> Download on a platform with no EPUB reader", () => {
 			children: ["A"],
 			links: [{ format: "epub", href: PUBLIC_EPUB_HREF }],
 		});
+	});
+});
+
+const UPLOAD_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const UPLOAD_VIEW_PATH = "/view/uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const TRANSCRIPT_HTML = '<h2>00:00</h2><p><a href="?t=0">00:00</a> Welcome to the talk, which runs for a while.</p>';
+
+async function openTranscribedUpload(media: { kind: "audio" | "video" | "book"; fileName: string }) {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const harness = useApp(fixture);
+	const created = await harness.auth.createUser({ email: "owner@example.com", password: "password123" });
+	assert(created.ok, "owner should be created");
+	const sessionId = await harness.auth.createSession({ userId: created.userId, emailVerified: true });
+	await fixture.articleStore.savePrivateItem({
+		url: UPLOAD_URL,
+		ownerUserId: created.userId,
+		media,
+		savedAt: new Date("2026-11-05T00:00:00.000Z"),
+	});
+	await fixture.articleStore.writeContent({ url: UPLOAD_URL, content: TRANSCRIPT_HTML });
+	await fixture.articleCrawl.markCrawlReady({ url: UPLOAD_URL });
+	return { harness, sessionCookie: `${SESSION_COOKIE_NAME}=${sessionId}` };
+}
+
+describe("GET /view/<url> Download on an uploaded audio or video item", () => {
+	it.each([
+		{ kind: "audio" as const, fileName: "talk.mp3" },
+		{ kind: "video" as const, fileName: "talk.mp4" },
+	])("keeps the Download slot hidden for a transcribed $kind upload", async (media) => {
+		const { harness, sessionCookie } = await openTranscribedUpload(media);
+
+		const response = await request(harness.server)
+			.get(UPLOAD_VIEW_PATH)
+			.set(BROWSER_REQUEST_HEADERS)
+			.set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.body.textContent).toContain("Welcome to the talk");
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-downloads-slot]"), (slot) =>
+				slot.classList.contains("article-body__downloads-slot--visible"),
+			),
+		).not.toContain(true);
+		expect(doc.querySelectorAll("[data-test-download]")).toHaveLength(0);
+		expect(doc.querySelector('[data-test-confirm-popover="download-guide"]')).toBeNull();
+	});
+
+	it.each([
+		["reader", `/view/reader?url=${encodeURIComponent(UPLOAD_URL)}&poll=1`],
+		["summary", `/view/summary?url=${encodeURIComponent(UPLOAD_URL)}&poll=1`],
+	])("keeps it hidden on the %s poll that reveals Download when the transcript lands", async (_name, path) => {
+		const { harness, sessionCookie } = await openTranscribedUpload({ kind: "audio", fileName: "talk.mp3" });
+
+		const response = await request(harness.server).get(path).set(BROWSER_REQUEST_HEADERS).set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		const oobIds = Array.from(new JSDOM(response.text).window.document.querySelectorAll("[hx-swap-oob]"), (element) => element.id);
+		expect(oobIds).not.toContain("reader-downloads-slot");
+		expect(oobIds).not.toContain("reader-menu-downloads-slot");
+	});
+
+	it("still offers the EPUB download for a book upload", async () => {
+		const { harness, sessionCookie } = await openTranscribedUpload({ kind: "book", fileName: "dune.epub" });
+
+		const response = await request(harness.server).get(UPLOAD_VIEW_PATH).set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-downloads-slot]"), (slot) =>
+				slot.classList.contains("article-body__downloads-slot--visible"),
+			),
+		).toContain(true);
+		expect(doc.querySelector('[data-test-download="epub"]')).not.toBeNull();
 	});
 });

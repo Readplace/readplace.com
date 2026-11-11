@@ -279,6 +279,36 @@ describe("initComputeRelatedPastReadsHandler", () => {
 		expect(deepseekCallFailed).not.toHaveBeenCalled();
 	});
 
+	it("gives up without a retry when the article row is gone on the final receive", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, marked, published } = createHandler({
+			targetLookup: { state: "absent" },
+			logger,
+		});
+		const [record] = command.Records;
+		assert(record, "the command holds one record");
+		const finalReceive: SQSEvent = {
+			Records: [
+				{
+					...record,
+					attributes: {
+						...stubAttributes,
+						ApproximateReceiveCount: String(COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT),
+					},
+				},
+			],
+		};
+
+		const result = await handler(finalReceive, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(marked).toEqual([]);
+		expect(published).toEqual([]);
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] skipped; article row gone after the wait", {
+			url: TARGET_URL,
+		});
+	});
+
 	it("gives up without a retry when the crawl is still pending on the final receive", async () => {
 		const { handler, marked, published } = createHandler({
 			targetLookup: { state: "found", article: crawledTarget({ crawlStatus: "pending" }) },

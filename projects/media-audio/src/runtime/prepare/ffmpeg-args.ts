@@ -1,10 +1,17 @@
-const COPY_BY_CODEC: Readonly<Record<string, string>> = {
-	mp3: "mp3",
-	aac: "m4a",
+type TranscriptionInputFormat = {
+	extension: string;
+	mediaType: "audio/mpeg" | "audio/mp4";
 };
 
-export function transcriptionInputExtension(codec: string): string {
-	return COPY_BY_CODEC[codec] ?? "m4a";
+const M4A: TranscriptionInputFormat = { extension: "m4a", mediaType: "audio/mp4" };
+
+const COPY_BY_CODEC: Readonly<Record<string, TranscriptionInputFormat>> = {
+	mp3: { extension: "mp3", mediaType: "audio/mpeg" },
+	aac: M4A,
+};
+
+export function transcriptionInputFormat(codec: string): TranscriptionInputFormat {
+	return COPY_BY_CODEC[codec] ?? M4A;
 }
 
 const ENCLOSURE_COPY_CODECS: ReadonlySet<string> = new Set(["aac"]);

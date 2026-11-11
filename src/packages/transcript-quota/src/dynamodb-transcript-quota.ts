@@ -14,6 +14,7 @@ import type {
 	MarkTranscriptStarted,
 	RefundTranscriptCharge,
 	RefundUnstartedCharge,
+	SettleStartedCharge,
 	SettleTranscriptCharge,
 	TranscriptChargeRef,
 } from "@packages/provider-contracts/transcript-quota";
@@ -33,6 +34,8 @@ const CONFLICT_RETRY_BASE_DELAY_MS = 50;
 const ReturnedChargeStateSchema = z.object({
 	state: z.object({ S: z.enum(["started", "settled", "refunded"]) }),
 });
+
+const ReturnedChargeDaySchema = z.object({ day: z.object({ S: z.string() }) });
 
 type LedgerDeps = {
 	client: DynamoDBDocumentClient;
@@ -87,6 +90,7 @@ export function initDynamoDbTranscriptCharge(deps: LedgerDeps & { allowanceSecon
 							ConditionExpression: "attribute_not_exists(sk) OR #state = :refunded",
 							ExpressionAttributeNames: { "#state": "state" },
 							ExpressionAttributeValues: { ":refunded": "refunded" },
+							ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 						},
 					},
 					{
@@ -107,7 +111,10 @@ export function initDynamoDbTranscriptCharge(deps: LedgerDeps & { allowanceSecon
 			},
 			onCancelled: (error) => {
 				const [chargeCode, dayCode] = cancellationCodes(error);
-				if (chargeCode === "ConditionalCheckFailed") return { outcome: "already-charged" as const };
+				if (chargeCode === "ConditionalCheckFailed") {
+					const { day } = ReturnedChargeDaySchema.parse(error.CancellationReasons?.[0]?.Item);
+					return { outcome: "already-charged" as const, day: day.S };
+				}
 				if (dayCode === "ConditionalCheckFailed") return { outcome: "day-spent" as const };
 				return undefined;
 			},
@@ -121,6 +128,7 @@ export function initDynamoDbTranscriptCharge(deps: LedgerDeps & { allowanceSecon
 export function initDynamoDbTranscriptLedger(deps: LedgerDeps): {
 	markTranscriptStarted: MarkTranscriptStarted;
 	settleTranscriptCharge: SettleTranscriptCharge;
+	settleStartedCharge: SettleStartedCharge;
 	refundTranscriptCharge: RefundTranscriptCharge;
 	refundUnstartedCharge: RefundUnstartedCharge;
 	deleteAllTranscriptQuota: DeleteAllTranscriptQuota;
@@ -142,6 +150,19 @@ export function initDynamoDbTranscriptLedger(deps: LedgerDeps): {
 			}),
 		);
 		return written.kind === "written" ? { outcome: "done" } : { outcome: "closed" };
+	};
+
+	const settleStartedCharge: SettleStartedCharge = async (ref) => {
+		const written = await writeIfCondition(() =>
+			table.update({
+				Key: chargeRowKey(ref),
+				UpdateExpression: "SET #state = :settled",
+				ConditionExpression: "#state = :started",
+				ExpressionAttributeNames: { "#state": "state" },
+				ExpressionAttributeValues: { ":settled": "settled", ":started": "started" },
+			}),
+		);
+		return written.kind === "written" ? { outcome: "settled" } : { outcome: "not-started" };
 	};
 
 	const refundInput = (p: {
@@ -216,6 +237,7 @@ export function initDynamoDbTranscriptLedger(deps: LedgerDeps): {
 	return {
 		markTranscriptStarted: (ref) => moveOpenCharge({ ref, to: "started" }),
 		settleTranscriptCharge: (ref) => moveOpenCharge({ ref, to: "settled" }),
+		settleStartedCharge,
 		refundTranscriptCharge,
 		refundUnstartedCharge,
 		deleteAllTranscriptQuota,

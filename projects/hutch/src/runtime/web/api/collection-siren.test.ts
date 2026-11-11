@@ -302,6 +302,7 @@ describe("toArticleCollectionEntity", () => {
 			"readAt",
 			"isRead",
 			"needsBrowserCapture",
+			"contentState",
 			"contentVersion",
 			"mediaKind",
 			"durationSeconds",

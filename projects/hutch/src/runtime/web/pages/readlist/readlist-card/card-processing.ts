@@ -9,6 +9,7 @@ import {
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { cardKindOf } from "./card-kind-label";
+import { type ContentState, contentStateOf } from "./content-state";
 import { isCardTerminal } from "./is-card-terminal";
 
 export type CardPhase =
@@ -19,6 +20,7 @@ export type CardPhase =
 export interface CardProcessing {
 	label: string;
 	phase: CardPhase;
+	contentState: ContentState;
 }
 
 function crawlEstimateOf(params: { crawl: ArticleCrawl | undefined; now: Date }): CrawlRemainingEstimate | undefined {
@@ -60,5 +62,6 @@ export function cardProcessingOf(params: {
 	return {
 		label: cardKind === undefined ? "Processing" : `Preparing your ${cardKind.kind.noun}…`,
 		phase: cardPhaseOf(params),
+		contentState: contentStateOf({ url: params.article.url, crawl: params.crawl, summary: params.summary }),
 	};
 }

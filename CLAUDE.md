@@ -119,8 +119,9 @@ Each queue below dead-letters into its own `<queue>-dlq`, and nothing consumes i
 | Queue | On the final receive |
 |---|---|
 | `select-most-complete-content`, `reselect-after-removal`, `recrawl-content-extracted` | The handler marks the crawl failed, logs `dead-lettered after N receives`, and still fails the record |
-| `generate-summary` | The handler marks the summary failed and still fails the record |
+| `generate-summary` | The handler marks the summary failed and still fails the record. A message whose article row is gone, as a released private upload's row is, is acknowledged on its first receive and never dead-letters |
 | `refresh-content-extracted` | Nothing is marked; the reader keeps the current content. A redrive is safe at any time: the handler acknowledges a message when the row is purged, `unsupported`, or holds a newer fetch than the message, and logs `[RefreshContentExtracted] refused`. Otherwise it commits, which heals |
+| `select-article-content` (FIFO; its consumer is disabled until the selection cutover) | It depends on the command's `sourceKind`. A `refresh-content-extracted` command marks nothing, the same as on its own queue. Every other kind marks the crawl failed, the same as the three queues above. A record whose judge claim is held by another owner logs `ownership anomaly` and marks nothing on any receive, so its dead letter leaves the row `pending` until that owner settles it. A failed record is retried only after its 1,800 s visibility ends, and every later selection for that article waits behind it, so a failing message reaches its third receive, where the crawl is marked, about 60 minutes in, and reaches the DLQ about 90 minutes in (1,800 s visibility × `maxReceiveCount` 3) |
 | `compute-related-articles` | Nothing is marked; Next read and Already read stay as they were |
 | `canonical-content-changed` | Nothing is marked and nothing is written: the handler reads the row and either dispatches `generate-summary` or fails the record, so a redrive cannot damage a row and needs no row reading first. A record keeps failing only while the row cannot be summarised yet: a crawl still `pending` with no readable content (redrive once the crawl has ended), a crawl `ready` with no readable content, or a revoked canonical candidate with no content. Each clears when the crawl ends, a new canonical is committed or the row is tombstoned. When none of those will come, read the row and delete the message |
 | `filter-email-links` | The handler marks that readlist's decision failed, and the email page shows its failed line. Every link is already in All |
@@ -157,6 +158,7 @@ Readplace serves en-US today and will add en-AU and other languages. A literal s
 - Values never contain HTML. A sentence split around a link becomes `before` / `link` / `after` keys with the `<a>` kept in the template. Plurals are `one` / `other` sub-keys chosen with `Intl.PluralRules`, used only where the code compared a cardinal count `=== 1`.
 - Store a code, never a sentence: a row is shared by readers of every locale.
 - Read a locale tag from `DEFAULT_LOCALE` instead of writing `"en"` or `"en-US"`. A tag that is part of a contract (crawler `accept-language`, `en_US_POSIX` date parsing, `localeCompare` sorts) stays as written.
+- Every new or changed user-facing string goes into the translation files, including in a surface no copy checker covers yet. A literal string needs the human's explicit approval.
 - Each web deployable's `copy.test.ts` runs the copy checker over the directories it lists as migrated and fails on literal copy left in a template. Do not extend a checker's exempt list without the human's approval.
 
 Not translated by design: the home, landing, help, support, terms and privacy prose pages and the import FAQ; store and manifest metadata; admin pages and operator dashboards; MCP and WebMCP text; agent documents (`llms.txt`, `llms-full.txt`, `auth.md`, skills); blog posts; log lines; protocol text such as HTTP reason phrases and JSON-RPC bodies.
@@ -462,7 +464,7 @@ Never add a new command — a `package.json` script, a `scripts/*.js` entry poin
 
 ### AWS Accounts
 
-Default credentials target **staging**; prod is a separate account reached with `--profile hutch-production` (both `ap-southeast-2`). Node scripts must also unset `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`, which take precedence over `AWS_PROFILE`.
+Name the account on every command: staging is `--profile hutch-staging` and prod is `--profile hutch-production` (both `ap-southeast-2`). A machine's default credentials can reach neither: on 2026-11-09 one developer machine's defaults belonged to an unrelated, empty account. Node scripts must also unset `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`, which take precedence over `AWS_PROFILE`.
 
 ### Prefer Longhand Parameters
 

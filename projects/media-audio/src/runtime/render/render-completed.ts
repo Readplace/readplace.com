@@ -66,6 +66,7 @@ export function initRenderTranscriptHandler(deps: {
 				transcript: "transcript-failed",
 			});
 			await deps.writeMinimalAudioBody(minimalBody);
+			await deps.settleTranscriptCharge({ userId: request.userId, ...job });
 			deps.logger.error("[render-transcript] transcription job failed", {
 				uploadId: job.uploadId,
 			});

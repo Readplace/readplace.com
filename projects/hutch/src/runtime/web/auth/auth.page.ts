@@ -1,7 +1,7 @@
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import type { Logger } from "@packages/logger";
+import type { Logger, LogError } from "@packages/logger";
 import type {
 	CountUsers,
 	CreateSession,
@@ -131,7 +131,7 @@ interface AuthDependencies {
 	baseUrl: string;
 	staticBaseUrl: string;
 	secureCookies: boolean;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	now: () => Date;
 	botDefenseLogger: Logger.Typed<BotDefenseEvent>;
 	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;

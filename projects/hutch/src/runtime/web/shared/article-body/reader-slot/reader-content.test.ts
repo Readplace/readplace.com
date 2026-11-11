@@ -5,6 +5,7 @@ import {
 	describeRange,
 	normaliseText,
 } from "@packages/domain/article/highlight";
+import { mintPrivateItemUrl, UploadIdSchema } from "@packages/media-contracts";
 import { articleBody } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import { parseHTML } from "linkedom";
@@ -219,4 +220,34 @@ describe("prepareReaderContent text", () => {
 		expect(prepared.kind).toBe("whole");
 		expect(browserTextOf(prepared.html)).toBe(prepared.text);
 	});
+});
+
+describe("prepareReaderContent at the reader body limit", () => {
+	it("pages a 5.9 MB book of 10 flat chapters within the Lambda budget", () => {
+		const paragraph = `<p>${"A chapter sentence of a long book. ".repeat(10)}</p>`;
+		const chapters = Array.from(
+			{ length: 10 },
+			(_, index) =>
+				`<section><h2 id="section-ch-${index + 1}">Chapter ${index + 1}</h2>${paragraph.repeat(1_657)}</section>`,
+		);
+		const content = articleBody(chapters.join(""));
+		expect(Buffer.byteLength(content)).toBeGreaterThan(READER_SECTION_PAGE_THRESHOLD_BYTES);
+
+		const startedAt = performance.now();
+		const prepared = prepareReaderContent({
+			content,
+			appOrigin: APP_ORIGIN,
+			url: mintPrivateItemUrl(UploadIdSchema.parse("0123456789abcdef0123456789abcdef")),
+			section: { requested: 2, readerPath: "/queue/x/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES },
+		});
+		const elapsedMs = performance.now() - startedAt;
+
+		assert.equal(prepared.kind, "paged");
+		assert.equal(prepared.pager.total, 10);
+		assert.equal(prepared.pager.current, 2);
+		expect(prepared.html).toContain("Chapter 2</h2>");
+		expect(prepared.html).not.toContain("Chapter 1</h2>");
+		expect(prepared.html).not.toContain("Chapter 3</h2>");
+		expect(elapsedMs).toBeLessThan(5_000);
+	}, 30_000);
 });

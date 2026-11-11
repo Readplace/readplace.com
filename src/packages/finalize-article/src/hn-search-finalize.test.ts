@@ -33,7 +33,7 @@ it("keeps all thirty search results and returned story bodies through the produc
 		parseHtml,
 		downloadMedia: async () => [],
 		processContent: async ({ html }) => html,
-		fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }),
+		fetchThumbnailImage: async ({ candidates }) => ({ image: undefined, provenUnusable: [], fetched: candidates }),
 		putImageObject: async () => { throw new Error("Unexpected image write"); },
 		imagesCdnBaseUrl: "https://cdn.example.org",
 	});

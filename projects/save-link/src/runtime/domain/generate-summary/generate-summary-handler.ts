@@ -46,8 +46,12 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 
 				/* `failed` is retryable on redrive so a new attempt re-runs the AI. */
 				const existing = await loadArticle(command.url);
-				const selectionExpected: SelectionExpected = { scope: "canonical-content", snapshot: existing?.contentSelection };
-				if (existing && isSummarySettledForCanonical(existing)) {
+				if (!existing) {
+					logger.info("[GenerateSummary] skipped — article row is gone", { url: command.url, outcome: "row-absent" });
+					continue;
+				}
+				const selectionExpected: SelectionExpected = { scope: "canonical-content", snapshot: existing.contentSelection };
+				if (isSummarySettledForCanonical(existing)) {
 					logger.info("[GenerateSummary] cache hit", {
 						url: command.url,
 						kind: existing.summary.kind,
@@ -64,7 +68,6 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				 * genuinely missing) keeps the assert → retry → DLQ path below. */
 				if (
 					!article &&
-					existing &&
 					(existing.crawl.kind === "failed" || existing.crawl.kind === "unsupported")
 				) {
 					await transitionAndPersist(markSummarySkipped, {
@@ -83,7 +86,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				}
 				assert(article, `Article content not found: ${command.url}`);
 				const sourceContentHash = computeCanonicalContentHash(article.content);
-				if (existing?.freshness.canonicalContentHash !== undefined) assert(sourceContentHash === existing.freshness.canonicalContentHash, "summary fetched a different canonical snapshot");
+				if (existing.freshness.canonicalContentHash !== undefined) assert(sourceContentHash === existing.freshness.canonicalContentHash, "summary fetched a different canonical snapshot");
 
 				const summarized: { result?: Exclude<SummarizeResult, { kind: "ready" }> } = {};
 				const leg = await runMeteredLeg({

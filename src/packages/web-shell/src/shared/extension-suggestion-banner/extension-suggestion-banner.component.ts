@@ -18,7 +18,8 @@ export const EXTENSION_SUGGESTION_BANNER_SCRIPT = `<script src="/client-dist/ext
 const CONTENT_CAPTURE_NOUNS = {
 	firefox: "the browser extension",
 	chrome: "the browser extension",
-	iphone: "the iPhone app",
+	iphone: "the iPhone or Android app",
+	android: "the iPhone or Android app",
 } satisfies Record<
 	AdvertisedClientNameInGroup<"browserExtension"> | AdvertisedClientNameInGroup<"nativeApp">,
 	string

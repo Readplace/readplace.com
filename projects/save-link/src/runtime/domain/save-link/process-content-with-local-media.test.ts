@@ -48,6 +48,36 @@ describe("processContentWithLocalMedia", () => {
 		expect(result).toContain("https://example.com/photo.png");
 	});
 
+	it("drops beacon image sources from the persisted body even when nothing was downloaded", async () => {
+		const result = await processContentWithLocalMedia({
+			html: '<p>Read <a href="https://www.facebook.com/tr?id=1">this</a>.</p><img src="https://www.facebook.com/tr?id=1&amp;ev=PageView"><img src="https://example.com/photo.png" srcset="https://www.sec.gov/akam/13/pixel_0a1b2c3d 2x">',
+			media: [],
+		});
+
+		expect(result).toBe('<p>Read <a href="https://www.facebook.com/tr?id=1">this</a>.</p><img src="https://example.com/photo.png">');
+	});
+
+	it("drops beacon renditions before rewriting the allowed ones, and the picture's fallback src, to the CDN without borrowing another image's URL", async () => {
+		const media: DownloadedMedia[] = [
+			{ originalUrl: "https://example.com/figure.webp", cdnUrl: "https://cdn.example.com/images/figure.webp" },
+			{ originalUrl: "https://example.com/other.png", cdnUrl: "https://cdn.example.com/images/other.png" },
+		];
+
+		const result = await processContentWithLocalMedia({
+			html:
+				'<img src="https://example.com/other.png">' +
+				'<picture><source srcset="https://example.com/figure.webp 1x, https://hspx.hotstar.com/v1/events/track/cp_page_view?pi=synthetic 2x">' +
+				'<img src="https://www.turkishairlines.com/akam/13/pixel_0a1b2c3d" alt="Figure"></picture>',
+			media,
+		});
+
+		expect(result).toBe(
+			'<img src="https://cdn.example.com/images/other.png">' +
+				'<picture><source srcset="https://cdn.example.com/images/figure.webp 1x"><img src="https://cdn.example.com/images/figure.webp" alt="Figure"></picture>',
+		);
+		expect(result).not.toMatch(/facebook\.com\/tr|hotstar|akam|src=""/);
+	});
+
 	it("rewrites srcset entries to use CDN URLs from downloaded media", async () => {
 		const media: DownloadedMedia[] = [
 			{ originalUrl: "https://example.com/small.png", cdnUrl: "https://cdn.example.com/images/small.png" },

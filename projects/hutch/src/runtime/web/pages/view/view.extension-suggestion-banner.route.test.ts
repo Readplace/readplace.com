@@ -47,10 +47,8 @@ function bannerAttr(html: string): string | null {
 	return banner.getAttribute("data-show-extension-suggestion");
 }
 
-/** Android's app is not advertised, so an Android visitor has no client the
- * banner could send them to install. */
-const ANDROID_CHROME_UA =
-	"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
+const DESKTOP_SAFARI_UA =
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
 
 const useApp = useTestServer();
 
@@ -187,7 +185,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 
 		const response = await request(harness.server)
 			.get(`/view/${CANONICAL_PATH}`)
-			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": ANDROID_CHROME_UA });
+			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": DESKTOP_SAFARI_UA });
 
 		expect(bannerAttr(response.text)).toBe("false");
 	});

@@ -121,6 +121,20 @@ describe("a book in the reader", () => {
 		expect(readerFactsIn(response.text)).toEqual(["site", "saved", "read-time", "provenance"]);
 	});
 
+	it("offers the owner no share link to a private book", async () => {
+		const { fixture, agent } = await signInAsOwnerOfBook();
+		await commitBook(fixture);
+
+		const response = await agent.get(`/queue/${BOOK_ID}/view`).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect([
+			doc.querySelectorAll('a[href*=".invalid"]').length,
+			doc.querySelectorAll("[data-share-url]").length,
+			doc.querySelectorAll('[data-test-action="share-withheld"]').length,
+		]).toEqual([0, 0, 1]);
+	});
+
 	it("lists an ordinary article's facts ending with its Original link", async () => {
 		const { agent } = await signInAsOwnerOfBook();
 		await agent.post("/queue/save").set(BROWSER_REQUEST_HEADERS).type("form").send({ url: "https://example.com/ordinary" });

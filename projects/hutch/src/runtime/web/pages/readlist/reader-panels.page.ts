@@ -10,7 +10,7 @@ import {
 	parseEmailIssueArticleUrl,
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
-import { newSaveAttemptId, } from "@packages/domain/article";
+import { newSaveAttemptId, offersEpubDownload, } from "@packages/domain/article";
 import { hashIp, } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, STREAMS, } from "../../../observability/events";
@@ -76,7 +76,7 @@ export function initReaderPanelRoutes(
 			: extensionSuggestionBannerOob(req);
 
 	const downloadsOobFor = (req: Request, article: SavedArticle): ((articleUrl: string) => string) | undefined =>
-		parseEmailIssueArticleUrl(article.url) === undefined
+		parseEmailIssueArticleUrl(article.url) === undefined && offersEpubDownload(article)
 			? (articleUrl) =>
 					downloadsOwnerEpub(req)
 						? renderReaderDownloadsSlotOob({

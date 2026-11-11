@@ -1,5 +1,8 @@
 import { setTimeout } from "node:timers/promises";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
+import { z } from "zod";
+import type { SelectArticleContentDetail, SelectionSourceKind } from "@packages/infra-components";
+import type { DispatchSelectArticleContent } from "../../dep-bundles/select-article-content-dispatch";
 import { type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
 import { type FetchYouTubeVideoCard, isBlockClassStatus } from "@packages/crawl-article";
@@ -31,7 +34,7 @@ import { type LiveAttempt, type PreparedContentSelection, type SelectionMode, in
 import { markNoReadableArticle } from "./mark-no-readable-article";
 import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { SELECT_CONTENT_TIMEOUTS } from "./timeouts";
-import { initJudgeUnderLedger } from "./judge-under-ledger";
+import { ContentJudgeClaimHeldError, type HeldJudgeClaim, initJudgeUnderLedger } from "./judge-under-ledger";
 import type { RunMeteredLeg } from "../metered-leg/run-metered-leg";
 import type { FindArticleContent } from "../save-link/article-content.types";
 import { candidateProvenance, type PutTierSource, type VerifiedTierSource } from "@packages/tier-source";
@@ -53,7 +56,7 @@ export interface SelectContentDependencies {
 	logger: Logger;
 }
 
-type SelectContentRequest = {
+export type SelectContentRequest = {
 	url: string;
 	saveAttemptId: SaveAttemptId;
 	liveAttempt?: LiveAttempt;
@@ -110,7 +113,11 @@ async function recoverVideoCard(deps: SelectContentDependencies, params: { url: 
 }
 
 export function initSelectContentWork(deps: SelectContentDependencies) {
-	const judge = initJudgeUnderLedger({ selectMostCompleteContent: deps.selectMostCompleteContent, runMeteredLeg: deps.runMeteredLeg, claimTtlMs: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds * 1000 });
+	return initSelectContentWorkUnderLease(deps, { judgeClaimTtlMs: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds * 1000, heldClaim: "assert" });
+}
+
+export function initSelectContentWorkUnderLease(deps: SelectContentDependencies, lease: { judgeClaimTtlMs: number; heldClaim: HeldJudgeClaim }) {
+	const judge = initJudgeUnderLedger({ selectMostCompleteContent: deps.selectMostCompleteContent, runMeteredLeg: deps.runMeteredLeg, claimTtlMs: lease.judgeClaimTtlMs, heldClaim: lease.heldClaim });
 	const prepare = initPrepareContentSelection({ ...deps, judge });
 	const logContentSelection = initLogContentSelection(deps);
 	const decideAndCommit = async (params: SelectContentRequest & { claimId: string; beforeProviderCall?: () => void }): Promise<DecidedSelection> => {
@@ -194,59 +201,118 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 	};
 }
 
-export function initSelectionQueueHandler(queue: {
+export type SelectionSourcePolicy = {
+	sourceKind: SelectionSourceKind;
 	tag: string;
 	feature: "select-most-complete-content" | "recrawl-content-extracted" | "refresh-content-extracted" | "reselect-after-removal";
-	toRequest: (detail: unknown, record: SQSRecord) => SelectContentRequest;
 	onExhaustion: "mark-crawl-exhausted" | "keep-row";
-}): (deps: SelectContentDependencies & { deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine> }) => Handler<SQSEvent, SQSBatchResponse> {
+	toCommand: (detail: unknown, workId: string) => SelectArticleContentDetail;
+	toRequest: (detail: unknown, workId: string) => SelectContentRequest;
+};
+
+export type SelectionRecordDependencies = SelectContentDependencies & { deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine> };
+
+export type SelectContentWork = ReturnType<typeof initSelectContentWork>;
+
+export async function selectRecord(params: {
+	deps: SelectionRecordDependencies;
+	selectContent: SelectContentWork;
+	policy: SelectionSourcePolicy;
+	toRequest: () => SelectContentRequest;
+	record: SQSRecord;
+	remainingTimeMs: () => number;
+	logFields: Record<string, unknown>;
+}): Promise<SQSBatchItemFailure | undefined> {
+	const { deps, policy, record } = params;
+	let recordUrl: string | undefined;
+	try {
+		const request = params.toRequest();
+		recordUrl = request.url;
+		await params.selectContent({ ...request, claimId: record.messageId, remainingTimeMs: params.remainingTimeMs });
+		return undefined;
+	} catch (error) {
+		if (error instanceof ContentJudgeClaimHeldError) {
+			deps.logger.error(`[${policy.tag}] ownership anomaly: another owner holds the content judge`, {
+				...params.logFields,
+				url: error.url,
+				claimTtlMs: error.claimTtlMs,
+			});
+			return { itemIdentifier: record.messageId };
+		}
+		deps.logger.error(`[${policy.tag}] record failed`, { ...params.logFields, error });
+		const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+		const failure = describeAiProviderError(error);
+		if (failure.kind !== "unknown") {
+			deps.deepseekCallFailedLog.error(deepseekCallFailedLogLine({
+				feature: policy.feature,
+				failure,
+				receiveCount,
+				messageId: record.messageId,
+				ids: {},
+			}));
+		}
+		if (policy.onExhaustion === "mark-crawl-exhausted" && recordUrl !== undefined && receiveCount >= SELECT_CONTENT_MAX_RECEIVE_COUNT) {
+			try {
+				await deps.transitionAndPersist(markCrawlExhausted, {
+					url: recordUrl,
+					input: { reason: { kind: "exhausted-retries", receiveCount } as const, receiveCount },
+				});
+				deps.logger.error(formatErrorLogLine({
+					message: `[${policy.tag}] dead-lettered after ${receiveCount} receives (messageId ${record.messageId}); marking crawl exhausted`,
+					url: recordUrl,
+					now: deps.now,
+				}));
+			} catch (markError) {
+				deps.logger.error(formatErrorLogLine({
+					message: `[${policy.tag}] exhausted-mark record failed on receive ${receiveCount} (messageId ${record.messageId})`,
+					url: recordUrl,
+					error: markError instanceof Error ? markError : new Error(String(markError)),
+					now: deps.now,
+				}));
+			}
+		}
+		return { itemIdentifier: record.messageId };
+	}
+}
+
+export function initSelectionQueueHandler(policy: SelectionSourcePolicy): (deps: SelectionRecordDependencies) => Handler<SQSEvent, SQSBatchResponse> {
 	return (deps) => {
 		const selectContent = initSelectContentWork(deps);
 		return async (event, context) => {
 			const batchItemFailures: SQSBatchItemFailure[] = [];
 			for (const record of event.Records) {
-				let recordUrl: string | undefined;
-				try {
-					const request = queue.toRequest(JSON.parse(record.body).detail, record);
-					recordUrl = request.url;
-					await selectContent({ ...request, claimId: record.messageId, remainingTimeMs: () => context.getRemainingTimeInMillis() });
-				} catch (error) {
-					deps.logger.error(`[${queue.tag}] record failed`, { messageId: record.messageId, error });
-					const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-					const failure = describeAiProviderError(error);
-					if (failure.kind !== "unknown") {
-						deps.deepseekCallFailedLog.error(deepseekCallFailedLogLine({
-							feature: queue.feature,
-							failure,
-							receiveCount,
-							messageId: record.messageId,
-							ids: {},
-						}));
-					}
-					if (queue.onExhaustion === "mark-crawl-exhausted" && recordUrl !== undefined && receiveCount >= SELECT_CONTENT_MAX_RECEIVE_COUNT) {
-						try {
-							await deps.transitionAndPersist(markCrawlExhausted, {
-								url: recordUrl,
-								input: { reason: { kind: "exhausted-retries", receiveCount } as const, receiveCount },
-							});
-							deps.logger.error(formatErrorLogLine({
-								message: `[${queue.tag}] dead-lettered after ${receiveCount} receives (messageId ${record.messageId}); marking crawl exhausted`,
-								url: recordUrl,
-								now: deps.now,
-							}));
-						} catch (markError) {
-							deps.logger.error(formatErrorLogLine({
-								message: `[${queue.tag}] exhausted-mark record failed on receive ${receiveCount} (messageId ${record.messageId})`,
-								url: recordUrl,
-								error: markError instanceof Error ? markError : new Error(String(markError)),
-								now: deps.now,
-							}));
-						}
-					}
-					batchItemFailures.push({ itemIdentifier: record.messageId });
-				}
+				const failure = await selectRecord({
+					deps,
+					selectContent,
+					policy,
+					toRequest: () => policy.toRequest(JSON.parse(record.body).detail, record.messageId),
+					record,
+					remainingTimeMs: () => context.getRemainingTimeInMillis(),
+					logFields: { messageId: record.messageId },
+				});
+				if (failure !== undefined) batchItemFailures.push(failure);
 			}
 			return { batchItemFailures };
 		};
+	};
+}
+
+const EventBridgeEnvelope = z.object({ id: z.string().min(1), detail: z.unknown() });
+
+export function initSelectionForwardHandler(policy: SelectionSourcePolicy): (deps: { dispatchSelectArticleContent: DispatchSelectArticleContent; logger: Logger }) => Handler<SQSEvent, SQSBatchResponse> {
+	return (deps) => async (event) => {
+		const batchItemFailures: SQSBatchItemFailure[] = [];
+		for (const record of event.Records) {
+			try {
+				const envelope = EventBridgeEnvelope.parse(JSON.parse(record.body));
+				const command = policy.toCommand(envelope.detail, envelope.id);
+				await deps.dispatchSelectArticleContent(command);
+				deps.logger.info(`[${policy.tag}] forwarded to selection processing`, { sourceKind: command.sourceKind, workId: command.workId, messageId: record.messageId, receiveCount: Number(record.attributes.ApproximateReceiveCount) });
+			} catch (error) {
+				deps.logger.error(`[${policy.tag}] forward failed`, { sourceKind: policy.sourceKind, messageId: record.messageId, receiveCount: Number(record.attributes.ApproximateReceiveCount), error });
+				batchItemFailures.push({ itemIdentifier: record.messageId });
+			}
+		}
+		return { batchItemFailures };
 	};
 }

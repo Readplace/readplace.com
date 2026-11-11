@@ -44,6 +44,7 @@ import { initMultipartUpload } from "./multipart-upload";
 import { parseImportPage } from "./import.url";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
+import type { LogError } from "@packages/logger";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
@@ -53,7 +54,7 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	recordEngagementActivity: RecordEngagementActivity;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	salt: string;

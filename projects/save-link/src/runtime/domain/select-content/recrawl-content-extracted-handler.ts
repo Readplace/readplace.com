@@ -1,12 +1,5 @@
-import { RecrawlContentExtractedEvent } from "@packages/infra-components";
-import { initSelectionQueueHandler } from "./select-content-work";
+import { initSelectionForwardHandler, initSelectionQueueHandler } from "./select-content-work";
+import { SELECTION_SOURCE_POLICIES } from "./selection-source-policies";
 
-export const initRecrawlContentExtractedHandler = initSelectionQueueHandler({
-	tag: "RecrawlContentExtracted",
-	feature: "recrawl-content-extracted",
-	onExhaustion: "mark-crawl-exhausted",
-	toRequest: (detail) => {
-		const parsed = RecrawlContentExtractedEvent.detailSchema.parse(detail);
-		return { ...parsed, mode: "recrawl" };
-	},
-});
+export const initRecrawlContentExtractedHandler = initSelectionQueueHandler(SELECTION_SOURCE_POLICIES["recrawl-content-extracted"]);
+export const initForwardRecrawlContentExtracted = initSelectionForwardHandler(SELECTION_SOURCE_POLICIES["recrawl-content-extracted"]);

@@ -42,7 +42,7 @@ function chargeWith(params: { read: ReadTimedDuration; quota: ChargeTranscriptQu
 describe("initChargeTranscript", () => {
 	it("charges a metered upload its billable seconds once and keeps the charge to refund", async () => {
 		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
-		const charge = chargeWith({ read: readingSeconds(599.2), quota: quota.chargeTranscriptQuota });
+		const charge = chargeWith({ read: readingSeconds(599.6), quota: quota.chargeTranscriptQuota });
 
 		const decision = await charge({ session, kind: METERED_AUDIO, etag: '"e1"' });
 
@@ -50,18 +50,37 @@ describe("initChargeTranscript", () => {
 		assert.deepEqual(quota.calls, [{ ...ref, seconds: 600 }]);
 		assert.deepEqual(decision, {
 			kind: "proceed",
-			chargedSeconds: 600,
+			charge: { seconds: 600, day: "2026-11-07" },
 			freshCharge: { ...ref, seconds: 600, day: "2026-11-07" },
 		});
 	});
 
-	it("proceeds without a fresh charge when the commit was already charged", async () => {
-		const quota = chargeAnswering({ outcome: "already-charged" });
+	it("charges a metered upload the nearest whole second, so a metadata overshoot of a frame does not cost a second", async () => {
+		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
+		const charge = chargeWith({ read: readingSeconds(120.046), quota: quota.chargeTranscriptQuota });
+
+		await charge({ session, kind: METERED_AUDIO, etag: '"e1"' });
+
+		assert.deepEqual(quota.calls, [{ userId, uploadId, attempt: 1, seconds: 120 }]);
+	});
+
+	it("charges a metered upload started without the transcripts feature", async () => {
+		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
+		const charge = chargeWith({ read: readingSeconds(60), quota: quota.chargeTranscriptQuota });
+
+		const decision = await charge({ session: { ...session, metered: undefined }, kind: METERED_AUDIO, etag: '"e1"' });
+
+		assert.deepEqual(quota.calls, [{ userId, uploadId, attempt: 1, seconds: 60 }]);
+		assert.equal(decision.kind, "proceed");
+	});
+
+	it("proceeds with the earlier charge's day and no fresh charge when the commit was already charged", async () => {
+		const quota = chargeAnswering({ outcome: "already-charged", day: "2026-11-06" });
 		const charge = chargeWith({ read: readingSeconds(600), quota: quota.chargeTranscriptQuota });
 
 		assert.deepEqual(await charge({ session, kind: METERED_AUDIO, etag: '"e1"' }), {
 			kind: "proceed",
-			chargedSeconds: 600,
+			charge: { seconds: 600, day: "2026-11-06" },
 		});
 	});
 
@@ -146,14 +165,11 @@ describe("initChargeTranscript", () => {
 		assert.deepEqual(quota.calls, []);
 	});
 
-	it("does not read or charge an unflagged upload or a kind without a meter", async () => {
+	it("does not read or charge a kind without a meter", async () => {
 		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
-		const read: ReadTimedDuration = async () => assert.fail("an unmetered upload is never read");
+		const read: ReadTimedDuration = async () => assert.fail("an unmetered kind is never read");
 		const charge = chargeWith({ read, quota: quota.chargeTranscriptQuota });
 
-		assert.deepEqual(await charge({ session: { ...session, metered: undefined }, kind: METERED_AUDIO, etag: '"e1"' }), {
-			kind: "proceed",
-		});
 		assert.deepEqual(await charge({ session, kind: BOOK, etag: '"e1"' }), { kind: "proceed" });
 		assert.deepEqual(quota.calls, []);
 	});

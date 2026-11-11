@@ -314,7 +314,7 @@ describe("refreshArticleIfStale", () => {
 		const finalUrl = "https://cdn.example.com/reports/report.txt";
 		const plainText = "Report <draft>\n  Keep this indentation.";
 		const html = "<pre><code>Report &lt;draft&gt;\n  Keep this indentation.</code></pre>";
-		const thumbnail = { image: undefined, provenUnusable: [] };
+		const thumbnail = { image: undefined, provenUnusable: [], fetched: [] };
 		const finalize = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>(async () => ({
 			ok: true,
 			article: {

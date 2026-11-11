@@ -35,6 +35,7 @@ const AMOUNTS_BY_SLUG: Record<LandingPageSlug, readonly string[]> = {
 	"read-it-later-that-wont-die": STATED_AMOUNTS,
 	"readwise-reader-alternative": ["$10", "$12.99", "$5", "$60", "$9.99"],
 	"save-newsletter-links": STATED_AMOUNTS,
+	"obsidian-read-it-later": STATED_AMOUNTS,
 };
 
 const useApp = useTestServer();
@@ -295,6 +296,7 @@ describe("landing pages", () => {
 			"save-newsletter-links": "/signup",
 			"article-to-epub": "/view",
 			"readwise-reader-alternative": "/view",
+			"obsidian-read-it-later": "/install",
 		};
 
 		for (const slug of SLUGS) {
@@ -307,8 +309,10 @@ describe("landing pages", () => {
 
 	it("gives a paste field only to pages whose primary action opens the reader, and labels it for screen readers", async () => {
 		const fieldsBySlug: Record<string, string[]> = {};
+		const docsBySlug: Record<string, Document> = {};
 		for (const slug of SLUGS) {
 			const { doc } = await loadPage(slug);
+			docsBySlug[slug] = doc;
 			fieldsBySlug[slug] = Array.from(doc.querySelectorAll("[data-test-lp-input]")).map(
 				(input) => input.getAttribute("data-test-lp-input") ?? "",
 			);
@@ -323,9 +327,11 @@ describe("landing pages", () => {
 			"save-newsletter-links": [],
 			"article-to-epub": ["try-epub", "close-try-epub"],
 			"readwise-reader-alternative": ["try-reader", "close-try-reader"],
+			"obsidian-read-it-later": [],
 		});
 
-		const { doc } = await loadPage("pdf-ocr");
+		const doc = docsBySlug["pdf-ocr"];
+		assert(doc, "the pdf-ocr page must be among the landing pages");
 		for (const input of Array.from(doc.querySelectorAll("[data-test-lp-input]"))) {
 			const id = input.getAttribute("id");
 			assert(id, "a paste field must carry an id its label can point at");

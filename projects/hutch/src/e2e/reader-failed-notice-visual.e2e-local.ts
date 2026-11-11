@@ -223,7 +223,7 @@ function noticeCheckpoint(input: {
 	};
 }
 
-const DESKTOP_WITH_PITCH = [actionsInset(DESKTOP_ACTIONS_INSET), cardHeight(426), pitchClosesCard];
+const DESKTOP_WITH_PITCH = [actionsInset(DESKTOP_ACTIONS_INSET), cardHeight(449), pitchClosesCard];
 
 const DESKTOP_OWNER_NOTICES = [
 	{ name: "reader-notice-failed-light", variant: "failed", theme: "light", checks: DESKTOP_WITH_PITCH },

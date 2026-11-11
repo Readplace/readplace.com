@@ -124,7 +124,7 @@ export function initFinalizeArticle(deps: {
 
 		const thumbnail =
 			input.resolvedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: input.documentUrl }));
-		const thumbnailUrl = firstUsableCandidate({ candidates, thumbnail }) ?? null;
+		const thumbnailUrl = firstUsableCandidate(thumbnail) ?? null;
 
 		const parseResult = parseHtml({
 			url: input.url,
@@ -242,7 +242,7 @@ async function finalizeImageArticle(args: {
 	const image = thumbnail.image;
 	const imageUrl = image
 		? await uploadThumbnail({ writeContext: args.writeContext, thumbnailImage: image, articleResourceUniqueId, putImageObject, imagesCdnBaseUrl })
-		: (firstUsableCandidate({ candidates, thumbnail }) ?? documentUrl);
+		: (firstUsableCandidate(thumbnail) ?? documentUrl);
 
 	return {
 		ok: true,
@@ -261,12 +261,8 @@ async function finalizeImageArticle(args: {
 	};
 }
 
-function firstUsableCandidate(args: {
-	candidates: readonly string[];
-	thumbnail: ThumbnailCascade;
-}): string | undefined {
-	const { candidates, thumbnail } = args;
-	return candidates.find((candidate) => !thumbnail.provenUnusable.includes(candidate));
+function firstUsableCandidate(thumbnail: ThumbnailCascade): string | undefined {
+	return thumbnail.fetched.find((candidate) => !thumbnail.provenUnusable.includes(candidate));
 }
 
 /** Filename of the URL's last path segment, extension dropped and separators

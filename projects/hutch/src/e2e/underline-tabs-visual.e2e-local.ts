@@ -404,17 +404,21 @@ test.describe("Underline tabs geometry at the WCAG reflow width", () => {
 test.describe("Underline tabs geometry on the install page", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("keeps both client groups on one row at desktop", async ({ page }) => {
+	test("keeps all three client groups inside the desktop content column", async ({ page }) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await gotoInstall(page);
 		await waitForBrandFonts(page, ["Inter"]);
 
 		const groups = await tabBoxes(page, INSTALL_GROUP);
-		assert.equal(groups.length, 2, "the install page must render two client groups");
-		assert.ok(
-			near({ actual: groups[1].y, expected: groups[0].y }),
-			`the two install groups must share a row, measured ${JSON.stringify(groups)}`,
-		);
+		assert.equal(groups.length, 3, "the install page must render all three client groups");
+		const container = await measuredBox(page, ".install-page__container");
+		for (const group of groups) {
+			assert.ok(
+				group.x >= container.x && group.x + group.width <= container.x + container.width + 1,
+				"the install groups must fit the content column when they wrap",
+			);
+		}
+		await neverScrollsSideways(page);
 	});
 });
 

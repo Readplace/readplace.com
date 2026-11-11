@@ -22,6 +22,7 @@ import { readlistHref } from "./readlist-href";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
 import { cardKindOf } from "../pages/readlist/readlist-card/card-kind-label";
 import { type CardPhase, cardProcessingOf } from "../pages/readlist/readlist-card/card-processing";
+import type { ContentState } from "../pages/readlist/readlist-card/content-state";
 import { staleNoticeHtml } from "../pages/readlist/readlist-card/stale-notice";
 
 export type ArticleEntityProperties = {
@@ -39,6 +40,7 @@ export type ArticleEntityProperties = {
 	readAt: string | null;
 	isRead: boolean;
 	needsBrowserCapture: boolean;
+	contentState: ContentState;
 	contentVersion: string;
 	mediaKind: NonNullable<SavedArticle["media"]>["kind"] | null;
 	durationSeconds: number | null;
@@ -111,7 +113,7 @@ export function toArticleSubEntity(
 	const readTime = displayableTime({ article, enclosure });
 	const hrefQuery = options.collectionQuery ? buildQueryString(options.collectionQuery) : "";
 	const ownReadlist = options.collectionQuery?.readlist === DEFAULT_READLIST_SLUG ? undefined : options.collectionQuery?.readlist;
-	const { label, phase } = cardProcessingOf({
+	const { label, phase, contentState } = cardProcessingOf({
 		article,
 		crawl: options.crawl,
 		summary: options.summary,
@@ -140,6 +142,7 @@ export function toArticleSubEntity(
 		// from the `status` vocabulary it would otherwise have to hard-code.
 		isRead,
 		needsBrowserCapture: needsBrowserCapture(options.crawl),
+		contentState,
 		contentVersion: computeArticleContentVersion({
 			article,
 			crawl: options.crawl,

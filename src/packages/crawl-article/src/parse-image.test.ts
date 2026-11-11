@@ -37,6 +37,7 @@ describe("parseImageFromBuffer", () => {
 					extension: ".jpg",
 				},
 				provenUnusable: [],
+				fetched: ["https://example.com/photo.jpg?cb=1"],
 			},
 			etag: '"img-1"',
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",

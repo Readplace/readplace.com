@@ -48,7 +48,7 @@ The API Gateway access log, `/aws/apigateway/hutch-access` (30 days), has one ro
 
 ### Accounts and regions
 
-Both environments are in `ap-southeast-2`. Default credentials target staging; production is `--profile hutch-production` (see CLAUDE.md, AWS Accounts). Copy log group names from this page or from the infra code: Logs Insights rejects the whole query with `ResourceNotFoundException` when one named group does not exist.
+Both environments are in `ap-southeast-2`. Staging is `--profile hutch-staging` and production is `--profile hutch-production` (see CLAUDE.md, AWS Accounts). Copy log group names from this page or from the infra code: Logs Insights rejects the whole query with `ResourceNotFoundException` when one named group does not exist.
 
 ```bash
 env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
