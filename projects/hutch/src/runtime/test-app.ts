@@ -490,6 +490,7 @@ export function createTestApp(
 		events: funnelLogEvents,
 	};
 	const app = express()
+		.disable("x-powered-by")
 		.use(createViewerIdentityMiddleware({ edgeSecret: TEST_EDGE_SECRET }))
 		.use(createAnalyticsMiddleware({
 			logger: analyticsBundle.logger,

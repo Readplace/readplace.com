@@ -732,6 +732,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent> = (event) => analytics.info(event);
 	const app: Express = express();
 	const authDiagnostics = initAuthDiagnosticRecorder({ salt: deps.salt, now: deps.now, logger: deps.authDiagnosticsLogger });
+	app.disable("x-powered-by");
 	app.use((req, _res, next) => refreshContext.run({ recoveryProof: req.get("X-Readplace-Refresh-Recovery") }, next));
 
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
