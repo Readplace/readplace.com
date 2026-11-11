@@ -196,7 +196,7 @@ describe("initRenderCrawlDlqHandler with stored candidates", () => {
 	it("drains a dead letter published before the trigger field existed, comparing its stored candidates as a save", async () => {
 		const { handler, published } = createHandler();
 
-		const event = createSqsEvent({ url: "https://example-spa.test/post", candidates: [wrapper] }, 1);
+		const event = createSqsEvent({ url: "https://example-spa.test/post" }, 1);
 		event.Records[0].body = JSON.stringify({ detail: { url: "https://example-spa.test/post", recrawl: true, candidates: [wrapper], saveAttemptId: "attempt-1", unsupportedReason: "javascript-required" } });
 
 		const result = await handler(event, buildLambdaContext(), () => {});
