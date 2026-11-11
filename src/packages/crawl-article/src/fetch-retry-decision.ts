@@ -42,15 +42,24 @@ function classifyLeg(error: unknown): FailureClass {
 	return classifyChain(error);
 }
 
+function classifyLink(link: object): FailureClass | undefined {
+	if (isDeadlineReason(link)) return "durable";
+	if (isEarlyTransient(link)) return "local";
+	if (link instanceof CurlFetchFailure) return "terminal";
+	return undefined;
+}
+
 function classifyChain(error: unknown): FailureClass {
+	let outermost: FailureClass | undefined;
 	let link: unknown = error;
 	while (typeof link === "object" && link !== null) {
 		if (link instanceof TransportLadderFailure) return classifyLadder(link);
-		if (isDeadlineReason(link)) return "durable";
-		if (isEarlyTransient(link)) return "local";
+		const linkClass = classifyLink(link);
+		if (linkClass === "terminal") return "terminal";
+		outermost ??= linkClass;
 		link = "cause" in link ? link.cause : undefined;
 	}
-	return "terminal";
+	return outermost ?? "terminal";
 }
 
 export function decideFetchFailure(params: { error: unknown; parentSignal: AbortSignal }): FetchRetryDecision {

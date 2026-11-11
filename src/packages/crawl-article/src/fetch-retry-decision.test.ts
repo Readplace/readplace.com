@@ -119,11 +119,20 @@ describe("decideFetchFailure", () => {
 
 	it.each([
 		["a deadline wrapping a certificate mismatch", () => Object.assign(deadlineReason("no response headers within 30000ms"), { cause: codedError({ code: "ERR_TLS_CERT_ALTNAME_INVALID" }) }), "durable"],
-		["a reset wrapping a curl TLS connect error", () => Object.assign(codedError({ code: "ECONNRESET" }), { cause: curlFailure(35) }), "local"],
+		["a fetch failed wrapping a deadline that wraps a reset", () => wrappedInFetchFailed(Object.assign(deadlineReason("no response headers within 30000ms"), { cause: codedError({ code: "ECONNRESET" }) })), "durable"],
 	] as const)("classifies %s by the outermost link it recognises", (_label, buildError, scope) => {
 		const error = buildError();
 
 		assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "retryable", scope, cause: error });
+	});
+
+	it.each([
+		["a reset wrapping a curl TLS connect error", () => Object.assign(codedError({ code: "ECONNRESET" }), { cause: curlFailure(35) })],
+		["a deadline wrapping a curl failure with no exit code", () => Object.assign(deadlineReason("leg produced no response within 25000ms"), { cause: curlFailure("ENOENT") })],
+	] as const)("keeps %s terminal, since a terminal curl exit anywhere in the chain decides it", (_label, buildError) => {
+		const error = buildError();
+
+		assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "terminal", cause: error });
 	});
 
 	describe("a transport ladder failure, read across every leg it recorded", () => {
