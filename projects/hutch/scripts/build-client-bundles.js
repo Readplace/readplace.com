@@ -488,6 +488,7 @@ const BUNDLES = [
       "  addSettleListener: function (cb) { window.document.body.addEventListener('htmx:afterSettle', cb); },",
       "  addPageHideListener: function (cb) { window.addEventListener('pagehide', cb); },",
       "  now: function () { return Date.now(); },",
+      "  delay: function (ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); },",
       "  stampCopy: OfflineDownload.stampOfflineCopy,",
       "  markOwner: OfflineDownload.offlineOwnerMarker,",
       "  runRecord: {",

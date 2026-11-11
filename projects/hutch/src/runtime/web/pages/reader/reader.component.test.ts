@@ -700,6 +700,37 @@ describe("ReaderPage", () => {
 		assert.equal(doc.querySelector("[data-test-back-bottom-link]"), null);
 	});
 
+	it("stamps the reader's <main> with the article's content state, from the same classifier as the card", () => {
+		const states = (
+			[
+				{ status: "ready" },
+				{ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
+				{ status: "failed", outcomeRevision: 1, reason: "crawl-failed" },
+			] as const
+		).map((crawl) => {
+			const html = Base(
+				ReaderPage(makeArticle(), {
+					readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS,
+					content: undefined,
+					appOrigin: DEFAULT_APP_ORIGIN,
+					crawl,
+					backLink: TEST_BACK_LINK,
+					renderActions: WebReader,
+					readlistFiling: NO_QUEUE_FILING,
+					provenance: undefined,
+					now: NOW,
+					currentPath: TEST_CURRENT_PATH,
+					readerPathFor: TEST_READER_PATH,
+					deletion: TEST_DELETION,
+				}),
+				{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+			).to("text/html").body;
+			return new JSDOM(html).window.document.querySelector("main.reader")?.getAttribute("data-content-state");
+		});
+
+		expect(states).toEqual(["available", "processing", "unavailable"]);
+	});
+
 	it("renders the TL;DR collapsed by default (internal reader) — an expand is then a deliberate, measurable act", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {

@@ -30,6 +30,7 @@ function realCard(overrides?: Partial<ReadlistArticleViewModel>): string {
 		actions: [],
 		deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
 		moveLocks: [],
+		contentState: "available",
 		readerHref: READER_HREF,
 		isStalePending: false,
 		kind: undefined,

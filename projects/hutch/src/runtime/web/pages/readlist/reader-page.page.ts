@@ -62,6 +62,7 @@ import { requestCanCapture } from "../../onboarding/capture-capable-request";
 import { OFFLINE_READER_SCRIPT } from "../../shared/offline-reader/offline-reader-script";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
 import { offlineCopyRowScript } from "../../shared/article-body/article-history/offline-copy-row-script";
+import { offlineContentBannerScript } from "../../shared/offline-reader/offline-content-banner-script";
 import {
 	extensionInstallUrlIfMissing,
 	canOfferExtensionInstall,
@@ -186,7 +187,7 @@ function withStatusCode(component: Component, statusCode: number): Component {
 
 function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 	assert(page.scripts, "the reader page always sets its scripts");
-	return { ...page, scripts: page.scripts + OFFLINE_READER_SCRIPT + offlineCopyRowScript(cspNonce) };
+	return { ...page, scripts: page.scripts + OFFLINE_READER_SCRIPT + offlineCopyRowScript(cspNonce) + offlineContentBannerScript(cspNonce) };
 }
 
 

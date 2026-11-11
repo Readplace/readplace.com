@@ -8,6 +8,7 @@ import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
+import { contentStateOf } from "../readlist/readlist-card/content-state";
 import type {
 	PastReads,
 	RelatedArticles,
@@ -417,6 +418,7 @@ export function ReaderPage(
 					illustrationHtml: renderIllustration("trash-can"),
 				});
 	const content = render(READER_TEMPLATE, {
+		contentState: contentStateOf({ url: article.url, crawl: options.crawl, summary: options.summary }),
 		playerHtml: renderPlayer({ articleId, enclosure: options.enclosure }),
 		innerContent,
 		railLandmark,

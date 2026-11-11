@@ -27,6 +27,7 @@ function makeViewModel(overrides?: Partial<ReadlistArticleViewModel>): ReadlistA
 		actions: [],
 		deletion: CONFIRMED_DELETION,
 		moveLocks: [],
+		contentState: "available",
 		readerHref: "/queue/abc123/view",
 		isStalePending: false,
 		kind: undefined,
@@ -322,6 +323,12 @@ describe("renderReadlistCard", () => {
 		const card = doc.querySelector(".readlist-article");
 		assert(card, "card root must be present");
 		expect(card.getAttribute("hx-get")).toBe("/queue/abc123/card?poll=2");
+	});
+
+	it("carries the content state the view model classified on its root", () => {
+		const doc = parse(renderReadlistCard(display(makeViewModel({ contentState: "unavailable" }), { isFirst: false })));
+
+		expect(doc.querySelector(".readlist-article")?.getAttribute("data-content-state")).toBe("unavailable");
 	});
 
 	it("carries no poll URL once the card has reached a terminal state", () => {

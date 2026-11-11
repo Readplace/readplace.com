@@ -3,6 +3,17 @@
   flex: 1 1 auto;
 }
 
+.reader__offline-banner {
+  max-width: 720px;
+  margin: 16px auto 0;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--background);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--foreground);
+}
+
 /**
  * The chromeless iOS
  * reader (body class page-reader--chromeless) has no header, so it pins to the very

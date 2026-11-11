@@ -55,6 +55,11 @@ const FIXTURE_IMAGE_PATH = "/e2e/fixtures/image/";
 const EARLIER_LISTING_PATH = "/queue?order=asc";
 const SLOWER_THAN_THE_OLD_FALLBACK_MS = 4_000;
 const PAGE_OUTSIDE_THE_READLIST = "/account";
+const LIST_CONTENT_BANNERS = '[data-test-offline-content-banner^="list-"]';
+const READER_CONTENT_BANNERS = '[data-test-offline-content-banner^="reader-"]';
+const LIST_UNAVAILABLE_BANNER = '[data-test-offline-content-banner="list-unavailable"]';
+const READER_UNAVAILABLE_BANNER = '[data-test-offline-content-banner="reader-unavailable"]';
+const CLIENT_SCRIPTS = "**/client-dist/**";
 
 test.use({ serviceWorkers: "allow", timezoneId: READER_TIME_ZONE });
 
@@ -263,6 +268,28 @@ async function downloadUnread(page: Page, total: number): Promise<void> {
 	await expect(page.locator(DOWNLOAD_PROGRESS)).toHaveJSProperty("max", total);
 }
 
+async function signedInWithOneArticle(page: Page, run: string): Promise<{ articleUrl: string }> {
+	const email = `offline-${run}@example.com`;
+	const articleUrl = `https://example.com/offline-${run}`;
+	const userId = await createOwner(page, email);
+	await seedSettledArticle(page, {
+		url: articleUrl,
+		userId,
+		imageUrl: `${IMAGE_ORIGIN}${FIXTURE_IMAGE_PATH}${run}.png`,
+		title: "Offline Content State Post",
+		bodyText: BODY_TEXT,
+	});
+	return { articleUrl };
+}
+
+async function setCrawlStatus(
+	page: Page,
+	input: { url: string; status: "pending" } | { url: string; status: "ready" } | { url: string; status: "failed"; reason: string },
+): Promise<void> {
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawl-status`, { data: input });
+	assert.equal(seeded.status(), 201, `the seed endpoint must mark the crawl ${input.status}`);
+}
+
 async function openFirstCard(page: Page, article: DownloadableArticle): Promise<void> {
 	await page.locator(CARD_TITLE).first().click();
 	await expect(page.locator(READER_BODY)).toContainText(article.bodyText);
@@ -365,6 +392,83 @@ test.describe("Offline reading", () => {
 		await network.restore();
 		await page.goto(listingUrl, { waitUntil: "domcontentloaded" });
 		await expect(page.locator("[data-test-listing-count-number]")).toHaveText(String(total));
+	});
+
+	test("names the articles downloaded without their content on the list and in the reader offline, with the bundled scripts unreachable", async ({
+		page,
+		context,
+	}, testInfo) => {
+		const run = `unavailable-${testInfo.workerIndex}-${Date.now()}`;
+		const { articleUrl } = await signedInWithOneArticle(page, run);
+		await setCrawlStatus(page, { url: articleUrl, status: "pending" });
+		await setCrawlStatus(page, {
+			url: articleUrl,
+			status: "failed",
+			reason: JSON.stringify({ kind: "blocked", cause: "robots" }),
+		});
+		await loginAs(page, `offline-${run}@example.com`);
+		await expect(page.locator('main .readlist-article[data-content-state="unavailable"]')).toHaveCount(1);
+		await page.waitForFunction(workerControlsPage);
+		const listingUrl = page.url();
+		const href = await page.locator(CARD_TITLE).first().getAttribute("href");
+		assert(href, "the card must link into the reader");
+		await downloadUnread(page, 1);
+
+		await context.route(CLIENT_SCRIPTS, (route) => route.abort("internetdisconnected"));
+		await cutNetwork(context);
+		await page.goto(listingUrl, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(`${LIST_CONTENT_BANNERS}:not([hidden])`)).toHaveCount(1);
+		await expect(page.locator(LIST_UNAVAILABLE_BANNER)).toBeVisible();
+		await expect(page.locator(LIST_UNAVAILABLE_BANNER)).toHaveText(
+			"Readplace couldn't get the content of some of these articles, so they can't be read offline.",
+		);
+
+		await page.goto(new URL(href, BASE_URL).href, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(`${READER_CONTENT_BANNERS}:not([hidden])`)).toHaveCount(1);
+		await expect(page.locator(READER_UNAVAILABLE_BANNER)).toBeVisible();
+		await expect(page.locator(READER_UNAVAILABLE_BANNER)).toHaveText(
+			"Readplace couldn't get this article's content, so it can't be read offline.",
+		);
+	});
+
+	test("keeps both content banners hidden offline when every downloaded article has its content", async ({
+		page,
+		context,
+	}, testInfo) => {
+		await signedInWithUnreadArticles(page, { run: `all-available-${testInfo.workerIndex}-${Date.now()}`, count: 1 });
+		await page.waitForFunction(workerControlsPage);
+		const listingUrl = page.url();
+		const href = await page.locator(CARD_TITLE).first().getAttribute("href");
+		assert(href, "the card must link into the reader");
+		await downloadUnread(page, 1);
+		await expect(page.locator(DOWNLOAD_STATUS)).toHaveText("1 available offline");
+
+		await context.route(CLIENT_SCRIPTS, (route) => route.abort("internetdisconnected"));
+		await cutNetwork(context);
+		await page.goto(listingUrl, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(CARD_TITLE)).toHaveCount(1);
+		await expect(page.locator(LIST_CONTENT_BANNERS)).toHaveCount(2);
+		await expect(page.locator(`${LIST_CONTENT_BANNERS}:not([hidden])`)).toHaveCount(0);
+
+		await page.goto(new URL(href, BASE_URL).href, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(READER_BODY)).toContainText("Offline download body 0.");
+		await expect(page.locator(READER_CONTENT_BANNERS)).toHaveCount(1);
+		await expect(page.locator(`${READER_CONTENT_BANNERS}:not([hidden])`)).toHaveCount(0);
+	});
+
+	test("waits for an article still being crawled on the first page to settle, then downloads it", async ({ page }, testInfo) => {
+		const run = `settle-${testInfo.workerIndex}-${Date.now()}`;
+		const { articleUrl } = await signedInWithOneArticle(page, run);
+		await setCrawlStatus(page, { url: articleUrl, status: "pending" });
+		await loginAs(page, `offline-${run}@example.com`);
+		await page.waitForFunction(workerControlsPage);
+		await expect(page.locator("main .readlist-article[hx-get]")).toHaveCount(1);
+
+		await page.locator(DOWNLOAD_START).click();
+		await expect(page.locator(DOWNLOAD_STATUS)).toHaveText("Downloading 0 of 1");
+		await setCrawlStatus(page, { url: articleUrl, status: "ready" });
+
+		await expect(page.locator(DOWNLOAD_STATUS)).toHaveText("1 available offline", { timeout: DOWNLOAD_TIMEOUT_MS });
 	});
 
 	test("offers to continue a download a reload cut short, and continues from the articles it already holds", async ({

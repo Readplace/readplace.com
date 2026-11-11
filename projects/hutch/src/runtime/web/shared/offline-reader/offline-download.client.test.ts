@@ -32,6 +32,11 @@ const TRACKED_LISTING = "/queue?utm_source=queue-listing&utm_medium=internal&utm
 const CARD_TRACKING = "utm_source=queue-card&utm_medium=internal&utm_content=open-article-title&utm_term=desktop";
 const ARTICLE_REQUEST = { credentials: "same-origin", headers: { Purpose: "prefetch", Accept: "text/html" } };
 const LISTING_REQUEST = { credentials: "same-origin", headers: { Accept: "text/html" } };
+const PREFETCH_LISTING_REQUEST = {
+	credentials: "same-origin",
+	cache: "no-store",
+	headers: { Purpose: "prefetch", Accept: "text/html" },
+};
 const IMAGE_REQUEST = { mode: "cors", credentials: "omit" };
 const ARTICLE_URL = destinationUrl("https://example.com/article");
 const NOW = Date.parse("2026-10-05T12:00:00.000Z");
@@ -48,6 +53,7 @@ const SESSION_EXPIRES = String((NOW + DAY_MS) / 1000);
 interface ResponseSpec {
 	status?: number;
 	redirected?: boolean;
+	url?: string;
 	body?: string;
 }
 
@@ -58,7 +64,8 @@ interface StoredEntry {
 	owner?: string;
 }
 
-type Route = ResponseSpec | "network-down" | Promise<ResponseSpec>;
+type Answer = ResponseSpec | "network-down" | Promise<ResponseSpec>;
+type Route = Answer | { answers: Answer[] };
 
 interface Sent {
 	url: string;
@@ -81,14 +88,21 @@ function tabTotal(total: number): string {
 }
 
 function cardMarkup(href: string): string {
-	return `<article class="readlist-article"><a class="readlist-article__title" href="${href}&${CARD_TRACKING}">Title</a><div class="readlist-article__foot"><div class="readlist-article__meta"><span class="readlist-article__saved">Today</span></div></div></article>`;
+	return `<article class="readlist-article" data-content-state="available"><a class="readlist-article__title" href="${href}&${CARD_TRACKING}">Title</a><div class="readlist-article__foot"><div class="readlist-article__meta"><span class="readlist-article__saved">Today</span></div></div></article>`;
 }
 
-function listingPage(input: { cards: string[]; next?: string; prev?: string }): string {
+interface CardSpec {
+	href: string;
+	state?: "available" | "processing" | "unavailable";
+	pollEverySeconds?: number;
+}
+
+function listingPage(input: { cards: Array<string | CardSpec>; next?: string; prev?: string }): string {
 	const cards = input.cards
+		.map((card) => (typeof card === "string" ? { href: card } : card))
 		.map(
-			(href) =>
-				`<article class="readlist-article"><a class="readlist-article__title" href="${href}&${CARD_TRACKING}">Title</a><a class="readlist-article__excerpt" href="${href}&utm_source=queue-card&utm_content=open-article-excerpt">Excerpt</a></article>`,
+			({ href, state, pollEverySeconds }) =>
+				`<article class="readlist-article"${pollEverySeconds === undefined ? "" : ` hx-get="${href}&poll=1" hx-trigger="every ${pollEverySeconds}s [!this.querySelector('details[open]')]"`} data-content-state="${state ?? (pollEverySeconds === undefined ? "available" : "processing")}"><a class="readlist-article__title" href="${href}&${CARD_TRACKING}">Title</a><a class="readlist-article__excerpt" href="${href}&utm_source=queue-card&utm_content=open-article-excerpt">Excerpt</a></article>`,
 		)
 		.join("");
 	const prev = input.prev ? `<a class="pagination__link" href="${input.prev}" rel="prev">Previous</a>` : "";
@@ -98,8 +112,8 @@ function listingPage(input: { cards: string[]; next?: string; prev?: string }): 
 	return `<!DOCTYPE html><html><body><nav class="pagination"><a href="/queue?page=9" rel="next">Header next</a></nav><main><div class="readlist-list">${cards}</div><nav class="pagination">${prev}${next}</nav></main></body></html>`;
 }
 
-function readerPage(bodyHtml: string, outside = ""): string {
-	return `<!DOCTYPE html><html><body><main class="reader"><div class="reader__article-body" data-article-body>${bodyHtml}</div>${outside}</main></body></html>`;
+function readerPage(bodyHtml: string, outside = "", contentState = "available"): string {
+	return `<!DOCTYPE html><html><body><main class="reader" data-content-state="${contentState}"><div class="reader__article-body" data-article-body>${bodyHtml}</div>${outside}</main></body></html>`;
 }
 
 function finishedArticle(html: string): string {
@@ -150,6 +164,9 @@ function startDownload(options: {
 	const settleListeners: Array<() => void> = [];
 	const pageHideListeners: Array<() => void> = [];
 	const record = { value: options.runRecord ?? null, writes: 0 };
+	const clock = { now: NOW };
+	const delays: number[] = [];
+	const sentAtDelay: number[] = [];
 
 	function fakeResponse(input: {
 		entry: StoredEntry;
@@ -161,6 +178,7 @@ function startDownload(options: {
 			status,
 			ok: status >= 200 && status < 300,
 			redirected: input.spec.redirected ?? false,
+			url: input.spec.url ?? input.entry.source,
 			headers: { get: (name) => input.headers.get(name.toLowerCase()) ?? null },
 			async text() {
 				assert(!consumed.has(response), `the body of ${input.entry.source} must be read once`);
@@ -220,6 +238,12 @@ function startDownload(options: {
 		return copy;
 	}
 
+	function nextAnswer(answers: Answer[]): Answer {
+		const answer = answers.length > 1 ? answers.shift() : answers[0];
+		assert(answer !== undefined, "a route with answers always has one left");
+		return answer;
+	}
+
 	function deps(): OfflineDownloadDeps {
 		return {
 			document,
@@ -227,8 +251,9 @@ function startDownload(options: {
 				sent.push({ url, init });
 				const route = options.routes[url];
 				assert(route !== undefined, `the download must not fetch ${url}`);
-				if (route === "network-down") throw new TypeError("Failed to fetch");
-				return fetched({ url, spec: await route });
+				const answer = typeof route === "object" && "answers" in route ? nextAnswer(route.answers) : route;
+				if (answer === "network-down") throw new TypeError("Failed to fetch");
+				return fetched({ url, spec: await answer });
 			},
 			caches: options.withoutCacheApi
 				? undefined
@@ -266,7 +291,12 @@ function startDownload(options: {
 			addPageHideListener: (listener) => {
 				pageHideListeners.push(listener);
 			},
-			now: () => NOW,
+			now: () => clock.now,
+			delay: async (ms) => {
+				delays.push(ms);
+				sentAtDelay.push(sent.length);
+				clock.now += ms;
+			},
 			stampCopy: datedCopy,
 			markOwner: markedOwner,
 			runRecord: {
@@ -330,6 +360,9 @@ function startDownload(options: {
 		revealed: () => document.documentElement.hasAttribute("data-offline-download-ready"),
 		deleted,
 		record,
+		delays,
+		sentAtDelay,
+		storedBody: (key: string) => store.get(key)?.body,
 		offlineTags: () =>
 			Array.from(document.querySelectorAll("[data-offline-tag]"), (tag) =>
 				tag.closest(".readlist-article")?.querySelector(".readlist-article__title")?.getAttribute("href"),
@@ -384,17 +417,309 @@ describe("initOfflineDownload", () => {
 		await flush();
 
 		expect(new Set(page.opened)).toEqual(new Set([CACHE_NAME]));
-		expect(page.sentTo(LISTING_REQUEST)).toEqual([
-			`${ORIGIN}${TRACKED_LISTING}`,
-			`${ORIGIN}/queue?page=2`,
-			`${ORIGIN}/queue?page=3`,
-		]);
+		expect(page.sentTo(LISTING_REQUEST)).toEqual([`${ORIGIN}${TRACKED_LISTING}`, `${ORIGIN}/queue?page=2`]);
+		expect(page.sentTo(PREFETCH_LISTING_REQUEST)).toEqual([`${ORIGIN}/queue?page=3`]);
 		expect(page.stored()).toEqual({
 			[`${ORIGIN}/queue`]: `${ORIGIN}${TRACKED_LISTING}`,
 			[`${ORIGIN}/queue?page=2`]: `${ORIGIN}/queue?page=2`,
 			[`${ORIGIN}/queue?page=3`]: `${ORIGIN}/queue?page=3`,
 		});
 		expect(page.status()).toBe("0 available offline");
+	});
+
+	describe("waiting for the first two pages' articles to settle", () => {
+		const PAGE_1 = `${ORIGIN}${TRACKED_LISTING}`;
+		const PAGE_2 = `${ORIGIN}/queue?page=2`;
+		const PAGE_3 = `${ORIGIN}/queue?page=3`;
+		const TO_PAGE_2 = "/queue?page=2&utm_source=queue-pagination";
+		const TO_PAGE_3 = "/queue?page=3&utm_source=queue-pagination";
+		const HELD = "/queue/a1/view?v=one";
+		const HELD_URL = `${ORIGIN}${HELD}`;
+		const STILL_READING = `<div id="article-body-reader-slot" hx-get="/queue/a1/reader?poll=2" hx-trigger="every 3s"></div>`;
+
+		it("loads pages 1 and 2 before pausing, re-fetches page 1 as a prefetch after the card's own interval, and stores the article once its card settles", async () => {
+			const settled = listingPage({ cards: [HELD], next: TO_PAGE_2 });
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: {
+						answers: [{ body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 7 }], next: TO_PAGE_2 }) }, { body: settled }],
+					},
+					[PAGE_2]: { body: listingPage({ cards: ["/queue/b2/view?v=two"] }) },
+					[HELD_URL]: { body: readerPage("<p>One</p>") },
+					[`${ORIGIN}/queue/b2/view?v=two`]: { body: readerPage("<p>Two</p>") },
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(LISTING_REQUEST)).toEqual([PAGE_1, PAGE_2]);
+			expect(page.delays).toEqual([7000]);
+			expect(page.sentAtDelay[0]).toBeGreaterThanOrEqual(2);
+			expect(page.sent.slice(0, 2).map((call) => call.url)).toEqual([PAGE_1, PAGE_2]);
+			expect(page.sentTo(PREFETCH_LISTING_REQUEST)).toEqual([PAGE_1]);
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([`${ORIGIN}/queue/b2/view?v=two`, HELD_URL]);
+			expect(page.storedBody(`${ORIGIN}/queue`)).toBe(settled);
+			expect(page.status()).toBe("2 available offline");
+		});
+
+		it("keeps waiting on a card whose body is ready while its summary still generates, and stores it once a re-fetch shows it settled", async () => {
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: {
+						answers: [
+							{ body: listingPage({ cards: [{ href: HELD, state: "available", pollEverySeconds: 3 }] }) },
+							{ body: listingPage({ cards: [{ href: HELD, state: "available", pollEverySeconds: 3 }] }) },
+							{ body: listingPage({ cards: [HELD] }) },
+						],
+					},
+					[HELD_URL]: { body: readerPage("<p>One</p>") },
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.delays).toEqual([3000, 3000]);
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
+			expect(page.status()).toBe("1 available offline");
+		});
+
+		it("hands over a card still processing when 15 minutes have passed, counting it not ready while its reader page still polls", async () => {
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: { body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 300 }] }) },
+					[HELD_URL]: { body: readerPage(STILL_READING) },
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.delays).toEqual([300_000, 300_000, 300_000]);
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
+			expect(page.status()).toBe("0 available offline, 1 not ready");
+		});
+
+		it("queues a processing card on page 3 at once, without waiting for it", async () => {
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: { body: listingPage({ cards: [], next: TO_PAGE_2 }) },
+					[PAGE_2]: { body: listingPage({ cards: [], next: TO_PAGE_3 }) },
+					[PAGE_3]: { body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }] }) },
+					[HELD_URL]: { body: readerPage("<p>One</p>") },
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.delays).toEqual([]);
+			expect(page.sentTo(PREFETCH_LISTING_REQUEST)).toEqual([PAGE_3]);
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
+		});
+
+		it("walks and queues the later pages as prefetches while a card on page 1 is still settling", async () => {
+			const LATER = `${ORIGIN}/queue/c3/view?v=three`;
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: { body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 300 }], next: TO_PAGE_2 }) },
+					[PAGE_2]: { body: listingPage({ cards: [], next: TO_PAGE_3 }) },
+					[PAGE_3]: { body: listingPage({ cards: ["/queue/c3/view?v=three"] }) },
+					[HELD_URL]: { body: readerPage(STILL_READING) },
+					[LATER]: { body: readerPage("<p>Three</p>") },
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(PREFETCH_LISTING_REQUEST)[0]).toBe(PAGE_3);
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([LATER, HELD_URL]);
+			expect(page.status()).toBe("1 available offline, 1 not ready");
+		});
+
+		it("stops waiting on a card that no re-fetched page lists any more, handing it over", async () => {
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: {
+						answers: [{ body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }] }) }, { body: listingPage({ cards: [] }) }],
+					},
+					[HELD_URL]: { body: readerPage("<p>One</p>") },
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.delays).toEqual([3000]);
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
+		});
+
+		it("fetches afresh a card no re-fetched page lists any more, instead of trusting the state it was held in", async () => {
+			const fresh = readerPage("<p>One</p>");
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: {
+						answers: [{ body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }] }) }, { body: listingPage({ cards: [] }) }],
+					},
+					[HELD_URL]: { body: fresh },
+				},
+				cached: {
+					[`${ORIGIN}/queue/a1/view`]: {
+						source: HELD_URL,
+						savedAt: SAVED_YESTERDAY,
+						body: readerPage("<p>Placeholder</p>", "", "processing"),
+					},
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
+			expect(page.storedBody(`${ORIGIN}/queue/a1/view`)).toBe(fresh);
+		});
+
+		it("re-fetches again after a re-fetch the network drops", async () => {
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: {
+						answers: [
+							{ body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }] }) },
+							"network-down",
+							{ body: listingPage({ cards: [HELD] }) },
+						],
+					},
+					[HELD_URL]: { body: readerPage("<p>One</p>") },
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.delays).toEqual([3000, 3000]);
+			expect(page.sentTo(PREFETCH_LISTING_REQUEST)).toEqual([PAGE_1, PAGE_1]);
+			expect(page.status()).toBe("1 available offline");
+		});
+
+		it("ends the run as signed out when a re-fetch is sent to log in", async () => {
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: {
+						answers: [
+							{ body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }] }) },
+							{ redirected: true, url: `${ORIGIN}/login`, body: '<main class="login"></main>' },
+						],
+					},
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([]);
+			expect(page.status()).toBe("You were signed out. Sign in and press again to continue.");
+		});
+
+		it("stops re-fetching page 2 once it redirects to page 1, hands over its held cards and carries on to the later pages", async () => {
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: { body: listingPage({ cards: [], next: TO_PAGE_2 }) },
+					[PAGE_2]: {
+						answers: [
+							{ body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }], next: TO_PAGE_3 }) },
+							{ redirected: true, url: `${ORIGIN}/queue`, body: listingPage({ cards: [] }) },
+						],
+					},
+					[PAGE_3]: { body: listingPage({ cards: [] }) },
+					[HELD_URL]: { body: readerPage("<p>One</p>") },
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sent.filter((call) => call.url === PAGE_2)).toHaveLength(2);
+			expect(page.sentTo(PREFETCH_LISTING_REQUEST)).toEqual([PAGE_3, PAGE_2]);
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
+			expect(page.status()).toBe("1 available offline");
+		});
+
+		it("stores the placeholder of a card that settles as unavailable, so the offline banner can name it", async () => {
+			const placeholder = readerPage("<p>Readplace couldn't reach this site.</p>", "", "unavailable");
+			const page = startDownload({
+				routes: {
+					[PAGE_1]: {
+						answers: [
+							{ body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }] }) },
+							{ body: listingPage({ cards: [{ href: HELD, state: "unavailable" }] }) },
+						],
+					},
+					[HELD_URL]: { body: placeholder },
+				},
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([HELD_URL]);
+			expect(page.storedBody(`${ORIGIN}/queue/a1/view`)).toBe(placeholder);
+		});
+	});
+
+	describe("reusing a stored reader copy", () => {
+		const LISTING = `${ORIGIN}${TRACKED_LISTING}`;
+		const ARTICLE = `${ORIGIN}/queue/a1/view?v=one`;
+		const KEY = `${ORIGIN}/queue/a1/view`;
+
+		function stored(body: string) {
+			return { [KEY]: { source: ARTICLE, savedAt: SAVED_YESTERDAY, body } };
+		}
+
+		it("fetches again an available card whose stored copy is an unavailable placeholder, and keeps the new body", async () => {
+			const fresh = readerPage("<p>The article</p>");
+			const page = startDownload({
+				routes: { [LISTING]: { body: listingPage({ cards: ["/queue/a1/view?v=one"] }) }, [ARTICLE]: { body: fresh } },
+				cached: stored(readerPage("<p>Couldn't reach it</p>", "", "unavailable")),
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([ARTICLE]);
+			expect(page.storedBody(KEY)).toBe(fresh);
+		});
+
+		it("fetches again a copy stored before it carried a content state, and the copy it keeps then carries one", async () => {
+			const page = startDownload({
+				routes: {
+					[LISTING]: { body: listingPage({ cards: ["/queue/a1/view?v=one"] }) },
+					[ARTICLE]: { body: readerPage("<p>The article</p>") },
+				},
+				cached: stored(`<!DOCTYPE html><html><body><main class="reader"><p>Old</p></main></body></html>`),
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(ARTICLE_REQUEST)).toEqual([ARTICLE]);
+			expect(page.storedBody(KEY)).toContain('data-content-state="available"');
+		});
+
+		it("keeps an unavailable card's unavailable copy without fetching the article again", async () => {
+			const placeholder = readerPage("<p>Couldn't reach it</p>", "", "unavailable");
+			const page = startDownload({
+				routes: { [LISTING]: { body: listingPage({ cards: [{ href: "/queue/a1/view?v=one", state: "unavailable" }] }) } },
+				cached: stored(placeholder),
+			});
+
+			page.press();
+			await flush();
+
+			expect(page.sent.map((call) => call.url)).toEqual([LISTING]);
+			expect(page.storedBody(KEY)).toBe(placeholder);
+		});
 	});
 
 	it("downloads every unread article once, untracked, as a prefetch of its HTML page", async () => {

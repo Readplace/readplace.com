@@ -113,6 +113,8 @@ const ARTICLE_PROPERTY_DOCS = {
 		"the date the source published the article, as <code>YYYY-MM-DD</code>, or <code>null</code> when Readplace doesn't know it.",
 	needsBrowserCapture:
 		"<code>true</code> when the site blocked Readplace's fetch, so a capture from the reader's browser through <code>save-content</code> would get the article.",
+	contentState:
+		"<code>available</code>, <code>processing</code> or <code>unavailable</code>: whether the article has readable content, is still being prepared, or ended without any.",
 	contentVersion:
 		"changes when the article's content, metadata, crawl outcome or summary changes. Fetch the document again when it does.",
 	mediaKind:

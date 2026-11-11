@@ -1,5 +1,6 @@
-    <main class="reader" hx-history="false">
+    <main class="reader" hx-history="false" data-content-state="{{contentState}}">
       {{{playerHtml}}}
+      <p class="reader__offline-banner" role="status" hidden data-offline-content-banner="reader" data-offline-content-state="unavailable" data-test-offline-content-banner="reader-unavailable">{{t "readerOffline.banner.unavailable"}}</p>
       <div class="reading-layout">
         <div class="reading-layout__main">
           <div class="reader__article-body" data-article-body>

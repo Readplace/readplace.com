@@ -574,6 +574,16 @@
   }
 }
 
+.readlist-listing__offline-banner {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--foreground);
+}
+
 .readlist-listing__offline-status {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
