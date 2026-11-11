@@ -145,7 +145,7 @@ actor NativeRefreshRecovery {
 		if response.statusCode != 200 {
 			struct Refusal: Decodable { let error: String; let readplace_reason: String? }
 			let error = try? JSONDecoder().decode(Refusal.self, from: data)
-			if error?.error == "invalid_grant", let reason = error?.readplace_reason.flatMap(AuthReason.init(rawValue:)), [AuthReason.expired, .revoked, .superseded].contains(reason) {
+			if error?.error == "invalid_grant", let reason = error?.readplace_reason.flatMap(AuthReason.init(rawValue:)), [AuthReason.expired, .revoked, .superseded, .unknown].contains(reason) {
 				let current = try records.read()
 				if current.tokens != operation.parent, let tokens = current.tokens { return (tokens, .distantFuture) }
 				try records.update { record in

@@ -112,17 +112,41 @@ final class NativeRefreshRecoveryTests: XCTestCase {
 		XCTAssertEqual(store.tokens?.accessToken.raw, "new-access")
 	}
 
-	func testUnknownRefusalPreservesCredentialsButExplicitRevocationClearsThem() async throws {
-		for reason in ["unknown", "revoked"] {
+	func testInvalidGrantRefusalsNoRetryCanRecoverClearCredentials() async throws {
+		for reason in ["unknown", "expired", "revoked", "superseded"] {
 			let store = TestSupport.loggedInStore()
 			let old = try XCTUnwrap(store.tokens)
 			StubURLProtocol.setHandler { request, _ in
 				if request.url?.path == "/.well-known/oauth-authorization-server" { return self.enabled() }
 				return .json(400, "{\"error\":\"invalid_grant\",\"readplace_reason\":\"\(reason)\"}")
 			}
-			do { _ = try await recovery(store).refresh(after: old); XCTFail("refusal must throw") } catch {}
-			XCTAssertEqual(store.tokens, reason == "revoked" ? nil : old)
+			do {
+				_ = try await recovery(store).refresh(after: old)
+				XCTFail("\(reason) refusal must throw")
+			} catch OAuthError.noRefreshToken {
+			} catch {
+				XCTFail("\(reason) refusal must throw noRefreshToken, got \(error)")
+			}
+			XCTAssertEqual(store.tokens, nil, "\(reason) refusal must clear the tokens")
+			XCTAssertEqual(try store.authRecords.read().diagnostics.first { $0.event.event == .credentialsCleared }?.event.reason, AuthReason(rawValue: reason))
 		}
+	}
+
+	func testUnknownRefusalOutsideInvalidGrantPreservesCredentials() async throws {
+		let store = TestSupport.loggedInStore()
+		let old = try XCTUnwrap(store.tokens)
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path == "/.well-known/oauth-authorization-server" { return self.enabled() }
+			return .json(400, "{\"error\":\"invalid_request\",\"readplace_reason\":\"unknown\"}")
+		}
+		do {
+			_ = try await recovery(store).refresh(after: old)
+			XCTFail("refusal must throw")
+		} catch OAuthError.refreshFailed {
+		} catch {
+			XCTFail("refusal must throw refreshFailed, got \(error)")
+		}
+		XCTAssertEqual(store.tokens, old)
 	}
 
 	func testUnsupportedDiscoveryLeavesLegacyCredentialsUntouched() async throws {
