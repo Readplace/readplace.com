@@ -348,6 +348,7 @@ import {
 } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
 import { setSirenDiscoveryRedirectCaching } from "./web/siren-discovery-cache";
+import { createCrossSiteRequestMiddleware } from "./web/cross-site-request.middleware";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { createListingGenerationMiddleware } from "./web/listing-generation.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";
@@ -847,6 +848,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.use(express.urlencoded({ extended: true, verify: captureOAuthBody }));
 	app.use(cookieParser());
+	app.use(createCrossSiteRequestMiddleware({ appOrigin }));
 	app.use(initAuthDiagnosticMiddleware({ diagnostics: authDiagnostics, now: deps.now, secureCookies }));
 	app.use(
 		createVisitorIdMiddleware({
