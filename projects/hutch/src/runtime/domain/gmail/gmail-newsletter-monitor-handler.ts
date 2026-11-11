@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UserIdSchema, type UserId } from "@packages/domain/user";
+import type { UserId } from "@packages/domain/user";
 import { CheckGmailNewslettersCommand, GmailNewsletterAccountsCheckedEvent, MonitorGmailNewslettersCommand, GmailNewsletterMonitoringProgressedEvent } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
@@ -40,7 +40,7 @@ export function initGmailNewsletterMonitorHandler(deps: {
 					await deps.publishEvent(GmailNewsletterAccountsCheckedEvent, { userIds: accounts.userIds, nextAccountsPageToken: accounts.nextPageToken });
 				} else if (envelope["detail-type"] === GmailNewsletterAccountsCheckedEvent.detailType) {
 					const detail = GmailNewsletterAccountsCheckedEvent.detailSchema.parse(envelope.detail);
-					for (const userId of detail.userIds) await deps.dispatchMonitor({ userId: UserIdSchema.parse(userId) });
+					for (const userId of detail.userIds) await deps.dispatchMonitor({ userId });
 					if (detail.nextAccountsPageToken !== undefined) await deps.dispatchCheck({ accountsPageToken: detail.nextAccountsPageToken });
 				} else if (envelope["detail-type"] === MonitorGmailNewslettersCommand.detailType) {
 					const detail = MonitorGmailNewslettersCommand.detailSchema.parse(envelope.detail);

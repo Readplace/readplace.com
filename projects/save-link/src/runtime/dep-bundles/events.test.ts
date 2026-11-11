@@ -1,10 +1,8 @@
 import { UserIdSchema } from "@packages/domain/user";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import {
-	EventBridgeClient,
-	type PublishEvent,
-} from "@packages/infra-components/runtime";
+import { EventBridgeClient } from "@packages/infra-components/runtime";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 import { SimpleCrawlUnsupportedEvent } from "@packages/infra-components";
 import {
 	initEmitSimpleCrawlUnsupported,
@@ -29,74 +27,73 @@ describe("initEventsDepBundle", () => {
 
 describe("initEmitSimpleCrawlUnsupported", () => {
 	it("publishes SimpleCrawlUnsupportedEvent with url + userId through publishEvent", async () => {
-		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, userId: UserIdSchema.parse("user-1") });
+		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, userId: UserIdSchema.parse("user-1"), trigger: "save" });
 
-		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
+		expect(published).toContainEqual({ detailType: SimpleCrawlUnsupportedEvent.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId,
 			userId: "user-1",
-			recrawl: undefined,
-			refresh: undefined,
-		});
+			trigger: "save",
+		} });
 	});
 
-	it("threads recrawl=true through the event so the policy → comprehensive chain preserves admin recrawl semantics", async () => {
-		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
+	it("threads the recrawl trigger through the event so the policy → comprehensive chain preserves admin recrawl semantics", async () => {
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, recrawl: true });
+		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, trigger: "recrawl" });
 
-		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
+		expect(published).toContainEqual({ detailType: SimpleCrawlUnsupportedEvent.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId,
 			userId: undefined,
-			recrawl: true,
-			refresh: undefined,
-		});
+			trigger: "recrawl",
+		} });
 	});
 
-	it("threads refresh=true through the event so the policy → comprehensive chain emits RefreshContentExtractedEvent", async () => {
-		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
+	it("threads the refresh trigger through the event so the policy → comprehensive chain emits RefreshContentExtractedEvent", async () => {
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, refresh: true });
+		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, trigger: "refresh" });
 
-		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
+		expect(published).toContainEqual({ detailType: SimpleCrawlUnsupportedEvent.detailType, detail: {
 			url: "https://example.com/doc.pdf",
 			saveAttemptId,
 			userId: undefined,
-			recrawl: undefined,
-			refresh: true,
-		});
+			trigger: "refresh",
+		} });
 	});
 
 	it("threads the unsupported reason through the event so the policy routes a javascript-required deferral to the render crawl", async () => {
-		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example-spa.test/post", unsupportedReason: "javascript-required", saveAttemptId });
+		await emit({ url: "https://example-spa.test/post", unsupportedReason: "javascript-required", saveAttemptId, trigger: "save" });
 
-		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
+		expect(published).toContainEqual({ detailType: SimpleCrawlUnsupportedEvent.detailType, detail: {
 			url: "https://example-spa.test/post",
 			unsupportedReason: "javascript-required",
 			saveAttemptId,
-		});
+			trigger: "save",
+		} });
 	});
 
 	it("carries the page the free crawl reached so the render crawl can start there", async () => {
-		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://links.tracker.example/r/abc", unsupportedReason: "blocked", saveAttemptId, finalUrl: "https://publisher.example/story" });
+		await emit({ url: "https://links.tracker.example/r/abc", unsupportedReason: "blocked", saveAttemptId, trigger: "save", finalUrl: "https://publisher.example/story" });
 
-		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
+		expect(published).toContainEqual({ detailType: SimpleCrawlUnsupportedEvent.detailType, detail: {
 			url: "https://links.tracker.example/r/abc",
 			unsupportedReason: "blocked",
 			saveAttemptId,
+			trigger: "save",
 			finalUrl: "https://publisher.example/story",
-		});
+		} });
 	});
 });

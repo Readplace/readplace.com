@@ -19,6 +19,7 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
 } from "@packages/test-fixtures/providers/events";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type {
@@ -289,7 +290,7 @@ describe("initStaleCheckHandler", () => {
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
 			saveAttemptId: REFRESH_ATTEMPT_ID,
-			refresh: true,
+			trigger: "refresh",
 			previousBodyHash: "h".repeat(64),
 		});
 	});
@@ -321,7 +322,7 @@ describe("initStaleCheckHandler", () => {
 			url: URL_UNDER_TEST,
 			unsupportedReason: "javascript-required",
 			saveAttemptId: REFRESH_ATTEMPT_ID,
-			refresh: true,
+			trigger: "refresh",
 		});
 	});
 
@@ -353,7 +354,7 @@ describe("initStaleCheckHandler", () => {
 		});
 	});
 
-	it("emits SimpleCrawlUnsupportedEvent with refresh=true and marks comprehensive-fetching stage when crawl returns unsupported (e.g. PDF body)", async () => {
+	it("emits SimpleCrawlUnsupportedEvent with the refresh trigger and marks comprehensive-fetching stage when crawl returns unsupported (e.g. PDF body)", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: undefined,
 			lastModified: undefined,
@@ -388,7 +389,7 @@ describe("initStaleCheckHandler", () => {
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
 			saveAttemptId: REFRESH_ATTEMPT_ID,
-			refresh: true,
+			trigger: "refresh",
 		});
 		expect(publishRefreshArticleContent).not.toHaveBeenCalled();
 	});
@@ -875,7 +876,7 @@ it.each([
 		findRefreshAdmissionRow: async () => ({ crawlStatus: "ready", contentFetchedAt: "2025-01-01T00:00:00.000Z" }),
 		resolveOriginalUrl,
 		readRefreshHtml: async (_url, options) => { assert(staged); return options?.representation === "evaluation" ? staged.evaluationHtml : staged.html; },
-		putTierSource, publishEvent: jest.fn(), logger: noopLogger,
+		putTierSource, publishEvent: initRecordingPublishEvent().publishEvent, logger: noopLogger,
 	});
 	const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({
 		putRefreshHtml: async (params) => { staged = params; },
@@ -921,7 +922,7 @@ it.each<{ kind: "image" | "plain-text"; contentType: string; body: string }>([
 			assert(staged);
 			return options?.representation === "evaluation" ? staged.evaluationHtml : staged.html;
 		},
-		putTierSource, publishEvent: jest.fn(), logger: noopLogger,
+		putTierSource, publishEvent: initRecordingPublishEvent().publishEvent, logger: noopLogger,
 	});
 	const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({
 		putRefreshHtml: async (params) => { staged = params; },

@@ -10,7 +10,7 @@ import {
 } from "@packages/domain/article-aggregate";
 import type { MarkCrawlStage } from "../../domain/crawl-article-state/crawl-stage.types";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
-import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
+import type { CrawlTrigger, LogCrawlOutcome, LogParseError } from "@packages/infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initEmitTier1FailureOutcome } from "../crawl-article-state/emit-tier-1-failure-outcome";
 import type { PutTierSource } from "@packages/tier-source";
@@ -42,6 +42,10 @@ export type SaveLinkWorkOptions = {
 	saveAttemptId: SaveAttemptId;
 	deferUnsupported?: boolean;
 };
+
+export function saveCrawlTrigger(recrawl: boolean | undefined): CrawlTrigger {
+	return recrawl ? "recrawl" : "save";
+}
 
 const CRAWL_FAILED_REASON = "crawl-failed";
 
@@ -150,7 +154,7 @@ export function initSaveLinkWork(deps: {
 	const deferBlocked = async (params: { url: string; finalUrl: string | undefined; options: SaveLinkWorkOptions; reason: string }): Promise<SaveLinkWorkResult> => {
 		const { url, finalUrl, options, reason } = params;
 		await markCrawlStage({ url, stage: "comprehensive-fetching" });
-		if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, unsupportedReason: "blocked", userId: options.userId, recrawl: options.recrawl, saveAttemptId: options.saveAttemptId, finalUrl });
+		if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, unsupportedReason: "blocked", userId: options.userId, trigger: saveCrawlTrigger(options.recrawl), saveAttemptId: options.saveAttemptId, finalUrl });
 		logger.info(`${logPrefix} tier-1 deferred to render crawl`, { url, reason });
 		return { deferred: "blocked", finalUrl };
 	};
@@ -180,7 +184,7 @@ export function initSaveLinkWork(deps: {
 			const unsupportedReason = deferredUnsupportedKind(result.unsupportedReason);
 			const finalUrl = observedFetchTarget({ requestedUrl: originalUrl, finalUrl: result.finalUrl, options });
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
-			if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, unsupportedReason, userId: options.userId, recrawl: options.recrawl, saveAttemptId: options.saveAttemptId, finalUrl });
+			if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, unsupportedReason, userId: options.userId, trigger: saveCrawlTrigger(options.recrawl), saveAttemptId: options.saveAttemptId, finalUrl });
 			logger.info(`${logPrefix} tier-1 deferred to comprehensive crawl`, {
 				url,
 				reason: result.reason,

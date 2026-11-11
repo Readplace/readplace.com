@@ -21,7 +21,7 @@ describe("initPublishArchiveComparison", () => {
 	it("publishes a save's selection over the stored candidates as a no-body live attempt", async () => {
 		const { published, publishArchiveComparison } = setup();
 
-		const termination = await publishArchiveComparison({ url: "https://example.com/post", userId: UserIdSchema.parse("user-1"), saveAttemptId, candidates: [wrapper] });
+		const termination = await publishArchiveComparison({ url: "https://example.com/post", userId: UserIdSchema.parse("user-1"), recrawl: false, saveAttemptId, candidates: [wrapper] });
 
 		expect(termination).toEqual({ via: "deferred-to-event" });
 		expect(published).toEqual([{
@@ -48,7 +48,7 @@ describe("initPublishArchiveComparison", () => {
 	it("carries the given failure reason on the live attempt", async () => {
 		const { published, publishArchiveComparison } = setup();
 
-		await publishArchiveComparison({ url: "https://example.com/post", saveAttemptId, candidates: [wrapper], failureReason: { kind: "exhausted-retries", receiveCount: 1 } });
+		await publishArchiveComparison({ url: "https://example.com/post", recrawl: false, saveAttemptId, candidates: [wrapper], failureReason: { kind: "exhausted-retries", receiveCount: 1 } });
 
 		expect(published.map((entry) => entry.detail)).toEqual([expect.objectContaining({
 			liveAttempt: { outcome: "no-body", failureReason: { kind: "exhausted-retries", receiveCount: 1 } },

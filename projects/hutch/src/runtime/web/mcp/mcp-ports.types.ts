@@ -17,6 +17,7 @@ import type {
 	SortOrder,
 } from "@packages/provider-contracts/article-store";
 import type { ToolAccess, } from "./tool-access";
+import type { LogError } from "@packages/logger";
 
 export interface McpReadlist {
 	readonly id: ReadlistSlug;
@@ -249,7 +250,7 @@ export interface McpServerDeps {
 	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
 	recordToolCall: RecordMcpToolCall;
 	recordHandshake: RecordMcpHandshake;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 }
 
 export interface McpToolCallRecord {

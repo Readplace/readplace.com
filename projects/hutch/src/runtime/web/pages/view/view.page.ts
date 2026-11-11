@@ -88,6 +88,7 @@ import {
 	type ViewEndCta,
 	type ViewEndCtaAction,
 } from "./view.component";
+import type { LogError } from "@packages/logger";
 
 interface ViewDependencies {
 	readerSectionThresholdBytes: number;
@@ -101,7 +102,7 @@ interface ViewDependencies {
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	readArticleContent: ReadArticleContent;
 	readArticleImage: ReadArticleImage;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;

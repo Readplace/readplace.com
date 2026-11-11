@@ -4,7 +4,7 @@ import type { Logger } from "@packages/logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import { initPublishArchiveComparison } from "../crawl-leg/publish-archive-comparison";
-import { ComprehensiveCrawlCommand } from "@packages/infra-components";
+import { DeadLetteredDeferredCrawl } from "../crawl-leg/dead-lettered-deferred-crawl";
 
 interface ComprehensiveCrawlDlqHandlerDeps {
 	transitionAndPersist: TransitionAndPersist;
@@ -21,7 +21,7 @@ export function initComprehensiveCrawlDlqHandler(
 	const publishArchiveComparison = initPublishArchiveComparison({ publishEvent: deps.publishEvent, now });
 
 	return initSqsRecordHandler({
-		definition: ComprehensiveCrawlCommand,
+		definition: DeadLetteredDeferredCrawl,
 		logger,
 		failure: { message: "[ComprehensiveCrawlDlq] record failed" },
 		malformed: { policy: "retry" },
@@ -30,7 +30,7 @@ export function initComprehensiveCrawlDlqHandler(
 				await publishArchiveComparison({
 					url: command.url,
 					userId: command.userId,
-					recrawl: command.recrawl,
+					recrawl: command.trigger === "recrawl",
 					saveAttemptId: command.saveAttemptId,
 					candidates: command.candidates,
 					failureReason: { kind: "exhausted-retries", receiveCount },

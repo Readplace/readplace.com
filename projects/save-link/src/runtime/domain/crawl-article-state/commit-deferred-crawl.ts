@@ -9,7 +9,7 @@ import type { ThumbnailCascade } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlBlocked, markCrawlFailed } from "@packages/domain/article-aggregate";
-import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
+import type { CrawlTrigger, LogCrawlOutcome, LogParseError } from "@packages/infra-components";
 import type { MarkCrawlStage } from "./crawl-stage.types";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { ReadTierSnapshot } from "./read-tier-snapshot";
@@ -41,8 +41,7 @@ export type DeferredCrawlContext = {
 	originalUrl: string;
 	saveAttemptId: SaveAttemptId;
 	candidates?: CandidateReference[];
-	refresh?: boolean;
-	recrawl?: boolean;
+	trigger: CrawlTrigger;
 	userId?: UserId;
 	previousBodyHash?: string;
 };
@@ -103,16 +102,15 @@ export function initCommitDeferredCrawl(deps: {
 	 * stuck-articles canary would page an operator over a transient throttle. */
 	const resolveBudgetExhausted = async (ctx: {
 		url: string;
-		refresh?: boolean;
-		recrawl?: boolean;
+		trigger: CrawlTrigger;
 		userId?: UserId;
 		saveAttemptId: SaveAttemptId;
 		candidates?: CandidateReference[];
 	}): Promise<CrawlTermination> => {
-		if (ctx.candidates !== undefined) return publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
+		if (ctx.candidates !== undefined) return publishArchiveComparison({ ...ctx, recrawl: ctx.trigger === "recrawl", candidates: ctx.candidates });
 		logParseError({ url: ctx.url, reason: "paid-crawl-budget-exhausted" });
 		await emitTier1FailureOutcome({ url: ctx.url });
-		if (ctx.refresh) {
+		if (ctx.trigger === "refresh") {
 			// A refresh re-checks an article that already has served content; the
 			// prior canonical stays valid, its freshness simply doesn't bump.
 			return { via: "already-terminal" };
@@ -162,7 +160,7 @@ export function initCommitDeferredCrawl(deps: {
 		ctx: DeferredCrawlContext,
 		unreadable: "publish-when-comparing" | "return",
 	): Promise<CommitFetchedBodyOutcome> => {
-		const { url, originalUrl, refresh, recrawl, userId } = ctx;
+		const { url, originalUrl, trigger, userId } = ctx;
 		const fetchedAt = now().toISOString();
 		const finalized = await finalizeArticle(
 			finalizeInputOfFetchedPage({
@@ -181,24 +179,24 @@ export function initCommitDeferredCrawl(deps: {
 
 		/* Best-effort and never throws: a redirecting PDF/comprehensive URL
 		 * claims its terminal identity here too. Refresh and recrawl are both
-		 * re-crawls of an existing article, so folding either flag into
+		 * re-crawls of an existing article, so folding either into
 		 * `recrawl` suppresses re-adoption on every stale re-fetch. */
 		await adoptCanonicalIdentity({
 			url,
 			finalUrl: body.finalUrl,
 			outcome: liveFailed ? { kind: "crawl-failed" } : { kind: "finalized", wordCount: article.metadata.wordCount },
-			recrawl: Boolean(recrawl || refresh),
+			recrawl: trigger !== "save",
 		});
 		let contentFetchedAt = "";
 		const announcement = (): CandidateAnnouncement => {
 			// Stale-check refresh chain: a downstream handler runs the selector
 			// across all tier sources, picks a winner, and drives the transition
 			// that sets freshness and canonical content.
-			if (refresh) return { event: "refresh-content-extracted", etag: body.etag, lastModified: body.lastModified, contentFetchedAt, bodyHash: body.bodyHash };
+			if (trigger === "refresh") return { event: "refresh-content-extracted", etag: body.etag, lastModified: body.lastModified, contentFetchedAt, bodyHash: body.bodyHash };
 			// Recrawl chain runs a clone of the selector that ALWAYS dispatches
 			// generate-summary regardless of canonical change. Emit the recrawl-
 			// specific event so admin recrawls of PDFs preserve that semantics.
-			if (recrawl) return { event: "recrawl-content-extracted", extractedAt: () => contentFetchedAt };
+			if (trigger === "recrawl") return { event: "recrawl-content-extracted", extractedAt: () => contentFetchedAt };
 			return { event: "tier-content-extracted", userId, extractedAt: () => contentFetchedAt };
 		};
 		const candidate = await commitTierCandidate({
@@ -219,7 +217,7 @@ export function initCommitDeferredCrawl(deps: {
 				 * refresh-content-extracted handler sets it via the refreshContent
 				 * aggregate transition, mirroring the existing in-place refresh
 				 * Lambda. */
-				if (!refresh && !liveFailed) {
+				if (trigger !== "refresh" && !liveFailed) {
 					await updateFetchTimestamp({
 						url,
 						contentFetchedAt,
@@ -234,8 +232,8 @@ export function initCommitDeferredCrawl(deps: {
 			announce: announcement,
 		});
 
-		if (refresh) logger.info(`${logPrefix} emitted RefreshContentExtractedEvent`, { url });
-		else if (recrawl) logger.info(`${logPrefix} emitted RecrawlContentExtractedEvent`, { url });
+		if (trigger === "refresh") logger.info(`${logPrefix} emitted RefreshContentExtractedEvent`, { url });
+		else if (trigger === "recrawl") logger.info(`${logPrefix} emitted RecrawlContentExtractedEvent`, { url });
 		else logger.info(`${logPrefix} emitted TierContentExtractedEvent`, { url, tier: "tier-1" });
 		return { via: "deferred-to-event", readable: finalized.ok, candidate };
 	};

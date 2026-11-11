@@ -1,7 +1,7 @@
 import { noopLogger, type Logger } from "@packages/logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
-import { RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/infra-components";
+import { type CrawlTrigger, RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import { initComprehensiveCrawlDlqHandler } from "./comprehensive-crawl-dlq-handler";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
@@ -17,14 +17,14 @@ function attributes(receiveCount: number): SQSRecordAttributes {
 }
 
 function createSqsEvent(
-	detail: { url: string; userId?: string; recrawl?: boolean; candidates?: Array<{ id: string; tier: "tier-2" }> },
+	detail: { url: string; userId?: string; trigger?: CrawlTrigger; candidates?: Array<{ id: string; tier: "tier-2" }> },
 	receiveCount = 3,
 ): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail: { ...detail, saveAttemptId: "attempt-1" } }),
+			body: JSON.stringify({ detail: { trigger: "save", ...detail, saveAttemptId: "attempt-1" } }),
 			attributes: attributes(receiveCount),
 			messageAttributes: {},
 			md5OfBody: "",
@@ -188,9 +188,21 @@ describe("initComprehensiveCrawlDlqHandler with stored candidates", () => {
 	it("publishes the recrawl selection when the dead-lettered message is a recrawl", async () => {
 		const { handler, published } = createHandler();
 
-		await handler(createSqsEvent({ url: "https://example.com/scan.pdf", recrawl: true, candidates: [wrapper] }, 1), buildLambdaContext(), () => {});
+		await handler(createSqsEvent({ url: "https://example.com/scan.pdf", trigger: "recrawl", candidates: [wrapper] }, 1), buildLambdaContext(), () => {});
 
 		expect(published.map((p) => p.detailType)).toEqual([RecrawlContentExtractedEvent.detailType]);
+	});
+
+	it("drains a dead letter published before the trigger field existed, comparing its stored candidates as a save", async () => {
+		const { handler, published } = createHandler();
+
+		const event = createSqsEvent({ url: "https://example.com/scan.pdf" }, 1);
+		event.Records[0].body = JSON.stringify({ detail: { url: "https://example.com/scan.pdf", recrawl: true, candidates: [wrapper], saveAttemptId: "attempt-1" } });
+
+		const result = await handler(event, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(published.map((p) => p.detailType)).toEqual([TierContentExtractedEvent.detailType]);
 	});
 
 	it("marks the crawl exhausted when the message carries an empty candidate list", async () => {

@@ -126,6 +126,7 @@ import type {
 	RecordOnboardingOutstandingVersion,
 } from "@packages/provider-contracts/onboarding-signals";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
+import type { LogError } from "@packages/logger";
 
 export interface ReadlistDependencies {
 	readerSectionThresholdBytes: number;
@@ -268,7 +269,7 @@ export interface ReadlistDependencies {
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 	buildBannerState: BuildBannerState;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	salt: string;

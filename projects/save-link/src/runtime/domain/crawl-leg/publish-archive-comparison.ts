@@ -7,7 +7,7 @@ import type { CandidateReference } from "../select-content/list-available-tier-s
 export type PublishArchiveComparison = (ctx: {
 	url: string;
 	userId?: UserId;
-	recrawl?: boolean;
+	recrawl: boolean;
 	saveAttemptId: SaveAttemptId;
 	candidates: CandidateReference[];
 	failureReason?: CrawlFailureReason;

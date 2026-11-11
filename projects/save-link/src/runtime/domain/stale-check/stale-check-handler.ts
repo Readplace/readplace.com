@@ -34,10 +34,7 @@ import { deferredUnsupportedKind } from "../save-link/save-link-work";
  * Stale-check is a simple-only worker: PDFs flow through the
  * unsupported-crawl → policy → comprehensive-crawl chain rather than
  * being extracted here, so this handler avoids the mupdf / OCR
- * dependency footprint. When the `refresh=true` flag threads through,
- * the comprehensive crawl emits a refresh-flavoured content-extracted
- * event, keeping the tier-selection + canonical write flow intact for
- * refreshed PDFs.
+ * dependency footprint.
  *
  * Action outcomes:
  *   - `"new"`             — row missing; re-published SaveAnonymousLinkCommand.
@@ -52,7 +49,7 @@ import { deferredUnsupportedKind } from "../save-link/save-link-work";
  *   - `"unchanged"`       — 304 Not Modified; published UpdateFetchTimestamp.
  *   - `"refreshed"`       — HTML refetched + parsed; published RefreshArticleContent.
  *   - `"tier-1-deferred"` — non-HTML body; emitted SimpleCrawlUnsupportedEvent
- *                           with `refresh=true` so the comprehensive Lambda
+ *                           so the comprehensive Lambda
  *                           ultimately drives the row through refresh-content-
  *                           extracted.
  */
@@ -174,7 +171,7 @@ export function initStaleCheckHandler(deps: {
 				return "backoff";
 			}
 			/* Write the stage marker so the reader's progress bar advances
-			 * immediately, then emit the event with `refresh=true` so the
+			 * immediately, then emit the event so the
 			 * comprehensive crawl ultimately drives the refresh. That crawl
 			 * re-fetches and can short-circuit on the same hash gate, so the
 			 * previousBodyHash travels with the event. */
@@ -183,7 +180,7 @@ export function initStaleCheckHandler(deps: {
 				url,
 				unsupportedReason: deferredUnsupportedKind(result.unsupportedReason),
 				saveAttemptId,
-				refresh: true,
+				trigger: "refresh",
 				previousBodyHash: freshness.bodyHash,
 			});
 			return "tier-1-deferred";

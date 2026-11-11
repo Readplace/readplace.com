@@ -1,8 +1,9 @@
 import type { CountUsers } from "@packages/provider-contracts/auth";
+import type { LogError } from "@packages/logger";
 
 export function initFetchUserCount(deps: {
 	countUsers: CountUsers;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	logPrefix: string;
 }): () => Promise<number> {
 	return () =>

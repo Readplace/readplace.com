@@ -14,6 +14,7 @@ import {
 	buildActivationThresholdReachedEvent,
 } from "./funnel-events";
 import { isIntentionalSave } from "./intentional-save";
+import type { LogError } from "@packages/logger";
 
 export function initRecordPersonalSaves(deps: {
 	saveArticle: SaveArticle;
@@ -24,7 +25,7 @@ export function initRecordPersonalSaves(deps: {
 	findReadlistArticleById: FindReadlistArticleById;
 	recordEngagementActivity: RecordEngagementActivity;
 	now: () => Date;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	recordActivationThresholdReached: (event: ActivationThresholdReachedEvent) => void;
 	markActivationThresholdReached: MarkActivationThresholdReached;

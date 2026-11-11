@@ -7,6 +7,7 @@ import {
 	type PublishEvent,
 } from "@packages/infra-components/runtime";
 import {
+	type CrawlTrigger,
 	SimpleCrawlUnsupportedEvent,
 	type SimpleCrawlUnsupportedDetail,
 } from "@packages/infra-components";
@@ -17,20 +18,14 @@ import { type DispatchGenerateSummary, initGenerateSummaryDispatch } from "./gen
  * comprehensive crawl" branch to EventBridge by emitting
  * `SimpleCrawlUnsupportedEvent`. The policy Lambda subscribes to the event
  * and dispatches `ComprehensiveCrawlCommand` so the publisher Lambda itself
- * does not need to know which downstream command the policy issues.
- *
- * `recrawl=true` and `refresh=true` are mutually exclusive: `recrawl` is the
- * admin-recrawl chain (RecrawlContentExtractedEvent downstream), `refresh`
- * is the stale-check chain (RefreshContentExtractedEvent downstream). The
- * default (neither set) is the save chain (TierContentExtractedEvent). */
+ * does not need to know which downstream command the policy issues. */
 export type DeferredUnsupportedKind = SimpleCrawlUnsupportedDetail["unsupportedReason"];
 
 export type EmitSimpleCrawlUnsupported = (params: {
 	url: string;
 	unsupportedReason: DeferredUnsupportedKind;
 	userId?: UserId;
-	recrawl?: boolean;
-	refresh?: boolean;
+	trigger: CrawlTrigger;
 	previousBodyHash?: string;
 	saveAttemptId: SaveAttemptId;
 	candidates?: CandidateReference[];
@@ -65,13 +60,12 @@ export function initEventsDepBundle(deps: {
 export function initEmitSimpleCrawlUnsupported(deps: {
 	publishEvent: PublishEvent;
 }): EmitSimpleCrawlUnsupported {
-	return ({ url, unsupportedReason, userId, recrawl, refresh, previousBodyHash, saveAttemptId, candidates, finalUrl }) =>
+	return ({ url, unsupportedReason, userId, trigger, previousBodyHash, saveAttemptId, candidates, finalUrl }) =>
 		deps.publishEvent(SimpleCrawlUnsupportedEvent, {
 			url,
 			unsupportedReason,
 			userId,
-			recrawl,
-			refresh,
+			trigger,
 			previousBodyHash,
 			saveAttemptId,
 			candidates,

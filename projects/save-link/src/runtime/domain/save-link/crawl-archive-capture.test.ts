@@ -5,6 +5,7 @@ import { noopLogger } from "@packages/logger";
 import { ArchiveCaptureCrawlFailedEvent } from "@packages/infra-components";
 import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult, FinalizedArticle } from "@packages/finalize-article";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
+import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 
 const ORIGINAL = "https://dead.example/article";
 const CAPTURE = "https://web.archive.org/web/20081203185222/https://dead.example/article";
@@ -17,7 +18,7 @@ const finalized: FinalizedArticle = {
 function createCapture(result: CrawlAndFinalizeResult) {
 	const crawls: Parameters<CrawlAndFinalizeArticle>[0][] = [];
 	const putTierSource = jest.fn().mockResolvedValue(undefined);
-	const publishEvent = jest.fn().mockResolvedValue(undefined);
+	const { publishEvent, published } = initRecordingPublishEvent();
 	const logCrawlOutcome = jest.fn();
 	const crawlArchiveCapture = initCrawlArchiveCapture({
 		now: () => new Date("2026-04-18T12:00:00.000Z"),
@@ -32,7 +33,7 @@ function createCapture(result: CrawlAndFinalizeResult) {
 		publishEvent,
 		logger: noopLogger,
 	});
-	return { crawlArchiveCapture, crawls, putTierSource, publishEvent, logCrawlOutcome };
+	return { crawlArchiveCapture, crawls, putTierSource, published, logCrawlOutcome };
 }
 
 describe("initCrawlArchiveCapture", () => {
@@ -55,7 +56,7 @@ describe("initCrawlArchiveCapture", () => {
 			otherTierStatus: "failed",
 			pickedTier: "none",
 		});
-		expect(harness.publishEvent).not.toHaveBeenCalled();
+		expect(harness.published).toEqual([]);
 	});
 
 	it.each<{ result: CrawlAndFinalizeResult; reason: string }>([
@@ -69,18 +70,18 @@ describe("initCrawlArchiveCapture", () => {
 
 		expect(await harness.crawlArchiveCapture({ url: ORIGINAL, captureUrl: CAPTURE, saveAttemptId: SaveAttemptIdSchema.parse("attempt") })).toBeUndefined();
 		expect(harness.putTierSource).not.toHaveBeenCalled();
-		expect(harness.publishEvent).toHaveBeenCalledWith(ArchiveCaptureCrawlFailedEvent, { url: ORIGINAL, captureUrl: CAPTURE, reason });
+		expect(harness.published).toContainEqual({ detailType: ArchiveCaptureCrawlFailedEvent.detailType, detail: { url: ORIGINAL, captureUrl: CAPTURE, reason } });
 		expect(harness.logCrawlOutcome).toHaveBeenCalledWith(expect.objectContaining({ thisTier: "tier-2", thisTierStatus: "failed" }));
 	});
 });
 
 it("rejects a legacy queued capture whose original does not match the adopted identity", async () => {
 	const crawlAndFinalizeArticle = jest.fn();
-	const publishEvent = jest.fn().mockResolvedValue(undefined);
+	const { publishEvent, published } = initRecordingPublishEvent();
 	const crawl = initCrawlArchiveCapture({ crawlAndFinalizeArticle, putTierSource: async (params) => params.metadata, readTierSnapshot: async () => ({ tier0Status: "not_attempted", tier1Status: "not_attempted", pickedTier: "none" }), logCrawlOutcome: () => {}, logger: noopLogger, now: () => new Date(), verifyWrapperSource: async () => undefined, publishEvent });
 	expect(await crawl({ url: ORIGINAL, captureUrl: CAPTURE, saveAttemptId: SaveAttemptIdSchema.parse("legacy-attempt") })).toBeUndefined();
 	expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
-	expect(publishEvent).toHaveBeenCalledWith(ArchiveCaptureCrawlFailedEvent, { url: ORIGINAL, captureUrl: CAPTURE, reason: "unverified source identity" });
+	expect(published).toContainEqual({ detailType: ArchiveCaptureCrawlFailedEvent.detailType, detail: { url: ORIGINAL, captureUrl: CAPTURE, reason: "unverified source identity" } });
 });
 
 it("reads the tier snapshot, writes the archive candidate, then logs its success, with exactly these arguments", async () => {

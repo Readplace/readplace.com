@@ -10,6 +10,7 @@ import parseSrcset from "parse-srcset";
 import type { CrawlFetch } from "@packages/crawl-article";
 import { mediaFilename } from "@packages/finalize-article";
 import type { DownloadedMedia, DownloadMedia, PutImageObject } from "@packages/finalize-article";
+import type { LogError } from "@packages/logger";
 
 const MAX_IMAGES = 20;
 const MAX_RENDITIONS_PER_IMAGE = 24;
@@ -25,7 +26,7 @@ export type ImageLeftAtOriginEvent = {
 
 export function initDownloadMedia(deps: {
 	putImageObject: PutImageObject;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 	logImageLeftAtOrigin: (event: ImageLeftAtOriginEvent) => void;
 	crawlFetch: CrawlFetch;
 	imagesCdnBaseUrl: string;

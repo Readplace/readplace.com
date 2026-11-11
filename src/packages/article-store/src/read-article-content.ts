@@ -5,13 +5,14 @@ import type {
 	FindItemOwner,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
+import type { LogError } from "@packages/logger";
 
 export type { ContentProvider, ReadArticleContent };
 
 export function initReadArticleContent(deps: {
 	storageProviderQueryOrder: ContentProvider[];
 	findItemOwner: FindItemOwner;
-	logError: (message: string, error?: Error) => void;
+	logError: LogError;
 }): ReadArticleContent {
 	const { storageProviderQueryOrder, logError } = deps;
 

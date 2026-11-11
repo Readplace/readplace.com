@@ -7,6 +7,8 @@ export {
 	type SaveLinkRawPdfDetail,
 	SaveAnonymousLinkCommand,
 	type SaveAnonymousLinkDetail,
+	CrawlTriggerSchema,
+	type CrawlTrigger,
 	SimpleCrawlUnsupportedEvent,
 	type SimpleCrawlUnsupportedDetail,
 	ComprehensiveCrawlCommand,

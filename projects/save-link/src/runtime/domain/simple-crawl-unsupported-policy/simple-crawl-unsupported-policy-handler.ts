@@ -26,8 +26,7 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 			const forwarded = {
 				url: detail.url,
 				userId: detail.userId,
-				recrawl: detail.recrawl,
-				refresh: detail.refresh,
+				trigger: detail.trigger,
 				previousBodyHash: detail.previousBodyHash,
 				saveAttemptId: detail.saveAttemptId,
 				candidates: detail.candidates,
@@ -39,8 +38,7 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 			logger.info(`${logPrefix} dispatched ${command.detailType}`, {
 				url: detail.url,
 				unsupportedReason,
-				recrawl: detail.recrawl ? 1 : 0,
-				refresh: detail.refresh ? 1 : 0,
+				trigger: detail.trigger,
 			});
 		},
 	});
