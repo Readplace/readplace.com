@@ -1,4 +1,4 @@
-import { rejectDocumentLandingPage } from "./document-landing-page";
+import { documentLandingPageFailure, rejectDocumentLandingPage } from "./document-landing-page";
 import { withResolvedUrl } from "./follow-redirects";
 import { createCrawlBudget } from "./crawl-budget";
 import { type Leg, type LegAttempt, type LegFetch, runTransportLadder } from "./transport-ladder";
@@ -555,4 +555,37 @@ it("recovers a CIA PDF through curl after two misleading HTTP 200 homepages", as
 it("fails when every CIA transport returns the homepage", async () => {
 	const fetchIt = ladderOf([{ name: "primary", maxRunMs: 100, fetch: ciaHomepage }], []);
 	await expect(fetchIt(ciaUrl, { headers: {}, budget: budgetOf(1000) })).rejects.toBeInstanceOf(TransportLadderFailure);
+});
+it("reports a wrong-document failure after trying each CIA transport once when all return the homepage", async () => {
+	const attempts: LegAttempt[] = [];
+	const primary = jest.fn(ciaHomepage);
+	const h2 = jest.fn(ciaHomepage);
+	const curl = jest.fn(ciaHomepage);
+	const fetchIt = ladderOf([
+		{ name: "primary", maxRunMs: 100, fetch: primary },
+		{ name: "h2", maxRunMs: 100, fetch: h2 },
+		{ name: "curl", maxRunMs: 100, fetch: curl },
+	], attempts);
+	const failure = await fetchIt(ciaUrl, { headers: {}, budget: budgetOf(1000) }).catch((error: unknown) => error);
+	expect(documentLandingPageFailure(failure)).toMatchObject({ requestedUrl: ciaUrl, landingPageUrl: "https://www.cia.gov/readingroom/" });
+	expect([primary, h2, curl].map(leg => leg.mock.calls.length)).toEqual([1, 1, 1]);
+	expect(attempts.map(a => a.outcome)).toEqual(["escalated", "escalated", "escalated"]);
+});
+it("accepts a CIA PDF on the first transport", async () => {
+	const attempts: LegAttempt[] = [];
+	const fetchIt = ladderOf([
+		{ name: "primary", maxRunMs: 100, fetch: async () => withResolvedUrl(new Response("%PDF-1.7", { status: 200, headers: { "content-type": "application/pdf" } }), ciaUrl) },
+		{ name: "h2", maxRunMs: 100, fetch: ciaHomepage },
+	], attempts);
+	expect(await (await fetchIt(ciaUrl, { headers: {}, budget: budgetOf(1000) })).text()).toBe("%PDF-1.7");
+	expect(attempts.map((a) => [a.leg, a.outcome])).toEqual([["primary", "answered"]]);
+});
+it("accepts the CIA reading-room homepage when it was the page requested", async () => {
+	const attempts: LegAttempt[] = [];
+	const fetchIt = ladderOf([
+		{ name: "primary", maxRunMs: 100, fetch: ciaHomepage },
+		{ name: "h2", maxRunMs: 100, fetch: ciaHomepage },
+	], attempts);
+	expect(await (await fetchIt("https://www.cia.gov/readingroom/", { headers: {}, budget: budgetOf(1000) })).text()).toBe("<html>homepage</html>");
+	expect(attempts.map((a) => [a.leg, a.outcome])).toEqual([["primary", "answered"]]);
 });
