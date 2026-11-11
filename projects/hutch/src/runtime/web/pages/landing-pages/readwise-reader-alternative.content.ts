@@ -119,7 +119,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 				{ feature: "Offline reading", readplace: "Yes, web and iPhone", competitor: "Yes" },
 				{
 					feature: "Apps",
-					readplace: "iPhone and Mac, Chrome and Firefox extensions",
+					readplace: "iPhone, Mac and Android, Chrome and Firefox extensions",
 					competitor: "iOS, Android, Mac, Windows, Chrome, Firefox and Safari extensions",
 				},
 				{
@@ -156,7 +156,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Is there an Android app?",
-			answer: "No. Readplace works in a mobile browser on Android.",
+			answer: "Yes. The Readplace Android app is on Google Play and saves from the share sheet.",
 		},
 		{
 			question: "Do I need an account to try it?",

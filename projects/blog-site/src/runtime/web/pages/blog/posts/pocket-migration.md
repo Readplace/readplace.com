@@ -5,7 +5,7 @@ excerpt: "Pocket went offline on July 8, 2025, and old emails and browser histor
 tldr: "Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the export file, open the Import Links page and use the \"Upload a file\" tab. Pick the file, untick anything you don't want, then click Import. An account is needed only for that last click. Files over 4.5 MB or above 2,000 links have to be split into smaller files first."
 slug: "pocket-migration"
 date: "2026-05-06"
-lastModified: "2026-11-09"
+lastModified: "2026-11-11"
 author: "Fayner Brack"
 keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket, Pocket shut down 2025, Pocket replacement"
 ---
@@ -75,11 +75,11 @@ The [Pocket alternative page](/pocket-alternative?utm_source=blog-pocket-migrati
 | Highlights | Yes | Yes |
 | Full-text search | Yes (Premium) | No |
 | Offline reading | Yes (mobile) | Planned |
-| Mobile app | iOS, Android | iPhone and Mac (App Store), mobile web elsewhere |
+| Mobile app | iOS, Android | iPhone and Mac (App Store), Android (Google Play) |
 | Data export | Yes (until November 12, 2025) | Anytime, even after cancelling |
 | Dark mode | Yes | Yes |
 
-Readplace is smaller than Pocket was. It has no tags, and its app covers iPhone and Mac.
+Readplace is smaller than Pocket was. It has no tags, and its apps cover iPhone, Android and Mac.
 
 What it does have is an AI-generated TL;DR for every saved article, which Pocket did not offer. If you want to see how the current options stack up against each other, I wrote up the [best read-it-later apps](/blog/best-read-it-later-apps-2026?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026). [Readplace vs Instapaper](/blog/readplace-vs-instapaper?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-readplace-vs-instapaper) sets Readplace against the app many Pocket readers moved to.
 
