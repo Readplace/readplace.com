@@ -621,25 +621,29 @@ class ReadingListViewModel(
 		return true
 	}
 
-	private suspend fun loadFirstPage(path: String?): ReadlistPage =
-		try {
-			api.loadReadlist(path = path).also { snapshot.keepFirstPage(it, href = path) }
+	private suspend fun loadFirstPage(path: String?): ReadlistPage {
+		val generation = snapshot.generation
+		return try {
+			api.loadReadlist(path = path).also { snapshot.keepFirstPage(it, href = path, generation = generation) }
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (error: Exception) {
 			if (!OfflineReading.isTransportFailure(error)) throw error
 			snapshot.firstPage(path) ?: throw error
 		}
+	}
 
-	private suspend fun loadNextPage(href: String): ReadlistPage =
-		try {
-			api.loadReadlist(path = href).also { snapshot.keepNextPage(it, href = href) }
+	private suspend fun loadNextPage(href: String): ReadlistPage {
+		val generation = snapshot.generation
+		return try {
+			api.loadReadlist(path = href).also { snapshot.keepNextPage(it, href = href, generation = generation) }
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (error: Exception) {
 			if (!OfflineReading.isTransportFailure(error)) throw error
 			snapshot.nextPage(href) ?: throw error
 		}
+	}
 
 	private fun reconcileShareTargets(against: ReadlistPage) {
 		if (shareTargetReconciliation?.isActive == true) return
@@ -859,12 +863,12 @@ class ReadingListViewModel(
 		states.value = reconciled.copy(
 			hasMore = page.nextHref != null,
 			warningText = page.warning?.message,
-			isOffline = when {
-				page.isStoredCopy -> true
-				replacing -> false
-				else -> current.isOffline
+			isOffline = page.isStoredCopy,
+			errorText = when {
+				page.isStoredCopy -> OfflineReading.BANNER_TEXT
+				reconciled.errorText == OfflineReading.BANNER_TEXT -> null
+				else -> reconciled.errorText
 			},
-			errorText = if (page.isStoredCopy) OfflineReading.BANNER_TEXT else reconciled.errorText,
 		)
 		restartProcessingRefresh()
 	}

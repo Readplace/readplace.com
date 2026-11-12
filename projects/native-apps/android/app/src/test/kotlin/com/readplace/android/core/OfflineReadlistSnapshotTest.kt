@@ -54,7 +54,7 @@ class OfflineReadlistSnapshotTest {
 	fun `a first page reads back under the href it was asked for`() = runTest {
 		val snapshot = snapshot(folder.newFolder())
 
-		snapshot.keepFirstPage(page(listOf("a1", "a2"), currentTab = null), href = "/queue?readlist=main")
+		snapshot.keepFirstPage(page(listOf("a1", "a2"), currentTab = null), href = "/queue?readlist=main", generation = snapshot.generation)
 
 		assertEquals(listOf("a1", "a2"), ids(snapshot.firstPage("/queue?readlist=main")))
 	}
@@ -63,7 +63,7 @@ class OfflineReadlistSnapshotTest {
 	fun `an entry-point page reads back under the entry point and the tab it names`() = runTest {
 		val snapshot = snapshot(folder.newFolder())
 
-		snapshot.keepFirstPage(page(listOf("a1"), currentTab = "/queue?status=unread"), href = null)
+		snapshot.keepFirstPage(page(listOf("a1"), currentTab = "/queue?status=unread"), href = null, generation = snapshot.generation)
 
 		assertEquals(
 			listOf(listOf("a1"), listOf("a1")),
@@ -75,8 +75,8 @@ class OfflineReadlistSnapshotTest {
 	fun `a first page follows the newer copy of the tab it names`() = runTest {
 		val snapshot = snapshot(folder.newFolder())
 
-		snapshot.keepFirstPage(page(listOf("m1"), currentTab = "/queue?status=unread"), href = "/queue?readlist=main")
-		snapshot.keepFirstPage(page(listOf("t1", "t2", "t3", "m1"), currentTab = "/queue?status=unread"), href = "/queue?status=unread")
+		snapshot.keepFirstPage(page(listOf("m1"), currentTab = "/queue?status=unread"), href = "/queue?readlist=main", generation = snapshot.generation)
+		snapshot.keepFirstPage(page(listOf("t1", "t2", "t3", "m1"), currentTab = "/queue?status=unread"), href = "/queue?status=unread", generation = snapshot.generation)
 
 		assertEquals(listOf("t1", "t2", "t3", "m1"), ids(snapshot.firstPage("/queue?readlist=main")))
 	}
@@ -85,8 +85,8 @@ class OfflineReadlistSnapshotTest {
 	fun `a next page reads back as itself, never the tab it names`() = runTest {
 		val snapshot = snapshot(folder.newFolder())
 
-		snapshot.keepFirstPage(page(listOf("t1"), currentTab = "/queue?status=unread"), href = "/queue?status=unread")
-		snapshot.keepNextPage(page(listOf("p2"), currentTab = "/queue?status=unread"), href = "/queue?page=2")
+		snapshot.keepFirstPage(page(listOf("t1"), currentTab = "/queue?status=unread"), href = "/queue?status=unread", generation = snapshot.generation)
+		snapshot.keepNextPage(page(listOf("p2"), currentTab = "/queue?status=unread"), href = "/queue?page=2", generation = snapshot.generation)
 
 		assertEquals(listOf("p2"), ids(snapshot.nextPage("/queue?page=2")))
 	}
@@ -94,7 +94,7 @@ class OfflineReadlistSnapshotTest {
 	@Test
 	fun `a copy older than thirty days is not shown`() = runTest {
 		val snapshot = snapshot(folder.newFolder())
-		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue")
+		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue", generation = snapshot.generation)
 		val saved = clock
 
 		clock = saved.plus(Duration.ofDays(30))
@@ -110,7 +110,7 @@ class OfflineReadlistSnapshotTest {
 		val snapshot = snapshot(directory)
 		val collection = checkNotNull(SirenDecoding.collection(Json.parseToJsonElement(String(body(listOf("a1"), currentTab = null)))))
 
-		snapshot.keepFirstPage(ReadlistPage(collection, chain = listOf("/queue"), sirenBody = null, isStoredCopy = false), href = "/queue")
+		snapshot.keepFirstPage(ReadlistPage(collection, chain = listOf("/queue"), sirenBody = null, isStoredCopy = false), href = "/queue", generation = snapshot.generation)
 
 		assertEquals(emptyList<File>(), directory.resolve("readlist-pages").listFiles()?.toList().orEmpty())
 	}
@@ -119,8 +119,8 @@ class OfflineReadlistSnapshotTest {
 	fun `a file that is not a kept record reads as nothing, and its siblings still read`() = runTest {
 		val directory = folder.newFolder()
 		val snapshot = snapshot(directory)
-		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue")
-		snapshot.keepFirstPage(page(listOf("b1"), currentTab = null), href = "/queue?queue=work")
+		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue", generation = snapshot.generation)
+		snapshot.keepFirstPage(page(listOf("b1"), currentTab = null), href = "/queue?queue=work", generation = snapshot.generation)
 
 		fileFor(directory, "/queue").writeText("{")
 
@@ -134,7 +134,7 @@ class OfflineReadlistSnapshotTest {
 	fun `a root that cannot be written never fails the list read`() = runTest {
 		val snapshot = snapshot(folder.newFile("a-file-where-the-root-should-be"))
 
-		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue")
+		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue", generation = snapshot.generation)
 
 		assertEquals(null, snapshot.firstPage("/queue"))
 	}
@@ -143,10 +143,37 @@ class OfflineReadlistSnapshotTest {
 	fun `a first page whose tab copy is unreadable shows itself`() = runTest {
 		val directory = folder.newFolder()
 		val snapshot = snapshot(directory)
-		snapshot.keepFirstPage(page(listOf("a1"), currentTab = "/queue?status=unread"), href = "/queue?readlist=main")
+		snapshot.keepFirstPage(page(listOf("a1"), currentTab = "/queue?status=unread"), href = "/queue?readlist=main", generation = snapshot.generation)
 
 		fileFor(directory, "/queue?status=unread").writeText("{")
 
 		assertEquals(listOf("a1"), ids(snapshot.firstPage("/queue?readlist=main")))
+	}
+
+	@Test
+	fun `a page read before a purge is not kept once the purge has run`() = runTest {
+		val directory = folder.newFolder()
+		val snapshot = snapshot(directory)
+		val readStarted = snapshot.generation
+
+		snapshot.purge()
+		snapshot.keepFirstPage(page(listOf("a1"), currentTab = "/queue?status=unread"), href = null, generation = readStarted)
+		snapshot.keepNextPage(page(listOf("a2"), currentTab = null), href = "/queue?page=2", generation = readStarted)
+
+		assertEquals(
+			listOf(null, null, false),
+			listOf(ids(snapshot.firstPage(null)), ids(snapshot.nextPage("/queue?page=2")), directory.exists()),
+		)
+	}
+
+	@Test
+	fun `a page read after a purge is kept`() = runTest {
+		val snapshot = snapshot(folder.newFolder())
+		snapshot.keepFirstPage(page(listOf("old"), currentTab = null), href = null, generation = snapshot.generation)
+
+		snapshot.purge()
+		snapshot.keepFirstPage(page(listOf("new"), currentTab = null), href = null, generation = snapshot.generation)
+
+		assertEquals(listOf("new"), ids(snapshot.firstPage(null)))
 	}
 }

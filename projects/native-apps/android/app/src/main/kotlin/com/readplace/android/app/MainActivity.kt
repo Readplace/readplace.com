@@ -91,8 +91,7 @@ class MainActivity : ComponentActivity() {
 		val jobs = UploadJobStore(filesDir, Dispatchers.IO)
 		val unseenSave = UnseenSave(filesDir)
 		val discoveryCache = DiscoveryHttpCache(cacheDir)
-		val offlineFiles = File(filesDir, "offline-reading")
-		val snapshot = OfflineReadlistSnapshot(offlineFiles, Dispatchers.IO, now = { Instant.now() })
+		val snapshot = OfflineReadlistSnapshot(File(filesDir, "offline-reading"), Dispatchers.IO, now = { Instant.now() })
 		val customTabAuth = CustomTabAuth(this, relays)
 		val readerChoices = PreferenceReaderChoiceStorage(
 			getSharedPreferences(PreferenceReaderChoiceStorage.PREFERENCES_NAME, Context.MODE_PRIVATE),
@@ -114,7 +113,7 @@ class MainActivity : ComponentActivity() {
 			makeWebAuthFlow = { oauth -> initWebAuthFlow(present = { url -> customTabAuth.present(url) }, oauth = oauth) },
 			webDataWiper = WebViewDataWiper,
 			shareArtifacts = ShareArtifacts(jobs, unseenSave, discoveryCache),
-			offlineFiles = offlineFiles,
+			offlineReading = snapshot,
 			sloganDiagnostics = SloganDiagnostics { failure -> Log.w("Slogans", "slogan load failed: $failure") },
 			// A deliberate sign-out forgets the reader's readlist/share choices; a
 			// forced or expiry logout preserves them, so only this action clears them.

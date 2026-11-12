@@ -4901,6 +4901,62 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
+	fun `a next page answered by the network after an offline refresh ends offline`() = runTest {
+		server.handle(twoPageHandler())
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		network.down = true
+		viewModel.refresh()
+		val whileOffline = viewModel.offlineState
+
+		network.down = false
+		viewModel.loadMore()
+
+		assertEquals(OfflineReading.BANNER_TEXT to true, whileOffline)
+		assertEquals(listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+		assertEquals(null to false, viewModel.offlineState)
+	}
+
+	@Test
+	fun `a next page answered by the network after an offline write ends offline`() = runTest {
+		server.handle(twoPageHandler())
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		network.down = true
+		viewModel.invoke(advertisedAction(viewModel.state.value.articles.first(), "update-status"))
+		val whileOffline = viewModel.offlineState
+
+		network.down = false
+		viewModel.loadMore()
+
+		assertEquals(OfflineReading.BANNER_TEXT to true, whileOffline)
+		assertEquals(null to false, viewModel.offlineState)
+	}
+
+	@Test
+	fun `a list read that lands after sign-out leaves nothing to read offline`() = runTest {
+		val gate = Gate()
+		val reads = AtomicInteger()
+		server.handle { record ->
+			val stub = entryPointHandler("a1")(record)
+			if (reads.incrementAndGet() == 1) gate.holding(stub) else stub
+		}
+		val snapshot = store(folder.newFolder())
+		val viewModel = viewModel(snapshot = snapshot, ioDispatcher = Dispatchers.IO)
+
+		val read = launch { viewModel.refresh() }
+		awaitArrival(gate)
+		snapshot.purge()
+		gate.release()
+		read.join()
+
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertEquals(null, snapshot.firstPage(null))
+	}
+
+	@Test
 	fun `no row is polled while the list is offline, and polling resumes once back online`() = runTest {
 		server.handle(oneRowCountingToReady())
 		val network = OfflineSwitch()

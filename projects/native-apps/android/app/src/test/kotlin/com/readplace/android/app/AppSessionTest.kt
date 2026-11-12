@@ -11,6 +11,7 @@ import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthError
 import com.readplace.android.core.OAuthTokens
+import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.Pkce
 import com.readplace.android.core.PurgeableUploadQueue
 import com.readplace.android.core.RefreshToken
@@ -46,6 +47,7 @@ import java.io.File
 import java.io.IOException
 import java.net.ServerSocket
 import java.net.URLDecoder
+import java.time.Instant
 
 /**
  * The login and sign-up journeys through the real production types, with the
@@ -140,7 +142,7 @@ class AppSessionTest {
 				UnseenSave(folder.newFolder()),
 				DiscoveryHttpCache(folder.newFolder()),
 			),
-			offlineFiles = offlineFiles,
+			offlineReading = OfflineReadlistSnapshot(offlineFiles, ioDispatcher, now = { Instant.EPOCH }),
 			sloganDiagnostics = SloganDiagnostics { },
 			forgetReaderChoices = forgetReaderChoices,
 		)
