@@ -139,6 +139,13 @@ Same property: the server is fixed at build time, there is no runtime override, 
 `make test-staging` compiles the staging variant and runs the pins that assert which
 server it points at.
 
+**Not phone-only.** iOS ships iPhone-only and full-screen to keep iPad out of App
+Store review scope and its screenshot set (the `TARGETED_DEVICE_FAMILY` setting in
+`../ios/project.yml`). Play has no such scope, and from Android 16 the system by
+default ignores an app's orientation and resizability restrictions on displays 600dp
+and wider once it targets API 36, as this app does. So the manifest restricts nothing,
+and the app can run on tablets and in split screen with the phone layout.
+
 ## Version pins that are not "the latest"
 
 Two dependencies are deliberately held back, both for the same reason: their AAR
