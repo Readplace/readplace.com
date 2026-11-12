@@ -37,6 +37,13 @@ describe("toCanonicalArticleUrl", () => {
 	])("leaves the LinkedIn email link %s as it is", (url) => {
 		assert.equal(toCanonicalArticleUrl(url), url);
 	});
+
+	it("saves a Nextdoor email post link as the public post page without its sign-in tokens", () => {
+		assert.equal(
+			toCanonicalArticleUrl("https://nextdoor.co.uk/p/ExamplePost123?share_token=dummyShare&auto_token=dummyAuto&ct=dummyCt"),
+			"https://nextdoor.co.uk/p/ExamplePost123",
+		);
+	});
 });
 
 describe("personal link params in the article key", () => {
