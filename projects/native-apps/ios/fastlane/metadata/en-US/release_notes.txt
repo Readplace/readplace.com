@@ -1,13 +1,3 @@
-Highlight the passages you want to keep, in beta. In the reader, press and hold to select text or tap a sentence, then tap Highlight. Tap Add note to say why it matters. Every highlight is listed in the reader, where you can jump back to it, edit its note or delete it, and the article's markdown and EPUB downloads end with your highlights and notes.
+Listen to your audio and video with a transcript beside it. Upload an MP3 or M4A file, or an MP4 video of up to 2 GB, at readplace.com/upload, then open it in the app to hear it and read along with timestamps. Audio and video share 20 minutes of transcript a day.
 
-Read your saved articles offline. When there's no connection, Readplace opens the copy stored on your iPhone and shows your readlists as they last loaded.
-
-Download your unread articles ahead of time with the new button at the top of your readlist. Downloaded articles are marked Saved offline, and you can continue a download that was interrupted.
-
-When Readplace couldn't load an article from its site, opening it now tries to capture the page from your iPhone automatically, once per article. The app also no longer saves a site's error or CAPTCHA page in place of the article.
-
-Swipe all the way left on an article to mark it as read or unread. The reader now shows when you saved each article, and its icons and buttons have a refreshed look.
-
-Signing in now shows which account the app will connect to, and tapping Cancel on that page closes it without an error. Account settings are now grouped into sections, where you can also change your password and disconnect apps you've connected. Any article whose text has loaded in the reader, other than a private newsletter issue, has a Report this article link below it. This update also keeps you signed in if the app is interrupted while renewing your sign-in, leaves the sign-in animation muted when it replays, stops banners covering your readlist, and confirms the save when you share an article you've already read.
-
-An article that is still being prepared now shows Processing and about how many seconds are left, and updates on its own when it's ready. How long ago you saved each article stays up to date while your readlist is open. The reader shows when an article was published, and books you upload at readplace.com open with their chapters. Links to readplace.com, such as Export data in your account, open your browser already signed in. Each connected app shows when it last signed in, next to its Sign out from all devices button, and signing out of the app now signs out only this iPhone. Copying a page from your iPhone now stops showing as soon as the copy is done, wide tables stack to fit your screen, and a private newsletter issue explains why it can't be shared or downloaded.
+When Readplace no longer recognises your sign-in, the app now takes you back to sign in instead of failing quietly every time you open it. A private upload now explains that it has no public link to share, and long books that used to time out now open in the reader and download as markdown.

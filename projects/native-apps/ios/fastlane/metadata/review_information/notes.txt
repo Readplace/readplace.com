@@ -8,18 +8,10 @@ SAVING ARTICLES
 - In any app (e.g. Safari) open a page, tap Share, choose Readplace; it appears in the reading list (pull to refresh).
 - On the first share, choose any extra readlists and tap "Done". Shares always go to the main readlist; each readlist's "Shared articles drop here" checkbox sets the extra destinations.
 
-CHANGES IN 1.0.150
-- Offline: an opened article stays on the device; in Airplane Mode it opens from that copy, marked "Saved offline"; readlists show as last loaded.
-- The download button atop a readlist fetches every unread article ahead of time; an interrupted download can resume.
-- Automatic page capture: if the server couldn't load an article, opening it loads the page in a hidden web view and uploads it to the account, once per article per device, never an error or CAPTCHA page. Try a site that blocks automated fetches.
-- A full left swipe on a row marks it read or unread.
-- An article being prepared shows "Processing" and "~N s left" in its row and the reader; the row updates without a tap. Save times stay current on an open list.
-- The consent page shows which account the app will connect to; Cancel closes the sheet with no error.
-- Account (person icon) has headed sections: display name, Change password (signs out other apps) and connected apps, each with its latest sign-in and "Sign out from all devices".
-- A readplace.com link (e.g. Account > Export data) opens the browser signed in there, via a single-use 60-second code.
-- The reader shows tags, publish and save dates. Under a loaded article (not a private newsletter issue, which explains why it can't be shared) "Report this article" emails readplace+report@readplace.com. Books uploaded at readplace.com/upload open with chapters.
-- Highlights (Beta): in the reader, long-press text or tap a sentence, then tap Highlight; "Add note" adds a note. The Highlights list jumps to, edits or deletes each. Markdown and EPUB downloads include them.
-- Fixes: re-sharing a read article confirms the save, the intro keeps your mute choice, an interrupted sign-in renewal keeps you signed in, "Copying the page from your device" ends with the capture, signing out ends only this device's sessions, wide tables stack.
+CHANGES IN 1.0.151
+- Sign-in renewal: when the server no longer recognises the app's saved sign-in, the app signs out and returns to the sign-in screen instead of failing on every launch. Other renewal errors still keep the user signed in.
+- Added on the server since 1.0.150, so it needs no new binary: at readplace.com/upload, an MP3 or M4A file, or an MP4 video of up to 2 GB, uploaded from any signed-in account (e.g. the demo account) becomes a readlist item; opened in the app's reader it plays with a timestamped transcript. Uploads share 20 transcript minutes a day.
+- In the reader, a private upload's share button explains it has no public link; audio and video uploads offer no EPUB download; very long books now open instead of timing out.
 
 NOTES FOR REVIEW
 - API traffic goes only to https://readplace.com. The reader and page-capture web views also load saved pages from their sites; NSAllowsArbitraryLoadsInWebContent is only for them, as some are http-only.
