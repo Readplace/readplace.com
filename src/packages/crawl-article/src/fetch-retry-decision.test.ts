@@ -21,6 +21,10 @@ function curlFailure(exitCode: number | string): CurlFetchFailure {
 	return new CurlFetchFailure({ url: "https://example.com/", error: codedError({ code: exitCode }) });
 }
 
+function killedCurl(signal: string): CurlFetchFailure {
+	return new CurlFetchFailure({ url: "https://example.com/", error: Object.assign(new Error("Command failed"), { code: null, killed: true, signal }) });
+}
+
 function ladderFailure(legs: readonly unknown[]): TransportLadderFailure {
 	return new TransportLadderFailure({ escalatedStatuses: [], error: legs.at(-1), previousErrors: legs.slice(0, -1), retryDisposition: "unclassified" });
 }
@@ -77,6 +81,12 @@ describe("decideFetchFailure", () => {
 		assert.deepEqual(decision, { kind: "retryable", scope: "durable", cause: error });
 	});
 
+	it.each(["SIGKILL", "SIGTERM"])("leaves a curl process killed from outside by %s to a durable owner", (signal) => {
+		const error = killedCurl(signal);
+
+		assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "retryable", scope: "durable", cause: error });
+	});
+
 	it("leaves a fetch whose parent deadline fired to a durable owner", () => {
 		const parent = new AbortController();
 		parent.abort(deadlineReason("leg produced no response within 25000ms"));
@@ -120,6 +130,8 @@ describe("decideFetchFailure", () => {
 	it.each([
 		["a deadline wrapping a certificate mismatch", () => Object.assign(deadlineReason("no response headers within 30000ms"), { cause: codedError({ code: "ERR_TLS_CERT_ALTNAME_INVALID" }) }), "durable"],
 		["a fetch failed wrapping a deadline that wraps a reset", () => wrappedInFetchFailed(Object.assign(deadlineReason("no response headers within 30000ms"), { cause: codedError({ code: "ECONNRESET" }) })), "durable"],
+		["a reset wrapping a ladder whose legs timed out", () => Object.assign(codedError({ code: "ECONNRESET" }), { cause: ladderFailure([deadlineReason("leg produced no response within 25000ms")]) }), "local"],
+		["a fetch failed wrapping a ladder whose legs reset", () => wrappedInFetchFailed(ladderFailure([codedError({ code: "ECONNRESET" })])), "durable"],
 	] as const)("classifies %s by the outermost link it recognises", (_label, buildError, scope) => {
 		const error = buildError();
 
@@ -129,6 +141,7 @@ describe("decideFetchFailure", () => {
 	it.each([
 		["a reset wrapping a curl TLS connect error", () => Object.assign(codedError({ code: "ECONNRESET" }), { cause: curlFailure(35) })],
 		["a deadline wrapping a curl failure with no exit code", () => Object.assign(deadlineReason("leg produced no response within 25000ms"), { cause: curlFailure("ENOENT") })],
+		["a deadline wrapping a ladder with a curl TLS connect leg", () => Object.assign(deadlineReason("leg produced no response within 25000ms"), { cause: ladderFailure([codedError({ code: "ECONNRESET" }), curlFailure(35)]) })],
 	] as const)("keeps %s terminal, since a terminal curl exit anywhere in the chain decides it", (_label, buildError) => {
 		const error = buildError();
 
@@ -165,6 +178,12 @@ describe("decideFetchFailure", () => {
 			]);
 
 			assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "terminal", cause: error });
+		});
+
+		it("is durable when a curl leg was killed from outside and the other legs reset", () => {
+			const error = ladderFailure([codedError({ code: "ECONNRESET" }), killedCurl("SIGKILL")]);
+
+			assert.deepEqual(decideFetchFailure({ error, parentSignal: liveSignal() }), { kind: "retryable", scope: "durable", cause: error });
 		});
 
 		it("reads a ladder nested inside another ladder's legs", () => {

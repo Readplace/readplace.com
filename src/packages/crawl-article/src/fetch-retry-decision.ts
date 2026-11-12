@@ -45,7 +45,7 @@ function classifyLeg(error: unknown): FailureClass {
 function classifyLink(link: object): FailureClass | undefined {
 	if (isDeadlineReason(link)) return "durable";
 	if (isEarlyTransient(link)) return "local";
-	if (link instanceof CurlFetchFailure) return "terminal";
+	if (link instanceof CurlFetchFailure) return link.signal === undefined ? "terminal" : "durable";
 	return undefined;
 }
 
@@ -53,7 +53,10 @@ function classifyChain(error: unknown): FailureClass {
 	let outermost: FailureClass | undefined;
 	let link: unknown = error;
 	while (typeof link === "object" && link !== null) {
-		if (link instanceof TransportLadderFailure) return classifyLadder(link);
+		if (link instanceof TransportLadderFailure) {
+			const ladderClass = classifyLadder(link);
+			return ladderClass === "terminal" ? "terminal" : (outermost ?? ladderClass);
+		}
 		const linkClass = classifyLink(link);
 		if (linkClass === "terminal") return "terminal";
 		outermost ??= linkClass;
