@@ -5011,6 +5011,27 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
+	fun `an offline refresh after a write shows the list the write left`() = runTest {
+		server.handle { record ->
+			when {
+				record.path.endsWith("/delete") -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a2"))))
+				record.path == "/" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		viewModel.invoke(advertisedAction(viewModel.state.value.articles.first(), "delete"))
+
+		network.down = true
+		viewModel.refresh()
+
+		assertEquals(listOf("a2"), viewModel.articleIds)
+		assertEquals(OfflineReading.BANNER_TEXT to true, viewModel.offlineState)
+	}
+
+	@Test
 	fun `paging offline shows the kept next page`() = runTest {
 		server.handle(twoPageHandler())
 		val network = OfflineSwitch()

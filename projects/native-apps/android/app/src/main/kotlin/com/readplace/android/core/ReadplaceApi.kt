@@ -269,7 +269,7 @@ class ReadplaceApi(
 		if (!isSirenMediaType(answer.contentType)) return null
 		val collection = jsonElementOf(answer.body)?.let { SirenDecoding.collection(it) } ?: return null
 		if (!collection.classes.orEmpty().contains("collection")) return null
-		return ReadlistPage(collection, chain = answer.hops.map { hrefOf(it) }, sirenBody = null, isStoredCopy = false)
+		return ReadlistPage(collection, chain = answer.hops.map { hrefOf(it) }, sirenBody = answer.body, isStoredCopy = false)
 	}
 
 	// endregion

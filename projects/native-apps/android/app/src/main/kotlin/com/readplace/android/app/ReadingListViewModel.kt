@@ -383,9 +383,12 @@ class ReadingListViewModel(
 	 */
 	suspend fun invoke(action: SirenAction) {
 		val generation = tabGeneration
+		val snapshotGeneration = snapshot.generation
+		val tabHref = currentTabHref
 		val read = beginRead()
 		try {
 			val page = api.invoke(action)
+			page?.let { snapshot.keepFirstPage(it, href = it.currentTabHref ?: tabHref, generation = snapshotGeneration) }
 			// A switch mid-mutation abandons the result rather than adopting it into
 			// the new readlist; the error path keeps its existing behaviour (this owns
 			// no new mutation-error policy).
