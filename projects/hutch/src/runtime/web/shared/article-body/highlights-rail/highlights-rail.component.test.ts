@@ -437,6 +437,19 @@ describe("renderHighlightsRail", () => {
 			expect(dialogButton?.getAttribute("form")).toBe(form.id);
 		});
 
+		it("disables the edit dialog's Delete note while its form is in flight, as well as the row's", () => {
+			const doc = railOf([{ highlight: noted, state: "anchored" }]);
+
+			const form = doc.getElementById(`delete-note-highlight-${FIRST_ID}`);
+			assert(form);
+			const [inForm, outsideForm] = (form.getAttribute("hx-disabled-elt") ?? "").split(", ");
+			expect(inForm).toBe("find button");
+			assert(outsideForm);
+			expect(
+				Array.from(doc.querySelectorAll(outsideForm), (button) => button.closest("[popover]")?.id),
+			).toEqual([`note-highlight-${FIRST_ID}`]);
+		});
+
 		it("names the highlight on every Delete highlight control", () => {
 			const doc = railOf([{ highlight: noted, state: "anchored" }]);
 

@@ -107,7 +107,7 @@ function editView(input: { highlight: Highlight; scope: HighlightFormScope }) {
 			key: "highlight-delete",
 			subject: highlight.highlightId,
 			close: {},
-			title: "Delete this highlight?",
+			title: t("articleBody.highlightsRail.deleteConfirm.title"),
 			body:
 				highlight.note === undefined
 					? t("articleBody.highlightsRail.deleteConfirm.body")

@@ -292,7 +292,7 @@ describe("Delete note", () => {
 		expect(form.getAttribute("hx-target")).toBe("main");
 		expect(form.getAttribute("hx-select")).toBe("main");
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
-		expect(form.getAttribute("hx-disabled-elt")).toBe("find button");
+		expect(form.getAttribute("hx-disabled-elt")).toBe(`find button, [form='${form.id}']`);
 		expect(form.hasAttribute("hx-push-url")).toBe(false);
 		const button = form.querySelector('[data-test-action="highlight-note-delete"]');
 		expect(button?.textContent).toBe("Delete note");

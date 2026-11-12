@@ -21,7 +21,7 @@ const ADD_TITLE = "Add a note";
 
 const EDIT_TITLE = "Edit note";
 
-const DELETE_FORM_TEMPLATE = `<form class="highlights-rail__delete-form" id="{{id}}" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="find button">
+const DELETE_FORM_TEMPLATE = `<form class="highlights-rail__delete-form" id="{{id}}" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="find button, [form='{{id}}']">
 	<input type="hidden" name="{{field}}" value="">
 	<button class="btn btn--destructive btn--s" type="submit" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>
 </form>`;
