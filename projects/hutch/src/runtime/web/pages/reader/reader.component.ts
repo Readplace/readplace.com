@@ -455,7 +455,9 @@ export function ReaderPage(
 				READER_OPEN_SCRIPT +
 				READER_TOP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT +
-				(highlights.scope === undefined && highlights.rows.length === 0 ? "" : HIGHLIGHT_TOOLBAR_SCRIPT),
+				(highlights.scope === undefined && highlights.rows.every((row) => row.note === undefined)
+					? ""
+					: HIGHLIGHT_TOOLBAR_SCRIPT),
 		}),
 	};
 }

@@ -349,6 +349,42 @@ describe("initHighlightPreviews", () => {
 			expect(h.hidden).toEqual([NOTED]);
 		});
 
+		it("starts the grace once when the pointer leaves, however often it then crosses elements elsewhere", () => {
+			const h = harness({ highlights: NOTED_AND_PLAIN });
+			const mark = firstSegment(h, NOTED);
+			const outside = h.doc.querySelector("#outside");
+			const main = h.doc.querySelector("main");
+			assert(outside);
+			assert(main);
+			hoverOver(h, mark);
+			h.runTimer(HOVER_SHOW_MS);
+
+			leave(h, { from: mark, to: main });
+			const graceTimers = Array.from(h.timers.keys());
+			leave(h, { from: main, to: outside });
+			leave(h, { from: outside, to: main });
+
+			expect(Array.from(h.timers.keys())).toEqual(graceTimers);
+			h.runTimer(HOVER_GRACE_MS);
+			expect(h.hidden).toEqual([NOTED]);
+		});
+
+		it("keeps a hovered preview while the pointer moves inside it", () => {
+			const h = harness({ highlights: NOTED_AND_PLAIN });
+			const mark = firstSegment(h, NOTED);
+			const preview = previewOf(h, NOTED);
+			const note = preview.querySelector("p");
+			assert(note);
+			hoverOver(h, mark);
+			h.runTimer(HOVER_SHOW_MS);
+
+			leave(h, { from: mark, to: preview });
+			leave(h, { from: preview, to: note });
+			h.runTimer(HOVER_GRACE_MS);
+
+			expect(h.hidden).toEqual([]);
+		});
+
 		it("keeps a hovered preview through a touch leaving it", () => {
 			const h = harness({ highlights: NOTED_AND_PLAIN });
 			const mark = firstSegment(h, NOTED);
@@ -571,6 +607,19 @@ describe("initHighlightPreviews", () => {
 
 			focusIn(h, outside);
 			focusOut(h, outside);
+			focusIn(h, firstSegment(h, PLAIN));
+
+			expect(h.shown).toEqual([]);
+		});
+
+		it("ignores focus on a noted highlight's segment that is not its tab stop", () => {
+			const h = harness({
+				content: '<p>Read <a href="https://example.com/x">the linked words</a> then more text here.</p>',
+				highlights: [{ id: NOTED, exact: "linked words then more", note: "Across a link" }],
+			});
+			const [inLink] = segmentsOf(h, NOTED);
+
+			focusIn(h, inLink);
 
 			expect(h.shown).toEqual([]);
 		});

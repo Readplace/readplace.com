@@ -34,6 +34,11 @@ export interface HighlightPreviewDeps {
 	isFocusVisible: (element: Element) => boolean;
 }
 
+interface ShownPreview {
+	id: string;
+	preview: HTMLElement;
+}
+
 export interface HighlightPreviews {
 	hide(): void;
 	reposition(): void;
@@ -49,12 +54,20 @@ function attributeOf(input: { element: Element; name: string }): string {
 	return value;
 }
 
+function isNode(target: EventTarget | null): target is Node {
+	return target !== null && "nodeType" in target;
+}
+
+function isElement(target: EventTarget | null): target is Element {
+	return isNode(target) && target.nodeType === 1;
+}
+
 const inactive: HighlightPreviews = { hide: () => undefined, reposition: () => undefined };
 
 export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPreviews {
 	if (!deps.supportsPopover()) return inactive;
 	const { document } = deps;
-	let shown: { id: string; preview: HTMLElement } | undefined;
+	let shown: ShownPreview | undefined;
 	let pinned = false;
 	let pending: { id: string; handle: unknown } | undefined;
 	let grace: unknown;
@@ -66,20 +79,20 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 	const segmentsOf = (id: string): HTMLElement[] =>
 		Array.from(document.querySelectorAll<HTMLElement>(`${MARK_SELECTOR}[data-highlight-id="${id}"]`));
 
+	const elementsOn = (path: readonly EventTarget[]): Element[] => path.filter(isElement);
+
 	const notedIdOnPath = (path: readonly EventTarget[]): string | undefined => {
-		const preview = Array.from(document.querySelectorAll(`[${PREVIEW_ATTRIBUTE}]`)).find((candidate) =>
-			path.includes(candidate),
-		);
+		const elements = elementsOn(path);
+		const preview = elements.find((element) => element.hasAttribute(PREVIEW_ATTRIBUTE));
 		if (preview !== undefined) return attributeOf({ element: preview, name: PREVIEW_ATTRIBUTE });
-		const mark = Array.from(document.querySelectorAll(MARK_SELECTOR))
-			.filter((candidate) => path.includes(candidate))
-			.filter((candidate) => previewOf(attributeOf({ element: candidate, name: "data-highlight-id" })) !== null)
-			.at(-1);
+		const mark = elements
+			.filter((element) => element.matches(MARK_SELECTOR))
+			.find((element) => previewOf(attributeOf({ element, name: "data-highlight-id" })) !== null);
 		return mark?.getAttribute("data-highlight-id") ?? undefined;
 	};
 
 	const interactiveOnPath = (path: readonly EventTarget[]): boolean =>
-		Array.from(document.querySelectorAll(INTERACTIVE_SELECTOR)).some((candidate) => path.includes(candidate));
+		elementsOn(path).some((element) => element.matches(INTERACTIVE_SELECTOR));
 
 	const articleSelectionOpen = (): boolean => {
 		const selection = deps.selectionOf();
@@ -173,12 +186,30 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 		}, HOVER_GRACE_MS);
 	};
 
+	const tabStopOf = (id: string): HTMLElement | undefined =>
+		segmentsOf(id).find((segment) => segment.closest(INTERACTIVE_SELECTOR) === null);
+
 	const tabStops = (): HTMLElement[] =>
 		Array.from(document.querySelectorAll(`[${PREVIEW_ATTRIBUTE}]`)).flatMap((preview) => {
-			const id = attributeOf({ element: preview, name: PREVIEW_ATTRIBUTE });
-			const stop = segmentsOf(id).find((segment) => segment.closest(INTERACTIVE_SELECTOR) === null);
+			const stop = tabStopOf(attributeOf({ element: preview, name: PREVIEW_ATTRIBUTE }));
 			return stop === undefined ? [] : [stop];
 		});
+
+	const tabStopAt = (target: EventTarget | null): HTMLElement | undefined => {
+		if (!isElement(target)) return undefined;
+		const id = target.getAttribute("data-highlight-id");
+		if (id === null || previewOf(id) === null) return undefined;
+		const stop = tabStopOf(id);
+		return stop === target ? stop : undefined;
+	};
+
+	const within = (input: { panel: ShownPreview; target: EventTarget | null }): boolean => {
+		const { target } = input;
+		return (
+			isNode(target) &&
+			[input.panel.preview, ...segmentsOf(input.panel.id)].some((element) => element.contains(target))
+		);
+	};
 
 	const applyTabStops = (): void => {
 		for (const stop of tabStops()) {
@@ -227,7 +258,10 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 			hoveredId = undefined;
 			cancelPending();
 		}
-		if (shown !== undefined && !keyboardOn(shown.id)) startGrace();
+		if (shown === undefined || keyboardOn(shown.id)) return;
+		const leftShown =
+			within({ panel: shown, target: event.target }) && !within({ panel: shown, target: event.relatedTarget });
+		if (leftShown) startGrace();
 	});
 
 	document.addEventListener("pointerdown", (event) => {
@@ -239,7 +273,7 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 	});
 
 	document.addEventListener("focusin", (event) => {
-		const stop = tabStops().find((candidate) => candidate === event.target);
+		const stop = tabStopAt(event.target);
 		if (stop === undefined || !deps.isFocusVisible(stop)) return;
 		keyboardFocused = stop;
 		const id = attributeOf({ element: stop, name: "data-highlight-id" });
