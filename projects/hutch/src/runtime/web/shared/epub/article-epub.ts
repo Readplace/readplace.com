@@ -44,7 +44,7 @@ function chapterBodyOf(params: {
 		highlights: highlighted.highlights,
 	});
 	assert(prepared.kind === "whole", "an EPUB chapter is never split into reader sections");
-	return noteReferencedChapterXhtml({ html: prepared.html, states: prepared.states });
+	return noteReferencedChapterXhtml({ html: prepared.html, states: prepared.states, noteEnds: prepared.noteEnds });
 }
 
 type BuildArticleEpubDependencies = {

@@ -383,6 +383,7 @@ describe("markHighlights", () => {
 			"article-highlight article-highlight--has-note article-highlight--note-end",
 			"article-highlight article-highlight--has-note article-highlight--note-end",
 		]);
+		expect(marked.noteEnds).toEqual(new Set([FIRST_ID, SECOND_ID]));
 	});
 
 	it("leaves an orphaned noted highlight unmarked and keeps its note in the states", () => {
@@ -408,6 +409,7 @@ describe("markHighlights", () => {
 		expect(
 			marksOf(marked.html).map((mark) => mark.getAttribute("data-highlight-id")),
 		).toEqual([SECOND_ID]);
+		expect(marked.noteEnds).toEqual(new Set([SECOND_ID]));
 		expect(
 			marked.states.map((state) => [
 				state.highlight.highlightId,

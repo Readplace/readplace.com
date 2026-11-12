@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type AnchorState, type Highlight, HighlightIdSchema } from "@packages/domain/article";
+import { type AnchorState, type Highlight, type HighlightId, HighlightIdSchema } from "@packages/domain/article";
 import { parseHTML } from "linkedom";
 import type { ReaderHighlightState } from "../article-body/reader-slot/mark-highlights";
 import { highlightsXhtml, noteReferencedChapterXhtml } from "./highlights-xhtml";
@@ -117,6 +117,10 @@ function markOf(input: { id: string; text: string; noted?: "segment" | "end" }):
 	return `<mark class="${classes}" data-highlight-id="${input.id}">${input.text}</mark>`;
 }
 
+function noteEndsOf(...ids: string[]): ReadonlySet<HighlightId> {
+	return new Set(ids.map((id) => HighlightIdSchema.parse(id)));
+}
+
 function referenceOf(input: { id: string; number: number }): string {
 	return `<sup><a href="#endnote-highlight-${input.id}" id="noteref-highlight-${input.id}" role="doc-noteref" epub:type="noteref">${input.number}</a></sup>`;
 }
@@ -134,6 +138,7 @@ describe("noteReferencedChapterXhtml", () => {
 				stateOf({ id: FOURTH_ID, exact: "Empty", orderKey: 40, note: "Unmarked thought" }),
 				stateOf({ id: FIFTH_ID, exact: "epsilon", orderKey: 5, note: "Fifth thought" }),
 			],
+			noteEnds: noteEndsOf(FIRST_ID, FIFTH_ID),
 		});
 
 		expect(chapter.bodyHtml).toBe(
@@ -164,6 +169,7 @@ describe("noteReferencedChapterXhtml", () => {
 				stateOf({ id: FIRST_ID, exact: "One two three", orderKey: 0, note: "Outer" }),
 				stateOf({ id: SECOND_ID, exact: "two", orderKey: 4, note: "Inner" }),
 			],
+			noteEnds: noteEndsOf(FIRST_ID, SECOND_ID),
 		});
 
 		expect(chapter.bodyHtml).toBe(
@@ -180,6 +186,7 @@ describe("noteReferencedChapterXhtml", () => {
 				stateOf({ id: FIRST_ID, exact: "two", orderKey: 4, note: "First" }),
 				stateOf({ id: SECOND_ID, exact: "two", orderKey: 4, note: "Second" }),
 			],
+			noteEnds: noteEndsOf(FIRST_ID, SECOND_ID),
 		});
 
 		expect(chapter.bodyHtml).toBe(
@@ -193,6 +200,7 @@ describe("noteReferencedChapterXhtml", () => {
 		const chapter = noteReferencedChapterXhtml({
 			html,
 			states: [stateOf({ id: FIRST_ID, exact: "this", orderKey: 0, note: "Linked" })],
+			noteEnds: noteEndsOf(FIRST_ID),
 		});
 
 		expect(chapter.bodyHtml).toBe(
@@ -209,6 +217,7 @@ describe("noteReferencedChapterXhtml", () => {
 				stateOf({ id: FIRST_ID, exact: "this", orderKey: 0, note: "First" }),
 				stateOf({ id: SECOND_ID, exact: "that", orderKey: 9, note: "Second" }),
 			],
+			noteEnds: noteEndsOf(FIRST_ID, SECOND_ID),
 		});
 
 		expect(chapter.bodyHtml).toBe(
@@ -217,7 +226,7 @@ describe("noteReferencedChapterXhtml", () => {
 	});
 
 	it("leaves the body as it is and lists no section when there are no highlights", () => {
-		expect(noteReferencedChapterXhtml({ html: "<p>Plain</p>", states: [] })).toEqual({
+		expect(noteReferencedChapterXhtml({ html: "<p>Plain</p>", states: [], noteEnds: noteEndsOf() })).toEqual({
 			bodyHtml: "<p>Plain</p>",
 			highlightsHtml: "",
 		});

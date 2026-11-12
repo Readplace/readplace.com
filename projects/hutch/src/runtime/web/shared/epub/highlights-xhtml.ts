@@ -1,6 +1,6 @@
 import assert from "node:assert";
+import type { HighlightId } from "@packages/domain/article";
 import { parseHTML } from "linkedom";
-import { ARTICLE_HIGHLIGHT_NOTE_END_CLASS } from "../article-body/highlights/article-highlight-class";
 import type { ReaderHighlightState } from "../article-body/reader-slot/mark-highlights";
 import { escapeXmlAttribute, escapeXmlText } from "./epub-xhtml";
 
@@ -53,29 +53,33 @@ function outermostLinkHolding(input: { element: Element; root: Element }): Eleme
 	return holder;
 }
 
-export function noteReferencedChapterXhtml(input: { html: string; states: readonly ReaderHighlightState[] }): {
+export function noteReferencedChapterXhtml(input: {
+	html: string;
+	states: readonly ReaderHighlightState[];
+	noteEnds: ReadonlySet<HighlightId>;
+}): {
 	bodyHtml: string;
 	highlightsHtml: string;
 } {
 	const { document } = parseHTML(`<!DOCTYPE html><html><body><div id="epub-chapter-root">${input.html}</div></body></html>`);
 	const root = document.querySelector("div#epub-chapter-root");
 	assert(root, "parseHTML must produce the chapter wrapper div");
-	const noteEnds = new Map<string, Element>(
-		Array.from(root.querySelectorAll(`mark.${ARTICLE_HIGHLIGHT_NOTE_END_CLASS}`), (mark) => [
-			String(mark.getAttribute("data-highlight-id")),
-			mark,
-		]),
-	);
 	const numbers = new Map<string, number>();
 	for (const { highlight } of inOrder(input.states)) {
-		if (highlight.note !== undefined && noteEnds.has(highlight.highlightId)) {
-			numbers.set(highlight.highlightId, numbers.size + 1);
-		}
+		if (input.noteEnds.has(highlight.highlightId)) numbers.set(highlight.highlightId, numbers.size + 1);
 	}
+	const marks = Array.from(root.querySelectorAll("mark[data-highlight-id]"));
+	const lastSegments = new Map<string, Element>();
+	for (const mark of marks) lastSegments.set(String(mark.getAttribute("data-highlight-id")), mark);
+	assert(
+		[...numbers.keys()].every((highlightId) => lastSegments.has(highlightId)),
+		"every noted highlight's end mark is in the chapter",
+	);
 	const references = new Set<Node>();
-	for (const [highlightId, mark] of noteEnds) {
+	for (const mark of marks) {
+		const highlightId = String(mark.getAttribute("data-highlight-id"));
 		const number = numbers.get(highlightId);
-		assert(number !== undefined, "only a noted highlight's last segment carries the note-end class");
+		if (number === undefined || lastSegments.get(highlightId) !== mark) continue;
 		const link = document.createElement("a");
 		link.setAttribute("epub:type", "noteref");
 		link.setAttribute("role", "doc-noteref");
