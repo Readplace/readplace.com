@@ -147,6 +147,52 @@ export class HutchStorage extends pulumi.ComponentResource {
 			],
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
+		const accountId = pulumi
+			.output(aws.getCallerIdentity({}))
+			.apply((identity) => identity.accountId);
+		const region = aws.config.requireRegion();
+		const gmailCredentialsKeyPolicy = accountId.apply((id) =>
+			JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [
+					{
+						Sid: "Enable IAM User Permissions",
+						Effect: "Allow",
+						Principal: { AWS: `arn:aws:iam::${id}:root` },
+						Action: "kms:*",
+						Resource: "*",
+					},
+					{
+						Sid: "Allow access through Amazon DynamoDB for all principals in the account that are authorized to use Amazon DynamoDB",
+						Effect: "Allow",
+						Principal: { AWS: "*" },
+						Action: [
+							"kms:Encrypt",
+							"kms:Decrypt",
+							"kms:ReEncrypt*",
+							"kms:GenerateDataKey*",
+							"kms:DescribeKey",
+							"kms:CreateGrant",
+						],
+						Resource: "*",
+						Condition: {
+							StringEquals: {
+								"kms:CallerAccount": id,
+								"kms:ViaService": `dynamodb.${region}.amazonaws.com`,
+							},
+						},
+					},
+				],
+			}),
+		);
+
+		const gmailCredentialsKey = new aws.kms.Key("hutch-gmail-credentials-key", {
+			description: "Encrypts the hutch-gmail-credentials table, which holds Gmail OAuth refresh tokens",
+			enableKeyRotation: true,
+			deletionWindowInDays: 30,
+			policy: gmailCredentialsKeyPolicy,
+		}, { parent: this });
+
 		/* Per-user reader-ready notification state (the 6h email cooldown),
 		 * keyed by userId. Kept off the users row so notification bookkeeping
 		 * doesn't couple to the auth aggregate; the claim is a direct PK
@@ -156,6 +202,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 			billingMode: "PAY_PER_REQUEST",
 			deletionProtectionEnabled: args.deletionProtection,
 			pointInTimeRecovery: { enabled: true },
+			serverSideEncryption: { enabled: true, kmsKeyArn: gmailCredentialsKey.arn },
 			hashKey: "userId",
 			attributes: [{ name: "userId", type: "S" }],
 		}, { parent: this });
