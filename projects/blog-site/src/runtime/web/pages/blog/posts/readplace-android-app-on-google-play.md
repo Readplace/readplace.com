@@ -23,7 +23,7 @@ Readplace for Android is on [Google Play](https://play.google.com/store/apps/det
 
 The app plugs into the sheet the phone already uses to send a link to a friend. Open an article in Chrome, Firefox or whichever browser the phone runs, tap Share, pick Readplace. The link lands in [the readlist](/queue?utm_source=blog-readplace-android-app-on-google-play&utm_medium=internal&utm_content=readlist) and the page renders in the background, so the browser stays on the page it was on.
 
-There's nothing to paste and nothing to confirm.
+There's nothing to paste. The first share asks once which readlists shared saves go to, if there's more than the main one, and after that there's nothing to confirm.
 
 The sheet closes on its own, and the article's waiting at the top of the list the next time the app opens.
 
@@ -39,7 +39,7 @@ Scans count too.
 
 [Readplace reads scanned pages in 15 languages](/blog/readplace-now-reads-scans-in-15-languages?utm_source=blog-readplace-android-app-on-google-play&utm_medium=internal&utm_content=post-readplace-now-reads-scans-in-15-languages), so a photographed contract comes back as text with a summary rather than as pictures.
 
-An upload the connection interrupts is staged, and the app sends it the next time it opens.
+The link saves straight away, and the app sends the paper itself the next time it opens.
 
 ## The saved copy opens with its TL;DR
 
@@ -51,7 +51,7 @@ Under the surface it's a port of the iPhone app, and both clients talk to the se
 
 ## A blocked site still saves from the phone
 
-Some sites answer Readplace's crawler with a block page instead of the article. [The crawler has its own ways around that](/blog/save-articles-from-sites-that-block-bots?utm_source=blog-readplace-android-app-on-google-play&utm_medium=internal&utm_content=post-save-articles-from-sites-that-block-bots), and the app adds one more: when a save comes back blocked, it can fetch the page from the phone itself and upload that copy.
+Some sites answer Readplace's crawler with a block page instead of the article. [The crawler has its own ways around that](/blog/save-articles-from-sites-that-block-bots?utm_source=blog-readplace-android-app-on-google-play&utm_medium=internal&utm_content=post-save-articles-from-sites-that-block-bots), and the app adds one more: open a save that came back blocked, and the reader offers to fetch the page from the phone itself and upload that copy.
 
 > **What a site refuses to a server, it usually serves to a phone.**
 
