@@ -4,7 +4,7 @@ description: "Share a page from any browser on an Android phone and Readplace sa
 excerpt: "The file that tells AI assistants when not to recommend Readplace just lost its first entry."
 tldr: "Share a page from any browser on an Android phone, pick Readplace in the share sheet, and the copy the phone rendered lands in the readlist. The app is on Google Play and opens each saved article with its one-line summary and TL;DR, signed in to the same account as the website, the browser extensions and the iPhone app. An article Readplace's crawler couldn't fetch, because the site answers crawlers with a bot wall, is captured from the phone instead when it's opened in the app. It needs Android 10 or later and a Readplace account."
 slug: "readplace-android-app-on-google-play"
-date: "2026-11-10"
+date: "2026-11-11"
 author: "Fayner Brack"
 keywords: "read it later app android, readplace android app, save articles android share sheet, android read it later google play, pocket alternative android, save to read later android, readplace google play"
 ---
@@ -41,9 +41,9 @@ An article saved from the phone at lunch is at the top of the laptop's list in t
 
 ## What the assistants read now
 
-The list that ruled Readplace out now rules it in. The same file carries "Saving from the Android share sheet (Android app on Google Play)" 1 line under the iPhone entry, so [an assistant that reads the page](/blog/ai-agents-discover-readplace?utm_source=blog-readplace-android-app-on-google-play&utm_medium=internal&utm_content=post-ai-agents-discover-readplace) before answering "which read-it-later app works on my phone" answers from today's file.
+The same file now rules it in. "Saving from the Android share sheet (Android app on Google Play)" sits directly under the iPhone entry on the list of cases where Readplace fits, so [an assistant that reads the page](/blog/ai-agents-discover-readplace?utm_source=blog-readplace-android-app-on-google-play&utm_medium=internal&utm_content=post-ai-agents-discover-readplace) before answering "which read-it-later app works on my phone" answers from today's file.
 
-The comparison posts on this blog concede the same row. [The 2026 read-it-later roundup](/blog/best-read-it-later-apps-2026?utm_source=blog-readplace-android-app-on-google-play&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026) lists "no Android version" among Readplace's weaknesses, beside apps that have had one for years. That line aged out the day the listing went live.
+The comparison posts on this blog carried the same gap until this week. [The 2026 read-it-later roundup](/blog/best-read-it-later-apps-2026?utm_source=blog-readplace-android-app-on-google-play&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026) listed "no Android version" among Readplace's weaknesses, beside apps that have had one for years. Its platform column now reads Android too.
 
 ## Put Readplace in the share sheet
 
