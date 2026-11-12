@@ -90,6 +90,23 @@ describe("Forgot password", () => {
 			expect(sent[0].html).toContain("reset-password?token&#x3D;");
 		});
 
+		it("sends the reset link to the account's address alone, so no other mailbox holds a live reset link", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email } = harness;
+			await auth.createUser({ email: "user@example.com", password: "password123" });
+
+			await request(harness.server)
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
+				.type("form")
+				.send({ email: "user@example.com" });
+
+			const sent = email.getSentEmails();
+			expect(sent).toHaveLength(1);
+			const message = sent[0];
+			expect(message.to).toBe("user@example.com");
+			expect(message.bcc).toBeUndefined();
+		});
+
 		it("sends the reset email before it answers", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
