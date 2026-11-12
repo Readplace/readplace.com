@@ -120,7 +120,7 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		// ("Monitoring network traffic with Ruby and Pcap"); expectedContent
 		// targets a distinctive substring inside that extraction.
 		label: "Ars Technica",
-		url: "https://arstechnica.com/features/2005/10/linux/",
+		url: "https://arstechnica.com/information-technology/2005/10/linux-20051002/",
 		expectedContent: "take a gander at The GIMP’s procedure database",
 		expectsThumbnail: true,
 	},
