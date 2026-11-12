@@ -1,10 +1,14 @@
 package com.readplace.android.share
 
 import com.readplace.android.core.ApiError
+import com.readplace.android.core.AuthEvent
+import com.readplace.android.core.AuthReason
+import com.readplace.android.core.AuthSurface
 import com.readplace.android.core.CaptureTrigger
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
 import com.readplace.android.core.MultipartForm
+import com.readplace.android.core.OAuth
 import com.readplace.android.core.Readlist
 import com.readplace.android.core.ReadlistPage
 import com.readplace.android.core.ReadplaceApi
@@ -48,6 +52,7 @@ fun interface ReadlistChooser {
 class SaveSharedPage(
 	private val store: TokenStore,
 	private val api: ReadplaceApi,
+	private val oauth: OAuth,
 	private val captor: HtmlCapturing,
 	/** Null when this build has no shared file store to stage a body in, which
 	 * costs the enrichment upload and nothing else. */
@@ -77,8 +82,12 @@ class SaveSharedPage(
 		onSaved: (List<ServerMessage>) -> Unit = {},
 		onStillSaving: () -> Unit = {},
 	): SaveSharedOutcome {
+		oauth.recordAuthEvent(AuthEvent.CONTEXT_STARTED, surface = AuthSurface.SHARE)
 		val tokens = store.loadTokens().getOrElse { return SaveSharedOutcome.StorageUnavailable(it.javaClass.simpleName) }
-		if (tokens == null) return SaveSharedOutcome.NotLoggedIn
+		if (tokens == null) {
+			oauth.recordAuthEvent(AuthEvent.LOGIN_PROMPT_SHOWN, reason = AuthReason.NO_CREDENTIALS, surface = AuthSurface.SHARE)
+			return SaveSharedOutcome.NotLoggedIn
+		}
 		if (url == null) return SaveSharedOutcome.NoLink
 
 		return coroutineScope {
