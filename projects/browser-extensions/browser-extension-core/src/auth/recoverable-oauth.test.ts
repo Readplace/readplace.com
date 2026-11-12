@@ -171,10 +171,11 @@ describe("recoverable browser authentication", () => {
 		expect((await f.store.read()).pending?.protocol).toBe(true);
 	});
 
-	it.each(["expired", "revoked", "superseded"])("clears only a definitive matching-generation %s refusal", async reason => {
+	it.each(["expired", "revoked", "superseded", "unknown"])("clears only a definitive matching-generation %s refusal", async reason => {
 		const f = await fixture(); f.answer(async () => json({ error: "invalid_grant", readplace_reason: reason }, 400));
 		const auth = await initRecoverableOAuthAuth(f.deps);
 		expect(await auth.refreshTokens({ refusedAccessToken: "A0" })).toEqual({ ok: false, reason: "refresh-failed" });
+		expect((await f.store.read()).journal.some(entry => entry.event.event === "credentials_cleared" && entry.event.reason === reason)).toBe(true);
 		expect(await auth.getAccessToken()).toBeNull();
 		expect(auth.whenLoggedIn(() => 1)).toEqual({ ok: false, reason: "not-logged-in" });
 		await expect(auth.resourceRejected("A0")).resolves.toBeUndefined();
@@ -313,10 +314,17 @@ describe("recoverable browser authentication", () => {
 		expect((await f.store.read()).journal.some(entry => entry.event.reason === (kind === "timeout" ? "timeout" : "network_error"))).toBe(true);
 	});
 
-	it.each([undefined, "unknown"])("treats bound invalid_grant reason %s as inconclusive", async reason => {
-		const f = await fixture(); f.answer(async () => json({ error: "invalid_grant", readplace_reason: reason }, 400));
+	it("treats a bound invalid_grant without a reason as inconclusive", async () => {
+		const f = await fixture(); f.answer(async () => json({ error: "invalid_grant" }, 400));
 		const auth = await initRecoverableOAuthAuth(f.deps);
 		expect(await auth.refreshTokens({ refusedAccessToken: "A0" })).toEqual({ ok: false, reason: "unavailable" });
+	});
+
+	it("preserves the login when a refusal other than invalid_grant carries reason unknown", async () => {
+		const f = await fixture(); f.answer(async () => json({ error: "invalid_request", readplace_reason: "unknown" }, 400));
+		const auth = await initRecoverableOAuthAuth(f.deps);
+		expect(await auth.refreshTokens({ refusedAccessToken: "A0" })).toEqual({ ok: false, reason: "unavailable" });
+		expect((await f.store.read()).credentials?.refreshToken).toBe("R0");
 	});
 
 	it("legacy invalid_grant clears the old login but never attempts empty refresh or bridge requests", async () => {

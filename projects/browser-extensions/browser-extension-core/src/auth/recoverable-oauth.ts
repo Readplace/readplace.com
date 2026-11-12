@@ -117,7 +117,7 @@ export async function initRecoverableOAuthAuth(deps: Deps): Promise<Auth & {
 		const body: unknown = await response.json().catch(() => null);
 		if (!response.ok) {
 			const refusal = Refusal.safeParse(body);
-			const terminalReason = (["expired", "revoked", "superseded"] as const).find(reason => refusal.success && refusal.data.readplace_reason === reason);
+			const terminalReason = (["expired", "revoked", "superseded", "unknown"] as const).find(reason => refusal.success && refusal.data.readplace_reason === reason);
 			const terminal = response.status === 400 && refusal.success && refusal.data.error === "invalid_grant" &&
 				(!operation.protocol || terminalReason !== undefined);
 			if (terminal) {
