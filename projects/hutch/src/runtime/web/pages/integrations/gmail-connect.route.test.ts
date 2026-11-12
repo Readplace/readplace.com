@@ -1089,6 +1089,7 @@ describe("Gmail mappings across a disconnect and reconnect", () => {
 			removeGmailFilter: async () => ({ ok: true, filterCount: 0, senderCount: 0 }),
 			revokeGmailGrant: async () => ({ ok: true }),
 			cancelGmailHistoryImports: gmail.bundle.cancelGmailHistoryImports,
+			historyImports: gmail.bundle.gmailHistoryImportStore,
 			logger: Logger.from(noopLogger),
 		});
 		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });

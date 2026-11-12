@@ -160,6 +160,7 @@ function buildSubject(
 			},
 		}),
 		cancelGmailHistoryImports: gmail.bundle.cancelGmailHistoryImports,
+		historyImports: gmail.bundle.gmailHistoryImportStore,
 		logger: Logger.from(noopLogger),
 	});
 

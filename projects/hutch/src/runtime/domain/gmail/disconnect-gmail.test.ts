@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
+import type { GmailHistoryImportJob, GmailHistoryImportStore } from "@packages/domain/gmail";
 import { AliasNameSchema, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
@@ -55,6 +56,7 @@ async function makeHarness(options: {
 	connected?: boolean;
 	credentialed?: boolean;
 	gmail?: ReturnType<typeof initInMemoryGmailFilters>;
+	eraseImports?: GmailHistoryImportStore["deleteAllByUserId"];
 } = {}) {
 	const connections = initInMemoryGmailConnection({ now: () => NOW });
 	const credentials = initInMemoryGmailCredentials({ now: () => NOW });
@@ -118,6 +120,7 @@ async function makeHarness(options: {
 			return options.revoked ?? { ok: true };
 		},
 		cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports, now: () => NOW }),
+		historyImports: { deleteAllByUserId: options.eraseImports ?? imports.deleteAllByUserId },
 		logger: Logger.from(noopLogger),
 	});
 
@@ -126,7 +129,7 @@ async function makeHarness(options: {
 
 describe("initDisconnectGmail", () => {
 	it("cancels every unfinished import of the mailbox before the senders go", async () => {
-		const harness = await makeHarness();
+		const harness = await makeHarness({ rewritten: { ok: false, reason: "unavailable", status: 503 } });
 		const jobId = GmailHistoryImportJobIdSchema.parse("0".repeat(32));
 		await harness.imports.createJob({
 			userId: USER,
@@ -152,6 +155,42 @@ describe("initDisconnectGmail", () => {
 
 		const job = await harness.imports.findJob({ userId: USER, jobId });
 		assert.deepEqual([job?.state, job?.cancelReason], ["cancelled", "disconnected"]);
+	});
+
+	it("erases the import records once Google has been reached", async () => {
+		const harness = await makeHarness();
+		const job: GmailHistoryImportJob = {
+			userId: USER,
+			jobId: GmailHistoryImportJobIdSchema.parse("1".repeat(32)),
+			senderEmail: TLDR,
+			destinationAddresses: [harness.gateway],
+			connection: { gatewayAddress: harness.gateway, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") },
+			window: undefined,
+			generation: "generation-1",
+			page: 0,
+			pageToken: undefined,
+			listingCompletedAt: NOW.toISOString(),
+			state: "complete",
+			counts: { listed: 1, imported: 1, alreadyImported: 0, skippedNoMessageId: 0, skippedSenderMismatch: 0, failed: 0, cancelled: 0 },
+			failureReason: undefined,
+			cancelReason: undefined,
+			createdAt: NOW.toISOString(),
+			updatedAt: NOW.toISOString(),
+			completedAt: NOW.toISOString(),
+		};
+		await harness.imports.createJob(job);
+
+		const result = await harness.disconnect({ userId: USER });
+
+		assert.deepEqual([result.ok, await harness.imports.listJobsByUserId(USER)], [true, []]);
+	});
+
+	it("keeps the connection when the import records cannot be erased, so the queue retries", async () => {
+		const harness = await makeHarness({ eraseImports: async () => { throw new Error("DynamoDB throttled"); } });
+
+		await assert.rejects(harness.disconnect({ userId: USER }), /DynamoDB throttled/);
+
+		assert.equal((await harness.connections.findConnectionByUserId(USER))?.userId, USER);
 	});
 
 	it("clears what it saw of the senders, removes the filter, revokes at Google, then forgets the token", async () => {

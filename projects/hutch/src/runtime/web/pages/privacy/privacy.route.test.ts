@@ -103,7 +103,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 9 November 2026");
+		expect(response.text).toContain("Last updated: 13 November 2026");
 	});
 
 	it("lists a file uploaded before signing up among the data Readplace collects", async () => {
@@ -113,6 +113,36 @@ describe("GET /privacy", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const items = Array.from(doc.querySelectorAll("li"), (item) => item.textContent);
 		expect(items).toContain("Files uploaded before signing up: the file, its name and size, and what Readplace reads from it: a book's title, authors and chapter titles, or an audio file's length.");
+	});
+
+	it("says what records the Gmail import and mark-as-read options keep, and how long the original copies stay", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Import unread messages and Marking imported emails as read each keep records of their work: your Gmail address, each sender's address, the Readplace addresses the messages are delivered to, the dates an import covers, when you turned marking on, identifiers of the messages, where each run stopped, and what happened to each message and when. Import unread messages also stores the original copy of each message it downloads and deletes that copy within 31 days, whether or not Gmail stays connected.");
+	});
+
+	it("says disconnecting Gmail deletes the import and mark-as-read records", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Disconnecting Gmail asks Google to remove the Readplace filter, revokes Readplace's access to your account and deletes the stored credentials, the discovered sender list, the six-hourly check's records and the import and mark-as-read records.");
+	});
+
+	it("says imported messages stay in the inbox after a disconnect and where to disconnect", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const paragraphs = Array.from(doc.querySelectorAll(".legal-page__section p"), (paragraph) => paragraph.textContent);
+		expect(paragraphs.some((text) => text?.includes("Messages already imported or forwarded stay in your Readplace inbox after you disconnect, until you delete your account. To disconnect, open the From Gmail page and press Disconnect Gmail."))).toBe(true);
+	});
+
+	it("points the retention section at the Gmail section and states the backup window", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("What Readplace keeps from a connected Gmail account, and when it deletes each part, is set out under Connected Gmail accounts. Database backups keep a deleted record for up to 35 days.");
 	});
 
 	it("says how long a file uploaded before signing up is kept", async () => {

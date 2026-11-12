@@ -1932,6 +1932,7 @@ describe("Your newsletters", () => {
 			removeGmailFilter: async () => ({ ok: true, filterCount: 0, senderCount: 0 }),
 			revokeGmailGrant: async () => ({ ok: true }),
 			cancelGmailHistoryImports: gmail.bundle.cancelGmailHistoryImports,
+			historyImports: gmail.bundle.gmailHistoryImportStore,
 			logger: Logger.from(noopLogger),
 		});
 		gmail.bundle.publishDisconnectGmail = async (input) => {

@@ -2,6 +2,7 @@ import type {
 	GmailConnectionStore,
 	GmailCredentialsStore,
 	GmailDiscoveryStore,
+	GmailHistoryImportStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
 import type { InboxAddressStore } from "@packages/domain/inbox";
@@ -29,6 +30,7 @@ export function initDisconnectGmail(deps: {
 	removeGmailFilter: RewriteGmailFilter;
 	revokeGmailGrant: RevokeGmailGrant;
 	cancelGmailHistoryImports: CancelGmailHistoryImports;
+	historyImports: Pick<GmailHistoryImportStore, "deleteAllByUserId">;
 	logger: Logger;
 }): DisconnectGmail {
 	const { connections, credentials, senders, monitoring, addresses, removeGmailFilter, revokeGmailGrant, logger } = deps;
@@ -65,6 +67,7 @@ export function initDisconnectGmail(deps: {
 		}
 
 		await credentials.deleteCredentials(userId);
+		await deps.historyImports.deleteAllByUserId(userId);
 		await addresses.disableAddress({ userId, address: connection.gatewayAddress });
 		await connections.deleteConnection(userId);
 		await deps.discovery.deleteDiscoveryByUserId(userId);

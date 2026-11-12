@@ -73,6 +73,18 @@ A discovery now starts in three cases only: the hidden load-triggered start the 
 
 The table that holds Gmail refresh tokens is encrypted under a customer-managed KMS key created beside it (grep the hutch infra for `hutch-gmail-credentials-key`), for CASA 4.1.3 and 6.7.1. AWS makes the table inaccessible when that key is disabled or scheduled for deletion, and archives it after seven days. Every connected mailbox then stops syncing, and a readlist's Preferences tab fails for every signed-in reader, because the web app reads this table there whether or not the reader connected Gmail. Never disable the key, and never remove the key resource while the table's `SSEDescription` names it. To go back to the AWS-owned key, first deploy `serverSideEncryption: { enabled: false }` with the key kept, confirm `SSEDescription` is gone, and only then remove the key; do not `git revert` the commit that added the key, and never apply a preview that deletes the key and shows no change to the table.
 
+### Gmail data has a published retention
+
+The privacy page's "Connected Gmail accounts" section states how long each kind of Gmail-derived data is kept, because Google's review of the restricted Gmail scopes rejects a privacy policy that says nothing about retention or deletion, and requires practice to match what it says. Changing how long any of it is kept, or what a disconnect deletes, means changing the privacy page and its route test in the same commit.
+
+| Data | Rule | Where to find it |
+|---|---|---|
+| Raw copies of imported mail under `gmail-import/` in the raw-email bucket | A 29-day S3 lifecycle rule, published as "within 31 days": S3 expires an object at the first midnight UTC after the rule's age and removes it some time later, so the page states the rule's days plus two | The inbox stack's raw bucket, the rule whose id starts `raw-expiry` |
+| Import and mark-as-read records (`hutch-gmail-history-imports`) | A disconnect deletes the reader's whole partition. Both kinds share it, so pending marks and backfill progress go with the import records on purpose | The disconnect step that runs after the stored credentials are deleted, in the domain function that cancels imports with reason `disconnected` |
+| Forwarding mappings | Kept after a disconnect on purpose, so reconnecting the same mailbox brings them back; deleted with the account | The route test about a mapping kept across disconnect and reconnect |
+
+Do not add a sentence to the page that the code does not do, and do not lengthen the lifecycle rule without changing the page's number.
+
 ### iOS signs in *inside* the app, and opens our own content links Chrome-first
 
 **Signing in never leaves the app.** App Store review rejected build 53 under Guideline 4 for handing the user to the default browser to authenticate, so Login and Sign up run `/oauth/authorize` in an `ASWebAuthenticationSession` (the App-target presenter that constructs one — grep the iOS Swift sources for `ASWebAuthenticationSession(`), which captures the `readplace://oauth-callback` redirect in-process. Do not route auth back through an external browser, and do not reintroduce the app-level deep-link handler the session replaced: the callback is returned to its caller, so the PKCE verifier lives in one `await` and never has to be persisted.

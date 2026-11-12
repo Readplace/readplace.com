@@ -309,6 +309,7 @@ const disconnectGmail = initDisconnectGmail({
 	}),
 	revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
 	cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports: gmailHistoryImports, now }),
+	historyImports: gmailHistoryImports,
 	logger,
 });
 

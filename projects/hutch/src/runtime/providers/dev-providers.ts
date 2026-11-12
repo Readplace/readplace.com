@@ -287,6 +287,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 			removeGmailFilter: initRewriteGmailFilter({ ...gmailFilterDeps, mappings: { listMappings: async () => [] } }),
 			revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
 			cancelGmailHistoryImports,
+			historyImports: gmailHistoryImportStore,
 			logger,
 		});
 		const { publishRewriteGmailFilter, publishDisconnectGmail } = initLocalGmailCommands({ rewriteGmailFilter, disconnectGmail, logger });

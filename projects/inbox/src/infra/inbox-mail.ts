@@ -5,8 +5,8 @@ import { S3ReadWrite } from "@packages/infra-components/infra";
 /**
  * AWS SES inbound email receiving for the forwarding-address feature. Provisions
  * the SES domain identity + DKIM, the MX/TXT/CNAME records (added to the EXISTING
- * `read.place` Route53 zone — no NS-delegation step), the immutable raw-email S3
- * bucket (kept forever — no expiration rules), and the receipt rule that stores
+ * `read.place` Route53 zone — no NS-delegation step), the raw-email S3
+ * bucket, and the receipt rule that stores
  * each `.eml` to S3 and publishes the receipt to SNS. The receive queue
  * subscribes to {@link notificationTopicArn} in the composition root.
  *
@@ -105,12 +105,12 @@ export class InboxMail extends pulumi.ComponentResource {
 			{ parent: this },
 		);
 
-		// Immutable raw-email store. No expiration rules => kept forever (our
-		// durability, our audit artifact). The body is parsed/sanitized into the
-		// content bucket separately; this bucket is the single source of truth.
 		const rawBucket = new S3ReadWrite(
 			`${name}-raw`,
-			{ bucketName: args.rawEmailBucketName },
+			{
+				bucketName: args.rawEmailBucketName,
+				expirationRules: [{ id: "raw-expiry", expirationDays: 29, prefixes: ["gmail-import/"] }],
+			},
 			{ parent: this },
 		);
 		// SES receiving requires the raw bucket to grant ses.amazonaws.com

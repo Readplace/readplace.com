@@ -1758,7 +1758,7 @@ const rewriteGmailFilterDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filte
 
 const rewriteGmailFilterGmailHistoryDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filter-gmail-history", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:Query", "dynamodb:UpdateItem"],
+	actions: ["dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
 });
 
 const rewriteGmailFilterGmailMonitoringDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filter-gmail-monitoring", {

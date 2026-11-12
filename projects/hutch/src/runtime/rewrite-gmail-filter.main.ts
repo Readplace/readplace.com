@@ -89,6 +89,8 @@ const discovery = initDynamoDbGmailDiscovery({ client, tableName: env.DYNAMODB_G
 
 const monitoring = initDynamoDbGmailMonitoring({ client, tableName: env.DYNAMODB_GMAIL_MONITORING_TABLE, now });
 
+const historyImports = initDynamoDbGmailHistoryImport({ client, tableName: env.DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE });
+
 const rewriteHandler = initRewriteGmailFilterHandler({
 	rewriteGmailFilter: initRewriteGmailFilterUnlessDisconnecting({ connections, rewriteGmailFilter }),
 	publishEvent,
@@ -120,10 +122,8 @@ export const handler = initHandleByDetailType({
 						addresses,
 						removeGmailFilter: initRewriteGmailFilter({ ...filterDeps, mappings: { listMappings: async () => [] } }),
 						revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
-						cancelGmailHistoryImports: initCancelGmailHistoryImports({
-							imports: initDynamoDbGmailHistoryImport({ client, tableName: env.DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE }),
-							now,
-						}),
+						cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports: historyImports, now }),
+						historyImports,
 						logger,
 					}),
 				}),
