@@ -48,8 +48,8 @@ config:
   hutch:dynamodbCanaryReportsTable: hutch-canary-reports-staging
   hutch:rateLimitViewCrawl: 10000/3600
   hutch:rateLimitViewCrawlSignedIn: 10000/3600
-  hutch:rateLimitLogin: 5000/900
-  hutch:rateLimitLoginAccount: 5000/900
+  hutch:rateLimitLogin: 120/900
+  hutch:rateLimitLoginAccount: 20/900
   hutch:rateLimitSignup: 5000/3600
   hutch:rateLimitForgotPassword: 5000/3600
   hutch:rateLimitOauthRegister: 5000/3600
