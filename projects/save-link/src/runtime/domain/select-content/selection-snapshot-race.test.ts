@@ -5,7 +5,8 @@ import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/arti
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { noopLogger } from "@packages/logger";
 import { candidateProvenance, type TierSource, type VerifiedTierSource } from "@packages/tier-source";
-import { initSelectContentWork } from "./select-content-work";
+import { initSelectContentWorkUnderLease } from "./select-content-work";
+import { ContentJudgeInFlightError } from "./judge-under-ledger";
 import { initListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
 import type { ReadTierSource, WriteCanonicalContent } from "./tier-source-access.types";
@@ -21,6 +22,8 @@ const A1 = SaveAttemptIdSchema.parse("attempt-1");
 const A2 = SaveAttemptIdSchema.parse("attempt-2");
 const METADATA = { title: "Article", siteName: "example.com", excerpt: "", wordCount: 50, estimatedReadTime: 1 };
 const RECOVERED = "[SelectContent] recovered a changed selection snapshot";
+const WAITED = "[SelectContent] decided after waiting for another delivery's content judge";
+const STOPPED_WAITING = "[SelectContent] stopped waiting for another delivery's content judge";
 const LAMBDA_BUDGET_MS = 300_000;
 
 function candidate(params: { id: string; attemptId: SaveAttemptId; fetchedAt: string }): VerifiedTierSource {
@@ -56,6 +59,9 @@ function setup(params: {
 	beforeCanonicalWrite?: (write: { call: number; store: ReturnType<typeof initInMemoryArticleStore> }) => Promise<void> | void;
 	dispatchEffect?: (effect: Effect) => Promise<void>;
 	recordCrawlVersion?: RecordCrawlVersion;
+	beforeJudge?: (judged: readonly string[]) => Promise<void>;
+	onClaimRefused?: () => void;
+	holderWait?: { delayMs: number; maxWaits: number; sleep: () => Promise<void> };
 }) {
 	const store = initInMemoryArticleStore();
 	store.seed(params.seed);
@@ -64,6 +70,7 @@ function setup(params: {
 	const judged: string[][] = [];
 	const newestReadsBest: SelectMostCompleteContent = async ({ candidates }) => {
 		judged.push(candidates.map((sent) => sent.id).sort());
+		await params.beforeJudge?.(candidates.map((sent) => sent.id));
 		const [winner] = [...candidates].sort((left, right) => right.id.localeCompare(left.id));
 		assert(winner, "the judge was sent candidates");
 		return {
@@ -86,16 +93,25 @@ function setup(params: {
 		dispatchEffect: async (effect) => { await params.dispatchEffect?.(effect); effects.push(effect); },
 		logCrawlSettled: () => {},
 	});
-	const work = initSelectContentWork({
+	const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW });
+	const work = initSelectContentWorkUnderLease({
 		...initListAvailableTierSources({ readTierSource }), selectMostCompleteContent: newestReadsBest,
-		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), logger: noopLogger, now: () => NOW }),
+		runMeteredLeg: initRunMeteredLeg({
+			...ledger,
+			claimMeteredLeg: async (claim) => {
+				const claimed = await ledger.claimMeteredLeg(claim);
+				if (claimed.kind === "in-flight") params.onClaimRefused?.();
+				return claimed;
+			},
+			logger: noopLogger, now: () => NOW,
+		}),
 		writeCanonicalContent,
 		recordCrawlVersion: async (call) => { await params.recordCrawlVersion?.(call); versionCalls.push(call); },
 		loadArticle: store.load, readCanonicalContent: async () => undefined, transitionAndPersist,
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		fetchYouTubeVideoCard: async () => undefined, putTierSource: async (put) => put.metadata,
 		now: () => NOW, logger: { ...noopLogger, info: (...args: unknown[]) => { infoLines.push([String(args[0]), args[1]]); } },
-	});
+	}, { judgeClaimTtlMs: LAMBDA_BUDGET_MS, heldClaim: "wait-for-holder", holderWait: params.holderWait ?? { delayMs: 1, maxWaits: 15, sleep: async () => {} } });
 	return {
 		save: (params: { source: VerifiedTierSource; claimId: string; remainingTimeMs?: () => number }) => work({
 			url: URL, saveAttemptId: SaveAttemptIdSchema.parse(params.source.metadata.attemptId), candidates: [{ id: params.source.metadata.id, tier: params.source.tier }],
@@ -103,6 +119,7 @@ function setup(params: {
 		}),
 		row: () => store.load(URL),
 		recovered: () => infoLines.filter(([line]) => line === RECOVERED).map(([, fields]) => fields),
+		logged: (message: string) => infoLines.filter(([line]) => line === message).map(([, fields]) => fields),
 		judged, effects, canonicalWrites, versionCalls,
 	};
 }
@@ -238,6 +255,79 @@ describe("a selection whose snapshot changed before its commit", () => {
 		expect(harness.judged).toEqual([["c1"]]);
 		expect((await harness.row())?.contentSelection).toEqual(expect.objectContaining({ revision: 1, candidateId: C1.metadata.id }));
 		expect(harness.recovered()).toEqual([]);
+	});
+});
+
+describe("a selection that finds another delivery holding the content judge", () => {
+	function heldJudge(params: { delayMs: number; maxWaits: number; waitEndsWhenHolderCommits: boolean; onClaimRefused?: (release: () => void) => void }) {
+		const holderEntered = deferred();
+		const holderRelease = deferred();
+		const holderCommitted = deferred();
+		const harness = setup({
+			seed: pendingFirstSave(),
+			holderWait: { delayMs: params.delayMs, maxWaits: params.maxWaits, sleep: params.waitEndsWhenHolderCommits ? () => holderCommitted.promise : async () => {} },
+			beforeJudge: async (candidateIds) => {
+				if (candidateIds.join() !== "c2") return;
+				holderEntered.resolve();
+				await holderRelease.promise;
+			},
+			onClaimRefused: () => params.onClaimRefused?.(holderRelease.resolve),
+		});
+		const holder = harness.save({ source: C2, claimId: "message-2" }).finally(holderCommitted.resolve);
+		return { harness, holder, holderEntered: holderEntered.promise, releaseHolder: holderRelease.resolve };
+	}
+
+	it("waits for the holder to commit, then decides against the holder's canonical in the same delivery", async () => {
+		const { harness, holder, holderEntered } = heldJudge({ delayMs: 1_000, maxWaits: 15, waitEndsWhenHolderCommits: true, onClaimRefused: (release) => release() });
+		await holderEntered;
+
+		await harness.save({ source: C1, claimId: "message-1" });
+		await holder;
+
+		const row = await harness.row();
+		expect(row?.crawl.kind).toBe("ready");
+		expect(row?.contentSelection).toEqual(expect.objectContaining({ candidateId: C2.metadata.id }));
+		expect(harness.judged).toEqual([["c2"], ["c1", "c2"]]);
+		expect(harness.logged(WAITED)).toEqual([{ url: URL, saveAttemptId: A1, holderWaits: 1 }]);
+		expect(harness.logged(STOPPED_WAITING)).toEqual([]);
+	});
+
+	it("fails the delivery as before once its waits run out, without a judge call of its own", async () => {
+		const { harness, holder, holderEntered, releaseHolder } = heldJudge({ delayMs: 1_000, maxWaits: 2, waitEndsWhenHolderCommits: false });
+		await holderEntered;
+
+		const refused = await harness.save({ source: C1, claimId: "message-1" }).catch((error: unknown) => error);
+		releaseHolder();
+		await holder;
+
+		assert(refused instanceof ContentJudgeInFlightError, "the held claim escapes to the queue");
+		expect(harness.judged).toEqual([["c2"]]);
+		expect(harness.logged(STOPPED_WAITING)).toEqual([{ url: URL, saveAttemptId: A1, holderWaits: 2 }]);
+		expect(harness.logged(WAITED)).toEqual([]);
+	});
+
+	it("does not wait when a fresh judge call would no longer fit after the wait", async () => {
+		const { harness, holder, holderEntered, releaseHolder } = heldJudge({ delayMs: 1_000, maxWaits: 15, waitEndsWhenHolderCommits: false });
+		await holderEntered;
+
+		const refused = await harness.save({ source: C1, claimId: "message-1", remainingTimeMs: () => 240_000 + 5_000 + 1_000 - 1 }).catch((error: unknown) => error);
+		releaseHolder();
+		await holder;
+
+		assert(refused instanceof ContentJudgeInFlightError, "the held claim escapes to the queue");
+		expect(harness.logged(STOPPED_WAITING)).toEqual([{ url: URL, saveAttemptId: A1, holderWaits: 0 }]);
+	});
+
+	it("refuses a fresh judge call after the wait when the provider deadline and commit reserve no longer fit", async () => {
+		const { harness, holder, holderEntered } = heldJudge({ delayMs: 1_000, maxWaits: 15, waitEndsWhenHolderCommits: true, onClaimRefused: (release) => release() });
+		await holderEntered;
+		const remaining = [LAMBDA_BUDGET_MS, 240_000 + 5_000 - 1];
+
+		await expect(harness.save({ source: C1, claimId: "message-1", remainingTimeMs: () => remaining.shift() ?? 0 }))
+			.rejects.toThrow("waits for another delivery's judge: 1); a fresh content judge call needs 245000 ms");
+		await holder;
+
+		expect(harness.judged).toEqual([["c2"]]);
 	});
 });
 

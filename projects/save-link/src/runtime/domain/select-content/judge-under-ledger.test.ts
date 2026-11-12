@@ -35,7 +35,7 @@ function setup(params: { decision: ContentDecision; responseStatus?: "completed"
 		...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => params.legsDeferred ?? false, now: () => new Date(NOW) }),
 		logger: noopLogger, now: () => new Date(NOW),
 	});
-	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg, claimTtlMs: 60_000, heldClaim: "assert" });
+	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg, claimTtlMs: 60_000, heldClaim: "wait-for-holder" });
 	return {
 		selectMostCompleteContent,
 		judge: (sources: readonly VerifiedTierSource[], claimId = "message-1") => judge({ url: URL, originalUrl: URL, sources, proseHashOf: computeCanonicalContentHash, claimId }),
@@ -45,7 +45,7 @@ function setup(params: { decision: ContentDecision; responseStatus?: "completed"
 describe("initJudgeUnderLedger", () => {
 	it("answers none without claiming the judge when there is no candidate", async () => {
 		const runMeteredLeg = jest.fn<ReturnType<RunMeteredLeg>, Parameters<RunMeteredLeg>>();
-		const judge = initJudgeUnderLedger({ selectMostCompleteContent: jest.fn(), runMeteredLeg, claimTtlMs: 60_000, heldClaim: "assert" });
+		const judge = initJudgeUnderLedger({ selectMostCompleteContent: jest.fn(), runMeteredLeg, claimTtlMs: 60_000, heldClaim: "wait-for-holder" });
 
 		const decision = await judge({ url: URL, originalUrl: URL, sources: [], proseHashOf: computeCanonicalContentHash, claimId: "message-1" });
 
@@ -121,7 +121,7 @@ describe("initJudgeUnderLedger", () => {
 	});
 
 	it("fails the delivery while another delivery holds the judge", async () => {
-		const judge = initJudgeUnderLedger({ selectMostCompleteContent: jest.fn(), runMeteredLeg: async () => ({ kind: "in-flight" }), claimTtlMs: 60_000, heldClaim: "assert" });
+		const judge = initJudgeUnderLedger({ selectMostCompleteContent: jest.fn(), runMeteredLeg: async () => ({ kind: "in-flight" }), claimTtlMs: 60_000, heldClaim: "wait-for-holder" });
 
 		await expect(judge({ url: URL, originalUrl: URL, sources: [source("first", FIRST_BODY)], proseHashOf: computeCanonicalContentHash, claimId: "message-2" }))
 			.rejects.toThrow(`another delivery holds the content judge for ${URL}`);
