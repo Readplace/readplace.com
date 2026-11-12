@@ -42,6 +42,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 import java.io.IOException
 import java.net.ServerSocket
 import java.net.URLDecoder
@@ -122,6 +123,7 @@ class AppSessionTest {
 		newClientBuilder: () -> OkHttpClient.Builder = { OkHttpClient.Builder() },
 		makeWebAuthFlow: (OAuth) -> WebAuthFlow = CapturedFlow().make(),
 		forgetReaderChoices: () -> Unit = { readerChoicesForgotten += 1 },
+		offlineFiles: File = folder.newFolder(),
 	): AppSession =
 		AppSession(
 			baseUrl = baseUrl,
@@ -138,6 +140,7 @@ class AppSessionTest {
 				UnseenSave(folder.newFolder()),
 				DiscoveryHttpCache(folder.newFolder()),
 			),
+			offlineFiles = offlineFiles,
 			sloganDiagnostics = SloganDiagnostics { },
 			forgetReaderChoices = forgetReaderChoices,
 		)
@@ -522,6 +525,34 @@ class AppSessionTest {
 			uploads.purges,
 		)
 		readerWipe.join()
+	}
+
+	@Test
+	fun `logout deletes the offline reading files`() = runTest {
+		serveSignOut()
+		val offlineFiles = folder.newFolder()
+		File(offlineFiles, "readlist-pages").mkdirs()
+		File(offlineFiles, "readlist-pages/x.json").writeText("{}")
+		val session = session(store = loggedInStore(), offlineFiles = offlineFiles)
+		val existedBefore = offlineFiles.exists()
+
+		session.logout()
+
+		assertEquals(listOf(true, false), listOf(existedBefore, offlineFiles.exists()))
+	}
+
+	@Test
+	fun `forceLogout deletes the offline reading files`() = runTest {
+		val offlineFiles = folder.newFolder()
+		File(offlineFiles, "readlist-pages").mkdirs()
+		File(offlineFiles, "readlist-pages/x.json").writeText("{}")
+		val session = session(store = loggedInStore(), offlineFiles = offlineFiles)
+		val existedBefore = offlineFiles.exists()
+
+		val readerWipe = session.forceLogout()
+		readerWipe.join()
+
+		assertEquals(listOf(true, false), listOf(existedBefore, offlineFiles.exists()))
 	}
 
 	@Test

@@ -28,6 +28,7 @@ import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import java.io.File
 import java.io.IOException
 import java.net.URI
 import java.net.URISyntaxException
@@ -87,6 +88,7 @@ class AppSession(
 	private val makeWebAuthFlow: (OAuth) -> WebAuthFlow,
 	private val webDataWiper: WebDataWiper,
 	private val shareArtifacts: ShareArtifacts,
+	private val offlineFiles: File,
 	private val sloganDiagnostics: SloganDiagnostics,
 	/** Forgets the reader's persistent readlist/share choices. Invoked only on a
 	 * deliberate native sign-out, separately from the share-artifact purge — a forced
@@ -168,6 +170,7 @@ class AppSession(
 			oauth.revoke()
 			clearSessionCookie()
 			shareArtifacts.purge()
+			offlineFiles.deleteRecursively()
 			// Separate from the share-artifact purge: a deliberate sign-out also forgets
 			// the reader's readlist/share choices, which a forced logout preserves.
 			forgetReaderChoices()
@@ -184,6 +187,7 @@ class AppSession(
 		oauth.endSession()
 		clearSessionCookie()
 		shareArtifacts.purge()
+		offlineFiles.deleteRecursively()
 		val readerWipe = scope.launch { webDataWiper.wipe(serverHost) }
 		_isLoggedIn.value = false
 		return readerWipe

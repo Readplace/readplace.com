@@ -7,6 +7,8 @@ import com.readplace.android.core.Article
 import com.readplace.android.core.ArticleProcessing
 import com.readplace.android.core.Href
 import com.readplace.android.core.LastViewedReadlist
+import com.readplace.android.core.OfflineReading
+import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.Readlist
 import com.readplace.android.core.ReadlistPage
 import com.readplace.android.core.ReadlistTab
@@ -75,6 +77,7 @@ data class ReadingListState(
 	 * persisted choice so the menu badges and drop row reflect it without a fetch. */
 	val shareTargetHrefs: Set<String> = emptySet(),
 	val processingReceivedAt: Map<String, Instant> = emptyMap(),
+	val isOffline: Boolean = false,
 ) {
 	/** A switcher is offered only when the reader has more than one readlist. */
 	val offersReadlistSwitching: Boolean get() = readlists.size > 1
@@ -126,6 +129,7 @@ data class ReaderPresentation(
  */
 class ReadingListViewModel(
 	private val api: ReadplaceApi,
+	private val snapshot: OfflineReadlistSnapshot,
 	private val unseenSave: UnseenSave,
 	private val lastViewed: LastViewedReadlist,
 	private val shareTarget: ShareTarget,
@@ -290,7 +294,7 @@ class ReadingListViewModel(
 		val generation = tabGeneration
 		val read = beginRead()
 		try {
-			val page = api.loadReadlist(path = href)
+			val page = loadFirstPage(path = href)
 			if (!tabUnchanged(generation)) return
 			replace(firstPage = page, deeperPages = emptyList(), read = read)
 		} catch (cancellation: CancellationException) {
@@ -327,7 +331,7 @@ class ReadingListViewModel(
 		// then re-surface it only if a later write (e.g. mark-as-read) is refused.
 		mutate { it.copy(errorText = null, messages = emptyList()) }
 		try {
-			val page = api.loadReadlist(path = currentTabHref)
+			val page = loadFirstPage(path = currentTabHref)
 			if (tabUnchanged(generation)) replace(firstPage = page, deeperPages = emptyList(), read = read)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
@@ -351,7 +355,7 @@ class ReadingListViewModel(
 		val listVersion = readApplied
 		isLoadingMore = true
 		try {
-			val page = api.loadReadlist(path = next)
+			val page = loadNextPage(href = next)
 			if (tabUnchanged(generation) && listVersion == readApplied) apply(page, replacing = false)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
@@ -443,7 +447,7 @@ class ReadingListViewModel(
 
 	private fun restartProcessingRefresh() {
 		processingRefresh?.cancel()
-		if (isInForeground) processingRefresh = scope.launch { refreshProcessingRows() }
+		if (isInForeground && !states.value.isOffline) processingRefresh = scope.launch { refreshProcessingRows() }
 	}
 
 	private suspend fun refreshProcessingRows() {
@@ -565,7 +569,7 @@ class ReadingListViewModel(
 		while (deeperPages.size + 1 < pagesHeld) {
 			val next = (deeperPages.lastOrNull() ?: firstPage).nextHref ?: break
 			try {
-				val page = api.loadReadlist(path = next)
+				val page = loadNextPage(href = next)
 				if (!tabUnchanged(generation)) return
 				deeperPages.add(page)
 			} catch (cancellation: CancellationException) {
@@ -590,7 +594,7 @@ class ReadingListViewModel(
 		val generation = tabGeneration
 		val read = beginRead()
 		try {
-			val page = api.loadReadlist(path = currentTabHref)
+			val page = loadFirstPage(path = currentTabHref)
 			if (tabUnchanged(generation)) adoptFirstPage(firstPage = page, read = read)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
@@ -613,9 +617,29 @@ class ReadingListViewModel(
 		readApplied = read
 		apply(firstPage, replacing = true)
 		for (page in deeperPages) apply(page, replacing = false)
-		reconcileShareTargets(against = firstPage)
+		if (!firstPage.isStoredCopy) reconcileShareTargets(against = firstPage)
 		return true
 	}
+
+	private suspend fun loadFirstPage(path: String?): ReadlistPage =
+		try {
+			api.loadReadlist(path = path).also { snapshot.keepFirstPage(it, href = path) }
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (error: Exception) {
+			if (!OfflineReading.isTransportFailure(error)) throw error
+			snapshot.firstPage(path) ?: throw error
+		}
+
+	private suspend fun loadNextPage(href: String): ReadlistPage =
+		try {
+			api.loadReadlist(path = href).also { snapshot.keepNextPage(it, href = href) }
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (error: Exception) {
+			if (!OfflineReading.isTransportFailure(error)) throw error
+			snapshot.nextPage(href) ?: throw error
+		}
 
 	private fun reconcileShareTargets(against: ReadlistPage) {
 		if (shareTargetReconciliation?.isActive == true) return
@@ -790,7 +814,7 @@ class ReadingListViewModel(
 			// The list now holds first-page server truth, so any share-sheet save
 			// recorded up to this point has been shown — including one saved before
 			// a cold launch, which the launch load itself surfaces.
-			unseenSave.clear()
+			if (!page.isStoredCopy) unseenSave.clear()
 			// The advertised current tab becomes the reload target; a collection that
 			// names none keeps the target the switch or launch aimed at.
 			page.currentTabHref?.let { currentTabHref = it }
@@ -832,7 +856,16 @@ class ReadingListViewModel(
 		}
 		hasLoadedOnce = true
 		nextHref = page.nextHref
-		states.value = reconciled.copy(hasMore = page.nextHref != null, warningText = page.warning?.message)
+		states.value = reconciled.copy(
+			hasMore = page.nextHref != null,
+			warningText = page.warning?.message,
+			isOffline = when {
+				page.isStoredCopy -> true
+				replacing -> false
+				else -> current.isOffline
+			},
+			errorText = if (page.isStoredCopy) OfflineReading.BANNER_TEXT else reconciled.errorText,
+		)
 		restartProcessingRefresh()
 	}
 
@@ -880,7 +913,13 @@ class ReadingListViewModel(
 				} else {
 					mutate { it.copy(messages = error.messages) }
 				}
-			else -> mutate { it.copy(errorText = error.message ?: error.toString()) }
+			else ->
+				if (OfflineReading.isTransportFailure(error)) {
+					processingRefresh?.cancel()
+					mutate { it.copy(isOffline = true, errorText = OfflineReading.BANNER_TEXT) }
+				} else {
+					mutate { it.copy(errorText = error.message ?: error.toString()) }
+				}
 		}
 	}
 

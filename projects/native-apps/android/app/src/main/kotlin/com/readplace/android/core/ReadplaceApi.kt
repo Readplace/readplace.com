@@ -64,7 +64,7 @@ sealed class ApiError(message: String) : Exception(message) {
  * One page of the reading-list collection plus the collection-level actions
  * and pagination links the server advertised.
  */
-class ReadlistPage(collection: SirenCollection, val chain: List<String>) {
+class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sirenBody: ByteArray?, val isStoredCopy: Boolean) {
 	val articles: List<Article>
 	val nextHref: String?
 
@@ -127,6 +127,14 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>) {
 	 * toolbar rendering, which never selects an affordance by name. */
 	fun action(named: String): SirenAction? =
 		affordances.firstNotNullOfOrNull { affordance -> affordance.action?.takeIf { it.name == named } }
+
+	companion object {
+		fun stored(body: ByteArray, href: String): ReadlistPage? =
+			jsonElementOf(body)
+				?.let { SirenDecoding.collection(it) }
+				?.takeIf { it.classes.orEmpty().contains("collection") }
+				?.let { ReadlistPage(it, chain = listOf(href), sirenBody = body, isStoredCopy = true) }
+	}
 }
 
 /**
@@ -215,7 +223,7 @@ class ReadplaceApi(
 		val answer = send(request.build())
 		if (answer.status != 200) throw apiError(answer)
 		val chain = listOf(path ?: "/") + answer.hops.map { hrefOf(it) }
-		return ReadlistPage(decodeSiren(answer, SirenDecoding::collection), chain = chain)
+		return ReadlistPage(decodeSiren(answer, SirenDecoding::collection), chain = chain, sirenBody = answer.body, isStoredCopy = false)
 	}
 
 	suspend fun loadArticle(href: String): Article {
@@ -261,7 +269,7 @@ class ReadplaceApi(
 		if (!isSirenMediaType(answer.contentType)) return null
 		val collection = jsonElementOf(answer.body)?.let { SirenDecoding.collection(it) } ?: return null
 		if (!collection.classes.orEmpty().contains("collection")) return null
-		return ReadlistPage(collection, chain = answer.hops.map { hrefOf(it) })
+		return ReadlistPage(collection, chain = answer.hops.map { hrefOf(it) }, sirenBody = null, isStoredCopy = false)
 	}
 
 	// endregion
@@ -623,13 +631,6 @@ class ReadplaceApi(
 	private fun isSirenMediaType(header: String?): Boolean =
 		MediaType.matches(header, AppConfig.SIREN_MEDIA_TYPE)
 
-	private fun jsonElementOf(body: ByteArray): JsonElement? =
-		try {
-			Json.parseToJsonElement(String(body, Charsets.UTF_8))
-		} catch (_: SerializationException) {
-			null
-		}
-
 	private fun apiError(answer: Answer): ApiError {
 		if (answer.status == 401) return ApiError.Unauthorized()
 		val sirenError = jsonElementOf(answer.body)?.let { SirenDecoding.errorBody(it) }
@@ -663,3 +664,10 @@ class ReadplaceApi(
 		private val EMPTY_BODY: RequestBody = ByteArray(0).toRequestBody(null)
 	}
 }
+
+private fun jsonElementOf(body: ByteArray): JsonElement? =
+	try {
+		Json.parseToJsonElement(String(body, Charsets.UTF_8))
+	} catch (_: SerializationException) {
+		null
+	}
