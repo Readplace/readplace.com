@@ -18,6 +18,16 @@ describe("Inbox app composition", () => {
 		expect(response.status).toBe(404);
 	});
 
+	it("limits framing, plugin elements and base URLs on /inbox and leaves script and style sources open", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).get("/inbox");
+
+		expect(response.headers["content-security-policy"]).toBe(
+			"frame-ancestors 'self'; object-src 'none'; base-uri 'self'",
+		);
+	});
+
 	it("resolves the hutch session cookie into an authenticated request", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

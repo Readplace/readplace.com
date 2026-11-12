@@ -344,6 +344,7 @@ import {
 	generateCspNonce,
 	requireCspNonce,
 	sendComponent,
+	sendContentSecurityPolicy,
 	wantsMarkdown,
 } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
@@ -737,6 +738,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use((req, _res, next) => refreshContext.run({ recoveryProof: req.get("X-Readplace-Refresh-Recovery") }, next));
 
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
+	app.use(sendContentSecurityPolicy);
 	app.use(utmValidationMiddleware);
 
 	app.use((req: Request, res: Response, next: NextFunction) => {

@@ -23,6 +23,7 @@ export {
 	requireCspNonce,
 } from "./csp-nonce.middleware";
 export type { CspNonce } from "./csp-nonce.middleware";
+export { sendContentSecurityPolicy } from "./content-security-policy.middleware";
 export { formatTrialRemaining } from "./trial-countdown.format";
 export type { TrialRemaining } from "./trial-countdown.format";
 export {

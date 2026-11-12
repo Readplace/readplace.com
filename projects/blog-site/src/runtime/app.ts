@@ -5,6 +5,7 @@ import {
 	createCspNonceMiddleware,
 	generateCspNonce,
 	initBase,
+	sendContentSecurityPolicy,
 } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import type { Logger } from "@packages/logger";
@@ -64,6 +65,7 @@ export function createBlogApp(
 		next();
 	});
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
+	app.use(sendContentSecurityPolicy);
 	app.use(utmValidationMiddleware);
 	app.use(cookieParser());
 	app.use(
