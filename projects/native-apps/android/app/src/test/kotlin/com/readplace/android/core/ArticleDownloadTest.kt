@@ -1,6 +1,7 @@
 package com.readplace.android.core
 
 import java.net.URI
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -57,5 +58,67 @@ class ArticleDownloadTest {
 	@Test
 	fun rejectsAnUnparseableUrl() {
 		assertFalse(isArticleDownloadUrl("https://readplace.com/a b?format=epub"))
+	}
+
+	private val ownEpub = "$serverOrigin/view/example.com/a?format=epub"
+
+	@Test
+	fun sendsTheStoredCookiesWithOurOwnEpubLink() {
+		assertEquals(
+			mapOf("User-Agent" to "UA", "Cookie" to "hutch_sid=abc; seen=1"),
+			articleDownloadHeaders(
+				url = ownEpub,
+				userAgent = "UA",
+				cookiesFor = { if (it == ownEpub) "hutch_sid=abc; seen=1" else null },
+			),
+		)
+	}
+
+	@Test
+	fun sendsNoCookieWhenTheStoreHoldsNone() {
+		assertEquals(
+			mapOf("User-Agent" to "UA"),
+			articleDownloadHeaders(url = ownEpub, userAgent = "UA", cookiesFor = { null }),
+		)
+	}
+
+	@Test
+	fun sendsNoCookieWhenTheStoreAnswersBlank() {
+		assertEquals(
+			mapOf("User-Agent" to "UA"),
+			articleDownloadHeaders(url = ownEpub, userAgent = "UA", cookiesFor = { "" }),
+		)
+	}
+
+	@Test
+	fun sendsNoCookieToAnotherHostsEpubRoute() {
+		assertEquals(
+			mapOf("User-Agent" to "UA"),
+			articleDownloadHeaders(
+				url = "$foreignOrigin/view/example.com/a?format=epub",
+				userAgent = "UA",
+				cookiesFor = { "hutch_sid=abc" },
+			),
+		)
+	}
+
+	@Test
+	fun sendsNoCookieWithOurOwnNonDownloadPage() {
+		assertEquals(
+			mapOf("User-Agent" to "UA"),
+			articleDownloadHeaders(
+				url = "$serverOrigin/view/example.com/a",
+				userAgent = "UA",
+				cookiesFor = { "hutch_sid=abc" },
+			),
+		)
+	}
+
+	@Test
+	fun leavesTheUserAgentToTheDownloaderWhenNoneIsGiven() {
+		assertEquals(
+			mapOf("Cookie" to "hutch_sid=abc"),
+			articleDownloadHeaders(url = ownEpub, userAgent = null, cookiesFor = { "hutch_sid=abc" }),
+		)
 	}
 }
