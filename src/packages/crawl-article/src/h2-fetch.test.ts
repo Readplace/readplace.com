@@ -127,9 +127,9 @@ describe("fetchH2 — against a local HTTP/2 server", () => {
 	});
 });
 
-describe("fetchH2 — against a server that destroys every connection", () => {
+describe("fetchH2 — against a server that ends every connection without a response", () => {
 	it("rejects with the coded stream-ended failure", async () => {
-		const server = net.createServer((socket) => socket.destroy());
+		const server = net.createServer((socket) => socket.on("data", () => socket.end()));
 		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 		const address = server.address();
 		assert(address !== null && typeof address === "object", "a TCP server listens on an address");
