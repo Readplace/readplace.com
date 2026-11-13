@@ -1136,6 +1136,27 @@ describe("initReadabilityParser", () => {
 			}
 		});
 
+		it("parses a document whose <html> is followed by nested content after </html>", () => {
+			const html = readFileSync(
+				join(__dirname, "fixtures", "content-after-html-root.html"),
+				"utf-8",
+			);
+			const { parseHtml } = initParser();
+
+			const result = parseHtml({
+				url: "https://example.com/lorem-ipsum",
+				documentUrl: "https://example.com/lorem-ipsum",
+				html,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.title).toBe("Lorem ipsum");
+				expect(result.article.content).toContain("Dolor sit.");
+			}
+		});
+
 		it("replaces a native <video> in the article body with a brand-styled placeholder linking to the original", () => {
 			const htmlWithVideo = `
 			<html><head><title>Performance Post</title></head>
