@@ -114,6 +114,7 @@ tasks.withType<Test>().configureEach {
 	testLogging {
 		exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
 	}
+	inputs.files(fileTree("src/test/pixel-baselines")).withPropertyName("pixelBaselines").withPathSensitivity(PathSensitivity.RELATIVE) // a commit that changes only a picture runs the tests again instead of replaying a cached green
 	systemProperty("readplace.pixel.baselines", "src/test/pixel-baselines")
 	systemProperty("readplace.pixel.failures", "build/pixel-failures")
 	systemProperty("java.awt.headless", "true")
