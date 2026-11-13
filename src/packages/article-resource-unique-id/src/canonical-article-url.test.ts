@@ -44,6 +44,15 @@ describe("toCanonicalArticleUrl", () => {
 			"https://nextdoor.co.uk/p/ExamplePost123",
 		);
 	});
+
+	it("saves the comment button link of a Substack email as the post", () => {
+		assert.equal(
+			toCanonicalArticleUrl(
+				"https://example.substack.com/p/a-post/comments?utm_campaign=email-half-magic-comments&token=dummyToken",
+			),
+			"https://example.substack.com/p/a-post?token=dummyToken",
+		);
+	});
 });
 
 describe("personal link params in the article key", () => {
