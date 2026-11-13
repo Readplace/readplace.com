@@ -11,6 +11,7 @@ import { requireEnv } from "@packages/require-env";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { selectPassage } from "./highlight-a-passage.browser";
+import { noteGlyphGeometry, noteGlyphStyle } from "./highlight-note-glyph.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -24,6 +25,9 @@ const TOOLBAR = "[data-test-highlight-toolbar]";
 const MARKED_PARAGRAPH =
 	"[data-test-reader-content] p:has(mark.article-highlight)";
 const MARK = `${MARKED_PARAGRAPH} mark.article-highlight`;
+const NOTE_END = `${MARKED_PARAGRAPH} mark.article-highlight--note-end`;
+const NOTE_DIALOG = "#note-highlight-dialog";
+const NOTE = "Worth coming back to.";
 const PASSAGE =
 	"a reader's own mark sits behind the words without changing their ink";
 const PARAGRAPH = `<p>A highlighted sentence keeps its type and its colour: ${PASSAGE}, so the passage reads as it did before it was marked.</p>`;
@@ -31,7 +35,7 @@ const PARAGRAPH = `<p>A highlighted sentence keeps its type and its colour: ${PA
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
 
-async function openMarkedParagraph(page: Page, stamp: string): Promise<void> {
+async function openParagraph(page: Page, stamp: string): Promise<void> {
 	const email = `highlight-visual-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -75,8 +79,22 @@ async function openMarkedParagraph(page: Page, stamp: string): Promise<void> {
 	await page.waitForSelector(READY_SLOT);
 	await page.evaluate(selectPassage, { root: CONTENT, exact: PASSAGE });
 	await expect(page.locator(TOOLBAR)).toBeVisible({ timeout: SETTLE_MS });
+}
+
+async function openMarkedParagraph(page: Page, stamp: string): Promise<void> {
+	await openParagraph(page, stamp);
 	await page.locator('[data-test-action="highlight"]').click();
 	await expect(page.locator(MARK)).toHaveText(PASSAGE, { timeout: SETTLE_MS });
+}
+
+async function openNotedParagraph(page: Page, stamp: string): Promise<void> {
+	await openParagraph(page, stamp);
+	await page.locator('[data-test-action="add-note"]').click();
+	await page.locator("[data-test-highlight-note-input]").fill(NOTE);
+	await page.locator('[data-test-action="highlight-note-save"]').click();
+	await expect(page.locator(NOTE_END)).toHaveText(PASSAGE, {
+		timeout: SETTLE_MS,
+	});
 }
 
 async function markedParagraphSettled(page: Page): Promise<void> {
@@ -101,6 +119,33 @@ async function markInsideParagraph(page: Page): Promise<void> {
 	);
 }
 
+async function notedParagraphSettled(page: Page): Promise<void> {
+	await markedParagraphSettled(page);
+	await expect(page.locator(NOTE_END)).toHaveCount(1);
+	await expect(page.locator(`${NOTE_DIALOG}[open]`)).toHaveCount(0);
+}
+
+async function noteGlyphAfterLastWord(page: Page): Promise<void> {
+	const glyph = await page.evaluate(noteGlyphGeometry, { mark: NOTE_END });
+	assert.ok(
+		Math.abs(glyph.segmentTop - glyph.lastCharacterTop) <= 1,
+		"the glyph sits on the last word's line",
+	);
+	assert.ok(
+		Math.abs(
+			glyph.segmentRight - glyph.lastCharacterRight - 1.5 * glyph.fontSize,
+		) <= 1,
+		"the glyph's box follows the last character by 1.5em",
+	);
+}
+
+async function noteGlyphInTextColour(page: Page): Promise<void> {
+	const glyph = await page.evaluate(noteGlyphStyle, { mark: NOTE_END });
+	expect(glyph.content).toBe('"\u2060"');
+	expect(glyph.maskImage.startsWith('url("data:image/svg+xml')).toBe(true);
+	expect(glyph.glyphBackground).toBe(glyph.markColor);
+}
+
 function checkpoint(name: string): VisualCheckpoint {
 	return {
 		name,
@@ -114,6 +159,22 @@ function checkpoint(name: string): VisualCheckpoint {
 
 const MARKED_PARAGRAPH_LIGHT = checkpoint("highlight-marked-paragraph-light");
 const MARKED_PARAGRAPH_DARK = checkpoint("highlight-marked-paragraph-dark");
+
+function notedCheckpoint(name: string): VisualCheckpoint {
+	return {
+		...checkpoint(name),
+		settled: notedParagraphSettled,
+		geometry: async (page) => {
+			await markInsideParagraph(page);
+			await noteGlyphAfterLastWord(page);
+		},
+	};
+}
+
+const NOTED_PARAGRAPH_LIGHT = notedCheckpoint(
+	"highlight-noted-paragraph-light",
+);
+const NOTED_PARAGRAPH_DARK = notedCheckpoint("highlight-noted-paragraph-dark");
 
 test.describe("A highlighted passage in the reader", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
@@ -134,5 +195,42 @@ test.describe("A highlighted passage in the reader", () => {
 			`dark-${testInfo.workerIndex}-${Date.now()}`,
 		);
 		await captureCheckpoint(page, MARKED_PARAGRAPH_DARK);
+	});
+
+	test("shows a note glyph in the text colour after a noted passage (light)", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openNotedParagraph(
+			page,
+			`noted-light-${testInfo.workerIndex}-${Date.now()}`,
+		);
+		await noteGlyphInTextColour(page);
+		await captureCheckpoint(page, NOTED_PARAGRAPH_LIGHT);
+	});
+
+	test("shows a note glyph in the text colour after a noted passage (dark)", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		await openNotedParagraph(
+			page,
+			`noted-dark-${testInfo.workerIndex}-${Date.now()}`,
+		);
+		await noteGlyphInTextColour(page);
+		await captureCheckpoint(page, NOTED_PARAGRAPH_DARK);
+	});
+
+	test("keeps the note glyph visible in forced-colours mode", async ({
+		page,
+	}, testInfo) => {
+		await openNotedParagraph(
+			page,
+			`noted-forced-${testInfo.workerIndex}-${Date.now()}`,
+		);
+		await page.emulateMedia({ forcedColors: "active" });
+		const glyph = await page.evaluate(noteGlyphStyle, { mark: NOTE_END });
+		expect(glyph.glyphBackground).toBe(glyph.bodyColor);
+		expect(glyph.glyphBackground).not.toBe(glyph.bodyBackground);
 	});
 });

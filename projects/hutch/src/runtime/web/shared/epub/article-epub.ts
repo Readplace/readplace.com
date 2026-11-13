@@ -8,7 +8,7 @@ import { epubImageBudgetFor } from "./epub-image-budget";
 import { buildEpub } from "./epub-package";
 import type { ReaderHighlights } from "../article-body/reader-slot/mark-highlights";
 import { prepareReaderContent, WHOLE_DOCUMENT_SECTION } from "../article-body/reader-slot/reader-content";
-import { highlightsXhtml } from "./highlights-xhtml";
+import { noteReferencedChapterXhtml } from "./highlights-xhtml";
 import type { LogError } from "@packages/logger";
 
 type SkippedImage = { filename: string; bytes: number };
@@ -44,7 +44,7 @@ function chapterBodyOf(params: {
 		highlights: highlighted.highlights,
 	});
 	assert(prepared.kind === "whole", "an EPUB chapter is never split into reader sections");
-	return { bodyHtml: prepared.html, highlightsHtml: highlightsXhtml(prepared.states) };
+	return noteReferencedChapterXhtml({ html: prepared.html, states: prepared.states, noteEnds: prepared.noteEnds });
 }
 
 type BuildArticleEpubDependencies = {

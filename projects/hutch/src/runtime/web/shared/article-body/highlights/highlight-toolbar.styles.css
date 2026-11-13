@@ -10,6 +10,27 @@
   box-decoration-break: clone;
 }
 
+.article-highlight--note-end::after {
+  content: "\2060";
+  padding-inline-start: 1.5em;
+  background-color: currentColor;
+  -webkit-mask-image: var(--article-highlight-note-glyph);
+  mask-image: var(--article-highlight-note-glyph);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 1em;
+  mask-size: 1em;
+}
+
+@media (forced-colors: active) {
+  .article-highlight--note-end::after {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+  }
+}
+
 .highlight-toolbar {
   position: fixed;
   top: 0;

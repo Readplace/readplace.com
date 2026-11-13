@@ -11,6 +11,10 @@ import {
 	normaliseText,
 } from "@packages/domain/article/highlight";
 import { parseHTML } from "linkedom";
+import {
+	ARTICLE_HIGHLIGHT_HAS_NOTE_CLASS,
+	ARTICLE_HIGHLIGHT_NOTE_END_CLASS,
+} from "../highlights/article-highlight-class";
 import { ARTICLE_HIGHLIGHT_CLASS } from "../highlights/highlight-toolbar.component";
 import { servedContentHash } from "./served-content-hash";
 
@@ -28,6 +32,7 @@ interface MarkedHighlights {
 	html: string;
 	text: string;
 	states: readonly ReaderHighlightState[];
+	noteEnds: ReadonlySet<HighlightId>;
 }
 
 interface Piece {
@@ -106,6 +111,30 @@ function wrapPieces(input: {
 	parent.removeChild(node);
 }
 
+function markNotedHighlights(input: {
+	root: Element;
+	states: readonly ReaderHighlightState[];
+}): ReadonlySet<HighlightId> {
+	const noted = new Map(
+		input.states
+			.filter((state) => state.highlight.note !== undefined)
+			.map((state) => [String(state.highlight.highlightId), state.highlight.highlightId]),
+	);
+	const lastSegments = new Map<HighlightId, Element>();
+	for (const mark of Array.from(
+		input.root.querySelectorAll("mark[data-highlight-id]"),
+	)) {
+		const highlightId = noted.get(String(mark.getAttribute("data-highlight-id")));
+		if (highlightId === undefined) continue;
+		mark.classList.add(ARTICLE_HIGHLIGHT_HAS_NOTE_CLASS);
+		lastSegments.set(highlightId, mark);
+	}
+	for (const mark of lastSegments.values()) {
+		mark.classList.add(ARTICLE_HIGHLIGHT_NOTE_END_CLASS);
+	}
+	return new Set(lastSegments.keys());
+}
+
 export function markHighlights(input: {
 	html: string;
 	highlights: ReaderHighlights;
@@ -135,5 +164,6 @@ export function markHighlights(input: {
 	for (const [chunk, pieces] of byChunk) {
 		wrapPieces({ document, node: chunks[chunk].node, pieces, minted });
 	}
-	return { html: root.innerHTML, text: normalised.text, states };
+	const noteEnds = markNotedHighlights({ root, states });
+	return { html: root.innerHTML, text: normalised.text, states, noteEnds };
 }

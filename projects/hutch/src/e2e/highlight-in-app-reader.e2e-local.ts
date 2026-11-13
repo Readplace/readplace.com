@@ -4,6 +4,7 @@ import { requireEnv } from "@packages/require-env";
 import { devices, type Page } from "@playwright/test";
 import { z } from "zod";
 import { APP_BACK_LINK } from "../runtime/web/shared/native-app-links";
+import { noteGlyphStyle } from "./highlight-note-glyph.browser";
 import { pointInsideText, selectedText } from "./highlight-on-a-phone.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -17,6 +18,7 @@ const READY_SLOT = '[data-test-reader-slot][data-reader-status="ready"]';
 const SHOWN_TOOLBAR = "[data-test-highlight-toolbar]:not([hidden])";
 const HIGHLIGHT_BUTTON = '[data-test-action="highlight"]';
 const MARK = `${CONTENT} mark[data-highlight-id]`;
+const NOTE_END = `${CONTENT} mark.article-highlight--note-end`;
 const BACK_LINK = "main [data-test-back-link]";
 
 const OPENING_SENTENCE = "The app opens the article in its own reader.";
@@ -81,5 +83,22 @@ test.describe("Highlighting a passage inside the Android app's reader", () => {
 
 		await expect(page.locator(BACK_LINK)).toHaveAttribute("href", APP_BACK_LINK.topHref);
 		expect(new URL(page.url()).searchParams.get("platform")).toBe("android");
+	});
+
+	test("a tapped sentence saved with a note shows the note glyph after it", async ({ page }, testInfo) => {
+		await openAppReader(page, `noted-${testInfo.workerIndex}-${Date.now()}`);
+
+		const point = await page.evaluate(pointInsideText, { root: CONTENT, exact: TAPPED_SENTENCE });
+		await page.touchscreen.tap(point.x, point.y);
+		await expect.poll(() => page.evaluate(selectedText), { timeout: SETTLE_MS }).toBe(TAPPED_SENTENCE);
+		await expect(page.locator(SHOWN_TOOLBAR)).toHaveCount(1, { timeout: SETTLE_MS });
+
+		await page.locator('[data-test-action="add-note"]').tap();
+		await page.locator("[data-test-highlight-note-input]").fill("Worth coming back to.");
+		await page.locator('[data-test-action="highlight-note-save"]').tap();
+
+		await expect(page.locator(NOTE_END)).toHaveText(TAPPED_SENTENCE, { timeout: SETTLE_MS });
+		const glyph = await page.evaluate(noteGlyphStyle, { mark: NOTE_END });
+		expect(glyph.maskImage.startsWith('url("data:image/svg+xml')).toBe(true);
 	});
 });

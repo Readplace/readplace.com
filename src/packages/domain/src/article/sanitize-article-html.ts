@@ -122,7 +122,11 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 	allowedClasses: {
 		p: PARAGRAPH_CLASSES,
 		hr: RULE_CLASSES,
-		mark: ["article-highlight"],
+		mark: [
+			"article-highlight",
+			"article-highlight--has-note",
+			"article-highlight--note-end",
+		],
 	},
 	allowedSchemes: ["http", "https", "mailto"],
 	allowedSchemesByTag: { img: ["http", "https", "data"] },

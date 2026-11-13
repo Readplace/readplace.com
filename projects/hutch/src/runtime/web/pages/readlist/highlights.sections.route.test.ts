@@ -142,6 +142,49 @@ describe("Highlights on a paged article", () => {
 		]);
 	});
 
+	it("marks a noted passage that crosses into the next page as having a note on both and as the note's end only where it ends", async () => {
+		const { agent, articleId } = await savePagedBook();
+		const sectionOne = doc((await agent.get(sectionPath(articleId, 1))).text);
+		const content = doc(
+			`<!DOCTYPE html><html><body><div>${PAGED_CONTENT}</div></body></html>`,
+		).querySelector("div");
+		assert(content);
+		const { text } = normaliseText(collectTextChunks<Node>(content));
+		const start = text.lastIndexOf("word");
+		const end = text.indexOf("Opening line") + "Opening line".length;
+
+		const created = await agent
+			.post(createActionOf(sectionOne))
+			.type("form")
+			.send({
+				exact: text.slice(start, end),
+				start: String(start),
+				end: String(end),
+				origin: "mouse",
+				note: "Crosses the page",
+			});
+		assert.equal(created.status, 303);
+
+		const classesOn = async (section: number) =>
+			Array.from(
+				doc((await agent.get(sectionPath(articleId, section))).text).querySelectorAll(
+					"mark.article-highlight",
+				),
+				(mark) => mark.getAttribute("class"),
+			);
+		const [pageOneClasses, pageTwoClasses] = [
+			await classesOn(1),
+			await classesOn(2),
+		];
+		expect(pageOneClasses).toEqual([
+			"article-highlight article-highlight--has-note",
+		]);
+		expect(pageTwoClasses).toEqual([
+			"article-highlight article-highlight--has-note",
+			"article-highlight article-highlight--has-note article-highlight--note-end",
+		]);
+	});
+
 	it("deletes a highlight from the section page it is listed on", async () => {
 		const { agent, articleId } = await savePagedBook();
 		await highlightChapterTwo(agent, articleId);
