@@ -47,25 +47,26 @@ function formDoc(overrides: Partial<Parameters<typeof renderAddLinkForm>[0]> = {
 }
 
 describe("Add article", () => {
-	it("offers a neutral + Article button that opens the dialog", () => {
+	it("offers a neutral + Upload button that opens the dialog", () => {
 		const doc = addLinkDoc();
 
 		const trigger = element(doc, '[data-test-action="add-link"]');
 		expect(trigger.getAttribute("popovertarget")).toBe("add-link");
 		expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
 		expect(trigger.classList.contains("btn--neutral")).toBe(true);
-		expect(trigger.textContent).toBe("Article");
+		expect(trigger.textContent).toBe("Upload");
 	});
 
-	it("titles the dialog and tells the reader where the link is saved", () => {
+	it("titles the dialog and gives each tab its own copy", () => {
 		const doc = addLinkDoc();
 
 		const dialog = element(doc, "#add-link");
 		expect(dialog.getAttribute("popover")).toBe("auto");
 		expect(dialog.getAttribute("role")).toBe("dialog");
 		expect(element(doc, "#add-link-title").textContent).toBe("Add article");
-		expect(element(doc, "#add-link-body").textContent).toBe(
-			"Paste a link, or drop a file: a bookmarks export to review, or a DRM-free EPUB to read.",
+		expect(element(doc, '[data-test-add-article-body="link"]').textContent).toBe("Paste a link.");
+		expect(element(doc, '[data-test-add-article-body="file"]').textContent).toBe(
+			"Drop a file: a bookmarks export to review, or a DRM-free EPUB to read.",
 		);
 	});
 
@@ -178,7 +179,7 @@ describe("Add article", () => {
 		const doc = addLinkDoc();
 
 		const fallback = element(doc, "details[data-test-add-link-fallback]");
-		expect(element(fallback, "summary").textContent).toBe("Article");
+		expect(element(fallback, "summary").textContent).toBe("Upload");
 		const form = element(fallback, '[data-test-form="save-article-fallback"]');
 		expect(form.getAttribute("method")).toBe("POST");
 		expect(form.getAttribute("action")).toBe(element(doc, '[data-test-form="save-article"]').getAttribute("action"));

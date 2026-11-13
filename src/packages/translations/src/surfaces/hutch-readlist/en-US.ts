@@ -1,4 +1,11 @@
 export const enUS = {
+	readlistAddArticle: {
+		trigger: "Upload",
+		body: {
+			link: "Paste a link.",
+			file: "Drop a file: a bookmarks export to review, or a DRM-free EPUB to read.",
+		},
+	},
 	readlistOffline: {
 		banner: {
 			processing: "Some of these articles weren't downloaded with their content. Open them when you're back online to read them.",

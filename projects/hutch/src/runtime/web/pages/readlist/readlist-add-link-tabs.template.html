@@ -1,4 +1,6 @@
 <div class="readlist-add-article" data-test-add-article>
+  <p class="confirm-popover__body readlist-add-article__body readlist-add-article__body--link" data-test-add-article-body="link">{{t "readlistAddArticle.body.link"}}</p>
+  <p class="confirm-popover__body readlist-add-article__body readlist-add-article__body--file" data-test-add-article-body="file">{{t "readlistAddArticle.body.file"}}</p>
   <div class="underline-tabs readlist-add-article__tabs" role="radiogroup" aria-label="Add from" data-test-add-article-tabs>
     {{#each modes}}
     <label class="underline-tabs__tab readlist-add-article__tab"><input class="readlist-add-article__mode" type="radio" name="add-article-mode" value="{{value}}"{{#if checked}} checked autofocus{{/if}} data-test-add-article-mode="{{value}}"><span class="underline-tabs__label" data-widest="{{label}}"><span>{{label}}</span></span></label>

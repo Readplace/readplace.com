@@ -42,8 +42,6 @@ const ADD_ARTICLE_MODES = [
 
 const ADD_LINK_TITLE = "Add article";
 
-const ADD_LINK_BODY = "Paste a link, or drop a file: a bookmarks export to review, or a DRM-free EPUB to read.";
-
 const ADD_LINK_FAILURE = "Couldn't save the link.";
 
 interface Attribute {
@@ -118,7 +116,6 @@ export function renderReadlistAddLink(input: {
 			dialogHtml: "",
 			pendingHtml: render(PENDING_TEMPLATE, {
 				title: ADD_LINK_TITLE,
-				body: ADD_LINK_BODY,
 				accessIsReadOnly: input.accessIsReadOnly,
 				formHtml: form({ value: input.saveUrl, autoSubmit: true, autofocus: false }),
 			}),
@@ -133,7 +130,7 @@ export function renderReadlistAddLink(input: {
 			id: ADD_LINK_POPOVER_ID,
 			key: ADD_LINK_POPOVER_ID,
 			title: ADD_LINK_TITLE,
-			body: ADD_LINK_BODY,
+			body: "",
 			actionsHtml: [
 				render(TABS_TEMPLATE, {
 					modes: ADD_ARTICLE_MODES,
