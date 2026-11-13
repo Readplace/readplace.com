@@ -2796,3 +2796,61 @@ describe("the retry decision on a failed crawl", () => {
 		expect(result).toHaveProperty("decision", undefined);
 	});
 });
+
+
+describe("closed publisher notices through the decorated crawler", () => {
+	const source = "https://link.camper.com/u/nrd.php?d=synthetic-notice";
+	const target = "https://www.camper.com/int/at_cliente_faq?faq=97";
+	const tracked = `${target}&utm_source=synthetic&sc_uid=synthetic`;
+	const notice = (url: string) => `<html><head><style type="text/css">body { color: #555; font-family: Arial, Verdana, Helvetica, sans-serif; font-weight: normal; font-size: 11px; } a { color: #555; }</style><meta http-equiv="content-type" content="text/html"><meta http-equiv="refresh" content="0; url=${url.replaceAll("&", "&amp;")}"></head><body>If you are not redirected, please click <a href="${url.replaceAll("&", "&amp;")}" id="redir">here</a></body></html>`;
+	const article = '<html><head><title>Synthetic public answer</title></head><body><article><p>The public answer is available here.</p></article></body></html>';
+	it("requests the bare semantic target with the existing validators and terminal provenance", async () => {
+		const requests: { url: string; headers: Record<string, string> }[] = [];
+		const terminal = "https://www.camper.com/en_GB/at_cliente_faq?faq=97";
+		const crawl = initCrawl({ fetch: async (input, init) => {
+			const url = String(input); requests.push({ url, headers: plainHeaders(init) });
+			if (url === source) return new Response(notice(tracked), { headers: { "content-type": "text/html" } });
+			if (url === target) return new Response(null, { status: 302, headers: { location: terminal } });
+			assert.equal(url, terminal);
+			return new Response(article, { headers: { "content-type": "text/html", etag: '"new"' } });
+		} });
+		const result = await crawl({ url: source, etag: '"old"', lastModified: "Wed, 01 Jan 2025 00:00:00 GMT" });
+		assertFetched(result);
+		expect(requests.map(request => request.url)).toEqual([source, target, terminal]);
+		for (const request of requests) {
+			expect(request.headers["if-none-match"]).toBe('"old"');
+			expect(request.headers["if-modified-since"]).toBe("Wed, 01 Jan 2025 00:00:00 GMT");
+		}
+		expect(result).toMatchObject({ html: article, finalUrl: terminal, etag: '"new"' });
+	});
+	it("keeps the existing single-stub-hop cap", async () => {
+		const requested: string[] = [];
+		const crawl = initCrawl({ fetch: async input => {
+			const url = String(input); requested.push(url);
+			return new Response(notice(url === source ? tracked : "https://example.test/third"), { headers: { "content-type": "text/html" } });
+		} });
+		const result = await crawl({ url: source });
+		assertFetched(result);
+		expect(requested).toEqual([source, target]);
+		expect(result.html).toBe(notice("https://example.test/third"));
+	});
+	it.each([false, true])("uses the existing PDF media path (extractor available: %s)", async available => {
+		const pdf = "https://www.camper.com/html/legal/pdfs/privacy/general_privacy_policy_EN.pdf";
+		const requested: string[] = [];
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", html: article, title: "Synthetic privacy" }));
+		const crawl = initCrawl({ extractPdf: available ? extractPdf : undefined, fetch: async input => {
+			const url = String(input); requested.push(url);
+			return url === source ? new Response(notice(`${pdf}?utm_source=synthetic`), { headers: { "content-type": "text/html" } }) : new Response(PDF_MAGIC_BUFFER, { headers: { "content-type": "application/pdf" } });
+		} });
+		const result = await crawl({ url: source });
+		expect(requested).toEqual([source, pdf]);
+		expect(result.status).toBe(available ? "fetched" : "unsupported");
+		expect(extractPdf).toHaveBeenCalledTimes(available ? 1 : 0);
+	});
+	it.each([`${target}&signature=synthetic`, `${target}&faq=98`, target.replace("faq=97", "faq=action"), target.replace("/int/", "/account/"), `${target}&utm_new=x`])("makes no new request for excluded target %s", async excluded => {
+		const requested: string[] = [];
+		const crawl = initCrawl({ fetch: async input => { requested.push(String(input)); return new Response(notice(excluded), { headers: { "content-type": "text/html" } }); } });
+		await crawl({ url: source });
+		expect(requested).toEqual([source]);
+	});
+});
