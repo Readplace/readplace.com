@@ -133,6 +133,18 @@ native cleartext at all. This replaced the old localhost-only network-security c
 that lived in the `local` flavor's manifest overlay, which could not have opened
 cleartext for arbitrary article WebViews without also opening it for native requests.
 
+**No HTTP cache on the app's API client.** iOS gives its API session a 10 MB disk URL
+cache and reads the list with a revalidating cache policy. That cache was added to hold
+the offline list; JSON snapshots took that job over the same day, so all it still does
+is let an unchanged list answer `304` with no body. The server builds the whole listing
+before it can answer `304` and varies the list on `Authorization`, so the saving is one
+response body, and only until the next token refresh. This app's API client is built
+with no cache instead. The server lets a native client keep the list for an hour so the
+share target can save without rediscovering, and archiving or deleting a row never
+invalidates that copy, so a cached app client would show a stale list on any read that
+forgot to force revalidation. Every list read here goes to the origin in full; only the
+share target's client opts into the discovery cache.
+
 **Compile-time environment via a product flavor.** iOS selects its server with
 `#if STAGING`; here the `production`/`staging` flavors set `BuildConfig.SERVER_BASE_URL`.
 Same property: the server is fixed at build time, there is no runtime override, and
