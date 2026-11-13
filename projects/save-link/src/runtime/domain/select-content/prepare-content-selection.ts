@@ -59,9 +59,9 @@ function firstCaptureOf(params: { isFirstContent: boolean; sources: readonly Ver
 	return only !== undefined && params.sources.length === 1 && params.isFirstContent && isTapCapture(only.metadata) && !isWrapperUrl(only.metadata.sourceUrl) ? only : undefined;
 }
 
-function loneBodyOf(params: { isFirstContent: boolean; sources: readonly VerifiedTierSource[] }): VerifiedTierSource | undefined {
-	const [only] = params.sources;
-	return only !== undefined && params.sources.length === 1 && params.isFirstContent ? only : undefined;
+function loneBodyOf(params: { isFirstContent: boolean; sources: readonly VerifiedTierSource[]; proseHashOf: (html: string) => string }): VerifiedTierSource[] | undefined {
+	const [only, ...others] = params.isFirstContent ? groupByJudgedBody(params) : [];
+	return only !== undefined && others.length === 0 && (params.sources.length === 1 || !only.some((source) => isTapCapture(source.metadata))) ? only : undefined;
 }
 
 function isOwnFreshCapture(params: { source: VerifiedTierSource; saveAttemptId: SaveAttemptId }): boolean {
@@ -219,9 +219,11 @@ export function initPrepareContentSelection(deps: {
 		const superseded = considered.length > 0 && considered.every(supersededBy) ? previous : undefined;
 		const proseUnchanged = previous !== undefined && sources.length > 1 &&
 			sources.every((source) => proseHashOf(source.html) === article.freshness.canonicalContentHash && candidateIsReadable(source));
-		const loneBody = loneBodyOf({ isFirstContent, sources });
-		const loneErrorStatus = loneBody !== undefined && answeredWithError(loneBody.metadata.httpStatus);
-		const loneAccepted = loneBody !== undefined && !loneErrorStatus && loneBody.metadata.wordCount >= LONE_BODY_MIN_WORDS && !isWrapperUrl(loneBody.metadata.sourceUrl);
+		const loneBodyMembers = loneBodyOf({ isFirstContent, sources, proseHashOf });
+		const loneBody = loneBodyMembers === undefined ? undefined : representativeOf(loneBodyMembers);
+		const loneBodyAnsweredWithError = loneBodyMembers?.some((member) => answeredWithError(member.metadata.httpStatus));
+		const loneErrorStatus = loneBodyAnsweredWithError && sources.length === 1;
+		const loneAccepted = loneBody !== undefined && !loneBodyAnsweredWithError && loneBody.metadata.wordCount >= LONE_BODY_MIN_WORDS && !isWrapperUrl(loneBody.metadata.sourceUrl);
 		const decision = firstCapture !== undefined
 			? { kind: "winner", candidateId: firstCapture.metadata.id, reason: "the reader's capture is the article's first content", readability: [{ candidateId: firstCapture.metadata.id, readable: true }], judgedBodies: 0 } as const
 			: superseded !== undefined
@@ -233,7 +235,7 @@ export function initPrepareContentSelection(deps: {
 			: loneBody !== undefined && loneErrorStatus
 			? { kind: "none", reason: `the only candidate answered HTTP ${loneBody.metadata.httpStatus}`, readability: [{ candidateId: loneBody.metadata.id, readable: false }], judgedBodies: 0 } as const
 			: loneBody !== undefined && loneAccepted
-			? { kind: "winner", candidateId: loneBody.metadata.id, reason: `the only candidate holds ${LONE_BODY_MIN_WORDS} words or more and the article has no content yet`, readability: [{ candidateId: loneBody.metadata.id, readable: true }], judgedBodies: 0 } as const
+			? { kind: "winner", candidateId: loneBody.metadata.id, reason: `the only candidate holds ${LONE_BODY_MIN_WORDS} words or more and the article has no content yet`, readability: sources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
 			: await deps.judge({ url, originalUrl, sources, proseHashOf, claimId, beforeProviderCall });
 		const audit = "audit" in decision ? decision.audit : undefined;
 		const chooseAmong = (tied: readonly VerifiedTierSource[]) => chooseTiedCandidate({
