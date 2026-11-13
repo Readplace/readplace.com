@@ -10,6 +10,7 @@ import {
 	initXTwitterSiteRules,
 } from "@packages/crawl-article";
 import type { SiteRules } from "@packages/site-rules";
+import { granolaSiteRules } from "./granola-site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
@@ -37,7 +38,7 @@ export function initArticleSiteRules(deps: {
 		initHnSearchSiteRules(deps),
 	];
 	return {
-		siteRules: [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, quoraSiteRules, substackSiteRules, ...crawlClaimingSiteRules],
+		siteRules: [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, quoraSiteRules, substackSiteRules, granolaSiteRules, ...crawlClaimingSiteRules],
 		crawlClaimingSiteRules,
 	};
 }
