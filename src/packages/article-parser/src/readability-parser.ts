@@ -48,6 +48,7 @@ export function initReadabilityParser(deps: {
 		let phase: "Article normalization" | "Readability parse" = "Article normalization";
 		try {
 			deps.readabilityAdditions.normalizeImplicitBody(document);
+			deps.readabilityAdditions.unwrapArticleBodyTemplates(document);
 			deps.readabilityAdditions.replaceVideosWithPlaceholder({
 				document,
 				originalUrl: params.url,
