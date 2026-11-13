@@ -5,6 +5,7 @@ import { devices, type Page } from "@playwright/test";
 import { z } from "zod";
 import {
 	pointInsideText,
+	previewClearOfMarks,
 	scrollWindowBy,
 	scrollWindowToTop,
 	selectAcrossParagraphs,
@@ -30,6 +31,11 @@ const HIDDEN_TOOLBAR = `${TOOLBAR}[hidden]`;
 const HIGHLIGHT_BUTTON = '[data-test-action="highlight"]';
 const MARK = `${CONTENT} mark[data-highlight-id]`;
 const RAIL_ROW = "[data-test-highlight-row]";
+const ADD_NOTE_BUTTON = '[data-test-action="add-note"]';
+const OPEN_NOTE_DIALOG = "#note-highlight-dialog:popover-open";
+const NOTE_INPUT = "[data-test-highlight-note-input]";
+const SHOWN_PREVIEW = "[data-test-highlight-preview]:popover-open";
+const TAPPED_NOTE = "Why this sentence matters.";
 const FRAGMENT = "later-notes";
 const FRAGMENT_LINK = `${CONTENT} a[href="#${FRAGMENT}"]`;
 
@@ -121,7 +127,7 @@ test.describe("Highlighting a passage on a phone", () => {
 		await expect(page.locator(RAIL_ROW)).toHaveAttribute("data-test-highlight-state", "anchored");
 	});
 
-	test("a link tap follows the link, a drawn selection shows the bar, a mark tap reveals its row, and a tap elsewhere hides the bar", async ({
+	test("a link tap follows the link, a drawn selection shows the bar, a mark tap keeps the page in place, and a tap elsewhere hides the bar", async ({
 		page,
 	}, testInfo) => {
 		await openHighlightableReader(page, `taps-${testInfo.workerIndex}-${Date.now()}`);
@@ -160,8 +166,48 @@ test.describe("Highlighting a passage on a phone", () => {
 		await page.evaluate(scrollWindowToTop);
 		await expect.poll(() => page.evaluate(windowScrollY)).toBe(0);
 		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
+		const opened = page.waitForRequest((request) => {
+			const url = new URL(request.url());
+			return url.pathname.endsWith("/highlights/opened") && url.searchParams.get("origin") === "mark";
+		});
 		await tapText(page, TAPPED_SENTENCE);
-		await expect(page.locator(RAIL_ROW)).toBeInViewport({ timeout: SETTLE_MS });
+		await opened;
+		expect(await page.evaluate(windowScrollY)).toBe(0);
+		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
 		await expect(page.locator(HIDDEN_TOOLBAR)).toHaveCount(1);
+	});
+
+	test("a tap on a noted highlight shows its note in place, and a tap elsewhere only dismisses it", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(page, `note-${testInfo.workerIndex}-${Date.now()}`);
+		await tapText(page, TAPPED_SENTENCE);
+		await expect.poll(() => page.evaluate(selectedText), { timeout: SETTLE_MS }).toBe(TAPPED_SENTENCE);
+		await page.locator(ADD_NOTE_BUTTON).tap();
+		const dialog = page.locator(OPEN_NOTE_DIALOG);
+		await expect(dialog).toHaveCount(1, { timeout: SETTLE_MS });
+		await dialog.locator(NOTE_INPUT).fill(TAPPED_NOTE);
+		await dialog.locator('[data-test-action="highlight-note-save"]').tap();
+		await expect(page.locator(MARK)).toHaveText(TAPPED_SENTENCE, { timeout: SETTLE_MS });
+		const highlightId = await page.locator(MARK).getAttribute("data-highlight-id");
+		assert(highlightId, "the mark names its highlight");
+
+		await page.evaluate(scrollWindowToTop);
+		await expect.poll(() => page.evaluate(windowScrollY)).toBe(0);
+		await tapText(page, TAPPED_SENTENCE);
+
+		await expect(page.locator(SHOWN_PREVIEW)).toHaveJSProperty("textContent", TAPPED_NOTE, { timeout: SETTLE_MS });
+		expect(await page.evaluate(windowScrollY)).toBe(0);
+		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
+		expect(
+			await page.evaluate(previewClearOfMarks, {
+				preview: SHOWN_PREVIEW,
+				marks: `mark[data-highlight-id="${highlightId}"]`,
+			}),
+		).toBe(true);
+
+		await tapText(page, FIRST_OF_PAIR);
+		await expect(page.locator(SHOWN_PREVIEW)).toHaveCount(0, { timeout: SETTLE_MS });
+		expect(await page.evaluate(selectionIsCollapsed)).toBe(true);
 	});
 });

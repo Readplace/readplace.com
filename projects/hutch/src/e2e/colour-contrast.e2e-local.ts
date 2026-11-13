@@ -887,6 +887,58 @@ test.describe("A highlighted passage in the reader holds its WCAG contrast in bo
 	});
 });
 
+test.describe("A highlight's note preview holds its WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the hovered note clears colour and greyscale minimums on its panel", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-note-preview-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const passage = "a note read in place keeps the reader on the page";
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-note-preview-${run}`,
+				title: "A note beside the passage",
+				content: `<p>Seeded body for the note preview contrast sweep: ${passage}, in both themes.</p>`,
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		const readerUrl = `${BASE_URL}/queue/${articleId}/view`;
+		await loginChipReader(page, email);
+		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', { timeout: SETTLE_MS });
+		await page.evaluate(selectPassage, { root: "[data-test-reader-content]", exact: passage });
+		await expect(page.locator("[data-test-highlight-toolbar]")).toBeVisible({ timeout: SETTLE_MS });
+		await page.locator('[data-test-action="add-note"]').click();
+		const dialog = page.locator("#note-highlight-dialog:popover-open");
+		await expect(dialog).toHaveCount(1, { timeout: SETTLE_MS });
+		await dialog.locator("[data-test-highlight-note-input]").fill("Worth rereading before the next chapter.");
+		await dialog.locator('[data-test-action="highlight-note-save"]').click();
+		await expect(page.locator("[data-test-highlight-preview]")).toHaveCount(1, { timeout: SETTLE_MS });
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-reader-content] mark.article-highlight[tabindex="0"]')).toHaveCount(1, {
+				timeout: SETTLE_MS,
+			});
+			await page.mouse.move(0, 0);
+			await page.locator("[data-test-reader-content] mark.article-highlight").hover();
+			await expect(page.locator("[data-test-highlight-preview]:popover-open")).toHaveCount(1, { timeout: SETTLE_MS });
+			const measurements = await stableMeasurements(page, "[data-test-highlight-preview]:popover-open");
+			assert.ok(
+				measurements.some((measured) => measured.role === "text"),
+				`${theme}/note-preview: the audit must measure the note's ink`,
+			);
+			assertContrast(measurements, { theme, view: "note-preview" });
+		}
+	});
+});
+
 test.describe("The reader's pipeline panels hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 

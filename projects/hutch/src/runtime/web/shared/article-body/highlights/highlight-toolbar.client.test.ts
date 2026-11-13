@@ -59,15 +59,37 @@ function rowNoteFormsHtml(): string {
 	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", scope })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", scope })}</details>`;
 }
 
-function mainHtml(input: { content?: string; marks?: boolean; rowNoteForms?: boolean } = {}): string {
+function notedBeta(): Highlight {
+	return {
+		highlightId: HIGHLIGHT_ID,
+		highlightOf: READER_URL,
+		exact: "beta",
+		prefix: "",
+		suffix: "",
+		start: 9,
+		end: 13,
+		anchoredContentHash: "hash",
+		anchorState: "anchored",
+		orderKey: 0,
+		createdAt: new Date("2026-11-01T00:00:00.000Z"),
+		updatedAt: new Date("2026-11-01T00:00:00.000Z"),
+		anchorRevision: 0,
+		note: "A note on beta",
+	};
+}
+
+function mainHtml(
+	input: { content?: string; marks?: boolean; rowNoteForms?: boolean; noted?: boolean; toolbar?: boolean } = {},
+): string {
 	const content = input.content ?? CONTENT;
 	const reader = renderReaderReady({
 		readerSection: READER_SECTION,
 		url: READER_URL,
 		content: articleBody(content),
 		appOrigin: APP_ORIGIN,
+		...(input.noted ? { highlights: { rows: [notedBeta()], canonicalContentHash: "hash" } } : {}),
 	}).html;
-	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
+	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${input.toolbar === false ? "" : renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
 }
 
 interface Harness {
@@ -90,6 +112,7 @@ interface Harness {
 	submitted: HTMLFormElement[];
 	popoverSupported: boolean;
 	shownPopovers: Element[];
+	hiddenPopovers: Element[];
 	beacons: string[];
 }
 
@@ -133,6 +156,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		submitted,
 		popoverSupported: true,
 		shownPopovers: [],
+		hiddenPopovers: [],
 		beacons: [],
 		coarse: false,
 		scrollWindow() {
@@ -159,7 +183,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 			},
 			requestAnimationFrame: (callback) => frames.push(callback),
 			matchMedia: (query) => ({
-				matches: query === "(pointer: coarse)" && h.coarse,
+				matches: query === "(pointer: coarse)" ? h.coarse : query === "(hover: hover)" && !h.coarse,
 			}),
 			addEventListener: (_type, listener, options) => scrollListeners.push({ listener, passive: options.passive }),
 		},
@@ -177,13 +201,17 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		isPopoverOpen: () => false,
 		supportsPopover: () => h.popoverSupported,
 		showPopover: (panel) => h.shownPopovers.push(panel),
+		hidePopover: (panel) => h.hiddenPopovers.push(panel),
+		isFocusVisible: () => true,
 		sendBeacon: (url) => h.beacons.push(url),
 	});
-	const toolbar = toolbarOf(h);
-	Object.defineProperty(toolbar, "getBoundingClientRect", {
-		value: () => TOOLBAR_SIZE,
-		configurable: true,
-	});
+	const toolbar = doc.querySelector("[data-test-highlight-toolbar]");
+	if (toolbar !== null) {
+		Object.defineProperty(toolbar, "getBoundingClientRect", {
+			value: () => TOOLBAR_SIZE,
+			configurable: true,
+		});
+	}
 	return h;
 }
 
@@ -285,31 +313,27 @@ function servedText(h: Harness): string {
 }
 
 describe("initHighlightToolbar", () => {
-	it("refuses to start on a page without its toolbar", () => {
-		const dom = new JSDOM("<main></main>");
-		expect(() =>
-			initHighlightToolbar({
-				document: dom.window.document,
-				window: {
-					visualViewport: {
-						width: 0,
-						height: 0,
-						offsetLeft: 0,
-						offsetTop: 0,
-						addEventListener: () => undefined,
-					},
-					requestAnimationFrame: () => undefined,
-					matchMedia: () => ({ matches: false }),
-					addEventListener: () => undefined,
-				},
-				timers: { setTimeout: () => undefined, clearTimeout: () => undefined },
-				rectsOf: () => [],
-				isPopoverOpen: () => false,
-				supportsPopover: () => true,
-				showPopover: () => undefined,
-				sendBeacon: () => undefined,
-			}),
-		).toThrow("the highlight script ships with its toolbar");
+	it("on a page without its toolbar, only the previews start", () => {
+		const h = harness(mainHtml({ noted: true, toolbar: false }));
+		const mark = h.doc.querySelector(`mark#highlight-${HIGHLIGHT_ID}`);
+		const preview = h.doc.querySelector<HTMLElement>(`#preview-highlight-${HIGHLIGHT_ID}`);
+		assert(mark && preview);
+		Object.defineProperty(preview, "getBoundingClientRect", { value: () => ({ width: 100, height: 40 }) });
+		const hover = new h.window.MouseEvent("pointerover", { bubbles: true });
+		Object.defineProperty(hover, "pointerType", { value: "mouse" });
+		Object.defineProperty(hover, "buttons", { value: 0 });
+
+		mark.dispatchEvent(hover);
+		h.runTimer(400);
+		expect(h.shownPopovers).toEqual([preview]);
+		click(h, mark);
+		expect(preview.classList.contains("highlight-preview--pinned")).toBe(true);
+		h.rects = [{ top: 500, bottom: 520, left: 400, width: 200 }];
+		h.scrollWindow();
+		h.runFrames();
+		expect(preview.style.top).toBe(`${500 - 10 - 40}px`);
+
+		expect(h.beacons).toEqual([]);
 	});
 
 	it("shows the bar for a selection inside the article, once the selection has rested 100 ms", () => {
@@ -590,7 +614,7 @@ describe("initHighlightToolbar", () => {
 		expect(h.submitted).toHaveLength(0);
 	});
 
-	it("scrolls the rail to a clicked mark's row", () => {
+	it("a mark click never scrolls the rail or the page", () => {
 		const h = harness(mainHtml({ marks: true }));
 		const mark = markWord(h, "beta");
 		const row = h.doc.querySelector(`[data-highlight-row="${HIGHLIGHT_ID}"]`);
@@ -599,10 +623,13 @@ describe("initHighlightToolbar", () => {
 		Object.defineProperty(row, "scrollIntoView", {
 			value: (options: unknown) => scrolled.push(options),
 		});
+		const scrollYBefore = h.window.scrollY;
 
 		click(h, mark);
 
-		expect(scrolled).toEqual([{ block: "nearest" }]);
+		expect(scrolled).toEqual([]);
+		expect(h.window.scrollY).toBe(scrollYBefore);
+		expect(h.beacons).toEqual([`/queue/abc/highlights/opened?highlight=${HIGHLIGHT_ID}&origin=mark`]);
 	});
 
 	it("beacons a clicked mark as a highlight opened from the mark", () => {
@@ -611,6 +638,51 @@ describe("initHighlightToolbar", () => {
 		click(h, markWord(h, "beta"));
 
 		expect(h.beacons).toEqual([`/queue/abc/highlights/opened?highlight=${HIGHLIGHT_ID}&origin=mark`]);
+	});
+
+	it("beacons Enter on a keyboard-focused noted mark once, as a mark open", () => {
+		const h = harness(mainHtml({ noted: true }));
+		const mark = h.doc.querySelector(`mark#highlight-${HIGHLIGHT_ID}`);
+		assert(mark);
+		expect(mark.getAttribute("tabindex")).toBe("0");
+		mark.dispatchEvent(new h.window.FocusEvent("focusin", { bubbles: true }));
+
+		mark.dispatchEvent(new h.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+
+		expect(h.beacons).toEqual([`/queue/abc/highlights/opened?highlight=${HIGHLIGHT_ID}&origin=mark`]);
+	});
+
+	it("hides a pinned note preview when the bar shows for a selection, and moves it on a scroll", () => {
+		const h = harness(mainHtml({ noted: true }));
+		const mark = h.doc.querySelector(`mark#highlight-${HIGHLIGHT_ID}`);
+		const preview = h.doc.querySelector<HTMLElement>(`#preview-highlight-${HIGHLIGHT_ID}`);
+		assert(mark && preview);
+		Object.defineProperty(preview, "getBoundingClientRect", { value: () => ({ width: 100, height: 40 }) });
+		click(h, mark);
+		h.rects = [{ top: 500, bottom: 520, left: 400, width: 200 }];
+		h.scrollWindow();
+		h.runFrames();
+		expect(preview.style.top).toBe(`${500 - 10 - 40}px`);
+
+		selectWords(h, { from: "Delta" });
+		settleSelection(h);
+
+		expect(h.shownPopovers).toEqual([preview]);
+		expect(h.hiddenPopovers).toEqual([preview]);
+	});
+
+	it("refuses a mark click when the toolbar names no opened beacon", () => {
+		const h = harness(mainHtml({ marks: true }));
+		toolbarOf(h).removeAttribute("data-highlight-opened-url");
+		const errors: string[] = [];
+		h.window.addEventListener("error", (event) => {
+			event.preventDefault();
+			errors.push(event.message);
+		});
+
+		click(h, markWord(h, "beta"));
+
+		expect(errors).toEqual(["the highlight toolbar names its opened beacon"]);
 	});
 
 	it("beacons a rail Jump click as a highlight opened from the rail", () => {
@@ -632,14 +704,6 @@ describe("initHighlightToolbar", () => {
 		click(h, contentOf(h));
 
 		expect(h.beacons).toEqual([]);
-	});
-
-	it("ignores a mark click while the rail is not on the page, and a click elsewhere", () => {
-		const h = harness();
-		const mark = markWord(h, "beta");
-
-		expect(() => click(h, mark)).not.toThrow();
-		expect(() => click(h, contentOf(h))).not.toThrow();
 	});
 
 	describe("Add note", () => {

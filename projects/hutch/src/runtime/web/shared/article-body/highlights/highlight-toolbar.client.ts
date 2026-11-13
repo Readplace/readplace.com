@@ -1,8 +1,10 @@
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
+import { type HighlightPreviews, initHighlightPreviews } from "./highlight-preview.client";
 import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
-import { placeBelowSelection, TOOLBAR_GAP_PX, VIEWPORT_GUTTER_PX } from "./toolbar-placement-coarse";
+import { placeClearOfPassage } from "./place-clear-of-passage";
+import { placeBelowSelection } from "./toolbar-placement-coarse";
 
 export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
 
@@ -53,6 +55,8 @@ interface HighlightToolbarDeps {
 	isPopoverOpen: () => boolean;
 	supportsPopover: () => boolean;
 	showPopover: (panel: Element) => void;
+	hidePopover: (panel: Element) => void;
+	isFocusVisible: (element: Element) => boolean;
 	sendBeacon: (url: string) => void;
 }
 
@@ -82,37 +86,19 @@ function passageOf(input: { range: Range; content: Element }): SelectedPassage |
 	return start < 0 ? undefined : { exact: text.slice(start, end), start, end };
 }
 
-function placeAboveSelection(input: {
-	rects: readonly ToolbarRect[];
-	size: { width: number; height: number };
-	viewport: ToolbarViewport;
-}): { top: number; left: number } {
-	const { rects, size, viewport } = input;
-	const first = rects[0];
-	const last = rects[rects.length - 1];
-	const above = first.top - size.height - TOOLBAR_GAP_PX;
-	const top = above < viewport.offsetTop ? last.bottom + TOOLBAR_GAP_PX : above;
-	const centred = first.left + first.width / 2 - viewport.offsetLeft - size.width / 2;
-	const maxLeft = viewport.width - size.width - VIEWPORT_GUTTER_PX;
-	const left = Math.min(Math.max(centred, VIEWPORT_GUTTER_PX), maxLeft) + viewport.offsetLeft;
-	return { top, left };
-}
-
 function originOf(event: Event): unknown {
 	return Reflect.get(Object(Reflect.get(event, "detail")), "origin");
 }
 
-export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
+function startToolbar(input: {
+	deps: HighlightToolbarDeps;
+	previews: HighlightPreviews;
+	selectionOf: () => Selection;
+}): () => void {
+	const { deps, previews, selectionOf } = input;
 	const { document } = deps;
 	let shown: Range | undefined;
 	let pending: unknown;
-	let frameRequested = false;
-
-	const selectionOf = (): Selection => {
-		const selection = document.getSelection();
-		assert(selection, "a live reader document always has a selection");
-		return selection;
-	};
 
 	const isCoarse = (): boolean => deps.window.matchMedia(COARSE_POINTER_QUERY).matches;
 
@@ -137,21 +123,24 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 	const place = (range: Range): void => {
 		const toolbar = toolbarOf();
 		const rects = deps.rectsOf(range);
-		assert(rects.length > 0, "a selection holding text has client rects");
 		const viewport = deps.window.visualViewport;
 		const size = toolbar.getBoundingClientRect();
+		const panel = { width: size.width, height: size.height };
+		const visible = {
+			width: viewport.width,
+			height: viewport.height,
+			offsetLeft: viewport.offsetLeft,
+			offsetTop: viewport.offsetTop,
+		};
 		const { top, left } = isCoarse()
-			? placeBelowSelection({
+			? placeBelowSelection({ rects, toolbar: panel, viewport: visible })
+			: placeClearOfPassage({
 					rects,
-					toolbar: { width: size.width, height: size.height },
-					viewport: {
-						width: viewport.width,
-						height: viewport.height,
-						offsetLeft: viewport.offsetLeft,
-						offsetTop: viewport.offsetTop,
-					},
-				})
-			: placeAboveSelection({ rects, size, viewport });
+					panel,
+					viewport: visible,
+					order: ["above", "below"],
+					whenNoneFits: "last-side",
+				});
 		toolbar.style.top = `${top}px`;
 		toolbar.style.left = `${left}px`;
 	};
@@ -162,6 +151,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 	};
 
 	const show = (range: Range): void => {
+		previews.hide();
 		shown = range;
 		toolbarOf().hidden = false;
 		place(range);
@@ -226,6 +216,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		if (form.getAttribute("data-highlight-note-refusal") !== PASSAGE_REFUSAL) note.value = "";
 		note.removeAttribute("aria-invalid");
 		error.textContent = "";
+		previews.hide();
 		deps.showPopover(dialog);
 		hide();
 	};
@@ -243,15 +234,6 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		assert(url, "the highlight toolbar names its opened beacon");
 		assert(input.highlightId, "an opened highlight carries its id");
 		deps.sendBeacon(`${url}?${new URLSearchParams({ highlight: input.highlightId, origin: input.origin })}`);
-	};
-
-	const reposition = (): void => {
-		if (frameRequested) return;
-		frameRequested = true;
-		deps.window.requestAnimationFrame(() => {
-			frameRequested = false;
-			if (shown !== undefined) place(shown);
-		});
 	};
 
 	hide();
@@ -283,10 +265,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 			.filter((candidate) => path.includes(candidate))
 			.at(-1);
 		if (mark === undefined) return;
-		const highlightId = mark.getAttribute("data-highlight-id");
-		opened({ highlightId, origin: "mark" });
-		const row = document.querySelector(`[data-highlight-row="${highlightId}"]`);
-		row?.scrollIntoView({ block: "nearest" });
+		opened({ highlightId: mark.getAttribute("data-highlight-id"), origin: "mark" });
 	});
 	document.addEventListener(HIGHLIGHT_SELECTION_EVENT, (event) => {
 		const origin = originOf(event);
@@ -294,6 +273,46 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		if (typeof origin !== "string" || selection.rangeCount === 0) return;
 		submit({ range: selection.getRangeAt(0).cloneRange(), origin, formSelector: FORM_SELECTOR });
 	});
+	return () => {
+		if (shown !== undefined) place(shown);
+	};
+}
+
+export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
+	const { document } = deps;
+	let frameRequested = false;
+
+	const selectionOf = (): Selection => {
+		const selection = document.getSelection();
+		assert(selection, "a live reader document always has a selection");
+		return selection;
+	};
+
+	const previews = initHighlightPreviews({
+		document,
+		window: deps.window,
+		timers: deps.timers,
+		rectsOf: deps.rectsOf,
+		selectionOf,
+		supportsPopover: deps.supportsPopover,
+		showPopover: deps.showPopover,
+		hidePopover: deps.hidePopover,
+		isFocusVisible: deps.isFocusVisible,
+	});
+
+	const placeToolbar =
+		document.querySelector(TOOLBAR_SELECTOR) === null ? undefined : startToolbar({ deps, previews, selectionOf });
+
+	const reposition = (): void => {
+		if (frameRequested) return;
+		frameRequested = true;
+		deps.window.requestAnimationFrame(() => {
+			frameRequested = false;
+			placeToolbar?.();
+			previews.reposition();
+		});
+	};
+
 	deps.window.visualViewport.addEventListener("scroll", reposition);
 	deps.window.visualViewport.addEventListener("resize", reposition);
 	deps.window.addEventListener("scroll", reposition, { passive: true });

@@ -147,6 +147,8 @@ const BUNDLES = [
       "  isPopoverOpen: function () { try { return window.document.querySelector(':popover-open') !== null; } catch (e) { return false; } },",
       "  supportsPopover: function () { return typeof HTMLElement.prototype.showPopover === 'function'; },",
       "  showPopover: function (panel) { panel.showPopover(); },",
+      "  hidePopover: function (panel) { panel.hidePopover(); },",
+      "  isFocusVisible: function (element) { return element.matches(':focus-visible'); },",
       "  sendBeacon: function (url) { window.navigator.sendBeacon(url); }",
       "});",
     ].join("\n"),
