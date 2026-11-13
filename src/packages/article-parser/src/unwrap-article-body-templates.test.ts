@@ -42,7 +42,7 @@ describe("unwrapArticleBodyTemplates", () => {
 		const paragraph = "The security team describes how the new memory-safe component reduces vulnerabilities across the platform. ";
 		const url = "https://blog.example.test/2026/11/memory-safety.html";
 		const parser = initReadabilityParser({
-			crawlArticle: async () => ({ status: "failed" }),
+			crawlArticle: async () => ({ status: "failed", decision: undefined }),
 			siteRules: [],
 			readabilityAdditions,
 			logError: () => {},
@@ -61,7 +61,7 @@ describe("unwrapArticleBodyTemplates", () => {
 		it("parses a page without the template structure as before", () => {
 			const html = `<!DOCTYPE html><html><head><title>Plain post</title></head><body><article><p>${paragraph.repeat(10)}</p></article></body></html>`;
 			const withoutUnwrap = initReadabilityParser({
-				crawlArticle: async () => ({ status: "failed" }),
+				crawlArticle: async () => ({ status: "failed", decision: undefined }),
 				siteRules: [],
 				readabilityAdditions: { ...readabilityAdditions, unwrapArticleBodyTemplates: () => {} },
 				logError: () => {},

@@ -131,7 +131,7 @@ describe("normalizeImplicitBody", () => {
 		const html = `<!DOCTYPE html><html><head><title>Lorem ipsum</title></head><body><article><p>${first.repeat(6)}</p><p>${first.repeat(6)}</p></article></body></html><div><section><p>${second.repeat(6)}</p><p>${second.repeat(6)}</p></section></div>`;
 		const url = "https://example.com/lorem-ipsum";
 		const parser = initReadabilityParser({
-			crawlArticle: async () => ({ status: "failed" }),
+			crawlArticle: async () => ({ status: "failed", decision: undefined }),
 			siteRules: [],
 			readabilityAdditions,
 			logError: () => {},
