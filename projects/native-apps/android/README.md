@@ -139,6 +139,19 @@ Same property: the server is fixed at build time, there is no runtime override, 
 `make test-staging` compiles the staging variant and runs the pins that assert which
 server it points at.
 
+**The launcher icon is a vector; the login mark is the iOS script's output.** iOS runs a
+script for its App Store icon because the store takes a 1024px PNG with no alpha.
+Android's launcher is an adaptive icon whose foreground is a vector drawable, and
+`minSdk` 29 needs no PNG fallback, so no script renders it. The login screen's six
+`brand_mark.png` drawables are written by the iOS
+[`scripts/make-brandmark.sh`](../ios/scripts/make-brandmark.sh) and are never edited by
+hand. When the mark changes, run that script, then paste the new ampersand path into the
+launcher foreground vector (grep the resource tree for the old path's opening,
+`M204.28 400Q`). If the amber dot moves, also change the circle path beside the
+ampersand in the same vector, written as an arc starting at cx+r, and the dot centre the
+login screen holds for its replay tap target (grep the Kotlin sources for
+`DOT_CENTER_X`); iOS holds the same constants by hand.
+
 ## Version pins that are not "the latest"
 
 Two dependencies are deliberately held back, both for the same reason: their AAR
