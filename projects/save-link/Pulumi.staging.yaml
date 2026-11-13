@@ -28,4 +28,5 @@ config:
   save-link:contentMediaCdnDomain: cdn.readplace-staging.com
   save-link:readlistFitEngine: deepseek-flash
 
-encryptionsalt: v1:UOuPAPopzKA=:v1:R9v//2alhEYfLugF:HuZRBtgwdPawWU7VHPvdJ9bsYqJR9w==
+secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
+encryptedkey: AQICAHi6S5JWWQJW6rlPXA+EjgBpSa9holo1rtjUEtyWeWu1mwFFlKmmJ6lA/3mlGn9jPah5AAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMt4tPj9L1kirFx507AgEQgDsRuOtK6zDod5GYRoKD5TAeO+gXB0ZibphR/Z/abcnJXaEUroLYYOXIUi94NWgW5a6SfPnRLIvKVxeqmQ==

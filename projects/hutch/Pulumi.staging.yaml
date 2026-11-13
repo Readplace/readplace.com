@@ -98,4 +98,5 @@ config:
   hutch:excludedUserIds: []
   hutch:dynamodbOAuthOutcomesTable: hutch-oauth-refresh-outcomes-staging
   hutch:oauthTestGrants: []
-encryptionsalt: v1:fILgDgnVVEY=:v1:sFKytKYEpZU4Qs+9:o/Q+JSj6rS/qo7p6WyjaekWrgFAk5A==
+secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
+encryptedkey: AQICAHi6S5JWWQJW6rlPXA+EjgBpSa9holo1rtjUEtyWeWu1mwHQT+rUV4n8rO+oTGoWp96NAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM3ZhjLwx6EHTR5rrPAgEQgDudq/iuCNPtCmG4d23b5fwD2XiNXU0vtgRVkNZ4JYOLj+XlwTOcTdmJUEWbUTGDnZ7XTSvRdjAzgolWWQ==

@@ -30,4 +30,5 @@ config:
   inbox:rawEmailBucketName: hutch-inbox-raw-email-staging
   inbox:contentBucketName: hutch-article-content-staging
   inbox:contentMediaCdnDomain: cdn.readplace-staging.com
-encryptionsalt: v1:QzA/T+JWV5E=:v1:SnSBwMqISxm5T+2A:RkKs5SsL/OfxIexsSJ9PDwwUhVFghw==
+secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
+encryptedkey: AQICAHi6S5JWWQJW6rlPXA+EjgBpSa9holo1rtjUEtyWeWu1mwFTq77THb0nDktxUAKC8a6NAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM2EwcSR65TPu31CwsAgEQgDuxHrJfMypr42aQ30Sb60dCe83GuIhe0tFRu/6vR8/CYp7z1nlRrvtsq5bLrYaYoJQJirYe/9maSdSuEw==

@@ -9,4 +9,5 @@ config:
   platform:ocrLambdaRepositoryName: hutch-ocr-lambda
   platform:mediaLambdaRepositoryName: hutch-media-lambda
   platform:auditTrailBucketName: hutch-audit-trail-staging
-encryptionsalt: v1:3mv+Fh6U5xU=:v1:31a/qUTye7EJHFxA:EkWZyyGcQyoEJnO4wpd3Fdjus5CDSQ==
+secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
+encryptedkey: AQICAHi6S5JWWQJW6rlPXA+EjgBpSa9holo1rtjUEtyWeWu1mwGr/fJwMv/x9ITtTfJI89OjAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMTY0Qx02AZmDzERy0AgEQgDsRI2qYxtfUKy9AeEX906w7Suh6z8zeqQJ/GX5VeEJPdYJldz5lvhPIxGwtEVZw05e27/rjNVFPCV6pxw==
