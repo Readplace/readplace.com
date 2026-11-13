@@ -103,6 +103,7 @@ dependencies {
 	testImplementation(libs.robolectric)
 	testImplementation(libs.okhttp.mockwebserver)
 	testImplementation(libs.kotlinx.coroutines.test)
+	testImplementation(libs.compose.ui.test.junit4)
 }
 
 tasks.withType<Test>().configureEach {
@@ -110,6 +111,13 @@ tasks.withType<Test>().configureEach {
 		isIncludeNoLocationClasses = true
 		excludes = listOf("jdk.internal.*")
 	}
+	testLogging {
+		exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+	}
+	systemProperty("readplace.pixel.baselines", "src/test/pixel-baselines")
+	systemProperty("readplace.pixel.failures", "build/pixel-failures")
+	systemProperty("java.awt.headless", "true")
+	if (providers.gradleProperty("recordPixelBaselines").isPresent) systemProperty("readplace.pixel.record", "true")
 }
 
 /**
