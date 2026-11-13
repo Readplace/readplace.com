@@ -13,7 +13,7 @@ import {
 import { type InteractionInk, collectInteractionInk, countUnfinishedAnimations } from "./interaction-ink.browser";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { selectPassage } from "./highlight-a-passage.browser";
-import { createReadlistFromReader } from "./page-interactions";
+import { ADD_ARTICLE_LINK_TAB, createReadlistFromReader } from "./page-interactions";
 import { type PlaceholderInk, collectPlaceholderInk } from "./placeholder-ink.browser";
 
 const E2E_PORT = process.env.E2E_PORT;
@@ -65,13 +65,14 @@ interface AuditedField {
 	path: string;
 	selector: string;
 	view: string;
-	opener?: string;
+	openers?: readonly string[];
 }
 
 async function revealField(page: Page, field: AuditedField): Promise<void> {
 	await page.goto(`${BASE_URL}${field.path}`, { waitUntil: "domcontentloaded" });
-	if (field.opener === undefined) return;
-	await page.locator(field.opener).click();
+	for (const opener of field.openers ?? []) {
+		await page.locator(opener).click();
+	}
 	await expect(page.locator(field.selector)).toBeVisible();
 }
 
@@ -470,7 +471,7 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 		const userId = await signInAsNewReader(page, `form-ring-${stampId}@example.com`);
 		await seedQueuedArticle(page, { userId, stampId });
 		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
-		await auditFocusRing(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", opener: ADD_LINK });
+		await auditFocusRing(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] });
 		await auditFocusRing(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
 	});
 
@@ -479,7 +480,7 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 		const userId = await signInAsNewReader(page, `form-placeholder-${stampId}@example.com`);
 		await seedQueuedArticle(page, { userId, stampId });
 		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
-		await auditPlaceholder(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", opener: ADD_LINK });
+		await auditPlaceholder(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] });
 		await auditPlaceholder(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
 		await auditPlaceholder(page, { path: "/import", selector: FROM_URL_FIELD, view: "import/from-url" });
 	});

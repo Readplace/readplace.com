@@ -23,6 +23,7 @@ import { KEEP_OFFER_FIRST_YEAR_PRICE } from "../runtime/domain/engagement/keep-o
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import {
+	ADD_ARTICLE_LINK_TAB,
 	clickAndWaitForPageReload,
 	fileArticleIntoReadlist,
 	nameNewReadlist,
@@ -1334,6 +1335,8 @@ async function addLinkDialogSettled(page: Page): Promise<void> {
 	await page.locator(ADD_LINK).click();
 	const input = page.locator(SAVE_INPUT);
 	await expect(page.locator(OPEN_ADD_LINK_DIALOG)).toBeVisible();
+	await page.locator(ADD_ARTICLE_LINK_TAB).click();
+	await input.focus();
 	await expect(input).toBeFocused();
 	await expect(input).toHaveValue("");
 	await expect(page.locator(SAVE_TIP_POPOVER)).toBeHidden();

@@ -18,6 +18,7 @@ import {
 	createReadlistFromReader,
 	fileArticleIntoReadlist,
 	nameNewReadlist,
+	ADD_ARTICLE_LINK_TAB,
 	openAddLink,
 	openReadlistSwitcher,
 	renameableSlugs,
@@ -564,6 +565,8 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await expect(page.locator('[data-test-form="save-article"]')).toHaveAttribute("data-save-tip", "due");
 			await page.waitForLoadState("domcontentloaded");
 			await page.locator('[data-test-action="add-link"]').click();
+			await page.locator(ADD_ARTICLE_LINK_TAB).click();
+			await page.locator('#add-link input[name="url"]').focus();
 			const panel = page.locator('#save-tip:popover-open');
 			await expect(panel).toBeVisible();
 			await settle(page, '#save-tip:popover-open');

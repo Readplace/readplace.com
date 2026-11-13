@@ -63,7 +63,7 @@ function hostDialogFieldOf(dialog: Element): HTMLElement | null {
 	const parent = dialog.parentElement;
 	assert(parent, "a dialog always sits inside the page");
 	const host = parent.closest("[popover]");
-	return host === null ? null : host.querySelector<HTMLElement>("[autofocus]");
+	return host === null ? null : host.querySelector<HTMLElement>("input[type='url']");
 }
 
 function announce(document: Document, message: string): void {

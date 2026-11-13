@@ -69,19 +69,22 @@ describe("Add article", () => {
 		);
 	});
 
-	it("opens the dialog on its labelled, empty article link field", () => {
+	it("opens the dialog on the chosen File tab, with the labelled article link field empty and unfocused", () => {
 		const doc = addLinkDoc();
 
 		const dialog = element(doc, "#add-link");
 		expect(dialog.hasAttribute("autofocus")).toBe(false);
-		const input = element<HTMLInputElement>(dialog, "input[autofocus]");
-		expect(input.name).toBe("url");
+		const focused = Array.from(dialog.querySelectorAll<HTMLInputElement>("[autofocus]"))
+			.filter((target) => target.closest("[popover]") === dialog)
+			.map((target) => [target.name, target.value, target.checked]);
+		expect(focused).toEqual([["add-article-mode", "file", true]]);
+		const input = element<HTMLInputElement>(dialog, 'input[name="url"]');
 		expect(input.type).toBe("url");
 		expect(input.value).toBe("");
 		expect(element(doc, `label[for="${input.id}"]`).textContent).toBe("Article link");
 	});
 
-	it("offers Link and File as underline tabs, Link chosen, in a named radio group", () => {
+	it("offers File and Link as underline tabs, File first and chosen, in a named radio group", () => {
 		const doc = addLinkDoc();
 
 		const group = element(doc, '#add-link [role="radiogroup"]');
@@ -89,13 +92,13 @@ describe("Add article", () => {
 		expect(group.getAttribute("aria-label")).toBe("Add from");
 		const radios = Array.from(group.querySelectorAll<HTMLInputElement>('input[type="radio"]'));
 		expect(radios.map((radio) => [radio.name, radio.value, radio.checked])).toEqual([
-			["add-article-mode", "link", true],
-			["add-article-mode", "file", false],
+			["add-article-mode", "file", true],
+			["add-article-mode", "link", false],
 		]);
 		const labels = radios.map((radio) => radio.closest("label.underline-tabs__tab")?.querySelector(".underline-tabs__label"));
 		expect(labels.map((label) => [label?.getAttribute("data-widest"), label?.textContent])).toEqual([
-			["Link", "Link"],
 			["File", "File"],
+			["Link", "Link"],
 		]);
 		expect(element(doc, '[data-test-add-article-panel="link"] [data-test-form="save-article"]').id).toBe("add-link-form");
 		expect(element(doc, '[data-test-add-article-panel="file"] [data-test-form="upload-file"]').id).toBe("add-article-upload-form");

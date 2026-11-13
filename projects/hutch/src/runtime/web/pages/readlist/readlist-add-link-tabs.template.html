@@ -1,7 +1,7 @@
 <div class="readlist-add-article" data-test-add-article>
   <div class="underline-tabs readlist-add-article__tabs" role="radiogroup" aria-label="Add from" data-test-add-article-tabs>
     {{#each modes}}
-    <label class="underline-tabs__tab readlist-add-article__tab"><input class="readlist-add-article__mode" type="radio" name="add-article-mode" value="{{value}}"{{#if checked}} checked{{/if}} data-test-add-article-mode="{{value}}"><span class="underline-tabs__label" data-widest="{{label}}"><span>{{label}}</span></span></label>
+    <label class="underline-tabs__tab readlist-add-article__tab"><input class="readlist-add-article__mode" type="radio" name="add-article-mode" value="{{value}}"{{#if checked}} checked autofocus{{/if}} data-test-add-article-mode="{{value}}"><span class="underline-tabs__label" data-widest="{{label}}"><span>{{label}}</span></span></label>
     {{/each}}
   </div>
   <div class="readlist-add-article__panel readlist-add-article__panel--link" data-test-add-article-panel="link">

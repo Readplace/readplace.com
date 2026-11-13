@@ -14,6 +14,7 @@ import {
 	ALIVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
 import { requireEnv } from "@packages/require-env";
+import { ADD_ARTICLE_LINK_TAB } from "./page-interactions";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
@@ -52,6 +53,8 @@ async function openReadlistTip(page: Page, stamp: string): Promise<void> {
 	await expect(page.locator('[data-test-form="save-article"]')).toHaveAttribute("data-save-tip", "due");
 	await page.waitForLoadState("domcontentloaded");
 	await page.locator(ADD_LINK).click();
+	await page.locator(ADD_ARTICLE_LINK_TAB).click();
+	await page.locator('#add-link input[name="url"]').focus();
 	await expect(page.locator(`${PANEL}:popover-open`)).toBeVisible();
 }
 
@@ -188,6 +191,8 @@ test.describe("Save tip advisory", () => {
 		await page.reload({ waitUntil: "domcontentloaded" });
 		await expect(page.locator('[data-test-form="save-article"]')).toHaveAttribute("data-save-tip", "due");
 		await page.locator(ADD_LINK).click();
+		await page.locator(ADD_ARTICLE_LINK_TAB).click();
+		await page.locator('#add-link input[name="url"]').focus();
 		await captureCheckpoint(
 			page,
 			checkpoint("save-tip-advisory-extension-light", singleControlGeometry),

@@ -36,8 +36,8 @@ const SKIPPED_TEMPLATE = readFileSync(join(__dirname, "readlist-save-feedback-sk
 export const ADD_LINK_POPOVER_ID = "add-link";
 
 const ADD_ARTICLE_MODES = [
-	{ value: "link", label: "Link", checked: true },
-	{ value: "file", label: "File", checked: false },
+	{ value: "file", label: "File", checked: true },
+	{ value: "link", label: "Link", checked: false },
 ];
 
 const ADD_LINK_TITLE = "Add article";
@@ -138,7 +138,7 @@ export function renderReadlistAddLink(input: {
 				render(TABS_TEMPLATE, {
 					modes: ADD_ARTICLE_MODES,
 					accessIsReadOnly: input.accessIsReadOnly,
-					linkFormHtml: form({ value: "", autoSubmit: false, autofocus: true }),
+					linkFormHtml: form({ value: "", autoSubmit: false, autofocus: false }),
 					dropzoneHtml: renderUploadDropzone({
 						importAction: ADD_ARTICLE_IMPORT_ACTION,
 						bookFallbackHref: UPLOAD_ENTRY_HREFS.addArticleFallback,

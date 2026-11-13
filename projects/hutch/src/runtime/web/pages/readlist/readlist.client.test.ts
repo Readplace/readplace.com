@@ -52,7 +52,7 @@ function purposeDialogMarkup(): string {
 }
 
 function addLinkMarkup(): string {
-	return `<main><button type="button" popovertarget="add-link" data-test-add-link-trigger>Add link</button><div id="add-link" popover data-test-dialog="add-link"><form method="POST" action="/queue/save" hx-post="/queue/save" hx-target="this" data-save-link-form data-save-link-failure="Couldn't save the link." data-test-form="save-article"><input name="url" type="url" autofocus value="https://example.com/a"><p data-save-link-error></p><button type="button" popovertarget="add-link">Cancel</button><button type="submit">Save</button></form><div id="save-tip" popover data-test-dialog="save-tip" tabindex="-1" autofocus><button type="button" popovertarget="save-tip">Continue with URL</button></div></div></main>`;
+	return `<main><button type="button" popovertarget="add-link" data-test-add-link-trigger>Add link</button><div id="add-link" popover data-test-dialog="add-link"><input type="radio" name="add-article-mode" value="file" checked autofocus><input type="radio" name="add-article-mode" value="link"><form method="POST" action="/queue/save" hx-post="/queue/save" hx-target="this" data-save-link-form data-save-link-failure="Couldn't save the link." data-test-form="save-article"><input name="url" type="url" value="https://example.com/a"><p data-save-link-error></p><button type="button" popovertarget="add-link">Cancel</button><button type="submit">Save</button></form><div id="save-tip" popover data-test-dialog="save-tip" tabindex="-1" autofocus><button type="button" popovertarget="save-tip">Continue with URL</button></div></div></main>`;
 }
 
 function fieldlessHostMarkup(): string {
