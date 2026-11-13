@@ -14,6 +14,8 @@ class ArticleDownloadTest {
 	private val foreignOrigin =
 		if (URI(serverOrigin).host == "example.com") "https://other.test" else "https://example.com"
 
+	private val ownEpub = "$serverOrigin/view/example.com/a?format=epub"
+
 	@Test
 	fun recognisesOurOwnEpubLink() {
 		assertTrue(isArticleDownloadUrl("$serverOrigin/view/example.com/a?format=epub"))
@@ -59,8 +61,6 @@ class ArticleDownloadTest {
 	fun rejectsAnUnparseableUrl() {
 		assertFalse(isArticleDownloadUrl("https://readplace.com/a b?format=epub"))
 	}
-
-	private val ownEpub = "$serverOrigin/view/example.com/a?format=epub"
 
 	@Test
 	fun sendsTheStoredCookiesWithOurOwnEpubLink() {
