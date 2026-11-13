@@ -4,8 +4,7 @@
 # the warm-amber marker dot resting on the palm terminal (see
 # BRAND_GUIDELINES.md) — as the transparent `BrandMark` image set that
 # LoginView shows above the title. Vector geometry matches
-# projects/hutch/brand/Readplace_Logo_only.svg; it is inlined here so this
-# script depends on no other project at build time, mirroring make-appicon.sh.
+# projects/hutch/brand/Readplace_Logo_only.svg; it is inlined here.
 #
 # The glyph is fixed <path> outline data (Noto Serif Bold, OFL, with the
 # palm/floor edits from the 2026 mark review), so no installed font can change
@@ -24,6 +23,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 OUT_DIR="App/Resources/Assets.xcassets/BrandMark.imageset"
+ANDROID_RES_DIR="../android/app/src/main/res"
 TMP_SVG="build/brandmark-src.svg"
 mkdir -p "$OUT_DIR" build
 
@@ -46,5 +46,16 @@ render "#FFFFFF" 72  "BrandMark-Dark.png"
 render "#FFFFFF" 144 "BrandMark-Dark@2x.png"
 render "#FFFFFF" 216 "BrandMark-Dark@3x.png"
 
+copy_to_android() {
+  cp "$OUT_DIR/$1" "$ANDROID_RES_DIR/$2/brand_mark.png"
+}
+
+copy_to_android "BrandMark.png"         "drawable-mdpi"
+copy_to_android "BrandMark@2x.png"      "drawable-xhdpi"
+copy_to_android "BrandMark@3x.png"      "drawable-xxhdpi"
+copy_to_android "BrandMark-Dark.png"    "drawable-night-mdpi"
+copy_to_android "BrandMark-Dark@2x.png" "drawable-night-xhdpi"
+copy_to_android "BrandMark-Dark@3x.png" "drawable-night-xxhdpi"
+
 rm -f "$TMP_SVG"
-echo "Wrote 6 PNGs to $OUT_DIR"
+echo "Wrote 6 PNGs to $OUT_DIR and copied them to $ANDROID_RES_DIR"
