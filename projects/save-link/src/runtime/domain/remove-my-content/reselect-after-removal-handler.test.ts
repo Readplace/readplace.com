@@ -32,7 +32,7 @@ function setup(overrides: Partial<Parameters<typeof initReselectAfterRemovalHand
 		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), logger: noopLogger, now: () => NOW }),
 		writeCanonicalContent: async () => ({ contentLocation: "s3://content/survivor.html", candidateId: source.metadata.id, tier: source.tier }),
 		recordCrawlVersion: async () => {}, readCanonicalContent: async () => undefined, loadArticle: async () => article,
-		transitionAndPersist, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined, fetchYouTubeVideoCard: async () => undefined, fetchRedditPostCard: async () => undefined, putTierSource: async (params) => params.metadata, now: () => NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger, ...overrides,
+		transitionAndPersist, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined, fetchYouTubeVideoCard: async () => undefined, putTierSource: async (params) => params.metadata, now: () => NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger, ...overrides,
 	});
 	return { handler, savedInputs, exhaustedMarks };
 }

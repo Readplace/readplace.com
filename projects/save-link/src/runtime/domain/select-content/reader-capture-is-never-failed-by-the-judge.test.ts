@@ -123,7 +123,7 @@ it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge 
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => canonicalContent, loadArticle: async () => article(url), transitionAndPersist,
 		resolveOriginalUrl: async () => url, verifyWrapperSource: async ({ sourceUrl }) => ({ originalUrl: url, sourceUrl }),
-		fetchYouTubeVideoCard: async () => undefined, fetchRedditPostCard: async () => undefined, putTierSource: async (params) => params.metadata,
+		fetchYouTubeVideoCard: async () => undefined, putTierSource: async (params) => params.metadata,
 		now: () => new Date(NOW), logger: noopLogger, deepseekCallFailedLog: noopLogger,
 	});
 

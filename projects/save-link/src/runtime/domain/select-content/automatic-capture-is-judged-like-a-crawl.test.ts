@@ -76,7 +76,7 @@ async function selectContent(params: { article: Article; capture: VerifiedTierSo
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => undefined, loadArticle: async () => params.article, transitionAndPersist,
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
-		fetchYouTubeVideoCard: async () => undefined, fetchRedditPostCard: async () => undefined, putTierSource: async (params) => params.metadata,
+		fetchYouTubeVideoCard: async () => undefined, putTierSource: async (params) => params.metadata,
 		now: () => new Date(NOW), logger: { ...noopLogger, info }, deepseekCallFailedLog: noopLogger,
 	});
 

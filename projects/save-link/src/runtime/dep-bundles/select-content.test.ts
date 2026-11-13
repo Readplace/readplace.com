@@ -26,7 +26,6 @@ describe("initSelectContentDepBundle", () => {
 		expect(typeof bundle.recordCrawlVersion).toBe("function");
 		expect(bundle.deepseekCallFailedLog).toBe(noopLogger);
 		expect(typeof bundle.fetchYouTubeVideoCard).toBe("function");
-		expect(typeof bundle.fetchRedditPostCard).toBe("function");
 		expect(typeof bundle.putTierSource).toBe("function");
 	});
 });

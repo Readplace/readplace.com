@@ -109,7 +109,7 @@ function setup(params: {
 		recordCrawlVersion: async (call) => { await params.recordCrawlVersion?.(call); versionCalls.push(call); },
 		loadArticle: store.load, readCanonicalContent: async () => undefined, transitionAndPersist,
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
-		fetchYouTubeVideoCard: async () => undefined, fetchRedditPostCard: async () => undefined, putTierSource: async (put) => put.metadata,
+		fetchYouTubeVideoCard: async () => undefined, putTierSource: async (put) => put.metadata,
 		now: () => NOW, logger: { ...noopLogger, info: (...args: unknown[]) => { infoLines.push([String(args[0]), args[1]]); } },
 	}, { judgeClaimTtlMs: LAMBDA_BUDGET_MS, heldClaim: "wait-for-holder", holderWait: params.holderWait ?? { delayMs: 1, maxWaits: 15, sleep: async () => {} } });
 	return {
