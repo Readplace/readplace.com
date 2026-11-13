@@ -2823,6 +2823,31 @@ describe("closed publisher notices through the decorated crawler", () => {
 		}
 		expect(result).toMatchObject({ html: article, finalUrl: terminal, etag: '"new"' });
 	});
+	it("does not fetch the rejected returns answer from a nonempty public notice", async () => {
+		const returns = "https://www.camper.com/int/at_cliente_faq?faq=54&utm_source=synthetic";
+		const requested: string[] = [];
+		const crawl = initCrawl({ fetch: async input => {
+			requested.push(String(input));
+			return new Response(notice(returns), { headers: { "content-type": "text/html" } });
+		} });
+		const result = await crawl({ url: source });
+		assertFetched(result);
+		expect(requested).toEqual([source]);
+		expect(result.html).toBe(notice(returns));
+	});
+	it("preserves the earlier textless redirect behavior for the same returns selector", async () => {
+		const returns = "https://www.camper.com/int/at_cliente_faq?faq=54";
+		const requested: string[] = [];
+		const crawl = initCrawl({ fetch: async input => {
+			const url = String(input); requested.push(url);
+			const html = url === source ? `<html><head><meta http-equiv="refresh" content="0; url=${returns}"></head></html>` : article;
+			return new Response(html, { headers: { "content-type": "text/html" } });
+		} });
+		const result = await crawl({ url: source });
+		assertFetched(result);
+		expect(requested).toEqual([source, returns]);
+		expect(result.html).toBe(article);
+	});
 	it("keeps the existing single-stub-hop cap", async () => {
 		const requested: string[] = [];
 		const crawl = initCrawl({ fetch: async input => {
@@ -2834,7 +2859,7 @@ describe("closed publisher notices through the decorated crawler", () => {
 		expect(requested).toEqual([source, target]);
 		expect(result.html).toBe(notice("https://example.test/third"));
 	});
-	it.each([false, true])("uses the existing PDF media path (extractor available: %s)", async available => {
+	it.each([false, true])("does not follow the nonempty PDF notice (extractor available: %s)", async available => {
 		const pdf = "https://www.camper.com/html/legal/pdfs/privacy/general_privacy_policy_EN.pdf";
 		const requested: string[] = [];
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", html: article, title: "Synthetic privacy" }));
@@ -2843,9 +2868,10 @@ describe("closed publisher notices through the decorated crawler", () => {
 			return url === source ? new Response(notice(`${pdf}?utm_source=synthetic`), { headers: { "content-type": "text/html" } }) : new Response(PDF_MAGIC_BUFFER, { headers: { "content-type": "application/pdf" } });
 		} });
 		const result = await crawl({ url: source });
-		expect(requested).toEqual([source, pdf]);
-		expect(result.status).toBe(available ? "fetched" : "unsupported");
-		expect(extractPdf).toHaveBeenCalledTimes(available ? 1 : 0);
+		assertFetched(result);
+		expect(requested).toEqual([source]);
+		expect(result.html).toBe(notice(`${pdf}?utm_source=synthetic`));
+		expect(extractPdf).toHaveBeenCalledTimes(0);
 	});
 	it.each([`${target}&signature=synthetic`, `${target}&faq=98`, target.replace("faq=97", "faq=action"), target.replace("/int/", "/account/"), `${target}&utm_new=x`])("makes no new request for excluded target %s", async excluded => {
 		const requested: string[] = [];

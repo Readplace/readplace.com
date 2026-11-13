@@ -120,9 +120,22 @@ describe("the closed public publisher notice", () => {
 		const escaped = target.replaceAll("&", "&amp;");
 		return `<html><head><style type="text/css">body { color: #555; font-family: Arial, Verdana, Helvetica, sans-serif; font-weight: normal; font-size: 11px; } a { color: #555; }</style><meta http-equiv="content-type" content="text/html"><meta http-equiv="refresh" content="0; url=${escaped}"></head><body>If you are not redirected, please click <a href="${escaped}" id="redir">here</a>${extra}</body></html>`;
 	}
-	it.each([faq, pdf])("recognizes only the exact fallback notice and strips reviewed tracking from %s", (target) => {
+	it("recognizes only the exact FAQ fallback notice and strips reviewed tracking", () => {
+		const target = faq;
 		const tracked = `${target + (target.includes("?") ? "&" : "?")}utm_source=synthetic&nw_section=footer&sc_uid=synthetic&usrhash=synthetic`;
 		expect(metaRefreshTarget(page({ html: notice(tracked), documentUrl: source }))).toBe(target);
+	});
+	it.each(["22", "46", "51"])("preserves the accepted public answer selector %s", (selector) => {
+		const target = faq.replace("faq=97", `faq=${selector}`);
+		expect(metaRefreshTarget(page({ html: notice(`${target}&utm_source=synthetic`), documentUrl: source }))).toBe(target);
+	});
+	it.each(["faq=54", "faq=54&utm_source=synthetic", "faq=%35%34"])("keeps the nonempty returns notice instead of following %s", (query) => {
+		const target = `https://www.camper.com/int/at_cliente_faq?${query}`;
+		expect(metaRefreshTarget(page({ html: notice(target), documentUrl: source }))).toBeUndefined();
+	});
+	it.each([faq.replace("faq=97", "faq=54"), pdf])("preserves the prior textless refresh behavior for %s", (target) => {
+		const html = `<html><head><meta http-equiv="refresh" content="0; url=${target}"></head></html>`;
+		expect(metaRefreshTarget(page({ html, documentUrl: source }))).toBe(target);
 	});
 	it("also accepts the minimal notice without optional passive styling or the anchor id", () => {
 		const html = notice(faq).replace(/<style[^>]*>.*?<\/style>/, "").replace(' id="redir"', "");
@@ -135,7 +148,7 @@ describe("the closed public publisher notice", () => {
 		faq.replace("https:", "http:"), faq.replace("www.camper.com", "account.camper.com"), faq.replace("www.camper.com", "www.camper.com:444"), faq.replace("www.camper.com", "user:secret@www.camper.com"),
 		`${faq}#`, `${faq}#action`, `${faq}&signature=synthetic`, `${faq}&token=synthetic`, `${faq}&action=delete`, `${faq}&utm_unreviewed=x`, `${faq}&sc_unknown=x`, `${faq}&next=https://example.test`, `${faq}&faq=98`, `${faq}&utm_source=a&utm_source=b`,
 		faq.replace("97", "0"), faq.replace("97", "09"), faq.replace("97", "9"), faq.replace("97", "100"), faq.replace("97", "97delete"), faq.replace("97", "-97"), faq.replace("97", "97.0"), faq.replace("?faq=97", ""),
-		faq.replace("/int/", "/en_GB/"), faq.replace("/int/", "/%69nt/"), faq.replace("/int/", "/other/../int/"), faq.replace("at_cliente_faq", "account_faq"), `${pdf}?faq=97`, `${pdf}?download=1`, pdf.replace("policy_EN", "policy_GB"),
+		faq.replace("/int/", "/en_GB/"), faq.replace("/int/", "/%69nt/"), faq.replace("/int/", "/other/../int/"), faq.replace("at_cliente_faq", "account_faq"), pdf, `${pdf}?utm_source=synthetic`, `${pdf}?faq=97`, `${pdf}?download=1`, pdf.replace("policy_EN", "policy_GB"),
 	])("rejects unreviewed destination %s", (target) => {
 		expect(metaRefreshTarget(page({ html: notice(target), documentUrl: source }))).toBeUndefined();
 	});

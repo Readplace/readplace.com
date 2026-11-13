@@ -20,11 +20,11 @@ export function publisherPublicRefreshTarget(params: {
 	if (params.refreshCount !== 1 || !/^\s*0\s*[;,]\s*url\s*=/i.test(params.declaration)) return undefined;
 	if (target.protocol !== "https:" || target.hostname !== "www.camper.com" || target.port !== "" || target.username !== "" || target.password !== "" || params.declaredTarget.includes("#")) return undefined;
 	if (params.declaredTarget !== target.href) return undefined;
-	const faq = target.pathname === "/int/at_cliente_faq";
-	if (!faq && target.pathname !== "/html/legal/pdfs/privacy/general_privacy_policy_EN.pdf") return undefined;
+	if (target.pathname !== "/int/at_cliente_faq") return undefined;
 	const keys = [...target.searchParams.keys()];
-	if (new Set(keys).size !== keys.length || keys.some((key) => !(TRACKING_KEYS.has(key) || (faq && key === "faq")))) return undefined;
-	if (faq && !/^[1-9][0-9]$/.test(target.searchParams.get("faq") ?? "")) return undefined;
+	if (new Set(keys).size !== keys.length || keys.some((key) => !(TRACKING_KEYS.has(key) || key === "faq"))) return undefined;
+	if (!/^[1-9][0-9]$/.test(target.searchParams.get("faq") ?? "")) return undefined;
+	if (target.searchParams.get("faq") === "54") return undefined;
 	if ([...document.querySelectorAll("*")].some((element) => !NOTICE_TAGS.has(element.tagName) || [...element.attributes].some((attribute) => {
 		const name = attribute.name.toLowerCase();
 		return !NOTICE_ATTRIBUTES.has(name) && !(element.tagName === "STYLE" && name === "type" && attribute.value === "text/css") && !(element.tagName === "A" && name === "id" && attribute.value === "redir");
