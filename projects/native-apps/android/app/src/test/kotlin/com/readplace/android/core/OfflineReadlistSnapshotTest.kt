@@ -19,8 +19,10 @@ class OfflineReadlistSnapshotTest {
 
 	private var clock = Instant.parse("2026-11-12T00:00:00Z")
 
+	private val failures = mutableListOf<OfflineReadingFailure>()
+
 	private fun TestScope.snapshot(directory: File): OfflineReadlistSnapshot =
-		OfflineReadlistSnapshot(directory, StandardTestDispatcher(testScheduler), now = { clock })
+		OfflineReadlistSnapshot(directory, StandardTestDispatcher(testScheduler), now = { clock }, diagnostics = { failures.add(it) })
 
 	private fun article(id: String): String =
 		"""{ "class": ["article"], "rel": ["item"], "properties": { "id": "$id", "url": "https://example.com/$id", "status": "unread" }, "links": [{ "rel": ["read"], "href": "/queue/$id/view" }] }"""
@@ -105,6 +107,18 @@ class OfflineReadlistSnapshotTest {
 	}
 
 	@Test
+	fun `a copy older than thirty days is deleted once it is refused`() = runTest {
+		val directory = folder.newFolder()
+		val snapshot = snapshot(directory)
+		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue", generation = snapshot.generation)
+
+		clock = clock.plus(Duration.ofDays(31))
+		snapshot.firstPage("/queue")
+
+		assertEquals(false, fileFor(directory, "/queue").exists())
+	}
+
+	@Test
 	fun `a page without its body is not kept`() = runTest {
 		val directory = folder.newFolder()
 		val snapshot = snapshot(directory)
@@ -128,6 +142,7 @@ class OfflineReadlistSnapshotTest {
 			listOf(null, listOf("b1")),
 			listOf(ids(snapshot.firstPage("/queue")), ids(snapshot.firstPage("/queue?queue=work"))),
 		)
+		assertEquals(listOf(OfflineReadingFailure.DECODE), failures)
 	}
 
 	@Test
@@ -137,6 +152,7 @@ class OfflineReadlistSnapshotTest {
 		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue", generation = snapshot.generation)
 
 		assertEquals(null, snapshot.firstPage("/queue"))
+		assertEquals(listOf(OfflineReadingFailure.WRITE), failures)
 	}
 
 	@Test

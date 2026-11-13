@@ -144,7 +144,7 @@ class ReadingListViewModelTest {
 		reportProcessingRefreshFailure: (String) -> Unit = {},
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 		network: OfflineSwitch = OfflineSwitch(),
-		snapshot: OfflineReadlistSnapshot = OfflineReadlistSnapshot(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH }),
+		snapshot: OfflineReadlistSnapshot = OfflineReadlistSnapshot(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH }, diagnostics = {}),
 	): ReadingListViewModel =
 		ReadingListViewModel(
 			api = api(store, ioDispatcher, network),
@@ -4779,7 +4779,7 @@ class ReadingListViewModelTest {
 		get() = state.value.errorText to state.value.isOffline
 
 	private fun TestScope.store(directory: java.io.File, now: () -> Instant = { Instant.EPOCH }): OfflineReadlistSnapshot =
-		OfflineReadlistSnapshot(directory, StandardTestDispatcher(testScheduler), now = now)
+		OfflineReadlistSnapshot(directory, StandardTestDispatcher(testScheduler), now = now, diagnostics = {})
 
 	private fun entryPointHandler(vararg ids: String): (Record) -> Stub = { record ->
 		if (record.path == "/") Stub.json(200, Fixtures.collection(ids.map { Fixtures.article(it) })) else Stub.json(404, "{}")
@@ -4817,6 +4817,30 @@ class ReadingListViewModelTest {
 
 		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
 		assertEquals(OfflineReading.BANNER_TEXT to true, viewModel.offlineState)
+	}
+
+	@Test
+	fun `a kept copy does not bring back the warning it was saved with`() = runTest {
+		val warnedReadlist = """
+			{
+				"class": ["collection", "articles"],
+				"properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable", "message": "Cannot save that link." } },
+				"entities": [${Fixtures.article("a1")}],
+				"links": [{ "rel": ["self"], "href": "/" }, { "rel": ["root"], "href": "/" }],
+				"actions": []
+			}
+		"""
+		server.handle { record -> if (record.path == "/") Stub.json(200, warnedReadlist) else Stub.json(404, "{}") }
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		assertEquals("precondition: the live page shows its warning", "Cannot save that link.", viewModel.state.value.warningText)
+
+		network.down = true
+		viewModel.refresh()
+
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertNull(viewModel.state.value.warningText)
 	}
 
 	@Test

@@ -865,7 +865,7 @@ class ReadingListViewModel(
 		nextHref = page.nextHref
 		states.value = reconciled.copy(
 			hasMore = page.nextHref != null,
-			warningText = page.warning?.message,
+			warningText = if (page.isStoredCopy) null else page.warning?.message,
 			isOffline = page.isStoredCopy,
 			errorText = when {
 				page.isStoredCopy -> OfflineReading.BANNER_TEXT

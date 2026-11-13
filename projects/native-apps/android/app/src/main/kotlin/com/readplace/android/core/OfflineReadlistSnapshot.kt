@@ -9,8 +9,23 @@ import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicLong
 
-class OfflineReadlistSnapshot(private val directory: File, private val io: CoroutineDispatcher, private val now: () -> Instant) {
+enum class OfflineReadingFailure {
+	WRITE,
+	DECODE,
+}
+
+fun interface OfflineReadingDiagnostics {
+	fun report(failure: OfflineReadingFailure)
+}
+
+class OfflineReadlistSnapshot(
+	private val directory: File,
+	private val io: CoroutineDispatcher,
+	private val now: () -> Instant,
+	private val diagnostics: OfflineReadingDiagnostics,
+) {
 	@Serializable
 	private data class Stored(val href: String, val savedAt: Long, val body: String)
 
@@ -18,14 +33,14 @@ class OfflineReadlistSnapshot(private val directory: File, private val io: Corou
 
 	private val lock = Any()
 
-	private var purges = 0L
+	private val purges = AtomicLong()
 
 	val generation: Long
-		get() = synchronized(lock) { purges }
+		get() = purges.get()
 
 	fun purge(): Unit =
 		synchronized(lock) {
-			purges += 1
+			purges.incrementAndGet()
 			directory.deleteRecursively()
 		}
 
@@ -57,31 +72,39 @@ class OfflineReadlistSnapshot(private val directory: File, private val io: Corou
 				Stored(href = key, savedAt = now().epochSecond, body = String(body, Charsets.UTF_8)),
 			)
 			synchronized(lock) {
-				if (generation != purges) return@synchronized
+				if (generation != purges.get()) return@synchronized
 				pages.mkdirs()
 				try {
 					fileFor(key).writeText(record)
 				} catch (_: IOException) {
+					diagnostics.report(OfflineReadingFailure.WRITE)
 				}
 			}
 		}
 
-	private suspend fun read(key: String): ReadlistPage? {
-		val text = withContext(io) {
-			try {
-				fileFor(key).readText()
-			} catch (_: IOException) {
-				null
+	private suspend fun read(key: String): ReadlistPage? =
+		withContext(io) {
+			synchronized(lock) {
+				val file = fileFor(key)
+				val text = try {
+					file.readText()
+				} catch (_: IOException) {
+					return@synchronized null
+				}
+				val stored = try {
+					recordJson.decodeFromString(Stored.serializer(), text)
+				} catch (_: SerializationException) {
+					diagnostics.report(OfflineReadingFailure.DECODE)
+					return@synchronized null
+				}
+				if (OfflineCopy.isShowable(savedAt = Instant.ofEpochSecond(stored.savedAt), now = now())) {
+					ReadlistPage.stored(stored.body.toByteArray(Charsets.UTF_8), href = key)
+				} else {
+					file.delete()
+					null
+				}
 			}
-		} ?: return null
-		val stored = try {
-			recordJson.decodeFromString(Stored.serializer(), text)
-		} catch (_: SerializationException) {
-			return null
 		}
-		if (!OfflineCopy.isShowable(savedAt = Instant.ofEpochSecond(stored.savedAt), now = now())) return null
-		return ReadlistPage.stored(stored.body.toByteArray(Charsets.UTF_8), href = key)
-	}
 
 	private fun fileFor(key: String): File {
 		val digest = MessageDigest.getInstance("SHA-256").digest(key.toByteArray(Charsets.UTF_8))

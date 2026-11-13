@@ -142,7 +142,7 @@ class AppSessionTest {
 				UnseenSave(folder.newFolder()),
 				DiscoveryHttpCache(folder.newFolder()),
 			),
-			offlineReading = OfflineReadlistSnapshot(offlineFiles, ioDispatcher, now = { Instant.EPOCH }),
+			offlineReading = OfflineReadlistSnapshot(offlineFiles, ioDispatcher, now = { Instant.EPOCH }, diagnostics = {}),
 			sloganDiagnostics = SloganDiagnostics { },
 			forgetReaderChoices = forgetReaderChoices,
 		)
