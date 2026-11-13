@@ -239,7 +239,7 @@ const webLambda = new Lambda("inbox-web", {
 		// Pinned into the email iframe's CSP so only rehosted image copies load.
 		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
 		EVENT_BUS_NAME: eventBus.eventBusName,
-		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		ANALYTICS_SALT: pulumi.secret(requireEnv("ANALYTICS_SALT")),
 		SSR_EDGE_SECRET: ssrEdgeSecretFromPlatformStack(config),
 		APP_ORIGIN: hutchApiUrl,
 	},

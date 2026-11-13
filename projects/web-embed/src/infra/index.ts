@@ -60,7 +60,7 @@ const lambda = new Lambda("web-embed", {
 		APP_ORIGIN: appOrigin,
 		STATIC_BASE_URL: staticBaseUrl,
 		DYNAMODB_SESSIONS_TABLE: sessionsTableName,
-		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		ANALYTICS_SALT: pulumi.secret(requireEnv("ANALYTICS_SALT")),
 		SSR_EDGE_SECRET: ssrEdgeSecretFromPlatformStack(config),
 	},
 	policies: [...sessionsRead.policies],

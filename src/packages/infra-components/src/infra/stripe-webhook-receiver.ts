@@ -34,7 +34,7 @@ export class StripeWebhookReceiver extends pulumi.ComponentResource {
 				arn: pulumi.Input<string>;
 				name: pulumi.Input<string>;
 			};
-			webhookSecret: string;
+			webhookSecret: pulumi.Input<string>;
 			events: readonly StripeEventType[];
 			alertEmail: string;
 			environmentNames: readonly ("STRIPE_WEBHOOK_SECRET" | "EVENT_BUS_NAME" | "DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE" | "STRIPE_EVENT_TYPES")[];

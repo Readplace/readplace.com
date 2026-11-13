@@ -60,7 +60,7 @@ const lambda = new Lambda(BLOG_SITE_LAMBDA_NAME, {
 		DYNAMODB_SESSIONS_TABLE: sessionsTableName,
 		// Same deploy-env secret hutch's infra reads: visitor_hash must match
 		// across blog + app.
-		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		ANALYTICS_SALT: pulumi.secret(requireEnv("ANALYTICS_SALT")),
 		SSR_EDGE_SECRET: ssrEdgeSecretFromPlatformStack(config),
 		// The blog is served same-origin under hutch (readplace.com/blog), so
 		// hutch's origin is the origin the blog is served on.

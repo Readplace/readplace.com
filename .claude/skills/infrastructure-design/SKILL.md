@@ -136,6 +136,7 @@ For env vars that carry an external credential with no AWS resource backing it (
 - [ ] **GitHub Actions secrets** — `gh secret list --env staging --repo <org>/<repo>` and `gh secret list --env prod --repo <org>/<repo>` both show the variable. Secret values must be set via the GitHub UI — they can't be set from `gh` without a PAT with `secrets:write`. If missing, tell the user explicitly before creating the commit.
 - [ ] No CI workflow edit — the reusable workflow that runs each project's `deploy-infra` target (grep `.github/workflows` for `:deploy-infra`) exports every repository and environment secret into both deploy jobs, so creating the secret in each environment (the item above) is all CI needs.
 - [ ] Lambda `environment:` block in the project's Pulumi program (the `main` its `package.json` names) sets `VAR_NAME` by reading it through the required-env helper, so the variable reaches the deployed runtime.
+- [ ] The Pulumi program wraps that read in `pulumi.secret(...)`, so the value is encrypted in stack state — the rule of the [secrets management policy](../../../projects/hutch/docs/secrets-management-policy.md).
 - [ ] Runtime composition root reads the variable via the required-env helper and wires it into the provider.
 - [ ] Local `.env` (gitignored, auto-sourced by `.envrc`) has the variable so local dev and `pnpm check-infra` work.
 

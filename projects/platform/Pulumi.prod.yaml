@@ -8,4 +8,5 @@ config:
   platform:deletionProtection: true
   platform:ocrLambdaRepositoryName: hutch-ocr-lambda
   platform:mediaLambdaRepositoryName: hutch-media-lambda
+  platform:auditTrailBucketName: hutch-audit-trail-prod
 encryptionsalt: v1:4m/IXkkTgU4=:v1:DIISQI4Xxy+S/adO:GmFcMjR0SqoxPTeF6H6wDxcpBcFaXg==
