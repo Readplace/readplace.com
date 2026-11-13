@@ -99,7 +99,7 @@ function setup(params: { seed: Article; loadable: readonly VerifiedTierSource[];
 		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), logger: noopLogger, now: () => NOW }),
 		writeCanonicalContent, recordCrawlVersion, loadArticle: store.load, readCanonicalContent: async () => undefined, transitionAndPersist,
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
-		fetchYouTubeVideoCard: async () => undefined, putTierSource: async (put) => put.metadata,
+		fetchYouTubeVideoCard: async () => undefined, fetchRedditPostCard: async () => undefined, putTierSource: async (put) => put.metadata,
 		now: () => NOW, logger: { ...noopLogger, info: (...args: unknown[]) => { infoLines.push([String(args[0]), args[1]]); } },
 	});
 	const candidatesOf = (sent: Message) => [{ id: sent.source.metadata.id, tier: sent.source.tier }];

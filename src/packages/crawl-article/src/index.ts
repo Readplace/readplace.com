@@ -13,6 +13,8 @@ export { extensionFromContentType } from "./extension-from-content-type";
 export { describeRejection } from "./describe-rejection";
 export { initFetchYouTubeVideoCard } from "./youtube-video-card";
 export type { FetchYouTubeVideoCard, YouTubeVideoCard } from "./youtube-video-card";
+export { initFetchRedditPostCard } from "./reddit-post-card";
+export type { FetchRedditPostCard, RedditPostCard } from "./reddit-post-card";
 export {
 	extractThumbnailCandidates,
 	initFetchThumbnailImage,
