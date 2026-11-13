@@ -9,10 +9,12 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.FontScale
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
@@ -127,11 +129,14 @@ class ReadlistChooserCardLayoutTest {
 	fun `a short list keeps the card sized to its content and centred`() {
 		render(listOf(SharedArticlesDrop.Always("All"), SharedArticlesDrop.Unticked(readlist("Readlist 2"))), fontScale = 1f)
 
-		val titleTop = compose.onNode(hasText(TITLE), useUnmergedTree = true).getUnclippedBoundsInRoot().top
+		val card = compose.onNode(
+			hasAnyDescendant(hasText(TITLE)) and SemanticsMatcher.expectValue(SemanticsProperties.IsTraversalGroup, true),
+			useUnmergedTree = true,
+		).getUnclippedBoundsInRoot()
 		val windowHeight = compose.onRoot().getUnclippedBoundsInRoot().height
-		val doneTouchBottom = with(compose.density) { done().fetchSemanticsNode().touchBoundsInRoot.bottom.toDp() }
-		val spaceBelow = windowHeight - doneTouchBottom
-		assertEquals("space above $titleTop, below $spaceBelow", titleTop.value, spaceBelow.value, 0.5f)
+		assertTrue("card ${card.height} should be shorter than the window's $windowHeight", card.height < windowHeight)
+		val spaceBelow = windowHeight - card.bottom
+		assertEquals("space above ${card.top}, below $spaceBelow", card.top.value, spaceBelow.value, 0.5f)
 	}
 
 	private fun render(drops: List<SharedArticlesDrop>, fontScale: Float) {
@@ -176,7 +181,10 @@ class ReadlistChooserCardLayoutTest {
 
 	private fun overflows(text: SemanticsNodeInteraction): Boolean {
 		val layouts = mutableListOf<TextLayoutResult>()
-		text.fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts)
+		val getLayout = checkNotNull(text.fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action) {
+			"text node has no GetTextLayoutResult action"
+		}
+		getLayout(layouts)
 		val layout = layouts.single()
 		return layout.didOverflowHeight ||
 			(0 until layout.lineCount).any { line ->
@@ -195,7 +203,8 @@ class ReadlistChooserCardLayoutTest {
 		const val LANDSCAPE = "w640dp-h360dp-land-xhdpi"
 		const val TITLE = "Where do shared articles drop?"
 		const val CAPTION = "Tick none and I'll drop them in your main readlist."
-		val LONG_LABEL = "Longreads For The Weekend".take(24)
+		const val SERVER_LABEL_MAXIMUM = 24
+		val LONG_LABEL = "Longreads For The Weekend".take(SERVER_LABEL_MAXIMUM)
 		val FULL_LIST_LABELS = listOf("All", LONG_LABEL) + (2..7).map { "Readlist $it" }
 		val TOUCH_TARGET = 48.dp
 		val BUTTON_HEIGHT = 40.dp
