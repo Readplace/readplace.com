@@ -1248,7 +1248,7 @@ describe("initRenderCrawlHandler", () => {
 				prepareArticleIdentity: sourceBound,
 				crawlArticle: async ({ url }) => {
 					crawled.push(url);
-					return captured ? { status: "fetched", html: "<html><body><p>archived</p></body></html>", bodyHash: "hash" } : { status: "failed" };
+					return captured ? { status: "fetched", html: "<html><body><p>archived</p></body></html>", bodyHash: "hash" } : { status: "failed", decision: undefined };
 				},
 				publishEvent,
 			});

@@ -1,5 +1,6 @@
+import assert from "node:assert/strict";
 import http2 from "node:http2";
-import type { AddressInfo } from "node:net";
+import net, { type AddressInfo } from "node:net";
 import { fetchH2 } from "./h2-fetch";
 
 type StreamHandler = (stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => void;
@@ -115,11 +116,30 @@ describe("fetchH2 — against a local HTTP/2 server", () => {
 		const captureEscaped = (error: unknown) => escaped.push(error);
 		process.on("uncaughtException", captureEscaped);
 		try {
-			await expect(fetchH2(`${server.origin}/`)).rejects.toThrow("HTTP/2 stream ended without a response");
+			const rejection = fetchH2(`${server.origin}/`);
+			await expect(rejection).rejects.toThrow("HTTP/2 stream ended without a response");
+			await expect(rejection).rejects.toMatchObject({ code: "H2_STREAM_ENDED_WITHOUT_RESPONSE" });
 			expect(escaped).toEqual([]);
 		} finally {
 			process.off("uncaughtException", captureEscaped);
 			await server.close();
+		}
+	});
+});
+
+describe("fetchH2 — against a server that destroys every connection", () => {
+	it("rejects with the coded stream-ended failure", async () => {
+		const server = net.createServer((socket) => socket.destroy());
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+		const address = server.address();
+		assert(address !== null && typeof address === "object", "a TCP server listens on an address");
+		const { port } = address;
+		try {
+			await expect(fetchH2(`http://127.0.0.1:${port}/`)).rejects.toMatchObject({
+				code: "H2_STREAM_ENDED_WITHOUT_RESPONSE",
+			});
+		} finally {
+			await new Promise((resolve) => server.close(resolve));
 		}
 	});
 });

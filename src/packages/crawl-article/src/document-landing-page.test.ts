@@ -71,15 +71,15 @@ it("checks buffered responses without cancelling the consumed stream", async () 
 
 it("finds the mismatch among previous transport failures", () => {
 	const mismatch = new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home });
-	const wrapped = new TransportLadderFailure({ previousErrors: [new Error("timeout"), mismatch], error: new Error("later timeout"), retryDisposition: "recoverable" });
+	const wrapped = new TransportLadderFailure({ escalatedStatuses: [], previousErrors: [new Error("timeout"), mismatch], error: new Error("later timeout"), retryDisposition: "recoverable" });
 	expect(documentLandingPageFailure(wrapped)).toBe(mismatch);
-	expect(documentLandingPageFailure(new TransportLadderFailure({ previousErrors: [], error: undefined, retryDisposition: "unclassified" }))).toBeUndefined();
+	expect(documentLandingPageFailure(new TransportLadderFailure({ escalatedStatuses: [], previousErrors: [], error: undefined, retryDisposition: "unclassified" }))).toBeUndefined();
 });
 
 it.each([true, false])("uses the latest rejected landing page when the final attempt times out: %s", (timedOut) => {
 	const earlier = new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home });
 	const latest = new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: "https://publisher.example/archive/docs/" });
-	const wrapped = new TransportLadderFailure({
+	const wrapped = new TransportLadderFailure({ escalatedStatuses: [],
 		previousErrors: timedOut ? [earlier, latest] : [earlier],
 		error: timedOut ? new Error("timeout") : latest,
 		retryDisposition: "recoverable",

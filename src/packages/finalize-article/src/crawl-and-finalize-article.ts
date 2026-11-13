@@ -1,4 +1,9 @@
-import type { CrawlArticle, CrawlUnsupportedReason, FetchFailureClassification } from "@packages/crawl-article";
+import type {
+	CrawlArticle,
+	CrawlUnsupportedReason,
+	FetchFailureClassification,
+	FetchRetryDecision,
+} from "@packages/crawl-article";
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { MediaWriteContext } from "./put-image-object.types";
 import { type FinalizeArticle, type FinalizedArticle, UNREADABLE_ARTICLE } from "./finalize-article";
@@ -26,6 +31,7 @@ export type CrawlAndFinalizeResult =
 			finalUrl?: string;
 			failure?: FetchFailureClassification;
 			cause?: unknown;
+			decision: FetchRetryDecision | undefined;
 		}
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
@@ -64,7 +70,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 		 * any network call rather than trusting that intake validated it. */
 		const fetchUrl = params.fetchUrl ?? params.url;
 		if (validateSaveableUrl(fetchUrl).status === "ERROR") {
-			return { status: "failed", reason: "unsafe-url" };
+			return { status: "failed", reason: "unsafe-url", decision: undefined };
 		}
 
 		const crawlResult = await crawlArticle({
@@ -98,6 +104,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 				finalUrl: crawlResult.finalUrl,
 				failure: crawlResult.failure,
 				cause: crawlResult.cause,
+				decision: crawlResult.decision,
 			};
 		}
 
@@ -113,7 +120,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 			}),
 		);
 		if (!finalized.ok) {
-			if (!params.retainResponseBody || evaluationHtml.trim() === "") return { status: "failed", reason: finalized.reason, finalUrl: crawlResult.finalUrl };
+			if (!params.retainResponseBody || evaluationHtml.trim() === "") return { status: "failed", reason: finalized.reason, finalUrl: crawlResult.finalUrl, decision: undefined };
 			return {
 				status: "fetched",
 				article: UNREADABLE_ARTICLE,

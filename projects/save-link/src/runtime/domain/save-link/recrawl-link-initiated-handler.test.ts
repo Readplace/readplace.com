@@ -101,7 +101,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 	});
 
 	it("terminalises an origin failure in-process with its classified reason and reports no batch failure, so a refused origin never dead-letters", async () => {
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const { publishEvent, published } = initRecordingPublishEvent();
 
@@ -122,7 +122,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 	});
 
 	it("reports a batch failure when terminalising the origin failure itself fails, so the record is not lost", async () => {
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 		const transitionAndPersist = jest.fn().mockRejectedValue(new Error("dynamodb down"));
 
 		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
@@ -235,7 +235,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 
 	it("logs a tier-1 crawl-failed at warn (not error) so it stays off the errors dashboard", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logger });
 
@@ -349,7 +349,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 			const { publishEvent, published } = initRecordingPublishEvent();
 			const handler = createHandler({
 				crawlAndFinalizeArticle: async (params) => params.fetchUrl === undefined
-					? { status: "failed", reason: "crawl-failed", failure: { kind: "origin-unreachable", code: "ENOTFOUND" } }
+					? { status: "failed", decision: undefined, reason: "crawl-failed", failure: { kind: "origin-unreachable", code: "ENOTFOUND" } }
 					: { status: "not-found", httpStatus: 404 },
 				publishEvent,
 				findContentSourceUrl: async () => capture,

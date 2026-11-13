@@ -381,7 +381,7 @@ describe("initComprehensiveCrawlHandler", () => {
 	});
 
 	it("ends the row in process and consumes the message when crawlArticle returns 'failed'", async () => {
-		const failingComprehensiveCrawl: CrawlArticle = async () => ({ status: "failed", failure: { kind: "origin-unreachable", code: "ETIMEDOUT" } });
+		const failingComprehensiveCrawl: CrawlArticle = async () => ({ status: "failed", decision: undefined, failure: { kind: "origin-unreachable", code: "ETIMEDOUT" } });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const { publishEvent, published } = initRecordingPublishEvent();
 		const logParseError = jest.fn();
@@ -413,7 +413,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 	it("reports the record as a batch failure when the terminal write for a failed crawl throws", async () => {
 		const handler = createHandler({
-			crawlArticle: async () => ({ status: "failed" }),
+			crawlArticle: async () => ({ status: "failed", decision: undefined }),
 			transitionAndPersist: jest.fn().mockRejectedValue(new Error("ddb throttled")),
 		});
 
@@ -579,7 +579,7 @@ describe("initComprehensiveCrawlHandler", () => {
 	});
 
 	it("still ends the failed row in process when the outcome emit degrades on a snapshot read error", async () => {
-		const failingComprehensiveCrawl: CrawlArticle = async () => ({ status: "failed" });
+		const failingComprehensiveCrawl: CrawlArticle = async () => ({ status: "failed", decision: undefined });
 		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("KeyTooLongError: Your key is too long"));
 		const logCrawlOutcome = jest.fn();
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
@@ -1062,7 +1062,7 @@ describe("deferred archive attempt completion", () => {
 	});
 	it.each(["save", "recrawl"] as const)("publishes final no-body with the same wrapper refs after network failure (trigger=%s)", async (trigger) => {
 		const { publishEvent, published } = initRecordingPublishEvent();
-		const handler = createHandler({ crawlArticle: async () => ({ status: "failed" }), publishEvent });
+		const handler = createHandler({ crawlArticle: async () => ({ status: "failed", decision: undefined }), publishEvent });
 		const response = await handler(createSqsEvent({ url: "https://example.com/article", saveAttemptId: "save", candidates: refs, trigger }), buildLambdaContext(), () => {});
 		expect(response).toEqual({ batchItemFailures: [] });
 		expect(published).toContainEqual({ detailType: (trigger === "recrawl" ? RecrawlContentExtractedEvent : TierContentExtractedEvent).detailType, detail: expect.objectContaining({ candidates: refs, saveAttemptId: "save", liveAttempt: { outcome: "no-body" } }) });
@@ -1113,7 +1113,7 @@ it.each([true, false])("recovers a legacy wrapper source before deferred live wo
 	const { publishEvent, published } = initRecordingPublishEvent();
 	const handler = createHandler({
 		prepareArticleIdentity: async () => ({ status: "resolved", url, originalUrl: url, contentSourceUrl: captureUrl, sourceOriginalUrl: url }),
-		crawlArticle: async ({ url: requestedUrl }) => requestedUrl === captureUrl && captureSucceeds ? { status: "fetched", html: "<html><body>archived</body></html>", bodyHash: "hash" } : { status: "failed" },
+		crawlArticle: async ({ url: requestedUrl }) => requestedUrl === captureUrl && captureSucceeds ? { status: "fetched", html: "<html><body>archived</body></html>", bodyHash: "hash" } : { status: "failed", decision: undefined },
 		publishEvent,
 	});
 	const response = await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
@@ -1335,7 +1335,7 @@ describe("comprehensive crawl under the metered-leg ledger", () => {
 	});
 
 	it("records nothing for a crawl that committed no candidate, so the next delivery crawls again", async () => {
-		const crawlArticle = jest.fn<ReturnType<CrawlArticle>, Parameters<CrawlArticle>>(async () => ({ status: "failed" }));
+		const crawlArticle = jest.fn<ReturnType<CrawlArticle>, Parameters<CrawlArticle>>(async () => ({ status: "failed", decision: undefined }));
 		const handler = createHandler({ crawlArticle, runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }) });
 
 		await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});

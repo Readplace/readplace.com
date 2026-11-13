@@ -2695,7 +2695,7 @@ it("retains CIA PDF identity after a rejected redirect and later timeout", async
 	const home = "https://www.cia.gov/readingroom/";
 	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (_url, init) => {
 		init.onRedirect?.({ fromUrl: url, toUrl: home });
-		throw new TransportLadderFailure({ previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
+		throw new TransportLadderFailure({ escalatedStatuses: [], previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
 	}, siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 	expect(await crawl({ url })).toMatchObject({ status: "failed", finalUrl: url });
 });
@@ -2706,7 +2706,7 @@ it("reports one document mismatch after different rejected landing pages and a t
 	const logError = jest.fn();
 	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (_url, init) => {
 		for (const landingPageUrl of landingPages) init.onRedirect?.({ fromUrl: url, toUrl: landingPageUrl });
-		throw new TransportLadderFailure({
+		throw new TransportLadderFailure({ escalatedStatuses: [],
 			previousErrors: landingPages.map(landingPageUrl => new DocumentLandingPageError({ requestedUrl: url, landingPageUrl })),
 			error: new Error("timeout"),
 			retryDisposition: "recoverable",
@@ -2723,7 +2723,7 @@ it("does not replace an unrelated later redirect with the rejected CIA document"
 	const later = "https://www.cia.gov/different-document";
 	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async (_url, init) => {
 		init.onRedirect?.({ fromUrl: home, toUrl: later });
-		throw new TransportLadderFailure({ previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
+		throw new TransportLadderFailure({ escalatedStatuses: [], previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
 	}, siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 	expect(await crawl({ url })).toMatchObject({ status: "failed", finalUrl: later });
 });
@@ -2766,4 +2766,33 @@ it("keeps the CIA reading-room homepage when it was the page requested", async (
 		fetch: async () => withResolvedUrl(new Response("<html><head><title>Reading Room</title></head><body><article><p>Freedom of Information Act Electronic Reading Room</p></article></body></html>", { status: 200, headers: { "content-type": "text/html" } }), home),
 	});
 	expect(await crawl({ url: home })).toMatchObject({ status: "fetched", finalUrl: home });
+});
+
+describe("the retry decision on a failed crawl", () => {
+	function resetEveryLeg(): never {
+		throw new TypeError("fetch failed", { cause: Object.assign(new Error("socket hang up"), { code: "ECONNRESET" }) });
+	}
+
+	it("is durable-retryable when the direct ladder fails with a reset on every leg", async () => {
+		const crawl = initCrawl({
+			fetch: async () => resetEveryLeg(),
+			fetchH2: async () => resetEveryLeg(),
+			fetchCurl: async () => resetEveryLeg(),
+			siteRules: [],
+		});
+
+		const result = await crawl({ url: "https://publisher.example/article" });
+
+		assert(result.status === "failed", "a ladder that resets on every leg fails the crawl");
+		expect(result.decision).toEqual({ kind: "retryable", scope: "durable", cause: result.cause });
+	});
+
+	it("is absent when the origin answered with an HTTP status", async () => {
+		const crawl = initCrawl({ fetch: async () => new Response("down", { status: 503 }), siteRules: [] });
+
+		const result = await crawl({ url: "https://publisher.example/article" });
+
+		assert(result.status === "failed", "a 503 fails the crawl");
+		expect(result).toHaveProperty("decision", undefined);
+	});
 });

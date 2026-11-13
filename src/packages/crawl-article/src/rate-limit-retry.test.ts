@@ -75,7 +75,7 @@ describe("withRateLimitRetry", () => {
 });
 
 it.each(["recoverable", "unclassified"] as const)("handles a %s retry failure after the latest 429", async (retryDisposition) => {
-	const error = new TransportLadderFailure({ error: new Error("connection failed"), previousErrors: [], retryDisposition });
+	const error = new TransportLadderFailure({ escalatedStatuses: [], error: new Error("connection failed"), previousErrors: [], retryDisposition });
 	const innerFetch = jest.fn()
 		.mockResolvedValueOnce(new Response("old 429", { status: 429 }))
 		.mockResolvedValueOnce(new Response("latest 429", { status: 429, headers: { "retry-after": "60" } }))
@@ -101,7 +101,7 @@ it("propagates an unclassified raw rejection after a 429", async () => {
 
 it("preserves document recovery evidence when a retry after 429 rejects a landing page", async () => {
 	const url = "https://publisher.example/archive/report.pdf";
-	const error = new TransportLadderFailure({
+	const error = new TransportLadderFailure({ escalatedStatuses: [],
 		previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: "https://publisher.example/archive/" })],
 		error: Object.assign(new Error("later timeout"), { name: "TimeoutError" }),
 		retryDisposition: "recoverable",

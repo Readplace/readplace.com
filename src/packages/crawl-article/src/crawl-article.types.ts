@@ -1,5 +1,6 @@
 import type { CrawlUnsupportedReason } from "@packages/article-state-types";
 import type { FetchFailureClassification } from "./classify-fetch-failure";
+import type { FetchRetryDecision } from "./fetch-retry-decision";
 import type { PdfExtractStage } from "./pdf-extract.types";
 
 export type ThumbnailImage = {
@@ -48,7 +49,13 @@ export type CrawlArticleResult =
 	/* A failure carries the terminal too: the redirect chain's own `Location` is
 	 * the strongest available evidence of where a link lands, so a destination
 	 * that blocks or never answers can still claim its identity. */
-	| { status: "failed"; finalUrl?: string; failure?: FetchFailureClassification; cause?: unknown }
+	| {
+			status: "failed";
+			finalUrl?: string;
+			failure?: FetchFailureClassification;
+			cause?: unknown;
+			decision: FetchRetryDecision | undefined;
+		}
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
 	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason };

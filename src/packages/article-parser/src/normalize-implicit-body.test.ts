@@ -70,7 +70,7 @@ describe("normalizeImplicitBody", () => {
 		const html = `<head><title>Archived discussion</title></head><body><pre>${opening.repeat(12)} <a href="/thread/2">Next message</a> <a href="https://example.test/reference">Reference</a> ${closing.repeat(12)}</pre></body>`;
 		const url = "https://example.test/thread/1";
 		const parser = initReadabilityParser({
-			crawlArticle: async () => ({ status: "failed" }),
+			crawlArticle: async () => ({ status: "failed", decision: undefined }),
 			siteRules: [],
 			readabilityAdditions,
 			logError: () => {},
@@ -161,7 +161,7 @@ describe("normalizeImplicitBody", () => {
 			const paragraph = "The registrant is offering shares of its common stock in this proposed public offering. ";
 			const url = "https://www.sec.gov/Archives/edgar/data/1/000000000026000001/d0.htm";
 			const parser = initReadabilityParser({
-				crawlArticle: async () => ({ status: "failed" }),
+				crawlArticle: async () => ({ status: "failed", decision: undefined }),
 				siteRules: [],
 				readabilityAdditions,
 				logError: () => {},

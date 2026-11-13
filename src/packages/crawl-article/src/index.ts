@@ -33,6 +33,7 @@ export type {
 } from "./crawl-article.types";
 export { resolveDocumentUrl } from "./resolve-document-url";
 export { initCrawlFetch } from "./crawl-fetch";
+export type { FetchRetryDecision } from "./fetch-retry-decision";
 export { initFetchPinnedCrawl } from "./fetch-pinned-crawl";
 export type { CrawlEgress, CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
 export { isProxyWorthyError, isProxyWorthyResponse } from "./proxied-ladder-fallback";

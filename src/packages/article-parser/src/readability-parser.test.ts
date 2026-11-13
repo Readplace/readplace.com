@@ -169,7 +169,7 @@ describe("initReadabilityParser", () => {
 
 	it("should return error when crawl fails", async () => {
 		const { parseArticle } = initParser({
-			crawlArticle: async () => ({ status: "failed" as const }),
+			crawlArticle: async () => ({ status: "failed" as const, decision: undefined }),
 		});
 
 		const result = await parseArticle("https://example.com/article");
