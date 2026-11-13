@@ -110,13 +110,13 @@ Authorization: Bearer ACCESS_TOKEN
 Accept: application/vnd.siren+json
 ```
 
-The entry point answers `303 See Other` with the collection's location; follow it
-rather than hard-coding where the collection lives. Actions such as
-`update-status` answer `303` too. Some HTTP clients — .NET `HttpClient`,
-PowerShell `Invoke-RestMethod` and `Invoke-WebRequest` — drop `Authorization` when
-they follow a redirect, and the API then answers `401`. On any `3xx` from the API,
-either request the `Location` yourself with the bearer token, or configure the
-client to keep `Authorization` across redirects.
+The entry point answers `200` with the reader's collection; its `self` link names
+where the collection lives, so read links from it rather than hard-coding paths.
+Actions such as `update-status` answer `303 See Other`. Some HTTP clients — .NET
+`HttpClient`, PowerShell `Invoke-RestMethod` and `Invoke-WebRequest` — drop
+`Authorization` when they follow a redirect, and the API then answers `401`.
+On any `3xx` from the API, either request the `Location` yourself with the bearer
+token, or configure the client to keep `Authorization` across redirects.
 
 A Readplace access token carries full read/write access to the authenticated
 user's readlists — the single access level the discovery metadata labels

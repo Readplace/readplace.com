@@ -352,7 +352,6 @@ import {
 	wantsMarkdown,
 } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
-import { setSirenDiscoveryRedirectCaching } from "./web/siren-discovery-cache";
 import { createCrossSiteRequestMiddleware } from "./web/cross-site-request.middleware";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { createListingGenerationMiddleware } from "./web/listing-generation.middleware";
@@ -1175,12 +1174,17 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	/** Firefox extensions enforce CORS preflight for fetches with non-simple headers (Accept: application/vnd.siren+json, Authorization). Register OPTIONS so the preflight succeeds; without this it returns 404 and firefox aborts the fetch with NetworkError. */
 	app.options("/", extensionCors);
-	app.get("/", extensionCors, async (req: Request, res: Response) => {
-		const sirenDiscovery = wantsSiren(req) && !wantsMarkdown(req);
-		if (sirenDiscovery) {
-			setSirenDiscoveryRedirectCaching(res);
-		}
-		if (req.userId || sirenDiscovery) {
+	app.get(
+		"/",
+		extensionCors,
+		(req: Request, _res: Response, next: NextFunction) => {
+			next(wantsSiren(req) && !wantsMarkdown(req) ? undefined : "route");
+		},
+		stampOfflineOwner,
+		(req: Request, res: Response, next: NextFunction) => queueRouter(req, res, next),
+	);
+	app.get("/", async (req: Request, res: Response) => {
+		if (req.userId) {
 			res.redirect(303, READLIST_PATH);
 			return;
 		}

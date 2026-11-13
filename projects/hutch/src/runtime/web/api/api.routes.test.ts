@@ -907,7 +907,7 @@ describe("extension-alive cookie middleware", () => {
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.redirects(0);
 
-		expect(response.status).toBe(303);
+		expect(response.status).toBe(401);
 		const setCookie = response.headers["set-cookie"];
 		assert(Array.isArray(setCookie), "expected Set-Cookie header");
 		const cookie = setCookie.find((c: string) => c.startsWith("hutch_ext_alive="));
@@ -950,7 +950,7 @@ describe("extension-alive cookie middleware", () => {
 			.set("Cookie", "hutch_ext_saved=1")
 			.redirects(0);
 
-		expect(response.status).toBe(303);
+		expect(response.status).toBe(401);
 		const setCookie = response.headers["set-cookie"];
 		assert(Array.isArray(setCookie), "expected Set-Cookie header");
 		const cookie = setCookie.find((c: string) => c.startsWith("hutch_ext_saved="));
@@ -968,7 +968,7 @@ describe("extension-alive cookie middleware", () => {
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.redirects(0);
 
-		expect(response.status).toBe(303);
+		expect(response.status).toBe(401);
 		const setCookie = response.headers["set-cookie"];
 		const cookies = Array.isArray(setCookie) ? setCookie : [];
 		const cookie = cookies.find((c: string) => c.startsWith("hutch_ext_saved="));
@@ -977,7 +977,47 @@ describe("extension-alive cookie middleware", () => {
 });
 
 describe("GET / (Siren entry point)", () => {
-	it("redirects Siren clients to /queue", async () => {
+	it("answers a bearer with the collection /queue answers, without a redirect", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+		await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/entry-point-article" });
+		const readEntity = (path: string) =>
+			request(harness.server)
+				.get(path)
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`)
+				.redirects(0);
+
+		const entryPoint = await readEntity("/");
+		const collection = await readEntity("/queue");
+
+		expect(entryPoint.status).toBe(200);
+		expect(entryPoint.headers.location).toBeUndefined();
+		expect(entryPoint.type).toContain("application/vnd.siren+json");
+		expect(entryPoint.body.entities).toHaveLength(1);
+		expect(entryPoint.body).toEqual(collection.body);
+	});
+
+	it("names /queue as the collection's self", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		const self = response.body.links.find((link: { rel: string[] }) => link.rel.includes("self"));
+		assert(self, "the collection must carry a self link");
+		expect(new URL(self.href, TEST_APP_ORIGIN).pathname).toBe("/queue");
+	});
+
+	it("challenges a Siren client without a token", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(harness.server)
@@ -985,8 +1025,104 @@ describe("GET / (Siren entry point)", () => {
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.redirects(0);
 
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
+		expect(response.status).toBe(401);
+		expect(response.headers.location).toBeUndefined();
+		expect(response.headers["www-authenticate"]).toBe(
+			`Bearer resource_metadata="${TEST_APP_ORIGIN}/.well-known/oauth-protected-resource"`,
+		);
+		expect(response.body.properties.code).toBe("missing-token");
+	});
+
+	it("challenges a cookie-session Siren client the way /queue does", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const entryPoint = await agent.get("/").set("Accept", SIREN_MEDIA_TYPE).redirects(0);
+		const collection = await agent.get("/queue").set("Accept", SIREN_MEDIA_TYPE).redirects(0);
+
+		expect(entryPoint.status).toBe(collection.status);
+		expect(entryPoint.headers["www-authenticate"]).toBe(collection.headers["www-authenticate"]);
+		expect(entryPoint.body).toEqual(collection.body);
+		expect(entryPoint.status).toBe(401);
+		expect(entryPoint.body.properties.code).toBe("missing-token");
+	});
+
+	it("rejects a bearer the server does not accept", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server)
+			.get("/")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", "Bearer invalid-token")
+			.redirects(0);
+
+		expect(response.status).toBe(401);
+		expect(response.headers["www-authenticate"]).toBe(
+			`Bearer error="invalid_token", resource_metadata="${TEST_APP_ORIGIN}/.well-known/oauth-protected-resource"`,
+		);
+		expect(response.body.properties.code).toBe("invalid-token");
+	});
+
+	it("rejects an expired bearer", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
+		assert(client, "Test OAuth client must exist");
+		const expired = await harness.oauthModel.saveToken(
+			{
+				accessToken: "expired-access-token",
+				accessTokenExpiresAt: new Date(Date.now() - 60000),
+				refreshToken: "expired-refresh-token",
+				refreshTokenExpiresAt: new Date(Date.now() + 3600000),
+				client,
+				user: { id: "test-user-123" },
+			},
+			client,
+			{ id: "test-user-123" },
+		);
+		assert(expired, "Token should be saved");
+
+		const response = await request(harness.server)
+			.get("/")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${expired.accessToken}`)
+			.redirects(0);
+
+		expect(response.status).toBe(401);
+		expect(response.headers["www-authenticate"]).toBe(
+			`Bearer error="invalid_token", resource_metadata="${TEST_APP_ORIGIN}/.well-known/oauth-protected-resource"`,
+		);
+		expect(response.body.properties.code).toBe("invalid-token");
+	});
+
+	it("lets the iOS app hold the collection for the server-defined lifetime, keyed on Authorization", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set(NATIVE_CLIENT_HEADER, "ios");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["cache-control"]).toBe(
+			`private, max-age=${SIREN_DISCOVERY_MAX_AGE_SECONDS}`,
+		);
+		expect(response.headers.vary).toContain("Authorization");
+	});
+
+	it("makes every other Siren client revalidate the collection, keyed on Authorization", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.status).toBe(200);
+		expect(response.headers["cache-control"]).toBe("private, no-cache");
+		expect(response.headers.vary).toContain("Authorization");
 	});
 
 	it("returns home page HTML when Accept is not Siren", async () => {
@@ -1016,56 +1152,6 @@ describe("GET / (Siren entry point)", () => {
 		);
 		expect(response.headers["access-control-allow-headers"]?.toLowerCase()).toContain("authorization");
 		expect(response.headers["access-control-allow-headers"]?.toLowerCase()).toContain("accept");
-	});
-
-	it("lets a Siren client hold the redirect for the server-defined lifetime, keyed on Accept", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
-		const response = await request(harness.server)
-			.get("/")
-			.set("Accept", SIREN_MEDIA_TYPE)
-			.redirects(0);
-
-		expect(response.status).toBe(303);
-		expect(response.headers["cache-control"]).toBe(
-			`private, max-age=${SIREN_DISCOVERY_MAX_AGE_SECONDS}`,
-		);
-		expect(response.headers.vary).toBe("Accept, Origin");
-	});
-
-	it("caches the redirect for the iOS app the same way", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(harness);
-
-		const response = await request(harness.server)
-			.get("/")
-			.set("Accept", SIREN_MEDIA_TYPE)
-			.set("Authorization", `Bearer ${accessToken}`)
-			.set(NATIVE_CLIENT_HEADER, "ios")
-			.redirects(0);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
-		expect(response.headers["cache-control"]).toBe(
-			`private, max-age=${SIREN_DISCOVERY_MAX_AGE_SECONDS}`,
-		);
-		expect(response.headers.vary).toBe("Accept, Origin");
-	});
-
-	it("caches the redirect a cookie-session Siren client follows too", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent
-			.get("/")
-			.set("Accept", SIREN_MEDIA_TYPE)
-			.redirects(0);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
-		expect(response.headers["cache-control"]).toBe(
-			`private, max-age=${SIREN_DISCOVERY_MAX_AGE_SECONDS}`,
-		);
 	});
 
 	it("keeps the signed-in browser's redirect out of every cache", async () => {

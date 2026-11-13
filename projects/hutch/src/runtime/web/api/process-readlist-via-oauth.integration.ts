@@ -150,9 +150,8 @@ describe("Process a readlist via a self-registered OAuth client", () => {
 		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary });
 		const token = await obtainAccessToken(harness, await registerClient(harness));
 
-		const entry = await sirenGet(harness, { token, path: "/" });
-		assert.equal(entry.status, 303);
-		const all = await followRedirects(harness, { token, response: entry });
+		const all = await sirenGet(harness, { token, path: "/" });
+		assert.equal(all.status, 200);
 
 		const created = await invoke(harness, {
 			token,

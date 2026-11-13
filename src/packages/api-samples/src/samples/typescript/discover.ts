@@ -25,10 +25,6 @@ export async function discover(params: {
 		headers,
 		redirect: "manual",
 	});
-	assert.equal(entry.status, 303, `the entry point answered ${entry.status}, expected a redirect`);
-	const location = entry.headers.get("location");
-	assert(location, "the entry point redirect carries no Location header");
-	const collection = await fetch(new URL(location, params.origin), { headers });
-	assert.equal(collection.status, 200, `the collection answered ${collection.status}`);
-	return sirenCollection.parse(await collection.json());
+	assert.equal(entry.status, 200, `the entry point answered ${entry.status}`);
+	return sirenCollection.parse(await entry.json());
 }

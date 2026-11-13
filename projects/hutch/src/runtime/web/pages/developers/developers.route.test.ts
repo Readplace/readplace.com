@@ -42,8 +42,8 @@ async function followRedirects(
 
 async function openAll(harness: Harness, token: string): Promise<request.Response> {
 	const entry = await sirenGet(harness, { path: "/", token });
-	assert.equal(entry.status, 303, "the entry point must redirect to the collection");
-	return followRedirects(harness, { response: entry, token });
+	assert.equal(entry.status, 200, "the entry point must answer with the collection");
+	return entry;
 }
 
 interface Action {
@@ -629,7 +629,7 @@ describe("/developers copy", () => {
 				"Authorization: Bearer ACCESS_TOKEN",
 				"Accept: application/vnd.siren+json",
 			].join("\n"),
-			"discovery-answer": ["HTTP/1.1 303 See Other", "Location: COLLECTION_HREF"].join("\n"),
+			"discovery-answer": ["HTTP/1.1 200 OK", "Content-Type: application/vnd.siren+json"].join("\n"),
 			read: [
 				"GET READ_HREF HTTP/1.1",
 				"Host: readplace.com",
