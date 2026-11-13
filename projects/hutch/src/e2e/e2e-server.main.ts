@@ -559,6 +559,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 					estimatedReadTime,
 					provenance,
 					savedAt: await fixture.articleStore.allocateSavedAt({ userId: savedByUserId }),
+					saveTrigger: "manual",
 				})
 			).saved
 		: undefined

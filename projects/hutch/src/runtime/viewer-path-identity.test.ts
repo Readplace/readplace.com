@@ -25,7 +25,7 @@ it("downloads the original from rendered owner, public and poll links even with 
 	const sid = await harness.auth.createSession({ userId, emailVerified: true });
 	const headers = { ...BROWSER_REQUEST_HEADERS, cookie: `hutch_sid=${sid}` };
 	async function seed(url: string, title: string, body: string, bytes: number[]) {
-		const { saved } = await fixture.articleStore.saveArticle({ userId, url, metadata: { title, siteName: "example.com", excerpt: `${title} excerpt`, wordCount: 30 }, estimatedReadTime: calculateReadTime(30), savedAt: new Date(), provenance: { kind: "web" } });
+		const { saved } = await fixture.articleStore.saveArticle({ userId, url, metadata: { title, siteName: "example.com", excerpt: `${title} excerpt`, wordCount: 30 }, estimatedReadTime: calculateReadTime(30), savedAt: new Date(), provenance: { kind: "web" }, saveTrigger: "manual" });
 		const src = ArticleResourceUniqueId.parse(url).toImageCdnUrl({ baseUrl: "https://cdn.readplace.test", filename: IMAGE });
 		await fixture.articleStore.writeContent({ url, content: `<p>${body}</p><img src="${src}">` });
 		await fixture.articleStore.writeImage({ url, filename: IMAGE, body: Buffer.from(bytes), contentType: "image/jpeg" });

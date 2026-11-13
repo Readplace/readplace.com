@@ -167,6 +167,40 @@ describe("saveArticleFromUrl", () => {
 		expect(tracker.calls.publishLinkSaved).toBe(0);
 	});
 
+	it.each<SaveTrigger>(["manual", "automatic"])("passes a %s save's trigger to the user-row write", async (trigger) => {
+		const tracker = makeTracker();
+		const triggers: SaveTrigger[] = [];
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async (p) => {
+				triggers.push(p.saveTrigger);
+				return { saved: tracker.saved, createdUserArticle: true, wroteUserArticle: true };
+			},
+		};
+
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: trigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
+
+		expect(triggers).toEqual([trigger]);
+	});
+
+	it("writes an import commit's row as a reader's choice while still deferring its metered legs", async () => {
+		const tracker = makeTracker();
+		const triggers: SaveTrigger[] = [];
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async (p) => {
+				triggers.push(p.saveTrigger);
+				return { saved: tracker.saved, createdUserArticle: true, wroteUserArticle: true };
+			},
+		};
+
+		const result = await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance: { kind: "import" }, saveTrigger: "automatic", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
+
+		expect(triggers).toEqual(["manual"]);
+		expect(result.meteredLegs).toBe("deferred");
+		expect(result.resurfacedFromRead).toBe(false);
+	});
+
 	it("keys the save + crawl + link-saved on the alias target when the URL resolves to a different identity", async () => {
 		const tracker = makeTracker();
 		const keyedOn: string[] = [];

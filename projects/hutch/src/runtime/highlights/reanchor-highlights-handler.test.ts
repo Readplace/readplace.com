@@ -109,6 +109,7 @@ function makeHarness(overrides: Overrides = {}) {
 			estimatedReadTime: MinutesSchema.parse(2),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-11-01T00:00:00.000Z"),
+			saveTrigger: "manual",
 		});
 		if (params.hash === undefined) return;
 		await articleStore.replaceCanonicalContent({

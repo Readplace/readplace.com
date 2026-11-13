@@ -83,6 +83,7 @@ export function initSaveEmailIssue(deps: {
 			estimatedReadTime,
 			provenance,
 			savedAt: await deps.allocateSavedAt({ userId }),
+			saveTrigger: "automatic",
 		});
 		await deps.setDisplayUrl({ articleUrl: url, displayUrl });
 		await markContentPending();

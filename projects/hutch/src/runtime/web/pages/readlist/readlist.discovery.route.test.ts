@@ -66,6 +66,7 @@ async function seed(harness: TestHarness, article: SeededArticle): Promise<void>
 		estimatedReadTime: MinutesSchema.parse(article.minutes ?? 0),
 		provenance: { kind: "web" as const },
 		savedAt: article.savedAt ?? new Date(NOW.getTime() - HOUR),
+		saveTrigger: "manual" as const,
 	};
 	if (article.readlist === undefined) {
 		await harness.articleStore.saveArticle(save);

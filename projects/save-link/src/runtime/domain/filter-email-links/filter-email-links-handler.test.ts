@@ -242,6 +242,7 @@ function makeHarness(opts: {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-23T09:00:00.000Z"),
+			saveTrigger: "manual",
 		});
 	const seedFailedOutcome = async () => {
 		await metaSeeded;

@@ -408,6 +408,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			allocateSavedAtSequence: articleStoreMemory.allocateSavedAtSequence,
 			findSavedUrls: articleStoreMemory.findSavedUrls,
 			saveArticleKeepingPosition: articleStoreMemory.saveArticleKeepingPosition,
+			markHandPicked: articleStoreMemory.markHandPicked,
+			readHandPickedAt: articleStoreMemory.readHandPickedAt,
 			saveArticleAsRequested: articleStoreMemory.saveArticleAsRequested,
 			saveReadlistArticleAsRequested: articleStoreMemory.saveReadlistArticleAsRequested,
 			hasSaveLandedSince: articleStoreMemory.hasSaveLandedSince,

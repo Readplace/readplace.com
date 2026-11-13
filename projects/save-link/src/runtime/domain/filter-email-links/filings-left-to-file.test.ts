@@ -81,6 +81,7 @@ function makeFence(opts: { overrides?: ReadlistFitOverride[] } = {}) {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: NOW,
+			saveTrigger: "manual",
 		});
 	const remove = (url: string) => store.deleteReadlistArticleByUrl({ userId: USER, readlist: WORK, url });
 	const leftToFile = <Filing extends { ordinal: EmailLinkOrdinal; url: string }>(

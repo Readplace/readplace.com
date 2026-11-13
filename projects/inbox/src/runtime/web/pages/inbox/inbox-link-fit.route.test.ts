@@ -124,6 +124,7 @@ async function saveInto(fixture: Fixture, input: { userId: UserId; url: string }
 		estimatedReadTime: MinutesSchema.parse(2),
 		provenance: { kind: "email" as const, senderEmail: "news@example.com" },
 		savedAt: new Date("2026-06-24T09:01:00.000Z"),
+		saveTrigger: "automatic" as const,
 	};
 	await fixture.articleStore.saveArticle(params);
 	await fixture.articleStore.saveReadlistArticle({ ...params, readlist: WORK });

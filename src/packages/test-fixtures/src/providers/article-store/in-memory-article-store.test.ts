@@ -37,6 +37,7 @@ function makeArticleParams(
 		estimatedReadTime: 3 as Minutes,
 		provenance: { kind: "web" },
 		savedAt: new Date(),
+		saveTrigger: "manual",
 		...overrides,
 	};
 }
@@ -2551,6 +2552,14 @@ describe("initInMemoryArticleStore private items", () => {
 		savedAt: new Date("2026-11-05T10:00:00.000Z"),
 	};
 
+	it("marks an uploaded item hand-picked at its save time", async () => {
+		const store = initInMemoryArticleStore();
+
+		await store.savePrivateItem(SAVE);
+
+		assert.deepEqual(store.readHandPickedAt({ userId: USER_A, url: PRIVATE_URL }), SAVE.savedAt);
+	});
+
 	it("saves a private item the owner reads back by its route id", async () => {
 		const store = initInMemoryArticleStore();
 
@@ -2854,5 +2863,156 @@ describe("initInMemoryArticleStore readlist filing", () => {
 		).toBe(false);
 
 		expect(await store.findReadlistFiling({ userId: USER_A, readlist: WORK, url: URL })).toBeUndefined();
+	});
+});
+
+describe("initInMemoryArticleStore hand-picked marker", () => {
+	const FIRST = new Date("2026-11-13T09:00:00.000Z");
+	const SECOND = new Date("2026-11-13T10:00:00.000Z");
+	const email = { kind: "email", senderEmail: "news@example.com" } as const;
+
+	it("stamps handPickedAt on the first manual save and keeps it on a later one", async () => {
+		const store = initInMemoryArticleStore();
+
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST }));
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: SECOND }));
+
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(FIRST);
+	});
+
+	it("marks an existing unmarked row on a manual save", async () => {
+		const store = initInMemoryArticleStore();
+
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST, provenance: email, saveTrigger: "automatic" }));
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: SECOND }));
+
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(SECOND);
+	});
+
+	it("leaves a row an automatic save created unmarked", async () => {
+		const store = initInMemoryArticleStore();
+
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST, provenance: email, saveTrigger: "automatic" }));
+
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toBeUndefined();
+	});
+
+	it("keeps a protected row's provenance on an automatic save while moving it up", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST, provenance: { kind: "web" }, saveTrigger: "automatic" }));
+
+		const { saved, createdUserArticle, wroteUserArticle } = await store.saveArticle(
+			makeArticleParams({ url: URL, savedAt: SECOND, provenance: email, saveTrigger: "automatic" }),
+		);
+
+		expect(saved.provenance).toEqual({ kind: "web" });
+		expect(saved.savedAt).toEqual(SECOND);
+		expect({ createdUserArticle, wroteUserArticle }).toEqual({ createdUserArticle: false, wroteUserArticle: true });
+	});
+
+	it("keeps a hand-picked email row's provenance on an automatic save", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST, provenance: email }));
+
+		const { saved } = await store.saveArticle(
+			makeArticleParams({ url: URL, savedAt: SECOND, provenance: { kind: "founder-seed" }, saveTrigger: "automatic" }),
+		);
+
+		expect(saved.provenance).toEqual(email);
+	});
+
+	it("restamps an unmarked email row's provenance on an automatic save", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST, provenance: email, saveTrigger: "automatic" }));
+		const other = { kind: "email", senderEmail: "other@example.com" } as const;
+
+		const { saved } = await store.saveArticle(
+			makeArticleParams({ url: URL, savedAt: SECOND, provenance: other, saveTrigger: "automatic" }),
+		);
+
+		expect(saved.provenance).toEqual(other);
+	});
+
+	it("never marks a readlist row", async () => {
+		const store = initInMemoryArticleStore();
+		const { saveTrigger: _saveTrigger, ...params } = makeArticleParams({ url: URL, savedAt: FIRST });
+
+		await store.saveReadlistArticle({ ...params, readlist: WORK });
+
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toBeUndefined();
+	});
+
+	it("carries the trigger through a save as requested", async () => {
+		const store = initInMemoryArticleStore();
+
+		await store.saveArticleAsRequested({ ...makeArticleParams({ url: URL, savedAt: FIRST }), requestedAt: FIRST });
+
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(FIRST);
+	});
+
+	it("marks an automatic email row on a manual keeping-position save without moving or restamping it", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST, provenance: email, saveTrigger: "automatic" }));
+
+		const { saved, createdUserArticle, wroteUserArticle } = await store.saveArticleKeepingPosition(
+			makeArticleParams({ url: URL, savedAt: SECOND, provenance: { kind: "upload" } }),
+		);
+
+		expect(saved.savedAt).toEqual(FIRST);
+		expect(saved.status).toBe("unread");
+		expect(saved.provenance).toEqual(email);
+		expect({ createdUserArticle, wroteUserArticle }).toEqual({ createdUserArticle: false, wroteUserArticle: false });
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(SECOND);
+	});
+
+	it("keeps the first stamp on a second manual keeping-position save", async () => {
+		const store = initInMemoryArticleStore();
+		const THIRD = new Date("2026-11-13T11:00:00.000Z");
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST, provenance: email, saveTrigger: "automatic" }));
+
+		await store.saveArticleKeepingPosition(makeArticleParams({ url: URL, savedAt: SECOND }));
+		await store.saveArticleKeepingPosition(makeArticleParams({ url: URL, savedAt: THIRD }));
+
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(SECOND);
+	});
+
+	it("leaves the row unmarked on an automatic keeping-position save", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST, provenance: email, saveTrigger: "automatic" }));
+
+		await store.saveArticleKeepingPosition(makeArticleParams({ url: URL, savedAt: SECOND, saveTrigger: "automatic" }));
+
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toBeUndefined();
+	});
+
+	it("marks the row on a manual save that loses to a newer save", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: SECOND, provenance: email, saveTrigger: "automatic" }));
+
+		const { wroteUserArticle } = await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST }));
+
+		expect(wroteUserArticle).toBe(false);
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(FIRST);
+	});
+
+	it("keeps the first stamp when a later manual save loses to a newer save", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: SECOND }));
+
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST }));
+
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(SECOND);
+	});
+
+	it("markHandPicked stamps an existing row once and reports an absent one", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST, provenance: email, saveTrigger: "automatic" }));
+
+		const first = await store.markHandPicked({ userId: USER_A, url: URL, at: FIRST });
+		const second = await store.markHandPicked({ userId: USER_A, url: URL, at: SECOND });
+		const absent = await store.markHandPicked({ userId: USER_B, url: URL, at: FIRST });
+
+		expect([first, second, absent]).toEqual(["marked", "marked", "row-absent"]);
+		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(FIRST);
 	});
 });

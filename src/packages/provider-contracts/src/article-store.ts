@@ -5,6 +5,7 @@ import type {
 	ArticleMetadata,
 	ArticleStatus,
 	SaveProvenance,
+	SaveTrigger,
 	SuggestionAttribution,
 	SavedArticle,
 } from "@packages/domain/article";
@@ -29,7 +30,10 @@ export interface SaveArticleParams {
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	provenance: SaveProvenance;
 	savedAt: Date;
+	saveTrigger: SaveTrigger;
 }
+
+export type MarkHandPicked = (params: { userId: UserId; url: string; at: Date }) => Promise<"marked" | "row-absent">;
 
 export type SortField = "savedAt" | "readAt";
 export type SortOrder = "asc" | "desc";
@@ -395,7 +399,7 @@ export type DeleteReadlistDefinition = (params: {
 	slug: ReadlistSlug;
 }) => Promise<{ deleted: boolean }>;
 
-export interface SaveReadlistArticleParams extends SaveArticleParams {
+export interface SaveReadlistArticleParams extends Omit<SaveArticleParams, "saveTrigger"> {
 	readlist: ReadlistSlug;
 }
 

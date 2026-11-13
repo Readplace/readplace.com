@@ -22,6 +22,7 @@ async function buildSubject() {
 			estimatedReadTime: calculateReadTime(3),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-01T00:00:00.000Z"),
+			saveTrigger: "manual",
 		});
 	await save(ACCOUNT, OWN_PRIVATE_URL);
 	await store.recordItemOwner({ url: OWN_PRIVATE_URL, ownerUserId: ACCOUNT });

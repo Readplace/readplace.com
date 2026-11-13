@@ -34,6 +34,7 @@ function build() {
 			estimatedReadTime: MinutesSchema.parse(2),
 			provenance: { kind: "web" },
 			savedAt: new Date(),
+			saveTrigger: "manual",
 		});
 		return saved;
 	}

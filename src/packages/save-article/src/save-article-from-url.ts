@@ -116,6 +116,9 @@ async function saveByFreshness(
 	return { ...(await markUnreadIfRead(deps.updateArticleStatus, written)), crawlPending: notAttempted };
 }
 
+const readerChoseSave = (save: { provenance: SaveProvenance; saveTrigger: SaveTrigger }): SaveTrigger =>
+	save.provenance.kind === "import" ? "manual" : save.saveTrigger;
+
 export function initSaveArticleFromUrl(
 	deps: SaveArticleFromUrlDependencies,
 ): SaveArticleFromUrl {
@@ -136,6 +139,7 @@ export function initSaveArticleFromUrl(
 			estimatedReadTime: calculateReadTime(0),
 			provenance: params.provenance,
 			savedAt: params.savedAt,
+			saveTrigger: readerChoseSave(params),
 		});
 		const resurfacesEarlierSaves = written.createdUserArticle && params.saveTrigger === "manual";
 		const meteredLegs: MeteredLegsMode =

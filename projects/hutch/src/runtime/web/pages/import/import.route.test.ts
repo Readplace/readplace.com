@@ -870,6 +870,15 @@ describe("Import routes", () => {
 				expect(await harness.articleStore.findArticleByUrl("https://example.com/imported-a")).not.toBeNull();
 			});
 
+			it("marks a link saved inline as one the reader chose", async () => {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				const harness = useApp(fixture);
+
+				const { userId } = await commitFile(harness, "https://example.com/imported-a");
+
+				expect(fixture.articleStore.readHandPickedAt({ userId, url: "https://example.com/imported-a" })).toEqual(expect.any(Date));
+			});
+
 			it("saves it inline when an earlier save already resolved it to its article", async () => {
 				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 				await fixture.articleStore.claimAlias({ aliasUrl: SHORT_ID, targetOriginalUrl: ORIGINAL, sourceBinding: { contentSourceUrl: SHORT_ID, sourceOriginalUrl: ORIGINAL }, now: new Date() });

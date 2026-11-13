@@ -25,6 +25,7 @@ async function save(harness: Harness, input: { userId: UserId; url: string }) {
 		estimatedReadTime: MinutesSchema.parse(2),
 		provenance: { kind: "web" },
 		savedAt: new Date("2026-09-01T08:00:00.000Z"),
+		saveTrigger: "manual",
 	});
 }
 

@@ -512,6 +512,7 @@ describe("starter eligibility and insertion", () => {
 					estimatedReadTime: MinutesSchema.parse(1),
 					provenance: { kind: "web" },
 					savedAt: NOW,
+					saveTrigger: "manual",
 				});
 				app.picks.push({
 					url: "https://example.com/hn-extra",
