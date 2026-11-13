@@ -26,11 +26,10 @@ the save, then writes a take the hutch media toolkit encodes — see
 visible emulator (`make emulator-window`), and it unpins Readplace itself between takes so the
 recording can teach the pinning.
 
-Sign in by hand before recording: the script stops before it records when the app
-is signed out. The iOS recording signs the app in by itself, and this one deliberately does not.
-Sign-in here is the server's sign-in and consent pages in a Chrome Custom Tab, so a driver for it
-has to be edited whenever those pages are reworded, as the iOS driver was on 2026-10-16, and it
-would save that one manual step.
+The script stops before recording when the app is signed out. Unlike the iOS recording, it
+deliberately does not sign in by itself: sign-in here is the server's sign-in and consent pages in
+a Chrome Custom Tab, so a sign-in driver would have to be edited whenever those pages are reworded,
+as the iOS driver was on 2026-10-16, and all it would save is one manual sign-in.
 
 Every toolchain invocation goes through `scripts/ax.sh`. See
 [`.claude/skills/android-emulator/SKILL.md`](../../../.claude/skills/android-emulator/SKILL.md)
