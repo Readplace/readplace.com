@@ -323,6 +323,32 @@ function missingFramesExplanation({ framesDir, reviewAttempt }) {
   return `No frames directory at ${framesDir} and no record of a clean review for CI run ${ciRunId}. ${cause} Re-run CI run ${ciRunId} with all its jobs (approve it in the browser if it is held), or push a new commit, so web-tests hands over frames again.`;
 }
 
+const CLEAN_CONTROLS_PER_FLOW = 50;
+
+async function keepCleanControls({ framesDir, flows }) {
+  const runDir = path.dirname(framesDir);
+  const jobWritableFramesRoot = path.dirname(runDir);
+  const hostOnlyCiDir = path.join(path.dirname(jobWritableFramesRoot), ".readplace-ci");
+  const controlsDir = path.join(hostOnlyCiDir, "clean-controls");
+  for (const { flow } of flows) {
+    const flowControls = path.join(controlsDir, flow);
+    const control = path.join(flowControls, path.basename(runDir));
+    await rm(control, { recursive: true, force: true });
+    await cp(path.join(framesDir, flow), control, { recursive: true });
+    const controls = await Promise.all(
+      (await readdir(flowControls)).map(async (name) => ({
+        name,
+        mtimeMs: (await stat(path.join(flowControls, name))).mtimeMs,
+      })),
+    );
+    controls.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    for (const { name } of controls.slice(CLEAN_CONTROLS_PER_FLOW)) {
+      await rm(path.join(flowControls, name), { recursive: true, force: true });
+    }
+  }
+  return controlsDir;
+}
+
 async function main() {
   const framesDir = requireEnv("FRAMES_DIR");
   const model = requireEnv("VLM_MODEL");
@@ -364,8 +390,8 @@ async function main() {
     await appendFile(process.env.GITHUB_OUTPUT, `defect-count=${defectCount}\nframes-kept=${framesKept}\n`);
   }
   // Flagged frames are the evidence for the summary above, so they are copied
-  // into the workspace for the upload step to keep; a clean review has nothing
-  // worth keeping. The copy is what lets the upload name a relative path —
+  // into the workspace for the upload step to keep.
+  // The copy is what lets the upload name a relative path —
   // uploading straight from the host directory reads as exfiltration to
   // GitHub's workflow scanner, which holds the whole run for approval.
   if (framesKept) {
@@ -373,6 +399,10 @@ async function main() {
   }
   const deliveredFrames = await frameVersions(await listFlows(framesDir));
   const everyDeliveredFrameWasReviewed = JSON.stringify(deliveredFrames) === JSON.stringify(reviewedFrames);
+  const runByGithubActions = process.env.GITHUB_ACTIONS === "true";
+  if (runByGithubActions && !framesKept && everyDeliveredFrameWasReviewed) {
+    console.log(`Clean controls kept under ${await keepCleanControls({ framesDir, flows })}`);
+  }
   await rm(framesDir, { recursive: true, force: true });
   if (unparsedFlows.length > 0) {
     throw new Error(`The model reply was not parseable JSON for: ${unparsedFlows.join(", ")}`);
