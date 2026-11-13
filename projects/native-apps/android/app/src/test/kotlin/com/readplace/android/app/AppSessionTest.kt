@@ -684,11 +684,10 @@ class AppSessionTest {
 	}
 
 	@Test
-	fun `a logged-in session's API renders the readlist with the bearer preserved across the entry-point 303`() = runTest {
+	fun `a logged-in session's API renders the readlist with the bearer and Siren Accept on the entry point`() = runTest {
 		server.handle { record ->
 			when (record.path) {
-				"/" -> Stub.redirect(to = "/queue")
-				"/queue" -> Stub.json(200, collection(article("a1"), article("a2")))
+				"/" -> Stub.json(200, collection(article("a1"), article("a2")))
 				else -> Stub.json(404, "{}")
 			}
 		}
@@ -698,8 +697,7 @@ class AppSessionTest {
 		val page = session.makeApi().loadReadlist()
 
 		assertEquals(listOf("a1", "a2"), page.articles.map { it.id })
-		// Proves the bearer token + Siren Accept survived the entry-point 303.
-		val readlistRequest = server.records("/queue").single()
+		val readlistRequest = server.records("/").single()
 		assertEquals("Bearer access-1", readlistRequest.header("Authorization"))
 		assertEquals(AppConfig.SIREN_MEDIA_TYPE, readlistRequest.header("Accept"))
 	}

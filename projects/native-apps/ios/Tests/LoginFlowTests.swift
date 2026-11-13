@@ -6,8 +6,7 @@ import XCTest
 /// in the in-app auth session (carrying `screen_hint=login`), which captures the
 /// `readplace://oauth-callback` redirect and hands it to `completeSignIn`, which
 /// exchanges the code and flips the session to logged-in; then a reading-list
-/// load renders the readlist with the bearer token preserved across the entry-point
-/// 303.
+/// load renders the readlist with the bearer token on the entry point.
 @MainActor
 final class LoginFlowTests: XCTestCase {
 	nonisolated override func setUp() {
@@ -295,8 +294,6 @@ final class LoginFlowTests: XCTestCase {
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
 			case "/":
-				return .redirect(to: "/queue")
-			case "/queue":
 				return .json(200, Fixtures.collection(
 					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")], total: 2))
 			default:
@@ -328,8 +325,7 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertNil(viewModel.errorText)
 		XCTAssertFalse(viewModel.isLoading)
 
-		// Proves the bearer token + Siren Accept survived the entry-point 303.
-		let readlistRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first?.request)
+		let readlistRequest = try XCTUnwrap(StubURLProtocol.records(path: "/").first?.request)
 		XCTAssertEqual(readlistRequest.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
 		XCTAssertEqual(readlistRequest.value(forHTTPHeaderField: "Accept"), "application/vnd.siren+json")
 	}
