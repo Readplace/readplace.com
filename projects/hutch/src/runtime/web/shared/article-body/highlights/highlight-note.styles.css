@@ -25,6 +25,10 @@
   overflow-wrap: anywhere;
 }
 
+.highlight-note__delete-form {
+  margin: 0;
+}
+
 .highlight-note__trigger {
   display: none;
 }
