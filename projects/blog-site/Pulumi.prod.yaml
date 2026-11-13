@@ -7,4 +7,5 @@ config:
   blog-site:hutchStack: organization/hutch/prod
   blog-site:platformStack: organization/platform/prod
   blog-site:dynamodbSessionsTable: hutch-sessions-d17dbb3
-encryptionsalt: v1:Twafqcu8CoA=:v1:ala066U4VNMmKX8/:ubCpRQ3yAJc2v1iQIxY1d6RIOOYHwA==
+secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
+encryptedkey: AQICAHi5gbyThFLGYBj7c38Jpmnq+hfHJiizCeULz0OAURFtewG14sZ+v2voSUvrAQcy4+dPAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMkFKxa7IVQ7xbtMEEAgEQgDv3QnIAREcacPlCOa3UjH7n6+L75twDc6YN++JunD864Ig9YHZsR0DaL7n/w1I9egshVxQ6x8fg9eeTWQ==
