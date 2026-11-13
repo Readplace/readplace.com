@@ -48,6 +48,7 @@ function selectionDeps(overrides: Partial<Parameters<typeof initSelectArticleCon
 		transitionAndPersist,
 		resolveOriginalUrl: async () => URL,
 		verifyWrapperSource: async () => undefined,
+		fetchRedditPostCard: async () => undefined,
 		fetchYouTubeVideoCard: async () => undefined,
 		putTierSource: async (params: { metadata: VerifiedTierSource["metadata"] }) => params.metadata,
 		now: () => NOW,

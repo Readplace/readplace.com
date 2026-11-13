@@ -113,6 +113,7 @@ function initPipeline(tier1: CrawlAndFinalizeResult) {
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => undefined, loadArticle: aggregates.load, transitionAndPersist,
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+		fetchRedditPostCard: async () => undefined,
 		fetchYouTubeVideoCard: async () => undefined, putTierSource: async (params) => params.metadata,
 		now: () => NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger,
 	});

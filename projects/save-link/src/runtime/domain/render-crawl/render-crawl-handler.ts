@@ -4,7 +4,7 @@ import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
 import { initCrawlAndFinalizeArticle, type FinalizeArticle } from "@packages/finalize-article";
 import type { Logger } from "@packages/logger";
-import { type CrawlArticle, type CrawlUnsupportedReason, MAX_HTML_BYTES } from "@packages/crawl-article";
+import { type CrawlArticle, type CrawlUnsupportedReason, MAX_HTML_BYTES, parseRedditPostUrl } from "@packages/crawl-article";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import {
 	type TransitionAndPersist,
@@ -14,7 +14,7 @@ import {
 	markCrawlUnsupported,
 } from "@packages/domain/article-aggregate";
 import { CandidateIdSchema } from "@packages/domain/article";
-import { ContentTierSchema } from "@packages/article-state-types";
+import { blockedCauseForStatus, ContentTierSchema } from "@packages/article-state-types";
 import type {
 	ClaimMeteredLeg,
 	PaidLegPermit,
@@ -274,6 +274,11 @@ export function initRenderCrawlHandler(deps: {
 		const { url } = ctx;
 		if (ctx.candidates !== undefined) return publishArchiveComparison({ ...ctx, recrawl: ctx.trigger === "recrawl", candidates: ctx.candidates });
 		const { direct, residential, webUnlockerFetch, webUnlockerRender } = rendered;
+		const paidLegDeferred = [residential, webUnlockerFetch, webUnlockerRender].some((leg) => leg.kind === "skipped" && leg.reason === "deferred");
+		const blockedLeg = [webUnlockerRender, residential, direct].find((leg) => leg.kind === "blocked");
+		if (!paidLegDeferred && ctx.trigger === "recrawl" && parseRedditPostUrl(url) !== undefined && blockedLeg?.kind === "blocked") {
+			return publishArchiveComparison({ ...ctx, recrawl: true, candidates: [], failureReason: { kind: "blocked", cause: blockedCauseForStatus(blockedLeg.httpStatus) } });
+		}
 		if (webUnlockerRender.kind === "blocked") return resolveBlocked({ url, httpStatus: webUnlockerRender.httpStatus });
 		if (residential.kind === "blocked") return resolveBlocked({ url, httpStatus: residential.httpStatus });
 		if (direct.kind === "blocked") return resolveBlocked({ url, httpStatus: direct.httpStatus });

@@ -47,6 +47,7 @@ function setupHandler(init: typeof initSelectMostCompleteContentHandler, overrid
 		transitionAndPersist,
 		resolveOriginalUrl: async () => URL,
 		verifyWrapperSource: async () => undefined,
+		fetchRedditPostCard: async () => undefined,
 		fetchYouTubeVideoCard: async () => undefined,
 		putTierSource: async (params) => params.metadata,
 		now: () => NOW,
