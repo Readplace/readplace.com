@@ -12,6 +12,7 @@ export type RateLimitBucket =
 	| "oauth-register"
 	| "oauth-token"
 	| "auth-diagnostics"
+	| "admin-mfa"
 	| "browser-handoff"
 	| "import"
 	| "import-from-url"

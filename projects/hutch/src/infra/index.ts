@@ -60,6 +60,7 @@ import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-
 import { assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PARAMETER_NAME } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
 import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
+import { ADMIN_TOTP_SECRETS_PARAMETER_NAME, adminTotpSecretsParameterValue } from "../runtime/web/pages/admin/admin-totp-secrets";
 import type { DynamoTables } from "../runtime/providers/dynamodb-tables";
 import { formatEnvMap } from "../runtime/providers/env-map";
 import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
@@ -101,6 +102,7 @@ import { EVALUATE_OAUTH_REFRESH_ENV } from "../runtime/evaluate-oauth-refresh.en
 import { requireEnv } from "@packages/require-env";
 
 const config = new pulumi.Config();
+const storedAdminTotpSecrets = pulumi.secret(adminTotpSecretsParameterValue(requireEnv("ADMIN_TOTP_SECRETS")));
 const stage = config.require("stage");
 const excludedUserIds = config.requireObject<string[]>("excludedUserIds");
 assertExcludedUserIds(excludedUserIds);
@@ -110,6 +112,11 @@ const excludedIdentitiesParameter = new aws.ssm.Parameter("excluded-identities",
 	name: EXCLUDED_IDENTITIES_PARAMETER_NAME,
 	type: "String",
 	value: JSON.stringify({ excludedVisitorIds, excludedUserIds }),
+});
+const adminTotpSecretsParameter = new aws.ssm.Parameter("admin-totp-secrets", {
+	name: ADMIN_TOTP_SECRETS_PARAMETER_NAME,
+	type: "SecureString",
+	value: storedAdminTotpSecrets,
 });
 const engagementDeploymentSha = config.require("engagementStarterDeploymentSha");
 const trialSchedulerGroupName = config.require("trialSchedulerGroupName");
@@ -2504,6 +2511,22 @@ const authDiagnosticsLogGroup = new aws.cloudwatch.LogGroup("auth-diagnostics-lo
 	name: AUTH_DIAGNOSTICS_LOG_GROUP,
 	retentionInDays: 365,
 }, { retainOnDelete: true });
+
+new aws.iam.RolePolicy("hutch-admin-totp-secrets-read", {
+	role: lambda.role.name,
+	policy: adminTotpSecretsParameter.arn.apply((parameterArn) =>
+		JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Effect: "Allow",
+					Action: ["ssm:GetParameter"],
+					Resource: [parameterArn],
+				},
+			],
+		}),
+	),
+});
 
 new aws.iam.RolePolicy("hutch-admin-dashboards-read", {
 	role: lambda.role.name,

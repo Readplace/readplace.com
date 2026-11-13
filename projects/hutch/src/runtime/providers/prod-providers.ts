@@ -3,6 +3,11 @@ import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { SSMClient } from "@aws-sdk/client-ssm";
 import { EXCLUDED_IDENTITIES_PARAMETER_NAME, parseExcludedIdentities } from "../observability/excluded-identities";
 import { initSsmExcludedIdentities } from "./excluded-identities/ssm-excluded-identities";
+import { initSsmAdminTotpSecrets } from "./admin-totp-secrets/ssm-admin-totp-secrets";
+import {
+	ADMIN_TOTP_SECRETS_PARAMETER_NAME,
+	parseAdminTotpSecretsParameter,
+} from "../web/pages/admin/admin-totp-secrets";
 import { initCloudWatchLogsInsights } from "./logs-insights/cloudwatch-logs-insights";
 import { initAuthDiagnosticRecorder } from "../auth-diagnostics/record";
 import assert from "node:assert";
@@ -683,6 +688,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 			}),
 			now: () => new Date(),
 		},
+		readAdminTotpSecrets: initSsmAdminTotpSecrets({
+			getParameter: (command) => ssmClient.send(command),
+			parameterName: ADMIN_TOTP_SECRETS_PARAMETER_NAME,
+			parseAdminTotpSecretsParameter,
+		}),
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens: oauthModel.revokeAllUserOAuthTokens,

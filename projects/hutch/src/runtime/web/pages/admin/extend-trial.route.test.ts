@@ -3,10 +3,11 @@ import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { useTestServer } from "../../../test-app";
+import { signInPassingAdminChallenge, useTestServer } from "../../../test-app";
 
 const ADMIN_EMAIL = "ops@readplace.com";
 const ADMIN_PASSWORD = "password123";
+const ADMIN_TOTP_SECRET = Buffer.alloc(20, 7);
 const USER_EMAIL = "alex@example.com";
 const USER_PASSWORD = "password456";
 
@@ -21,13 +22,15 @@ const useApp = useTestServer();
 
 function buildHarness(options?: { adminEmails?: readonly string[] }) {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	return useApp({
+	const harness = useApp({
 		...fixture,
 		admin: {
+			...fixture.admin,
 			adminEmails: options?.adminEmails ?? [ADMIN_EMAIL],
-			recrawlServiceToken: fixture.admin.recrawlServiceToken,
+			totpSecrets: new Map([[ADMIN_EMAIL, ADMIN_TOTP_SECRET]]),
 		},
 	});
+	return { ...harness, nowMs: () => fixture.shared.now().getTime() };
 }
 
 async function loginAs(server: Server, email: string, password: string) {
@@ -42,7 +45,13 @@ function doc(html: string) {
 
 async function createAdmin(harness: ReturnType<typeof buildHarness>) {
 	await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-	return loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+	return signInPassingAdminChallenge({
+		server: harness.server,
+		email: ADMIN_EMAIL,
+		password: ADMIN_PASSWORD,
+		secret: ADMIN_TOTP_SECRET,
+		atMs: harness.nowMs(),
+	});
 }
 
 async function userId(harness: ReturnType<typeof buildHarness>) {
@@ -101,7 +110,8 @@ describe("Admin extend-trial routes", () => {
 
 		it("forbids everyone when the allowlist is empty", async () => {
 			const harness = buildHarness({ adminEmails: [] });
-			const agent = await createAdmin(harness);
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
 
 			const response = await agent.get("/admin/extend-trial");
 

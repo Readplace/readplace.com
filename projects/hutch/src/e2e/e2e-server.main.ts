@@ -78,7 +78,7 @@ import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/provid
 import { initInMemoryLinkSaved } from '@packages/test-fixtures/providers/events'
 import { initInMemoryHostedCheckout } from '@packages/test-fixtures/providers/hosted-checkout'
 import { CheckoutSessionIdSchema } from '@packages/test-fixtures/providers/hosted-checkout'
-import { E2E_ADMIN_EMAIL } from './admin-extend-trial/admin-e2e-user'
+import { E2E_ADMIN_EMAIL, E2E_ADMIN_TOTP_SECRET } from './admin-extend-trial/admin-e2e-user'
 import { E2E_DASHBOARDS_NOW, e2eDashboardAnswers } from './admin-dashboards/admin-dashboards-fixture'
 import { initInMemoryLogsInsights } from '@packages/test-fixtures/providers/logs-insights'
 import { renderChangelogBannerShell } from '@packages/web-shell'
@@ -377,6 +377,8 @@ const { app: readplaceApp, auth, email } = createTestApp({
 	admin: {
 		adminEmails: [E2E_ADMIN_EMAIL],
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
+		totpSecrets: new Map([[E2E_ADMIN_EMAIL.toLowerCase(), E2E_ADMIN_TOTP_SECRET]]),
+		secondFactorAttemptRule: fixture.admin.secondFactorAttemptRule,
 	},
 	adminDashboards: {
 		runLogsInsightsQuery: e2eLogsInsights.runLogsInsightsQuery,

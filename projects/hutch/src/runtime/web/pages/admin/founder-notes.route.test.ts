@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { useTestServer } from "../../../test-app";
+import { signInPassingAdminChallenge, useTestServer } from "../../../test-app";
 
 const ADMIN_EMAIL = "ops@readplace.com";
 const ADMIN_PASSWORD = "password123";
+const ADMIN_TOTP_SECRET = Buffer.alloc(20, 7);
 const READER_EMAIL = "alex+notes@example.com";
 const READER_PASSWORD = "password456";
 const NOW = new Date("2026-11-10T22:00:00.000Z");
@@ -23,14 +24,23 @@ async function harnessAt(now: Date = NOW) {
 	fixture.shared.now = () => now;
 	const harness = useApp({
 		...fixture,
-		admin: { adminEmails: [ADMIN_EMAIL], recrawlServiceToken: fixture.admin.recrawlServiceToken },
+		admin: {
+			...fixture.admin,
+			adminEmails: [ADMIN_EMAIL],
+			totpSecrets: new Map([[ADMIN_EMAIL, ADMIN_TOTP_SECRET]]),
+		},
 	});
 	await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 	await harness.auth.createUser({ email: READER_EMAIL, password: READER_PASSWORD });
 	const reader = await harness.auth.findUserByEmail(READER_EMAIL);
 	assert(reader, "the reader must exist once created");
-	const admin = request.agent(harness.server);
-	await admin.post("/login").type("form").send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+	const admin = await signInPassingAdminChallenge({
+		server: harness.server,
+		email: ADMIN_EMAIL,
+		password: ADMIN_PASSWORD,
+		secret: ADMIN_TOTP_SECRET,
+		atMs: now.getTime(),
+	});
 	return { harness, admin, userId: reader.userId };
 }
 

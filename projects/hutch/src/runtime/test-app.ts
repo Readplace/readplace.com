@@ -1,3 +1,8 @@
+import assert from "node:assert/strict";
+import type { Server } from "node:http";
+import request from "supertest";
+import { ADMIN_MFA_PATH } from "./web/pages/admin/require-admin.middleware";
+import { totpCodeAt } from "./web/pages/admin/totp";
 import type { ReadTimedDuration } from "@packages/domain";
 import { MEDIA_KINDS, type MediaKindManifest, type MediaKindName, type Meter } from "@packages/media-contracts";
 import {
@@ -216,6 +221,8 @@ function flattenFixtureToAppDependencies(
 		setSessionReadlistFilter: fixture.auth.setSessionReadlistFilter,
 		findSessionReadlistFilter: fixture.auth.findSessionReadlistFilter,
 		findSessionOAuthGrant: fixture.auth.findSessionOAuthGrant,
+		markSessionAdminMfaVerified: fixture.auth.markSessionAdminMfaVerified,
+		findSessionAdminMfaVerifiedAt: fixture.auth.findSessionAdminMfaVerifiedAt,
 		findUserById: fixture.auth.findUserById,
 		findUserPasswordStatus: fixture.auth.findUserPasswordStatus,
 		setUserAppearance: fixture.auth.setUserAppearance,
@@ -365,6 +372,8 @@ function flattenFixtureToAppDependencies(
 		adminDashboards: fixture.adminDashboards,
 		appleAuth: fixture.apple,
 		adminEmails: fixture.admin.adminEmails,
+		readAdminTotpSecrets: async () => fixture.admin.totpSecrets,
+		adminMfaAttemptRule: fixture.admin.secondFactorAttemptRule,
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		importSessionStore: fixture.importSession.importSessionStore,
 		savePrivateItem: fixture.articleStore.savePrivateItem,
@@ -533,4 +542,22 @@ export interface TestAppHarness extends TestAppResult, RunningServer {}
 
 export function useTestServer(overrides?: TestAppOverrides): (fixture: TestAppFixture) => TestAppHarness {
 	return useServerForFixture((fixture) => createTestApp(fixture, overrides));
+}
+
+export async function signInPassingAdminChallenge(input: {
+	server: Server;
+	email: string;
+	password: string;
+	secret: Buffer;
+	atMs: number;
+}) {
+	const agent = request.agent(input.server);
+	await agent.post("/login").type("form").send({ email: input.email, password: input.password });
+	const challenge = await agent
+		.post(ADMIN_MFA_PATH)
+		.type("form")
+		.send({ code: totpCodeAt({ secret: input.secret, atMs: input.atMs }) });
+	assert.equal(challenge.status, 303);
+	assert.equal(challenge.headers.location, "/admin");
+	return agent;
 }

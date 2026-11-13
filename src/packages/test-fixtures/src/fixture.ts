@@ -608,6 +608,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		admin: {
 			adminEmails: [],
 			recrawlServiceToken: "test-service-token-abcdefghij",
+			totpSecrets: new Map(),
+			secondFactorAttemptRule: { limit: 1000, windowSeconds: 900 },
 		},
 		canaryReports: initInMemoryCanaryReports(),
 		adminDashboards: {

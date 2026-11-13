@@ -4,6 +4,7 @@ import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE } from "@packages/provider-con
 import { requireEnv } from "@packages/require-env";
 import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
 import { z } from "zod";
+import { passAdminChallenge } from "./admin-extend-trial/admin-challenge";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import { pageOverflowsSideways } from "./page-measurements.browser";
 
@@ -138,6 +139,7 @@ async function signInAdmin(page: Page): Promise<void> {
 	});
 	assert.equal(created.status(), 201, "the admin fixture must answer the create request");
 	await signIn(page, { email: E2E_ADMIN_EMAIL, password: E2E_ADMIN_PASSWORD });
+	await passAdminChallenge(page, { baseURL: BASE_URL });
 }
 
 async function isFocused(locator: Locator): Promise<boolean> {

@@ -5,10 +5,11 @@ import request from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryLogsInsights } from "@packages/test-fixtures/providers/logs-insights";
 import { buildAdminDashboards } from "../../../observability/admin-dashboards";
-import { useTestServer } from "../../../test-app";
+import { signInPassingAdminChallenge, useTestServer } from "../../../test-app";
 
 const ADMIN_EMAIL = "ops@readplace.com";
 const ADMIN_PASSWORD = "password123";
+const ADMIN_TOTP_SECRET = Buffer.alloc(20, 7);
 const USER_EMAIL = "alex@example.com";
 const USER_PASSWORD = "password456";
 const NOW = new Date("2026-10-18T06:00:00.000Z");
@@ -26,15 +27,16 @@ const useApp = useTestServer();
 
 function buildHarness(input: { logsInsights: ReturnType<typeof initInMemoryLogsInsights>; readExcludedIdentities?: () => Promise<typeof EXCLUDED> }) {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	return useApp({
+	const harness = useApp({
 		...fixture,
-		admin: { adminEmails: [ADMIN_EMAIL], recrawlServiceToken: fixture.admin.recrawlServiceToken },
+		admin: { ...fixture.admin, adminEmails: [ADMIN_EMAIL], totpSecrets: new Map([[ADMIN_EMAIL, ADMIN_TOTP_SECRET]]) },
 		adminDashboards: {
 			runLogsInsightsQuery: input.logsInsights.runLogsInsightsQuery,
 			readExcludedIdentities: input.readExcludedIdentities ?? (async () => EXCLUDED),
 			now: () => NOW,
 		},
 	});
+	return { ...harness, nowMs: () => fixture.shared.now().getTime() };
 }
 
 async function loginAs(input: { server: Server; email: string; password: string }) {
@@ -45,7 +47,13 @@ async function loginAs(input: { server: Server; email: string; password: string 
 
 async function adminAgent(harness: ReturnType<typeof buildHarness>) {
 	await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-	return loginAs({ server: harness.server, email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+	return signInPassingAdminChallenge({
+		server: harness.server,
+		email: ADMIN_EMAIL,
+		password: ADMIN_PASSWORD,
+		secret: ADMIN_TOTP_SECRET,
+		atMs: harness.nowMs(),
+	});
 }
 
 function readWidgets(document: Document) {

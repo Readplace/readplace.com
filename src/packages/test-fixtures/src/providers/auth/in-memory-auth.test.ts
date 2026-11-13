@@ -491,6 +491,47 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("session admin MFA mark", () => {
+		const userId = UserIdSchema.parse("user-admin");
+
+		it("reads back the time the session passed the challenge", async () => {
+			const auth = makeAuth();
+			const sessionId = await auth.createSession({ userId, emailVerified: true });
+
+			await auth.markSessionAdminMfaVerified({ sessionId, at: 1_800_000_000 });
+
+			expect(await auth.findSessionAdminMfaVerifiedAt(sessionId)).toBe(1_800_000_000);
+		});
+
+		it("starts every new session without the mark", async () => {
+			const auth = makeAuth();
+			const first = await auth.createSession({ userId, emailVerified: true });
+			await auth.markSessionAdminMfaVerified({ sessionId: first, at: 1_800_000_000 });
+
+			const second = await auth.createSession({ userId, emailVerified: true });
+
+			expect(await auth.findSessionAdminMfaVerifiedAt(second)).toBe(undefined);
+		});
+
+		it("keeps the mark when the session is renewed", async () => {
+			const auth = makeAuth();
+			const sessionId = await auth.createSession({ userId, emailVerified: true });
+			await auth.markSessionAdminMfaVerified({ sessionId, at: 1_800_000_000 });
+
+			expect(await auth.renewSession({ sessionId })).toBe("renewed");
+
+			expect(await auth.findSessionAdminMfaVerifiedAt(sessionId)).toBe(1_800_000_000);
+		});
+
+		it("writes nothing for a session that no longer exists", async () => {
+			const auth = makeAuth();
+
+			await auth.markSessionAdminMfaVerified({ sessionId: "gone", at: 1_800_000_000 });
+
+			expect(await auth.findSessionAdminMfaVerifiedAt("gone")).toBe(undefined);
+		});
+	});
+
 	describe("session OAuth grant", () => {
 		const userId = UserIdSchema.parse("user-grant");
 		const iosGrant = OAuthGrantIdSchema.parse("grant-ios");

@@ -6,6 +6,7 @@ import { EXPERIMENT_COOKIE_NAME } from "../runtime/web/experiments/homepage-assi
 import { HOMEPAGE_SPLIT } from "../runtime/web/experiments/homepage-split";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { passAdminChallenge } from "./admin-extend-trial/admin-challenge";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import {
 	ALIVE_COOKIE_NAME,
@@ -1432,6 +1433,7 @@ test.describe("Admin newsletter colour roles hold their WCAG contrast in both th
 		await page.locator("#password").fill(E2E_ADMIN_PASSWORD);
 		await page.locator('[data-test-form="login"] button[type="submit"]').click();
 		await page.waitForSelector("body.page-readlist");
+		await passAdminChallenge(page, { baseURL: BASE_URL });
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
@@ -1498,6 +1500,7 @@ test.describe("Admin dashboard colour roles hold their WCAG contrast in both the
 		await page.locator("#password").fill(E2E_ADMIN_PASSWORD);
 		await page.locator('[data-test-form="login"] button[type="submit"]').click();
 		await page.waitForSelector("body.page-readlist");
+		await passAdminChallenge(page, { baseURL: BASE_URL });
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });

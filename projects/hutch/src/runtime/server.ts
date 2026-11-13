@@ -40,6 +40,8 @@ import type {
 	MarkSessionEmailVerified,
 	FindSessionReadlistFilter,
 	FindSessionOAuthGrant,
+	FindSessionAdminMfaVerifiedAt,
+	MarkSessionAdminMfaVerified,
 	SetSessionReadlistFilter,
 	SaveAppleRefreshToken,
 	MarkActivationThresholdReached,
@@ -274,6 +276,8 @@ import {
 } from "./web/pages/upload/upload-review.page";
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
+import type { ReadAdminTotpSecrets } from "./web/pages/admin/admin-totp-secrets";
+import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { INSPECT_BOOK_TIMEOUT_SECONDS } from "@packages/infra-components";
 import { AUDIO, BOOK, type MediaKindManifest, type MediaKindName, type Meter, type UploadId, VIDEO } from "@packages/media-contracts";
 import type { ChargeTranscriptQuota, RefundUnstartedCharge } from "@packages/provider-contracts/transcript-quota";
@@ -436,6 +440,8 @@ export interface AppDependencies {
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 	findSessionOAuthGrant: FindSessionOAuthGrant;
+	markSessionAdminMfaVerified: MarkSessionAdminMfaVerified;
+	findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt;
 	findUserById: FindUserById;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markActivationThresholdReached: MarkActivationThresholdReached;
@@ -591,6 +597,8 @@ export interface AppDependencies {
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	adminEmails: readonly string[];
+	readAdminTotpSecrets: ReadAdminTotpSecrets;
+	adminMfaAttemptRule: RateLimitRule;
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;

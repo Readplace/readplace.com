@@ -4,6 +4,7 @@ import { z } from "zod";
 import { expect, measuredBox, test, waitForBrandFonts } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { passAdminChallenge } from "./admin-extend-trial/admin-challenge";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import { openAddLink } from "./page-interactions";
 import { measureBoxes } from "./page-measurements.browser";
@@ -463,6 +464,7 @@ test.describe("Table of contents in a pending admin recrawl", () => {
 		});
 		assert.equal(admin.status(), 201, "the e2e user fixture must answer the admin create request");
 		await signIn(page, { email: E2E_ADMIN_EMAIL, password: E2E_ADMIN_PASSWORD });
+		await passAdminChallenge(page, { baseURL: BASE_URL });
 		await page.goto(`${BASE_URL}/admin/recrawl?url=${encodeURIComponent(articleUrl)}&started=1`, {
 			waitUntil: "domcontentloaded",
 		});

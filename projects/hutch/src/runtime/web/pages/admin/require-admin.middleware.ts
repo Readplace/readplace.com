@@ -1,7 +1,16 @@
 import { timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
-import type { FindUserByEmail } from "@packages/provider-contracts/auth";
+import type { FindSessionAdminMfaVerifiedAt, FindUserByEmail } from "@packages/provider-contracts/auth";
+import { SESSION_COOKIE_NAME, readCookie } from "@packages/web-session";
 import type { RefuseAdminAccess } from "./admin-forbidden.page";
+
+export const ADMIN_MFA_PATH = "/admin/mfa";
+
+const ADMIN_MFA_MAX_AGE_SECONDS = 12 * 60 * 60;
+
+export type SecondFactorPolicy =
+	| { kind: "enforced"; findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt; now: () => Date }
+	| { kind: "being-challenged" };
 
 export type ServiceTokenPolicy = { kind: "refused" } | { kind: "accepted"; token: string };
 
@@ -14,6 +23,7 @@ export interface RequireAdminDeps {
 	findUserByEmail: FindUserByEmail;
 	adminEmails: readonly string[];
 	serviceToken: ServiceTokenPolicy;
+	secondFactor: SecondFactorPolicy;
 	refuse: RefuseAdminAccess;
 }
 
@@ -22,15 +32,27 @@ function constantTimeEquals(a: string, b: string): boolean {
 	return timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
-/**
- * Gate for operator-only routes. Accepts either:
- *   1. a valid `x-service-token` header (server-to-server caller), OR
- *   2. a populated session cookie (req.userId) whose user matches one of the
- *      allowlisted emails.
- *
- * Session-less human requests → 303 /login. Authenticated non-admin → 403.
- * An unmatched header falls through to the session check.
- */
+export async function findAllowlistedAdminEmail(deps: {
+	findUserByEmail: FindUserByEmail;
+	adminEmails: readonly string[];
+	userId: string;
+}): Promise<string | undefined> {
+	for (const email of deps.adminEmails) {
+		const user = await deps.findUserByEmail(email);
+		if (user && user.userId === deps.userId) return email;
+	}
+	return undefined;
+}
+
+async function hasPassedSecondFactor(req: Request, secondFactor: SecondFactorPolicy): Promise<boolean> {
+	if (secondFactor.kind === "being-challenged") return true;
+	const sessionId = readCookie(req.headers.cookie, SESSION_COOKIE_NAME);
+	if (sessionId === undefined) return false;
+	const verifiedAt = await secondFactor.findSessionAdminMfaVerifiedAt(sessionId);
+	if (verifiedAt === undefined) return false;
+	return Math.floor(secondFactor.now().getTime() / 1000) - verifiedAt < ADMIN_MFA_MAX_AGE_SECONDS;
+}
+
 export function initRequireAdmin(deps: RequireAdminDeps) {
 	return async (
 		req: Request,
@@ -51,13 +73,19 @@ export function initRequireAdmin(deps: RequireAdminDeps) {
 			res.redirect(303, "/login");
 			return;
 		}
-		for (const email of deps.adminEmails) {
-			const user = await deps.findUserByEmail(email);
-			if (user && user.userId === req.userId) {
-				next();
-				return;
-			}
+		const adminEmail = await findAllowlistedAdminEmail({
+			findUserByEmail: deps.findUserByEmail,
+			adminEmails: deps.adminEmails,
+			userId: req.userId,
+		});
+		if (adminEmail === undefined) {
+			await deps.refuse(req, res);
+			return;
 		}
-		await deps.refuse(req, res);
+		if (!(await hasPassedSecondFactor(req, deps.secondFactor))) {
+			res.redirect(303, ADMIN_MFA_PATH);
+			return;
+		}
+		next();
 	};
 }

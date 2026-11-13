@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { captureCheckpoint, expect, measuredBox, test, type VisualCheckpoint } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { suppressVolatileChrome } from "./admin-dashboards-visual.browser";
+import { passAdminChallenge } from "./admin-extend-trial/admin-challenge";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import { fitViewportToPage } from "./fit-viewport-to-page";
 import { pageOverflowsSideways } from "./page-measurements.browser";
@@ -48,6 +49,7 @@ async function signIn(page: Page): Promise<void> {
 	await page.locator("#password").fill(E2E_ADMIN_PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await expect(page.locator("body.page-login")).toHaveCount(0);
+	await passAdminChallenge(page, { baseURL: BASE_URL });
 }
 
 async function staysWithinTheViewport(page: Page, target: string): Promise<void> {

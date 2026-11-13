@@ -18,7 +18,8 @@ import { initAdminCanaryReportRoutes } from "./canary-report.page";
 import { initAdminExtendTrialRoutes } from "./extend-trial.page";
 import { initAdminFounderNotesRoutes } from "./founder-notes.page";
 import { initAdminRecrawlRoutes } from "./recrawl.page";
-import { initRequireAdmin, serviceTokenPolicy } from "./require-admin.middleware";
+import { initAdminMfaRoutes } from "./admin-mfa.page";
+import { ADMIN_MFA_PATH, type SecondFactorPolicy, initRequireAdmin, serviceTokenPolicy } from "./require-admin.middleware";
 
 function noStore(_req: Request, res: Response, next: NextFunction): void {
 	res.setHeader("Cache-Control", "no-store");
@@ -51,6 +52,11 @@ export function initAdminRoutes(
 		| "findCanaryReport"
 		| "adminDashboards"
 		| "adminEmails"
+		| "readAdminTotpSecrets"
+		| "adminMfaAttemptRule"
+		| "markSessionAdminMfaVerified"
+		| "findSessionAdminMfaVerifiedAt"
+		| "consumeRateLimit"
 		| "recrawlServiceToken"
 		| "readerSectionThresholdBytes"
 	>,
@@ -59,18 +65,48 @@ export function initAdminRoutes(
 	const { appOrigin, buildBannerState, emitLifecycleEmailSent } = built;
 	const router = express.Router();
 	const refuse = initRefuseAdminAccess({ buildBannerState });
+	const secondFactor: SecondFactorPolicy = {
+		kind: "enforced",
+		findSessionAdminMfaVerifiedAt: deps.findSessionAdminMfaVerifiedAt,
+		now: deps.now,
+	};
 	const withServiceToken = initRequireAdmin({
 		findUserByEmail: deps.findUserByEmail,
 		adminEmails: deps.adminEmails,
 		serviceToken: serviceTokenPolicy(deps.recrawlServiceToken),
+		secondFactor,
 		refuse,
 	});
 	const sessionOnly = initRequireAdmin({
 		findUserByEmail: deps.findUserByEmail,
 		adminEmails: deps.adminEmails,
 		serviceToken: { kind: "refused" },
+		secondFactor,
 		refuse,
 	});
+	const challengeOnly = initRequireAdmin({
+		findUserByEmail: deps.findUserByEmail,
+		adminEmails: deps.adminEmails,
+		serviceToken: { kind: "refused" },
+		secondFactor: { kind: "being-challenged" },
+		refuse,
+	});
+
+	router.use(
+		ADMIN_MFA_PATH,
+		noStore,
+		challengeOnly,
+		initAdminMfaRoutes({
+			findUserByEmail: deps.findUserByEmail,
+			adminEmails: deps.adminEmails,
+			readAdminTotpSecrets: deps.readAdminTotpSecrets,
+			markSessionAdminMfaVerified: deps.markSessionAdminMfaVerified,
+			consumeRateLimit: deps.consumeRateLimit,
+			attemptRule: deps.adminMfaAttemptRule,
+			now: deps.now,
+			buildBannerState,
+		}),
+	);
 
 	const adminRecrawlRouter = initAdminRecrawlRoutes({
 		appOrigin,

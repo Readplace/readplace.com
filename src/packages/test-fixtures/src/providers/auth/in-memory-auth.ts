@@ -25,6 +25,7 @@ import type {
 	DestroyUserSessions,
 	FindAppleRefreshTokenByUserId,
 	FindEmailByUserId,
+	FindSessionAdminMfaVerifiedAt,
 	FindSessionOAuthGrant,
 	FindSessionReadlistFilter,
 	FindUserById,
@@ -38,6 +39,7 @@ import type {
 	MarkSessionEmailVerified,
 	SaveAppleRefreshToken,
 	SetQueueDigestOptOut,
+	MarkSessionAdminMfaVerified,
 	SetSessionReadlistFilter,
 	SetUserAppearance,
 	SetUserDisplayName,
@@ -75,6 +77,7 @@ interface StoredSession {
 	expiresAt: number;
 	readlistFilter?: ReadlistFilter;
 	oauthGrantId: OAuthGrantId | undefined;
+	adminMfaVerifiedAt?: number;
 }
 
 const EARLY_INTENTIONAL_SAVE_WINDOW_MS = 72 * 3_600_000;
@@ -113,6 +116,8 @@ export function initInMemoryAuth(opts: {
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 	findSessionOAuthGrant: FindSessionOAuthGrant;
+	markSessionAdminMfaVerified: MarkSessionAdminMfaVerified;
+	findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
@@ -397,6 +402,16 @@ export function initInMemoryAuth(opts: {
 	const findSessionOAuthGrant: FindSessionOAuthGrant = async (sessionId) =>
 		liveSession(sessionId)?.oauthGrantId;
 
+	const markSessionAdminMfaVerified: MarkSessionAdminMfaVerified = async ({ sessionId, at }) => {
+		const session = liveSession(sessionId);
+		if (session) {
+			session.adminMfaVerifiedAt = at;
+		}
+	};
+
+	const findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt = async (sessionId) =>
+		liveSession(sessionId)?.adminMfaVerifiedAt;
+
 	const userExistsByEmail: UserExistsByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
 		return users.has(normalizedEmail);
@@ -562,6 +577,8 @@ export function initInMemoryAuth(opts: {
 		setSessionReadlistFilter,
 		findSessionReadlistFilter,
 		findSessionOAuthGrant,
+		markSessionAdminMfaVerified,
+		findSessionAdminMfaVerifiedAt,
 		userExistsByEmail,
 		updatePassword,
 		findEmailByUserId,

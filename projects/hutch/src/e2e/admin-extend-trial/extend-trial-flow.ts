@@ -57,6 +57,7 @@ export async function runExtendTrialFlow(page: Page, config: ExtendTrialConfig &
 
 	const progress: ExtendTrialProgress = {
 		loggedInAsAdmin: false,
+		passedAdminChallenge: false,
 		openedAdminPage: false,
 		unknownEmailReported: false,
 		foundingMemberRefused: false,

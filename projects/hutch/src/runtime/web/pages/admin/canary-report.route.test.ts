@@ -4,22 +4,33 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { CanaryReportSourceSchema } from "@packages/provider-contracts/canary-report";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { useTestServer } from "../../../test-app";
+import { signInPassingAdminChallenge, useTestServer } from "../../../test-app";
 
 const ADMIN_EMAIL = "ops@readplace.com";
 const ADMIN_PASSWORD = "password123";
+const ADMIN_TOTP_SECRET = Buffer.alloc(20, 7);
 const USER_EMAIL = "alex@example.com";
 const USER_PASSWORD = "password456";
 
 const useApp = useTestServer();
 function buildHarness(fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN)) {
-	return useApp({
+	const harness = useApp({
 		...fixture,
 		admin: {
+			...fixture.admin,
 			adminEmails: [ADMIN_EMAIL],
-			recrawlServiceToken: fixture.admin.recrawlServiceToken,
+			totpSecrets: new Map([[ADMIN_EMAIL, ADMIN_TOTP_SECRET]]),
 		},
 	});
+	const signInAsAdmin = () =>
+		signInPassingAdminChallenge({
+			server: harness.server,
+			email: ADMIN_EMAIL,
+			password: ADMIN_PASSWORD,
+			secret: ADMIN_TOTP_SECRET,
+			atMs: fixture.shared.now().getTime(),
+		});
+	return { ...harness, signInAsAdmin };
 }
 
 async function loginAs(input: { server: Server; email: string; password: string }) {
@@ -90,7 +101,7 @@ describe("GET /admin/canary-reports/:canary/:source", () => {
 		});
 		const harness = buildHarness(fixture);
 		await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-		const agent = await loginAs({ server: harness.server, email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+		const agent = await harness.signInAsAdmin();
 
 		const response = await agent.get("/admin/canary-reports/failed-articles/run-37967705297-2");
 
@@ -163,7 +174,7 @@ describe("GET /admin/canary-reports/:canary/:source", () => {
 		});
 		const harness = buildHarness(fixture);
 		await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-		const agent = await loginAs({ server: harness.server, email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+		const agent = await harness.signInAsAdmin();
 
 		const response = await agent.get("/admin/canary-reports/stuck-articles/issue-226-comment-4366291266");
 
@@ -266,7 +277,7 @@ describe("GET /admin/canary-reports/:canary/:source", () => {
 	it("answers not found for a report nobody saved, a canary that does not exist and a malformed source", async () => {
 		const harness = buildHarness();
 		await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-		const agent = await loginAs({ server: harness.server, email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+		const agent = await harness.signInAsAdmin();
 
 		const answers = [];
 		for (const path of [

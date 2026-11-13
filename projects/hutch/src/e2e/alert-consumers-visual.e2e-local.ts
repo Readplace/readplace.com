@@ -9,6 +9,7 @@ import {
 	type VisualCheckpoint,
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { passAdminChallenge } from "./admin-extend-trial/admin-challenge";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import { clickAndWaitForPageReload } from "./page-interactions";
 
@@ -109,6 +110,7 @@ async function openAdminNotFound(page: Page): Promise<void> {
 	});
 	assert.equal(created.status(), 201, "the admin fixture must answer the create request");
 	await loginAs(page, E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD);
+	await passAdminChallenge(page, { baseURL: BASE_URL });
 	await page.goto(`${BASE_URL}/admin/extend-trial`, { waitUntil: "domcontentloaded" });
 	await page.locator('input[name="email"]').fill("nobody-e2e@example.com");
 	await clickAndWaitForPageReload(page, page.locator("[data-test-extend-trial-lookup]"));

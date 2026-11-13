@@ -1459,6 +1459,102 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("markSessionAdminMfaVerified", () => {
+		it("stamps the time on the session row, only while the row exists", async () => {
+			const { client, commands } = createWriteFakeClient();
+			const auth = initAuth(client);
+
+			await auth.markSessionAdminMfaVerified({ sessionId: "sid", at: 1_800_000_000 });
+
+			expect(commands).toEqual([
+				{
+					name: "UpdateCommand",
+					input: expect.objectContaining({
+						Key: { sessionId: "sid" },
+						UpdateExpression: "SET adminMfaVerifiedAt = :at",
+						ConditionExpression: "attribute_exists(sessionId)",
+						ExpressionAttributeValues: { ":at": 1_800_000_000 },
+					}),
+				},
+			]);
+		});
+
+		it("writes nothing when the session was already destroyed", async () => {
+			const { client } = createWriteFakeClient({
+				fail: new ConditionalCheckFailedException({ $metadata: {}, message: "condition failed" }),
+			});
+			const auth = initAuth(client);
+
+			await auth.markSessionAdminMfaVerified({ sessionId: "sid", at: 1_800_000_000 });
+		});
+
+		it("survives a renewal, which only sets the session's other fields", async () => {
+			const { client, commands } = createWriteFakeClient();
+			const auth = initAuth(client);
+			await auth.markSessionAdminMfaVerified({ sessionId: "sid", at: 1_800_000_000 });
+
+			await auth.renewSession({ sessionId: "sid" });
+			await auth.renewSession({ sessionId: "sid", oauthGrantId: OAuthGrantIdSchema.parse("grant-1") });
+
+			const renewals = commands.slice(1);
+			expect(renewals.map((command) => command.name)).toEqual(["UpdateCommand", "UpdateCommand"]);
+			expect(renewals.map((command) => command.input.UpdateExpression)).toEqual([
+				"SET expiresAt = :expiresAt",
+				"SET expiresAt = :expiresAt, oauthGrantId = :grant",
+			]);
+		});
+
+		it("rethrows any other write failure", async () => {
+			const { client } = createWriteFakeClient({ fail: new Error("dynamo unavailable") });
+			const auth = initAuth(client);
+
+			await expect(auth.markSessionAdminMfaVerified({ sessionId: "sid", at: 1_800_000_000 })).rejects.toThrow(
+				"dynamo unavailable",
+			);
+		});
+	});
+
+	describe("findSessionAdminMfaVerifiedAt", () => {
+		function capturingSessionRowClient(item: Record<string, unknown> | undefined): {
+			client: DynamoDBDocumentClient;
+			commands: CapturedCommand[];
+		} {
+			const commands: CapturedCommand[] = [];
+			const client = {
+				send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+					commands.push({ name: command.constructor.name, input: command.input });
+					return { Item: item };
+				}) as DynamoDBDocumentClient["send"],
+			};
+			return { client: client as typeof client & DynamoDBDocumentClient, commands };
+		}
+
+		it("reads the mark back with a consistent read", async () => {
+			const { client, commands } = capturingSessionRowClient({
+				sessionId: "sid",
+				userId: "abc123",
+				expiresAt: 1,
+				adminMfaVerifiedAt: 1_800_000_000,
+			});
+			const auth = initAuth(client);
+
+			expect(await auth.findSessionAdminMfaVerifiedAt("sid")).toBe(1_800_000_000);
+			expect(commands[0]?.input).toMatchObject({ Key: { sessionId: "sid" }, ConsistentRead: true });
+		});
+
+		it("reads no mark from a session that never passed the challenge", async () => {
+			const { client } = capturingSessionRowClient({ sessionId: "sid", userId: "abc123", expiresAt: 1 });
+
+			expect(await initAuth(client).findSessionAdminMfaVerifiedAt("sid")).toBe(undefined);
+		});
+
+		it("reads no mark for a missing session", async () => {
+			const { client } = capturingSessionRowClient(undefined);
+
+			expect(await initAuth(client).findSessionAdminMfaVerifiedAt("sid")).toBe(undefined);
+		});
+	});
+
 	function sessionRowClient(item: Record<string, unknown> | undefined): DynamoDBDocumentClient {
 		const client = {
 			send: (async () => ({ Item: item })) as DynamoDBDocumentClient["send"],

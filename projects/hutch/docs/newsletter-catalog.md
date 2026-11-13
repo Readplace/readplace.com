@@ -127,7 +127,7 @@ Rules:
 
 ## Admin procedure
 
-Admins are the accounts listed in the web Lambda's `ADMIN_EMAILS`. Sign in with one of them and open `/admin`, then **Newsletters** (`/admin/newsletters`). The recrawl service token does not open these pages; only an admin session does.
+Admins are the accounts listed in the web Lambda's `ADMIN_EMAILS`. Sign in with one of them and open `/admin`, which asks for the code from your authenticator app (see the [admin MFA runbook](./admin-mfa-runbook.md)), then **Newsletters** (`/admin/newsletters`). The recrawl service token does not open these pages; only an admin session does.
 
 The list has four tabs: **Pending** (the default, oldest first), **Approved**, **Rejected** and **All** (the last three newest change first). Search matches any part of the FROM address or name within the current tab. Fifty records show per page.
 

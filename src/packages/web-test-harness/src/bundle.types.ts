@@ -217,6 +217,8 @@ import type {
 	MarkSessionEmailVerified,
 	SetSessionReadlistFilter,
 	FindSessionOAuthGrant,
+	FindSessionAdminMfaVerifiedAt,
+	MarkSessionAdminMfaVerified,
 	FindSessionReadlistFilter,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByUserId,
@@ -306,6 +308,7 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts";
 import type { UserId } from "@packages/domain/user";
+import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 
 export type { ValidateAccessToken };
@@ -340,6 +343,8 @@ export interface AuthBundle {
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 	findSessionOAuthGrant: FindSessionOAuthGrant;
+	markSessionAdminMfaVerified: MarkSessionAdminMfaVerified;
+	findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
@@ -779,6 +784,8 @@ export interface AppleAuthBundle {
 export interface AdminBundle {
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
+	totpSecrets: ReadonlyMap<string, Buffer>;
+	secondFactorAttemptRule: RateLimitRule;
 }
 
 interface AdminDashboardsBundle {

@@ -3,22 +3,33 @@ import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { useTestServer } from "../../../test-app";
+import { signInPassingAdminChallenge, useTestServer } from "../../../test-app";
 
 const ADMIN_EMAIL = "ops@readplace.com";
 const ADMIN_PASSWORD = "password123";
 const USER_EMAIL = "alex@example.com";
 const USER_PASSWORD = "password456";
+const ADMIN_TOTP_SECRET = Buffer.alloc(20, 7);
 
 const useApp = useTestServer();
 function buildHarness(fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN)) {
-	return useApp({
+	const harness = useApp({
 		...fixture,
 		admin: {
+			...fixture.admin,
 			adminEmails: [ADMIN_EMAIL],
-			recrawlServiceToken: fixture.admin.recrawlServiceToken,
+			totpSecrets: new Map([[ADMIN_EMAIL, ADMIN_TOTP_SECRET]]),
 		},
 	});
+	const signInAsAdmin = () =>
+		signInPassingAdminChallenge({
+			server: harness.server,
+			email: ADMIN_EMAIL,
+			password: ADMIN_PASSWORD,
+			secret: ADMIN_TOTP_SECRET,
+			atMs: fixture.shared.now().getTime(),
+		});
+	return { ...harness, signInAsAdmin };
 }
 
 async function loginAs(input: { server: Server; email: string; password: string }) {
@@ -34,11 +45,7 @@ describe("GET /admin", () => {
 			email: ADMIN_EMAIL,
 			password: ADMIN_PASSWORD,
 		});
-		const agent = await loginAs({
-			server: harness.server,
-			email: ADMIN_EMAIL,
-			password: ADMIN_PASSWORD,
-		});
+		const agent = await harness.signInAsAdmin();
 
 		const response = await agent.get("/admin");
 

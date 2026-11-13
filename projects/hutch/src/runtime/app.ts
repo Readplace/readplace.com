@@ -34,6 +34,7 @@ type AssemblyProvidedKeys =
 	| "hashPassword"
 	| "fetchFirefoxDownloadUrl"
 	| "adminEmails"
+	| "adminMfaAttemptRule"
 	| "recrawlServiceToken"
 	| "baseUrl"
 	| "logError"
@@ -53,6 +54,8 @@ type AssemblyProvidedKeys =
 	| "foundingAllocation"
 	| "newsletterCatalogSeed";
 export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
+
+const ADMIN_MFA_ATTEMPT_RULE = { limit: 5, windowSeconds: 900 };
 
 function parseAdminEmails(raw: string): readonly string[] {
 	return raw
@@ -97,6 +100,7 @@ export function assembleReadplaceApp(input: {
 		...providers,
 		countUsers: initCachedUserCount({ countUsers: providers.countUsers, now: () => Date.now(), ttlMs: 60_000 }),
 		adminEmails,
+		adminMfaAttemptRule: ADMIN_MFA_ATTEMPT_RULE,
 		recrawlServiceToken,
 		baseUrl: appOrigin,
 		logError: (message, error) =>

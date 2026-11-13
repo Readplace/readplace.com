@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import { expect } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import { clickAndWaitForPageReload, isOnPage } from '../page-interactions'
+import { passAdminChallenge } from './admin-challenge'
 
 export type ExtendTrialActionKey =
 	| 'login-as-admin'
+	| 'pass-admin-challenge'
 	| 'open-extend-trial-page'
 	| 'lookup-unknown-email'
 	| 'lookup-founding-member'
@@ -14,6 +16,7 @@ export type ExtendTrialActionKey =
 
 export type ExtendTrialProgress = {
 	loggedInAsAdmin: boolean
+	passedAdminChallenge: boolean
 	openedAdminPage: boolean
 	unknownEmailReported: boolean
 	foundingMemberRefused: boolean
@@ -63,11 +66,23 @@ export function createExtendTrialActions(
 			},
 		},
 
-		'open-extend-trial-page': {
+		'pass-admin-challenge': {
 			isAvailable: async (page) => {
 				if (!progress.loggedInAsAdmin) return false
-				if (progress.openedAdminPage) return false
+				if (progress.passedAdminChallenge) return false
 				return isOnPage(page, 'page-readlist')
+			},
+			execute: async (page) => {
+				await passAdminChallenge(page, { baseURL: config.baseURL })
+				progress.passedAdminChallenge = true
+			},
+		},
+
+		'open-extend-trial-page': {
+			isAvailable: async (page) => {
+				if (!progress.passedAdminChallenge) return false
+				if (progress.openedAdminPage) return false
+				return isOnPage(page, 'page-admin')
 			},
 			execute: async (page) => {
 				await page.goto(`${config.baseURL}/admin/extend-trial`)
