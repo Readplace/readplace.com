@@ -9,12 +9,11 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.FontScale
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
-import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasAnyChild
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
@@ -129,10 +128,7 @@ class ReadlistChooserCardLayoutTest {
 	fun `a short list keeps the card sized to its content and centred`() {
 		render(listOf(SharedArticlesDrop.Always("All"), SharedArticlesDrop.Unticked(readlist("Readlist 2"))), fontScale = 1f)
 
-		val card = compose.onNode(
-			hasAnyDescendant(hasText(TITLE)) and SemanticsMatcher.expectValue(SemanticsProperties.IsTraversalGroup, true),
-			useUnmergedTree = true,
-		).getUnclippedBoundsInRoot()
+		val card = compose.onNode(hasAnyChild(hasText(TITLE)), useUnmergedTree = true).getUnclippedBoundsInRoot()
 		val windowHeight = compose.onRoot().getUnclippedBoundsInRoot().height
 		assertTrue("card ${card.height} should be shorter than the window's $windowHeight", card.height < windowHeight)
 		val spaceBelow = windowHeight - card.bottom
