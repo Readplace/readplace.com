@@ -1,3 +1,6 @@
+import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import type { AlertContent } from "@packages/web-shell";
 
 import { SAVE_QUEUED_NOTICE } from "../../api/save-queued-siren";
@@ -51,6 +54,18 @@ export const INBOX_UNAVAILABLE_ALERT: AlertContent = {
 	title: { text: "That custom email isn't available", element: "p" },
 	message: { text: "It may have been disabled. Pick another custom email." },
 };
+
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
+
+export const INBOX_LIMIT_ALERT: AlertContent = errorAlert({
+	title: t("readlistInboxes.create.alerts.limit.title"),
+	body: t("readlistInboxes.create.alerts.limit.body", { max: INBOX_ADDRESS_MAX_PER_USER }),
+});
+
+export const INBOX_CREATE_FAILED_ALERT: AlertContent = errorAlert({
+	title: t("readlistInboxes.create.alerts.failed.title"),
+	body: t("readlistInboxes.create.alerts.failed.body"),
+});
 
 const GMAIL_SAVE_ALERT_TITLE = "Couldn't save the Gmail newsletters";
 

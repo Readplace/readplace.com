@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import {
 	AliasNameSchema,
+	countLiveCappedAddresses,
+	INBOX_ADDRESS_MAX_PER_USER,
 	type InboxAddress,
 	type InboxAddressPurpose,
 	formatEmailLinkOrdinal,
@@ -171,6 +173,23 @@ function savedInboxesPath(slug: string): string {
 
 function routeInbox(agent: TestAgent, slug: string, body: { address?: string; send_here?: "1" }) {
 	return agent.post(inboxesPath(slug)).type("form").send(body);
+}
+
+function createInboxPath(slug: string): string {
+	return `${inboxesPath(slug)}/create`;
+}
+
+function createInbox(agent: TestAgent, slug: string, body: { name?: string }) {
+	return agent.post(createInboxPath(slug)).type("form").send(body);
+}
+
+function createForm(doc: Document): { value: string | undefined; error: string | undefined } {
+	const input = doc.querySelector<HTMLInputElement>("[data-test-inbox-create-input]");
+	assert(input, "the inboxes section must render its create form");
+	return {
+		value: input.value,
+		error: doc.querySelector("[data-test-inbox-create-error]")?.textContent ?? undefined,
+	};
 }
 
 function inboxesSection(doc: Document): Element {
@@ -1256,9 +1275,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(inboxesSection(doc).getAttribute("data-test-inboxes-state")).toBe("empty");
-		expect(doc.querySelector('[data-test-action="create-inbox"]')?.getAttribute("href")).toBe(
-			"/newsletters/custom-emails?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox",
-		);
+		expect(createForm(doc)).toEqual({ value: "new-readlist", error: undefined });
 	});
 
 	it("tells the reader only the links that fit are kept once the readlist has a purpose", async () => {
@@ -1543,6 +1560,219 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 			.post(inboxesPath("a1b2c3d4"))
 			.type("form")
 			.send({ address: "news-a1b2c3@read.place", send_here: "1" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toContain("/login");
+	});
+});
+
+describe("POST /queue/queues/:slug/preferences/inboxes/create", () => {
+	function inboxesAt(slug: string, params: Record<string, string>): string {
+		return `${preferencesPath(slug)}?${new URLSearchParams(params).toString()}#readlist-inboxes`;
+	}
+
+	async function liveInboxes(fixture: TestFixture, userId: UserId) {
+		const owned = await fixture.inboxAddress.inboxAddressStore.listAddressesByUserId(userId);
+		return owned.map((inbox) => ({ name: inbox.name, readlist: inbox.readlist }));
+	}
+
+	it("creates a custom email already sent to the readlist and lands back on the tab confirming it", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const response = await createInbox(agent, slug, { name: "Work News" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(inboxesAt(slug, { inbox_created: "work-news" }));
+		expect(await liveInboxes(fixture, await readerId(harness))).toContainEqual({ name: "work-news", readlist: slug });
+		const doc = parse((await agent.get(response.headers.location)).text);
+		expect(inboxRows(doc)).toContainEqual({
+			name: "work-news",
+			destination: "Saves to All and New Readlist",
+			routed: true,
+		});
+		expect(doc.querySelector("#status-toast [data-test-toast-message]")?.textContent).toBe(
+			'Created the custom email "work-news" for this readlist',
+		);
+	});
+
+	it("drops the one-shot confirmation from the address bar of a boosted create", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const response = await agent
+			.get(`${preferencesPath(slug)}?inbox_created=work-news`)
+			.set("HX-Request", "true");
+
+		expect(response.headers["hx-replace-url"]).toBe(preferencesPath(slug));
+	});
+
+	it.each([
+		["a name with no letters or digits", { name: "!!!" }, "!!!"],
+		["no name at all", {}, ""],
+	])("refuses %s, echoing what the reader typed with the reason", async (_case, body, submitted) => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const before = await liveInboxes(fixture, await readerId(harness));
+
+		const response = await createInbox(agent, slug, body);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			inboxesAt(slug, { preferences_error: "inbox-name", inbox_name: submitted }),
+		);
+		expect(createForm(parse((await agent.get(response.headers.location)).text))).toEqual({
+			value: submitted,
+			error: "Give the custom email a name using letters, numbers, and hyphens — for example, my-newsletter.",
+		});
+		expect(await liveInboxes(fixture, await readerId(harness))).toEqual(before);
+	});
+
+	it("refuses a name the reader already uses on a live custom email", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
+
+		const response = await createInbox(agent, slug, { name: "News" });
+
+		expect(response.headers.location).toBe(
+			inboxesAt(slug, { preferences_error: "inbox-name-taken", inbox_name: "News" }),
+		);
+		expect(createForm(parse((await agent.get(response.headers.location)).text))).toEqual({
+			value: "News",
+			error: "You already have an active custom email with that name. Pick a different one.",
+		});
+	});
+
+	it("reuses the name of a custom email the reader turned off", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const userId = await readerId(harness);
+		const address = await mintInbox(fixture, { userId, name: "news" });
+		await fixture.inboxAddress.inboxAddressStore.disableAddress({ userId, address });
+
+		const response = await createInbox(agent, slug, { name: "news" });
+
+		expect(response.headers.location).toBe(inboxesAt(slug, { inbox_created: "news" }));
+		expect(await liveInboxes(fixture, userId)).toContainEqual({ name: "news", readlist: slug });
+	});
+
+	it("tells the reader they are at the custom email limit", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const userId = await readerId(harness);
+		const { inboxAddressStore } = fixture.inboxAddress;
+		for (let minted = 0; countLiveCappedAddresses(await inboxAddressStore.listAddressesByUserId(userId)) < INBOX_ADDRESS_MAX_PER_USER; minted++) {
+			await mintInbox(fixture, { userId, name: `news-${minted}` });
+		}
+
+		const response = await createInbox(agent, slug, { name: "one-more" });
+
+		expect(response.headers.location).toBe(inboxesAt(slug, { preferences_error: "inbox-limit" }));
+		expect(alertOf(parse((await agent.get(response.headers.location)).text))).toEqual({
+			visible: true,
+			title: "Custom email limit reached",
+			body: expect.stringContaining(String(INBOX_ADDRESS_MAX_PER_USER)),
+		});
+		expect((await liveInboxes(fixture, userId)).map((inbox) => inbox.name)).not.toContain("one-more");
+	});
+
+	it("logs a failed create and tells the reader to try again", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const logged: string[] = [];
+		fixture.shared.logError = (message: string) => {
+			logged.push(message);
+		};
+		const harness = useApp({
+			...fixture,
+			inboxAddress: {
+				...fixture.inboxAddress,
+				inboxAddressStore: {
+					...fixture.inboxAddress.inboxAddressStore,
+					createRoutedAddress: async () => {
+						throw new Error("boom");
+					},
+				},
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const response = await createInbox(agent, slug, { name: "news" });
+
+		expect(response.headers.location).toBe(inboxesAt(slug, { preferences_error: "inbox-create" }));
+		expect(logged).toEqual(["[ReadlistPreferences] Failed to create a custom email"]);
+		expect(alertOf(parse((await agent.get(response.headers.location)).text))).toEqual({
+			visible: true,
+			title: "Couldn't create a custom email",
+			body: "Try again in a moment.",
+		});
+	});
+
+	it.each([
+		["the built-in readlist, which every newsletter already reaches", "default"],
+		["a readlist the reader does not have", "a1b2c3d4"],
+		["a malformed readlist id", "Not A Slug"],
+	])("refuses %s, creating nothing", async (_case, slug) => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const before = await liveInboxes(fixture, await readerId(harness));
+
+		const response = await createInbox(agent, slug, { name: "news" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
+		expect(await liveInboxes(fixture, await readerId(harness))).toEqual(before);
+	});
+
+	it("turns a read-only reader away, creating nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const before = await liveInboxes(fixture, await readerId(harness));
+		await makeReadOnly(harness);
+
+		const response = await createInbox(agent, slug, { name: "news" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(await liveInboxes(fixture, await readerId(harness))).toEqual(before);
+	});
+
+	it("shows a locked account the locked page, creating nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let offset = 0;
+		fixture.shared.now = () => new Date(Date.now() + offset);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const before = await liveInboxes(fixture, await readerId(harness));
+		offset = 8 * DAY;
+
+		const response = await createInbox(agent, slug, { name: "news" }).set("Accept", "text/html");
+
+		expect(response.status).toBe(403);
+		expect(parse(response.text).querySelector("h1")?.textContent).toBe("Your account is locked");
+		expect(await liveInboxes(fixture, await readerId(harness))).toEqual(before);
+	});
+
+	it("asks a signed-out visitor to log in rather than creating anything", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).post(createInboxPath("a1b2c3d4")).type("form").send({ name: "news" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toContain("/login");

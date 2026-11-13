@@ -157,6 +157,7 @@ import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/articl
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxAddress, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink } from "@packages/inbox-store";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
+import type { CreateRoutedInboxAddress } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { initReportReadlistCap } from "../observability/readlist-cap";
@@ -643,6 +644,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 		},
 		listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 		setInboxAddressReadlist: inboxAddressStore.setAddressReadlist,
+		createRoutedInboxAddress: (input: Parameters<CreateRoutedInboxAddress>[0]) =>
+			inboxAddressStore.createRoutedAddress({ ...input, domain: inboxAddressDomain, purpose: DEFAULT_INBOX_ADDRESS_PURPOSE }),
 		clearReadlistFromAddresses: inboxAddressStore.clearReadlistFromAddresses,
 		listIssueLinks: inboxEmailLinkStore.listLinksByEmail,
 		findIssueLink: inboxEmailLinkStore.getLink,

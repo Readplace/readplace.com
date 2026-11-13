@@ -197,19 +197,28 @@ export function initDynamoDbInboxAddress(deps: {
 		}));
 	};
 
+	const createCappedAddress = async ({
+		userId,
+		domain,
+		name,
+		purpose,
+		readlist,
+	}: Parameters<InboxAddressStore["createAddress"]>[0] & { readlist: ReadlistSlug | undefined }) => {
+		// disabledAt is not a key
+		// attribute, so the cap is counted in code over the GSI rows rather than
+		// pushed into a COUNT query. The GSI is eventually consistent, so this is a
+		// soft guardrail (a racing pair of creates may briefly land one over the
+		// cap) — fine, since the cap exists to stop an unbounded create loop, not
+		// to enforce an exact-to-the-row ceiling.
+		if (addressCapReached({ purpose, owned: await listAddressesByUserId(userId) })) {
+			throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
+		}
+		return mintAddress({ userId, domain, name, purpose, readlist });
+	};
+
 	return {
-		createAddress: async ({ userId, domain, name, purpose }) => {
-			// disabledAt is not a key
-			// attribute, so the cap is counted in code over the GSI rows rather than
-			// pushed into a COUNT query. The GSI is eventually consistent, so this is a
-			// soft guardrail (a racing pair of creates may briefly land one over the
-			// cap) — fine, since the cap exists to stop an unbounded create loop, not
-			// to enforce an exact-to-the-row ceiling.
-			if (addressCapReached({ purpose, owned: await listAddressesByUserId(userId) })) {
-				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
-			}
-			return mintAddress({ userId, domain, name, purpose, readlist: undefined });
-		},
+		createAddress: (input) => createCappedAddress({ ...input, readlist: undefined }),
+		createRoutedAddress: createCappedAddress,
 		listAddressesByUserId,
 		disableAddress,
 		enableAddress: async ({ userId, address }) => {

@@ -1,6 +1,10 @@
 import assert from "node:assert";
 import {
+	AliasNameSchema,
+	type CreateRoutedInboxAddress,
 	decideInboxRouting,
+	decideRoutedAliasCreation,
+	InboxAddressLimitReachedError,
 	type InboxAddressStore,
 	type InboxRoutingRejection,
 } from "@packages/domain/inbox";
@@ -13,6 +17,7 @@ import {
 	type ReadlistPurposeRejection,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import type { LogError } from "@packages/logger";
 import type {
 	ClearReadlistDefinitionPurpose,
 	DeleteReadlistFitOverride,
@@ -33,6 +38,8 @@ import { requireNotLocked } from "../../middleware/require-not-locked.middleware
 import {
 	GMAIL_SELECTION_ALERT,
 	GMAIL_UNAVAILABLE_ALERT,
+	INBOX_CREATE_FAILED_ALERT,
+	INBOX_LIMIT_ALERT,
 	INBOX_UNAVAILABLE_ALERT,
 } from "./readlist-alerts";
 import type { ReadlistOnboarding } from "./readlist.component";
@@ -41,7 +48,7 @@ import type { LoadReadlistGmailSenders } from "./readlist-gmail-senders.page";
 import type { FindNonEmptyReadlists } from "./readlist-holdings";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
 import { READLIST_PREFERENCES_WIZARD_ID } from "./readlist-preferences-wizard.component";
-import { READLIST_INBOXES_SECTION_ID } from "./readlist-inboxes.component";
+import { type InboxNameError, READLIST_INBOXES_SECTION_ID } from "./readlist-inboxes.component";
 import { ReadlistPreferencesPage } from "./readlist-preferences.component";
 import { renderReadlistPurposeWizard } from "./readlist-purpose-card.component";
 import { buildReadlistRail } from "./readlist-rail";
@@ -55,12 +62,17 @@ const PREFERENCES_ERROR_CODES = [
 	"unknown-inbox",
 	"gmail-selection",
 	"gmail-unavailable",
+	"inbox-name",
+	"inbox-name-taken",
+	"inbox-limit",
+	"inbox-create",
 ] as const;
 
 type PreferencesErrorCode = (typeof PREFERENCES_ERROR_CODES)[number];
 
 interface PreferencesError {
 	purposeError?: string;
+	inboxNameError?: InboxNameError;
 	alert?: AlertContent;
 }
 
@@ -69,12 +81,18 @@ const PREFERENCES_ERRORS: Record<PreferencesErrorCode, PreferencesError> = {
 	"unknown-inbox": { alert: INBOX_UNAVAILABLE_ALERT },
 	"gmail-selection": { alert: GMAIL_SELECTION_ALERT },
 	"gmail-unavailable": { alert: GMAIL_UNAVAILABLE_ALERT },
+	"inbox-name": { inboxNameError: "invalid-name" },
+	"inbox-name-taken": { inboxNameError: "name-taken" },
+	"inbox-limit": { alert: INBOX_LIMIT_ALERT },
+	"inbox-create": { alert: INBOX_CREATE_FAILED_ALERT },
 };
 
 const PreferencesQuerySchema = z.object({
 	purpose: z.string().optional().catch(undefined),
 	preferences_error: z.enum(PREFERENCES_ERROR_CODES).optional().catch(undefined),
 	preferences_saved: z.literal("1").optional().catch(undefined),
+	inbox_name: z.string().optional().catch(undefined),
+	inbox_created: AliasNameSchema.optional().catch(undefined),
 });
 
 const PurposeOriginQuerySchema = z.object({
@@ -88,6 +106,8 @@ const InboxRoutingBodySchema = z
 	})
 	.catch({ address: "", send_here: undefined });
 
+const InboxCreateBodySchema = z.object({ name: z.string().catch("") }).catch({ name: "" });
+
 export function initReadlistPreferencesRoutes(deps: {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
@@ -96,6 +116,8 @@ export function initReadlistPreferencesRoutes(deps: {
 	deleteReadlistFitOverride: DeleteReadlistFitOverride;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
+	createRoutedInboxAddress: CreateRoutedInboxAddress;
+	logError: LogError;
 	getEffectiveAccess: GetEffectiveAccess;
 	buildBannerState: BuildBannerState;
 	requireWriteAccess: RequestHandler;
@@ -152,7 +174,8 @@ export function initReadlistPreferencesRoutes(deps: {
 				),
 		]);
 		const saved = parsed.preferences_saved !== undefined;
-		if (saved && req.get("HX-Request") === "true") {
+		const inboxCreated = parsed.inbox_created;
+		if ((saved || inboxCreated !== undefined) && req.get("HX-Request") === "true") {
 			res.set("HX-Replace-Url", readlistPreferencesPath(definition.slug));
 		}
 		const accessIsReadOnly = access.access === "read-only";
@@ -184,6 +207,8 @@ export function initReadlistPreferencesRoutes(deps: {
 					values: { purpose: draft ?? definition.purpose },
 					wizardOpen: draft !== undefined || error.purposeError !== undefined,
 					inboxes,
+					inboxCreate: { submittedName: parsed.inbox_name, error: error.inboxNameError },
+					inboxCreated,
 					alert: error.alert,
 					saved,
 					gmailSenders,
@@ -340,6 +365,65 @@ export function initReadlistPreferencesRoutes(deps: {
 				readlist: decision.readlist,
 			});
 			res.redirect(303, `${readlistPreferencesPath(slug)}?preferences_saved=1#${READLIST_INBOXES_SECTION_ID}`);
+		},
+	);
+
+	router.post(
+		"/queues/:slug/preferences/inboxes/create",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
+			if (!requested.success) {
+				unknownReadlist(res);
+				return;
+			}
+			const slug = requested.data;
+			const inboxesSection = (params: Record<string, string>): void => {
+				res.redirect(
+					303,
+					`${readlistPreferencesPath(slug)}?${new URLSearchParams(params).toString()}#${READLIST_INBOXES_SECTION_ID}`,
+				);
+			};
+
+			const body = InboxCreateBodySchema.parse(req.body);
+			const [definitions, owned] = await Promise.all([
+				deps.listReadlistDefinitions(userId),
+				deps.listInboxAddresses(userId),
+			]);
+			const decision = decideRoutedAliasCreation({
+				slug,
+				requested: body.name,
+				owned,
+				readlists: readerReadlists(definitions),
+			});
+			if (!decision.ok) {
+				const nameErrors = {
+					"unknown-readlist": () => unknownReadlist(res),
+					"invalid-name": () => inboxesSection({ preferences_error: "inbox-name", inbox_name: body.name }),
+					"name-taken": () => inboxesSection({ preferences_error: "inbox-name-taken", inbox_name: body.name }),
+				};
+				nameErrors[decision.reason]();
+				return;
+			}
+
+			try {
+				await deps.createRoutedInboxAddress({ userId, name: decision.name, readlist: decision.readlist });
+			} catch (error) {
+				if (error instanceof InboxAddressLimitReachedError) {
+					inboxesSection({ preferences_error: "inbox-limit" });
+					return;
+				}
+				deps.logError(
+					"[ReadlistPreferences] Failed to create a custom email",
+					error instanceof Error ? error : new Error(String(error)),
+				);
+				inboxesSection({ preferences_error: "inbox-create" });
+				return;
+			}
+			inboxesSection({ inbox_created: decision.name });
 		},
 	);
 

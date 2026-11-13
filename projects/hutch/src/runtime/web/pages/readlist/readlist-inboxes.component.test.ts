@@ -9,7 +9,7 @@ import {
 import { DEFAULT_READLIST, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { JSDOM } from "jsdom";
-import { buildReadlistInboxes, renderReadlistInboxes } from "./readlist-inboxes.component";
+import { buildReadlistInboxes, type InboxNameError, renderReadlistInboxes } from "./readlist-inboxes.component";
 
 const READER = UserIdSchema.parse("reader-1");
 const WORK: ReadlistSlug = ReadlistSlugSchema.parse("a1b2c3d4");
@@ -38,13 +38,15 @@ function inbox(input: {
 function renderInboxes(input: {
 	inboxes: readonly InboxAddressEntry[];
 	purpose?: string;
+	label?: string;
+	create?: { submittedName: string | undefined; error: InboxNameError | undefined };
 }): Document {
 	return new JSDOM(
 		`<main>${renderReadlistInboxes(
 			buildReadlistInboxes({
 				readlist: {
 					slug: WORK,
-					label: "Work Reading",
+					label: input.label ?? "Work Reading",
 					purpose: input.purpose,
 				},
 				inboxes: input.inboxes,
@@ -53,6 +55,7 @@ function renderInboxes(input: {
 					{ slug: WORK, label: "Work Reading" },
 					{ slug: LATER, label: "Later" },
 				],
+				create: input.create ?? { submittedName: undefined, error: undefined },
 			}),
 		)}</main>`,
 	).window.document;
@@ -62,6 +65,22 @@ function section(doc: Document): Element {
 	const inboxes = doc.querySelector("[data-test-readlist-inboxes]");
 	assert(inboxes, "the inboxes section must render in every state");
 	return inboxes;
+}
+
+function createForm(doc: Document): Element {
+	const form = doc.querySelector("form.readlist-inboxes__create");
+	assert(form, "the create form must render in every state");
+	return form;
+}
+
+function createInput(doc: Document): HTMLInputElement {
+	const input = doc.querySelector<HTMLInputElement>("[data-test-inbox-create-input]");
+	assert(input, "the create form must render its name field");
+	return input;
+}
+
+function labelOf(form: Element): string | null | undefined {
+	return form.querySelector('label[for="readlist-inbox-create-name"]')?.textContent;
 }
 
 function row(doc: Document, address: string): Element {
@@ -262,17 +281,73 @@ describe("buildReadlistInboxes", () => {
 		expect(doc.getElementById("readlist-inboxes-title")?.textContent).toBe("Readlist inbox emails");
 	});
 
-	it("shows the empty state, with a tracked way to create an inbox, when the reader has none", () => {
+	it("shows the empty state, with a form to create a custom email, when the reader has none", () => {
 		const doc = renderInboxes({ inboxes: [] });
-		const create = doc.querySelector('[data-test-action="create-inbox"]');
-		assert(create, "the empty state must offer to create an inbox");
 
 		expect(section(doc).getAttribute("data-test-inboxes-state")).toBe("empty");
 		expect(section(doc).classList.contains("readlist-inboxes--empty")).toBe(true);
-		expect(create.textContent).toBe("Create a readlist inbox email");
-		expect(create.getAttribute("href")).toBe(
-			"/newsletters/custom-emails?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox",
+		expect(createForm(doc).querySelector('[data-test-action="create-inbox"]')?.textContent).toBe("Create custom email");
+		expect(doc.querySelector('a[data-test-action="create-inbox"]')).toBeNull();
+	});
+
+	it("offers the create form under the list once the reader has custom emails to route", () => {
+		const doc = renderInboxes({ inboxes: [inbox({ name: "news", token: "a7b2c9" })] });
+		const list = doc.querySelector(".readlist-inboxes__list");
+		assert(list, "the listed state must render its list");
+
+		expect(section(doc).getAttribute("data-test-inboxes-state")).toBe("listed");
+		expect(list.nextElementSibling).toBe(createForm(doc));
+	});
+
+	it("posts the create form to this readlist, tagged as creating an inbox", () => {
+		const form = createForm(renderInboxes({ inboxes: [] }));
+
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("action")).toBe(
+			`/queue/queues/${WORK}/preferences/inboxes/create?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox`,
 		);
+		expect(labelOf(form)).toBe("Name a new custom email");
+	});
+
+	it("prefills the name with the readlist's name made into a valid custom email name", () => {
+		expect(createInput(renderInboxes({ inboxes: [] })).value).toBe("work-reading");
+	});
+
+	it("leaves the name empty when the readlist's name has no letters or digits", () => {
+		expect(createInput(renderInboxes({ inboxes: [], label: "★★★" })).value).toBe("");
+	});
+
+	it("keeps the name the reader submitted over the prefill", () => {
+		const doc = renderInboxes({ inboxes: [], create: { submittedName: "My News!", error: "invalid-name" } });
+
+		expect(createInput(doc).value).toBe("My News!");
+	});
+
+	it("shows no error, and marks the name valid, before the reader submits", () => {
+		const doc = renderInboxes({ inboxes: [] });
+
+		expect(createInput(doc).getAttribute("aria-invalid")).toBe("false");
+		expect(createInput(doc).hasAttribute("aria-describedby")).toBe(false);
+		expect(doc.querySelector("[data-test-inbox-create-error]")).toBeNull();
+	});
+
+	it.each([
+		{
+			error: "invalid-name" as const,
+			message: "Give the custom email a name using letters, numbers, and hyphens — for example, my-newsletter.",
+		},
+		{
+			error: "name-taken" as const,
+			message: "You already have an active custom email with that name. Pick a different one.",
+		},
+	])("ties the $error message to the name field", ({ error, message }) => {
+		const doc = renderInboxes({ inboxes: [], create: { submittedName: "news", error } });
+		const shown = doc.querySelector("[data-test-inbox-create-error]");
+		assert(shown, "the name error must render");
+
+		expect(shown.textContent).toBe(message);
+		expect(createInput(doc).getAttribute("aria-invalid")).toBe("true");
+		expect(createInput(doc).getAttribute("aria-describedby")).toBe(shown.id);
 	});
 
 	it("offers a tracked way to manage the reader's custom emails once there are some to route", () => {

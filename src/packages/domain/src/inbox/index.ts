@@ -14,15 +14,19 @@ export {
 export { emailIssueArticleUrl, emailIssueReceivedAt, parseEmailIssueArticleUrl } from "./email-issue-url";
 export { deriveEmailIssueMetadata } from "./email-issue-metadata";
 export type {
+	CreateRoutedInboxAddress,
 	InboxAddressEntry,
 	InboxAddressStore,
 	TombstoneUserAddresses,
 } from "./inbox-address.types";
 export {
 	decideInboxRouting,
+	decideRoutedAliasCreation,
 	type InboxRoutingDecision,
 	type InboxRoutingRejection,
+	type RoutedAliasCreationDecision,
 } from "./inbox-address-routing";
+export { decideAliasName, type AliasNameDecision } from "./inbox-address-name";
 export {
 	addressCapReached,
 	countLiveCappedAddresses,

@@ -59,6 +59,32 @@ describe("initInMemoryInboxAddress", () => {
 		expect(otherAddresses).toHaveLength(1);
 	});
 
+	it("creates an address already routed to a readlist", async () => {
+		const store = initInMemoryInboxAddress({ now: () => new Date("2026-06-23T00:00:00.000Z") });
+
+		const entry = await store.createRoutedAddress({
+			userId: owner,
+			domain: DOMAIN,
+			name: NAME,
+			purpose: "user-alias",
+			readlist: WORK,
+		});
+
+		expect(entry.readlist).toBe(WORK);
+		expect(await store.findByAddress(entry.address)).toEqual(entry);
+	});
+
+	it("refuses a routed address once the user holds the per-user cap of live addresses", async () => {
+		const store = initInMemoryInboxAddress({ now: () => new Date() });
+		for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
+			await store.createAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias" });
+		}
+
+		await expect(
+			store.createRoutedAddress({ userId: owner, domain: DOMAIN, name: NAME, purpose: "user-alias", readlist: WORK }),
+		).rejects.toThrow(InboxAddressLimitReachedError);
+	});
+
 	it("throws InboxAddressLimitReachedError once the user holds the per-user cap of live addresses", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
 		for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {

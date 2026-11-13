@@ -61,6 +61,8 @@ function page(overrides: {
 		choices: overrides.choices ?? [],
 		alert: overrides.alert,
 		saved: false,
+		inboxCreate: { submittedName: undefined, error: undefined },
+		inboxCreated: undefined,
 		gmailSenders: undefined,
 		accessIsReadOnly: overrides.accessIsReadOnly ?? false,
 		subscriptionBanner: overrides.subscriptionBanner ?? { state: "none" },

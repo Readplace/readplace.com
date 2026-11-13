@@ -1,4 +1,5 @@
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "../readlist/readlist-name.schema";
+import { type AliasNameDecision, decideAliasName } from "./inbox-address-name";
 import { isCappedAddress, isLiveAddress } from "./inbox-address.live";
 import { type InboxAddress, InboxAddressSchema } from "./inbox-address.schema";
 import type { InboxAddressEntry } from "./inbox-address.types";
@@ -34,4 +35,21 @@ export function decideInboxRouting(params: {
 		address: address.data,
 		readlist: params.destination === params.slug ? params.slug : undefined,
 	};
+}
+
+export type RoutedAliasCreationDecision =
+	| { ok: false; reason: "unknown-readlist" }
+	| (AliasNameDecision & { readlist: ReadlistSlug });
+
+export function decideRoutedAliasCreation(params: {
+	slug: ReadlistSlug;
+	requested: string;
+	owned: readonly InboxAddressEntry[];
+	readlists: readonly { slug: ReadlistSlug }[];
+}): RoutedAliasCreationDecision {
+	if (params.slug === DEFAULT_READLIST_SLUG) return { ok: false, reason: "unknown-readlist" };
+	if (!params.readlists.some((readlist) => readlist.slug === params.slug)) {
+		return { ok: false, reason: "unknown-readlist" };
+	}
+	return { ...decideAliasName({ requested: params.requested, owned: params.owned }), readlist: params.slug };
 }

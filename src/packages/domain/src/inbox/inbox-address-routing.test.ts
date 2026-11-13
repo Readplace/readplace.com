@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "../readlist/readlist-name.schema";
 import { UserIdSchema } from "../user";
-import { decideInboxRouting } from "./inbox-address-routing";
+import { decideInboxRouting, decideRoutedAliasCreation } from "./inbox-address-routing";
 import {
 	AliasNameSchema,
 	InboxAddressSchema,
@@ -169,5 +169,46 @@ describe("decideInboxRouting", () => {
 			}),
 			{ ok: false, reason: "invalid-destination" },
 		);
+	});
+});
+
+describe("decideRoutedAliasCreation", () => {
+	it("names a new inbox routed to the readlist whose preferences submitted it", () => {
+		assert.deepEqual(decideRoutedAliasCreation({ slug: WORK, requested: "Work Reading", owned: inboxes, readlists }), {
+			ok: true,
+			name: "work-reading",
+			readlist: WORK,
+		});
+	});
+
+	it("refuses All, which every save already reaches", () => {
+		assert.deepEqual(
+			decideRoutedAliasCreation({ slug: DEFAULT_READLIST_SLUG, requested: "work", owned: inboxes, readlists }),
+			{ ok: false, reason: "unknown-readlist" },
+		);
+	});
+
+	it("refuses a readlist the reader does not have", () => {
+		assert.deepEqual(
+			decideRoutedAliasCreation({ slug: slug("ffffffff"), requested: "work", owned: inboxes, readlists }),
+			{ ok: false, reason: "unknown-readlist" },
+		);
+	});
+
+	it("refuses a name a live inbox already uses", () => {
+		assert.deepEqual(decideRoutedAliasCreation({ slug: WORK, requested: "news", owned: inboxes, readlists }), {
+			ok: false,
+			reason: "name-taken",
+			name: "news",
+			readlist: WORK,
+		});
+	});
+
+	it("refuses a name with no letters or digits", () => {
+		assert.deepEqual(decideRoutedAliasCreation({ slug: WORK, requested: "---", owned: inboxes, readlists }), {
+			ok: false,
+			reason: "invalid-name",
+			readlist: WORK,
+		});
 	});
 });

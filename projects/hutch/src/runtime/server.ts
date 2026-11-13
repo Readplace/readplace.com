@@ -300,7 +300,7 @@ import type {
 	ReadTimedDuration,
 } from "@packages/domain";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
+import type { CreateRoutedInboxAddress, InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
@@ -632,6 +632,7 @@ export interface AppDependencies {
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
+	createRoutedInboxAddress: CreateRoutedInboxAddress;
 	clearReadlistFromAddresses: InboxAddressStore["clearReadlistFromAddresses"];
 	now: () => Date;
 	drawRandomByte: () => number;

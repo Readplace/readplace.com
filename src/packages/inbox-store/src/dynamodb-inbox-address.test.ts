@@ -248,6 +248,55 @@ describe("initDynamoDbInboxAddress", () => {
 		});
 	});
 
+	describe("createRoutedAddress", () => {
+		function storeWithRows(rows: Record<string, unknown>[], commands: CapturedCommand[]) {
+			return initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					commands.push(cmd as CapturedCommand);
+					if ((cmd as CapturedCommand).input.IndexName) return { Items: rows, Count: rows.length };
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+		}
+
+		it("writes the readlist on the same put that mints the address", async () => {
+			const commands: CapturedCommand[] = [];
+			const store = storeWithRows([], commands);
+
+			const entry = await store.createRoutedAddress({
+				userId: USER,
+				domain: DOMAIN,
+				name: NAME,
+				purpose: "user-alias",
+				readlist: WORK,
+			});
+
+			const puts = commands.filter((c) => c.input.Item);
+			expect(puts).toHaveLength(1);
+			expect(puts[0].input.Item?.readlist).toBe(WORK);
+			expect(entry.readlist).toBe(WORK);
+		});
+
+		it("throws InboxAddressLimitReachedError and issues no put once the user holds the live cap", async () => {
+			const commands: CapturedCommand[] = [];
+			const rows = Array.from({ length: INBOX_ADDRESS_MAX_PER_USER }, (_, i) => ({
+				address: `in-${String(i).padStart(6, "0")}@read.place`,
+				userId: USER,
+				token: String(i).padStart(6, "0"),
+				createdAt: NOW.toISOString(),
+				disabledAt: null,
+			}));
+			const store = storeWithRows(rows, commands);
+
+			await expect(
+				store.createRoutedAddress({ userId: USER, domain: DOMAIN, name: NAME, purpose: "user-alias", readlist: WORK }),
+			).rejects.toThrow(InboxAddressLimitReachedError);
+			expect(commands.some((c) => c.input.Item)).toBe(false);
+		});
+	});
+
 	describe("listAddressesByUserId", () => {
 		it("queries the userId GSI and maps rows, backfilling a missing disabledAt and purpose", async () => {
 			let captured: CapturedCommand | undefined;

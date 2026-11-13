@@ -166,6 +166,42 @@
   text-wrap: balance;
 }
 
+.readlist-inboxes__create {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.readlist-inboxes__create-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.readlist-inboxes__create-input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.readlist-inboxes--empty .readlist-inboxes__empty {
+  padding-bottom: 16px;
+}
+
+.readlist-inboxes--empty .readlist-inboxes__create {
+  align-items: center;
+  padding: 0 24px 44px;
+  border-top: none;
+  text-align: center;
+}
+
+.readlist-inboxes--empty .readlist-inboxes__create-row {
+  justify-content: center;
+  width: 100%;
+  max-width: 28rem;
+}
+
 .readlist-inboxes__manage {
   padding: 16px 24px 20px;
   border-top: 1px solid var(--border);

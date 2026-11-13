@@ -44,6 +44,13 @@ export interface InboxAddressStore {
 		name: AliasName;
 		purpose: InboxAddressPurpose;
 	}) => Promise<InboxAddressEntry>;
+	createRoutedAddress: (input: {
+		userId: UserId;
+		domain: string;
+		name: AliasName;
+		purpose: InboxAddressPurpose;
+		readlist: ReadlistSlug;
+	}) => Promise<InboxAddressEntry>;
 	/** Every address the user owns (1:N). The production adapter reads a DynamoDB
 	 * GSI, which is eventually consistent — an address created moments earlier may
 	 * be absent from the result — so callers must not assume read-your-write. The
@@ -89,3 +96,9 @@ export interface InboxAddressStore {
 	}) => Promise<InboxAddress | undefined>;
 	deleteReadlistAddressClaims: (userId: UserId) => Promise<void>;
 }
+
+export type CreateRoutedInboxAddress = (input: {
+	userId: UserId;
+	name: AliasName;
+	readlist: ReadlistSlug;
+}) => Promise<InboxAddressEntry>;

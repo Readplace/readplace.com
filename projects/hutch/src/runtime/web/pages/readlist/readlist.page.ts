@@ -156,6 +156,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
 			listInboxAddresses: deps.listInboxAddresses,
 			setInboxAddressReadlist: deps.setInboxAddressReadlist,
+			createRoutedInboxAddress: deps.createRoutedInboxAddress,
+			logError: deps.logError,
 			getEffectiveAccess: deps.getEffectiveAccess,
 			buildBannerState: deps.buildBannerState,
 			requireWriteAccess: deps.requireWriteAccess,

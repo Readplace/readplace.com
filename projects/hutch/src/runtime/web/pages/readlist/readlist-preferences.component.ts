@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { InboxAddressEntry } from "@packages/domain/inbox";
+import type { AliasName, InboxAddressEntry } from "@packages/domain/inbox";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import {
 	CONFIRM_POPOVER_STYLES,
@@ -9,6 +9,8 @@ import {
 	renderIllustration,
 	renderToast,
 } from "@packages/web-shell";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import type { AlertContent, CspNonce, PageBody } from "@packages/web-shell";
 
 import { ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
@@ -20,7 +22,7 @@ import { STATUS_TOAST_DISMISS_MS } from "./readlist-mutation-fragments";
 import { type ReadlistFitChoices, renderReadlistFitChoices } from "./readlist-fit-choices.component";
 import { READLIST_GMAIL_SENDERS_STYLES, renderReadlistGmailSenders } from "./readlist-gmail-senders.component";
 import type { ReadlistGmailSendersViewModel } from "./readlist-gmail-senders.viewmodel";
-import { buildReadlistInboxes, renderReadlistInboxes } from "./readlist-inboxes.component";
+import { buildReadlistInboxes, type InboxNameError, renderReadlistInboxes } from "./readlist-inboxes.component";
 import {
 	buildReadlistNav,
 	renderReadlistNav,
@@ -136,6 +138,8 @@ export interface ReadlistPreferencesViewModel {
 	wizardOpen: boolean;
 	purposeError?: string;
 	inboxes: readonly InboxAddressEntry[];
+	inboxCreate: { submittedName: string | undefined; error: InboxNameError | undefined };
+	inboxCreated: AliasName | undefined;
 	choices: ReadlistFitChoices;
 	alert?: AlertContent;
 	saved: boolean;
@@ -145,6 +149,18 @@ export interface ReadlistPreferencesViewModel {
 	onboarding: ReadlistOnboarding;
 	query: Record<string, unknown>;
 	cspNonce: CspNonce;
+}
+
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
+
+function statusToastHtml(vm: Pick<ReadlistPreferencesViewModel, "saved" | "inboxCreated">): string {
+	if (vm.saved) return renderToast({ message: "Preferences saved", dismissMs: STATUS_TOAST_DISMISS_MS, actions: [] });
+	if (vm.inboxCreated === undefined) return "";
+	return renderToast({
+		message: t("readlistInboxes.create.created", { name: vm.inboxCreated }),
+		dismissMs: STATUS_TOAST_DISMISS_MS,
+		actions: [],
+	});
 }
 
 export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageBody {
@@ -200,6 +216,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				readlist: vm.readlist,
 				inboxes: vm.inboxes,
 				readlists: vm.rail.readlists,
+				create: vm.inboxCreate,
 			}),
 		),
 		gmailSendersHtml: vm.gmailSenders === undefined ? "" : renderReadlistGmailSenders(vm.gmailSenders),
@@ -207,9 +224,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			readlist: vm.readlist,
 			choices: vm.choices,
 		}),
-		statusToastHtml: vm.saved
-			? renderToast({ message: "Preferences saved", dismissMs: STATUS_TOAST_DISMISS_MS, actions: [] })
-			: "",
+		statusToastHtml: statusToastHtml(vm),
 		subscriptionHtml: side.subscriptionHtml,
 		onboardingHtml: side.onboardingHtml,
 		readlistRenamesHtml: panels.renames,

@@ -166,6 +166,7 @@ import { ARTICLE_REFRESH_DEADLINE_MS, isBlockedIpAddress, validateSaveableUrl } 
 import { getEnv, requireEnv } from "@packages/require-env";
 import { parseAdminTotpSecrets } from "../web/pages/admin/admin-totp-secrets";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
+import type { CreateRoutedInboxAddress } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
 /**
@@ -654,6 +655,8 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		},
 		listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 		setInboxAddressReadlist: inboxAddressStore.setAddressReadlist,
+		createRoutedInboxAddress: (input: Parameters<CreateRoutedInboxAddress>[0]) =>
+			inboxAddressStore.createRoutedAddress({ ...input, domain: inboxAddressDomain, purpose: DEFAULT_INBOX_ADDRESS_PURPOSE }),
 		clearReadlistFromAddresses: inboxAddressStore.clearReadlistFromAddresses,
 		listIssueLinks: inboxEmailLinkStore.listLinksByEmail,
 		findIssueLink: inboxEmailLinkStore.getLink,

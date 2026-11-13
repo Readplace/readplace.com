@@ -74,6 +74,7 @@ const INBOXES = "[data-test-readlist-inboxes]";
 const INBOX_ROWS = "[data-test-preferences-inbox]";
 const INBOXES_DESCRIPTION = "[data-test-inboxes-description]";
 const CREATE_INBOX = '[data-test-action="create-inbox"]';
+const CREATE_INBOX_ROW = "[data-test-inbox-create-row]";
 const TABS = "[data-test-filters]";
 const CHOICES = "[data-test-readlist-choices]";
 const CHOICE_ROWS = "[data-test-readlist-choice]";
@@ -652,15 +653,15 @@ async function createInboxCentredUnderTheDescription(page: Page): Promise<void> 
 	const [inboxes, description, create] = [
 		await measuredBox(page, INBOXES),
 		await measuredBox(page, INBOXES_DESCRIPTION),
-		await measuredBox(page, CREATE_INBOX),
+		await measuredBox(page, CREATE_INBOX_ROW),
 	];
 	assert.ok(
 		create.y >= description.y + description.height,
-		"the way to create an inbox must sit under the section's description",
+		"the form to create a custom email must sit under the section's description",
 	);
 	assert.ok(
 		Math.abs(create.x + create.width / 2 - (inboxes.x + inboxes.width / 2)) <= 1,
-		"the way to create an inbox must be centred in the section",
+		"the form to create a custom email must be centred in the section",
 	);
 }
 
@@ -1085,6 +1086,22 @@ test.describe("Readlist preferences inboxes", () => {
 		await captureCheckpoint(page, INBOXES_EMPTY_LIGHT);
 	});
 
+	test("says an inbox that can't be routed isn't available (light)", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const { slug } = await openPreferences(
+			page,
+			`inbox-unavailable-light-${testInfo.workerIndex}-${Date.now()}`,
+		);
+		await reopenPreferences(page, { slug, query: "?preferences_error=unknown-inbox" });
+		await captureCheckpoint(page, INBOX_UNAVAILABLE_LIGHT);
+	});
+});
+
+test.describe("Readlist preferences inboxes listed", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
+
 	test("lists each inbox with where it goes and the one move that changes it (light)", async ({
 		page,
 	}, testInfo) => {
@@ -1116,18 +1133,6 @@ test.describe("Readlist preferences inboxes", () => {
 			page,
 			inboxesListedCheckpoint({ name: "readlist-preferences-inboxes-listed-dark", addresses }),
 		);
-	});
-
-	test("says an inbox that can't be routed isn't available (light)", async ({
-		page,
-	}, testInfo) => {
-		await page.emulateMedia({ colorScheme: "light" });
-		const { slug } = await openPreferences(
-			page,
-			`inbox-unavailable-light-${testInfo.workerIndex}-${Date.now()}`,
-		);
-		await reopenPreferences(page, { slug, query: "?preferences_error=unknown-inbox" });
-		await captureCheckpoint(page, INBOX_UNAVAILABLE_LIGHT);
 	});
 });
 
