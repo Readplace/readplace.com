@@ -47,6 +47,17 @@ TestFlight build for App Store review.
 - **A local signed bundle.** `make bundle VERSION_CODE=<n>` with `READPLACE_UPLOAD_KEYSTORE`
   and `READPLACE_UPLOAD_KEYSTORE_PASSWORD` set. Without them the build fails at
   `validateSigningProductionRelease` rather than producing an unsigned bundle Play rejects.
+- **Store listing.** The Play listing's text and images live under
+  `fastlane/metadata/android/<locale>/` in fastlane supply's own layout, and the manual
+  **Publish Android Play listing** workflow pushes them. Play's limits as of 2026-11-12:
+  title 30 characters, short description 80, full description 4,000, and 2 to 8 phone
+  screenshots. Text files carry no final newline, because supply sends them verbatim. An
+  unticked run writes the listing into a Play edit, asks Play to validate it and discards
+  it, so readers see no change; a run with `publish` ticked commits the edit, and Play
+  publishes it after review. Only the owner dispatches a `publish` run; an agent never
+  does. The `prod` environment has no required reviewer, so dispatching the run is the
+  whole publish act. The run names the internal track only because supply looks up one release there;
+  it uploads no binary and changes no track.
 
 ## What differs from iOS, and why
 
@@ -138,6 +149,13 @@ cleartext for arbitrary article WebViews without also opening it for native requ
 Same property: the server is fixed at build time, there is no runtime override, and
 `make test-staging` compiles the staging variant and runs the pins that assert which
 server it points at.
+
+**No draft listing on Play, and no read-back.** iOS pushes its listing to an App Store
+Connect draft and reads the screenshots back, because App Store Connect's processing delay
+once doubled every screenshot. Play's API has no draft a caller can choose: an edit is
+committed or discarded, so a validate-only run stands in for the draft. A Play edit is one
+transaction and supply skips an image whose checksum Play already holds, so there is
+nothing to read back.
 
 ## Version pins that are not "the latest"
 
