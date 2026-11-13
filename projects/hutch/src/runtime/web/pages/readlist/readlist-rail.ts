@@ -14,6 +14,7 @@ export interface ReadlistRailViewModel {
 	canCreate: boolean;
 	offer: UpgradeOffer | undefined;
 	nonEmptyReadlists: readonly ReadlistSlug[];
+	pinnedReadlists: readonly ReadlistSlug[];
 }
 
 export function buildReadlistRail(input: {
@@ -33,5 +34,6 @@ export function buildReadlistRail(input: {
 		canCreate: canEdit && custom.length < READLIST_MAX_PER_USER,
 		offer: input.offer,
 		nonEmptyReadlists: input.nonEmptyReadlists,
+		pinnedReadlists: input.context.pinnedReadlists,
 	};
 }

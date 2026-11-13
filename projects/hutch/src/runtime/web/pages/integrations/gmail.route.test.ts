@@ -1235,7 +1235,7 @@ describe("Choose a readlist", () => {
 		const { agent, createReadlist } = await connectedAgent();
 		for (let index = 0; index < READLIST_MAX_PER_USER; index++) await createReadlist({ slug: `list-${index}`, label: `List ${index}` });
 		const doc = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&add=1`)).text);
-		expect(doc.querySelector("[data-test-gmail-readlist-limit]")?.textContent).toBe("You can keep up to 7 readlists. Choose an existing readlist.");
+		expect(doc.querySelector("[data-test-gmail-readlist-limit]")?.textContent).toBe("You can keep up to 15 readlists. Choose an existing readlist.");
 		expect(doc.querySelectorAll("[data-test-gmail-readlist-option]")).toHaveLength(READLIST_MAX_PER_USER + 1);
 	});
 

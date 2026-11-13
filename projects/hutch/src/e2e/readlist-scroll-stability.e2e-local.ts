@@ -21,6 +21,9 @@ const VIEWPORTS = [
 const RAIL_MIN_WIDTH = 1024;
 const CREATE_SAVE = '[data-test-action="readlist-create-save"]';
 const LIMIT_CONTROL = '[data-test-action="readlist-limit"]';
+const SHEET_TOGGLE = '[data-test-action="readlist-sheet"]';
+const SHEET = '[data-test-readlist-popover="sheet"]';
+const SHEET_LIMIT_CONTROL = '[data-test-action="readlist-limit-in-sheet"]';
 const CREATE_ERROR = "[data-test-readlist-create-error]";
 const ALERT_TITLE = '[data-test-alert="readlist"] [data-test-alert-title]';
 const READER_CREATE = '[data-test-confirm-popover="readlist-create"]';
@@ -159,6 +162,18 @@ async function pressFromMidPage(page: Page, swap: { scrollTarget: string; contro
 	assert(box, `${swap.control} must be laid out to be clicked`);
 	await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 	return before;
+}
+
+async function pressSheetLimitFromMidPage(page: Page): Promise<void> {
+	await page.evaluate(scrollUnderHeader, "[data-test-sort]");
+	expect(await page.evaluate(readScrollY)).toBeGreaterThan(0);
+	await page.locator(SHEET_TOGGLE).evaluate((toggle) => {
+		if (!(toggle instanceof HTMLElement)) throw new Error("the readlist sheet toggle must be an element");
+		toggle.click();
+	});
+	await expect(page.locator(SHEET)).toBeVisible();
+	await page.evaluate(recordScrollAfterSwap, SHEET_LIMIT_CONTROL);
+	await page.locator(SHEET_LIMIT_CONTROL).click();
 }
 
 async function expectSwapKeepsScroll(
@@ -371,9 +386,8 @@ for (const viewport of VIEWPORTS) {
 			}
 			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 			await page.waitForSelector("body.page-readlist");
-			if (viewport.width < RAIL_MIN_WIDTH) await openReadlistSwitcher(page);
-
-			await pressFromMidPage(page, { scrollTarget: LIMIT_CONTROL, control: LIMIT_CONTROL });
+			if (viewport.width < RAIL_MIN_WIDTH) await pressSheetLimitFromMidPage(page);
+			else await pressFromMidPage(page, { scrollTarget: LIMIT_CONTROL, control: LIMIT_CONTROL });
 
 			await expect(page.locator(ALERT_TITLE)).toHaveText("Readlist limit reached");
 			await expect(page.locator("html")).toHaveAttribute("data-test-scroll-after-swap", "0");

@@ -1,4 +1,10 @@
 export const enUS = {
+	readlistPicker: {
+		filter: {
+			label: "Filter readlists",
+			noMatch: "No readlists match",
+		},
+	},
 	readlistAddArticle: {
 		trigger: "Upload",
 		body: {
@@ -30,6 +36,27 @@ export const enUS = {
 				failed: {
 					title: "Couldn't create a custom email",
 					body: "Try again in a moment.",
+				},
+			},
+		},
+	},
+	readlistNav: {
+		title: "Readlists",
+		currentLabel: "Current readlist:",
+		more: {
+			label: "More readlists",
+			count: "({count})",
+			close: "Close",
+			create: "Create a readlist",
+			createSubmit: "Create readlist",
+		},
+		pin: {
+			pin: "Pin",
+			unpin: "Unpin",
+			alerts: {
+				limit: {
+					title: "Pin limit reached",
+					body: "You can pin up to {max} readlists. Unpin one before pinning another.",
 				},
 			},
 		},

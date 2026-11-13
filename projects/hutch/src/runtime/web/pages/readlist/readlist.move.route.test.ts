@@ -98,7 +98,7 @@ async function listedOn(agent: TestAgent, path: string): Promise<(string | null)
 }
 
 async function readlistLabels(agent: TestAgent): Promise<(string | null)[]> {
-	return Array.from((await listing(agent, "/queue")).querySelectorAll("[data-test-readlist]"), (el) => el.textContent);
+	return Array.from((await listing(agent, "/queue")).querySelectorAll('[data-test-readlist], [data-test-readlist-popover="more"] [data-test-readlist-more-entry]'), (el) => el.textContent);
 }
 
 function toastMessage(doc: Document): string | null | undefined {

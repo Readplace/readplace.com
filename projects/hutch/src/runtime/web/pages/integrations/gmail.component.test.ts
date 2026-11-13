@@ -236,6 +236,19 @@ describe("Gmail mandatory All and independent custom choices", () => {
 		assert.equal(first.hasAttribute("hidden"), true);
 		assert.equal(first.parentElement?.id, "gmail-dialog-body");
 	});
+
+	it.each<[number, number]>([
+		[9, 0],
+		[10, 1],
+	])("offers a readlist filter atop the picker when All and %i more readlists are on offer: %i filter", (customCount, filterCount) => {
+		const custom = Array.from({ length: customCount }, (_unused, index) => ({ slug: ReadlistSlugSchema.parse(`list-${index}`), label: `List ${index}` }));
+		const doc = pageDocument(input({ readlists: [DEFAULT_READLIST, ...custom], state: { add: "1", sender: [TLDR] } }));
+		const menu = doc.querySelector("[data-test-gmail-readlist-picker] [data-readlist-filter-scope]");
+		assert(menu);
+		assert.equal(menu.querySelectorAll("[data-test-readlist-filter]").length, filterCount);
+		assert.equal(menu.querySelectorAll(".readlist-filter__option [data-test-gmail-readlist-option]").length, customCount + 1);
+		assert.equal(menu.firstElementChild?.hasAttribute("data-test-readlist-filter"), filterCount === 1);
+	});
 });
 
 function bodyBlocks(dialog: Element): string[] {

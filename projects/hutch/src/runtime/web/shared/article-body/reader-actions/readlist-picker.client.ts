@@ -5,6 +5,18 @@ export interface ReadlistPickerDeps {
 const PICKER = ".article-body__readlists";
 const TRIGGER = ".article-body__readlists-trigger";
 const OPTION = ".article-body__readlists-form .article-body__readlists-option";
+const MENU = ".article-body__readlists-menu";
+const SHEET = "article-body__readlists-menu--sheet";
+const GAP_BELOW_MENU = 16;
+const MIN_MENU_HEIGHT = 233;
+
+function fitMenu(input: { menu: HTMLElement; viewportHeight: number }): void {
+	input.menu.classList.remove(SHEET);
+	input.menu.style.removeProperty("max-height");
+	const room = input.viewportHeight - input.menu.getBoundingClientRect().top - GAP_BELOW_MENU;
+	if (room >= MIN_MENU_HEIGHT) input.menu.style.maxHeight = `${room}px`;
+	else input.menu.classList.add(SHEET);
+}
 
 export function initReadlistPicker(deps: ReadlistPickerDeps): { attach(): void } {
 	function pickers(): NodeListOf<Element> {
@@ -58,6 +70,9 @@ export function initReadlistPicker(deps: ReadlistPickerDeps): { attach(): void }
 			(event) => {
 				for (const picker of pickers()) {
 					if (picker !== event.target || !picker.hasAttribute("open")) continue;
+					for (const menu of picker.querySelectorAll<HTMLElement>(MENU)) {
+						fitMenu({ menu, viewportHeight: deps.document.documentElement.clientHeight });
+					}
 					picker.querySelector<HTMLElement>(OPTION)?.focus();
 				}
 			},

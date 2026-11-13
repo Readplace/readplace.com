@@ -1,3 +1,6 @@
+import { initReadlistFilter } from "../../shared/readlist-filter/readlist-filter.client";
+import { initReadlistMore } from "./readlist-more.client";
+
 export interface ReadlistDeps {
 	document: Document;
 }
@@ -72,6 +75,8 @@ function announce(document: Document, message: string): void {
 }
 
 export function initReadlist(deps: ReadlistDeps): void {
+	initReadlistFilter({ document: deps.document });
+	initReadlistMore({ document: deps.document });
 	const openers = new Map<string, HTMLElement>();
 
 	deps.document.addEventListener("click", (event) => {

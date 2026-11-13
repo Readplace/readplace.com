@@ -474,6 +474,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		readlistNavHtml: renderReadlistNav(
 			buildReadlistNav({
 				readlists: options.rail.readlists,
+				pinnedReadlists: options.rail.pinnedReadlists,
 				activeSlug: options.rail.activeReadlist.slug,
 				newReadlistAction: options.rail.newReadlistAction,
 				limitAlertHref: options.rail.limitAlertHref,

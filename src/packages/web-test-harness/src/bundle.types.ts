@@ -192,6 +192,8 @@ import type {
 	DeleteReadlistArticleByUrl,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	PinReadlistDefinition,
+	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
 	ClearReadlistDefinitionPurpose,
 	FindUserArticlesByUrl,
@@ -523,6 +525,8 @@ export interface ArticleStoreBundle {
 	deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	pinReadlistDefinition: PinReadlistDefinition;
+	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{

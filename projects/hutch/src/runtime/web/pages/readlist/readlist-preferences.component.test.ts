@@ -53,6 +53,7 @@ function page(overrides: {
 			canCreate: overrides.canCreate ?? true,
 			offer: overrides.offer,
 			nonEmptyReadlists: [],
+			pinnedReadlists: [],
 		},
 		values: { purpose: overrides.purpose },
 		wizardOpen: overrides.wizardOpen ?? false,

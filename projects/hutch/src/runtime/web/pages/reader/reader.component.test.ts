@@ -43,6 +43,7 @@ const NO_QUEUE_FILING: ReaderReadlistFiling = {
 const PICKER = {
 	assignUrl: "/queue/abc/assign?swap=filing&utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
 	returnTo: "/queue/abc/view",
+	filterHtml: "",
 	options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" as const }],
 	create: {
 		createUrl: "/queue/abc/create-and-assign?utm_source=reader-readlists&utm_medium=internal&utm_content=create-and-assign",

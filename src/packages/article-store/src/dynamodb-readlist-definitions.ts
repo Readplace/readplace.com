@@ -16,8 +16,10 @@ import type {
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
 	ListReadlistDefinitions,
+	PinReadlistDefinition,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	UnpinReadlistDefinition,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
 import { READLIST_DEFINITION_KEY_PREFIX, readlistDefinitionKey } from "./user-readlist-partition";
@@ -28,6 +30,7 @@ const ReadlistDefinitionRow = z.object({
 	queuePurpose: z.string().optional(),
 	starterCampaignId: z.string().optional(),
 	createdAt: z.string(),
+	pinnedAt: z.string().optional(),
 });
 
 export function initDynamoDbReadlistDefinitions(deps: {
@@ -38,8 +41,10 @@ export function initDynamoDbReadlistDefinitions(deps: {
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	listReadlistDefinitions: ListReadlistDefinitions;
+	pinReadlistDefinition: PinReadlistDefinition;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	unpinReadlistDefinition: UnpinReadlistDefinition;
 } {
 	const readlistDefinitions = defineDynamoTable({
 		client: deps.client,
@@ -73,6 +78,7 @@ export function initDynamoDbReadlistDefinitions(deps: {
 					? {}
 					: { starterCampaignId: row.starterCampaignId }),
 				createdAt: new Date(row.createdAt),
+				...(row.pinnedAt === undefined ? {} : { pinnedAt: new Date(row.pinnedAt) }),
 			}))
 			.sort(
 				(a, b) =>
@@ -116,6 +122,31 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		return { renamed: true };
 	};
 
+	const pinReadlistDefinition: PinReadlistDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const outcome = await writeIfCondition(() => readlistDefinitions.update({
+			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+			UpdateExpression: "SET #pinnedAt = if_not_exists(#pinnedAt, :pinnedAt)",
+			ConditionExpression: "attribute_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url", "#pinnedAt": "pinnedAt" },
+			ExpressionAttributeValues: { ":pinnedAt": params.pinnedAt.toISOString() },
+		}));
+		if (outcome.kind === "condition-failed") return { pinned: false };
+		return { pinned: true };
+	};
+
+	const unpinReadlistDefinition: UnpinReadlistDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const outcome = await writeIfCondition(() => readlistDefinitions.update({
+			Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+			UpdateExpression: "REMOVE #pinnedAt",
+			ConditionExpression: "attribute_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url", "#pinnedAt": "pinnedAt" },
+		}));
+		if (outcome.kind === "condition-failed") return { unpinned: false };
+		return { unpinned: true };
+	};
+
 	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const outcome = await writeIfCondition(() => readlistDefinitions.update({
@@ -157,7 +188,9 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		createReadlistDefinition,
 		deleteReadlistDefinition,
 		listReadlistDefinitions,
+		pinReadlistDefinition,
 		renameReadlistDefinition,
 		setReadlistDefinitionPurpose,
+		unpinReadlistDefinition,
 	};
 }

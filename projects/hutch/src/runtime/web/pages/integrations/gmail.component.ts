@@ -8,6 +8,7 @@ import { GMAIL_PATH } from "./gmail.url";
 import type { GmailAddNewslettersAction, GmailForwardingState, GmailMappingDestination, GmailMappingRow, GmailMappingsViewModel } from "./gmail-mappings.viewmodel";
 import type { GmailPageViewModel, GmailPollViewModel } from "./gmail.viewmodel";
 import { toGmailPollViewModel } from "./gmail.viewmodel";
+import { renderReadlistFilter } from "../../shared/readlist-filter/readlist-filter.component";
 import {
 	renderGmailSenderResultsHtml,
 	renderGmailSenderSelectionHtml,
@@ -85,7 +86,11 @@ function renderMappingChoice(vm: GmailPageViewModel, outOfBand: boolean): string
 		delivery: vm.delivery,
 		notificationSender: vm.notificationSender,
 		outOfBand,
-		readlistPickerHtml: render(GMAIL_READLIST_PICKER_TEMPLATE, { ...vm.readlistPicker, submitLoader: SUBMIT_LOADER_HTML }),
+		readlistPickerHtml: render(GMAIL_READLIST_PICKER_TEMPLATE, {
+			...vm.readlistPicker,
+			filterHtml: renderReadlistFilter({ readlistCount: vm.readlistPicker.options.length, tag: "li", extraClass: "gmail__readlist-filter" }),
+			submitLoader: SUBMIT_LOADER_HTML,
+		}),
 		submitLoader: SUBMIT_LOADER_HTML,
 	});
 }

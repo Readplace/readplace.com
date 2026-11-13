@@ -56,7 +56,7 @@ Omnivore had years of head start. Readplace is younger, and I would rather show 
 | Highlights and notes | Yes | One colour, a note on each | Shipped |
 | Full-text search | Yes | No | Planned |
 | Newsletter inbox | Yes | Forwarding address per newsletter | Shipped |
-| Labels / tags | Yes | Readlists, up to 7 | Shipped as readlists, no tags |
+| Labels / tags | Yes | Readlists, up to 15 | Shipped as readlists, no tags |
 | PDFs | Yes | Yes, scans read by OCR | Shipped |
 | Native mobile apps | Yes | iPhone, Mac and Android | Shipped |
 | RSS feed reader | Yes | No | Not planned yet |

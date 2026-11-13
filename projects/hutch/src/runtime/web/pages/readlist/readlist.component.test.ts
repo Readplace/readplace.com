@@ -26,6 +26,7 @@ const RAIL: ReadlistRailViewModel = {
 	canCreate: true,
 	offer: undefined,
 	nonEmptyReadlists: [],
+	pinnedReadlists: [],
 };
 const DEFAULT_FILTERS: ReadlistUrlState = { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 1 };
 

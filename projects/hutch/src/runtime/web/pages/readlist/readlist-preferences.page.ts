@@ -14,6 +14,7 @@ import {
 	ReadlistSlugSchema,
 	decideReadlistPurpose,
 	decideReadlistPurposeClear,
+	pinnedReadlistSlugs,
 	type ReadlistPurposeRejection,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
@@ -185,6 +186,7 @@ export function initReadlistPreferencesRoutes(deps: {
 			activeReadlist,
 			readlists,
 			activePurpose: definition.purpose,
+			pinnedReadlists: pinnedReadlistSlugs(definitions),
 		};
 		const draft = parsed.purpose;
 		const error: PreferencesError =

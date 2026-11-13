@@ -13,14 +13,16 @@ import {
 	readerReadlists,
 } from "./readlist-context";
 import {
+	DEFAULT_READLIST_SLUG,
 	ReadlistSlugSchema,
 	type ReadlistSlug,
 	decideReadlistDelete,
 	decideReadlistMigration,
+	decideReadlistPin,
 	decideReadlistRename,
 	readlistAfterDelete,
 } from "@packages/domain/readlist";
-import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, READLIST_LIMIT_MESSAGE, type ReadlistCreateDialogRejection, READLIST_ERROR_UNKNOWN_READLIST, READLIST_RENAME_REJECTIONS, } from "./readlist.error";
+import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, READLIST_LIMIT_MESSAGE, type ReadlistCreateDialogRejection, READLIST_ERROR_PIN_LIMIT, READLIST_ERROR_UNKNOWN_READLIST, READLIST_RENAME_REJECTIONS, } from "./readlist.error";
 import { READLIST_CREATE_POPOVER_ID, renderReadlistCreateForm } from "./readlist-create.component";
 import { readlistRenamePopoverId, renderReadlistRenameForm } from "./readlist-rename.component";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
@@ -36,7 +38,7 @@ const READLIST_PURGE_PAGE_SIZE = 25;
 export function initReadlistQueueRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findReadlistArticles" | "requireWriteAccess" | "upsertReadlist" | "listReadlistDefinitions" | "renameReadlistDefinition" | "moveReadlistArticles" | "purgeReadlistFitOverrides" | "deleteReadlistDefinition"
+		"findReadlistArticles" | "requireWriteAccess" | "upsertReadlist" | "listReadlistDefinitions" | "renameReadlistDefinition" | "pinReadlistDefinition" | "unpinReadlistDefinition" | "moveReadlistArticles" | "purgeReadlistFitOverrides" | "deleteReadlistDefinition" | "now"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -218,6 +220,57 @@ export function initReadlistQueueRoutes(
 			}
 			const after = readlistAfterDelete({ viewed: context.activeReadlist.slug, deleted: decision.slug });
 			res.redirect(303, wantsSiren(req) ? readlistHref({ readlist: after, readlistKey: readlistQueryKeyOf(req) }) : buildReadlistUrl({ readlist: after }));
+		},
+	);
+
+	const readlistGone = buildReadlistUrl({}, [["queue_error", READLIST_ERROR_UNKNOWN_READLIST]]);
+
+	router.post(
+		"/queues/:slug/pin",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const context = await resolveReadlistContext(req, userId);
+			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
+			if (!requested.success) {
+				res.redirect(303, readlistGone);
+				return;
+			}
+			const decision = decideReadlistPin({
+				slug: requested.data,
+				readlists: context.readlists,
+				pinned: context.pinnedReadlists,
+			});
+			if (!decision.ok && decision.reason === "limit-reached") {
+				res.redirect(303, buildReadlistUrl({ readlist: context.activeReadlist.slug }, [["queue_error", READLIST_ERROR_PIN_LIMIT]]));
+				return;
+			}
+			if (!decision.ok) {
+				res.redirect(303, readlistGone);
+				return;
+			}
+			const { pinned } = await deps.pinReadlistDefinition({ userId, slug: decision.slug, pinnedAt: deps.now() });
+			res.redirect(303, pinned ? buildReadlistUrl({ readlist: context.activeReadlist.slug }) : readlistGone);
+		},
+	);
+
+	router.post(
+		"/queues/:slug/unpin",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const context = await resolveReadlistContext(req, userId);
+			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
+			if (!requested.success || requested.data === DEFAULT_READLIST_SLUG) {
+				res.redirect(303, readlistGone);
+				return;
+			}
+			const { unpinned } = await deps.unpinReadlistDefinition({ userId, slug: requested.data });
+			res.redirect(303, unpinned ? buildReadlistUrl({ readlist: context.activeReadlist.slug }) : readlistGone);
 		},
 	);
 

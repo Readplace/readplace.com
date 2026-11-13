@@ -2,7 +2,9 @@ import { z } from "zod";
 
 export const READLIST_LABEL_MAX_LENGTH = 24;
 
-export const READLIST_MAX_PER_USER = 7;
+export const READLIST_MAX_PER_USER = 15;
+
+export const READLIST_PINNED_MAX = 4;
 
 export const ReadlistLabelSchema = z.string().min(1).max(READLIST_LABEL_MAX_LENGTH);
 

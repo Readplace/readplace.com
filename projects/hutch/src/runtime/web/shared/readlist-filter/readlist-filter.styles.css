@@ -1,0 +1,24 @@
+.readlist-filter {
+  flex: none;
+}
+
+.readlist-filter__input {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.readlist-filter__status {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+
+.readlist-filter[hidden],
+.readlist-filter__option[hidden] {
+  display: none;
+}
+
+.readlist-filter__status:not(:empty) {
+  margin-top: 8px;
+}

@@ -1,3 +1,5 @@
+import { initReadlistFilter } from "../../shared/readlist-filter/readlist-filter.client";
+
 export interface GmailPickerDeps {
 	document: Document;
 }
@@ -9,6 +11,7 @@ const FOCUSED_PICKER_ITEM = "[data-gmail-picker-focus]:focus, [data-gmail-picker
 const ARROW_STEPS: Partial<Record<string, number>> = { ArrowDown: 1, ArrowUp: -1 };
 
 export function initGmailPicker({ document }: GmailPickerDeps): void {
+	initReadlistFilter({ document });
 	if (document.documentElement.hasAttribute("data-gmail-picker-attached")) return;
 	document.documentElement.setAttribute("data-gmail-picker-attached", "");
 	const pickers = () => document.querySelectorAll<HTMLDetailsElement>("[data-gmail-picker]");

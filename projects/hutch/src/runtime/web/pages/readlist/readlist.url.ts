@@ -150,6 +150,14 @@ export function readlistRenamePath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/rename`;
 }
 
+export function readlistPinPath(readlist: ReadlistSlug): string {
+	return `${READLIST_CREATE_PATH}/${readlist}/pin`;
+}
+
+export function readlistUnpinPath(readlist: ReadlistSlug): string {
+	return `${READLIST_CREATE_PATH}/${readlist}/unpin`;
+}
+
 export function readlistPreferencesPath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/preferences`;
 }

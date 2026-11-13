@@ -41,6 +41,8 @@ import type {
 	FindSavedUrls,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	PinReadlistDefinition,
+	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
 	ClearReadlistDefinitionPurpose,
 	ListUserSavesForUrl,
@@ -171,6 +173,8 @@ export interface ReadlistDependencies {
 	moveReadlistArticles: MoveReadlistArticles;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	pinReadlistDefinition: PinReadlistDefinition;
+	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;

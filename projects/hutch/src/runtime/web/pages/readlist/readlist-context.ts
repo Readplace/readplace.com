@@ -1,5 +1,6 @@
 import {
 	DEFAULT_READLIST_SLUG,
+	pinnedReadlistSlugs,
 	readerReadlists,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
@@ -18,6 +19,7 @@ export interface ReadlistContext {
 	activeReadlist: Readlist;
 	readlists: readonly Readlist[];
 	activePurpose: string | undefined;
+	pinnedReadlists: readonly ReadlistSlug[];
 }
 
 const MAINLINE_READLISTS: readonly Readlist[] = [DEFAULT_READLIST];
@@ -33,6 +35,7 @@ export function mainlineReadlistContext(query: Record<string, unknown>): Readlis
 		activeReadlist: DEFAULT_READLIST,
 		readlists: MAINLINE_READLISTS,
 		activePurpose: undefined,
+		pinnedReadlists: [],
 	};
 }
 
@@ -74,6 +77,7 @@ export function initResolveReadlistContext(deps: {
 			activeReadlist,
 			readlists,
 			activePurpose: definitions.find((definition) => definition.slug === activeReadlist.slug)?.purpose,
+			pinnedReadlists: pinnedReadlistSlugs(definitions),
 		};
 	};
 }

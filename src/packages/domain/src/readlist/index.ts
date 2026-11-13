@@ -1,6 +1,7 @@
 export {
 	READLIST_LABEL_MAX_LENGTH,
 	READLIST_MAX_PER_USER,
+	READLIST_PINNED_MAX,
 	ReadlistLabelSchema,
 	ReadlistSlugSchema,
 	type ReadlistSlug,
@@ -65,6 +66,12 @@ export {
 	type ReadlistRenameRejection,
 } from "./readlist-rename";
 export { nextAvailableReadlistLabel } from "./next-available-readlist-label";
+export {
+	decideReadlistPin,
+	pinnedReadlistSlugs,
+	type ReadlistPinDecision,
+	type ReadlistPinRejection,
+} from "./readlist-pin";
 export {
 	READLIST_FIT_OVERRIDES_KEPT,
 	ReadlistFitOverrideIdSchema,

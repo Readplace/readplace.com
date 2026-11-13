@@ -2079,8 +2079,8 @@ describe("MCP readlist tools", () => {
 			message: "All already receives every save",
 		},
 		{
-			outcome: { status: "limit_reached", limit: 7 },
-			message: "maximum of 7 readlists",
+			outcome: { status: "limit_reached", limit: 15 },
+			message: "maximum of 15 readlists",
 		},
 		{
 			outcome: {
@@ -2206,8 +2206,8 @@ describe("MCP readlist tools", () => {
 			message: "All already receives every save",
 		},
 		{
-			outcome: { status: "limit_reached", limit: 7 },
-			message: "maximum of 7 readlists",
+			outcome: { status: "limit_reached", limit: 15 },
+			message: "maximum of 15 readlists",
 		},
 		{
 			outcome: {

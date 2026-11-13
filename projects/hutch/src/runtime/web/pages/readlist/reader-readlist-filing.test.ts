@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { JSDOM } from "jsdom";
 import { DEFAULT_READLIST, READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
 import { buildReaderReadlistFiling } from "./reader-readlist-filing";
@@ -28,6 +30,7 @@ describe("buildReaderReadlistFiling", () => {
 			assignUrl: "/queue/abc123/assign?swap=filing&utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
 			returnTo: "/queue/abc123/view",
 			options: [],
+			filterHtml: "",
 			create: CREATE,
 		});
 	});
@@ -54,6 +57,7 @@ describe("buildReaderReadlistFiling", () => {
 			assignUrl: "/queue/abc123/assign?swap=filing&utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
 			returnTo: "/queue/abc123/view",
 			options: [{ slug: LATER, label: "Later", iconName: READLIST_KIND_ICON.custom }],
+			filterHtml: "",
 			create: CREATE,
 		});
 	});
@@ -75,6 +79,7 @@ describe("buildReaderReadlistFiling", () => {
 			assignUrl: "/queue/abc123/assign?swap=filing&utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
 			returnTo: "/queue/abc123/view",
 			options: [],
+			filterHtml: "",
 			create: CREATE,
 		});
 		expect(filing.tags?.tags).toEqual([
@@ -206,5 +211,22 @@ describe("buildReaderReadlistFiling", () => {
 			expect(filing.toast).toBeUndefined();
 			expect(filing.tags?.tags).toEqual([{ slug: DEEP_WORK, label: "Deep Work" }]);
 		});
+	});
+
+	it("offers a filter above the picker once more than ten readlists could take the article", () => {
+		const definitions = Array.from({ length: 11 }, (_unused, index) => ({ slug: ReadlistSlugSchema.parse(`list-${index}`), label: `List ${index}`, createdAt: new Date("2026-01-01T00:00:00.000Z") }));
+
+		const filing = buildReaderReadlistFiling({
+			articleId: "abc123",
+			definitions,
+			saves: [{}],
+			returnTo: "/queue/abc123/view",
+			filed: undefined,
+			markStatusConfirmGated: false,
+		});
+
+		const filter = new JSDOM(`<ul>${filing.picker?.filterHtml}</ul>`).window.document.querySelector("[data-test-readlist-filter]");
+		assert(filter, "the picker must carry a filter");
+		expect(filter.tagName).toBe("LI");
 	});
 });

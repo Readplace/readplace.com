@@ -501,7 +501,7 @@ describe("/developers copy", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		expect(marked(await readPage(harness), "data-test-limit")).toEqual([
-			"Up to 7 named readlists, besides All.",
+			"Up to 15 named readlists, besides All.",
 			"Readlist names up to 24 characters.",
 			"Up to 3 MB per file sent with save-content. A larger file goes through an upload slot.",
 			"Up to 500 MB per PDF and 28 MB per HTML page through an upload slot.",

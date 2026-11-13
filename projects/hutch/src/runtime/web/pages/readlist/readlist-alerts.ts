@@ -1,4 +1,5 @@
 import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
+import { READLIST_PINNED_MAX } from "@packages/domain/readlist";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import type { AlertContent } from "@packages/web-shell";
@@ -7,6 +8,7 @@ import { SAVE_QUEUED_NOTICE } from "../../api/save-queued-siren";
 import {
 	READLIST_CREATE_REJECTIONS,
 	READLIST_ERROR_LIMIT,
+	READLIST_ERROR_PIN_LIMIT,
 	READLIST_ERROR_UNKNOWN_READLIST,
 	READLIST_LIMIT_MESSAGE,
 	READLIST_NOTICE_SAVE_QUEUED,
@@ -25,6 +27,8 @@ function errorAlert(alert: { title: string; body: string }): AlertContent {
 	};
 }
 
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
+
 const ALERTS: Record<string, AlertContent> = {
 	[READLIST_ERROR_LIMIT]: errorAlert({
 		title: "Readlist limit reached",
@@ -33,6 +37,10 @@ const ALERTS: Record<string, AlertContent> = {
 	[READLIST_ERROR_UNKNOWN_READLIST]: errorAlert({
 		title: "Readlist not found",
 		body: "This readlist no longer exists. Select another readlist to continue.",
+	}),
+	[READLIST_ERROR_PIN_LIMIT]: errorAlert({
+		title: t("readlistNav.pin.alerts.limit.title"),
+		body: t("readlistNav.pin.alerts.limit.body", { max: READLIST_PINNED_MAX }),
 	}),
 	[READLIST_NOTICE_SAVE_QUEUED]: { variant: "info", message: { text: SAVE_QUEUED_NOTICE } },
 	...Object.fromEntries(
@@ -54,8 +62,6 @@ export const INBOX_UNAVAILABLE_ALERT: AlertContent = {
 	title: { text: "That custom email isn't available", element: "p" },
 	message: { text: "It may have been disabled. Pick another custom email." },
 };
-
-const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 export const INBOX_LIMIT_ALERT: AlertContent = errorAlert({
 	title: t("readlistInboxes.create.alerts.limit.title"),

@@ -460,6 +460,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			deleteReadlistArticleByUrl: articleStoreMemory.deleteReadlistArticleByUrl,
 			listReadlistDefinitions: articleStoreMemory.listReadlistDefinitions,
 			renameReadlistDefinition: articleStoreMemory.renameReadlistDefinition,
+			pinReadlistDefinition: articleStoreMemory.pinReadlistDefinition,
+			unpinReadlistDefinition: articleStoreMemory.unpinReadlistDefinition,
 			setReadlistDefinitionPurpose: articleStoreMemory.setReadlistDefinitionPurpose,
 			clearReadlistDefinitionPurpose: articleStoreMemory.clearReadlistDefinitionPurpose,
 			getSummaryToggleState: articleStoreMemory.getSummaryToggleState,

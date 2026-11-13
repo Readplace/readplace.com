@@ -12,7 +12,8 @@ import { CRAWL_ESTIMATE_STYLES } from "../../shared/crawl-estimate/crawl-estimat
 import { SENDER_POPOVER_STYLES } from "../../shared/sender-popover/sender-popover.styles";
 import { ARTICLE_DELETE_STYLES } from "./readlist-card/article-delete.styles";
 import { READLIST_KEEP_OFFER_STYLES } from "./readlist-keep-offer.styles";
+import { READLIST_FILTER_STYLES } from "../../shared/readlist-filter/readlist-filter.styles";
 import { READLIST_NAME_FORM_STYLES } from "./readlist-name-form.styles";
 
 const stylesPath = join(__dirname, "readlist.styles.css");
-export const READLIST_STYLES = `${UNDERLINE_TABS_STYLES}\n${IN_FLIGHT_DOTS_STYLES}\n${MENU_STYLES}\n${PAGINATION_STYLES}\n${ALERT_STYLES}\n${READLIST_ROW_STYLES}\n${READLIST_NAME_FORM_STYLES}\n${READLIST_KEEP_OFFER_STYLES}\n${ARTICLE_DELETE_STYLES}\n${readFileSync(stylesPath, "utf-8")}\n${SENDER_POPOVER_STYLES}\n${CRAWL_ESTIMATE_STYLES}`;
+export const READLIST_STYLES = `${UNDERLINE_TABS_STYLES}\n${IN_FLIGHT_DOTS_STYLES}\n${MENU_STYLES}\n${PAGINATION_STYLES}\n${ALERT_STYLES}\n${READLIST_ROW_STYLES}\n${READLIST_NAME_FORM_STYLES}\n${READLIST_KEEP_OFFER_STYLES}\n${READLIST_FILTER_STYLES}\n${ARTICLE_DELETE_STYLES}\n${readFileSync(stylesPath, "utf-8")}\n${SENDER_POPOVER_STYLES}\n${CRAWL_ESTIMATE_STYLES}`;

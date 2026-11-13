@@ -62,8 +62,10 @@ import type {
 	PurgeReadlistFitOverrides,
 	ReadlistFitOverride,
 	RecordReadlistFitOverride,
+	PinReadlistDefinition,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	UnpinReadlistDefinition,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
 	FindQueueRowKeys,
@@ -274,6 +276,8 @@ export function initInMemoryArticleStore(): {
 	deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	pinReadlistDefinition: PinReadlistDefinition;
+	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
@@ -343,6 +347,7 @@ export function initInMemoryArticleStore(): {
 			purpose?: string;
 			createdAt: Date;
 			starterCampaignId?: string;
+			pinnedAt?: Date;
 		}
 	>();
 	const readlistFitOverrides = new Map<
@@ -1075,6 +1080,22 @@ export function initInMemoryArticleStore(): {
 		return { renamed: true };
 	};
 
+	const pinReadlistDefinition: PinReadlistDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
+		if (!definition) return { pinned: false };
+		definition.pinnedAt ??= params.pinnedAt;
+		return { pinned: true };
+	};
+
+	const unpinReadlistDefinition: UnpinReadlistDefinition = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
+		if (!definition) return { unpinned: false };
+		definition.pinnedAt = undefined;
+		return { unpinned: true };
+	};
+
 	const setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
@@ -1139,12 +1160,13 @@ export function initInMemoryArticleStore(): {
 	const listReadlistDefinitions: ListReadlistDefinitions = async (userId) =>
 		[...readlistDefinitions.values()]
 			.filter((definition) => definition.userId === userId)
-			.map(({ slug, label, purpose, createdAt, starterCampaignId }) => ({
+			.map(({ slug, label, purpose, createdAt, starterCampaignId, pinnedAt }) => ({
 				slug,
 				label,
 				purpose,
 				createdAt,
 				...(starterCampaignId === undefined ? {} : { starterCampaignId }),
+				...(pinnedAt === undefined ? {} : { pinnedAt }),
 			}))
 			.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.slug.localeCompare(b.slug));
 
@@ -1560,6 +1582,8 @@ export function initInMemoryArticleStore(): {
 		deleteReadlistArticleByUrl,
 		listReadlistDefinitions,
 		renameReadlistDefinition,
+		pinReadlistDefinition,
+		unpinReadlistDefinition,
 		setReadlistDefinitionPurpose,
 		clearReadlistDefinitionPurpose,
 		getSummaryToggleState,

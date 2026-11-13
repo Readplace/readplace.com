@@ -154,6 +154,43 @@
   list-style: none;
 }
 
+.article-body__readlists-menu {
+  max-height: max(calc(100dvh - 120px), 233px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.article-body__readlists-menu--sheet {
+  position: fixed;
+  top: auto;
+  bottom: 16px;
+  left: var(--page-gutter);
+  right: var(--page-gutter);
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+}
+
+.article-body__readlists-menu > .readlist-filter {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  margin: -4px -4px 4px;
+  padding: 4px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.article-body__readlists-menu > .article-body__readlists-create-item {
+  position: sticky;
+  bottom: -4px;
+  z-index: 1;
+  margin-bottom: -4px;
+  padding-bottom: 4px;
+  background: var(--card);
+}
+
 .article-body__readlists-form {
   margin: 0;
 }

@@ -11,6 +11,7 @@ import type { ReadlistDefinitionData } from "@packages/provider-contracts/articl
 import type { ReaderReadlistTags } from "../../shared/article-body/article-header/article-header.component";
 import type { ReaderReadlistPicker } from "../../shared/article-body/reader-actions/reader-actions.component";
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
+import { renderReadlistFilter } from "../../shared/readlist-filter/readlist-filter.component";
 import { READLIST_NAME_LABEL, READLIST_NAME_PLACEHOLDER } from "./readlist-name-form.component";
 import type { FilingToast } from "./readlist-mutation-fragments";
 import { READLIST_PATH } from "./readlist.url";
@@ -64,6 +65,7 @@ export function buildReaderReadlistFiling(input: {
 			}),
 			returnTo: input.returnTo,
 			options: assignable.map(({ slug, label }) => ({ slug, label, iconName: READLIST_KIND_ICON.custom })),
+			filterHtml: renderReadlistFilter({ readlistCount: assignable.length, tag: "li" }),
 			create,
 		};
 	};

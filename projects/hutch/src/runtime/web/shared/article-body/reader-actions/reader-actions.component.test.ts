@@ -65,7 +65,7 @@ const CREATE = {
 describe("readlists slot", () => {
 	it("gives the slot a stable id and no out-of-band swap inline", () => {
 		const { top } = WebReader({
-			actionBtns: { ...ACTION_BTNS, readlistPicker: { assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE } },
+			actionBtns: { ...ACTION_BTNS, readlistPicker: { assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", filterHtml: "", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE } },
 		});
 
 		const slot = parse(top.to("text/html").body).querySelector("#reader-readlists-slot");
@@ -75,7 +75,7 @@ describe("readlists slot", () => {
 
 	it("swaps the picker out of band with a slug it offers", () => {
 		const slot = parse(
-			renderReaderReadlistsSlotOob({ assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE }),
+			renderReaderReadlistsSlotOob({ assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", filterHtml: "", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE }),
 		).querySelector("#reader-readlists-slot");
 
 		assert(slot, "the slot must render");
@@ -101,6 +101,7 @@ describe("readlist picker", () => {
 				readlistPicker: {
 					assignUrl: "/queue/abc/assign",
 					returnTo: "/queue/abc/view",
+					filterHtml: "",
 					options: [
 						{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" },
 						{ slug: ReadlistSlugSchema.parse("later"), label: "Later", iconName: "file" },
@@ -154,6 +155,7 @@ describe("readlist picker", () => {
 				readlistPicker: {
 					assignUrl: "/queue/abc/assign",
 					returnTo: "/queue/abc/view",
+					filterHtml: "",
 					options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }],
 					create: undefined,
 				},
@@ -178,6 +180,7 @@ describe("readlist picker", () => {
 				readlistPicker: {
 					assignUrl: "/queue/abc/assign",
 					returnTo: "/queue/abc/view",
+					filterHtml: "",
 					options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }],
 					create: CREATE,
 				},
@@ -383,6 +386,7 @@ describe("toolbar order", () => {
 		readlistPicker: {
 			assignUrl: "/queue/abc/assign",
 			returnTo: "/queue/abc/view",
+			filterHtml: "",
 			options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }],
 			create: undefined,
 		},

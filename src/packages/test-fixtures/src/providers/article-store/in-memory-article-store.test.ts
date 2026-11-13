@@ -2083,6 +2083,33 @@ describe("initInMemoryArticleStore", () => {
 			).toEqual({ renamed: false });
 		});
 
+		it("keeps a readlist's first pin time and forgets it on unpin", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			const firstPin = new Date("2026-11-01T09:00:00.000Z");
+			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+
+			expect(await store.pinReadlistDefinition({ userId: USER_A, slug: WORK, pinnedAt: firstPin })).toEqual({
+				pinned: true,
+			});
+			await store.pinReadlistDefinition({ userId: USER_A, slug: WORK, pinnedAt: new Date("2026-11-02T09:00:00.000Z") });
+			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.pinnedAt)).toEqual([firstPin]);
+
+			expect(await store.unpinReadlistDefinition({ userId: USER_A, slug: WORK })).toEqual({ unpinned: true });
+			expect(await store.listReadlistDefinitions(USER_A)).toEqual([
+				expect.not.objectContaining({ pinnedAt: expect.anything() }),
+			]);
+		});
+
+		it("reports a readlist the reader does not hold as neither pinned nor unpinned", async () => {
+			const store = initInMemoryArticleStore();
+
+			expect(await store.pinReadlistDefinition({ userId: USER_A, slug: WORK, pinnedAt: new Date() })).toEqual({
+				pinned: false,
+			});
+			expect(await store.unpinReadlistDefinition({ userId: USER_A, slug: WORK })).toEqual({ unpinned: false });
+		});
+
 		it("clears a readlist's purpose and keeps the readlist", async () => {
 			const store = initInMemoryArticleStore();
 			const createdAt = new Date("2026-08-19T10:00:00.000Z");

@@ -526,9 +526,20 @@ form.htmx-request .gmail__submit-loader {
   gap: 4px;
 }
 
+.gmail__readlist-filter {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  margin-top: -4px;
+  padding-top: 4px;
+  padding-bottom: 8px;
+  background: var(--card);
+}
+
 .gmail__create-button {
   flex: none;
   width: var(--input-height);
+  height: var(--input-height);
   color: var(--muted-foreground);
   background: transparent;
 }
@@ -678,5 +689,11 @@ form.htmx-request .gmail__submit-loader {
 }
 
 .gmail__readlist-confirm {
-  padding: 4px 12px;
+  padding: 12px 4px 4px;
+}
+
+@media (max-width: 767px) {
+  .gmail__readlist-confirm .btn {
+    width: 100%;
+  }
 }
