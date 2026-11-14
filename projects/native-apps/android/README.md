@@ -68,6 +68,18 @@ readplace.com link would open somewhere they are not signed in. Android's defaul
 browser *is* the browser they use, and it carries their cookie jar, so our-host
 links are handed to the system untouched.
 
+**A downloaded EPUB goes to Downloads, not a share sheet.** Tapping Download EPUB
+hands the file to the system downloader, which writes it into the public Downloads
+collection and posts the notification that opens it in the reader's EPUB app. iOS
+has no such public collection, which is why it offers the file to a share sheet;
+Android's share sheet has no "save to device" target, so a share-only flow would
+lose keeping the file. The system names the file and de-duplicates the name, so the
+app needs no filename rule and no temporary directory. The download request carries
+the WebView's cookies for our own article link, so a file only its owner may read,
+such as an uploaded book, downloads like any other. The downloader sends those
+headers again on every redirect it follows, so the EPUB route must not redirect to
+another host.
+
 **A distinct OAuth redirect.** The iOS app is registered against
 `readplace://oauth-callback`; this app is registered against
 `readplace://oauth-callback/android`. Redirect URIs are matched by exact string per

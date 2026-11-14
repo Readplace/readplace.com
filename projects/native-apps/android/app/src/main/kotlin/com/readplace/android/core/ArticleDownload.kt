@@ -21,3 +21,13 @@ fun isArticleDownloadUrl(url: String): Boolean {
 		?.split("&")
 		?.any { it == "format=epub" } == true
 }
+
+fun articleDownloadHeaders(
+	url: String,
+	userAgent: String?,
+	cookiesFor: (String) -> String?,
+): Map<String, String> = buildMap {
+	if (userAgent != null) put("User-Agent", userAgent)
+	val cookies = if (isArticleDownloadUrl(url)) cookiesFor(url) else null
+	if (!cookies.isNullOrBlank()) put("Cookie", cookies)
+}
