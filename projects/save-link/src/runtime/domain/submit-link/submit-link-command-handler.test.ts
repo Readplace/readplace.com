@@ -549,6 +549,19 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(publishedDetailTypes(published)).not.toContain("QueueEntryCreated");
 	});
 
+	it("marks an imported link as one the reader chose, though the import asks for it as an automatic save", async () => {
+		const store = initInMemoryArticleStore();
+		const handler = createHandler({
+			saveArticleAsRequested: store.saveArticleAsRequested,
+			updateArticleStatus: store.updateArticleStatus,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "import" }, saveTrigger: "automatic" }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(store.readHandPickedAt({ userId, url: exampleUrl })).toEqual(allocatedSavedAt);
+	});
+
 	it("asks nothing for a newsletter link already sitting in the reader's queue", async () => {
 		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({
@@ -1428,6 +1441,7 @@ describe("a redelivered save against the stored rows", () => {
 		metadata: { title: "Post", siteName: "example.com", excerpt: "", wordCount: 10 },
 		estimatedReadTime: MinutesSchema.parse(1),
 		provenance: { kind: "web" } as const,
+		saveTrigger: "manual" as const,
 	};
 
 	function storeHandler(store: ReturnType<typeof initInMemoryArticleStore>, overrides: Partial<HandlerDeps> = {}) {

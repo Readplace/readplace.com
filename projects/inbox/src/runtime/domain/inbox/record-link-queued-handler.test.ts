@@ -95,6 +95,7 @@ async function createHandler(options: {
 		estimatedReadTime: MinutesSchema.parse(0),
 		provenance: { kind: "web" } as const,
 		savedAt: NOW,
+		saveTrigger: "manual" as const,
 	});
 	const queue = async (url: string) => {
 		const { saved } = await articles.saveArticle(saveParams(url));

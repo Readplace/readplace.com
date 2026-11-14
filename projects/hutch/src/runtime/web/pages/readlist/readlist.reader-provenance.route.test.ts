@@ -99,6 +99,7 @@ describe("Reader save-provenance tag", () => {
 				estimatedReadTime: MinutesSchema.parse(0),
 				provenance: { kind: "email", senderEmail },
 				savedAt: new Date(),
+				saveTrigger: "manual",
 			});
 			return { agent, articleId: saved.id.value };
 		}

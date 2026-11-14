@@ -88,6 +88,7 @@ async function harness(
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: NOW,
+			saveTrigger: "manual",
 		});
 	const readlistsHolding = async (url: string) =>
 		(await store.listUserSavesForUrl({ userId: USER, url })).map((save) => save.readlist ?? DEFAULT_READLIST_SLUG).sort();
@@ -600,6 +601,7 @@ describe("initFileArticleIntoReadlistCommandHandler on a redrive", () => {
 			provenance: { kind: "web" },
 			suggestionAttribution,
 			savedAt: NOW,
+			saveTrigger: "manual",
 		});
 
 		await h.run(command());

@@ -153,7 +153,7 @@ describe("findLinkQueueRowKeys", () => {
 
 	it("returns the queue row keys the store finds for the candidates", async () => {
 		const store = initInMemoryArticleStore();
-		await store.saveArticle({ ...articleRow(ORIGINAL), userId, provenance: { kind: "web" } });
+		await store.saveArticle({ ...articleRow(ORIGINAL), userId, provenance: { kind: "web" }, saveTrigger: "manual" });
 		const findLinkQueueRowKeys = initFindLinkQueueRowKeys({
 			findIdentityRow: store.findIdentityRow,
 			findQueueRowKeys: store.findQueueRowKeys,
@@ -166,7 +166,7 @@ describe("findLinkQueueRowKeys", () => {
 
 	it("finds the saved destination of an oversized tracking link so its inbox state can recover", async () => {
 		const store = initInMemoryArticleStore();
-		await store.saveArticle({ ...articleRow(ORIGINAL), userId, provenance: { kind: "email", senderEmail: "letter@example.com" } });
+		await store.saveArticle({ ...articleRow(ORIGINAL), userId, provenance: { kind: "email", senderEmail: "letter@example.com" }, saveTrigger: "automatic" });
 		await store.claimAlias({
 			aliasUrl: OVERSIZED_TRACKER,
 			targetOriginalUrl: ORIGINAL,

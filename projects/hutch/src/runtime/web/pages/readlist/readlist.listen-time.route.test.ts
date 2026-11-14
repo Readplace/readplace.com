@@ -71,6 +71,7 @@ async function appWithOwnersAudio(
 			estimatedReadTime: MinutesSchema.parse(3),
 			provenance: { kind: "web" },
 			savedAt,
+			saveTrigger: "manual",
 		});
 		if (url === AUDIO_URL && audioCrawl === "pending") continue;
 		await fixture.articleStore.writeContent({

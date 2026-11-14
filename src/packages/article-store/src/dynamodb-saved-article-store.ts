@@ -16,7 +16,7 @@ import { EnclosureSchema } from "@packages/media-contracts";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 import { ServedBodyFields, servedBodyOf } from "./served-body";
-import type { ArticleDiscoveryQuery, ArticleStatus, SavedArticle } from "@packages/domain/article";
+import type { ArticleDiscoveryQuery, ArticleStatus, SaveTrigger, SavedArticle } from "@packages/domain/article";
 import {
 	MinutesSchema,
 	ArticleStatusSchema,
@@ -79,6 +79,7 @@ import type {
 	SaveArticle,
 	SaveArticleGlobally,
 	SaveArticleParams,
+	MarkHandPicked,
 	SaveReadlistArticle,
 	SortField,
 	SortOrder,
@@ -191,6 +192,17 @@ function toOptionalDate(value: string | undefined): Date | undefined {
 	return value ? new Date(value) : undefined;
 }
 
+const PROTECTED_USER_ROW =
+	"(attribute_exists(savedAt) AND (attribute_exists(handPickedAt) OR attribute_not_exists(provenance) OR provenance.#kind IN (:web, :client, :mcp, :upload, :import)))";
+
+const PROTECTED_USER_ROW_VALUES = {
+	":web": "web",
+	":client": "client",
+	":mcp": "mcp",
+	":upload": "upload",
+	":import": "import",
+};
+
 const PERSONAL_PROVENANCE_FILTER =
 	"(attribute_not_exists(provenance.#kind) OR (provenance.#kind <> :suggestion AND provenance.#kind <> :seed))";
 
@@ -244,6 +256,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 }): {
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
+	markHandPicked: MarkHandPicked;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
@@ -444,31 +457,44 @@ export function initDynamoDbSavedArticleStore(deps: {
 		);
 	};
 
-	const writeUserArticleUnlessConditionLost = async ({
+	type UserRowSaveParams = Omit<SaveArticleParams, "saveTrigger">;
+	type UserRowWritten = { createdUserArticle: boolean; wroteUserArticle: boolean };
+	type UserRowWrite = {
+		partition: string;
+		params: UserRowSaveParams;
+		condition: string;
+		conditionValues: Record<string, string>;
+		conditionNames: Record<string, string>;
+	};
+
+	const updateUserRow = async ({
 		partition,
 		params,
 		condition,
 		conditionValues,
-	}: {
-		partition: string;
-		params: SaveArticleParams;
-		condition: string;
-		conditionValues: Record<string, string>;
-	}): Promise<{ createdUserArticle: boolean; wroteUserArticle: boolean }> => {
+		conditionNames,
+		provenance,
+		stampHandPicked,
+	}: UserRowWrite & { provenance: "set" | "keep"; stampHandPicked: boolean }): Promise<UserRowWritten> => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const sets = [
+			"savedAt = :savedAt",
+			...(provenance === "set" ? ["provenance = :provenance"] : []),
+			"#status = if_not_exists(#status, :unread)",
+			...(params.suggestionAttribution === undefined
+				? []
+				: ["suggestionAttribution = if_not_exists(suggestionAttribution, :attribution)"]),
+			...(stampHandPicked ? ["handPickedAt = if_not_exists(handPickedAt, :savedAt)"] : []),
+		];
 		const outcome = await writeIfCondition(() =>
 			userArticles.update({
 				Key: { userId: partition, url: articleResourceUniqueId.value },
-				UpdateExpression: `SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)${
-					params.suggestionAttribution === undefined
-						? ""
-						: ", suggestionAttribution = if_not_exists(suggestionAttribution, :attribution)"
-				}`,
+				UpdateExpression: `SET ${sets.join(", ")}`,
 				ConditionExpression: condition,
-				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeNames: { "#status": "status", ...conditionNames },
 				ExpressionAttributeValues: {
 					":savedAt": params.savedAt.toISOString(),
-					":provenance": params.provenance,
+					...(provenance === "set" ? { ":provenance": params.provenance } : {}),
 					":unread": "unread",
 					...(params.suggestionAttribution === undefined
 						? {}
@@ -482,14 +508,71 @@ export function initDynamoDbSavedArticleStore(deps: {
 		return { createdUserArticle: outcome.result.Attributes === undefined, wroteUserArticle: true };
 	};
 
+	const stampHandPickedIfRowExists = async ({
+		partition,
+		url,
+		at,
+	}: { partition: string; url: string; at: Date }): Promise<"marked" | "row-absent"> => {
+		const outcome = await writeIfCondition(() =>
+			userArticles.update({
+				Key: { userId: partition, url: ArticleResourceUniqueId.parse(url).value },
+				UpdateExpression: "SET handPickedAt = if_not_exists(handPickedAt, :at)",
+				ConditionExpression: "attribute_exists(savedAt)",
+				ExpressionAttributeValues: { ":at": at.toISOString() },
+			}),
+		);
+		if (outcome.kind === "condition-failed") return "row-absent";
+		return "marked";
+	};
+
+	const writeUserRowBySaveTrigger: Record<SaveTrigger, (write: UserRowWrite) => Promise<UserRowWritten>> = {
+		manual: async (write) => {
+			const written = await updateUserRow({ ...write, provenance: "set", stampHandPicked: true });
+			if (!written.wroteUserArticle) {
+				await stampHandPickedIfRowExists({ partition: write.partition, url: write.params.url, at: write.params.savedAt });
+			}
+			return written;
+		},
+		automatic: async (write) => {
+			const conditionValues = { ...write.conditionValues, ...PROTECTED_USER_ROW_VALUES };
+			const conditionNames = { ...write.conditionNames, "#kind": "kind" };
+			const restamped = await updateUserRow({
+				...write,
+				condition: `(${write.condition}) AND NOT ${PROTECTED_USER_ROW}`,
+				conditionValues,
+				conditionNames,
+				provenance: "set",
+				stampHandPicked: false,
+			});
+			if (restamped.wroteUserArticle) return restamped;
+			const kept = await updateUserRow({
+				...write,
+				condition: `(${write.condition}) AND attribute_exists(savedAt) AND ${PROTECTED_USER_ROW}`,
+				conditionValues,
+				conditionNames,
+				provenance: "keep",
+				stampHandPicked: false,
+			});
+			return { createdUserArticle: false, wroteUserArticle: kept.wroteUserArticle };
+		},
+	};
+
+	const writeUserArticleUnlessConditionLost = ({
+		saveTrigger,
+		...write
+	}: UserRowWrite & { saveTrigger: SaveTrigger | undefined }): Promise<UserRowWritten> =>
+		saveTrigger === undefined
+			? updateUserRow({ ...write, provenance: "set", stampHandPicked: false })
+			: writeUserRowBySaveTrigger[saveTrigger](write);
+
 	const readBackSave = async ({
 		partition,
 		params,
 		written,
 	}: {
 		partition: string;
-		params: SaveArticleParams;
-		written: { createdUserArticle: boolean; wroteUserArticle: boolean };
+		params: UserRowSaveParams;
+		written: UserRowWritten;
 	}): ReturnType<SaveArticle> => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		// Strongly-consistent read-your-writes: a default eventually-consistent read
@@ -510,7 +593,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const initSaveWrite = (userRowCondition: string) => async (
 		partition: string,
-		params: SaveArticleParams,
+		params: UserRowSaveParams,
+		saveTrigger: SaveTrigger | undefined,
 	) => {
 		const globallySavedAt = now();
 
@@ -528,7 +612,14 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 		const [, written] = await Promise.all([
 			upsertGlobal(),
-			writeUserArticleUnlessConditionLost({ partition, params, condition: userRowCondition, conditionValues: {} }),
+			writeUserArticleUnlessConditionLost({
+				partition,
+				params,
+				condition: userRowCondition,
+				conditionValues: {},
+				conditionNames: {},
+				saveTrigger,
+			}),
 		]);
 
 		return readBackSave({ partition, params, written });
@@ -536,7 +627,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const writeSaveAsRequested = async (
 		partition: string,
-		{ requestedAt, ...params }: SaveArticleParams & { requestedAt: Date },
+		{ requestedAt, ...params }: UserRowSaveParams & { requestedAt: Date },
+		saveTrigger: SaveTrigger | undefined,
 	): ReturnType<SaveArticle> => {
 		const requested = { ":requestedAt": requestedAt.toISOString() };
 		const globallySavedAt = now();
@@ -568,6 +660,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 			condition:
 				"(attribute_not_exists(savedAt) OR savedAt < :requestedAt) AND (attribute_not_exists(readAt) OR readAt < :requestedAt)",
 			conditionValues: requested,
+			conditionNames: {},
+			saveTrigger,
 		});
 		return readBackSave({ partition, params, written });
 	};
@@ -575,14 +669,17 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const writeSave = initSaveWrite("attribute_not_exists(savedAt) OR savedAt < :savedAt");
 	const writeSaveKeepingPosition = initSaveWrite("attribute_not_exists(savedAt)");
 
-	const saveArticle: SaveArticle = (params) => writeSave(params.userId, params);
-	const saveArticleKeepingPosition: SaveArticle = (params) =>
-		writeSaveKeepingPosition(params.userId, params);
+	const saveArticle: SaveArticle = ({ saveTrigger, ...params }) => writeSave(params.userId, params, saveTrigger);
+	const saveArticleKeepingPosition: SaveArticle = ({ saveTrigger, ...params }) =>
+		writeSaveKeepingPosition(params.userId, params, saveTrigger);
 	const saveReadlistArticle: SaveReadlistArticle = ({ readlist, ...params }) =>
-		writeSave(readlistPartitionValue({ userId: params.userId, readlist }), params);
-	const saveArticleAsRequested: SaveArticleAsRequested = (params) => writeSaveAsRequested(params.userId, params);
+		writeSave(readlistPartitionValue({ userId: params.userId, readlist }), params, undefined);
+	const saveArticleAsRequested: SaveArticleAsRequested = ({ saveTrigger, ...params }) =>
+		writeSaveAsRequested(params.userId, params, saveTrigger);
 	const saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested = ({ readlist, ...params }) =>
-		writeSaveAsRequested(readlistPartitionValue({ userId: params.userId, readlist }), params);
+		writeSaveAsRequested(readlistPartitionValue({ userId: params.userId, readlist }), params, undefined);
+
+	const markHandPicked: MarkHandPicked = ({ userId, url, at }) => stampHandPickedIfRowExists({ partition: userId, url, at });
 
 	const hasSaveLandedSince: HasSaveLandedSince = async ({ userId, url, requestedAt }) => {
 		const row = await userArticles.get(
@@ -1654,6 +1751,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	return {
 		saveArticle,
 		saveArticleKeepingPosition,
+		markHandPicked,
 		allocateSavedAt,
 		allocateSavedAtSequence,
 		findSavedUrls,

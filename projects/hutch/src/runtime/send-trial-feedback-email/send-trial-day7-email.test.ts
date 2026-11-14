@@ -100,6 +100,7 @@ async function save(subject: Subject, input: { slug: string; savedAt: Date; prov
 		estimatedReadTime: MinutesSchema.parse(2),
 		provenance: input.provenance ?? { kind: "web" },
 		savedAt: input.savedAt,
+		saveTrigger: "manual",
 	});
 	return saved;
 }

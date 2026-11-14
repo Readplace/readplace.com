@@ -98,6 +98,7 @@ describe("POST /queue/save-content with PDF", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: urlSaveInstant,
+			saveTrigger: "manual",
 		});
 		await testApp.articleStore.updateArticleStatus(saved.id, TEST_USER_ID, "read");
 

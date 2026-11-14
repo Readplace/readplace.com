@@ -38,6 +38,7 @@ async function buildHarness(options: { extraction?: "finished" | "failed" | "pen
 		estimatedReadTime: MinutesSchema.parse(2),
 		provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
 		savedAt: new Date("2026-06-24T09:01:00.000Z"),
+		saveTrigger: "manual",
 	});
 	await fixture.articleStore.setDisplayUrl({ url: issueUrl, displayUrl: INBOX_PAGE });
 	await fixture.articleStore.writeContent({ url: issueUrl, content: "<p>Today's links, with commentary.</p>" });

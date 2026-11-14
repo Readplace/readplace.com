@@ -75,6 +75,7 @@ export function initDynamoDbPrivateItem(deps: {
 									savedAt,
 									status: "unread",
 									provenance: { kind: "upload" },
+									handPickedAt: savedAt,
 								},
 							},
 						},

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
+import type { SaveTrigger } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { ArticleCrawl, MeteredLegsMode } from "@packages/provider-contracts/article-crawl";
@@ -38,9 +39,13 @@ async function harness(crawl: ArticleCrawl | undefined, opts: { beforeFiling?: (
 	const filedInto: ReadlistSlug[] = [];
 	const failFilingInto = new Set<ReadlistSlug>();
 	const access: { subscription: SubscriptionRecord | undefined } = { subscription: undefined };
+	const saveTriggers: SaveTrigger[] = [];
 	const saveEmailIssue = initSaveEmailIssue({
 		allocateSavedAt: store.allocateSavedAt,
-		saveArticleKeepingPosition: store.saveArticleKeepingPosition,
+		saveArticleKeepingPosition: async (params) => {
+			saveTriggers.push(params.saveTrigger);
+			return store.saveArticleKeepingPosition(params);
+		},
 		setDisplayUrl: async ({ articleUrl, displayUrl }) => {
 			displayUrls.push({ articleUrl, displayUrl });
 			await store.setDisplayUrl({ url: articleUrl, displayUrl });
@@ -91,6 +96,7 @@ async function harness(crawl: ArticleCrawl | undefined, opts: { beforeFiling?: (
 			estimatedReadTime: ESTIMATED_READ_TIME,
 			provenance: PROVENANCE,
 			savedAt: await store.allocateSavedAt({ userId: READER }),
+			saveTrigger: "manual",
 		});
 	const issueId = async () => {
 		const article = await store.findArticleByUrl(ISSUE_URL);
@@ -112,6 +118,7 @@ async function harness(crawl: ArticleCrawl | undefined, opts: { beforeFiling?: (
 		filedInto,
 		failFilingInto,
 		access,
+		saveTriggers,
 		requestedAt,
 		save,
 		seedAllSaveOnly,
@@ -138,6 +145,15 @@ describe("initSaveEmailIssue", () => {
 		assert.deepEqual(h.displayUrls, [{ articleUrl: ISSUE_URL, displayUrl: INBOX_PAGE }]);
 		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all"]);
 		assert.deepEqual(h.crawlPendingMarks, [{ url: ISSUE_URL, measured: false, meteredLegs: "run" }]);
+	});
+
+	it("saves an issue to All as an automatic save, so it never marks the row hand-picked", async () => {
+		const h = await harness(undefined);
+
+		await h.save([]);
+
+		assert.deepEqual(h.saveTriggers, ["automatic"]);
+		assert.equal(h.store.readHandPickedAt({ userId: READER, url: ISSUE_URL }), undefined);
 	});
 
 	it("marks a still-pending issue's crawl unmeasured on a repeat save too", async () => {

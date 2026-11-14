@@ -28,6 +28,7 @@ const saveParams = (url: string, provenance: SaveProvenance) => ({
 	estimatedReadTime: MinutesSchema.parse(1),
 	provenance,
 	savedAt: NOW,
+	saveTrigger: "manual" as const,
 });
 function activationHarness(
 	counter?: CountEarlyIntentionalSave,
@@ -84,6 +85,7 @@ describe("deliberate requests", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" as const },
 			savedAt: NOW,
+			saveTrigger: "manual" as const,
 		};
 		await wrapped.saveArticle(params);
 		await wrapped.saveArticle(params);
@@ -161,6 +163,7 @@ describe("deliberate requests", () => {
 			provenance: { kind: "hn-suggestion", ...attribution },
 			suggestionAttribution: attribution,
 			savedAt: NOW,
+			saveTrigger: "manual",
 		});
 		const params = {
 			userId,
@@ -201,6 +204,7 @@ describe("deliberate requests", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: NOW,
+			saveTrigger: "manual",
 		});
 		await wrapped.assignSavedArticleToReadlist({ ...params, url: personal.saved.url });
 		expect(activity.at(-1)).toMatchObject({ articleId: personal.saved.id, campaignId: undefined });

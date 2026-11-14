@@ -1579,6 +1579,7 @@ describe("consent seed save on approve", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date(),
+			saveTrigger: "manual",
 		});
 
 		await approve(agent, clientId, CLAUDE_CALLBACK);

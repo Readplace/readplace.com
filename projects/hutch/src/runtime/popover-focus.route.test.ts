@@ -182,6 +182,7 @@ describe("every popup opens on its first decision", () => {
 			estimatedReadTime: MinutesSchema.parse(2),
 			provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
 			savedAt: new Date("2026-06-24T09:01:00.000Z"),
+			saveTrigger: "manual",
 		});
 		await fixture.articleStore.writeContent({ url: issueUrl, content: "<p>Today's links, with commentary.</p>" });
 		await fixture.articleCrawl.markCrawlReady({ url: issueUrl });

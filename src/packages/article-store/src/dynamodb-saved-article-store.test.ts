@@ -255,6 +255,7 @@ describe("initDynamoDbSavedArticleStore suggestion provenance", () => {
 			provenance: { kind: "web" },
 			suggestionAttribution,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		expect(result.saved.suggestionAttribution).toEqual(suggestionAttribution);
@@ -574,6 +575,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		const globalUpdate = commands.find((c) => c.name === "UpdateCommand" && c.input.TableName === "articles");
@@ -606,13 +608,14 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		const userRowUpdate = commands.find(
 			(c) => c.name === "UpdateCommand" && c.input.ReturnValues === "ALL_OLD",
 		);
 		expect(userRowUpdate?.input.UpdateExpression).toBe(
-			"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
+			"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread), handPickedAt = if_not_exists(handPickedAt, :savedAt)",
 		);
 		expect(userRowUpdate?.input.ExpressionAttributeValues?.[":provenance"]).toEqual(provenance);
 		expect(saved.provenance).toEqual(provenance);
@@ -632,6 +635,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		expect(saved.provenance).toBeUndefined();
@@ -651,6 +655,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		const userRowUpdate = commands.find(
@@ -675,6 +680,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		expect(createdUserArticle).toBe(false);
@@ -702,6 +708,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		const bump = commands.find((c) => c.name === "UpdateCommand" && c.input.UpdateExpression === "SET savedAt = :savedAt");
@@ -728,6 +735,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		const globalUpdate = commands.find((c) => c.name === "UpdateCommand" && c.input.TableName === "articles");
@@ -756,6 +764,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		const userRowUpdate = commands.find(
@@ -787,6 +796,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		expect(createdUserArticle).toBe(false);
@@ -813,6 +823,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual" as const,
 		};
 
 		const won = await initStore(winning.client).saveArticle(params);
@@ -1029,6 +1040,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		const userRowUpdate = commands.find(
@@ -1058,6 +1070,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 			estimatedReadTime: TWO_MINUTES,
 			provenance,
 			savedAt: OPERATION_SAVED_AT,
+			saveTrigger: "manual",
 		});
 
 		expect(createdUserArticle).toBe(false);
@@ -1087,6 +1100,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 				estimatedReadTime: TWO_MINUTES,
 				provenance,
 				savedAt: OPERATION_SAVED_AT,
+				saveTrigger: "manual",
 			}),
 		).rejects.toThrow("throttled");
 	});
@@ -3632,6 +3646,7 @@ describe("initDynamoDbSavedArticleStore saves as requested", () => {
 		estimatedReadTime: TWO_MINUTES,
 		provenance,
 		savedAt: OPERATION_SAVED_AT,
+		saveTrigger: "manual" as const,
 		requestedAt: REQUESTED_AT,
 	};
 	const userArticlesUpdates = (commands: CapturedCommand[]) =>
@@ -3989,5 +4004,202 @@ describe("initDynamoDbSavedArticleStore readlist filing", () => {
 		expect(deleted).toBe(true);
 		expect(commands.map((c) => c.name)).toEqual(["QueryCommand", "DeleteCommand"]);
 		expect(commands[1]?.input.Key).toEqual({ userId: `${USER}#queue/work`, url: RESOURCE_ID });
+	});
+});
+
+describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
+	const PROTECTED =
+		"(attribute_exists(savedAt) AND (attribute_exists(handPickedAt) OR attribute_not_exists(provenance) OR provenance.#kind IN (:web, :client, :mcp, :upload, :import)))";
+	const emailProvenance: SaveProvenance = { kind: "email", senderEmail: "news@example.com" };
+	const saveWith = (saveTrigger: "manual" | "automatic") => ({
+		userId: USER,
+		url: URL,
+		metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 250 },
+		estimatedReadTime: TWO_MINUTES,
+		provenance: emailProvenance,
+		savedAt: OPERATION_SAVED_AT,
+		saveTrigger,
+	});
+	const userRowUpdates = (commands: CapturedCommand[]) =>
+		commands.filter((c) => c.name === "UpdateCommand" && c.input.TableName === "user-articles");
+	const readBack = { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] };
+	const conditionFailedOn = (failing: (input: CapturedCommand["input"]) => boolean) => (input: CapturedCommand["input"]) => {
+		if (input.TableName === "user-articles" && failing(input)) {
+			throw new ConditionalCheckFailedException({ $metadata: {}, message: "condition" });
+		}
+		return input.TableName === "user-articles" ? { Attributes: userArticleItem() } : {};
+	};
+
+	it("stamps handPickedAt once on a manual save, in a single write that sets provenance", async () => {
+		const { client, commands } = createFakeClient({ GetCommand: readBack });
+
+		await initStore(client).saveArticle(saveWith("manual"));
+
+		const updates = userRowUpdates(commands);
+		expect(updates).toHaveLength(1);
+		expect(updates[0]?.input.UpdateExpression).toBe(
+			"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread), handPickedAt = if_not_exists(handPickedAt, :savedAt)",
+		);
+		expect(updates[0]?.input.ConditionExpression).toBe("attribute_not_exists(savedAt) OR savedAt < :savedAt");
+		expect(updates[0]?.input.ExpressionAttributeNames).toEqual({ "#status": "status" });
+	});
+
+	it("restamps provenance on an automatic save when the row is not protected, without marking it hand-picked", async () => {
+		const { client, commands } = createFakeClient({ GetCommand: readBack });
+
+		const { createdUserArticle, wroteUserArticle } = await initStore(client).saveArticle(saveWith("automatic"));
+
+		const updates = userRowUpdates(commands);
+		expect(updates).toHaveLength(1);
+		expect(updates[0]?.input.UpdateExpression).toBe(
+			"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
+		);
+		expect(updates[0]?.input.ConditionExpression).toBe(
+			`(attribute_not_exists(savedAt) OR savedAt < :savedAt) AND NOT ${PROTECTED}`,
+		);
+		expect(updates[0]?.input.ExpressionAttributeNames).toEqual({ "#status": "status", "#kind": "kind" });
+		expect(updates[0]?.input.ExpressionAttributeValues).toMatchObject({
+			":provenance": emailProvenance,
+			":web": "web",
+			":client": "client",
+			":mcp": "mcp",
+			":upload": "upload",
+			":import": "import",
+		});
+		expect({ createdUserArticle, wroteUserArticle }).toEqual({ createdUserArticle: true, wroteUserArticle: true });
+	});
+
+	it("keeps a protected row's provenance on an automatic save, writing only when the row still exists", async () => {
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { default: conditionFailedOn((input) => input.ConditionExpression?.includes("AND NOT") === true) },
+			GetCommand: readBack,
+		});
+
+		const { createdUserArticle, wroteUserArticle } = await initStore(client).saveArticle(saveWith("automatic"));
+
+		const updates = userRowUpdates(commands);
+		expect(updates).toHaveLength(2);
+		expect(updates[1]?.input.UpdateExpression).toBe("SET savedAt = :savedAt, #status = if_not_exists(#status, :unread)");
+		expect(updates[1]?.input.ConditionExpression).toBe(
+			`(attribute_not_exists(savedAt) OR savedAt < :savedAt) AND attribute_exists(savedAt) AND ${PROTECTED}`,
+		);
+		expect(updates[1]?.input.ExpressionAttributeValues?.[":provenance"]).toBeUndefined();
+		expect({ createdUserArticle, wroteUserArticle }).toEqual({ createdUserArticle: false, wroteUserArticle: true });
+	});
+
+	it("reports no write when an automatic save loses both conditions", async () => {
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { default: conditionFailedOn(() => true) },
+			GetCommand: readBack,
+		});
+
+		const { createdUserArticle, wroteUserArticle } = await initStore(client).saveArticle(saveWith("automatic"));
+
+		expect(userRowUpdates(commands)).toHaveLength(2);
+		expect({ createdUserArticle, wroteUserArticle }).toEqual({ createdUserArticle: false, wroteUserArticle: false });
+	});
+
+	it("carries the requested-at condition into both automatic attempts", async () => {
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { default: conditionFailedOn((input) => input.ConditionExpression?.includes("AND NOT") === true) },
+			GetCommand: readBack,
+		});
+
+		await initStore(client).saveArticleAsRequested({ ...saveWith("automatic"), requestedAt: OPERATION_SAVED_AT });
+
+		const conditions = userRowUpdates(commands).map((c) => c.input.ConditionExpression);
+		const requested =
+			"(attribute_not_exists(savedAt) OR savedAt < :requestedAt) AND (attribute_not_exists(readAt) OR readAt < :requestedAt)";
+		expect(conditions).toEqual([
+			`(${requested}) AND NOT ${PROTECTED}`,
+			`(${requested}) AND attribute_exists(savedAt) AND ${PROTECTED}`,
+		]);
+	});
+
+	it("leaves a readlist row's save as a single write that sets provenance and never marks it", async () => {
+		const { client, commands } = createFakeClient({ GetCommand: readBack });
+		const { saveTrigger: _saveTrigger, ...params } = saveWith("manual");
+
+		await initStore(client).saveReadlistArticle({ ...params, readlist: ReadlistSlugSchema.parse("work") });
+
+		const updates = userRowUpdates(commands);
+		expect(updates).toHaveLength(1);
+		expect(updates[0]?.input.UpdateExpression).toBe(
+			"SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)",
+		);
+		expect(updates[0]?.input.ConditionExpression).toBe("attribute_not_exists(savedAt) OR savedAt < :savedAt");
+	});
+
+	it("stamps handPickedAt on an existing row when a manual keeping-position save loses its condition", async () => {
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { default: conditionFailedOn((input) => input.ReturnValues === "ALL_OLD") },
+			GetCommand: readBack,
+		});
+
+		const { createdUserArticle, wroteUserArticle } = await initStore(client).saveArticleKeepingPosition(saveWith("manual"));
+
+		expect(createdUserArticle).toBe(false);
+		expect(wroteUserArticle).toBe(false);
+		const updates = userRowUpdates(commands);
+		expect(updates).toHaveLength(2);
+		expect(updates[1]?.input.Key).toEqual({ userId: USER, url: RESOURCE_ID });
+		expect(updates[1]?.input.UpdateExpression).toBe("SET handPickedAt = if_not_exists(handPickedAt, :at)");
+		expect(updates[1]?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect(updates[1]?.input.ExpressionAttributeValues).toEqual({ ":at": OPERATION_SAVED_AT.toISOString() });
+	});
+
+	it("tolerates a row deleted before a lost manual save's stamp", async () => {
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { default: conditionFailedOn(() => true) },
+			GetCommand: readBack,
+		});
+
+		const { createdUserArticle, wroteUserArticle } = await initStore(client).saveArticleKeepingPosition(saveWith("manual"));
+
+		expect(createdUserArticle).toBe(false);
+		expect(wroteUserArticle).toBe(false);
+		expect(userRowUpdates(commands)).toHaveLength(2);
+	});
+
+	it("stamps nothing when an automatic keeping-position save meets an existing row", async () => {
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { default: conditionFailedOn(() => true) },
+			GetCommand: readBack,
+		});
+
+		await initStore(client).saveArticleKeepingPosition(saveWith("automatic"));
+
+		const expressions = userRowUpdates(commands).map((c) => c.input.UpdateExpression);
+		expect(expressions).not.toContain("SET handPickedAt = if_not_exists(handPickedAt, :at)");
+	});
+
+	it("issues exactly one user-row update when a manual keeping-position save creates the row", async () => {
+		const { client, commands } = createFakeClient({ GetCommand: readBack });
+
+		await initStore(client).saveArticleKeepingPosition(saveWith("manual"));
+
+		expect(userRowUpdates(commands)).toHaveLength(1);
+	});
+
+	it("markHandPicked stamps handPickedAt once on an existing All row", async () => {
+		const { client, commands } = createFakeClient({});
+		const at = new Date("2026-11-13T09:00:00.000Z");
+
+		const outcome = await initStore(client).markHandPicked({ userId: USER, url: URL, at });
+
+		expect(outcome).toBe("marked");
+		const update = userRowUpdates(commands)[0];
+		expect(update?.input.Key).toEqual({ userId: USER, url: RESOURCE_ID });
+		expect(update?.input.UpdateExpression).toBe("SET handPickedAt = if_not_exists(handPickedAt, :at)");
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect(update?.input.ExpressionAttributeValues).toEqual({ ":at": at.toISOString() });
+	});
+
+	it("markHandPicked reports an absent row instead of creating one", async () => {
+		const { client } = createFakeClient({ UpdateCommand: { default: conditionFailedOn(() => true) } });
+
+		const outcome = await initStore(client).markHandPicked({ userId: USER, url: URL, at: OPERATION_SAVED_AT });
+
+		expect(outcome).toBe("row-absent");
 	});
 });

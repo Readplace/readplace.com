@@ -24,6 +24,7 @@ async function readOnlyBearer(harness: Harness): Promise<string> {
 		estimatedReadTime: MinutesSchema.parse(1),
 		provenance: { kind: "web" },
 		savedAt: new Date("2026-09-30T01:02:03.000Z"),
+		saveTrigger: "manual",
 	});
 	await harness.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>Body copy.</p>" });
 	await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });

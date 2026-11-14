@@ -166,6 +166,7 @@ async function saveArticle(subject: Subject, input: { url: string; title: string
 		estimatedReadTime: MinutesSchema.parse(2),
 		provenance: { kind: "web" },
 		savedAt: input.savedAt,
+		saveTrigger: "manual",
 	});
 }
 
@@ -394,6 +395,7 @@ describe("initSendQueueDigestHandler", () => {
 				metadata: { title: slug, siteName: "Site", excerpt: "", wordCount: 200 },
 				estimatedReadTime: MinutesSchema.parse(1),
 				savedAt: DAY_OLD_SAVE,
+				saveTrigger: "manual",
 			});
 			await subject.articleStore.setReaderAvailableAt({ url, at: DAY_OLD_SAVE });
 			await subject.articleStore.writeContent({ url, content: `<p>${slug}</p>` });
