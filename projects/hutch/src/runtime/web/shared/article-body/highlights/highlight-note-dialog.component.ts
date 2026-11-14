@@ -1,5 +1,6 @@
 import type { HighlightId } from "@packages/domain/article";
 import {
+	render,
 	renderConfirmPopover,
 	withInternalTracking,
 } from "@packages/web-shell";
@@ -9,6 +10,7 @@ import {
 	READLIST_PATH,
 } from "../../../pages/readlist/readlist.url";
 import {
+	HIGHLIGHT_NOTE_FIELD,
 	type HighlightNoteRefusal,
 	renderHighlightNoteForm,
 } from "./highlight-note-form.component";
@@ -18,6 +20,13 @@ export const HIGHLIGHT_NOTE_DIALOG_ID = "note-highlight-dialog";
 const ADD_TITLE = "Add a note";
 
 const EDIT_TITLE = "Edit note";
+
+const DELETE_FORM_TEMPLATE = `<form class="highlight-note__delete-form" id="{{id}}" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="find button, [form='{{id}}']">
+	<input type="hidden" name="{{field}}" value="">
+	<button class="btn btn--destructive btn--s" type="submit" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>
+</form>`;
+
+const DELETE_TRIGGER_TEMPLATE = `<button class="btn btn--destructive" type="submit" form="{{formId}}" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>`;
 
 export interface HighlightFormScope {
 	articleId: string;
@@ -48,12 +57,37 @@ export function pushesHistory(scope: HighlightFormScope): boolean {
 function highlightNoteUrl(input: {
 	scope: HighlightFormScope;
 	highlightId: HighlightId;
+	content: "edit-note" | "delete-note";
 }): string {
 	return highlightFormUrl({
 		scope: input.scope,
 		path: `/highlights/${input.highlightId}/note`,
 		source: "highlights-rail",
-		content: "edit-note",
+		content: input.content,
+	});
+}
+
+function highlightNoteDeleteFormId(highlightId: HighlightId): string {
+	return `delete-note-highlight-${highlightId}`;
+}
+
+export function renderHighlightNoteDeleteForm(input: {
+	highlightId: HighlightId;
+	scope: HighlightFormScope;
+}): string {
+	return render(DELETE_FORM_TEMPLATE, {
+		id: highlightNoteDeleteFormId(input.highlightId),
+		action: highlightNoteUrl({ ...input, content: "delete-note" }),
+		pushesHistory: pushesHistory(input.scope),
+		field: HIGHLIGHT_NOTE_FIELD,
+	});
+}
+
+function renderHighlightNoteDeleteTrigger(input: {
+	highlightId: HighlightId;
+}): string {
+	return render(DELETE_TRIGGER_TEMPLATE, {
+		formId: highlightNoteDeleteFormId(input.highlightId),
 	});
 }
 
@@ -118,12 +152,16 @@ export function renderHighlightNoteEditDialog(input: {
 			popoverId,
 			key: "highlight-note-edit",
 			inputId: `${popoverId}-input`,
-			action: highlightNoteUrl(input),
+			action: highlightNoteUrl({ ...input, content: "edit-note" }),
 			value: input.note ?? "",
 			hiddenFields: [],
 			answersInPlace: false,
 			pushesHistory: pushesHistory(input.scope),
 			autofocus: true,
+			deleteTriggerHtml:
+				input.note === undefined
+					? undefined
+					: renderHighlightNoteDeleteTrigger(input),
 		}),
 	});
 }
@@ -136,7 +174,7 @@ export function renderHighlightNoteFallbackForm(input: {
 	return renderHighlightNoteForm({
 		key: "highlight-note-fallback",
 		inputId: `${highlightNoteEditPopoverId(input.highlightId)}-fallback-input`,
-		action: highlightNoteUrl(input),
+		action: highlightNoteUrl({ ...input, content: "edit-note" }),
 		value: input.note ?? "",
 		hiddenFields: [],
 		answersInPlace: false,

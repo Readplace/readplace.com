@@ -8,6 +8,17 @@ export const enUS = {
 		highlightToolbar: {
 			beta: "Beta",
 		},
+		highlightNote: {
+			delete: "Delete note",
+		},
+		highlightsRail: {
+			deleteHighlight: "Delete highlight",
+			deleteConfirm: {
+				title: "Delete this highlight?",
+				body: "The passage stays in the article; only your highlight is removed.",
+				bodyWithNote: "The passage stays in the article; your highlight and its note are removed.",
+			},
+		},
 		readerFailed: {
 			title: {
 				linkSaved: "Your link is saved",

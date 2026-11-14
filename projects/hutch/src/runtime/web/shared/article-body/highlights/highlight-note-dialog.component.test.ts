@@ -5,6 +5,7 @@ import {
 	HIGHLIGHT_NOTE_DIALOG_ID,
 	highlightNoteEditPopoverId,
 	renderHighlightNoteCreateForm,
+	renderHighlightNoteDeleteForm,
 	renderHighlightNoteDialog,
 	renderHighlightNoteEditDialog,
 	renderHighlightNoteFallbackForm,
@@ -250,5 +251,125 @@ describe("note dialogs in the app surface", () => {
 			expect(form?.getAttribute("hx-boost")).toBe("true");
 			expect(form?.getAttribute("hx-push-url")).toBe("false");
 		}
+	});
+});
+
+function buttonRowOf(doc: Document): (string | null)[] {
+	return Array.from(
+		doc.querySelectorAll(".confirm-popover__buttons > button"),
+		(button) => button.getAttribute("data-test-action"),
+	);
+}
+
+describe("Delete note", () => {
+	it("posts a blank note to the note route, tracked as delete-note, swapping <main> with its button disabled", () => {
+		const doc = parse(
+			renderHighlightNoteDeleteForm({
+				highlightId: HIGHLIGHT_ID,
+				scope: WEB_SCOPE,
+			}),
+		);
+
+		const form = doc.querySelector("form");
+		assert(form);
+		expect(form.id).toBe(`delete-note-highlight-${HIGHLIGHT_ID}`);
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("action")).toBe(
+			`${NOTE_PATH}?utm_source=highlights-rail&utm_medium=internal&utm_content=delete-note`,
+		);
+		expect(form.hasAttribute("data-test-form")).toBe(false);
+		expect(
+			Array.from(form.elements, (field) => [
+				field.getAttribute("name"),
+				field.getAttribute("type"),
+				field.getAttribute("value"),
+			]),
+		).toEqual([
+			["note", "hidden", ""],
+			[null, "submit", null],
+		]);
+		expect(form.getAttribute("hx-boost")).toBe("true");
+		expect(form.getAttribute("hx-target")).toBe("main");
+		expect(form.getAttribute("hx-select")).toBe("main");
+		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
+		expect(form.getAttribute("hx-disabled-elt")).toBe(`find button, [form='${form.id}']`);
+		expect(form.hasAttribute("hx-push-url")).toBe(false);
+		const button = form.querySelector('[data-test-action="highlight-note-delete"]');
+		expect(button?.textContent).toBe("Delete note");
+		expect(button?.className).toBe("btn btn--destructive btn--s");
+		expect(button?.hasAttribute("autofocus")).toBe(false);
+	});
+
+	it("keeps the readlist and surface in the app and stops the push", () => {
+		const form = parse(
+			renderHighlightNoteDeleteForm({
+				highlightId: HIGHLIGHT_ID,
+				scope: APP_SCOPE,
+			}),
+		).querySelector("form");
+
+		expect(form?.getAttribute("action")).toBe(
+			`${NOTE_PATH}?queue=work&platform=ios&utm_source=highlights-rail&utm_medium=internal&utm_content=delete-note`,
+		);
+		expect(form?.getAttribute("hx-push-url")).toBe("false");
+	});
+
+	it("leads the Edit note dialog's buttons, submitting the row's Delete note form rather than the note form", () => {
+		const doc = parse(
+			renderHighlightNoteEditDialog({
+				highlightId: HIGHLIGHT_ID,
+				note: "kept",
+				scope: WEB_SCOPE,
+			}),
+		);
+
+		expect(buttonRowOf(doc)).toEqual([
+			"highlight-note-delete",
+			"highlight-note-edit-cancel",
+			"highlight-note-edit-save",
+		]);
+		const trigger = doc.querySelector('[data-test-action="highlight-note-delete"]');
+		expect(trigger?.getAttribute("type")).toBe("submit");
+		expect(trigger?.getAttribute("form")).toBe(
+			`delete-note-highlight-${HIGHLIGHT_ID}`,
+		);
+		expect(trigger?.className).toBe("btn btn--destructive");
+		expect(trigger?.textContent).toBe("Delete note");
+		expect(
+			Array.from(doc.querySelectorAll("[autofocus]"), (el) => el.tagName),
+		).toEqual(["TEXTAREA"]);
+	});
+
+	it("is not offered in the edit dialog of a highlight without a note", () => {
+		const doc = parse(
+			renderHighlightNoteEditDialog({
+				highlightId: HIGHLIGHT_ID,
+				scope: WEB_SCOPE,
+			}),
+		);
+
+		expect(buttonRowOf(doc)).toEqual([
+			"highlight-note-edit-cancel",
+			"highlight-note-edit-save",
+		]);
+	});
+
+	it("is not offered in the bar's Add a note dialog or the no-popover note form", () => {
+		expect(
+			buttonRowOf(
+				parse(renderHighlightNoteDialog({ scope: WEB_SCOPE, hiddenFields: [] })),
+			),
+		).toEqual(["highlight-note-cancel", "highlight-note-save"]);
+		expect(
+			buttonRowOf(
+				parse(
+					renderHighlightNoteFallbackForm({
+						highlightId: HIGHLIGHT_ID,
+						note: "kept",
+						scope: WEB_SCOPE,
+					}),
+				),
+			),
+		).toEqual(["highlight-note-fallback-save"]);
 	});
 });
