@@ -418,28 +418,28 @@ describe("ReadlistPage", () => {
 		{
 			device: "a device with no installable client",
 			context: { hasInstallableClient: false } as const,
-			text: "Save your first article with the Article button, or set up one-tap saving from your browser, phone, or AI assistant.",
+			text: "Save your first article with the Upload button, or set up one-tap saving from your browser, phone, or AI assistant.",
 			label: "Set up one-tap saving",
 			client: null,
 		},
 		{
 			device: "Chrome",
 			context: installableClient({ platform: "chrome" }),
-			text: "Save your first article with the Article button, or use the Readplace browser extension to save it in one click.",
+			text: "Save your first article with the Upload button, or use the Readplace browser extension to save it in one click.",
 			label: "Install Chrome extension",
 			client: "chrome",
 		},
 		{
 			device: "Firefox",
 			context: installableClient({ platform: "firefox" }),
-			text: "Save your first article with the Article button, or use the Readplace browser extension to save it in one click.",
+			text: "Save your first article with the Upload button, or use the Readplace browser extension to save it in one click.",
 			label: "Install Firefox extension",
 			client: "firefox",
 		},
 		{
 			device: "iPhone",
 			context: installableClient({ platform: "iphone" }),
-			text: "Save your first article with the Article button, or use the Readplace iPhone app to save it from the share sheet.",
+			text: "Save your first article with the Upload button, or use the Readplace iPhone app to save it from the share sheet.",
 			label: "Install iPhone app",
 			client: "iphone",
 		},
@@ -474,7 +474,7 @@ describe("ReadlistPage", () => {
 		);
 
 		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
-			"Save your first article with the Article button, or use the Readplace browser extension to save it in one click.",
+			"Save your first article with the Upload button, or use the Readplace browser extension to save it in one click.",
 		);
 		expect(emptyActionKeys(doc)).toEqual([]);
 	});

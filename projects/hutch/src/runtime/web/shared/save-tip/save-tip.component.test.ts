@@ -77,13 +77,13 @@ describe("buildSaveTip", () => {
 		expect(panel.getAttribute("data-test-confirm-subject")).toBe("article");
 	});
 
-	it("continues with the URL and closes with no script, since it holds nothing back", () => {
+	it("continues here and closes with no script, since it holds nothing back", () => {
 		const doc = panelFor(request({}));
 
 		expect(actionsOf(doc).getAttribute("data-test-save-tip-mode")).toBe("advisory");
 		const proceed = doc.querySelector("[data-test-action='save-tip-continue']");
 		assert(proceed, "the advisory panel must offer a way to continue");
-		expect(proceed.textContent).toBe("Continue with URL");
+		expect(proceed.textContent).toBe("Continue here");
 		expect(proceed.getAttribute("type")).toBe("button");
 		expect(proceed.getAttribute("popovertarget")).toBe("save-tip");
 		expect(proceed.getAttribute("popovertargetaction")).toBe("hide");
@@ -201,7 +201,7 @@ describe("buildSaveTip", () => {
 			);
 		});
 
-		it("reports continuing with the URL", () => {
+		it("reports continuing here", () => {
 			const advisory = panelFor(request({}));
 			const gating = panelFor(request({}), GATING_ARTICLE);
 			const beaconElements = (doc: ReturnType<typeof panelFor>) => Array.from(
@@ -278,7 +278,7 @@ describe("buildSaveTip", () => {
 			expect(actionsOf(doc).getAttribute("data-test-save-tip-mode")).toBe("advisory");
 			const proceed = doc.querySelector("[data-test-action='save-tip-continue']");
 			assert(proceed, "the import panel must offer a way to continue");
-			expect(proceed.textContent).toBe("Continue with URL");
+			expect(proceed.textContent).toBe("Continue here");
 		});
 
 		it.each([

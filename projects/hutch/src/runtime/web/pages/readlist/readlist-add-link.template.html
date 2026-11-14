@@ -11,7 +11,7 @@
                   <input class="form-input" id="add-link-fallback-url" type="url" name="url" placeholder="https://" required autocomplete="off"{{#if accessIsReadOnly}} disabled{{/if}}>
                   <button class="btn btn--primary" type="submit" data-test-action="add-link-fallback-save"{{#if accessIsReadOnly}} disabled{{/if}}>Save</button>
                 </form>
-                <a class="readlist-add-link__fallback-upload" href="{{bookFallbackHref}}" data-test-add-link-fallback-upload>Upload a DRM-free EPUB</a>
+                <a class="readlist-add-link__fallback-upload" href="{{bookFallbackHref}}" data-test-add-link-fallback-upload>{{t "readlistAddArticle.fallback.upload"}}</a>
               </details>
               {{/each}}
             </div>

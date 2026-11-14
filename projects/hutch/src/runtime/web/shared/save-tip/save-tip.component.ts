@@ -1,4 +1,6 @@
 import type { Request } from "express";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchIntegrations } from "@packages/translations/hutch-integrations";
 import { type ClickSurface, render, renderConfirmPopover, renderIllustration, withClickSurface, withInternalTracking } from "@packages/web-shell";
 import {
 	buildExtensionInstallUrl,
@@ -16,6 +18,8 @@ import {
 	SAVE_TIP_UTM_SOURCE,
 	type SaveTipElement,
 } from "./save-tip-tracking";
+
+const { t } = translator(hutchIntegrations, DEFAULT_LOCALE);
 
 export const SAVE_TIP_PANEL_ID = "save-tip";
 export const SAVE_TIP_SCRIPT = `<script src="/client-dist/save-tip.client.js" defer></script>`;
@@ -104,7 +108,7 @@ const CONTINUE_BEACON_URL = beaconUrl(SAVE_TIP_ELEMENTS.continued);
 /** The advisory control needs no script of its own: a popover target hides the
  * panel and hands focus back to the box the reader was already typing into. */
 const CONTINUE_CONTROL = {
-	advisory: `<button class="btn {{tierClass}}" type="button" popovertarget="${SAVE_TIP_PANEL_ID}" popovertargetaction="hide" data-beacon-url="{{continueBeaconUrl}}" data-test-action="save-tip-continue" autofocus>Continue with URL</button>`,
+	advisory: `<button class="btn {{tierClass}}" type="button" popovertarget="${SAVE_TIP_PANEL_ID}" popovertargetaction="hide" data-beacon-url="{{continueBeaconUrl}}" data-test-action="save-tip-continue" autofocus>${t("saveTip.continue")}</button>`,
 	gating: `<button class="btn {{tierClass}}" type="button" data-save-tip-proceed data-test-action="save-tip-proceed" autofocus>Save the link anyway</button>`,
 } satisfies Record<SaveTipMode, string>;
 

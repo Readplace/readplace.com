@@ -9,7 +9,20 @@ export const enUS = {
 		trigger: "Upload",
 		body: {
 			link: "Paste a link.",
-			file: "Drop a file: a bookmarks export to review, or a DRM-free EPUB to read.",
+			file: "Drop a file: a bookmarks export to review, or a book, audio file, or video to read.",
+		},
+		fallback: {
+			upload: "Upload a file",
+		},
+	},
+	readlistEmpty: {
+		nothingSaved: {
+			invite: {
+				extension: "Save your first article with the {button} button, or use the Readplace browser extension to save it in one click.",
+				iphone: "Save your first article with the {button} button, or use the Readplace iPhone app to save it from the share sheet.",
+				android: "Save your first article with the {button} button, or use the Readplace Android app to save it from the share sheet.",
+				other: "Save your first article with the {button} button, or set up one-tap saving from {surfaces}.",
+			},
 		},
 	},
 	readlistOffline: {

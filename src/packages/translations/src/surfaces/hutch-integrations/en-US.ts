@@ -1,4 +1,7 @@
 export const enUS = {
+	saveTip: {
+		continue: "Continue here",
+	},
 	upload: {
 		heading: "Upload {kinds}",
 		unsupportedType: "That file type isn't supported. Upload {formats}.",

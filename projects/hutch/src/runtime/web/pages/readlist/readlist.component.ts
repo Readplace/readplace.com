@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { READ_TIME_BUCKETS, SAVED_WINDOWS } from "@packages/domain/article";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import type { IconName } from "@packages/ui-icons";
 import {
 	CONFIRM_POPOVER_STYLES,
@@ -180,22 +182,24 @@ interface DeviceClient {
 
 const NOTHING_SAVED_TITLE = "Nothing saved yet";
 
-const EXTENSION_INVITE_TEXT =
-	"Save your first article with the Article button, or use the Readplace browser extension to save it in one click.";
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
+const ADD_BUTTON = t("readlistAddArticle.trigger");
+
+const EXTENSION_INVITE_TEXT = t("readlistEmpty.nothingSaved.invite.extension", { button: ADD_BUTTON });
 
 const NOTHING_SAVED_INVITES: Record<PitchablePlatform, { text: string; label: string }> = {
 	chrome: { text: EXTENSION_INVITE_TEXT, label: "Install Chrome extension" },
 	firefox: { text: EXTENSION_INVITE_TEXT, label: "Install Firefox extension" },
 	iphone: {
-		text: "Save your first article with the Article button, or use the Readplace iPhone app to save it from the share sheet.",
+		text: t("readlistEmpty.nothingSaved.invite.iphone", { button: ADD_BUTTON }),
 		label: "Install iPhone app",
 	},
 	android: {
-		text: "Save your first article with the Article button, or use the Readplace Android app to save it from the share sheet.",
+		text: t("readlistEmpty.nothingSaved.invite.android", { button: ADD_BUTTON }),
 		label: "Install Android app",
 	},
 	other: {
-		text: `Save your first article with the Article button, or set up one-tap saving from ${SAVE_SURFACES_SHORT_PHRASE}.`,
+		text: t("readlistEmpty.nothingSaved.invite.other", { button: ADD_BUTTON, surfaces: SAVE_SURFACES_SHORT_PHRASE }),
 		label: "Set up one-tap saving",
 	},
 };

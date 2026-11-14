@@ -2044,7 +2044,7 @@ test.describe("Readlist page (subscription inactive)", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
 	for (const theme of THEMES) {
-		test(`shows the inactive banner with the locked Add article (${theme})`, async ({ page }, testInfo) => {
+		test(`shows the inactive banner with the locked Upload (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-subscription-inactive-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createVerifiedUser(page, email);

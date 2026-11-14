@@ -5,7 +5,7 @@ import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { renderAddLinkForm, renderReadlistAddLink, renderReadlistSaveFeedback } from "./readlist-add-link.component";
 
 const OFFER: UpgradeOffer = { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" };
-const SAVE_TIP_HTML = `<div id="save-tip" popover="auto" data-test-confirm-popover="save-tip"><button type="button" autofocus>Continue with URL</button></div>`;
+const SAVE_TIP_HTML = `<div id="save-tip" popover="auto" data-test-confirm-popover="save-tip"><button type="button" autofocus>Continue here</button></div>`;
 
 function parse(html: string): Document {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
@@ -66,7 +66,7 @@ describe("Add article", () => {
 		expect(element(doc, "#add-link-title").textContent).toBe("Add article");
 		expect(element(doc, '[data-test-add-article-body="link"]').textContent).toBe("Paste a link.");
 		expect(element(doc, '[data-test-add-article-body="file"]').textContent).toBe(
-			"Drop a file: a bookmarks export to review, or a DRM-free EPUB to read.",
+			"Drop a file: a bookmarks export to review, or a book, audio file, or video to read.",
 		);
 	});
 
@@ -225,10 +225,11 @@ describe("Add article", () => {
 		expect(element<HTMLInputElement>(doc, '[data-test-form="upload-file"] input[type="file"]').disabled).toBe(accessIsReadOnly);
 	});
 
-	it("points the no-popover disclosure at the book upload page", () => {
+	it("points the no-popover disclosure at the upload page", () => {
 		const doc = addLinkDoc();
 
 		const link = element(doc, "details[data-test-add-link-fallback] [data-test-add-link-fallback-upload]");
+		expect(link.textContent).toBe("Upload a file");
 		const url = new URL(link.getAttribute("href") ?? "", "https://readplace.test");
 		expect(url.pathname).toBe("/upload");
 		expect(url.searchParams.get("utm_source")).toBe("queue-add-article");
@@ -398,7 +399,7 @@ describe("Add link by upgrade standing", () => {
 		expect(trigger.getAttribute("data-test-needs-upgrade")).toBe("add-link");
 		expect(trigger.getAttribute("popovertarget")).toBe("subscribe-plans");
 		expect(trigger.classList.contains("btn--neutral")).toBe(true);
-		expect(element(slot, ".needs-upgrade__label").textContent).toBe("Add article");
+		expect(element(slot, ".needs-upgrade__label").textContent).toBe("Upload");
 		expect(element(slot, '[data-test-action="upgrade-fallback"]').getAttribute("href")).toBe(
 			"/account/plans?utm_source=queue-add-link&utm_medium=internal&utm_content=upgrade-add-link",
 		);

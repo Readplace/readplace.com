@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SaveableUrlErrorCode } from "@packages/domain/article";
 import { AUDIO, BOOK, VIDEO } from "@packages/media-contracts";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import {
 	type AlertContent,
 	render,
@@ -41,6 +43,8 @@ const ADD_ARTICLE_MODES = [
 ];
 
 const ADD_LINK_TITLE = "Add article";
+
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 const ADD_LINK_FAILURE = "Couldn't save the link.";
 
@@ -160,11 +164,11 @@ export function renderReadlistAddLink(input: {
 				offer: input.offer,
 				gated: input.accessIsReadOnly,
 				key: "add-link",
-				label: ADD_LINK_TITLE,
+				label: t("readlistAddArticle.trigger"),
 				controlClass: "btn btn--neutral btn--s",
 				source: "queue-add-link",
 			});
-			assert(lock, "a reader who needs an upgrade must be offered the Add article lock");
+			assert(lock, "a reader who needs an upgrade must be offered the Upload lock");
 			return {
 				controlHtml: render(CONTROL_TEMPLATE, { locks: [renderNeedsUpgrade(lock)], forms: [] }),
 				dialogHtml: "",
