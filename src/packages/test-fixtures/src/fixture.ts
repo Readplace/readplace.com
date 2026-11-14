@@ -57,6 +57,7 @@ import { initInMemorySubscriptionReactivated } from "./providers/events/in-memor
 import {
 	createListUserOAuthClients,
 	createOAuthModel,
+	createExpireUserAccessTokens,
 	createRevokeAllUserOAuthTokens,
 	createRevokeOtherUserOAuthGrants,
 	createRevokeUserOAuthClient,
@@ -573,6 +574,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			revokeOtherUserOAuthGrants,
 			listUserOAuthClients,
 			revokeUserOAuthClient,
+			expireUserAccessTokens: createExpireUserAccessTokens(oauthModelDeps),
 			validateAccessToken: createValidateAccessToken(oauthModel),
 			findClient: oauthClientLookup.findClient,
 			validateRedirectUri: oauthClientLookup.validateRedirectUri,

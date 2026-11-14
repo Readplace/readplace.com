@@ -672,6 +672,7 @@ export interface OAuthBundle {
 	revokeOtherUserOAuthGrants: RevokeOtherUserOAuthGrants;
 	listUserOAuthClients: ListUserOAuthClients;
 	revokeUserOAuthClient: RevokeUserOAuthClient;
+	expireUserAccessTokens: (input: { userId: UserId; forget: boolean }) => Promise<number>;
 	validateAccessToken: ValidateAccessToken;
 	findClient: FindOAuthClient;
 	validateRedirectUri: ValidateOAuthRedirectUri;

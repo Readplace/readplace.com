@@ -480,6 +480,18 @@ server.post('/e2e/users', async (req, res) => {
 	res.status(201).json(created)
 })
 
+const ExpireAccessTokensBody = z.object({
+	email: z.email(),
+	forget: z.boolean().default(false),
+})
+server.post('/e2e/expire-access-tokens', async (req, res) => {
+	const { email: userEmail, forget } = ExpireAccessTokensBody.parse(req.body)
+	const user = await fixture.auth.findUserByEmail(userEmail)
+	assert(user, `no user registered as ${userEmail}`)
+	const expired = await fixture.oauth.expireUserAccessTokens({ userId: user.userId, forget })
+	res.status(200).json({ expired })
+})
+
 // Expose sent emails for E2E tests (password reset flow needs the reset token from email)
 server.get('/e2e/sent-emails', (_req, res) => {
 	res.json(email.getSentEmails())
