@@ -14,6 +14,8 @@ import com.readplace.android.core.InMemoryReaderChoiceStorage
 import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
+import com.readplace.android.core.OfflineReading
+import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.RefreshToken
 import com.readplace.android.core.ServerEndpoints
@@ -53,6 +55,8 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.IOException
 import java.net.URLDecoder
+import java.net.UnknownHostException
+import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -94,8 +98,22 @@ class ReadingListViewModelTest {
 		return store
 	}
 
-	private fun TestScope.api(store: TokenStore, ioDispatcher: CoroutineDispatcher): ReadplaceApi {
-		val client = OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false).build()
+	private class OfflineSwitch {
+		var down = false
+		val refused = mutableListOf<String>()
+	}
+
+	private fun TestScope.api(store: TokenStore, ioDispatcher: CoroutineDispatcher, network: OfflineSwitch): ReadplaceApi {
+		val client = OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false)
+			.addInterceptor { chain ->
+				val url = chain.request().url
+				if (network.down) {
+					network.refused += url.encodedPath + (url.encodedQuery?.let { "?$it" } ?: "")
+					throw UnknownHostException("offline")
+				}
+				chain.proceed(chain.request())
+			}
+			.build()
 		val oauth = OAuth(endpoints = ServerEndpoints(server.baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
 		return ReadplaceApi(server.baseUrl, client, oauth, "Readplace/1 Android/16", ioDispatcher)
 	}
@@ -125,9 +143,12 @@ class ReadingListViewModelTest {
 		now: () -> Instant = { Instant.EPOCH },
 		reportProcessingRefreshFailure: (String) -> Unit = {},
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
+		network: OfflineSwitch = OfflineSwitch(),
+		snapshot: OfflineReadlistSnapshot = OfflineReadlistSnapshot(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH }, diagnostics = {}),
 	): ReadingListViewModel =
 		ReadingListViewModel(
-			api = api(store, ioDispatcher),
+			api = api(store, ioDispatcher, network),
+			snapshot = snapshot,
 			unseenSave = unseenSave,
 			lastViewed = lastViewed,
 			shareTarget = shareTarget,
@@ -1775,9 +1796,7 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
-	fun `a capture that fails without a message still names the failure`() = runTest {
-		// A transport failure can carry no message at all; the banner then shows the
-		// failure's own description rather than nothing.
+	fun `a capture that cannot reach the network shows the offline sentence`() = runTest {
 		server.handle(blockedCaptureHandler())
 		val viewModel = viewModel(healBlockedArticle = { throw IOException() })
 		viewModel.refresh()
@@ -1787,7 +1806,19 @@ class ReadingListViewModelTest {
 
 		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
-		assertEquals("java.io.IOException", viewModel.state.value.errorText)
+		assertEquals(OfflineReading.BANNER_TEXT, viewModel.state.value.errorText)
+	}
+
+	@Test
+	fun `a capture that fails without a message still names the failure`() = runTest {
+		server.handle(blockedCaptureHandler())
+		val viewModel = viewModel(healBlockedArticle = { throw IllegalStateException() })
+		viewModel.refresh()
+		viewModel.openReader(viewModel.state.value.articles.first())
+
+		viewModel.captureBlockedArticle()
+
+		assertEquals("java.lang.IllegalStateException", viewModel.state.value.errorText)
 	}
 
 	@Test
@@ -1901,7 +1932,7 @@ class ReadingListViewModelTest {
 		job.join()
 
 		assertEquals("the capture that failed was still A's, not the reader open at completion", listOf("https://example.com/post"), healed)
-		assertEquals("A's failure surfaces on the list banner", "java.io.IOException", viewModel.state.value.errorText)
+		assertEquals("A's failure surfaces on the list banner", OfflineReading.BANNER_TEXT, viewModel.state.value.errorText)
 		assertEquals("B stays open through A's failure — the outcome never touches the open reader", "b1", viewModel.state.value.readerPresentation?.articleId)
 		ownerScope.cancel()
 	}
@@ -4742,6 +4773,396 @@ class ReadingListViewModelTest {
 
 		assertEquals("precondition: the row is processing", "Processing", viewModel.state.value.articles.single().processing?.label)
 		assertEquals(emptyMap<String, Instant>(), viewModel.state.value.processingReceivedAt)
+	}
+
+	private val ReadingListViewModel.offlineState: Pair<String?, Boolean>
+		get() = state.value.errorText to state.value.isOffline
+
+	private fun TestScope.store(directory: java.io.File, now: () -> Instant = { Instant.EPOCH }): OfflineReadlistSnapshot =
+		OfflineReadlistSnapshot(directory, StandardTestDispatcher(testScheduler), now = now, diagnostics = {})
+
+	private fun entryPointHandler(vararg ids: String): (Record) -> Stub = { record ->
+		if (record.path == "/") Stub.json(200, Fixtures.collection(ids.map { Fixtures.article(it) })) else Stub.json(404, "{}")
+	}
+
+	private val mainTabs = """{ "label": "To Read", "rel": "current", "href": "/queue?status=unread" }"""
+
+	private fun mainReadlistHandler(): (Record) -> Stub = { record ->
+		val readlistsJson = """{ "label": "Main", "rel": "current", "href": "/queue?readlist=main" }"""
+		when {
+			record.path == "/queue" && record.request.url.queryParameter("readlist") == "main" ->
+				Stub.json(200, Fixtures.collection(listOf(Fixtures.article("m1")), tabsJson = mainTabs, readlistsJson = readlistsJson))
+			record.path == "/queue" && record.request.url.queryParameter("status") == "unread" ->
+				Stub.json(
+					200,
+					Fixtures.collection(
+						listOf("t1", "t2", "t3", "m1").map { Fixtures.article(it) },
+						tabsJson = mainTabs,
+						readlistsJson = readlistsJson,
+					),
+				)
+			else -> Stub.json(404, "{}")
+		}
+	}
+
+	@Test
+	fun `a refresh that cannot reach the network shows the kept list under the offline sentence`() = runTest {
+		server.handle(entryPointHandler("a1", "a2"))
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+
+		network.down = true
+		viewModel.refresh()
+
+		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
+		assertEquals(OfflineReading.BANNER_TEXT to true, viewModel.offlineState)
+	}
+
+	@Test
+	fun `a kept copy does not bring back the warning it was saved with`() = runTest {
+		val warnedReadlist = """
+			{
+				"class": ["collection", "articles"],
+				"properties": { "total": 1, "page": 1, "pageSize": 20, "warning": { "code": "not-saveable", "message": "Cannot save that link." } },
+				"entities": [${Fixtures.article("a1")}],
+				"links": [{ "rel": ["self"], "href": "/" }, { "rel": ["root"], "href": "/" }],
+				"actions": []
+			}
+		"""
+		server.handle { record -> if (record.path == "/") Stub.json(200, warnedReadlist) else Stub.json(404, "{}") }
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		assertEquals("precondition: the live page shows its warning", "Cannot save that link.", viewModel.state.value.warningText)
+
+		network.down = true
+		viewModel.refresh()
+
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertNull(viewModel.state.value.warningText)
+	}
+
+	@Test
+	fun `an offline launch shows the newest copy of the tab the remembered readlist landed on`() = runTest {
+		server.handle(mainReadlistHandler())
+		val directory = folder.newFolder()
+		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?readlist=main") }
+		val monday = viewModel(lastViewed = lastViewed, snapshot = store(directory))
+		monday.loadIfNeeded()
+		monday.handleForeground()
+
+		val network = OfflineSwitch().apply { down = true }
+		val wednesday = viewModel(lastViewed = lastViewed, snapshot = store(directory), network = network)
+		wednesday.loadIfNeeded()
+
+		assertEquals(listOf("t1", "t2", "t3", "m1"), wednesday.articleIds)
+		assertEquals(listOf("/queue?readlist=main"), network.refused)
+	}
+
+	@Test
+	fun `an offline launch with nothing kept shows the offline empty list`() = runTest {
+		val network = OfflineSwitch().apply { down = true }
+		val lastViewed = LastViewedReadlist(InMemoryReaderChoiceStorage()).apply { remember("/queue?queue=work") }
+		val viewModel = viewModel(lastViewed = lastViewed, network = network)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals(listOf("/queue?queue=work", "/"), network.refused)
+		assertEquals(emptyList<String>(), viewModel.articleIds)
+		assertEquals(OfflineReading.BANNER_TEXT to true, viewModel.offlineState)
+	}
+
+	@Test
+	fun `a server error keeps the list and is reported as the server's error, not as offline`() = runTest {
+		var failing = false
+		server.handle { record ->
+			if (failing) Stub.json(500, "{}") else entryPointHandler("a1")(record)
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+
+		failing = true
+		viewModel.refresh()
+
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertEquals(ApiError.Server(500, code = null, serverMessage = null).message to false, viewModel.offlineState)
+	}
+
+	@Test
+	fun `an offline launch does not show a copy older than thirty days`() = runTest {
+		server.handle(entryPointHandler("a1"))
+		val directory = folder.newFolder()
+		viewModel(snapshot = store(directory)).loadIfNeeded()
+
+		val network = OfflineSwitch().apply { down = true }
+		val later = viewModel(
+			network = network,
+			snapshot = store(directory, now = { Instant.EPOCH.plus(Duration.ofDays(31)) }),
+		)
+		later.loadIfNeeded()
+
+		assertEquals(emptyList<String>(), later.articleIds)
+		assertEquals(true, later.state.value.isOffline)
+	}
+
+	@Test
+	fun `a refresh answered by the network ends offline`() = runTest {
+		var rows = listOf("a1")
+		server.handle { record -> entryPointHandler(*rows.toTypedArray())(record) }
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		network.down = true
+		viewModel.refresh()
+
+		network.down = false
+		rows = listOf("b1", "a1")
+		viewModel.refresh()
+
+		assertEquals(listOf("b1", "a1"), viewModel.articleIds)
+		assertEquals(null to false, viewModel.offlineState)
+	}
+
+	@Test
+	fun `a next page answered by the network after an offline refresh ends offline`() = runTest {
+		server.handle(twoPageHandler())
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		network.down = true
+		viewModel.refresh()
+		val whileOffline = viewModel.offlineState
+
+		network.down = false
+		viewModel.loadMore()
+
+		assertEquals(OfflineReading.BANNER_TEXT to true, whileOffline)
+		assertEquals(listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+		assertEquals(null to false, viewModel.offlineState)
+	}
+
+	@Test
+	fun `a next page answered by the network after an offline write ends offline`() = runTest {
+		server.handle(twoPageHandler())
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		network.down = true
+		viewModel.invoke(advertisedAction(viewModel.state.value.articles.first(), "update-status"))
+		val whileOffline = viewModel.offlineState
+
+		network.down = false
+		viewModel.loadMore()
+
+		assertEquals(OfflineReading.BANNER_TEXT to true, whileOffline)
+		assertEquals(null to false, viewModel.offlineState)
+	}
+
+	@Test
+	fun `a list read that lands after sign-out leaves nothing to read offline`() = runTest {
+		val gate = Gate()
+		val reads = AtomicInteger()
+		server.handle { record ->
+			val stub = entryPointHandler("a1")(record)
+			if (reads.incrementAndGet() == 1) gate.holding(stub) else stub
+		}
+		val snapshot = store(folder.newFolder())
+		val viewModel = viewModel(snapshot = snapshot, ioDispatcher = Dispatchers.IO)
+
+		val read = launch { viewModel.refresh() }
+		awaitArrival(gate)
+		snapshot.purge()
+		gate.release()
+		read.join()
+
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertEquals(null, snapshot.firstPage(null))
+	}
+
+	@Test
+	fun `no row is polled while the list is offline, and polling resumes once back online`() = runTest {
+		server.handle(oneRowCountingToReady())
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		val pollsOnline = cardPolls()
+
+		network.down = true
+		viewModel.refresh()
+		advanceSeconds(60)
+
+		assertEquals(listOf("/"), network.refused)
+		assertEquals(pollsOnline, cardPolls())
+
+		network.down = false
+		viewModel.refresh()
+		advanceSeconds(3)
+
+		assertEquals(pollsOnline + "1", cardPolls())
+	}
+
+	@Test
+	fun `a refresh that cannot reach the network stops a running poll even with nothing kept`() = runTest {
+		server.handle(oneRowCountingToReady())
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network, snapshot = store(folder.newFile("not-a-dir")))
+		viewModel.refresh()
+		val pollsOnline = cardPolls()
+
+		network.down = true
+		viewModel.refresh()
+		advanceSeconds(60)
+
+		assertEquals(listOf("/"), network.refused)
+		assertEquals(pollsOnline, cardPolls())
+		assertEquals(true, viewModel.state.value.isOffline)
+	}
+
+	@Test
+	fun `a write that cannot reach the network shows the offline sentence and keeps the rows`() = runTest {
+		server.handle(markReadHandler { Stub.redirect(to = "/queue") })
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		val target = viewModel.state.value.articles.first()
+
+		network.down = true
+		viewModel.invoke(advertisedAction(target, "update-status"))
+
+		assertEquals(OfflineReading.BANNER_TEXT, viewModel.state.value.errorText)
+		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
+	}
+
+	@Test
+	fun `an offline refresh after a write shows the list the write left`() = runTest {
+		server.handle { record ->
+			when {
+				record.path.endsWith("/delete") -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a2"))))
+				record.path == "/" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"), Fixtures.article("a2"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		viewModel.invoke(advertisedAction(viewModel.state.value.articles.first(), "delete"))
+
+		network.down = true
+		viewModel.refresh()
+
+		assertEquals(listOf("a2"), viewModel.articleIds)
+		assertEquals(OfflineReading.BANNER_TEXT to true, viewModel.offlineState)
+	}
+
+	@Test
+	fun `paging offline shows the kept next page`() = runTest {
+		server.handle(twoPageHandler())
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		viewModel.loadMore()
+		viewModel.refresh()
+
+		network.down = true
+		viewModel.loadMore()
+
+		assertEquals(listOf("a1", "a2", "a3", "a4"), viewModel.articleIds)
+		assertEquals(OfflineReading.BANNER_TEXT to true, viewModel.offlineState)
+	}
+
+	@Test
+	fun `paging offline with no kept next page keeps the rows under the offline sentence`() = runTest {
+		server.handle(twoPageHandler())
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+
+		network.down = true
+		viewModel.loadMore()
+
+		assertEquals(listOf("a1", "a2"), viewModel.articleIds)
+		assertEquals(OfflineReading.BANNER_TEXT, viewModel.state.value.errorText)
+	}
+
+	@Test
+	fun `a kept page does not count as showing an unseen save`() = runTest {
+		server.handle(entryPointHandler("a1"))
+		val directory = folder.newFolder()
+		viewModel(snapshot = store(directory)).loadIfNeeded()
+		val unseenSave = UnseenSave(folder.newFolder())
+		unseenSave.record()
+
+		val network = OfflineSwitch().apply { down = true }
+		val offline = viewModel(unseenSave = unseenSave, network = network, snapshot = store(directory))
+		offline.loadIfNeeded()
+		val keptAfterOffline = unseenSave.exists
+
+		network.down = false
+		offline.refresh()
+
+		assertEquals(listOf(true, false), listOf(keptAfterOffline, unseenSave.exists))
+	}
+
+	@Test
+	fun `an offline launch with nothing remembered shows the kept entry point`() = runTest {
+		server.handle(entryPointHandler("a1", "a2"))
+		val directory = folder.newFolder()
+		val online = viewModel(snapshot = store(directory))
+		online.loadIfNeeded()
+
+		val network = OfflineSwitch().apply { down = true }
+		val offline = viewModel(network = network, snapshot = store(directory))
+		offline.loadIfNeeded()
+
+		assertEquals(online.articleIds, offline.articleIds)
+		assertEquals(listOf("/"), network.refused)
+	}
+
+	@Test
+	fun `an offline tab switch shows that tab's kept rows`() = runTest {
+		server.handle { record ->
+			when {
+				record.path == "/" || record.path == "/queue" && record.request.url.queryParameter("status") == null ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("u1")), tabsJson = Fixtures.tabs()))
+				record.path == "/queue" && record.request.url.queryParameter("status") == "read" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("r1")), tabsJson = Fixtures.tabs(currentLabel = "Read")))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.loadIfNeeded()
+		viewModel.selectTab("/queue?status=read")
+		viewModel.selectTab("/queue")
+
+		network.down = true
+		viewModel.selectTab("/queue?status=read")
+
+		assertEquals(listOf("r1"), viewModel.articleIds)
+		assertEquals(listOf("/queue?status=read"), network.refused)
+	}
+
+	@Test
+	fun `a kept page leaves the reader's share destinations alone`() = runTest {
+		server.handle { record ->
+			if (record.path == "/") {
+				Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), readlistsJson = Fixtures.readlists()))
+			} else {
+				Stub.json(404, "{}")
+			}
+		}
+		val directory = folder.newFolder()
+		viewModel(snapshot = store(directory)).loadIfNeeded()
+
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?readlist=r")) }
+		val network = OfflineSwitch().apply { down = true }
+		val offline = viewModel(shareTarget = shareTarget, network = network, snapshot = store(directory))
+		offline.loadIfNeeded()
+		offline.shareTargetReconciliation?.join()
+
+		assertEquals(setOf("/queue?readlist=r"), shareTarget.hrefs)
+		assertEquals(listOf("/"), network.refused)
 	}
 
 	private object Fixtures {

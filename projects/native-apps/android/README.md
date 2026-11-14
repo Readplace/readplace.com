@@ -68,6 +68,12 @@ readplace.com link would open somewhere they are not signed in. Android's defaul
 browser *is* the browser they use, and it carries their cookie jar, so our-host
 links are handed to the system untouched.
 
+**No landing-tab preference.** iOS remembers the landing tab's href so a cold offline
+launch has a key to look up. Android launches by the remembered readlist href, and
+the stored answer to that href names the tab it landed on, so a failed launch read
+follows that tab's stored copy. Same list, one preference fewer, and no assumption
+about which tab the server lands on.
+
 **A distinct OAuth redirect.** The iOS app is registered against
 `readplace://oauth-callback`; this app is registered against
 `readplace://oauth-callback/android`. Redirect URIs are matched by exact string per

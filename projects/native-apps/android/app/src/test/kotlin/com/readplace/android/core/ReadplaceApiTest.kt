@@ -225,6 +225,57 @@ class ReadplaceApiTest {
 	}
 
 	@Test
+	fun `a list read that cannot reach the server fails in the transport`() = runTest {
+		val error = failsWith<IOException> { api(baseUrl = unreachableBaseUrl()).loadReadlist() }
+
+		assertEquals(true, OfflineReading.isTransportFailure(error))
+	}
+
+	@Test
+	fun `a list read keeps the exact body the server answered`() = runTest {
+		val body = Fixtures.collection(
+			listOf(Fixtures.article("a1"), Fixtures.article("a2")),
+			extraLinks = """, { "rel": ["next"], "href": "/queue?page=2" }""",
+			total = 2,
+		)
+		server.handle { Stub.json(200, body) }
+
+		val page = api().loadReadlist(path = "/queue")
+
+		assertArrayEquals(body.toByteArray(Charsets.UTF_8), page.sirenBody)
+		assertEquals(false, page.isStoredCopy)
+	}
+
+	@Test
+	fun `a kept body reads back as the same page, marked as a stored copy`() = runTest {
+		val body = Fixtures.collection(
+			listOf(Fixtures.article("a1"), Fixtures.article("a2")),
+			extraLinks = """, { "rel": ["next"], "href": "/queue?page=2" }""",
+			total = 2,
+		).replace("\"pageSize\": 20", """"pageSize": 20, "tabs": [{ "label": "To Read", "rel": "current", "href": "/queue" }]""")
+		server.handle { Stub.json(200, body) }
+		val live = api().loadReadlist(path = "/queue")
+
+		val stored = ReadlistPage.stored(body = body.toByteArray(Charsets.UTF_8), href = "/queue")
+
+		assertEquals(
+			listOf(live.articles.map { it.id }, live.tabs, live.nextHref, listOf("/queue"), true),
+			listOf(stored?.articles?.map { it.id }, stored?.tabs, stored?.nextHref, stored?.chain, stored?.isStoredCopy),
+		)
+	}
+
+	@Test
+	fun `a kept body that is not a collection reads as nothing`() {
+		assertEquals(
+			listOf(null, null),
+			listOf(
+				ReadlistPage.stored(body = "not json".toByteArray(), href = "/queue"),
+				ReadlistPage.stored(body = """{"class":["error"]}""".toByteArray(), href = "/queue"),
+			),
+		)
+	}
+
+	@Test
 	fun `loadReadlist follows a href the server handed back`() = runTest {
 		server.handle { record ->
 			if (record.path == "/queue") Stub.json(200, Fixtures.collection(listOf(Fixtures.article("p2")), page = 2)) else Stub.json(404, "{}")
