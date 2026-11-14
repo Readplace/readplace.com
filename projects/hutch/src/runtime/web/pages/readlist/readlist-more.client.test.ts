@@ -14,6 +14,12 @@ function markup(): string {
 				<li><details class="menu readlist-nav__menu" data-test-rail-menu><summary>Options</summary><div class="menu__panel">Edit</div></details></li>
 				<li><button type="button" popovertarget="readlist-more" data-test-opener>More</button></li>
 			</ul>
+			<div data-readlist-switch data-test-rail-switch>
+				<div data-readlist-switch-body data-test-rail-switch-body>
+					<details class="menu readlist-nav__menu" data-test-switch-menu><summary>Options</summary><div class="menu__panel">Edit</div></details>
+				</div>
+				<div data-test-rail-switch-head></div>
+			</div>
 		</aside>
 	</div>
 	<details class="menu readlist-nav__menu" data-test-loose-menu><summary>Options</summary><div class="menu__panel">Edit</div></details>
@@ -396,5 +402,100 @@ describe("initReadlistMore", () => {
 			s.el("[data-test-opener]").getAttribute("aria-expanded"),
 			null,
 		);
+	});
+
+	function openSwitchMenu(
+		s: Setup,
+		rects: {
+			toggle: { top: number; bottom: number; right: number };
+			panel: { height: number; width: number };
+			containingBlock: { top: number; left: number };
+		},
+	): HTMLElement {
+		const menu = s.el("[data-test-switch-menu]");
+		stubRect(menu, {
+			...rects.toggle,
+			height: rects.toggle.bottom - rects.toggle.top,
+		});
+		const panel = s.el("[data-test-switch-menu] .menu__panel");
+		Object.defineProperty(panel, "getBoundingClientRect", {
+			value: () => ({
+				top:
+					Number.parseFloat(panel.style.getPropertyValue("--menu-top") || "0") +
+					rects.containingBlock.top,
+				left:
+					Number.parseFloat(panel.style.getPropertyValue("--menu-left") || "0") +
+					rects.containingBlock.left,
+				...rects.panel,
+			}),
+		});
+		menu.setAttribute("open", "");
+		menu.dispatchEvent(new s.window.Event("toggle"));
+		return menu;
+	}
+
+	it("floats a readlist switch menu below its toggle, right-aligned to it", () => {
+		const s = setup({ overflow: true, finePointer: true });
+		Object.defineProperty(s.window, "innerHeight", { value: 700 });
+
+		const menu = openSwitchMenu(s, {
+			toggle: { top: 100, bottom: 140, right: 600 },
+			panel: { height: 120, width: 150 },
+			containingBlock: { top: 0, left: 0 },
+		});
+		const panel = s.el("[data-test-switch-menu] .menu__panel");
+
+		assert.deepEqual(Array.from(menu.classList), [
+			"menu",
+			"readlist-nav__menu",
+			"readlist-nav__menu--floating",
+		]);
+		assert.equal(panel.style.getPropertyValue("--menu-top"), "140px");
+		assert.equal(panel.style.getPropertyValue("--menu-left"), "450px");
+	});
+
+	it("floats a readlist switch menu above its toggle when it would leave the viewport, offset by the sheet it is laid out in", () => {
+		const s = setup({ overflow: true, finePointer: true });
+		Object.defineProperty(s.window, "innerHeight", { value: 700 });
+
+		const menu = openSwitchMenu(s, {
+			toggle: { top: 620, bottom: 660, right: 380 },
+			panel: { height: 120, width: 150 },
+			containingBlock: { top: 8, left: 8 },
+		});
+		const panel = s.el("[data-test-switch-menu] .menu__panel");
+
+		assert.deepEqual(Array.from(menu.classList), [
+			"menu",
+			"readlist-nav__menu",
+			"readlist-nav__menu--floating",
+		]);
+		assert.equal(panel.style.getPropertyValue("--menu-top"), "492px");
+		assert.equal(panel.style.getPropertyValue("--menu-left"), "222px");
+	});
+
+	it("closes the open menus of a readlist switch body when that body scrolls", () => {
+		const s = setup({ overflow: true, finePointer: true });
+		const menu = s.el("[data-test-switch-menu]");
+		menu.setAttribute("open", "");
+
+		s.el("[data-test-rail-switch-body]").dispatchEvent(
+			new s.window.Event("scroll"),
+		);
+
+		assert.equal(menu.hasAttribute("open"), false);
+	});
+
+	it("keeps menus open when something other than a readlist switch body scrolls", () => {
+		const s = setup({ overflow: true, finePointer: true });
+		const menu = s.el("[data-test-switch-menu]");
+		menu.setAttribute("open", "");
+
+		s.el("[data-test-rail-switch-head]").dispatchEvent(
+			new s.window.Event("scroll"),
+		);
+		s.document.dispatchEvent(new s.window.Event("scroll"));
+
+		assert.equal(menu.hasAttribute("open"), true);
 	});
 });

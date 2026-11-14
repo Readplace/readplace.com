@@ -15,6 +15,7 @@ const RAIL_LIST = ".readlist-nav__rail-list";
 const LAYOUT = ".readlist__layout";
 const MENU = ".readlist-nav__menu";
 const MENU_UP = "readlist-nav__menu--up";
+const MENU_FLOATING = "readlist-nav__menu--floating";
 
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
@@ -103,16 +104,28 @@ function onSwitchToggle(input: {
 		current.scrollIntoView({ block: "nearest" });
 }
 
-function flipMenu(input: { window: Window; menu: HTMLDetailsElement }): void {
+function placeMenu(input: { window: Window; menu: HTMLDetailsElement }): void {
 	const { menu } = input;
-	menu.classList.remove(MENU_UP);
-	const panel = menu.querySelector(".menu__panel");
+	menu.classList.remove(MENU_UP, MENU_FLOATING);
+	const panel = menu.querySelector<HTMLElement>(".menu__panel");
 	assert(panel, "a rail menu opens a panel");
 	const toggle = menu.getBoundingClientRect();
+	const height = panel.getBoundingClientRect().height;
 	const below = input.window.innerHeight - toggle.bottom;
 	const above = toggle.top;
-	if (panel.getBoundingClientRect().height > below && above > below)
-		menu.classList.add(MENU_UP);
+	const up = height > below && above > below;
+	if (menu.closest(SWITCH) === null) {
+		if (up) menu.classList.add(MENU_UP);
+		return;
+	}
+	menu.classList.add(MENU_FLOATING);
+	const top = up ? toggle.top - height : toggle.bottom;
+	const left = toggle.right - panel.getBoundingClientRect().width;
+	panel.style.setProperty("--menu-top", `${top}px`);
+	panel.style.setProperty("--menu-left", `${left}px`);
+	const placed = panel.getBoundingClientRect();
+	panel.style.setProperty("--menu-top", `${2 * top - placed.top}px`);
+	panel.style.setProperty("--menu-left", `${2 * left - placed.left}px`);
 }
 
 export function initReadlistMore(deps: ReadlistMoreDeps): void {
@@ -127,7 +140,7 @@ export function initReadlistMore(deps: ReadlistMoreDeps): void {
 			if (!isElement(target)) return;
 			const menu = target.closest<HTMLDetailsElement>(`${RAIL} details${MENU}`);
 			if (menu === target) {
-				if (menu.open) flipMenu({ window, menu });
+				if (menu.open) placeMenu({ window, menu });
 				return;
 			}
 			const dialog = target.closest<HTMLElement>(SWITCH);
@@ -136,6 +149,19 @@ export function initReadlistMore(deps: ReadlistMoreDeps): void {
 			if (isOpen) open.add(dialog);
 			else open.delete(dialog);
 			onSwitchToggle({ document: deps.document, window, dialog, open: isOpen });
+		},
+		true,
+	);
+
+	deps.document.addEventListener(
+		"scroll",
+		(event) => {
+			const body = event.target;
+			if (!isElement(body) || !body.matches(BODY)) return;
+			for (const menu of body.querySelectorAll<HTMLDetailsElement>(
+				`details${MENU}[open]`,
+			))
+				menu.open = false;
 		},
 		true,
 	);
