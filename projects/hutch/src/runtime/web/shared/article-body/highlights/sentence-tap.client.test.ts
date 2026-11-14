@@ -314,6 +314,15 @@ describe("initSentenceTap", () => {
 		expect(selectionOf(h).isCollapsed).toBe(true);
 	});
 
+	it("leaves a tap alone on a reader that cannot highlight", () => {
+		const h = harness();
+		toolbarOf(h).remove();
+
+		tapText(h, "First");
+
+		expect(selectionOf(h).isCollapsed).toBe(true);
+	});
+
 	it("leaves a tap alone when no caret answers the point", () => {
 		const h = harness();
 

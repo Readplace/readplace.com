@@ -114,6 +114,8 @@ interface Harness {
 	shownPopovers: Element[];
 	hiddenPopovers: Element[];
 	beacons: string[];
+	initAgain(): void;
+	listenerCounts(): { viewport: number; scroll: number };
 }
 
 function harness(bodyHtml: string = mainHtml()): Harness {
@@ -162,8 +164,10 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		scrollWindow() {
 			for (const entry of scrollListeners) if (entry.passive) entry.listener();
 		},
+		initAgain: () => initHighlightToolbar(deps),
+		listenerCounts: () => ({ viewport: viewportListeners.length, scroll: scrollListeners.length }),
 	};
-	initHighlightToolbar({
+	const deps: Parameters<typeof initHighlightToolbar>[0] = {
 		document: doc,
 		window: {
 			visualViewport: {
@@ -204,7 +208,8 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		hidePopover: (panel) => h.hiddenPopovers.push(panel),
 		isFocusVisible: () => true,
 		sendBeacon: (url) => h.beacons.push(url),
-	});
+	};
+	initHighlightToolbar(deps);
 	const toolbar = doc.querySelector("[data-test-highlight-toolbar]");
 	if (toolbar !== null) {
 		Object.defineProperty(toolbar, "getBoundingClientRect", {
@@ -304,6 +309,12 @@ function markWord(h: Harness, word: string): Element {
 	return mark;
 }
 
+function swapMain(h: Harness, html: string): void {
+	const main = h.doc.querySelector("main");
+	assert(main);
+	main.outerHTML = html;
+}
+
 function formFields(form: HTMLFormElement): Record<string, string> {
 	return Object.fromEntries(Array.from(form.querySelectorAll("input"), (input) => [input.name, input.value]));
 }
@@ -334,6 +345,84 @@ describe("initHighlightToolbar", () => {
 		expect(preview.style.top).toBe(`${500 - 10 - 40}px`);
 
 		expect(h.beacons).toEqual([]);
+	});
+
+	it("on a page without its toolbar, a selection, a press, Escape and a click do nothing", () => {
+		const h = harness(mainHtml({ toolbar: false }));
+		selectWords(h, { from: "beta" });
+		const errors: string[] = [];
+		h.window.addEventListener("error", (event) => {
+			event.preventDefault();
+			errors.push(event.message);
+		});
+
+		settleSelection(h);
+		h.runTimer(POINTER_SETTLE_MS);
+		contentOf(h).dispatchEvent(new h.window.Event("pointerdown", { bubbles: true }));
+		h.doc.dispatchEvent(new h.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+		click(h, contentOf(h));
+
+		expect(errors).toEqual([]);
+		expect(h.submitted).toHaveLength(0);
+		expect(h.doc.getSelection()?.isCollapsed).toBe(false);
+	});
+
+	it("starts working for a reader a swap brings in after the script loaded", () => {
+		const h = harness("<main></main>");
+		swapMain(h, mainHtml());
+		fire(h, "htmx:afterSettle");
+
+		selectWords(h, { from: "beta" });
+		settleSelection(h);
+		expect(toolbarOf(h).hidden).toBe(false);
+		click(h, buttonOf(h));
+
+		expect(h.submitted).toHaveLength(1);
+		expect(h.submitted[0]).toBe(h.doc.querySelector("[data-test-highlight-create-form]"));
+	});
+
+	it("goes quiet when a swap takes the reader away and works on the next one", () => {
+		const h = harness();
+		selectWords(h, { from: "beta" });
+		settleSelection(h);
+		expect(toolbarOf(h).hidden).toBe(false);
+
+		swapMain(h, "<main></main>");
+		const errors: string[] = [];
+		h.window.addEventListener("error", (event) => {
+			event.preventDefault();
+			errors.push(event.message);
+		});
+		h.scrollWindow();
+		h.runFrames();
+		h.doc.body.dispatchEvent(new h.window.Event("pointerdown", { bubbles: true }));
+		click(h, h.doc.body);
+		fire(h, "htmx:afterSettle");
+		expect(errors).toEqual([]);
+		expect(h.submitted).toHaveLength(0);
+
+		swapMain(h, mainHtml());
+		fire(h, "htmx:afterSettle");
+		selectWords(h, { from: "zeta" });
+		settleSelection(h);
+		click(h, buttonOf(h));
+
+		expect(h.submitted).toHaveLength(1);
+		expect(h.submitted[0].isConnected).toBe(true);
+	});
+
+	it("binds only once when the bundle footer runs again", () => {
+		const h = harness();
+		expect(h.doc.documentElement.hasAttribute("data-highlight-toolbar-owned")).toBe(true);
+		expect(h.listenerCounts()).toEqual({ viewport: 2, scroll: 1 });
+
+		h.initAgain();
+
+		expect(h.listenerCounts()).toEqual({ viewport: 2, scroll: 1 });
+		selectWords(h, { from: "beta" });
+		settleSelection(h);
+		click(h, buttonOf(h));
+		expect(h.submitted).toHaveLength(1);
 	});
 
 	it("shows the bar for a selection inside the article, once the selection has rested 100 ms", () => {
