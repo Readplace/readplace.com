@@ -4,9 +4,16 @@ import com.readplace.android.RecordingServer
 import com.readplace.android.RecordingServer.Stub
 import com.readplace.android.core.AccessToken
 import com.readplace.android.core.AppConfig
+import com.readplace.android.core.AuthEvent
+import com.readplace.android.core.AuthReason
+import com.readplace.android.core.AuthRecordStorage
+import com.readplace.android.core.AuthSurface
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
 import com.readplace.android.core.InMemoryReaderChoiceStorage
+import com.readplace.android.core.NativeAuthRecords
+import com.readplace.android.core.NativeProof
+import com.readplace.android.core.NativeRefreshRecovery
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.Readlist
@@ -121,8 +128,35 @@ class SaveSharedPageTest {
 		return store
 	}
 
+	private fun plainOAuth(store: TokenStore) =
+		OAuth(endpoints = ServerEndpoints(server.baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
+
+	private class InMemoryAuthRecordStorage : AuthRecordStorage {
+		var value: String? = null
+		override fun read() = value
+		override fun write(value: String) { this.value = value }
+		override fun <T> locked(work: () -> T): T = synchronized(this) { work() }
+	}
+
+	private class RecordedCredentials(val records: NativeAuthRecords, val store: TokenStore, val oauth: OAuth)
+
+	private fun recordedCredentials(signedIn: Boolean): RecordedCredentials {
+		val legacy = InMemoryTokenStorage()
+		val records = NativeAuthRecords(InMemoryAuthRecordStorage(), legacy)
+		if (signedIn) records.replace(OAuthTokens(AccessToken("access-1"), RefreshToken("refresh-1")))
+		val store = TokenStore(legacy, records)
+		val recovery = NativeRefreshRecovery(
+			ServerEndpoints(server.baseUrl), records, OkHttpClient(), NativeProof { "test-proof" }, "117", AuthSurface.APP,
+		)
+		return RecordedCredentials(records, store, OAuth(ServerEndpoints(server.baseUrl), store, OkHttpClient(), USER_AGENT, recovery))
+	}
+
+	private fun journal(records: NativeAuthRecords) =
+		records.read().diagnostics.map { listOf(it.event.event, it.event.surface, it.event.reason, it.permit) }
+
 	private fun TestScope.api(
 		store: TokenStore,
+		oauth: OAuth = plainOAuth(store),
 		cache: Cache? = null,
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 	): ReadplaceApi =
@@ -131,7 +165,7 @@ class SaveSharedPageTest {
 			client = OkHttpClient.Builder().followRedirects(false)
 				.apply { if (cache != null) cache(cache) }
 				.build(),
-			oauth = OAuth(endpoints = ServerEndpoints(server.baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT),
+			oauth = oauth,
 			nativeUserAgent = USER_AGENT,
 			ioDispatcher = ioDispatcher,
 		)
@@ -182,10 +216,12 @@ class SaveSharedPageTest {
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 		shareTarget: ShareTarget = ShareTarget(InMemoryReaderChoiceStorage()),
 		readlistChooser: ReadlistChooser = ReadlistChooser { emptySet() },
+		oauth: OAuth = plainOAuth(store),
 	): SaveSharedPage =
 		SaveSharedPage(
 			store = store,
-			api = api(store, cache = cache, ioDispatcher = ioDispatcher),
+			api = api(store, oauth = oauth, cache = cache, ioDispatcher = ioDispatcher),
+			oauth = oauth,
 			captor = captor,
 			jobs = jobStore(container),
 			unseenSave = UnseenSave(container),
@@ -965,9 +1001,11 @@ class SaveSharedPageTest {
 		val store = loggedInStore()
 		serveReadlistAndSave()
 
+		val oauth = plainOAuth(store)
 		val saver = SaveSharedPage(
 			store = store,
-			api = api(store),
+			api = api(store, oauth = oauth),
+			oauth = oauth,
 			captor = FakeHtmlCaptor(page = html()),
 			jobs = null,
 			unseenSave = null,
@@ -1285,6 +1323,45 @@ class SaveSharedPageTest {
 		assertNull("a cancelled journey paints nothing", outcome)
 		assertEquals("no replacement save is discovered after the cancellation", 1, urlOnlyPosts().size)
 		assertEquals("the cancellation adds no re-discovery of the collection", 1, server.records("/queue").count { it.method == "GET" })
+	}
+
+	@Test
+	fun `a signed-out share records its start and its sign-in prompt as the share surface`() = runTest {
+		val credentials = recordedCredentials(signedIn = false)
+		val saver = makeSaver(
+			store = credentials.store,
+			oauth = credentials.oauth,
+			captor = FakeHtmlCaptor(page = html()),
+			container = temporaryFolder.newFolder("files"),
+		)
+
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.NotLoggedIn, outcome)
+		assertEquals(
+			listOf(
+				listOf(AuthEvent.CONTEXT_STARTED, AuthSurface.SHARE, null, null),
+				listOf(AuthEvent.LOGIN_PROMPT_SHOWN, AuthSurface.SHARE, AuthReason.NO_CREDENTIALS, null),
+			),
+			journal(credentials.records),
+		)
+	}
+
+	@Test
+	fun `a signed-in share records only its start as the share surface`() = runTest {
+		val credentials = recordedCredentials(signedIn = true)
+		serveReadlistAndSave()
+		val saver = makeSaver(
+			store = credentials.store,
+			oauth = credentials.oauth,
+			captor = FakeHtmlCaptor(page = html(html = "<html><body>hi</body></html>")),
+			container = temporaryFolder.newFolder("files"),
+		)
+
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.SavedAwaitingUpload(emptyList()), outcome)
+		assertEquals(listOf(listOf(AuthEvent.CONTEXT_STARTED, AuthSurface.SHARE, null, null)), journal(credentials.records))
 	}
 
 	@Test

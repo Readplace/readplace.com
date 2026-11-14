@@ -198,6 +198,30 @@ class NativeRefreshRecoveryTest {
 		assertTrue(uploaded?.body?.utf8()?.contains("login_completed") == true)
 	}
 
+	@Test fun `an event recorded for another surface carries it and the next carries the recovery's own`() {
+		val records = records(); val client = recovery(records)
+		client.record(AuthEvent.CONTEXT_STARTED, surface = AuthSurface.SHARE)
+		client.record(AuthEvent.CONTEXT_STARTED)
+		val entries = records.read().diagnostics
+		assertEquals(listOf(AuthSurface.SHARE, AuthSurface.APP), entries.map { it.event.surface })
+		assertEquals(entries[0].event.context_id, entries[1].event.context_id)
+	}
+
+	@Test fun `a share event recorded through OAuth uploads with the share surface`() {
+		val legacy = Legacy(); val records = records(legacy = legacy); val store = TokenStore(legacy, records)
+		val recovery = recovery(records)
+		records.update { it.diagnosticsPermit = "share-permit" }
+		val oauth = OAuth(ServerEndpoints(server.url("/").toString().removeSuffix("/")), store, OkHttpClient(), "Readplace/117", recovery)
+		server.enqueue(MockResponse.Builder().code(202).body("""{"accepted_event_ids":[]}""").build())
+		oauth.recordAuthEvent(AuthEvent.CONTEXT_STARTED, surface = AuthSurface.SHARE)
+		val uploaded = requireNotNull(server.takeRequest(2, java.util.concurrent.TimeUnit.SECONDS))
+		assertEquals("/diagnostics/auth", uploaded.url.encodedPath)
+		val events = requireNotNull(Json.parseToJsonElement(requireNotNull(uploaded.body).utf8()).jsonObject["events"]).jsonArray
+		assertEquals(listOf("context_started" to "share"), events.map {
+			requireNotNull(it.jsonObject["event"]).jsonPrimitive.content to requireNotNull(it.jsonObject["surface"]).jsonPrimitive.content
+		})
+	}
+
 	@Test fun `transport failure keeps parent and prepared operation`() = runTest {
 		val records = records(); records.replace(old); val operation = records.prepare(old)
 		val http = OkHttpClient.Builder().addInterceptor { throw java.io.IOException("connection lost") }.build()

@@ -232,7 +232,7 @@ class OAuth(
 		refreshScope.launch { recovery?.flush() }
 	}
 
-	fun recordAuthEvent(event: AuthEvent, outcome: AuthOutcome? = null, reason: AuthReason? = null) {
+	fun recordAuthEvent(event: AuthEvent, outcome: AuthOutcome? = null, reason: AuthReason? = null, surface: AuthSurface? = null) {
 		if (event == AuthEvent.LOGIN_STARTED) synchronized(this) {
 			val identity = java.util.UUID.randomUUID().toString()
 			runCatching { store.authRecords?.update { state ->
@@ -243,7 +243,7 @@ class OAuth(
 			} }
 			loginDiagnosticIdentity = identity
 		}
-		recovery?.record(event, outcome, reason)
+		recovery?.record(event, outcome, reason, surface = surface)
 		refreshScope.launch { recovery?.flush() }
 	}
 

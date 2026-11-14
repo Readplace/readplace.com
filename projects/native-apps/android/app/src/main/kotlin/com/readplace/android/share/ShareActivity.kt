@@ -120,6 +120,7 @@ class ShareActivity : ComponentActivity() {
 				nativeUserAgent = nativeUserAgent,
 				ioDispatcher = Dispatchers.IO,
 			),
+			oauth = credentials.oauth,
 			captor = HtmlCaptor(this) { findViewById(android.R.id.content) },
 			jobs = UploadJobStore(filesDir, Dispatchers.IO),
 			unseenSave = UnseenSave(filesDir),

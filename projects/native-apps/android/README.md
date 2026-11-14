@@ -55,7 +55,9 @@ that share nothing but an App Group. Android's share target is an `Activity` in 
 same APK, so the entire App Group layer disappears: no shared container, no keychain
 access group, no provisioning-profile group-id resolution, no legacy-defaults
 migration. Storage roots are plain injected `File`s under the app's own
-`filesDir`/`cacheDir`.
+`filesDir`/`cacheDir`. The same single process owns token refresh, sign-in and
+sign-out, so their auth diagnostic events carry the `app` surface whichever screen
+caused them; only the share screen's own start and sign-in-prompt events carry `share`.
 
 That also removes the background-upload machinery. iOS needs a background
 `URLSession` because the share extension is killed the moment its sheet closes; the
