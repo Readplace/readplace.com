@@ -16,8 +16,9 @@ APPLICATION_ID = com.readplace.app
 
 ## Full unit suite on the production configuration, the per-file coverage ratchet,
 ## then the staging configuration's own config pins — mirroring `make test` on iOS.
+## RECORD_SNAPSHOTS=1 rewrites the committed pixel pictures; a recording run always fails, so a flag left set cannot go green.
 test:
-	$(GRADLE) :app:testProductionDebugUnitTest :app:jacocoTestReport
+	$(GRADLE) :app:testProductionDebugUnitTest :app:jacocoTestReport $(if $(RECORD_SNAPSHOTS),-PrecordPixelBaselines=1,)
 	$(AX) python3 scripts/check-coverage.py app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
 	$(MAKE) test-staging
 

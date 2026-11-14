@@ -11,7 +11,7 @@ this file records only what Android forced to differ, and why.
 make emulator-boot        # headless boot of the readplace-android AVD
 make install-emulator     # staging APK → installed → launched
 make screenshot           # build/screenshot.png
-make test                 # unit suite + coverage ratchet + staging config pins
+make test                 # unit suite + pixel tests + coverage ratchet + staging config pins; RECORD_SNAPSHOTS=1 re-records the pictures
 make emulator-stop        # stop the emulator — it outlives your shell, so this is not optional
 ```
 
@@ -175,8 +175,12 @@ platform 37 ships. Everything else is current.
 Unit tests run on the JVM (JUnit4 + `mockwebserver3`), not on an emulator. The iOS
 suite is the same shape — pure logic tests with the OS boundaries excluded — and ran
 on a simulator only because Xcode offers no other way. Robolectric is used only where
-a framework type is genuinely unavoidable (Intent/ClipData reading); the decision
+a framework type is genuinely unavoidable (Intent/ClipData reading, and drawing a Compose leaf for a pixel test); the decision
 cores are deliberately kept off `android.*` so they stay plain-JVM testable.
+
+Pixel tests draw a Compose leaf in light and dark and compare it with a picture
+committed under `app/src/test/pixel-baselines/`, with the iOS comparison rule and
+tolerances. `make test RECORD_SNAPSHOTS=1` records them again and always fails.
 
 `scripts/check-coverage.py` enforces the same per-file ratchet the iOS app uses,
 against JaCoCo's XML instead of an `.xcresult`: files listed in

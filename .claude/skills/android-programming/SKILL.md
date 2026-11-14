@@ -1,6 +1,6 @@
 ---
 name: android-programming
-description: Kotlin, Jetpack Compose and Android framework conventions for the Android app and its share target. Use when writing or changing a .kt file, when deciding where a screen's logic lives versus its Compose or WebView glue, when a file fails the Android coverage gate, when adding audio or media playback, when a WebView or player renders blank, dark or with a flashing control in the app or a recording, or when preparing a Play release — writing "What's new" text or promoting an internal-testing build to production.
+description: Kotlin, Jetpack Compose and Android framework conventions for the Android app and its share target. Use when writing or changing a .kt file, when deciding where a screen's logic lives versus its Compose or WebView glue, when a file fails the Android coverage gate, when adding audio or media playback, when adding or re-recording a pixel test picture, when a WebView or player renders blank, dark or with a flashing control in the app or a recording, or when preparing a Play release — writing "What's new" text or promoting an internal-testing build to production.
 ---
 
 # Android Programming
@@ -38,19 +38,26 @@ The gate counts **lines**, not branches. A line that never runs fails it, but a 
 | An `android.*` type (Uri, Log, Context, Bundle) | It needs Robolectric or an emulator to run | `java.net.URI`, `java.time`, `java.io.File`, or an interface seam |
 | `Dispatchers.IO` or `Instant.now()` written inline | A test cannot control time or threading | An injected `CoroutineDispatcher` and an injected `() -> Instant` or `Clock` |
 | Logging from the core | That pulls `android.util.Log` into a JVM test | An injected failure callback, logged by the composition root |
-| Robolectric for a decision | It is slow and hides that the decision depends on the framework | Plain JUnit. Keep Robolectric for tests whose subject is a real framework object: Intent or ClipData reading, Keystore providers, nested-scroll dispatch |
+| Robolectric for a decision | It is slow and hides that the decision depends on the framework | Plain JUnit. Keep Robolectric for tests whose subject is a real framework object: Intent or ClipData reading, Keystore providers, nested-scroll dispatch, and a pixel test of a Compose leaf |
 
 JaCoCo skips classes that Robolectric loads through its own class loader unless the test task includes no-location classes. The app's Gradle build sets this up, so don't remove it when you touch the test configuration.
 
 ## A WebView or player that renders wrong
 
-There are no pixel snapshot tests. What you see is the emulator's framebuffer (`make screenshot`) or a recording. These failures look like rendering bugs but are construction-order bugs:
+Pixel tests cover Compose leaves only; Robolectric draws nothing for a WebView or a media player view. For those, what you see is the emulator's framebuffer (`make screenshot`) or a recording. These failures look like rendering bugs but are construction-order bugs:
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | An off-screen capture WebView renders blank | A WebView with no parent loads at 0×0 | Parent it into the Activity's content root at real bounds before loading |
 | A WebView in a bottom sheet renders dark in light mode | It takes its theme from the dialog window's platform theme | Build it from a context themed from the Compose dark-mode state |
 | A media player view flashes its controls over the first frames | The controller was enabled when the player was attached | Turn the controller off before attaching the player |
+
+## Pixel tests
+
+- A pixel test takes a leaf whose appearance is a pure function of its parameters (a fixed clock, no network image, no running animation) and carries `@GraphicsMode(NATIVE)`; without it Robolectric draws nothing and the capture is refused as a single colour.
+- Record with `make test RECORD_SNAPSHOTS=1`, which always fails, then open every new picture at full size before committing it.
+- The pictures are a declared input of the test task; removing that lets Gradle replay a green run after only a picture changed.
+- A layout file stays in the coverage gate's `excluded` list whatever a pixel test runs.
 
 ## Every production promotion describes what changed since the last one
 
