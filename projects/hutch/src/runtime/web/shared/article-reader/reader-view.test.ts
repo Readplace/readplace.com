@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { ItemMediaSchema } from "@packages/domain/article";
-import { offersSaveTip, readerContentUnavailable, readerNoticeOf, type ReaderView, transcriptNoticeOf } from "./reader-view";
+import { ANONYMOUS_VIEWER, ItemMediaSchema, storedArticleBody } from "@packages/domain/article";
+import { isReaderViewShareable, offersSaveTip, readerContentUnavailable, readerNoticeOf, type ReaderView, transcriptNoticeOf } from "./reader-view";
 
 const notAnArticle: ReaderView = { kind: "not-an-article" };
 const loading: ReaderView = { kind: "loading" };
@@ -50,5 +50,26 @@ describe("transcriptNoticeOf", () => {
 
 	it("gives no notice to an item without media or without a recorded outcome", () => {
 		assert.deepEqual([transcriptNoticeOf(undefined), transcriptNoticeOf(audio)], [undefined, undefined]);
+	});
+});
+
+describe("isReaderViewShareable", () => {
+	const stored = storedArticleBody({ url: "https://example.com/post", html: "<p>The article.</p>", viewer: ANONYMOUS_VIEWER, ownerUserId: undefined });
+	assert(stored.kind === "article", "the fixture stores an article body");
+	const content = stored.body;
+
+	it("shares the reader view only when there is content and the crawl, if any, is ready", () => {
+		assert.deepEqual(
+			[
+				{ content, crawl: undefined },
+				{ content, crawl: { status: "ready" } as const },
+				{ content, crawl: { status: "pending", startedAt: "2026-11-14T00:00:00.000Z" } as const },
+				{ content, crawl: { status: "failed", reason: "blocked", outcomeRevision: 1 } as const },
+				{ content, crawl: { status: "unsupported", reason: "pdf" } as const },
+				{ content: undefined, crawl: undefined },
+				{ content: undefined, crawl: { status: "ready" } as const },
+			].map(isReaderViewShareable),
+			[true, true, false, false, false, false, false],
+		);
 	});
 });

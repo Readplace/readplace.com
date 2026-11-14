@@ -173,4 +173,5 @@ export interface HandlePollParams {
 	saved: LocalTime | undefined;
 	readerViewFailedOob: ReaderViewFailedOob;
 	renderDownloadsOob: ((articleUrl: string) => string) | undefined;
+	renderShareOob: ((state: { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined }) => string) | undefined;
 }

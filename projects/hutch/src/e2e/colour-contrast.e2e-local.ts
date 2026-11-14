@@ -174,7 +174,7 @@ async function auditShareDialog(page: Page, where: { theme: string; view: string
 	const dialog = page.locator(`${SHARE_DIALOG_ROOT}:popover-open`);
 	await page.locator('[data-test-action="share-open"]').click({ timeout: SETTLE_MS });
 	await expect(dialog).toBeVisible({ timeout: SETTLE_MS });
-	await expect(dialog.locator("[data-test-share-copy]")).toBeVisible({ timeout: SETTLE_MS });
+	await expect(dialog.locator('[data-test-share-copy="reader-view"]')).toBeVisible({ timeout: SETTLE_MS });
 	await page.mouse.move(0, 0);
 
 	const measurements = await stableMeasurements(page, SHARE_DIALOG_ROOT);

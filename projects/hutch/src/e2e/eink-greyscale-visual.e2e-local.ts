@@ -40,7 +40,7 @@ const READER_ROOT = "main.reader";
 const FAILED_NOTICE = '[data-test-reader-notice][data-reader-status="failed"].article-body__reader-notice--visible';
 const SHARE_DIALOG = '[data-test-confirm-popover="share"]';
 const PINNED_SHARE_URL =
-	"https://readplace.com/view/example.com/an-e-ink-panel?utm_source=share-dialog&utm_medium=copy&utm_campaign=reader-internal";
+	"https://readplace.com/view/example.com/an-e-ink-panel?utm_source=share-dialog&utm_medium=copy&utm_campaign=reader-internal&utm_content=reader-view";
 const READLIST_LIST = "[data-test-article-list]";
 const READLIST_TABS = "[data-test-filters]";
 const READLIST_RAIL = ".readlist__rail";
@@ -387,7 +387,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await pinReaderSavedTime(page);
 			await page.click('[data-test-action="share-open"]');
 			await expect(page.locator(`${SHARE_DIALOG}:popover-open`)).toHaveCount(1);
-			await expect(page.locator(`${SHARE_DIALOG} [data-test-share-copy]`)).toBeVisible();
+			await expect(page.locator(`${SHARE_DIALOG} [data-test-share-copy="reader-view"]`)).toBeVisible();
 			await expect
 				.poll(() =>
 					page
@@ -396,7 +396,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				)
 				.toBe(true);
 			await page
-				.locator(`${SHARE_DIALOG} [data-test-share-url]`)
+				.locator(`${SHARE_DIALOG} [data-test-share-url="reader-view"]`)
 				.evaluate((link: HTMLInputElement, pinned: string) => {
 					link.value = pinned;
 				}, PINNED_SHARE_URL);

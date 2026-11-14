@@ -25,8 +25,17 @@ const ARTICLE_HTML = `
 
 const useApp = useTestServer();
 
-async function saveAndOpenReader(appOrigin: string): Promise<Document> {
-	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
+type CrawlOutcome = "fetched" | "failed";
+
+async function saveAndOpenReader(appOrigin: string, outcome: CrawlOutcome = "fetched"): Promise<Document> {
+	return (await saveAndOpen(appOrigin, outcome)).doc;
+}
+
+async function saveAndOpen(appOrigin: string, outcome: CrawlOutcome) {
+	const crawlArticle = async () =>
+		outcome === "fetched"
+			? { status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) }
+			: { status: "failed" as const, decision: undefined };
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
@@ -82,7 +91,19 @@ async function saveAndOpenReader(appOrigin: string): Promise<Document> {
 
 	const response = await request(harness.server).get(`/queue/${articleId}/view`).set("Cookie", sessionCookie);
 	expect(response.status).toBe(200);
-	return new JSDOM(response.text).window.document;
+	const poll = async (): Promise<Document> => {
+		const polled = await request(harness.server).get(`/queue/${articleId}/reader?poll=1`).set("Cookie", sessionCookie);
+		expect(polled.status).toBe(200);
+		return new JSDOM(polled.text).window.document;
+	};
+	return { doc: new JSDOM(response.text).window.document, poll };
+}
+
+function shareRows(root: ParentNode): (string | null)[][] {
+	return Array.from(root.querySelectorAll<HTMLInputElement>("[data-test-share-url]"), (field) => [
+		field.getAttribute("data-test-share-url"),
+		field.value,
+	]);
 }
 
 function sharedLinks(doc: Document): URL[] {
@@ -122,5 +143,40 @@ describe("GET /queue/:id/view share dialog", () => {
 		const href = new URL(report.getAttribute("href") ?? "");
 		assert.equal(href.pathname, "readplace+report@readplace.com");
 		expect(href.searchParams.get("body")).toContain(`${TEST_APP_ORIGIN}/view/example.com/shareable`);
+	});
+});
+
+describe("GET /queue/:id/view share dialog for a reader view that failed", () => {
+	it("offers only the original link, with no choice of link to send", async () => {
+		const doc = await saveAndOpenReader(TEST_APP_ORIGIN, "failed");
+
+		const dialog = doc.querySelector('[data-test-confirm-popover="share"]');
+		assert(dialog, "the reader still offers its share dialog");
+		expect(shareRows(dialog)).toEqual([["original", ARTICLE_URL]]);
+		expect(dialog.querySelectorAll("[data-test-share-choice]").length).toBe(0);
+	});
+});
+
+describe("GET /queue/:id/reader share upgrade", () => {
+	it("swaps in every share panel with the reader view once the reader poll finds the article ready", async () => {
+		const { poll } = await saveAndOpen(TEST_APP_ORIGIN, "fetched");
+
+		const polled = await poll();
+
+		expect(
+			Array.from(polled.querySelectorAll("[data-share-panel][hx-swap-oob]"), (panel) => [panel.id, shareRows(panel).map(([key]) => key)]),
+		).toEqual([
+			["share-panel-dialog", ["reader-view", "original"]],
+			["share-panel-toolbar", ["reader-view", "original"]],
+			["share-panel-menu", ["reader-view", "original"]],
+		]);
+	});
+
+	it("leaves the original-only panels in place while the reader view has failed", async () => {
+		const { poll } = await saveAndOpen(TEST_APP_ORIGIN, "failed");
+
+		const polled = await poll();
+
+		expect(polled.querySelectorAll("[data-share-panel]").length).toBe(0);
 	});
 });

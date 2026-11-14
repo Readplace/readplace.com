@@ -124,9 +124,9 @@ describe("GET /queue/:id/view Download", () => {
 	});
 
 	it.each([
-		{ poll: "reader", settledSiblingOob: ["highlights-rail", "article-body-summary-slot", "table-of-contents"] },
-		{ poll: "summary", settledSiblingOob: [] },
-	])("swaps the Download slot alongside the $poll poll on a ready article", async ({ poll, settledSiblingOob }) => {
+		{ poll: "reader", settledSiblingOob: ["highlights-rail", "article-body-summary-slot", "table-of-contents"], shareOob: ["share-panel-dialog", "share-panel-toolbar", "share-panel-menu"] },
+		{ poll: "summary", settledSiblingOob: [], shareOob: [] },
+	])("swaps the Download slot alongside the $poll poll on a ready article", async ({ poll, settledSiblingOob, shareOob }) => {
 		const { harness, sessionCookie, articleId } = await openReaderHarness({ ready: true });
 		const response = await request(harness.server)
 			.get(`/queue/${articleId}/${poll}?poll=1`)
@@ -141,6 +141,7 @@ describe("GET /queue/:id/view Download", () => {
 			"document-title",
 			"reader-downloads-slot",
 			"reader-menu-downloads-slot",
+			...shareOob,
 			"article-body-reader-notice",
 		]);
 	});
@@ -202,9 +203,9 @@ describe("GET /queue/:id/view Download on a platform with no EPUB reader", () =>
 	});
 
 	it.each([
-		{ poll: "reader", settledSiblingOob: ["highlights-rail", "article-body-summary-slot", "table-of-contents"] },
-		{ poll: "summary", settledSiblingOob: [] },
-	])("re-renders the guide's opener when the $poll poll swaps the slot", async ({ poll, settledSiblingOob }) => {
+		{ poll: "reader", settledSiblingOob: ["highlights-rail", "article-body-summary-slot", "table-of-contents"], shareOob: ["share-panel-dialog", "share-panel-toolbar", "share-panel-menu"] },
+		{ poll: "summary", settledSiblingOob: [], shareOob: [] },
+	])("re-renders the guide's opener when the $poll poll swaps the slot", async ({ poll, settledSiblingOob, shareOob }) => {
 		const { harness, sessionCookie, articleId } = await openReaderHarness({ ready: true, headers: BROWSER_REQUEST_HEADERS });
 		const response = await request(harness.server)
 			.get(`/queue/${articleId}/${poll}?poll=1`)
@@ -221,6 +222,7 @@ describe("GET /queue/:id/view Download on a platform with no EPUB reader", () =>
 			"document-title",
 			"reader-downloads-slot",
 			"reader-menu-downloads-slot",
+			...shareOob,
 			"article-body-reader-notice",
 		]);
 		expect(slotShape(document)).toEqual({ children: ["BUTTON", "DETAILS"], opener: "reader-download-guide" });

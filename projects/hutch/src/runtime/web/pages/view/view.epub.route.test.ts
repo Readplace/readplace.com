@@ -539,9 +539,9 @@ describe("GET /view/<url>?format=<download>", () => {
 	});
 
 	it.each([
-		{ poll: "reader", settledSiblingOob: ["article-body-summary-slot", "table-of-contents"] },
-		{ poll: "summary", settledSiblingOob: [] },
-	])("swaps the Download slot alongside the $poll poll on a ready article", async ({ poll, settledSiblingOob }) => {
+		{ poll: "reader", settledSiblingOob: ["article-body-summary-slot", "table-of-contents"], shareOob: ["share-panel-dialog", "share-panel-toolbar"] },
+		{ poll: "summary", settledSiblingOob: [], shareOob: [] },
+	])("swaps the Download slot alongside the $poll poll on a ready article", async ({ poll, settledSiblingOob, shareOob }) => {
 		const { harness, fixture } = buildDownloadHarness();
 		await seedReadyArticle(fixture);
 		const response = await request(harness.server).get(`/view/${poll}?url=${encodeURIComponent(ARTICLE_URL)}&poll=1`);
@@ -554,6 +554,7 @@ describe("GET /view/<url>?format=<download>", () => {
 			"reader-article-meta",
 			"document-title",
 			"reader-downloads-slot",
+			...shareOob,
 			"article-body-reader-notice",
 		]);
 	});

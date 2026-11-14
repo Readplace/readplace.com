@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import {
 	MinutesSchema,
 	ReaderArticleHashIdSchema,
@@ -940,21 +941,51 @@ describe("ReaderPage", () => {
 
 	it("renders the share dialog's link against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: undefined, appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
+			ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: articleBody("<p>Body</p>"), appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		const copy = doc.querySelector('[data-test-confirm-popover="share"] [data-test-share-copy]');
+		const copy = doc.querySelector('[data-test-confirm-popover="share"] [data-test-share-copy="reader-view"]');
 		assert(copy, "the share dialog must carry its Copy button");
 		const copyUrl = new URL(copy.getAttribute("data-share-url") ?? "");
 		assert.equal(copyUrl.origin, "https://staging.readplace.com");
 		assert.equal(copyUrl.pathname, "/view/example.com/post");
 
-		const facebook = doc.querySelector('[data-test-confirm-popover="share"] [data-test-share-target="facebook"]');
+		const facebook = doc.querySelector('[data-test-confirm-popover="share"] [data-test-share-targets="reader-view"] [data-test-share-target="facebook"]');
 		assert(facebook, "the share dialog must carry its Facebook target");
 		const shared = new URL(new URL(facebook.getAttribute("href") ?? "").searchParams.get("u") ?? "");
 		assert.equal(shared.origin, "https://staging.readplace.com");
+	});
+
+	it("offers the reader view beside the original only once the reader view has content and its crawl is ready", () => {
+		const shareRowsFor = (state: { content: ReturnType<typeof articleBody> | undefined; crawl: ArticleCrawl | undefined }) => {
+			const html = Base(
+				ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: state.content, crawl: state.crawl, appOrigin: "https://readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
+				{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+			).to("text/html").body;
+			const doc = new JSDOM(html).window.document;
+			return {
+				dialog: Array.from(doc.querySelectorAll('[data-test-share-panel="dialog"] [data-test-share-url]'), (field) => field.getAttribute("data-test-share-url")),
+				placements: Array.from(doc.querySelectorAll("[data-test-share-panel]"), (panel) => panel.getAttribute("data-test-share-panel")),
+				report: new URL(doc.querySelector('[data-test-action="report-article"]')?.getAttribute("href") ?? "mailto:").searchParams.get("body")?.includes("https://readplace.com/view/example.com/post"),
+			};
+		};
+		const body = articleBody("<p>Body</p>");
+
+		expect([
+			shareRowsFor({ content: body, crawl: { status: "ready" } }),
+			shareRowsFor({ content: body, crawl: undefined }),
+			shareRowsFor({ content: body, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } }),
+			shareRowsFor({ content: body, crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" } }),
+			shareRowsFor({ content: undefined, crawl: { status: "ready" } }),
+		]).toEqual([
+			{ dialog: ["reader-view", "original"], placements: ["toolbar", "menu", "dialog"], report: true },
+			{ dialog: ["reader-view", "original"], placements: ["toolbar", "menu", "dialog"], report: true },
+			{ dialog: ["original"], placements: ["toolbar", "menu", "dialog"], report: true },
+			{ dialog: ["original"], placements: ["toolbar", "menu", "dialog"], report: true },
+			{ dialog: ["original"], placements: ["toolbar", "menu", "dialog"], report: true },
+		]);
 	});
 
 	it("renders the create dialog only when the picker offers create, posting the name back to the reader", () => {

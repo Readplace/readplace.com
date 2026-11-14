@@ -390,7 +390,13 @@ describe("toolbar order", () => {
 			options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }],
 			create: undefined,
 		},
-		share: { popoverId: "reader-share", fallbackHtml: '<p class="share-fixture">The share panel</p>' },
+		share: {
+			popoverId: "reader-share",
+			fallbackHtml: {
+				toolbar: '<p class="share-fixture">The toolbar share panel</p>',
+				menu: '<p class="share-fixture">The menu share panel</p>',
+			},
+		},
 		epubDownloadHref: "/view/example.com/a?format=epub",
 	} satisfies ActionButtons;
 
@@ -448,8 +454,18 @@ describe("toolbar order", () => {
 		expect(fallback.querySelector("summary .sr-only")?.textContent).toBe("Share");
 		expect(fallback.querySelector("summary")?.hasAttribute("aria-disabled")).toBe(false);
 		expect(fallback.querySelector(".article-body__share-fallback-panel")?.innerHTML).toBe(
-			'<p class="share-fixture">The share panel</p>',
+			'<p class="share-fixture">The toolbar share panel</p>',
 		);
+	});
+
+	it("gives the menu's share disclosure the panel rendered for the menu", () => {
+		const doc = parse(
+			RegularReader({ actionBtns: { ...FULL_ACTION_BTNS, menu: { deleteItemsHtml: "" } } }).top.to("text/html").body,
+		);
+
+		expect(
+			doc.querySelector("[data-test-menu-share-fallback] .article-body__menu-fallback-panel")?.innerHTML,
+		).toBe('<p class="share-fixture">The menu share panel</p>');
 	});
 
 	it("draws Mark as a secondary button whose icon follows the direction it marks in", () => {

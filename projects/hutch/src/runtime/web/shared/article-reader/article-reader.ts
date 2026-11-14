@@ -87,6 +87,7 @@ interface PollResponseBodyInput {
 	metadataOob: string;
 	readerViewFailedOob: string;
 	downloadsOob: string;
+	shareOob: string;
 	appOrigin: string;
 	readerNotice: ReaderFailedVariant | undefined;
 	title: string | undefined;
@@ -152,6 +153,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 			input.metadataOob +
 			input.readerViewFailedOob +
 			input.downloadsOob +
+			input.shareOob +
 			reader.notice
 		);
 	}
@@ -159,7 +161,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		input.readerPollUrl === undefined && input.content !== undefined;
 	return (
 		summarySlot +
-		(readerSettledOnArticle ? "" : reader.slot + highlightsRail + tableOfContents) +
+		(readerSettledOnArticle ? "" : reader.slot + highlightsRail + tableOfContents + input.shareOob) +
 		input.metadataOob +
 		input.readerViewFailedOob +
 		input.downloadsOob +
@@ -434,6 +436,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 					}) + renderDocumentTitleOob(deps.formatDocumentTitle(stub.title)),
 				readerViewFailedOob: "",
 				downloadsOob: "",
+				shareOob: "",
 				appOrigin: deps.appOrigin,
 				readerNotice: NOT_AN_ARTICLE,
 				title: undefined,
@@ -510,6 +513,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				enclosure: params.enclosure,
 			}),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
+			shareOob: params.renderShareOob === undefined ? "" : params.renderShareOob({ content, crawl }),
 			readerViewFailedOob: settledFailureOob({
 				crawl,
 				summary,
@@ -580,6 +584,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				enclosure: params.enclosure,
 			}),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
+			shareOob: params.renderShareOob === undefined ? "" : params.renderShareOob({ content, crawl }),
 			readerViewFailedOob: settledFailureOob({
 				crawl,
 				summary,
