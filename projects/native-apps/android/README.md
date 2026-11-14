@@ -174,9 +174,13 @@ platform 37 ships. Everything else is current.
 
 Unit tests run on the JVM (JUnit4 + `mockwebserver3`), not on an emulator. The iOS
 suite is the same shape — pure logic tests with the OS boundaries excluded — and ran
-on a simulator only because Xcode offers no other way. Robolectric is used only where
-a framework type is genuinely unavoidable (Intent/ClipData reading); the decision
-cores are deliberately kept off `android.*` so they stay plain-JVM testable.
+on a simulator only because Xcode offers no other way. The iOS suite also measures the
+share chooser's layout: touch-target floors on the narrowest window and at the smallest
+text size. Android measures the same chooser in one Robolectric Compose test at set
+window sizes and font scales, the largest font and landscape included. Otherwise
+Robolectric is used only where a framework type is genuinely unavoidable (Intent/ClipData
+reading); the decision cores are deliberately kept off `android.*` so they stay
+plain-JVM testable.
 
 `scripts/check-coverage.py` enforces the same per-file ratchet the iOS app uses,
 against JaCoCo's XML instead of an `.xcresult`: files listed in

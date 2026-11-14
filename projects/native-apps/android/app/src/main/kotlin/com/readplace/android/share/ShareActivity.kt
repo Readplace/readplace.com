@@ -173,7 +173,7 @@ class ShareActivity : ComponentActivity() {
 	}
 }
 
-private class ShareSheetState {
+internal class ShareSheetState {
 	var status by mutableStateOf("Preparing…")
 	var notice by mutableStateOf<List<ServerMessage>>(emptyList())
 	var outcome by mutableStateOf<SaveSharedOutcome?>(null)
@@ -189,7 +189,7 @@ private class ShareSheetState {
 }
 
 @Composable
-private fun ShareSheet(
+internal fun ShareSheet(
 	sheet: ShareSheetState,
 	onDismiss: () -> Unit,
 	onEnded: () -> Unit,
@@ -333,6 +333,7 @@ private fun ReadlistChooserCard(
 			}
 			Column(
 				modifier = Modifier
+					.weight(1f, fill = false)
 					.heightIn(max = 320.dp)
 					.verticalScroll(rememberScrollState()),
 				verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -372,9 +373,9 @@ private fun ChooserRow(
 		.background(brand.surfaceSubtle)
 	Row(
 		modifier = (if (locked) base else base.clickable(onClick = onTap))
-			.heightIn(min = 44.dp)
-			.padding(horizontal = 12.dp, vertical = 10.dp)
-			.semantics { selected = isTicked },
+			.semantics(mergeDescendants = true) { selected = isTicked }
+			.heightIn(min = 48.dp)
+			.padding(horizontal = 12.dp, vertical = 10.dp),
 		verticalAlignment = Alignment.CenterVertically,
 		horizontalArrangement = Arrangement.spacedBy(10.dp),
 	) {
