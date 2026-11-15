@@ -51,6 +51,7 @@ const baseInput: ViewPageInput = {
 
 const endCta: ViewEndCta = {
 	heading: "Keep this one",
+	signedByFounder: false,
 	lines: [PRICE_STATEMENT, SAVES_STAY_STATEMENT],
 	actions: [
 		{
@@ -792,6 +793,32 @@ describe("ViewPage Keep this one block", () => {
 		expect(control.tagName).toBe("BUTTON");
 		expect(control.getAttribute("popovertarget")).toBe("reader-download-guide");
 		expect(control.textContent).toBe("Download EPUB");
+	});
+
+	it("signs the block with the founder's portrait, line and sign-off when it is signed by the founder", () => {
+		const signed = endCtaSection(render({ ...baseInput, endCta: { ...endCta, signedByFounder: true } })).querySelector(
+			"[data-test-view-end-cta-signed]",
+		);
+		assert(signed, "the signed block must render when the block is signed by the founder");
+		const portrait = signed.querySelector("img");
+		assert(portrait, "the signed block must carry the founder's portrait");
+
+		expect(portrait.getAttribute("src")).toMatch(/\/fayner-brack\.jpg$/);
+		expect(portrait.getAttribute("alt")).toBe("");
+		expect(portrait.getAttribute("aria-hidden")).toBe("true");
+		expect([
+			signed.querySelector(".view__end-cta-signed-line")?.textContent,
+			signed.querySelector(".view__end-cta-signed-by")?.textContent,
+		]).toEqual([
+			"You just read one of my posts in Readplace. I built it so the articles I meant to read would still be there when I had time for them.",
+			"— Fayner Brack, Founder & CEO",
+		]);
+	});
+
+	it("leaves the signed block out when the block is not signed by the founder", () => {
+		const section = endCtaSection(render({ ...baseInput, endCta }));
+
+		expect(section.querySelectorAll("[data-test-view-end-cta-signed]").length).toBe(0);
 	});
 
 	it("sits after the article body in document order", () => {

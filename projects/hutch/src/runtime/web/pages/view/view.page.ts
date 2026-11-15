@@ -186,6 +186,12 @@ function saveAction(input: {
 	};
 }
 
+const FOUNDER_HOSTS: readonly string[] = ["fagnerbrack.com", "www.fagnerbrack.com"];
+
+function isFounderPost(articleUrl: string): boolean {
+	return FOUNDER_HOSTS.includes(articleHostFrom(articleUrl));
+}
+
 function endCtaSaveAction(articleUrl: string): ViewEndCtaAction {
 	const saveParams = new URLSearchParams([["url", articleUrl], [SAVE_SURFACE_QUERY, SAVE_SURFACES.readerViewEnd]]);
 	return {
@@ -523,6 +529,7 @@ function handleViewArticle(
 			req.userId === undefined && state.content !== undefined
 				? {
 						heading: "Keep this one",
+						signedByFounder: isFounderPost(articleUrl),
 						lines: [PRICE_STATEMENT, SAVES_STAY_STATEMENT],
 						actions: [endCtaSaveAction(articleUrl), endCtaEpubAction({ articleUrl, guide: epubDownloadGuide })],
 					}
