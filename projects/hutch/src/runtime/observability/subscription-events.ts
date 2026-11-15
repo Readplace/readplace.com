@@ -4,6 +4,7 @@ import type {
 	SubscribePlansSource,
 } from "@packages/provider-contracts/hosted-checkout";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
+import type { CheckoutActivationSource } from "@packages/provider-contracts/pending-signup";
 import type { Logger } from "@packages/logger";
 import { STREAMS, SUBSCRIPTION_EVENTS } from "./events";
 import type { CheckoutReturnFailureReason, CheckoutVariant } from "./events";
@@ -48,6 +49,7 @@ export type SubscriptionLogEvent =
 			variant?: CheckoutVariant;
 			entry_source: SubscribePlansSource | null;
 			offer: CheckoutOffer | null;
+			activated_by: CheckoutActivationSource;
 		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.checkoutReturnFailed;
@@ -79,6 +81,7 @@ export interface SubscriptionLogEventView {
 	plan?: BillingPlan;
 	entry_source?: SubscribePlansSource | null;
 	offer?: CheckoutOffer | null;
+	activated_by?: CheckoutActivationSource;
 }
 
 export interface EmitSubscriptionEvent {
@@ -121,6 +124,7 @@ export function buildCheckoutCompletedEvent(
 		variant?: CheckoutVariant;
 		entrySource: SubscribePlansSource | null;
 		offer: CheckoutOffer | null;
+		activatedBy: CheckoutActivationSource;
 	},
 ): SubscriptionLogEvent {
 	return {
@@ -134,6 +138,7 @@ export function buildCheckoutCompletedEvent(
 		...(params.variant ? { variant: params.variant } : {}),
 		entry_source: params.entrySource,
 		offer: params.offer,
+		activated_by: params.activatedBy,
 	};
 }
 
