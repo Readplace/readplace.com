@@ -43,7 +43,10 @@ import { buildUserCreatedEvent } from "../../conversions";
 import { readHomepageVariantSlug } from "../experiments/homepage-assignment";
 import { signState, verifyState } from "./oauth-state";
 import { viewerOf } from "@packages/viewer-identity";
-import type { LogError } from "@packages/logger";
+import type { Logger, LogError } from "@packages/logger";
+import type { RateLimitRule } from "@packages/domain/rate-limit";
+import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import { initClaimSignupAllowance, signupAllowanceSpentMessage } from "./signup-allowance";
 
 const CallbackQuerySchema = z.object({
 	code: z.string().min(1),
@@ -85,6 +88,9 @@ interface GoogleAuthDependencies {
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 	resolveSignupClient: ResolveSignupClient;
 	signUnsubscribeToken: (userId: UserId) => string;
+	consumeRateLimit: ConsumeRateLimit;
+	signupCreatedRule: RateLimitRule;
+	logger: Logger;
 }
 
 export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
@@ -95,6 +101,10 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		setLastAuthProvider({ res, secure: deps.secureCookies }, "google");
 	};
 	const redirectUri = `${deps.appOrigin}/auth/google/callback`;
+	const claimSignupAllowance = initClaimSignupAllowance({
+		consumeRateLimit: deps.consumeRateLimit,
+		rule: deps.signupCreatedRule,
+	});
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,
 		logError: deps.logError,
@@ -139,7 +149,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		res.clearCookie(STATE_COOKIE, { path: "/" });
 
-		const renderError = async (message: string, reason: "callback_invalid" | "expired" | "provider_rejected" = "provider_rejected") => {
+		const renderError = async ({ message, reason = "provider_rejected" }: { message: string; reason?: "callback_invalid" | "expired" | "provider_rejected" }) => {
 			res.locals.authDiagnosticReason = reason;
 			const userCount = await fetchUserCount();
 			sendComponent(
@@ -157,21 +167,41 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			);
 		};
 
+		const renderAllowanceSpent = async ({ returnUrl, retryAfterSeconds }: { returnUrl: string | undefined; retryAfterSeconds: number }) => {
+			deps.logger.info("[Signup] allowance spent", { method: "google" });
+			res.set("Retry-After", String(retryAfterSeconds));
+			const userCount = await fetchUserCount();
+			sendComponent(
+				req,
+				res,
+				Base(LoginPage(
+					{
+						userCount,
+						foundingAllocation: deps.foundingAllocation,
+						lastUsedProvider: readLastAuthProvider(req),
+						returnUrl,
+						errors: [{ message: signupAllowanceSpentMessage({ limit: deps.signupCreatedRule.limit }) }],
+					},
+					{ statusCode: 429 },
+				), bannerStateFromRequest(req)),
+			);
+		};
+
 		if (!parsedQuery.success || !stateCookie || parsedQuery.data.state !== stateCookie) {
-			await renderError("Google sign-in failed. Please try again.", "callback_invalid");
+			await renderError({ message: "Google sign-in failed. Please try again.", reason: "callback_invalid" });
 			return;
 		}
 		const { code, state: stateParam } = parsedQuery.data;
 
 		const payload = verifyState({ signed: stateParam, secret: deps.googleClientSecret });
 		if (!payload) {
-			await renderError("Google sign-in failed. Please try again.", "callback_invalid");
+			await renderError({ message: "Google sign-in failed. Please try again.", reason: "callback_invalid" });
 			return;
 		}
 
 		const stateData = StatePayloadSchema.parse(JSON.parse(payload));
 		if (Date.now() - stateData.createdAt > STATE_TTL_MS) {
-			await renderError("Google sign-in expired. Please try again.", "expired");
+			await renderError({ message: "Google sign-in expired. Please try again.", reason: "expired" });
 			return;
 		}
 
@@ -180,12 +210,12 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			tokenResult = await deps.exchangeGoogleCode(code);
 		} catch (error) {
 			deps.logError("[Google Auth] Token exchange failed", error instanceof Error ? error : new Error(String(error)));
-			await renderError("Google sign-in failed. Please try again.");
+			await renderError({ message: "Google sign-in failed. Please try again." });
 			return;
 		}
 
 		if (!tokenResult.emailVerified) {
-			await renderError("Your Google account email is not verified.");
+			await renderError({ message: "Your Google account email is not verified." });
 			return;
 		}
 
@@ -210,6 +240,11 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				logError: deps.logError,
 			});
 
+		const allowance = await claimSignupAllowance(req);
+		if (!allowance.allowed) {
+			await renderAllowanceSpent({ returnUrl: safeReturnUrl, retryAfterSeconds: allowance.retryAfterSeconds });
+			return;
+		}
 		const userCount = await fetchUserCount();
 		/* Read once, then persisted on the user row (durable) AND emitted on the
 		 * user_created conversion event (30-day retention). */
@@ -232,7 +267,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 					return;
 				}
-				await renderError("Account creation failed. Please try again.");
+				await renderError({ message: "Account creation failed. Please try again." });
 				return;
 			}
 
@@ -283,7 +318,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 				return;
 			}
-			await renderError("Account creation failed. Please try again.");
+			await renderError({ message: "Account creation failed. Please try again." });
 			return;
 		}
 
