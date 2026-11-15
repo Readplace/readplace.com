@@ -58,6 +58,7 @@ import { initUpsertReadlist } from '@packages/save-article'
 import { readNewsletterCatalogSeed } from '../runtime/domain/newsletter-catalog/newsletter-catalog-seed'
 import { createTestApp } from '../runtime/test-app'
 import { initMultipartUpload } from '../runtime/web/pages/import/multipart-upload'
+import { GMAIL_SENDERS_PATH } from '../runtime/web/pages/integrations/gmail.url'
 import { initInMemoryArticleImages } from '../runtime/providers/in-memory-article-images'
 import {
 	createDefaultTestAppFixture,
@@ -179,9 +180,12 @@ const gmailNow = () => {
 	return new Date(lastGmailInstant)
 }
 
+const SEEDED_GMAIL_ACCOUNT_EMAIL = GmailAccountEmailSchema.parse('reader@gmail.com')
+
 const gmailIntegration = initInMemoryGmailIntegration({
 	addresses: fixture.inboxAddress.inboxAddressStore,
 	now: gmailNow,
+	accountEmail: { ok: true, value: SEEDED_GMAIL_ACCOUNT_EMAIL },
 	grant: {
 		ok: true,
 		grant: {
@@ -192,15 +196,34 @@ const gmailIntegration = initInMemoryGmailIntegration({
 	},
 })
 const completeGmailDiscoveryOnStart = new Set<UserId>()
+const completeGmailDiscoveryOnPoll = new Set<UserId>()
+const gmailDiscoveriesAwaitingPoll = new Set<UserId>()
 const recordGmailDiscoveryStart = gmailIntegration.bundle.publishStartGmailSenderDiscovery
 gmailIntegration.bundle.publishStartGmailSenderDiscovery = async (detail) => {
 	await recordGmailDiscoveryStart(detail)
-	if (!completeGmailDiscoveryOnStart.delete(detail.userId)) return
-	const discovery = await gmailIntegration.bundle.gmailDiscoveryStore.findDiscoveryByUserId(detail.userId)
+	if (completeGmailDiscoveryOnPoll.delete(detail.userId)) gmailDiscoveriesAwaitingPoll.add(detail.userId)
+	if (completeGmailDiscoveryOnStart.delete(detail.userId)) await completeGmailDiscovery(detail.userId)
+}
+async function completeGmailDiscovery(userId: UserId) {
+	const found = await gmailIntegration.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId)
+	assert(found)
+	if (found.state !== 'running') {
+		await gmailIntegration.bundle.gmailDiscoveryStore.startDiscovery({
+			userId,
+			accountEmail: found.accountEmail,
+			gatewayAddress: found.gatewayAddress,
+			generation: found.generation,
+			mode: found.mode,
+			historyId: found.historyId,
+			checkedMessageCount: found.checkedMessageCount,
+			resume: found,
+		})
+	}
+	const discovery = await gmailIntegration.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId)
 	assert(discovery)
 	assert(
 		await gmailIntegration.bundle.gmailDiscoveryStore.claimPage({
-			userId: detail.userId,
+			userId,
 			generation: discovery.generation,
 			page: discovery.page,
 		}),
@@ -759,7 +782,6 @@ server.post('/e2e/seed-readlist-fit-overrides', async (req, res) => {
 	res.status(201).json({ ok: true })
 })
 
-const SEEDED_GMAIL_ACCOUNT_EMAIL = GmailAccountEmailSchema.parse('reader@gmail.com')
 const MISSING_MAPPING_DESTINATION = InboxAddressSchema.parse('gmail-000000@missing.invalid')
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -929,6 +951,7 @@ const SeedGmailStateBody = z
 		discoveryCheckedMessages: z.number().int().nonnegative().optional(),
 		discoveryEstimatedTotalMessages: z.number().int().nonnegative().optional(),
 		completeDiscoveryOnStart: z.boolean().default(false),
+		completeDiscoveryOnPoll: z.boolean().default(false),
 		filter: SeedGmailFilterSchema.default('live'),
 		readlists: z.array(z.string().min(1)).default([]),
 		senders: z
@@ -1156,6 +1179,9 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 	})
 	await seedGmailDiscovery({ body, gatewayAddress })
 	if (body.completeDiscoveryOnStart) completeGmailDiscoveryOnStart.add(userId)
+	completeGmailDiscoveryOnPoll.delete(userId)
+	gmailDiscoveriesAwaitingPoll.delete(userId)
+	if (body.completeDiscoveryOnPoll) completeGmailDiscoveryOnPoll.add(userId)
 	completeGmailImportOnStart.delete(userId)
 	if (body.completeImportsOnStart !== undefined) completeGmailImportOnStart.set(userId, body.completeImportsOnStart)
 	await connection.beforeSenders(userId)
@@ -1396,6 +1422,12 @@ server.post('/queue/save-content', (req, res, next) => {
 server.get('/e2e/received-save-content', (req, res) => {
 	const url = z.string().parse(req.query.url)
 	res.json(receivedSaveContent.filter((received) => received.url === url))
+})
+
+server.get(GMAIL_SENDERS_PATH, (_req, _res, next) => {
+	const awaiting = [...gmailDiscoveriesAwaitingPoll]
+	gmailDiscoveriesAwaitingPoll.clear()
+	Promise.all(awaiting.map(completeGmailDiscovery)).then(() => next(), next)
 })
 
 server.use(readplaceApp)
