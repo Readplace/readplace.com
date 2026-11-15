@@ -1,8 +1,8 @@
 ---
 title: "Sort your reading into 15 readlists, and pin the 4 you open most"
-description: "The readlist limit is now 15, up from 7, and the sidebar stays short while the lists multiply. Pin up to 4 readlists, keep the open one in view, and reach the rest through a More readlists panel that filters as you type. Every readlist picker grows the same filter past 10 lists."
+description: "The readlist limit is now 15, up from 7, and the sidebar stays short while the lists multiply. Pin up to 4 readlists, keep the open one in view, and reach the rest through a More readlists panel that filters as you type. From a card's Move to dialog to the Gmail sender mapping, readlist pickers grow the same filter past 10 lists."
 excerpt: "The cap moved from 7 to 15, and the sidebar learned to stay short while the lists multiply."
-tldr: "The readlist limit is 15 now, up from 7. Past 7 readlists the sidebar shows All, the open readlist and up to 4 pinned rows, and the rest wait under More readlists, a panel where typing filters the rows and Enter opens the first match. Pin and Unpin sit in each readlist's menu, next to Edit and Delete. Readlist pickers across Readplace, from a card's Move to dialog to the Gmail sender mapping, scroll their rows with the buttons held in view and show the same filter once an account holds more than 10 readlists."
+tldr: "The readlist limit is 15 now, up from 7. Past 7 readlists the sidebar shows All, the open readlist and up to 4 pinned rows, and the rest wait under More readlists, a panel where typing filters the rows and Enter opens the first match. Pin and Unpin sit in each readlist's menu, next to Edit and Delete. From a card's Move to dialog to the Gmail sender mapping, readlist pickers scroll their rows with the buttons held in view and show the same filter once an account holds more than 10 readlists."
 slug: "sort-your-reading-into-15-readlists"
 date: "2026-11-14"
 author: "Fayner Brack"
@@ -39,7 +39,7 @@ Create a readlist sits in the panel and the sheet too, so the place the unpinned
 
 The sidebar isn't the only surface that lists readlists. A card's Move to and Add to dialogs ask for a destination, the reader files an article from the article's own page, the mark-as-read confirmation names each readlist the article sits in, and the Gmail integration maps a sender to the readlist its issues feed.
 
-Each of those used to grow taller with the account. Now the rows scroll while the dialog's buttons hold still, and past 10 readlists a filter appears above the rows, the same one the More panel uses. Typing "ci" finds Cities without reading the list at all.
+Each of those used to grow taller with the account. Now the rows scroll while the dialog's buttons hold still, and past 10 readlists the pickers that ask for a readlist grow a filter above the rows, the same one the More panel uses. Typing "ci" finds Cities without reading the list at all.
 
 ## Newsletters are why 7 ran out
 
