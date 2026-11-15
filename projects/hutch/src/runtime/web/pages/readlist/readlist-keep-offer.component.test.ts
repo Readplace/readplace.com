@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { CHECKOUT_OFFERS, type CheckoutOffer } from "@packages/provider-contracts/hosted-checkout";
+import { PRICING_PLANS } from "@packages/web-shell";
+import { KEEP_OFFER_FIRST_YEAR_PRICE } from "../../../domain/engagement/keep-offer";
 import { renderReadlistKeepOffer, toReadlistKeepOfferDisplayModel } from "./readlist-keep-offer.component";
 
 const TRIAL_ENDS_AT = "2026-11-28T00:00:00.000Z";
@@ -65,7 +67,7 @@ describe("renderReadlistKeepOffer", () => {
 		expect(trialEnd.getAttribute("datetime")).toBe(TRIAL_ENDS_AT);
 		expect(trialEnd.hasAttribute("data-local-time")).toBe(true);
 		expect(body.textContent).toBe(
-			`Choose during your trial: $49 for your first year, then $60 a year. Add a card now and nothing is charged until ${trialEnd.textContent}. A reminder email arrives a week before. Your saves stay readable and exportable either way.`,
+			`Choose during your trial: ${KEEP_OFFER_FIRST_YEAR_PRICE} for your first year, then ${PRICING_PLANS.yearly.totalDisplay} a year. Add a card now and nothing is charged until ${trialEnd.textContent}. A reminder email arrives a week before. Your saves stay readable and exportable either way.`,
 		);
 	});
 
@@ -74,7 +76,10 @@ describe("renderReadlistKeepOffer", () => {
 		const body = aside.querySelector("[data-test-keep-offer-body]");
 		assert(body, "the shown aside must render its body");
 
-		expect(body.textContent).toContain("Choose during your trial: $60 a year, or $10 a month. Add a card now");
+		expect(body.textContent).toContain(
+			`Choose during your trial: ${PRICING_PLANS.yearly.totalDisplay} a year, or ${PRICING_PLANS.monthly.totalDisplay} a month. Add a card now`,
+		);
+		expect(body.textContent).not.toContain(KEEP_OFFER_FIRST_YEAR_PRICE);
 	});
 
 	it("posts Keep Readplace to the subscribe route with the yearly plan and the eligible offer, attributed to the panel", () => {

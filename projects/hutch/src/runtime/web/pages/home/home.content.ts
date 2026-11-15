@@ -246,8 +246,8 @@ export const HOME_CONTENT = {
 	},
 	pricing: {
 		titleBefore: `${TRIAL_DAYS} days free, no card. Then`,
-		priceAmount: PRICING_PLANS.yearly.periodDisplay,
-		titleAfter: `(${PRICING_PLANS.yearly.monthlyDisplay} a month, billed yearly) or ${PRICING_PLANS.monthly.periodDisplay}.`,
+		priceAmount: `${PRICING_PLANS.yearly.totalDisplay} a year`,
+		titleAfter: `(${PRICING_PLANS.yearly.monthlyDisplay} a month, billed yearly) or ${PRICING_PLANS.monthly.totalDisplay} a month.`,
 		savesStay: SAVES_STAY_STATEMENT,
 		panelCtaLabel: `Try Readplace free for ${TRIAL_DAYS} days`,
 		ctaNote: `Google, Apple, or an email address — about twenty seconds. No card at any point in the ${TRIAL_DAYS} days.`,

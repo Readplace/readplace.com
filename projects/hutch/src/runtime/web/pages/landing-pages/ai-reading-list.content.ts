@@ -103,7 +103,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		title: "What it costs",
 		paragraphs: [
 			`Connecting costs nothing. The readlist behind the connection is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
-			`${PRICING_PLANS.yearly.periodDisplay} is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
+			`${PRICING_PLANS.yearly.totalDisplay} a year is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
 			"If the subscription lapses, saving and readlist changes refuse. Your assistant can still list your readlist, pull an article's text or summary, and mark things read as you work through them. It cannot add anything new.",
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",

@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CHECKOUT_OFFERS, type CheckoutOffer } from "@packages/provider-contracts/hosted-checkout";
-import { type LocalTime, PLAN_OFFERS, PRICING_PLANS, offerPrice, render, toAbsoluteDate } from "@packages/web-shell";
-import type { KeepOfferEligibility } from "../../../domain/engagement/keep-offer";
+import { type LocalTime, PRICING_PLANS, render, toAbsoluteDate } from "@packages/web-shell";
+import { KEEP_OFFER_FIRST_YEAR_PRICE, type KeepOfferEligibility } from "../../../domain/engagement/keep-offer";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-keep-offer.template.html"), "utf-8");
 
@@ -18,10 +18,10 @@ type ReadlistKeepOfferDisplayModel =
 		};
 
 function priceClauseFor(offer: CheckoutOffer): string {
-	const keepOffer = offerPrice(PLAN_OFFERS.firstYear49);
+	const yearly = PRICING_PLANS.yearly.totalDisplay;
 	return offer === CHECKOUT_OFFERS.firstYear49
-		? `${keepOffer.firstCharge} for your first year, then ${keepOffer.renewal} a year.`
-		: `${PRICING_PLANS.yearly.periodDisplay}, or ${PRICING_PLANS.monthly.periodDisplay}.`;
+		? `${KEEP_OFFER_FIRST_YEAR_PRICE} for your first year, then ${yearly} a year.`
+		: `${yearly} a year, or ${PRICING_PLANS.monthly.totalDisplay} a month.`;
 }
 
 export function toReadlistKeepOfferDisplayModel(eligibility: KeepOfferEligibility): ReadlistKeepOfferDisplayModel {
