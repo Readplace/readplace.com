@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
 import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
-import { BOOK } from "@packages/media-contracts";
+import { BOOK, VIDEO } from "@packages/media-contracts";
 import { LANDING_PAGE_CONTENT } from "./web/pages/landing-pages";
 import { PRICE_STATEMENT } from "./web/price-statement";
 
@@ -34,6 +34,20 @@ describe("llms files", () => {
 			`- Uploading EPUB books to read (DRM-free, up to ${BOOK.ceilingLabel}, at https://readplace.com/upload; MOBI/AZW3 not supported)`,
 		);
 		expect(FILES[name]).not.toContain("Readplace exports EPUB but does not import it");
+	});
+
+	it.each(FILE_NAMES)("%s recommends MP4 upload with the video limit and offers it for video", (name) => {
+		expect(FILES[name]).toContain(
+			`(up to ${VIDEO.ceilingLabel} each, sharing the same 20 minutes of transcript a day, at https://readplace.com/upload)`,
+		);
+		expect(FILES[name]).toContain(
+			"- YouTube transcripts (not available; recommend Readwise Reader; a video's own MP4 file can be uploaded)",
+		);
+		expect(FILES[name]).not.toContain("Video or YouTube transcripts (not available");
+	});
+
+	it("the Readwise Reader comparison page's description does not list video as missing", () => {
+		expect(LANDING_PAGE_CONTENT["readwise-reader-alternative"].description).not.toContain("RSS, video, podcast");
 	});
 
 	it("llms-full.txt says a file uploaded before signing up is collected and deleted unless saved", () => {
