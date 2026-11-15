@@ -363,7 +363,10 @@ export interface AuthBundle {
 export interface HostedCheckoutBundle {
 	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
-	markPaid: (id: CheckoutSessionId, opts?: { paymentStatus?: CheckoutPaymentStatus }) => void;
+	markPaid: (
+		id: CheckoutSessionId,
+		opts?: { paymentStatus: CheckoutPaymentStatus; amountTotal: number },
+	) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
 	createdCheckoutSessions: () => Array<{
 		id: CheckoutSessionId;

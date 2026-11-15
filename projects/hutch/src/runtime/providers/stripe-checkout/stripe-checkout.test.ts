@@ -217,6 +217,7 @@ describe("initStripeCheckout", () => {
 					customer_details: { email: "paid@example.com" },
 					customer_email: null,
 					payment_status: "paid",
+					amount_total: 4900,
 					status: "complete",
 					created: 1735000000,
 					subscription: "sub_test_123",
@@ -237,6 +238,7 @@ describe("initStripeCheckout", () => {
 				ok: true,
 				paid: true,
 				paymentStatus: "paid",
+				amountTotal: 4900,
 				customerEmail: "paid@example.com",
 				status: "complete",
 				created: 1735000000,
@@ -250,6 +252,40 @@ describe("initStripeCheckout", () => {
 			assert.equal(headers?.["Stripe-Version"], "2026-04-22.dahlia");
 		});
 
+		it("reports a $0 trial checkout Stripe marks paid with its zero total, so a card capture is not mistaken for a charge", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(200, {
+					customer_details: { email: "trial@example.com" },
+					payment_status: "paid",
+					amount_total: 0,
+					status: "complete",
+					created: 1763000000,
+					subscription: "sub_test_trial",
+					customer: "cus_test_trial",
+				});
+
+			const stripe = initStripeCheckout({
+				apiKey: "sk_test_abc",
+				fetch: fakeFetch,
+			});
+
+			const result = await stripe.retrieveCheckoutSession(
+				CheckoutSessionIdSchema.parse("cs_test_trial"),
+			);
+
+			assert.deepEqual(result, {
+				ok: true,
+				paid: true,
+				paymentStatus: "paid",
+				amountTotal: 0,
+				customerEmail: "trial@example.com",
+				status: "complete",
+				created: 1763000000,
+				subscriptionId: "sub_test_trial",
+				customerId: "cus_test_trial",
+			});
+		});
+
 		it("URL-encodes the session id so unusual characters reach Stripe intact", async () => {
 			let receivedUrl: string | undefined;
 			const fakeFetch: typeof globalThis.fetch = async (input) => {
@@ -257,6 +293,7 @@ describe("initStripeCheckout", () => {
 				return jsonResponse(200, {
 					customer_details: { email: "x@example.com" },
 					payment_status: "paid",
+					amount_total: 0,
 					status: "complete",
 					created: 1735000000,
 				});
@@ -280,6 +317,7 @@ describe("initStripeCheckout", () => {
 				jsonResponse(200, {
 					customer_email: "fallback@example.com",
 					payment_status: "no_payment_required",
+					amount_total: null,
 					status: "complete",
 					created: 1735000001,
 					subscription: null,
@@ -299,6 +337,7 @@ describe("initStripeCheckout", () => {
 				ok: true,
 				paid: true,
 				paymentStatus: "no_payment_required",
+				amountTotal: 0,
 				customerEmail: "fallback@example.com",
 				status: "complete",
 				created: 1735000001,
@@ -310,6 +349,7 @@ describe("initStripeCheckout", () => {
 				jsonResponse(200, {
 					customer_details: { email: "open@example.com" },
 					payment_status: "unpaid",
+					amount_total: 0,
 					status: "open",
 					created: 1735000002,
 				});
@@ -327,6 +367,7 @@ describe("initStripeCheckout", () => {
 				ok: true,
 				paid: false,
 				paymentStatus: "unpaid",
+				amountTotal: 0,
 				customerEmail: "open@example.com",
 				status: "open",
 				created: 1735000002,
@@ -339,6 +380,7 @@ describe("initStripeCheckout", () => {
 					customer_details: { email: null },
 					customer_email: null,
 					payment_status: "paid",
+					amount_total: 0,
 					status: "complete",
 					created: 1735000003,
 				});
