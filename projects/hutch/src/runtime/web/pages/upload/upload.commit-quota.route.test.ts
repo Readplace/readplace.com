@@ -28,8 +28,8 @@ function documentOf(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
-async function signedIn() {
-	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+async function signedIn(fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN)) {
+	const harness = useApp(fixture);
 	const agent = await loginAgent(harness.server, harness.auth);
 	const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 	assert(userId, "seeded login user must exist");
@@ -114,6 +114,63 @@ describe("Metered upload commit", () => {
 			"This file is longer than your 20 minutes of transcript a day. Split it into parts of 20 minutes or less.",
 		);
 		expect(doc.querySelector("[data-test-upload-start]")?.getAttribute("action")).toMatch(/^\/upload\?features=transcripts&utm_/);
+	});
+
+	it("names the book-quota refusal with the instant the reader may upload another book", async () => {
+		const signed = await signedIn();
+
+		const page = await signed.agent.get(
+			"/upload?features=transcripts&refused=book-quota&retry_at=2026-11-14T00%3A00%3A00.000Z",
+		);
+
+		const message = documentOf(page.text).querySelector('[data-test-alert="upload-refusal"] [data-test-alert-message]');
+		assert(message, "the book-quota refusal must render its message");
+		expect(message.textContent?.trim()).toBe(
+			"You've reached today's limit for book uploads. You can upload another book after Nov 14, 2026, 00:00 UTC.",
+		);
+		const time = message.querySelector("time");
+		expect(time?.getAttribute("datetime")).toBe("2026-11-14T00:00:00.000Z");
+		expect(time?.getAttribute("data-local-time")).toBe("datetime");
+	});
+
+	it("commits every EPUB from a full-access account past the metered book limit", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.rateLimit = {
+			...fixture.rateLimit,
+			rules: { ...fixture.rateLimit.rules, bookUpload: { limit: 1, windowSeconds: 86_400 } },
+		};
+		const signed = await signedIn(fixture);
+
+		const first = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
+		const second = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
+
+		expect([first.received.status, second.received.status]).toEqual([303, 303]);
+		expect([first.received.headers.location, second.received.headers.location]).toEqual(["/queue", "/queue"]);
+		expect(signed.harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(2);
+	});
+
+	it("refuses a free-plan account's second metered book past the day's book limit", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.rateLimit = {
+			...fixture.rateLimit,
+			rules: { ...fixture.rateLimit.rules, bookUpload: { limit: 1, windowSeconds: 86_400 } },
+		};
+		const signed = await signedIn(fixture);
+		signed.harness.subscriptionProviders.seedRow({
+			userId: signed.userId,
+			provider: "stripe",
+			status: "cancelled",
+			createdAt: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+			updatedAt: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+		});
+
+		const first = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
+		const second = await uploadAndReceive({ signed, startPath: "/upload?features=transcripts", bytes: epubPrefix() });
+
+		expect([first.received.status, first.received.headers.location]).toEqual([303, "/queue"]);
+		expect(second.received.status).toBe(303);
+		expect(second.received.headers.location).toMatch(/^\/upload\?features=transcripts&refused=book-quota&retry_at=/);
+		expect(signed.harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(1);
 	});
 
 	it("hides the refusal alert for an unknown reason", async () => {

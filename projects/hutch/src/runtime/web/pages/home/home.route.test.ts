@@ -510,7 +510,7 @@ describe("GET / pricing", () => {
 			(item: { name: string }) => item.name === "Do I need a credit card to start?",
 		);
 		expect(entry.acceptedAnswer.text).toBe(
-			"No. 14 days with the full product, no card. After that it's $60 a year ($5 a month, billed yearly) or $10 a month, and both plans are the same full product. If you don't subscribe, nothing is charged and the account goes read-only.",
+			"No. 14 days with the full product, no card. After that it's $60 a year ($5 a month, billed yearly) or $10 a month, and both plans are the same full product. If you don't subscribe, nothing is charged and the account moves to the free plan.",
 		);
 	});
 

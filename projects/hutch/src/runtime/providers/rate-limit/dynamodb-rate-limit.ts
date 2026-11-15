@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
@@ -8,9 +9,12 @@ import {
 	fixedWindowRetryAfterSeconds,
 	fixedWindowStartSeconds,
 } from "@packages/domain/rate-limit";
-import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import type {
+	ClaimRateLimitUnits,
+	ConsumeRateLimit,
+} from "@packages/provider-contracts/rate-limit";
 
-const RateLimitRow = z.object({ pk: z.string() });
+const RateLimitRow = z.object({ pk: z.string(), count: z.number().int() });
 
 /**
  * Distributed fixed-window counter. One conditional `ADD` per request against
@@ -22,7 +26,7 @@ export function initDynamoDbRateLimit(deps: {
 	client: Pick<DynamoDBDocumentClient, "send">;
 	tableName: string;
 	now: () => Date;
-}): { consumeRateLimit: ConsumeRateLimit } {
+}): { consumeRateLimit: ConsumeRateLimit; claimRateLimitUnits: ClaimRateLimitUnits } {
 	const table = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
@@ -64,5 +68,47 @@ export function initDynamoDbRateLimit(deps: {
 		return { allowed: true };
 	};
 
-	return { consumeRateLimit };
+	const claimRateLimitUnits: ClaimRateLimitUnits = async ({ bucket, key, requested, rule }) => {
+		const nowMs = deps.now().getTime();
+		const windowStartSeconds = fixedWindowStartSeconds({
+			nowMs,
+			windowSeconds: rule.windowSeconds,
+		});
+		const rowKey = { pk: `${bucket}#${key}#${windowStartSeconds}` };
+		let granted = 0;
+		let asked = Math.min(requested, rule.limit);
+		while (asked > 0) {
+			const units = asked;
+			const outcome = await writeIfCondition(() =>
+				table.update({
+					Key: rowKey,
+					UpdateExpression:
+						"ADD #count :units SET expiresAt = if_not_exists(expiresAt, :expiresAt)",
+					ConditionExpression: "attribute_not_exists(#count) OR #count <= :ceiling",
+					ExpressionAttributeNames: { "#count": "count" },
+					ExpressionAttributeValues: {
+						":units": units,
+						":ceiling": rule.limit - units,
+						":expiresAt": windowStartSeconds + 2 * rule.windowSeconds,
+					},
+				}),
+			);
+			if (outcome.kind === "written") {
+				granted = units;
+				break;
+			}
+			const row = await table.get(rowKey, { consistentRead: true });
+			assert(row, "a refused claim leaves a counter row in the window");
+			asked = Math.min(units, rule.limit - row.count);
+		}
+		return {
+			granted,
+			retryAfterSeconds:
+				granted < requested
+					? fixedWindowRetryAfterSeconds({ nowMs, windowSeconds: rule.windowSeconds })
+					: undefined,
+		};
+	};
+
+	return { consumeRateLimit, claimRateLimitUnits };
 }

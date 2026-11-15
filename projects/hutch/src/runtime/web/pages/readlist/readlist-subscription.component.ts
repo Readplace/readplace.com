@@ -24,7 +24,7 @@ export interface ReadlistSubscriptionDisplayModel {
 	isTrialStatus: boolean;
 	isTrialCountdown: boolean;
 	isCancellationScheduled: boolean;
-	isInactive: boolean;
+	isFree: boolean;
 	tiles: readonly TrialTile[];
 	trialDaysLeft?: number;
 	trialDaysLeftWord?: string;
@@ -57,7 +57,7 @@ export function toReadlistSubscriptionDisplayModel(
 		isTrialStatus: banner.state === "trial-status",
 		isTrialCountdown: banner.state === "trial-countdown",
 		isCancellationScheduled: banner.state === "cancellation-scheduled",
-		isInactive: banner.state === "inactive",
+		isFree: banner.state === "free",
 		priceStatement: PRICE_STATEMENT,
 		renewalPrices: RENEWAL_PRICES,
 		savesStayStatement: SAVES_STAY_STATEMENT,
@@ -83,7 +83,7 @@ export function toReadlistSubscriptionDisplayModel(
 			};
 		case "cancellation-scheduled":
 			return { ...shared, upgradeCtas: [], tiles: [], cancellationEffectiveAt: banner.cancellationEffectiveAt };
-		case "inactive":
+		case "free":
 			return { ...shared, upgradeCtas: upgradeCtasOf(banner.upgradeOffer), tiles: [] };
 		case "none":
 			return { ...shared, upgradeCtas: [], tiles: [] };

@@ -1,7 +1,7 @@
 import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { READLIST_SHOT, EARLY_USER_QUOTE, READ_ONLY_CLOSE, START_TRIAL } from "./landing-pages.copy";
+import { READLIST_SHOT, EARLY_USER_QUOTE, FREE_PLAN_CLOSE, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 import { IMPORT_LIMITS } from "../import/import.limits";
 
@@ -99,7 +99,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to my links if I stop paying?",
 			answer:
-				"You keep reading every one of them. The account goes read-only: the readlist, the reader and export all keep working, and you can still mark things read or delete them. Saving new links and importing are what stop.",
+				"You keep reading every one of them. The account moves to the free plan: the readlist, the reader and export all keep working, you can still mark things read or delete them, and saving new links and importing keep working within daily limits.",
 		},
 	],
 	offer: {
@@ -107,7 +107,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		paragraphs: [
 			`Uploading and reviewing costs nothing and needs no account. Saving the selection does, and that account is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			`${PRICING_PLANS.yearly.totalDisplay} a year is the whole business. No ad path, no data resale, and no investor whose timeline outlives yours — which is the failure mode you are on this page because of. <a href="${withInternalTracking("/blog/free-read-it-later-apps-2026", { source: "lp-pocket-alternative-body", content: "post-free-read-it-later-apps-2026" })}">The free read-it-later apps</a> are compared on the same thing: who pays the bill when you don't.`,
-			READ_ONLY_CLOSE,
+			FREE_PLAN_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},

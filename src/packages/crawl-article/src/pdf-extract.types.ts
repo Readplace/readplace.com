@@ -1,3 +1,5 @@
+import type { UserId } from "@packages/article-state-types";
+
 /**
  * Outcome of taking a PDF binary and turning it into something the existing
  * Readability pipeline can consume. `kind: "fetched"` carries synthetic HTML
@@ -7,7 +9,8 @@
  */
 export type PdfExtractResult =
 	| { kind: "fetched"; html: string; title: string }
-	| { kind: "failed"; reason: string };
+	| { kind: "failed"; reason: string }
+	| { kind: "over-ocr-quota"; pages: number; pagesLeft: number; retryAt: Date };
 
 /**
  * Phases the OCR-PDF extractor reports as it works through a document.
@@ -41,8 +44,20 @@ export type PdfExtractProgress = (params: {
 	stage: PdfExtractStage;
 }) => void;
 
+export type ParsedPdfScope =
+	| { kind: "none" }
+	| { kind: "account"; userId: UserId; fileHash: string };
+
+export type OcrPageCharge =
+	| { allowed: true }
+	| { allowed: false; pagesLeft: number; retryAt: Date };
+
+export type ChargeOcrPages = (params: { pages: number }) => Promise<OcrPageCharge>;
+
 export type ExtractPdf = (params: {
 	buffer: Buffer;
 	url: string;
+	scope: ParsedPdfScope;
+	chargeOcrPages: ChargeOcrPages;
 	onProgress?: PdfExtractProgress;
 }) => Promise<PdfExtractResult>;

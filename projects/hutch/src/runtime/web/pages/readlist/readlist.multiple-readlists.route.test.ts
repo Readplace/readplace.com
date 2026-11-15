@@ -350,7 +350,7 @@ describe("POST /queue/queues", () => {
 		expect(doc.querySelector('script[src="/client-dist/readlist.client.js"]')).not.toBeNull();
 	});
 
-	it("withholds the rename from a reader who has lost write access", async () => {
+	it("offers the rename and the create row to a free-plan reader, since readlists are core", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlistAndOpen(agent, "New Readlist");
@@ -363,8 +363,8 @@ describe("POST /queue/queues", () => {
 
 		const doc = parse((await agent.get(`/queue?queue=${slug}`)).text);
 
-		expect(renameable(doc)).toEqual([]);
-		expect(doc.querySelector('[data-test-action="new-readlist"]')).toBeNull();
+		expect(renameable(doc)).toContain(slug);
+		expect(doc.querySelectorAll('[data-test-action="new-readlist"]').length).toBeGreaterThan(0);
 		expect(doc.querySelector(`[data-test-readlist="${slug}"]`)?.getAttribute("href")).toContain(
 			`queue=${slug}`,
 		);

@@ -750,7 +750,7 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 		expect(noteEvents(harness)).toHaveLength(1);
 	});
 
-	it("refuses a read-only reader", async () => {
+	it("lets a free-plan reader write a note, since highlights are core", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -770,11 +770,10 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 		const response = await agent
 			.post(notePath({ articleId, highlightId: id }))
 			.type("form")
-			.send({ note: "Blocked" });
+			.send({ note: "Kept" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
-		expect(notesOf((await agent.get(viewPath(articleId))).text)).toEqual([]);
+		expect(notesOf((await agent.get(viewPath(articleId))).text)).toEqual(["Kept"]);
 	});
 
 	it("offers Edit note on an orphaned row", async () => {

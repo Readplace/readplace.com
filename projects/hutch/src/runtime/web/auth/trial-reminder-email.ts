@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchEmails } from "@packages/translations/hutch-emails";
 import { render } from "@packages/web-shell";
 import { TRIAL_REMINDER_LEAD_DAYS } from "../../domain/stripe/stripe-trial-config";
 
@@ -10,6 +12,8 @@ const TEMPLATE = readFileSync(
 );
 
 export const TRIAL_REMINDER_EMAIL_SUBJECT = `your Readplace trial ends in ${TRIAL_REMINDER_LEAD_DAYS} days`;
+
+const { t, tPlural } = translator(hutchEmails, DEFAULT_LOCALE);
 
 const SIGNOFF = "— Fayner Brack, Founder & CEO";
 
@@ -23,18 +27,14 @@ interface TrialReminderEmailComponent {
 	to: (mediaType: "text/html" | "text/plain") => string;
 }
 
-/** Returns the reassurance clause about already-saved articles that follows
- * "your account goes read-only" in the first paragraph. Returns an empty string
- * when the user saved zero articles so the sentence never fabricates usage. */
-function usageClause(count: number): string {
-	if (count === 0) return "";
-	const noun = count === 1 ? "article" : "articles";
-	return ` the ${count} ${noun} you've saved stay readable either way`;
+function freePlanSentence(count: number): string {
+	if (count === 0) return t("trialReminderEmail.freePlan.noSaves");
+	return tPlural("trialReminderEmail.freePlan.withSaves", { count });
 }
 
-function bodyParagraphs(clause: string): string[] {
+function bodyParagraphs(freePlan: string): string[] {
 	return [
-		`Your trial of Readplace ends in ${TRIAL_REMINDER_LEAD_DAYS} days. I don't ask for a card up front, so nothing gets charged — when the trial ends your account goes read-only${clause ? `, but${clause}.` : "."}`,
+		`${t("trialReminderEmail.trialEnds", { days: TRIAL_REMINDER_LEAD_DAYS })} ${freePlan}`,
 		"Readplace has no venture capital and runs no ads. A subscription covers the running expenses.",
 		"If Readplace has earned a place in how you read, you can upgrade from your account page — it takes about a minute.",
 		"If it hasn't, no action needed. Either way, I'd genuinely like to know what would make it worth keeping: just reply. I respond to all replies personally.",
@@ -44,7 +44,7 @@ function bodyParagraphs(clause: string): string[] {
 export function TrialReminderEmail(
 	params: TrialReminderEmailParams,
 ): TrialReminderEmailComponent {
-	const paragraphs = bodyParagraphs(usageClause(params.savedArticlesCount));
+	const paragraphs = bodyParagraphs(freePlanSentence(params.savedArticlesCount));
 	return {
 		to(mediaType) {
 			if (mediaType === "text/html") {

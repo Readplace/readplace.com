@@ -2,7 +2,7 @@ import { INBOX_ADDRESS_MAX_PER_USER, INBOX_TOKEN_LENGTH } from "@packages/domain
 import { withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { READLIST_SHOT, READ_ONLY_CLOSE, founderLine } from "./landing-pages.copy";
+import { READLIST_SHOT, FREE_PLAN_CLOSE, founderLine } from "./landing-pages.copy";
 import type { LandingPageAction, LandingPageContent } from "./landing-pages.types";
 
 const GUIDE: LandingPageAction = {
@@ -104,14 +104,14 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to saved articles if I stop paying?",
 			answer:
-				"You keep reading them. The account goes read-only: the readlist, the reader and export keep working. Saving new links and importing are what stop.",
+				"You keep reading them. The account moves to the free plan: the readlist, the reader and export keep working, and you can keep saving links within daily limits. Newsletter addresses stop saving new issues automatically, because the Inbox is a paid-plan feature.",
 		},
 	],
 	offer: {
 		title: "What it costs",
 		paragraphs: [
 			`Addresses come with the account, and the account is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
-			READ_ONLY_CLOSE,
+			FREE_PLAN_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},

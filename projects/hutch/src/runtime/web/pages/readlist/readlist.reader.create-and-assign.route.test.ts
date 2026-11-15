@@ -218,14 +218,12 @@ describe("the reader's inline create-a-readlist control", () => {
 		expect(response.headers.location).toBe("/login");
 	});
 
-	it("refuses a read-only visitor with the inactive redirect", async () => {
+	it("lets a free-plan reader create and file into a readlist, since readlists are core", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const email = "readonly-create@example.com";
-		await harness.auth.createUser({ email, password: "password123" });
-		const lookup = await harness.auth.findUserByEmail(email);
-		assert(lookup, "the read-only user must exist");
-		const agent = request.agent(harness.server);
-		await agent.post("/login").type("form").send({ email, password: "password123" });
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveArticle(agent, "https://example.com/free-plan");
+		const lookup = await harness.auth.findUserByEmail("test@example.com");
+		assert(lookup, "the signed-in reader must exist");
 		await harness.subscriptionProviders.upsertActive({
 			userId: lookup.userId,
 			subscriptionId: "sub_readonly",
@@ -233,13 +231,11 @@ describe("the reader's inline create-a-readlist control", () => {
 		});
 		await harness.subscriptionProviders.markCancelledByUserId({ userId: lookup.userId });
 
-		const response = await agent
-			.post("/queue/ffffffffffffffffffffffffffffffff/create-and-assign")
-			.type("form")
-			.send({ label: "Later", returnTo: "/queue/ffffffffffffffffffffffffffffffff/view" });
+		const response = await createAndAssign({ agent, articleId, label: "Later" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		const reader = parse((await agent.get(response.headers.location)).text);
+		expect(readlistTagLabels(reader)).toEqual(["Later"]);
 	});
 });
 

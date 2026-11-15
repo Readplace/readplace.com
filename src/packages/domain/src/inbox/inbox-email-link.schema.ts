@@ -42,6 +42,7 @@ export const EmailLinkSkipReasonSchema = z.enum([
 	"llm-menu",
 	"llm-subscription",
 	"social-host",
+	"paid-plan",
 ]);
 export type EmailLinkSkipReason = z.infer<typeof EmailLinkSkipReasonSchema>;
 

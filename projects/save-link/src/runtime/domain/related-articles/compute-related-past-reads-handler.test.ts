@@ -20,6 +20,7 @@ import { initComputeRelatedPastReadsHandler } from "./compute-related-past-reads
 import { computePastReadsFingerprint } from "./related-past-reads-fingerprint";
 import { ComputeRelatedPassesCommand, ComputeRelatedPastReadsCommand, QueueEntryCreatedEvent } from "./index";
 import type { SelectRelatedArticles, SelectRelatedArticlesParams } from "./related-articles-selector";
+import type { PlanAccess } from "@packages/subscription-access";
 
 const USER_ID = UserIdSchema.parse("00000000000000000000000000000001");
 const WORK = ReadlistSlugSchema.parse("work");
@@ -87,6 +88,7 @@ interface Overrides {
 	blockedOutcome?: Awaited<ReturnType<MarkPastReadsBudgetBlocked>>;
 	logger?: Logger;
 	deepseekCallFailedLog?: Logger.Typed<DeepseekCallFailedLogLine>;
+	planAccess?: PlanAccess;
 }
 
 function createHandler(overrides: Overrides = {}) {
@@ -99,14 +101,22 @@ function createHandler(overrides: Overrides = {}) {
 	const published: Array<{ outcome: string; relatedCount: number }> = [];
 	const selected: SelectRelatedArticlesParams[] = [];
 	const blocked: Parameters<MarkPastReadsBudgetBlocked>[0][] = [];
+	const lookedUp: string[] = [];
+	const planLookups: string[] = [];
 	const publishEvent: PublishEvent = async (_event, detail) => {
 		const parsed = detail as { outcome: string; relatedCount: number };
 		published.push({ outcome: parsed.outcome, relatedCount: parsed.relatedCount });
 	};
 
 	const handler = initComputeRelatedPastReadsHandler({
-		findRelatedTargetArticle: async () =>
-			overrides.targetLookup ?? { state: "found", article: crawledTarget() },
+		findPlanAccess: async ({ userId }) => {
+			planLookups.push(userId);
+			return overrides.planAccess ?? "paid";
+		},
+		findRelatedTargetArticle: async (url) => {
+			lookedUp.push(url);
+			return overrides.targetLookup ?? { state: "found", article: crawledTarget() };
+		},
 		findReadCandidatesAcrossReadlists: async () => ({
 			candidates: overrides.candidates ?? CANDIDATES,
 			awaitingCrawl: 0,
@@ -139,10 +149,37 @@ function createHandler(overrides: Overrides = {}) {
 		deepseekCallFailedLog: overrides.deepseekCallFailedLog ?? noopLogger,
 	});
 
-	return { handler, marked, published, storedTokens, selected, blocked };
+	return { handler, marked, published, storedTokens, selected, blocked, lookedUp, planLookups };
 }
 
 describe("initComputeRelatedPastReadsHandler", () => {
+	it("computes nothing for a free account's new save and logs the paid-plan skip", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, marked, published, selected, lookedUp, planLookups } = createHandler({ logger, planAccess: "free" });
+
+		const result = await handler(
+			sqsEvent({ url: TARGET_URL, userId: USER_ID }, QueueEntryCreatedEvent.detailType),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(planLookups).toEqual([USER_ID]);
+		expect(lookedUp).toEqual([]);
+		expect(selected).toEqual([]);
+		expect(marked).toEqual([]);
+		expect(published).toEqual([]);
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] skipped", { url: TARGET_URL, reason: "paid-plan" });
+	});
+
+	it.each<PlanAccess>(["paid", "trial"])("computes past reads for a %s account's new save", async (planAccess) => {
+		const { handler, marked } = createHandler({ planAccess });
+
+		await handler(sqsEvent({ url: TARGET_URL, userId: USER_ID }, QueueEntryCreatedEvent.detailType), buildLambdaContext(), () => {});
+
+		expect(marked).toHaveLength(1);
+	});
+
 	it("stores the lexical skip with its fingerprint, zero tokens, ready event and zero drop counts", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const { handler, marked, published, storedTokens } = createHandler({

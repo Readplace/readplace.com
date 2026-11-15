@@ -1,4 +1,5 @@
 import type { RateLimitDecision, RateLimitRule } from "@packages/domain/rate-limit";
+import type { UserId } from "@packages/domain/user";
 
 /** Each bucket carries an independent counter per client key, so exhausting
  * the crawl allowance never locks the same visitor out of logging in. */
@@ -16,7 +17,13 @@ export type RateLimitBucket =
 	| "browser-handoff"
 	| "import"
 	| "import-from-url"
-	| "upload-stage";
+	| "upload-stage"
+	| "daily-saves"
+	| "mcp-call"
+	| "book-upload"
+	| "stale-check-account"
+	| "stale-check-ip"
+	| "export";
 
 /**
  * Atomically count one request against `(bucket, key)` for the rule's current
@@ -29,6 +36,15 @@ export type ConsumeRateLimit = (params: {
 	key: string;
 	rule: RateLimitRule;
 }) => Promise<RateLimitDecision>;
+
+export type ReadOcrPagesLeft = (params: { userId: UserId }) => Promise<number>;
+
+export type ClaimRateLimitUnits = (claim: {
+	bucket: RateLimitBucket;
+	key: string;
+	requested: number;
+	rule: RateLimitRule;
+}) => Promise<{ granted: number; retryAfterSeconds: number | undefined }>;
 
 export interface RateLimitRules {
 	viewCrawl: RateLimitRule;
@@ -52,4 +68,9 @@ export interface RateLimitRules {
 	 * attacker-chosen origin (SSRF/DoS amplification surface). */
 	importFromUrl: RateLimitRule;
 	uploadStage: RateLimitRule;
+	dailySaves: RateLimitRule;
+	mcpCall: RateLimitRule;
+	bookUpload: RateLimitRule;
+	staleCheck: RateLimitRule;
+	export: RateLimitRule;
 }

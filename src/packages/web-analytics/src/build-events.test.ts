@@ -247,7 +247,7 @@ describe("buildSaveRefusedEvent", () => {
 			req: createReq({ userId: "user-1", requestContext: { requestId: "Req-9=" } }) as Request,
 			path: "/queue/save-articles",
 			status: 402,
-			code: SAVE_REFUSAL_CODES.noWriteAccess,
+			code: SAVE_REFUSAL_CODES.paidFeatureRefused,
 			client: SAVE_CLIENTS.chromeExtension,
 		});
 		expect(event).toEqual({
@@ -255,7 +255,7 @@ describe("buildSaveRefusedEvent", () => {
 			event: "save_refused",
 			timestamp: "2026-04-21T10:00:00.000Z",
 			path: "/queue/save-articles",
-			code: "no_write_access",
+			code: "paid_feature_refused",
 			status: 402,
 			client: "chrome_extension",
 			is_authenticated: 1,

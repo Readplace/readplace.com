@@ -7,7 +7,6 @@ import type {
 	ClaimCanonicalAlias,
 	FindIdentityRow,
 	FindQueueRowKeys,
-	HasSaveLandedSince,
 	PinContentSource,
 	QueueRowKey,
 	RecordPrivateItemFailure,
@@ -114,6 +113,8 @@ import type {
 	CheckoutPaymentStatus,
 	CheckoutSessionId,
 	ConsumePendingSignup,
+	ClaimRateLimitUnits,
+	ReadOcrPagesLeft,
 	ConsumeRateLimit,
 	ContentProvider,
 	ConversionEvent,
@@ -214,6 +215,7 @@ import type {
 	MarkCrawlPending,
 	MarkEmailVerified,
 	MarkReaderReadyEmailSent,
+	MarkOcrPagesHeld,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	MarkSessionEmailVerified,
@@ -479,7 +481,6 @@ export interface ArticleStoreBundle {
 	saveArticleKeepingPosition: SaveArticle;
 	saveArticleAsRequested: SaveArticleAsRequested;
 	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
-	hasSaveLandedSince: HasSaveLandedSince;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
@@ -501,6 +502,7 @@ export interface ArticleStoreBundle {
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
+	markOcrPagesHeld: MarkOcrPagesHeld;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
@@ -704,6 +706,8 @@ export interface PasswordResetBundle {
 
 export interface RateLimitBundle {
 	consumeRateLimit: ConsumeRateLimit;
+	claimRateLimitUnits: ClaimRateLimitUnits;
+	readOcrPagesLeft: ReadOcrPagesLeft;
 	rules: RateLimitRules;
 }
 

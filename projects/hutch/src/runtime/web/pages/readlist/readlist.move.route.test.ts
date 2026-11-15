@@ -180,7 +180,7 @@ function createAndMoveAction(doc: Document, articleId: string): string {
 	return action;
 }
 
-async function makeReadOnly(harness: ReturnType<typeof useApp>): Promise<void> {
+async function makeFreePlan(harness: ReturnType<typeof useApp>): Promise<void> {
 	const user = await harness.auth.findUserByEmail("test@example.com");
 	assert(user, "the signed-in reader must exist");
 	await harness.subscriptionProviders.upsertActive({
@@ -793,25 +793,17 @@ describe("POST /queue/:id/move", () => {
 			]);
 		});
 
-		it("refuses a read-only visitor with the inactive redirect, writing nothing", async () => {
+		it("lets a free-plan reader move an article, since readlists are core", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const finance = await createReadlist(agent, "Finance");
 			const articleId = await saveArticle(agent, "https://example.com/read-only");
-			await makeReadOnly(harness);
+			await makeFreePlan(harness);
 
-			const answers = [];
-			for (const post of bothPosts(agent, articleId)) {
-				const response = await post;
-				answers.push([response.status, response.headers.location]);
-			}
+			const response = await agent.post(`/queue/${articleId}/move`).type("form").send({ from: "default", to: finance });
 
-			expect(answers).toEqual([
-				[303, "/queue?inactive=1"],
-				[303, "/queue?inactive=1"],
-			]);
-			expect(await readlistLabels(agent)).toEqual(["All", "Finance"]);
-			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([]);
+			expect(response.status).toBe(303);
+			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([articleId]);
 		});
 
 		it("shows a locked account the locked page, writing nothing", async () => {
@@ -952,17 +944,16 @@ describe("POST /queue/:id/move", () => {
 			expect(moveDialogIds(doc)).toEqual([]);
 		});
 
-		it("offers the move as a lock beside Delete to a read-only account", async () => {
+		it("offers a free-plan account the real move beside Delete, since filing is a core write", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await createReadlist(agent, "Finance");
-			const articleId = await saveArticle(agent, "https://example.com/menu-read-only");
-			await makeReadOnly(harness);
+			const articleId = await saveArticle(agent, "https://example.com/menu-free-plan");
+			await makeFreePlan(harness);
 
 			const doc = await listing(agent, "/queue");
 
-			expect(cardMenuControls(doc, articleId)).toEqual(["upgrade-open", "upgrade-fallback", "delete-fallback", "delete"]);
-			expect(moveDialogIds(doc)).toEqual([]);
+			expect(cardMenuControls(doc, articleId)).toEqual(["move-fallback", "move", "delete-fallback", "delete"]);
 		});
 	});
 });

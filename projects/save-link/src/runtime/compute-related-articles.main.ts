@@ -10,6 +10,7 @@ import {
 import { consoleLogger, Logger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { readEnv } from "@packages/require-env";
+import { initDynamoDbSubscriptionRead, resolvePlanAccess } from "@packages/subscription-access";
 import { COMPUTE_RELATED_ARTICLES_ENV } from "./compute-related-articles.env";
 import { initRelatedArticlesDepBundle } from "./dep-bundles/related-articles";
 import { initDynamoDbRecommendationBudget } from "./providers/recommendation-budget/dynamodb-recommendation-budget";
@@ -24,6 +25,7 @@ import { initComputeRelatedArticlesHandler } from "./domain/related-articles/com
 import { initComputeRelatedPastReadsHandler } from "./domain/related-articles/compute-related-past-reads-handler";
 import { initRecomputeSkippedNextReadHandler } from "./domain/related-articles/recompute-skipped-next-read-handler";
 import { initGatherRelatedCandidatePools } from "./domain/related-articles/related-articles-candidates";
+import type { FindPlanAccess } from "./domain/related-articles/find-plan-access.types";
 import { RELATED_ARTICLES_TIMEOUTS } from "./domain/related-articles/timeouts";
 
 const env = readEnv(COMPUTE_RELATED_ARTICLES_ENV);
@@ -33,6 +35,7 @@ const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
 const deepseekApiKey = env.DEEPSEEK_API_KEY;
 const eventBusName = env.EVENT_BUS_NAME;
 const rateLimitsTable = env.DYNAMODB_RATE_LIMITS_TABLE;
+const subscriptionProvidersTable = env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE;
 
 const dynamoClient = createDynamoDocumentClient();
 const deepseekClient = initDeepseekClient({
@@ -96,6 +99,13 @@ const { gatherRelatedCandidatePools } = initGatherRelatedCandidatePools({
 	findRelatedReadCandidateArticles,
 });
 
+const { findByUserId: findSubscriptionByUserId } = initDynamoDbSubscriptionRead({
+	client: dynamoClient,
+	tableName: subscriptionProvidersTable,
+});
+const findPlanAccess: FindPlanAccess = async ({ userId }) =>
+	resolvePlanAccess(await findSubscriptionByUserId(userId), new Date());
+
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
@@ -104,6 +114,7 @@ const { publishEvent } = initEventBridgePublisher({
 const nextReadHandler = initComputeRelatedArticlesHandler({
 	findRelatedArticles,
 	findRelatedTargetArticle,
+	findPlanAccess,
 	gatherRelatedCandidatePools,
 	selectRelatedArticles,
 	markRelatedArticlesReady,
@@ -115,6 +126,7 @@ const nextReadHandler = initComputeRelatedArticlesHandler({
 });
 
 const pastReadsHandler = initComputeRelatedPastReadsHandler({
+	findPlanAccess,
 	findRelatedTargetArticle,
 	findReadCandidatesAcrossReadlists,
 	readPastReadsState,
@@ -130,6 +142,7 @@ const pastReadsHandler = initComputeRelatedPastReadsHandler({
 const recomputeNextReadHandler = initRecomputeSkippedNextReadHandler({
 	findRelatedTargetArticle,
 	findSkippedNextReadSaves,
+	findPlanAccess,
 	gatherRelatedCandidatePools,
 	selectRelatedArticles,
 	replaceSkippedRelatedArticlesWithReady,

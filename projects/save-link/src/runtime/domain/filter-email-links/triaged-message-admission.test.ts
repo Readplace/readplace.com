@@ -14,7 +14,7 @@ const NOW = new Date("2026-09-23T09:00:00.000Z");
 
 type Meta = Parameters<ReturnType<typeof initInMemoryInboxEmailLink>["putLinksMeta"]>[0]["meta"];
 
-function lapsedSubscription(): SubscriptionRecord {
+function freeSubscription(): SubscriptionRecord {
 	return {
 		userId: USER,
 		provider: "stripe",
@@ -80,13 +80,25 @@ describe("initAdmitTriagedMessage", () => {
 		assert.deepEqual(await admit({ meta }), { kind: "skip", reason: "no-longer-selected" });
 	});
 
-	it("a read-only account returns write-access-lapsed", async () => {
-		assert.deepEqual(await admit({ meta: SELECTS_WORK, subscription: lapsedSubscription() }), {
-			kind: "write-access-lapsed",
+	it("a free account returns paid-plan-required", async () => {
+		assert.deepEqual(await admit({ meta: SELECTS_WORK, subscription: freeSubscription() }), {
+			kind: "paid-plan-required",
 		});
 	});
 
-	it("a failed outcome with full access proceeds", async () => {
+	it("a trial account proceeds", async () => {
+		const trial: SubscriptionRecord = {
+			userId: USER,
+			provider: "stripe",
+			status: "trialing",
+			trialEndsAt: "2026-09-30T09:00:00.000Z",
+			createdAt: "2026-09-16T09:00:00.000Z",
+			updatedAt: "2026-09-16T09:00:00.000Z",
+		};
+		assert.deepEqual(await admit({ meta: SELECTS_WORK, subscription: trial }), { kind: "proceed" });
+	});
+
+	it("a failed outcome on a paid plan proceeds", async () => {
 		assert.deepEqual(await admit({ meta: SELECTS_WORK, outcome: { decision: "failed" } }), { kind: "proceed" });
 	});
 });

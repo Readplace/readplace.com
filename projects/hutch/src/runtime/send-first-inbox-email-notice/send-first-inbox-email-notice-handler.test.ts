@@ -158,7 +158,7 @@ describe("send-first-inbox-email-notice handler", () => {
 		assert.equal(subject.email.getSentEmails().length, 1);
 	});
 
-	it("stays silent for a read-only reader, then sends once the reader can save again", async () => {
+	it("stays silent for a free account, then sends once the reader has paid features again", async () => {
 		const subject = buildSubject();
 		await seedCancelled(subject.providers);
 

@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { JSDOM } from "jsdom";
-import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { renderAddLinkForm, renderReadlistAddLink, renderReadlistSaveFeedback } from "./readlist-add-link.component";
 
-const OFFER: UpgradeOffer = { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" };
 const SAVE_TIP_HTML = `<div id="save-tip" popover="auto" data-test-confirm-popover="save-tip"><button type="button" autofocus>Continue here</button></div>`;
 
 function parse(html: string): Document {
@@ -14,8 +12,6 @@ function parse(html: string): Document {
 function addLink(overrides: Partial<Parameters<typeof renderReadlistAddLink>[0]> = {}) {
 	return renderReadlistAddLink({
 		filters: { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 1 },
-		accessIsReadOnly: false,
-		offer: undefined,
 		saveTip: { state: "due", html: SAVE_TIP_HTML },
 		...overrides,
 	});
@@ -38,7 +34,6 @@ function formDoc(overrides: Partial<Parameters<typeof renderAddLinkForm>[0]> = {
 			action: "/queue/save?utm_source=queue",
 			value: "",
 			saveTipState: "seen",
-			accessIsReadOnly: false,
 			autoSubmit: false,
 			autofocus: true,
 			...overrides,
@@ -189,8 +184,8 @@ describe("Add article", () => {
 		expect(element(form, 'button[type="submit"]').textContent).toBe("Save");
 	});
 
-	it.each([true, false])("sets every save control's disabled state for read-only access (%s)", (accessIsReadOnly) => {
-		const doc = addLinkDoc({ accessIsReadOnly });
+	it("leaves every save control enabled", () => {
+		const doc = addLinkDoc();
 
 		const controls = Array.from(
 			doc.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
@@ -198,7 +193,7 @@ describe("Add article", () => {
 			),
 		);
 		expect(controls).toHaveLength(5);
-		expect(controls.map((control) => control.disabled)).toEqual(Array(5).fill(accessIsReadOnly));
+		expect(controls.map((control) => control.disabled)).toEqual(Array(5).fill(false));
 	});
 
 	it("offers a file dropzone in the dialog as its own form after the link form, posting to the tracked import", () => {
@@ -219,10 +214,10 @@ describe("Add article", () => {
 		);
 	});
 
-	it.each([true, false])("sets the dropzone's file field disabled state for read-only access (%s)", (accessIsReadOnly) => {
-		const doc = addLinkDoc({ accessIsReadOnly });
+	it("leaves the dropzone's file field enabled", () => {
+		const doc = addLinkDoc();
 
-		expect(element<HTMLInputElement>(doc, '[data-test-form="upload-file"] input[type="file"]').disabled).toBe(accessIsReadOnly);
+		expect(element<HTMLInputElement>(doc, '[data-test-form="upload-file"] input[type="file"]').disabled).toBe(false);
 	});
 
 	it("points the no-popover disclosure at the upload page", () => {
@@ -378,49 +373,5 @@ describe("Save feedback", () => {
 
 	it("shows nothing for an import whose skipped list is empty", () => {
 		expect(renderReadlistSaveFeedback({ importSkipped: { entries: [], andMore: 0 } }).trim()).toBe("");
-	});
-});
-
-describe("Add link by upgrade standing", () => {
-	it("open: a reader who can write keeps the dialog control even when an upgrade is on offer", () => {
-		const doc = addLinkDoc({ offer: OFFER });
-
-		expect(element(doc, '[data-test-action="add-link"]').getAttribute("popovertarget")).toBe("add-link");
-		expect(element<HTMLInputElement>(doc, '[data-test-form="save-article"] input[name="url"]').disabled).toBe(false);
-		expect(doc.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
-	});
-
-	it("needs-upgrade: one lock takes the control slot and the dialog is not rendered", () => {
-		const rendered = addLink({ accessIsReadOnly: true, offer: OFFER });
-		const doc = parse(`${rendered.controlHtml}${rendered.dialogHtml}`);
-
-		const slot = element(doc, "[data-test-add-link]");
-		const trigger = element(slot, '[data-test-action="upgrade-open"]');
-		expect(trigger.getAttribute("data-test-needs-upgrade")).toBe("add-link");
-		expect(trigger.getAttribute("popovertarget")).toBe("subscribe-plans");
-		expect(trigger.classList.contains("btn--neutral")).toBe(true);
-		expect(element(slot, ".needs-upgrade__label").textContent).toBe("Upload");
-		expect(element(slot, '[data-test-action="upgrade-fallback"]').getAttribute("href")).toBe(
-			"/account/plans?utm_source=queue-add-link&utm_medium=internal&utm_content=upgrade-add-link",
-		);
-		expect(slot.querySelectorAll('[data-test-action="add-link"]')).toHaveLength(0);
-		expect(rendered.dialogHtml).toBe("");
-	});
-
-	it("withheld: a read-only reader with nothing on offer keeps today's disabled control", () => {
-		const doc = addLinkDoc({ accessIsReadOnly: true, offer: undefined });
-
-		expect(element(doc, '[data-test-action="add-link"]').getAttribute("popovertarget")).toBe("add-link");
-		expect(element<HTMLInputElement>(doc, '[data-test-form="save-article"] input[name="url"]').disabled).toBe(true);
-		expect(element<HTMLInputElement>(doc, "#add-link-fallback-url").disabled).toBe(true);
-		expect(doc.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
-	});
-
-	it("keeps the pending save's disabled form for a read-only reader an upgrade is offered to", () => {
-		const rendered = addLink({ accessIsReadOnly: true, offer: OFFER, saveUrl: "https://example.com/a" });
-		const doc = parse(rendered.pendingHtml);
-
-		expect(element<HTMLInputElement>(doc, 'input[name="url"]').disabled).toBe(true);
-		expect(rendered.controlHtml).toBe("");
 	});
 });

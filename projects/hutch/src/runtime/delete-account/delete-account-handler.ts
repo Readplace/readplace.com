@@ -80,6 +80,7 @@ export interface DeleteAccountHandlerDependencies {
 	deleteRawEmailObjectsByPrefix: (prefixes: string[]) => Promise<void>;
 	deleteEmailContentObjects: (keys: string[]) => Promise<void>;
 	deleteEmailImageObjects: (prefixes: string[]) => Promise<void>;
+	deleteParsedPdfObjects: (prefixes: string[]) => Promise<void>;
 	deleteAllUserArticles: DeleteAllUserArticles;
 	deleteAllTranscriptQuota: DeleteAllTranscriptQuota;
 	deleteAllUserHighlights: DeleteAllUserHighlights;
@@ -157,6 +158,7 @@ async function processCommand(
 	await deps.deleteAllInboxLinks(userId, receivedAtMessageIds);
 	await deps.deleteAllInboxEmails(userId);
 	await deps.deleteRawEmailObjectsByPrefix([`gmail-import/${userId}`]);
+	await deps.deleteParsedPdfObjects([`pdf-extract/account/${userId}/`]);
 	await deps.deleteAllGmailHistoryImports(userId);
 	await deps.deleteAllGmailMonitoring(userId);
 	await deps.deleteAllEmailIdentities(userId);

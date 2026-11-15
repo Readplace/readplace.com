@@ -39,26 +39,24 @@ const BASE_QUERY: AccountUrlState = {
 	manage: undefined,
 };
 
-const ACTIVE: EffectiveAccess = { tier: "paid", access: "full", banner: "none" };
-const FOUNDING: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
-const INACTIVE: EffectiveAccess = {
-	tier: "inactive",
-	access: "read-only",
-	banner: "inactive",
+const ACTIVE: EffectiveAccess = { tier: "paid", banner: "none" };
+const FOUNDING: EffectiveAccess = { tier: "founding", banner: "none" };
+const FREE: EffectiveAccess = {
+	tier: "free",
+	banner: "free",
 	reason: "trial-expired",
 };
 
 function trialEndingIn(days: number, now: Date): EffectiveAccess {
 	return {
 		tier: "trial",
-		access: "full",
 		banner: "trial-countdown",
 		trialEndsAt: new Date(now.getTime() + days * ONE_DAY_MS).toISOString(),
 	};
 }
 
 function cancellationScheduledAt(cancellationEffectiveAt: string): EffectiveAccess {
-	return { tier: "paid", access: "full", banner: "cancellation-scheduled", cancellationEffectiveAt };
+	return { tier: "paid", banner: "cancellation-scheduled", cancellationEffectiveAt };
 }
 
 function accountVm(
@@ -80,7 +78,7 @@ describe("toAccountViewModel — state", () => {
 		const now = new Date("2026-05-23T12:00:00Z");
 		const trialEndsAt = new Date("2026-05-24T00:00:00Z").toISOString();
 		const vm = accountVm({
-			access: { tier: "trial", access: "full", banner: "trial-countdown", trialEndsAt },
+			access: { tier: "trial", banner: "trial-countdown", trialEndsAt },
 			now,
 		});
 		assert.equal(vm.statusLine, "Your free trial ends on ");
@@ -96,7 +94,7 @@ describe("toAccountViewModel — state", () => {
 		const now = new Date("2026-05-23T00:00:00.000Z");
 		const trialEndsAt = new Date("2026-05-24T00:00:00.000Z").toISOString();
 		const vm = accountVm({
-			access: { tier: "trial", access: "full", banner: "trial-countdown", trialEndsAt },
+			access: { tier: "trial", banner: "trial-countdown", trialEndsAt },
 			now,
 		});
 		assert.equal(vm.statusDateTail, " — 1 day left.");
@@ -138,7 +136,7 @@ describe("toAccountViewModel — next charge", () => {
 			FOUNDING,
 			trialEndingIn(5, now),
 			cancellationScheduledAt(new Date(now.getTime() + 5 * ONE_DAY_MS).toISOString()),
-			INACTIVE,
+			FREE,
 		];
 		for (const access of states) {
 			const vm = accountVm({ access, now, nextCharge: chargeSoon });
@@ -210,10 +208,10 @@ describe("toAccountViewModel — plan summary", () => {
 		assert.equal(vm.statusLine, "Your free trial ends on ");
 	});
 
-	it.each([...PLANS.map(([plan]) => plan), undefined])("calls an inactive reader's subscription 'Subscription' with the Inactive chip and no sentence (%s)", (plan) => {
-		const vm = accountVm({ access: INACTIVE, plan });
+	it.each([...PLANS.map(([plan]) => plan), undefined])("calls a free-plan reader's subscription 'Subscription' with the Free plan chip and no sentence (%s)", (plan) => {
+		const vm = accountVm({ access: FREE, plan });
 		assert.equal(vm.title, "Subscription");
-		assert.deepEqual(vm.chips, [{ label: "Inactive", className: "chip chip--status chip--error" }]);
+		assert.deepEqual(vm.chips, [{ label: "Free plan", className: "chip chip--status chip--error" }]);
 		assert.equal(vm.price.state, "hidden");
 		assert.equal(vm.statusLine, "");
 	});
@@ -235,7 +233,7 @@ describe("toAccountViewModel — plan summary", () => {
 	});
 
 	it("calls the subscribe-failed state 'Subscription', with no chip, price or sentence", () => {
-		const vm = accountVm({ access: INACTIVE, plan: "monthly", queryState: { ...BASE_QUERY, errorSubscribeFailed: true } });
+		const vm = accountVm({ access: FREE, plan: "monthly", queryState: { ...BASE_QUERY, errorSubscribeFailed: true } });
 		assert.equal(vm.title, "Subscription");
 		assert.deepEqual(vm.chips, []);
 		assert.equal(vm.price.state, "hidden");
@@ -292,11 +290,11 @@ describe("toAccountViewModel — manage panel", () => {
 
 	it.each([
 		["trial", trialEndingIn(5, new Date("2026-07-14T12:00:00.000Z")), BASE_QUERY, ["subscribe"]],
-		["inactive", INACTIVE, BASE_QUERY, ["subscribe"]],
+		["free", FREE, BASE_QUERY, ["subscribe"]],
 		["founding", FOUNDING, BASE_QUERY, []],
 		["cancellation-scheduled", cancellationScheduledAt("2026-09-18T00:00:00.000Z"), BASE_QUERY, ["reactivate-form"]],
 		["error-payment-method", ACTIVE, { ...BASE_QUERY, errorPaymentMethod: true }, []],
-		["error-subscribe-failed", INACTIVE, { ...BASE_QUERY, errorSubscribeFailed: true }, ["subscribe"]],
+		["error-subscribe-failed", FREE, { ...BASE_QUERY, errorSubscribeFailed: true }, ["subscribe"]],
 	] as const)("ignores ?manage=subscription in the %s state: the panel stays shut and the state keeps its own action", (_state, access, query, keys) => {
 		const vm = accountVm({ access, plan: "monthly", queryState: { ...query, manage: "subscription" } });
 		assert.equal(vm.managePanel.state, "closed");
@@ -435,7 +433,7 @@ describe("toAccountViewModel — actions", () => {
 	});
 
 	it("inactive users get a primary subscribe action only", () => {
-		const vm = accountVm({ access: INACTIVE, now });
+		const vm = accountVm({ access: FREE, now });
 		const keys = vm.actions.map((a) => a.key);
 		assert.deepEqual(keys, ["subscribe"]);
 		assert.equal(vm.actions[0].variant, "primary");
@@ -443,7 +441,7 @@ describe("toAccountViewModel — actions", () => {
 
 	it("error-payment-method state exposes no actions (support email lives in the body copy)", () => {
 		const vm = accountVm({
-			access: { tier: "inactive", access: "read-only", banner: "inactive", reason: "subscription-cancelled", plan: undefined },
+			access: { tier: "free", banner: "free", reason: "subscription-cancelled", plan: undefined },
 			now,
 			queryState: { ...BASE_QUERY, errorPaymentMethod: true },
 		});
@@ -471,7 +469,7 @@ describe("toAccountViewModel — actions", () => {
 
 	it("trial cancellation-scheduled state — same shape as paid (reactivate-form, Reactivate label) so the template stays branchless", () => {
 		const vm = accountVm({
-			access: { tier: "trial", access: "full", banner: "cancellation-scheduled", cancellationEffectiveAt: "2026-06-05T00:00:00.000Z" },
+			access: { tier: "trial", banner: "cancellation-scheduled", cancellationEffectiveAt: "2026-06-05T00:00:00.000Z" },
 			now,
 		});
 
@@ -489,7 +487,7 @@ describe("toAccountViewModel — actions", () => {
 
 	it("re-offers a returning reader the plan their cancelled subscription carried after a failed checkout, where the plan chooser opens again", () => {
 		const vm = accountVm({
-			access: { tier: "inactive", access: "read-only", banner: "inactive", reason: "subscription-cancelled", plan: "triennial" },
+			access: { tier: "free", banner: "free", reason: "subscription-cancelled", plan: "triennial" },
 			now,
 			queryState: { ...BASE_QUERY, errorSubscribeFailed: true },
 		});
@@ -511,7 +509,7 @@ describe("toAccountViewModel — actions", () => {
 
 describe("toAccountViewModel — billing history", () => {
 	it("shows billing history with View invoices whenever the row has a customer, a former subscriber included", () => {
-		const vm = accountVm({ access: INACTIVE, hasCustomer: true });
+		const vm = accountVm({ access: FREE, hasCustomer: true });
 		assert.equal(vm.billingHistory.state, "visible");
 		assert.equal(vm.billingHistory.isVisible, true);
 		const [viewInvoices] = vm.billingHistory.actions;
@@ -668,7 +666,7 @@ describe("withoutCommerce — iOS app surface (Guideline 3.1.1)", () => {
 	});
 
 	it("keeps the delete-account danger zone and routes it through ?platform=ios so a rejected delete re-renders commerce-free", () => {
-		const vm = withoutCommerce(accountVm({ access: INACTIVE, now }), { appShell: false, platform: "ios" });
+		const vm = withoutCommerce(accountVm({ access: FREE, now }), { appShell: false, platform: "ios" });
 		assert.equal(vm.dangerAction.key, "delete-account");
 		assert.equal(
 			vm.dangerAction.href,

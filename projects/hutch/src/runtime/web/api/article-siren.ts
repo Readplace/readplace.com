@@ -24,6 +24,11 @@ import { cardKindOf } from "../pages/readlist/readlist-card/card-kind-label";
 import { type CardPhase, cardProcessingOf } from "../pages/readlist/readlist-card/card-processing";
 import type { ContentState } from "../pages/readlist/readlist-card/content-state";
 import { staleNoticeHtml } from "../pages/readlist/readlist-card/stale-notice";
+import { shownOcrPagesHold } from "../shared/ocr-pages-hold";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchApi } from "@packages/translations/hutch-api";
+
+const { t } = translator(hutchApi, DEFAULT_LOCALE);
 
 export type ArticleEntityProperties = {
 	id: string;
@@ -59,7 +64,7 @@ function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
 	return reason.cause === "edge-block" || reason.cause === "rate-limited";
 }
 
-function itemMessages(params: { article: SavedArticle; phase: CardPhase }): SirenMessage[] {
+function itemMessages(params: { article: SavedArticle; phase: CardPhase; crawl: ArticleCrawl | undefined }): SirenMessage[] {
 	const { article, phase } = params;
 	const stale: SirenMessage[] =
 		phase.kind === "stale"
@@ -87,7 +92,20 @@ function itemMessages(params: { article: SavedArticle; phase: CardPhase }): Sire
 						content: { type: "text/html", body: Handlebars.Utils.escapeExpression(article.processingNotice) },
 					},
 				];
-	return [...stale, ...upload];
+	const hold = shownOcrPagesHold({ hold: article.ocrPagesHold, crawl: params.crawl });
+	const held: SirenMessage[] =
+		hold === undefined
+			? []
+			: [
+					{
+						type: "warning",
+						content: {
+							type: "text/html",
+							body: Handlebars.Utils.escapeExpression(t("ocrPagesHeld.warning", { pages: hold.pages, pagesLeft: hold.pagesLeft })),
+						},
+					},
+				];
+	return [...stale, ...upload, ...held];
 }
 
 export function toArticleSubEntity(
@@ -121,7 +139,7 @@ export function toArticleSubEntity(
 		pollCount: options.pollCount ?? 1,
 		maxPolls: MAX_POLLS,
 	});
-	const messages = itemMessages({ article, phase });
+	const messages = itemMessages({ article, phase, crawl: options.crawl });
 	const properties: ArticleEntityProperties = {
 		id,
 		// Display: the redirect destination when this article was merged onto one,

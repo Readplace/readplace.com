@@ -17,7 +17,7 @@ const METADATA = { title: "Employee #1: Yahoo", siteName: "TLDR", excerpt: "Yaho
 const ESTIMATED_READ_TIME = MinutesSchema.parse(2);
 const PROVENANCE = { kind: "email", senderEmail: "dan@tldr.tech" } as const;
 
-function lapsedSubscription(): SubscriptionRecord {
+function freeSubscription(): SubscriptionRecord {
 	return {
 		userId: READER,
 		provider: "stripe",
@@ -404,25 +404,41 @@ describe("initSaveEmailIssue", () => {
 		});
 	});
 
-	describe("write access", () => {
-		it("refuses a first save for a reader whose write access has lapsed", async () => {
+	describe("plan access", () => {
+		it("saves a trial reader's first save", async () => {
 			const h = await harness(undefined);
-			h.access.subscription = lapsedSubscription();
+			h.access.subscription = {
+				userId: READER,
+				provider: "stripe",
+				status: "trialing",
+				trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-01T00:00:00.000Z",
+			};
+
+			const outcome = await h.save([]);
+
+			assert.equal(outcome.kind, "saved");
+		});
+
+		it("refuses a free reader's first save as needing a paid plan", async () => {
+			const h = await harness(undefined);
+			h.access.subscription = freeSubscription();
 
 			const outcome = await h.save([WORK]);
 
-			assert.deepEqual(outcome, { kind: "write-access-lapsed" });
+			assert.deepEqual(outcome, { kind: "paid-plan-required" });
 			assert.deepEqual(h.calls, []);
 			assert.equal(await h.store.findArticleByUrl(ISSUE_URL), null);
 			assert.deepEqual(await h.saves(), []);
 		});
 
-		it("finishes a save that landed before access lapsed", async () => {
+		it("finishes a save that landed before the plan became free", async () => {
 			const h = await harness(undefined);
 			h.failFilingInto.add(WORK);
 			await assert.rejects(h.save([WORK]), /readlist write failed/);
 			const before = await h.allRow();
-			h.access.subscription = lapsedSubscription();
+			h.access.subscription = freeSubscription();
 			h.failFilingInto.clear();
 			h.calls.length = 0;
 
@@ -433,11 +449,11 @@ describe("initSaveEmailIssue", () => {
 			assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all", "filed"]);
 		});
 
-		it("leaves a removed card removed and finishes its content when access has lapsed", async () => {
+		it("leaves a removed card removed and finishes its content when the plan is free", async () => {
 			const h = await harness(undefined);
 			await h.save([]);
 			await h.removeCard();
-			h.access.subscription = lapsedSubscription();
+			h.access.subscription = freeSubscription();
 			h.calls.length = 0;
 
 			const outcome = await h.save([]);

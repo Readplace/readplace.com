@@ -28,7 +28,7 @@ const signedIn: ResolveLogin = async () => ({
 
 const BLOG_ITEMS = [
 	...buildGuestNavGroups(),
-	...[false, true].flatMap((accessIsReadOnly) => buildNavGroups({ accessIsReadOnly })),
+	...[false, true].flatMap((paidFeaturesLocked) => buildNavGroups({ paidFeaturesLocked })),
 ]
 	.flatMap((group) => group.items)
 	.filter((item) => new URL(item.href, OWN_ORIGIN).pathname.startsWith("/blog"));

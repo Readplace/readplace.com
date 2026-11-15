@@ -72,7 +72,7 @@ function readImportSkippedFlash(
 
 export function initReadlistListingRoutes(deps: Pick<
 		ReadlistDependencies,
-		"now" | "recordNativeAppAnyActivity" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "requireWriteAccess" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed"
+		"now" | "recordNativeAppAnyActivity" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "findUserById" | "httpErrorMessageMapping" | "findGmailConnectionByUserId" | "getEffectiveAccess" | "recordEmailStepMarkedDone" | "recordGmailStepDismissed" | "secureCookies" | "setKeepOfferDismissed"
 	>, shared: ReadlistShared): Router {
 	const router = express.Router();
 	const { resolveListedOnView, resolveReadlistContext, requestReadlistContext, storeFor, rememberReadlistFilter, storeDiscoveryOf, recordOnboardingSignalBestEffort, gmailEligibleFor, renderReadlistListing } = shared;
@@ -267,7 +267,6 @@ export function initReadlistListingRoutes(deps: Pick<
 			"/onboarding/gmail/dismiss",
 			requireNotLocked,
 			initRequireGmailConnectionAccess({ getEffectiveAccess: deps.getEffectiveAccess }),
-			deps.requireWriteAccess,
 			async (req: Request, res: Response) => {
 				assert(req.userId, "userId required - route must be protected by requireAuth");
 				await deps.recordGmailStepDismissed({ userId: req.userId });

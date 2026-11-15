@@ -30,7 +30,7 @@ describe("GET /terms", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/terms");
 
-		expect(response.text).toContain("Last updated: 22 October 2026");
+		expect(response.text).toContain("Last updated: 15 November 2026");
 		for (const heading of [
 			"Subscriptions, billing and renewals",
 			"Using Readplace with AI assistants",
@@ -38,6 +38,17 @@ describe("GET /terms", () => {
 		]) {
 			expect(response.text).toContain(heading);
 		}
+	});
+
+	it("moves a lapsed account to the free plan with its daily limits and paid-only features", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/terms");
+
+		expect(response.text).toContain("If your trial ends or your subscription lapses, your account moves to the free plan.");
+		expect(response.text).toContain("28 new saves, 98 PDF pages, 9 books and 3 exports a day");
+		expect(response.text).toContain(
+			"The Inbox (custom emails and newsletter triage), Next read, Past reads, readlist purpose filtering and Gmail are available only with a paid subscription.",
+		);
 	});
 
 	it("says uploaded and captured pages may be removed, and where to report one", async () => {

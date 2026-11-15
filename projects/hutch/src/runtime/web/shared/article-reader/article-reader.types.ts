@@ -26,6 +26,7 @@ import type {
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import type { RequestResolutionOnView } from "../../../domain/resolve-on-view/request-resolution-on-view";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
+import type { OcrPagesHold } from "../ocr-pages-hold";
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import type { HighlightFormScope } from "../article-body/highlights/highlight-note-dialog.component";
 import type { ReaderSectionInput } from "../article-body/reader-slot/section-pages";
@@ -169,6 +170,7 @@ export interface HandlePollParams {
 	 */
 	provenance: ReaderProvenance | undefined;
 	readerNotice: ReaderFailedVariant | undefined;
+	ocrPagesHold: OcrPagesHold | undefined;
 	highlights?: PollHighlights;
 	saved: LocalTime | undefined;
 	readerViewFailedOob: ReaderViewFailedOob;

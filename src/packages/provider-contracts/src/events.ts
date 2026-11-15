@@ -109,6 +109,7 @@ export type PublishSaveAnonymousLink = (params: {
 	saveAttemptId: SaveAttemptId;
 	sourceOriginalUrl?: string;
 	captureUrl?: string;
+	userId: UserId | undefined;
 }) => Promise<void>;
 
 export type PublishSaveLinkRawHtmlCommand = (params: {
@@ -132,6 +133,13 @@ export type PublishSaveLinkRawPdfCommand = (params: {
 
 export type PublishStaleCheckRequested = (params: {
 	url: string;
+}) => Promise<void>;
+
+export type StaleCheckRequester = { account: UserId } | { ip: string };
+
+export type RequestStaleCheck = (params: {
+	url: string;
+	requester: StaleCheckRequester;
 }) => Promise<void>;
 
 export type PublishSubscriptionCancellationScheduled = (params: {
@@ -184,4 +192,5 @@ export type PublishResolveArticleOnView = (params: {
 	saveAttemptId: SaveAttemptId;
 	axes: "crawl-and-summary" | "summary";
 	surface: ResolveOnViewSurface;
+	userId: UserId | undefined;
 }) => Promise<void>;

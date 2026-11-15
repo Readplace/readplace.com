@@ -13,6 +13,7 @@ import {
 	TOOL_DEFINITIONS,
 } from "./tool-definitions";
 import { articleBody } from "@packages/test-fixtures";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 const context = { userId, oauthClientId: "dyn-registered-mcp-client", uaClient: MCP_UA_CLIENTS.other, recordSaveRefused: () => {} };
@@ -39,7 +40,11 @@ function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 		markAsUnread: async () => ({ status: "not_found" }),
 		listHighlights: async () => ({ status: "not_found" }),
 		createHighlight: async () => ({ status: "not_found" }),
-		resolveToolAccess: async () => ({ state: "ok" }),
+		resolveToolAccess: async () => ({ state: "ok", dailyLimited: false }),
+		consumeRateLimit: async () => {
+			throw new Error("consumeRateLimit must not be called for an account without a daily limit");
+		},
+		mcpCallRule: { limit: 269, windowSeconds: 86_400 },
 		recordToolCall: () => {},
 		recordHandshake: () => {},
 		logError: () => {},
@@ -1289,13 +1294,13 @@ describe("initMcpServer", () => {
 	});
 
 	describe("subscription gating", () => {
-		const UPSELL =
-			"Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account.";
-		const inactive: McpServerDeps["resolveToolAccess"] = async () => ({
-			state: "inactive",
+		const free: McpServerDeps["resolveToolAccess"] = async () => ({
+			state: "ok",
+			dailyLimited: true,
 		});
+		const unlimited = initInMemoryRateLimit({ now: () => new Date("2026-06-16T00:00:00.000Z") }).consumeRateLimit;
 
-		it("refuses save_link with the renewal upsell when inactive, before the save runs", async () => {
+		it("runs save_link for a free account under its daily limits", async () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
 				id: "x".repeat(32),
@@ -1304,17 +1309,23 @@ describe("initMcpServer", () => {
 				url: "https://e.test/",
 			}));
 			const server = initMcpServer(
-				fakeDeps({ saveLink, resolveToolAccess: inactive }),
+				fakeDeps({ saveLink, resolveToolAccess: free, consumeRateLimit: unlimited }),
 			);
 			const response = await call(server, 70, "save_link", { url: "https://e.test/" });
-			expect(response).toMatchObject({
-				id: 70,
-				result: { isError: true, content: [{ type: "text", text: UPSELL }] },
-			});
-			expect(saveLink).not.toHaveBeenCalled();
+			expect(response).toMatchObject({ id: 70, result: { structuredContent: { id: "x".repeat(32) } } });
+			expect(saveLink).toHaveBeenCalledTimes(1);
 		});
 
-		it("leaves the read tools, the status writes, and the deletion steps open when inactive (the Terms keep view and export available, and the web lets a lapsed reader mark read)", async () => {
+		it("runs create_highlight for a free account, since highlights are core", async () => {
+			const createHighlight = jest.fn(fakeDeps().createHighlight);
+			const server = initMcpServer(
+				fakeDeps({ createHighlight, resolveToolAccess: free, consumeRateLimit: unlimited }),
+			);
+			await call(server, 69, "create_highlight", { id: "x".repeat(32), quote: "a passage" });
+			expect(createHighlight).toHaveBeenCalledTimes(1);
+		});
+
+		it("leaves the read tools, the status writes, and the deletion steps open for a free account", async () => {
 			const listReadlist = jest.fn(async () => ({
 				total: 1,
 				page: 1,
@@ -1328,7 +1339,7 @@ describe("initMcpServer", () => {
 			const markAsRead = jest.fn(async () => marked);
 			const markAsUnread = jest.fn(async () => marked);
 			const server = initMcpServer(
-				fakeDeps({ resolveToolAccess: inactive, listReadlist, markAsRead, markAsUnread }),
+				fakeDeps({ resolveToolAccess: free, consumeRateLimit: unlimited, listReadlist, markAsRead, markAsUnread }),
 			);
 			for (const tool of [
 				"list_readlists",
@@ -1345,7 +1356,6 @@ describe("initMcpServer", () => {
 			]) {
 				const response = await call(server, 71, tool, { id: "x".repeat(32) });
 				expect(response).not.toMatchObject({ result: { isError: true } });
-				expect(response).not.toMatchObject({ result: { content: [{ text: UPSELL }] } });
 			}
 			expect(listReadlist).toHaveBeenCalled();
 			expect(markAsRead).toHaveBeenCalledTimes(1);
@@ -1441,8 +1451,8 @@ describe("initMcpServer", () => {
 			expect(await call(server, 77, "list_highlights", { id: "x".repeat(32) })).not.toMatchObject({ result: { isError: true } });
 		});
 
-		it("lists every tool to a caller whose subscription is inactive", async () => {
-			const server = initMcpServer(fakeDeps({ resolveToolAccess: inactive }));
+		it("lists every tool to a caller on the free plan", async () => {
+			const server = initMcpServer(fakeDeps({ resolveToolAccess: free }));
 			const response = await server.handle({ jsonrpc: "2.0", id: 76, method: "tools/list" }, context);
 			expect(response).toMatchObject({
 				id: 76,
@@ -1463,14 +1473,105 @@ describe("initMcpServer", () => {
 			expect(resolveToolAccess).toHaveBeenCalledTimes(0);
 		});
 
-		it("answers an unknown tool with the unknown-tool error, not the upsell, when inactive", async () => {
-			const server = initMcpServer(fakeDeps({ resolveToolAccess: inactive }));
+		it("answers an unknown tool with the unknown-tool error for a free account", async () => {
+			const server = initMcpServer(fakeDeps({ resolveToolAccess: free }));
 			const response = await call(server, 78, "delete_everything");
 			expect(response).toEqual({
 				jsonrpc: "2.0",
 				id: 78,
 				error: { code: -32602, message: "Unknown tool: delete_everything" },
 			});
+		});
+	});
+
+	describe("daily tool-call limit", () => {
+		const DAILY_LIMIT_MESSAGE = "You've reached today's limit of tool calls. Try again tomorrow.";
+
+		function meteredServer(overrides: Partial<McpServerDeps> = {}) {
+			const limiter = initInMemoryRateLimit({ now: () => new Date("2026-08-04T00:00:00.000Z") });
+			const consumeRateLimit = jest.fn(limiter.consumeRateLimit);
+			const recordToolCall = jest.fn<void, [McpToolCallRecord]>();
+			const server = initMcpServer(
+				fakeDeps({
+					resolveToolAccess: async () => ({ state: "ok", dailyLimited: true }),
+					consumeRateLimit,
+					mcpCallRule: { limit: 2, windowSeconds: 86_400 },
+					recordToolCall,
+					...overrides,
+				}),
+			);
+			return { server, consumeRateLimit, recordToolCall };
+		}
+
+		it("refuses the call after today's tool calls are spent and records the daily-limit outcome", async () => {
+			const listReadlist = jest.fn(fakeDeps().listReadlist);
+			const { server, consumeRateLimit, recordToolCall } = meteredServer({ listReadlist });
+
+			await call(server, 1, "list_readlist_articles", {});
+			await call(server, 2, "list_readlist_articles", {});
+			const refused = await call(server, 3, "list_readlist_articles", {});
+
+			expect(refused).toMatchObject({
+				id: 3,
+				result: { isError: true, content: [{ type: "text", text: DAILY_LIMIT_MESSAGE }] },
+			});
+			expect(listReadlist).toHaveBeenCalledTimes(2);
+			expect(consumeRateLimit.mock.calls.map(([params]) => [params.bucket, params.key])).toEqual([
+				["mcp-call", userId],
+				["mcp-call", userId],
+				["mcp-call", userId],
+			]);
+			expect(recordToolCall.mock.calls.map(([record]) => record.outcome)).toEqual([
+				MCP_TOOL_OUTCOMES.ok,
+				MCP_TOOL_OUTCOMES.ok,
+				MCP_TOOL_OUTCOMES.dailyLimit,
+			]);
+		});
+
+		it("counts the 270th call against the 269-call rule", async () => {
+			const { server } = meteredServer({ mcpCallRule: { limit: 269, windowSeconds: 86_400 } });
+
+			for (let n = 1; n <= 269; n++) {
+				expect(await call(server, n, "list_readlists")).not.toMatchObject({ result: { isError: true } });
+			}
+
+			expect(await call(server, 270, "list_readlists")).toMatchObject({
+				result: { isError: true, content: [{ text: DAILY_LIMIT_MESSAGE }] },
+			});
+		});
+
+		it("never counts initialize, ping or tools/list", async () => {
+			const { server, consumeRateLimit } = meteredServer();
+
+			await server.handle({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: MCP_PROTOCOL_VERSION, clientInfo: { name: "c", version: "1" } } }, context);
+			await server.handle({ jsonrpc: "2.0", id: 2, method: "ping" }, context);
+			const listed = await server.handle({ jsonrpc: "2.0", id: 3, method: "tools/list" }, context);
+
+			expect(listed).toMatchObject({ result: { tools: TOOL_DEFINITIONS.map(({ name }) => ({ name })) } });
+			expect(consumeRateLimit).toHaveBeenCalledTimes(0);
+		});
+
+		it("never counts an unknown tool", async () => {
+			const { server, consumeRateLimit } = meteredServer();
+
+			const response = await call(server, 1, "delete_everything");
+
+			expect(response).toEqual({
+				jsonrpc: "2.0",
+				id: 1,
+				error: { code: -32602, message: "Unknown tool: delete_everything" },
+			});
+			expect(consumeRateLimit).toHaveBeenCalledTimes(0);
+		});
+
+		it("never counts a full-access account", async () => {
+			const consumeRateLimit = jest.fn(fakeDeps().consumeRateLimit);
+			const server = initMcpServer(fakeDeps({ consumeRateLimit, mcpCallRule: { limit: 0, windowSeconds: 86_400 } }));
+
+			const response = await call(server, 1, "list_readlists");
+
+			expect(response).toMatchObject({ result: { structuredContent: expect.anything() } });
+			expect(consumeRateLimit).toHaveBeenCalledTimes(0);
 		});
 	});
 
@@ -1512,13 +1613,13 @@ describe("initMcpServer", () => {
 		it("explains the entitlement only on the call it actually blocked — the one placement both directories permit", async () => {
 			const server = initMcpServer(
 				fakeDeps({
-					resolveToolAccess: async () => ({ state: "inactive" }),
+					resolveToolAccess: async () => ({ state: "unverified" }),
 				}),
 			);
 			const response = await call(server, 73, "save_link", { url: "https://e.test/a" });
 			expect(response).toMatchObject({
 				id: 73,
-				result: { isError: true, content: [{ type: "text", text: "Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account." }] },
+				result: { isError: true, content: [{ type: "text", text: "This link wasn't saved because the subscription check didn't go through. Try again in a moment." }] },
 			});
 		});
 	});
@@ -1607,20 +1708,18 @@ describe("initMcpServer", () => {
 			expect(records[0]).toMatchObject({ tool: "save_link", outcome: "error" });
 		});
 
-		it("distinguishes a save refused by the subscription gate as outcome=paywalled", async () => {
-			const { server, records } = recording({
-				resolveToolAccess: async () => ({ state: "inactive" }),
-			});
-			await call(server, 1, "save_link", { url: "https://example.com/a" });
-			expect(records[0]).toMatchObject({
-				tool: "save_link",
-				outcome: "paywalled",
-				submittedUrl: "https://example.com/a",
-			});
-		});
-
-		function callRecordingRefusals(params: { access: Awaited<ReturnType<McpServerDeps["resolveToolAccess"]>>; name: string; args: unknown }) {
-			const server = initMcpServer(fakeDeps({ resolveToolAccess: async () => params.access }));
+		function callRecordingRefusals(params: {
+			access: Awaited<ReturnType<McpServerDeps["resolveToolAccess"]>>;
+			name: string;
+			args: unknown;
+			saveLink?: McpServerDeps["saveLink"];
+		}) {
+			const server = initMcpServer(
+				fakeDeps({
+					resolveToolAccess: async () => params.access,
+					...(params.saveLink === undefined ? {} : { saveLink: params.saveLink }),
+				}),
+			);
 			let refusals = 0;
 			const response = server.handle(
 				{ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: params.name, arguments: params.args } },
@@ -1629,29 +1728,31 @@ describe("initMcpServer", () => {
 			return { response, refusals: () => refusals };
 		}
 
-		it("records save_refused once for an inactive save_link and answers with the same tool error", async () => {
+		it("records save_refused once for a save_link refused by the daily save limit and answers with its tool error", async () => {
 			const { response, refusals } = callRecordingRefusals({
-				access: { state: "inactive" },
+				access: { state: "ok", dailyLimited: false },
 				name: "save_link",
 				args: { url: "https://example.com/a" },
+				saveLink: async () => ({ ok: false, refused: "daily-save-limit", message: "limit reached" }),
 			});
 			expect(await response).toMatchObject({
-				result: { isError: true, content: [{ type: "text", text: "Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account." }] },
+				result: { isError: true, content: [{ type: "text", text: "limit reached" }] },
 			});
 			expect(refusals()).toBe(1);
 		});
 
-		it("records no save_refused for an inactive create_readlist, which is not a save", async () => {
+		it("records no save_refused when save_link fails for a reason other than the daily save limit", async () => {
 			const { response, refusals } = callRecordingRefusals({
-				access: { state: "inactive" },
-				name: "create_readlist",
-				args: { name: "Work" },
+				access: { state: "ok", dailyLimited: false },
+				name: "save_link",
+				args: { url: "https://example.com/a" },
+				saveLink: async () => ({ ok: false, message: "nope" }),
 			});
 			await response;
 			expect(refusals()).toBe(0);
 		});
 
-		it("records no save_refused when save_link is refused for a reason other than an inactive subscription", async () => {
+		it("records no save_refused when the subscription check fails", async () => {
 			const { response, refusals } = callRecordingRefusals({
 				access: { state: "unverified" },
 				name: "save_link",
@@ -2271,39 +2372,6 @@ describe("MCP readlist tools", () => {
 			`MCP ${tool} failed`,
 			new Error("store unavailable"),
 		);
-	});
-
-	it.each([
-		{ tool: "create_readlist", action: "Saving new links" },
-		{ tool: "add_to_readlist", action: "Saving new links" },
-		{ tool: "create_highlight", action: "Creating highlights" },
-	])("gates $tool when saving is paused", async ({ tool, action }) => {
-		const createReadlist = jest.fn(fakeDeps().createReadlist);
-		const addToReadlist = jest.fn(fakeDeps().addToReadlist);
-		const createHighlight = jest.fn(fakeDeps().createHighlight);
-		const server = initMcpServer(
-			fakeDeps({
-				createReadlist,
-				addToReadlist,
-				createHighlight,
-				resolveToolAccess: async () => ({
-					state: "inactive",
-				}),
-			}),
-		);
-		expect(
-			await call(server, 1, tool, {
-				name: "Work",
-				id: "article",
-				create_name: "Work",
-				quote: "a passage",
-			}),
-		).toMatchObject({
-			result: { isError: true, content: [{ text: `${action} is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account.` }] },
-		});
-		expect(createReadlist).toHaveBeenCalledTimes(0);
-		expect(addToReadlist).toHaveBeenCalledTimes(0);
-		expect(createHighlight).toHaveBeenCalledTimes(0);
 	});
 
 	it.each([

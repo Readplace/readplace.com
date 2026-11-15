@@ -124,7 +124,7 @@ export function initReadabilityParser(deps: {
 			return { ok: false, reason: "Invalid URL" };
 		}
 
-		const result = await deps.crawlArticle({ url });
+		const result = await deps.crawlArticle({ url, chargeOcrPages: undefined });
 		if (result.status !== "fetched") {
 			return { ok: false, reason: "Could not fetch article" };
 		}

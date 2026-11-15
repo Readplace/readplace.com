@@ -309,7 +309,7 @@ describe("SSRF guard — meta refresh hop", () => {
 		});
 
 		try {
-			const result = await crawlArticle({ url: `${server.origin}/old-path` });
+			const result = await crawlArticle({ chargeOcrPages: undefined, url: `${server.origin}/old-path` });
 
 			expect(result).toMatchObject({
 				status: "failed",

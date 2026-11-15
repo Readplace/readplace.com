@@ -51,8 +51,7 @@ export function accountPageScripts(surface: { appShell: boolean }): string {
 		: `${ACCOUNT_CARDS_SCRIPT}${ACCOUNT_DIALOGS_SCRIPT}${CHANGE_PASSWORD_CLIENT_SCRIPT}`;
 }
 
-/** Export left the header nav; the account page is where it lives now,
- * reachable by read-only users too. */
+/** Export left the header nav; the account page is where it lives now. */
 const EXPORT_HREF = withInternalTracking(ACCOUNT_EXPORT_URL, {
 	source: "account",
 	content: "export",

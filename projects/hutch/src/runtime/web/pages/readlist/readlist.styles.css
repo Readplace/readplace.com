@@ -350,10 +350,6 @@
   white-space: nowrap;
 }
 
-.readlist-more__create {
-  flex: 0 0 auto;
-}
-
 .readlist-more__head .readlist-nav__new {
   width: auto;
   min-width: 44px;
@@ -468,7 +464,6 @@
     display: block;
   }
 
-  .readlist-more--sheet .readlist-more__create,
   .readlist-more--sheet .readlist-more__close {
     display: none;
   }
@@ -1224,7 +1219,7 @@
 
 .readlist-subscription--trial-countdown,
 .readlist-subscription--cancellation-scheduled,
-.readlist-subscription--inactive {
+.readlist-subscription--free {
   display: flex;
 }
 

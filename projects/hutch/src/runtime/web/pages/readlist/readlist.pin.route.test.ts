@@ -186,11 +186,8 @@ describe("POST /queue/queues/:slug/pin", () => {
 	});
 });
 
-describe("pin and unpin on a read-only account", () => {
-	it.each([
-		["pin", pin],
-		["unpin", unpin],
-	])("refuses to %s and sends the reader to the inactive-subscription notice", async (_name, send) => {
+describe("pin and unpin on a free-plan account", () => {
+	it("lets the reader unpin and pin again, since readlists are core", async () => {
 		const { agent, pinned, harness } = await setup();
 		const slug = await createReadlist(agent, "Work");
 		await pin(agent, slug);
@@ -204,91 +201,13 @@ describe("pin and unpin on a read-only account", () => {
 		await harness.subscriptionProviders.markCancelledByUserId({
 			userId: user.userId,
 		});
-		const before = await pinned();
 
-		const response = await send(agent, slug);
+		const unpinned = await unpin(agent, slug);
+		const afterUnpin = (await pinned()).map(([pinnedSlug]) => pinnedSlug);
+		const repinned = await pin(agent, slug);
 
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
-		expect(await pinned()).toEqual(before);
-	});
-});
-
-describe("POST /queue/queues/:slug/unpin", () => {
-	it.each([
-		["the readlist every reader is given", "default"],
-		["a readlist the reader does not own", "not-mine"],
-		["a slug no readlist could carry", "Not A Slug"],
-	])("sends an unpin of %s to the not-found alert", async (_name, slug) => {
-		const { agent } = await setup();
-
-		const response = await agent
-			.post(`/queue/queues/${encodeURIComponent(slug)}/unpin`)
-			.type("form")
-			.send({});
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(
-			"/queue?queue_error=unknown_readlist",
-		);
-	});
-});
-
-describe("the nav's Pin and Unpin menu items", () => {
-	async function navOf(agent: TestAgent, path: string): Promise<Document> {
-		const response = await agent.get(path);
-		expect(response.status).toBe(200);
-		return new JSDOM(response.text).window.document;
-	}
-
-	function railNames(doc: Document): string[] {
-		return Array.from(
-			doc.querySelectorAll("[data-test-readlist-rail] [data-test-readlist]"),
-			(link) => String(link.getAttribute("data-test-readlist")),
-		);
-	}
-
-	it("pins a readlist from its menu in More, moving it onto the rail with Unpin offered", async () => {
-		const { agent } = await setup();
-		for (const label of [
-			"One",
-			"Two",
-			"Three",
-			"Four",
-			"Five",
-			"Six",
-			"Seven",
-			"Eight",
-		]) {
-			await createReadlist(agent, label);
-		}
-		const before = await navOf(agent, "/queue");
-		const last = before
-			.querySelector(
-				"[data-test-readlist-popover='more'] [data-test-readlist-more-entry]",
-			)
-			?.getAttribute("data-test-readlist-more-entry");
-		assert(last, "the eighth readlist sits in More");
-		const form = before.querySelector(
-			`[data-test-readlist-popover="more"] [data-test-readlist-menu="${last}"] [data-test-form="readlist-pin"]`,
-		);
-		const action = form?.getAttribute("action");
-		assert(action, "a readlist in More offers Pin in its menu");
-		expect(form?.getAttribute("method")).toBe("POST");
-
-		const response = await agent.post(action).type("form").send({});
-
-		expect(response.status).toBe(303);
-		const after = await navOf(agent, response.headers.location);
-		expect(railNames(after)).toEqual([
-			"default",
-			last,
-			...railNames(before).slice(1, 4),
-		]);
-		expect(
-			after.querySelector(
-				`[data-test-readlist-rail] [data-test-readlist-menu="${last}"] [data-test-form="readlist-unpin"]`,
-			),
-		).not.toBeNull();
+		expect([unpinned.status, repinned.status]).toEqual([303, 303]);
+		expect(afterUnpin).toEqual([]);
+		expect((await pinned()).map(([pinnedSlug]) => pinnedSlug)).toEqual([slug]);
 	});
 });

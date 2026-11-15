@@ -7,7 +7,7 @@ import {
 import type { RelatedArticleDisplay } from "@packages/provider-contracts/related-articles";
 import { JSDOM } from "jsdom";
 import { siteLabel } from "../../test-helpers/article-fixtures";
-import { renderNextRead } from "./next-read.component";
+import { renderLockedNextRead, renderNextRead } from "./next-read.component";
 
 function parse(html: string) {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window
@@ -515,5 +515,27 @@ describe("renderNextRead", () => {
 
 		expect(pending.id).toBe(ready.id);
 		expect(ready.id).toBe("article-body-related-slot");
+	});
+});
+
+describe("renderLockedNextRead", () => {
+	const LOCK = '<button type="button" data-test-needs-upgrade="next-read">Find your next read</button>';
+
+	it("shows the Next Read card holding the lock in place of a suggestion", () => {
+		const slot = slotOf(parse(renderLockedNextRead({ locks: [LOCK] })));
+
+		expect(slot.classList.contains("next-read--ready")).toBe(true);
+		const card = slot.querySelector("[data-test-next-read-locked]");
+		assert(card, "the locked card must render");
+		expect(card.querySelector(".next-read__heading")?.textContent).toBe("Next Read");
+		expect(card.querySelectorAll('[data-test-needs-upgrade="next-read"]')).toHaveLength(1);
+		expect(slot.hasAttribute("hx-get")).toBe(false);
+	});
+
+	it("hides the slot when no lock is offered", () => {
+		const slot = slotOf(parse(renderLockedNextRead({ locks: [] })));
+
+		expect(slot.classList.contains("next-read--hidden")).toBe(true);
+		expect(slot.querySelectorAll("[data-test-next-read-locked]")).toHaveLength(0);
 	});
 });

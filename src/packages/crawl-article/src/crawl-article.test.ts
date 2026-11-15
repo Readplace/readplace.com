@@ -15,7 +15,8 @@ import { initCrawlFetch } from "./crawl-fetch";
 import type { CurlFetch } from "./curl-fetch";
 import { redirectable, type RedirectableFetch } from "./follow-redirects";
 import type { fetchH2 } from "./h2-fetch";
-import type { ExtractPdf } from "./pdf-extract.types";
+import type { ChargeOcrPages, ExtractPdf, ParsedPdfScope } from "./pdf-extract.types";
+import { UserIdSchema } from "@packages/article-state-types";
 import { MAX_HTML_BYTES } from "./html-body-limit";
 import { TransportLadderFailure } from "./transport-ladder-failure";
 import type { Persona } from "./persona-fallback";
@@ -30,6 +31,7 @@ const PDF_EXTRACT_FAILURE_REASON = "synthetic extractor failure";
 const PDF_MAGIC_BUFFER = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(64, 0x20)]);
 
 const noopLogError = () => {};
+const allowOcrPages: ChargeOcrPages = async () => ({ allowed: true });
 const noopLogInfo = () => {};
 
 const WRAPPER_URL = "https://wrapper.example/link/188518/8babea547d";
@@ -141,7 +143,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		};
 		const crawlArticle = initCrawl({ fetch: fakeFetch });
 
-		const result = await crawlArticle({ url: "https://x.com/user/status/123" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://x.com/user/status/123" });
 
 		assertFetched(result);
 		expect(requested).toEqual(["https://publish.twitter.com/oembed?url=https%3A%2F%2Fx.com%2Fuser%2Fstatus%2F123"]);
@@ -160,7 +162,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const decliningSite: SiteRules = { matches: () => true, onCrawl: skipCrawl, recoverContent: noRecovery, extract: noExtract, transform: noTransform };
 		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [decliningSite] });
 
-		const result = await crawlArticle({ url: "https://example.com/post" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/post" });
 
 		assertFetched(result);
 		expect(fetched).toEqual(["https://example.com/post"]);
@@ -182,7 +184,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		};
 		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [failingSite] });
 
-		const result = await crawlArticle({ url: "https://example.com/post" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/post" });
 
 		expect(result).toEqual({ status: "failed" });
 		expect(fetched).toEqual([]);
@@ -208,7 +210,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [throwingSite], logError });
 
-		const result = await crawlArticle({ url: "https://example.com/post" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/post" });
 
 		expect(result).toEqual({ status: "failed" });
 		expect(fetched).toEqual([]);
@@ -231,7 +233,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [throwingSite], logError });
 
-		const result = await crawlArticle({ url: "https://example.com/post" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/post" });
 
 		expect(result).toEqual({ status: "failed" });
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Site onCrawl threw for https://example.com/post", undefined);
@@ -260,7 +262,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [throwingMatchSite], logError });
 
-		const result = await crawlArticle({ url: "https://example.com/post" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/post" });
 
 		assertFetched(result);
 		expect(fetched).toEqual(["https://example.com/post"]);
@@ -285,7 +287,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [throwingMatchSite], logError });
 
-		const result = await crawlArticle({ url: "https://example.com/post" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/post" });
 
 		assertFetched(result);
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Site matches threw for https://example.com/post", undefined);
@@ -298,7 +300,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
 
-		const result = await crawlArticle({ url: "not a valid url" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "not a valid url" });
 
 		expect(result).toEqual({ status: "failed" });
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Invalid URL not a valid url");
@@ -312,7 +314,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		};
 		const crawlArticle = initCrawl({ fetch: fakeFetch });
 
-		const result = await crawlArticle({
+		const result = await crawlArticle({ chargeOcrPages: undefined,
 			url: "https://example.com",
 			etag: '"abc123"',
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",
@@ -340,7 +342,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toEqual({
 			status: "fetched",
@@ -362,7 +364,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			});
 		const crawlArticle = initCrawl({ fetch: fakeFetch });
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		assertFetched(result);
 		expect(result.html).toBe("<html>XHTML content</html>");
@@ -388,7 +390,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		};
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
 
-		const result = await crawlArticle({ url: "https://example.com/doc.pdf" });
+		const result = await crawlArticle({ chargeOcrPages: allowOcrPages, url: "https://example.com/doc.pdf" });
 
 		expect(result).toEqual({
 			status: "fetched",
@@ -413,10 +415,11 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/octet-stream" } });
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
 
-		const result = await crawlArticle({ url: "https://example.com/noheader" });
+		const result = await crawlArticle({ chargeOcrPages: allowOcrPages, url: "https://example.com/noheader" });
 
 		expect(result.status).toBe("fetched");
 		expect(extractPdf).toHaveBeenCalledTimes(1);
+		expect(extractPdf.mock.calls[0][0].scope).toEqual({ kind: "none" });
 	});
 
 	it("returns unsupported for a PDF body when constructed without an extractPdf dep (simple-only path) and logs the deferral at info", async () => {
@@ -426,7 +429,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logInfo = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, logError, logInfo });
 
-		const result = await crawlArticle({ url: "https://example.com/doc.pdf" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/doc.pdf" });
 
 		expect(result).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for https://example.com/doc.pdf");
@@ -440,7 +443,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf, logError });
 
-		const result = await crawlArticle({ url: "https://example.com/clip.mp4" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/clip.mp4" });
 
 		expect(result).toEqual({ status: "unsupported", reason: "unsupported content type: video/mp4" });
 		expect(extractPdf).not.toHaveBeenCalled();
@@ -456,7 +459,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
 
-		const result = await crawlArticle({ url: "https://example.com/notes/readme.txt" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/notes/readme.txt" });
 
 		assertFetched(result);
 		expect(result.mediaType).toBe("plain-text");
@@ -480,7 +483,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			});
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
 
-		const result = await crawlArticle({ url: "https://example.com/photo.jpg" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/photo.jpg" });
 
 		assertFetched(result);
 		expect(result.mediaType).toBe("image");
@@ -500,7 +503,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toEqual({
 			status: "failed",
@@ -523,7 +526,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toEqual({
 			status: "failed",
@@ -541,7 +544,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logInfo = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, logError, logInfo });
 
-		const result = await crawlArticle({ url: "https://example.com/deleted" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/deleted" });
 
 		expect(result).toEqual({ status: "not-found", httpStatus: 404, finalUrl: "https://example.com/deleted" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 404 for https://example.com/deleted");
@@ -554,7 +557,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logInfo = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, logError, logInfo });
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 406, finalUrl: "https://example.com" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 406 for https://example.com");
@@ -567,7 +570,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logInfo = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, logError, logInfo });
 
-		const result = await crawlArticle({ url: "https://example.com/geo-blocked" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/geo-blocked" });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 451, finalUrl: "https://example.com/geo-blocked" });
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 451 for https://example.com/geo-blocked");
@@ -586,7 +589,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 403 });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 403 for https://example.com");
@@ -613,7 +616,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: "https://example.com/article" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/article" });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 403 });
 		expect(logInfo).toHaveBeenCalledWith(
@@ -628,7 +631,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logInfo = jest.fn();
 		const crawlArticle = initCrawl({ fetch: blocked, logError, logInfo });
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 498, finalUrl: "https://example.com" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 498 for https://example.com");
@@ -659,7 +662,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 401, finalUrl: "https://example.com" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 401 for https://example.com");
@@ -682,7 +685,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 429 });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 429 for https://example.com");
@@ -713,7 +716,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 402 });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 402 for https://example.com");
@@ -747,7 +750,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 419 });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 419 for https://example.com");
@@ -781,7 +784,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: "https://example.com/recipe" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/recipe" });
 
 		assertFetched(result);
 		expect(result.html).toContain("the whole recipe to a disclosed bot");
@@ -793,7 +796,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
 
-		const result = await crawlArticle({ url: "https://example.com/delisted" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/delisted" });
 
 		expect(result).toEqual({ status: "not-found", httpStatus: 410, finalUrl: "https://example.com/delisted" });
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 410 for https://example.com/delisted");
@@ -805,7 +808,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toMatchObject({
 			status: "failed",
@@ -821,7 +824,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/pdf" } });
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
 
-		const result = await crawlArticle({
+		const result = await crawlArticle({ chargeOcrPages: undefined,
 			url: "https://example.com/doc.pdf",
 			previousBodyHash: expectedHash,
 		});
@@ -837,7 +840,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			new Response(html, { status: 200, headers: { "content-type": "text/html" } });
 		const crawlArticle = initCrawl({ fetch: fakeFetch });
 
-		const result = await crawlArticle({
+		const result = await crawlArticle({ chargeOcrPages: undefined,
 			url: "https://example.com",
 			previousBodyHash: expectedHash,
 		});
@@ -853,7 +856,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			});
 		const crawlArticle = initCrawl({ fetch: fakeFetch });
 
-		const result = await crawlArticle({
+		const result = await crawlArticle({ chargeOcrPages: undefined,
 			url: "https://example.com",
 			previousBodyHash: "0".repeat(64),
 		});
@@ -873,7 +876,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			});
 		const crawlArticle = initCrawl({ fetch: fakeFetch });
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		assertFetched(result);
 		expect(result.bodyHash).toBe(
@@ -894,7 +897,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		};
 		const crawlArticle = initCrawl({ fetch: fakeFetch });
 
-		const result = await crawlArticle({ url: "https://example.com/article", fetchThumbnail: true });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/article", fetchThumbnail: true });
 
 		assertFetched(result);
 		expect(result.thumbnail?.image).toEqual({
@@ -910,7 +913,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			new Response("<html><body>hi</body></html>", { status: 200, headers: { "content-type": "text/html" } });
 		const crawlArticle = initCrawl({ fetch: redirectingOrigin(article) });
 
-		const result = await crawlArticle({ url: WRAPPER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		assertFetched(result);
 		expect(result.finalUrl).toBe(DESTINATION_URL);
@@ -938,7 +941,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 		});
 
-		const result = await crawlArticle({ url: WRAPPER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		assertFetched(result);
 		expect(result.finalUrl).toBe(DESTINATION_URL);
@@ -953,7 +956,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			fetchCurl: followingFallback(article),
 		});
 
-		const result = await crawlArticle({ url: WRAPPER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		assertFetched(result);
 		expect(result.finalUrl).toBe(DESTINATION_URL);
@@ -975,7 +978,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: WRAPPER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 403, finalUrl: DESTINATION_URL });
 		expect(logInfo).toHaveBeenCalledWith(
@@ -988,7 +991,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const gone = () => new Response(null, { status: 404 });
 		const crawlArticle = initCrawl({ fetch: redirectingOrigin(gone) });
 
-		const result = await crawlArticle({ url: WRAPPER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		expect(result).toEqual({ status: "not-found", httpStatus: 404, finalUrl: DESTINATION_URL });
 	});
@@ -1019,7 +1022,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			fetchTimeouts: { headersMs: 15, bodyMs: 5000 },
 		});
 
-		const result = await crawlArticle({ url: WRAPPER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		expect(result).toMatchObject({
 			status: "failed",
@@ -1044,7 +1047,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: redirectingOrigin(video), logError });
 
-		await crawlArticle({ url: WRAPPER_URL });
+		await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		expect(logError).toHaveBeenCalledWith(
 			`[CrawlArticle] Unsupported content-type "video/mp4" for ${WRAPPER_URL} → ${DESTINATION_URL}`,
@@ -1056,7 +1059,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const logInfo = jest.fn();
 		const crawlArticle = initCrawl({ fetch: redirectingOrigin(pdf), logInfo });
 
-		await crawlArticle({ url: WRAPPER_URL });
+		await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		expect(logInfo).toHaveBeenCalledWith(
 			`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${WRAPPER_URL} → ${DESTINATION_URL}`,
@@ -1071,7 +1074,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			});
 		const crawlArticle = initCrawl({ fetch: redirectingOrigin(article) });
 
-		const result = await crawlArticle({ url: WRAPPER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		assertFetched(result);
 		expect(result.thumbnailUrl).toBe("https://dest.example/images/hero.png");
@@ -1085,7 +1088,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			});
 		const crawlArticle = initCrawl({ fetch: redirectingOrigin(article) });
 
-		const result = await crawlArticle({ url: WRAPPER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		assertFetched(result);
 		expect(result.thumbnailUrl).toBe("https://dest.example/qcrack.webp");
@@ -1112,7 +1115,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		};
 		const crawlArticle = initCrawl({ fetch: fakeFetch });
 
-		const result = await crawlArticle({ url: WRAPPER_URL, fetchThumbnail: true });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL, fetchThumbnail: true });
 
 		assertFetched(result);
 		expect(requested).toContain(THUMBNAIL_URL);
@@ -1128,7 +1131,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			});
 		const crawlArticle = initCrawl({ fetch: redirectingOrigin(article) });
 
-		const result = await crawlArticle({ url: WRAPPER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
 
 		assertFetched(result);
 		expect(result.finalUrl).toBe(DESTINATION_URL);
@@ -1143,7 +1146,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			});
 		const crawlArticle = initCrawl({ fetch: fakeFetch });
 
-		const result = await crawlArticle({ url: "https://x.com/user/status/123" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://x.com/user/status/123" });
 
 		assertFetched(result);
 		expect(result.finalUrl).toBeUndefined();
@@ -1179,7 +1182,7 @@ describe("initCrawlArticle — site-rule redirect restarts the crawl", () => {
 			siteRules: [redirectSite({ hostname: "shell.example", redirectTo: "https://story.example/article" })],
 		});
 
-		const result = await crawlArticle({ url: "https://shell.example/A123" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://shell.example/A123" });
 
 		assertFetched(result);
 		expect(fetched).toEqual(["https://story.example/article"]);
@@ -1203,7 +1206,7 @@ describe("initCrawlArticle — site-rule redirect restarts the crawl", () => {
 			],
 		});
 
-		const result = await crawlArticle({ url: "https://shell.example/A123" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://shell.example/A123" });
 
 		assertFetched(result);
 		expect(result.html).toBe("<html><body>bespoke</body></html>");
@@ -1226,7 +1229,7 @@ describe("initCrawlArticle — site-rule redirect restarts the crawl", () => {
 			logError,
 		});
 
-		const result = await crawlArticle({ url: "https://loop.example/entry" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://loop.example/entry" });
 
 		expect(result).toEqual({ status: "failed" });
 		expect(fetched).toEqual([]);
@@ -1244,7 +1247,7 @@ describe("initCrawlArticle — site-rule redirect restarts the crawl", () => {
 			logError,
 		});
 
-		const result = await crawlArticle({ url: "https://shell.example/A123" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://shell.example/A123" });
 
 		expect(result).toEqual({ status: "failed" });
 		expect(fetched).toEqual([]);
@@ -1281,7 +1284,7 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 		});
 
 		const startedAt = Date.now();
-		const result = await crawlArticle({ url: "https://example.com/huge.pdf" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/huge.pdf" });
 
 		expect(result).toMatchObject({ status: "failed", failure: { kind: "fetch-failed" } });
 		expect(curlCalls).toEqual(["https://example.com/huge.pdf"]);
@@ -1311,7 +1314,7 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 			fetchTimeouts: { headersMs: 5000, bodyMs: 15 },
 		});
 
-		const result = await crawlArticle({ url: "https://example.com" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com" });
 
 		expect(result).toMatchObject({ status: "failed", failure: { kind: "fetch-failed" } });
 		expect(logError).toHaveBeenCalledTimes(1);
@@ -1345,7 +1348,7 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 			fetchTimeouts: { headersMs: 25, bodyMs: 5000 },
 		});
 
-		const result = await crawlArticle({ url: "https://example.com/report.pdf" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/report.pdf" });
 
 		expect(delivered).toBe(3);
 		expect(result).toEqual({
@@ -1364,7 +1367,7 @@ describe("initCrawlArticle — oversized HTML body cap", () => {
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
 
-		const result = await crawlArticle({ url: "https://example.com/huge-index" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/huge-index" });
 
 		expect(result).toEqual({
 			status: "unsupported",
@@ -1387,7 +1390,7 @@ describe("initCrawlArticle — oversized HTML body cap", () => {
 			new Response(oversizePdf, { status: 200, headers: { "content-type": "application/pdf" } });
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
 
-		const result = await crawlArticle({ url: "https://example.com/big.pdf" });
+		const result = await crawlArticle({ chargeOcrPages: allowOcrPages, url: "https://example.com/big.pdf" });
 
 		assertFetched(result);
 		expect(result.html).toBe("<html><body><p>Extracted from a very large PDF.</p></body></html>");
@@ -1404,7 +1407,7 @@ describe("initCrawlArticle — oversized HTML body cap", () => {
 			new Response(oversizePdf, { status: 200, headers: { "content-type": "text/html" } });
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
 
-		const result = await crawlArticle({ url: "https://example.com/mislabelled.pdf" });
+		const result = await crawlArticle({ chargeOcrPages: allowOcrPages, url: "https://example.com/mislabelled.pdf" });
 
 		assertFetched(result);
 		expect(result.html).toBe("<html><body><p>Sniffed as PDF despite the header.</p></body></html>");
@@ -1698,13 +1701,14 @@ describe("parsePdfFromBuffer", () => {
 		const extractPdf: ExtractPdf = async () => ({ kind: "failed", reason: PDF_EXTRACT_FAILURE_REASON });
 		const logError = jest.fn();
 
-		await parsePdfFromBuffer({
+		await parsePdfFromBuffer({ chargeOcrPages: allowOcrPages,
 			buffer: PDF_MAGIC_BUFFER,
 			bodyHash: createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex"),
 			response: await respondedFrom(DESTINATION_URL),
 			url: WRAPPER_URL,
 			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
+			scope: { kind: "none" },
 			logError,
 		});
 
@@ -1720,13 +1724,14 @@ describe("parsePdfFromBuffer", () => {
 			title: "doc",
 		});
 		const bodyHash = createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex");
-		const result = await parsePdfFromBuffer({
+		const result = await parsePdfFromBuffer({ chargeOcrPages: allowOcrPages,
 			buffer: PDF_MAGIC_BUFFER,
 			bodyHash,
 			response: htmlResponse({ etag: '"pdf-1"', "last-modified": "Wed, 21 Oct 2025 07:28:00 GMT" }),
 			url: "https://example.com/doc.pdf",
 			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
+			scope: { kind: "none" },
 			logError: noopLogError,
 		});
 
@@ -1739,19 +1744,42 @@ describe("parsePdfFromBuffer", () => {
 		});
 	});
 
+	it("forwards the account scope through to the extractor", async () => {
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>().mockResolvedValue({
+			kind: "fetched",
+			html: "<html><body><p>ok</p></body></html>",
+			title: "ok",
+		});
+		const bodyHash = createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex");
+		const scope: ParsedPdfScope = { kind: "account", userId: UserIdSchema.parse("user-1"), fileHash: bodyHash };
+		await parsePdfFromBuffer({ chargeOcrPages: allowOcrPages,
+			buffer: PDF_MAGIC_BUFFER,
+			bodyHash,
+			response: undefined,
+			url: "https://example.com/doc.pdf",
+			maxPdfBytes: PDF_BYTES_CAP,
+			extractPdf,
+			scope,
+			logError: noopLogError,
+		});
+
+		expect(extractPdf.mock.calls[0][0].scope).toEqual(scope);
+	});
+
 	it("forwards the onProgress callback through to the extractor", async () => {
 		const onProgress = jest.fn();
 		const extractPdf: ExtractPdf = async (params) => {
 			params.onProgress?.({ partIndex: 1, partCount: 3, stage: "comprehensive-extracting" });
 			return { kind: "fetched", html: "<html><body><p>ok</p></body></html>", title: "ok" };
 		};
-		await parsePdfFromBuffer({
+		await parsePdfFromBuffer({ chargeOcrPages: allowOcrPages,
 			buffer: PDF_MAGIC_BUFFER,
 			bodyHash: createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex"),
 			response: htmlResponse(),
 			url: "https://example.com/doc.pdf",
 			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
+			scope: { kind: "none" },
 			onProgress,
 			logError: noopLogError,
 		});
@@ -1762,13 +1790,14 @@ describe("parsePdfFromBuffer", () => {
 	it("returns unsupported with the extractor reason when extraction fails", async () => {
 		const extractPdf: ExtractPdf = async () => ({ kind: "failed", reason: PDF_EXTRACT_FAILURE_REASON });
 		const logError = jest.fn();
-		const result = await parsePdfFromBuffer({
+		const result = await parsePdfFromBuffer({ chargeOcrPages: allowOcrPages,
 			buffer: PDF_MAGIC_BUFFER,
 			bodyHash: createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex"),
 			response: htmlResponse(),
 			url: "https://example.com/scan.pdf",
 			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
+			scope: { kind: "none" },
 			logError,
 		});
 
@@ -1785,13 +1814,14 @@ describe("parsePdfFromBuffer", () => {
 			title: "doc",
 		});
 		const bodyHash = createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex");
-		const result = await parsePdfFromBuffer({
+		const result = await parsePdfFromBuffer({ chargeOcrPages: allowOcrPages,
 			buffer: PDF_MAGIC_BUFFER,
 			bodyHash,
 			response: undefined,
 			url: "https://example.com/doc.pdf",
 			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
+			scope: { kind: "none" },
 			logError: noopLogError,
 		});
 
@@ -1808,13 +1838,14 @@ describe("parsePdfFromBuffer", () => {
 		const oversize = Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(PDF_BYTES_CAP + 1, 0x20)]);
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
 		const logError = jest.fn();
-		const result = await parsePdfFromBuffer({
+		const result = await parsePdfFromBuffer({ chargeOcrPages: allowOcrPages,
 			buffer: oversize,
 			bodyHash: createHash("sha256").update(oversize).digest("hex"),
 			response: htmlResponse(),
 			url: "https://example.com/huge.pdf",
 			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
+			scope: { kind: "none" },
 			logError,
 		});
 
@@ -1847,7 +1878,7 @@ describe("initCrawlArticle — a redirecting site recovers a refused terminal", 
 	}
 
 	it("serves the recovered body when the redirect terminal refuses the crawler", async () => {
-		const result = await refusingCrawl({ status: 451, recovered: RECOVERED_HTML })({
+		const result = await refusingCrawl({ status: 451, recovered: RECOVERED_HTML })({ chargeOcrPages: undefined,
 			url: "https://shell.example/A123",
 		});
 
@@ -1856,7 +1887,7 @@ describe("initCrawlArticle — a redirecting site recovers a refused terminal", 
 	});
 
 	it("keeps the refused terminal as finalUrl so the article still adopts the publisher identity", async () => {
-		const result = await refusingCrawl({ status: 451, recovered: RECOVERED_HTML })({
+		const result = await refusingCrawl({ status: 451, recovered: RECOVERED_HTML })({ chargeOcrPages: undefined,
 			url: "https://shell.example/A123",
 		});
 
@@ -1869,7 +1900,7 @@ describe("initCrawlArticle — a redirecting site recovers a refused terminal", 
 			status: 402,
 			recovered: RECOVERED_HTML,
 			redirectTo: "https://metered.example/a",
-		})({ url: "https://shell.example/A123" });
+		})({ chargeOcrPages: undefined, url: "https://shell.example/A123" });
 
 		assertFetched(result);
 		expect(result.html).toBe(RECOVERED_HTML);
@@ -1880,14 +1911,14 @@ describe("initCrawlArticle — a redirecting site recovers a refused terminal", 
 			status: 404,
 			recovered: RECOVERED_HTML,
 			redirectTo: "https://missing.example/a",
-		})({ url: "https://shell.example/A123" });
+		})({ chargeOcrPages: undefined, url: "https://shell.example/A123" });
 
 		assertFetched(result);
 		expect(result.html).toBe(RECOVERED_HTML);
 	});
 
 	it("passes the origin's refusal through when the site has nothing to recover", async () => {
-		const result = await refusingCrawl({ status: 451 })({ url: "https://shell.example/A123" });
+		const result = await refusingCrawl({ status: 451 })({ chargeOcrPages: undefined, url: "https://shell.example/A123" });
 
 		expect(result.status).toBe("blocked");
 	});
@@ -1910,7 +1941,7 @@ describe("initCrawlArticle — a redirecting site recovers a refused terminal", 
 			],
 		});
 
-		const result = await crawlArticle({ url: "https://shell.example/A123", etag: '"v1"' });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://shell.example/A123", etag: '"v1"' });
 
 		expect(result.status).toBe("not-modified");
 		expect(recoveries).toBe(0);
@@ -1919,7 +1950,7 @@ describe("initCrawlArticle — a redirecting site recovers a refused terminal", 
 	it("never recovers when no site redirected the crawl", async () => {
 		const crawlArticle = initCrawl({ fetch: async () => new Response(null, { status: 451 }) });
 
-		const result = await crawlArticle({ url: "https://direct.example/a" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://direct.example/a" });
 
 		expect(result.status).toBe("blocked");
 	});
@@ -1960,7 +1991,7 @@ describe("initCrawlArticle — site rules recognise twitter.com and x.com alike"
 			siteRules: [claimingSite({ matches: onXStatus, onCrawlUrls, html: "<p>x</p>" })],
 		});
 
-		const result = await crawlArticle({ url: "https://twitter.com/jack/status/20?s=20" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://twitter.com/jack/status/20?s=20" });
 
 		assertFetched(result);
 		expect(result.html).toBe("<p>x</p>");
@@ -1975,7 +2006,7 @@ describe("initCrawlArticle — site rules recognise twitter.com and x.com alike"
 			siteRules: [claimingSite({ matches: onTwitter, onCrawlUrls, html: "<p>t</p>" })],
 		});
 
-		const result = await crawlArticle({ url: "https://x.com/jack/status/20" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://x.com/jack/status/20" });
 
 		assertFetched(result);
 		expect(onCrawlUrls).toEqual(["https://twitter.com/jack/status/20"]);
@@ -1994,7 +2025,7 @@ describe("initCrawlArticle — site rules recognise twitter.com and x.com alike"
 			],
 		});
 
-		await crawlArticle({ url: "https://twitter.com/jack/status/20" });
+		await crawlArticle({ chargeOcrPages: undefined, url: "https://twitter.com/jack/status/20" });
 
 		expect(onCrawlUrls).toEqual(["https://x.com/jack/status/20"]);
 	});
@@ -2007,7 +2038,7 @@ describe("initCrawlArticle — site rules recognise twitter.com and x.com alike"
 			siteRules: [claimingSite({ matches: onXStatus, onCrawlUrls, html: "<p>x</p>" })],
 		});
 
-		const result = await crawlArticle({ url: "https://twitter.com/jack" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://twitter.com/jack" });
 
 		assertFetched(result);
 		expect(onCrawlUrls).toEqual([]);
@@ -2025,7 +2056,7 @@ describe("initCrawlArticle — site rules recognise twitter.com and x.com alike"
 			],
 		});
 
-		const result = await crawlArticle({ url: "https://x.com/jack/status/20" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://x.com/jack/status/20" });
 
 		assertFetched(result);
 		expect(result.html).toBe("<p>twitter rule</p>");
@@ -2055,7 +2086,7 @@ describe("initCrawlArticle — site rules recognise twitter.com and x.com alike"
 			],
 		});
 
-		const result = await crawlArticle({ url: "https://x.com/jack/status/20" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://x.com/jack/status/20" });
 
 		assertFetched(result);
 		expect(onCrawlUrls).toEqual(["https://twitter.com/jack/status/20"]);
@@ -2074,7 +2105,7 @@ describe("initCrawlArticle — site rules recognise twitter.com and x.com alike"
 			},
 		});
 
-		const result = await crawlArticle({ url: "https://twitter.com/jack/status/20" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://twitter.com/jack/status/20" });
 
 		assertFetched(result);
 		expect(result.html).toContain("just setting up");
@@ -2087,33 +2118,33 @@ describe("bounded wrapper response candidates", () => {
 		const html = "<html><body><article>Unchanged readable article.</article></body></html>";
 		const bodyHash = createHash("sha256").update(html).digest("hex");
 		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response(html, { status: 200, headers: { "content-type": "text/html", etag: '"capture-v1"' } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
-		expect(await crawlArticle({ url: "https://example.com/article", previousBodyHash: bodyHash, retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash, httpStatus: 200, finalUrl: undefined, etag: '"capture-v1"' });
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/article", previousBodyHash: bodyHash, retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash, httpStatus: 200, finalUrl: undefined, etag: '"capture-v1"' });
 	});
 	it.each([403, 429, 451])("reports a retained %i as blocked rather than a body for the judge", async (status) => {
 		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response("<html><body>Access denied</body></html>", { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
-		expect(await crawlArticle({ url: "https://example.com/article", retainResponseBody: true })).toEqual({ status: "blocked", httpStatus: status, finalUrl: undefined });
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/article", retainResponseBody: true })).toEqual({ status: "blocked", httpStatus: status, finalUrl: undefined });
 	});
 	it("retains an error response without Content-Type for the article judge", async () => {
 		const html = "<html><body><article>Article returned without a media declaration.</article></body></html>";
 		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response(Buffer.from(html), { status: 503 }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
-		expect(await crawlArticle({ url: "https://example.com/article", retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: 503, finalUrl: undefined });
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/article", retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: 503, finalUrl: undefined });
 	});
 	it("defers a retained PDF response without an extractor and extracts it when comprehensive work resumes", async () => {
 		const shared = { crawlFetch: async () => new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} };
-		expect(await initCrawlArticle({ rejectDocumentLandingPage, ...shared })({ url: "https://example.com/report.pdf", retainResponseBody: true })).toMatchObject({ status: "unsupported" });
+		expect(await initCrawlArticle({ rejectDocumentLandingPage, ...shared })({ chargeOcrPages: undefined, url: "https://example.com/report.pdf", retainResponseBody: true })).toMatchObject({ status: "unsupported" });
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "PDF article", html: "<html><body>Extracted PDF article</body></html>" }));
-		const result = await initCrawlArticle({ rejectDocumentLandingPage, ...shared, extractPdf })({ url: "https://example.com/report.pdf", retainResponseBody: true });
+		const result = await initCrawlArticle({ rejectDocumentLandingPage, ...shared, extractPdf })({ chargeOcrPages: allowOcrPages, url: "https://example.com/report.pdf", retainResponseBody: true });
 		expect(result).toMatchObject({ status: "fetched", html: "<html><body>Extracted PDF article</body></html>", httpStatus: 200 });
 		expect(extractPdf).toHaveBeenCalledTimes(1);
 	});
 	it("bounds an unknown retained body before parsing it as HTML", async () => {
 		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response("x".repeat(MAX_HTML_BYTES.bytes + 1), { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
-		expect(await crawlArticle({ url: "https://example.com/unknown", retainResponseBody: true })).toMatchObject({ status: "unsupported", unsupportedReason: { kind: "content-too-large" } });
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/unknown", retainResponseBody: true })).toMatchObject({ status: "unsupported", unsupportedReason: { kind: "content-too-large" } });
 	});
 	it.each([200, 403, 404, 410, 429, 500])("retains HTTP %i body for the article judge", async (status) => {
 		const html = "<html><body><h1>Verify you are human</h1></body></html>";
 		const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => new Response(html, { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
-		const result = await crawlArticle({ url: "https://archive.ph/abcde", retainResponseBody: true, retainBlockedResponse: true });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://archive.ph/abcde", retainResponseBody: true, retainBlockedResponse: true });
 		expect(result).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: status, finalUrl: undefined });
 	});
 });
@@ -2145,7 +2176,7 @@ describe.each([false, true])("AWS WAF classification with retainResponseBody=%s"
 			logThumbnailNotDelivered: () => {},
 		});
 
-		const result = await crawlArticle({ url: WRAPPER_URL, retainResponseBody });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL, retainResponseBody });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: status, finalUrl: DESTINATION_URL });
 		expect(response.bodyUsed).toBe(false);
@@ -2162,7 +2193,7 @@ describe.each([false, true])("AWS WAF classification with retainResponseBody=%s"
 			siteRules: [],
 		});
 
-		const result = await crawlArticle({ url: DESTINATION_URL, retainResponseBody });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: DESTINATION_URL, retainResponseBody });
 
 		expect(result).toMatchObject({ status: "fetched", html, finalUrl: DESTINATION_URL });
 	});
@@ -2188,7 +2219,7 @@ describe("AWS WAF recovery", () => {
 			siteRules: [],
 		});
 
-		const result = await crawlArticle({ url: WRAPPER_URL, retainResponseBody: true });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL, retainResponseBody: true });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 202, finalUrl: DESTINATION_URL });
 		expect(primary).toHaveBeenCalledTimes(4);
@@ -2229,7 +2260,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: ALIAS_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: ALIAS_URL });
 
 		assertFetched(result);
 		expect(result.html).toBe(ARTICLE_HTML);
@@ -2256,7 +2287,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: SAVED_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: SAVED_URL });
 
 		assertFetched(result);
 		expect(result.html).toBe(ARTICLE_HTML);
@@ -2306,7 +2337,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			logInfo,
 		});
 
-		const result = await crawlArticle({ url: DOI_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: DOI_URL });
 
 		assertFetched(result);
 		expect(result.html).toBe(ARTICLE_HTML);
@@ -2331,7 +2362,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			},
 		});
 
-		const result = await crawlArticle({ url: ONE_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: ONE_URL });
 
 		assertFetched(result);
 		expect(result.html).toBe(stubTo(THREE_URL));
@@ -2350,7 +2381,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			},
 		});
 
-		const result = await crawlArticle({ url: SELF_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: SELF_URL });
 
 		assertFetched(result);
 		expect(result.html).toBe(self);
@@ -2369,7 +2400,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			},
 		});
 
-		const result = await crawlArticle({ url: PAGE_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: PAGE_URL });
 
 		assertFetched(result);
 		expect(result.html).toBe(page);
@@ -2387,7 +2418,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			},
 		});
 
-		expect(await crawlArticle({ url: ALIAS_URL })).toEqual({ status: "not-found", httpStatus: 404, finalUrl: GONE_URL });
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: ALIAS_URL })).toEqual({ status: "not-found", httpStatus: 404, finalUrl: GONE_URL });
 	});
 
 	it("reports a refresh target that never answers under the target URL", async () => {
@@ -2398,7 +2429,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			fetchTimeouts: { headersMs: 15, bodyMs: 5000 },
 		});
 
-		expect(await crawlArticle({ url: ALIAS_URL })).toMatchObject({
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: ALIAS_URL })).toMatchObject({
 			status: "failed",
 			finalUrl: ARTICLE_URL,
 			failure: { kind: "fetch-failed" },
@@ -2417,7 +2448,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			},
 		});
 
-		expect(await crawlArticle({ url: ALIAS_URL, etag: '"v1"' })).toEqual({ status: "not-modified" });
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: ALIAS_URL, etag: '"v1"' })).toEqual({ status: "not-modified" });
 		expect(seen).toEqual([
 			{ url: ALIAS_URL, ifNoneMatch: '"v1"' },
 			{ url: ARTICLE_URL, ifNoneMatch: '"v1"' },
@@ -2430,7 +2461,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 		});
 		const previousBodyHash = createHash("sha256").update(ARTICLE_HTML).digest("hex");
 
-		expect(await crawlArticle({ url: ALIAS_URL, previousBodyHash })).toEqual({ status: "not-modified" });
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: ALIAS_URL, previousBodyHash })).toEqual({ status: "not-modified" });
 	});
 
 	it("hands a refresh that lands on a PDF to the PDF path", async () => {
@@ -2445,7 +2476,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			logInfo,
 		});
 
-		expect(await crawlArticle({ url: ALIAS_URL })).toEqual({
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: ALIAS_URL })).toEqual({
 			status: "unsupported",
 			reason: "unsupported content type: application/pdf",
 		});
@@ -2459,7 +2490,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			fetch: async (input) => (String(input) === ALIAS_URL ? html(ALIAS_HTML) : html(ARTICLE_HTML)),
 		});
 
-		const result = await crawlArticle({ url: ALIAS_URL, retainResponseBody: true });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: ALIAS_URL, retainResponseBody: true });
 
 		assertFetched(result);
 		expect(result.html).toBe(ARTICLE_HTML);
@@ -2476,7 +2507,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			},
 		});
 
-		const result = await crawlArticle({ url: ALIAS_URL, retainResponseBody: true });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: ALIAS_URL, retainResponseBody: true });
 
 		assertFetched(result);
 		expect(result.html).toBe(ALIAS_HTML);
@@ -2493,7 +2524,7 @@ describe("initCrawlArticle block classification on the direct ladder", () => {
 			fetch: async () => new Response(CHALLENGE_PAGE, { status: 200, headers: { "content-type": "text/html" } }),
 		});
 
-		const result = await crawlArticle({ url: "https://example.com/challenged" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/challenged" });
 
 		expect(result).toEqual({ status: "blocked", httpStatus: 200, finalUrl: "https://example.com/challenged" });
 	});
@@ -2503,7 +2534,7 @@ describe("initCrawlArticle block classification on the direct ladder", () => {
 			fetch: async () => new Response(CHALLENGE_PAGE, { status: 200, headers: { "content-type": "text/html" } }),
 		});
 
-		const result = await crawlArticle({ url: "https://example.com/challenged", retainResponseBody: true });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/challenged", retainResponseBody: true });
 
 		expect(result.status).toBe("blocked");
 	});
@@ -2513,7 +2544,7 @@ describe("initCrawlArticle block classification on the direct ladder", () => {
 			fetch: async () => new Response(CHALLENGE_PAGE, { status: 200, headers: { "content-type": "text/plain" } }),
 		});
 
-		const result = await crawlArticle({ url: "https://example.com/notes.txt" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/notes.txt" });
 
 		expect(result.status).toBe("fetched");
 	});
@@ -2526,7 +2557,7 @@ describe("initCrawlArticle block classification on the direct ladder", () => {
 			fetchCurl: async () => { throw reset; },
 		});
 
-		const result = await crawlArticle({ url: "https://example.com/reset" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/reset" });
 
 		assert(result.status === "failed");
 		expect(isProxyWorthyError(result.cause)).toBe(true);
@@ -2582,7 +2613,7 @@ window.self.location = redirecturl + anchor;
 			logError,
 		});
 
-		const result = await crawlArticle({ url: TRACKER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: TRACKER_URL });
 
 		assertFetched(result);
 		expect(result.html).toBe(ARTICLE_HTML);
@@ -2600,7 +2631,7 @@ window.self.location = redirecturl + anchor;
 	])("still reports a Location-less 302 with %s as a failed fetch", async (_label, body) => {
 		const crawlArticle = initCrawl({ fetch: async () => locationless302(body) });
 
-		expect(await crawlArticle({ url: TRACKER_URL })).toEqual({
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: TRACKER_URL })).toEqual({
 			status: "failed",
 			finalUrl: TRACKER_URL,
 			failure: { kind: "fetch-failed", httpStatus: 302 },
@@ -2622,7 +2653,7 @@ window.self.location = redirecturl + anchor;
 			fetchTimeouts: { headersMs: 5000, bodyMs: 15 },
 		});
 
-		expect(await crawlArticle({ url: TRACKER_URL })).toEqual({
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: TRACKER_URL })).toEqual({
 			status: "failed",
 			finalUrl: TRACKER_URL,
 			failure: { kind: "fetch-failed", httpStatus: 302 },
@@ -2640,7 +2671,7 @@ window.self.location = redirecturl + anchor;
 			},
 		});
 
-		expect(await crawlArticle({ url: TRACKER_URL })).toEqual({
+		expect(await crawlArticle({ chargeOcrPages: undefined, url: TRACKER_URL })).toEqual({
 			status: "failed",
 			finalUrl: SECOND_TRACKER_URL,
 			failure: { kind: "fetch-failed", httpStatus: 302 },
@@ -2663,7 +2694,7 @@ it("applies injected document validation before accepting or hashing the buffere
 		logInfo: noopLogInfo,
 		logThumbnailNotDelivered: () => {},
 	});
-	expect(await crawl({ url, previousBodyHash: createHash("sha256").update("article").digest("hex") })).toMatchObject({ status: "failed" });
+	expect(await crawl({ chargeOcrPages: undefined, url, previousBodyHash: createHash("sha256").update("article").digest("hex") })).toMatchObject({ status: "failed" });
 	expect(validateDocument).toHaveBeenCalledWith(url, response, Buffer.from("article"));
 	expect(logError).toHaveBeenCalledWith(expect.stringContaining("Network error"), rejection);
 });
@@ -2680,7 +2711,7 @@ it("reports a crawl failure when the transport rejects with a non-Error value", 
 		logThumbnailNotDelivered: () => {},
 	});
 
-	expect(await crawl({ url })).toMatchObject({ status: "failed", failure: { kind: "fetch-failed" } });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toMatchObject({ status: "failed", failure: { kind: "fetch-failed" } });
 	expect(logError).toHaveBeenCalledTimes(1);
 	expect(logError).toHaveBeenCalledWith(`[CrawlArticle] Network error for ${url}`, undefined);
 });
@@ -2688,7 +2719,7 @@ it("reports a crawl failure when the transport rejects with a non-Error value", 
 it.each([{}, { retainResponseBody: true }, { retainBlockedResponse: true }, { previousBodyHash: createHash("sha256").update("homepage").digest("hex") }])("rejects the CIA homepage at the crawl boundary with options %j", async (options) => {
 	const url = "https://www.cia.gov/readingroom/docs/report.pdf";
 	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch: async () => withResolvedUrl(new Response("homepage", { headers: { "content-type": "text/html" } }), "https://www.cia.gov/readingroom/"), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
-	expect(await crawl({ url, fetchThumbnail: true, ...options })).toMatchObject({ status: "failed", finalUrl: url, failure: { kind: "fetch-failed" } });
+	expect(await crawl({ chargeOcrPages: undefined, url, fetchThumbnail: true, ...options })).toMatchObject({ status: "failed", finalUrl: url, failure: { kind: "fetch-failed" } });
 });
 it("retains CIA PDF identity after a rejected redirect and later timeout", async () => {
 	const url = "https://www.cia.gov/readingroom/docs/report.pdf";
@@ -2697,7 +2728,7 @@ it("retains CIA PDF identity after a rejected redirect and later timeout", async
 		init.onRedirect?.({ fromUrl: url, toUrl: home });
 		throw new TransportLadderFailure({ escalatedStatuses: [], previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
 	}, siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
-	expect(await crawl({ url })).toMatchObject({ status: "failed", finalUrl: url });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toMatchObject({ status: "failed", finalUrl: url });
 });
 
 it("reports one document mismatch after different rejected landing pages and a timeout exhaust recovery", async () => {
@@ -2712,7 +2743,7 @@ it("reports one document mismatch after different rejected landing pages and a t
 			retryDisposition: "recoverable",
 		});
 	}, siteRules: [], logError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
-	expect(await crawl({ url })).toMatchObject({ status: "failed", finalUrl: url });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toMatchObject({ status: "failed", finalUrl: url });
 	expect(logError).toHaveBeenCalledTimes(1);
 	expect(logError).toHaveBeenCalledWith(expect.stringContaining("Document response mismatch"), expect.any(TransportLadderFailure));
 });
@@ -2725,7 +2756,7 @@ it("does not replace an unrelated later redirect with the rejected CIA document"
 		init.onRedirect?.({ fromUrl: home, toUrl: later });
 		throw new TransportLadderFailure({ escalatedStatuses: [], previousErrors: [new DocumentLandingPageError({ requestedUrl: url, landingPageUrl: home })], error: new Error("timeout"), retryDisposition: "recoverable" });
 	}, siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
-	expect(await crawl({ url })).toMatchObject({ status: "failed", finalUrl: later });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toMatchObject({ status: "failed", finalUrl: later });
 });
 it("extracts the recovered CIA PDF without attempting homepage thumbnails", async () => {
 	const url = "https://www.cia.gov/readingroom/docs/report.pdf";
@@ -2736,7 +2767,7 @@ it("extracts the recovered CIA PDF without attempting homepage thumbnails", asyn
 		expect(buffer).toEqual(PDF_MAGIC_BUFFER);
 		return { kind: "fetched", html: "<article>Warren Commission</article>", title: "CIA report" };
 	} });
-	const result = await crawl({ url, fetchThumbnail: true });
+	const result = await crawl({ chargeOcrPages: allowOcrPages, url, fetchThumbnail: true });
 	expect(result).toMatchObject({ status: "fetched", finalUrl: url });
 	expect(calls).toEqual([url, "https://www.cia.gov/readingroom/"]);
 	expect(logError).toHaveBeenCalledTimes(0);
@@ -2753,7 +2784,7 @@ it("fails the CIA PDF as a wrong document without parsing or thumbnailing the ho
 		fetchCurl: async () => homepage(),
 		extractPdf,
 	});
-	const result = await crawl({ url, fetchThumbnail: true });
+	const result = await crawl({ chargeOcrPages: undefined, url, fetchThumbnail: true });
 	assert(result.status === "failed");
 	expect(result.finalUrl).toBe(url);
 	expect(documentLandingPageFailure(result.cause)).toMatchObject({ requestedUrl: url, landingPageUrl: home });
@@ -2765,7 +2796,7 @@ it("keeps the CIA reading-room homepage when it was the page requested", async (
 	const crawl = initCrawl({
 		fetch: async () => withResolvedUrl(new Response("<html><head><title>Reading Room</title></head><body><article><p>Freedom of Information Act Electronic Reading Room</p></article></body></html>", { status: 200, headers: { "content-type": "text/html" } }), home),
 	});
-	expect(await crawl({ url: home })).toMatchObject({ status: "fetched", finalUrl: home });
+	expect(await crawl({ chargeOcrPages: undefined, url: home })).toMatchObject({ status: "fetched", finalUrl: home });
 });
 
 describe("the retry decision on a failed crawl", () => {
@@ -2781,7 +2812,7 @@ describe("the retry decision on a failed crawl", () => {
 			siteRules: [],
 		});
 
-		const result = await crawl({ url: "https://publisher.example/article" });
+		const result = await crawl({ chargeOcrPages: undefined, url: "https://publisher.example/article" });
 
 		assert(result.status === "failed", "a ladder that resets on every leg fails the crawl");
 		expect(result.decision).toEqual({ kind: "retryable", scope: "durable", cause: result.cause });
@@ -2790,7 +2821,7 @@ describe("the retry decision on a failed crawl", () => {
 	it("is absent when the origin answered with an HTTP status", async () => {
 		const crawl = initCrawl({ fetch: async () => new Response("down", { status: 503 }), siteRules: [] });
 
-		const result = await crawl({ url: "https://publisher.example/article" });
+		const result = await crawl({ chargeOcrPages: undefined, url: "https://publisher.example/article" });
 
 		assert(result.status === "failed", "a 503 fails the crawl");
 		expect(result).toHaveProperty("decision", undefined);
@@ -2814,7 +2845,7 @@ describe("closed publisher notices through the decorated crawler", () => {
 			assert.equal(url, terminal);
 			return new Response(article, { headers: { "content-type": "text/html", etag: '"new"' } });
 		} });
-		const result = await crawl({ url: source, etag: '"old"', lastModified: "Wed, 01 Jan 2025 00:00:00 GMT" });
+		const result = await crawl({ chargeOcrPages: undefined, url: source, etag: '"old"', lastModified: "Wed, 01 Jan 2025 00:00:00 GMT" });
 		assertFetched(result);
 		expect(requests.map(request => request.url)).toEqual([source, target, terminal]);
 		for (const request of requests) {
@@ -2830,7 +2861,7 @@ describe("closed publisher notices through the decorated crawler", () => {
 			requested.push(String(input));
 			return new Response(notice(returns), { headers: { "content-type": "text/html" } });
 		} });
-		const result = await crawl({ url: source });
+		const result = await crawl({ chargeOcrPages: undefined, url: source });
 		assertFetched(result);
 		expect(requested).toEqual([source]);
 		expect(result.html).toBe(notice(returns));
@@ -2843,7 +2874,7 @@ describe("closed publisher notices through the decorated crawler", () => {
 			const html = url === source ? `<html><head><meta http-equiv="refresh" content="0; url=${returns}"></head></html>` : article;
 			return new Response(html, { headers: { "content-type": "text/html" } });
 		} });
-		const result = await crawl({ url: source });
+		const result = await crawl({ chargeOcrPages: undefined, url: source });
 		assertFetched(result);
 		expect(requested).toEqual([source, returns]);
 		expect(result.html).toBe(article);
@@ -2854,7 +2885,7 @@ describe("closed publisher notices through the decorated crawler", () => {
 			const url = String(input); requested.push(url);
 			return new Response(notice(url === source ? tracked : "https://example.test/third"), { headers: { "content-type": "text/html" } });
 		} });
-		const result = await crawl({ url: source });
+		const result = await crawl({ chargeOcrPages: undefined, url: source });
 		assertFetched(result);
 		expect(requested).toEqual([source, target]);
 		expect(result.html).toBe(notice("https://example.test/third"));
@@ -2867,7 +2898,7 @@ describe("closed publisher notices through the decorated crawler", () => {
 			const url = String(input); requested.push(url);
 			return url === source ? new Response(notice(`${pdf}?utm_source=synthetic`), { headers: { "content-type": "text/html" } }) : new Response(PDF_MAGIC_BUFFER, { headers: { "content-type": "application/pdf" } });
 		} });
-		const result = await crawl({ url: source });
+		const result = await crawl({ chargeOcrPages: undefined, url: source });
 		assertFetched(result);
 		expect(requested).toEqual([source]);
 		expect(result.html).toBe(notice(`${pdf}?utm_source=synthetic`));
@@ -2876,7 +2907,7 @@ describe("closed publisher notices through the decorated crawler", () => {
 	it.each([`${target}&signature=synthetic`, `${target}&faq=98`, target.replace("faq=97", "faq=action"), target.replace("/int/", "/account/"), `${target}&utm_new=x`])("makes no new request for excluded target %s", async excluded => {
 		const requested: string[] = [];
 		const crawl = initCrawl({ fetch: async input => { requested.push(String(input)); return new Response(notice(excluded), { headers: { "content-type": "text/html" } }); } });
-		await crawl({ url: source });
+		await crawl({ chargeOcrPages: undefined, url: source });
 		expect(requested).toEqual([source]);
 	});
 });
@@ -2920,7 +2951,7 @@ describe("initCrawlArticle — site rules claim the terminal an HTTP redirect la
 		const requested: string[] = [];
 		const crawlArticle = initCrawl({ fetch: trackerTo({ location: TWEET_URL, requested }) });
 
-		const result = await crawlArticle({ url: TRACKER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: TRACKER_URL });
 
 		assertFetched(result);
 		expect(result.html).toBe("<html><head><title>U</title></head><body><blockquote><p>The tweet text.</p></blockquote></body></html>");
@@ -2931,7 +2962,7 @@ describe("initCrawlArticle — site rules claim the terminal an HTTP redirect la
 		const requested: string[] = [];
 		const crawlArticle = initCrawl({ fetch: trackerTo({ location: "https://dest.example/post", requested }) });
 
-		const result = await crawlArticle({ url: TRACKER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: TRACKER_URL });
 
 		assertFetched(result);
 		expect(result.html).toContain("Logged-out shell page");
@@ -2947,7 +2978,7 @@ describe("initCrawlArticle — site rules claim the terminal an HTTP redirect la
 			siteRules: [terminalSite({ hostname: "claimed.example", outcome: { kind: "skip" }, onCrawlUrls })],
 		});
 
-		const result = await crawlArticle({ url: TRACKER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: TRACKER_URL });
 
 		assertFetched(result);
 		expect(result.html).toContain("Logged-out shell page");
@@ -2963,7 +2994,7 @@ describe("initCrawlArticle — site rules claim the terminal an HTTP redirect la
 			siteRules: [terminalSite({ hostname: "claimed.example", outcome: { kind: "failed" }, onCrawlUrls })],
 		});
 
-		const result = await crawlArticle({ url: TRACKER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: TRACKER_URL });
 
 		assertFetched(result);
 		expect(result.html).toContain("Logged-out shell page");
@@ -2978,7 +3009,7 @@ describe("initCrawlArticle — site rules claim the terminal an HTTP redirect la
 			siteRules: [terminalSite({ hostname: "claimed.example", outcome: { kind: "skip" }, onCrawlUrls })],
 		});
 
-		const result = await crawlArticle({ url: "https://claimed.example/post" });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://claimed.example/post" });
 
 		assertFetched(result);
 		expect(result.html).toContain("Logged-out shell page");
@@ -2999,10 +3030,111 @@ describe("initCrawlArticle — site rules claim the terminal an HTTP redirect la
 			],
 		});
 
-		const result = await crawlArticle({ url: TRACKER_URL });
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: TRACKER_URL });
 
 		assertFetched(result);
 		expect(requested).toEqual([TRACKER_URL, "https://claimed.example/landing", "https://document.example/file"]);
 		expect(result.finalUrl).toBe("https://document.example/file");
+	});
+});
+
+describe("initCrawlArticle — OCR page allowance", () => {
+	function pdfFetch(): typeof fetch {
+		return async () => new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/pdf" } });
+	}
+
+	const retryAt = new Date("2026-11-16T03:00:00.000Z");
+
+	it("holds a crawled PDF for a saver when no charge is supplied, without reading it", async () => {
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", html: "<p>x</p>", title: "x" }));
+		const crawlArticle = initCrawl({ fetch: pdfFetch(), extractPdf });
+
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/doc.pdf" });
+
+		expect(result).toEqual({ status: "pdf-awaiting-saver" });
+		expect(extractPdf).not.toHaveBeenCalled();
+	});
+
+	it("still defers a PDF as unsupported in a runtime without an extractor, even with a charge", async () => {
+		const crawlArticle = initCrawl({ fetch: pdfFetch() });
+
+		const result = await crawlArticle({ chargeOcrPages: allowOcrPages, url: "https://example.com/doc.pdf" });
+
+		expect(result).toMatchObject({ status: "unsupported" });
+	});
+
+	it("hands the saver's charge to the extractor", async () => {
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", html: "<p>x</p>", title: "x" }));
+		const crawlArticle = initCrawl({ fetch: pdfFetch(), extractPdf });
+
+		await crawlArticle({ chargeOcrPages: allowOcrPages, url: "https://example.com/doc.pdf" });
+
+		expect(extractPdf.mock.calls[0][0].chargeOcrPages).toBe(allowOcrPages);
+	});
+
+	it("reports an over-quota PDF with its pages, pages left and retry time", async () => {
+		const extractPdf: ExtractPdf = async () => ({ kind: "over-ocr-quota", pages: 40, pagesLeft: 12, retryAt });
+		const crawlArticle = initCrawl({ fetch: pdfFetch(), extractPdf });
+
+		const result = await crawlArticle({ chargeOcrPages: allowOcrPages, url: "https://example.com/doc.pdf" });
+
+		expect(result).toEqual({ status: "over-ocr-quota", pages: 40, pagesLeft: 12, retryAt });
+	});
+
+	it("carries the charge through a site-rule redirect to a PDF", async () => {
+		const fetched: string[] = [];
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", html: "<p>x</p>", title: "x" }));
+		const shell: SiteRules = {
+			matches: ({ hostname }) => hostname === "shell.example",
+			onCrawl: async () => ({ kind: "redirect", url: "https://files.example/report.pdf" }),
+			recoverContent: noRecovery,
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				fetched.push(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+				return new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/pdf" } });
+			},
+			extractPdf,
+			siteRules: [shell],
+		});
+
+		const result = await crawlArticle({ chargeOcrPages: allowOcrPages, url: "https://shell.example/A1" });
+
+		expect(result.status).toBe("fetched");
+		expect(fetched).toEqual(["https://files.example/report.pdf"]);
+		expect(extractPdf.mock.calls[0][0].chargeOcrPages).toBe(allowOcrPages);
+	});
+
+	it("holds a site-rule-redirected PDF for a saver when no charge is supplied", async () => {
+		const shell: SiteRules = {
+			matches: ({ hostname }) => hostname === "shell.example",
+			onCrawl: async () => ({ kind: "redirect", url: "https://files.example/report.pdf" }),
+			recoverContent: noRecovery,
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const crawlArticle = initCrawl({ fetch: pdfFetch(), extractPdf: async () => ({ kind: "fetched", html: "<p>x</p>", title: "x" }), siteRules: [shell] });
+
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://shell.example/A1" });
+
+		expect(result).toEqual({ status: "pdf-awaiting-saver" });
+	});
+
+	it("maps an over-quota extraction from an uploaded buffer", async () => {
+		const result = await parsePdfFromBuffer({
+			buffer: PDF_MAGIC_BUFFER,
+			bodyHash: "hash",
+			response: undefined,
+			url: "https://example.com/upload.pdf",
+			maxPdfBytes: PDF_BYTES_CAP,
+			extractPdf: async () => ({ kind: "over-ocr-quota", pages: 120, pagesLeft: 98, retryAt }),
+			scope: { kind: "none" },
+			chargeOcrPages: allowOcrPages,
+			logError: noopLogError,
+		});
+
+		expect(result).toEqual({ status: "over-ocr-quota", pages: 120, pagesLeft: 98, retryAt });
 	});
 });

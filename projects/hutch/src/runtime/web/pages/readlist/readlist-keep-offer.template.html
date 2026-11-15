@@ -1,7 +1,7 @@
 <aside class="readlist-keep-offer {{stateClass}}" data-test-keep-offer>
   {{#if isShown}}
   <h2 class="readlist-keep-offer__title">You've kept {{savesCount}} articles this week.</h2>
-  <p class="readlist-keep-offer__body" data-test-keep-offer-body>Choose during your trial: {{priceClause}} Add a card now and nothing is charged until <time datetime="{{trialEnd.iso}}" data-local-time="{{trialEnd.mode}}">{{trialEnd.label}}</time>. A reminder email arrives a week before. Your saves stay readable and exportable either way.</p>
+  <p class="readlist-keep-offer__body" data-test-keep-offer-body>Choose during your trial: {{priceClause}} Add a card now and nothing is charged until <time datetime="{{trialEnd.iso}}" data-local-time="{{trialEnd.mode}}">{{trialEnd.label}}</time>. A reminder email arrives a week before. {{t "readlistKeepOffer.withoutCard"}}</p>
   <div class="readlist-keep-offer__actions">
     <form method="POST" action="{{track '/account/subscribe' source='keep-panel' content='keep'}}">
       <input type="hidden" name="plan" value="yearly">

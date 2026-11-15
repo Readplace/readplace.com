@@ -196,6 +196,7 @@ export const MCP_TOOL_OUTCOMES = {
 	accessCheckFailed: "access_check_failed",
 	unknownTool: "unknown_tool",
 	invalidParams: "invalid_params",
+	dailyLimit: "daily_limit",
 } as const;
 
 export type McpToolOutcome =
@@ -212,12 +213,13 @@ export const SAVE_OUTCOMES = {
 export const SAVE_REFUSAL_CODES = {
 	unauthenticated: "unauthenticated",
 	locked: "locked",
-	noWriteAccess: "no_write_access",
 	notSiren: "not_siren",
 	invalidManifest: "invalid_manifest",
 	tooManyPages: "too_many_pages",
 	tooLarge: "too_large",
 	rateLimited: "rate_limited",
+	dailySaveLimit: "daily_save_limit",
+	paidFeatureRefused: "paid_feature_refused",
 	other: "other",
 } as const;
 

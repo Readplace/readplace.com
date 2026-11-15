@@ -111,7 +111,7 @@ describe("renderReadlistPurpose", () => {
 
 	it.each([
 		["an unset purpose", undefined, "open"],
-		["a read-only reader", "Shipping essays.", "needs-upgrade"],
+		["a free-plan reader", "Shipping essays.", "needs-upgrade"],
 	] as const)("renders no edit dialog for %s", (_case, purpose, standing) => {
 		expect(
 			renderReadlistPurpose({ readlist: { slug: WORK, purpose }, standing, offer: OFFER, from: "queue" }).wizardPopoverHtml,

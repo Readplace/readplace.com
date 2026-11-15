@@ -359,7 +359,7 @@ describe("Reader previously-read-on-this-topic slot", () => {
 		expect(publishedComputeRequests).toEqual([]);
 	});
 
-	it("never requests computation for a read-only reader", async () => {
+	it("sends a free-plan reader to the plans page and never requests computation, since Next read is paid-only", async () => {
 		const { agent, harness, userId, articleId, publishedComputeRequests } = await buildHarness();
 		await harness.subscriptionProviders.upsertActive({
 			userId,
@@ -372,8 +372,8 @@ describe("Reader previously-read-on-this-topic slot", () => {
 			.post(`/queue/${articleId}/topic-reads`)
 			.set("HX-Request", "true");
 
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.status).toBe(200);
+		expect(response.headers["hx-redirect"]).toBe("/account/plans");
 		expect(publishedComputeRequests).toEqual([]);
 	});
 

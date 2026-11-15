@@ -78,11 +78,14 @@ import { initLogEmail } from "./email/log-email";
 import { initInMemoryEmailVerification } from "@packages/test-fixtures/providers/email-verification";
 import { initInMemoryPasswordReset } from "@packages/test-fixtures/providers/password-reset";
 import { initInMemoryBrowserHandoff } from "@packages/test-fixtures/providers/browser-handoff";
-import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
+import { initInMemoryOcrPagesLeft, initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
+import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
 import { parseRateLimitRules } from "./rate-limit-rules";
 import { devSummariseInline } from "./article-summary/dev-summarise-inline";
 import { initInMemoryArticleCrawl, initInMemoryClaimResolutionOnView } from "@packages/test-fixtures/providers/article-crawl";
 import { initRequestResolutionOnView } from "../domain/resolve-on-view/request-resolution-on-view";
+import { initRequestStaleCheck } from "../domain/stale-check/request-stale-check";
+import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { batchFromSingular } from "../batch-from-singular";
 import { initReadArticleContent } from "@packages/article-store";
@@ -592,20 +595,26 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		refreshArticleIfStale: refreshResolvedArticleIfStale,
 	});
 
-	const { refreshArticleIfStale: refreshArticleIfStaleStored } = initSubmitFreshness({
-		findArticleByUrl: articleStore.findArticleByUrl,
-		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
-		resolveSaveIdentity: resolveStoredSaveIdentity,
-		publishStaleCheckRequested,
-	});
-
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
 
 	// In-process counters are valid here because dev runs a single long-lived
 	// server. Defaults are liberal — every local/e2e request shares 127.0.0.1,
 	// so prod-strength per-IP limits would throttle a full e2e run.
-	const { consumeRateLimit } = initInMemoryRateLimit({ now: () => new Date() });
+	const { consumeRateLimit, claimRateLimitUnits } = initInMemoryRateLimit({ now: () => new Date() });
 	const rateLimitRules = parseRateLimitRules(requireEnv("RATE_LIMITS"));
+	const { requestStaleCheck } = initRequestStaleCheck({
+		consumeRateLimit,
+		rule: rateLimitRules.staleCheck,
+		publishStaleCheckRequested,
+		getEffectiveAccess: initGetEffectiveAccess({ findSubscriptionByUserId: devSubscriptionProviders.findByUserId, now: () => new Date() }),
+		logger,
+	});
+	const { refreshArticleIfStale: refreshArticleIfStaleStored } = initSubmitFreshness({
+		findArticleByUrl: articleStore.findArticleByUrl,
+		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+		resolveSaveIdentity: resolveStoredSaveIdentity,
+		requestStaleCheck,
+	});
 	const transcriptAllowanceSeconds = transcriptAllowanceSecondsFromEnv();
 	const transcriptQuotaRows = initInMemoryTranscriptQuotaRows();
 	const mediaPending = initInMemoryMediaPending({ uploadBaseUrl: `${input.appOrigin}/e2e/s3-media` });
@@ -713,7 +722,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,
 		publishSubmitLink,
-		publishStaleCheckRequested,
+		requestStaleCheck,
 		publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand,
 		publishUpdateFetchTimestamp,
@@ -758,6 +767,8 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: onboardingSignals.recordDeleteArticleAcknowledged,
 		consumeRateLimit,
+		claimRateLimitUnits,
+		readOcrPagesLeft: initInMemoryOcrPagesLeft({ pagesLeft: OCR_PAGE_QUOTA_RULE.limit }).readOcrPagesLeft,
 		rateLimitRules,
 	};
 }

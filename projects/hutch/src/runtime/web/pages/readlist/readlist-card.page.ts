@@ -1,7 +1,6 @@
 import { toArticleSubEntity } from "../../api/article-siren";
 import { addToReadlistOfferForClient } from "./add-to-readlist-offer";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 
 import assert from "node:assert";
 import type { Request, Response, Router } from "express";
@@ -97,7 +96,7 @@ const ArticleMoveBodySchema = z.union([
 export function initReadlistCardRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"appOrigin" | "findArticleById" | "findArticleCrawlStatus" | "findGeneratedSummary" | "resolveReaderProvenance" | "getOnboardingSignals" | "getEffectiveAccess" | "now" | "recordMarkReadAcrossQueuesAcknowledged" | "updateArticleStatusAcrossReadlists" | "recordEngagementActivity" | "recordAnalyticsEvent" | "salt" | "recordDeleteArticleAcknowledged" | "requireWriteAccess" | "addArticleToReadlist" | "listReadlistDefinitions" | "listUserSavesForUrls" | "upsertReadlist" | "findArticleUrlById" | "listUserSavesForUrl" | "publishRemoveMyContent"
+		"appOrigin" | "findArticleById" | "findArticleCrawlStatus" | "findGeneratedSummary" | "resolveReaderProvenance" | "getOnboardingSignals" | "now" | "recordMarkReadAcrossQueuesAcknowledged" | "updateArticleStatusAcrossReadlists" | "recordEngagementActivity" | "recordAnalyticsEvent" | "salt" | "recordDeleteArticleAcknowledged" | "addArticleToReadlist" | "listReadlistDefinitions" | "listUserSavesForUrls" | "upsertReadlist" | "findArticleUrlById" | "listUserSavesForUrl" | "publishRemoveMyContent"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -272,10 +271,9 @@ export function initReadlistCardRoutes(
 		 * still polling when the reader silences the delete confirmation would
 		 * otherwise come back pointing at a panel the page no longer renders,
 		 * leaving its Delete button inert. */
-		const [signals, context, access] = await Promise.all([
+		const [signals, context] = await Promise.all([
 			deps.getOnboardingSignals({ userId }),
 			resolveReadlistContext(req, userId),
-			deps.getEffectiveAccess(userId),
 		]);
 		const savesByUrl = await savesAcrossReadlists({ userId, context, urls: [article.url] });
 		const confirmReadlistsByUrl = markStatusConfirmReadlistsFor({
@@ -300,8 +298,6 @@ export function initReadlistCardRoutes(
 			filing: {
 				readlists: context.readlists,
 				saves: savesByUrl?.get(article.url),
-				accessIsReadOnly: access.access === "read-only",
-				offer: upgradeOfferFor({ req, access }),
 			},
 		});
 		const cardOptions = { isFirst: false, deviceClass: classifyDeviceClass(req.get("user-agent")) };
@@ -400,7 +396,6 @@ export function initReadlistCardRoutes(
 	router.post(
 		"/:id/assign",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		express.json(),
 		async (req: Request<{ id: string }>, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -510,7 +505,6 @@ export function initReadlistCardRoutes(
 	router.post(
 		"/:id/create-and-assign",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		async (req: Request<{ id: string }>, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
@@ -606,7 +600,6 @@ export function initReadlistCardRoutes(
 	router.post(
 		"/:id/move",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		async (req: Request<{ id: string }>, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;

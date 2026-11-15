@@ -10,7 +10,6 @@ export interface ReadlistRailViewModel {
 	activeReadlist: Readlist;
 	newReadlistAction: string;
 	limitAlertHref: string;
-	canEdit: boolean;
 	canCreate: boolean;
 	offer: UpgradeOffer | undefined;
 	nonEmptyReadlists: readonly ReadlistSlug[];
@@ -19,19 +18,16 @@ export interface ReadlistRailViewModel {
 
 export function buildReadlistRail(input: {
 	context: ReadlistContext;
-	accessIsReadOnly: boolean;
 	offer: UpgradeOffer | undefined;
 	nonEmptyReadlists: readonly ReadlistSlug[];
 }): ReadlistRailViewModel {
-	const canEdit = !input.accessIsReadOnly;
 	const custom = input.context.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
 	return {
 		readlists: input.context.readlists,
 		activeReadlist: input.context.activeReadlist,
 		newReadlistAction: `${READLIST_CREATE_PATH}${readlistReturnQuery(input.context.state)}`,
 		limitAlertHref: buildReadlistUrl(input.context.state, [["queue_error", READLIST_ERROR_LIMIT]]),
-		canEdit,
-		canCreate: canEdit && custom.length < READLIST_MAX_PER_USER,
+		canCreate: custom.length < READLIST_MAX_PER_USER,
 		offer: input.offer,
 		nonEmptyReadlists: input.nonEmptyReadlists,
 		pinnedReadlists: input.context.pinnedReadlists,

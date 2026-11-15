@@ -2,8 +2,8 @@ import type { AppDependencies } from "../../../server";
 import type { initViewRoutes } from "./view.page";
 
 export function viewDependenciesFrom(
-	deps: Pick<AppDependencies, "validateSaveableUrl" | "findArticleByUrl" | "findItemOwner" | "findArticleFreshness" | "findArticleCrawlVersions" | "readArticleContent" | "readArticleImage" | "logError" | "findGeneratedSummary" | "markSummaryPending" | "findArticleCrawlStatus" | "markCrawlPending" | "saveArticleGlobally" | "resolveCanonicalIdentity" | "findIdentityRow" | "resolveFirstVisitIdentity" | "pinContentSource" | "findContentSourceUrl" | "publishSaveAnonymousLink" | "publishStaleCheckRequested" | "consumeRateLimit" | "rateLimitRules" | "now" | "salt" | "readerSectionThresholdBytes">,
-	built: Pick<Parameters<typeof initViewRoutes>[0], "appOrigin" | "ownHost" | "secureCookies" | "buildBannerState" | "recordAnalyticsEvent">,
+	deps: Pick<AppDependencies, "validateSaveableUrl" | "findArticleByUrl" | "findItemOwner" | "findArticleFreshness" | "findArticleCrawlVersions" | "readArticleContent" | "readArticleImage" | "logError" | "findGeneratedSummary" | "markSummaryPending" | "findArticleCrawlStatus" | "markCrawlPending" | "saveArticleGlobally" | "resolveCanonicalIdentity" | "findIdentityRow" | "resolveFirstVisitIdentity" | "pinContentSource" | "findContentSourceUrl" | "publishSaveAnonymousLink" | "requestStaleCheck" | "consumeRateLimit" | "isDailyLimited" | "rateLimitRules" | "now" | "salt" | "readerSectionThresholdBytes">,
+	built: Pick<Parameters<typeof initViewRoutes>[0], "appOrigin" | "ownHost" | "secureCookies" | "buildBannerState" | "recordAnalyticsEvent" | "getEffectiveAccess" | "claimDailySaves">,
 ): Parameters<typeof initViewRoutes>[0] {
 	const {
 		appOrigin,
@@ -11,6 +11,8 @@ export function viewDependenciesFrom(
 		secureCookies,
 		buildBannerState,
 		recordAnalyticsEvent,
+		getEffectiveAccess,
+		claimDailySaves,
 	} = built;
 	return {
 		validateSaveableUrl: deps.validateSaveableUrl,
@@ -36,8 +38,11 @@ export function viewDependenciesFrom(
 		pinContentSource: deps.pinContentSource,
 		findContentSourceUrl: deps.findContentSourceUrl,
 		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
-		publishStaleCheckRequested: deps.publishStaleCheckRequested,
+		requestStaleCheck: deps.requestStaleCheck,
 		consumeRateLimit: deps.consumeRateLimit,
+		getEffectiveAccess,
+		isDailyLimited: deps.isDailyLimited,
+		claimDailySaves,
 		viewCrawlRateLimit: deps.rateLimitRules.viewCrawl,
 		viewCrawlSignedInRateLimit: deps.rateLimitRules.viewCrawlSignedIn,
 		now: deps.now,

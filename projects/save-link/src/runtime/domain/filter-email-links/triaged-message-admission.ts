@@ -3,12 +3,12 @@ import type { InboxEmailLinkStore } from "@packages/domain/inbox";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
-import { resolveWriteAccess } from "@packages/subscription-access";
+import { resolvePlanAccess } from "@packages/subscription-access";
 
 type TriagedMessageAdmission =
 	| { kind: "proceed" }
 	| { kind: "skip"; reason: "already-decided" | "no-longer-selected" }
-	| { kind: "write-access-lapsed" };
+	| { kind: "paid-plan-required" };
 
 export function initAdmitTriagedMessage(deps: {
 	listLinksByEmail: InboxEmailLinkStore["listLinksByEmail"];
@@ -28,8 +28,8 @@ export function initAdmitTriagedMessage(deps: {
 		assert(meta.readlistOutcomes, "a meta row that selects readlists carries its outcome rows");
 		const outcome = meta.readlistOutcomes.find((entry) => entry.readlist === readlist);
 		if (outcome !== undefined && outcome.decision !== "failed") return { kind: "skip", reason: "already-decided" };
-		if (resolveWriteAccess(await deps.findSubscriptionByUserId(userId), deps.now()) === "read-only") {
-			return { kind: "write-access-lapsed" };
+		if (resolvePlanAccess(await deps.findSubscriptionByUserId(userId), deps.now()) === "free") {
+			return { kind: "paid-plan-required" };
 		}
 		return { kind: "proceed" };
 	};

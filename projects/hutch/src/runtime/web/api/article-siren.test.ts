@@ -630,6 +630,30 @@ describe("properties.processing", () => {
 		]);
 	});
 
+	it("warns the saver that a PDF is held for the daily OCR page allowance while its crawl is pending", () => {
+		const { properties } = toArticleSubEntity(makeArticle({ ocrPagesHold: { pages: 40, pagesLeft: 12, retryAt: new Date("2026-11-16T03:00:00.000Z") } }), {
+			addToReadlist: "advertised",
+			now: NOW,
+			crawl: { status: "pending", startedAt: NOW.toISOString() },
+		});
+
+		expect(properties?.messages).toContainEqual({
+			type: "warning",
+			content: { type: "text/html", body: "This PDF has 40 pages and 12 pages are left in today&#x27;s allowance." },
+		});
+	});
+
+	it("drops a stale OCR page hold once the crawl is ready", () => {
+		const { properties } = toArticleSubEntity(makeArticle({ ocrPagesHold: { pages: 40, pagesLeft: 12, retryAt: new Date("2026-11-16T03:00:00.000Z") } }), {
+			addToReadlist: "advertised",
+			now: NOW,
+			crawl: { status: "ready" },
+			summary: { status: "ready", summary: "A summary." },
+		});
+
+		expect(properties?.messages).toBeUndefined();
+	});
+
 	it("marks a just-saved article as processing with no estimate, and tells the reader only about the save", () => {
 		const { properties } = toSavedArticleEntity({
 			article: makeArticle({ processingNotice: "Couldn't read this upload" }),

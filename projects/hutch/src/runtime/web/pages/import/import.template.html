@@ -9,6 +9,10 @@
         {{{truncatedAlertHtml}}}
         {{/if}}
 
+        {{#if dailyLimitAlertHtml}}
+        <div data-test-import-daily-limit>{{{dailyLimitAlertHtml}}}</div>
+        {{/if}}
+
         <div class="import__results">
         <div class="import__listing">
           <section class="import__toolbar" aria-label="Import selection">

@@ -95,7 +95,7 @@ describe("toPlansPageOutcome", () => {
 			);
 
 			assert.equal(viewModel.terms, "charge_today");
-			assert.equal(viewModel.tier, "inactive");
+			assert.equal(viewModel.tier, "free");
 			assert.equal(termsText(viewModel), "Your first charge is today.");
 		});
 	});
@@ -111,7 +111,7 @@ describe("toPlansPageOutcome", () => {
 			);
 
 			assert.equal(viewModel.terms, "charge_today");
-			assert.equal(viewModel.tier, "inactive");
+			assert.equal(viewModel.tier, "free");
 			assert.equal(termsText(viewModel), "Choosing a plan charges your card on file today.");
 		});
 

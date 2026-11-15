@@ -755,7 +755,7 @@ describe("OAuth routes", () => {
 	describe("POST /oauth/token", () => {
 		it("returns 429 past the per-IP token rate limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, oauthToken: { limit: 1, windowSeconds: 3600 } },
 			};
@@ -953,7 +953,7 @@ describe("OAuth routes", () => {
 
 		it("logs oauth_token_refused with reason rate_limited on a 429", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, oauthToken: { limit: 1, windowSeconds: 3600 } },
 			};
@@ -1342,7 +1342,7 @@ describe("OAuth routes", () => {
 
 		it("rate-limits registration per IP", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, oauthRegister: { limit: 1, windowSeconds: 3600 } },
 			};
@@ -1598,7 +1598,7 @@ describe("consent seed save on approve", () => {
 		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
 	});
 
-	it("does not seed a read-only account (cancelled subscription)", async () => {
+	it("does not seed a free-plan account (cancelled subscription)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const clientId = await registerMcpClient(harness);
 		const { agent, userId } = await loginFreshUser(harness, "readonly@example.com");

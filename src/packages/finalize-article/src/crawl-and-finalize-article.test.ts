@@ -55,7 +55,21 @@ describe("initCrawlAndFinalizeArticle", () => {
 			previousBodyHash: undefined,
 			fetchThumbnail: true,
 			retainResponseBody: true,
+			chargeOcrPages: undefined,
 		});
+	});
+
+	it.each([
+		{ status: "pdf-awaiting-saver" as const },
+		{ status: "over-ocr-quota" as const, pages: 40, pagesLeft: 2, retryAt: new Date("2026-11-16T00:00:00Z") },
+	])("reports a PDF held by the OCR page allowance ($status) as unsupported, never reading it", async (crawlResult) => {
+		const finalizeArticle = jest.fn(okFinalize);
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({ crawlArticle: async () => crawlResult, finalizeArticle });
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({ status: "unsupported", reason: crawlResult.status });
+		expect(finalizeArticle).not.toHaveBeenCalled();
 	});
 
 	it("fetches a capture URL while finalizing under the article's own URL, resolving relative links against the capture", async () => {

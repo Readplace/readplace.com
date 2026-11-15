@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
-import { initGetEffectiveAccess, resolveEffectiveAccess } from "./effective-access";
+import { initGetEffectiveAccess, isDailyLimited, resolveEffectiveAccess } from "./effective-access";
 
 const USER_ID = UserIdSchema.parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 const NOW = new Date("2026-05-23T12:00:00.000Z");
@@ -18,15 +18,15 @@ function buildSubject(now: Date = NOW) {
 }
 
 describe("initGetEffectiveAccess", () => {
-	it("returns founding/full when no subscription row exists for the user", async () => {
+	it("returns founding when no subscription row exists for the user", async () => {
 		const { getEffectiveAccess } = buildSubject();
 
 		const result = await getEffectiveAccess(USER_ID);
 
-		assert.deepEqual(result, { tier: "founding", access: "full", banner: "none" });
+		assert.deepEqual(result, { tier: "founding", banner: "none" });
 	});
 
-	it("returns paid/full/no-banner for an active subscription", async () => {
+	it("returns paid/no-banner for an active subscription", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		await providers.upsertActive({
 			userId: USER_ID,
@@ -36,10 +36,10 @@ describe("initGetEffectiveAccess", () => {
 
 		const result = await getEffectiveAccess(USER_ID);
 
-		assert.deepEqual(result, { tier: "paid", access: "full", banner: "none" });
+		assert.deepEqual(result, { tier: "paid", banner: "none" });
 	});
 
-	it("paid pending_cancellation inside the window keeps full access and surfaces a cancellation-scheduled banner with the cancellation-effective-at date", async () => {
+	it("paid pending_cancellation inside the window keeps paid features and surfaces a cancellation-scheduled banner with the cancellation-effective-at date", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		await providers.upsertActive({
 			userId: USER_ID,
@@ -56,13 +56,12 @@ describe("initGetEffectiveAccess", () => {
 
 		assert.deepEqual(result, {
 			tier: "paid",
-			access: "full",
 			banner: "cancellation-scheduled",
 			cancellationEffectiveAt,
 		});
 	});
 
-	it("trial pending_cancellation inside the window keeps full access and surfaces a cancellation-scheduled banner (tier=trial because the row has trialEndsAt)", async () => {
+	it("trial pending_cancellation inside the window keeps paid features and surfaces a cancellation-scheduled banner (tier=trial because the row has trialEndsAt)", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		const trialEndsAt = new Date(NOW.getTime() + 5 * ONE_DAY_MS).toISOString();
 		await providers.upsertTrialing({ userId: USER_ID, trialEndsAt });
@@ -75,13 +74,12 @@ describe("initGetEffectiveAccess", () => {
 
 		assert.deepEqual(result, {
 			tier: "trial",
-			access: "full",
 			banner: "cancellation-scheduled",
 			cancellationEffectiveAt: trialEndsAt,
 		});
 	});
 
-	it("pending_cancellation after the cancellation-effective-at instant flips to inactive/read-only/subscription-cancelled", async () => {
+	it("pending_cancellation after the cancellation-effective-at instant moves to the free plan with reason=subscription-cancelled", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		await providers.upsertActive({
 			userId: USER_ID,
@@ -97,15 +95,14 @@ describe("initGetEffectiveAccess", () => {
 		const result = await getEffectiveAccess(USER_ID);
 
 		assert.deepEqual(result, {
-			tier: "inactive",
-			access: "read-only",
-			banner: "inactive",
+			tier: "free",
+			banner: "free",
 			reason: "subscription-cancelled",
 			plan: undefined,
 		});
 	});
 
-	it("returns trial/full with a countdown banner when the trial is still active", async () => {
+	it("returns trial with a countdown banner when the trial is still active", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		const trialEndsAt = new Date(NOW.getTime() + 7 * ONE_DAY_MS).toISOString();
 		await providers.upsertTrialing({ userId: USER_ID, trialEndsAt });
@@ -114,13 +111,12 @@ describe("initGetEffectiveAccess", () => {
 
 		assert.deepEqual(result, {
 			tier: "trial",
-			access: "full",
 			banner: "trial-countdown",
 			trialEndsAt,
 		});
 	});
 
-	it("returns inactive/read-only with reason=trial-expired when the trial has elapsed", async () => {
+	it("returns free with reason=trial-expired when the trial has elapsed", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		const trialEndsAt = new Date(NOW.getTime() - ONE_DAY_MS).toISOString();
 		await providers.upsertTrialing({ userId: USER_ID, trialEndsAt });
@@ -128,14 +124,13 @@ describe("initGetEffectiveAccess", () => {
 		const result = await getEffectiveAccess(USER_ID);
 
 		assert.deepEqual(result, {
-			tier: "inactive",
-			access: "read-only",
-			banner: "inactive",
+			tier: "free",
+			banner: "free",
 			reason: "trial-expired",
 		});
 	});
 
-	it("returns inactive/read-only with reason=subscription-cancelled after Stripe cancels", async () => {
+	it("returns free with reason=subscription-cancelled after Stripe cancels", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		await providers.upsertActive({
 			userId: USER_ID,
@@ -147,26 +142,24 @@ describe("initGetEffectiveAccess", () => {
 		const result = await getEffectiveAccess(USER_ID);
 
 		assert.deepEqual(result, {
-			tier: "inactive",
-			access: "read-only",
-			banner: "inactive",
+			tier: "free",
+			banner: "free",
 			reason: "subscription-cancelled",
 			plan: undefined,
 		});
 	});
 
-	it("treats trialEndsAt equal to now as expired so the boundary belongs to inactive", async () => {
+	it("treats trialEndsAt equal to now as expired so the boundary belongs to the free plan", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		const trialEndsAt = NOW.toISOString();
 		await providers.upsertTrialing({ userId: USER_ID, trialEndsAt });
 
 		const result = await getEffectiveAccess(USER_ID);
 
-		assert.equal(result.tier, "inactive");
-		assert.equal(result.access, "read-only");
+		assert.equal(result.tier, "free");
 	});
 
-	it("treats cancellationEffectiveAt equal to now as expired so the boundary belongs to inactive", async () => {
+	it("treats cancellationEffectiveAt equal to now as expired so the boundary belongs to the free plan", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		await providers.upsertActive({
 			userId: USER_ID,
@@ -180,16 +173,14 @@ describe("initGetEffectiveAccess", () => {
 
 		const result = await getEffectiveAccess(USER_ID);
 
-		assert.equal(result.tier, "inactive");
-		assert.equal(result.access, "read-only");
+		assert.equal(result.tier, "free");
 	});
 });
 
 describe("resolveEffectiveAccess", () => {
-	it("returns founding/full when there is no subscription row", () => {
+	it("returns founding when there is no subscription row", () => {
 		assert.deepEqual(resolveEffectiveAccess(undefined, NOW), {
 			tier: "founding",
-			access: "full",
 			banner: "none",
 		});
 	});
@@ -207,14 +198,12 @@ describe("resolveEffectiveAccess", () => {
 
 		assert.deepEqual(resolveEffectiveAccess(row, new Date("2026-05-25T11:59:59.999Z")), {
 			tier: "trial",
-			access: "full",
 			banner: "trial-countdown",
 			trialEndsAt,
 		});
 		assert.deepEqual(resolveEffectiveAccess(row, new Date(trialEndsAt)), {
-			tier: "inactive",
-			access: "read-only",
-			banner: "inactive",
+			tier: "free",
+			banner: "free",
 			reason: "trial-expired",
 		});
 	});
@@ -236,14 +225,32 @@ describe("resolveEffectiveAccess", () => {
 			cancellationEffectiveAt: new Date(NOW.getTime() - ONE_DAY_MS).toISOString(),
 		};
 		const returningMonthly = {
-			tier: "inactive",
-			access: "read-only",
-			banner: "inactive",
+			tier: "free",
+			banner: "free",
 			reason: "subscription-cancelled",
 			plan: "monthly",
 		};
 
 		assert.deepEqual(resolveEffectiveAccess(endedMonthly, NOW), returningMonthly);
 		assert.deepEqual(resolveEffectiveAccess(lapsedMonthly, NOW), returningMonthly);
+	});
+});
+
+describe("isDailyLimited", () => {
+	it("meters a free account and never a founding, paid or trial one", () => {
+		assert.equal(
+			isDailyLimited({ tier: "free", banner: "free", reason: "trial-expired" }),
+			true,
+		);
+		assert.equal(isDailyLimited({ tier: "founding", banner: "none" }), false);
+		assert.equal(isDailyLimited({ tier: "paid", banner: "none" }), false);
+		assert.equal(
+			isDailyLimited({
+				tier: "trial",
+					banner: "trial-countdown",
+				trialEndsAt: "2026-06-01T00:00:00.000Z",
+			}),
+			false,
+		);
 	});
 });

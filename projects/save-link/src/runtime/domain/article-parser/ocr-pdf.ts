@@ -1,10 +1,11 @@
 import assert from "node:assert";
-import type { ExtractPdf, ExtractPdfMetadata, PdfExtractResult } from "@packages/crawl-article";
+import type { ExtractPdf, ExtractPdfMetadata, ParsedPdfScope, PdfExtractResult } from "@packages/crawl-article";
 import { deriveTitleFromUrl, escapeHtmlText, MAX_PDF_BYTES, MAX_PDF_PAGES } from "@packages/crawl-article";
 import type { Logger } from "@packages/logger";
 import { retriable } from "@packages/retriable";
 import { normalizeUnknownError } from "./normalize-error";
 import { sanitizeFragment } from "./sanitize-fragment";
+import type { FindParsedPdf, KeepParsedPdf } from "./parsed-pdf.types";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
 import type { InvokePdfDocumentDiffReview } from "./pdf-document-diff-review-invoker.types";
@@ -94,6 +95,8 @@ export function initOcrPdf(deps: {
 	invokePageLlmCleanup: InvokePdfPageLlmCleanup;
 	invokeDocumentDiffReview: InvokePdfDocumentDiffReview;
 	invokePageHtmlConvert: InvokePdfPageHtmlConvert;
+	findParsedPdf: FindParsedPdf;
+	keepParsedPdf: KeepParsedPdf;
 	logger: Logger;
 	concurrency?: number;
 	cleanupConcurrency?: number;
@@ -112,11 +115,46 @@ export function initOcrPdf(deps: {
 	const maxPages = deps.maxPages ?? MAX_PDF_PAGES;
 	const maxPdfBytes = deps.maxPdfBytes ?? MAX_PDF_BYTES.bytes;
 	const partialSuccessThreshold = deps.partialSuccessThreshold ?? DEFAULT_PARTIAL_SUCCESS_THRESHOLD;
-	const { logger, extractPdfMetadata, stagePdf, invokePageOcr, invokePageLlmCleanup, invokeDocumentDiffReview, invokePageHtmlConvert } = deps;
+	const { logger, extractPdfMetadata, stagePdf, invokePageOcr, invokePageLlmCleanup, invokeDocumentDiffReview, invokePageHtmlConvert, findParsedPdf, keepParsedPdf } = deps;
 
-	return async ({ buffer, url, onProgress }): Promise<PdfExtractResult> => {
+	const findStoredParse = async (scope: AccountScope): Promise<{ html: string; title: string } | undefined> => {
+		try {
+			return await findParsedPdf({ userId: scope.userId, fileHash: scope.fileHash });
+		} catch (error) {
+			logger.warn(`[ocr-pdf] parse lookup failed fileHash=${scope.fileHash} error=${normalizeUnknownError(error).name}`);
+			return undefined;
+		}
+	};
+
+	const keepCompleteParse = async (params: {
+		scope: AccountScope;
+		degradation: ReadonlySet<string>;
+		parse: { html: string; title: string };
+	}): Promise<void> => {
+		const { scope, degradation, parse } = params;
+		if (degradation.size > 0) {
+			logger.info(`[ocr-pdf] not kept: degraded fileHash=${scope.fileHash} reasons=${[...degradation].join(",")}`);
+			return;
+		}
+		try {
+			await keepParsedPdf({ userId: scope.userId, fileHash: scope.fileHash, html: parse.html, title: parse.title });
+			logger.info(`[ocr-pdf] kept parse fileHash=${scope.fileHash}`);
+		} catch (error) {
+			logger.warn(`[ocr-pdf] keep failed fileHash=${scope.fileHash} error=${normalizeUnknownError(error).name}`);
+		}
+	};
+
+	return async ({ buffer, url, scope, chargeOcrPages, onProgress }): Promise<PdfExtractResult> => {
 		const t0 = Date.now();
 		logger.info(`[ocr-pdf] start url=${url} bytes=${buffer.length}`);
+
+		if (scope.kind === "account") {
+			const stored = await findStoredParse(scope);
+			if (stored !== undefined) {
+				logger.info(`[ocr-pdf] reused stored parse fileHash=${scope.fileHash}`);
+				return { kind: "fetched", html: stored.html, title: stored.title };
+			}
+		}
 
 		if (buffer.length > maxPdfBytes) {
 			const mb = (buffer.length / (1024 * 1024)).toFixed(1);
@@ -143,6 +181,12 @@ export function initOcrPdf(deps: {
 		const partCount = chunks.length;
 		if (partCount === 0) {
 			return { kind: "failed", reason: "OCR returned no text across all batches" };
+		}
+
+		const charge = await chargeOcrPages({ pages: metadata.numPages });
+		if (!charge.allowed) {
+			logger.info(`[ocr-pdf] ocr_page_quota_refused pages=${metadata.numPages} pagesLeft=${charge.pagesLeft} retryAt=${charge.retryAt.toISOString()}`);
+			return { kind: "over-ocr-quota", pages: metadata.numPages, pagesLeft: charge.pagesLeft, retryAt: charge.retryAt };
 		}
 		let completedParts = 0;
 
@@ -179,7 +223,9 @@ export function initOcrPdf(deps: {
 					return { kind: "failed", reason: `OCR succeeded for ${successCount} of ${partCount} chunks — below ${Math.round(partialSuccessThreshold * 100)}% threshold` };
 				}
 
+				const degradation = new Set<string>();
 				if (successCount < partCount) {
+					degradation.add("partial");
 					const failedPages = collectFailedPages(outcomes);
 					logger.warn(`[ocr-pdf] accepting partial result ${successCount}/${partCount} chunks ratio=${successRatio.toFixed(2)} threshold=${partialSuccessThreshold}; failed pages=[${failedPages.join(",")}]`);
 				}
@@ -209,8 +255,10 @@ export function initOcrPdf(deps: {
 						ocrText: originalText,
 					});
 					if (cleanupResult.ok) {
+						if (cleanupResult.providerFailed) degradation.add("cleanup-provider-failed");
 						cleanedTexts[index] = cleanupResult.cleanedText;
 					} else {
+						degradation.add("cleanup-invoke-failed");
 						logger.warn(`[ocr-pdf] cleanup invoke failed for pages=[${outcome.pageIndices.join(",")}] reason=${cleanupResult.error.message} — using original Tesseract text`);
 						cleanedTexts[index] = originalText;
 					}
@@ -238,10 +286,12 @@ export function initOcrPdf(deps: {
 				if (reviewInputPages.length > 0) {
 					const reviewResult = await invokeDocumentDiffReview({ pages: reviewInputPages });
 					if (reviewResult.ok) {
+						if (reviewResult.providerFailed) degradation.add("diff-review-provider-failed");
 						for (const page of reviewResult.pages) {
 							finalByPageIndex.set(page.pageIndex, page.finalText);
 						}
 					} else {
+						degradation.add("diff-review-invoke-failed");
 						logger.warn(`[ocr-pdf] diff-review invoke failed reason=${reviewResult.error.message} — using stage 1 cleaned text per page`);
 						for (const page of reviewInputPages) {
 							finalByPageIndex.set(page.pageIndex, page.cleanedText);
@@ -268,8 +318,10 @@ export function initOcrPdf(deps: {
 						pageText: finalText,
 					});
 					if (convertResult.ok) {
+						if (convertResult.providerFailed) degradation.add("html-convert-provider-failed");
 						htmlByPageIndex.set(page.pageIndex, convertResult.semanticHtml);
 					} else {
+						degradation.add("html-convert-invoke-failed");
 						logger.warn(`[ocr-pdf] html-convert invoke failed for page=${page.pageIndex} reason=${convertResult.error.message} — wrapping final text as <p class="ocr-tesseract"> paragraphs`);
 						htmlByPageIndex.set(page.pageIndex, rewrapAsTesseractHtml(finalText));
 					}
@@ -305,11 +357,9 @@ export function initOcrPdf(deps: {
 				// this pass closes them via linkedom's parse-then-serialise
 				// round-trip and re-enforces the element / attribute allowlist
 				// on the whole document.
-				return {
-					kind: "fetched",
-					html: buildSyntheticHtml({ title, body: sanitizeFragment(combined) }),
-					title,
-				};
+				const parse = { html: buildSyntheticHtml({ title, body: sanitizeFragment(combined) }), title };
+				if (scope.kind === "account") await keepCompleteParse({ scope, degradation, parse });
+				return { kind: "fetched", ...parse };
 			} finally {
 				await staged.cleanup();
 			}
@@ -327,6 +377,8 @@ export function initOcrPdf(deps: {
 		}
 	};
 }
+
+type AccountScope = Extract<ParsedPdfScope, { kind: "account" }>;
 
 type ChunkOutcome =
 	| { ok: true; pageIndices: readonly number[]; html: string }

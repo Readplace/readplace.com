@@ -196,7 +196,7 @@ import type {
 import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveAnonymousLink, PublishSubmitLink } from "@packages/provider-contracts/events";
-import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
+import type { RequestStaleCheck } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/events";
 import type { PublishExportUserDataCommand } from "@packages/provider-contracts/events";
@@ -221,8 +221,10 @@ import type {
 	RedeemBrowserHandoffCode,
 } from "@packages/provider-contracts/browser-handoff";
 import type {
+	ClaimRateLimitUnits,
 	ConsumeRateLimit,
 	RateLimitRules,
+	ReadOcrPagesLeft,
 } from "@packages/provider-contracts/rate-limit";
 import type {
 	FindOAuthClient,
@@ -270,6 +272,7 @@ import { initUploadRouter, UPLOAD_PROTOCOL_HTML } from "./web/pages/upload/uploa
 import { UPLOAD_PROTOCOL_SIREN } from "./web/pages/upload/upload.outcome.siren";
 import { initCommitReceivedUpload } from "./web/pages/upload/commit-received-upload";
 import { initChargeBeforeSettle } from "./web/pages/upload/charge-before-settle";
+import { initMeterBookUploads } from "./web/pages/upload/meter-book-uploads";
 import { initChargeTranscript } from "./web/pages/upload/charge-transcript";
 import { initStageGatesByCaller } from "./web/pages/upload/stage-gates-by-caller";
 import { initSettleByCaller, initStageForReview } from "./web/pages/upload/stage-for-review";
@@ -324,6 +327,8 @@ import { initMcpServer } from "./web/mcp/mcp-server";
 import { mcpServerDependenciesFrom } from "./web/mcp/mcp.wiring";
 import { readlistDependenciesFrom } from "./web/pages/readlist/readlist.wiring";
 import { importSessionDependenciesFrom } from "./web/pages/import/import.wiring";
+import { initClaimDailySaves } from "./web/pages/readlist/daily-save-allowance";
+import { initHasNoOcrPagesLeft } from "./web/pages/readlist/ocr-page-allowance";
 import { viewDependenciesFrom } from "./web/pages/view/view.wiring";
 import { accountDependenciesFrom } from "./web/pages/account/account.wiring";
 import { initResolveOwnedArticle } from "./web/mcp/article-lookup";
@@ -404,8 +409,8 @@ import type { FindCanaryReport } from "@packages/provider-contracts/canary-repor
 import { LANDING_PAGE_CONTENT, LandingPage, landingPageLastModified } from "./web/pages/landing-pages";
 import type { LandingPageSlug } from "./web/pages/landing-pages";
 import { NotFoundPage } from "./web/pages/not-found";
-import { initGetEffectiveAccess } from "@packages/subscription-access";
-import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
+import { type EffectiveAccess, initGetEffectiveAccess } from "@packages/subscription-access";
+import { initRequirePaidFeatures } from "./web/middleware/require-paid-features.middleware";
 import { initCanSaveContent } from "./web/middleware/can-save-content";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { requireNotLocked } from "./web/middleware/require-not-locked.middleware";
@@ -561,7 +566,7 @@ export interface AppDependencies {
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishSubmitLink: PublishSubmitLink;
-	publishStaleCheckRequested: PublishStaleCheckRequested;
+	requestStaleCheck: RequestStaleCheck;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
@@ -686,7 +691,10 @@ export interface AppDependencies {
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
+	claimRateLimitUnits: ClaimRateLimitUnits;
+	readOcrPagesLeft: ReadOcrPagesLeft;
 	rateLimitRules: RateLimitRules;
+	isDailyLimited: (access: EffectiveAccess) => boolean;
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -775,7 +783,19 @@ export function createApp(dependencies: AppDependencies): Express {
 		findUserById: deps.findUserById,
 		now: deps.now,
 	});
-	const resolveToolAccess = initResolveToolAccess({ getEffectiveAccess });
+	const resolveToolAccess = initResolveToolAccess({ getEffectiveAccess, isDailyLimited: deps.isDailyLimited });
+	const claimDailySaves = initClaimDailySaves({
+		getEffectiveAccess,
+		isDailyLimited: deps.isDailyLimited,
+		findSavedUrls: deps.findSavedUrls,
+		claimRateLimitUnits: deps.claimRateLimitUnits,
+		rule: deps.rateLimitRules.dailySaves,
+	});
+	const hasNoOcrPagesLeft = initHasNoOcrPagesLeft({
+		getEffectiveAccess,
+		isDailyLimited: deps.isDailyLimited,
+		readOcrPagesLeft: deps.readOcrPagesLeft,
+	});
 	const resolveMcpSaveProvenance = initResolveMcpSaveProvenance({
 		findOAuthClient: deps.findOAuthClient,
 	});
@@ -850,6 +870,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		readlistOperations,
 		highlightOperations,
 		resolveSaveAccess,
+		claimDailySaves,
 		recordUngatedAnalyticsEvent,
 		validateNewSaveUrl,
 		resolveMcpSaveProvenance,
@@ -942,14 +963,8 @@ export function createApp(dependencies: AppDependencies): Express {
 	const markExtensionInstalled = initMarkExtensionInstalled({ secureCookies });
 	app.use(markExtensionInstalled);
 
-	const requireWriteAccess = initRequireWriteAccess({
-		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
-		now: deps.now,
-	});
-	const canSaveContent = initCanSaveContent({
-		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
-		now: deps.now,
-	});
+	const requirePaidFeatures = initRequirePaidFeatures({ getEffectiveAccess });
+	const canSaveContent = initCanSaveContent();
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
 		findUserById: deps.findUserById,
@@ -1570,9 +1585,11 @@ export function createApp(dependencies: AppDependencies): Express {
 		markdownBearerAuth,
 		resolveOwnedArticle,
 		resolveVerificationStatus,
-		requireWriteAccess,
+		requirePaidFeatures,
 		canSaveContent,
 		getEffectiveAccess,
+		claimDailySaves,
+		hasNoOcrPagesLeft,
 		buildBannerState,
 		recordAnalyticsEvent,
 		recordUngatedAnalyticsEvent,
@@ -1592,27 +1609,33 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordUngatedAnalyticsEvent,
 		buildBannerState,
 		requireNotLocked,
-		requireWriteAccess,
+		claimDailySaves,
 	}));
 	/** Public on purpose: a logged-out visitor can upload, review, and toggle a
 	 * selection before being asked to sign up. Auth is enforced only at commit
 	 * (the sole content-creating route), where `redirectAnonymousToSignup` and the
-	 * `requireNotLocked`/`requireWriteAccess` gates run as route middleware. */
+	 * `requireNotLocked` gate run as route middleware. */
 	app.use("/import", importRouter);
 
-	const commitReceivedUpload = initChargeBeforeSettle({
-		charge: initChargeTranscript({
-			readDurationByMeter: deps.readDurationByMeter,
-			chargeTranscriptQuota: deps.chargeTranscriptQuota,
-			allowanceSeconds: deps.transcriptAllowanceSeconds,
+	const commitReceivedUpload = initMeterBookUploads({
+		getEffectiveAccess,
+		consumeRateLimit: deps.consumeRateLimit,
+		rule: deps.rateLimitRules.bookUpload,
+		now: deps.now,
+		settle: initChargeBeforeSettle({
+			charge: initChargeTranscript({
+				readDurationByMeter: deps.readDurationByMeter,
+				chargeTranscriptQuota: deps.chargeTranscriptQuota,
+				allowanceSeconds: deps.transcriptAllowanceSeconds,
+			}),
+			settle: initCommitReceivedUpload({
+				savePrivateItem: deps.savePrivateItem,
+				publishMediaUploadCommitted: deps.publishMediaUploadCommitted,
+				markMediaUploadCommitted: deps.markMediaUploadCommitted,
+				now: deps.now,
+			}),
+			refund: deps.refundUnstartedCharge,
 		}),
-		settle: initCommitReceivedUpload({
-			savePrivateItem: deps.savePrivateItem,
-			publishMediaUploadCommitted: deps.publishMediaUploadCommitted,
-			markMediaUploadCommitted: deps.markMediaUploadCommitted,
-			now: deps.now,
-		}),
-		refund: deps.refundUnstartedCharge,
 	});
 	app.use(
 		"/upload",
@@ -1621,7 +1644,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			claimMediaUpload: deps.claimMediaUpload,
 			commitReceivedUpload,
 			requireNotLocked,
-			requireWriteAccess,
 			GUEST_UPLOAD_KINDS: deps.guestUploadKinds,
 			MEDIA_KINDS: deps.mediaKinds,
 			transcriptAllowanceSeconds: deps.transcriptAllowanceSeconds,
@@ -1634,7 +1656,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		initUploadRouter({
 			stageGates: [
 				initStageGatesByCaller({
-					signedIn: [requireNotLocked, requireWriteAccess],
+					signedIn: [requireNotLocked],
 					guest: [
 						createRateLimitMiddleware({
 							consumeRateLimit: deps.consumeRateLimit,
@@ -1680,6 +1702,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		secureCookies,
 		buildBannerState,
 		recordAnalyticsEvent,
+		getEffectiveAccess,
+		claimDailySaves,
 	}));
 	app.use("/view", viewRouter);
 
@@ -1687,7 +1711,10 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const exportRouter = initExportRoutes({
 		publishExportUserDataCommand: deps.publishExportUserDataCommand,
-		now: () => new Date(),
+		getEffectiveAccess,
+		consumeRateLimit: deps.consumeRateLimit,
+		exportRule: deps.rateLimitRules.export,
+		now: deps.now,
 		buildBannerState,
 	});
 	app.use("/export", requireAuth, exportRouter);
@@ -1756,7 +1783,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 		requireAuth,
 		requireNotLocked,
-		requireWriteAccess,
+		requirePaidFeatures,
 		getEffectiveAccess,
 		appOrigin,
 		secureCookies,

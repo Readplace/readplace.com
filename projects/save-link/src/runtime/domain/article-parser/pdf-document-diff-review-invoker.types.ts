@@ -24,6 +24,7 @@ export type InvokePdfDocumentDiffReviewResult =
 		readonly ok: true;
 		readonly pages: ReadonlyArray<{ readonly pageIndex: number; readonly finalText: string }>;
 		readonly applied: boolean;
+		readonly providerFailed: boolean;
 		readonly tokens?: { readonly input: number; readonly output: number };
 	}
 	| { readonly ok: false; readonly error: Error };

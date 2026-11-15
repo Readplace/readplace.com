@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { inbox } from "@packages/translations/inbox";
 import { withInternalTracking } from "@packages/web-shell";
 import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
 import type {
@@ -12,6 +14,8 @@ import { toInboxSaveButtonViewModel } from "./inbox-save-button.viewmodel";
 
 export const INITIAL_SAVE_POLL_COUNT = 1;
 
+const { t } = translator(inbox, DEFAULT_LOCALE);
+
 const SKIP_REASON_LABELS: Record<EmailLinkSkipReason, string> = {
 	"list-unsubscribe": "Unsubscribe link",
 	"action-link-pattern": "Unsubscribe or account link",
@@ -20,6 +24,7 @@ const SKIP_REASON_LABELS: Record<EmailLinkSkipReason, string> = {
 	"llm-menu": "Site navigation",
 	"llm-subscription": "Subscription management",
 	"social-host": "Social link — not saved automatically",
+	"paid-plan": t("excludedLink.reason.paidPlan"),
 };
 
 const GENERIC_EXCLUDED_LABEL = "Not an article";

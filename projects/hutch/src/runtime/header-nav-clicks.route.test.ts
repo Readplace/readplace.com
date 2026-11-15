@@ -20,8 +20,8 @@ function uniqueByKey(items: NavItem[]): NavItem[] {
 
 const GUEST_ITEMS = uniqueByKey(buildGuestNavGroups().flatMap((group) => group.items));
 const MEMBER_ITEMS = uniqueByKey(
-	[false, true].flatMap((accessIsReadOnly) =>
-		buildNavGroups({ accessIsReadOnly }).flatMap((group) => group.items),
+	[false, true].flatMap((paidFeaturesLocked) =>
+		buildNavGroups({ paidFeaturesLocked }).flatMap((group) => group.items),
 	),
 );
 

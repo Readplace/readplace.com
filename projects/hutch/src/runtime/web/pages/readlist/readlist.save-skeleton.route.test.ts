@@ -113,7 +113,7 @@ describe("GET /queue save skeleton", () => {
 		expect(doc.querySelector('[data-test-action="add-link"]')).toBeNull();
 	});
 
-	it("stays inert when access is read-only", async () => {
+	it("arms for a free-plan reader, since saving is a core write", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -121,20 +121,17 @@ describe("GET /queue save skeleton", () => {
 		assert(user, "the logged-in test user must exist");
 		await subscriptionProviders.upsertActive({
 			userId: user.userId,
-			subscriptionId: "sub_ro",
-			customerId: "cus_ro",
+			subscriptionId: "sub_free",
+			customerId: "cus_free",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId: user.userId });
 
-		const webResponse = await agent.get("/queue");
-		const response = await agent.get("/queue?platform=ios");
+		const response = await agent.get("/queue");
 
-		expect(skeletonOf(webResponse.text).classList.contains("readlist-save-skeleton--inert")).toBe(true);
-		const doc = documentOf(response.text);
-		expect(skeletonOf(response.text).classList.contains("readlist-save-skeleton--inert")).toBe(true);
-		const input = doc.querySelector<HTMLInputElement>('[data-test-form="save-article"] input[name="url"]');
-		assert(input, "the save input renders disabled for a read-only reader with no upgrade on offer");
-		expect(input.disabled).toBe(true);
+		expect(skeletonOf(response.text).classList.contains("readlist-save-skeleton--armed")).toBe(true);
+		const input = documentOf(response.text).querySelector<HTMLInputElement>('[data-test-form="save-article"] input[name="url"]');
+		assert(input, "the save input must render");
+		expect(input.disabled).toBe(false);
 	});
 });
 

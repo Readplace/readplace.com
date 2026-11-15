@@ -32,7 +32,7 @@ export function initReadlistGmailSenders(deps: {
 	gmail: GmailIntegrationDependencies;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	getEffectiveAccess: GetEffectiveAccess;
-	requireWriteAccess: RequestHandler;
+	requirePaidFeatures: RequestHandler;
 	startGmailDiscovery: StartGmailDiscovery;
 	save: SaveReadlistGmailSenders;
 }): { load: LoadReadlistGmailSenders; routes: Router } {
@@ -109,7 +109,7 @@ export function initReadlistGmailSenders(deps: {
 	router.post(
 		"/queues/:slug/preferences/gmail/discovery",
 		requireNotLocked,
-		deps.requireWriteAccess,
+		deps.requirePaidFeatures,
 		async (req: Request, res: Response) => {
 			const owned = await ownedReadlist(req);
 			if (owned === undefined) {
@@ -136,7 +136,7 @@ export function initReadlistGmailSenders(deps: {
 	router.post(
 		"/queues/:slug/preferences/gmail",
 		requireNotLocked,
-		deps.requireWriteAccess,
+		deps.requirePaidFeatures,
 		async (req: Request, res: Response) => {
 			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
 			if (!requested.success) {

@@ -1,27 +1,27 @@
-import { subscriptionInactiveSirenError } from "./subscription-inactive-siren";
+import { paidFeatureSirenError } from "./paid-feature-siren";
 
-describe("subscriptionInactiveSirenError", () => {
+describe("paidFeatureSirenError", () => {
 	it("is an error entity carrying a server-authored warning message", () => {
-		const entity = subscriptionInactiveSirenError();
+		const entity = paidFeatureSirenError();
 		expect(entity.class).toEqual(["error"]);
 		expect(entity.properties?.messages).toEqual([
 			{
 				type: "warning",
 				content: {
 					type: "text/html",
-					body: expect.stringContaining("subscription"),
+					body: "This feature isn't on the free plan.",
 				},
 			},
 		]);
 	});
 
 	it("carries no code — the client keys off the message, not a per-feature code", () => {
-		const entity = subscriptionInactiveSirenError();
+		const entity = paidFeatureSirenError();
 		expect(entity.properties?.code).toBeUndefined();
 	});
 
-	it("models no action — reactivating happens on the web, not a transition the client invokes", () => {
-		const entity = subscriptionInactiveSirenError();
+	it("models no action — upgrading happens on the web, not a transition the client invokes", () => {
+		const entity = paidFeatureSirenError();
 		expect(entity.actions).toBeUndefined();
 	});
 });

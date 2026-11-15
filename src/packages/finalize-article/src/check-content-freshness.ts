@@ -53,6 +53,7 @@ export function initRefreshArticleIfStale(deps: {
 			etag: freshness.etag,
 			lastModified: freshness.lastModified,
 			previousBodyHash: freshness.bodyHash,
+			chargeOcrPages: undefined,
 		});
 
 		if (result.status === "not-modified") {
@@ -67,7 +68,9 @@ export function initRefreshArticleIfStale(deps: {
 			result.status === "failed" ||
 			result.status === "blocked" ||
 			result.status === "not-found" ||
-			result.status === "unsupported"
+			result.status === "unsupported" ||
+			result.status === "pdf-awaiting-saver" ||
+			result.status === "over-ocr-quota"
 		) {
 			return { action: "skip" };
 		}

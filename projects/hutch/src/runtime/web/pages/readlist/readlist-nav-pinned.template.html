@@ -31,9 +31,6 @@
         <button class="readlist-row__main readlist-nav__new" type="submit" data-test-action="readlist-limit-in-{{../placement}}">{{icon "plus"}}<span class="readlist-row__label">{{t "readlistNav.more.create"}}</span></button>
       </form>
       {{/each}}
-      {{#each @root.createLocks}}
-      <span class="readlist-more__create">{{{this}}}</span>
-      {{/each}}
       <button class="readlist-more__close" type="button" popovertarget="{{id}}" popovertargetaction="hide" data-test-action="readlist-more-close">{{icon "x"}}<span class="sr-only">{{t "readlistNav.more.close"}}</span></button>
     </div>
     <div class="readlist-more__body" data-readlist-switch-body>
@@ -60,11 +57,6 @@
         <button class="btn btn--primary" type="submit" data-test-action="readlist-create-fallback">{{t "readlistNav.more.createSubmit"}}</button>
       </form>
     </details>
-  </div>
-  {{/each}}
-  {{#each createLocks}}
-  <div class="readlist-row readlist-nav__new-row">
-    {{{this}}}
   </div>
   {{/each}}
   {{#each limitForms}}

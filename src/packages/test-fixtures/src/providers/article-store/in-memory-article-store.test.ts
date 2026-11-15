@@ -525,13 +525,13 @@ describe("initInMemoryArticleStore", () => {
 		const BEFORE = new Date("2026-03-01T09:00:00.000Z");
 		const AFTER = new Date("2026-03-01T11:00:00.000Z");
 
-		it("writes a user row for an absent article and reports it landed", async () => {
+		it("writes a user row for an absent article", async () => {
 			const store = initInMemoryArticleStore();
 
 			const result = await store.saveArticleAsRequested({ ...makeArticleParams({ savedAt: REQUESTED_AT }), requestedAt: REQUESTED_AT });
 
 			expect(result.wroteUserArticle).toBe(true);
-			expect(await store.hasSaveLandedSince({ userId: USER_A, url: URL, requestedAt: REQUESTED_AT })).toBe(true);
+			expect((await store.findArticleById(ReaderArticleHashId.from(URL), USER_A))?.savedAt).toEqual(REQUESTED_AT);
 		});
 
 		it("refuses an article purged at or after the request", async () => {
@@ -543,7 +543,7 @@ describe("initInMemoryArticleStore", () => {
 				store.saveArticleAsRequested({ ...makeArticleParams({ savedAt: REQUESTED_AT }), requestedAt: REQUESTED_AT }),
 			).rejects.toBeInstanceOf(ArticlePurgedAfterRequest);
 			expect((await store.findArticleByUrl(URL))?.purgedAt).toEqual(REQUESTED_AT);
-			expect(await store.hasSaveLandedSince({ userId: USER_A, url: URL, requestedAt: BEFORE })).toBe(false);
+			expect(await store.findArticleById(ReaderArticleHashId.from(URL), USER_A)).toBeNull();
 		});
 
 		it("revives an article purged before the request", async () => {
@@ -589,14 +589,7 @@ describe("initInMemoryArticleStore", () => {
 			});
 
 			expect((await store.findReadlistArticleById({ id: saved.id, userId: USER_A, readlist: WORK }))?.savedAt).toEqual(REQUESTED_AT);
-			expect(await store.hasSaveLandedSince({ userId: USER_A, url: URL, requestedAt: REQUESTED_AT })).toBe(false);
-		});
-
-		it("reports no landed save when the row is older than the request", async () => {
-			const store = initInMemoryArticleStore();
-			await store.saveArticle(makeArticleParams({ savedAt: BEFORE }));
-
-			expect(await store.hasSaveLandedSince({ userId: USER_A, url: URL, requestedAt: REQUESTED_AT })).toBe(false);
+			expect(await store.findArticleById(ReaderArticleHashId.from(URL), USER_A)).toBeNull();
 		});
 	});
 
@@ -2223,6 +2216,31 @@ describe("initInMemoryArticleStore", () => {
 			await expect(
 				store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt }),
 			).rejects.toThrow(ReadlistLimitReachedError);
+		});
+	});
+
+	describe("markOcrPagesHeld", () => {
+		it("surfaces the hold on the saver's article", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			const hold = { pages: 40, pagesLeft: 12, retryAt: new Date("2026-11-16T03:00:00.000Z") };
+
+			await store.markOcrPagesHeld({ userId: USER_A, url: "https://example.com/article", hold });
+
+			const article = await store.findArticleById(saved.id, USER_A);
+			assert(article);
+			assert.deepEqual(article.ocrPagesHold, hold);
+		});
+
+		it("writes nothing for a url the reader has not saved", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+
+			await store.markOcrPagesHeld({ userId: USER_B, url: "https://example.com/article", hold: { pages: 1, pagesLeft: 0, retryAt: new Date(0) } });
+
+			const article = await store.findArticleById(saved.id, USER_A);
+			assert(article);
+			assert.equal(article.ocrPagesHold, undefined);
 		});
 	});
 

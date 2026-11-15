@@ -150,3 +150,13 @@ export function renderNextRead(input: NextReadInput): string {
 		cards,
 	});
 }
+
+export function renderLockedNextRead(input: { locks: readonly string[] }): string {
+	return render(NEXT_READ_TEMPLATE, {
+		status: "locked",
+		stateClass: input.locks.length > 0 ? READY_CLASS : HIDDEN_CLASS,
+		cards: [],
+		locks: input.locks,
+		lockedHeading: STATUS_COPY.unread.heading,
+	});
+}

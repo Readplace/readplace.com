@@ -20,11 +20,18 @@ import { DEFAULT_LOCALE } from "@packages/translations/locale";
 import { translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { ReadlistSlugsSchema } from "./readlist-slugs";
+import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
+import type { AddLinkFormError } from "./readlist-add-link.component";
 
 export const SAVE_FAILED_MESSAGE = "Couldn't save this article. Try again.";
 
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
+
+export const DAILY_SAVE_LIMIT_FORM_ERROR: AddLinkFormError = { message: t("readlistSaveLimit.formError") };
+
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
 	save_failed: SAVE_FAILED_MESSAGE,
+	[SAVE_REFUSAL_CODES.dailySaveLimit]: DAILY_SAVE_LIMIT_FORM_ERROR.message,
 };
 
 const SAVEABLE_URL_REJECTION_COPY: Record<

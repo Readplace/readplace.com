@@ -14,6 +14,6 @@ it("defers the registered document landing's declared PDF to comprehensive extra
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
 	const crawl = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 
-	expect(await crawl({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
 	expect(requested).toEqual([url, download]);
 });

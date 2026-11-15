@@ -216,7 +216,7 @@ async function loginAs(page: Page, email: string): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 }
 
-async function seedBilling(page: Page, input: { userId: string; state: "active" | "inactive" }): Promise<void> {
+async function seedBilling(page: Page, input: { userId: string; state: "active" | "free" }): Promise<void> {
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
 		data: {
 			userId: input.userId,
@@ -894,13 +894,13 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 		});
 	}
 
-	test("the account's Inactive chip reads by its border and label in greyscale", async ({ page }, testInfo) => {
+	test("the account's Free plan chip reads by its border and label in greyscale", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
 		const { email, userId } = await createEinkUser(page, `account-billing-inactive-${testInfo.workerIndex}-${Date.now()}`);
-		await seedBilling(page, { userId, state: "inactive" });
+		await seedBilling(page, { userId, state: "free" });
 		await loginAs(page, email);
 		await page.goto(`${BASE_URL}/account`, { waitUntil: "domcontentloaded" });
-		await expect(page.locator("[data-test-account-plan-chip]")).toHaveText("Inactive");
+		await expect(page.locator("[data-test-account-plan-chip]")).toHaveText("Free plan");
 		await settle(page, ACCOUNT_BILLING);
 
 		await expect(page.locator(ACCOUNT_BILLING)).toHaveScreenshot("eink-account-billing-inactive-light.png", CONTRAST_SENSITIVE);

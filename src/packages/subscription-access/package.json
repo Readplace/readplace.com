@@ -1,7 +1,7 @@
 {
   "name": "@packages/subscription-access",
   "version": "1.0.0",
-  "description": "The subscription domain layer shared by hutch and the subscription service: the row schema (with its mapping to a SubscriptionRecord) and the write-access decision (subscription status \u2192 full | read-only) that drives hutch's save gates",
+  "description": "The subscription domain layer shared by hutch and the subscription service: the row schema (with its mapping to a SubscriptionRecord) and the plan decision (paid, trial or free) that drives hutch's paid-only gates and daily limits",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": true,

@@ -19,6 +19,7 @@ export interface PdfPageHtmlConvertOutput {
 	readonly pageIndex: number;
 	readonly semanticHtml: string;
 	readonly applied: boolean;
+	readonly providerFailed: boolean;
 	readonly tokens?: { readonly input: number; readonly output: number };
 }
 

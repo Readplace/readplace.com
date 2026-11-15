@@ -7,6 +7,7 @@ import type {
 	MarkRelatedArticlesSkipped,
 	RelatedTargetArticle,
 } from "@packages/provider-contracts/related-articles";
+import type { FindPlanAccess } from "./find-plan-access.types";
 import { RelatedArticlesComputedEvent } from "./index";
 import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
 import type { RecommendationTrigger, SelectRelatedArticles } from "./related-articles-selector";
@@ -51,6 +52,7 @@ type ComputeNextRead = (params: {
 const triggerOf = (save: NextReadSave): { trigger: RecommendationTrigger } => ({ trigger: save.trigger });
 
 export function initNextReadComputation(deps: {
+	findPlanAccess: FindPlanAccess;
 	gatherRelatedCandidatePools: GatherRelatedCandidatePools;
 	selectRelatedArticles: SelectRelatedArticles;
 	markRelatedArticlesReady: MarkRelatedArticlesReady;
@@ -60,6 +62,7 @@ export function initNextReadComputation(deps: {
 	logger: Logger;
 }): { skipNextRead: SkipNextRead; computeNextRead: ComputeNextRead } {
 	const {
+		findPlanAccess,
 		gatherRelatedCandidatePools,
 		selectRelatedArticles,
 		markRelatedArticlesReady,
@@ -98,6 +101,10 @@ export function initNextReadComputation(deps: {
 
 	const computeNextRead: ComputeNextRead = async ({ save, target }) => {
 		const { crawlStatus } = target;
+		if ((await findPlanAccess({ userId: save.userId })) === "free") {
+			await skipNextRead({ save, reason: "paid-plan", details: { crawlStatus } });
+			return;
+		}
 		const pools = await gatherRelatedCandidatePools({
 			userId: save.userId,
 			excludeUrl: save.url,

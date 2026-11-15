@@ -24,6 +24,7 @@ export interface PdfPageLlmCleanupOutput {
 	readonly pageIndex: number;
 	readonly cleanedText: string;
 	readonly applied: boolean;
+	readonly providerFailed: boolean;
 	readonly tokens?: { readonly input: number; readonly output: number };
 }
 

@@ -45,7 +45,7 @@ export type { IsBlockedAddress, ResolveAll } from "./blocked-address-lookup";
 export { createLiteralHostGuard, createPinnedAddressResolver, defaultResolveAll } from "./blocked-address-lookup";
 export { isAwsWafChallenge } from "./aws-waf-challenge";
 export { hasFastlyChallengeMarkers } from "./fastly-client-challenge";
-export type { ExtractPdf, PdfExtractProgress, PdfExtractResult, PdfExtractStage } from "./pdf-extract.types";
+export type { ChargeOcrPages, ExtractPdf, OcrPageCharge, ParsedPdfScope, PdfExtractProgress, PdfExtractResult, PdfExtractStage } from "./pdf-extract.types";
 export { isPDF } from "./pdf-detect";
 export type { PdfSignal } from "./pdf-detect";
 export { extractPdfMetadata } from "./extract-pdf-metadata";

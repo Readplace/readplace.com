@@ -26,6 +26,8 @@ import {initSaveArticleFromUrl,
 	rankNewLinksAbove,
 } from "@packages/save-article";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
+import { DAILY_SAVE_LIMIT_MESSAGE, OCR_PAGE_QUOTA_CODE, OCR_PAGE_QUOTA_MESSAGE, sendDailySaveLimit } from "../../middleware/rate-limit";
+import { DAILY_SAVE_LIMIT_FORM_ERROR } from "./readlist.error";
 import { tagSaveRefusal } from "../../shared/save-refusal";
 import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
@@ -119,6 +121,10 @@ function normalizeMediaType(mediaType: string): string {
 	return base;
 }
 
+function isPdfMediaType(mediaType: string): boolean {
+	return normalizeMediaType(mediaType) === "application/pdf";
+}
+
 function safeJsonParse(text: string): unknown {
 	try {
 		return JSON.parse(text);
@@ -132,7 +138,7 @@ const SAVE_ATTEMPT_ID_HEADER = "x-readplace-save-attempt-id";
 export function initReadlistSaveRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"saveArticleKeepingPosition" | "saveArticleWithoutActivity" | "recordNativeAppSavedArticle" | "secureCookies" | "recordAnalyticsEvent" | "now" | "salt" | "publishSubmitLink" | "putPendingPdf" | "publishSaveLinkRawPdfCommand" | "readPendingUploadPrefix" | "putPendingHtml" | "publishSaveLinkRawHtmlCommand" | "requireWriteAccess" | "validateNewSaveUrl" | "findArticlesByUser" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "refreshArticleIfStale" | "fileArticleIntoReadlist" | "refreshArticleIfStaleStored" | "findSavedUrls" | "allocateSavedAtSequence" | "recordEngagementActivity" | "allocateSavedAt" | "validateSaveableUrl" | "statPendingUpload" | "resolveSaveIdentity" | "createUploadSlot" | "updateArticleStatus" | "markCrawlPending" | "markSummaryPending" | "pinContentSource" | "publishUpdateFetchTimestamp" | "publishLinkSaved" | "publishLinkQueued" | "publishQueueEntryCreated" | "publishComputeRelatedPasses" | "publishComputeRelatedPastReads" | "readRelatedPassRequestState" | "markRelatedPassesRequested"
+		"saveArticleKeepingPosition" | "saveArticleWithoutActivity" | "recordNativeAppSavedArticle" | "secureCookies" | "recordAnalyticsEvent" | "now" | "salt" | "publishSubmitLink" | "putPendingPdf" | "publishSaveLinkRawPdfCommand" | "readPendingUploadPrefix" | "putPendingHtml" | "publishSaveLinkRawHtmlCommand" | "claimDailySaves" | "hasNoOcrPagesLeft" | "validateNewSaveUrl" | "findArticlesByUser" | "findArticleCrawlStatuses" | "logError" | "findGeneratedSummaries" | "refreshArticleIfStale" | "fileArticleIntoReadlist" | "refreshArticleIfStaleStored" | "findSavedUrls" | "allocateSavedAtSequence" | "recordEngagementActivity" | "allocateSavedAt" | "validateSaveableUrl" | "statPendingUpload" | "resolveSaveIdentity" | "createUploadSlot" | "updateArticleStatus" | "markCrawlPending" | "markSummaryPending" | "pinContentSource" | "publishUpdateFetchTimestamp" | "publishLinkSaved" | "publishLinkQueued" | "publishQueueEntryCreated" | "publishComputeRelatedPasses" | "publishComputeRelatedPastReads" | "readRelatedPassRequestState" | "markRelatedPassesRequested"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -240,7 +246,7 @@ export function initReadlistSaveRoutes(
 	const parseCaptureTrigger = (raw: string | undefined) =>
 		CaptureTriggerSchema.default("manual").safeParse(raw);
 
-	router.post(SAVE_ROUTE.saveArticle, requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
+	router.post(SAVE_ROUTE.saveArticle, requireNotLocked, express.json(), async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;
@@ -297,6 +303,11 @@ export function initReadlistSaveRoutes(
 		}
 
 		try {
+			const allowance = await deps.claimDailySaves({ userId, urls: [validation.url] });
+			if (allowance.granted.length === 0) {
+				sendDailySaveLimit(res, allowance);
+				return;
+			}
 			const addressedFiling = readlistToFileInto(context);
 			const ticked = readlistsAtHrefs({
 				hrefs: [
@@ -312,7 +323,7 @@ export function initReadlistSaveRoutes(
 						readlist.slug !== DEFAULT_READLIST_SLUG && readlist.slug !== addressedFiling,
 				),
 			];
-			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+			const freshness = await deps.refreshArticleIfStale({ url: validation.url, requester: { account: userId } });
 			const saveAttemptId = newSaveAttemptId();
 			if (freshness.action === "unresolved") {
 				await queueUnresolvedSave({
@@ -390,7 +401,7 @@ export function initReadlistSaveRoutes(
 		logError: deps.logError,
 		maxBytes: MAX_UPLOAD_REQUEST_BYTES,
 	});
-	router.post(SAVE_ROUTE.saveArticles, requireNotLocked, deps.requireWriteAccess, saveArticlesUpload.rawBodyParser, saveArticlesLimitHandler, async (req: Request, res: Response) => {
+	router.post(SAVE_ROUTE.saveArticles, requireNotLocked, saveArticlesUpload.rawBodyParser, saveArticlesLimitHandler, async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			tagSaveRefusal(res, SAVE_REFUSAL_CODES.notSiren);
 			res.status(406).send("Not Acceptable");
@@ -433,9 +444,10 @@ export function initReadlistSaveRoutes(
 			| { kind: "content"; index: number; url: SaveableUrl; title?: string; mediaType: string; bytes: Buffer }
 			| { kind: "url-only"; index: number; url: SaveableUrl; title?: string };
 		type PageOutcome = { index: number; outcome: Exclude<BulkSaveOutcome, "skipped">; code?: "queued" };
-		const jobs: PageJob[] = [];
-		const skipped: { url: string; code: SaveableUrlErrorCode; message: string }[] = [];
-		const entryOutcomes: { outcome: BulkSaveOutcome; code?: SaveableUrlErrorCode | "queued" }[] = [];
+		type SkipCode = SaveableUrlErrorCode | typeof SAVE_REFUSAL_CODES.dailySaveLimit | typeof OCR_PAGE_QUOTA_CODE;
+		const manifestJobs: PageJob[] = [];
+		const skipped: { url: string; code: SkipCode; message: string }[] = [];
+		const entryOutcomes: { outcome: BulkSaveOutcome; code?: SkipCode | "queued" }[] = [];
 
 		manifest.data.forEach((entry, index) => {
 			const validation = deps.validateNewSaveUrl(entry.url);
@@ -453,11 +465,32 @@ export function initReadlistSaveRoutes(
 				? parsed.parts.find((p) => p.name === `content-${index}` && p.isFile)
 				: undefined;
 			if (mediaType && contentPart) {
-				jobs.push({ kind: "content", index, url, title: entry.title, mediaType, bytes: contentPart.content });
+				manifestJobs.push({ kind: "content", index, url, title: entry.title, mediaType, bytes: contentPart.content });
 			} else {
-				jobs.push({ kind: "url-only", index, url, title: entry.title });
+				manifestJobs.push({ kind: "url-only", index, url, title: entry.title });
 			}
 		});
+
+		const allowance = await deps.claimDailySaves({ userId, urls: manifestJobs.map((job) => job.url) });
+		if (manifestJobs.length > 0 && allowance.granted.length === 0) {
+			sendDailySaveLimit(res, allowance);
+			return;
+		}
+		const refusedUrls = new Set<string>(allowance.refused);
+		const grantedJobs = manifestJobs.filter((job) => !refusedUrls.has(job.url));
+		for (const job of manifestJobs) {
+			if (!refusedUrls.has(job.url)) continue;
+			skipped.push({ url: manifest.data[job.index].url, code: SAVE_REFUSAL_CODES.dailySaveLimit, message: DAILY_SAVE_LIMIT_MESSAGE });
+			entryOutcomes[job.index] = { outcome: "skipped", code: SAVE_REFUSAL_CODES.dailySaveLimit };
+		}
+		const isPdfJob = (job: PageJob): boolean => job.kind === "content" && isPdfMediaType(job.mediaType);
+		const outOfOcrPages = grantedJobs.some(isPdfJob) && (await deps.hasNoOcrPagesLeft({ userId }));
+		const jobs = outOfOcrPages ? grantedJobs.filter((job) => !isPdfJob(job)) : grantedJobs;
+		for (const job of grantedJobs) {
+			if (!outOfOcrPages || !isPdfJob(job)) continue;
+			skipped.push({ url: manifest.data[job.index].url, code: OCR_PAGE_QUOTA_CODE, message: OCR_PAGE_QUOTA_MESSAGE });
+			entryOutcomes[job.index] = { outcome: "skipped", code: OCR_PAGE_QUOTA_CODE };
+		}
 
 		const failOnePage = (job: PageJob, error: unknown): PageOutcome => {
 			deps.logError(`Failed to bulk-save url=${job.url}`, error instanceof Error ? error : undefined);
@@ -469,7 +502,7 @@ export function initReadlistSaveRoutes(
 
 		const prepareOnePage = async (job: PageJob): Promise<PreparedPage | PageOutcome> => {
 			try {
-				const freshness = await deps.refreshArticleIfStaleStored({ url: job.url });
+				const freshness = await deps.refreshArticleIfStaleStored({ url: job.url, requester: { account: userId } });
 				const saveAttemptId = newSaveAttemptId();
 				if (freshness.action === "unresolved") {
 					await deps.publishSubmitLink({
@@ -590,7 +623,6 @@ export function initReadlistSaveRoutes(
 	router.post(
 		SAVE_ROUTE.saveContent,
 		requireNotLocked,
-		deps.requireWriteAccess,
 		contentUpload.rawBodyParser,
 		saveContentLimitHandler,
 		async (req: Request, res: Response) => {
@@ -637,9 +669,9 @@ export function initReadlistSaveRoutes(
 			const size = sizeRaw !== undefined ? Number(sizeRaw) : Number.NaN;
 			const captureTrigger = parseCaptureTrigger(textPart("captureTrigger"));
 
-			const refuse = (message: string, code = "invalid-save-content") => {
+			const refuse = (message: string, code = "invalid-save-content", { status }: { status: 422 | 429 } = { status: 422 }) => {
 				emitSaveIntent({ req, url: submittedUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
-				res.status(422).type(SIREN_MEDIA_TYPE).json(
+				res.status(status).type(SIREN_MEDIA_TYPE).json(
 					sirenError({ code, message, actions: [buildFallbackAction()] }),
 				);
 			};
@@ -648,6 +680,20 @@ export function initReadlistSaveRoutes(
 				refuse("captureTrigger must be automatic or manual");
 				return;
 			}
+
+			const claimOneDailySave = async (url: string): Promise<boolean> => {
+				const allowance = await deps.claimDailySaves({ userId, urls: [url] });
+				if (allowance.granted.length > 0) return true;
+				tagSaveRefusal(res, SAVE_REFUSAL_CODES.dailySaveLimit);
+				refuse(DAILY_SAVE_LIMIT_MESSAGE, SAVE_REFUSAL_CODES.dailySaveLimit);
+				return false;
+			};
+
+			const refuseWithoutOcrPages = async (pdfMediaType: string): Promise<boolean> => {
+				if (!isPdfMediaType(pdfMediaType) || !(await deps.hasNoOcrPagesLeft({ userId }))) return false;
+				refuse(OCR_PAGE_QUOTA_MESSAGE, OCR_PAGE_QUOTA_CODE, { status: 429 });
+				return true;
+			};
 
 			const resolveTarget = (validate: ValidateSaveableUrl): { articleUrl: SaveableUrl; normalized: string; media: SaveContentMedia } | undefined => {
 				if (!mediaType) {
@@ -714,7 +760,9 @@ export function initReadlistSaveRoutes(
 						refuse(validation.error.message);
 						return;
 					}
-					const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+					if (!(await claimOneDailySave(validation.url))) return;
+					if (await refuseWithoutOcrPages(mediaType)) return;
+					const freshness = await deps.refreshArticleIfStale({ url: validation.url, requester: { account: userId } });
 					if (freshness.action === "unresolved") {
 						await queueUnresolvedSave({
 							req,
@@ -743,7 +791,8 @@ export function initReadlistSaveRoutes(
 					}
 					const target = resolveTarget(deps.validateSaveableUrl);
 					if (!target) return;
-					const freshness = await deps.refreshArticleIfStale({ url: target.articleUrl });
+					if (await refuseWithoutOcrPages(target.normalized)) return;
+					const freshness = await deps.refreshArticleIfStale({ url: target.articleUrl, requester: { account: userId } });
 					if (freshness.action === "unresolved") {
 						refuse(ORIGINAL_UNRESOLVED_MESSAGE, "original-unresolved");
 						return;
@@ -793,6 +842,8 @@ export function initReadlistSaveRoutes(
 						refuse(ORIGINAL_UNRESOLVED_MESSAGE, "original-unresolved");
 						return;
 					}
+					if (!(await claimOneDailySave(identity.url))) return;
+					if (await refuseWithoutOcrPages(target.normalized)) return;
 					const slot = await deps.createUploadSlot({ url: identity.url, mediaType: target.normalized, byteLength: size, saveAttemptId });
 					res.status(200).type(SIREN_MEDIA_TYPE).json(
 						toUploadSlotEntity({
@@ -822,7 +873,7 @@ export function initReadlistSaveRoutes(
 		},
 	);
 
-	router.post(SAVE_ROUTE.save, requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
+	router.post(SAVE_ROUTE.save, requireNotLocked, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		markSaveTipSeen(res, { secureCookies: deps.secureCookies });
@@ -849,7 +900,6 @@ export function initReadlistSaveRoutes(
 					value: submittedUrl,
 					error,
 					saveTipState: "seen",
-					accessIsReadOnly: false,
 					autoSubmit: false,
 					autofocus: true,
 				}),
@@ -866,7 +916,13 @@ export function initReadlistSaveRoutes(
 		}
 
 		try {
-			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+			const allowance = await deps.claimDailySaves({ userId, urls: [validation.url] });
+			if (allowance.granted.length === 0) {
+				tagSaveRefusal(res, SAVE_REFUSAL_CODES.dailySaveLimit);
+				refuse(DAILY_SAVE_LIMIT_FORM_ERROR, SAVE_REFUSAL_CODES.dailySaveLimit);
+				return;
+			}
+			const freshness = await deps.refreshArticleIfStale({ url: validation.url, requester: { account: userId } });
 			const saveAttemptId = newSaveAttemptId();
 			if (freshness.action === "unresolved") {
 				await deps.publishSubmitLink({ url: validation.url, userId, provenance: resolveSaveProvenance(req.oauthClientId), readlist: DEFAULT_READLIST_SLUG, saveTrigger: "manual", saveAttemptId });

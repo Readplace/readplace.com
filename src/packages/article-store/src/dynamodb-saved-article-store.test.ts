@@ -315,6 +315,23 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 		});
 	});
 
+	it("markOcrPagesHeld records the page allowance hold on the saver's own row only while it is saved", async () => {
+		const { client, commands } = createFakeClient();
+		await initStore(client).markOcrPagesHeld({
+			userId: USER,
+			url: URL,
+			hold: { pages: 40, pagesLeft: 12, retryAt: new Date("2026-11-16T03:00:00.000Z") },
+		});
+
+		const update = commands.find((c) => c.name === "UpdateCommand");
+		expect(update?.input.UpdateExpression).toBe("SET ocrPagesHold = :ocrPagesHold");
+		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
+		expect(update?.input.Key).toEqual({ userId: USER, url: expect.any(String) });
+		expect(update?.input.ExpressionAttributeValues).toEqual({
+			":ocrPagesHold": { pages: 40, pagesLeft: 12, retryAt: "2026-11-16T03:00:00.000Z" },
+		});
+	});
+
 	it("markRelatedDismissed clears any previously recorded suggestion when the dismissal names none", async () => {
 		const { client, commands } = createFakeClient();
 		await initStore(client).markRelatedDismissed({ userId: USER, url: URL, at: new Date("2026-05-30T10:02:00.000Z"), suggestionId: undefined });
@@ -1368,6 +1385,29 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 			at: new Date("2026-05-30T10:02:00.000Z"),
 			suggestion: "0123456789abcdef0123456789abcdef",
 		});
+	});
+
+	it("findArticleById surfaces the saver's OCR page hold with its retry time", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem({ ocrPagesHold: { pages: 40, pagesLeft: 12, retryAt: "2026-11-16T03:00:00.000Z" } }) } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		assert(article);
+		expect(article.ocrPagesHold).toEqual({ pages: 40, pagesLeft: 12, retryAt: new Date("2026-11-16T03:00:00.000Z") });
+	});
+
+	it("findArticleById carries no OCR page hold for a row without one", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem()], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem() } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect(article?.ocrPagesHold).toBeUndefined();
 	});
 
 	it("findArticleById returns null when the route id matches no article", async () => {
@@ -3740,29 +3780,6 @@ describe("initDynamoDbSavedArticleStore saves as requested", () => {
 		expect(userRow?.input.ConditionExpression).toContain("savedAt < :requestedAt");
 		expect(userRow?.input.ExpressionAttributeValues?.[":requestedAt"]).toBe("2026-11-03T10:00:00.000Z");
 		expect(saved.userId).toBe(USER);
-	});
-
-	it.each([
-		{ name: "equal to", item: userArticleItem({ savedAt: "2026-11-03T10:00:00.000Z" }), landed: true },
-		{ name: "after", item: userArticleItem({ savedAt: "2026-11-03T10:00:01.000Z" }), landed: true },
-		{ name: "before", item: userArticleItem({ savedAt: "2026-11-03T09:59:59.999Z" }), landed: false },
-	])("reports a landed save when savedAt is $name requestedAt", async ({ item, landed }) => {
-		const { client, commands } = createFakeClient({ GetCommand: { default: { Item: item } } });
-
-		const result = await initStore(client).hasSaveLandedSince({ userId: USER, url: URL, requestedAt: REQUESTED_AT });
-
-		expect(result).toBe(landed);
-		const [get] = commands;
-		expect(get?.input.ConsistentRead).toBe(true);
-		expect(get?.input.Key).toEqual({ userId: USER, url: RESOURCE_ID });
-	});
-
-	it("reports no landed save when there is no user row", async () => {
-		const { client } = createFakeClient();
-
-		const result = await initStore(client).hasSaveLandedSince({ userId: USER, url: URL, requestedAt: REQUESTED_AT });
-
-		expect(result).toBe(false);
 	});
 });
 

@@ -6,17 +6,20 @@ import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.typ
 import type { InvokePdfDocumentDiffReview } from "./pdf-document-diff-review-invoker.types";
 import type { InvokePdfPageHtmlConvert } from "./pdf-page-html-convert-invoker.types";
 import { initSaveLinkPdfExtract } from "./init-save-link-pdf-extract";
+import { UserIdSchema } from "@packages/article-state-types";
 
 const stubPageLlmCleanup: InvokePdfPageLlmCleanup = async ({ ocrText }) => ({
 	ok: true,
 	cleanedText: ocrText,
 	applied: false,
+	providerFailed: false,
 });
 
 const stubDocumentDiffReview: InvokePdfDocumentDiffReview = async ({ pages }) => ({
 	ok: true,
 	pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })),
 	applied: false,
+	providerFailed: false,
 });
 
 const stubPageHtmlConvert: InvokePdfPageHtmlConvert = async ({ pageIndex, pageText }) => ({
@@ -24,6 +27,7 @@ const stubPageHtmlConvert: InvokePdfPageHtmlConvert = async ({ pageIndex, pageTe
 	pageIndex,
 	semanticHtml: `<p class="ocr-tesseract">${pageText}</p>`,
 	applied: false,
+	providerFailed: false,
 });
 
 describe("initSaveLinkPdfExtract", () => {
@@ -38,6 +42,7 @@ describe("initSaveLinkPdfExtract", () => {
 			html: pageIndices.map((idx) => `<p class="ocr-tesseract">page-${idx}</p>`).join(""),
 		});
 
+		const kept: string[] = [];
 		const extractPdf = initSaveLinkPdfExtract({
 			extractPdfMetadata,
 			stagePdf,
@@ -45,14 +50,22 @@ describe("initSaveLinkPdfExtract", () => {
 			invokePageLlmCleanup: stubPageLlmCleanup,
 			invokeDocumentDiffReview: stubDocumentDiffReview,
 			invokePageHtmlConvert: stubPageHtmlConvert,
+			findParsedPdf: async () => undefined,
+			keepParsedPdf: async (parse) => { kept.push(parse.fileHash); },
 			logger: noopLogger,
 		});
 
-		const result = await extractPdf({ buffer: Buffer.from("%PDF-"), url: "https://example.com/scan.pdf" });
+		const result = await extractPdf({
+			buffer: Buffer.from("%PDF-"),
+			url: "https://example.com/scan.pdf",
+			scope: { kind: "account", userId: UserIdSchema.parse("reader-1"), fileHash: "ef".repeat(32) },
+			chargeOcrPages: async () => ({ allowed: true }),
+		});
 		assert.equal(result.kind, "fetched");
 		assert(result.kind === "fetched");
 		assert.equal(result.title, "Scanned Doc");
 		assert(result.html.includes("page-0"));
 		assert(result.html.includes("page-1"));
+		assert.deepEqual(kept, ["ef".repeat(32)]);
 	});
 });

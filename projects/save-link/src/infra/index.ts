@@ -138,6 +138,7 @@ const inboxEmailLinksTableArn = config.require("inboxEmailLinksTableArn");
 // "<budget>/<windowSeconds>" ceiling on comprehensive-crawl runs (OCR + LLM
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
+const ocrPageQuota = config.require("ocrPageQuota");
 const renderCrawlBudget = config.require("renderCrawlBudget");
 const renderRequestDiagnostics = config.require("renderRequestDiagnostics");
 const readlistFitEngine = config.require("readlistFitEngine");
@@ -184,6 +185,7 @@ const contentBucket = new S3ReadWrite("content-bucket", {
 // orchestrator crashes mid-job. Scoped to a prefix so it cannot affect other
 // content-bucket keys.
 const PDF_STAGING_PREFIX = "pdf-rasterise-staging/";
+const PARSED_PDF_PREFIX = "pdf-extract/account/";
 new aws.s3.BucketLifecycleConfigurationV2("content-bucket-pdf-staging-lifecycle", {
 	bucket: contentBucket.bucket,
 	rules: [{
@@ -192,6 +194,11 @@ new aws.s3.BucketLifecycleConfigurationV2("content-bucket-pdf-staging-lifecycle"
 		filter: { prefix: PDF_STAGING_PREFIX },
 		expiration: { days: 1 },
 		abortIncompleteMultipartUpload: { daysAfterInitiation: 1 },
+	}, {
+		id: "expire-parsed-pdf",
+		status: "Enabled",
+		filter: { prefix: PARSED_PDF_PREFIX },
+		expiration: { days: 365 },
 	}],
 });
 
@@ -530,11 +537,6 @@ const submitLinkUsersRead = new DynamoDBAccess("submit-link-users-read", {
 	actions: ["dynamodb:Query", "dynamodb:GetItem"],
 });
 
-const submitLinkSubscriptionProvidersRead = new DynamoDBAccess("submit-link-subscription-providers-read", {
-	tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem"],
-});
-
 const submitLinkOnboardingDynamodb = new DynamoDBAccess("submit-link-onboarding-dynamodb", {
 	tables: [{ arn: onboardingTableArn, includeIndexes: false }],
 	actions: ["dynamodb:UpdateItem"],
@@ -553,7 +555,6 @@ const submitLinkLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
 		DYNAMODB_USERS_TABLE: usersTableName,
-		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
@@ -565,7 +566,6 @@ const submitLinkLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 		...submitLinkUserArticlesDynamodb.policies,
 		...submitLinkOnboardingDynamodb.policies,
 		...submitLinkUsersRead.policies,
-		...submitLinkSubscriptionProvidersRead.policies,
 		...contentBucket.readPolicies("submit-link-content-read"),
 		...contentBucket.writePolicies("submit-link-s3"),
 		...renamePolicies(generateSummaryQueue.policies, "submit-link"),
@@ -953,6 +953,21 @@ const comprehensiveCrawlCommandDynamodb = new DynamoDBAccess("comprehensive-craw
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
+const comprehensiveCrawlCommandOcrPageQuotaDynamodb = new DynamoDBAccess("comprehensive-crawl-command-ocr-page-quota-dynamodb", {
+	tables: [{ arn: rateLimitsTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+});
+
+const comprehensiveCrawlCommandSubscriptionProvidersRead = new DynamoDBAccess("comprehensive-crawl-command-subscription-providers-read", {
+	tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
+
+const comprehensiveCrawlCommandUserArticlesDynamodb = new DynamoDBAccess("comprehensive-crawl-command-user-articles-dynamodb", {
+	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
 const comprehensiveCrawlCommandInvokePageOcr: LambdaPolicy = {
 	name: "comprehensive-crawl-command-invoke-page-ocr",
 	policy: pdfPageOcrLambda.arn.apply((arn) => JSON.stringify({
@@ -1021,9 +1036,15 @@ const comprehensiveCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.compre
 		PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME: pdfPageLlmCleanupLambda.functionName,
 		PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME: pdfDocumentDiffReviewLambda.functionName,
 		PDF_PAGE_HTML_CONVERT_FUNCTION_NAME: pdfPageHtmlConvertLambda.functionName,
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
+		OCR_PAGE_QUOTA: ocrPageQuota,
 	},
 	policies: [
 		...comprehensiveCrawlCommandDynamodb.policies,
+		...comprehensiveCrawlCommandOcrPageQuotaDynamodb.policies,
+		...comprehensiveCrawlCommandSubscriptionProvidersRead.policies,
+		...comprehensiveCrawlCommandUserArticlesDynamodb.policies,
 		// readTierSnapshot HEAD-checks tier-0 source when logging the crawl outcome.
 		...contentBucket.readPolicies("comprehensive-crawl-command-content-read"),
 		...contentBucket.writePolicies("comprehensive-crawl-command-s3"),
@@ -1116,6 +1137,21 @@ const saveLinkRawPdfCommandDynamodb = new DynamoDBAccess("save-link-raw-pdf-comm
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
+const saveLinkRawPdfCommandOcrPageQuotaDynamodb = new DynamoDBAccess("save-link-raw-pdf-command-ocr-page-quota-dynamodb", {
+	tables: [{ arn: rateLimitsTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+});
+
+const saveLinkRawPdfCommandSubscriptionProvidersRead = new DynamoDBAccess("save-link-raw-pdf-command-subscription-providers-read", {
+	tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
+
+const saveLinkRawPdfCommandUserArticlesDynamodb = new DynamoDBAccess("save-link-raw-pdf-command-user-articles-dynamodb", {
+	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
 const saveLinkRawPdfCommandInvokePageOcr: LambdaPolicy = {
 	name: "save-link-raw-pdf-command-invoke-page-ocr",
 	policy: pdfPageOcrLambda.arn.apply((arn) => JSON.stringify({
@@ -1181,9 +1217,16 @@ const saveLinkRawPdfCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRa
 		PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME: pdfPageLlmCleanupLambda.functionName,
 		PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME: pdfDocumentDiffReviewLambda.functionName,
 		PDF_PAGE_HTML_CONVERT_FUNCTION_NAME: pdfPageHtmlConvertLambda.functionName,
+		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
+		OCR_PAGE_QUOTA: ocrPageQuota,
 	},
 	policies: [
 		...saveLinkRawPdfCommandDynamodb.policies,
+		...saveLinkRawPdfCommandOcrPageQuotaDynamodb.policies,
+		...saveLinkRawPdfCommandSubscriptionProvidersRead.policies,
+		...saveLinkRawPdfCommandUserArticlesDynamodb.policies,
 		...pendingPdfBucket.readPolicies("save-link-raw-pdf-command-pending-pdf"),
 		...contentBucket.readPolicies("save-link-raw-pdf-command-content-read"),
 		...contentBucket.writePolicies("save-link-raw-pdf-command-s3"),
@@ -1745,6 +1788,11 @@ const computeRelatedArticlesRateLimitsDynamodb = new DynamoDBAccess("compute-rel
 	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
 });
 
+const computeRelatedArticlesSubscriptionProvidersRead = new DynamoDBAccess("compute-related-articles-subscription-providers-read", {
+	tables: [{ arn: subscriptionProvidersTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
+
 const computeRelatedArticlesLambda = new Lambda("compute-related-articles", {
 	entryPoint: "./src/runtime/compute-related-articles.main.ts",
 	outputDir: ".lib/compute-related-articles",
@@ -1757,6 +1805,7 @@ const computeRelatedArticlesLambda = new Lambda("compute-related-articles", {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
@@ -1764,6 +1813,7 @@ const computeRelatedArticlesLambda = new Lambda("compute-related-articles", {
 		...computeRelatedArticlesArticlesDynamodb.policies,
 		...computeRelatedArticlesUserArticlesDynamodb.policies,
 		...computeRelatedArticlesRateLimitsDynamodb.policies,
+		...computeRelatedArticlesSubscriptionProvidersRead.policies,
 	],
 });
 

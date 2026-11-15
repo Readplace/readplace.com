@@ -99,7 +99,7 @@ const SURFACE_CONTROLS = {
 } satisfies Record<SubscribePlansSurface, SubscribePlansSurfaceControls>;
 
 export function planChargedWithoutChoice(access: EffectiveAccess): BillingPlan {
-	if (access.banner !== "inactive" || access.reason !== "subscription-cancelled") return DEFAULT_BILLING_PLAN;
+	if (access.banner !== "free" || access.reason !== "subscription-cancelled") return DEFAULT_BILLING_PLAN;
 	return access.plan ?? DEFAULT_BILLING_PLAN;
 }
 

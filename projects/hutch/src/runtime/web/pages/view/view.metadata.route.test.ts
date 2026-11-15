@@ -625,7 +625,7 @@ describe("View routes", () => {
 			expect(cached?.metadata.siteName).toBe(new URL(ARTICLE_URL).hostname);
 		});
 
-		it("dispatches SaveAnonymousLinkCommand for an authenticated visitor (no user association, viewing only)", async () => {
+		it("dispatches SaveAnonymousLinkCommand for an authenticated visitor, carrying the viewer so a PDF's OCR is charged to them", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const publishSaveAnonymousLink = jest.fn(async () => {});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -661,7 +661,8 @@ describe("View routes", () => {
 				},
 			});
 			const { auth } = harness;
-			await auth.createUser({ email: "test@example.com", password: "password123" });
+			const created = await auth.createUser({ email: "test@example.com", password: "password123" });
+			assert(created.ok);
 			const agent = request.agent(harness.server);
 			await agent
 				.post("/login")
@@ -672,7 +673,7 @@ describe("View routes", () => {
 
 			expect(response.status).toBe(200);
 			expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
-			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL, saveAttemptId: expect.any(String) });
+			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL, saveAttemptId: expect.any(String), userId: created.userId });
 		});
 
 		it("skips priming SaveAnonymousLinkCommand when the cached article already exists, but still requests a background stale-check", async () => {

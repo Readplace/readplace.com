@@ -20,13 +20,3 @@
   </div>
 </details>
 {{/if}}
-{{#each lockedMenus}}
-<details class="menu readlist-nav__menu readlist-row__trailing" data-test-readlist-menu="{{name}}" data-test-menu-standing="locked">
-  <summary class="menu__toggle" data-test-action="readlist-menu">{{icon "ellipsis-vertical"}}<span class="sr-only">Options for {{title}}</span></summary>
-  <div class="menu__panel">
-    {{#each menuLocks}}
-    {{{this}}}
-    {{/each}}
-  </div>
-</details>
-{{/each}}

@@ -108,6 +108,7 @@ export const SaveAnonymousLinkCommand = defineEvent({
 		saveAttemptId: SaveAttemptIdSchema,
 		sourceOriginalUrl: z.string().optional(),
 		captureUrl: z.string().optional(),
+		userId: UserIdSchema.optional(),
 	}),
 });
 export type SaveAnonymousLinkDetail = z.infer<
@@ -163,6 +164,7 @@ export const ResolveArticleOnViewCommand = defineEvent({
 		saveAttemptId: SaveAttemptIdSchema,
 		axes: z.enum(["crawl-and-summary", "summary"]),
 		surface: ResolveOnViewSurfaceSchema,
+		userId: UserIdSchema.optional(),
 	}),
 });
 export type ResolveArticleOnViewDetail = z.infer<typeof ResolveArticleOnViewCommand.detailSchema>;
@@ -1498,7 +1500,7 @@ export const EmailIssueSaveSkippedEvent = defineEvent({
 	detailSchema: z.object({
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
-		reason: z.enum(["removed-by-reader", "body-gone", "write-access-lapsed"]),
+		reason: z.enum(["removed-by-reader", "body-gone", "paid-plan-required"]),
 	}),
 });
 

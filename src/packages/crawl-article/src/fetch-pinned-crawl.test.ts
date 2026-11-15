@@ -18,7 +18,7 @@ describe("initFetchPinnedCrawl", () => {
 			findAdoptedFetchUrl: async () => "https://nytimes.com/real-article",
 		});
 
-		await pinned({ url: "https://evil.com/x" });
+		await pinned({ chargeOcrPages: undefined, url: "https://evil.com/x" });
 
 		expect(urls).toEqual(["https://nytimes.com/real-article"]);
 	});
@@ -30,7 +30,7 @@ describe("initFetchPinnedCrawl", () => {
 			findAdoptedFetchUrl: async () => undefined,
 		});
 
-		await pinned({ url: "https://site.com/page", etag: '"v1"' });
+		await pinned({ chargeOcrPages: undefined, url: "https://site.com/page", etag: '"v1"' });
 
 		expect(urls).toEqual(["https://site.com/page"]);
 	});
@@ -43,7 +43,7 @@ describe("initFetchPinnedCrawl", () => {
 		};
 		const pinned = initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl: async () => undefined });
 
-		await pinned({ url: "https://site.com/page", etag: '"v1"', fetchThumbnail: true });
+		await pinned({ chargeOcrPages: undefined, url: "https://site.com/page", etag: '"v1"', fetchThumbnail: true });
 
 		expect(seen[0]).toEqual({ url: "https://site.com/page", etag: '"v1"', fetchThumbnail: true });
 	});
@@ -61,7 +61,7 @@ describe("initFetchPinnedCrawl — twitter.com identities", () => {
 			},
 		});
 
-		await pinned({ url: "https://twitter.com/jack/status/20?s=20#top" });
+		await pinned({ chargeOcrPages: undefined, url: "https://twitter.com/jack/status/20?s=20#top" });
 
 		expect(lookups).toEqual(["https://twitter.com/jack/status/20?s=20#top"]);
 		expect(urls).toEqual(["https://x.com/jack/status/20?s=20#top"]);
@@ -74,7 +74,7 @@ describe("initFetchPinnedCrawl — twitter.com identities", () => {
 			findAdoptedFetchUrl: async () => "https://twitter.com/jack/status/20",
 		});
 
-		await pinned({ url: "https://short.example/abc" });
+		await pinned({ chargeOcrPages: undefined, url: "https://short.example/abc" });
 
 		expect(urls).toEqual(["https://x.com/jack/status/20"]);
 	});
@@ -86,7 +86,7 @@ describe("initFetchPinnedCrawl — twitter.com identities", () => {
 			findAdoptedFetchUrl: async () => "https://publisher.example/story",
 		});
 
-		await pinned({ url: "https://twitter.com/jack/status/20" });
+		await pinned({ chargeOcrPages: undefined, url: "https://twitter.com/jack/status/20" });
 
 		expect(urls).toEqual(["https://publisher.example/story"]);
 	});
@@ -95,7 +95,7 @@ describe("initFetchPinnedCrawl — twitter.com identities", () => {
 		const { crawlArticle, urls } = captureCrawl();
 		const pinned = initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl: async () => undefined });
 
-		await pinned({ url: "https://mobile.twitter.com/jack/status/20" });
+		await pinned({ chargeOcrPages: undefined, url: "https://mobile.twitter.com/jack/status/20" });
 
 		expect(urls).toEqual(["https://mobile.twitter.com/jack/status/20"]);
 	});
@@ -106,7 +106,7 @@ describe("initFetchPinnedCrawl — Amazon product identities", () => {
 		const { crawlArticle, urls } = captureCrawl();
 		const pinned = initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl: async () => undefined });
 
-		await pinned({ url: "https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451" });
+		await pinned({ chargeOcrPages: undefined, url: "https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451" });
 
 		expect(urls).toEqual(["https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451"]);
 	});
@@ -117,7 +117,7 @@ it("fetches an explicitly verified wrapper candidate even when its legacy row no
 	const crawlArticle = jest.fn<ReturnType<CrawlArticle>, Parameters<CrawlArticle>>().mockResolvedValue({ status: "fetched", html: "<html>archive</html>", bodyHash: "hash" });
 	const findAdoptedFetchUrl = jest.fn().mockResolvedValue("https://example.com/post");
 	const crawl = initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl });
-	await crawl({ url: capture, retainResponseBody: true, skipFetchPin: true });
+	await crawl({ chargeOcrPages: undefined, url: capture, retainResponseBody: true, skipFetchPin: true });
 	expect(crawlArticle).toHaveBeenCalledWith({ url: capture, retainResponseBody: true, skipFetchPin: true });
 	expect(findAdoptedFetchUrl).not.toHaveBeenCalled();
 });
@@ -129,7 +129,7 @@ it("still fetches the adopted terminal for a live crawl that retains the respons
 		findAdoptedFetchUrl: async () => "https://nytimes.com/real-article",
 	});
 
-	await pinned({ url: "https://evil.com/x", retainResponseBody: true });
+	await pinned({ chargeOcrPages: undefined, url: "https://evil.com/x", retainResponseBody: true });
 
 	expect(urls).toEqual(["https://nytimes.com/real-article"]);
 });

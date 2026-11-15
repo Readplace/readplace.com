@@ -55,7 +55,7 @@ describe("initObserveSaveRefusal", () => {
 
 	it("maps the shared-gate statuses to a refusal code", () => {
 		assert.equal(refusal(401).code, SAVE_REFUSAL_CODES.unauthenticated);
-		assert.equal(refusal(402).code, SAVE_REFUSAL_CODES.noWriteAccess);
+		assert.equal(refusal(402).code, SAVE_REFUSAL_CODES.paidFeatureRefused);
 		assert.equal(refusal(403).code, SAVE_REFUSAL_CODES.locked);
 		assert.equal(refusal(429).code, SAVE_REFUSAL_CODES.rateLimited);
 	});
@@ -69,9 +69,9 @@ describe("initObserveSaveRefusal", () => {
 	});
 
 	it("records a tagged redirect at its real status", () => {
-		const event = refusal(303, SAVE_REFUSAL_CODES.noWriteAccess);
+		const event = refusal(303, SAVE_REFUSAL_CODES.paidFeatureRefused);
 		assert.equal(event.status, 303);
-		assert.equal(event.code, SAVE_REFUSAL_CODES.noWriteAccess);
+		assert.equal(event.code, SAVE_REFUSAL_CODES.paidFeatureRefused);
 	});
 
 	it("emits nothing for an untagged redirect", () => {

@@ -1,5 +1,6 @@
 import { ANONYMOUS_VIEWER, SaveAttemptIdSchema, type ShownSummary, shownSummary } from "@packages/domain/article";
 import type { Logger } from "@packages/logger";
+import { UserIdSchema } from "@packages/domain/user";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { initInMemoryArticleCrawl, initInMemoryClaimResolutionOnView } from "@packages/test-fixtures/providers/article-crawl";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
@@ -57,9 +58,28 @@ describe("initRequestResolutionOnView", () => {
 		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", startedAt: NOW_ISO, resolutionOnViewClaimedAt: NOW_ISO });
 		expect(resolved.get(url)?.summary).toEqual({ status: "pending" });
 		expect(t.publisher.publishedResolveArticleOnView).toEqual([
-			{ url, axes: "crawl-and-summary", surface: "readlist-html", saveAttemptId: expect.any(String) },
+			{ url, axes: "crawl-and-summary", surface: "readlist-html", saveAttemptId: expect.any(String), userId: undefined },
 		]);
 		expect(SaveAttemptIdSchema.safeParse(t.publisher.publishedResolveArticleOnView[0]?.saveAttemptId).success).toBe(true);
+	});
+
+	it("publishes the signed-in viewer with the command so the crawl can charge them", async () => {
+		const t = setup();
+		const url = "https://example.com/parked-for-reader";
+		const userId = UserIdSchema.parse("usr_viewer");
+		await t.crawl.markCrawlUnsupported({ url, reason: AWAITING });
+		await t.summary.markSummarySkipped({ url, reason: "awaiting-reader" });
+
+		await t.requestResolutionOnView({
+			surface: "reader",
+			viewer: { kind: "reader", userId },
+			viewerCanCapture: false,
+			articles: [await t.rowOf(url)],
+		});
+
+		expect(t.publisher.publishedResolveArticleOnView).toEqual([
+			{ url, axes: "crawl-and-summary", surface: "reader", saveAttemptId: expect.any(String), userId },
+		]);
 	});
 
 	it("claims only the summary of a ready crawl whose summary failed", async () => {
@@ -77,7 +97,7 @@ describe("initRequestResolutionOnView", () => {
 
 		expect(resolved.get(url)).toEqual({ crawl: { status: "ready", resolutionOnViewClaimedAt: NOW_ISO }, summary: { status: "pending" } });
 		expect(t.publisher.publishedResolveArticleOnView).toEqual([
-			{ url, axes: "summary", surface: "reader", saveAttemptId: expect.any(String) },
+			{ url, axes: "summary", surface: "reader", saveAttemptId: expect.any(String), userId: undefined },
 		]);
 	});
 
@@ -214,7 +234,7 @@ describe("initRequestResolutionOnView", () => {
 
 		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", startedAt: NOW_ISO, resolutionOnViewClaimedAt: NOW_ISO });
 		expect(t.publisher.publishedResolveArticleOnView).toEqual([
-			{ url, axes: "crawl-and-summary", surface: "readlist-siren", saveAttemptId: expect.any(String) },
+			{ url, axes: "crawl-and-summary", surface: "readlist-siren", saveAttemptId: expect.any(String), userId: undefined },
 		]);
 		expect(t.logger.info).toHaveBeenCalledWith("[ResolveOnView] requested", {
 			surface: "readlist-siren",

@@ -26,11 +26,6 @@
       </details>
     </div>
     {{/each}}
-    {{#each createLocks}}
-    <div class="readlist-row readlist-nav__new-row">
-      {{{this}}}
-    </div>
-    {{/each}}
     {{#each limitForms}}
     <div class="readlist-row readlist-nav__new-row">
       <form class="readlist-nav__limit-form" method="GET" action="{{action}}" hx-swap="outerHTML show:none scroll:html:top" data-test-form="readlist-limit">

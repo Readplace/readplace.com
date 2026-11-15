@@ -53,6 +53,10 @@ import { readerCachePolicy } from "./reader-cache-policy";
 import { VIEW_BACK_LINK } from "./reader-skeleton/reader-skeleton.component";
 import type { PageBody } from "@packages/web-shell";
 import { ReaderPage, type ReaderPageHighlights } from "../reader/reader.component";
+import { hasPaidFeatures } from "@packages/subscription-access";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
+import { renderedLockFor, upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { isPrefetchRequest } from "../../shared/prefetch-request";
 import { isBotUserAgent } from "@packages/web-analytics";
 import { requestCanCapture } from "../../onboarding/capture-capable-request";
@@ -76,7 +80,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
 import { highlightActionUrl } from "./highlight-surface";
 import { highlightFormScopeFor, initReaderHighlightOptions } from "./reader-highlight-options";
-import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM, readerEpubHrefFor } from "./readlist-shared";
+import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM, ISSUE_LINK_DAILY_LIMIT_PARAM, readerEpubHrefFor } from "./readlist-shared";
 import { ReadlistSlugsSchema } from "./readlist-slugs";
 
 const pastReadsComputeUrlFor = (params: {
@@ -179,6 +183,8 @@ export type RenderOwnerReader = (
 	},
 ) => Promise<void>;
 
+const { t } = translator(hutchReader, DEFAULT_LOCALE);
+
 function withStatusCode(component: Component, statusCode: number): Component {
 	return { to: (mediaType) => ({ ...component.to(mediaType), statusCode }) };
 }
@@ -191,7 +197,7 @@ function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 
 export function initReaderPageRoutes(deps: Pick<
 		ReadlistDependencies,
-		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView" | "listArticleHighlights" | "readCanonicalSnapshot" | "presignEnclosure" | "findArticleById" | "canSaveContent"
+		"findArticleUrlById" | "findArticleByUrl" | "findItemOwner" | "presignMediaImage" | "listUserSavesForUrl" | "appOrigin" | "listIssueLinks" | "findIssueLinkSaveStates" | "dualAuth" | "listReadlistDefinitions" | "getOnboardingSignals" | "now" | "findRelatedArticles" | "logError" | "findPastReads" | "resolveReaderProvenance" | "markdownBearerAuth" | "buildBannerState" | "recordEngagementActivity" | "findUserById" | "chromelessReader" | "findArticleCrawlVersions" | "webReader" | "resolveOwnedArticle" | "findArticleCrawlStatus" | "findGeneratedSummary" | "readArticleContent" | "requestResolutionOnView" | "listArticleHighlights" | "readCanonicalSnapshot" | "presignEnclosure" | "findArticleById" | "canSaveContent" | "getEffectiveAccess"
 	> & { buildArticleEpub: BuildArticleEpub }, shared: ReadlistShared): { router: Router; renderOwnerReader: RenderOwnerReader } {
 	const router = express.Router();
 	const readerHighlightOptions = initReaderHighlightOptions(deps);
@@ -225,6 +231,7 @@ export function initReaderPageRoutes(deps: Pick<
 			extraction: meta === undefined ? "pending" : meta.extractionFailed ? "failed" : "finished",
 			saveStates: await deps.findIssueLinkSaveStates({ userId: article.userId, urls: links.map((link) => link.url) }),
 			justSaved: EmailLinkOrdinalSchema.safeParse(req.query[ISSUE_LINK_SAVED_PARAM]).data,
+			dailyLimitReached: EmailLinkOrdinalSchema.safeParse(req.query[ISSUE_LINK_DAILY_LIMIT_PARAM]).success,
 			saveUrl: withInternalTracking(`${READLIST_PATH}/${article.id.value}/issue-links`, {
 				source: "reader",
 				content: "save-issue-link",
@@ -553,11 +560,23 @@ export function initReaderPageRoutes(deps: Pick<
 						cacheControl,
 					})
 				: withStatusCode(component, options.statusCode);
+		const access = await deps.getEffectiveAccess(ownedArticle.userId);
+		const paidFeaturesLocked = !hasPaidFeatures(access);
+		const nextReadLocks = paidFeaturesLocked
+			? renderedLockFor({
+					offer: upgradeOfferFor({ req, access }),
+					gated: true,
+					key: "next-read",
+					label: t("reader.nextRead.lock"),
+					controlClass: "btn btn--neutral btn--m",
+					source: "reader",
+				})
+			: undefined;
 		const pastReadsOptions = {
 			previouslyRead,
-			previouslyReadPollUrl,
+			previouslyReadPollUrl: paidFeaturesLocked ? undefined : previouslyReadPollUrl,
 			previouslyReadComputeUrl:
-				previouslyReadBudgetBlocked || (isAppPlatform(req) && isPrefetchRequest(req))
+				paidFeaturesLocked || previouslyReadBudgetBlocked || (isAppPlatform(req) && isPrefetchRequest(req))
 					? undefined
 					: pastReadsComputeUrlFor({
 							articleId: ownedArticle.id.value,
@@ -601,6 +620,7 @@ export function initReaderPageRoutes(deps: Pick<
 				capturePollUrls: state.capturePollUrls,
 				related,
 				relatedPollUrl,
+				nextReadLocks,
 				...pastReadsOptions,
 				currentPath,
 				now: deps.now(),
@@ -684,6 +704,7 @@ export function initReaderPageRoutes(deps: Pick<
 					capturePollUrls: state.capturePollUrls,
 					related,
 					relatedPollUrl,
+					nextReadLocks,
 					...pastReadsOptions,
 					currentPath,
 					now: deps.now(),
@@ -709,7 +730,7 @@ export function initReaderPageRoutes(deps: Pick<
 					highlights,
 					statusToast: options.toast,
 				}), cspNonce), {
-					...(await deps.buildBannerState(req)),
+					...(await deps.buildBannerState(req, { preFetchedAccess: access })),
 					currentPath,
 					showExtensionSuggestionBanner,
 					extensionInstalled: isExtensionInstalled(req),

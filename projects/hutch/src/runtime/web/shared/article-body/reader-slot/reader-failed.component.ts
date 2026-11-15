@@ -5,6 +5,9 @@ import { type ArticleDestinationUrl, isPrivateItemUrl } from "@packages/domain/a
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReader } from "@packages/translations/hutch-reader";
 import { render, renderAlert, renderIllustration, withInternalTracking } from "@packages/web-shell";
+import { toAbsoluteDateTime } from "@packages/web-shell/local-time.format";
+import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
+import type { OcrPagesHold } from "../../ocr-pages-hold";
 import { FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE } from "../../client-surface-phrases";
 import type { CapturePollUrls } from "../../article-reader/article-reader.types";
 import type { CaptureRescue } from "./failed-crawl-notice";
@@ -188,6 +191,50 @@ export function renderReaderFailed(input: ReaderFailedInput): ReaderRegions {
 			capturePollUrls: input.capturePollUrls,
 			rescue: rescueFor(input),
 			...renderCapturePitch(input),
+		}),
+	};
+}
+
+interface OcrPagesHeldInput {
+	url: ArticleDestinationUrl;
+	hold: OcrPagesHold;
+	oob?: boolean;
+	noticeOob: boolean;
+}
+
+const OCR_PAGES_HELD_VARIANT = "ocr-pages-held";
+
+function ocrPagesHeldExplanation(hold: OcrPagesHold) {
+	if (hold.pages > OCR_PAGE_QUOTA_RULE.limit) {
+		return { explanation: t("articleBody.readerFailed.explanation.ocrPagesHeld.overDailyLimit", { pages: hold.pages }), retryAt: undefined, afterRetryAt: undefined };
+	}
+	return {
+		explanation: t("articleBody.readerFailed.explanation.ocrPagesHeld.beforeRetryAt", { pages: hold.pages, pagesLeft: hold.pagesLeft }),
+		retryAt: toAbsoluteDateTime({ iso: hold.retryAt.toISOString() }),
+		afterRetryAt: t("articleBody.readerFailed.explanation.ocrPagesHeld.afterRetryAt"),
+	};
+}
+
+export function renderOcrPagesHeld(input: OcrPagesHeldInput): ReaderRegions {
+	const privateUpload = isPrivateItemUrl(input.url);
+	return {
+		states: [],
+		slot: render(MARKER_TEMPLATE, {
+			variant: OCR_PAGES_HELD_VARIANT,
+			oob: input.oob === true,
+		}),
+		notice: render(TEMPLATE, {
+			primaryHref: privateUpload ? UPLOAD_AGAIN_HREF : input.url,
+			variant: OCR_PAGES_HELD_VARIANT,
+			noticeOob: input.noticeOob,
+			illustrationHtml: renderIllustration("book-lightbulb"),
+			title: t("articleBody.readerFailed.title.ocrPagesHeld"),
+			...ocrPagesHeldExplanation(input.hold),
+			ctaLabel: privateUpload ? t("articleBody.readerFailed.cta.uploadAgain") : t("articleBody.readerFailed.cta.readOriginal"),
+			captureClass: CAPTURE_RESCUE_CLASS.withheld,
+			capturePollUrls: undefined,
+			rescue: undefined,
+			...WITHHELD_PITCH,
 		}),
 	};
 }

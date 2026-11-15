@@ -61,6 +61,12 @@ export type ToggleImportSelection = (params: {
 	checked: boolean;
 }) => Promise<void>;
 
+export type DeselectImportIndices = (params: {
+	id: ImportSessionId;
+	userId: UserId | undefined;
+	indices: readonly number[];
+}) => Promise<void>;
+
 export type ToggleAllImportSelection = (params: {
 	id: ImportSessionId;
 	userId: UserId | undefined;
@@ -79,5 +85,6 @@ export interface ImportSessionStore {
 	loadAllImportSessionUrls: LoadAllImportSessionUrls;
 	toggleImportSelection: ToggleImportSelection;
 	toggleAllImportSelection: ToggleAllImportSelection;
+	deselectImportIndices: DeselectImportIndices;
 	deleteImportSession: DeleteImportSession;
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { candidateProvenance } from "@packages/tier-source";
 import posthtml from "posthtml";
@@ -76,6 +77,8 @@ function createHandler({ onPublish, ...overrides }: Partial<HandlerDeps> & { onP
 		resolveOriginalUrl: async (url) => url,
 		readPendingPdf: jest.fn().mockResolvedValue({ bytes: PDF_MAGIC_BYTES, capturedAt: "2026-10-01T00:00:00.000Z" }),
 		extractPdf: successfulExtractPdf,
+		chargeOcrPagesFor: () => async () => ({ allowed: true }),
+		markOcrPagesHeld: jest.fn().mockResolvedValue(undefined),
 		parseHtml: successfulParse,
 		downloadMedia: noopDownloadMedia,
 		processContent,
@@ -129,6 +132,24 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 			userId: "user-1",
 			extractedAt: "2026-04-18T12:00:00.000Z",
 		}) });
+	});
+
+	it("extracts the PDF under the reader's account scope keyed by the sha256 of the uploaded bytes", async () => {
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(successfulExtractPdf);
+		const { handler } = createHandler({ extractPdf });
+
+		await handler(
+			createSqsEvent({ url: "https://example.com/x.pdf", userId: "user-1" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		assert.equal(extractPdf.mock.calls.length, 1);
+		assert.deepEqual(extractPdf.mock.calls[0][0].scope, {
+			kind: "account",
+			userId: "user-1",
+			fileHash: createHash("sha256").update(PDF_MAGIC_BYTES).digest("hex"),
+		});
 	});
 
 	it("writes the tier-0 source before publishing TierContentExtractedEvent", async () => {
@@ -265,4 +286,69 @@ it("writes the tier-0 candidate, reads the snapshot, logs the outcome, announces
 		["publishEvent", TierContentExtractedEvent.detailType, { saveAttemptId: "attempt-1", candidates: [{ id: metadata.id, tier: "tier-0" }], url, userId: "user-1", extractedAt: "2026-04-18T12:00:00.000Z" }],
 		["info", "[SaveLinkRawPdfCommand] tier-0 source written", { url, capturedTitle: undefined }],
 	]);
+});
+
+describe("initSaveLinkRawPdfCommandHandler — OCR page allowance", () => {
+	const url = "https://example.com/upload.pdf";
+	const retryAt = new Date("2026-04-19T09:00:00.000Z");
+
+	it("charges the uploader, keyed on the save attempt", async () => {
+		const charges: { userId: string; claimId: string }[] = [];
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async (params) => {
+			await params.chargeOcrPages({ pages: 2 });
+			return { kind: "fetched", html: "<html><body><p>PDF content</p></body></html>", title: "Test PDF" };
+		});
+		const { handler } = createHandler({
+			extractPdf,
+			chargeOcrPagesFor: (params) => {
+				charges.push(params);
+				return async () => ({ allowed: true });
+			},
+		});
+
+		await handler(createSqsEvent({ url, userId: "user-1" }), buildLambdaContext(), () => {});
+
+		expect(charges).toEqual([{ userId: "user-1", claimId: "attempt-1" }]);
+	});
+
+	it("holds an over-quota upload on the uploader's row and never marks the crawl unsupported", async () => {
+		const markOcrPagesHeld = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const putTierSource = jest.fn().mockResolvedValue(undefined);
+		const infos: { message: string; context: unknown }[] = [];
+		const logger = { ...noopLogger, info: (message: unknown, context?: unknown) => { infos.push({ message: String(message), context }); } };
+		const { handler, published } = createHandler({
+			extractPdf: async () => ({ kind: "over-ocr-quota", pages: 40, pagesLeft: 12, retryAt }),
+			markOcrPagesHeld,
+			transitionAndPersist,
+			putTierSource,
+			logger,
+		});
+
+		const result = await handler(createSqsEvent({ url, userId: "user-1" }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(markOcrPagesHeld).toHaveBeenCalledWith({ userId: "user-1", url, hold: { pages: 40, pagesLeft: 12, retryAt } });
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+		expect(putTierSource).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
+		expect(infos).toContainEqual({
+			message: "[SaveLinkRawPdfCommand] ocr_page_quota_held",
+			context: { url, saveAttemptId: "attempt-1", pages: 40, pagesLeft: 12, retryAt: "2026-04-19T09:00:00.000Z" },
+		});
+	});
+
+	it("retries the record when the charge itself fails", async () => {
+		const { handler } = createHandler({
+			extractPdf: async (params) => {
+				await params.chargeOcrPages({ pages: 2 });
+				return { kind: "fetched", html: "<p>x</p>", title: "x" };
+			},
+			chargeOcrPagesFor: () => async () => { throw new Error("rate-limits table down"); },
+		});
+
+		const result = await handler(createSqsEvent({ url, userId: "user-1" }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
 });

@@ -16,6 +16,7 @@ export interface IssueLinksSectionInput {
 	extraction: "pending" | "failed" | "finished";
 	saveStates: ReadonlyMap<string, InboxLinkSaveState>;
 	justSaved: EmailLinkOrdinal | undefined;
+	dailyLimitReached: boolean;
 	saveUrl: string;
 	returnTo: string;
 	inboxHref: string;
@@ -88,6 +89,7 @@ export function renderIssueLinksSection(input: IssueLinksSectionInput | undefine
 		visible: true,
 		lede: state === "ready" && rows.length === 0 ? EMPTY_LEDE : LEDES[state],
 		rows,
+		dailyLimitReached: input.dailyLimitReached,
 		saveUrl: input.saveUrl,
 		returnTo: input.returnTo,
 		inboxHref: input.inboxHref,

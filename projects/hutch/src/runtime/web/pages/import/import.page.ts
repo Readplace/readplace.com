@@ -41,10 +41,11 @@ import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { wantsSiren } from "../../content-negotiation";
 import { toImportAcquireViewModel, toImportViewModel } from "./import.viewmodel";
 import { initMultipartUpload } from "./multipart-upload";
-import { parseImportPage } from "./import.url";
+import { buildImportDailyLimitUrl, parseImportDailyLimitSavedCount, parseImportPage } from "./import.url";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import type { LogError } from "@packages/logger";
+import type { ClaimDailySaves } from "../readlist/daily-save-allowance";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
@@ -64,11 +65,9 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	/** Save gates applied only at commit, the sole route that creates content.
 	 * The earlier routes (upload, review, toggle) are public so a logged-out
 	 * visitor can build a review before signing up. `requireNotLocked` blocks a
-	 * locked (unverified-past-window) account; `requireWriteAccess` blocks a
-	 * read-only (trial-expired / cancelled) account. Both assume an authenticated
-	 * identity, so they run after the anonymous-visitor redirect. */
+	 * locked (unverified-past-window) account. */
 	requireNotLocked: RequestHandler;
-	requireWriteAccess: RequestHandler;
+	claimDailySaves: ClaimDailySaves;
 	/** Per-IP throttle for the public, unauthenticated import routes. The whole
 	 * router is reachable logged out, so without this a single client can create
 	 * unbounded review sessions and — via `/from-url` — drive unbounded outbound
@@ -280,7 +279,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		const totalSelected =
 			pageResult.session.totalUrls - pageResult.session.deselected.size;
 		const vm = toImportViewModel(pageResult, totalSelected);
-		sendComponent(req, res, Base(ImportPage(vm), await deps.buildBannerState(req)));
+		sendComponent(req, res, Base(ImportPage(vm, { dailyLimitSavedCount: parseImportDailyLimitSavedCount(req.query) }), await deps.buildBannerState(req)));
 	});
 
 	router.post("/:id/toggle", async (req: Request, res: Response) => {
@@ -330,7 +329,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		}),
 	);
 
-	router.post("/:id/commit", redirectAnonymousToSignup, deps.requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
+	router.post("/:id/commit", redirectAnonymousToSignup, deps.requireNotLocked, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - redirectAnonymousToSignup guarantees an authenticated identity here");
 		const userId = req.userId;
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
@@ -354,17 +353,23 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		});
 		assert(allUrls, "session row was found but URL chunks missing");
 
-		const selected = allUrls.filter((_url, i) => !session.deselected.has(i));
-		const saveable: SaveableUrl[] = [];
+		const saveableEntries: Array<{ url: SaveableUrl; indices: number[] }> = [];
 		const skipped: Array<{ url: string; code: SaveableUrlErrorCode }> = [];
-		for (const url of selected) {
+		for (const [index, url] of allUrls.entries()) {
+			if (session.deselected.has(index)) continue;
 			const validation = deps.validateNewSaveUrl(url);
 			if (validation.status === "SUCCESS") {
-				if (!saveable.includes(validation.url)) saveable.push(validation.url);
+				const known = saveableEntries.find((entry) => entry.url === validation.url);
+				if (known) known.indices.push(index);
+				else saveableEntries.push({ url: validation.url, indices: [index] });
 			} else {
 				skipped.push({ url, code: validation.error.code });
 			}
 		}
+
+		const allowance = await deps.claimDailySaves({ userId, urls: saveableEntries.map((entry) => entry.url) });
+		const saveable = allowance.granted;
+		const reachedDailyLimit = allowance.refused.length > 0;
 
 		const saveArticleFromUrl = initSaveArticleFromUrl(deps);
 		const logImportFailure = (url: SaveableUrl, error: unknown): "failed" => {
@@ -380,7 +385,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			const prepared = await Promise.all(
 				batch.map((url) =>
 					deps
-						.refreshArticleIfStale({ url })
+						.refreshArticleIfStale({ url, requester: { account: userId } })
 						.then(
 							(freshness) => ({ url, freshness }),
 							(error: unknown) => logImportFailure(url, error),
@@ -424,7 +429,16 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			await deps.recordEngagementActivity({ userId, kind: "personal-save", at: deps.now() });
 		}
 
-		await deps.importSessionStore.deleteImportSession({ id: parsedId.data, userId });
+		if (reachedDailyLimit) {
+			const granted = new Set<string>(saveable);
+			await deps.importSessionStore.deselectImportIndices({
+				id: parsedId.data,
+				userId,
+				indices: saveableEntries.filter((entry) => granted.has(entry.url)).flatMap((entry) => entry.indices),
+			});
+		} else {
+			await deps.importSessionStore.deleteImportSession({ id: parsedId.data, userId });
+		}
 
 		if (skipped.length > 0) {
 			/** Cookie carries the skipped URL list so the readlist page can render
@@ -456,7 +470,9 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		});
 		res.redirect(
 			303,
-			`${READLIST_PATH}?import_imported=${saveable.length}&import_total=${session.totalUrls}&import_skipped=${skipped.length}`,
+			reachedDailyLimit
+				? buildImportDailyLimitUrl({ sessionId: parsedId.data, savedCount: saveable.length })
+				: `${READLIST_PATH}?import_imported=${saveable.length}&import_total=${session.totalUrls}&import_skipped=${skipped.length}`,
 		);
 	});
 

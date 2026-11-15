@@ -38,7 +38,7 @@ const READLIST_PURGE_PAGE_SIZE = 25;
 export function initReadlistQueueRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findReadlistArticles" | "requireWriteAccess" | "upsertReadlist" | "listReadlistDefinitions" | "renameReadlistDefinition" | "pinReadlistDefinition" | "unpinReadlistDefinition" | "moveReadlistArticles" | "purgeReadlistFitOverrides" | "deleteReadlistDefinition" | "now"
+		"findReadlistArticles" | "upsertReadlist" | "listReadlistDefinitions" | "renameReadlistDefinition" | "pinReadlistDefinition" | "unpinReadlistDefinition" | "moveReadlistArticles" | "purgeReadlistFitOverrides" | "deleteReadlistDefinition" | "now"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -64,7 +64,7 @@ export function initReadlistQueueRoutes(
 		}
 	};
 
-	router.post("/queues", requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
+	router.post("/queues", requireNotLocked, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const context = await resolveReadlistContext(req, userId);
@@ -110,7 +110,6 @@ export function initReadlistQueueRoutes(
 	router.post(
 		"/queues/:slug/rename",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
@@ -170,7 +169,6 @@ export function initReadlistQueueRoutes(
 	router.post(
 		"/queues/:slug/delete",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
@@ -228,7 +226,6 @@ export function initReadlistQueueRoutes(
 	router.post(
 		"/queues/:slug/pin",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
@@ -259,7 +256,6 @@ export function initReadlistQueueRoutes(
 	router.post(
 		"/queues/:slug/unpin",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;

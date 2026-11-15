@@ -9,7 +9,7 @@ import {
 	READER_SHOT,
 	founderLine,
 	PLAN_CHOICES,
-	READ_ONLY_CLOSE,
+	FREE_PLAN_CLOSE,
 	START_TRIAL,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
@@ -121,14 +121,14 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to PDFs I already saved if I stop paying?",
 			answer:
-				"You keep reading them. The account goes read-only: the readlist, the reader view, the extracted text and export all keep working. Saving new links and importing are what stop.",
+				"You keep reading them. The account moves to the free plan: the readlist, the reader view, the extracted text and export all keep working, and saving new links and importing keep working within daily limits.",
 		},
 	],
 	offer: {
 		title: "What it costs after the first one",
 		paragraphs: [
 			`Reading a link you paste here costs nothing. Keeping a library of them is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
-			READ_ONLY_CLOSE,
+			FREE_PLAN_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},

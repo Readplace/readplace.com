@@ -127,6 +127,26 @@ export function initDynamoDbImportSession(deps: {
 				},
 			});
 		},
+		deselectImportIndices: async ({ id, userId, indices }) => {
+			const row = await loadAccessible(id, userId);
+			if (!row) return;
+			const current = computeDeselected({
+				allSelected: row.allSelected,
+				deselected: row.deselected,
+				totalUrls: row.totalUrls,
+			});
+			for (const index of indices) current.add(index);
+			await table.update({
+				Key: { sessionId: id },
+				ConditionExpression: ownershipCondition(userId),
+				UpdateExpression: "SET deselected = :d, allSelected = :a",
+				ExpressionAttributeValues: {
+					...(userId ? { ":uid": userId } : {}),
+					":d": Array.from(current),
+					":a": true,
+				},
+			});
+		},
 		deleteImportSession: async ({ id, userId }) => {
 			await table.delete({
 				Key: { sessionId: id },

@@ -21,4 +21,10 @@
             </div>
           </section>
           {{/each}}
+          {{#if locks}}
+          <section class="next-read__card" data-test-next-read-locked>
+            <h2 class="next-read__heading">{{lockedHeading}}</h2>
+            <div class="next-read__lock">{{#each locks}}{{{this}}}{{/each}}</div>
+          </section>
+          {{/if}}
         </div>

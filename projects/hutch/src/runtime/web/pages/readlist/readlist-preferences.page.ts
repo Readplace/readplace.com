@@ -26,7 +26,7 @@ import type {
 	ListReadlistFitOverrides,
 	SetReadlistDefinitionPurpose,
 } from "@packages/provider-contracts/article-store";
-import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
+import { type EffectiveAccess, type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { AlertContent } from "@packages/web-shell";
 import express from "express";
@@ -121,7 +121,7 @@ export function initReadlistPreferencesRoutes(deps: {
 	logError: LogError;
 	getEffectiveAccess: GetEffectiveAccess;
 	buildBannerState: BuildBannerState;
-	requireWriteAccess: RequestHandler;
+	requirePaidFeatures: RequestHandler;
 	findNonEmptyReadlists: FindNonEmptyReadlists;
 	now: () => Date;
 	resolveOnboarding: (req: Request, userId: UserId, access: EffectiveAccess) => Promise<ReadlistOnboarding>;
@@ -179,7 +179,7 @@ export function initReadlistPreferencesRoutes(deps: {
 		if ((saved || inboxCreated !== undefined) && req.get("HX-Request") === "true") {
 			res.set("HX-Replace-Url", readlistPreferencesPath(definition.slug));
 		}
-		const accessIsReadOnly = access.access === "read-only";
+		const paidFeaturesLocked = !hasPaidFeatures(access);
 		const activeReadlist = { slug: definition.slug, label: definition.label };
 		const context = {
 			state: { readlist: definition.slug, tab: "queue", page: 1 } as const,
@@ -202,7 +202,6 @@ export function initReadlistPreferencesRoutes(deps: {
 					readlist: { ...activeReadlist, purpose: definition.purpose },
 					rail: buildReadlistRail({
 						context,
-						accessIsReadOnly,
 						offer,
 						nonEmptyReadlists,
 					}),
@@ -215,7 +214,7 @@ export function initReadlistPreferencesRoutes(deps: {
 					saved,
 					gmailSenders,
 					choices,
-					accessIsReadOnly,
+					paidFeaturesLocked,
 					subscriptionBanner: toSubscriptionBannerState(access, deps.now(), offer),
 					onboarding,
 					query: req.query,
@@ -230,7 +229,7 @@ export function initReadlistPreferencesRoutes(deps: {
 	router.post(
 		"/queues/:slug/preferences",
 		requireNotLocked,
-		deps.requireWriteAccess,
+		deps.requirePaidFeatures,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
@@ -296,7 +295,6 @@ export function initReadlistPreferencesRoutes(deps: {
 	router.post(
 		"/queues/:slug/preferences/overrides/:id/delete",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
@@ -322,7 +320,7 @@ export function initReadlistPreferencesRoutes(deps: {
 	router.post(
 		"/queues/:slug/preferences/inboxes",
 		requireNotLocked,
-		deps.requireWriteAccess,
+		deps.requirePaidFeatures,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
@@ -373,7 +371,7 @@ export function initReadlistPreferencesRoutes(deps: {
 	router.post(
 		"/queues/:slug/preferences/inboxes/create",
 		requireNotLocked,
-		deps.requireWriteAccess,
+		deps.requirePaidFeatures,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;

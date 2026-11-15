@@ -1,5 +1,6 @@
 import type { ParseArticleResult } from "@packages/article-parser";
 import type { WrapperSourceBinding } from "./article-store";
+import type { StaleCheckRequester } from "./events";
 
 export type ResolvedSaveIdentity = { status: "resolved"; url: string; originalUrl: string } & (
 	| WrapperSourceBinding
@@ -26,8 +27,10 @@ export type IdentifiedFreshnessResult = { action: "unresolved"; identity: Unreso
 
 export type RefreshIdentifiedArticleIfStale = (params: {
 	url: string;
+	requester: StaleCheckRequester;
 }) => Promise<IdentifiedFreshnessResult>;
 
 export type RefreshArticleIfStale = (params: {
 	url: string;
+	requester: StaleCheckRequester;
 }) => Promise<ContentFreshnessResult>;

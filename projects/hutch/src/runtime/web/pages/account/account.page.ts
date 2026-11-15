@@ -99,8 +99,7 @@ import type { BuildBannerState } from "../../banner-state";
 import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/native-app-links";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
-import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
-import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
+import { type EffectiveAccess, type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import { AccountPage, renderAccountCard } from "./account.component";
 import { buildConnectedAppsSection } from "./account-connected-apps.view-model";
 import { AccountInvoicesPage } from "./account-invoices.component";
@@ -214,7 +213,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		cardError: CardError | undefined;
 		adding: { clientSecret: string; setupId: string } | undefined;
 	}): Promise<PaymentSectionInput> {
-		if (!input.customerId || input.access.access !== "full") {
+		if (!input.customerId || !hasPaidFeatures(input.access)) {
 			return { kind: "no-customer" };
 		}
 		try {
@@ -284,7 +283,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			appShell: isAppShell(req),
 			platform: nativeSurfaceOf(req),
 		});
-		const importLinks = buildImportLinks({ access: input.access, offer: upgradeOfferFor({ req, access: input.access }) });
+		const importLinks = buildImportLinks();
 		const webVm = toAccountViewModel({
 			access: input.access,
 			queryState,
@@ -470,7 +469,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			const row = await deps.findSubscriptionByUserId(userId);
 			const access = await deps.getEffectiveAccess(userId);
 			const parsed = PaymentMethodIdSchema.safeParse(req.params.id);
-			if (!row?.customerId || access.access !== "full" || !parsed.success) {
+			if (!row?.customerId || !hasPaidFeatures(access) || !parsed.success) {
 				res.redirect(303, buildAccountUrl());
 				return;
 			}
@@ -508,7 +507,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			const row = await deps.findSubscriptionByUserId(userId);
 			const access = await deps.getEffectiveAccess(userId);
 			const parsed = PaymentMethodIdSchema.safeParse(req.params.id);
-			if (!row?.customerId || access.access !== "full" || !parsed.success) {
+			if (!row?.customerId || !hasPaidFeatures(access) || !parsed.success) {
 				res.redirect(303, buildAccountUrl());
 				return;
 			}
@@ -548,7 +547,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			const publishableKey = deps.stripePublishableKey;
 			if (
 				!row?.customerId ||
-				access.access !== "full" ||
+				!hasPaidFeatures(access) ||
 				publishableKey === undefined ||
 				publishableKey.length === 0
 			) {
@@ -599,7 +598,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		try {
 			const row = await deps.findSubscriptionByUserId(userId);
 			const access = await deps.getEffectiveAccess(userId);
-			if (!row?.customerId || access.access !== "full") {
+			if (!row?.customerId || !hasPaidFeatures(access)) {
 				res.redirect(303, buildAccountUrl());
 				return;
 			}

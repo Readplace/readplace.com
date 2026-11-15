@@ -25,7 +25,7 @@ function createMutableClock(startMs: number) {
 function fixtureWithTightRules(overrides: Partial<RateLimitRules>) {
 	const clock = createMutableClock(1_700_000_000_000);
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	fixture.rateLimit = {
+	fixture.rateLimit = { ...fixture.rateLimit,
 		consumeRateLimit: initInMemoryRateLimit({ now: clock.now }).consumeRateLimit,
 		rules: { ...fixture.rateLimit.rules, ...overrides },
 	};

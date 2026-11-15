@@ -12,6 +12,7 @@ const OutputSchema = z.object({
 	pageIndex: z.number().int().min(0),
 	semanticHtml: z.string(),
 	applied: z.boolean(),
+	providerFailed: z.boolean(),
 	tokens: z.object({ input: z.number(), output: z.number() }).optional(),
 });
 
@@ -46,6 +47,7 @@ export function initInvokePdfPageHtmlConvert(deps: {
 				ok: true,
 				semanticHtml: parsed.semanticHtml,
 				applied: parsed.applied,
+				providerFailed: parsed.providerFailed,
 				tokens: parsed.tokens,
 			};
 		} catch (error) {

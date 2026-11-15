@@ -58,7 +58,10 @@ export function initSaveLinkTool(
 				readlists: named.map((readlist) => readlist.id),
 				oauthClientId: context.oauthClientId,
 			});
-			if (!outcome.ok) return toolError(outcome.message);
+			if (!outcome.ok) {
+				if ("refused" in outcome) context.recordSaveRefused();
+				return toolError(outcome.message);
+			}
 			if ("pending" in outcome) return data("This link is queued while Readplace resolves the original article. Check your readlist for the saved article.", { status: "pending" });
 			const filed = outcome.filedInto.filter(
 				(readlist) => readlist.id !== DEFAULT_READLIST_SLUG,

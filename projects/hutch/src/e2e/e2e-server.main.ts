@@ -60,6 +60,8 @@ import {
 import { initUpsertReadlist } from '@packages/save-article'
 import { readNewsletterCatalogSeed } from '../runtime/domain/newsletter-catalog/newsletter-catalog-seed'
 import { createTestApp } from '../runtime/test-app'
+import { initRequestStaleCheck } from '../runtime/domain/stale-check/request-stale-check'
+import { initGetEffectiveAccess } from '@packages/subscription-access'
 import { initMultipartUpload } from '../runtime/web/pages/import/multipart-upload'
 import { GMAIL_SENDERS_PATH } from '../runtime/web/pages/integrations/gmail.url'
 import { initInMemoryArticleImages } from '../runtime/providers/in-memory-article-images'
@@ -381,7 +383,13 @@ const SAVE_PIPELINES = {
 			findArticleByUrl: fixture.articleStore.findArticleByUrl,
 			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 			resolveSaveIdentity,
-			publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+			requestStaleCheck: initRequestStaleCheck({
+				consumeRateLimit: fixture.rateLimit.consumeRateLimit,
+				rule: fixture.rateLimit.rules.staleCheck,
+				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+				getEffectiveAccess: initGetEffectiveAccess({ findSubscriptionByUserId: fixture.subscriptionProviders.findByUserId, now: () => new Date() }),
+				logger: noopLogger,
+			}).requestStaleCheck,
 		}).refreshArticleIfStale,
 		publishLinkSaved: initInMemoryLinkSaved({ logger: eventLogger }).publishLinkSaved,
 	}),
@@ -1305,7 +1313,7 @@ function e2eInvoices(count: number): InvoiceSummary[] {
 
 const SeedSubscriptionStateBody = z.object({
 	userId: UserIdSchema,
-	state: z.enum(['trialing', 'active', 'cancellation-scheduled', 'inactive']),
+	state: z.enum(['trialing', 'active', 'cancellation-scheduled', 'free']),
 	at: z.string().optional(),
 	plan: z.enum(BILLING_PLANS).optional(),
 	cards: z.enum(['primary', 'primary-and-backup']).optional(),
@@ -1329,7 +1337,7 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 	if (state === 'active') {
 		await fixture.subscriptionProviders.upsertActive({ userId, subscriptionId, customerId, plan: plan ?? 'monthly' })
 	}
-	if (state === 'cancellation-scheduled' || state === 'inactive') {
+	if (state === 'cancellation-scheduled' || state === 'free') {
 		await fixture.subscriptionProviders.upsertActive({
 			userId,
 			subscriptionId,
@@ -1341,7 +1349,7 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 		const cancellationEffectiveAt = at ?? new Date(fixture.shared.now().getTime() + SUBSCRIPTION_CANCELLATION_DEFAULT_OFFSET_MS).toISOString()
 		await fixture.subscriptionProviders.markPendingCancellation({ userId, cancellationEffectiveAt })
 	}
-	if (state === 'inactive') {
+	if (state === 'free') {
 		await fixture.subscriptionProviders.markCancelledByUserId({ userId })
 	}
 	if (cards !== undefined) {

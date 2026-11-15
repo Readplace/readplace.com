@@ -20,6 +20,7 @@ config:
   save-link:inboxEmailLinksTableName: hutch-inbox-email-links-staging
   save-link:inboxEmailLinksTableArn: arn:aws:dynamodb:ap-southeast-2:572337278115:table/hutch-inbox-email-links-staging
   save-link:paidCrawlBudget: 200/3600
+  save-link:ocrPageQuota: 98/86400
   save-link:renderCrawlBudget: 200/3600
   save-link:renderRequestDiagnostics: hosts
   save-link:contentBucketName: hutch-article-content-staging

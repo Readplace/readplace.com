@@ -259,7 +259,7 @@ describe("MCP server over the real app", () => {
 		expect(response.body.result.isError).toBe(true);
 	});
 
-	it("refuses save_link but keeps the read tools open when the caller's subscription is inactive", async () => {
+	it("saves a link for a caller whose trial ended, because the free plan keeps saving", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await obtainAccessToken(harness);
 		const user = await harness.auth.findUserByEmail("mcp@example.com");
@@ -276,13 +276,12 @@ describe("MCP server over the real app", () => {
 			params: { name: "save_link", arguments: { url: "https://example.com/blocked" } },
 		});
 		expect(save.status).toBe(200);
-		expect(save.body.result.isError).toBe(true);
-		expect(save.body.result.content[0].text).toContain("subscription");
+		expect(save.body.result.isError).toBeUndefined();
 
 		const list = await callTool(harness, accessToken, tool("list_readlist_articles"));
 		expect(list.status).toBe(200);
 		expect(list.body.result.isError).toBeUndefined();
-		expect(list.body.result.structuredContent.total).toBe(0);
+		expect(list.body.result.structuredContent.total).toBe(1);
 	});
 
 	it("refuses save_link but keeps the read tools open when the subscription row is malformed and the check throws", async () => {
@@ -700,7 +699,7 @@ describe("MCP server over the real app", () => {
 		expect(listed.body.result.tools).toHaveLength(TOOL_DEFINITIONS.length);
 	});
 
-	it("refuses new readlist writes for a lapsed subscription without creating anything, and still lists every tool", async () => {
+	it("keeps readlist and highlight writes open for a caller on the free plan", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await obtainAccessToken(harness);
 		const id = await saveAndGetFirstId(harness, token);
@@ -708,21 +707,16 @@ describe("MCP server over the real app", () => {
 		assert(user);
 		await harness.articleStore.writeContent({ url: "https://example.com/article", content: HIGHLIGHT_BODY });
 		await harness.subscriptionProviders.upsertTrialing({ userId: user.userId, trialEndsAt: "2000-01-01T00:00:00.000Z" });
-		for (const body of [
-			tool("create_readlist", { name: "Work" }),
-			tool("add_to_readlist", { id, create_name: "Work" }),
-		]) {
-			const refused = await callTool(harness, token, body);
-			expect(refused.body.result.isError).toBe(true);
-			expect(refused.body.result.content[0].text).toContain("subscription");
-		}
-		const refusedHighlight = await callTool(harness, token, tool("create_highlight", { id, quote: HIGHLIGHT_SENTENCE }));
-		expect(refusedHighlight.body.result.isError).toBe(true);
-		expect(refusedHighlight.body.result.content[0].text).toContain("Creating highlights");
+		const created = await callTool(harness, token, tool("create_readlist", { name: "Work" }));
+		expect(created.body.result.isError).toBeUndefined();
+		const filed = await callTool(harness, token, tool("add_to_readlist", { id, create_name: "Work" }));
+		expect(filed.body.result.isError).toBeUndefined();
+		const highlighted = await callTool(harness, token, tool("create_highlight", { id, quote: HIGHLIGHT_SENTENCE }));
+		expect(highlighted.body.result.isError).toBeUndefined();
 		const highlights = await callTool(harness, token, tool("list_highlights", { id }));
-		expect(highlights.body.result.structuredContent.highlights).toEqual([]);
+		expect(highlights.body.result.structuredContent.highlights).toHaveLength(1);
 		const discovered = await callTool(harness, token, tool("list_readlists"));
-		expect(discovered.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+		expect(discovered.body.result.structuredContent.readlists.map((r: { name: string }) => r.name)).toEqual(["All", "Work"]);
 		const listed = await callTool(harness, token, { jsonrpc: "2.0", id: nextId++, method: "tools/list" });
 		expect(listed.body.result.tools).toHaveLength(TOOL_DEFINITIONS.length);
 	});

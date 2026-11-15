@@ -337,7 +337,7 @@ describe("Custom emails routes", () => {
 			expect(names).toEqual(["gmail"]);
 		});
 
-		it("redirects a read-only user to /queue?inactive=1 and mints nothing", async () => {
+		it("redirects a free account to /account/plans and mints nothing", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
@@ -350,7 +350,7 @@ describe("Custom emails routes", () => {
 			const response = await agent.post("/newsletters/custom-emails/create").set("Accept", "text/html");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?inactive=1");
+			expect(response.headers.location).toBe("/account/plans");
 			const listed = await agent.get("/newsletters/custom-emails");
 			expect(addressFieldValue(listed.text)).toBeUndefined();
 		});
@@ -906,7 +906,7 @@ describe("Custom emails routes", () => {
 			expect(disabledField?.getAttribute("value")).toBe(target.address);
 		});
 
-		it("redirects a read-only user to /queue?inactive=1 and re-enables nothing", async () => {
+		it("redirects a free account to /account/plans and re-enables nothing", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
@@ -927,7 +927,7 @@ describe("Custom emails routes", () => {
 				.set("Accept", "text/html");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?inactive=1");
+			expect(response.headers.location).toBe("/account/plans");
 			const after = new JSDOM(
 				(await agent.get("/newsletters/custom-emails")).text,
 			).window.document;

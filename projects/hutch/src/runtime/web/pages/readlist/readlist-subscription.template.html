@@ -26,10 +26,10 @@
   <p class="readlist-subscription__body" data-test-banner-message>Your subscription will end on <time datetime="{{cancellationEffectiveAt.iso}}" data-local-time="{{cancellationEffectiveAt.mode}}">{{cancellationEffectiveAt.label}}</time>. You'll keep full access until then.</p>
   <a class="btn btn--primary btn--m readlist-subscription__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate subscription</a>
   {{/if}}
-  {{#if isInactive}}
-  <span class="chip chip--status chip--error" data-test-subscription-chip="inactive">Subscription inactive</span>
-  <h2 class="readlist-subscription__title">Your subscription has ended</h2>
-  <p class="readlist-subscription__body" data-test-banner-message>Your saved articles are still here. Upgrade to regain full access to Readplace.</p>
+  {{#if isFree}}
+  <span class="chip chip--status chip--error" data-test-subscription-chip="free">{{t "readlistSubscription.free.chip"}}</span>
+  <h2 class="readlist-subscription__title">{{t "readlistSubscription.free.title"}}</h2>
+  <p class="readlist-subscription__body" data-test-banner-message>{{t "readlistSubscription.free.body"}}</p>
   <p class="readlist-subscription__note readlist-subscription__note--start" data-test-price-statement>{{renewalPrices}}</p>
   <p class="readlist-subscription__note readlist-subscription__note--start" data-test-saves-stay>{{savesStayStatement}}</p>
   {{#each upgradeCtas}}

@@ -6,7 +6,9 @@ import assert from "node:assert";
 import { createHash } from "node:crypto";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
-import type { ExtractPdf } from "@packages/crawl-article";
+import type { ChargeOcrPages, ExtractPdf } from "@packages/crawl-article";
+import type { MarkOcrPagesHeld } from "@packages/provider-contracts";
+import type { UserId } from "@packages/domain/user";
 import { MAX_PDF_BYTES, parsePdfFromBuffer } from "@packages/crawl-article";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import {
@@ -33,6 +35,8 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 	verifyWrapperSource: VerifyWrapperSource;
 	readPendingPdf: ReadPendingPdf;
 	extractPdf: ExtractPdf;
+	chargeOcrPagesFor: (params: { userId: UserId; claimId: string }) => ChargeOcrPages;
+	markOcrPagesHeld: MarkOcrPagesHeld;
 	parseHtml: ParseHtml;
 	downloadMedia: DownloadMedia;
 	processContent: ProcessContent;
@@ -48,6 +52,8 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 	const {
 		readPendingPdf,
 		extractPdf,
+		chargeOcrPagesFor,
+		markOcrPagesHeld,
 		parseHtml,
 		downloadMedia,
 		processContent,
@@ -84,8 +90,23 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 				url: detail.url,
 				maxPdfBytes: MAX_PDF_BYTES.bytes,
 				extractPdf,
+				scope: { kind: "account", userId: detail.userId, fileHash: bodyHash },
+				chargeOcrPages: chargeOcrPagesFor({ userId: detail.userId, claimId: saveAttemptId }),
 				logError: (message, error) => logger.error(message, { url: detail.url, error }),
 			});
+
+			if (crawlResult.status === "over-ocr-quota") {
+				const hold = { pages: crawlResult.pages, pagesLeft: crawlResult.pagesLeft, retryAt: crawlResult.retryAt };
+				await markOcrPagesHeld({ userId: detail.userId, url: detail.url, hold });
+				logger.info(`${logPrefix} ocr_page_quota_held`, {
+					url: detail.url,
+					saveAttemptId,
+					pages: hold.pages,
+					pagesLeft: hold.pagesLeft,
+					retryAt: hold.retryAt.toISOString(),
+				});
+				return;
+			}
 
 			if (crawlResult.status === "unsupported") {
 				logParseError({ url: detail.url, reason: `pdf-unsupported: ${crawlResult.reason}` });

@@ -27,7 +27,7 @@ import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import { isProxyWorthyResponse } from "./proxied-ladder-fallback";
 import { readBodyWithCap } from "./read-capped-body";
 import { resolveDocumentUrl } from "./resolve-document-url";
-import type { ExtractPdf } from "./pdf-extract.types";
+import type { ChargeOcrPages, ExtractPdf, ParsedPdfScope } from "./pdf-extract.types";
 import { matchingSiteRuleUrl, type SiteCrawlOutcome, type SiteRules } from "@packages/site-rules";
 
 /**
@@ -418,6 +418,8 @@ export async function parsePdfFromBuffer(input: {
 	url: string;
 	maxPdfBytes: number;
 	extractPdf: ExtractPdf;
+	scope: ParsedPdfScope;
+	chargeOcrPages: ChargeOcrPages;
 	onProgress?: ComprehensiveCrawlProgress;
 	logError: (message: string, error?: Error) => void;
 }): Promise<CrawlArticleResult> {
@@ -429,11 +431,21 @@ export async function parsePdfFromBuffer(input: {
 	const extracted = await input.extractPdf({
 		buffer: input.buffer,
 		url: input.url,
+		scope: input.scope,
+		chargeOcrPages: input.chargeOcrPages,
 		onProgress: input.onProgress,
 	});
 	if (extracted.kind === "failed") {
 		input.logError(`[CrawlArticle] PDF extraction failed for ${input.url}${suffix}: ${extracted.reason}`);
 		return { status: "unsupported", reason: `pdf extraction failed: ${extracted.reason}` };
+	}
+	if (extracted.kind === "over-ocr-quota") {
+		return {
+			status: "over-ocr-quota",
+			pages: extracted.pages,
+			pagesLeft: extracted.pagesLeft,
+			retryAt: extracted.retryAt,
+		};
 	}
 	const result: CrawlArticleResult & { status: "fetched" } = {
 		status: "fetched",
@@ -602,6 +614,7 @@ export function initCrawlArticle(deps: {
 			fetchThumbnail: params.fetchThumbnail,
 			onProgress: params.onProgress,
 			extractPdf,
+			chargeOcrPages: params.chargeOcrPages,
 			crawlFetch,
 			logError,
 			logInfo,
@@ -636,6 +649,7 @@ async function dispatchSupportedMedia(input: {
 	fetchThumbnail?: boolean;
 	onProgress?: ComprehensiveCrawlProgress;
 	extractPdf?: ExtractPdf;
+	chargeOcrPages: ChargeOcrPages | undefined;
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 	logInfo: (message: string) => void;
@@ -661,6 +675,11 @@ async function dispatchSupportedMedia(input: {
 				logInfo(`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${url}${suffix}`);
 				return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
 			}
+			if (!input.chargeOcrPages) {
+				const suffix = redirectSuffix({ requestedUrl: url, responseUrl: terminalUrl(response) });
+				logInfo(`[CrawlArticle] PDF awaits a saver before OCR for ${url}${suffix}`);
+				return { status: "pdf-awaiting-saver" };
+			}
 			return parsePdfFromBuffer({
 				buffer,
 				bodyHash,
@@ -668,6 +687,8 @@ async function dispatchSupportedMedia(input: {
 				url,
 				maxPdfBytes: MAX_PDF_BYTES.bytes,
 				extractPdf: input.extractPdf,
+				scope: { kind: "none" },
+				chargeOcrPages: input.chargeOcrPages,
 				onProgress: input.onProgress,
 				logError,
 			});

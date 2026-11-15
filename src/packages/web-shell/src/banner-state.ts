@@ -156,11 +156,7 @@ export interface BannerState {
 	 * the article with their already-installed extension; when false (or unset) it
 	 * pitches the install. Sourced from the extension liveness cookie. */
 	extensionInstalled?: boolean;
-	/** True when the user's effective access is read-only (trial-expired or
-	 * subscription-cancelled). Undefined for guests and for pages that build
-	 * the banner state synchronously (without an access lookup);
-	 * `buildNavGroups` treats undefined as full access. */
-	accessIsReadOnly?: boolean;
+	paidFeaturesLocked?: boolean;
 	upgrade?: UpgradeTarget;
 	siteDialog?: { html: string; styles: string };
 	signedInUser?: SignedInUser;
@@ -203,8 +199,8 @@ const NAV_LOGIN: NavItem = {
 
 type NavStanding = "open" | "needs-upgrade" | "withheld";
 
-function navStandingOf(input: { accessIsReadOnly: boolean; upgrade?: UpgradeTarget }): NavStanding {
-	if (!input.accessIsReadOnly) return "open";
+function navStandingOf(input: { paidFeaturesLocked: boolean; upgrade?: UpgradeTarget }): NavStanding {
+	if (!input.paidFeaturesLocked) return "open";
 	return input.upgrade === undefined ? "withheld" : "needs-upgrade";
 }
 
@@ -234,7 +230,7 @@ export function buildGuestNavGroups(): NavGroup[] {
  * Adding a destination means pushing a NavItem into the right group here, not
  * editing the template.
  * Export is deliberately absent: it lives on the account page instead. */
-export function buildNavGroups(input: { accessIsReadOnly: boolean; upgrade?: UpgradeTarget }): NavGroup[] {
+export function buildNavGroups(input: { paidFeaturesLocked: boolean; upgrade?: UpgradeTarget }): NavGroup[] {
 	const upgrades = input.upgrade === undefined ? [] : [input.upgrade];
 	const inboxByStanding: Record<NavStanding, NavItem[]> = {
 		open: [NAV_INBOX],

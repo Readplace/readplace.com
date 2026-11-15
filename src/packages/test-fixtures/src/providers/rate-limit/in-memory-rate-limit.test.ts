@@ -72,3 +72,58 @@ describe("initInMemoryRateLimit", () => {
 		assert.deepEqual(otherBucket, { allowed: true });
 	});
 });
+
+describe("initInMemoryRateLimit claimRateLimitUnits", () => {
+	const DAY_RULE = { limit: 28, windowSeconds: 86_400 };
+
+	it("grants every requested unit that fits under the limit", async () => {
+		const clock = createMutableClock(0);
+		const { claimRateLimitUnits } = initInMemoryRateLimit({ now: clock.now });
+
+		const claim = await claimRateLimitUnits({ bucket: "daily-saves", key: "user-1", requested: 5, rule: DAY_RULE });
+
+		assert.deepEqual(claim, { granted: 5, retryAfterSeconds: undefined });
+	});
+
+	it("grants only the remainder and reports seconds until the window resets", async () => {
+		const clock = createMutableClock(0);
+		const { claimRateLimitUnits } = initInMemoryRateLimit({ now: clock.now });
+		await claimRateLimitUnits({ bucket: "daily-saves", key: "user-1", requested: 25, rule: DAY_RULE });
+
+		clock.advanceSeconds(600);
+		const claim = await claimRateLimitUnits({ bucket: "daily-saves", key: "user-1", requested: 5, rule: DAY_RULE });
+
+		assert.deepEqual(claim, { granted: 3, retryAfterSeconds: 86_400 - 600 });
+	});
+
+	it("grants nothing from a spent window", async () => {
+		const clock = createMutableClock(0);
+		const { claimRateLimitUnits } = initInMemoryRateLimit({ now: clock.now });
+		await claimRateLimitUnits({ bucket: "daily-saves", key: "user-1", requested: 28, rule: DAY_RULE });
+
+		const claim = await claimRateLimitUnits({ bucket: "daily-saves", key: "user-1", requested: 1, rule: DAY_RULE });
+
+		assert.deepEqual(claim, { granted: 0, retryAfterSeconds: 86_400 });
+	});
+
+	it("shares the counter that consumeRateLimit spends", async () => {
+		const clock = createMutableClock(0);
+		const { claimRateLimitUnits, consumeRateLimit } = initInMemoryRateLimit({ now: clock.now });
+		await claimRateLimitUnits({ bucket: "login", key: "1.2.3.4", requested: 2, rule: HOUR_RULE });
+
+		const denied = await consumeRateLimit({ bucket: "login", key: "1.2.3.4", rule: HOUR_RULE });
+
+		assert.deepEqual(denied, { allowed: false, retryAfterSeconds: 3600 });
+	});
+
+	it("starts a fresh count once the window rolls over", async () => {
+		const clock = createMutableClock(0);
+		const { claimRateLimitUnits } = initInMemoryRateLimit({ now: clock.now });
+		await claimRateLimitUnits({ bucket: "daily-saves", key: "user-1", requested: 28, rule: DAY_RULE });
+
+		clock.advanceSeconds(DAY_RULE.windowSeconds);
+		const claim = await claimRateLimitUnits({ bucket: "daily-saves", key: "user-1", requested: 2, rule: DAY_RULE });
+
+		assert.deepEqual(claim, { granted: 2, retryAfterSeconds: undefined });
+	});
+});

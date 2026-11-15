@@ -844,7 +844,6 @@ Not sent when:
 
 > **Observations**
 >
-> - Copy defect: with exactly one save the email says "the 1 article you've saved stay readable either way" (singular noun, plural verb), and trial-reminder-email.test.ts asserts that exact text `projects/hutch/src/runtime/web/auth/trial-reminder-email.ts:31`
 > - The sent marker is written only after Resend accepts the email, so a marker-write failure or a concurrent duplicate delivery sends again, with the idempotency key `trial-reminder/<userId>/<trialEndsAt>`. Within Resend's 24-hour key window that replay sends no second copy, and a key Resend refuses as reused with another payload counts as sent. Only a redrive more than 24 hours later can send a second copy `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:379`
 > - Deleted accounts can be emailed. POST /account/delete only sets deletedAt, processReminder never checks it, and findEmailByUserId does not filter it. A fire before the deletion job removes the schedule sends to the deleted account `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`
 > - Paying readers can get it. Before the trial ends, the checkout success page is the only path from trialing to active, and the Stripe webhook receiver handles only customer.subscription.deleted and invoice.payment_failed. A reader who pays but never lands on the success page stays trialing and is still asked to keep using Readplace `projects/hutch/src/runtime/stripe-webhook-receiver.main.ts:33`
@@ -873,9 +872,9 @@ Content variants:
 
 | Variant | Shown when |
 |---|---|
-| default | The reader has 2 or more saves, read or unread. The first paragraph ends ", but the N articles you've saved stay readable either way." (`projects/hutch/src/runtime/web/auth/trial-reminder-email.ts:32`) |
-| one-saved-article | The reader has exactly 1 save. The noun turns singular but the verb stays plural: ", but the 1 article you've saved stay readable either way." (`projects/hutch/src/runtime/web/auth/trial-reminder-email.ts:31`) |
-| no-saved-articles | The reader has no saves. The clause is left out and the first paragraph ends "your account goes read-only." (`projects/hutch/src/runtime/web/auth/trial-reminder-email.ts:30`) |
+| default | The reader has 2 or more saves, read or unread. The first paragraph ends "your account moves to the free plan: the N articles you've saved stay, and you can keep saving within daily limits." |
+| one-saved-article | The reader has exactly 1 save. The plural form turns singular: "the 1 article you've saved stays, and you can keep saving within daily limits." |
+| no-saved-articles | The reader has no saves. The first paragraph ends "your account moves to the free plan, and you can keep saving within daily limits." |
 
 ### Example
 
@@ -959,7 +958,7 @@ Subject: **your Readplace trial ends in 2 days** · To: `sam.reader@gmail.com`
 
 Exact HTML body: [`html/trial-reminder--default.html`](html/trial-reminder--default.html)
 
-#### `one-saved-article` — A trialist with exactly 1 save. It shows the singular noun next to the plural verb: "the 1 article you've saved stay readable either way".
+#### `one-saved-article` — A trialist with exactly 1 save. It shows the singular form: "the 1 article you've saved stays".
 
 Subject: **your Readplace trial ends in 2 days** · To: `sam.reader@gmail.com`
 
@@ -1036,7 +1035,7 @@ Subject: **your Readplace trial ends in 2 days** · To: `sam.reader@gmail.com`
 
 Exact HTML body: [`html/trial-reminder--one-saved-article.html`](html/trial-reminder--one-saved-article.html)
 
-#### `no-saved-articles` — A trialist with no saves. The first paragraph stops at "your account goes read-only."
+#### `no-saved-articles` — A trialist with no saves. The first paragraph ends "your account moves to the free plan, and you can keep saving within daily limits."
 
 Subject: **your Readplace trial ends in 2 days** · To: `sam.reader@gmail.com`
 
@@ -1599,7 +1598,7 @@ Not sent when:
 > **Observations**
 >
 > - One copy per invoice and attempt: a member gets an identical copy for every qualifying failed attempt (the first failure, each non-final Stripe retry, any manual Dashboard or API retry), while a duplicate Stripe delivery, an SQS retry or a redrive for an attempt already emailed sends nothing `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.test.ts`
-> - The copy promises "If every retry fails, the subscription cancels and your account goes read-only" `projects/hutch/src/runtime/web/auth/payment-failed-email.ts:27`; that holds only if Stripe's 'after all retries fail' setting cancels the subscription (Dashboard setting, unverified), because Readplace ends the membership only on customer.subscription.deleted `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/customer-subscription-deleted.ts:48`
+> - The copy promises "If every retry fails, the subscription cancels and your account moves to the free plan" `projects/hutch/src/runtime/web/auth/payment-failed-email.ts:27`; that holds only if Stripe's 'after all retries fail' setting cancels the subscription (Dashboard setting, unverified), because Readplace ends the membership only on customer.subscription.deleted `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/customer-subscription-deleted.ts:48`
 > - If Stripe automatic retries are turned off, next_payment_attempt is empty on the first failure and no member ever gets this email (Stripe behaviour, unverified) `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:53`
 > - A logged-out reader who clicks 'Update your card' is sent to /login with no return URL and lands on /queue after signing in, not on the account page, and the utm parameters are lost `projects/hutch/src/runtime/server.ts:527`
 > - A just-deleted account can still get the email: the email lookup does not skip soft-deleted users, so a webhook that lands between POST /account/delete and the async delete job (which deletes the Stripe customer and the subscription row) still sends `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`
@@ -1820,7 +1819,7 @@ Not sent when:
 - Any CancelSubscriptionCommand processed while the row is pending_cancellation makes the cancellation final at once: a second POST /account/cancel, a duplicate delivery of the trial_expired_no_card command, or a retry after a cancel-<userId> name conflict; the email then goes out 3 days after that instead of at trialEndsAt + 1 hour + 3 days `projects/hutch/src/runtime/cancel-subscription/cancel-subscription-handler.ts:109`
 - A redelivered SubscriptionCancelled deletes and recreates the schedule, which pushes the send time later `projects/hutch/src/runtime/schedule-trial-feedback-email/schedule-trial-feedback-email-handler.ts:59`
 - Both SubscriptionCancelled handlers receive the record independently, so the schedule is created even if marking the row cancelled fails; if the mark never succeeds, the status guard skips the send `projects/hutch/src/runtime/handle-by-detail-type.ts:39`
-- If the trial-end schedule fails to arm at signup, the error is only logged and the trial goes read-only at its end date without any cancellation, so no email follows unless the trialist cancels early `projects/hutch/src/runtime/domain/trial/start-trial.ts:80`
+- If the trial-end schedule fails to arm at signup, the error is only logged and the trial moves to the free plan at its end date without any cancellation, so no email follows unless the trialist cancels early `projects/hutch/src/runtime/domain/trial/start-trial.ts:80`
 - A reader whose trial lapsed cannot start a membership between trialEndsAt and trialEndsAt + 1 hour, because /account/subscribe does nothing while the row is pending_cancellation `projects/hutch/src/runtime/web/pages/account/account.page.ts:959`
 - Reactivate only runs on a pending_cancellation row, so it can never remove a live trial-feedback schedule, which exists only once the row is cancelled `projects/hutch/src/runtime/web/pages/account/account.page.ts:646`
 - If the row is deleted right after the send, the marker write fails its attribute_exists(userId) condition and the retry hits the no-row guard, so no duplicate goes out in that case `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:147`
@@ -3877,7 +3876,7 @@ Not sent when:
 | Plain-text part | Yes: the same copy, with each save's title, site and reader link |
 | Idempotency key | `trial-day3-<userId>` |
 
-The price paragraph on every variant reads: 'Choose during your trial: {RENEWAL_PRICES} Add a card now and nothing is charged until {trialEnd}; you'll get an email a week before. Your saves stay readable and exportable either way.' `RENEWAL_PRICES` is the constant in `projects/hutch/src/runtime/web/price-statement.ts:5`, so this section does not repeat the amounts. The footer reads 'You're getting this because you started a Readplace trial on {date}. Stop these emails' with the `kind=trial-day3` unsubscribe link, then Proficient Pty Ltd and the postal address. Links carry `utm_source=day3-email&utm_medium=email&utm_campaign=trial-keep`, with `utm_content` of `article`, `install-extension`, `install-iphone`, `keep` or `unsubscribe`.
+The price paragraph on every variant reads: 'Choose during your trial: {RENEWAL_PRICES} Add a card now and nothing is charged until {trialEnd}; you'll get an email a week before. Without a card, your account moves to the free plan when the trial ends and keeps everything you saved.' `RENEWAL_PRICES` is the constant in `projects/hutch/src/runtime/web/price-statement.ts:5`, so this section does not repeat the amounts. The footer reads 'You're getting this because you started a Readplace trial on {date}. Stop these emails' with the `kind=trial-day3` unsubscribe link, then Proficient Pty Ltd and the postal address. Links carry `utm_source=day3-email&utm_medium=email&utm_campaign=trial-keep`, with `utm_content` of `article`, `install-extension`, `install-iphone`, `keep` or `unsubscribe`.
 
 Content variants (`projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day3-email.ts:13`):
 
@@ -4107,7 +4106,7 @@ Not sent when:
 | Plain-text part | Yes: the same copy, with each save's title, site and reader link |
 | Idempotency key | `trial-day7-<userId>` |
 
-The price paragraph on every variant reads: 'Your trial ends on {trialEnd}. Choose during your trial: {RENEWAL_PRICES} Add a card now and nothing is charged until {trialEnd}; you'll get a reminder before the charge. Your saves stay readable and exportable either way.' `RENEWAL_PRICES` is the constant in `projects/hutch/src/runtime/web/price-statement.ts:5`, so this section does not repeat the amounts. The footer reads 'You're getting this because you started a Readplace trial on {date}. Stop these emails' with the `kind=trial-day7` unsubscribe link, then Proficient Pty Ltd and the postal address. Links carry `utm_source=day7-email&utm_medium=email&utm_campaign=trial-keep`, with `utm_content` of `article`, `readlist`, `keep` or `unsubscribe`.
+The price paragraph on every variant reads: 'Your trial ends on {trialEnd}. Choose during your trial: {RENEWAL_PRICES} Add a card now and nothing is charged until {trialEnd}; you'll get a reminder before the charge. Without a card, your account moves to the free plan when the trial ends and keeps everything you saved.' `RENEWAL_PRICES` is the constant in `projects/hutch/src/runtime/web/price-statement.ts:5`, so this section does not repeat the amounts. The footer reads 'You're getting this because you started a Readplace trial on {date}. Stop these emails' with the `kind=trial-day7` unsubscribe link, then Proficient Pty Ltd and the postal address. Links carry `utm_source=day7-email&utm_medium=email&utm_campaign=trial-keep`, with `utm_content` of `article`, `readlist`, `keep` or `unsubscribe`.
 
 Content variants:
 

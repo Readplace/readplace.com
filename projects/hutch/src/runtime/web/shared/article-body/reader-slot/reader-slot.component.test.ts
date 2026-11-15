@@ -67,6 +67,46 @@ describe("renderReaderSlot", () => {
 		expect((slot + notice).includes("<html")).toBe(false);
 	});
 
+	it("shows the saver's OCR page hold instead of polling while the crawl is pending", () => {
+		const doc = parse(
+			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
+				ocrPagesHold: { pages: 40, pagesLeft: 12, retryAt: new Date("2026-11-06T03:00:00.000Z") },
+				url: URL,
+				articleId: ARTICLE_ID,
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
+				noticeOob: false,
+				now: NOW,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("ocr-pages-held");
+		expect(slot.getAttribute("hx-get")).toBeNull();
+		expect(doc.querySelector("[data-test-reader-notice]")?.getAttribute("data-reader-status")).toBe("ocr-pages-held");
+	});
+
+	it("renders the committed article over a stale OCR page hold once the crawl is ready", () => {
+		const doc = parse(
+			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
+				crawl: { status: "ready" },
+				content: articleBody("<p>Body</p>"),
+				ocrPagesHold: { pages: 40, pagesLeft: 12, retryAt: new Date("2026-11-06T03:00:00.000Z") },
+				url: URL,
+				articleId: ARTICLE_ID,
+				appOrigin: APP_ORIGIN,
+				noticeOob: false,
+				now: NOW,
+			}),
+		);
+
+		expect(doc.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status")).toBe("ready");
+	});
+
 	it("routes status=pending with a poll URL to the pending component", () => {
 		const doc = parse(
 			renderReaderSlot({

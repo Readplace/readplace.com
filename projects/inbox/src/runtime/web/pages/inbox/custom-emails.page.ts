@@ -29,7 +29,7 @@ interface CustomEmailsDependencies {
 	logError: LogError;
 	buildBannerState: BuildBannerState;
 	requireNotLocked: RequestHandler;
-	requireWriteAccess: RequestHandler;
+	requirePaidFeatures: RequestHandler;
 }
 
 const AddressActionSchema = z.object({ address: InboxAddressSchema });
@@ -73,7 +73,7 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 		);
 	});
 
-	router.post("/create", deps.requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
+	router.post("/create", deps.requireNotLocked, deps.requirePaidFeatures, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsed = CreateAddressSchema.safeParse(req.body);
@@ -132,7 +132,7 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 	router.post(
 		"/enable",
 		deps.requireNotLocked,
-		deps.requireWriteAccess,
+		deps.requirePaidFeatures,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;

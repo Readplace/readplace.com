@@ -3,11 +3,11 @@ import type { MediaUploadSession, ReadTimedDuration } from "@packages/domain";
 import { type MediaKindManifest, type Meter, billableSeconds } from "@packages/media-contracts";
 import type { ChargeTranscriptQuota, ChargedTranscript } from "@packages/provider-contracts/transcript-quota";
 import { COMMIT_ATTEMPT, type TranscriptCharge } from "./commit-received-upload";
-import type { UploadRefusalReason } from "./upload.refusal";
+import type { TranscriptRefusalReason } from "./upload.refusal";
 
 export type ChargeDecision =
 	| { kind: "proceed"; charge?: TranscriptCharge; freshCharge?: ChargedTranscript }
-	| { kind: "refuse"; reason: UploadRefusalReason };
+	| { kind: "refuse"; reason: TranscriptRefusalReason };
 
 export type ChargeTranscript = (params: {
 	session: MediaUploadSession;

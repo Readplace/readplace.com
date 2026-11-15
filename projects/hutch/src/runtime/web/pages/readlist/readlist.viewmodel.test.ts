@@ -55,7 +55,6 @@ describe("toSubscriptionBannerState — trial lead", () => {
 		return toSubscriptionBannerState(
 			{
 				tier: "trial",
-				access: "full",
 				banner: "trial-countdown",
 				trialEndsAt: new Date(NOW.getTime() + remainingMs).toISOString(),
 			},
@@ -744,81 +743,30 @@ describe("toReadlistViewModel — move", () => {
 		expect(vm.articles[0].move?.destinations).toEqual([finance, weekend]);
 	});
 
-	describe("by upgrade standing", () => {
+	describe("on the free plan", () => {
 		const offer = { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" as const };
-		const readOnly = { tier: "inactive", access: "read-only", banner: "inactive", reason: "trial-expired" } as const;
+		const free = { tier: "free", banner: "free", reason: "trial-expired" } as const;
 
-		it("open: a reader who can write gets the move and no lock, even when an upgrade is on offer", () => {
-			const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, { now: NOW, readlists, upgradeOffer: offer });
+		it("gives a free-plan reader the real move on a custom readlist, since filing is a core write", () => {
+			const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, {
+				now: NOW,
+				readlists,
+				effectiveAccess: free,
+				upgradeOffer: offer,
+			});
 
 			expect(vm.articles[0].move?.mode).toBe("move");
-			expect(vm.articles[0].moveLocks).toEqual([]);
 		});
 
-		it("needs-upgrade: a read-only reader gets a lock named for the move on a custom readlist", () => {
-			const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, {
-				now: NOW,
-				readlists,
-				effectiveAccess: readOnly,
-				upgradeOffer: offer,
-			});
-
-			expect(vm.articles[0].move).toBeUndefined();
-			expect(vm.articles[0].moveLocks).toEqual([
-				{
-					key: "move-article",
-					label: "Move to readlist",
-					controlClass: "menu__item",
-					popoverId: "subscribe-plans",
-					fallbackHref: "/account/plans?utm_source=queue-card&utm_medium=internal&utm_content=upgrade-move-article",
-				},
-			]);
-		});
-
-		it("needs-upgrade: a read-only reader gets a lock named for the add on All", () => {
+		it("gives a free-plan reader the real add on All", () => {
 			const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
 				now: NOW,
 				readlists,
-				effectiveAccess: readOnly,
+				effectiveAccess: free,
 				upgradeOffer: offer,
 			});
 
-			expect(vm.articles[0].moveLocks.map((lock) => lock.label)).toEqual(["Add to readlist"]);
-		});
-
-		it("needs-upgrade: no lock appears where upgrading would still leave nowhere to file the article", () => {
-			const shelves = customReadlists(READLIST_MAX_PER_USER);
-			const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
-				now: NOW,
-				readlists: [DEFAULT_READLIST, ...shelves],
-				savesByUrl: new Map([[ARTICLE_URL, shelves.map((shelf) => ({ readlist: shelf.slug }))]]),
-				effectiveAccess: readOnly,
-				upgradeOffer: offer,
-			});
-
-			expect(vm.articles[0].moveLocks).toEqual([]);
-		});
-
-		it("withheld: a read-only reader with nothing on offer gets neither", () => {
-			const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, {
-				now: NOW,
-				readlists,
-				effectiveAccess: readOnly,
-				upgradeOffer: undefined,
-			});
-
-			expect(vm.articles[0].move).toBeUndefined();
-			expect(vm.articles[0].moveLocks).toEqual([]);
-		});
-
-		it("draws no lock on a render path that carries no readlists", () => {
-			const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, {
-				now: NOW,
-				effectiveAccess: readOnly,
-				upgradeOffer: offer,
-			});
-
-			expect(vm.articles[0].moveLocks).toEqual([]);
+			expect(vm.articles[0].move?.mode).toBe("add");
 		});
 	});
 
@@ -885,16 +833,24 @@ describe("toReadlistViewModel — move", () => {
 		expect(vm.articles[0].move).toBeUndefined();
 	});
 
-	it("offers no move to a read-only account", () => {
+	it("locks paid features for a free-plan account", () => {
 		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
 			now: NOW,
 			readlists,
 			savesByUrl: new Map([[ARTICLE_URL, [{}]]]),
-			effectiveAccess: { tier: "inactive", access: "read-only", banner: "inactive", reason: "trial-expired" },
+			effectiveAccess: { tier: "free", banner: "free", reason: "trial-expired" },
 		});
 
-		expect(vm.accessIsReadOnly).toBe(true);
-		expect(vm.articles[0].move).toBeUndefined();
+		expect(vm.paidFeaturesLocked).toBe(true);
+	});
+
+	it("keeps paid features open for a trial account", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			effectiveAccess: { tier: "trial", banner: "trial-countdown", trialEndsAt: "2026-02-01T00:00:00.000Z" },
+		});
+
+		expect(vm.paidFeaturesLocked).toBe(false);
 	});
 
 	it("leaves moveFlash undefined when not provided", () => {

@@ -1146,10 +1146,10 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
 		const card = findCard(doc);
-		expect(card.classList.contains("account-card--inactive")).toBe(true);
-		expect(card.getAttribute("data-test-account-state")).toBe("inactive");
+		expect(card.classList.contains("account-card--free")).toBe(true);
+		expect(card.getAttribute("data-test-account-state")).toBe("free");
 		expect(planTitle(doc)).toBe("Subscription");
-		expect(planChips(doc)).toEqual([["Inactive", "chip chip--status chip--error"]]);
+		expect(planChips(doc)).toEqual([["Free plan", "chip chip--status chip--error"]]);
 		expect(doc.querySelector("[data-test-account-status]")?.textContent).toBe("");
 		expect(actionKeys(doc)).toEqual(["subscribe"]);
 	});
@@ -3963,7 +3963,7 @@ describe("GET /account (export)", () => {
 		expectExportLink(doc);
 	});
 
-	it("keeps the export reachable for a read-only user, whose data is still theirs to take", async () => {
+	it("keeps the export reachable for a free-plan user, whose data is still theirs to take", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "export-expired@example.com");
@@ -4012,9 +4012,10 @@ describe("GET /account (import)", () => {
 	});
 
 	it.each([
+		["the web", "/account"],
 		["the in-app browser sheet", "/account?platform=ios"],
 		["the app shell", "/account?platform=ios&shell=app"],
-	])("offers only Export to a read-only user on %s, where nothing may sell an upgrade", async (_surface, path) => {
+	])("offers Import to a free-plan user on %s, since importing is core", async (_surface, path) => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "import-expired@example.com");
@@ -4026,35 +4027,10 @@ describe("GET /account (import)", () => {
 		const response = await agent.get(path);
 		const doc = new JSDOM(response.text).window.document;
 
-		expect(dataCardLinks(doc)).toEqual([EXPORT]);
-		expect(doc.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
-		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(0);
-	});
-
-	it("locks Import links for a read-only user on the web, opening the page's one plan chooser", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "import-locked@example.com");
-		await subscriptionProviders.upsertTrialing({
-			userId,
-			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
-		});
-
-		const response = await agent.get("/account");
-		const doc = new JSDOM(response.text).window.document;
-
-		expect(dataCardLinks(doc)).toEqual([EXPORT]);
+		expect(dataCardLinks(doc)).toEqual([EXPORT, IMPORT]);
 		const section = doc.querySelector('[data-test-account-section="data"]');
 		assert(section, "the data section must render");
-		const lock = section.querySelector('[data-test-action="upgrade-open"]');
-		assert(lock, "the import row must carry the lock");
-		expect(lock.getAttribute("data-test-needs-upgrade")).toBe("import");
-		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
-		expect(lock.querySelector(".needs-upgrade__label")?.textContent).toBe("Import links");
-		expect(section.querySelector('[data-test-action="upgrade-fallback"]')?.getAttribute("href")).toBe(
-			"/account/plans?utm_source=account&utm_medium=internal&utm_content=upgrade-import",
-		);
-		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
+		expect(section.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
 	});
 
 	it("keeps the Import link for a reader on an active trial", async () => {

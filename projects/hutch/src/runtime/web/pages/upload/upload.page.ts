@@ -27,7 +27,7 @@ import {
 	writeUploadOutcome,
 } from "./upload.outcome";
 import { isMeteredStart, uploadStartPathOf } from "./upload-features";
-import { type UploadRefusalReason, uploadRefusalMessage } from "./upload.refusal";
+import { type TranscriptRefusalReason, bookQuotaRedirectQueryOf, uploadRefusalOf } from "./upload.refusal";
 import {
 	acceptAttributeOf,
 	detectUploadKind,
@@ -91,7 +91,7 @@ function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, 
 	};
 }
 
-function refusalWriter(reason: UploadRefusalReason): (res: Response) => void {
+function refusalWriter(reason: TranscriptRefusalReason): (res: Response) => void {
 	return (res) => {
 		res.redirect(303, `${uploadStartPathOf(true)}&refused=${reason}`);
 	};
@@ -142,6 +142,9 @@ export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 	"transcript-too-long": refusalWriter("transcript-too-long"),
 	"unreadable-audio": refusalWriter("unreadable-audio"),
 	"no-audio-track": refusalWriter("no-audio-track"),
+	"book-quota": (res, outcome) => {
+		res.redirect(303, `${uploadStartPathOf(true)}&${bookQuotaRedirectQueryOf(outcome.retryAt)}`);
+	},
 };
 
 export type UploadProtocol = {
@@ -213,7 +216,7 @@ export function initUploadRouter(deps: UploadRouteDependencies): Router {
 					view: "start",
 					start: {
 						...toUploadStartViewModel(kinds, Boolean(req.userId), uploadStartPathOf(metered)),
-						refusalMessage: uploadRefusalMessage({
+						refusal: uploadRefusalOf({
 							query: req.query,
 							allowanceSeconds: deps.transcriptAllowanceSeconds,
 						}),

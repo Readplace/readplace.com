@@ -717,7 +717,7 @@ async function loginChipReader(page: Page, email: string): Promise<void> {
 test.describe("Chip tones hold their WCAG contrast in both themes", () => {
 	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
 
-	for (const state of ["cancellation-scheduled", "inactive"] as const) {
+	for (const state of ["cancellation-scheduled", "free"] as const) {
 		test(`the ${state} status chip clears its contrast minimum`, async ({ page }, testInfo) => {
 			const email = `colour-contrast-chip-${state}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createChipReader(page, email);

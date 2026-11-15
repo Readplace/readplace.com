@@ -1,0 +1,19 @@
+    <main class="export" data-test-export-limit-reached>
+      <div class="export__layout">
+        <div class="export__card">
+          <div class="export__header">
+            <h1 class="export__title">{{t "exportLimitReached.title"}}</h1>
+            <p class="export__subtitle">{{limitLine}}</p>
+          </div>
+
+          <section class="export__section">
+            <p class="export__text">{{retryLine}}</p>
+            <p class="export__text">{{t "exportLimitReached.linkStillWorks" ttlDays=ttlDays}}</p>
+          </section>
+
+          <div class="export__action">
+            <a href="{{track '/queue' source='export-limit-reached' content='back-to-queue'}}" class="btn btn--primary">{{t "exportLimitReached.backToReadlist"}}</a>
+          </div>
+        </div>
+      </div>
+    </main>

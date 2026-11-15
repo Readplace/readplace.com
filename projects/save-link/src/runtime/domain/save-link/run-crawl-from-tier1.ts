@@ -1,4 +1,5 @@
 import type { SaveAttemptId } from "@packages/domain/article";
+import type { UserId } from "@packages/article-state-types";
 import type { Logger } from "@packages/logger";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
@@ -40,6 +41,7 @@ export type RunCrawlFromTier1 = (params: {
 	saveAttemptId: SaveAttemptId;
 	recrawl: boolean;
 	sourceOriginalUrl: string | undefined;
+	userId: UserId | undefined;
 }) => Promise<SaveCandidates | undefined>;
 
 export function initRunCrawlFromTier1(deps: RunCrawlFromTier1Deps & { logPrefix: string }): RunCrawlFromTier1 {
@@ -75,13 +77,13 @@ export function initRunCrawlFromTier1(deps: RunCrawlFromTier1Deps & { logPrefix:
 
 	const crawlSaveCandidates = initCrawlSaveCandidates({ crawlArchiveCapture, saveLinkWork, emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported });
 
-	return async ({ url, saveAttemptId, recrawl, sourceOriginalUrl }) => {
+	return async ({ url, saveAttemptId, recrawl, sourceOriginalUrl, userId }) => {
 		const captureUrl = await deps.findContentSourceUrl(url);
 		if (captureUrl !== undefined) {
-			const result = await crawlSaveCandidates({ url, captureUrl, saveAttemptId, recrawl, sourceOriginalUrl });
+			const result = await crawlSaveCandidates({ url, captureUrl, saveAttemptId, recrawl, sourceOriginalUrl, userId });
 			return "deferredTo" in result ? undefined : result;
 		}
-		const result = await saveLinkWork(url, { recrawl, saveAttemptId });
+		const result = await saveLinkWork(url, { recrawl, saveAttemptId, userId });
 		if (typeof result !== "object" || "deferred" in result) return undefined;
 		return { candidates: [result.candidate], liveAttempt: { outcome: "body" } };
 	};

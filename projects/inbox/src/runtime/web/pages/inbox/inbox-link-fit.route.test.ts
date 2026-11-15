@@ -518,7 +518,7 @@ describe("Inbox link fit route", () => {
 		expect(harness.filedArticles).toEqual([]);
 	});
 
-	it("refuses a read-only reader", async () => {
+	it("refuses a free account, since readlist fit is part of the paid Inbox", async () => {
 		const { harness, userId, choose, overrides } = await setUp();
 		await harness.subscriptionProviders.upsertTrialing({
 			userId,
@@ -528,7 +528,7 @@ describe("Inbox link fit route", () => {
 		const response = await choose("0001", "keep");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/account/plans");
 		expect(harness.filedArticles).toEqual([]);
 		expect(await overrides()).toEqual([]);
 	});

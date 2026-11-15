@@ -43,7 +43,7 @@ function sirenGet(harness: Harness, params: { path: string; token: string }) {
 		.set("Authorization", `Bearer ${params.token}`);
 }
 
-describe("Read-only account with an obsidian-plugin bearer", () => {
+describe("Free-plan account with an obsidian-plugin bearer", () => {
 	it("answers the entry point with the listing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await readOnlyBearer(harness);
@@ -91,7 +91,7 @@ describe("Read-only account with an obsidian-plugin bearer", () => {
 		expect(response.text).toContain(`readplace_id: ${ReaderArticleHashId.from(ARTICLE_URL).value}`);
 	});
 
-	it("refuses a save with 402, which is what makes the account read-only", async () => {
+	it("saves a new link, since saving is core on the free plan", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await readOnlyBearer(harness);
 		const listing = await sirenGet(harness, { path: "/queue", token });
@@ -103,9 +103,9 @@ describe("Read-only account with an obsidian-plugin bearer", () => {
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token}`)
 			.type("json")
-			.send({ url: "https://example.com/refused" });
+			.send({ url: "https://example.com/saved-on-free" });
 
-		expect(response.status).toBe(402);
+		expect(response.status).toBe(201);
 		expect(response.headers["content-type"]).toMatch(/^application\/vnd\.siren\+json/);
 	});
 });

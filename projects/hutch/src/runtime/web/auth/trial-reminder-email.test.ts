@@ -46,22 +46,25 @@ describe("TrialReminderEmail", () => {
 			const text = TrialReminderEmail({ ...baseParams, savedArticlesCount: 9 }).to(
 				"text/plain",
 			);
-			expect(text).toContain("the 9 articles you've saved stay readable either way");
+			expect(text).toContain(
+				"Your trial of Readplace ends in 2 days. I don't ask for a card up front, so nothing gets charged. When the trial ends, your account moves to the free plan: the 9 articles you've saved stay, and you can keep saving within daily limits.",
+			);
 		});
 
 		it("singularises to '1 article' when the user saved one", () => {
 			const text = TrialReminderEmail({ ...baseParams, savedArticlesCount: 1 }).to(
 				"text/plain",
 			);
-			expect(text).toContain("the 1 article you've saved stay readable either way");
+			expect(text).toContain("the 1 article you've saved stays, and you can keep saving within daily limits.");
 		});
 
 		it("omits the saved-articles clause entirely when count is zero", () => {
 			const text = TrialReminderEmail({ ...baseParams, savedArticlesCount: 0 }).to(
 				"text/plain",
 			);
-			expect(text).not.toContain("stay readable either way");
-			expect(text).toContain("your account goes read-only.");
+			expect(text).toContain(
+				"Your trial of Readplace ends in 2 days. I don't ask for a card up front, so nothing gets charged. When the trial ends, your account moves to the free plan, and you can keep saving within daily limits.",
+			);
 		});
 
 		it("says what a subscription funds: the running expenses", () => {
@@ -118,7 +121,7 @@ describe("TrialReminderEmail", () => {
 			const html = TrialReminderEmail({ ...baseParams, savedArticlesCount: 0 }).to(
 				"text/html",
 			);
-			expect(html).not.toContain("stay readable either way");
+			expect(html).toContain("your account moves to the free plan, and you can keep saving within daily limits.");
 		});
 
 		it("renders the funding paragraph as its own <p>", () => {

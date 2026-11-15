@@ -42,61 +42,29 @@ function refusalsIn(harness: TestAppHarness) {
 }
 
 describe("save_refused on the gated save routes", () => {
-	it.each(["/queue", "/queue/save", "/queue/save-content"])("records a web POST %s at the gate's 303", async (route) => {
+	it("records nothing for a free-plan reader's web POST /queue/save, which saves", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent, userId } = await lapsedReader(harness);
+		const { agent } = await lapsedReader(harness);
 
-		const response = await agent.post(route).set("Accept", "text/html").type("form").send({ url: "https://example.com/a" });
+		const response = await agent.post("/queue/save").set("Accept", "text/html").type("form").send({ url: "https://example.com/a" });
 
-		expect(response.status).toBe(303);
-		expect(refusalsIn(harness)).toEqual([
-			expect.objectContaining({ path: route, status: 303, code: "no_write_access", user_id: userId }),
-		]);
+		expect([response.status, response.headers.location]).toEqual([303, "/queue#latest-saved"]);
+		expect(refusalsIn(harness)).toEqual([]);
 	});
 
-	it.each(["/queue", "/queue/save-content"])("records an extension POST %s at the gate's 402", async (route) => {
+	it("records nothing for a free-plan reader's extension POST /queue, which saves", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { userId } = await lapsedReader(harness);
 		const accessToken = await bearerFor(harness, userId);
 
 		const response = await request(harness.server)
-			.post(route)
+			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.send({ url: "https://example.com/a" });
 
-		expect(response.status).toBe(402);
-		expect(refusalsIn(harness)).toEqual([
-			expect.objectContaining({
-				path: route,
-				status: 402,
-				code: "no_write_access",
-				client: "firefox_extension",
-				user_id: userId,
-			}),
-		]);
-	});
-
-	it("records an inactive POST /queue/:id/issue-links under the route's pattern", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { agent, userId } = await lapsedReader(harness);
-
-		const response = await agent
-			.post(`/queue/${"a".repeat(32)}/issue-links`)
-			.set("Accept", "text/html")
-			.type("form")
-			.send({ ordinal: "1" });
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
-		expect(refusalsIn(harness)).toEqual([
-			expect.objectContaining({
-				path: "/queue/:id/issue-links",
-				status: 303,
-				code: "no_write_access",
-				user_id: userId,
-			}),
-		]);
+		expect(response.status).toBe(201);
+		expect(refusalsIn(harness)).toEqual([]);
 	});
 
 	it("records a 422 from the save dialog as other", async () => {

@@ -9,6 +9,20 @@ export function parseImportPage(query: Record<string, unknown>): number {
 	return parsed.page ?? 1;
 }
 
+const ImportDailyLimitQuerySchema = z.looseObject({
+	import_daily_limit: z.literal("1"),
+	import_imported: z.coerce.number().int().min(0),
+});
+
+export function parseImportDailyLimitSavedCount(query: Record<string, unknown>): number | undefined {
+	const parsed = ImportDailyLimitQuerySchema.safeParse(query);
+	return parsed.success ? parsed.data.import_imported : undefined;
+}
+
+export function buildImportDailyLimitUrl(params: { sessionId: string; savedCount: number }): string {
+	return `/import/${params.sessionId}?import_imported=${params.savedCount}&import_daily_limit=1`;
+}
+
 export function buildImportUrl(sessionId: string, page: number): string {
 	return page > 1 ? `/import/${sessionId}?page=${page}` : `/import/${sessionId}`;
 }

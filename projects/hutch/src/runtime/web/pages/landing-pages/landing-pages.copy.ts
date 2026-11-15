@@ -58,8 +58,8 @@ export const PLAN_CHOICES = `${PRICING_PLANS.monthly.billedNote} or ${PRICING_PL
 /** The sentence this whole product is arguing for. Every offer section lands on
  * it, because for a reader who has already lost one readlist it answers the
  * objection that a price tag raises. */
-export const READ_ONLY_CLOSE =
-	"If you never subscribe, nothing is charged and the account goes read-only, not dark — you keep reading every article you saved, and you can still export.";
+export const FREE_PLAN_CLOSE =
+	"If you never subscribe, nothing is charged and the account moves to the free plan instead of going dark — you keep every article you saved, you can keep saving within daily limits, and you can still export.";
 
 export const START_TRIAL: LandingPageAction = {
 	key: "signup",
@@ -67,7 +67,7 @@ export const START_TRIAL: LandingPageAction = {
 	href: "/signup",
 };
 
-export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-11-04";
+export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-11-15";
 
 export function landingPageLastModified(page: Pick<LandingPageContent, "lastModified">): IsoDay {
 	return page.lastModified > SHARED_LANDING_COPY_LAST_MODIFIED

@@ -17,7 +17,7 @@ export interface InvokePdfPageHtmlConvertInput {
  * already sanitised and safe to splice into the article body.
  */
 export type InvokePdfPageHtmlConvertResult =
-	| { readonly ok: true; readonly semanticHtml: string; readonly applied: boolean; readonly tokens?: { readonly input: number; readonly output: number } }
+	| { readonly ok: true; readonly semanticHtml: string; readonly applied: boolean; readonly providerFailed: boolean; readonly tokens?: { readonly input: number; readonly output: number } }
 	| { readonly ok: false; readonly error: Error };
 
 export type InvokePdfPageHtmlConvert = (

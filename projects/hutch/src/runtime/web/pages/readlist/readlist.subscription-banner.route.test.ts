@@ -127,7 +127,7 @@ describe("Readlist page banner state", () => {
 		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly"]);
 	});
 
-	it("locks Add link after the trial window ends", async () => {
+	it("keeps Add link open and shows the free-plan banner after the trial window ends", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "expired-trial@example.com");
@@ -138,14 +138,12 @@ describe("Readlist page banner state", () => {
 
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
-		const lock = doc.querySelector('[data-test-add-link] [data-test-action="upgrade-open"]');
-		assert(lock, "the Add link slot must hold the lock");
-		expect(lock.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
+		const addLinkTrigger = doc.querySelector('[data-test-add-link] [data-test-action="add-link"]');
+		assert(addLinkTrigger, "the Add link slot must hold the real trigger");
+		expect(addLinkTrigger.getAttribute("popovertarget")).toBe("add-link");
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner aside must be rendered");
-		expect(banner.classList.contains("readlist-subscription--inactive")).toBe(true);
-		// Trial expiry is how the entire churned cohort reaches the inactive
-		// state, so the re-subscribe CTA must be present on this path too.
+		expect(banner.classList.contains("readlist-subscription--free")).toBe(true);
 		const { trigger, fallback } = subscribeCtaPair(banner, "resubscribe");
 		expect(trigger.textContent).toBe("Upgrade");
 		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
@@ -199,7 +197,7 @@ describe("Readlist page banner state", () => {
 		expect(confirmPopoverKeys(doc)).toEqual(["readlist-create", "add-link", "save-tip"]);
 	});
 
-	it("flips banner to inactive and disables save after the cancellation window elapses", async () => {
+	it("flips banner to the free plan after the cancellation window elapses", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "past-pending-cancel@example.com");
@@ -218,11 +216,11 @@ describe("Readlist page banner state", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner must always be rendered");
-		expect(banner.classList.contains("readlist-subscription--inactive")).toBe(true);
+		expect(banner.classList.contains("readlist-subscription--free")).toBe(true);
 		const message = banner.querySelector("[data-test-banner-message]");
-		assert(message, "inactive banner must render its message");
+		assert(message, "free-plan banner must render its message");
 		expect(message.textContent?.replace(/\s+/g, " ").trim()).toBe(
-			"Your saved articles are still here. Upgrade to regain full access to Readplace.",
+			"Your saved articles are all here, and you can keep saving new links within a daily limit. Upgrade for the Inbox, Next read, Past reads, Gmail and no daily limits.",
 		);
 		// An expired/cancelled user must be able to re-subscribe from the readlist
 		// itself, not be dead-ended into hunting for /account.
@@ -230,7 +228,7 @@ describe("Readlist page banner state", () => {
 		expect(trigger.textContent).toBe("Upgrade");
 		expect(fallback.textContent).toBe("Upgrade");
 		const ctaHref = fallback.getAttribute("href");
-		assert(ctaHref, "inactive banner CTA must have an href");
+		assert(ctaHref, "free-plan banner CTA must have an href");
 		expect(ctaHref).toContain("/account");
 		expect(ctaHref).toContain("utm_content=resubscribe");
 		expect(pricingLines(banner)).toEqual({ price: [RENEWAL_PRICES], savesStay: [SAVES_STAY_STATEMENT] });
@@ -270,7 +268,7 @@ describe("Readlist page banner state", () => {
 	});
 
 	it.each(["/queue?platform=ios", "/queue?shell=app"])(
-		"shows an inactive reader at %s no plan chooser and no action that opens one",
+		"shows a free-plan reader at %s no plan chooser and no action that opens one",
 		async (path) => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { agent, userId } = await loginUser(harness, "cancelled-native@example.com");
@@ -282,7 +280,7 @@ describe("Readlist page banner state", () => {
 			const banner = doc.querySelector("[data-test-subscription-banner]");
 
 			assert(banner, "readlist banner aside must be rendered");
-			expect(banner.classList.contains("readlist-subscription--inactive")).toBe(true);
+			expect(banner.classList.contains("readlist-subscription--free")).toBe(true);
 			expect(doc.querySelector(`#${SUBSCRIBE_PLANS_POPOVER_ID}`)).toBeNull();
 			expect(doc.querySelector(".subscribe-plans__trigger")).toBeNull();
 			expect(doc.querySelector(".subscribe-plans__fallback")).toBeNull();
@@ -290,8 +288,8 @@ describe("Readlist page banner state", () => {
 	);
 });
 
-describe("POST /queue/save read-only gating", () => {
-	it("returns a 303 redirect to /queue?inactive=1 when an html client tries to save while inactive", async () => {
+describe("POST /queue/save on the free plan", () => {
+	it("saves for a cancelled subscriber, since saving is core on the free plan", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "noaccess-html@example.com");
@@ -309,10 +307,12 @@ describe("POST /queue/save read-only gating", () => {
 			.send({ url: "https://example.com/article" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/queue#latest-saved");
+		const listing = await agent.get("/queue");
+		expect(listing.text).toContain("https://example.com/article");
 	});
 
-	it("allows a paid-active user to keep saving so the gate only fires when access is read-only", async () => {
+	it("allows a paid-active user to keep saving", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "paid-saves@example.com");

@@ -16,6 +16,7 @@ export const enUS = {
 				captureMissing: "The copy from your device didn't arrive",
 				processingFailed: "We couldn't prepare this upload",
 				audioSaved: "Your audio is saved",
+				ocrPagesHeld: "This PDF is waiting for today's page allowance",
 			},
 			explanation: {
 				unsupported: "This type of page isn't supported in the Readplace reader yet. You can still open it on the original site.",
@@ -30,6 +31,11 @@ export const enUS = {
 				processingFailed: "Readplace couldn't finish preparing this file. You can upload it again.",
 				noSpeech: "No speech was found in this file, so there's no transcript.",
 				transcriptFailed: "Readplace couldn't transcribe this file. You can upload it again.",
+				ocrPagesHeld: {
+					beforeRetryAt: "This file has {pages} pages and your free account has {pagesLeft} pages left today, so Readplace has not read it yet. Try again after",
+					afterRetryAt: ", or start a trial for no daily limit.",
+					overDailyLimit: "This file has {pages} pages, more than a free account can read in a day. Start a trial for no daily limit.",
+				},
 			},
 			cta: {
 				readOriginal: "Read original article",
@@ -64,6 +70,14 @@ export const enUS = {
 		},
 	},
 	reader: {
+		nextRead: {
+			lock: "Find your next read",
+		},
+		dailySaveLimit: {
+			title: "You've reached today's limit for new saves",
+			body: "Links you already saved still open. You can open new links again after the daily reset.",
+			backToReadlist: "Back to Readlist",
+		},
 		share: {
 			lead: "Copy a link to this article or send it to an app.",
 			link: {

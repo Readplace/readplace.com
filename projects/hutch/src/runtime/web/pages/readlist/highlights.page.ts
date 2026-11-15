@@ -91,7 +91,6 @@ function servedTextOf(html: string): string {
 export function initHighlightRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		| "requireWriteAccess"
 		| "readArticleContent"
 		| "readCanonicalSnapshot"
 		| "createReaderHighlight"
@@ -125,7 +124,6 @@ export function initHighlightRoutes(
 	router.post(
 		"/:id/highlights",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),
 		async (req: Request<{ id: string }>, res: Response) => {
 			assert(
@@ -297,7 +295,6 @@ export function initHighlightRoutes(
 	router.post(
 		"/:id/highlights/:highlightId/delete",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),
 		async (
 			req: Request<{ id: string; highlightId: string }>,

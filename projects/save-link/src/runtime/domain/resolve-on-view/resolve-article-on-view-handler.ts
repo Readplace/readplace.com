@@ -28,7 +28,7 @@ export function initResolveArticleOnViewHandler(deps: {
 		logger,
 		failure: { report: ({ record, error }) => logRecordFailure({ logger, logPrefix, record, error }) },
 		malformed: { policy: "retry" },
-		handle: async ({ url, saveAttemptId, axes, surface }, record) => {
+		handle: async ({ url, saveAttemptId, axes, surface, userId }, record) => {
 			logger.info(`${logPrefix} dispatched`, { url, surface, axes });
 
 			const article = await deps.loadArticle(url);
@@ -44,7 +44,7 @@ export function initResolveArticleOnViewHandler(deps: {
 			}
 
 			try {
-				const extracted = await deps.runCrawlFromTier1({ url, saveAttemptId, recrawl: false, sourceOriginalUrl: undefined });
+				const extracted = await deps.runCrawlFromTier1({ url, saveAttemptId, recrawl: false, sourceOriginalUrl: undefined, userId });
 				if (extracted === undefined) return;
 				await deps.publishEvent(TierContentExtractedEvent, {
 					url,

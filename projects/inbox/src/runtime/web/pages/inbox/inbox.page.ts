@@ -131,12 +131,8 @@ interface InboxDependencies extends InboxReadlistFitDependencies {
 		saveAttemptId: SaveAttemptId;
 	}) => Promise<void>;
 	recordEngagementActivity: RecordEngagementActivity;
-	/** Save gates applied to the write actions — the per-link save (it lands an article
-	 * in the reader's queue). Both gates run: `requireNotLocked` blocks a
-	 * locked (unverified-past-window) account, `requireWriteAccess` blocks a
-	 * read-only (trial-expired / cancelled) account. */
 	requireNotLocked: RequestHandler;
-	requireWriteAccess: RequestHandler;
+	requirePaidFeatures: RequestHandler;
 	now: () => Date;
 }
 
@@ -598,7 +594,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	router.post(
 		"/:id/links/:ordinal/save",
 		deps.requireNotLocked,
-		deps.requireWriteAccess,
+		deps.requirePaidFeatures,
 		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
@@ -715,7 +711,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	router.post(
 		"/:id/links/:ordinal/fit",
 		deps.requireNotLocked,
-		deps.requireWriteAccess,
+		deps.requirePaidFeatures,
 		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;

@@ -111,7 +111,7 @@ function lockKeys(html: string): string[] {
 	return [...new Set(keys)];
 }
 
-async function readOnlyReader() {
+async function freePlanReader() {
 	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 	const agent = await loginAgent(harness.server, harness.auth);
 	const reader = await harness.auth.findUserByEmail("test@example.com");
@@ -341,8 +341,8 @@ describe("every popup opens on its first decision", () => {
 		expect([section.getAttribute("data-test-gmail-senders-state"), autofocusCount(section)]).toEqual(["picker", 0]);
 	});
 
-	it("holds with one plan chooser on every page a read-only reader can meet a lock on", async () => {
-		const { agent, slug, readerHref } = await readOnlyReader();
+	it("holds with one plan chooser on every page a free-plan reader can meet a lock on", async () => {
+		const { agent, slug, readerHref } = await freePlanReader();
 		const gaps: string[] = [];
 		const keys = new Set<string>();
 		const choosers: { path: string; count: number }[] = [];
@@ -436,14 +436,14 @@ describe("every popup opens on its first decision", () => {
 	});
 });
 
-describe("the in-app surface offers no upgrade to a read-only reader", () => {
+describe("the in-app surface offers no upgrade to a free-plan reader", () => {
 	it.each([
-		{ path: "/queue?platform=ios", marker: '#add-link input[name="url"][disabled]' },
+		{ path: "/queue?platform=ios", marker: '#add-link input[name="url"]:not([disabled])' },
 		{ path: "/account?platform=ios", marker: 'form[action*="/account/delete"][action*="platform=ios"]' },
 		{ path: "/account?shell=app", marker: "[data-test-account-back-link]" },
 		{ path: "/newsletters?platform=ios", marker: '[data-test-integration-action="upgrade-gmail"]' },
 	])("$path keeps today's rendering with no lock and no plan chooser", async ({ path, marker }) => {
-		const { agent } = await readOnlyReader();
+		const { agent } = await freePlanReader();
 
 		const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
 		const doc = parse(response.text);

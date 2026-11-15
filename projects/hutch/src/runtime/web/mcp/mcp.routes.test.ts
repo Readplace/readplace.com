@@ -43,7 +43,11 @@ function buildObservedApp(overrides: Partial<McpServerDeps> = {}): { app: Expres
 		markAsUnread: async () => ({ status: "not_found" }),
 		listHighlights: async () => ({ status: "not_found" }),
 		createHighlight: async () => ({ status: "not_found" }),
-		resolveToolAccess: async () => ({ state: "ok" }),
+		resolveToolAccess: async () => ({ state: "ok", dailyLimited: false }),
+		consumeRateLimit: async () => {
+			throw new Error("consumeRateLimit must not be called for an account without a daily limit");
+		},
+		mcpCallRule: { limit: 269, windowSeconds: 86_400 },
 		recordToolCall: () => {},
 		recordHandshake: () => {},
 		logError: () => {},
@@ -203,9 +207,9 @@ describe("MCP transport routes", () => {
 	});
 
 	describe("save_refused", () => {
-		it("records an inactive save_link at the JSON-RPC status with the caller's user id", async () => {
+		it("records a save_link refused by the daily save limit at the JSON-RPC status with the caller's user id", async () => {
 			const { app, captured } = buildObservedApp({
-				resolveToolAccess: async () => ({ state: "inactive", message: "lapsed" }),
+				saveLink: async () => ({ ok: false, refused: "daily-save-limit", message: "limit reached" }),
 			});
 
 			const response = await post(app, {
@@ -222,7 +226,7 @@ describe("MCP transport routes", () => {
 					event: "save_refused",
 					timestamp: "2026-09-12T04:47:00.000Z",
 					path: "/mcp",
-					code: "no_write_access",
+					code: "daily_save_limit",
 					status: 200,
 					client: "mcp",
 					is_authenticated: 1,

@@ -21,20 +21,20 @@ function currentItemKeys(html: string): (string | null)[] {
 const SIGNED_IN: NavProps = {
 	variant: "default",
 	isAuthenticated: true,
-	accessIsReadOnly: false,
+	paidFeaturesLocked: false,
 };
 
 const GUEST: NavProps = {
 	variant: "default",
 	isAuthenticated: false,
-	accessIsReadOnly: false,
+	paidFeaturesLocked: false,
 };
 
 describe("GlobalNav component", () => {
-	describe("a read-only user who can be offered an upgrade", () => {
+	describe("a free-plan user who can be offered an upgrade", () => {
 		const LOCKED: NavProps = {
 			...SIGNED_IN,
-			accessIsReadOnly: true,
+			paidFeaturesLocked: true,
 			upgrade: { popoverId: "subscribe-plans", plansPath: "/account/plans" },
 		};
 
@@ -74,8 +74,8 @@ describe("GlobalNav component", () => {
 		});
 	});
 
-	it("omits Inbox for a read-only user who cannot be offered an upgrade", () => {
-		const doc = parse(GlobalNav({ ...SIGNED_IN, accessIsReadOnly: true }));
+	it("omits Inbox for a free-plan user who cannot be offered an upgrade", () => {
+		const doc = parse(GlobalNav({ ...SIGNED_IN, paidFeaturesLocked: true }));
 		expect(doc.querySelector('[data-test-nav-item="inbox"]')).toBeNull();
 		expect(doc.querySelector("[data-test-needs-upgrade]")).toBeNull();
 	});
@@ -85,7 +85,7 @@ describe("GlobalNav component", () => {
 			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
-				accessIsReadOnly: false,
+				paidFeaturesLocked: false,
 			}),
 		);
 
@@ -109,7 +109,7 @@ describe("GlobalNav component", () => {
 			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
-				accessIsReadOnly: false,
+				paidFeaturesLocked: false,
 			}),
 		);
 
@@ -139,7 +139,7 @@ describe("GlobalNav component", () => {
 			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
-				accessIsReadOnly: false,
+				paidFeaturesLocked: false,
 				signedInUser: { email: "james.davis@example.com", displayName: undefined },
 			}),
 		);
@@ -170,7 +170,7 @@ describe("GlobalNav component", () => {
 			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
-				accessIsReadOnly: false,
+				paidFeaturesLocked: false,
 				signedInUser: { email: "reader@example.com", displayName: "James Davis" },
 			}),
 		);
@@ -191,7 +191,7 @@ describe("GlobalNav component", () => {
 			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
-				accessIsReadOnly: false,
+				paidFeaturesLocked: false,
 			}),
 		);
 
@@ -213,7 +213,7 @@ describe("GlobalNav component", () => {
 			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
-				accessIsReadOnly: false,
+				paidFeaturesLocked: false,
 				currentPath: "/queue",
 			}),
 		);
@@ -234,7 +234,7 @@ describe("GlobalNav component", () => {
 		const doc = parse(GlobalNav({
 			variant: "default",
 			isAuthenticated: true,
-			accessIsReadOnly: false,
+			paidFeaturesLocked: false,
 		}));
 
 		const libraryItems = Array.from(
@@ -249,7 +249,7 @@ describe("GlobalNav component", () => {
 		const doc = parse(GlobalNav({
 			variant: "default",
 			isAuthenticated: true,
-			accessIsReadOnly: false,
+			paidFeaturesLocked: false,
 		}));
 
 		const inboxForm = doc.querySelector('[data-test-nav-item="inbox"]')?.closest("form");
@@ -266,7 +266,7 @@ describe("GlobalNav component", () => {
 			GlobalNav({
 				variant: "default",
 				isAuthenticated: true,
-				accessIsReadOnly: false,
+				paidFeaturesLocked: false,
 			}),
 		);
 
@@ -420,7 +420,7 @@ describe("GlobalNav component", () => {
 			GlobalNav({
 				variant: "transparent",
 				isAuthenticated: false,
-				accessIsReadOnly: false,
+				paidFeaturesLocked: false,
 			}),
 		);
 
@@ -433,7 +433,7 @@ describe("GlobalNav component", () => {
 		const html = GlobalNav({
 			variant: "default",
 			isAuthenticated: true,
-			accessIsReadOnly: false,
+			paidFeaturesLocked: false,
 		});
 
 		const toggle = parse(html).querySelector(".nav__toggle");
@@ -447,7 +447,7 @@ describe("GlobalNav component", () => {
 		const html = GlobalNav({
 			variant: "default",
 			isAuthenticated: true,
-			accessIsReadOnly: false,
+			paidFeaturesLocked: false,
 		});
 
 		const disclosure = parse(html).querySelector(".nav__disclosure");
@@ -462,7 +462,7 @@ describe("GlobalNav component", () => {
 				GlobalNav({
 					variant: "default",
 					isAuthenticated: false,
-					accessIsReadOnly: false,
+					paidFeaturesLocked: false,
 					clickSurface: "reader-public",
 				}),
 			);
@@ -479,7 +479,7 @@ describe("GlobalNav component", () => {
 				GlobalNav({
 					variant: "default",
 					isAuthenticated: false,
-					accessIsReadOnly: false,
+					paidFeaturesLocked: false,
 					clickSurface: "reader-public",
 				}),
 			);
@@ -498,7 +498,7 @@ describe("GlobalNav component", () => {
 				GlobalNav({
 					variant: "default",
 					isAuthenticated: true,
-					accessIsReadOnly: false,
+					paidFeaturesLocked: false,
 					clickSurface: "reader-public",
 				}),
 			);
@@ -513,7 +513,7 @@ describe("GlobalNav component", () => {
 				GlobalNav({
 					variant: "default",
 					isAuthenticated: true,
-					accessIsReadOnly: false,
+					paidFeaturesLocked: false,
 					clickSurface: "reader-public",
 				}),
 			);

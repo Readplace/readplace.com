@@ -46,9 +46,9 @@ export function trialEndsAtFromNow(now: Date): string {
  * no stale schedule can exist and nothing is deleted. A schedule failure is
  * logged and the row is written anyway: aborting would leave the user with NO
  * row, and no row means FOUNDING MEMBER — permanent free full access
- * (`resolveWriteAccess(undefined) === "full"`). A missing schedule is far
+ * (`resolveEffectiveAccess(undefined).tier === "founding"`). A missing schedule is far
  * cheaper, because access is re-derived live from (status, trialEndsAt, now):
- * the trial simply lapses to read-only at trialEndsAt without ever charging.
+ * the trial simply lapses to the free plan at trialEndsAt without ever charging.
  *
  * "reset" — the user already carries trial state (reactivate, admin extend), so
  * every stale one-shot is deleted before the new ones are created. A schedule

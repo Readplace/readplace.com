@@ -11,6 +11,7 @@ import type {
 	RelatedTargetLookup,
 } from "@packages/provider-contracts/related-articles";
 import type { RelatedCandidatePools } from "./related-articles-candidates";
+import type { PlanAccess } from "@packages/subscription-access";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { initComputeRelatedArticlesHandler } from "./compute-related-articles-handler";
@@ -84,6 +85,7 @@ interface HandlerOverrides {
 	markOutcome?: MarkRelatedArticlesOutcome;
 	logger?: Logger;
 	deepseekCallFailedLog?: Logger.Typed<DeepseekCallFailedLogLine>;
+	planAccess?: PlanAccess;
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {
@@ -91,6 +93,8 @@ function createHandler(overrides: HandlerOverrides = {}) {
 	const skipped: Array<{ url: string; at: Date }> = [];
 	const published: RelatedArticlesComputedDetail[] = [];
 	const selected: SelectRelatedArticlesParams[] = [];
+	const gathered: string[] = [];
+	const planLookups: string[] = [];
 	const publishEvent: PublishEvent = async (_event, detail) => {
 		published.push(RelatedArticlesComputedEvent.detailSchema.parse(detail));
 	};
@@ -99,12 +103,18 @@ function createHandler(overrides: HandlerOverrides = {}) {
 		findRelatedArticles: async () => overrides.existing ?? { status: "pending" },
 		findRelatedTargetArticle: async () =>
 			overrides.targetLookup ?? { state: "found", article: crawledTarget() },
-		gatherRelatedCandidatePools: async () =>
-			overrides.pools ?? {
+		findPlanAccess: async ({ userId }) => {
+			planLookups.push(userId);
+			return overrides.planAccess ?? "paid";
+		},
+		gatherRelatedCandidatePools: async ({ excludeUrl }) => {
+			gathered.push(excludeUrl);
+			return overrides.pools ?? {
 				unreadCandidates: candidates("earlier", 150),
 				readCandidates: [],
 				awaitingCrawl: 0,
-			},
+			};
+		},
 		selectRelatedArticles: async (params) => {
 			selected.push(params);
 			return overrides.selectRelatedArticles
@@ -132,10 +142,43 @@ function createHandler(overrides: HandlerOverrides = {}) {
 		deepseekCallFailedLog: overrides.deepseekCallFailedLog ?? noopLogger,
 	});
 
-	return { handler, ready, skipped, published, selected };
+	return { handler, ready, skipped, published, selected, gathered, planLookups };
 }
 
 describe("initComputeRelatedArticlesHandler", () => {
+	it("skips a free account's save without gathering candidates", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, skipped, ready, published, selected, gathered, planLookups } = createHandler({
+			logger,
+			planAccess: "free",
+		});
+
+		expect(await handler(queueEntryEvent, buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+
+		expect(planLookups).toEqual([USER_ID]);
+		expect(gathered).toEqual([]);
+		expect(selected).toEqual([]);
+		expect(ready).toEqual([]);
+		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
+		expect(published).toEqual([{ url: TARGET_URL, userId: USER_ID, outcome: "skipped", relatedCount: 0, inputTokens: 0, outputTokens: 0 }]);
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			trigger: "reader-request",
+			url: TARGET_URL,
+			reason: "paid-plan",
+			receiveCount: 1,
+			crawlStatus: "ready",
+		});
+	});
+
+	it.each<PlanAccess>(["paid", "trial"])("gathers candidates for a %s account's save", async (planAccess) => {
+		const { handler, ready, gathered } = createHandler({ planAccess });
+
+		await handler(queueEntryEvent, buildLambdaContext(), () => {});
+
+		expect(gathered).toEqual([TARGET_URL]);
+		expect(ready).toHaveLength(1);
+	});
+
 	it.each([true, false])("marks a floor skip terminal with zero tokens and logs summary availability %s", async (hasSummary) => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const article = { ...crawledTarget(), hasSummary };

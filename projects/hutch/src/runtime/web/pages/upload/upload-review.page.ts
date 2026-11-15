@@ -115,7 +115,6 @@ export function initAnonymousUploadRoutes(deps: {
 	claimMediaUpload: ClaimMediaUpload;
 	commitReceivedUpload: SettleReceivedUpload;
 	requireNotLocked: RequestHandler;
-	requireWriteAccess: RequestHandler;
 	GUEST_UPLOAD_KINDS: readonly MediaKindName[];
 	MEDIA_KINDS: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	transcriptAllowanceSeconds: number;
@@ -177,7 +176,6 @@ export function initAnonymousUploadRoutes(deps: {
 		"/:id/commit",
 		redirectAnonymousToUploadSignup,
 		deps.requireNotLocked,
-		deps.requireWriteAccess,
 		async (req, res) => {
 			const userId = req.userId;
 			assert(userId, "redirectAnonymousToUploadSignup admits only a signed-in reader");

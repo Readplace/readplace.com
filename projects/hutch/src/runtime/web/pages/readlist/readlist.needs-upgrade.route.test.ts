@@ -9,14 +9,6 @@ const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
 const WORK = ReadlistSlugSchema.parse("work");
 
-const FALLBACK_HREFS: Record<string, string> = {
-	"create-readlist": "/account/plans?utm_source=queue-nav&utm_medium=internal&utm_content=upgrade-create-readlist",
-	"rename-readlist": "/account/plans?utm_source=queue-nav&utm_medium=internal&utm_content=upgrade-rename-readlist",
-	"delete-readlist": "/account/plans?utm_source=queue-nav&utm_medium=internal&utm_content=upgrade-delete-readlist",
-	"move-article": "/account/plans?utm_source=queue-card&utm_medium=internal&utm_content=upgrade-move-article",
-	"add-link": "/account/plans?utm_source=queue-add-link&utm_medium=internal&utm_content=upgrade-add-link",
-};
-
 async function readerWithArticleAndReadlist(trialEndsAt: Date) {
 	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 	const email = "needs-upgrade@example.com";
@@ -39,7 +31,7 @@ async function readerWithArticleAndReadlist(trialEndsAt: Date) {
 	return agent;
 }
 
-function expiredTrialReader() {
+function freePlanReader() {
 	return readerWithArticleAndReadlist(new Date(Date.now() - ONE_DAY_MS));
 }
 
@@ -47,101 +39,140 @@ function page(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
-function pageLockKeys(doc: Document): string[] {
-	return Array.from(doc.querySelectorAll('[data-test-action="upgrade-open"]'), (el) => {
+function lockKeys(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll('button[data-test-action="upgrade-open"]'), (el) => {
 		const key = el.getAttribute("data-test-needs-upgrade");
 		assert(key, "a lock must name itself");
 		return key;
-	}).filter((key) => key in FALLBACK_HREFS);
+	});
 }
 
-function expectLocksOpenTheChooser(doc: Document, keys: string[]) {
-	for (const key of keys) {
-		const trigger = doc.querySelector(`[data-test-action="upgrade-open"][data-test-needs-upgrade="${key}"]`);
-		const fallback = doc.querySelector(`[data-test-action="upgrade-fallback"][data-test-needs-upgrade="${key}"]`);
-		assert(trigger, `the ${key} lock must carry its trigger`);
-		assert(fallback, `the ${key} lock must carry its fallback`);
-		expect(trigger.getAttribute("popovertarget")).toBe("subscribe-plans");
-		expect(fallback.getAttribute("href")).toBe(FALLBACK_HREFS[key]);
-	}
+function articleIdOf(doc: Document): string {
+	const card = doc.querySelector("[data-test-article]");
+	assert(card, "the saved article must be listed");
+	const articleId = card.getAttribute("data-test-article");
+	assert(articleId, "the card must name its article");
+	return articleId;
 }
 
-describe("needs-upgrade controls on the queue page", () => {
-	it("locks the rail, the card and Add link for a read-only reader on All, beside one plan chooser", async () => {
-		const agent = await expiredTrialReader();
+describe("a free-plan reader's queue page", () => {
+	it("keeps Add link, the save skeleton, the rail's edit controls and the card's move open", async () => {
+		const agent = await freePlanReader();
 
 		const doc = page((await agent.get("/queue")).text);
 
-		expect(pageLockKeys(doc)).toEqual(["rename-readlist", "delete-readlist", "create-readlist", "add-link", "move-article"]);
-		expectLocksOpenTheChooser(doc, pageLockKeys(doc));
+		const addLink = doc.querySelector('[data-test-add-link] [data-test-action="add-link"]');
+		assert(addLink, "Add link must render its real trigger");
+		expect(addLink.getAttribute("popovertarget")).toBe("add-link");
+		const saveInput = doc.querySelector<HTMLInputElement>('#add-link [data-test-form="save-article"] input[name="url"]');
+		assert(saveInput, "the Add link dialog must render its save form");
+		expect(saveInput.disabled).toBe(false);
+		const skeleton = doc.querySelector("[data-test-save-skeleton]");
+		assert(skeleton, "the save skeleton must render");
+		expect(skeleton.classList.contains("readlist-save-skeleton--armed")).toBe(true);
+		const create = doc.querySelector('[data-test-action="new-readlist"]');
+		assert(create, "the rail must offer the real create row");
+		const menu = doc.querySelector(`[data-test-readlist-menu="${WORK}"]`);
+		assert(menu, "the custom readlist must keep its menu");
+		expect(menu.querySelectorAll('[data-test-action="readlist-rename"]').length).toBeGreaterThan(0);
+		const card = doc.querySelector(`[data-test-article="${articleIdOf(doc)}"]`);
+		assert(card, "the card must render");
+		expect(card.querySelectorAll('[data-test-action="move"]')).toHaveLength(1);
+	});
+
+	it("locks only the Inbox entry in the header nav, beside one plan chooser", async () => {
+		const agent = await freePlanReader();
+
+		const doc = page((await agent.get("/queue")).text);
+
+		expect(lockKeys(doc)).toEqual(["inbox"]);
+		const inbox = doc.querySelector('button[data-test-needs-upgrade="inbox"]');
+		assert(inbox, "the Inbox entry must render as a lock");
+		expect(inbox.getAttribute("popovertarget")).toBe("subscribe-plans");
 		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
-		expect(doc.querySelectorAll("#add-link")).toHaveLength(0);
-		expect(doc.querySelector('[data-test-needs-upgrade="move-article"] .needs-upgrade__label')?.textContent).toBe("Add to readlist");
 	});
 
-	it("locks only the rail on a custom readlist with no articles", async () => {
-		const agent = await expiredTrialReader();
-
-		const doc = page((await agent.get(`/queue?queue=${WORK}`)).text);
-
-		expect(pageLockKeys(doc)).toEqual(["rename-readlist", "delete-readlist", "create-readlist"]);
-		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
-	});
-
-	it("keeps the empty custom readlist's Beta link to its preferences beside the locks", async () => {
-		const agent = await expiredTrialReader();
-
-		const doc = page((await agent.get(`/queue?queue=${WORK}`)).text);
-
-		const main = doc.querySelector("main");
-		assert(main, "the page must have a main");
-		expect(main.textContent).toContain("Set readlist preferences");
-		expect(main.textContent).toContain("Beta");
-	});
-
-	it("keeps the lock on a polled card, whose chooser the page already holds", async () => {
-		const agent = await expiredTrialReader();
-		const listing = page((await agent.get("/queue")).text);
-		const card = listing.querySelector("[data-test-article]");
-		assert(card, "the saved article must be listed");
-		const articleId = card.getAttribute("data-test-article");
+	it("keeps a polled card's move open", async () => {
+		const agent = await freePlanReader();
+		const articleId = articleIdOf(page((await agent.get("/queue")).text));
 
 		const polled = page((await agent.get(`/queue/${articleId}/card?poll=1`)).text);
 
-		expect(pageLockKeys(polled)).toEqual(["move-article"]);
+		expect(polled.querySelectorAll('[data-test-action="move"]')).toHaveLength(1);
+		expect(lockKeys(polled)).toEqual([]);
 	});
 
-	it("carries the rail's locks onto the preferences page, beside one plan chooser", async () => {
-		const agent = await expiredTrialReader();
+	it("locks the readlist purpose behind the plan chooser on the preferences page", async () => {
+		const agent = await freePlanReader();
 
 		const doc = page((await agent.get(`/queue/queues/${WORK}/preferences`)).text);
 
-		const rail = doc.querySelector("[data-test-readlist-nav]");
-		assert(rail, "the preferences page must render the rail");
-		expect(pageLockKeys(doc)).toEqual(expect.arrayContaining(["rename-readlist", "delete-readlist", "create-readlist"]));
-		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
-	});
-
-	it("shows an active trial reader the real controls and no lock", async () => {
-		const agent = await readerWithArticleAndReadlist(new Date(Date.now() + ONE_DAY_MS));
-
-		const doc = page((await agent.get("/queue")).text);
-
-		expect(pageLockKeys(doc)).toEqual([]);
-		expect(doc.querySelectorAll('[data-test-action="add-link"]')).toHaveLength(1);
+		const lock = doc.querySelector('button[data-test-needs-upgrade="set-up-readlist"]');
+		assert(lock, "the purpose panel must carry the needs-upgrade lock");
+		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
+		expect(doc.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(0);
 		expect(doc.querySelectorAll('[data-test-action="new-readlist"]')).toHaveLength(1);
 	});
 
-	it("keeps today's withheld rendering on the iOS surface", async () => {
-		const agent = await expiredTrialReader();
+	it("shows an active trial reader the purpose set-up and no lock", async () => {
+		const agent = await readerWithArticleAndReadlist(new Date(Date.now() + ONE_DAY_MS));
+
+		const doc = page((await agent.get(`/queue/queues/${WORK}/preferences`)).text);
+
+		expect(lockKeys(doc)).toEqual([]);
+		expect(doc.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(1);
+	});
+
+	it("keeps the save controls open on the iOS surface, where no plan chooser is offered", async () => {
+		const agent = await freePlanReader();
 
 		const doc = page((await agent.get("/queue?platform=ios")).text);
 
-		expect(pageLockKeys(doc)).toEqual([]);
+		expect(lockKeys(doc)).toEqual([]);
 		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(0);
-		expect(doc.querySelectorAll('[data-test-readlist-menu]')).toHaveLength(0);
 		const saveInput = doc.querySelector<HTMLInputElement>('#add-link input[name="url"]');
-		assert(saveInput, "the withheld Add link keeps its dialog");
-		expect(saveInput.disabled).toBe(true);
+		assert(saveInput, "Add link keeps its dialog");
+		expect(saveInput.disabled).toBe(false);
+	});
+});
+
+describe("a free-plan reader's article reader", () => {
+	async function openReader(agent: Awaited<ReturnType<typeof freePlanReader>>, query: string): Promise<Document> {
+		const articleId = articleIdOf(page((await agent.get("/queue")).text));
+		return page((await agent.get(`/queue/${articleId}/view${query}`)).text);
+	}
+
+	it("locks Next read behind the plan chooser and requests no topic reads", async () => {
+		const agent = await freePlanReader();
+
+		const doc = await openReader(agent, "");
+
+		const slot = doc.querySelector("[data-test-reader-related]");
+		assert(slot, "the reader must render the Next read slot");
+		const lock = slot.querySelector('button[data-test-needs-upgrade="next-read"]');
+		assert(lock, "the Next read slot must carry the needs-upgrade lock");
+		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
+		expect(lock.textContent).toContain("Find your next read");
+		expect(slot.classList.contains("next-read--ready")).toBe(true);
+		expect(slot.hasAttribute("hx-get")).toBe(false);
+		expect(doc.querySelectorAll("form.past-reads__request")).toHaveLength(0);
+	});
+
+	it("requests topic reads for an active trial reader and shows no Next read lock", async () => {
+		const agent = await readerWithArticleAndReadlist(new Date(Date.now() + ONE_DAY_MS));
+
+		const doc = await openReader(agent, "");
+
+		expect(doc.querySelectorAll("form.past-reads__request")).toHaveLength(1);
+		expect(doc.querySelectorAll('[data-test-needs-upgrade="next-read"]')).toHaveLength(0);
+	});
+
+	it("requests no topic reads on the iOS surface, where no plan chooser is offered", async () => {
+		const agent = await freePlanReader();
+
+		const doc = await openReader(agent, "?platform=ios");
+
+		expect(lockKeys(doc)).toEqual([]);
+		expect(doc.querySelectorAll("form.past-reads__request")).toHaveLength(0);
 	});
 });

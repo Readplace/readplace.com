@@ -65,6 +65,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			listArticleHighlights: deps.listArticleHighlights,
 			readCanonicalSnapshot: deps.readCanonicalSnapshot,
 			canSaveContent: deps.canSaveContent,
+			getEffectiveAccess: deps.getEffectiveAccess,
 			buildArticleEpub,
 		},
 		shared,
@@ -83,7 +84,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	router.use(
 		initHighlightRoutes(
 			{
-				requireWriteAccess: deps.requireWriteAccess,
 				readArticleContent: deps.readArticleContent,
 				readCanonicalSnapshot: deps.readCanonicalSnapshot,
 				createReaderHighlight: deps.createReaderHighlight,
@@ -106,7 +106,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	router.use(
 		initHighlightNoteRoutes(
 			{
-				requireWriteAccess: deps.requireWriteAccess,
 				updateHighlightNote: deps.updateHighlightNote,
 				recordAnalyticsEvent: deps.recordAnalyticsEvent,
 				salt: deps.salt,
@@ -129,7 +128,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				gmail,
 				listReadlistDefinitions: deps.listReadlistDefinitions,
 				getEffectiveAccess: deps.getEffectiveAccess,
-				requireWriteAccess: deps.requireWriteAccess,
+				requirePaidFeatures: deps.requirePaidFeatures,
 				startGmailDiscovery: initStartGmailDiscovery({ gmail }),
 				save: initSaveReadlistGmailSenders({
 					gmail,
@@ -160,7 +159,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			logError: deps.logError,
 			getEffectiveAccess: deps.getEffectiveAccess,
 			buildBannerState: deps.buildBannerState,
-			requireWriteAccess: deps.requireWriteAccess,
+			requirePaidFeatures: deps.requirePaidFeatures,
 			findNonEmptyReadlists,
 			now: deps.now,
 			resolveOnboarding: async (req, userId, access) =>
@@ -183,7 +182,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				findGmailConnectionByUserId: deps.findGmailConnectionByUserId,
 				getEffectiveAccess: deps.getEffectiveAccess,
 				recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
-				requireWriteAccess: deps.requireWriteAccess,
 				recordGmailStepDismissed: deps.recordGmailStepDismissed,
 				secureCookies: deps.secureCookies,
 			},
@@ -206,7 +204,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				readPendingUploadPrefix: deps.readPendingUploadPrefix,
 				putPendingHtml: deps.putPendingHtml,
 				publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
-				requireWriteAccess: deps.requireWriteAccess,
+				claimDailySaves: deps.claimDailySaves,
+				hasNoOcrPagesLeft: deps.hasNoOcrPagesLeft,
 				validateNewSaveUrl: deps.validateNewSaveUrl,
 				findArticlesByUser: deps.findArticlesByUser,
 				findArticleCrawlStatuses: deps.findArticleCrawlStatuses,
@@ -243,7 +242,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		initReadlistQueueRoutes(
 			{
 				findReadlistArticles: deps.findReadlistArticles,
-				requireWriteAccess: deps.requireWriteAccess,
 				upsertReadlist: deps.upsertReadlist,
 				listReadlistDefinitions: deps.listReadlistDefinitions,
 				renameReadlistDefinition: deps.renameReadlistDefinition,
@@ -269,7 +267,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				markRelatedDismissed: deps.markRelatedDismissed,
 				findIssueLink: deps.findIssueLink,
 				validateNewSaveUrl: deps.validateNewSaveUrl,
-				requireWriteAccess: deps.requireWriteAccess,
+				requirePaidFeatures: deps.requirePaidFeatures,
+				claimDailySaves: deps.claimDailySaves,
 				refreshArticleIfStale: deps.refreshArticleIfStale,
 				publishSubmitLink: deps.publishSubmitLink,
 				appOrigin: deps.appOrigin,
@@ -298,7 +297,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				findGeneratedSummary: deps.findGeneratedSummary,
 				resolveReaderProvenance: deps.resolveReaderProvenance,
 				getOnboardingSignals: deps.getOnboardingSignals,
-				getEffectiveAccess: deps.getEffectiveAccess,
 				now: deps.now,
 				recordMarkReadAcrossQueuesAcknowledged:
 					deps.recordMarkReadAcrossQueuesAcknowledged,
@@ -308,7 +306,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				recordAnalyticsEvent: deps.recordAnalyticsEvent,
 				salt: deps.salt,
 				recordDeleteArticleAcknowledged: deps.recordDeleteArticleAcknowledged,
-				requireWriteAccess: deps.requireWriteAccess,
 				addArticleToReadlist: deps.addArticleToReadlist,
 				listReadlistDefinitions: deps.listReadlistDefinitions,
 				listUserSavesForUrls: deps.listUserSavesForUrls,

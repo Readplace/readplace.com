@@ -5,7 +5,7 @@ import {
 	PASTE_A_LINK,
 	PLAN_CHOICES,
 	READER_SHOT,
-	READ_ONLY_CLOSE,
+	FREE_PLAN_CLOSE,
 	START_TRIAL,
 	founderLine,
 } from "./landing-pages.copy";
@@ -66,7 +66,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	mechanismParagraphs: [
 		`Price. ${PRICING_PLANS.yearly.monthlyDisplay}/month billed yearly, or ${PRICING_PLANS.monthly.totalDisplay} month to month, and every plan is the whole product.`,
 		`Scanned PDFs. Every page is read from its pixels, and a cleanup pass that changes a number is discarded. <a href="${track("/pdf-ocr", "pdf-ocr")}">How the checks work</a>.`,
-		`Leaving. If you stop paying, the account goes read-only rather than locked, and export needs only a sign-in. <a href="${track("/read-it-later-that-wont-die", "read-only")}">What happens when a subscription ends</a>.`,
+		`Leaving. If you stop paying, the account moves to the free plan rather than being locked, and export needs only a sign-in. <a href="${track("/read-it-later-that-wont-die", "read-only")}">What happens when a subscription ends</a>.`,
 		`AI assistants. ChatGPT, Claude and Gemini can save to and read from a readlist. <a href="${track("/ai-reading-list", "ai-reading-list")}">How the assistant connection works</a>.`,
 	],
 	comparisons: [
@@ -124,7 +124,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 				},
 				{
 					feature: "After you stop paying",
-					readplace: "Read-only: reading and export keep working",
+					readplace: "Free plan: reading, saving within daily limits, and export keep working",
 					competitor: "Not reported",
 				},
 				{ feature: "Hosting", readplace: "Sydney, Australia", competitor: "Not reported" },
@@ -165,7 +165,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 		{
 			question: "What happens if I stop paying?",
 			answer:
-				"You keep reading everything you saved. The account goes read-only: the readlist, the reader and export keep working. Saving new links and importing are what stop.",
+				"You keep reading everything you saved. The account moves to the free plan: the readlist, the reader and export keep working, and saving new links and importing keep working within daily limits.",
 		},
 	],
 	offer: {
@@ -173,7 +173,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 		paragraphs: [
 			`Reading a link you paste here costs nothing. Keeping a library is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			`Every plan is the whole product: ${PLAN_CHOICES}.`,
-			READ_ONLY_CLOSE,
+			FREE_PLAN_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},

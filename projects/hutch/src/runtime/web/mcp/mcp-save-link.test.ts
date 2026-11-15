@@ -13,6 +13,8 @@ import {
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { PublishSubmitLink } from "@packages/provider-contracts/events";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
+import { initClaimDailySaves } from "../pages/readlist/daily-save-allowance";
 import { initMcpSaveLink } from "./mcp-save-link";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
@@ -39,6 +41,7 @@ type SaveLinkDeps = Parameters<typeof initMcpSaveLink>[0];
 function fakeDeps(overrides: Partial<SaveLinkDeps> = {}): SaveLinkDeps {
 	return {
 		resolveSaveAccess: async () => ({ allowed: true }),
+		claimDailySaves: async ({ urls }) => ({ granted: [...urls], refused: [], retryAfterSeconds: undefined }),
 		validateNewSaveUrl: withNewSavePreparation(validateSaveableUrl),
 		refreshArticleIfStale: async () => ({ action: "skip", identity: { status: "resolved", url: exampleUrl, originalUrl: exampleUrl } }),
 		resolveMcpSaveProvenance: async () => provenance,
@@ -70,6 +73,47 @@ describe("initMcpSaveLink", () => {
 
 		assert.equal(result.ok, false);
 		assert.ok("message" in result && result.message.length > 0);
+	});
+
+	describe("on a metered account", () => {
+		function meteredClaim(params: { limit: number; savedUrls: readonly string[] }) {
+			const limiter = initInMemoryRateLimit({ now: () => new Date("2026-08-04T00:00:00.000Z") });
+			return initClaimDailySaves({
+				getEffectiveAccess: async () => ({ tier: "free", banner: "free", reason: "trial-expired" }),
+				isDailyLimited: () => true,
+				findSavedUrls: async ({ urls }) => urls.filter((url) => params.savedUrls.includes(url)),
+				claimRateLimitUnits: limiter.claimRateLimitUnits,
+				rule: { limit: params.limit, windowSeconds: 86_400 },
+			});
+		}
+
+		it("refuses a new link once today's saves are spent and saves nothing", async () => {
+			const saveArticleAtReadlistTop = jest.fn<ReturnType<SaveLinkDeps["saveArticleAtReadlistTop"]>, Parameters<SaveLinkDeps["saveArticleAtReadlistTop"]>>();
+			const refreshArticleIfStale = jest.fn<ReturnType<SaveLinkDeps["refreshArticleIfStale"]>, Parameters<SaveLinkDeps["refreshArticleIfStale"]>>();
+			const saveLink = initMcpSaveLink(fakeDeps({
+				claimDailySaves: meteredClaim({ limit: 0, savedUrls: [] }),
+				saveArticleAtReadlistTop,
+				refreshArticleIfStale,
+			}));
+
+			const result = await saveLink(request);
+
+			assert.deepEqual(result, {
+				ok: false,
+				refused: "daily-save-limit",
+				message: "You've reached today's limit for new saves. Links you already saved are still in your readlist.",
+			});
+			expect(saveArticleAtReadlistTop).not.toHaveBeenCalled();
+			expect(refreshArticleIfStale).not.toHaveBeenCalled();
+		});
+
+		it("saves a link the reader already holds without charging today's saves", async () => {
+			const saveLink = initMcpSaveLink(fakeDeps({ claimDailySaves: meteredClaim({ limit: 0, savedUrls: [exampleUrl] }) }));
+
+			const result = await saveLink(request);
+
+			assert.deepEqual(result, { ok: true, id: saved.id.value, title: "Post", filedInto: [all, work] });
+		});
 	});
 
 	it("publishes a submit-link command for All and each named readlist when the URL is unresolved, and reports the save as pending", async () => {

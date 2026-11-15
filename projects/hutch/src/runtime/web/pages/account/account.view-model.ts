@@ -11,6 +11,8 @@ import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
 import type { EffectiveAccess } from "@packages/subscription-access";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchAccount } from "@packages/translations/hutch-account";
 import type { IconName } from "@packages/ui-icons";
 import {
 	type LocalTime,
@@ -29,7 +31,7 @@ import {
 } from "../../onboarding/native-client";
 import type { NativeClientPlatform } from "../../onboarding/native-client";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
-import { TIER_CAN_UPGRADE, type UpgradeOffer, renderedLockFor } from "../../shared/upgrade-offer/upgrade-offer";
+import { TIER_CAN_UPGRADE } from "../../shared/upgrade-offer/upgrade-offer";
 import {
 	ACCOUNT_APPEARANCE_URL,
 	ACCOUNT_CANCEL_URL,
@@ -74,7 +76,7 @@ export type AccountCardState =
 	| "active"
 	| "trial"
 	| "cancellation-scheduled"
-	| "inactive"
+	| "free"
 	| "error-payment-method"
 	| "error-subscribe-failed";
 
@@ -404,9 +406,11 @@ const DONE_ACTION = getAction({
 	trailingIcon: undefined,
 });
 
+const { t } = translator(hutchAccount, DEFAULT_LOCALE);
+
 const ACTIVE_CHIP: AccountChip = { label: "Active", className: "chip chip--status chip--success" };
 const CANCELLED_CHIP: AccountChip = { label: "Cancelled", className: "chip chip--status chip--error" };
-const INACTIVE_CHIP: AccountChip = { label: "Inactive", className: "chip chip--status chip--error" };
+const FREE_CHIP: AccountChip = { label: t("billing.freeChip"), className: "chip chip--status chip--error" };
 const PRIMARY_CARD_CHIP: AccountChip = { label: "Primary", className: "chip chip--badge chip--accent" };
 
 const HIDDEN_PRICE: PriceViewModel = { state: "hidden", text: "" };
@@ -814,12 +818,12 @@ function stateViewModel(input: {
 				statusDate: toAbsoluteDate({ iso: access.cancellationEffectiveAt }),
 				statusDateTail: ".",
 			};
-		case "inactive":
+		case "free":
 			return {
 				...baseFor({
-					state: "inactive",
+					state: "free",
 					title: "Subscription",
-					chips: [INACTIVE_CHIP],
+					chips: [FREE_CHIP],
 					actions: [SUBSCRIBE_ACTION],
 				}),
 				statusLine: "",
@@ -1003,22 +1007,13 @@ export interface AccountImportRow {
 	locks: readonly string[];
 }
 
-const IMPORT_LINKS: Record<EffectiveAccess["access"], readonly AccountImportLink[]> = {
-	full: [{ href: withInternalTracking(ACCOUNT_IMPORT_URL, { source: ACCOUNT_SOURCE, content: "import" }) }],
-	"read-only": [],
+const IMPORT_ROW: AccountImportRow = {
+	links: [{ href: withInternalTracking(ACCOUNT_IMPORT_URL, { source: ACCOUNT_SOURCE, content: "import" }) }],
+	locks: [],
 };
 
-export function buildImportLinks(input: { access: EffectiveAccess; offer: UpgradeOffer | undefined }): readonly AccountImportRow[] {
-	const links = IMPORT_LINKS[input.access.access];
-	const locks = renderedLockFor({
-		offer: input.offer,
-		gated: input.access.access === "read-only",
-		key: "import",
-		label: "Import links",
-		controlClass: "btn btn--neutral btn--m",
-		source: ACCOUNT_SOURCE,
-	});
-	return links.length + locks.length === 0 ? [] : [{ links, locks }];
+export function buildImportLinks(): readonly AccountImportRow[] {
+	return [IMPORT_ROW];
 }
 
 /** Rewrites the account view model for the app's in-app web surface: strips

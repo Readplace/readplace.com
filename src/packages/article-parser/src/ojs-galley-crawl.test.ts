@@ -44,7 +44,7 @@ it.each([
 		logThumbnailNotDelivered: () => {},
 	});
 
-	expect(await crawl({ url })).toMatchObject({ status: "fetched", html });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toMatchObject({ status: "fetched", html });
 	expect(requested).toEqual(expected);
 });
 
@@ -66,6 +66,6 @@ it("defers the OJS PDF galley to the comprehensive crawl", async () => {
 		logThumbnailNotDelivered: () => {},
 	});
 
-	expect(await crawl({ url: VIEWER })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+	expect(await crawl({ chargeOcrPages: undefined, url: VIEWER })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
 	expect(requested).toEqual([VIEWER, DOWNLOAD]);
 });

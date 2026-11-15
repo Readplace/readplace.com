@@ -38,7 +38,6 @@ export interface UploadDropzoneInput {
 	readonly importAction: string;
 	readonly bookFallbackHref: string;
 	readonly signInHref?: string;
-	readonly disabled: boolean;
 	readonly idPrefix: string;
 	readonly formId: string;
 	readonly showSubmit: boolean;

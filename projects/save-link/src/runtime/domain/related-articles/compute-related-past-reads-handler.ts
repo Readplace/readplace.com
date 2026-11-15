@@ -23,12 +23,14 @@ import {
 	QueueEntryCreatedEvent,
 	RelatedPastReadsComputedEvent,
 } from "./index";
+import type { FindPlanAccess } from "./find-plan-access.types";
 import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { computePastReadsFingerprint } from "./related-past-reads-fingerprint";
 import { RELATED_CANDIDATES_MAX } from "./related-articles-limits";
 import type { SelectRelatedArticles } from "./related-articles-selector";
 
 interface ComputeRelatedPastReadsHandlerDeps {
+	findPlanAccess: FindPlanAccess;
 	findRelatedTargetArticle: FindRelatedTargetArticle;
 	findReadCandidatesAcrossReadlists: FindReadCandidatesAcrossReadlists;
 	readPastReadsState: ReadPastReadsState;
@@ -60,6 +62,7 @@ export function initComputeRelatedPastReadsHandler(
 	deps: ComputeRelatedPastReadsHandlerDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
 	const {
+		findPlanAccess,
 		findRelatedTargetArticle,
 		findReadCandidatesAcrossReadlists,
 		readPastReadsState,
@@ -85,6 +88,10 @@ export function initComputeRelatedPastReadsHandler(
 				const trigger = TRIGGER_BY_DETAIL_TYPE[envelope["detail-type"]];
 				assert(trigger, `[ComputeRelatedPastReads] unexpected detail-type ${envelope["detail-type"]}`);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+				if ((await findPlanAccess({ userId })) === "free") {
+					logger.info("[ComputeRelatedPastReads] skipped", { url: entry.url, reason: "paid-plan" });
+					continue;
+				}
 
 				const store = async (
 					pastReads: readonly PastReadLink[],

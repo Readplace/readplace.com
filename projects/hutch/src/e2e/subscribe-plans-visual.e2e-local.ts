@@ -64,7 +64,7 @@ async function signInTrialingReader(page: Page, stamp: string): Promise<void> {
 
 async function signInSeededReader(
 	page: Page,
-	input: { stamp: string; seed: { state: "trialing"; at: string } | { state: "inactive" } },
+	input: { stamp: string; seed: { state: "trialing"; at: string } | { state: "free" } },
 ): Promise<void> {
 	const email = `subscribe-plans-visual-${input.stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
@@ -329,7 +329,7 @@ test.describe("Subscribe plans dialog", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await signInSeededReader(page, {
 			stamp: `nav-lock-${testInfo.workerIndex}-${Date.now()}`,
-			seed: { state: "inactive" },
+			seed: { state: "free" },
 		});
 
 		await page.goto(`${BASE_URL}/install?client=chrome`, { waitUntil: "domcontentloaded" });

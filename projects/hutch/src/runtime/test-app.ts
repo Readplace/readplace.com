@@ -12,6 +12,7 @@ import {
 } from "@packages/test-fixtures/providers/transcript-quota";
 import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
+import { initRequestStaleCheck } from "./domain/stale-check/request-stale-check";
 import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
 import express, { type Express } from "express";
 import { type Logger, noopLogger } from "@packages/logger";
@@ -100,8 +101,10 @@ export const TEST_KEEP_OFFER_COUPON_ID = "coupon_test_keep_offer";
 export { loginAgent } from "@packages/web-test-harness";
 export { TEST_APP_ORIGIN } from "@packages/test-fixtures";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+import { type EffectiveAccess, initGetEffectiveAccess, isDailyLimited } from "@packages/subscription-access";
 
 interface TestAppOverrides {
+	isDailyLimited?: (access: EffectiveAccess) => boolean;
 	drawRandomByte?: () => number;
 	getSessionUserId?: GetSessionUserId;
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
@@ -308,7 +311,13 @@ function flattenFixtureToAppDependencies(
 		publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 		publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 		publishSubmitLink: fixture.submitLink.publishSubmitLink,
-		publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+		requestStaleCheck: initRequestStaleCheck({
+			consumeRateLimit: fixture.rateLimit.consumeRateLimit,
+			rule: fixture.rateLimit.rules.staleCheck,
+			publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+			getEffectiveAccess: initGetEffectiveAccess({ findSubscriptionByUserId: fixture.subscriptionProviders.findByUserId, now: fixture.shared.now }),
+			logger: noopLogger,
+		}).requestStaleCheck,
 		publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 		publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
@@ -354,7 +363,10 @@ function flattenFixtureToAppDependencies(
 		mintBrowserHandoffCode: fixture.browserHandoff.mintBrowserHandoffCode,
 		redeemBrowserHandoffCode: fixture.browserHandoff.redeemBrowserHandoffCode,
 		consumeRateLimit: fixture.rateLimit.consumeRateLimit,
+		claimRateLimitUnits: fixture.rateLimit.claimRateLimitUnits,
+		readOcrPagesLeft: fixture.rateLimit.readOcrPagesLeft,
 		rateLimitRules: fixture.rateLimit.rules,
+		isDailyLimited,
 		getOnboardingSignals: fixture.onboardingSignals.getOnboardingSignals,
 		recordNativeAppAnyActivity: fixture.onboardingSignals.recordNativeAppAnyActivity,
 		recordNativeAppSavedArticle: fixture.onboardingSignals.recordNativeAppSavedArticle,

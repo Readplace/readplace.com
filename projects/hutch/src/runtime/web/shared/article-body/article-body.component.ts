@@ -5,6 +5,7 @@ import {
 } from "../report-article/report-article-dialog.component";
 import { join } from "node:path";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
+import type { OcrPagesHold } from "../ocr-pages-hold";
 import type { ArticleDestinationUrl, DisplayableReadTime, SiteLabel, ArticleBody } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -62,6 +63,7 @@ export interface ArticleBodyInput {
 	publishedOn: string | undefined;
 	readlistTags?: ReaderReadlistTags;
 	readerNotice?: ReaderFailedVariant;
+	ocrPagesHold?: OcrPagesHold;
 	issueLinksHtml?: string;
 	previouslyReadHtml?: string;
 	report?: ReportArticleDialogInput;
@@ -126,6 +128,7 @@ export function renderArticleBody(input: ArticleBodyInput): RenderedArticleBody 
 		capturePollUrls: input.capturePollUrls,
 		extensionInstallUrl: input.extensionInstallUrl,
 		notice: input.readerNotice,
+		ocrPagesHold: input.ocrPagesHold,
 		appOrigin: input.appOrigin,
 		noticeOob: false,
 		now: input.now,

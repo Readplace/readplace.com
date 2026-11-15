@@ -80,10 +80,14 @@ export function initCrawlAndFinalizeArticle(deps: {
 			previousBodyHash: params.previousBodyHash,
 			fetchThumbnail: true,
 			retainResponseBody: params.retainResponseBody,
+			chargeOcrPages: undefined,
 			...(params.fetchUrl !== undefined ? { skipFetchPin: true, retainBlockedResponse: true } : {}),
 		});
 
 		if (crawlResult.status === "not-modified") return { status: "not-modified" };
+		if (crawlResult.status === "pdf-awaiting-saver" || crawlResult.status === "over-ocr-quota") {
+			return { status: "unsupported", reason: crawlResult.status };
+		}
 		if (crawlResult.status === "unsupported") {
 			return {
 				status: "unsupported",

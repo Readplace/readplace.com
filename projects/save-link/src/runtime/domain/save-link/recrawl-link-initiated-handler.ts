@@ -31,7 +31,7 @@ export function initRecrawlLinkInitiatedHandler(deps: RunCrawlFromTier1Deps & {
 			assert(identity.status === "resolved", "recrawl original identity is unresolved");
 
 			try {
-				const extracted = await runCrawlFromTier1({ url: detail.url, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl });
+				const extracted = await runCrawlFromTier1({ url: detail.url, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl, userId: undefined });
 				if (extracted === undefined) return;
 
 				await publishEvent(RecrawlContentExtractedEvent, {

@@ -408,7 +408,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			header: config.renderNav({
 				variant: headerVariant,
 				isAuthenticated: state.isAuthenticated,
-				accessIsReadOnly: state.accessIsReadOnly ?? false,
+				paidFeaturesLocked: state.paidFeaturesLocked ?? false,
 				upgrade: state.upgrade,
 				currentPath: state.currentPath,
 				clickSurface: body.clickSurface,

@@ -1,5 +1,6 @@
+import assert from "node:assert/strict";
 import { noopLogger } from "@packages/logger";
-import { initCrawlArticle, rejectDocumentLandingPage, type CrawlArticle } from "@packages/crawl-article";
+import { initCrawlArticle, rejectDocumentLandingPage, type ChargeOcrPages, type CrawlArticle } from "@packages/crawl-article";
 import {
 	markCrawlAwaitingReader,
 	markCrawlBlocked,
@@ -94,6 +95,8 @@ function createHandler({ crawlArticle = successfulComprehensiveCrawl, ...overrid
 		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
 		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
 		crawlArticleWithPermit: ({ permit: _permit, ...params }) => crawlArticle(params),
+		chargeOcrPagesFor: () => async () => ({ allowed: true }),
+		markOcrPagesHeld: jest.fn().mockResolvedValue(undefined),
 		runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }),
 		finalizeArticle: okFinalize,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
@@ -1055,7 +1058,7 @@ describe("deferred archive attempt completion", () => {
 		const putTierSource = jest.fn().mockResolvedValue(undefined);
 		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({ crawlArticle, putTierSource, publishEvent });
-		expect(await handler(createSqsEvent({ url: "https://example.com/report.pdf", saveAttemptId: "original-attempt", candidates: refs }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+		expect(await handler(createSqsEvent({ url: "https://example.com/report.pdf", saveAttemptId: "original-attempt", candidates: refs, userId: "user-1" }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		expect(extractPdf).toHaveBeenCalledTimes(1);
 		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ tier: "tier-1", evaluationHtml: "<html><body><p>Complete PDF article</p></body></html>", metadata: expect.objectContaining({ attemptId: "original-attempt", kind: "live", httpStatus: 200 }) }));
 		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ saveAttemptId: "original-attempt", candidates: [...refs, { tier: "tier-1", id: expect.any(String) }] }) });
@@ -1366,5 +1369,116 @@ describe("comprehensive crawl under the metered-leg ledger", () => {
 		expect(crawlArticle).not.toHaveBeenCalled();
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(published).toEqual([]);
+	});
+});
+
+describe("OCR page allowance", () => {
+	const url = "https://example.com/scan.pdf";
+	const refs = [{ id: "immutable-wrapper", tier: "tier-2" as const }];
+	const retryAt = new Date("2026-04-19T09:00:00.000Z");
+	const overQuota: CrawlArticle = async () => ({ status: "over-ocr-quota", pages: 40, pagesLeft: 12, retryAt });
+	const awaitingSaver: CrawlArticle = async () => ({ status: "pdf-awaiting-saver" });
+
+	it("charges the saver, keyed on the message, and no one when the command names no saver", async () => {
+		const charges: { userId: string; claimId: string }[] = [];
+		const seen: unknown[] = [];
+		const charge: ChargeOcrPages = async () => ({ allowed: true });
+		const crawlArticle: CrawlArticle = async (params) => {
+			seen.push(params.chargeOcrPages);
+			return successfulComprehensiveCrawl(params);
+		};
+		const handler = createHandler({
+			crawlArticle,
+			chargeOcrPagesFor: (params) => {
+				charges.push(params);
+				return charge;
+			},
+		});
+
+		await handler(createSqsEvent({ url, userId: "user-1" }), buildLambdaContext(), () => {});
+		await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+
+		expect(charges).toEqual([{ userId: "user-1", claimId: "msg-1" }]);
+		expect(seen).toEqual([charge, undefined]);
+	});
+
+	it("holds an over-quota PDF on the saver's row without touching the shared crawl row", async () => {
+		const markOcrPagesHeld = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const refundPaidCrawlBudget = jest.fn().mockResolvedValue(undefined);
+		const infos: { message: string; context: unknown }[] = [];
+		const logger = { ...noopLogger, info: (message: unknown, context?: unknown) => { infos.push({ message: String(message), context }); } };
+		const { publishEvent, published } = initRecordingPublishEvent();
+		const handler = createHandler({ crawlArticle: overQuota, markOcrPagesHeld, transitionAndPersist, refundPaidCrawlBudget, publishEvent, logger });
+
+		const response = await handler(createSqsEvent({ url, userId: "user-1", saveAttemptId: "attempt-9" }), buildLambdaContext(), () => {});
+
+		expect(response).toEqual({ batchItemFailures: [] });
+		expect(markOcrPagesHeld).toHaveBeenCalledWith({ userId: "user-1", url, hold: { pages: 40, pagesLeft: 12, retryAt } });
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+		expect(published).toEqual([]);
+		expect(refundPaidCrawlBudget).toHaveBeenCalledTimes(1);
+		expect(infos).toContainEqual({
+			message: "[ComprehensiveCrawlCommand] ocr_page_quota_held",
+			context: { url, saveAttemptId: "attempt-9", pages: 40, pagesLeft: 12, retryAt: "2026-04-19T09:00:00.000Z" },
+		});
+	});
+
+	it("holds an over-quota PDF and still compares the archive candidates", async () => {
+		const markOcrPagesHeld = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
+		const handler = createHandler({ crawlArticle: overQuota, markOcrPagesHeld, publishEvent });
+
+		await handler(createSqsEvent({ url, userId: "user-1", saveAttemptId: "save", candidates: refs }), buildLambdaContext(), () => {});
+
+		expect(markOcrPagesHeld).toHaveBeenCalledTimes(1);
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: refs, saveAttemptId: "save" }) });
+	});
+
+	it.each(["save", "recrawl"] as const)("leaves a PDF with no saver awaiting a reader (trigger=%s), refunding the paid slot", async (trigger) => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const refundPaidCrawlBudget = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ crawlArticle: awaitingSaver, transitionAndPersist, refundPaidCrawlBudget });
+
+		await handler(createSqsEvent({ url, trigger }), buildLambdaContext(), () => {});
+
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
+		expect(refundPaidCrawlBudget).toHaveBeenCalledTimes(1);
+	});
+
+	it("writes nothing for a refresh of a PDF with no saver", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ crawlArticle: awaitingSaver, transitionAndPersist });
+
+		await handler(createSqsEvent({ url, trigger: "refresh" }), buildLambdaContext(), () => {});
+
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("compares the archive candidates for a PDF with no saver, without marking it awaiting a reader", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const { publishEvent, published } = initRecordingPublishEvent();
+		const handler = createHandler({ crawlArticle: awaitingSaver, transitionAndPersist, publishEvent });
+
+		await handler(createSqsEvent({ url, saveAttemptId: "save", candidates: refs }), buildLambdaContext(), () => {});
+
+		expect(transitionAndPersist).not.toHaveBeenCalledWith(markCrawlAwaitingReader, expect.anything());
+		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: refs, saveAttemptId: "save" }) });
+	});
+
+	it("retries the record when the charge itself fails", async () => {
+		const crawlArticle: CrawlArticle = async (params) => {
+			assert.ok(params.chargeOcrPages);
+			await params.chargeOcrPages({ pages: 3 });
+			return successfulComprehensiveCrawl(params);
+		};
+		const handler = createHandler({
+			crawlArticle,
+			chargeOcrPagesFor: () => async () => { throw new Error("rate-limits table down"); },
+		});
+
+		const response = await handler(createSqsEvent({ url, userId: "user-1" }), buildLambdaContext(), () => {});
+
+		expect(response).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

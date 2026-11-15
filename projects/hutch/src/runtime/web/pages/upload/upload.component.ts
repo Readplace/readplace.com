@@ -5,9 +5,17 @@ import type { PageBody } from "@packages/web-shell";
 import type { UploadErrorCode } from "./upload.error";
 import { UPLOAD_FAILED_MESSAGE } from "./upload.error";
 import { UPLOAD_STYLES } from "./upload.styles";
+import type { UploadRefusal } from "./upload.refusal";
 import type { UploadStartViewModel } from "./upload.viewmodel";
 
 const UPLOAD_TEMPLATE = readFileSync(join(__dirname, "upload.template.html"), "utf-8");
+const BOOK_QUOTA_TEMPLATE = readFileSync(join(__dirname, "upload-book-quota.template.html"), "utf-8");
+
+function refusalAlertMessageOf(refusal: UploadRefusal): { text: string } | { html: string } {
+	return refusal.reason === "book-quota"
+		? { html: render(BOOK_QUOTA_TEMPLATE, { retryAt: refusal.retryAt }) }
+		: { text: refusal.message };
+}
 
 export type UploadPageState =
 	| {
@@ -37,8 +45,8 @@ function templateDataOf(state: UploadPageState): object {
 				errorCode: state.error?.code,
 				refusalAlertHtml: renderAlert({
 					key: "upload-refusal",
-					content: state.start.refusalMessage
-						? { variant: "error", message: { text: state.start.refusalMessage } }
+					content: state.start.refusal
+						? { variant: "error", message: refusalAlertMessageOf(state.start.refusal) }
 						: undefined,
 				}),
 				errorAlertHtml:

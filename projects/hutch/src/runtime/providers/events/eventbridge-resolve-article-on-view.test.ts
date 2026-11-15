@@ -1,4 +1,5 @@
 import { newSaveAttemptId } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/domain/user";
 import { ResolveArticleOnViewCommand } from "@packages/infra-components";
 import { initEventBridgeResolveArticleOnView } from "./eventbridge-resolve-article-on-view";
 
@@ -11,6 +12,7 @@ describe("initEventBridgeResolveArticleOnView", () => {
 			saveAttemptId: newSaveAttemptId(),
 			axes: "summary" as const,
 			surface: "readlist-html" as const,
+			userId: UserIdSchema.parse("usr_viewer"),
 		};
 
 		await publishResolveArticleOnView(params);

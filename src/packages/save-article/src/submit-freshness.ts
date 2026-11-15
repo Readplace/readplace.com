@@ -1,14 +1,14 @@
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
 import type { FindArticleByUrl } from "@packages/provider-contracts/article-store";
-import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
+import type { RequestStaleCheck } from "@packages/provider-contracts/events";
 import type { ResolveSaveIdentity } from "./resolve-save-identity";
 
 export interface SubmitFreshnessDependencies {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	resolveSaveIdentity: ResolveSaveIdentity;
-	publishStaleCheckRequested: PublishStaleCheckRequested;
+	requestStaleCheck: RequestStaleCheck;
 }
 
 export function initSubmitFreshness(deps: SubmitFreshnessDependencies): {
@@ -18,10 +18,10 @@ export function initSubmitFreshness(deps: SubmitFreshnessDependencies): {
 		findArticleByUrl,
 		findArticleCrawlStatus,
 		resolveSaveIdentity,
-		publishStaleCheckRequested,
+		requestStaleCheck,
 	} = deps;
 
-	const refreshArticleIfStale: RefreshIdentifiedArticleIfStale = async ({ url }) => {
+	const refreshArticleIfStale: RefreshIdentifiedArticleIfStale = async ({ url, requester }) => {
 		const identity = await resolveSaveIdentity(url);
 		if (identity.status === "unresolved") return { action: "unresolved", identity };
 		const { url: resolved, contentSourceUrl } = identity;
@@ -36,7 +36,7 @@ export function initSubmitFreshness(deps: SubmitFreshnessDependencies): {
 		if (contentSourceUrl !== undefined && crawl.status !== "ready") {
 			return { action: "new", identity };
 		}
-		if (contentSourceUrl === undefined) await publishStaleCheckRequested({ url: resolved });
+		if (contentSourceUrl === undefined) await requestStaleCheck({ url: resolved, requester });
 		return { action: "skip", identity };
 	};
 

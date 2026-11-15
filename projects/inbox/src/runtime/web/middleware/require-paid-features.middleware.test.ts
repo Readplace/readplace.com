@@ -3,7 +3,8 @@ import request from "supertest";
 import { useLoopbackServer } from "@packages/web-test-harness";
 import { authenticatedUserIdFrom, type AuthenticatedUserId } from "@packages/domain/user";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
-import { initRequireWriteAccess } from "./require-write-access.middleware";
+import { initGetEffectiveAccess } from "@packages/subscription-access";
+import { initRequirePaidFeatures } from "./require-paid-features.middleware";
 
 const serve = useLoopbackServer();
 
@@ -13,9 +14,11 @@ const ONE_DAY_MS = 86_400_000;
 
 function buildApp(userId: AuthenticatedUserId, now: Date = NOW) {
 	const providers = initInMemorySubscriptionProviders({ now: () => now });
-	const requireWriteAccess = initRequireWriteAccess({
-		findSubscriptionByUserId: providers.findByUserId,
-		now: () => now,
+	const requirePaidFeatures = initRequirePaidFeatures({
+		getEffectiveAccess: initGetEffectiveAccess({
+			findSubscriptionByUserId: providers.findByUserId,
+			now: () => now,
+		}),
 	});
 
 	const app = express();
@@ -23,13 +26,13 @@ function buildApp(userId: AuthenticatedUserId, now: Date = NOW) {
 		req.userId = userId;
 		next();
 	};
-	app.post("/protected", attachUser, requireWriteAccess, (_req, res) => {
+	app.post("/protected", attachUser, requirePaidFeatures, (_req, res) => {
 		res.status(200).type("text/plain").send("ok");
 	});
 	return { app, providers };
 }
 
-describe("requireWriteAccess middleware", () => {
+describe("requirePaidFeatures middleware", () => {
 	it("calls next() and allows a founding member (no subscription row) through", async () => {
 		const { app } = buildApp(TEST_USER_ID);
 
@@ -52,7 +55,7 @@ describe("requireWriteAccess middleware", () => {
 		expect(response.status).toBe(200);
 	});
 
-	it("pending_cancellation inside the cancellation window still has write access — the user paid for the rest of the period", async () => {
+	it("pending_cancellation inside the cancellation window still has paid features — the user paid for the rest of the period", async () => {
 		const { app, providers } = buildApp(TEST_USER_ID);
 		await providers.upsertActive({
 			userId: TEST_USER_ID,
@@ -70,7 +73,7 @@ describe("requireWriteAccess middleware", () => {
 		expect(response.text).toBe("ok");
 	});
 
-	it("pending_cancellation after the cancellation-effective-at instant flips to read-only — the user's prepaid window has elapsed", async () => {
+	it("pending_cancellation after the cancellation-effective-at instant moves to the free plan — the user's prepaid window has elapsed", async () => {
 		const { app, providers } = buildApp(TEST_USER_ID);
 		await providers.upsertActive({
 			userId: TEST_USER_ID,
@@ -85,7 +88,7 @@ describe("requireWriteAccess middleware", () => {
 		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/account/plans");
 	});
 
 	it("allows a trial user inside the trial window through", async () => {
@@ -100,7 +103,7 @@ describe("requireWriteAccess middleware", () => {
 		expect(response.status).toBe(200);
 	});
 
-	it("redirects HTML clients to /queue?inactive=1 when the trial has expired", async () => {
+	it("redirects HTML clients to /account/plans when the trial has expired", async () => {
 		const { app, providers } = buildApp(TEST_USER_ID);
 		await providers.upsertTrialing({
 			userId: TEST_USER_ID,
@@ -110,10 +113,10 @@ describe("requireWriteAccess middleware", () => {
 		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/account/plans");
 	});
 
-	it("redirects HTML clients to /queue?inactive=1 when the subscription is cancelled", async () => {
+	it("redirects HTML clients to /account/plans when the subscription is cancelled", async () => {
 		const { app, providers } = buildApp(TEST_USER_ID);
 		await providers.upsertActive({
 			userId: TEST_USER_ID,
@@ -125,7 +128,7 @@ describe("requireWriteAccess middleware", () => {
 		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/account/plans");
 	});
 
 	it("tells a non-boosted htmx client to navigate rather than swapping /queue into the fragment it targeted", async () => {
@@ -141,7 +144,7 @@ describe("requireWriteAccess middleware", () => {
 			.set("HX-Request", "true");
 
 		expect(response.status).toBe(200);
-		expect(response.headers["hx-redirect"]).toBe("/queue?inactive=1");
+		expect(response.headers["hx-redirect"]).toBe("/account/plans");
 		expect(response.text).toBe("");
 	});
 
@@ -159,10 +162,10 @@ describe("requireWriteAccess middleware", () => {
 			.set("HX-Boosted", "true");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/account/plans");
 	});
 
-	it("returns 402 JSON to API clients that did not request html so the extension surfaces a structured error", async () => {
+	it("returns 402 JSON naming the paid-feature refusal to API clients that did not request html", async () => {
 		const { app, providers } = buildApp(TEST_USER_ID);
 		await providers.upsertActive({
 			userId: TEST_USER_ID,
@@ -176,7 +179,7 @@ describe("requireWriteAccess middleware", () => {
 			.set("Accept", "application/vnd.siren+json");
 
 		expect(response.status).toBe(402);
-		expect(response.body).toEqual({ error: "subscription_inactive" });
+		expect(response.body).toEqual({ error: "paid_feature_refused" });
 	});
 
 });

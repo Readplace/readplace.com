@@ -50,7 +50,7 @@ export interface GmailPageContext {
 	getEffectiveAccess: GetEffectiveAccess;
 	requireAuth: RequestHandler;
 	requireNotLocked: RequestHandler;
-	requireWriteAccess: RequestHandler;
+	requirePaidFeatures: RequestHandler;
 	now: () => Date;
 	consent: GmailOAuthConsent;
 }
@@ -65,7 +65,7 @@ export function registerGmailPageRoutes(
 	gmail: GmailIntegrationDependencies,
 	context: GmailPageContext,
 ): void {
-	const { requireAuth, requireNotLocked, requireWriteAccess } = context;
+	const { requireAuth, requireNotLocked, requirePaidFeatures } = context;
 	const requireGmailAuth: RequestHandler = (req, res, next) => {
 		if (!req.userId) {
 			res.redirect(303, `/login?return=${encodeURIComponent(req.originalUrl)}`);
@@ -73,7 +73,7 @@ export function registerGmailPageRoutes(
 		}
 		requireAuth(req, res, next);
 	};
-	const write = [requireAuth, requireNotLocked, requireWriteAccess];
+	const write = [requireAuth, requireNotLocked, requirePaidFeatures];
 	const teardown = [requireAuth];
 	const imports = initGmailImportActions({ gmail, now: context.now });
 	const mapSenderToReadlist = initMapSenderToReadlist({

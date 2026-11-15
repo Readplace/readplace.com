@@ -424,7 +424,7 @@ export interface PlansPageViewedEvent {
 	event: typeof ANALYTICS_EVENTS.plansPageViewed;
 	timestamp: string;
 	user_id: UserId;
-	tier: "founding" | "paid" | "trial" | "inactive";
+	tier: "founding" | "paid" | "trial" | "free";
 	terms: PlansPageTerms;
 	utm_source?: string;
 	utm_campaign?: string;

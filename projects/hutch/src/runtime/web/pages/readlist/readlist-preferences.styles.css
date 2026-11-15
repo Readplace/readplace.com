@@ -32,11 +32,11 @@
   display: block;
 }
 
-.readlist-preferences--read-only.readlist-preferences--unset .readlist-preferences__unset {
+.readlist-preferences--paid-locked.readlist-preferences--unset .readlist-preferences__unset {
   display: block;
 }
 
-.readlist-preferences--read-only.readlist-preferences--set {
+.readlist-preferences--paid-locked.readlist-preferences--set {
   display: none;
 }
 

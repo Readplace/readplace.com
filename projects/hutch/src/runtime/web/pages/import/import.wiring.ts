@@ -5,7 +5,7 @@ export function importSessionDependenciesFrom(
 	deps: Pick<AppDependencies, "importSessionStore" | "extractLinksFromPageUrl" | "recordEngagementActivity" | "updateArticleStatus" | "markCrawlPending" | "markSummaryPending" | "publishUpdateFetchTimestamp" | "publishLinkSaved" | "publishLinkQueued" | "publishQueueEntryCreated" | "refreshArticleIfStaleStored" | "publishSubmitLink" | "allocateSavedAtSequence" | "pinContentSource" | "logError" | "salt" | "now" | "consumeRateLimit" | "rateLimitRules">,
 	built: Pick<
 		Parameters<typeof initImportSessionRoutes>[0],
-		"validateNewSaveUrl" | "secureCookies" | "recordAnalyticsEvent" | "recordUngatedAnalyticsEvent" | "buildBannerState" | "requireNotLocked" | "requireWriteAccess"
+		"validateNewSaveUrl" | "secureCookies" | "recordAnalyticsEvent" | "recordUngatedAnalyticsEvent" | "buildBannerState" | "requireNotLocked" | "claimDailySaves"
 	> & { saveArticleWithoutActivity: Parameters<typeof initImportSessionRoutes>[0]["saveArticle"] },
 ): Parameters<typeof initImportSessionRoutes>[0] {
 	const {
@@ -16,7 +16,7 @@ export function importSessionDependenciesFrom(
 		recordUngatedAnalyticsEvent,
 		buildBannerState,
 		requireNotLocked,
-		requireWriteAccess,
+		claimDailySaves,
 	} = built;
 	return {
 		validateNewSaveUrl,
@@ -43,7 +43,7 @@ export function importSessionDependenciesFrom(
 		now: deps.now,
 		buildBannerState,
 		requireNotLocked,
-		requireWriteAccess,
+		claimDailySaves,
 		consumeRateLimit: deps.consumeRateLimit,
 		importRateLimit: deps.rateLimitRules.import,
 		importFromUrlRateLimit: deps.rateLimitRules.importFromUrl,

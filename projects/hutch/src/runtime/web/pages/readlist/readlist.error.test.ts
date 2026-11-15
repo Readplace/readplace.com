@@ -68,6 +68,10 @@ describe("httpErrorMessageMapping", () => {
 	it("returns the mapped message for save_failed", () => {
 		expect(httpErrorMessageMapping({ error_code: "save_failed" })).toBe("Couldn't save this article. Try again.");
 	});
+
+	it("returns the daily-limit message for daily_save_limit", () => {
+		expect(httpErrorMessageMapping({ error_code: "daily_save_limit" })).toBe("You've reached today's limit for new saves.");
+	});
 });
 
 describe("saveableUrlErrorCodeMapping", () => {

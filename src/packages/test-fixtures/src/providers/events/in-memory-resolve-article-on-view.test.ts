@@ -12,6 +12,7 @@ describe("initInMemoryResolveArticleOnView", () => {
 			saveAttemptId: newSaveAttemptId(),
 			axes: "crawl-and-summary" as const,
 			surface: "reader" as const,
+			userId: undefined,
 		};
 
 		await publishResolveArticleOnView(command);

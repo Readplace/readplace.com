@@ -253,7 +253,7 @@ export const HOME_CONTENT = {
 		ctaNote: `Google, Apple, or an email address — about twenty seconds. No card at any point in the ${TRIAL_DAYS} days.`,
 		assurances: [
 			"Export a list of every article you saved, as JSON, anytime — even after you cancel.",
-			"Stop paying and the account goes read-only, not dark — every saved article stays readable.",
+			"Stop paying and the account moves to the free plan instead of going dark — every saved article stays readable, and saving keeps working within daily limits.",
 			"No venture capital, no ads — revenue comes from subscriptions.",
 			"Hosted in Sydney under the Australian Privacy Act. No 3rd-party trackers, no data resale.",
 		],
@@ -263,7 +263,7 @@ export const HOME_CONTENT = {
 			href: "https://github.com/Readplace/readplace.com",
 		},
 		sourceClose:
-			"— the branch that turns a cancelled account read-only, and the export route with no subscription gate, are there to read. No licence grants reuse rights.",
+			"— the branch that moves a cancelled account to the free plan, and the export route with no subscription gate, are there to read. No licence grants reuse rights.",
 	},
 	faq: {
 		title: "Questions",
@@ -274,12 +274,12 @@ export const HOME_CONTENT = {
 			},
 			{
 				question: "Do I need a credit card to start?",
-				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that it's ${RENEWAL_PRICES.replace(/\.$/, "")}, and both plans are the same full product. If you don't subscribe, nothing is charged and the account goes read-only.`,
+				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that it's ${RENEWAL_PRICES.replace(/\.$/, "")}, and both plans are the same full product. If you don't subscribe, nothing is charged and the account moves to the free plan.`,
 			},
 			{
 				question: "What happens to my articles if I stop paying?",
 				answer:
-					"You keep reading every one of them. Saving new links and importing stop; the readlist and the reader stay, and you can still export a list of every article as JSON.",
+					"You keep every one of them, and the account moves to the free plan: you can keep saving, reading, highlighting and importing within daily limits, and export a list of every article as JSON. The Inbox, Next read, Past reads, readlist purpose filtering and Gmail need a paid plan.",
 			},
 			{
 				question: "How do I get my readlist out?",

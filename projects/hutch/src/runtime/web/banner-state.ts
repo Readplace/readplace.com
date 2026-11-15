@@ -2,10 +2,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { CONFIRM_POPOVER_STYLES, FETCH_CHANGELOG_BANNER_IN_BROWSER, bannerStateFromRequest } from "@packages/web-shell";
 import type { BannerState, BannerStateSource } from "@packages/web-shell";
 import type { FindUserById, FindUserByIdResult } from "@packages/provider-contracts/auth";
-import type {
-	EffectiveAccess,
-	GetEffectiveAccess,
-} from "@packages/subscription-access";
+import { type EffectiveAccess, type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import type { Request } from "express";
 import {
 	SUBSCRIBE_PLANS_STYLES,
@@ -60,7 +57,7 @@ export function initBuildBannerState(deps: {
 				offer: upgradeOfferFor({ req: source, access }),
 				source: options?.upgradeSource ?? "header-nav",
 			}),
-			accessIsReadOnly: access.access === "read-only",
+			paidFeaturesLocked: !hasPaidFeatures(access),
 			appearance: user?.appearance,
 			signedInUser: user ? { email: user.email, displayName: user.displayName } : undefined,
 		};

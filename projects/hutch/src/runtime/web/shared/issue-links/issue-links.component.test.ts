@@ -34,6 +34,7 @@ function issue(overrides: Partial<IssueLinksSectionInput> = {}): IssueLinksSecti
 		extraction: "finished",
 		saveStates: new Map<string, InboxLinkSaveState>(),
 		justSaved: undefined,
+		dailyLimitReached: false,
 		saveUrl: "/queue/abc/issue-links?utm_source=reader",
 		returnTo: "/queue/abc/view",
 		inboxHref: "/inbox/2026-06-24?tab=articles",

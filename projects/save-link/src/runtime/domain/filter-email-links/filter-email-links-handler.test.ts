@@ -910,7 +910,7 @@ describe("initFilterEmailLinksHandler", () => {
 			expect((await harness.finalOutcome())?.map((outcome) => outcome.decision)).toEqual(["filtered"]);
 		});
 
-		it("a read-only account gets a failed fact, no model call, no filings, and the record succeeds", async () => {
+		it("a free account gets a failed fact, no model call, no filings, and the record succeeds", async () => {
 			const harness = makeHarness({ subscription: lapsed });
 
 			const result = await harness.run(TRIAGED);
@@ -925,14 +925,14 @@ describe("initFilterEmailLinksHandler", () => {
 						userId: USER,
 						receivedAtMessageId: RAM,
 						readlist: "a1b2c3d4",
-						reason: "write-access-lapsed",
+						reason: "paid-plan-required",
 						receiveCount: 1,
 					},
 				},
 			]);
 		});
 
-		it("run after access lapses on a failed row leaves it failed", async () => {
+		it("run after the plan becomes free on a failed row leaves it failed", async () => {
 			const harness = makeHarness({ subscription: lapsed });
 			await harness.seedFailedOutcome();
 
@@ -941,7 +941,7 @@ describe("initFilterEmailLinksHandler", () => {
 			expect((await harness.finalOutcome())?.map((outcome) => outcome.decision)).toEqual(["failed"]);
 		});
 
-		it("a failure publishing the read-only fact fails the record", async () => {
+		it("a failure publishing the paid-plan fact fails the record", async () => {
 			const harness = makeHarness({
 				subscription: lapsed,
 				publishFails: (detailType) => detailType === "EmailLinksFilterFailed",
@@ -953,7 +953,7 @@ describe("initFilterEmailLinksHandler", () => {
 			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
 		});
 
-		it("access restored before the redrive heals the failed row", async () => {
+		it("a paid plan restored before the redrive heals the failed row", async () => {
 			let accessLapsed = true;
 			const harness = makeHarness({ subscription: () => (accessLapsed ? lapsed() : undefined) });
 			await harness.run(TRIAGED);

@@ -40,7 +40,7 @@ import {
 import type { Logger } from "@packages/logger";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
-import { resolveWriteAccess } from "@packages/subscription-access";
+import { hasPaidFeatures, resolveEffectiveAccess } from "@packages/subscription-access";
 import type {
 	Handler,
 	SQSBatchItemFailure,
@@ -291,11 +291,12 @@ export function initExtractEmailLinksHandler(deps: {
 				const anchors = collectEmailAnchors(sanitizedHtml);
 				const canSubmit =
 					SUBMITTING_ORIGINS[origin] && userId !== UNROUTED_USER_ID;
-				const writeAccess = canSubmit
-					? resolveWriteAccess(await findSubscriptionByUserId(userId), now())
+				const paidFeatures = canSubmit
+					? hasPaidFeatures(resolveEffectiveAccess(await findSubscriptionByUserId(userId), now()))
 					: undefined;
-				const tracksImport = routing.kind === "gmail" && writeAccess === "full";
-				const completion = writeAccess === "full"
+				const savesHeld = paidFeatures === false;
+				const tracksImport = routing.kind === "gmail" && paidFeatures === true;
+				const completion = paidFeatures === true
 					? await findCompletion({ userId, receivedAtMessageId })
 					: undefined;
 				const frozenSelection = tracksImport ? completion?.selection : undefined;
@@ -304,7 +305,7 @@ export function initExtractEmailLinksHandler(deps: {
 				// One batched triage call per email; `unavailable` fails open so previews
 				// never depend on the model being up.
 				let triage: Awaited<ReturnType<TriageEmailLinks>> | undefined;
-				if (crawlCandidates.length > 0 && frozenSelection === undefined) {
+				if (crawlCandidates.length > 0 && frozenSelection === undefined && !savesHeld) {
 					triage = await triageEmailLinks({
 						userId,
 						receivedAtMessageId,
@@ -392,14 +393,16 @@ export function initExtractEmailLinksHandler(deps: {
 						saveAttemptId: newSaveAttemptId(),
 						emailOutput: input.emailOutput,
 					});
-				if (canSubmit && fanOut.issue && writeAccess !== "full") {
+				const publishHeldNoticeOnce = async () => {
+					if (noticePublished) return;
 					noticePublished = true;
 					await publishSaveHeldNotice({
 						userId,
 						receivedAtMessageId,
 						inboxAddress: recipientAddress,
 					});
-				}
+				};
+				if (savesHeld && fanOut.issue) await publishHeldNoticeOnce();
 				const countStored = (status: EmailLinkStatus) => {
 					if (status === "skipped") skipped += 1;
 					else kept += 1;
@@ -432,6 +435,20 @@ export function initExtractEmailLinksHandler(deps: {
 								skipReason: classification.reason,
 							}),
 						);
+						continue;
+					}
+					if (savesHeld) {
+						countStored(
+							await storedLinkStatus({
+								...link,
+								status: "skipped",
+								skipReason: "paid-plan",
+							}),
+						);
+						if (fanOut.links && validateSaveableInboxLink(url).status === "SUCCESS") {
+							held += 1;
+							await publishHeldNoticeOnce();
+						}
 						continue;
 					}
 					const category =
@@ -472,31 +489,19 @@ export function initExtractEmailLinksHandler(deps: {
 					// row terminal, so a crash after the preview went out would make the
 					// retry's pending-gate skip a submit that never happened.
 					if (saveable) {
-						if (writeAccess === "full") {
-							if (!tracksImport) {
-								const outputKey = linkOutputKey(ordinal);
-								if (!alreadySaved(outputKey)) {
-									await submitToAll({ url, emailOutput: { receivedAtMessageId, outputKey } });
-								}
+						if (!tracksImport) {
+							const outputKey = linkOutputKey(ordinal);
+							if (!alreadySaved(outputKey)) {
+								await submitToAll({ url, emailOutput: { receivedAtMessageId, outputKey } });
 							}
-							if (routing.kind === "inbox" && !firstInboxNoticePublished) {
-								firstInboxNoticePublished = true;
-								await publishFirstInboxEmailNotice({
-									userId,
-									receivedAtMessageId,
-									inboxAddress: recipientAddress,
-								});
-							}
-						} else {
-							held += 1;
-							if (!noticePublished) {
-								noticePublished = true;
-								await publishSaveHeldNotice({
-									userId,
-									receivedAtMessageId,
-									inboxAddress: recipientAddress,
-								});
-							}
+						}
+						if (routing.kind === "inbox" && !firstInboxNoticePublished) {
+							firstInboxNoticePublished = true;
+							await publishFirstInboxEmailNotice({
+								userId,
+								receivedAtMessageId,
+								inboxAddress: recipientAddress,
+							});
 						}
 					}
 					await publishCrawlPreview({
@@ -537,7 +542,7 @@ export function initExtractEmailLinksHandler(deps: {
 
 				if (held > 0) {
 					logger.info(
-						"[extract-email-links] saves held for a read-only reader",
+						"[extract-email-links] saves held for a free account",
 						{
 							userId,
 							receivedAtMessageId,
@@ -546,7 +551,7 @@ export function initExtractEmailLinksHandler(deps: {
 					);
 				}
 
-				const decidingReadlists = writeAccess === "full" && fanOut.links ? [...customReadlists] : [];
+				const decidingReadlists = paidFeatures === true && fanOut.links ? [...customReadlists] : [];
 				const selectedReadlists = [...customReadlists].map((readlist) => ({
 					readlist,
 					label:
@@ -582,12 +587,12 @@ export function initExtractEmailLinksHandler(deps: {
 						truncated,
 						extractionFailed: false,
 						...(routing.kind === "gmail" && canSubmit && fanOut.links
-							? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld: writeAccess !== "full" }
+							? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld }
 							: routing.kind === "inbox" && canSubmit && fanOut.links
-								? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld: writeAccess !== "full" }
+								? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld }
 								: {}),
 						...(canSubmit && fanOut.issue
-							? { issueSave: { readlists: selectedReadlists, held: writeAccess !== "full" } }
+							? { issueSave: { readlists: selectedReadlists, held: savesHeld } }
 							: {}),
 					},
 				});

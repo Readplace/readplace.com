@@ -1,6 +1,6 @@
 import { MinutesSchema } from "@packages/domain/article";
 import { initResolveSaveIdentity, initSubmitFreshness } from "@packages/save-article";
-import type { PublishLinkQueued, PublishLinkSaved, PublishStaleCheckRequested } from "@packages/provider-contracts/events";
+import type { PublishLinkQueued, PublishLinkSaved, RequestStaleCheck } from "@packages/provider-contracts/events";
 import { useTestServer, loginAgent } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture, type TestAppFixture } from "@packages/test-fixtures";
 
@@ -11,7 +11,7 @@ const WAYBACK = `https://web.archive.org/web/20081203185222/${ORIGINAL}`;
 
 function createHarness() {
 	const fixture: TestAppFixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const staleChecks: Parameters<PublishStaleCheckRequested>[0][] = [];
+	const staleChecks: Parameters<RequestStaleCheck>[0][] = [];
 	const linkSaves: Parameters<PublishLinkSaved>[0][] = [];
 	const linkQueued: Parameters<PublishLinkQueued>[0][] = [];
 	const { refreshArticleIfStale } = initSubmitFreshness({
@@ -24,7 +24,7 @@ function createHarness() {
 			resolveWrapperTarget: fixture.wrapperTarget.resolveWrapperTarget,
 			now: () => new Date(),
 		}),
-		publishStaleCheckRequested: async (params) => {
+		requestStaleCheck: async (params) => {
 			staleChecks.push(params);
 		},
 	});

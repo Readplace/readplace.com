@@ -1306,6 +1306,72 @@ describe("View routes", () => {
 
 			expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
 		});
+
+		describe("with one stale check a day", () => {
+			async function cappedHarness() {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				fixture.rateLimit = { ...fixture.rateLimit,
+					consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+					rules: { ...fixture.rateLimit.rules, staleCheck: { limit: 1, windowSeconds: 86400 } },
+				};
+				const staleChecks: { url: string }[] = [];
+				const harness = useApp({ ...fixture, events: { ...fixture.events, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+				await harness.articleStore.saveArticleGlobally({ url: ARTICLE_URL, metadata: { title: "Seeded title", siteName: "example.com", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+				await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+				return { harness, staleChecks };
+			}
+
+			async function signedIn(harness: Awaited<ReturnType<typeof cappedHarness>>["harness"]) {
+				const agent = await loginAgent(harness.server, harness.auth);
+				const user = await harness.auth.findUserByEmail("test@example.com");
+				assert(user, "the signed-in user must exist");
+				return { agent, userId: user.userId };
+			}
+
+			it("serves a logged-out reader's second GET while publishing only the first stale check", async () => {
+				const { harness, staleChecks } = await cappedHarness();
+
+				const first = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+				const second = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+				expect(first.status).toBe(200);
+				expect(second.status).toBe(200);
+				expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
+			});
+
+			it("spends no allowance on a bot's GET, so the next browser GET still publishes", async () => {
+				const { harness, staleChecks } = await cappedHarness();
+
+				await request(harness.server).get(`/view/${CANONICAL_PATH}`).set("User-Agent", GOOGLEBOT);
+				await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+				expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
+			});
+
+			it("publishes only the first stale check for a signed-in inactive account", async () => {
+				const { harness, staleChecks } = await cappedHarness();
+				const { agent, userId } = await signedIn(harness);
+				await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_stale", customerId: "cus_stale" });
+				await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+				const first = await agent.get(`/view/${CANONICAL_PATH}`);
+				const second = await agent.get(`/view/${CANONICAL_PATH}`);
+
+				expect(first.status).toBe(200);
+				expect(second.status).toBe(200);
+				expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
+			});
+
+			it("publishes every stale check for a signed-in founding account", async () => {
+				const { harness, staleChecks } = await cappedHarness();
+				const { agent } = await signedIn(harness);
+
+				await agent.get(`/view/${CANONICAL_PATH}`);
+				await agent.get(`/view/${CANONICAL_PATH}`);
+
+				expect(staleChecks).toEqual([{ url: ARTICLE_URL }, { url: ARTICLE_URL }]);
+			});
+		});
 	});
 
 	describe("Share dialog", () => {
@@ -2155,7 +2221,7 @@ describe("View routes", () => {
 				publishedUrls.push(params.url);
 				await basePublish(params);
 			};
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: clock.now }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, viewCrawl: rule, viewCrawlSignedIn: signedInRule },
 			};
@@ -2300,6 +2366,110 @@ describe("View routes", () => {
 		});
 	});
 
+	describe("daily new-save limit for a signed-in metered reader", () => {
+		const TRACKER = "https://javascriptweekly.com/link/100000/rss";
+		const TRACKER_PATH = "javascriptweekly.com/link/100000/rss";
+		const PUBLISHER = "https://sqlite.org/lang_with.html";
+
+		function buildMeteredHarness() {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
+			const publishedUrls: string[] = [];
+			const basePublish = fixture.events.publishSaveAnonymousLink;
+			fixture.events.publishSaveAnonymousLink = async (params) => {
+				publishedUrls.push(params.url);
+				await basePublish(params);
+			};
+			const limiter = initInMemoryRateLimit({ now: () => new Date() });
+			fixture.rateLimit = { ...fixture.rateLimit,
+				consumeRateLimit: limiter.consumeRateLimit,
+				claimRateLimitUnits: limiter.claimRateLimitUnits,
+				rules: {
+					...fixture.rateLimit.rules,
+					dailySaves: { limit: 1, windowSeconds: 86_400 },
+					viewCrawlSignedIn: { limit: 1, windowSeconds: 3600 },
+				},
+			};
+			const harness = useApp(fixture);
+			return { harness, publishedUrls };
+		}
+
+		async function signIn(harness: ReturnType<typeof buildMeteredHarness>["harness"], options: { metered: boolean }) {
+			const agent = await loginAgent(harness.server, harness.auth);
+			const user = await harness.auth.findUserByEmail("test@example.com");
+			assert(user, "the signed-in user must exist");
+			if (options.metered) {
+				await harness.subscriptionProviders.upsertActive({ userId: user.userId, subscriptionId: "sub_meter", customerId: "cus_meter" });
+				await harness.subscriptionProviders.markCancelledByUserId({ userId: user.userId });
+			}
+			return { agent, userId: user.userId };
+		}
+
+		it("shows the daily-limit page with Retry-After once today's new saves are spent, and starts no crawl", async () => {
+			const { harness, publishedUrls } = buildMeteredHarness();
+			const { agent } = await signIn(harness, { metered: true });
+
+			const first = await agent.get("/view/example.com/first");
+			const refused = await agent.get("/view/example.com/second");
+
+			expect(first.status).toBe(200);
+			expect(refused.status).toBe(429);
+			expect(String(refused.headers["retry-after"])).toMatch(/^\d+$/);
+			const document = new JSDOM(refused.text).window.document;
+			const page = document.querySelector("[data-test-view-daily-save-limit]");
+			assert(page, "the daily-limit page must render");
+			expect(page.querySelector("[data-test-daily-save-limit=title]")?.textContent).toBe("You've reached today's limit for new saves");
+			expect(page.querySelector("[data-test-daily-save-limit=body]")?.textContent).toBe("Links you already saved still open. You can open new links again after the daily reset.");
+			const back = page.querySelector("[data-test-daily-save-limit=back]");
+			assert(back, "the page must link back to the readlist");
+			expect(back.getAttribute("href")).toMatch(/^\/queue\?/);
+			expect(back.textContent).toBe("Back to Readlist");
+			expect(publishedUrls).toEqual(["https://example.com/first"]);
+			expect(await harness.articleStore.findArticleByUrl("https://example.com/second")).toBeNull();
+		});
+
+		it("does not charge a wrapper link that re-points to a link the reader already holds", async () => {
+			const { harness, publishedUrls } = buildMeteredHarness();
+			const { agent, userId } = await signIn(harness, { metered: true });
+			await harness.articleStore.saveArticle({
+				userId,
+				url: PUBLISHER,
+				metadata: { title: "Held", siteName: "sqlite.org", excerpt: "", wordCount: 0 },
+				estimatedReadTime: calculateReadTime(0),
+				provenance: { kind: "web" },
+				savedAt: new Date(),
+			});
+
+			const wrapper = await agent.get(`/view/${TRACKER_PATH}`);
+			const fresh = await agent.get("/view/example.com/fresh");
+
+			expect([wrapper.status, fresh.status]).toEqual([200, 200]);
+			expect(publishedUrls).toEqual([PUBLISHER, "https://example.com/fresh"]);
+		});
+
+		it("holds a founding reader to the signed-in crawl limit, never the daily-save limit", async () => {
+			const { harness, publishedUrls } = buildMeteredHarness();
+			const { agent } = await signIn(harness, { metered: false });
+
+			const first = await agent.get("/view/example.com/first");
+			const throttled = await agent.get("/view/example.com/second");
+
+			expect([first.status, throttled.status]).toEqual([200, 429]);
+			expect(throttled.text).toBe("Too many requests from your network. Please try again later.");
+			expect(publishedUrls).toEqual(["https://example.com/first"]);
+		});
+
+		it("leaves a logged-out visitor on the per-IP crawl limit", async () => {
+			const { harness, publishedUrls } = buildMeteredHarness();
+
+			const first = await request(harness.server).get("/view/example.com/first");
+			const second = await request(harness.server).get("/view/example.com/second");
+
+			expect([first.status, second.status]).toEqual([200, 200]);
+			expect(publishedUrls).toEqual(["https://example.com/first", "https://example.com/second"]);
+		});
+	});
+
 	describe("purged (tombstoned) URL serving gates", () => {
 		async function seedTombstoned() {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -2437,7 +2607,7 @@ describe("View routes", () => {
 			const harness = buildReaderHarness(useApp, (fixture) => {
 				fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
 				fixture.wrapperTarget.targets.set(other, "https://sqlite.org/other.html");
-				fixture.rateLimit = {
+				fixture.rateLimit = { ...fixture.rateLimit,
 					consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 					rules: { ...fixture.rateLimit.rules, viewCrawl: { limit: 1, windowSeconds: 60 } },
 				};
@@ -2482,7 +2652,7 @@ describe("View routes", () => {
 
 		it("renders the stored article through an alias without a recorded source once the crawl budget is spent", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, viewCrawl: { limit: 1, windowSeconds: 60 } },
 			};
@@ -2504,7 +2674,7 @@ describe("View routes", () => {
 		it("only checks staleness on a repeat visit through a tracker whose capture was already offered, spending no crawl budget", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			fixture.wrapperTarget.targets.set(TRACKER, PUBLISHER);
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, viewCrawl: { limit: 1, windowSeconds: 60 } },
 			};
@@ -2524,7 +2694,7 @@ describe("View routes", () => {
 		it("only checks staleness on a repeat visit through an archive.today outbound link, spending no crawl budget", async () => {
 			const outbound = `https://archive.ph/o/abc/${PUBLISHER}`;
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, viewCrawl: { limit: 1, windowSeconds: 60 } },
 			};

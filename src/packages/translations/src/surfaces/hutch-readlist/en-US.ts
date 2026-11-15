@@ -79,4 +79,17 @@ export const enUS = {
 			},
 		},
 	},
+	readlistSaveLimit: {
+		formError: "You've reached today's limit for new saves.",
+	},
+	readlistSubscription: {
+		free: {
+			chip: "Free plan",
+			title: "You're on the free plan",
+			body: "Your saved articles are all here, and you can keep saving new links within a daily limit. Upgrade for the Inbox, Next read, Past reads, Gmail and no daily limits.",
+		},
+	},
+	readlistKeepOffer: {
+		withoutCard: "Without a card, your account moves to the free plan when the trial ends and keeps everything you saved.",
+	},
 } as const;

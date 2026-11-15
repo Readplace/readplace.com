@@ -1,7 +1,7 @@
 import type { CrawlUnsupportedReason } from "@packages/article-state-types";
 import type { FetchFailureClassification } from "./classify-fetch-failure";
 import type { FetchRetryDecision } from "./fetch-retry-decision";
-import type { PdfExtractStage } from "./pdf-extract.types";
+import type { ChargeOcrPages, PdfExtractStage } from "./pdf-extract.types";
 
 export type ThumbnailImage = {
 	body: Buffer;
@@ -58,7 +58,9 @@ export type CrawlArticleResult =
 		}
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
-	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason };
+	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason }
+	| { status: "over-ocr-quota"; pages: number; pagesLeft: number; retryAt: Date }
+	| { status: "pdf-awaiting-saver" };
 
 /**
  * Provider-shaped progress callback the orchestrator passes through to a PDF
@@ -96,4 +98,5 @@ export type CrawlArticle = (params: {
 	retainResponseBody?: boolean;
 	retainBlockedResponse?: boolean;
 	skipFetchPin?: boolean;
+	chargeOcrPages: ChargeOcrPages | undefined;
 }) => Promise<CrawlArticleResult>;
