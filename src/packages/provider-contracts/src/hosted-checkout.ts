@@ -61,6 +61,7 @@ export type RetrieveCheckoutSession = (id: CheckoutSessionId) => Promise<
 			ok: true;
 			paid: boolean;
 			paymentStatus: CheckoutPaymentStatus;
+			amountTotal: number;
 			customerEmail: string;
 			status: CheckoutSessionStatus;
 			created: number;

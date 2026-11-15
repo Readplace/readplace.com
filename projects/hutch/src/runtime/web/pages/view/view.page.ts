@@ -79,6 +79,7 @@ import { initStartAnonymousCrawl, type ResolveSaveIdentity } from "@packages/sav
 import {
 	ViewPage,
 	renderViewDownloadsOob,
+	renderViewShareUpgradeOob,
 	viewEpubHref,
 	viewEndCtaEpubHref,
 	splitTrackedHref,
@@ -645,6 +646,9 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			renderDownloadsOob: offersEpubDownload(existing ?? {})
 				? (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) })
 				: undefined,
+			renderShareOob: existing === null
+				? undefined
+				: (state) => renderViewShareUpgradeOob({ articleUrl, destinationUrl: existing.destinationUrl, title: existing.metadata.title, appOrigin: deps.appOrigin, state }),
 		});
 		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));
@@ -685,6 +689,9 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			renderDownloadsOob: offersEpubDownload(existing ?? {})
 				? (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) })
 				: undefined,
+			renderShareOob: existing === null
+				? undefined
+				: (state) => renderViewShareUpgradeOob({ articleUrl, destinationUrl: existing.destinationUrl, title: existing.metadata.title, appOrigin: deps.appOrigin, state }),
 		});
 		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));

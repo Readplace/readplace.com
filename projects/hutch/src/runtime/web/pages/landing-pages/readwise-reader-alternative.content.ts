@@ -27,7 +27,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	titleLead: "What Reader does that this ",
 	titleHighlight: "doesn't",
 	titleTail: ", in one table.",
-	lede: `Readplace saves articles, PDFs and newsletter links, writes an AI TL;DR for each, and costs ${PRICING_PLANS.yearly.totalDisplay} a year, or ${PRICING_PLANS.monthly.totalDisplay} month to month. Readwise Reader does much more. The table lists what Reader has that Readplace doesn't, so you can check the rows you'd miss.`,
+	lede: `Readplace saves articles, PDFs and newsletter links, writes an AI TL;DR for each, and costs ${PRICING_PLANS.yearly.periodDisplay}, or ${PRICING_PLANS.monthly.totalDisplay} month to month. Readwise Reader does much more. The table lists what Reader has that Readplace doesn't, so you can check the rows you'd miss.`,
 	ogImageAlt: "Readplace and Readwise Reader compared row by row, gaps included.",
 	primaryAction: {
 		key: "try-reader",
@@ -77,7 +77,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 			rows: [
 				{
 					feature: "Price",
-					readplace: `${PRICING_PLANS.yearly.totalDisplay} a year, or ${PRICING_PLANS.monthly.totalDisplay} month to month`,
+					readplace: `${PRICING_PLANS.yearly.periodDisplay}, or ${PRICING_PLANS.monthly.totalDisplay} month to month`,
 					competitor: "$9.99/month billed annually, $12.99 month to month",
 				},
 				{

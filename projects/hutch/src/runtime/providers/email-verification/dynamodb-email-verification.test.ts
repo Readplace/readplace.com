@@ -66,6 +66,22 @@ describe("initDynamoDbEmailVerification", () => {
 			const { expiresAt } = z.object({ expiresAt: z.number() }).parse(put?.input.Item);
 			expect(expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
 		});
+
+		it("expires the link 48 hours after it is created, the longest an activation code may live", async () => {
+			const { client, commands } = createFakeClient();
+
+			const before = Math.floor(Date.now() / 1000);
+			await initVerification(client).createVerificationToken({
+				userId: USER,
+				email: "user@example.com",
+			});
+			const after = Math.floor(Date.now() / 1000);
+
+			const put = commands.find((c) => c.name === "PutCommand");
+			const { expiresAt } = z.object({ expiresAt: z.number() }).parse(put?.input.Item);
+			expect(expiresAt).toBeGreaterThanOrEqual(before + 48 * 60 * 60);
+			expect(expiresAt).toBeLessThanOrEqual(after + 48 * 60 * 60);
+		});
 	});
 
 	describe("verifyEmailToken", () => {

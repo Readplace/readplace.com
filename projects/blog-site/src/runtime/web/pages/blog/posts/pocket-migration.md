@@ -71,7 +71,7 @@ The [Pocket alternative page](/pocket-alternative?utm_source=blog-pocket-migrati
 | Save articles from browser | Yes | Yes (Chrome, Firefox) |
 | Reader view | Yes | Yes |
 | AI summaries | No | TL;DR for every article |
-| Tags | Yes | Readlists (up to 7), no tags |
+| Tags | Yes | Readlists (up to 15), no tags |
 | Highlights | Yes | Yes |
 | Full-text search | Yes (Premium) | No |
 | Offline reading | Yes (mobile) | Planned |

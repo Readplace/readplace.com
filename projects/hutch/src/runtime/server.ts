@@ -40,6 +40,8 @@ import type {
 	MarkSessionEmailVerified,
 	FindSessionReadlistFilter,
 	FindSessionOAuthGrant,
+	FindSessionAdminMfaVerifiedAt,
+	MarkSessionAdminMfaVerified,
 	SetSessionReadlistFilter,
 	SaveAppleRefreshToken,
 	MarkActivationThresholdReached,
@@ -87,6 +89,7 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	ResolvePriceId,
 	FindSubscriptionNextCharge,
+	FindSubscriptionPaymentMethod,
 	ListInvoices,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/subscription-billing";
@@ -139,6 +142,8 @@ import type {
 	ListUserSavesForUrls,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	PinReadlistDefinition,
+	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
 	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
@@ -274,6 +279,8 @@ import {
 } from "./web/pages/upload/upload-review.page";
 import { inspectionPollBudget } from "./web/pages/upload/inspection-poll-budget";
 import { createRateLimitMiddleware } from "./web/middleware/rate-limit";
+import type { ReadAdminTotpSecrets } from "./web/pages/admin/admin-totp-secrets";
+import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { INSPECT_BOOK_TIMEOUT_SECONDS } from "@packages/infra-components";
 import { AUDIO, BOOK, type MediaKindManifest, type MediaKindName, type Meter, type UploadId, VIDEO } from "@packages/media-contracts";
 import type { ChargeTranscriptQuota, RefundUnstartedCharge } from "@packages/provider-contracts/transcript-quota";
@@ -296,7 +303,7 @@ import type {
 	ReadTimedDuration,
 } from "@packages/domain";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
+import type { CreateRoutedInboxAddress, InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
@@ -344,10 +351,10 @@ import {
 	generateCspNonce,
 	requireCspNonce,
 	sendComponent,
+	sendContentSecurityPolicy,
 	wantsMarkdown,
 } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
-import { setSirenDiscoveryRedirectCaching } from "./web/siren-discovery-cache";
 import { createCrossSiteRequestMiddleware } from "./web/cross-site-request.middleware";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { createListingGenerationMiddleware } from "./web/listing-generation.middleware";
@@ -435,6 +442,8 @@ export interface AppDependencies {
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 	findSessionOAuthGrant: FindSessionOAuthGrant;
+	markSessionAdminMfaVerified: MarkSessionAdminMfaVerified;
+	findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt;
 	findUserById: FindUserById;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markActivationThresholdReached: MarkActivationThresholdReached;
@@ -503,6 +512,8 @@ export interface AppDependencies {
 	moveReadlistArticles: MoveReadlistArticles;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	pinReadlistDefinition: PinReadlistDefinition;
+	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
@@ -590,6 +601,8 @@ export interface AppDependencies {
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
 	adminEmails: readonly string[];
+	readAdminTotpSecrets: ReadAdminTotpSecrets;
+	adminMfaAttemptRule: RateLimitRule;
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
@@ -623,6 +636,7 @@ export interface AppDependencies {
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
+	createRoutedInboxAddress: CreateRoutedInboxAddress;
 	clearReadlistFromAddresses: InboxAddressStore["clearReadlistFromAddresses"];
 	now: () => Date;
 	drawRandomByte: () => number;
@@ -652,6 +666,7 @@ export interface AppDependencies {
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
+	findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod;
 	listInvoices: ListInvoices;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	paymentMethods: {
@@ -737,6 +752,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use((req, _res, next) => refreshContext.run({ recoveryProof: req.get("X-Readplace-Refresh-Recovery") }, next));
 
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
+	app.use(sendContentSecurityPolicy);
 	app.use(utmValidationMiddleware);
 
 	app.use((req: Request, res: Response, next: NextFunction) => {
@@ -1164,12 +1180,17 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	/** Firefox extensions enforce CORS preflight for fetches with non-simple headers (Accept: application/vnd.siren+json, Authorization). Register OPTIONS so the preflight succeeds; without this it returns 404 and firefox aborts the fetch with NetworkError. */
 	app.options("/", extensionCors);
-	app.get("/", extensionCors, async (req: Request, res: Response) => {
-		const sirenDiscovery = wantsSiren(req) && !wantsMarkdown(req);
-		if (sirenDiscovery) {
-			setSirenDiscoveryRedirectCaching(res);
-		}
-		if (req.userId || sirenDiscovery) {
+	app.get(
+		"/",
+		extensionCors,
+		(req: Request, _res: Response, next: NextFunction) => {
+			next(wantsSiren(req) && !wantsMarkdown(req) ? undefined : "route");
+		},
+		stampOfflineOwner,
+		(req: Request, res: Response, next: NextFunction) => queueRouter(req, res, next),
+	);
+	app.get("/", async (req: Request, res: Response) => {
+		if (req.userId) {
 			res.redirect(303, READLIST_PATH);
 			return;
 		}

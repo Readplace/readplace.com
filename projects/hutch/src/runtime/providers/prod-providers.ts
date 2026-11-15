@@ -3,6 +3,11 @@ import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { SSMClient } from "@aws-sdk/client-ssm";
 import { EXCLUDED_IDENTITIES_PARAMETER_NAME, parseExcludedIdentities } from "../observability/excluded-identities";
 import { initSsmExcludedIdentities } from "./excluded-identities/ssm-excluded-identities";
+import { initSsmAdminTotpSecrets } from "./admin-totp-secrets/ssm-admin-totp-secrets";
+import {
+	ADMIN_TOTP_SECRETS_PARAMETER_NAME,
+	parseAdminTotpSecretsParameter,
+} from "../web/pages/admin/admin-totp-secrets";
 import { initCloudWatchLogsInsights } from "./logs-insights/cloudwatch-logs-insights";
 import { initAuthDiagnosticRecorder } from "../auth-diagnostics/record";
 import assert from "node:assert";
@@ -152,6 +157,7 @@ import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/articl
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxAddress, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink } from "@packages/inbox-store";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
+import type { CreateRoutedInboxAddress } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { initReportReadlistCap } from "../observability/readlist-cap";
@@ -638,6 +644,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 		},
 		listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 		setInboxAddressReadlist: inboxAddressStore.setAddressReadlist,
+		createRoutedInboxAddress: (input: Parameters<CreateRoutedInboxAddress>[0]) =>
+			inboxAddressStore.createRoutedAddress({ ...input, domain: inboxAddressDomain, purpose: DEFAULT_INBOX_ADDRESS_PURPOSE }),
 		clearReadlistFromAddresses: inboxAddressStore.clearReadlistFromAddresses,
 		listIssueLinks: inboxEmailLinkStore.listLinksByEmail,
 		findIssueLink: inboxEmailLinkStore.getLink,
@@ -646,6 +654,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		trialScheduler,
 		createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge: stripeSubscriptions.findSubscriptionNextCharge,
+		findSubscriptionPaymentMethod: stripeSubscriptions.findSubscriptionPaymentMethod,
 		listInvoices: stripeSubscriptions.listInvoices,
 		reverseScheduledCancellation: stripeSubscriptions.reverseScheduledCancellation,
 		paymentMethods,
@@ -683,6 +692,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 			}),
 			now: () => new Date(),
 		},
+		readAdminTotpSecrets: initSsmAdminTotpSecrets({
+			getParameter: (command) => ssmClient.send(command),
+			parameterName: ADMIN_TOTP_SECRETS_PARAMETER_NAME,
+			parseAdminTotpSecretsParameter,
+		}),
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens: oauthModel.revokeAllUserOAuthTokens,

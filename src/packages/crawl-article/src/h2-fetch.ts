@@ -16,6 +16,14 @@ type H2RequestResult = {
 
 export type FetchH2 = (url: string, init?: FetchH2Init) => Promise<Response>;
 
+class H2StreamEndedWithoutResponse extends Error {
+	readonly code = "H2_STREAM_ENDED_WITHOUT_RESPONSE";
+
+	constructor() {
+		super("HTTP/2 stream ended without a response");
+	}
+}
+
 /**
  * The optional `lookup` is threaded into every `http2.connect` — the initial
  * request and each redirect hop open a fresh connection — so the SSRF guard
@@ -85,7 +93,7 @@ function h2Request(
 		req.on("data", (chunk: Buffer) => chunks.push(chunk));
 		req.on("end", () => {
 			if (!response) {
-				reject(new Error("HTTP/2 stream ended without a response"));
+				reject(new H2StreamEndedWithoutResponse());
 				return;
 			}
 			resolve({ ...response, body: Buffer.concat(chunks) });

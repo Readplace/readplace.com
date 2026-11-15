@@ -1,5 +1,4 @@
 import assert from "node:assert";
-import { READLIST_MAX_PER_USER } from "../readlist";
 
 /** What invoking the operation does. An `appOnly` operation exists
  * so an assistant can answer the request, but it changes nothing: the user
@@ -75,7 +74,7 @@ export const MCP_OPERATIONS = [
 		name: "create_readlist",
 		title: "Create a readlist",
 		description:
-			`Create a readlist in the user's Readplace account under a name they choose, and return its opaque id for the other tools. A name a readlist already carries returns that readlist rather than making a second one, so calling this twice with the same name is safe. A user can keep up to ${READLIST_MAX_PER_USER} named readlists beside All; past that, creating one is refused and nothing changes.`,
+			"Create a readlist in the user's Readplace account under a name they choose, and return its opaque id for the other tools. A name a readlist already carries returns that readlist rather than making a second one, so calling this twice with the same name is safe. A user can keep a limited number of named readlists beside All; past that, creating one is refused and nothing changes.",
 		summary: "creates a readlist under a name the user chooses and returns its id.",
 		effect: "update",
 	},

@@ -21,6 +21,7 @@ const RetrieveSessionResponse = z.object({
 	customer_email: z.string().nullish(),
 	customer_details: z.object({ email: z.string().nullish() }).nullish(),
 	payment_status: z.enum(["paid", "unpaid", "no_payment_required"]),
+	amount_total: z.number().nullable(),
 	status: z.enum(["open", "complete", "expired"]),
 	created: z.number(),
 	subscription: z.string().nullish(),
@@ -63,6 +64,7 @@ export function initStripeCheckout(deps: {
 			success_url: successUrl,
 			cancel_url: cancelUrl,
 			"payment_method_types[0]": "card",
+			"automatic_tax[enabled]": "true",
 		});
 		if (coupon === null) {
 			body.set("allow_promotion_codes", "true");
@@ -124,6 +126,7 @@ export function initStripeCheckout(deps: {
 			ok: true,
 			paid: parsed.payment_status === "paid" || parsed.payment_status === "no_payment_required",
 			paymentStatus: parsed.payment_status,
+			amountTotal: parsed.amount_total ?? 0,
 			customerEmail,
 			status: parsed.status,
 			created: parsed.created,

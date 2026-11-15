@@ -58,6 +58,8 @@ export const READLIST_ERROR_LIMIT = "limit";
 
 export const READLIST_ERROR_UNKNOWN_READLIST = "unknown_readlist";
 
+export const READLIST_ERROR_PIN_LIMIT = "pin_limit";
+
 export const READLIST_NOTICE_SAVE_QUEUED = "save_queued";
 
 const READLIST_NAME_LENGTH_MESSAGE = `Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.`;

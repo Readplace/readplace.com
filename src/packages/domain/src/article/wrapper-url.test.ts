@@ -250,6 +250,25 @@ describe("unwrapWrapperUrl", () => {
 	});
 
 	it.each([
+		"https://www.linkedin.com/shareArticle?mini=true&url=https%3A%2F%2Fpublisher.example%2Farticle&title=Read",
+		"https://linkedin.com/shareArticle?url=https://publisher.example/article",
+	])("recovers the shared URL from the LinkedIn share dialog %s", (dialog) => {
+		expect(wrapperFamilyOf(dialog)).toBe("share-intent");
+		expect(unwrapWrapperUrl(dialog)).toEqual({ url: "https://publisher.example/article" });
+	});
+
+	it.each([
+		{ label: "a LinkedIn share dialog without a url", url: "https://www.linkedin.com/shareArticle?mini=true&title=Read" },
+		{ label: "a LinkedIn share dialog sharing a non-HTTP URL", url: "https://www.linkedin.com/shareArticle?url=javascript%3Aalert(1)" },
+		{ label: "a LinkedIn share dialog sharing a relative URL", url: "https://www.linkedin.com/shareArticle?url=%2Fpulse%2Farticle" },
+		{ label: "a LinkedIn page on another path", url: "https://www.linkedin.com/pulse/article?url=https%3A%2F%2Fpublisher.example%2Farticle" },
+		{ label: "a shareArticle path on another host", url: "https://publisher.example/shareArticle?url=https%3A%2F%2Fpublisher.example%2Farticle" },
+	])("does not treat $label as a wrapper", ({ url }) => {
+		expect(wrapperFamilyOf(url)).toBeUndefined();
+		expect(unwrapWrapperUrl(url)).toEqual({ url });
+	});
+
+	it.each([
 		{ label: "a tweet intent without a url", url: "https://twitter.com/intent/tweet?text=Read" },
 		{ label: "a tweet intent sharing a non-HTTP URL", url: "https://x.com/intent/post?url=javascript%3Aalert(1)" },
 		{ label: "a Wayback capture of a non-HTTP original", url: "https://web.archive.org/web/2018/ftp://files.example/a" },

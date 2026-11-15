@@ -189,6 +189,16 @@ describe("sanitizeArticleHtml on a highlight mark", () => {
 		expect(sanitizeArticleHtml(mark)).toBe(mark);
 	});
 
+	it("keeps the reader's has-note and note-end classes on a mark and drops any other", () => {
+		expect(
+			sanitizeArticleHtml(
+				`<p><mark class="article-highlight article-highlight--has-note article-highlight--note-end article-highlight--other" data-highlight-id="${highlightId}">kept</mark></p>`,
+			),
+		).toBe(
+			`<p><mark class="article-highlight article-highlight--has-note article-highlight--note-end" data-highlight-id="${highlightId}">kept</mark></p>`,
+		);
+	});
+
 	it("drops a data-highlight-id that is not a uuid, an id outside the highlight- namespace and any other class", () => {
 		expect(
 			sanitizeArticleHtml('<p><mark class="pub-mark" id="note-1" data-highlight-id="javascript:alert(1)">text</mark></p>'),

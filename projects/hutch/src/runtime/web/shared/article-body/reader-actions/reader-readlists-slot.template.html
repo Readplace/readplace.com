@@ -2,9 +2,10 @@
 <div id="reader-readlists-slot" class="article-body__readlists-slot article-body__readlists-slot--visible"{{#if oob}} hx-swap-oob="outerHTML"{{/if}} data-test-readlists-slot>
   <details class="article-body__readlists">
     <summary class="btn btn--neutral article-body__readlists-trigger" data-test-readlists-trigger>{{icon "plus"}}<span class="article-body__action-label">Add to readlist</span><span class="article-body__readlists-chevron" aria-hidden="true">{{icon "chevron-down"}}</span></summary>
-    <ul class="article-body__readlists-menu" data-test-readlists-menu>
+    <ul class="article-body__readlists-menu" data-readlist-filter-scope data-test-readlists-menu>
+      {{{readlistPicker.filterHtml}}}
       {{#each readlistPicker.options}}
-      <li class="article-body__readlists-item" data-test-readlists-row="{{slug}}">
+      <li class="article-body__readlists-item readlist-filter__option" data-test-readlists-row="{{slug}}">
         <form class="article-body__readlists-form" method="POST" action="{{../readlistPicker.assignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
           <input type="hidden" name="queue" value="{{slug}}">
           <input type="hidden" name="returnTo" value="{{../readlistPicker.returnTo}}">

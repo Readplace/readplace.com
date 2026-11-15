@@ -657,19 +657,51 @@ describe("ViewPage", () => {
 			assert(dialog, "the share dialog must render");
 			expect(
 				[dialog, fallback].map((surface) => {
-					const field = surface.querySelector("[data-test-share-url]");
-					assert(field, "every share surface carries the link to copy");
+					const field = surface.querySelector('[data-test-share-url="reader-view"]');
+					assert(field, "every share surface carries the reader view to copy");
 					const url = new URL(field.getAttribute("value") ?? "");
 					return [
 						`${url.origin}${url.pathname}`,
 						url.searchParams.get("utm_source"),
 						url.searchParams.get("utm_medium"),
 						url.searchParams.get("utm_campaign"),
+						url.searchParams.get("utm_content"),
 					];
 				}),
 			).toEqual([
-				["https://staging.readplace.com/view/example.com/post", "share-dialog", "copy", "reader-public"],
-				["https://staging.readplace.com/view/example.com/post", "share-dialog", "copy", "reader-public"],
+				["https://staging.readplace.com/view/example.com/post", "share-dialog", "copy", "reader-public", "reader-view"],
+				["https://staging.readplace.com/view/example.com/post", "share-dialog", "copy", "reader-public", "reader-view"],
+			]);
+		});
+
+		it("offers the reader view beside the original only once the reader view has content and its crawl is ready", () => {
+			const shareRowsFor = (state: Pick<ViewPageInput, "content" | "crawl">) => {
+				const doc = render({ ...baseInput, ...state });
+				return {
+					dialog: Array.from(doc.querySelectorAll('[data-test-share-panel="dialog"] [data-test-share-url]'), (field) => [
+						field.getAttribute("data-test-share-url"),
+						field.getAttribute("value"),
+					]),
+					placements: Array.from(doc.querySelectorAll("[data-test-share-panel]"), (panel) => panel.getAttribute("data-test-share-panel")),
+					report: new URL(doc.querySelector('[data-test-action="report-article"]')?.getAttribute("href") ?? "mailto:").searchParams.get("body")?.includes(`${baseInput.appOrigin}/view/example.com/post`),
+				};
+			};
+			const body = articleBody("<p>Body copy.</p>");
+			const readerView = `${baseInput.appOrigin}/view/example.com/post?utm_source=share-dialog&utm_medium=copy&utm_campaign=reader-public&utm_content=reader-view`;
+			const original = baseInput.destinationUrl;
+
+			expect([
+				shareRowsFor({ content: body, crawl: { status: "ready" } }),
+				shareRowsFor({ content: body, crawl: undefined }),
+				shareRowsFor({ content: body, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } }),
+				shareRowsFor({ content: body, crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" } }),
+				shareRowsFor({ content: undefined, crawl: { status: "ready" } }),
+			]).toEqual([
+				{ dialog: [["reader-view", readerView], ["original", original]], placements: ["toolbar", "dialog"], report: true },
+				{ dialog: [["reader-view", readerView], ["original", original]], placements: ["toolbar", "dialog"], report: true },
+				{ dialog: [["original", original]], placements: ["toolbar", "dialog"], report: true },
+				{ dialog: [["original", original]], placements: ["toolbar", "dialog"], report: true },
+				{ dialog: [["original", original]], placements: ["toolbar", "dialog"], report: true },
 			]);
 		});
 

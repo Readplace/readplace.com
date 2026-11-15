@@ -1,0 +1,39 @@
+.admin-mfa {
+  background: var(--muted);
+  flex: 1 1 auto;
+}
+
+.admin-mfa__layout {
+  max-width: calc(24rem + 2 * var(--page-gutter));
+  margin: 0 auto;
+  padding: var(--page-top) var(--page-gutter) 64px;
+}
+
+.admin-mfa__title {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0 0 16px;
+  text-wrap: balance;
+}
+
+.admin-mfa__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.admin-mfa__input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2em;
+}
+
+.admin-mfa__submit {
+  align-self: flex-start;
+  margin-top: 8px;
+}

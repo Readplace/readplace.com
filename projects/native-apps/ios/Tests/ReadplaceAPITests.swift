@@ -207,51 +207,44 @@ final class ReadplaceAPITests: XCTestCase {
 
 	// MARK: - Listing
 
-	func testRediscoverReadlistBypassesTheCacheOnTheEntryPointAndTheRedirectItFollows() async throws {
+	func testRediscoverReadlistBypassesTheCacheOnTheEntryPoint() async throws {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { request, _ in
-			switch request.url?.path {
-			case "/":
-				return .redirect(to: "/queue")
-			case "/queue":
-				return .json(200, Fixtures.collection(entitiesJSON: []))
-			default:
-				return .json(404, "{}")
-			}
+			request.url?.path == "/" ? .json(200, Fixtures.collection(entitiesJSON: [])) : .json(404, "{}")
 		}
 		let api = makeAPI(store: store)
 
 		_ = try await api.discoverReadlist()
 		XCTAssertEqual(
-			StubURLProtocol.records.map { $0.request.cachePolicy }, [.useProtocolCachePolicy, .useProtocolCachePolicy],
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.useProtocolCachePolicy],
 			"an ordinary discovery read lets the server-declared cache lifetime answer"
 		)
 
 		StubURLProtocol.reset()
 		StubURLProtocol.setHandler { request, _ in
-			request.url?.path == "/" ? .redirect(to: "/queue") : .json(200, Fixtures.collection(entitiesJSON: []))
+			request.url?.path == "/" ? .json(200, Fixtures.collection(entitiesJSON: [])) : .json(404, "{}")
 		}
 		_ = try await api.rediscoverReadlist()
 		XCTAssertEqual(
-			StubURLProtocol.records.map { $0.request.url?.path }, ["/", "/queue"],
-			"a re-discovery starts from the entry point and follows the redirect like any first read"
+			StubURLProtocol.records.map { $0.request.url?.path }, ["/"],
+			"a re-discovery starts from the entry point"
 		)
 		XCTAssertEqual(
-			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadIgnoringLocalCacheData, .reloadIgnoringLocalCacheData],
-			"and both legs bypass the cache, so a moved href is never re-read from the stale copy"
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadIgnoringLocalCacheData],
+			"and bypasses the cache, so a moved href is never re-read from the stale copy"
 		)
 	}
 
-	func testLoadReadlistAsksTheOriginOnTheEntryPointAndTheRedirectItFollows() async throws {
+	func testLoadReadlistAsksTheOriginOnTheEntryPoint() async throws {
 		StubURLProtocol.setHandler { request, _ in
-			request.url?.path == "/" ? .redirect(to: "/queue") : .json(200, Fixtures.collection(entitiesJSON: []))
+			request.url?.path == "/" ? .json(200, Fixtures.collection(entitiesJSON: [])) : .json(404, "{}")
 		}
 
 		let page = try await makeAPI(store: TestSupport.loggedInStore()).loadReadlist()
 
-		XCTAssertEqual(StubURLProtocol.records.map { $0.request.url?.path }, ["/", "/queue"])
+		XCTAssertEqual(StubURLProtocol.records.map { $0.request.url?.path }, ["/"])
 		XCTAssertEqual(
-			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData, .reloadRevalidatingCacheData],
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData],
 			"a list read always asks the origin, so a copy kept for offline never stands in for a reachable server"
 		)
 		XCTAssertEqual(page.isStoredCopy, false)
@@ -351,7 +344,7 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
-	func testLoadReadlistFollowsEntryPointRedirectAndPreservesAuthHeader() async throws {
+	func testLoadReadlistFollowsARedirectAndPreservesAuthHeader() async throws {
 		let store = TestSupport.loggedInStore(access: "access-1")
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
@@ -372,7 +365,7 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(readlistRequest.value(forHTTPHeaderField: "Accept"), "application/vnd.siren+json")
 		XCTAssertEqual(
 			readlistRequest.value(forHTTPHeaderField: "X-Readplace-Client"), "ios",
-			"the iOS client header must survive the GET / → /queue redirect so the server records onboarding"
+			"the iOS client header must survive the redirect so the server records onboarding"
 		)
 		XCTAssertEqual(
 			readlistRequest.value(forHTTPHeaderField: AppConfig.saveContinuityHeader), AppConfig.saveContinuityBackground,
@@ -380,7 +373,7 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
-	func testLoadReadlistSendsTheInjectedUserAgentAndKeepsItAcrossTheEntryPointRedirect() async throws {
+	func testLoadReadlistSendsTheInjectedUserAgentAndKeepsItAcrossARedirect() async throws {
 		let store = TestSupport.loggedInStore()
 		let injected = "Readplace/build-4242 iOS/99.9"
 		StubURLProtocol.setHandler { request, _ in
@@ -401,7 +394,7 @@ final class ReadplaceAPITests: XCTestCase {
 		let readlistRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first?.request)
 		XCTAssertEqual(
 			readlistRequest.value(forHTTPHeaderField: "User-Agent"), injected,
-			"and it must survive the GET / → /queue redirect, so the leg that actually serves the collection still names the build"
+			"and it must survive the redirect, so the leg that actually serves the collection still names the build"
 		)
 	}
 

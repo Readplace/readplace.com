@@ -1,11 +1,18 @@
 export class TransportLadderFailure extends Error {
 	readonly retryDisposition: "recoverable" | "unclassified";
 	readonly previousErrors: readonly unknown[];
+	readonly escalatedStatuses: readonly number[];
 
-	constructor(params: { error: unknown; previousErrors: readonly unknown[]; retryDisposition: "recoverable" | "unclassified" }) {
+	constructor(params: {
+		error: unknown;
+		previousErrors: readonly unknown[];
+		escalatedStatuses: readonly number[];
+		retryDisposition: "recoverable" | "unclassified";
+	}) {
 		super(params.error instanceof Error ? params.error.message : String(params.error), { cause: params.error });
 		this.retryDisposition = params.retryDisposition;
 		this.previousErrors = params.previousErrors;
+		this.escalatedStatuses = params.escalatedStatuses;
 	}
 }
 

@@ -1,5 +1,6 @@
 import {
 	type ArticleBody,
+	type HighlightId,
 	sanitizeArticleHtml,
 } from "@packages/domain/article";
 import {
@@ -29,6 +30,7 @@ interface PrepareReaderContentInput {
 type PreparedReaderContent = SectionPage & {
 	text: string;
 	states: readonly ReaderHighlightState[];
+	noteEnds: ReadonlySet<HighlightId>;
 };
 
 const NO_HIGHLIGHTS: ReaderHighlights = {
@@ -60,6 +62,7 @@ const preparedWholeHtml = rememberLastCall({
 			html: sanitizeArticleHtml(marked.html),
 			text: marked.text,
 			states: marked.states,
+			noteEnds: marked.noteEnds,
 		};
 	},
 });
@@ -86,6 +89,7 @@ export const prepareReaderContent = rememberLastCall({
 			}),
 			text: whole.text,
 			states: whole.states,
+			noteEnds: whole.noteEnds,
 		};
 	},
 });

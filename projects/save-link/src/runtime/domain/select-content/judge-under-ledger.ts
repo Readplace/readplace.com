@@ -60,7 +60,14 @@ export class ContentJudgeClaimHeldError extends Error {
 	}
 }
 
-export type HeldJudgeClaim = "assert" | "raise-ownership-anomaly";
+export class ContentJudgeInFlightError extends Error {
+	constructor(params: { url: string }) {
+		super(`another delivery holds the content judge for ${params.url}`);
+		this.name = "ContentJudgeInFlightError";
+	}
+}
+
+export type HeldJudgeClaim = "wait-for-holder" | "raise-ownership-anomaly";
 
 export function initJudgeUnderLedger(deps: {
 	selectMostCompleteContent: SelectMostCompleteContent;
@@ -87,8 +94,7 @@ export function initJudgeUnderLedger(deps: {
 			},
 		});
 		if (ran.kind === "deferred") return { kind: "deferred", reason: "the content judge waits for a reader to open the article", readability: [], judgedBodies: 0 };
-		if (ran.kind === "in-flight" && deps.heldClaim === "raise-ownership-anomaly") throw new ContentJudgeClaimHeldError({ url, claimTtlMs: deps.claimTtlMs });
-		assert(ran.kind !== "in-flight", `another delivery holds the content judge for ${url}`);
+		if (ran.kind === "in-flight") throw deps.heldClaim === "raise-ownership-anomaly" ? new ContentJudgeClaimHeldError({ url, claimTtlMs: deps.claimTtlMs }) : new ContentJudgeInFlightError({ url });
 		if (ran.kind === "settled") return replayVerdict({ outcome: ran.outcome, sources });
 		assert(judged.decision, "a run content judge leaves its decision");
 		return judged.decision;

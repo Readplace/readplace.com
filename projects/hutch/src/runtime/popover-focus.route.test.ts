@@ -203,6 +203,7 @@ describe("every popup opens on its first decision", () => {
 		const keys = new Set<string>();
 		const readerKeys: string[] = [];
 		const highlightedKeys: string[] = [];
+		const highlightedPreviews: { previews: (string | null)[]; marks: (string | null)[] } = { previews: [], marks: [] };
 		let drawerSeen = false;
 		for (const path of [
 			...MEMBER_PATHS,
@@ -218,13 +219,24 @@ describe("every popup opens on its first decision", () => {
 			gaps.push(...gapsOn({ path, html: response.text }));
 			for (const key of dialogKeys(response.text)) keys.add(key);
 			if (path === readerHref) readerKeys.push(...dialogKeys(response.text));
-			if (path === highlightedPath) highlightedKeys.push(...dialogKeys(response.text));
+			if (path === highlightedPath) {
+				highlightedKeys.push(...dialogKeys(response.text));
+				const page = parse(response.text);
+				highlightedPreviews.previews = Array.from(page.querySelectorAll("[data-test-highlight-preview]"), (preview) =>
+					preview.getAttribute("data-test-highlight-preview"),
+				);
+				highlightedPreviews.marks = [
+					...new Set(Array.from(page.querySelectorAll("mark[data-highlight-id]"), (mark) => mark.getAttribute("data-highlight-id"))),
+				];
+			}
 			drawerSeen ||= parse(response.text).querySelector("[data-test-discovery-drawer]") !== null;
 		}
 
 		expect(gaps).toEqual([]);
 		expect(drawerSeen).toBe(true);
 		expect(readerKeys).toContain("delete");
+		expect(highlightedPreviews.marks).toHaveLength(1);
+		expect(highlightedPreviews.previews).toEqual(highlightedPreviews.marks);
 		expect(highlightedKeys).toEqual(expect.arrayContaining(["highlight-delete", "highlight-note", "highlight-note-edit"]));
 		expect([...keys].sort()).toEqual([
 			"account-profile",

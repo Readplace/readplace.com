@@ -1,3 +1,8 @@
+import assert from "node:assert/strict";
+import type { Server } from "node:http";
+import request from "supertest";
+import { ADMIN_MFA_PATH } from "./web/pages/admin/require-admin.middleware";
+import { totpCodeAt } from "./web/pages/admin/totp";
 import type { ReadTimedDuration } from "@packages/domain";
 import { MEDIA_KINDS, type MediaKindManifest, type MediaKindName, type Meter } from "@packages/media-contracts";
 import {
@@ -7,7 +12,7 @@ import {
 } from "@packages/test-fixtures/providers/transcript-quota";
 import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
-import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
+import { PLAN_OFFERS } from "@packages/web-shell";
 import express, { type Express } from "express";
 import { type Logger, noopLogger } from "@packages/logger";
 import { initRefreshWithSaveIdentity, initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget, type ResolveSaveIdentity } from "@packages/save-article";
@@ -216,6 +221,8 @@ function flattenFixtureToAppDependencies(
 		setSessionReadlistFilter: fixture.auth.setSessionReadlistFilter,
 		findSessionReadlistFilter: fixture.auth.findSessionReadlistFilter,
 		findSessionOAuthGrant: fixture.auth.findSessionOAuthGrant,
+		markSessionAdminMfaVerified: fixture.auth.markSessionAdminMfaVerified,
+		findSessionAdminMfaVerifiedAt: fixture.auth.findSessionAdminMfaVerifiedAt,
 		findUserById: fixture.auth.findUserById,
 		findUserPasswordStatus: fixture.auth.findUserPasswordStatus,
 		setUserAppearance: fixture.auth.setUserAppearance,
@@ -261,6 +268,8 @@ function flattenFixtureToAppDependencies(
 		moveReadlistArticles: fixture.articleStore.moveReadlistArticles,
 		listReadlistDefinitions: fixture.articleStore.listReadlistDefinitions,
 		renameReadlistDefinition: fixture.articleStore.renameReadlistDefinition,
+		pinReadlistDefinition: fixture.articleStore.pinReadlistDefinition,
+		unpinReadlistDefinition: fixture.articleStore.unpinReadlistDefinition,
 		setReadlistDefinitionPurpose: fixture.articleStore.setReadlistDefinitionPurpose,
 		clearReadlistDefinitionPurpose: fixture.articleStore.clearReadlistDefinitionPurpose,
 		createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
@@ -365,6 +374,8 @@ function flattenFixtureToAppDependencies(
 		adminDashboards: fixture.adminDashboards,
 		appleAuth: fixture.apple,
 		adminEmails: fixture.admin.adminEmails,
+		readAdminTotpSecrets: async () => fixture.admin.totpSecrets,
+		adminMfaAttemptRule: fixture.admin.secondFactorAttemptRule,
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		importSessionStore: fixture.importSession.importSessionStore,
 		savePrivateItem: fixture.articleStore.savePrivateItem,
@@ -390,6 +401,12 @@ function flattenFixtureToAppDependencies(
 				.then(() => undefined),
 		listInboxAddresses: fixture.inboxAddress.inboxAddressStore.listAddressesByUserId,
 		setInboxAddressReadlist: fixture.inboxAddress.inboxAddressStore.setAddressReadlist,
+		createRoutedInboxAddress: (input) =>
+			fixture.inboxAddress.inboxAddressStore.createRoutedAddress({
+				...input,
+				domain: fixture.inboxAddress.inboxAddressDomain,
+				purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
+			}),
 		clearReadlistFromAddresses: fixture.inboxAddress.inboxAddressStore.clearReadlistFromAddresses,
 		listIssueLinks: fixture.inboxEmail.inboxEmailLinkStore.listLinksByEmail,
 		findIssueLink: fixture.inboxEmail.inboxEmailLinkStore.getLink,
@@ -424,6 +441,8 @@ function flattenFixtureToAppDependencies(
 			fixture.subscriptionBilling.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge:
 			fixture.subscriptionBilling.findSubscriptionNextCharge,
+		findSubscriptionPaymentMethod:
+			fixture.subscriptionBilling.findSubscriptionPaymentMethod,
 		listInvoices: fixture.subscriptionBilling.listInvoices,
 		reverseScheduledCancellation:
 			fixture.subscriptionBilling.reverseScheduledCancellation,
@@ -444,7 +463,7 @@ function flattenFixtureToAppDependencies(
 		authDiagnosticsLogger: noopLogger,
 		salt: "test-analytics-salt",
 		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
-		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
+		keepOfferEndsAt: PLAN_OFFERS.firstYear49.endsAt,
 		guestUploadKinds: GUEST_UPLOAD_KINDS,
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
@@ -533,4 +552,22 @@ export interface TestAppHarness extends TestAppResult, RunningServer {}
 
 export function useTestServer(overrides?: TestAppOverrides): (fixture: TestAppFixture) => TestAppHarness {
 	return useServerForFixture((fixture) => createTestApp(fixture, overrides));
+}
+
+export async function signInPassingAdminChallenge(input: {
+	server: Server;
+	email: string;
+	password: string;
+	secret: Buffer;
+	atMs: number;
+}) {
+	const agent = request.agent(input.server);
+	await agent.post("/login").type("form").send({ email: input.email, password: input.password });
+	const challenge = await agent
+		.post(ADMIN_MFA_PATH)
+		.type("form")
+		.send({ code: totpCodeAt({ secret: input.secret, atMs: input.atMs }) });
+	assert.equal(challenge.status, 303);
+	assert.equal(challenge.headers.location, "/admin");
+	return agent;
 }

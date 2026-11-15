@@ -19,7 +19,7 @@
               "items": {
                 "type": "string"
               },
-              "maxItems": 7,
+              "maxItems": 15,
               "description": "Readlist ids from a list_readlists result to file the save into, as well as All."
             }
           },
@@ -153,7 +153,7 @@
       {
         "name": "create_readlist",
         "title": "Create a readlist",
-        "description": "Create a readlist in the user's Readplace account under a name they choose, and return its opaque id for the other tools. A name a readlist already carries returns that readlist rather than making a second one, so calling this twice with the same name is safe. A user can keep up to 7 named readlists beside All; past that, creating one is refused and nothing changes.",
+        "description": "Create a readlist in the user's Readplace account under a name they choose, and return its opaque id for the other tools. A name a readlist already carries returns that readlist rather than making a second one, so calling this twice with the same name is safe. A user can keep a limited number of named readlists beside All; past that, creating one is refused and nothing changes.",
         "inputSchema": {
           "type": "object",
           "properties": {

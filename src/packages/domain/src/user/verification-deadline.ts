@@ -1,7 +1,5 @@
 /** New accounts must verify their email within this window of registering.
- * After it lapses the account is locked and only support can restore access.
- * Kept in lockstep with the verification-token TTL so the single link mailed at
- * signup stays valid for the whole countdown. */
+ * After it lapses the account is locked and only support can restore access. */
 export const VERIFICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;

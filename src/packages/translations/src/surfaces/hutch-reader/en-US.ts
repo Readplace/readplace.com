@@ -44,6 +44,20 @@ export const enUS = {
 		},
 	},
 	reader: {
+		share: {
+			lead: "Copy a link to this article or send it to an app.",
+			link: {
+				readerView: "Reader view",
+				original: "Original link",
+			},
+			copy: {
+				readerView: "Copy reader view link",
+				original: "Copy original link",
+			},
+			choice: {
+				legend: "Send to an app",
+			},
+		},
 		sharingOff: {
 			privateUpload: {
 				title: "Sharing is off",

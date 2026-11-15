@@ -150,6 +150,14 @@ export function readlistRenamePath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/rename`;
 }
 
+export function readlistPinPath(readlist: ReadlistSlug): string {
+	return `${READLIST_CREATE_PATH}/${readlist}/pin`;
+}
+
+export function readlistUnpinPath(readlist: ReadlistSlug): string {
+	return `${READLIST_CREATE_PATH}/${readlist}/unpin`;
+}
+
 export function readlistPreferencesPath(readlist: ReadlistSlug): string {
 	return `${READLIST_CREATE_PATH}/${readlist}/preferences`;
 }
@@ -171,6 +179,10 @@ export function readlistPurposeLandingPath(input: { readlist: ReadlistSlug; from
 
 export function readlistPreferencesInboxesPath(readlist: ReadlistSlug): string {
 	return `${readlistPreferencesPath(readlist)}/inboxes`;
+}
+
+export function readlistPreferencesInboxesCreatePath(readlist: ReadlistSlug): string {
+	return `${readlistPreferencesInboxesPath(readlist)}/create`;
 }
 
 export function readlistFitOverrideDeletePath(readlist: ReadlistSlug, id: ReadlistFitOverrideId): string {

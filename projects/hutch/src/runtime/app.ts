@@ -3,10 +3,10 @@ import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import assert from "node:assert";
 import { randomInt } from "node:crypto";
 import type { Express } from "express";
-import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
 import type { WebLogger } from "./domain/logger";
 import { hashPassword } from "@packages/domain/user";
 import { validateSaveableUrl } from "@packages/domain/article";
+import { PLAN_OFFERS } from "@packages/web-shell";
 import { createApp } from "./server";
 import { initProdProviders } from "./providers/prod-providers";
 import { initFetchFirefoxDownloadUrl } from "./web/pages/install";
@@ -34,6 +34,7 @@ type AssemblyProvidedKeys =
 	| "hashPassword"
 	| "fetchFirefoxDownloadUrl"
 	| "adminEmails"
+	| "adminMfaAttemptRule"
 	| "recrawlServiceToken"
 	| "baseUrl"
 	| "logError"
@@ -53,6 +54,8 @@ type AssemblyProvidedKeys =
 	| "foundingAllocation"
 	| "newsletterCatalogSeed";
 export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
+
+const ADMIN_MFA_ATTEMPT_RULE = { limit: 5, windowSeconds: 900 };
 
 function parseAdminEmails(raw: string): readonly string[] {
 	return raw
@@ -82,7 +85,7 @@ export function assembleReadplaceApp(input: {
 
 	const app = createApp({
 		keepOfferCouponId,
-		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
+		keepOfferEndsAt: PLAN_OFFERS.firstYear49.endsAt,
 		guestUploadKinds: GUEST_UPLOAD_KINDS,
 		validateSaveableUrl: withUnwrapPreprocessing(
 			validateSaveableUrl,
@@ -97,6 +100,7 @@ export function assembleReadplaceApp(input: {
 		...providers,
 		countUsers: initCachedUserCount({ countUsers: providers.countUsers, now: () => Date.now(), ttlMs: 60_000 }),
 		adminEmails,
+		adminMfaAttemptRule: ADMIN_MFA_ATTEMPT_RULE,
 		recrawlServiceToken,
 		baseUrl: appOrigin,
 		logError: (message, error) =>

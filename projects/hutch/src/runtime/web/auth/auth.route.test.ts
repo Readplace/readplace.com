@@ -734,6 +734,24 @@ describe("Auth routes", () => {
 			expect(verification.subject).toBe("Verify your email — Readplace");
 		});
 
+		it("sends the verification link to the new account's address alone, so no other mailbox holds a live verification link", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { email } = harness;
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "verify-alone@example.com",
+				password: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			const sent = email.getSentEmails();
+			expect(sent).toHaveLength(1);
+			const message = sent[0];
+			expect(message.to).toBe("verify-alone@example.com");
+			expect(message.bcc).toBeUndefined();
+		});
+
 		it("should emit a user_created conversion event on free email signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { conversions } = harness;

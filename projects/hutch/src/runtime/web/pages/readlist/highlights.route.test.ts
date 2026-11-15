@@ -918,6 +918,71 @@ describe("Highlights in the reader (GET /queue/:id/view)", () => {
 	});
 });
 
+describe("Highlights that carry a note in the reader (GET /queue/:id/view)", () => {
+	const notePath = (input: { articleId: string; highlightId: string }) =>
+		`/queue/${input.articleId}/highlights/${input.highlightId}/note`;
+
+	function markClassesOf(html: string): string[] {
+		return Array.from(
+			doc(html).querySelectorAll("mark.article-highlight"),
+			(mark) => mark.getAttribute("class") ?? "",
+		);
+	}
+
+	it("marks every segment of a noted highlight across two paragraphs and only the last as the note's end", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-noted-two-paragraphs",
+		);
+		const highlightId = await createHighlight(agent, {
+			articleId,
+			exact: "article from.\nA second",
+		});
+		await agent
+			.post(notePath({ articleId, highlightId }))
+			.type("form")
+			.send({ note: "My thought" });
+
+		const html = (await agent.get(viewPath(articleId))).text;
+
+		expect(markClassesOf(html)).toEqual([
+			"article-highlight article-highlight--has-note",
+			"article-highlight article-highlight--has-note article-highlight--note-end",
+		]);
+	});
+
+	it("marks the note's end once a note is added and drops both note classes once it is cleared", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-noted-then-cleared",
+		);
+		const highlightId = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+
+		const added = await agent
+			.post(notePath({ articleId, highlightId }))
+			.type("form")
+			.send({ note: "My thought" });
+		assert.equal(added.status, 303);
+		const noted = (await agent.get(viewPath(articleId))).text;
+		expect(markClassesOf(noted)).toEqual([
+			"article-highlight article-highlight--has-note article-highlight--note-end",
+		]);
+
+		const cleared = await agent
+			.post(notePath({ articleId, highlightId }))
+			.type("form")
+			.send({ note: "   " });
+		assert.equal(cleared.status, 303);
+		const plain = (await agent.get(viewPath(articleId))).text;
+		expect(markClassesOf(plain)).toEqual(["article-highlight"]);
+	});
+});
+
 describe("Highlights on the reader polls", () => {
 	it("polls the summary on the plain reader URL", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -1331,7 +1396,7 @@ describe("A publisher mark shaped like a minted highlight on the public view", (
 		const uuid = crypto.randomUUID();
 		await fixture.articleStore.writeContent({
 			url,
-			content: `<p>Publisher copy with <mark id="highlight-${uuid}" class="article-highlight" data-highlight-id="${uuid}">x</mark> inside a long enough paragraph.</p>${SECOND_PARAGRAPH}`,
+			content: `<p>Publisher copy with <mark id="highlight-${uuid}" class="article-highlight" data-highlight-id="${uuid}">x</mark> inside a long enough paragraph.</p><p>Their own <mark class="article-highlight--note-end">y</mark> marker too.</p>${SECOND_PARAGRAPH}`,
 		});
 
 		const response = await request(harness.server).get(
@@ -1340,14 +1405,10 @@ describe("A publisher mark shaped like a minted highlight on the public view", (
 
 		expect(response.status).toBe(200);
 		const marks = Array.from(doc(response.text).querySelectorAll("mark"));
-		expect(marks.map((mark) => mark.textContent)).toEqual(["x"]);
-		expect(
-			marks.map((mark) => [
-				mark.getAttribute("id"),
-				mark.getAttribute("class"),
-				mark.getAttribute("data-highlight-id"),
-			]),
-		).toEqual([[null, null, null]]);
+		expect(marks.map((mark) => mark.outerHTML)).toEqual([
+			"<mark>x</mark>",
+			"<mark>y</mark>",
+		]);
 	});
 });
 

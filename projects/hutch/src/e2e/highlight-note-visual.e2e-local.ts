@@ -157,3 +157,86 @@ test.describe("The Add a note dialog", () => {
 		await captureCheckpoint(page, NOTE_DIALOG_DARK);
 	});
 });
+
+const PREVIEW = "[data-test-highlight-preview]:popover-open";
+const NOTED_MARK = `${CONTENT} mark.article-highlight[tabindex="0"]`;
+const NOTE = "Worth rereading before the next chapter.";
+
+async function openNotedHighlight(page: Page, stamp: string): Promise<void> {
+	await openNoteDialog(page, stamp);
+	await page.waitForSelector(`${PANEL}:popover-open`);
+	await page.locator(PANEL_INPUT).fill(NOTE);
+	await page.locator(PANEL_SAVE).click();
+	await expect(page.locator(NOTED_MARK)).toHaveCount(1, { timeout: SETTLE_MS });
+	await page.mouse.move(5, 5);
+}
+
+async function previewShown(page: Page): Promise<void> {
+	await expect(page.locator(PREVIEW)).toHaveJSProperty("textContent", NOTE, { timeout: SETTLE_MS });
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function previewClearOfMark(page: Page): Promise<void> {
+	const preview = await measuredBox(page, PREVIEW);
+	const mark = await measuredBox(page, NOTED_MARK);
+	assert.ok(
+		preview.y + preview.height <= mark.y || preview.y >= mark.y + mark.height,
+		"the preview sits clear of the highlighted line",
+	);
+}
+
+async function markFocused(page: Page): Promise<void> {
+	await expect(page.locator(NOTED_MARK)).toBeFocused();
+	await expect(page.locator(NOTED_MARK)).toHaveCSS("outline-width", "2px");
+	await page.mouse.move(5, 5);
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function ringInsideParagraph(page: Page): Promise<void> {
+	const paragraph = await measuredBox(page, `${CONTENT} p`);
+	const mark = await measuredBox(page, NOTED_MARK);
+	assert.ok(
+		mark.x >= paragraph.x && mark.x + mark.width <= paragraph.x + paragraph.width,
+		"the focused mark sits inside its paragraph",
+	);
+}
+
+function previewCheckpoint(name: string): VisualCheckpoint {
+	return { name, settled: previewShown, geometry: previewClearOfMark, target: PREVIEW, capture: "element", pinnedText: [] };
+}
+
+function ringCheckpoint(name: string): VisualCheckpoint {
+	return { name, settled: markFocused, geometry: ringInsideParagraph, target: `${CONTENT} p`, capture: "element", pinnedText: [] };
+}
+
+async function tabToMark(page: Page): Promise<void> {
+	const mark = page.locator(NOTED_MARK);
+	await page.locator(CONTENT).evaluate((content) => {
+		content.setAttribute("tabindex", "-1");
+		content.focus();
+	});
+	for (let presses = 0; presses < 20; presses++) {
+		if (await mark.evaluate((element) => element === document.activeElement)) return;
+		await page.keyboard.press("Tab");
+	}
+}
+
+test.describe("A note beside its highlight", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const scheme of ["light", "dark"] as const) {
+		test(`a hovered note shows its preview (${scheme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: scheme });
+			await openNotedHighlight(page, `preview-${scheme}-${testInfo.workerIndex}-${Date.now()}`);
+			await page.locator(NOTED_MARK).hover();
+			await captureCheckpoint(page, previewCheckpoint(`highlight-note-preview-${scheme}`));
+		});
+
+		test(`a focused noted mark draws its ring (${scheme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: scheme });
+			await openNotedHighlight(page, `ring-${scheme}-${testInfo.workerIndex}-${Date.now()}`);
+			await tabToMark(page);
+			await captureCheckpoint(page, ringCheckpoint(`highlight-note-focus-ring-${scheme}`));
+		});
+	}
+});

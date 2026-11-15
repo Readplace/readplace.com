@@ -13,6 +13,7 @@ interface StoredSession {
 	priceId: string;
 	paid: boolean;
 	paymentStatus: CheckoutPaymentStatus;
+	amountTotal: number;
 	status: CheckoutSessionStatus;
 	created: number;
 	subscriptionId: string;
@@ -26,7 +27,10 @@ export function initInMemoryHostedCheckout(opts: {
 }): {
 	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
-	markPaid: (id: CheckoutSessionId, opts?: { paymentStatus?: CheckoutPaymentStatus }) => void;
+	markPaid: (
+		id: CheckoutSessionId,
+		opts?: { paymentStatus: CheckoutPaymentStatus; amountTotal: number },
+	) => void;
 	markExpired: (id: CheckoutSessionId) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
 	createdCheckoutSessions: () => Array<{
@@ -52,6 +56,7 @@ export function initInMemoryHostedCheckout(opts: {
 			priceId,
 			paid: false,
 			paymentStatus: "unpaid",
+			amountTotal: 0,
 			status: "open",
 			created: Math.floor(opts.now().getTime() / 1000),
 			subscriptionId: `sub_test_${sessionSuffix}`,
@@ -70,6 +75,7 @@ export function initInMemoryHostedCheckout(opts: {
 			ok: true,
 			paid: session.paid,
 			paymentStatus: session.paymentStatus,
+			amountTotal: session.amountTotal,
 			customerEmail: session.customerEmail,
 			status: session.status,
 			created: session.created,
@@ -78,11 +84,15 @@ export function initInMemoryHostedCheckout(opts: {
 		};
 	};
 
-	const markPaid = (id: CheckoutSessionId, markOpts?: { paymentStatus?: CheckoutPaymentStatus }) => {
+	const markPaid = (
+		id: CheckoutSessionId,
+		markOpts?: { paymentStatus: CheckoutPaymentStatus; amountTotal: number },
+	) => {
 		const session = sessions.get(id);
 		if (!session) throw new Error(`No checkout session: ${id}`);
 		session.paid = true;
 		session.paymentStatus = markOpts?.paymentStatus ?? "paid";
+		session.amountTotal = markOpts?.amountTotal ?? 0;
 		session.status = "complete";
 	};
 

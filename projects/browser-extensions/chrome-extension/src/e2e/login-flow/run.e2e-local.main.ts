@@ -14,10 +14,12 @@ import {
 	createSeleniumNavigation,
 	createLoginActions,
 	createSaveLinkActions,
+	createTokenExpiryActions,
 	createPaginationActions,
 	createFilterActions,
 	createSortActions,
 	createLogoutActions,
+	type TokenExpiryProgress,
 	type PaginationProgress,
 	type SaveLinkProgress,
 	type FilterProgress,
@@ -271,9 +273,21 @@ async function runTest() {
 			progress: saveLinkProgress,
 		});
 
+		const tokenExpiryProgress: TokenExpiryProgress = { savedAfterExpiry: false, listAfterExpiry: false };
+		const tokenExpiryActions = createTokenExpiryActions({
+			popupUrl: POPUP_URL,
+			serverUrl: `http://127.0.0.1:${TEST_PORT}`,
+			testEmail: TEST_EMAIL,
+			testUrl: TEST_LINK_URL,
+			testTitle: TEST_LINK_TITLE,
+			saveLinkProgress,
+			progress: tokenExpiryProgress,
+		});
+
 		const paginationActions = createPaginationActions({
 			popupUrl: POPUP_URL,
 			saveLinkProgress,
+			tokenExpiryProgress,
 			progress: paginationProgress,
 		});
 
@@ -292,7 +306,7 @@ async function runTest() {
 			progress: logoutProgress,
 		});
 
-		const allActions = new Map([...loginActions, ...saveLinkActions, ...paginationActions, ...filterActions, ...sortActions, ...logoutActions]);
+		const allActions = new Map([...loginActions, ...saveLinkActions, ...tokenExpiryActions, ...paginationActions, ...filterActions, ...sortActions, ...logoutActions]);
 
 		const stateHandler = new ExtensionStateHandler(
 			driver,
@@ -307,12 +321,13 @@ async function runTest() {
 			createSeleniumNavigation(),
 		);
 		const result = await flowRunner.run(POPUP_URL, {
-			maxSteps: 55,
+			maxSteps: 57,
 		});
 
 		assert.equal(result.success, true, `Flow failed: ${result.error}`);
 		assert.equal(saveLinkProgress.linkSaved, true, "Link should have been saved");
 		assert.equal(saveLinkProgress.listVerified, true, "Link should have been verified in list");
+		assert.equal(tokenExpiryProgress.listAfterExpiry, true, "Expired access tokens should have been refreshed");
 		assert.equal(paginationProgress.verifiedBackOnPage1, true, "Pagination should have been verified");
 		assert.equal(filterProgress.filterCleared, true, "Filter should have been tested");
 		assert.equal(sortProgress.sortedOldestFirst, true, "Sort should have been tested");

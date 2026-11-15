@@ -5,15 +5,20 @@ import {
 	type InboxAddressEntry,
 	isCappedAddress,
 	isLiveAddress,
+	normalizeAliasName,
 } from "@packages/domain/inbox";
 import {
 	DEFAULT_READLIST_LABEL,
 	type ReadlistRef,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, withInternalTracking } from "@packages/web-shell";
 import { type PurposeState, purposeStateOf } from "./readlist-purpose-card.component";
-import { readlistPreferencesInboxesPath } from "./readlist.url";
+import { readlistPreferencesInboxesCreatePath, readlistPreferencesInboxesPath } from "./readlist.url";
+
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-inboxes.template.html"), "utf-8");
 
@@ -26,6 +31,13 @@ type InboxesState = "empty" | "listed";
 const SECTION_CLASS: Record<InboxesState, string> = {
 	empty: "readlist-inboxes--empty",
 	listed: "readlist-inboxes--listed",
+};
+
+export type InboxNameError = "invalid-name" | "name-taken";
+
+const NAME_ERRORS: Record<InboxNameError, string> = {
+	"invalid-name": t("readlistInboxes.create.errors.invalidName"),
+	"name-taken": t("readlistInboxes.create.errors.nameTaken"),
 };
 
 type InboxRouting = "here" | "elsewhere";
@@ -68,7 +80,9 @@ export interface ReadlistInboxesDisplayModel {
 	descriptionLines: readonly string[];
 	deliveryLabel: string;
 	rows: readonly ReadlistInboxRow[];
-	createInboxHref: string;
+	createAction: string;
+	createValue: string;
+	createError: string | undefined;
 	manageInboxesHref: string;
 }
 
@@ -76,6 +90,7 @@ export function buildReadlistInboxes(input: {
 	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
 	inboxes: readonly InboxAddressEntry[];
 	readlists: readonly ReadlistRef[];
+	create: { submittedName: string | undefined; error: InboxNameError | undefined };
 }): ReadlistInboxesDisplayModel {
 	const action = readlistPreferencesInboxesPath(input.readlist.slug);
 	const rows = input.inboxes
@@ -114,10 +129,12 @@ export function buildReadlistInboxes(input: {
 		descriptionLines: DESCRIPTION_LINES[purposeState](input.readlist.label),
 		deliveryLabel: DELIVERY_LABELS[purposeState],
 		rows,
-		createInboxHref: withInternalTracking(CUSTOM_EMAILS_PATH, {
+		createAction: withInternalTracking(readlistPreferencesInboxesCreatePath(input.readlist.slug), {
 			source: INBOXES_SOURCE,
 			content: "create-inbox",
 		}),
+		createValue: input.create.submittedName ?? normalizeAliasName(input.readlist.label) ?? "",
+		createError: input.create.error === undefined ? undefined : NAME_ERRORS[input.create.error],
 		manageInboxesHref: withInternalTracking(CUSTOM_EMAILS_PATH, {
 			source: INBOXES_SOURCE,
 			content: "manage-inboxes",

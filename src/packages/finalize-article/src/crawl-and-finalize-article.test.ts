@@ -179,7 +179,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 
 	it("maps the crawler's failed status to status:failed with a stable reason", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
-			crawlArticle: async () => ({ status: "failed" }),
+			crawlArticle: async () => ({ status: "failed", decision: undefined }),
 			finalizeArticle: okFinalize,
 		});
 
@@ -190,7 +190,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 
 	it("carries the redirect destination through a failed crawl so a blocked destination can still be keyed", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
-			crawlArticle: async () => ({ status: "failed", finalUrl: "https://dest.example/article" }),
+			crawlArticle: async () => ({ status: "failed", decision: undefined, finalUrl: "https://dest.example/article" }),
 			finalizeArticle: okFinalize,
 		});
 
@@ -206,7 +206,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 	it("threads the crawler's failure classification through so save-link-work can persist a precise reason", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
 			crawlArticle: async () => ({
-				status: "failed",
+				status: "failed", decision: undefined,
 				finalUrl: "https://dest.example/article",
 				failure: { kind: "origin-unreachable", httpStatus: 503 },
 			}),
@@ -221,6 +221,19 @@ describe("initCrawlAndFinalizeArticle", () => {
 			finalUrl: "https://dest.example/article",
 			failure: { kind: "origin-unreachable", httpStatus: 503 },
 		});
+	});
+
+	it("passes the crawler's retry decision through unchanged", async () => {
+		const cause = new Error("socket hang up");
+		const decision = { kind: "retryable", scope: "durable", cause } as const;
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({ status: "failed", cause, decision }),
+			finalizeArticle: okFinalize,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({ status: "failed", reason: "crawl-failed", cause, decision });
 	});
 
 	it("carries the redirect destination through an edge block, the case a click-tracker most often lands on", async () => {

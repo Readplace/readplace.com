@@ -1,11 +1,13 @@
 export { render } from "./render";
 export {
+	PLAN_OFFERS,
 	PRICING_PANELS,
 	PRICING_PLANS,
 	STATED_PRICING_PANELS,
 	UPGRADE_CTA_LABEL,
+	offerPrice,
 } from "./pricing";
-export type { PricingPanel, PricingPlan } from "./pricing";
+export type { PlanOffer, PricingPanel, PricingPlan, StatedPrice } from "./pricing";
 export { CLICK_SURFACES, isClickSurface, withClickSurface, withInternalTracking } from "./internal-link-tracking";
 export type { ClickSurface } from "./internal-link-tracking";
 export type { Component, ParsedComponent, SupportedMediaType } from "./component.types";
@@ -23,6 +25,7 @@ export {
 	requireCspNonce,
 } from "./csp-nonce.middleware";
 export type { CspNonce } from "./csp-nonce.middleware";
+export { sendContentSecurityPolicy } from "./content-security-policy.middleware";
 export { formatTrialRemaining } from "./trial-countdown.format";
 export type { TrialRemaining } from "./trial-countdown.format";
 export {

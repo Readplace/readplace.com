@@ -39,8 +39,10 @@ import { articleEpubHref } from "../../shared/epub/epub-link";
 import {
 	SHARE_DIALOG_POPOVER_ID,
 	SHARE_DIALOG_SCRIPT,
+	type ShareInput,
 	renderShareDialog,
-	renderSharePanel,
+	renderShareFallbacks,
+	renderSharePanelsOob,
 } from "../../shared/share-dialog/share-dialog.component";
 import { SHARE_DIALOG_STYLES } from "../../shared/share-dialog/share-dialog.styles";
 import { railLandmarkFor } from "../../shared/reading-layout/rail-landmark";
@@ -51,6 +53,7 @@ import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { VIEW_STYLES } from "./view.styles";
 import { displayableReadTime, isPrivateItemUrl } from "@packages/domain/article";
 import { reportArticleHref } from "../../shared/report-article/report-article-href";
+import { isReaderViewShareable } from "../../shared/article-reader/reader-view";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 
@@ -191,6 +194,41 @@ export function renderViewDownloadsOob(params: { articleUrl: string; guide: Epub
 	return renderReaderDownloadsSlotOob({ downloadHref: viewEpubHref(params.articleUrl), guide: params.guide, placements: ["toolbar"] });
 }
 
+function viewShareInput(input: {
+	shareableViewUrl: string;
+	originalUrl: string;
+	title: string;
+	readerViewShareable: boolean;
+}): ShareInput {
+	return {
+		title: input.title,
+		campaign: "reader-public",
+		originalUrl: input.originalUrl,
+		readerViewUrl: input.readerViewShareable ? input.shareableViewUrl : undefined,
+	};
+}
+
+const VIEW_SHARE_PANELS = ["dialog", "toolbar"] as const;
+
+export function renderViewShareUpgradeOob(input: {
+	articleUrl: string;
+	destinationUrl: ArticleDestinationUrl;
+	title: string;
+	appOrigin: string;
+	state: { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined };
+}): string {
+	if (isPrivateItemUrl(input.articleUrl) || !isReaderViewShareable(input.state)) return "";
+	return renderSharePanelsOob(
+		viewShareInput({
+			shareableViewUrl: `${input.appOrigin}${viewPathFor(input.articleUrl)}`,
+			originalUrl: input.destinationUrl,
+			title: input.title,
+			readerViewShareable: true,
+		}),
+		VIEW_SHARE_PANELS,
+	);
+}
+
 export interface ViewPageInput {
 	readerSection: ReaderSectionInput;
 	/** Identity: drives the /view share path, the save action, and SEO. */
@@ -221,7 +259,12 @@ export function ViewPage(input: ViewPageInput): PageBody {
 	const shareableViewUrl = `${input.appOrigin}${viewPath}`;
 	const share = isPrivateItemUrl(input.articleUrl)
 		? undefined
-		: ({ shareUrl: shareableViewUrl, title: input.metadata.title, campaign: "reader-public" } as const);
+		: viewShareInput({
+				shareableViewUrl,
+				originalUrl: input.destinationUrl,
+				title: input.metadata.title,
+				readerViewShareable: isReaderViewShareable({ content: input.content, crawl: input.crawl }),
+			});
 	const actions = WebReader({
 		actionBtns: {
 			backLink: input.backLink,
@@ -230,7 +273,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			share:
 				share === undefined
 					? undefined
-					: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
+					: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderShareFallbacks(share) },
 			epubDownloadHref: input.epubDownloadHref,
 			epubDownloadGuide: input.epubDownloadGuide,
 		},
@@ -259,7 +302,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		bottomActionsHtml: actions.bottom.to("text/html").body,
 		readerNotice: input.readerNotice,
 		reportHref:
-			share === undefined ? undefined : reportArticleHref({ viewUrl: share.shareUrl, title: input.metadata.title }),
+			share === undefined ? undefined : reportArticleHref({ viewUrl: shareableViewUrl, title: input.metadata.title }),
 	});
 	const crawlVersions = input.crawlVersions ?? [];
 	const railLandmark = railLandmarkFor({

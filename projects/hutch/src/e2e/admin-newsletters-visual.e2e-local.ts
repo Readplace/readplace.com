@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Locator, Page } from "@playwright/test";
 import { captureCheckpoint, expect, measuredBox, test, type VisualCheckpoint } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { passAdminChallenge } from "./admin-extend-trial/admin-challenge";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import { statusBadgeLineCounts, suppressVolatileAdminUi } from "./admin-newsletters-visual.browser";
 import { fitViewportToPage } from "./fit-viewport-to-page";
@@ -437,6 +438,7 @@ test.describe("Admin newsletters visual", () => {
 
 	test("admin index lists every admin tool", async ({ page }) => {
 		await signIn(page, { email: E2E_ADMIN_EMAIL, password: E2E_ADMIN_PASSWORD });
+		await passAdminChallenge(page, { baseURL: BASE_URL });
 		for (const variant of VARIANTS) {
 			await useVariant(page, variant);
 			await page.goto(`${BASE_URL}/admin`, { waitUntil: "domcontentloaded" });
@@ -452,6 +454,7 @@ test.describe("Admin newsletters visual", () => {
 			const namespace = `admin-visual-${scenario.name}-${testInfo.repeatEachIndex}-${testInfo.retry}`;
 			await context.addCookies([{ name: CATALOG_NAMESPACE_COOKIE, value: namespace, url: BASE_URL }]);
 			await signIn(page, { email: E2E_ADMIN_EMAIL, password: E2E_ADMIN_PASSWORD });
+			await passAdminChallenge(page, { baseURL: BASE_URL });
 			for (const variant of VARIANTS) {
 				await useVariant(page, variant);
 				await seedCatalog(page, { namespace, records: scenario.records, mode: scenario.mode });

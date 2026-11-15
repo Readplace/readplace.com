@@ -864,3 +864,123 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 		]);
 	});
 });
+
+function previewIdsOf(scope: ParentNode): (string | null)[] {
+	return Array.from(scope.querySelectorAll("[data-test-highlight-preview]"), (preview) =>
+		preview.getAttribute("data-highlight-preview"),
+	);
+}
+
+function contentTextOf(html: string): string {
+	const content = doc(html).querySelector(".article-body__content");
+	assert(content, "the reader must render its content");
+	return normaliseText(collectTextChunks<Node>(content)).text;
+}
+
+describe("Note previews beside the marks", () => {
+	it("renders one hidden preview for a noted highlight, holding the note exactly", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/preview-shape");
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+			note: "First line\nSecond line",
+		});
+
+		const page = doc((await agent.get(viewPath(articleId))).text);
+		const preview = page.querySelector(`[data-highlight-preview="${id}"]`);
+
+		expect(previewIdsOf(page)).toEqual([id]);
+		expect({
+			id: preview?.getAttribute("id"),
+			popover: preview?.getAttribute("popover"),
+			tabindex: preview?.getAttribute("tabindex"),
+			role: preview?.getAttribute("role"),
+			autofocus: preview?.querySelectorAll("[autofocus]").length,
+			note: preview?.textContent,
+		}).toEqual({
+			id: `preview-highlight-${id}`,
+			popover: "manual",
+			tabindex: "-1",
+			role: null,
+			autofocus: 0,
+			note: "First line\nSecond line",
+		});
+	});
+
+	it("renders previews only for anchored or moved highlights that have a note", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/preview-which";
+		const { agent, articleId } = await saveArticle(harness, url);
+		const lost = await createHighlight(agent, { articleId, exact: "readability parser", note: "Lost" });
+		await fixture.articleStore.writeContent({ url, content: SECOND_PARAGRAPH });
+		const noted = await createHighlight(agent, { articleId, exact: "second paragraph", note: "Kept" });
+		const plain = await createHighlight(agent, { articleId, exact: "minimum word count" });
+
+		const html = (await agent.get(viewPath(articleId))).text;
+
+		expect(rowOf(html, lost)?.getAttribute("data-test-highlight-state")).toBe("orphaned");
+		expect(rowOf(html, plain)).not.toBeNull();
+		expect(previewIdsOf(doc(html))).toEqual([noted]);
+	});
+
+	it("renders the previews in the reader slot, outside the article body, leaving its text unchanged", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/preview-outside");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+		const before = contentTextOf((await agent.get(viewPath(articleId))).text);
+		await agent.post(notePath({ articleId, highlightId: id })).type("form").send({ note: "Now noted" });
+
+		const html = (await agent.get(viewPath(articleId))).text;
+		const page = doc(html);
+		const slot = page.querySelector("#article-body-reader-slot");
+		const content = page.querySelector(".article-body__content");
+		assert(slot && content, "the reader renders its slot and content");
+
+		expect(previewIdsOf(slot)).toEqual([id]);
+		expect(previewIdsOf(content)).toEqual([]);
+		expect(contentTextOf(html)).toBe(before);
+	});
+
+	it("renders a note's markup as text", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/preview-escape");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "<b>bold</b>" });
+
+		const preview = doc((await agent.get(viewPath(articleId))).text).querySelector(`[data-highlight-preview="${id}"]`);
+
+		expect(preview?.textContent).toBe("<b>bold</b>");
+		expect(preview?.querySelectorAll("b")).toHaveLength(0);
+	});
+
+	it("carries the preview on the reader poll", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/preview-poll");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Polled" });
+
+		const answer = doc((await agent.get(`/queue/${articleId}/reader?poll=1`)).text);
+		const slot = answer.querySelector("#article-body-reader-slot");
+		assert(slot, "the poll renders the reader slot");
+
+		expect(previewIdsOf(slot)).toEqual([id]);
+	});
+
+	it("re-renders the preview in main after a note save and drops it after a clear", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/preview-save");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const saved = await agent.post(notePath({ articleId, highlightId: id })).type("form").send({ note: "Saved" });
+		const afterSave = doc((await agent.get(saved.headers.location)).text).querySelector("main");
+		assert(afterSave, "the reader renders main");
+		expect(previewIdsOf(afterSave)).toEqual([id]);
+		expect(afterSave.querySelector(`[data-highlight-preview="${id}"]`)?.textContent).toBe("Saved");
+
+		const cleared = await agent.post(notePath({ articleId, highlightId: id })).type("form").send({ note: " " });
+		const afterClear = doc((await agent.get(cleared.headers.location)).text).querySelector("main");
+		assert(afterClear, "the reader renders main");
+		expect(previewIdsOf(afterClear)).toEqual([]);
+		expect(afterClear.querySelectorAll(`mark[data-highlight-id="${id}"]`).length).toBeGreaterThan(0);
+	});
+});

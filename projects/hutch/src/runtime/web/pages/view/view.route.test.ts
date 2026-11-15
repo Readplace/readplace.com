@@ -1325,6 +1325,24 @@ describe("View routes", () => {
 			);
 			expect(bundles).toEqual(["/client-dist/share-dialog.client.js"]);
 		});
+
+		it("offers the article's original link beside the reader view, untagged", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			expect(
+				Array.from(doc.querySelectorAll('[data-test-confirm-popover="share"] [data-test-share-url]'), (field) => [
+					field.getAttribute("data-test-share-url"),
+					new URL(field.getAttribute("value") ?? "").searchParams.has("utm_source"),
+				]),
+			).toEqual([
+				["reader-view", true],
+				["original", false],
+			]);
+			expect(doc.querySelector('[data-test-confirm-popover="share"] [data-test-share-url="original"]')?.getAttribute("value")).toBe(ARTICLE_URL);
+		});
 	});
 
 	describe("TL;DR rendering", () => {

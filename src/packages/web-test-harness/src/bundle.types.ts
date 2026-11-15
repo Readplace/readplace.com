@@ -165,6 +165,7 @@ import type {
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 	FindSubscriptionNextCharge,
+	FindSubscriptionPaymentMethod,
 	FindUnreadSavesForDigest,
 	InvoiceSummary,
 	ListInvoices,
@@ -192,6 +193,8 @@ import type {
 	DeleteReadlistArticleByUrl,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	PinReadlistDefinition,
+	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
 	ClearReadlistDefinitionPurpose,
 	FindUserArticlesByUrl,
@@ -217,6 +220,8 @@ import type {
 	MarkSessionEmailVerified,
 	SetSessionReadlistFilter,
 	FindSessionOAuthGrant,
+	FindSessionAdminMfaVerifiedAt,
+	MarkSessionAdminMfaVerified,
 	FindSessionReadlistFilter,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByUserId,
@@ -306,6 +311,7 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts";
 import type { UserId } from "@packages/domain/user";
+import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
 
 export type { ValidateAccessToken };
@@ -340,6 +346,8 @@ export interface AuthBundle {
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 	findSessionOAuthGrant: FindSessionOAuthGrant;
+	markSessionAdminMfaVerified: MarkSessionAdminMfaVerified;
+	findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
@@ -356,7 +364,10 @@ export interface AuthBundle {
 export interface HostedCheckoutBundle {
 	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
-	markPaid: (id: CheckoutSessionId, opts?: { paymentStatus?: CheckoutPaymentStatus }) => void;
+	markPaid: (
+		id: CheckoutSessionId,
+		opts?: { paymentStatus: CheckoutPaymentStatus; amountTotal: number },
+	) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
 	createdCheckoutSessions: () => Array<{
 		id: CheckoutSessionId;
@@ -432,6 +443,8 @@ export interface PaymentMethodsBundle {
 export interface SubscriptionBillingBundle {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
+	findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod;
+	seedSubscriptionPaymentMethod: (input: { subscriptionId: string; paymentMethodId: string }) => void;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	createdSubscriptions: () => readonly {
@@ -439,6 +452,7 @@ export interface SubscriptionBillingBundle {
 		priceId: string;
 		userId: UserId;
 		onUnpaidFirstInvoice: OnUnpaidFirstInvoice;
+		paymentMethodId?: string;
 		subscriptionId: string;
 	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
@@ -518,6 +532,8 @@ export interface ArticleStoreBundle {
 	deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	pinReadlistDefinition: PinReadlistDefinition;
+	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	getSummaryToggleState: (params: { userId: UserId; url: string }) => Promise<{
@@ -663,6 +679,7 @@ export interface OAuthBundle {
 	revokeOtherUserOAuthGrants: RevokeOtherUserOAuthGrants;
 	listUserOAuthClients: ListUserOAuthClients;
 	revokeUserOAuthClient: RevokeUserOAuthClient;
+	expireUserAccessTokens: (input: { userId: UserId; forget: boolean }) => Promise<number>;
 	validateAccessToken: ValidateAccessToken;
 	findClient: FindOAuthClient;
 	validateRedirectUri: ValidateOAuthRedirectUri;
@@ -779,6 +796,8 @@ export interface AppleAuthBundle {
 export interface AdminBundle {
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
+	totpSecrets: ReadonlyMap<string, Buffer>;
+	secondFactorAttemptRule: RateLimitRule;
 }
 
 interface AdminDashboardsBundle {

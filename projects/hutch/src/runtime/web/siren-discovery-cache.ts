@@ -27,8 +27,3 @@ export function setSirenCanonicalRedirectCaching(res: Response): void {
 	res.set("Cache-Control", REVALIDATE_DIRECTIVE);
 	res.vary(COLLECTION_VARY);
 }
-
-export function setSirenDiscoveryRedirectCaching(res: Response): void {
-	res.set("Cache-Control", MAX_AGE_DIRECTIVE);
-	res.vary("Accept");
-}

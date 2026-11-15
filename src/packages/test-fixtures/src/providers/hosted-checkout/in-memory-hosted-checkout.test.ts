@@ -66,6 +66,36 @@ describe("initInMemoryHostedCheckout", () => {
 		}
 	});
 
+	it("reports the payment status and total a test marks the session paid with, and a total of 0 when it names none", async () => {
+		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
+		const charged = await stripe.createCheckoutSession({
+			customerEmail: "charged@example.com",
+			priceId: "price_test_yearly",
+			successUrl: "https://app.test/ok",
+			cancelUrl: "https://app.test/cancel",
+			coupon: null,
+		});
+		const defaulted = await stripe.createCheckoutSession({
+			customerEmail: "trial@example.com",
+			priceId: "price_test_yearly",
+			successUrl: "https://app.test/ok",
+			cancelUrl: "https://app.test/cancel",
+			coupon: null,
+		});
+
+		stripe.markPaid(charged.id, { paymentStatus: "paid", amountTotal: 4900 });
+		stripe.markPaid(defaulted.id);
+
+		const chargedResult = await stripe.retrieveCheckoutSession(charged.id);
+		assert(chargedResult.ok);
+		expect(chargedResult.paymentStatus).toBe("paid");
+		expect(chargedResult.amountTotal).toBe(4900);
+		const defaultedResult = await stripe.retrieveCheckoutSession(defaulted.id);
+		assert(defaultedResult.ok);
+		expect(defaultedResult.paymentStatus).toBe("paid");
+		expect(defaultedResult.amountTotal).toBe(0);
+	});
+
 	it("returns generated subscriptionId and customerId for a created session", async () => {
 		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
 		const session = await stripe.createCheckoutSession({
