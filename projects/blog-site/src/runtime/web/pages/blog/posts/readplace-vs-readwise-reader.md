@@ -2,10 +2,10 @@
 title: "Readplace vs Readwise Reader: Which Read-It-Later App Is Right for You?"
 description: "A fair look at two read-it-later apps with AI. Where Readwise wins, where Readplace wins, and how to pick the right one for you."
 excerpt: "Readwise Reader costs $119.88 a year and does more, so the question is which extras get used."
-tldr: "Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, a newsletter inbox, PDF and EPUB uploads, YouTube transcripts, podcasts, and listening. Readplace is simpler, with AI TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download and upload, Australian hosting, and source-available code. Pick Readwise if you need highlighting that syncs into a note-taking tool, or anything beyond reading text. Pick Readplace if you want AI summaries and privacy at a lower price."
+tldr: "Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, a newsletter inbox, PDF and EPUB uploads, YouTube transcripts, podcasts, and listening. Readplace is simpler, with AI TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download and upload, transcripts of uploaded audio and video, Australian hosting, and source-available code. Pick Readwise if you need highlighting that syncs into a note-taking tool, RSS, YouTube, or listening. Pick Readplace if you want AI summaries and privacy at a lower price."
 slug: "readplace-vs-readwise-reader"
 date: "2026-04-06"
-lastModified: "2026-11-09"
+lastModified: "2026-11-15"
 author: "Fayner Brack"
 keywords: "readplace vs readwise, read it later app, read it later AI"
 ---
@@ -29,8 +29,8 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 | **Newsletter inbox** | A forwarding address per newsletter, article links saved. A Gmail sender can save the whole issue | Dedicated email address |
 | **PDFs** | Link, extension or iPhone share sheet, scans read by OCR | Upload, up to 500 MB |
 | **EPUB** | Download any article as an EPUB, or upload your own, DRM-free, up to 200 MB | Upload EPUB books |
-| **Video** | No | YouTube with a highlightable transcript |
-| **Podcasts** | No | Episodes from Spotify, Overcast and Apple Podcasts |
+| **Video** | Upload an MP4, up to 2 GB, read as a timestamped transcript. No YouTube | YouTube with a highlightable transcript |
+| **Podcasts** | Upload an episode's MP3 or M4A, up to 256 MB, read as a timestamped transcript. No subscriptions | Episodes from Spotify, Overcast and Apple Podcasts |
 | **Listening** | No | Yes, AI voices |
 | **E-reader** | EPUB download, moved to the device by hand | Sends documents to a Kindle |
 | **Reader view** | Yes | Yes |
@@ -39,6 +39,8 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 | **Maturity** | Newer, leaner | More mature, more features |
 
 *Updated 2026-11-05: the EPUB row. Readplace accepts an uploaded EPUB, DRM-free, up to 200 MB.*
+
+*Updated 2026-11-15: the Video and Podcasts rows. Readplace turns an uploaded MP4, MP3 or M4A into a timestamped transcript.*
 
 For the short version, [the Readwise Reader alternative page](/readwise-reader-alternative?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=readwise-reader-alternative) lists the gaps. This post keeps the reasoning behind each row.
 
@@ -135,7 +137,7 @@ Fewer features also means less to learn and less to get in your way. If you want
 
 ## Where the gap stands
 
-Readwise Reader does more than Readplace on most rows of the table above. Highlight sync, RSS, video, podcasts and listening all live in Reader and not in Readplace.
+Readwise Reader does more than Readplace on most rows of the table above. Highlight sync, RSS, YouTube, podcast subscriptions and listening all live in Reader and not in Readplace.
 
 Readplace covers a narrower job. It saves articles, PDFs and newsletter links, puts a TL;DR on top of each, and keeps them readable if the subscription ends.
 
