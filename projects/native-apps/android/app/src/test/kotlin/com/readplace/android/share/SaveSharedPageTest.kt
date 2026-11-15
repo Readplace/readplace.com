@@ -6,10 +6,10 @@ import com.readplace.android.core.AccessToken
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.AuthEvent
 import com.readplace.android.core.AuthReason
-import com.readplace.android.core.AuthRecordStorage
 import com.readplace.android.core.AuthSurface
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
+import com.readplace.android.core.InMemoryAuthRecordStorage
 import com.readplace.android.core.InMemoryReaderChoiceStorage
 import com.readplace.android.core.NativeAuthRecords
 import com.readplace.android.core.NativeProof
@@ -130,13 +130,6 @@ class SaveSharedPageTest {
 
 	private fun plainOAuth(store: TokenStore) =
 		OAuth(endpoints = ServerEndpoints(server.baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
-
-	private class InMemoryAuthRecordStorage : AuthRecordStorage {
-		var value: String? = null
-		override fun read() = value
-		override fun write(value: String) { this.value = value }
-		override fun <T> locked(work: () -> T): T = synchronized(this) { work() }
-	}
 
 	private class RecordedCredentials(val records: NativeAuthRecords, val store: TokenStore, val oauth: OAuth)
 

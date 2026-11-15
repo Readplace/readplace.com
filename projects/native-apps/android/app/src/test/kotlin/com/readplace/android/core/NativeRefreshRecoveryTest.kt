@@ -30,21 +30,13 @@ class NativeRefreshRecoveryTest {
 	}
 	@get:Rule val serverRule = MockWebServerRule()
 	private val server get() = serverRule.server
-	private class Storage : AuthRecordStorage {
-		var value: String? = null
-		var fail = false
-		var rejectReplacement = false
-		override fun read() = value
-		override fun write(value: String) { if (fail || (rejectReplacement && value.contains("new-access"))) throw java.io.IOException("unavailable"); this.value = value }
-		override fun <T> locked(work: () -> T): T = synchronized(this) { work() }
-	}
 	private class Legacy : TokenStorage {
 		val values = mutableMapOf<TokenKey, String>()
 		override fun readValue(key: TokenKey) = Result.success(values[key])
 		override fun setValue(key: TokenKey, value: String) { values[key] = value }
 		override fun removeValue(key: TokenKey) { values.remove(key) }
 	}
-	private fun records(storage: Storage = Storage(), legacy: Legacy = Legacy()) = NativeAuthRecords(storage, legacy)
+	private fun records(storage: InMemoryAuthRecordStorage = InMemoryAuthRecordStorage(), legacy: Legacy = Legacy()) = NativeAuthRecords(storage, legacy)
 	private fun recovery(records: NativeAuthRecords, proof: NativeProof = NativeProof { "test-proof" }) = NativeRefreshRecovery(
 		ServerEndpoints(server.url("/").toString().removeSuffix("/")), records, OkHttpClient(), proof, "117", AuthSurface.APP)
 	private val old = OAuthTokens(AccessToken("old-access"), RefreshToken("old-refresh"))
@@ -74,7 +66,7 @@ class NativeRefreshRecoveryTest {
 	}
 
 	@Test fun `lost response resumes pending operation after coordinator recreation`() = runTest {
-		val storage = Storage(); val records = records(storage); records.replace(old)
+		val storage = InMemoryAuthRecordStorage(); val records = records(storage); records.replace(old)
 		val operation = records.prepare(old)
 		server.enqueue(MockResponse.Builder().code(503).body("temporarily unavailable").build())
 		assertTrue(runCatching { recovery(records).refresh(old) }.isFailure)
@@ -98,7 +90,7 @@ class NativeRefreshRecoveryTest {
 	}
 
 	@Test fun `failed durable write retains legacy credentials for retry`() {
-		val storage = Storage(); val legacy = Legacy()
+		val storage = InMemoryAuthRecordStorage(); val legacy = Legacy()
 		legacy.setValue(TokenKey.ACCESS_TOKEN, "old-access"); legacy.setValue(TokenKey.REFRESH_TOKEN, "old-refresh")
 		val records = records(storage, legacy); storage.fail = true
 		assertTrue(runCatching { records.prepare(old) }.isFailure)
@@ -137,7 +129,7 @@ class NativeRefreshRecoveryTest {
 	}
 
 	@Test fun `failed replacement commit keeps pending operation and records the failure`() = runTest {
-		val storage = Storage(); val records = records(storage); records.replace(old)
+		val storage = InMemoryAuthRecordStorage(); val records = records(storage); records.replace(old)
 		val operation = records.prepare(old); storage.rejectReplacement = true
 		server.enqueue(success(operation.id))
 		assertTrue(runCatching { recovery(records).refresh(old) }.isFailure)
