@@ -22,7 +22,7 @@ export function normalizeImplicitBody(document: Document): void {
 }
 
 function wrapInHtmlRoot(document: Document): void {
-	if (document.documentElement.tagName === "HTML") return;
+	if (document.documentElement.tagName === "HTML" && document.children.length === 1) return;
 	const html =
 		Array.from(document.children).find((child) => child.tagName === "HTML") ??
 		document.createElement("html");
@@ -35,5 +35,9 @@ function wrapInHtmlRoot(document: Document): void {
 function promoteEdgarFiling(document: Document): void {
 	if (document.documentElement.tagName !== "DOCUMENT") return;
 	const filing = document.documentElement.querySelector("TEXT > html");
-	if (filing) document.replaceChild(filing, document.documentElement);
+	if (!filing) return;
+	document.replaceChild(filing, document.documentElement);
+	for (const sibling of Array.from(document.children)) {
+		if (sibling !== filing) sibling.remove();
+	}
 }

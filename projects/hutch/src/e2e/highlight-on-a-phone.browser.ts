@@ -74,3 +74,18 @@ export function scrollWindowToTop(): void {
 export function windowScrollY(): number {
 	return window.scrollY;
 }
+
+export function previewClearOfMarks(input: { preview: string; marks: string }): boolean {
+	const preview = document.querySelector(input.preview);
+	if (!preview) throw new Error(`previewClearOfMarks needs ${input.preview}`);
+	const rects = Array.from(document.querySelectorAll(input.marks)).flatMap((mark) => Array.from(mark.getClientRects()));
+	if (rects.length === 0) throw new Error(`previewClearOfMarks needs ${input.marks}`);
+	const box = {
+		top: Math.min(...rects.map((rect) => rect.top)),
+		bottom: Math.max(...rects.map((rect) => rect.bottom)),
+		left: Math.min(...rects.map((rect) => rect.left)),
+		right: Math.max(...rects.map((rect) => rect.right)),
+	};
+	const panel = preview.getBoundingClientRect();
+	return panel.bottom <= box.top || panel.top >= box.bottom || panel.right <= box.left || panel.left >= box.right;
+}

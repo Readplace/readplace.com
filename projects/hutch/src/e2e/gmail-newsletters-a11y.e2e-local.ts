@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { expect, pinCdnFixtures, test } from "@packages/e2e-harness";
 import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { requireEnv } from "@packages/require-env";
 import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
 import { z } from "zod";
+import { passAdminChallenge } from "./admin-extend-trial/admin-challenge";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import { pageOverflowsSideways } from "./page-measurements.browser";
 
@@ -138,6 +140,7 @@ async function signInAdmin(page: Page): Promise<void> {
 	});
 	assert.equal(created.status(), 201, "the admin fixture must answer the create request");
 	await signIn(page, { email: E2E_ADMIN_EMAIL, password: E2E_ADMIN_PASSWORD });
+	await passAdminChallenge(page, { baseURL: BASE_URL });
 }
 
 async function isFocused(locator: Locator): Promise<boolean> {
@@ -289,7 +292,7 @@ test.describe("GMail Newsletters with the keyboard alone", () => {
 			stamp: uniqueStamp("keyboard-cap", testInfo.workerIndex),
 			catalog: [approved({ from: LONG_SENDER, name: LONG_NAME })],
 			seed: {
-				readlists: Array.from({ length: 7 }, (_, index) => `Capped ${index}`),
+				readlists: Array.from({ length: READLIST_MAX_PER_USER }, (_, index) => `Capped ${index}`),
 				discoveredSenders: [{ email: LONG_SENDER, name: LONG_NAME }],
 			},
 		});
@@ -783,7 +786,7 @@ const GMAIL_OVERFLOW_SCENARIOS: readonly OverflowScenario[] = [
 		name: "mapping-readlist-cap",
 		shows: "[data-test-gmail-readlist-limit]",
 		seed: {
-			readlists: Array.from({ length: 7 }, (_, index) => `${LONG_READLIST.slice(0, 20)} ${index}`),
+			readlists: Array.from({ length: READLIST_MAX_PER_USER }, (_, index) => `${LONG_READLIST.slice(0, 20)} ${index}`),
 			discoveredSenders: [{ email: LONG_SENDER, name: LONG_NAME }],
 		},
 		query: { sender: LONG_SENDER, edit: "1" },

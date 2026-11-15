@@ -12,10 +12,11 @@ import {
 import type { WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { type InMemoryNewsletterCatalog, initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
-import { useTestServer } from "../../../test-app";
+import { signInPassingAdminChallenge, useTestServer } from "../../../test-app";
 
 const ADMIN_EMAIL = "ops@readplace.com";
 const ADMIN_PASSWORD = "password123";
+const ADMIN_TOTP_SECRET = Buffer.alloc(20, 7);
 const USER_EMAIL = "alex@example.com";
 const USER_PASSWORD = "password456";
 const EARLY = "2026-09-01T09:00:00.000Z";
@@ -100,8 +101,9 @@ function buildHarness(options: {
 	const harness = useApp({
 		...fixture,
 		admin: {
+			...fixture.admin,
 			adminEmails: [ADMIN_EMAIL],
-			recrawlServiceToken: fixture.admin.recrawlServiceToken,
+			totpSecrets: new Map([[ADMIN_EMAIL, ADMIN_TOTP_SECRET]]),
 		},
 		newsletterCatalog: {
 			readNewsletterCatalog: catalog.readCatalog,
@@ -109,7 +111,7 @@ function buildHarness(options: {
 			newsletterCatalogSeed: options.seed ?? EMPTY_SEED,
 		},
 	});
-	return { harness, catalog, serviceToken: fixture.admin.recrawlServiceToken };
+	return { harness: { ...harness, nowMs: () => fixture.shared.now().getTime() }, catalog, serviceToken: fixture.admin.recrawlServiceToken };
 }
 
 async function loginAs(input: { server: Server; email: string; password: string }) {
@@ -123,10 +125,12 @@ async function adminAgent(harness: ReturnType<typeof buildHarness>["harness"]) {
 		email: ADMIN_EMAIL,
 		password: ADMIN_PASSWORD,
 	});
-	return loginAs({
+	return signInPassingAdminChallenge({
 		server: harness.server,
 		email: ADMIN_EMAIL,
 		password: ADMIN_PASSWORD,
+		secret: ADMIN_TOTP_SECRET,
+		atMs: harness.nowMs(),
 	});
 }
 

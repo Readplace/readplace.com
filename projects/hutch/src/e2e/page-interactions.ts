@@ -94,9 +94,12 @@ export async function deleteArticleWithConfirmation(page: Page, trigger: Locator
 	await expect(page.locator(`[id="${popoverId}"]`)).toHaveCount(0, { timeout: 15000 })
 }
 
+export const ADD_ARTICLE_LINK_TAB = '#add-link label:has(> [data-test-add-article-mode="link"])'
+
 export async function openAddLink(page: Page): Promise<Locator> {
 	await page.click('[data-test-action="add-link"]', { timeout: 15000 })
 	await page.waitForSelector('#add-link:popover-open')
+	await page.locator(ADD_ARTICLE_LINK_TAB).click()
 	return page.locator('#add-link [data-test-form="save-article"]')
 }
 

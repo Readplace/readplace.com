@@ -12,4 +12,5 @@ config:
   media-audio:articlesTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-articles-cda0a08
   media-audio:mediaLambdaRepositoryName: hutch-media-lambda
   media-audio:transcribeDailyBudgetUsd: '5'
-encryptionsalt: v1:LfDCtFWLrp0=:v1:9vHeqQcxovauxB0n:qSWupZEi9smhOEJFrF9YfhS1KBv+Pg==
+secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
+encryptedkey: AQICAHi5gbyThFLGYBj7c38Jpmnq+hfHJiizCeULz0OAURFtewHbHwks7kIH0EVYvs5WNt2rAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM5u1yXiuEe6EGpf9dAgEQgDte8fd+nYxKFMEyeupbOMFosOYVm3X3yoOO7pQfU6SI2JOo1vSPN7/IVjFRsW+w/TKPeU9GwWqs9epC1g==

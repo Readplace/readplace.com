@@ -70,7 +70,7 @@ describe("normalizeImplicitBody", () => {
 		const html = `<head><title>Archived discussion</title></head><body><pre>${opening.repeat(12)} <a href="/thread/2">Next message</a> <a href="https://example.test/reference">Reference</a> ${closing.repeat(12)}</pre></body>`;
 		const url = "https://example.test/thread/1";
 		const parser = initReadabilityParser({
-			crawlArticle: async () => ({ status: "failed" }),
+			crawlArticle: async () => ({ status: "failed", decision: undefined }),
 			siteRules: [],
 			readabilityAdditions,
 			logError: () => {},
@@ -111,6 +111,39 @@ describe("normalizeImplicitBody", () => {
 		);
 		expect(Array.from(document.childNodes).map((node) => node.nodeName)).toEqual(["#document-type", "HTML"]);
 	});
+
+	it("moves an element that follows </html> into the body and a trailing <script> into the head, leaving <html> the document's only element", () => {
+		const { document } = parseHTML(
+			"<!DOCTYPE html><html><head><title>Lorem</title></head><body><p>Dolor sit.</p></body></html><div><footer><p>Lorem ipsum dolor sit amet.</p></footer></div><script>var a=1</script>",
+		);
+
+		normalizeImplicitBody(document);
+
+		expect(document.documentElement.outerHTML).toBe(
+			"<html><head><title>Lorem</title><script>var a=1</script></head><body><p>Dolor sit.</p><div><footer><p>Lorem ipsum dolor sit amet.</p></footer></div></body></html>",
+		);
+		expect(Array.from(document.childNodes).map((node) => node.nodeName)).toEqual(["#document-type", "HTML"]);
+	});
+
+	it("keeps article paragraphs that follow </html>", () => {
+		const first = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore. ";
+		const second = "Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae. ";
+		const html = `<!DOCTYPE html><html><head><title>Lorem ipsum</title></head><body><article><p>${first.repeat(6)}</p><p>${first.repeat(6)}</p></article></body></html><div><section><p>${second.repeat(6)}</p><p>${second.repeat(6)}</p></section></div>`;
+		const url = "https://example.com/lorem-ipsum";
+		const parser = initReadabilityParser({
+			crawlArticle: async () => ({ status: "failed", decision: undefined }),
+			siteRules: [],
+			readabilityAdditions,
+			logError: () => {},
+		});
+
+		const result = parser.parseHtml({ url, documentUrl: url, html, thumbnailUrl: null });
+
+		assert(result.ok, "the page parses");
+		expect(result.article.content).toContain("Lorem ipsum dolor sit amet");
+		expect(result.article.content).toContain("Vestibulum ante ipsum");
+	});
+
 	describe("an SEC EDGAR filing served inside its SGML wrapper", () => {
 		const edgarFiling = (documents: readonly { title: string; body: string }[]) =>
 			documents
@@ -147,6 +180,25 @@ describe("normalizeImplicitBody", () => {
 			expect(document.body.textContent).toBe("Filing body");
 		});
 
+		it("drops the later documents of a multi-document file that opens with a doctype, keeping the doctype", () => {
+			const { document } = parseHTML(
+				`<!DOCTYPE html>\n${edgarFiling([
+					{ title: "Anthropic, PBC - S-1/A-1", body: "<p>Filing body</p>" },
+					{ title: "Exhibit 23.1", body: "<p>Consent of auditors</p>" },
+				])}`,
+			);
+
+			normalizeImplicitBody(document);
+
+			expect(Array.from(document.childNodes).map((node) => node.nodeName)).toEqual([
+				"#document-type",
+				"#text",
+				"HTML",
+				"#text",
+			]);
+			expect(document.body.textContent).toBe("Filing body");
+		});
+
 		it("wraps an EDGAR document whose text holds no <html> as before", () => {
 			const { document } = parseHTML("<DOCUMENT>\n<TYPE>GRAPHIC\n<TEXT>\nbegin 644 chart.jpg\n</TEXT>\n</DOCUMENT>");
 
@@ -161,7 +213,7 @@ describe("normalizeImplicitBody", () => {
 			const paragraph = "The registrant is offering shares of its common stock in this proposed public offering. ";
 			const url = "https://www.sec.gov/Archives/edgar/data/1/000000000026000001/d0.htm";
 			const parser = initReadabilityParser({
-				crawlArticle: async () => ({ status: "failed" }),
+				crawlArticle: async () => ({ status: "failed", decision: undefined }),
 				siteRules: [],
 				readabilityAdditions,
 				logError: () => {},

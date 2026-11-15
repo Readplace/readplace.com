@@ -30,11 +30,11 @@ The client's job is to interpret the Siren format and follow what the server say
 
 One URL per capability serves both the browser (HTML) and a programmatic client (Siren) based on `Accept`. Do not add a `/api/*` tree or version prefix — that creates two independent evolutions of the same concept.
 
-- `GET /` with `Accept: application/vnd.siren+json` → `303 See Other` → `/queue` (the Siren entry point)
+- `GET /` with `Accept: application/vnd.siren+json` → `200` with the reader's collection; its `self` names `/queue` (the Siren entry point)
 - `GET /` with `Accept: text/html` → home page
 - Branch on the Siren content-negotiation predicate (see [References](#references)), then emit from the same domain data
 
-Why 303 over the entry point: the server decides where the collection lives; renaming `/queue` to something else is a server-internal change because the client only followed the redirect.
+The entry point answers rather than redirects because some HTTP stacks drop `Authorization` on a redirect (Obsidian mobile's `requestUrl`, .NET, PowerShell; the native iOS app keeps it). Clients still learn `/queue` only from links, so renaming it stays a server-internal change.
 
 [An Article's Markdown Is Its `read` Link, Negotiated](references/markdown-read-link.md) — read when changing how an article's Markdown is served or how a client reads it.
 

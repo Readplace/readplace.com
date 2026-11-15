@@ -229,6 +229,30 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 	}
 }
 
+.confirm-popover__buttons--full-width {
+	flex-direction: column-reverse;
+	flex-wrap: nowrap;
+	align-items: stretch;
+}
+
+@supports selector(:popover-open) {
+	.confirm-popover:popover-open:has(> .confirm-popover__items) {
+		display: flex;
+		flex-direction: column;
+	}
+}
+
+.confirm-popover:has(> .confirm-popover__items) > * {
+	flex: none;
+}
+
+.confirm-popover > .confirm-popover__items {
+	flex: 1 1 auto;
+	min-height: 44px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
 @media (min-width: 768px) {
 	.confirm-popover {
 		padding: 32px;

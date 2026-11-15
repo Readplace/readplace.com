@@ -380,7 +380,7 @@ export function createReadlistActions(
 				const shareDialog = page.locator('[data-test-confirm-popover="share"]')
 				await page.locator('[data-test-action="share-open"]').click()
 				await expect(page.locator('[data-test-confirm-popover="share"]:popover-open')).toHaveCount(1)
-				const shareUrl = await shareDialog.locator('[data-test-share-copy]').getAttribute('data-share-url')
+				const shareUrl = await shareDialog.locator('[data-test-share-copy="reader-view"]').getAttribute('data-share-url')
 				assert.ok(shareUrl, 'the share dialog must expose the link it copies')
 				await shareDialog.locator('[data-test-action="share-cancel"]').click()
 				await expect(page.locator('[data-test-confirm-popover="share"]:popover-open')).toHaveCount(0)

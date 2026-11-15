@@ -32,6 +32,7 @@ export type ParseHtml = (params: {
 
 export type ReadabilityAdditions = {
 	normalizeImplicitBody: (document: Document) => void;
+	unwrapArticleBodyTemplates: (document: Document) => void;
 	replaceVideosWithPlaceholder: (params: {
 		document: Document;
 		originalUrl: string;

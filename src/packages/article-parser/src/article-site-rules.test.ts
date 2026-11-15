@@ -1,6 +1,7 @@
 import { matchingSiteRuleUrl } from "@packages/site-rules";
 import type { CrawlFetch } from "@packages/crawl-article";
 import { initArticleSiteRules } from "./article-site-rules";
+import { granolaSiteRules } from "./granola-site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
@@ -32,9 +33,10 @@ describe("initArticleSiteRules", () => {
 			mediaWikiSiteRules,
 			quoraSiteRules,
 			substackSiteRules,
+			granolaSiteRules,
 			...crawlClaimingSiteRules,
 		]);
-		expect(crawlClaimingSiteRules).toHaveLength(7);
+		expect(crawlClaimingSiteRules).toHaveLength(8);
 	});
 
 	it("claims X, Apple News, GitHub PDF, OJS galley and Stack Overflow URLs among the crawl-claiming rules", () => {
@@ -49,6 +51,7 @@ describe("initArticleSiteRules", () => {
 		expect(claimed("https://github.com/sample/docs/blob/main/paper.pdf")).toBe(1);
 		expect(claimed("https://journals.example.org/index.php/sample/article/view/37/33")).toBe(1);
 		expect(claimed("https://www.gallup.com/analytics/123/sample-report.aspx")).toBe(1);
+		expect(claimed("https://ftpartners.com/transactions/sample-deal")).toBe(1);
 		expect(claimed("https://journals.example.org/index.php/sample/article/view/37")).toBe(0);
 		expect(claimed("https://stackoverflow.com/questions/42/why")).toBe(1);
 		expect(claimed("https://hn.algolia.com/?dateRange=all&page=0&prefix=true&query=typescript&sort=byPopularity&type=story")).toBe(1);

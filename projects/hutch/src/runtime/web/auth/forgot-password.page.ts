@@ -86,7 +86,6 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 				return deps.sendEmail({
 					from: EMAIL_FROM,
 					to: email,
-					bcc: "readplace+password_resets@readplace.com",
 					subject: "Reset your password — Readplace",
 					html,
 				});

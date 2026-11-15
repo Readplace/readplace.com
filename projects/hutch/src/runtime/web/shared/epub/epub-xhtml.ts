@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { isReaderImageBoxStyle, READER_IMAGE_SIZE_ATTRIBUTE } from "@packages/domain/article";
 import { parseHTML } from "linkedom";
 import { imageFilenameOf } from "./image-filename-of";
 
@@ -23,7 +24,7 @@ const VOID_ELEMENTS = new Set([
 ]);
 
 const DROP_ELEMENTS = ["script", "style", "iframe"];
-const DROP_IMAGE_ATTRIBUTES = ["srcset", "sizes", "loading", "decoding"];
+const DROP_IMAGE_ATTRIBUTES = ["srcset", "sizes", "loading", "decoding", READER_IMAGE_SIZE_ATTRIBUTE];
 
 export function collectArticleImages(params: {
 	contentHtml: string;
@@ -78,6 +79,7 @@ export function chapterEpubXhtml(params: {
 	}
 	for (const img of root.querySelectorAll("img")) {
 		for (const attribute of DROP_IMAGE_ATTRIBUTES) img.removeAttribute(attribute);
+		if (isReaderImageBoxStyle(img.getAttribute("style"))) img.removeAttribute("style");
 		const src = img.getAttribute("src");
 		const filename = src === null ? undefined : filenameOf(src);
 		const href = filename === undefined ? undefined : params.imageHrefs.get(filename);
@@ -126,7 +128,7 @@ export function escapeXmlAttribute(value: string): string {
 function xhtmlDocument(params: { title: string; body: string }): string {
 	return `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en">
 <head>
 <meta charset="utf-8" />
 <title>${escapeXmlText(params.title)}</title>

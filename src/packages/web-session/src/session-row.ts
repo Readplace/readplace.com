@@ -21,4 +21,5 @@ export const SessionRow = z.object({
 	emailVerified: dynamoField(z.boolean()),
 	readlistFilter: dynamoField(ReadlistFilterSchema),
 	oauthGrantId: dynamoField(OAuthGrantIdSchema),
+	adminMfaVerifiedAt: dynamoField(z.number()),
 });

@@ -12,7 +12,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 - Every production entry point wraps Resend in a filter that silently drops any message whose To address is at example.com, example.net or example.org, or under a .test, .example, .invalid or .localhost domain. The Bcc copy is dropped with it (`projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`).
 - With `PERSISTENCE=development` the local dev server logs each message instead of sending it (`projects/hutch/src/runtime/providers/dev-providers.ts:544`); with `PERSISTENCE=prod` it uses the production providers and sends through Resend (`projects/hutch/src/runtime/dev-app.ts:15`). Staging runs the same code and sends real email through Resend, with links on `https://readplace-staging.com`.
 - The account emails (email verification, welcome, password reset) and the trial day-3 and day-7 emails come from `Fayner from Readplace <fayner@readplace.com>`; every other email comes from `Readplace <readplace@readplace.com>`, the support address. Replies reach `fayner@readplace.com`, a Google Workspace mailbox: through Reply-To on every email that sets one, which is every email except email verification and password reset, and through the From address on those two.
-- Eleven emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the Hacker News starter email, the data export email and the Gmail newsletter notice have no Bcc.
+- Nine emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. Email verification, password reset, the readlist digest, the trial-ending digest, the Hacker News starter email, the data export email and the Gmail newsletter notice have no Bcc.
 - Six emails carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link: the three sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email), the trial day-3 and day-7 emails, and the connector welcome. They share one opt-out: unsubscribing from any of them stops all that can still send. The unsubscribe URL names the email it came from with `kind=regular`, `kind=pay`, `kind=starter`, `kind=trial-day3`, `kind=trial-day7` or `kind=welcome-connector`, which the `queue_digest_unsubscribed` event records as `kind`; links delivered before this parameter existed carry none, and their events have no `kind`. The readlist digest and the trial-ending digest tag their links `utm_source=queue-digest`; the Hacker News starter email tags its links `utm_source=starter-email`; the day-3 and day-7 emails tag theirs `utm_source=day3-email` and `utm_source=day7-email`; the connector welcome tags its links `utm_source=welcome-email`. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that disabling their custom emails stops it.
 - The Gmail newsletter notice, the Hacker News starter email, the trial day-3 and day-7 emails, the trial feedback, trial reminder, charge reminder and payment-failed emails set a Resend idempotency key. The rest rely on their own once-only markers, or on none.
 - A trial extension does not clear the day-3 marker (`trialDay3EmailSentAt`), the day-7 marker (`trialDay7EmailSentAt`) or the founder-note marker (`founderNoteSentAt`): they are outside the REMOVE list in `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:55`.
@@ -22,9 +22,9 @@ Each email's conditions were traced through the code with `path:line` citations,
 
 | # | Email | Subject | Sent when | Bcc |
 |---|---|---|---|---|
-| 1 | [Email verification](#1-email-verification) | `Verify your email — Readplace` | Immediately after someone creates an account with email and password on the signup form; never for Google or Apple sign-ups. | `readplace+account_verifications@readplace.com` |
+| 1 | [Email verification](#1-email-verification) | `Verify your email — Readplace` | Immediately after someone creates an account with email and password on the signup form; never for Google or Apple sign-ups. | none |
 | 2 | [Welcome email](#2-welcome-email) | `Welcome to Readplace` | Once per new account: email+password sign-ups when the verification link is first opened, Google and Apple sign-ups at account creation. | `readplace+welcome@readplace.com` |
-| 3 | [Password reset](#3-password-reset) | `Reset your password — Readplace` | Immediately after someone submits the Forgot password form with an address that matches a Readplace account. | `readplace+password_resets@readplace.com` |
+| 3 | [Password reset](#3-password-reset) | `Reset your password — Readplace` | Immediately after someone submits the Forgot password form with an address that matches a Readplace account. | none |
 | 4 | [Trial-ending digest](#4-trial-ending-digest) | `Waiting in your readlist` | Once per trial window, on the first 6-hourly check 96h to 60h before the trial ends (around day 11 of 14) that finds a ready unread save; verified trialists who have not unsubscribed. A trial reopened by reactivation or an admin extension can get it again. | none |
 | 5 | [Trial pre-expiry reminder](#5-trial-pre-expiry-reminder) | `your Readplace trial ends in 2 days` | 48 hours before a no-card trial ends (12 days after signup, day 13 of 14), if the reader is still trialing and got no trial-ending digest. | `readplace+trial_reminder@readplace.com` |
 | 6 | [Pre-charge reminder](#6-pre-charge-reminder) | `your Readplace membership starts on {chargeDate}` | 7 days before a trial subscriber's first charge, or 5 minutes after subscribing or reactivating when less than 7 days remain. | `readplace+charge_reminder@readplace.com` |
@@ -45,7 +45,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 
 ### When it is sent
 
-A visitor creates a Readplace account by submitting the email and password signup form. They reach that form from the website, from the sign-up screen that the iOS app, browser extensions and AI assistants open (`projects/hutch/src/runtime/web/oauth/oauth.routes.ts:253`), or from the logged-out import review when they commit their links (`projects/hutch/src/runtime/web/pages/import/import.page.ts:127`). The email goes out straight away on that same request, with a "Verify email" button that works once and expires after 7 days; clicking it marks the email verified and sends the separate welcome email. Nothing re-sends it, and if the customer never verifies, the account is locked for new saves 7 days after signup.
+A visitor creates a Readplace account by submitting the email and password signup form. They reach that form from the website, from the sign-up screen that the iOS app, browser extensions and AI assistants open (`projects/hutch/src/runtime/web/oauth/oauth.routes.ts:253`), or from the logged-out import review when they commit their links (`projects/hutch/src/runtime/web/pages/import/import.page.ts:127`). The email goes out straight away on that same request, with a "Verify email" button that works once and expires after 48 hours; clicking it marks the email verified and sends the separate welcome email. Nothing re-sends it, and if the customer never verifies, the account is locked for new saves 7 days after signup.
 
 Trigger chain:
 
@@ -56,7 +56,7 @@ Trigger chain:
 5. It creates the unverified account and provisions its Readplace inbox address `projects/hutch/src/runtime/server.ts:1204`
 6. On the trial branch it starts the 14-day trial before creating the unverified session and hutch_sid cookie `projects/hutch/src/runtime/web/auth/auth.page.ts:415`
 7. It calls sendVerificationEmail without waiting for it and redirects with a 303 (founding-member branch here, trial branch at line 427) `projects/hutch/src/runtime/web/auth/auth.page.ts:381`
-8. sendVerificationEmail stores a single-use 7-day token, builds the link with UTM tags and sends the message through Resend `projects/hutch/src/runtime/web/auth/auth.page.ts:167`
+8. sendVerificationEmail stores a single-use 48-hour token, builds the link with UTM tags and sends the message through Resend `projects/hutch/src/runtime/web/auth/auth.page.ts:167`
 
 Sent only when:
 
@@ -86,7 +86,7 @@ Not sent when:
 - In production, a `to` address at example.com, example.net or example.org, or ending in .test, .example, .invalid or .localhost, is dropped with a warning log `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`
 - There is no once-only marker and no opt-out: the email is transactional and goes out at most once per account because only the request that creates the account sends it `projects/hutch/src/runtime/web/auth/auth.page.ts:381`
 
-**Timing:** Immediately, during the POST /signup request, with no delay, schedule or queue. The link works once and expires exactly 7 days (168 hours) after it is created, and an account still unverified 7 days after signup is locked for new saves.
+**Timing:** Immediately, during the POST /signup request, with no delay, schedule or queue. The link works once and expires exactly 48 hours after it is created, and an account still unverified 7 days after signup is locked for new saves.
 
 **If sending fails:** Fire-and-forget with no retry and no DLQ: if storing the token or the Resend send fails, the error is logged as "[Email] Verification email failed" and signup still completes with a 303. The customer cannot request another link; they can still verify by signing in with Google or Apple on the same address, otherwise support has to restore the account after it locks.
 
@@ -102,7 +102,7 @@ Not sent when:
 - Any utm_* query value with characters outside [A-Za-z0-9._~-] gets a 400 before the route runs; the verification link's own UTM values pass this check `src/packages/web-analytics/src/utm-validation.middleware.ts:22`
 - If the rate-limit store errors, the request goes to the error handler as a 500 and no email is sent `projects/hutch/src/runtime/web/middleware/rate-limit.ts:44`
 - On the existing-account path, the per-account login limit (20 per 900 seconds in production) can also return a 429 `projects/hutch/src/runtime/web/auth/auth.page.ts:312`
-- The link's expiry is checked when it is used, so it stops working at exactly 7 days rather than whenever DynamoDB's TTL removes the row `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:74`
+- The link's expiry is checked when it is used, so it stops working at exactly 48 hours rather than whenever DynamoDB's TTL removes the row `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:74`
 - Account creation asserts the address does not start with the internal canonical# prefix, but the signup email validator already rejects '#', so this cannot stop a signup `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:223`
 - The deployed SSR Lambda always builds production providers, so it always sends through Resend whatever PERSISTENCE says `projects/hutch/src/runtime/app.ts:99`
 - The local server picks providers from PERSISTENCE; with development it only logs the message and keeps tokens in memory `projects/hutch/src/runtime/providers/dev-providers.ts:544`
@@ -113,7 +113,6 @@ Not sent when:
 
 > **Observations**
 >
-> - Every message is BCC'd to readplace+account_verifications@readplace.com with the customer's live single-use link. Anyone with access to that mailbox can verify any new account, and a click or link scan there uses up the token, so the customer's own click shows "This verification link is invalid or has already been used." even though the account is verified `projects/hutch/src/runtime/web/auth/auth.page.ts:175`
 > - The link is consumed by a plain GET, so a mail security scanner that prefetches links on the customer's side would verify the account and leave the customer an "invalid or already used" page (unverified whether this happens in practice) `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:63`
 > - There is no way to get a second link: no route re-sends it, and the verify banner only says "Check your inbox or spam folder." `src/packages/web-shell/src/shared/verify-banner/verify-banner.template.ts:1`
 > - If the trial write or session creation fails after the account exists, the customer gets a 500, a retry only signs them in, and the account never receives a link and locks after 7 days (reproduced with a local probe against the test app) `projects/hutch/src/runtime/domain/trial/start-trial.ts:117`
@@ -127,7 +126,7 @@ Not sent when:
 |---|---|
 | From | `Fayner from Readplace <fayner@readplace.com>` |
 | To | The email address typed on the signup form, with its original casing |
-| Bcc | `readplace+account_verifications@readplace.com` |
+| Bcc | none |
 | Reply-To | none |
 | Subject | Verify your email — Readplace |
 | Headers | none |
@@ -163,7 +162,7 @@ Subject: **Verify your email — Readplace** · To: `sam.reader@gmail.com`
   "signupBranch": "founding allocation exhausted -> 14-day trial (startTrial mode 'signup')",
   "resultingSubscriptionStatus": "trialing",
   "routeRedirect": "/queue",
-  "verificationToken": "669d1635354998dd40ca4c8bd8c60adefe77a7d759cb67d8ee85f8ed5978bbca (randomBytes(32).toString('hex'), 64 hex chars, single-use, valid 7 days)",
+  "verificationToken": "669d1635354998dd40ca4c8bd8c60adefe77a7d759cb67d8ee85f8ed5978bbca (randomBytes(32).toString('hex'), 64 hex chars, single-use, valid 48 hours)",
   "env": {
     "APP_ORIGIN": "https://readplace.com",
     "STATIC_BASE_URL": "https://static.readplace.com",
@@ -196,7 +195,7 @@ Exact HTML body: [`html/email-verification--default.html`](html/email-verificati
 - `projects/hutch/src/runtime/web/auth/auth.page.ts:278` — POST /signup handler; calls the sender at :381 (founding member) and :427 (trial)
 - `projects/hutch/src/runtime/web/auth/verification-email.ts:19` — renderer; adds the UTM tags to the link
 - `projects/hutch/src/runtime/web/auth/verification-email.template.html:1` — HTML template
-- `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:52` — token store: 64-hex token, 7-day expiry, single use
+- `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:52` — token store: 64-hex token, 48-hour expiry, single use
 - `projects/hutch/src/runtime/providers/prod-providers.ts:524` — production sender: reserved-domain filter wrapping Resend
 - `projects/hutch/src/runtime/server.ts:1220` — composition: wires the auth routes and sendEmail (line 1186)
 - `projects/hutch/src/runtime/web/auth/auth.page.ts:578` — GET /verify-email: consumes the token, marks the email verified, sends the welcome email
@@ -207,12 +206,12 @@ Exact HTML body: [`html/email-verification--default.html`](html/email-verificati
 
 ### When it is sent
 
-A new reader creates a Readplace account, on the web or from the iOS or Android app. For email and password signups, the welcome goes out the first time the link in 'Verify your email — Readplace' is opened, which can be any time in the 7 days after signup. For Google and Apple signups, it goes out as soon as the sign-in creates the account. Returning sign-ins, Stripe checkout returns and password resets never send it.
+A new reader creates a Readplace account, on the web or from the iOS or Android app. For email and password signups, the welcome goes out the first time the link in 'Verify your email — Readplace' is opened, which can be any time in the 48 hours after signup. For Google and Apple signups, it goes out as soon as the sign-in creates the account. Returning sign-ins, Stripe checkout returns and password resets never send it.
 
 Trigger chain:
 
 1. A new reader submits the email and password signup form at /signup (the iOS and Android apps' Sign up also lands here through /oauth/authorize) `projects/hutch/src/runtime/web/auth/auth.page.ts:278`
-2. Readplace creates the account as a founding member or trial and emails the one 'Verify your email — Readplace' link, valid for 7 days `projects/hutch/src/runtime/web/auth/auth.page.ts:167`
+2. Readplace creates the account as a founding member or trial and emails the one 'Verify your email — Readplace' link, valid for 48 hours `projects/hutch/src/runtime/web/auth/auth.page.ts:167`
 3. Any client opens the link (GET or HEAD /verify-email?token=..., no sign-in needed) and the single-use token is deleted `projects/hutch/src/runtime/web/auth/auth.page.ts:593`
 4. Readplace marks the account verified and sends the welcome to the address stored with the token `projects/hutch/src/runtime/web/auth/auth.page.ts:607`
 5. Alternatively, a Google sign-in for an email with no Readplace account creates the account and session and sends the welcome before redirecting; a trial account sends from the same callback after its trial starts `projects/hutch/src/runtime/web/auth/google-auth.page.ts:225`
@@ -224,7 +223,7 @@ Sent only when:
 
 - Email+password: the signup form passes the bot checks and the email and password rules, and the email has no account yet `projects/hutch/src/runtime/web/auth/validate-signup.ts:67`
 - Email+password: the verification mail was sent, because its link is the only way to trigger the welcome `projects/hutch/src/runtime/web/auth/auth.page.ts:168`
-- Email+password: someone or something opens that link while it is unused and less than 7 days old; no sign-in or cookie is needed `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:74`
+- Email+password: someone or something opens that link while it is unused and less than 48 hours old; no sign-in or cookie is needed `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:74`
 - Email+password: the account still exists when the link is opened, so it can be marked verified `projects/hutch/src/runtime/web/auth/auth.page.ts:606`
 - Google or Apple: the provider reports the email as verified (Apple applies the same check) `projects/hutch/src/runtime/web/auth/google-auth.page.ts:179`
 - Google or Apple: no Readplace account exists for the provider's email, so the sign-in creates one `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:229`
@@ -233,9 +232,9 @@ Not sent when:
 
 - Sent at most once per account: there is no sent-marker, but the verification link is single-use and Google and Apple send only when the sign-in creates the account `projects/hutch/src/runtime/providers/email-verification/dynamodb-email-verification.ts:63`
 - Returning sign-ins never send it: a Google or Apple sign-in for an existing account just signs the person in `projects/hutch/src/runtime/web/auth/google-auth.page.ts:185`
-- A password account that first signs in with Google or Apple is marked verified without a welcome; it is welcomed only if it later opens its original link within 7 days `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:238`
+- A password account that first signs in with Google or Apple is marked verified without a welcome; it is welcomed only if it later opens its original link within 48 hours `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:238`
 - There is no way to request a new verification link, so a password account whose only verification mail failed, was lost or went unopened never gets the welcome `projects/hutch/src/runtime/web/auth/auth.page.ts:181`
-- Opening the link after 7 days, or a second time, shows 'This verification link is invalid or has already been used.' and sends nothing `projects/hutch/src/runtime/web/auth/auth.page.ts:600`
+- Opening the link after 48 hours, or a second time, shows 'This verification link is invalid or has already been used.' and sends nothing `projects/hutch/src/runtime/web/auth/auth.page.ts:600`
 - Signing up with an email that already has an account signs the person in or shows 'This email is already registered', with no verification mail and no welcome `projects/hutch/src/runtime/web/auth/auth.page.ts:318`
 - Signup is refused before any account exists for a filled honeypot field, a missing timestamp, a submit less than 2.5 seconds after page load, an invalid or disposable email, or a password under 8 characters `projects/hutch/src/runtime/web/auth/auth.page.ts:327`
 - More than 10 email+password signups from one IP in an hour get a 429 before any account exists `projects/hutch/Pulumi.prod.yaml:56`
@@ -244,7 +243,7 @@ Not sent when:
 - Once the account-deletion worker has run for a deleted account, its verification link no longer works and sends nothing `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:200`
 - In production, a recipient at example.com, example.net or example.org, or at a .test, .example, .invalid or .localhost domain, has the whole message dropped, bcc copy included, with the log '[email] reserved recipient domain — not sent' `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:14`
 
-**Timing:** Immediate, during the HTTP request, with nothing scheduled: email+password accounts get it when the verification link is first opened, from seconds up to 7 days (168 hours) after signup. Google and Apple accounts get it during the sign-in callback that creates the account, before the redirect.
+**Timing:** Immediate, during the HTTP request, with nothing scheduled: email+password accounts get it when the verification link is first opened, from seconds up to 48 hours after signup. Google and Apple accounts get it during the sign-in callback that creates the account, before the redirect.
 
 **If sending fails:** Fire-and-forget: the send is not awaited, and a Resend error is only logged as '[Email] Welcome email failed', with no retry, queue, DLQ or idempotency key and no effect on signup or verification. An error before the send (marking the account verified, starting the trial, creating the session) aborts the request, and that account is never welcomed.
 
@@ -459,7 +458,7 @@ Not sent when:
 - Invalid address: the form shows an error with status 422 and nothing is sent `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:58`
 - Rate limited: from the 6th request from one IP in the same UTC clock hour, the visitor gets a 429 "Too many requests from your network" response; every allowed request counts, including invalid and unknown addresses `projects/hutch/src/runtime/web/middleware/rate-limit.ts:36`
 - Banned visitor: a request from an IP on the ban list gets a 403 and never reaches the form handler `projects/hutch/src/runtime/web/middleware/ban.ts:28`
-- Reserved recipient domain (example.com, example.net, example.org, or any .test, .example, .invalid or .localhost address): the send is skipped with a logged warning, and the BCC copy is skipped too `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
+- Reserved recipient domain (example.com, example.net, example.org, or any .test, .example, .invalid or .localhost address): the send is skipped with a logged warning `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
 - Account purged: once the delete-account worker has removed the account's users row, the lookup finds nothing and no email is sent `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:208`
 
 **Timing:** Sent immediately, in the same web request, right after the "Check your email" page is returned; there is no queue, schedule or delay. The link expires 3600 s (1 hour) after the token is created, and the per-IP rate-limit window resets at the top of every UTC hour.
@@ -487,7 +486,6 @@ Not sent when:
 
 > **Observations**
 >
-> - Every reset email is BCC'd to readplace+password_resets@readplace.com with the live single-use link, so anyone who can read that mailbox can reset any customer's password within the hour, and the reset signs the customer out of every session `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:87`
 > - Earlier links are not revoked: each request writes a new token, and a successful reset deletes only the token it used, so several reset links for one account work at once until each expires `projects/hutch/src/runtime/providers/password-reset/dynamodb-password-reset.ts:57`
 > - Accounts that sign in only with Google or Apple get the email, and using the link gives them a password for the first time, although the copy says "set a new password" `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:534`
 > - Soft-deleted accounts still get the email between deletion and the purge, because the existence check ignores deletedAt, but the link always fails with "This reset link is invalid or has already been used." since the reset step skips deleted accounts `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:141`
@@ -500,7 +498,7 @@ Not sent when:
 |---|---|
 | From | `Fayner from Readplace <fayner@readplace.com>` |
 | To | The address typed into the Forgot password form, with its casing kept |
-| Bcc | `readplace+password_resets@readplace.com` |
+| Bcc | none |
 | Reply-To | none |
 | Subject | Reset your password — Readplace |
 | Headers | none |
@@ -557,7 +555,7 @@ Exact HTML body: [`html/password-reset--default.html`](html/password-reset--defa
 ### Source
 
 - `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:57` — handler: POST /forgot-password with rate limit, validation, lookup, token and send
-- `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:84` — sendEmail call setting from, to, bcc and subject
+- `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:84` — sendEmail call setting from, to and subject
 - `projects/hutch/src/runtime/web/auth/password-reset-email.ts:19` — renderer: adds UTM tags to the reset URL and renders the template
 - `projects/hutch/src/runtime/web/auth/password-reset-email.template.html:22` — template: heading, one-hour expiry copy and Reset password button
 - `projects/hutch/src/runtime/providers/password-reset/dynamodb-password-reset.ts:49` — token creation with 1-hour expiry

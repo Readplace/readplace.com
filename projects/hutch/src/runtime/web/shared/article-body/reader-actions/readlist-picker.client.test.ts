@@ -284,4 +284,37 @@ describe("readlist picker opening", () => {
 
 		expect(focusedElement(dom)).toBe(dom.window.document.body);
 	});
+
+	function openWithin(dom: JSDOM, { viewportHeight, menuTop }: { viewportHeight: number; menuTop: number }): HTMLElement {
+		Object.defineProperty(dom.window.document.documentElement, "clientHeight", { configurable: true, value: viewportHeight });
+		const menu = dom.window.document.querySelector<HTMLElement>(".article-body__readlists-menu");
+		assert(menu, "the picker must render its menu");
+		menu.getBoundingClientRect = () => dom.window.DOMRect.fromRect({ x: 0, y: menuTop, width: 200, height: 0 });
+		togglePicker(dom);
+		return menu;
+	}
+
+	it("bounds the menu to the space left below it as it opens", () => {
+		const menu = openWithin(attachedDom(), { viewportHeight: 650, menuTop: 80 });
+
+		expect(menu.style.maxHeight).toBe("554px");
+		expect(menu.classList.contains("article-body__readlists-menu--sheet")).toBe(false);
+	});
+
+	it("turns the menu into a sheet when too little room is left below it, as on a phone held sideways", () => {
+		const menu = openWithin(attachedDom(), { viewportHeight: 390, menuTop: 160 });
+
+		expect(menu.style.maxHeight).toBe("");
+		expect(menu.classList.contains("article-body__readlists-menu--sheet")).toBe(true);
+	});
+
+	it("fits the menu again on the next open after the room below it grows", () => {
+		const dom = attachedDom();
+		openWithin(dom, { viewportHeight: 390, menuTop: 160 });
+
+		const menu = openWithin(dom, { viewportHeight: 650, menuTop: 80 });
+
+		expect(menu.classList.contains("article-body__readlists-menu--sheet")).toBe(false);
+		expect(menu.style.maxHeight).toBe("554px");
+	});
 });

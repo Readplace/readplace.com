@@ -98,6 +98,8 @@ function harness(): Harness {
 		isPopoverOpen: () => h.popoverOpen,
 		supportsPopover: () => true,
 		showPopover: () => undefined,
+		hidePopover: () => undefined,
+		isFocusVisible: () => false,
 		sendBeacon: () => undefined,
 	});
 	const marked = elementOf(h, ".article-body__content em");
@@ -308,6 +310,15 @@ describe("initSentenceTap", () => {
 		const h = harness();
 
 		tapText(h, needle);
+
+		expect(selectionOf(h).isCollapsed).toBe(true);
+	});
+
+	it("leaves a tap alone on a reader that cannot highlight", () => {
+		const h = harness();
+		toolbarOf(h).remove();
+
+		tapText(h, "First");
 
 		expect(selectionOf(h).isCollapsed).toBe(true);
 	});

@@ -40,6 +40,7 @@ import type {
 	FindEmailByUserId,
 	FindExportRecipient,
 	MarkExportDelivered,
+	FindSessionAdminMfaVerifiedAt,
 	FindSessionOAuthGrant,
 	FindSessionReadlistFilter,
 	FindUserById,
@@ -56,6 +57,7 @@ import type {
 	MarkActivationThresholdReached,
 	SetKeepOfferDismissed,
 	SetQueueDigestOptOut,
+	MarkSessionAdminMfaVerified,
 	SetSessionReadlistFilter,
 	SetUserAppearance,
 	SetUserDisplayName,
@@ -142,6 +144,8 @@ export function initDynamoDbAuth(deps: {
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 	findSessionOAuthGrant: FindSessionOAuthGrant;
+	markSessionAdminMfaVerified: MarkSessionAdminMfaVerified;
+	findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
@@ -503,6 +507,22 @@ export function initDynamoDbAuth(deps: {
 		return row?.oauthGrantId;
 	};
 
+	const markSessionAdminMfaVerified: MarkSessionAdminMfaVerified = async ({ sessionId, at }) => {
+		await writeIfCondition(() =>
+			sessions.update({
+				Key: { sessionId },
+				UpdateExpression: "SET adminMfaVerifiedAt = :at",
+				ConditionExpression: "attribute_exists(sessionId)",
+				ExpressionAttributeValues: { ":at": at },
+			}),
+		);
+	};
+
+	const findSessionAdminMfaVerifiedAt: FindSessionAdminMfaVerifiedAt = async (sessionId) => {
+		const row = await sessions.get({ sessionId }, { consistentRead: true });
+		return row?.adminMfaVerifiedAt;
+	};
+
 	const userExistsByEmail: UserExistsByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
 		const { count } = await users.query({
@@ -783,6 +803,8 @@ export function initDynamoDbAuth(deps: {
 		setSessionReadlistFilter,
 		findSessionReadlistFilter,
 		findSessionOAuthGrant,
+		markSessionAdminMfaVerified,
+		findSessionAdminMfaVerifiedAt,
 		userExistsByEmail,
 		updatePassword,
 		findEmailByUserId,

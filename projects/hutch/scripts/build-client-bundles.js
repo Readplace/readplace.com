@@ -147,6 +147,8 @@ const BUNDLES = [
       "  isPopoverOpen: function () { try { return window.document.querySelector(':popover-open') !== null; } catch (e) { return false; } },",
       "  supportsPopover: function () { return typeof HTMLElement.prototype.showPopover === 'function'; },",
       "  showPopover: function (panel) { panel.showPopover(); },",
+      "  hidePopover: function (panel) { panel.hidePopover(); },",
+      "  isFocusVisible: function (element) { return element.matches(':focus-visible'); },",
       "  sendBeacon: function (url) { window.navigator.sendBeacon(url); }",
       "});",
     ].join("\n"),
@@ -362,6 +364,24 @@ const BUNDLES = [
       "  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
       "});",
     ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
+      "src/runtime/web/shared/report-article/report-article.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "report-article.client.js"),
+    globalName: "ReportArticle",
+    footer: "ReportArticle.initReportArticle({ document: window.document, sendBeacon: function (url) { window.navigator.sendBeacon(url); } });",
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
+      "src/runtime/web/shared/article-body/reader-slot/reader-image-boxes.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "reader-image-boxes.client.js"),
+    globalName: "ReaderImageBoxes",
+    footer: "ReaderImageBoxes.initReaderImageBoxes({ document, isImage: (target) => target instanceof HTMLImageElement });",
   },
   {
     entry: path.join(

@@ -37,6 +37,7 @@ async function makeHarness(options: {
 	const monitoring = initInMemoryGmailMonitoring({ now: () => NOW });
 	const addresses = initInMemoryInboxAddress({ now: () => NOW });
 	const gmail = initInMemoryGmailFilters();
+	const imports = initInMemoryGmailHistoryImport();
 	const revokes: string[] = [];
 	const gatewayEntry = await addresses.createAddress({
 		userId: USER,
@@ -69,7 +70,8 @@ async function makeHarness(options: {
 				revokes.push(refreshToken);
 				return options.revoked ?? { ok: true };
 			},
-			cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports: initInMemoryGmailHistoryImport(), now: () => NOW }),
+			cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports, now: () => NOW }),
+			historyImports: imports,
 			logger: Logger.from(noopLogger),
 		}),
 	});

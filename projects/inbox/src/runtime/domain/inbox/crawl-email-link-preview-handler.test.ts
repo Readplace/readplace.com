@@ -144,7 +144,7 @@ describe("initCrawlEmailLinkPreviewHandler", () => {
 		const store = initInMemoryInboxEmailLink();
 		await seedPending(store);
 		const run = makeHandler({
-			crawlAndFinalize: async () => ({ status: "failed", reason: "crawl-failed" }),
+			crawlAndFinalize: async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" }),
 			setLinkOutcome: store.setLinkOutcome,
 		});
 

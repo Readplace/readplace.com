@@ -4,7 +4,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import { ABSENT_ENCLOSURE, type EnclosureRead, ReaderArticleHashId } from "@packages/domain/article";
-import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { iconSvg } from "@packages/ui-icons";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
@@ -787,7 +787,7 @@ describe("toReadlistViewModel — move", () => {
 		});
 
 		it("needs-upgrade: no lock appears where upgrading would still leave nowhere to file the article", () => {
-			const shelves = customReadlists(7);
+			const shelves = customReadlists(READLIST_MAX_PER_USER);
 			const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
 				now: NOW,
 				readlists: [DEFAULT_READLIST, ...shelves],
@@ -856,26 +856,26 @@ describe("toReadlistViewModel — move", () => {
 	it("offers to create a readlist while the reader has fewer custom readlists than the cap", () => {
 		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
 			now: NOW,
-			readlists: [DEFAULT_READLIST, ...customReadlists(6)],
+			readlists: [DEFAULT_READLIST, ...customReadlists(READLIST_MAX_PER_USER - 1)],
 		});
 
 		expect(vm.articles[0].move?.create).toEqual({ popoverId: `readlist-create-move-${ARTICLE_ID}` });
-		expect(vm.articles[0].move?.destinations).toHaveLength(6);
+		expect(vm.articles[0].move?.destinations).toHaveLength(READLIST_MAX_PER_USER - 1);
 	});
 
 	it("keeps the chooser but drops the create row once the reader is at the cap", () => {
 		const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
 			now: NOW,
-			readlists: [DEFAULT_READLIST, ...customReadlists(7)],
+			readlists: [DEFAULT_READLIST, ...customReadlists(READLIST_MAX_PER_USER)],
 		});
 
 		expect(vm.articles[0].move?.create).toBeUndefined();
-		expect(vm.articles[0].move?.destinations).toHaveLength(7);
+		expect(vm.articles[0].move?.destinations).toHaveLength(READLIST_MAX_PER_USER);
 		expect(vm.articles[0].move?.opens).toBe(`readlist-move-${ARTICLE_ID}`);
 	});
 
 	it("offers no move at the cap once every other custom readlist holds the article", () => {
-		const shelves = customReadlists(7);
+		const shelves = customReadlists(READLIST_MAX_PER_USER);
 		const vm = toReadlistViewModel(makeResult([makeArticle()]), { ...DEFAULT_FILTERS, readlist: shelves[0].slug }, {
 			now: NOW,
 			readlists: [DEFAULT_READLIST, ...shelves],

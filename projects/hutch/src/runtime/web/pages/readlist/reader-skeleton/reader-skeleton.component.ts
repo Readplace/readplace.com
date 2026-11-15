@@ -5,8 +5,13 @@ import type { CspNonce } from "@packages/web-shell";
 import { ARTICLE_FRAME_STYLES } from "../../../shared/article-body/article-frame.styles";
 import { CRAWL_ESTIMATE_SCRIPT } from "../../../shared/crawl-estimate/crawl-estimate.component";
 import { READLIST_PICKER_SCRIPT } from "../../../shared/article-body/reader-actions/reader-actions.component";
-import { CAPTURE_FAILED_RELAY_SCRIPT } from "../../../shared/article-body/reader-slot/reader-slot.component";
+import { HIGHLIGHT_TOOLBAR_SCRIPT } from "../../../shared/article-body/highlights/highlight-toolbar.component";
+import {
+	CAPTURE_FAILED_RELAY_SCRIPT,
+	READER_IMAGE_BOXES_SCRIPT,
+} from "../../../shared/article-body/reader-slot/reader-slot.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../../shared/article-body/summary-slot/summary-slot.component";
+import { REPORT_ARTICLE_SCRIPT } from "../../../shared/report-article/report-article-dialog.component";
 import { TABLE_OF_CONTENTS_SCRIPT } from "../../../shared/article-body/table-of-contents/table-of-contents.component";
 import { READING_LAYOUT_STYLES } from "../../../shared/reading-layout/reading-layout.styles";
 import { SHARE_DIALOG_SCRIPT } from "../../../shared/share-dialog/share-dialog.component";
@@ -27,8 +32,10 @@ export const VIEW_BACK_LINK = {
 } as const;
 
 export const READER_PAGE_SCRIPTS =
+	READER_IMAGE_BOXES_SCRIPT +
 	SHARE_DIALOG_SCRIPT +
 	SUMMARY_TOGGLE_SCRIPT +
+	REPORT_ARTICLE_SCRIPT +
 	CAPTURE_FAILED_RELAY_SCRIPT +
 	CRAWL_ESTIMATE_SCRIPT +
 	READLIST_PICKER_SCRIPT +
@@ -36,7 +43,8 @@ export const READER_PAGE_SCRIPTS =
 	READER_OPEN_SCRIPT +
 	OFFLINE_READER_SCRIPT +
 	READER_TOP_SCRIPT +
-	TABLE_OF_CONTENTS_SCRIPT;
+	TABLE_OF_CONTENTS_SCRIPT +
+	HIGHLIGHT_TOOLBAR_SCRIPT;
 
 export function renderReaderSkeleton(options: { cspNonce: CspNonce }): string {
 	return render(TEMPLATE, {

@@ -2,6 +2,7 @@ import type { ReadlistSlug } from "@packages/domain/readlist";
 import { render, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
 
 import { READLIST_KIND_ICON } from "../../../shared/readlist-kind-icon";
+import { renderReadlistFilter } from "../../../shared/readlist-filter/readlist-filter.component";
 import { renderReadlistCreate, renderReadlistCreateForm } from "../readlist-create.component";
 import { DEFAULT_READLIST } from "../readlist.nav";
 
@@ -56,13 +57,14 @@ const MOVE_COPY: Record<ArticleMoveViewModel["mode"], MoveCopy> = {
 	},
 };
 
-const MOVE_DIALOG_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions readlist-move" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-form="readlist-move">
+const MOVE_DIALOG_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions readlist-move" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-readlist-filter-scope data-test-form="readlist-move">
 	<input type="hidden" name="from" value="{{from}}">
+	{{{filterHtml}}}
 	<div class="readlist-move__list">
 		<fieldset class="readlist-move__options">
 			<legend class="sr-only">Readlists</legend>
 			{{#each destinations}}
-			<label class="readlist-row readlist-move__option" data-test-move-destination="{{slug}}"><span class="readlist-row__main">{{icon iconName}}<span class="readlist-row__label">{{label}}</span></span><span class="readlist-row__trailing readlist-move__radio-slot"><input class="form-choice readlist-move__radio" type="radio" name="to" value="{{slug}}" required{{#if autofocus}} autofocus{{/if}}></span></label>
+			<label class="readlist-row readlist-move__option readlist-filter__option" data-test-move-destination="{{slug}}"><span class="readlist-row__main">{{icon iconName}}<span class="readlist-row__label">{{label}}</span></span><span class="readlist-row__trailing readlist-move__radio-slot"><input class="form-choice readlist-move__radio" type="radio" name="to" value="{{slug}}" required{{#if autofocus}} autofocus{{/if}}></span></label>
 			{{/each}}
 		</fieldset>
 		{{#each createRows}}
@@ -115,6 +117,7 @@ function renderMoveDialog(move: ArticleMoveViewModel, title: string): string {
 			from: move.from,
 			popoverId: move.popoverId,
 			commitLabel: copy.commitLabel,
+			filterHtml: renderReadlistFilter({ readlistCount: move.destinations.length, tag: "div" }),
 			destinations: move.destinations.map((destination, index) => ({
 				slug: destination.slug,
 				label: destination.label,

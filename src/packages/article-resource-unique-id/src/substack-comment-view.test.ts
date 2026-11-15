@@ -10,7 +10,22 @@ describe("toSubstackPostUrl", () => {
 	});
 
 	it.each([
+		[
+			"https://example.substack.com/p/a-post/comments?utm_campaign=email-half-magic-comments&token=dummyToken",
+			"https://example.substack.com/p/a-post?token=dummyToken",
+		],
+		[
+			"https://newsletter.example/p/a-post/comments?utm_source=substack&utm_campaign=email-half-magic-comments&token=dummyToken",
+			"https://newsletter.example/p/a-post?utm_source=substack&token=dummyToken",
+		],
+	])("serves the post the comment button of a Substack email opened, from %s", (url, postUrl) => {
+		assert.equal(toSubstackPostUrl(url), postUrl);
+	});
+
+	it.each([
 		"not a url",
+		"https://newsletter.example/p/a-post/comments?utm_campaign=email-share&token=dummyToken",
+		"https://newsletter.example/p/comments?utm_campaign=email-half-magic-comments",
 		"https://newsletter.example/p/a-post/comments",
 		"https://newsletter.example/p/a-post/comments?comments=true",
 		"https://newsletter.example/p/a-post/comments?action=post-comment",

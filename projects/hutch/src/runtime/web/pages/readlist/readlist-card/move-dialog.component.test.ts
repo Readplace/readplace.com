@@ -437,3 +437,28 @@ describe("renderMoveDialogs opening focus", () => {
 		expect(focusTargets(moveDialogOf(dialogsFor(moveFromIdeas())))).toHaveLength(1);
 	});
 });
+
+describe("move dialog readlist filter", () => {
+	function destinations(count: number): ArticleMoveViewModel["destinations"] {
+		return Array.from({ length: count }, (_unused, index) => ({ slug: ReadlistSlugSchema.parse(`list-${index}`), label: `List ${index}` }));
+	}
+
+	it("offers no filter to a reader choosing among ten readlists", () => {
+		const dialog = moveDialogOf(dialogsFor(moveFromIdeas({ destinations: destinations(10) })));
+
+		expect(dialog.querySelector("[data-test-readlist-filter]")).toBeNull();
+	});
+
+	it("renders a filter above the list, hidden until the page script reveals it, once there are more than ten readlists", () => {
+		const dialog = moveDialogOf(dialogsFor(moveFromIdeas({ destinations: destinations(11) })));
+		const form = dialog.querySelector("[data-test-form='readlist-move']");
+		const filter = dialog.querySelector("[data-test-readlist-filter]");
+
+		assert(form, "the move form must be rendered");
+		assert(filter, "the filter must be rendered");
+		expect(filter.hasAttribute("hidden")).toBe(true);
+		expect(form.hasAttribute("data-readlist-filter-scope")).toBe(true);
+		expect(filter.nextElementSibling?.classList.contains("readlist-move__list")).toBe(true);
+		expect(dialog.querySelectorAll("[data-test-move-destination].readlist-filter__option")).toHaveLength(11);
+	});
+});

@@ -75,6 +75,7 @@ async function waitForListView(driver: WebDriver): Promise<void> {
 export function createPaginationActions(config: {
 	popupUrl: string;
 	saveLinkProgress: { linkSaved: boolean; listVerified: boolean; extraLinkSaved: boolean };
+	tokenExpiryProgress: { listAfterExpiry: boolean };
 	progress: PaginationProgress;
 }): Map<string, FlowAction<WebDriver>> {
 	const actions = new Map<string, FlowAction<WebDriver>>();
@@ -84,6 +85,7 @@ export function createPaginationActions(config: {
 		actions.set(`save-pagination-link-${i + 1}`, {
 			async isAvailable(driver: WebDriver): Promise<boolean> {
 				if (!config.saveLinkProgress.extraLinkSaved) return false;
+				if (!config.tokenExpiryProgress.listAfterExpiry) return false;
 				if (paginationLinksAdded !== i) return false;
 				return isListViewVisible(driver);
 			},

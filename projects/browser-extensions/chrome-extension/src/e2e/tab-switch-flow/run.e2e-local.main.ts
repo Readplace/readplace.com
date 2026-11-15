@@ -10,23 +10,12 @@ import {
 	ServiceBuilder,
 	type Driver as ChromeDriver,
 } from "selenium-webdriver/chrome";
-import type { WebDriver } from "selenium-webdriver";
 import {
-	FlowRunner,
-	ExtensionStateHandler,
-	obtainAccessToken,
-	type SuccessDetector,
-} from "browser-extension-core/e2e";
-import {
-	createSeleniumElementQueries,
-	createSeleniumNavigation,
-	createLoginActions,
+	runCaptureScenarios,
 	waitForUi,
 	waitForServer,
 	SUITE_FAILSAFE_MS,
 } from "browser-extension-core/e2e-actions";
-import { initSirenReadingList } from "browser-extension-core";
-import { Logger, consoleLogger } from "@packages/logger";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 import { getFreePort } from "@packages/test-phase-runner";
 
@@ -41,16 +30,7 @@ const TEST_PORT = Number(process.env.E2E_PORT);
 const READY_NONCE = randomUUID();
 const ORIGIN = `http://127.0.0.1:${TEST_PORT}`;
 
-// Per-run-unique labels keep concurrent CI runs from colliding on the same
-// saved row, and make the saved title an unambiguous A-vs-B discriminator:
-// the /e2e/fixtures/links-page/:label fixture renders <title>Test newsletter
-// {label}</title>, so the saved article's extracted title carries the marker
-// of whichever page's HTML was actually captured.
 const RUN_ID = randomUUID().replace(/-/g, "");
-const MARKER_A = `tabswitcha${RUN_ID}`;
-const MARKER_B = `tabswitchb${RUN_ID}`;
-const PAGE_A = `${ORIGIN}/e2e/fixtures/links-page/${MARKER_A}`;
-const PAGE_B = `${ORIGIN}/e2e/fixtures/links-page/${MARKER_B}`;
 
 // The suite must always end: a test cancelled by --test-timeout skips its
 // teardown, and the orphaned e2e-server child then holds this process open
@@ -153,148 +133,8 @@ async function discoverExtensionId(driver: ChromeDriver): Promise<string> {
 	return extensionId;
 }
 
-async function logIn(driver: WebDriver, popupUrl: string): Promise<string> {
-	const elementQueries = createSeleniumElementQueries();
-
-	await driver.get(popupUrl);
-	await waitForUi(
-		driver,
-		() => elementQueries.findVisibleViewById(driver, "login-view"),
-	);
-
-	const popupWindowHandle = await driver.getWindowHandle();
-	const loginActions = createLoginActions({
-		testEmail: TEST_EMAIL,
-		testPassword: TEST_PASSWORD,
-		popupWindowHandle,
-	});
-
-	// Login completes when the popup returns to a logged-in view. The OAuth dance
-	// passes through the server's own /login and /oauth/authorize pages (where the
-	// extension views don't exist), so keying on a popup-only view avoids a false
-	// "complete" mid-flow.
-	const isLoggedIntoPopup: SuccessDetector<WebDriver> = async (d) =>
-		(await elementQueries.findVisibleViewById(d, "list-view")) ||
-		(await elementQueries.findVisibleViewById(d, "saved-view"));
-
-	const stateHandler = new ExtensionStateHandler(
-		driver,
-		isLoggedIntoPopup,
-		loginActions,
-		elementQueries,
-	);
-	const flowRunner = new FlowRunner(
-		driver,
-		stateHandler,
-		createSeleniumNavigation(),
-	);
-	const result = await flowRunner.run(popupUrl, { maxSteps: 25 });
-	assert.equal(result.success, true, `Login flow failed: ${result.error}`);
-	await driver.switchTo().window(popupWindowHandle);
-	return popupWindowHandle;
-}
-
-/**
- * Opens `url` in a fresh tab and returns its window handle. The content script
- * (manifest content_scripts, <all_urls>, document_start) is injected on load,
- * so the page can answer `capture-html` once `driver.get` resolves.
- */
-async function openPageInNewTab(driver: WebDriver, url: string): Promise<string> {
-	await driver.switchTo().newWindow("tab");
-	await driver.get(url);
-	return driver.getWindowHandle();
-}
-
-/**
- * Resolves the extension's tab id for an already-open page, by querying from an
- * extension page context (the popup) where `chrome.tabs` is available. Selenium
- * has no notion of extension tab ids — only window handles — so the popup is the
- * bridge that maps a url back to the id the background needs.
- */
-async function resolveTabId(driver: WebDriver, url: string): Promise<number> {
-	const raw = await driver.executeAsyncScript(
-		"const url = arguments[0]; const done = arguments[arguments.length - 1];" +
-			"chrome.tabs.query({}, (tabs) => { const t = tabs.find((x) => x.url === url); done(t ? t.id : -1); });",
-		url,
-	);
-	const tabId = Number(raw);
-	assert.ok(
-		Number.isInteger(tabId) && tabId >= 0,
-		`Could not resolve extension tab id for ${url} (got ${String(raw)})`,
-	);
-	return tabId;
-}
-
-/**
- * Drives the real `save-current-tab` path with an explicit tabId — the same
- * message the popup sends from its active-tab branch — by dispatching it from
- * the popup's extension context. The browser-action popup can't be opened with
- * a web page active under Selenium, and a save triggered via `?url=` query
- * params deliberately carries no tabId, so neither existing harness path
- * exercises the tabId capture this regression guards.
- */
-async function injectSaveCurrentTab(
-	driver: WebDriver,
-	params: { url: string; title: string; tabId: number },
-): Promise<void> {
-	await driver.executeScript(
-		"const [url, title, tabId] = arguments;" +
-			"chrome.runtime.sendMessage({ type: 'save-current-tab', url, title, tabId });",
-		params.url,
-		params.title,
-		params.tabId,
-	);
-}
-
-/**
- * Polls the saved readlist (via an independent Siren walk, as pdf-save-scenario
- * does) for the item saved under PAGE_A's url and asserts its extracted title
- * carries A's marker and never B's. The title is derived server-side from the
- * captured HTML, so it is the observable proof of *which page's* content was
- * POSTed — the whole point of the fix.
- */
-async function assertSavedContentIsPageA(): Promise<void> {
-	const accessToken = await obtainAccessToken({
-		serverUrl: ORIGIN,
-		email: TEST_EMAIL,
-		password: TEST_PASSWORD,
-	});
-	const { getItems } = initSirenReadingList({
-		serverUrl: ORIGIN,
-		getAccessToken: async () => accessToken,
-		fetchFn: (...args) => fetch(...args),
-		refreshTokens: async () => ({ ok: false, reason: "no-refresh-token" }),
-		onUnauthorized: async () => {
-			throw new Error("Unauthorized while walking the saved readlist");
-		},
-		logger: Logger.from(consoleLogger),
-		onAdvertisedActions: () => {},
-	});
-
-	const deadline = Date.now() + 60_000;
-	let lastTitle = "<no item yet>";
-	while (Date.now() < deadline) {
-		const { items } = await getItems();
-		const saved = items.find((item) => item.url.includes(MARKER_A));
-		if (saved) {
-			lastTitle = saved.title;
-			assert.ok(
-				!saved.title.includes(MARKER_B),
-				`Saved item for page A carried page B's content — title: "${saved.title}"`,
-			);
-			if (saved.title.includes(MARKER_A)) return;
-		}
-		await new Promise((r) => setTimeout(r, 1_000));
-	}
-
-	throw new Error(
-		`Timed out after 60s waiting for page A's saved title to contain "${MARKER_A}". ` +
-			`Last observed title: "${lastTitle}"`,
-	);
-}
-
 const MAX_ATTEMPTS = 3;
-test("save targets the invoking tab even after the active tab switches", async () => {
+test("saves the invoking tab, image and PDF tabs, then signs out when the refresh token is forgotten", async () => {
 	const server = await startTestServer();
 	armSuiteFailsafe(server);
 	try {
@@ -343,27 +183,15 @@ async function runTest() {
 		const extensionId = await discoverExtensionId(driver);
 		const popupUrl = `chrome-extension://${extensionId}/popup/popup.template.html`;
 
-		const popupWindowHandle = await logIn(driver, popupUrl);
-
-		// Open both pages; B is opened last so it is the foreground tab, but the
-		// save is invoked against A — exactly the situation the fix targets.
-		await openPageInNewTab(driver, PAGE_A);
-		const handleB = await openPageInNewTab(driver, PAGE_B);
-
-		await driver.switchTo().window(popupWindowHandle);
-		const tabIdA = await resolveTabId(driver, PAGE_A);
-		await injectSaveCurrentTab(driver, {
-			url: PAGE_A,
-			title: "pending-tab-switch-capture",
-			tabId: tabIdA,
+		await runCaptureScenarios({
+			driver,
+			namespace: "chrome",
+			popupUrl,
+			serverOrigin: ORIGIN,
+			testEmail: TEST_EMAIL,
+			testPassword: TEST_PASSWORD,
+			runId: RUN_ID,
 		});
-
-		// The user moves on: make B the active tab before the background's capture
-		// resolves. The fix keys capture to tabIdA, so this must not change what is
-		// saved; before the fix, capture followed the active tab and would grab B.
-		await driver.switchTo().window(handleB);
-
-		await assertSavedContentIsPageA();
 	} finally {
 		await driver.quit();
 	}

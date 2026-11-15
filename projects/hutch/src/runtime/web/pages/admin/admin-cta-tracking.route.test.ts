@@ -1,14 +1,14 @@
-import request from "supertest";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import { type NewsletterCatalogRecord, type NewsletterStatus, NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
 import { CanaryReportSourceSchema } from "@packages/provider-contracts/canary-report";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
 import { describeUntrackedCtas, findUntrackedCtas } from "@packages/web-test-harness";
-import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../../test-app";
+import { BROWSER_REQUEST_HEADERS, signInPassingAdminChallenge, useTestServer } from "../../../test-app";
 
 const ADMIN_EMAIL = "ops@readplace.com";
 const ADMIN_PASSWORD = "password123";
+const ADMIN_TOTP_SECRET = Buffer.alloc(20, 7);
 const STATUSES: NewsletterStatus[] = ["pending", "approved", "rejected"];
 
 const useApp = useTestServer();
@@ -88,8 +88,9 @@ describe("every same-origin CTA on the admin surfaces carries its own utm_source
 		const harness = useApp({
 			...fixture,
 			admin: {
+				...fixture.admin,
 				adminEmails: [ADMIN_EMAIL],
-				recrawlServiceToken: fixture.admin.recrawlServiceToken,
+				totpSecrets: new Map([[ADMIN_EMAIL, ADMIN_TOTP_SECRET]]),
 			},
 			newsletterCatalog: {
 				readNewsletterCatalog: catalog.readCatalog,
@@ -101,8 +102,13 @@ describe("every same-origin CTA on the admin surfaces carries its own utm_source
 			email: ADMIN_EMAIL,
 			password: ADMIN_PASSWORD,
 		});
-		const agent = request.agent(harness.server);
-		await agent.post("/login").type("form").send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+		const agent = await signInPassingAdminChallenge({
+			server: harness.server,
+			email: ADMIN_EMAIL,
+			password: ADMIN_PASSWORD,
+			secret: ADMIN_TOTP_SECRET,
+			atMs: fixture.shared.now().getTime(),
+		});
 
 		const statuses: number[] = [];
 		const untracked: string[] = [];

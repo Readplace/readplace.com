@@ -100,10 +100,15 @@ test("preserves reader and EPUB identity through the public staging CDN", async 
 		const publicDoc = await readyReader(publicReader, pathFor(original), marker);
 		expect(publicDoc.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(original);
 		expect(publicDoc.querySelector('meta[property="og:url"]')?.getAttribute("content")).toBe(`https://readplace.com${pathFor(original)}`);
-		const shares = publicDoc.querySelectorAll("[data-share-url]");
-		expect(shares.length).toBeGreaterThanOrEqual(2);
-		for (const share of shares) {
+		const readerViewShares = publicDoc.querySelectorAll('[data-test-share-copy="reader-view"]');
+		expect(readerViewShares.length).toBeGreaterThanOrEqual(2);
+		for (const share of readerViewShares) {
 			expect(new URL(share.getAttribute("data-share-url") ?? "").pathname).toBe(pathFor(original));
+		}
+		const originalShares = publicDoc.querySelectorAll('[data-test-share-copy="original"]');
+		expect(originalShares.length).toBe(readerViewShares.length);
+		for (const share of originalShares) {
+			expect(share.getAttribute("data-share-url")).toBe(original);
 		}
 		const publicEpub = publicDoc.querySelector('[data-test-download="epub"]')?.getAttribute("href");
 		assert(publicEpub);

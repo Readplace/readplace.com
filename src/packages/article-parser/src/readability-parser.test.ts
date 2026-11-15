@@ -169,7 +169,7 @@ describe("initReadabilityParser", () => {
 
 	it("should return error when crawl fails", async () => {
 		const { parseArticle } = initParser({
-			crawlArticle: async () => ({ status: "failed" as const }),
+			crawlArticle: async () => ({ status: "failed" as const, decision: undefined }),
 		});
 
 		const result = await parseArticle("https://example.com/article");
@@ -1133,6 +1133,27 @@ describe("initReadabilityParser", () => {
 					"Unfenced: land for sale that borders public land",
 				);
 				expect(result.article.content).toContain("game lands and wilderness");
+			}
+		});
+
+		it("parses a document whose <html> is followed by nested content after </html>", () => {
+			const html = readFileSync(
+				join(__dirname, "fixtures", "content-after-html-root.html"),
+				"utf-8",
+			);
+			const { parseHtml } = initParser();
+
+			const result = parseHtml({
+				url: "https://example.com/lorem-ipsum",
+				documentUrl: "https://example.com/lorem-ipsum",
+				html,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.title).toBe("Lorem ipsum");
+				expect(result.article.content).toContain("Dolor sit.");
 			}
 		});
 

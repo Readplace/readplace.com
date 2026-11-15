@@ -12,7 +12,8 @@ import {
 } from "@packages/e2e-harness";
 import { type InteractionInk, collectInteractionInk, countUnfinishedAnimations } from "./interaction-ink.browser";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
-import { createReadlistFromReader } from "./page-interactions";
+import { selectPassage } from "./highlight-a-passage.browser";
+import { ADD_ARTICLE_LINK_TAB, createReadlistFromReader } from "./page-interactions";
 import { type PlaceholderInk, collectPlaceholderInk } from "./placeholder-ink.browser";
 
 const E2E_PORT = process.env.E2E_PORT;
@@ -64,13 +65,14 @@ interface AuditedField {
 	path: string;
 	selector: string;
 	view: string;
-	opener?: string;
+	openers?: readonly string[];
 }
 
 async function revealField(page: Page, field: AuditedField): Promise<void> {
 	await page.goto(`${BASE_URL}${field.path}`, { waitUntil: "domcontentloaded" });
-	if (field.opener === undefined) return;
-	await page.locator(field.opener).click();
+	for (const opener of field.openers ?? []) {
+		await page.locator(opener).click();
+	}
 	await expect(page.locator(field.selector)).toBeVisible();
 }
 
@@ -469,7 +471,7 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 		const userId = await signInAsNewReader(page, `form-ring-${stampId}@example.com`);
 		await seedQueuedArticle(page, { userId, stampId });
 		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
-		await auditFocusRing(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", opener: ADD_LINK });
+		await auditFocusRing(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] });
 		await auditFocusRing(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
 	});
 
@@ -478,7 +480,7 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 		const userId = await signInAsNewReader(page, `form-placeholder-${stampId}@example.com`);
 		await seedQueuedArticle(page, { userId, stampId });
 		await page.context().addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
-		await auditPlaceholder(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", opener: ADD_LINK });
+		await auditPlaceholder(page, { path: "/queue", selector: SAVE_FIELD, view: "queue/save", openers: [ADD_LINK, ADD_ARTICLE_LINK_TAB] });
 		await auditPlaceholder(page, { path: "/queue", selector: SEARCH_FIELD, view: "queue/search" });
 		await auditPlaceholder(page, { path: "/import", selector: FROM_URL_FIELD, view: "import/from-url" });
 	});
@@ -696,6 +698,54 @@ test.describe("The reader header's Original link holds its WCAG contrast in both
 					);
 				}
 			}
+		}
+	});
+});
+
+test.describe("A noted highlight in the reader paints the shared focus ring", () => {
+	test.use({ viewport: VIEWPORT });
+
+	test("a focused noted mark paints the same ring as a link on the page", async ({ page }, testInfo) => {
+		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
+		const userId = await signInAsNewReader(page, `noted-mark-ring-${stampId}@example.com`);
+		const passage = "the noted passage takes keyboard focus like a link";
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/noted-mark-ring-${stampId}`,
+				title: "A noted passage beside a link",
+				content: `<p>Seeded body: ${passage}, and <a href="https://example.com/elsewhere">a link</a> sits after it.</p>`,
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "A fixed summary.", excerpt: "A fixed excerpt." },
+			},
+		});
+		assert.equal(seeded.status(), 201, "the seed endpoint must create the article");
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', { timeout: SETTLE_MS });
+		await page.evaluate(selectPassage, { root: "[data-test-reader-content]", exact: passage });
+		await expect(page.locator("[data-test-highlight-toolbar]")).toBeVisible({ timeout: SETTLE_MS });
+		await page.locator('[data-test-action="add-note"]').click();
+		const dialog = page.locator("#note-highlight-dialog:popover-open");
+		await expect(dialog).toHaveCount(1, { timeout: SETTLE_MS });
+		await dialog.locator("[data-test-highlight-note-input]").fill("A note that makes the mark a tab stop.");
+		await dialog.locator('[data-test-action="highlight-note-save"]').click();
+		const mark = '[data-test-reader-content] mark.article-highlight[tabindex="0"]';
+		await expect(page.locator(mark)).toHaveCount(1, { timeout: SETTLE_MS });
+
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			const client = await auditContext(page);
+			await stamp(page, { selector: mark, auditId: `noted-mark-${theme}` });
+			await stamp(page, { selector: '[data-test-reader-content] a[href="https://example.com/elsewhere"]', auditId: `link-${theme}` });
+
+			const noted = await measure(page, client, `noted-mark-${theme}`, ["focus-visible"]);
+			const link = await measure(page, client, `link-${theme}`, ["focus-visible"]);
+			assert.deepEqual(
+				noted.outline,
+				link.outline,
+				ringShortfall({ field: noted.outline, button: link.outline, view: `${theme}/reader/noted-mark` }),
+			);
 		}
 	});
 });

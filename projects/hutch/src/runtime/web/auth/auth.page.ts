@@ -184,7 +184,6 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				return deps.sendEmail({
 					from: EMAIL_FROM,
 					to: email,
-					bcc: "readplace+account_verifications@readplace.com",
 					subject: "Verify your email — Readplace",
 					html,
 				});
@@ -550,9 +549,6 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			customerId,
 			plan: pending.plan,
 		});
-		// paid_now separates a real charge from a $0 trial capture: Stripe reports
-		// no_payment_required for a trial-preserving checkout, which still counts as
-		// a completed checkout but not revenue.
 		deps.recordSubscriptionEvent(
 			req,
 			buildCheckoutCompletedEvent(
@@ -561,7 +557,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					userId: pending.userId,
 					subscriptionId,
 					checkoutSessionId,
-					paidNow: session.paymentStatus === "paid",
+					paidNow: session.amountTotal > 0,
 					variant: pending.variant,
 					entrySource: pending.entrySource,
 					offer: pending.offer,
