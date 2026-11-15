@@ -474,7 +474,7 @@ function handleViewArticle(
 					}
 				}
 			}
-			if (!wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.publishStaleCheckRequested({ url: articleUrl });
+			if (existing !== null && !wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.publishStaleCheckRequested({ url: articleUrl });
 		}
 		const fallbackDestination = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const renderStub: SavedArticle["metadata"] = { ...hostStubMetadata(fallbackDestination), wordCount: 0 };

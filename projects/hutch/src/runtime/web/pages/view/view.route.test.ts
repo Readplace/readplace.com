@@ -1306,6 +1306,19 @@ describe("View routes", () => {
 
 			expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
 		});
+
+		it("publishes no stale check for a GET of an unstored URL whose first crawl it starts", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+			expect(response.status).toBe(200);
+			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
+			assert(saved, "the GET must start the article's first crawl");
+			expect(staleChecks).toEqual([]);
+		});
 	});
 
 	describe("Share dialog", () => {
@@ -2480,6 +2493,26 @@ describe("View routes", () => {
 			expect(staleChecks).toEqual([{ url: PUBLISHER }]);
 		});
 
+		it("checks staleness of the stored original that a first tracker visit resolves to through the target's alias", async () => {
+			const formerPublisherUrl = "https://sqlite.org/old/lang_with.html";
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.wrapperTarget.targets.set(TRACKER, formerPublisherUrl);
+			const saves: Parameters<PublishSaveAnonymousLink>[0][] = [];
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async (event) => { saves.push(event); }, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: PUBLISHER, metadata: { title: "Seeded title", siteName: "sqlite.org", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlReady({ url: PUBLISHER });
+			await harness.articleStore.claimAlias({ aliasUrl: formerPublisherUrl, targetOriginalUrl: PUBLISHER, now: new Date() });
+
+			const response = await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(response.status).toBe(200);
+			expect(new JSDOM(response.text).window.document.title).toContain("Seeded title");
+			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
+			expect(saves).toEqual([]);
+			expect(staleChecks).toEqual([{ url: PUBLISHER }]);
+		});
+
 		it("renders the stored article through an alias without a recorded source once the crawl budget is spent", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			fixture.rateLimit = {
@@ -2498,7 +2531,7 @@ describe("View routes", () => {
 			expect(response.status).toBe(200);
 			expect(new JSDOM(response.text).window.document.title).toContain("Seeded title");
 			expect(harness.wrapperTarget.calls).toEqual([]);
-			expect(staleChecks).toEqual([{ url: "https://example.com/spends-the-budget" }, { url: PUBLISHER }]);
+			expect(staleChecks).toEqual([{ url: PUBLISHER }]);
 		});
 
 		it("only checks staleness on a repeat visit through a tracker whose capture was already offered, spending no crawl budget", async () => {
