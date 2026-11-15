@@ -19,10 +19,20 @@ class OfflineReadlistSnapshotTest {
 
 	private var clock = Instant.parse("2026-11-12T00:00:00Z")
 
+	private var onClockRead: () -> Unit = {}
+
 	private val failures = mutableListOf<OfflineReadingFailure>()
 
 	private fun TestScope.snapshot(directory: File): OfflineReadlistSnapshot =
-		OfflineReadlistSnapshot(directory, StandardTestDispatcher(testScheduler), now = { clock }, diagnostics = { failures.add(it) })
+		OfflineReadlistSnapshot(
+			directory,
+			StandardTestDispatcher(testScheduler),
+			now = {
+				onClockRead()
+				clock
+			},
+			diagnostics = { failures.add(it) },
+		)
 
 	private fun article(id: String): String =
 		"""{ "class": ["article"], "rel": ["item"], "properties": { "id": "$id", "url": "https://example.com/$id", "status": "unread" }, "links": [{ "rel": ["read"], "href": "/queue/$id/view" }] }"""
@@ -191,5 +201,62 @@ class OfflineReadlistSnapshotTest {
 		snapshot.keepFirstPage(page(listOf("new"), currentTab = null), href = null, generation = snapshot.generation)
 
 		assertEquals(listOf("new"), ids(snapshot.firstPage(null)))
+	}
+
+	@Test
+	fun `a kept record whose body is not a collection reads as nothing and is reported`() = runTest {
+		val directory = folder.newFolder()
+		val snapshot = snapshot(directory)
+		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue", generation = snapshot.generation)
+		val record = fileFor(directory, "/queue")
+
+		record.writeText(record.readText().replace("collection", "error"))
+
+		assertEquals(null, snapshot.firstPage("/queue"))
+		assertEquals(listOf(OfflineReadingFailure.DECODE), failures)
+	}
+
+	@Test
+	fun `an expired copy rewritten while it is being read is kept`() = runTest {
+		val directory = folder.newFolder()
+		val snapshot = snapshot(directory)
+		snapshot.keepFirstPage(page(listOf("old"), currentTab = null), href = "/queue", generation = snapshot.generation)
+		clock = clock.plus(Duration.ofDays(31))
+		snapshot.keepFirstPage(page(listOf("new"), currentTab = null), href = "/queue?queue=work", generation = snapshot.generation)
+		onClockRead = {
+			onClockRead = {}
+			fileFor(directory, "/queue?queue=work").copyTo(fileFor(directory, "/queue"), overwrite = true)
+		}
+
+		assertEquals(null, snapshot.firstPage("/queue"))
+		assertEquals(listOf("new"), ids(snapshot.firstPage("/queue")))
+	}
+
+	@Test
+	fun `an expired copy purged while it is being read leaves nothing behind`() = runTest {
+		val directory = folder.newFolder()
+		val snapshot = snapshot(directory)
+		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue", generation = snapshot.generation)
+		clock = clock.plus(Duration.ofDays(31))
+		onClockRead = {
+			onClockRead = {}
+			snapshot.purge()
+		}
+
+		assertEquals(listOf(null, false), listOf(snapshot.firstPage("/queue"), directory.exists()))
+	}
+
+	@Test
+	fun `a rewrite leaves no pending file behind`() = runTest {
+		val directory = folder.newFolder()
+		val snapshot = snapshot(directory)
+
+		snapshot.keepFirstPage(page(listOf("a1"), currentTab = null), href = "/queue", generation = snapshot.generation)
+		snapshot.keepFirstPage(page(listOf("a2"), currentTab = null), href = "/queue", generation = snapshot.generation)
+
+		assertEquals(
+			listOf(listOf(fileFor(directory, "/queue").name), listOf("a2")),
+			listOf(directory.resolve("readlist-pages").list()?.toList(), ids(snapshot.firstPage("/queue"))),
+		)
 	}
 }

@@ -7,6 +7,8 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicLong
@@ -74,8 +76,11 @@ class OfflineReadlistSnapshot(
 			synchronized(lock) {
 				if (generation != purges.get()) return@synchronized
 				pages.mkdirs()
+				val file = fileFor(key)
+				val pending = File(pages, file.name + ".pending")
 				try {
-					fileFor(key).writeText(record)
+					pending.writeText(record)
+					Files.move(pending.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE)
 				} catch (_: IOException) {
 					diagnostics.report(OfflineReadingFailure.WRITE)
 				}
@@ -84,27 +89,36 @@ class OfflineReadlistSnapshot(
 
 	private suspend fun read(key: String): ReadlistPage? =
 		withContext(io) {
-			synchronized(lock) {
-				val file = fileFor(key)
-				val text = try {
-					file.readText()
-				} catch (_: IOException) {
-					return@synchronized null
-				}
-				val stored = try {
-					recordJson.decodeFromString(Stored.serializer(), text)
-				} catch (_: SerializationException) {
-					diagnostics.report(OfflineReadingFailure.DECODE)
-					return@synchronized null
-				}
-				if (OfflineCopy.isShowable(savedAt = Instant.ofEpochSecond(stored.savedAt), now = now())) {
-					ReadlistPage.stored(stored.body.toByteArray(Charsets.UTF_8), href = key)
-				} else {
-					file.delete()
-					null
-				}
+			val file = fileFor(key)
+			val text = try {
+				file.readText()
+			} catch (_: IOException) {
+				return@withContext null
 			}
+			val stored = try {
+				recordJson.decodeFromString(Stored.serializer(), text)
+			} catch (_: SerializationException) {
+				diagnostics.report(OfflineReadingFailure.DECODE)
+				return@withContext null
+			}
+			if (!OfflineCopy.isShowable(savedAt = Instant.ofEpochSecond(stored.savedAt), now = now())) {
+				deleteIfUnchanged(file = file, text = text)
+				return@withContext null
+			}
+			ReadlistPage.stored(stored.body.toByteArray(Charsets.UTF_8), href = key)
+				?: null.also { diagnostics.report(OfflineReadingFailure.DECODE) }
 		}
+
+	private fun deleteIfUnchanged(file: File, text: String) {
+		synchronized(lock) {
+			val current = try {
+				file.readText()
+			} catch (_: IOException) {
+				return
+			}
+			if (current == text) file.delete()
+		}
+	}
 
 	private fun fileFor(key: String): File {
 		val digest = MessageDigest.getInstance("SHA-256").digest(key.toByteArray(Charsets.UTF_8))
