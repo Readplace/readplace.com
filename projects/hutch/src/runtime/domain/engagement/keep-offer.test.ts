@@ -3,7 +3,9 @@ import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { CHECKOUT_OFFERS } from "@packages/provider-contracts/hosted-checkout";
 import type { EffectiveAccess } from "@packages/subscription-access";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
-import { initKeepOffer, KEEP_OFFER_ENDS_AT } from "./keep-offer";
+import { initKeepOffer } from "./keep-offer";
+
+const KEEP_OFFER_ENDS_AT = new Date("2027-02-01T00:00:00.000Z");
 
 const DAY_MS = 86_400_000;
 const REGISTERED_AT = new Date("2026-12-07T10:00:00.000Z");
