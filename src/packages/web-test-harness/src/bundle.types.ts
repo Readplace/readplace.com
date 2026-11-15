@@ -8,7 +8,6 @@ import type {
 	FindIdentityRow,
 	FindQueueRowKeys,
 	HasSaveLandedSince,
-	MarkHandPicked,
 	PinContentSource,
 	QueueRowKey,
 	RecordPrivateItemFailure,
@@ -473,8 +472,7 @@ export interface ArticleStoreBundle {
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
-	markHandPicked: MarkHandPicked;
-	readHandPickedAt: (params: { userId: Parameters<MarkHandPicked>[0]["userId"]; url: string }) => Date | undefined;
+	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
 	saveArticleAsRequested: SaveArticleAsRequested;
 	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
 	hasSaveLandedSince: HasSaveLandedSince;

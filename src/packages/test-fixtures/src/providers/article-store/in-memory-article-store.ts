@@ -24,6 +24,7 @@ import {
 	discoveryCandidateOf,
 	matchesArticleDiscovery,
 	viewerFor,
+	keepsProvenanceAgainstAutomaticSave,
 } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -38,7 +39,6 @@ import type { UserId } from "@packages/domain/user";
 import { MEDIA_KINDS } from "@packages/media-contracts";
 import type {
 	AllocateSavedAt,
-	MarkHandPicked,
 	AllocateSavedAtSequence,
 	AssignSavedArticleToReadlist,
 	MoveReadlistArticles,
@@ -166,17 +166,8 @@ interface UserArticle {
 	relatedPassesRequestedAt?: Date;
 }
 
-const PROTECTED_PROVENANCE_KINDS: ReadonlySet<SaveProvenance["kind"] | undefined> = new Set([
-	undefined,
-	"web",
-	"client",
-	"mcp",
-	"upload",
-	"import",
-]);
-
-function keepsProvenanceAgainstAutomaticSave(row: UserArticle): boolean {
-	return row.handPickedAt !== undefined || PROTECTED_PROVENANCE_KINDS.has(row.provenance?.kind);
+function isProtectedAgainstAutomaticSave(row: UserArticle): boolean {
+	return row.handPickedAt !== undefined || keepsProvenanceAgainstAutomaticSave(row.provenance?.kind);
 }
 
 function servedBodyOf(article: GlobalArticle): ServedBody {
@@ -228,7 +219,6 @@ export function initInMemoryArticleStore(): {
 	saveStarterPack: SaveStarterPack;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
-	markHandPicked: MarkHandPicked;
 	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
@@ -539,7 +529,7 @@ export function initInMemoryArticleStore(): {
 					...existing,
 					savedAt: params.savedAt,
 					provenance:
-						saveTrigger === "automatic" && keepsProvenanceAgainstAutomaticSave(existing)
+						saveTrigger === "automatic" && isProtectedAgainstAutomaticSave(existing)
 							? existing.provenance
 							: params.provenance,
 					suggestionAttribution: existing.suggestionAttribution ?? params.suggestionAttribution,
@@ -606,14 +596,6 @@ export function initInMemoryArticleStore(): {
 
 	const saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested = ({ readlist, ...params }) =>
 		saveAsRequested(readlist, params, undefined);
-
-	const markHandPicked: MarkHandPicked = async ({ userId, url, at }) => {
-		const key = userArticleKey(userId, ArticleResourceUniqueId.parse(url).value);
-		const row = userArticles.get(key);
-		if (row === undefined) return "row-absent";
-		userArticles.set(key, { ...row, handPickedAt: row.handPickedAt ?? at });
-		return "marked";
-	};
 
 	const readHandPickedAt = ({ userId, url }: { userId: UserId; url: string }): Date | undefined =>
 		userArticles.get(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value))?.handPickedAt;
@@ -1557,7 +1539,6 @@ export function initInMemoryArticleStore(): {
 		saveStarterPack,
 		saveArticle,
 		saveArticleKeepingPosition,
-		markHandPicked,
 		readHandPickedAt,
 		allocateSavedAt,
 		allocateSavedAtSequence,

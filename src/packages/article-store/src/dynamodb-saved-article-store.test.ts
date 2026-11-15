@@ -38,6 +38,7 @@ interface CapturedCommand {
 		Limit?: number;
 		RequestItems?: Record<string, { Keys?: Record<string, unknown>[]; ProjectionExpression?: string; ConsistentRead?: boolean }>;
 		ReturnValues?: string;
+		ReturnValuesOnConditionCheckFailure?: string;
 		ScanIndexForward?: boolean;
 		Select?: string;
 		TableName?: string;
@@ -4009,7 +4010,7 @@ describe("initDynamoDbSavedArticleStore readlist filing", () => {
 
 describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 	const PROTECTED =
-		"(attribute_exists(savedAt) AND (attribute_exists(handPickedAt) OR attribute_not_exists(provenance) OR provenance.#kind IN (:web, :client, :mcp, :upload, :import)))";
+		"(attribute_exists(savedAt) AND (attribute_exists(handPickedAt) OR attribute_not_exists(provenance) OR provenance.#kind IN (:keptKind0, :keptKind1, :keptKind2, :keptKind3, :keptKind4)))";
 	const emailProvenance: SaveProvenance = { kind: "email", senderEmail: "news@example.com" };
 	const saveWith = (saveTrigger: "manual" | "automatic") => ({
 		userId: USER,
@@ -4023,9 +4024,13 @@ describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 	const userRowUpdates = (commands: CapturedCommand[]) =>
 		commands.filter((c) => c.name === "UpdateCommand" && c.input.TableName === "user-articles");
 	const readBack = { readlist: [{ Item: articleItem() }, { Item: userArticleItem() }] };
-	const conditionFailedOn = (failing: (input: CapturedCommand["input"]) => boolean) => (input: CapturedCommand["input"]) => {
+	const protectedRow = { userId: { S: USER }, provenance: { M: { kind: { S: "web" } } } };
+	const conditionFailedOn = (
+		failing: (input: CapturedCommand["input"]) => boolean,
+		oldItem?: ConstructorParameters<typeof ConditionalCheckFailedException>[0]["Item"],
+	) => (input: CapturedCommand["input"]) => {
 		if (input.TableName === "user-articles" && failing(input)) {
-			throw new ConditionalCheckFailedException({ $metadata: {}, message: "condition" });
+			throw new ConditionalCheckFailedException({ $metadata: {}, message: "condition", Item: oldItem });
 		}
 		return input.TableName === "user-articles" ? { Attributes: userArticleItem() } : {};
 	};
@@ -4060,18 +4065,18 @@ describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 		expect(updates[0]?.input.ExpressionAttributeNames).toEqual({ "#status": "status", "#kind": "kind" });
 		expect(updates[0]?.input.ExpressionAttributeValues).toMatchObject({
 			":provenance": emailProvenance,
-			":web": "web",
-			":client": "client",
-			":mcp": "mcp",
-			":upload": "upload",
-			":import": "import",
+			":keptKind0": "web",
+			":keptKind1": "client",
+			":keptKind2": "import",
+			":keptKind3": "upload",
+			":keptKind4": "mcp",
 		});
 		expect({ createdUserArticle, wroteUserArticle }).toEqual({ createdUserArticle: true, wroteUserArticle: true });
 	});
 
 	it("keeps a protected row's provenance on an automatic save, writing only when the row still exists", async () => {
 		const { client, commands } = createFakeClient({
-			UpdateCommand: { default: conditionFailedOn((input) => input.ConditionExpression?.includes("AND NOT") === true) },
+			UpdateCommand: { default: conditionFailedOn((input) => input.ConditionExpression?.includes("AND NOT") === true, protectedRow) },
 			GetCommand: readBack,
 		});
 
@@ -4087,9 +4092,9 @@ describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 		expect({ createdUserArticle, wroteUserArticle }).toEqual({ createdUserArticle: false, wroteUserArticle: true });
 	});
 
-	it("reports no write when an automatic save loses both conditions", async () => {
+	it("reports no write when an automatic save onto a protected row loses both conditions", async () => {
 		const { client, commands } = createFakeClient({
-			UpdateCommand: { default: conditionFailedOn(() => true) },
+			UpdateCommand: { default: conditionFailedOn(() => true, protectedRow) },
 			GetCommand: readBack,
 		});
 
@@ -4099,9 +4104,40 @@ describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 		expect({ createdUserArticle, wroteUserArticle }).toEqual({ createdUserArticle: false, wroteUserArticle: false });
 	});
 
+	it.each([
+		["an unprotected row the save lost to", { userId: { S: USER }, provenance: { M: { kind: { S: "email" } } } }],
+		["no row", undefined],
+	])("skips the second automatic attempt when the first failed on %s", async (_case, oldItem) => {
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { default: conditionFailedOn(() => true, oldItem) },
+			GetCommand: readBack,
+		});
+
+		const { createdUserArticle, wroteUserArticle } = await initStore(client).saveArticle(saveWith("automatic"));
+
+		const updates = userRowUpdates(commands);
+		expect(updates).toHaveLength(1);
+		expect(updates[0]?.input.ReturnValuesOnConditionCheckFailure).toBe("ALL_OLD");
+		expect({ createdUserArticle, wroteUserArticle }).toEqual({ createdUserArticle: false, wroteUserArticle: false });
+	});
+
+	it.each([
+		["a hand-picked row", { userId: { S: USER }, handPickedAt: { S: "2026-01-01T00:00:00.000Z" }, provenance: { M: { kind: { S: "email" } } } }],
+		["a row saved before provenance", { userId: { S: USER } }],
+	])("tries the second automatic attempt when the first failed on %s", async (_case, oldItem) => {
+		const { client, commands } = createFakeClient({
+			UpdateCommand: { default: conditionFailedOn(() => true, oldItem) },
+			GetCommand: readBack,
+		});
+
+		await initStore(client).saveArticle(saveWith("automatic"));
+
+		expect(userRowUpdates(commands)).toHaveLength(2);
+	});
+
 	it("carries the requested-at condition into both automatic attempts", async () => {
 		const { client, commands } = createFakeClient({
-			UpdateCommand: { default: conditionFailedOn((input) => input.ConditionExpression?.includes("AND NOT") === true) },
+			UpdateCommand: { default: conditionFailedOn((input) => input.ConditionExpression?.includes("AND NOT") === true, protectedRow) },
 			GetCommand: readBack,
 		});
 
@@ -4179,27 +4215,5 @@ describe("initDynamoDbSavedArticleStore hand-picked marker", () => {
 		await initStore(client).saveArticleKeepingPosition(saveWith("manual"));
 
 		expect(userRowUpdates(commands)).toHaveLength(1);
-	});
-
-	it("markHandPicked stamps handPickedAt once on an existing All row", async () => {
-		const { client, commands } = createFakeClient({});
-		const at = new Date("2026-11-13T09:00:00.000Z");
-
-		const outcome = await initStore(client).markHandPicked({ userId: USER, url: URL, at });
-
-		expect(outcome).toBe("marked");
-		const update = userRowUpdates(commands)[0];
-		expect(update?.input.Key).toEqual({ userId: USER, url: RESOURCE_ID });
-		expect(update?.input.UpdateExpression).toBe("SET handPickedAt = if_not_exists(handPickedAt, :at)");
-		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
-		expect(update?.input.ExpressionAttributeValues).toEqual({ ":at": at.toISOString() });
-	});
-
-	it("markHandPicked reports an absent row instead of creating one", async () => {
-		const { client } = createFakeClient({ UpdateCommand: { default: conditionFailedOn(() => true) } });
-
-		const outcome = await initStore(client).markHandPicked({ userId: USER, url: URL, at: OPERATION_SAVED_AT });
-
-		expect(outcome).toBe("row-absent");
 	});
 });

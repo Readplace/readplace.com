@@ -3004,15 +3004,4 @@ describe("initInMemoryArticleStore hand-picked marker", () => {
 		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(SECOND);
 	});
 
-	it("markHandPicked stamps an existing row once and reports an absent one", async () => {
-		const store = initInMemoryArticleStore();
-		await store.saveArticle(makeArticleParams({ url: URL, savedAt: FIRST, provenance: email, saveTrigger: "automatic" }));
-
-		const first = await store.markHandPicked({ userId: USER_A, url: URL, at: FIRST });
-		const second = await store.markHandPicked({ userId: USER_A, url: URL, at: SECOND });
-		const absent = await store.markHandPicked({ userId: USER_B, url: URL, at: FIRST });
-
-		expect([first, second, absent]).toEqual(["marked", "marked", "row-absent"]);
-		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(FIRST);
-	});
 });

@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { SaveProvenanceSchema, type SaveProvenance } from "./save-provenance";
+import {
+	PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE,
+	SaveProvenanceSchema,
+	keepsProvenanceAgainstAutomaticSave,
+	type SaveProvenance,
+} from "./save-provenance";
 
 describe("SaveProvenanceSchema", () => {
 	it("round-trips every kind, so no stored row can fail the read path it is parsed on", () => {
@@ -20,5 +25,19 @@ describe("SaveProvenanceSchema", () => {
 			kind: "client",
 			clientName: "netscape",
 		});
+	});
+});
+
+describe("keepsProvenanceAgainstAutomaticSave", () => {
+	it("keeps every kind a reader chose, and a row stamped before provenance existed", () => {
+		assert.deepEqual(PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE, ["web", "client", "import", "upload", "mcp"]);
+		assert.equal(keepsProvenanceAgainstAutomaticSave(undefined), true);
+		assert.equal(keepsProvenanceAgainstAutomaticSave("mcp"), true);
+	});
+
+	it("lets an automatic save restamp an email, seed or suggestion row", () => {
+		assert.equal(keepsProvenanceAgainstAutomaticSave("email"), false);
+		assert.equal(keepsProvenanceAgainstAutomaticSave("founder-seed"), false);
+		assert.equal(keepsProvenanceAgainstAutomaticSave("hn-suggestion"), false);
 	});
 });

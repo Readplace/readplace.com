@@ -63,8 +63,10 @@ export {
 	withPrivateItemRefusal,
 } from "./saveable-url";
 export {
+	PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE,
 	SaveProvenanceSchema,
 	SuggestionAttributionSchema,
+	keepsProvenanceAgainstAutomaticSave,
 	type SuggestionAttribution,
 	type SaveProvenance,
 } from "./save-provenance";

@@ -20,6 +20,7 @@ import type { ArticleDiscoveryQuery, ArticleStatus, SaveTrigger, SavedArticle } 
 import {
 	MinutesSchema,
 	ArticleStatusSchema,
+	PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE,
 	SaveProvenanceSchema,
 	SuggestionAttributionSchema,
 	articleDestinationUrl,
@@ -79,7 +80,6 @@ import type {
 	SaveArticle,
 	SaveArticleGlobally,
 	SaveArticleParams,
-	MarkHandPicked,
 	SaveReadlistArticle,
 	SortField,
 	SortOrder,
@@ -192,16 +192,22 @@ function toOptionalDate(value: string | undefined): Date | undefined {
 	return value ? new Date(value) : undefined;
 }
 
-const PROTECTED_USER_ROW =
-	"(attribute_exists(savedAt) AND (attribute_exists(handPickedAt) OR attribute_not_exists(provenance) OR provenance.#kind IN (:web, :client, :mcp, :upload, :import)))";
+const PROTECTED_USER_ROW_VALUES: Record<string, string> = Object.fromEntries(
+	PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE.map((kind, index) => [`:keptKind${index}`, kind]),
+);
 
-const PROTECTED_USER_ROW_VALUES = {
-	":web": "web",
-	":client": "client",
-	":mcp": "mcp",
-	":upload": "upload",
-	":import": "import",
-};
+const PROTECTED_USER_ROW = `(attribute_exists(savedAt) AND (attribute_exists(handPickedAt) OR attribute_not_exists(provenance) OR provenance.#kind IN (${Object.keys(PROTECTED_USER_ROW_VALUES).join(", ")})))`;
+
+const ExistingUserRow = z.object({
+	handPickedAt: z.object({ S: z.string() }).optional(),
+	provenance: z.object({ M: z.object({ kind: z.object({ S: z.string() }).optional() }) }).optional(),
+});
+
+function isProtectedAgainstAutomaticSave(oldItem: Record<string, unknown>): boolean {
+	const { handPickedAt, provenance } = ExistingUserRow.parse(oldItem);
+	if (handPickedAt !== undefined || provenance === undefined) return true;
+	return PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE.some((kind) => kind === provenance.M.kind?.S);
+}
 
 const PERSONAL_PROVENANCE_FILTER =
 	"(attribute_not_exists(provenance.#kind) OR (provenance.#kind <> :suggestion AND provenance.#kind <> :seed))";
@@ -256,7 +262,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 }): {
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
-	markHandPicked: MarkHandPicked;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
@@ -475,7 +480,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 		conditionNames,
 		provenance,
 		stampHandPicked,
-	}: UserRowWrite & { provenance: "set" | "keep"; stampHandPicked: boolean }): Promise<UserRowWritten> => {
+	}: UserRowWrite & { provenance: "set" | "keep"; stampHandPicked: boolean }): Promise<
+		UserRowWritten & { oldItem?: Record<string, unknown> }
+	> => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const sets = [
 			"savedAt = :savedAt",
@@ -502,9 +509,12 @@ export function initDynamoDbSavedArticleStore(deps: {
 					...conditionValues,
 				},
 				ReturnValues: "ALL_OLD",
+				ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 			}),
 		);
-		if (outcome.kind === "condition-failed") return { createdUserArticle: false, wroteUserArticle: false };
+		if (outcome.kind === "condition-failed") {
+			return { createdUserArticle: false, wroteUserArticle: false, oldItem: outcome.oldItem };
+		}
 		return { createdUserArticle: outcome.result.Attributes === undefined, wroteUserArticle: true };
 	};
 
@@ -512,8 +522,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 		partition,
 		url,
 		at,
-	}: { partition: string; url: string; at: Date }): Promise<"marked" | "row-absent"> => {
-		const outcome = await writeIfCondition(() =>
+	}: { partition: string; url: string; at: Date }): Promise<void> => {
+		await writeIfCondition(() =>
 			userArticles.update({
 				Key: { userId: partition, url: ArticleResourceUniqueId.parse(url).value },
 				UpdateExpression: "SET handPickedAt = if_not_exists(handPickedAt, :at)",
@@ -521,8 +531,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 				ExpressionAttributeValues: { ":at": at.toISOString() },
 			}),
 		);
-		if (outcome.kind === "condition-failed") return "row-absent";
-		return "marked";
 	};
 
 	const writeUserRowBySaveTrigger: Record<SaveTrigger, (write: UserRowWrite) => Promise<UserRowWritten>> = {
@@ -545,6 +553,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 				stampHandPicked: false,
 			});
 			if (restamped.wroteUserArticle) return restamped;
+			if (restamped.oldItem === undefined || !isProtectedAgainstAutomaticSave(restamped.oldItem)) return restamped;
 			const kept = await updateUserRow({
 				...write,
 				condition: `(${write.condition}) AND attribute_exists(savedAt) AND ${PROTECTED_USER_ROW}`,
@@ -679,7 +688,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested = ({ readlist, ...params }) =>
 		writeSaveAsRequested(readlistPartitionValue({ userId: params.userId, readlist }), params, undefined);
 
-	const markHandPicked: MarkHandPicked = ({ userId, url, at }) => stampHandPickedIfRowExists({ partition: userId, url, at });
 
 	const hasSaveLandedSince: HasSaveLandedSince = async ({ userId, url, requestedAt }) => {
 		const row = await userArticles.get(
@@ -1751,7 +1759,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 	return {
 		saveArticle,
 		saveArticleKeepingPosition,
-		markHandPicked,
 		allocateSavedAt,
 		allocateSavedAtSequence,
 		findSavedUrls,
