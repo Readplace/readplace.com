@@ -81,6 +81,12 @@ function createHarness(options: { url?: string; player?: boolean; extra?: string
 		element,
 		audio: audioElement,
 		stubPlay,
+		insertPlayer() {
+			const main = document.querySelector("main");
+			assert(main, "the fixture must render main");
+			main.insertAdjacentHTML("afterbegin", PLAYER);
+			stubPlay(audioElement());
+		},
 		rejectPlay() {
 			playResult = () => Promise.reject(new Error("NotAllowedError"));
 		},
@@ -214,11 +220,45 @@ describe("initPlayer", () => {
 		expect(replacement.getAttribute("data-player-bound")).toBe("true");
 	});
 
-	it("listens for nothing on a page without an audio player", () => {
+	it("starts working for a player a swap brings in after the script loaded", () => {
+		const harness = createHarness({ player: false });
+		harness.init();
+		harness.insertPlayer();
+		harness.swap();
+
+		harness.playTo(90);
+		expect(harness.current()).toEqual(["p83"]);
+
+		harness.click(harness.element("seek-83"));
+		expect(harness.plays).toHaveLength(1);
+		expect(harness.dom.window.location.search).toContain("t=83");
+	});
+
+	it("binds only once when the bundle footer runs again", () => {
+		const harness = createHarness();
+		harness.init();
+		harness.init();
+
+		expect(harness.listened).toEqual(["click", "htmx:afterSwap"]);
+		harness.click(harness.element("seek-83"));
+		expect(harness.plays).toHaveLength(1);
+	});
+
+	it("binds a player that appears before the bundle footer runs again", () => {
+		const harness = createHarness({ player: false });
+		harness.init();
+		harness.insertPlayer();
+		harness.init();
+
+		harness.playTo(90);
+		expect(harness.current()).toEqual(["p83"]);
+	});
+
+	it("leaves a timestamp link alone on a page without a player", () => {
 		const harness = createHarness({ player: false });
 		harness.init();
 
-		expect(harness.listened).toEqual([]);
+		expect(harness.click(harness.element("seek-83"))).toBe(true);
 	});
 
 	it("keeps the reader's exit dialog closed when a timestamp link is clicked", () => {
