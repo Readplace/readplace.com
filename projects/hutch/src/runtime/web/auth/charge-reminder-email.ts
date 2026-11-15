@@ -30,18 +30,6 @@ interface Charge {
 
 const { t } = translator(hutchEmails, DEFAULT_LOCALE);
 
-const RENEWAL_AT_SAME_PRICE: Record<BillingPlan, () => string> = {
-	monthly: () => t("chargeReminder.renewal.samePrice.monthly"),
-	yearly: () => t("chargeReminder.renewal.samePrice.yearly"),
-	triennial: () => t("chargeReminder.renewal.samePrice.triennial"),
-};
-
-const RENEWAL_AT_LIST_PRICE: Record<BillingPlan, (listPrice: string) => string> = {
-	monthly: (listPrice) => t("chargeReminder.renewal.atListPrice.monthly", { listPrice }),
-	yearly: (listPrice) => t("chargeReminder.renewal.atListPrice.yearly", { listPrice }),
-	triennial: (listPrice) => t("chargeReminder.renewal.atListPrice.triennial", { listPrice }),
-};
-
 const LIST_PRICE_CURRENCY = "usd";
 const US_CENTS_PER_DOLLAR = 100;
 
@@ -64,8 +52,8 @@ function isListPrice(input: { charge: Charge; plan: BillingPlan }): boolean {
 function renewalAfter(input: { charge: Charge; plan: BillingPlan | undefined }): string {
 	const { charge, plan } = input;
 	if (plan === undefined) return t("chargeReminder.renewal.unknownPlan");
-	if (isListPrice({ charge, plan })) return RENEWAL_AT_SAME_PRICE[plan]();
-	return RENEWAL_AT_LIST_PRICE[plan](PRICING_PLANS[plan].totalDisplay);
+	if (isListPrice({ charge, plan })) return t(`chargeReminder.renewal.samePrice.${plan}`);
+	return t(`chargeReminder.renewal.atListPrice.${plan}`, { listPrice: PRICING_PLANS[plan].totalDisplay });
 }
 
 function chargeSentence(input: ChargeInput): string {
@@ -81,7 +69,7 @@ function chargeSentence(input: ChargeInput): string {
 	return t("chargeReminder.charge.stated", {
 		chargeDate,
 		amount: PRICING_PLANS[plan].totalDisplay,
-		renewal: RENEWAL_AT_SAME_PRICE[plan](),
+		renewal: t(`chargeReminder.renewal.samePrice.${plan}`),
 	});
 }
 
