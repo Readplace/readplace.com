@@ -9,6 +9,7 @@ import {
 } from "@packages/provider-contracts/email";
 import {
 	type FindOpenInvoiceFailure,
+	type FindSubscriptionNextCharge,
 	InvoiceIdSchema,
 } from "@packages/provider-contracts/subscription-billing";
 import { Logger, noopLogger } from "@packages/logger";
@@ -21,6 +22,7 @@ import {
 	initEmitLifecycleEmailSent,
 	type LifecycleEmailSentEvent,
 } from "../observability/lifecycle-email-events";
+import { initLoadNextCharge } from "../domain/subscription/next-charge";
 import {
 	initSendTrialFeedbackEmailHandler,
 	type SendTrialFeedbackEmailDeps,
@@ -129,6 +131,7 @@ interface SubjectOverrides {
 	logger?: Logger;
 	sendEmail?: SendTrialFeedbackEmailDeps["sendEmail"];
 	findOpenInvoiceFailure?: FindOpenInvoiceFailure;
+	findSubscriptionNextCharge?: FindSubscriptionNextCharge;
 	markFailures?: { remaining: number };
 }
 
@@ -163,6 +166,12 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 		findOpenInvoiceFailure: overrides.findOpenInvoiceFailure ?? (async () => OPEN_FAILURE),
 		claimTrialNudge: providers.claimTrialNudge,
 		releaseTrialNudge: providers.releaseTrialNudge,
+		loadNextCharge: initLoadNextCharge({
+			findSubscriptionNextCharge: overrides.findSubscriptionNextCharge ?? (async () => undefined),
+			setSubscriptionNextCharge: providers.setNextCharge,
+			logger: overrides.logger ?? Logger.from(noopLogger),
+			now: () => now,
+		}),
 		findUserContactByUserId: async () => null,
 		signUnsubscribeToken: () => "signed-token",
 		sendEmail: overrides.sendEmail ?? email.sendEmail,
@@ -527,6 +536,7 @@ describe("send-trial-feedback-email handler", () => {
 			findOpenInvoiceFailure: async () => undefined,
 			claimTrialNudge: providers.claimTrialNudge,
 			releaseTrialNudge: providers.releaseTrialNudge,
+			loadNextCharge: async () => undefined,
 			findUserContactByUserId: async () => null,
 			signUnsubscribeToken: () => "signed-token",
 			sendEmail: async () => {
@@ -864,6 +874,72 @@ describe("send-trial-feedback-email handler", () => {
 			assert.ok(sent.text);
 			assert.ok(sent.text.includes("$60 charged to the card on file"));
 			assert.ok(sent.text.includes("once a year after that"));
+		});
+
+		it("states the discounted amount Stripe will charge, and stores it on the row, when checkout left no next charge stored", async () => {
+			const subject = buildSubject({
+				findSubscriptionNextCharge: async ({ subscriptionId }) => {
+					assert.equal(subscriptionId, "sub_trial_preserving");
+					return { amountMinor: 4900, currency: "usd", at: CHARGE_AT };
+				},
+			});
+			await subject.providers.upsertActive({
+				userId: USER_ID,
+				subscriptionId: "sub_trial_preserving",
+				customerId: "cus_trial_preserving",
+				plan: "yearly",
+			});
+
+			await subject.handler(
+				buildSqsEvent([
+					{ messageId: "msg-cr-coupon", body: buildChargeReminderBody(USER_ID, CHARGE_AT) },
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 1);
+			const sent = subject.email.getSentEmails()[0];
+			assert.ok(sent.text);
+			assert.ok(
+				sent.text.includes(
+					"— $49.00 charged to the card on file on Jun 6, 2026, then $60 once a year after that.",
+				),
+			);
+			const row = await subject.providers.findByUserId(USER_ID);
+			assert(row);
+			assert.deepEqual(row.nextCharge, { amountMinor: 4900, currency: "usd", at: CHARGE_AT });
+		});
+
+		it("still sends the reminder at the list price when Stripe cannot be read", async () => {
+			const subject = buildSubject({
+				findSubscriptionNextCharge: async () => {
+					throw new Error("Stripe findSubscriptionNextCharge failed (500)");
+				},
+			});
+			await subject.providers.upsertActive({
+				userId: USER_ID,
+				subscriptionId: "sub_trial_preserving",
+				customerId: "cus_trial_preserving",
+				plan: "yearly",
+			});
+
+			const result = await subject.handler(
+				buildSqsEvent([
+					{ messageId: "msg-cr-stripe-down", body: buildChargeReminderBody(USER_ID, CHARGE_AT) },
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert(result);
+			assert.equal(result.batchItemFailures.length, 0);
+			assert.equal(subject.email.getSentEmails().length, 1);
+			const sent = subject.email.getSentEmails()[0];
+			assert.ok(sent.text);
+			assert.ok(
+				sent.text.includes("— $60 charged to the card on file on Jun 6, 2026, then once a year after that."),
+			);
 		});
 
 		it("noops with a warn when the command carries no chargeAt", async () => {
