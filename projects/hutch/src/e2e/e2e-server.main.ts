@@ -6,12 +6,15 @@ import { Logger, consoleLogger, noopLogger } from '@packages/logger'
 import {
 	calculateReadTime,
 	CRAWL_STAGES,
+	ItemMediaSchema,
 	MAX_UPLOAD_REQUEST_BYTES,
+	ReaderArticleHashId,
 	SaveProvenanceSchema,
 	validateSaveableUrl,
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
 import { type UserId, UserIdSchema } from '@packages/domain/user'
+import { PrivateItemUrlSchema } from '@packages/media-contracts'
 import {
 	ForwardableSenderSchema,
 	GMAIL_HISTORY_IMPORT_OUTCOME_COUNT,
@@ -555,10 +558,12 @@ const SeedCrawledArticleBody = z.object({
 	generatedSummary: z.object({ summary: z.string(), excerpt: z.string() }).optional(),
 	summaryState: z
 		.discriminatedUnion('status', [
+			z.object({ status: z.literal('pending') }),
 			z.object({ status: z.literal('failed'), reason: z.string() }),
 			z.object({ status: z.literal('skipped'), reason: z.string() }),
 		])
 		.optional(),
+	media: ItemMediaSchema.pick({ kind: true, fileName: true, transcript: true }).optional(),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
 	const parsed = SeedCrawledArticleBody.safeParse(req.body)
@@ -581,7 +586,33 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		excerpt,
 		generatedSummary,
 		summaryState,
+		media,
 	} = parsed.data
+	const seedSummary = (seededUrl: string) => {
+		if (generatedSummary) summary.markSummaryReady({ url: seededUrl, ...generatedSummary })
+		if (summaryState?.status === 'pending') summary.forceMarkSummaryPending(seededUrl)
+		if (summaryState?.status === 'failed') summary.markSummaryFailed({ url: seededUrl, reason: summaryState.reason })
+		if (summaryState?.status === 'skipped') summary.markSummarySkipped({ url: seededUrl, reason: summaryState.reason })
+	}
+	if (media) {
+		assert(savedByUserId, 'a seeded private upload needs the uploader as savedByUserId')
+		const privateUrl = PrivateItemUrlSchema.parse(url)
+		await fixture.articleStore.savePrivateItem({
+			url: privateUrl,
+			ownerUserId: savedByUserId,
+			media: { kind: media.kind, fileName: media.fileName },
+			savedAt: new Date(savedAt ?? contentFetchedAt),
+		})
+		await fixture.articleStore.writeContent({ url: privateUrl, content })
+		await fixture.articleCrawl.markCrawlReady({ url: privateUrl })
+		if (media.transcript) {
+			await fixture.articleStore.recordTranscriptOutcome({ url: privateUrl, transcript: media.transcript })
+		}
+		seedSummary(privateUrl)
+		await fixture.articleStore.setContentFetchedAt({ url: privateUrl, at: contentFetchedAt })
+		res.status(201).json({ ok: true, articleId: ReaderArticleHashId.from(privateUrl).value })
+		return
+	}
 	const hostname = new URL(url).hostname
 	const metadata = {
 		title,
@@ -611,9 +642,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		: undefined
 	await fixture.articleStore.writeContent({ url, content })
 	await fixture.articleCrawl.markCrawlReady({ url })
-	if (generatedSummary) summary.markSummaryReady({ url, ...generatedSummary })
-	if (summaryState?.status === 'failed') summary.markSummaryFailed({ url, reason: summaryState.reason })
-	if (summaryState?.status === 'skipped') summary.markSummarySkipped({ url, reason: summaryState.reason })
+	seedSummary(url)
 	await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
 	await fixture.articleStore.setCrawlVersions({
 		url,
