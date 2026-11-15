@@ -18,6 +18,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly pendingSignupsTable: aws.dynamodb.Table;
 	public readonly importSessionsTable: aws.dynamodb.Table;
 	public readonly mediaUploadSessionsTable: aws.dynamodb.Table;
+	public readonly pendingViewHighlightsTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly onboardingTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
@@ -42,6 +43,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		pendingSignups: string;
 		importSessions: string;
 		mediaUploadSessions: string;
+		pendingViewHighlights: string;
 		subscriptionProviders: string;
 		onboarding: string;
 		rateLimits: string;
@@ -368,6 +370,17 @@ export class HutchStorage extends pulumi.ComponentResource {
 			billingMode: "PAY_PER_REQUEST",
 			hashKey: "uploadId",
 			attributes: [{ name: "uploadId", type: "S" }],
+			ttl: {
+				attributeName: "expiresAt",
+				enabled: true,
+			},
+		}, { parent: this });
+
+		this.pendingViewHighlightsTable = new aws.dynamodb.Table(`hutch-pending-view-highlights`, {
+			name: args.tableNames.pendingViewHighlights,
+			billingMode: "PAY_PER_REQUEST",
+			hashKey: "pendingId",
+			attributes: [{ name: "pendingId", type: "S" }],
 			ttl: {
 				attributeName: "expiresAt",
 				enabled: true,

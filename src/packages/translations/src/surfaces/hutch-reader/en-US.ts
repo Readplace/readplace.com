@@ -43,6 +43,33 @@ export const enUS = {
 			},
 		},
 	},
+	view: {
+		highlights: {
+			title: "Highlights",
+			kept: "Kept in this browser only. Up to {limit}.",
+			notFound: "Not found in this version",
+			jump: "Jump",
+			delete: "Delete",
+			addNote: "Add note",
+			editNote: "Edit note",
+			noteLabel: "Note",
+			saveNote: "Save note",
+			popup: {
+				title: "Keep your highlights",
+				body: "You have {limit} highlights in this browser. Create a free account to keep them and add as many as you like.",
+			},
+			actions: {
+				signup: "Create a free account",
+				login: "Log in",
+				notNow: "Not now",
+			},
+		},
+		highlightsClaim: {
+			title: "Keep your highlights",
+			body: "Adding the highlights you made in this browser to your account.",
+			submit: "Keep my highlights",
+		},
+	},
 	reader: {
 		share: {
 			lead: "Copy a link to this article or send it to an app.",

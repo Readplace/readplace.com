@@ -2,6 +2,8 @@ import type { AnchorState, TextQuoteSelector } from "./highlight";
 
 export const HIGHLIGHT_CONTEXT_LENGTH = 32;
 export const HIGHLIGHT_MAX_EXACT_LENGTH = 8191;
+export const VIEW_HIGHLIGHT_LIMIT = 5;
+export const VIEW_HIGHLIGHT_MAX_TEXT_LENGTH = 1000;
 export const FUZZY_MAX_ERROR_RATIO = 0.2;
 export const FUZZY_MAX_ERRORS = 256;
 export const MIN_SCORE = 0.8;

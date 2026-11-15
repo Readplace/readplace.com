@@ -76,6 +76,7 @@ export function renderHighlightNoteCreateForm(input: {
 		answersInPlace: true,
 		pushesHistory: true,
 		autofocus: true,
+		local: false,
 	});
 }
 
@@ -124,6 +125,7 @@ export function renderHighlightNoteEditDialog(input: {
 			answersInPlace: false,
 			pushesHistory: pushesHistory(input.scope),
 			autofocus: true,
+			local: false,
 		}),
 	});
 }
@@ -142,5 +144,30 @@ export function renderHighlightNoteFallbackForm(input: {
 		answersInPlace: false,
 		pushesHistory: pushesHistory(input.scope),
 		autofocus: false,
+		local: false,
+	});
+}
+
+export function renderLocalHighlightNoteDialog(input: {
+	hiddenFields: readonly { name: string; value: string }[];
+}): string {
+	return renderConfirmPopover({
+		id: HIGHLIGHT_NOTE_DIALOG_ID,
+		key: "highlight-note",
+		subject: "selection",
+		title: ADD_TITLE,
+		body: "",
+		actionsHtml: renderHighlightNoteForm({
+			popoverId: HIGHLIGHT_NOTE_DIALOG_ID,
+			key: "highlight-note",
+			inputId: "note-highlight-input",
+			action: "",
+			value: "",
+			hiddenFields: input.hiddenFields,
+			answersInPlace: false,
+			pushesHistory: false,
+			autofocus: true,
+			local: true,
+		}),
 	});
 }

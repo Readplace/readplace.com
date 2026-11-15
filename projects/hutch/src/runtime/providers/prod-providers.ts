@@ -162,6 +162,7 @@ import type { UserId } from "@packages/domain/user";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { initReportReadlistCap } from "../observability/readlist-cap";
 import type { ReadlistCapApproachedLine } from "../observability/events";
+import { initDynamoDbPendingViewHighlights } from "./pending-view-highlights/dynamodb-pending-view-highlights";
 
 const ADMIN_DASHBOARD_QUERY_MAX_WAIT_MS = 25_000;
 
@@ -616,6 +617,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		readArticleImage,
 		importSessionStore,
 		savePrivateItem,
+		...initDynamoDbPendingViewHighlights({ client, tableName: tables.pendingViewHighlights, now: () => new Date() }),
 		createMediaUploadSession,
 		findMediaUploadSession,
 		markMediaUploadCommitted,

@@ -309,6 +309,14 @@ import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.erro
 import { initSaveRoutes } from "./web/pages/save/save.page";
 import { type ValidateSaveableUrl, withNewSavePreparation, withPrivateItemRefusal } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
+import { initViewHighlightsRoutes } from "./web/pages/view/view-highlights.page";
+import { VIEW_HIGHLIGHTS_MOUNT } from "./web/pages/view/view-highlights-paths";
+import { initClaimViewHighlights } from "./web/pages/view/claim-view-highlights";
+import { initCreateHighlightByQuote } from "./web/shared/article-body/highlights/create-highlight-by-quote";
+import type {
+	ClaimPendingViewHighlights,
+	StorePendingViewHighlights,
+} from "./providers/pending-view-highlights/pending-view-highlights.types";
 import { initAdminRoutes } from "./web/pages/admin/admin.routes";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initQueueDigestUnsubscribeRoutes } from "./web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page";
@@ -616,6 +624,8 @@ export interface AppDependencies {
 	chargeTranscriptQuota: ChargeTranscriptQuota;
 	refundUnstartedCharge: RefundUnstartedCharge;
 	createMediaUploadSession: CreateMediaUploadSession;
+	storePendingViewHighlights: StorePendingViewHighlights;
+	claimPendingViewHighlights: ClaimPendingViewHighlights;
 	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
@@ -1663,6 +1673,36 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const saveRouter = initSaveRoutes({ buildBannerState, recordAnalyticsEvent, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID, ownHost });
 	app.use("/save", saveRouter);
+
+	app.use(
+		VIEW_HIGHLIGHTS_MOUNT,
+		initViewHighlightsRoutes({
+			appOrigin,
+			validateSaveableUrl: deps.validateSaveableUrl,
+			storePendingViewHighlights: deps.storePendingViewHighlights,
+			claimPendingViewHighlights: deps.claimPendingViewHighlights,
+			claimViewHighlights: initClaimViewHighlights({
+				validateNewSaveUrl,
+				refreshArticleIfStale: deps.refreshArticleIfStale,
+				saveArticleAtReadlistTop,
+				createHighlightByQuote: initCreateHighlightByQuote({
+					readArticleContent: deps.readArticleContent,
+					readCanonicalSnapshot: deps.readCanonicalSnapshot,
+					createHighlight: createReaderHighlight,
+					appOrigin,
+				}),
+			}),
+			generatePendingId: randomUUID,
+			secureCookies,
+			consumeRateLimit: deps.consumeRateLimit,
+			keepRateLimitRule: deps.rateLimitRules.signup,
+			requireWriteAccess,
+			buildBannerState,
+			recordAnalyticsEvent,
+			salt: deps.salt,
+			now: deps.now,
+		}),
+	);
 
 	const viewRouter = initViewRoutes(viewDependenciesFrom(deps, {
 		appOrigin,

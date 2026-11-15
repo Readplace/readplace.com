@@ -16,7 +16,8 @@ export type RateLimitBucket =
 	| "browser-handoff"
 	| "import"
 	| "import-from-url"
-	| "upload-stage";
+	| "upload-stage"
+	| "view-highlights-keep";
 
 /**
  * Atomically count one request against `(bucket, key)` for the rule's current

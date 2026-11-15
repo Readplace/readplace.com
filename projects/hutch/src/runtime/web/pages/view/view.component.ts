@@ -51,6 +51,7 @@ import { viewPathFor } from "./view-path";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { VIEW_STYLES } from "./view.styles";
+import { renderLocalViewHighlights, VIEW_HIGHLIGHTS_SCRIPTS } from "./view-highlights.component";
 import { displayableReadTime, isPrivateItemUrl } from "@packages/domain/article";
 import { reportArticleHref } from "../../shared/report-article/report-article-href";
 import { isReaderViewShareable } from "../../shared/article-reader/reader-view";
@@ -251,6 +252,7 @@ export interface ViewPageInput {
 	readerNotice?: ReaderFailedVariant;
 	backLink: { topHref: string; label: string } | undefined;
 	endCta: ViewEndCta | undefined;
+	offersLocalHighlights: boolean;
 	now: Date;
 }
 
@@ -278,7 +280,10 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			epubDownloadGuide: input.epubDownloadGuide,
 		},
 	});
-	const { html: innerContent } = renderArticleBody({
+	const localHighlights = input.offersLocalHighlights
+		? renderLocalViewHighlights({ articleUrl: input.articleUrl })
+		: undefined;
+	const { html: articleBodyHtml } = renderArticleBody({
 		readerSection: input.readerSection,
 		now: input.now,
 		title: input.metadata.title,
@@ -304,6 +309,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		reportHref:
 			share === undefined ? undefined : reportArticleHref({ viewUrl: shareableViewUrl, title: input.metadata.title }),
 	});
+	const innerContent = articleBodyHtml + (localHighlights?.toolbarHtml ?? "");
 	const crawlVersions = input.crawlVersions ?? [];
 	const railLandmark = railLandmarkFor({
 		hasCard:
@@ -323,6 +329,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		readerNotice: input.readerNotice,
 		appOrigin: input.appOrigin,
 		crawlVersions,
+		highlightsHtml: localHighlights?.cardHtml,
 	});
 
 	const ctaItems = input.actions.map((action) => ({
@@ -339,6 +346,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		saveTipHtml: input.saveTip.html,
 		shareDialogHtml: share === undefined ? "" : renderShareDialog(share),
 		downloadGuideHtml: input.epubDownloadGuide === undefined ? "" : renderDownloadGuideDialog(input.epubDownloadGuide),
+		localHighlightsDialogHtml: localHighlights?.dialogHtml ?? "",
 	});
 
 	const ogImage = input.metadata.imageUrl ?? DEFAULT_OG_IMAGE;
@@ -387,7 +395,8 @@ export function ViewPage(input: ViewPageInput): PageBody {
 				CRAWL_ESTIMATE_SCRIPT +
 				SAVE_TIP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT +
-				READER_TOP_SCRIPT,
+				READER_TOP_SCRIPT +
+				(localHighlights === undefined ? "" : VIEW_HIGHLIGHTS_SCRIPTS),
 		}),
 	};
 }

@@ -1,0 +1,13 @@
+.view-highlights-claim {
+  padding: 48px 16px;
+}
+
+.view-highlights-claim__title {
+  margin: 0 0 12px;
+  font-size: var(--text-2xl);
+}
+
+.view-highlights-claim__body {
+  margin: 0 0 24px;
+  color: var(--color-text-secondary);
+}

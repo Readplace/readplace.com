@@ -46,6 +46,7 @@ const baseInput: ViewPageInput = {
 	],
 	backLink: undefined,
 	endCta: undefined,
+	offersLocalHighlights: false,
 };
 
 const endCta: ViewEndCta = {

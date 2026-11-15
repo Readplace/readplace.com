@@ -32,6 +32,7 @@ export function renderHighlightNoteForm(input: {
 	answersInPlace: boolean;
 	pushesHistory: boolean;
 	autofocus: boolean;
+	local: boolean;
 }): string {
 	return render(TEMPLATE, {
 		...input,
