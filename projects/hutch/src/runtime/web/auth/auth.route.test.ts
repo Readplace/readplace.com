@@ -588,10 +588,12 @@ describe("Auth routes", () => {
 			assert(lookup, "free signup must persist a user");
 			expect(lookup.emailVerified).toBe(false);
 
-			const consumed = await pendingSignup.consumePendingSignup(
-				CheckoutSessionIdSchema.parse("cs_test_never_created"),
-			);
-			expect(consumed).toBeNull();
+			const claim = await pendingSignup.claimPendingSignup({
+				checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_never_created"),
+				activatedBy: "redirect",
+				claimedAt: new Date().toISOString(),
+			});
+			expect(claim).toEqual({ outcome: "not-found" });
 		}, 30000);
 
 		it("creates a trialing subscription_providers row and redirects to /queue when the founding allocation is exhausted", async () => {
@@ -642,10 +644,12 @@ describe("Auth routes", () => {
 			expect(conversionEvent.homepage_variant).toBe("variant-f");
 
 			// No Stripe checkout, no pending signup row.
-			const consumed = await pendingSignup.consumePendingSignup(
-				CheckoutSessionIdSchema.parse("cs_test_never_created"),
-			);
-			expect(consumed).toBeNull();
+			const claim = await pendingSignup.claimPendingSignup({
+				checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_never_created"),
+				activatedBy: "redirect",
+				claimedAt: new Date().toISOString(),
+			});
+			expect(claim).toEqual({ outcome: "not-found" });
 			// hostedCheckout.markPaid stays accessible for callers — confirming the bundle is unaffected.
 			expect(typeof hostedCheckout.markPaid).toBe("function");
 		}, 30000);
@@ -2051,13 +2055,13 @@ describe("Auth routes", () => {
 			expect(response.headers.location).toBe("/?signup=pending");
 			expect(botDefense.events).toHaveLength(1);
 			/** No Stripe session was created — if one had been, the redirect would
-			 * be to checkout.stripe.test/. We also confirm storePendingSignup was
-			 * never invoked by attempting to consume any plausible session id and
-			 * receiving null. */
-			const consumed = await pendingSignup.consumePendingSignup(
-				CheckoutSessionIdSchema.parse("cs_test_never_created"),
-			);
-			expect(consumed).toBeNull();
+			 * be to checkout.stripe.test/. */
+			const claim = await pendingSignup.claimPendingSignup({
+				checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_never_created"),
+				activatedBy: "redirect",
+				claimedAt: new Date().toISOString(),
+			});
+			expect(claim).toEqual({ outcome: "not-found" });
 		});
 
 		it("falls through to the trial signup happy path (303 to /queue) when the honeypot is empty, loadedAt is older than 2.5s, and the founding allocation is exhausted", async () => {

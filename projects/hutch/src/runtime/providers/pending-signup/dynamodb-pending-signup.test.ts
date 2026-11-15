@@ -1,5 +1,5 @@
 import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
-import type { DynamoDBDocumentClient } from "@packages/storage-client";
+import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { type Logger, noopLogger } from "@packages/logger";
 import { initDynamoDbPendingSignup } from "./dynamodb-pending-signup";
@@ -15,6 +15,8 @@ type CommandInput = {
 	FilterExpression?: string;
 	ExclusiveStartKey?: Record<string, unknown>;
 	ExpressionAttributeValues?: Record<string, unknown>;
+	ConditionExpression?: string;
+	ReturnValuesOnConditionCheckFailure?: string;
 };
 
 function createClient(impl: (input: CommandInput) => unknown): {
@@ -34,6 +36,17 @@ function createClient(impl: (input: CommandInput) => unknown): {
 const TABLE = "pending-signups";
 const SESSION_ID = CheckoutSessionIdSchema.parse("cs_test_123");
 const USER_ID = UserIdSchema.parse("user-abc");
+const CLAIM = {
+	checkoutSessionId: SESSION_ID,
+	activatedBy: "webhook",
+	claimedAt: "2026-11-15T10:00:00.000Z",
+} as const;
+
+function conditionFailed(
+	item: ConstructorParameters<typeof ConditionalCheckFailedException>[0]["Item"],
+): ConditionalCheckFailedException {
+	return new ConditionalCheckFailedException({ message: "The conditional request failed", $metadata: {}, Item: item });
+}
 
 describe("initDynamoDbPendingSignup", () => {
 	describe("storePendingSignup", () => {
@@ -229,18 +242,108 @@ describe("initDynamoDbPendingSignup", () => {
 		});
 	});
 
-	describe("consumePendingSignup", () => {
-		it("returns null when no row was deleted", async () => {
-			const { client } = createClient(() => ({}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+	describe("claimPendingSignup", () => {
+		it("claims the row once: it stamps consumedAt and the arrival that won, only while the row exists, is unclaimed and is an existing-user subscribe", async () => {
+			const { client, inputs } = createClient(() => ({
+				Attributes: {
+					checkoutSessionId: SESSION_ID,
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+					consumedAt: CLAIM.claimedAt,
+					activatedBy: "webhook",
+				},
+			}));
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toBeNull();
+			expect(result.outcome).toBe("claimed");
+			const update = inputs[0];
+			expect(update?.Key).toEqual({ checkoutSessionId: SESSION_ID });
+			expect(update?.UpdateExpression).toContain("consumedAt = :consumedAt");
+			expect(update?.UpdateExpression).toContain("activatedBy = :activatedBy");
+			expect(update?.ConditionExpression).toContain("attribute_exists(checkoutSessionId)");
+			expect(update?.ConditionExpression).toContain("attribute_not_exists(consumedAt)");
+			expect(update?.ConditionExpression).toContain("#method = :method");
+			expect(update?.ExpressionAttributeValues).toEqual({
+				":consumedAt": "2026-11-15T10:00:00.000Z",
+				":activatedBy": "webhook",
+				":method": "existing-user-subscribe",
+			});
+			expect(update?.ReturnValues).toBe("ALL_NEW");
+			expect(update?.ReturnValuesOnConditionCheckFailure).toBe("ALL_OLD");
+		});
+
+		it("answers already-activated with the stored return URL when an earlier arrival claimed the row", async () => {
+			const { client } = createClient(() => {
+				throw conditionFailed({
+					checkoutSessionId: { S: SESSION_ID },
+					method: { S: "existing-user-subscribe" },
+					consumedAt: { S: "2026-11-15T09:59:59.000Z" },
+					returnUrl: { S: "/queue" },
+				});
+			});
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			const result = await claimPendingSignup(CLAIM);
+
+			expect(result).toEqual({ outcome: "already-activated", returnUrl: "/queue" });
+		});
+
+		it("answers already-activated with no return URL when the claimed row stored none", async () => {
+			const { client } = createClient(() => {
+				throw conditionFailed({
+					checkoutSessionId: { S: SESSION_ID },
+					method: { S: "existing-user-subscribe" },
+					consumedAt: { S: "2026-11-15T09:59:59.000Z" },
+				});
+			});
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			const result = await claimPendingSignup(CLAIM);
+
+			expect(result).toEqual({ outcome: "already-activated" });
+		});
+
+		it("answers not-found when no pending row exists for the checkout session", async () => {
+			const { client } = createClient(() => {
+				throw conditionFailed(undefined);
+			});
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			const result = await claimPendingSignup(CLAIM);
+
+			expect(result).toEqual({ outcome: "not-found" });
+		});
+
+		it("rethrows a DynamoDB failure that is not a refused condition", async () => {
+			const { client } = createClient(() => {
+				throw new Error("ProvisionedThroughputExceeded");
+			});
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			await expect(claimPendingSignup(CLAIM)).rejects.toThrow("ProvisionedThroughputExceeded");
 		});
 
 		it("reconstructs an existing-user-subscribe signup including returnUrl", async () => {
@@ -253,22 +356,22 @@ describe("initDynamoDbPendingSignup", () => {
 					returnUrl: "/account",
 				},
 			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toEqual({
+			expect(result).toEqual({ outcome: "claimed", signup: {
 				entrySource: null,
 				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
 				returnUrl: "/account",
-			});
+			} });
 		});
 
 		it("reconstructs an existing-user-subscribe signup without returnUrl", async () => {
@@ -280,21 +383,21 @@ describe("initDynamoDbPendingSignup", () => {
 					userId: USER_ID,
 				},
 			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toEqual({
+			expect(result).toEqual({ outcome: "claimed", signup: {
 				entrySource: null,
 				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
-			});
+			} });
 		});
 
 		it("reconstructs the trialEndsAt of a trial-preserving checkout row", async () => {
@@ -307,22 +410,22 @@ describe("initDynamoDbPendingSignup", () => {
 					trialEndsAt: "2026-07-24T00:00:00.000Z",
 				},
 			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toEqual({
+			expect(result).toEqual({ outcome: "claimed", signup: {
 				entrySource: null,
 				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
 				trialEndsAt: "2026-07-24T00:00:00.000Z",
-			});
+			} });
 		});
 
 		it("reconstructs the checkout variant of an instrumented row", async () => {
@@ -335,22 +438,22 @@ describe("initDynamoDbPendingSignup", () => {
 					variant: "trial_checkout",
 				},
 			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toEqual({
+			expect(result).toEqual({ outcome: "claimed", signup: {
 				entrySource: null,
 				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
 				variant: "trial_checkout",
-			});
+			} });
 		});
 
 		it("reconstructs the plan of a row that carries one", async () => {
@@ -363,22 +466,22 @@ describe("initDynamoDbPendingSignup", () => {
 					plan: "triennial",
 				},
 			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toEqual({
+			expect(result).toEqual({ outcome: "claimed", signup: {
 				entrySource: null,
 				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
 				plan: "triennial",
-			});
+			} });
 		});
 
 		it("drops a plan this build no longer sells instead of throwing, for the same reason an unrecognised variant is dropped", async () => {
@@ -391,24 +494,24 @@ describe("initDynamoDbPendingSignup", () => {
 					plan: "a_plan_from_the_future",
 				},
 			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toEqual({
+			expect(result).toEqual({ outcome: "claimed", signup: {
 				entrySource: null,
 				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
-			});
+			} });
 		});
 
-		it("drops an unrecognised variant instead of throwing — the row is already deleted by then, so a parse failure would destroy a paying customer's signup", async () => {
+		it("drops an unrecognised variant instead of throwing — the row is already claimed by then, so a parse failure would strand a paying customer's checkout", async () => {
 			const { client } = createClient(() => ({
 				Attributes: {
 					checkoutSessionId: SESSION_ID,
@@ -418,21 +521,21 @@ describe("initDynamoDbPendingSignup", () => {
 					variant: "a_variant_from_the_future",
 				},
 			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toEqual({
+			expect(result).toEqual({ outcome: "claimed", signup: {
 				entrySource: null,
 				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
-			});
+			} });
 		});
 
 		it("reconstructs the entry source and the offer of a row that carries them", async () => {
@@ -446,24 +549,24 @@ describe("initDynamoDbPendingSignup", () => {
 					offer: "first-year-49",
 				},
 			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toEqual({
+			expect(result).toEqual({ outcome: "claimed", signup: {
 				entrySource: "day3-email",
 				offer: "first-year-49",
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
-			});
+			} });
 		});
 
-		it("reads an unknown entry source and an unknown offer as nulls instead of throwing, because the row is already deleted by then", async () => {
+		it("reads an unknown entry source and an unknown offer as nulls instead of throwing, because the row is already claimed by then", async () => {
 			const { client } = createClient(() => ({
 				Attributes: {
 					checkoutSessionId: SESSION_ID,
@@ -474,24 +577,24 @@ describe("initDynamoDbPendingSignup", () => {
 					offer: "an_offer_from_the_future",
 				},
 			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toEqual({
+			expect(result).toEqual({ outcome: "claimed", signup: {
 				entrySource: null,
 				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
-			});
+			} });
 		});
 
-		it("returns null for an existing-user-subscribe row missing its userId", async () => {
+		it("answers not-found for an existing-user-subscribe row missing its userId", async () => {
 			const { client } = createClient(() => ({
 				Attributes: {
 					checkoutSessionId: SESSION_ID,
@@ -499,25 +602,25 @@ describe("initDynamoDbPendingSignup", () => {
 					email: "e@b.com",
 				},
 			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger: noopLogger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toBeNull();
+			expect(result).toEqual({ outcome: "not-found" });
 		});
 
-		it("discards a leftover legacy email/google row, warns, and returns null", async () => {
-			const { client } = createClient(() => ({
-				Attributes: {
-					checkoutSessionId: SESSION_ID,
-					method: "email",
-					email: "a@b.com",
-				},
-			}));
+		it("refuses to claim a leftover legacy email/google row, warns, and answers not-found", async () => {
+			const { client } = createClient(() => {
+				throw conditionFailed({
+					checkoutSessionId: { S: SESSION_ID },
+					method: { S: "email" },
+					email: { S: "a@b.com" },
+				});
+			});
 			const warnings: string[] = [];
 			const logger: Logger = {
 				...noopLogger,
@@ -525,17 +628,17 @@ describe("initDynamoDbPendingSignup", () => {
 					warnings.push(args.map(String).join(" "));
 				},
 			};
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
+			const { claimPendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
 				logger,
 			});
 
-			const result = await consumePendingSignup(SESSION_ID);
+			const result = await claimPendingSignup(CLAIM);
 
-			expect(result).toBeNull();
+			expect(result).toEqual({ outcome: "not-found" });
 			expect(warnings).toHaveLength(1);
-			expect(warnings[0]).toMatch(/discarded legacy 'email' row/);
+			expect(warnings[0]).toMatch(/refused to claim legacy 'email' row/);
 		});
 	});
 

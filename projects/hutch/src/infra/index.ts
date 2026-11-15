@@ -11,6 +11,7 @@ import {
 	type EvaluateOAuthRefreshCommand,
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 	CancelSubscriptionCommand,
+	CheckoutCompletedEvent,
 	DeleteAccountCommand,
 	ExportUserDataCommand,
 	DisconnectGmailCommand,
@@ -1332,7 +1333,7 @@ new StripeWebhookReceiver("stripe-webhook-receiver", {
 		name: storage.subscriptionProvidersTable.name,
 	},
 	webhookSecret: pulumi.secret(parseStripeWebhookSecret(requireEnv("STRIPE_WEBHOOK_SECRET"))),
-	events: ["customer.subscription.deleted", "invoice.payment_failed"],
+	events: ["checkout.session.completed", "customer.subscription.deleted", "invoice.payment_failed"],
 	alertEmail,
 });
 
@@ -1345,6 +1346,7 @@ new StripeWebhookReceiver("stripe-webhook-receiver", {
 const subscriptionEventsDynamodb = new DynamoDBAccess("subscription-events-dynamodb", {
 	tables: [
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
+		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
@@ -1362,6 +1364,7 @@ const subscriptionEventsLambda = new Lambda(LAMBDA_NAMES.subscriptionEvents, {
 	environmentNames: SUBSCRIPTION_EVENTS_ENV,
 	environment: {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
 		STRIPE_SECRET_KEY: pulumi.secret(requireEnv("STRIPE_SECRET_KEY")),
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		EVENT_BUS_ARN: eventBus.eventBusArn,
@@ -1389,6 +1392,7 @@ const subscriptionEventsWithSQS = new SqsBackedLambda("subscription-events", {
 eventBus.subscribeAll(
 	[
 		CancelSubscriptionCommand,
+		CheckoutCompletedEvent,
 		SubscriptionCancellationScheduledEvent,
 		SubscriptionCancelledEvent,
 		SubscriptionChargeFailedEvent,

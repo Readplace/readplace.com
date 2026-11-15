@@ -1,5 +1,5 @@
 export type {
-	ConsumePendingSignup,
+	ClaimPendingSignup,
 	PendingSignup,
 	StorePendingSignup,
 } from "@packages/provider-contracts/pending-signup";

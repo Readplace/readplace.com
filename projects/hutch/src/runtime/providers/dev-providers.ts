@@ -679,7 +679,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		createCheckoutSession: devStripe.createCheckoutSession,
 		retrieveCheckoutSession: devStripe.retrieveCheckoutSession,
 		storePendingSignup: devPendingSignup.storePendingSignup,
-		consumePendingSignup: devPendingSignup.consumePendingSignup,
+		claimPendingSignup: devPendingSignup.claimPendingSignup,
 		googleAuth,
 		gmailIntegration,
 		readNewsletterCatalog: newsletterCatalog.readCatalog,
