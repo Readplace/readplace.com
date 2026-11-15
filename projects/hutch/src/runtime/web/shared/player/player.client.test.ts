@@ -55,6 +55,7 @@ function createHarness(options: { url?: string; player?: boolean; extra?: string
 			window: {
 				location: dom.window.location,
 				history: dom.window.history,
+				Event: dom.window.Event,
 				addEventListener: (type, listener, capture) => {
 					listened.push(type);
 					dom.window.addEventListener(type, listener, capture);

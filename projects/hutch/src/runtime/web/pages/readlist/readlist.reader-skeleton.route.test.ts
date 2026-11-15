@@ -18,7 +18,11 @@ const ENCLOSURE = EnclosureSchema.parse({
 function scriptsOutsideMain(doc: Document): string[] {
 	return Array.from(doc.querySelectorAll("script"))
 		.filter((el) => el.closest("main") === null)
-		.map((el) => el.getAttribute("src") ?? `inline:${(el.textContent ?? "").trim()}`);
+		.map(
+			(el) =>
+				el.getAttribute("src") ??
+				`inline script /queue must render with the same text: ${(el.textContent ?? "").trim()}`,
+		);
 }
 
 describe("GET /queue reader skeleton", () => {
