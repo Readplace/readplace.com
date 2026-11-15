@@ -10,11 +10,8 @@ const EMPTY = "[data-readlist-switch-empty]";
 const LABEL = ".readlist-more__label";
 const CURRENT = 'a[aria-current="page"]';
 const FILTERING = "readlist-more__head--filtering";
-const RAIL = ".readlist__rail";
 const RAIL_LIST = ".readlist-nav__rail-list";
 const LAYOUT = ".readlist__layout";
-const MENU = ".readlist-nav__menu";
-const MENU_FLOATING = "readlist-nav__menu--floating";
 
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
@@ -103,64 +100,16 @@ function onSwitchToggle(input: {
 		current.scrollIntoView({ block: "nearest" });
 }
 
-interface TogglePosition {
-	top: number;
-	left: number;
-}
-
-function placeMenu(input: {
-	window: Window;
-	menu: HTMLDetailsElement;
-	placed: WeakMap<HTMLDetailsElement, TogglePosition>;
-}): void {
-	const { menu } = input;
-	menu.classList.remove(MENU_FLOATING);
-	const panel = menu.querySelector<HTMLElement>(".menu__panel");
-	assert(panel, "a rail menu opens a panel");
-	const toggle = menu.getBoundingClientRect();
-	const height = panel.getBoundingClientRect().height;
-	const below = input.window.innerHeight - toggle.bottom;
-	const above = toggle.top;
-	const up = height > below && above > below;
-	input.placed.set(menu, { top: toggle.top, left: toggle.left });
-	menu.classList.add(MENU_FLOATING);
-	const top = up ? toggle.top - height : toggle.bottom;
-	const left = toggle.right - panel.getBoundingClientRect().width;
-	panel.style.setProperty("--menu-top", `${top}px`);
-	panel.style.setProperty("--menu-left", `${left}px`);
-	const placed = panel.getBoundingClientRect();
-	panel.style.setProperty("--menu-top", `${2 * top - placed.top}px`);
-	panel.style.setProperty("--menu-left", `${2 * left - placed.left}px`);
-}
-
 export function initReadlistMore(deps: ReadlistMoreDeps): void {
 	const window = deps.document.defaultView;
 	assert(window, "the readlist switch runs in a window");
 	const open = new WeakSet<Element>();
-	const placed = new WeakMap<HTMLDetailsElement, TogglePosition>();
-
-	const closeMovedMenus = (): void => {
-		for (const menu of deps.document.querySelectorAll<HTMLDetailsElement>(
-			`${RAIL} details${MENU}[open]`,
-		)) {
-			const at = placed.get(menu);
-			if (at === undefined) continue;
-			const now = menu.getBoundingClientRect();
-			if (at.top !== now.top || at.left !== now.left) menu.open = false;
-		}
-	};
 
 	deps.document.addEventListener(
 		"toggle",
 		(event) => {
 			const target = event.target;
 			if (!isElement(target)) return;
-			const menu = target.closest<HTMLDetailsElement>(`${RAIL} details${MENU}`);
-			if (menu === target) {
-				if (menu.open) placeMenu({ window, menu, placed });
-				else placed.delete(menu);
-				return;
-			}
 			const dialog = target.closest<HTMLElement>(SWITCH);
 			if (dialog !== target) return;
 			const isOpen = Reflect.get(event, "newState") === "open";
@@ -170,9 +119,6 @@ export function initReadlistMore(deps: ReadlistMoreDeps): void {
 		},
 		true,
 	);
-
-	deps.document.addEventListener("scroll", closeMovedMenus, true);
-	window.addEventListener("resize", closeMovedMenus);
 
 	deps.document.addEventListener("input", (event) => {
 		const target = event.target;

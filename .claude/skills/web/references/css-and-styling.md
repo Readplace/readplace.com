@@ -79,8 +79,8 @@ An overflow menu, picker or flyout positioned `absolute` is cut off by any ances
 |---|---|
 | The panel is in the top layer (`popover`) or `position: fixed`, placed from its trigger's `getBoundingClientRect()` when it opens | An ancestor's `overflow` clips neither |
 | After placing a fixed panel, measure where it landed and correct the difference | An ancestor with `container-type`, `transform`, `filter` or `contain` is the containing block of its fixed descendants, so the panel lands offset by that ancestor's position |
-| A fixed panel closes when a scroll or a resize moves its trigger | It no longer follows the trigger as an absolute one did |
+| A fixed panel closes when a scroll, a resize or a content swap moves its trigger | It no longer follows the trigger as an absolute one did, and a swap that shifts the layout fires no scroll |
 | Before adding `overflow`, `contain` or `container-type` to a container, find the panels that open inside it | The clip ships with the container, not with the menu |
 | A browser test opens the panel in every container and at every width it can open in, including a container holding a single row, and hit-tests each item with `document.elementFromPoint` | A clipped item keeps its box and passes a visibility check; only a hit test shows it is covered |
 
-The placement and close rules are implemented in the client module that sets the `--menu-top` custom property (grep the non-test client sources for it). The hit test is in the browser test whose failure message reads `must not be clipped`. That test covers one width per surface, so add the widths and the single-row case a new panel needs.
+The placement and close rules are implemented once, for every options menu on every page, in the shared client module that sets the `--menu-top` custom property (grep the non-test client sources for it). The hit test is in the browser test whose failure message reads `must not be clipped`. That test covers one width per surface, so add the widths and the single-row case a new panel needs.
