@@ -38,3 +38,4 @@ export {
 	assertReaderLinkOpensPrivateReader,
 	type ReaderLinkScenarioConfig,
 } from "./reader-link-scenario";
+export { runCaptureScenarios } from "./capture-scenarios";

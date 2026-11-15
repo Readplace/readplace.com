@@ -6,6 +6,7 @@ import { Logger, consoleLogger, noopLogger } from '@packages/logger'
 import {
 	calculateReadTime,
 	CRAWL_STAGES,
+	MAX_UPLOAD_REQUEST_BYTES,
 	SaveProvenanceSchema,
 	validateSaveableUrl,
 	type ValidateSaveableUrl,
@@ -56,6 +57,7 @@ import {
 import { initUpsertReadlist } from '@packages/save-article'
 import { readNewsletterCatalogSeed } from '../runtime/domain/newsletter-catalog/newsletter-catalog-seed'
 import { createTestApp } from '../runtime/test-app'
+import { initMultipartUpload } from '../runtime/web/pages/import/multipart-upload'
 import { initInMemoryArticleImages } from '../runtime/providers/in-memory-article-images'
 import {
 	createDefaultTestAppFixture,
@@ -1354,6 +1356,30 @@ server.get('/blog/changelog-banner', (req, res) => {
 		return
 	}
 	res.type('html').send(renderChangelogBannerShell({ banner: E2E_CHANGELOG_BANNER }))
+})
+
+type ReceivedSaveContent = { url: string | undefined; mediaType: string | undefined; contentBytes: number | undefined; contentBase64: string | undefined; status: number }
+const receivedSaveContent: ReceivedSaveContent[] = []
+const saveContentParts = initMultipartUpload({ maxBytes: MAX_UPLOAD_REQUEST_BYTES })
+server.post('/queue/save-content', (req, res, next) => {
+	res.on('finish', () => {
+		const parsed = saveContentParts.parseAllParts(req)
+		const parts = parsed.ok ? parsed.parts : []
+		const textPart = (name: string) => parts.find((part) => part.name === name && !part.isFile)?.content.toString('utf8')
+		const content = parts.find((part) => part.name === 'content' && part.isFile)?.content
+		receivedSaveContent.push({
+			url: textPart('url'),
+			mediaType: textPart('mediaType'),
+			contentBytes: content?.length,
+			contentBase64: content?.toString('base64'),
+			status: res.statusCode,
+		})
+	})
+	next()
+})
+server.get('/e2e/received-save-content', (req, res) => {
+	const url = z.string().parse(req.query.url)
+	res.json(receivedSaveContent.filter((received) => received.url === url))
 })
 
 server.use(readplaceApp)
