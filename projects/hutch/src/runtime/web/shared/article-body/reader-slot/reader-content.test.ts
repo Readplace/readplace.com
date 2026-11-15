@@ -183,6 +183,26 @@ function pageTextOf(html: string): string {
 	return normaliseText(collectTextChunks<Node>(root)).text;
 }
 
+describe("prepareReaderContent measured images", () => {
+	it("keeps a measured image's size and box style through table description and highlight marking", () => {
+		const content =
+			'<p>Lead words to mark</p><img src="https://cdn.example.com/a.png" data-reader-image-size="1456x1005"><table><tbody><tr><td>cell</td></tr></tbody></table>';
+		const highlight = highlightOn({
+			text: browserTextOf(prepare({ content }).html),
+			exact: "words to",
+		});
+
+		const prepared = prepare({ content, highlights: [highlight] });
+
+		const doc = new JSDOM(`<!doctype html><html><body>${prepared.html}</body></html>`).window.document;
+		const image = doc.querySelector("img");
+		assert(image, "the prepared body keeps the image");
+		expect(image.getAttribute("data-reader-image-size")).toBe("1456x1005");
+		expect(image.getAttribute("style")).toBe("--reader-image-width:1456px;--reader-image-ratio:1456 / 1005");
+		expect(marksOf(prepared.html).map((mark) => mark.text)).toEqual(["words to"]);
+	});
+});
+
 describe("prepareReaderContent text", () => {
 	it("serves each section page's text as a slice of the whole article's text, in page order", () => {
 		const content = articleBody(

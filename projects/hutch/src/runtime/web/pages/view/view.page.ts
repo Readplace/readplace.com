@@ -605,6 +605,7 @@ function handleViewArticle(
 					backLink: req.userId === undefined ? undefined : PUBLIC_VIEW_BACK_LINK,
 					endCta,
 					now: deps.now(),
+					signedIn: req.userId !== undefined,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),

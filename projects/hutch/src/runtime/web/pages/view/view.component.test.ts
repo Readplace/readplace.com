@@ -21,6 +21,7 @@ const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view",
 const baseInput: ViewPageInput = {
 	readerSection: TEST_READER_SECTION,
 	now: new Date("2026-11-05T10:00:00.000Z"),
+	signedIn: false,
 	articleUrl: "https://example.com/post",
 	destinationUrl: destinationUrl("https://example.com/post"),
 	appOrigin: "http://localhost:3000",
@@ -683,7 +684,7 @@ describe("ViewPage", () => {
 						field.getAttribute("value"),
 					]),
 					placements: Array.from(doc.querySelectorAll("[data-test-share-panel]"), (panel) => panel.getAttribute("data-test-share-panel")),
-					report: new URL(doc.querySelector('[data-test-action="report-article"]')?.getAttribute("href") ?? "mailto:").searchParams.get("body")?.includes(`${baseInput.appOrigin}/view/example.com/post`),
+					report: doc.querySelector('[data-test-form="report-article"] input[name="article"]')?.getAttribute("value") === `${baseInput.appOrigin}/view/example.com/post`,
 				};
 			};
 			const body = articleBody("<p>Body copy.</p>");

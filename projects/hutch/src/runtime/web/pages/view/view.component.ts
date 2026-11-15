@@ -52,7 +52,10 @@ import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.co
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { VIEW_STYLES } from "./view.styles";
 import { displayableReadTime, isPrivateItemUrl } from "@packages/domain/article";
-import { reportArticleHref } from "../../shared/report-article/report-article-href";
+import {
+	REPORT_ARTICLE_SCRIPT,
+	type ReportArticleDialogInput,
+} from "../../shared/report-article/report-article-dialog.component";
 import { isReaderViewShareable } from "../../shared/article-reader/reader-view";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
@@ -252,6 +255,11 @@ export interface ViewPageInput {
 	backLink: { topHref: string; label: string } | undefined;
 	endCta: ViewEndCta | undefined;
 	now: Date;
+	signedIn: boolean;
+}
+
+function reportFor({ input, viewUrl }: { input: ViewPageInput; viewUrl: string }): ReportArticleDialogInput {
+	return { viewUrl, title: input.metadata.title, surface: CLICK_SURFACES.readerPublic, asksForEmail: !input.signedIn };
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
@@ -301,8 +309,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
 		readerNotice: input.readerNotice,
-		reportHref:
-			share === undefined ? undefined : reportArticleHref({ viewUrl: shareableViewUrl, title: input.metadata.title }),
+		report: share === undefined ? undefined : reportFor({ input, viewUrl: shareableViewUrl }),
 	});
 	const crawlVersions = input.crawlVersions ?? [];
 	const railLandmark = railLandmarkFor({
@@ -384,6 +391,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			navHide: NAV_HIDE_DISABLED,
 			page:
 				SHARE_DIALOG_SCRIPT +
+				REPORT_ARTICLE_SCRIPT +
 				CRAWL_ESTIMATE_SCRIPT +
 				SAVE_TIP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT +
