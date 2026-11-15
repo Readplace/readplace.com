@@ -63,6 +63,19 @@ export const enUS = {
 			failed: "Your report couldn't be sent. Try again in a moment.",
 		},
 	},
+	view: {
+		crawlLimit: {
+			seoTitle: "Create a free account to keep reading — Readplace",
+			seoDescription: "You've opened a lot of new links today.",
+			title: "You've opened a lot of new links today",
+			body: "Create a free account to keep reading. We'll save this article to your readlist so it's waiting for you.",
+			signup: "Create a free account",
+			login: "Log in",
+			wait: "Or come back in about {wait}.",
+			minutes: { one: "{count} minute", other: "{count} minutes" },
+			hours: { one: "{count} hour", other: "{count} hours" },
+		},
+	},
 	reader: {
 		share: {
 			lead: "Copy a link to this article or send it to an app.",

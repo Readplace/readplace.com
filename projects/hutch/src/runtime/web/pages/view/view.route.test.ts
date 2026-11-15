@@ -2223,7 +2223,57 @@ describe("View routes", () => {
 				{ action: "signup", href: "/signup?utm_source=view-crawl-limit&utm_medium=internal&utm_content=signup" },
 				{ action: "login", href: "/login?utm_source=view-crawl-limit&utm_medium=internal&utm_content=login" },
 			]);
-			expect(document.querySelector("h1")?.textContent).toBe("You've opened a lot of new links this hour");
+			expect(document.querySelector("h1")?.textContent).toBe("You've opened a lot of new links today");
+		});
+
+		it("names a daily wait in hours", async () => {
+			const { harness } = buildThrottledHarness({ limit: 1, windowSeconds: 86400 });
+			await request(harness.server).get("/view/example.com/first");
+
+			const throttled = await request(harness.server).get("/view/example.com/second");
+
+			expect(throttled.status).toBe(429);
+			expect(throttled.headers["retry-after"]).toBe("6400");
+			const wait = new JSDOM(throttled.text).window.document.querySelector("[data-test-crawl-limit-wait]");
+			assert(wait, "the limit screen must render its wait line");
+			expect(wait.textContent).toBe("Or come back in about 2 hours.");
+		});
+
+		it("names a wait of an hour or less in minutes", async () => {
+			const { harness } = buildThrottledHarness({ limit: 1, windowSeconds: 3600 });
+			await request(harness.server).get("/view/example.com/first");
+
+			const throttled = await request(harness.server).get("/view/example.com/second");
+
+			expect(throttled.headers["retry-after"]).toBe("2800");
+			const wait = new JSDOM(throttled.text).window.document.querySelector("[data-test-crawl-limit-wait]");
+			assert(wait, "the limit screen must render its wait line");
+			expect(wait.textContent).toBe("Or come back in about 47 minutes.");
+		});
+
+		it("names a one-minute wait in the singular", async () => {
+			const { harness, clock } = buildThrottledHarness({ limit: 1, windowSeconds: 3600 });
+			await request(harness.server).get("/view/example.com/first");
+			clock.advanceSeconds(2770);
+
+			const throttled = await request(harness.server).get("/view/example.com/second");
+
+			expect(throttled.headers["retry-after"]).toBe("30");
+			const wait = new JSDOM(throttled.text).window.document.querySelector("[data-test-crawl-limit-wait]");
+			assert(wait, "the limit screen must render its wait line");
+			expect(wait.textContent).toBe("Or come back in about 1 minute.");
+		});
+
+		it("describes the limit as daily to search engines", async () => {
+			const { harness } = buildThrottledHarness({ limit: 1, windowSeconds: 86400 });
+			await request(harness.server).get("/view/example.com/first");
+
+			const throttled = await request(harness.server).get("/view/example.com/second");
+
+			const document = new JSDOM(throttled.text).window.document;
+			expect(document.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(
+				"You've opened a lot of new links today.",
+			);
 		});
 
 		it("records one view_crawl_limited event per screen shown to a browser, joinable on visitor_id", async () => {
