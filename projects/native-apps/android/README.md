@@ -49,6 +49,15 @@ TestFlight build for App Store review.
   the upload key in the `prod` environment's `ANDROID_UPLOAD_KEYSTORE_BASE64` and
   `ANDROID_UPLOAD_KEYSTORE_PASSWORD` secrets, alias `upload`. A lost upload key is reset
   through Play Console support; it never locks the app.
+- **What's new text.** Every upload sends `distribution/whatsnew/whatsnew-en-US` as the
+  release's "What's new" text. The file has no extension because the upload action reads the
+  locale from the name after `whatsnew-`; a second language is a second `whatsnew-<locale>`
+  file. Play allows 500 characters per language, final newline included, and the upload sends
+  the file as it is. An edit to the file alone uploads nothing, so run the
+  publish workflow by hand (`gh workflow run publish-android-play.yml --ref main`) when the
+  text must reach Play before the next shipping change. iOS sets its note in a second workflow
+  because TestFlight takes one only after it has processed the build; Play takes the text with
+  the upload.
 - **A local signed bundle.** `make bundle VERSION_CODE=<n>` with `READPLACE_UPLOAD_KEYSTORE`
   and `READPLACE_UPLOAD_KEYSTORE_PASSWORD` set. Without them the build fails at
   `validateSigningProductionRelease` rather than producing an unsigned bundle Play rejects.
