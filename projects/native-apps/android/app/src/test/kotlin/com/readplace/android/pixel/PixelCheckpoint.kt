@@ -39,10 +39,13 @@ class PixelBaselines(
 		}
 		if (!baseline.isFile) return CheckpointOutcome.MissingBaseline(baseline)
 
-		val verdict = comparePixels(baseline = decodePng(baseline), capture = capture, tolerance = tolerance)
-		if (verdict == PixelVerdict.Match) return CheckpointOutcome.Verified
-
 		val actual = File(failureDir, checkpoint.relativePath)
+		val verdict = comparePixels(baseline = decodePng(baseline), capture = capture, tolerance = tolerance)
+		if (verdict == PixelVerdict.Match) {
+			actual.delete()
+			return CheckpointOutcome.Verified
+		}
+
 		capture.encodePng(actual)
 		return CheckpointOutcome.Mismatch(verdict = verdict, actualFile = actual)
 	}

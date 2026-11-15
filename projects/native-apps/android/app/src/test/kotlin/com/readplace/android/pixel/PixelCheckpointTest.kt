@@ -1,6 +1,7 @@
 package com.readplace.android.pixel
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -71,6 +72,17 @@ class PixelCheckpointTest {
 		capture.encodePng(baselineFile)
 
 		assertEquals(CheckpointOutcome.Verified, baselines(isRecording = false).settle(checkpoint, capture))
+	}
+
+	@Test
+	fun `a capture that verifies removes the picture an earlier mismatch left`() {
+		capture.encodePng(baselineFile)
+		val staleFailure = File(failureDir, "Suite/row-light.png")
+		differing.encodePng(staleFailure)
+
+		baselines(isRecording = false).settle(checkpoint, capture)
+
+		assertFalse(staleFailure.exists())
 	}
 
 	@Test
