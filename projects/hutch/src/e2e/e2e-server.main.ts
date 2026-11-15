@@ -368,6 +368,16 @@ const { refreshArticleIfStale, publishLinkSaved } =
 // the redirect chain (POST /signup → local checkout → /auth/checkout/success)
 // instead of hitting the unreachable https://checkout.stripe.test domain.
 const e2eStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout`, now: () => new Date() })
+const failNextCheckoutFor = new Set<string>()
+const e2eHostedCheckout: typeof e2eStripe = {
+	...e2eStripe,
+	createCheckoutSession: async (params) => {
+		if (failNextCheckoutFor.delete(params.customerEmail)) {
+			throw new Error('e2e: checkout session creation failed on request')
+		}
+		return e2eStripe.createCheckoutSession(params)
+	},
+}
 
 const e2eLogsInsights = initInMemoryLogsInsights()
 for (const answer of e2eDashboardAnswers()) e2eLogsInsights.answerQuery(answer)
@@ -387,7 +397,7 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		readExcludedIdentities: fixture.adminDashboards.readExcludedIdentities,
 		now: () => E2E_DASHBOARDS_NOW,
 	},
-	hostedCheckout: e2eStripe,
+	hostedCheckout: e2eHostedCheckout,
 	gmailIntegration: gmailIntegration.bundle,
 	newsletterCatalog: {
 		readNewsletterCatalog: readE2eNewsletterCatalog,
@@ -1246,6 +1256,7 @@ const SeedSubscriptionStateBody = z.object({
 	cards: z.enum(['primary', 'primary-and-backup']).optional(),
 	nextChargeAt: z.string().optional(),
 	invoices: z.number().int().nonnegative().optional(),
+	checkout: z.enum(['opens', 'fails-next']).optional(),
 })
 server.post('/e2e/seed-subscription-state', async (req, res) => {
 	const parsed = SeedSubscriptionStateBody.safeParse(req.body)
@@ -1253,7 +1264,7 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const { userId, state, at, plan, cards, nextChargeAt, invoices } = parsed.data
+	const { userId, state, at, plan, cards, nextChargeAt, invoices, checkout } = parsed.data
 	const subscriptionId = `e2e-sub-${userId}`
 	const customerId = `e2e-cus-${userId}`
 	if (state === 'trialing') {
@@ -1286,6 +1297,11 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 	}
 	if (invoices !== undefined) {
 		fixture.subscriptionBilling.seedInvoices({ customerId, invoices: e2eInvoices(invoices) })
+	}
+	if (checkout === 'fails-next') {
+		const email = await fixture.auth.findEmailByUserId(userId)
+		assert(email, 'a checkout failure is seeded for an existing user')
+		failNextCheckoutFor.add(email)
 	}
 	res.status(201).json({ ok: true })
 })
