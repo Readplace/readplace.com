@@ -13,7 +13,7 @@ Finance, AI, Cities, Recipes, Longreads, Work, and one called Someday. That's 7 
 
 The cap is 15 now.
 
-The number was the small part of the change. A sidebar that lists 15 readlists in a column has outgrown the word sidebar, and a dialog that asks for a destination gets slower to scan as the choices double. Most of what shipped keeps the 15 reachable, not just allowed.
+The number was the small part of the change. A sidebar that lists 15 readlists in a column has outgrown the word sidebar, and a dialog that asks for a destination gets slower to scan as the choices double. Most of what shipped is there so the 15 can be reached.
 
 > **Raising the cap took 1 line, and the rest of the change keeps every readlist at most 2 taps away.**
 
@@ -37,7 +37,7 @@ Create a readlist sits in the panel and the sheet too, so the place the unpinned
 
 ## Pickers stopped trading buttons for rows
 
-The sidebar isn't the only surface that lists readlists. A card's Move to and Add to dialogs ask for a destination, the reader files an article from its own page, the mark-as-read confirmation names each readlist the article sits in, and the Gmail integration maps a sender to the readlist its issues feed.
+The sidebar isn't the only surface that lists readlists. A card's Move to and Add to dialogs ask for a destination, the reader files an article from the article's own page, the mark-as-read confirmation names each readlist the article sits in, and the Gmail integration maps a sender to the readlist its issues feed.
 
 Each of those used to grow taller with the account. Now the rows scroll while the dialog's buttons hold still, and past 10 readlists a filter appears above the rows, the same one the More panel uses. Typing "ci" finds Cities without reading the list at all.
 
@@ -47,7 +47,7 @@ A readlist in Readplace is closer to plumbing than to a folder. A custom email a
 
 So a topic that earns its own feed earns its own list, and a reader following 10 topics had to merge 3 of them.
 
-The comparison tables kept the score. Against [Omnivore](/blog/omnivore-alternative?utm_source=blog-sort-your-reading-into-15-readlists&utm_medium=internal&utm_content=post-omnivore-alternative) and in [the Pocket migration guide](/blog/pocket-migration?utm_source=blog-sort-your-reading-into-15-readlists&utm_medium=internal&utm_content=post-pocket-migration), the row where other apps answer "tags" used to read "Readlists, up to 7". It reads up to 15 now. Readlists are the one structure a saved article gets here, so the cap is the size of the whole filing system.
+The comparison tables kept the score. Against [Omnivore](/blog/omnivore-alternative?utm_source=blog-sort-your-reading-into-15-readlists&utm_medium=internal&utm_content=post-omnivore-alternative) and in [the Pocket migration guide](/blog/pocket-migration?utm_source=blog-sort-your-reading-into-15-readlists&utm_medium=internal&utm_content=post-pocket-migration), the row where other apps answer "tags" used to cap readlists at 7. Both rows say up to 15 now. Readlists are the one structure a saved article gets here, so the cap is the size of the whole filing system.
 
 15 is still a cap. An account that wants a 16th meets the same dialog with a bigger number in it.
 
@@ -55,4 +55,4 @@ The comparison tables kept the score. Against [Omnivore](/blog/omnivore-alternat
 
 The 8th readlist is the one the limit dialog used to refuse, and it's the one that flips the sidebar into pinned rows, so creating it shows the whole change at once.
 
-Create a readlist waits at the bottom of the sidebar on [the readlist page](/queue?utm_source=blog-sort-your-reading-into-15-readlists&utm_medium=internal&utm_content=readlist), and it keeps saying yes until the 15th. Pin the 4 that matter, and let the other 11 wait one row down.
+Create a readlist waits at the bottom of the sidebar on [the readlist page](/queue?utm_source=blog-sort-your-reading-into-15-readlists&utm_medium=internal&utm_content=readlist), and it keeps saying yes until the 15th. Pin the 4 that matter, and let the rest wait one row down.
