@@ -33,8 +33,6 @@ export interface SaveArticleParams {
 	saveTrigger: SaveTrigger;
 }
 
-export type MarkHandPicked = (params: { userId: UserId; url: string; at: Date }) => Promise<"marked" | "row-absent">;
-
 export type SortField = "savedAt" | "readAt";
 export type SortOrder = "asc" | "desc";
 
