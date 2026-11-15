@@ -9,6 +9,7 @@ const RULES = {
 	loginAccount: "5/900",
 	signup: "10/3600",
 	forgotPassword: "5/3600",
+	forgotPasswordAccount: "5/86400",
 	oauthRegister: "10/3600",
 	oauthToken: "60/3600",
 	browserHandoff: "600/3600",
@@ -23,6 +24,7 @@ describe("parseRateLimitRules", () => {
 
 		assert.deepEqual(rules.browserHandoff, { limit: 600, windowSeconds: 3600 });
 		assert.deepEqual(rules.loginAccount, { limit: 5, windowSeconds: 900 });
+		assert.deepEqual(rules.forgotPasswordAccount, { limit: 5, windowSeconds: 86400 });
 		assert.deepEqual(rules.uploadStage, { limit: 20, windowSeconds: 3600 });
 		assert.deepEqual(Object.keys(rules).sort(), Object.keys(RULES).sort());
 	});

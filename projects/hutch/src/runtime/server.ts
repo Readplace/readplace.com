@@ -261,6 +261,7 @@ import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initReportArticleRoutes } from "./web/pages/report-article/report-article.page";
+import type { PasswordResetRefusedEvent } from "./web/auth/request-password-reset";
 import { initBrowserHandoffRoutes } from "./web/auth/browser-handoff.page";
 import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
 import { initUnrouteInboxesOnReadlistDelete } from "./domain/readlist/unroute-inboxes-on-readlist-delete";
@@ -678,6 +679,7 @@ export interface AppDependencies {
 	resolvePriceId: ResolvePriceId;
 	stripePublishableKey: string | undefined;
 	botDefenseLogger: Logger.Typed<BotDefenseEvent>;
+	passwordResetLogger: Logger.Typed<PasswordResetRefusedEvent>;
 	conversionLogger: Logger.Typed<ConversionEvent>;
 	subscriptionLogger: Logger.Typed<SubscriptionLogEvent>;
 	funnelLogger: Logger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
@@ -1529,6 +1531,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		logError: deps.logError,
 		consumeRateLimit: deps.consumeRateLimit,
 		rateLimitRule: deps.rateLimitRules.forgotPassword,
+		accountRateLimitRule: deps.rateLimitRules.forgotPasswordAccount,
+		passwordResetLogger: deps.passwordResetLogger,
 		now: deps.now,
 	});
 	app.use(forgotPasswordRouter);

@@ -214,6 +214,7 @@ const rateLimitRules = {
 	loginAccount: config.require("rateLimitLoginAccount"),
 	signup: config.require("rateLimitSignup"),
 	forgotPassword: config.require("rateLimitForgotPassword"),
+	forgotPasswordAccount: config.require("rateLimitForgotPasswordAccount"),
 	oauthRegister: config.require("rateLimitOauthRegister"),
 	oauthToken: config.require("rateLimitOauthToken"),
 	browserHandoff: config.require("rateLimitBrowserHandoff"),

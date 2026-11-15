@@ -437,49 +437,55 @@ Trigger chain:
 
 1. The visitor reaches GET /forgot-password from the "Forgot your password?" link on the sign-in page, which the native apps, extensions and OAuth clients also show, or from the "Request a new link" button on a failed reset page `projects/hutch/src/runtime/web/auth/login.template.html:24`
 2. The visitor submits the form, which POSTs the email field to /forgot-password `projects/hutch/src/runtime/web/auth/forgot-password.template.html:11`
-3. The route consumes one unit of the per-IP forgot-password rate limit before doing anything else `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:57`
-4. A valid address gets the "Check your email" page straight away, whether or not an account exists `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:76`
-5. In the background, the users table is checked for a row keyed by the lower-cased address `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:413`
-6. A new single-use token (64 hex characters, expiring 3600 s later) is stored in the password-reset-tokens table `projects/hutch/src/runtime/providers/password-reset/dynamodb-password-reset.ts:49`
-7. The email HTML is rendered with the reset link plus utm_source=password-reset-email, utm_medium=email and utm_content=reset-password `projects/hutch/src/runtime/web/auth/password-reset-email.ts:19`
-8. The message goes to the production sender, which skips reserved test domains and otherwise sends through Resend `projects/hutch/src/runtime/providers/prod-providers.ts:524`
+3. The route consumes one unit of the per-IP forgot-password rate limit before doing anything else `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:60`
+4. A valid address consumes one unit of the per-address limit, keyed by the address lower-cased and in its Gmail canonical form, before the account lookup, so known, unknown and spent addresses are counted alike `projects/hutch/src/runtime/web/auth/request-password-reset.ts:43`
+5. A valid address gets the "Check your email" page, whether or not an account exists, with a line saying a reset link can be sent to the same address up to 5 times a day `projects/hutch/src/runtime/web/auth/forgot-password.template.html:6`
+6. In the background, the users table is checked for a row keyed by the lower-cased address `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:413`
+7. A new single-use token (64 hex characters, expiring 3600 s later) is stored in the password-reset-tokens table `projects/hutch/src/runtime/providers/password-reset/dynamodb-password-reset.ts:49`
+8. The email HTML is rendered with the reset link plus utm_source=password-reset-email, utm_medium=email and utm_content=reset-password `projects/hutch/src/runtime/web/auth/password-reset-email.ts:19`
+9. The message goes to the production sender, which skips reserved test domains and otherwise sends through Resend `projects/hutch/src/runtime/providers/prod-providers.ts:524`
 
 Sent only when:
 
-- The visitor POSTs the Forgot password form; no sign-in is needed, and signed-in visitors can use it too, for any address `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:57`
-- The visitor's IP address has had fewer than 5 requests allowed on this form in the current UTC clock hour (production setting 5/3600) `projects/hutch/Pulumi.prod.yaml:57`
+- The visitor POSTs the Forgot password form; no sign-in is needed, and signed-in visitors can use it too, for any address `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:86`
+- The visitor's IP address has had fewer than 5 requests allowed on this form in the current UTC day (production setting 5/86400) `projects/hutch/Pulumi.prod.yaml:62`
+- The entered address, lower-cased and in its Gmail canonical form, has had fewer than 5 requests allowed in the current UTC day, from any IP (production setting 5/86400) `projects/hutch/Pulumi.prod.yaml:63`
 - The entered value is a valid email address `projects/hutch/src/runtime/web/auth/auth.schema.ts:21`
 - A Readplace account exists whose stored email equals the entered address once lower-cased; password, Google-only, Apple-only and unverified accounts all qualify `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:414`
 - The recipient's domain is not a reserved test domain `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`
 
 Not sent when:
 
-- Unknown address: nothing is sent, but the visitor still sees the same "Check your email" page `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:80`
-- Invalid address: the form shows an error with status 422 and nothing is sent `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:58`
-- Rate limited: from the 6th request from one IP in the same UTC clock hour, the visitor gets a 429 "Too many requests from your network" response; every allowed request counts, including invalid and unknown addresses `projects/hutch/src/runtime/web/middleware/rate-limit.ts:36`
+- Unknown address: nothing is sent, but the visitor still sees the same "Check your email" page `projects/hutch/src/runtime/web/auth/request-password-reset.ts:62`
+- Invalid address: the form shows an error with status 422 and nothing is sent; it counts against the IP limit but not against any address `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:87`
+- IP limit spent: from the 6th request from one IP in the same UTC day, the visitor gets the Forgot password page at status 429 with a Retry-After header and the notice "Reset links from this network are paused. Try again in about N hours." (N is the seconds left until 00:00 UTC, rounded up to whole hours); every allowed request counts, including invalid and unknown addresses, and the refusal is logged as `password_reset_refused` with `key: "ip"` `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:64`
+- Address limit spent: from the 6th request for one address in the same UTC day, from any IP, the visitor sees the same 200 "Check your email" page as for any other address, no account lookup runs and nothing is sent; the refusal is logged as `password_reset_refused` with `key: "address"` and no address or IP `projects/hutch/src/runtime/web/auth/request-password-reset.ts:54`
 - Banned visitor: a request from an IP on the ban list gets a 403 and never reaches the form handler `projects/hutch/src/runtime/web/middleware/ban.ts:28`
 - Reserved recipient domain (example.com, example.net, example.org, or any .test, .example, .invalid or .localhost address): the send is skipped with a logged warning `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
 - Account purged: once the delete-account worker has removed the account's users row, the lookup finds nothing and no email is sent `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:208`
 
-**Timing:** Sent immediately, in the same web request, right after the "Check your email" page is returned; there is no queue, schedule or delay. The link expires 3600 s (1 hour) after the token is created, and the per-IP rate-limit window resets at the top of every UTC hour.
+**Timing:** Sent immediately, in the same web request, right after the "Check your email" page is returned; there is no queue, schedule or delay. The link expires 3600 s (1 hour) after the token is created, and both rate-limit windows reset at 00:00 UTC.
 
 **If sending fails:** Fire-and-forget: the account lookup, token write and Resend call run after the response is sent, and any error is logged once as "[Email] Password reset email failed" with no retry, queue or DLQ. The visitor is not told and can only submit the form again.
 
 <details><summary>Edge cases</summary>
 
 - Gmail spellings do not match: the lookup only lower-cases the address and does not apply the Gmail canonical form that signup uses for uniqueness, so for the account sam.reader@gmail.com, typing samreader@gmail.com, sam.reader+x@gmail.com or sam.reader@googlemail.com shows "Check your email" but sends nothing (verified by driving the route) `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:414`
-- Mixed case: typing Sam.Reader@Gmail.com matches the account sam.reader@gmail.com, and the email is addressed to Sam.Reader@Gmail.com as typed, not to the stored address `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:86`
+- Mixed case: typing Sam.Reader@Gmail.com matches the account sam.reader@gmail.com, and the email is addressed to Sam.Reader@Gmail.com as typed, not to the stored address `projects/hutch/src/runtime/web/auth/request-password-reset.ts:70`
+- The per-address count is shared across spellings of one mailbox: Reader@example.com and reader@example.com share one count, and so do j.doe+x@gmail.com and jdoe@googlemail.com; a Gmail address whose local part is only a +tag (for example +x@gmail.com) has no canonical form and is counted under its lower-cased spelling `projects/hutch/src/runtime/web/auth/request-password-reset.ts:18`
+- Anyone who knows an address can spend its 5 daily requests from any IPs, and the account holder then gets no reset email until 00:00 UTC; the page cannot say so without revealing that the account exists `projects/hutch/src/runtime/web/auth/request-password-reset.ts:53`
 - A whitespace-padded address or a repeated email field fails validation with a 422 before any lookup `projects/hutch/src/runtime/web/auth/auth.schema.ts:21`
 - Apple "Hide my email" accounts are stored under the address Apple returns, which is the private-relay address, so typing the customer's real address finds no account and sends nothing (unverified, from code reading) `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:259`
 - Legacy host: a POST on hutch-app.com gets a 301 to https://readplace.com before the route runs, the browser re-requests the page as a GET and shows the form again, and no email is sent and no rate-limit unit is used `projects/hutch/src/runtime/server.ts:582`
 - A malformed utm_* query value gets a 400 before the route runs `src/packages/web-analytics/src/utm-validation.middleware.ts:22`
-- If the rate-limit store fails, the visitor gets a 500 JSON error and no email is sent `projects/hutch/src/runtime/web/middleware/rate-limit.ts:44`
+- If the rate-limit store fails on the IP check, the visitor gets a 500 JSON error and no email is sent `projects/hutch/src/runtime/web/middleware/rate-limit.ts:52`
+- If the rate-limit store fails on the address check, the visitor still sees "Check your email", nothing is sent, and "[RateLimit] Password reset address limit check failed" is logged `projects/hutch/src/runtime/web/auth/request-password-reset.ts:48`
 - Requests with no resolvable client IP all share one "unknown" rate-limit bucket `projects/hutch/src/runtime/web/middleware/rate-limit.ts:12`
 - Requests that are denied by the rate limit do not add to the count, because the counter update is conditional `projects/hutch/src/runtime/providers/rate-limit/dynamodb-rate-limit.ts:43`
-- When a reserved domain skips the send, the token has already been written and stays until the DynamoDB TTL removes it `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:81`
+- When a reserved domain skips the send, the token has already been written and stays until the DynamoDB TTL removes it `projects/hutch/src/runtime/web/auth/request-password-reset.ts:65`
 - A DynamoDB error, a Resend 4xx (EmailRejectedError) or a Resend 5xx or network failure in the background chain loses the email after one log line `projects/hutch/src/runtime/providers/email/resend-email.ts:34`
 - Account deletion race: the delete-account worker scrubs reset tokens before it deletes the users row, so a request in between still sends an email and leaves a fresh token that outlives the account until the TTL removes it `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:189`
-- Staging runs the same code and sends real email through Resend, with links on https://readplace-staging.com and a limit of 5000 requests per IP per hour `projects/hutch/Pulumi.staging.yaml:49`
+- Staging runs the same code and sends real email through Resend, with links on https://readplace-staging.com, a limit of 5000 requests per IP per hour and 5000 per address per UTC day `projects/hutch/Pulumi.staging.yaml:54`
 - Local development with PERSISTENCE=development only logs the message, HTML included, and never sends, and its in-memory tokens never expire; the production web Lambda always runs with PERSISTENCE=prod `projects/hutch/src/runtime/providers/dev-providers.ts:544`
 
 </details>
@@ -489,7 +495,7 @@ Not sent when:
 > - Earlier links are not revoked: each request writes a new token, and a successful reset deletes only the token it used, so several reset links for one account work at once until each expires `projects/hutch/src/runtime/providers/password-reset/dynamodb-password-reset.ts:57`
 > - Accounts that sign in only with Google or Apple get the email, and using the link gives them a password for the first time, although the copy says "set a new password" `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:534`
 > - Soft-deleted accounts still get the email between deletion and the purge, because the existence check ignores deletedAt, but the link always fails with "This reset link is invalid or has already been used." since the reset step skips deleted accounts `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:141`
-> - The only throttle is per IP: there is no per-recipient limit, no bot defence and no opt-out, so requests from many IPs could send repeated reset emails to one address `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:52`
+> - Two throttles apply, 5 per UTC day per IP and 5 per UTC day per address; there is no bot defence and no opt-out, so requests from many IPs can still send up to 5 reset emails a day to one address `projects/hutch/src/runtime/web/auth/request-password-reset.ts:43`
 > - The send chain runs after the response, and the web Lambda handler returns as soon as the response finishes without waiting for it, so Lambda may freeze or reclaim the environment before the Resend call completes; no delay or loss has been observed in production (unverified) `projects/hutch/src/runtime/lambda.main.ts:63`
 
 ### Message
@@ -537,7 +543,8 @@ Subject: **Reset your password — Readplace** · To: `sam.reader@gmail.com`
   "env": {
     "APP_ORIGIN": "https://readplace.com",
     "STATIC_BASE_URL": "https://static.readplace.com",
-    "RATE_LIMIT_FORGOT_PASSWORD": "5/3600"
+    "RATE_LIMIT_FORGOT_PASSWORD": "5/86400",
+    "RATE_LIMIT_FORGOT_PASSWORD_ACCOUNT": "5/86400"
   },
   "sendEmailWiring": "initSkipReservedDomain(capturing sink in place of initResendEmail)"
 }
@@ -554,8 +561,10 @@ Exact HTML body: [`html/password-reset--default.html`](html/password-reset--defa
 
 ### Source
 
-- `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:57` — handler: POST /forgot-password with rate limit, validation, lookup, token and send
-- `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:84` — sendEmail call setting from, to and subject
+- `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:86` — handler: POST /forgot-password with the per-IP rate limit and validation
+- `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:64` — per-IP refusal: the Forgot password page at 429 with the paused notice
+- `projects/hutch/src/runtime/web/auth/request-password-reset.ts:43` — per-address rate limit, then lookup, token and send
+- `projects/hutch/src/runtime/web/auth/request-password-reset.ts:68` — sendEmail call setting from, to and subject
 - `projects/hutch/src/runtime/web/auth/password-reset-email.ts:19` — renderer: adds UTM tags to the reset URL and renders the template
 - `projects/hutch/src/runtime/web/auth/password-reset-email.template.html:22` — template: heading, one-hour expiry copy and Reset password button
 - `projects/hutch/src/runtime/providers/password-reset/dynamodb-password-reset.ts:49` — token creation with 1-hour expiry

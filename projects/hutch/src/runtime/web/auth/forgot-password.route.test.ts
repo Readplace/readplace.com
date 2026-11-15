@@ -10,8 +10,11 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { withDelayedSendEmail } from "./test-helpers/with-delayed-send-email";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchAuth } from "@packages/translations/hutch-auth";
 
 const useApp = useTestServer();
+const { t } = translator(hutchAuth, DEFAULT_LOCALE);
 
 describe("Forgot password", () => {
 	describe("GET /forgot-password", () => {
@@ -70,6 +73,18 @@ describe("Forgot password", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("h1")?.textContent).toBe("Check your email");
+		});
+
+		it("states the per-address daily limit on the confirmation page for known and unknown addresses alike", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({ email: "user@example.com", password: "password123" });
+			const requestReset = (email: string) =>
+				request(harness.server).post("/forgot-password").type("form").send({ email });
+
+			const limitLines = [await requestReset("user@example.com"), await requestReset("nobody@example.com")]
+				.map((response) => new JSDOM(response.text).window.document.querySelector("[data-test-reset-limit]")?.textContent);
+
+			expect(limitLines).toEqual([t("forgotPassword.sent.limit"), t("forgotPassword.sent.limit")]);
 		});
 
 		it("should send a password reset email for existing user", async () => {

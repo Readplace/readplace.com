@@ -12,6 +12,7 @@ const RateLimitRulesSchema = z.strictObject({
 	loginAccount: Rule,
 	signup: Rule,
 	forgotPassword: Rule,
+	forgotPasswordAccount: Rule,
 	oauthRegister: Rule,
 	oauthToken: Rule,
 	browserHandoff: Rule,

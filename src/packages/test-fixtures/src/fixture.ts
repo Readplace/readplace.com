@@ -326,6 +326,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			loginAccount: unlimitedRule,
 			signup: unlimitedRule,
 			forgotPassword: unlimitedRule,
+			forgotPasswordAccount: unlimitedRule,
 			oauthRegister: unlimitedRule,
 			oauthToken: unlimitedRule,
 			browserHandoff: unlimitedRule,

@@ -20,11 +20,19 @@ export function sendRateLimited(res: Response, retryAfterSeconds: number): void 
 		.send("Too many requests from your network. Please try again later.");
 }
 
+export type OnRateLimited = (params: { req: Request; res: Response; retryAfterSeconds: number }) => void;
+
+const sendPlainRateLimited: OnRateLimited = ({ res, retryAfterSeconds }) => {
+	sendRateLimited(res, retryAfterSeconds);
+};
+
 export function createRateLimitMiddleware(deps: {
 	consumeRateLimit: ConsumeRateLimit;
 	bucket: RateLimitBucket;
 	rule: RateLimitRule;
+	onLimited?: OnRateLimited;
 }): RequestHandler {
+	const onLimited = deps.onLimited ?? sendPlainRateLimited;
 	return (req, res, next) => {
 		deps
 			.consumeRateLimit({
@@ -34,7 +42,7 @@ export function createRateLimitMiddleware(deps: {
 			})
 			.then((decision) => {
 				if (!decision.allowed) {
-					sendRateLimited(res, decision.retryAfterSeconds);
+					onLimited({ req, res, retryAfterSeconds: decision.retryAfterSeconds });
 					return;
 				}
 				next();
