@@ -5,7 +5,6 @@ import {
 	type CancelSubscriptionImmediately,
 	type CreateSubscriptionOnExistingCustomer,
 	type FindSubscriptionNextCharge,
-	type FindSubscriptionPaymentMethod,
 	type InvoiceId,
 	type InvoiceSummary,
 	type ListInvoices,
@@ -29,8 +28,6 @@ export function initInMemorySubscriptionBilling(opts?: {
 	cancelImmediately: CancelSubscriptionImmediately;
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
-	findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod;
-	seedSubscriptionPaymentMethod: (input: { subscriptionId: string; paymentMethodId: string }) => void;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	cancelledSubscriptionIds: () => readonly string[];
@@ -39,7 +36,6 @@ export function initInMemorySubscriptionBilling(opts?: {
 		priceId: string;
 		userId: UserId;
 		onUnpaidFirstInvoice: OnUnpaidFirstInvoice;
-		paymentMethodId?: string;
 		subscriptionId: string;
 	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
@@ -63,7 +59,6 @@ export function initInMemorySubscriptionBilling(opts?: {
 	const scheduledCancellationCalls: { subscriptionId: string; cancellationEffectiveAt: string }[] = [];
 	const reversed: string[] = [];
 	const nextCharges = new Map<string, SubscriptionNextCharge>();
-	const paymentMethodsBySubscription = new Map<string, string>();
 	const nextChargeLookupCalls: string[] = [];
 	let nextChargeLookupFails = false;
 	const invoicesByCustomer = new Map<string, InvoiceSummary[]>();
@@ -80,20 +75,12 @@ export function initInMemorySubscriptionBilling(opts?: {
 		priceId,
 		userId,
 		onUnpaidFirstInvoice,
-		paymentMethodId,
 	}) => {
 		if (opts?.createSubscriptionFails) {
 			throw new Error("In-memory billing createSubscription failure");
 		}
 		const subscriptionId = `sub_inmem_${nextId++}`;
-		created.push({
-			customerId,
-			priceId,
-			userId,
-			onUnpaidFirstInvoice,
-			...(paymentMethodId === undefined ? {} : { paymentMethodId }),
-			subscriptionId,
-		});
+		created.push({ customerId, priceId, userId, onUnpaidFirstInvoice, subscriptionId });
 		return { subscriptionId };
 	};
 
@@ -130,9 +117,6 @@ export function initInMemorySubscriptionBilling(opts?: {
 		}
 		return nextCharges.get(subscriptionId);
 	};
-
-	const findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod = async ({ subscriptionId }) =>
-		paymentMethodsBySubscription.get(subscriptionId);
 
 	function cursorIndex(invoices: readonly InvoiceSummary[], id: InvoiceId): number {
 		const index = invoices.findIndex((invoice) => invoice.id === id);
@@ -172,10 +156,6 @@ export function initInMemorySubscriptionBilling(opts?: {
 		cancelImmediately,
 		createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge,
-		findSubscriptionPaymentMethod,
-		seedSubscriptionPaymentMethod: ({ subscriptionId, paymentMethodId }) => {
-			paymentMethodsBySubscription.set(subscriptionId, paymentMethodId);
-		},
 		scheduleCancellationAtPeriodEnd,
 		reverseScheduledCancellation,
 		cancelledSubscriptionIds: () => [...cancelled],
