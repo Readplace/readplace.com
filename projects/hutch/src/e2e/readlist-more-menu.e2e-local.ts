@@ -9,9 +9,17 @@ const PASSWORD = "password123";
 const READLISTS = 8;
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
-const SURFACES = [
-	{ name: "More popover", viewport: { width: 1366, height: 650 }, opener: '[data-test-action="more-readlists"]', popover: '[data-test-readlist-popover="more"]' },
-	{ name: "phone sheet", viewport: { width: 390, height: 844 }, opener: '[data-test-action="readlist-sheet"]', popover: '[data-test-readlist-popover="sheet"]' },
+interface Surface {
+	name: string;
+	viewport: { width: number; height: number };
+	opener?: string;
+	container: string;
+}
+
+const SURFACES: Surface[] = [
+	{ name: "rail", viewport: { width: 1366, height: 650 }, container: "[data-test-readlist-rail]" },
+	{ name: "More popover", viewport: { width: 1366, height: 650 }, opener: '[data-test-action="more-readlists"]', container: '[data-test-readlist-popover="more"]' },
+	{ name: "phone sheet", viewport: { width: 390, height: 844 }, opener: '[data-test-action="readlist-sheet"]', container: '[data-test-readlist-popover="sheet"]' },
 ];
 
 async function signInWithReadlists(page: Page, stamp: string): Promise<void> {
@@ -38,10 +46,10 @@ for (const surface of SURFACES) {
 
 		test("every entry's options panel shows all of its items", async ({ page }, testInfo) => {
 			await signInWithReadlists(page, `${testInfo.workerIndex}-${Date.now()}`);
-			await page.locator(surface.opener).click();
-			const popover = page.locator(surface.popover);
-			await expect(popover).toBeVisible();
-			const menus = popover.locator("[data-test-readlist-menu]");
+			if (surface.opener !== undefined) await page.locator(surface.opener).click();
+			const container = page.locator(surface.container);
+			await expect(container).toBeVisible();
+			const menus = container.locator("[data-test-readlist-menu]");
 			const count = await menus.count();
 			expect(count).toBeGreaterThan(0);
 
@@ -54,8 +62,11 @@ for (const surface of SURFACES) {
 						.filter((item) => item.checkVisibility())
 						.filter((item) => {
 							const box = item.getBoundingClientRect();
-							const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-							return hit === null || !item.contains(hit);
+							const x = box.left + box.width / 2;
+							return [box.top + 2, box.top + box.height / 2, box.bottom - 2].some((y) => {
+								const hit = document.elementFromPoint(x, y);
+								return hit === null || !item.contains(hit);
+							});
 						})
 						.map((item) => item.textContent?.trim() ?? ""),
 				);

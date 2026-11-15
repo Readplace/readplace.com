@@ -14,7 +14,6 @@ const RAIL = ".readlist__rail";
 const RAIL_LIST = ".readlist-nav__rail-list";
 const LAYOUT = ".readlist__layout";
 const MENU = ".readlist-nav__menu";
-const MENU_UP = "readlist-nav__menu--up";
 const MENU_FLOATING = "readlist-nav__menu--floating";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -104,9 +103,18 @@ function onSwitchToggle(input: {
 		current.scrollIntoView({ block: "nearest" });
 }
 
-function placeMenu(input: { window: Window; menu: HTMLDetailsElement }): void {
+interface TogglePosition {
+	top: number;
+	left: number;
+}
+
+function placeMenu(input: {
+	window: Window;
+	menu: HTMLDetailsElement;
+	placed: WeakMap<HTMLDetailsElement, TogglePosition>;
+}): void {
 	const { menu } = input;
-	menu.classList.remove(MENU_UP, MENU_FLOATING);
+	menu.classList.remove(MENU_FLOATING);
 	const panel = menu.querySelector<HTMLElement>(".menu__panel");
 	assert(panel, "a rail menu opens a panel");
 	const toggle = menu.getBoundingClientRect();
@@ -114,10 +122,7 @@ function placeMenu(input: { window: Window; menu: HTMLDetailsElement }): void {
 	const below = input.window.innerHeight - toggle.bottom;
 	const above = toggle.top;
 	const up = height > below && above > below;
-	if (menu.closest(SWITCH) === null) {
-		if (up) menu.classList.add(MENU_UP);
-		return;
-	}
+	input.placed.set(menu, { top: toggle.top, left: toggle.left });
 	menu.classList.add(MENU_FLOATING);
 	const top = up ? toggle.top - height : toggle.bottom;
 	const left = toggle.right - panel.getBoundingClientRect().width;
@@ -132,6 +137,18 @@ export function initReadlistMore(deps: ReadlistMoreDeps): void {
 	const window = deps.document.defaultView;
 	assert(window, "the readlist switch runs in a window");
 	const open = new WeakSet<Element>();
+	const placed = new WeakMap<HTMLDetailsElement, TogglePosition>();
+
+	const closeMovedMenus = (): void => {
+		for (const menu of deps.document.querySelectorAll<HTMLDetailsElement>(
+			`${RAIL} details${MENU}[open]`,
+		)) {
+			const at = placed.get(menu);
+			if (at === undefined) continue;
+			const now = menu.getBoundingClientRect();
+			if (at.top !== now.top || at.left !== now.left) menu.open = false;
+		}
+	};
 
 	deps.document.addEventListener(
 		"toggle",
@@ -140,7 +157,8 @@ export function initReadlistMore(deps: ReadlistMoreDeps): void {
 			if (!isElement(target)) return;
 			const menu = target.closest<HTMLDetailsElement>(`${RAIL} details${MENU}`);
 			if (menu === target) {
-				if (menu.open) placeMenu({ window, menu });
+				if (menu.open) placeMenu({ window, menu, placed });
+				else placed.delete(menu);
 				return;
 			}
 			const dialog = target.closest<HTMLElement>(SWITCH);
@@ -153,18 +171,8 @@ export function initReadlistMore(deps: ReadlistMoreDeps): void {
 		true,
 	);
 
-	deps.document.addEventListener(
-		"scroll",
-		(event) => {
-			const body = event.target;
-			if (!isElement(body) || !body.matches(BODY)) return;
-			for (const menu of body.querySelectorAll<HTMLDetailsElement>(
-				`details${MENU}[open]`,
-			))
-				menu.open = false;
-		},
-		true,
-	);
+	deps.document.addEventListener("scroll", closeMovedMenus, true);
+	window.addEventListener("resize", closeMovedMenus);
 
 	deps.document.addEventListener("input", (event) => {
 		const target = event.target;

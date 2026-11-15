@@ -309,115 +309,30 @@ describe("initReadlistMore", () => {
 		assert.deepEqual(s.hidden, []);
 	});
 
-	function stubRect(
-		element: Element,
-		rect: { top: number; bottom: number; height: number },
-	): void {
-		Object.defineProperty(element, "getBoundingClientRect", {
-			value: () => rect,
-		});
+	interface ToggleRect {
+		top: number;
+		bottom: number;
+		left: number;
+		right: number;
 	}
 
-	function openRailMenu(
+	function openMenu(
 		s: Setup,
+		selector: string,
 		rects: {
-			toggle: { top: number; bottom: number };
-			panelHeight: number;
-		},
-	): HTMLElement {
-		const menu = s.el("[data-test-rail-menu]");
-		stubRect(menu, {
-			...rects.toggle,
-			height: rects.toggle.bottom - rects.toggle.top,
-		});
-		stubRect(s.el("[data-test-rail-menu] .menu__panel"), {
-			top: 0,
-			bottom: rects.panelHeight,
-			height: rects.panelHeight,
-		});
-		menu.setAttribute("open", "");
-		menu.dispatchEvent(new s.window.Event("toggle"));
-		return menu;
-	}
-
-	it("opens a rail menu upward when its panel would leave the viewport and there is more room above", () => {
-		const s = setup({ overflow: true, finePointer: true });
-		Object.defineProperty(s.window, "innerHeight", { value: 700 });
-
-		const menu = openRailMenu(s, {
-			toggle: { top: 620, bottom: 660 },
-			panelHeight: 120,
-		});
-
-		assert.ok(menu.classList.contains("readlist-nav__menu--up"));
-	});
-
-	it("opens a rail menu downward when its panel fits below", () => {
-		const s = setup({ overflow: true, finePointer: true });
-		Object.defineProperty(s.window, "innerHeight", { value: 700 });
-		s.el("[data-test-rail-menu]").classList.add("readlist-nav__menu--up");
-
-		const menu = openRailMenu(s, {
-			toggle: { top: 40, bottom: 80 },
-			panelHeight: 120,
-		});
-
-		assert.equal(menu.classList.contains("readlist-nav__menu--up"), false);
-	});
-
-	it("opens a rail menu downward when there is no more room above than below", () => {
-		const s = setup({ overflow: true, finePointer: true });
-		Object.defineProperty(s.window, "innerHeight", { value: 100 });
-
-		const menu = openRailMenu(s, {
-			toggle: { top: 20, bottom: 60 },
-			panelHeight: 120,
-		});
-
-		assert.equal(menu.classList.contains("readlist-nav__menu--up"), false);
-	});
-
-	it("leaves closing rail menus, menus outside the rail and other toggles alone", () => {
-		const s = setup({ overflow: true, finePointer: true });
-		s.el("[data-test-rail-menu]").classList.add("readlist-nav__menu--up");
-		s.el("[data-test-loose-menu]").classList.add("readlist-nav__menu--up");
-
-		s.el("[data-test-rail-menu]").dispatchEvent(new s.window.Event("toggle"));
-		s.el("[data-test-loose-menu]").setAttribute("open", "");
-		s.el("[data-test-loose-menu]").dispatchEvent(new s.window.Event("toggle"));
-		toggle(s, "[data-test-other-popover]", "open");
-		s.document.dispatchEvent(new s.window.Event("toggle"));
-
-		assert.ok(
-			s
-				.el("[data-test-rail-menu]")
-				.classList.contains("readlist-nav__menu--up"),
-		);
-		assert.ok(
-			s
-				.el("[data-test-loose-menu]")
-				.classList.contains("readlist-nav__menu--up"),
-		);
-		assert.equal(
-			s.el("[data-test-opener]").getAttribute("aria-expanded"),
-			null,
-		);
-	});
-
-	function openSwitchMenu(
-		s: Setup,
-		rects: {
-			toggle: { top: number; bottom: number; right: number };
+			toggle: ToggleRect;
 			panel: { height: number; width: number };
 			containingBlock: { top: number; left: number };
 		},
 	): HTMLElement {
-		const menu = s.el("[data-test-switch-menu]");
-		stubRect(menu, {
-			...rects.toggle,
-			height: rects.toggle.bottom - rects.toggle.top,
+		const menu = s.el(selector);
+		Object.defineProperty(menu, "getBoundingClientRect", {
+			value: () => ({
+				...rects.toggle,
+				height: rects.toggle.bottom - rects.toggle.top,
+			}),
 		});
-		const panel = s.el("[data-test-switch-menu] .menu__panel");
+		const panel = s.el(`${selector} .menu__panel`);
 		Object.defineProperty(panel, "getBoundingClientRect", {
 			value: () => ({
 				top:
@@ -434,22 +349,92 @@ describe("initReadlistMore", () => {
 		return menu;
 	}
 
+	const FLOATING = ["menu", "readlist-nav__menu", "readlist-nav__menu--floating"];
+
+	it("floats a rail-list menu below its toggle when its panel fits below", () => {
+		const s = setup({ overflow: true, finePointer: true });
+		Object.defineProperty(s.window, "innerHeight", { value: 700 });
+
+		const menu = openMenu(s, "[data-test-rail-menu]", {
+			toggle: { top: 40, bottom: 80, left: 200, right: 240 },
+			panel: { height: 120, width: 150 },
+			containingBlock: { top: 0, left: 0 },
+		});
+		const panel = s.el("[data-test-rail-menu] .menu__panel");
+
+		assert.deepEqual(Array.from(menu.classList), FLOATING);
+		assert.equal(panel.style.getPropertyValue("--menu-top"), "80px");
+		assert.equal(panel.style.getPropertyValue("--menu-left"), "90px");
+	});
+
+	it("floats a rail-list menu above its toggle when its panel would leave the viewport and there is more room above", () => {
+		const s = setup({ overflow: true, finePointer: true });
+		Object.defineProperty(s.window, "innerHeight", { value: 700 });
+
+		const menu = openMenu(s, "[data-test-rail-menu]", {
+			toggle: { top: 620, bottom: 660, left: 200, right: 240 },
+			panel: { height: 120, width: 150 },
+			containingBlock: { top: 0, left: 0 },
+		});
+		const panel = s.el("[data-test-rail-menu] .menu__panel");
+
+		assert.deepEqual(Array.from(menu.classList), FLOATING);
+		assert.equal(panel.style.getPropertyValue("--menu-top"), "500px");
+	});
+
+	it("floats a rail-list menu below its toggle when there is no more room above than below", () => {
+		const s = setup({ overflow: true, finePointer: true });
+		Object.defineProperty(s.window, "innerHeight", { value: 100 });
+
+		openMenu(s, "[data-test-rail-menu]", {
+			toggle: { top: 20, bottom: 60, left: 200, right: 240 },
+			panel: { height: 120, width: 150 },
+			containingBlock: { top: 0, left: 0 },
+		});
+		const panel = s.el("[data-test-rail-menu] .menu__panel");
+
+		assert.equal(panel.style.getPropertyValue("--menu-top"), "60px");
+	});
+
+	it("leaves closing rail menus, menus outside the rail and other toggles alone", () => {
+		const s = setup({ overflow: true, finePointer: true });
+		s.el("[data-test-rail-menu]").classList.add("readlist-nav__menu--floating");
+		s.el("[data-test-loose-menu]").classList.add("readlist-nav__menu--floating");
+
+		s.el("[data-test-rail-menu]").dispatchEvent(new s.window.Event("toggle"));
+		s.el("[data-test-loose-menu]").setAttribute("open", "");
+		s.el("[data-test-loose-menu]").dispatchEvent(new s.window.Event("toggle"));
+		toggle(s, "[data-test-other-popover]", "open");
+		s.document.dispatchEvent(new s.window.Event("toggle"));
+
+		assert.deepEqual(Array.from(s.el("[data-test-rail-menu]").classList), FLOATING);
+		assert.ok(
+			s
+				.el("[data-test-loose-menu]")
+				.classList.contains("readlist-nav__menu--floating"),
+		);
+		assert.equal(
+			s.el("[data-test-loose-menu] .menu__panel").style.getPropertyValue("--menu-top"),
+			"",
+		);
+		assert.equal(
+			s.el("[data-test-opener]").getAttribute("aria-expanded"),
+			null,
+		);
+	});
+
 	it("floats a readlist switch menu below its toggle, right-aligned to it", () => {
 		const s = setup({ overflow: true, finePointer: true });
 		Object.defineProperty(s.window, "innerHeight", { value: 700 });
 
-		const menu = openSwitchMenu(s, {
-			toggle: { top: 100, bottom: 140, right: 600 },
+		const menu = openMenu(s, "[data-test-switch-menu]", {
+			toggle: { top: 100, bottom: 140, left: 560, right: 600 },
 			panel: { height: 120, width: 150 },
 			containingBlock: { top: 0, left: 0 },
 		});
 		const panel = s.el("[data-test-switch-menu] .menu__panel");
 
-		assert.deepEqual(Array.from(menu.classList), [
-			"menu",
-			"readlist-nav__menu",
-			"readlist-nav__menu--floating",
-		]);
+		assert.deepEqual(Array.from(menu.classList), FLOATING);
 		assert.equal(panel.style.getPropertyValue("--menu-top"), "140px");
 		assert.equal(panel.style.getPropertyValue("--menu-left"), "450px");
 	});
@@ -458,43 +443,83 @@ describe("initReadlistMore", () => {
 		const s = setup({ overflow: true, finePointer: true });
 		Object.defineProperty(s.window, "innerHeight", { value: 700 });
 
-		const menu = openSwitchMenu(s, {
-			toggle: { top: 620, bottom: 660, right: 380 },
+		const menu = openMenu(s, "[data-test-switch-menu]", {
+			toggle: { top: 620, bottom: 660, left: 340, right: 380 },
 			panel: { height: 120, width: 150 },
 			containingBlock: { top: 8, left: 8 },
 		});
 		const panel = s.el("[data-test-switch-menu] .menu__panel");
 
-		assert.deepEqual(Array.from(menu.classList), [
-			"menu",
-			"readlist-nav__menu",
-			"readlist-nav__menu--floating",
-		]);
+		assert.deepEqual(Array.from(menu.classList), FLOATING);
 		assert.equal(panel.style.getPropertyValue("--menu-top"), "492px");
 		assert.equal(panel.style.getPropertyValue("--menu-left"), "222px");
 	});
 
-	it("closes the open menus of a readlist switch body when that body scrolls", () => {
+	function openBothMenus(s: Setup): { rail: ToggleRect; switch: ToggleRect } {
+		Object.defineProperty(s.window, "innerHeight", { value: 700 });
+		const rail = { top: 40, bottom: 80, left: 200, right: 240 };
+		const inSwitch = { top: 100, bottom: 140, left: 560, right: 600 };
+		for (const [selector, toggleRect] of [
+			["[data-test-rail-menu]", rail],
+			["[data-test-switch-menu]", inSwitch],
+		] as const)
+			openMenu(s, selector, {
+				toggle: toggleRect,
+				panel: { height: 120, width: 150 },
+				containingBlock: { top: 0, left: 0 },
+			});
+		return { rail, switch: inSwitch };
+	}
+
+	it("closes an open rail menu when a scroll moved its toggle, leaving one whose toggle stayed put", () => {
 		const s = setup({ overflow: true, finePointer: true });
-		const menu = s.el("[data-test-switch-menu]");
-		menu.setAttribute("open", "");
+		const toggles = openBothMenus(s);
+
+		toggles.rail.top -= 30;
+		s.el("[data-test-rail-switch-head]").dispatchEvent(
+			new s.window.Event("scroll"),
+		);
+
+		assert.equal(s.el("[data-test-rail-menu]").hasAttribute("open"), false);
+		assert.equal(s.el("[data-test-switch-menu]").hasAttribute("open"), true);
+	});
+
+	it("keeps open rail menus open when a scroll left every toggle in place", () => {
+		const s = setup({ overflow: true, finePointer: true });
+		openBothMenus(s);
 
 		s.el("[data-test-rail-switch-body]").dispatchEvent(
 			new s.window.Event("scroll"),
 		);
+		s.document.dispatchEvent(new s.window.Event("scroll"));
 
-		assert.equal(menu.hasAttribute("open"), false);
+		assert.equal(s.el("[data-test-rail-menu]").hasAttribute("open"), true);
+		assert.equal(s.el("[data-test-switch-menu]").hasAttribute("open"), true);
 	});
 
-	it("keeps menus open when something other than a readlist switch body scrolls", () => {
+	it("closes an open rail menu when a resize moved its toggle sideways", () => {
 		const s = setup({ overflow: true, finePointer: true });
-		const menu = s.el("[data-test-switch-menu]");
-		menu.setAttribute("open", "");
+		const toggles = openBothMenus(s);
 
+		toggles.switch.left += 40;
+		s.window.dispatchEvent(new s.window.Event("resize"));
+
+		assert.equal(s.el("[data-test-rail-menu]").hasAttribute("open"), true);
+		assert.equal(s.el("[data-test-switch-menu]").hasAttribute("open"), false);
+	});
+
+	it("leaves an open rail menu alone on a scroll that lands before the menu is placed", () => {
+		const s = setup({ overflow: true, finePointer: true });
+		const toggles = openBothMenus(s);
+		const menu = s.el("[data-test-rail-menu]");
+
+		menu.removeAttribute("open");
+		menu.dispatchEvent(new s.window.Event("toggle"));
+		toggles.rail.top -= 30;
+		menu.setAttribute("open", "");
 		s.el("[data-test-rail-switch-head]").dispatchEvent(
 			new s.window.Event("scroll"),
 		);
-		s.document.dispatchEvent(new s.window.Event("scroll"));
 
 		assert.equal(menu.hasAttribute("open"), true);
 	});
