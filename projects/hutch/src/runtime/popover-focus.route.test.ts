@@ -257,6 +257,7 @@ describe("every popup opens on its first decision", () => {
 			"readlist-delete",
 			"readlist-preferences",
 			"readlist-rename",
+			"report-article",
 			"save-tip",
 			"share",
 			"sharing-off",

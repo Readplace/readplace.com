@@ -180,6 +180,7 @@ describe("renderReaderSkeleton", () => {
 			"/client-dist/reader-image-boxes.client.js",
 			"/client-dist/share-dialog.client.js",
 			"/client-dist/summary-toggle.client.js",
+			"/client-dist/report-article.client.js",
 			"/client-dist/capture-failed-relay.client.js",
 			"/client-dist/crawl-estimate.client.js",
 			"/client-dist/readlist-picker.client.js",

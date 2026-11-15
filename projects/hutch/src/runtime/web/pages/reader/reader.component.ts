@@ -93,7 +93,9 @@ import type { EnclosureRead } from "@packages/domain/article";
 import { displayableTime } from "../../shared/displayable-time";
 import { PLAYER_SCRIPT, renderPlayer } from "../../shared/player/player.component";
 import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
-import { reportArticleHref } from "../../shared/report-article/report-article-href";
+import {
+	REPORT_ARTICLE_SCRIPT,
+} from "../../shared/report-article/report-article-dialog.component";
 import { isReaderViewShareable } from "../../shared/article-reader/reader-view";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
@@ -347,10 +349,10 @@ export function ReaderPage(
 		extensionInstallUrl: options.extensionInstallUrl,
 		readerNotice: options.readerNotice,
 		issueLinksHtml: renderIssueLinksSection(options.issueLinks),
-		reportHref:
+		report:
 			reportViewUrl === undefined
 				? undefined
-				: reportArticleHref({ viewUrl: reportViewUrl, title: article.metadata.title }),
+				: { viewUrl: reportViewUrl, title: article.metadata.title, surface: "reader", asksForEmail: false },
 		previouslyReadHtml:
 			pastReadsInput === undefined
 				? undefined
@@ -485,6 +487,7 @@ export function ReaderPage(
 			page:
 				SHARE_DIALOG_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
+				REPORT_ARTICLE_SCRIPT +
 				CAPTURE_FAILED_RELAY_SCRIPT +
 				CRAWL_ESTIMATE_SCRIPT +
 				READLIST_PICKER_SCRIPT +

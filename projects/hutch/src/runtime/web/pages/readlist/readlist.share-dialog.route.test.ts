@@ -135,14 +135,12 @@ describe("GET /queue/:id/view share dialog", () => {
 		]);
 	});
 
-	it("offers a report link naming the same public view", async () => {
+	it("offers a report dialog naming the same public view", async () => {
 		const doc = await saveAndOpenReader(TEST_APP_ORIGIN);
 
-		const report = doc.querySelector('[data-test-action="report-article"]');
-		assert(report, "the reader must offer a report link");
-		const href = new URL(report.getAttribute("href") ?? "");
-		assert.equal(href.pathname, "readplace+report@readplace.com");
-		expect(href.searchParams.get("body")).toContain(`${TEST_APP_ORIGIN}/view/example.com/shareable`);
+		const article = doc.querySelector('[data-test-form="report-article"] input[name="article"]');
+		assert(article, "the reader must offer a report dialog");
+		assert.equal(article.getAttribute("value"), `${TEST_APP_ORIGIN}/view/example.com/shareable`);
 	});
 });
 
