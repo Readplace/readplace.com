@@ -7,12 +7,12 @@ export type ListArticleHighlights = (params: {
 }) => Promise<readonly Highlight[]>;
 
 export type CreateHighlightOutcome =
-	| { status: "created" | "merged"; highlight: Highlight; replacedIds: readonly HighlightId[] }
+	| { status: "created" | "merged"; highlights: readonly Highlight[]; replacedIds: readonly HighlightId[] }
 	| { status: "cancelled" };
 
 export type CreateHighlight = (params: {
 	userId: UserId;
-	highlight: Highlight;
+	highlights: readonly Highlight[];
 	replacedIds: readonly HighlightId[];
 }) => Promise<CreateHighlightOutcome>;
 

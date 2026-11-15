@@ -263,6 +263,7 @@ import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initReportArticleRoutes } from "./web/pages/report-article/report-article.page";
 import { initBrowserHandoffRoutes } from "./web/auth/browser-handoff.page";
 import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
+import { isHighlightCreateRequest } from "./web/pages/readlist/highlights.page";
 import { initUnrouteInboxesOnReadlistDelete } from "./domain/readlist/unroute-inboxes-on-readlist-delete";
 import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
@@ -833,6 +834,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const createReaderHighlight = initCreateReaderHighlight({
 		listArticleHighlights: deps.listArticleHighlights,
 		createHighlight: deps.createHighlight,
+		updateHighlightNote: deps.updateHighlightNote,
 		newHighlightId: randomUUID,
 		now: deps.now,
 	});
@@ -861,7 +863,8 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const secureCookies = isHttpsOrigin(appOrigin);
 
-	app.use(express.urlencoded({ extended: true, verify: captureOAuthBody }));
+	const parseForm = express.urlencoded({ extended: true, verify: captureOAuthBody });
+	app.use((req, res, next) => (isHighlightCreateRequest(req) ? next() : parseForm(req, res, next)));
 	app.use(cookieParser());
 	app.use(createCrossSiteRequestMiddleware({ appOrigin }));
 	app.use(initAuthDiagnosticMiddleware({ diagnostics: authDiagnostics, now: deps.now, secureCookies }));
