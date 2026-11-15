@@ -105,35 +105,7 @@ describe("GET /auth/checkout/success", () => {
 		expect(assertErrorAlert(doc)?.textContent).toContain("not completed");
 	});
 
-	it("renders 409 when the checkout has been paid but no pending signup exists for it", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { hostedCheckout } = harness;
-
-		const checkout = await hostedCheckout.createCheckoutSession({
-			customerEmail: "no-pending@example.com",
-			priceId: "price_test_yearly",
-			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
-			cancelUrl: "http://localhost:3000/signup",
-			coupon: null,
-		});
-		hostedCheckout.markPaid(checkout.id);
-
-		const response = await request(harness.server)
-			.get(`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`)
-			.set("User-Agent", BROWSER_USER_AGENT);
-
-		expect(response.status).toBe(409);
-		const doc = new JSDOM(response.text).window.document;
-		expect(assertErrorAlert(doc)?.textContent).toContain("already been used");
-
-		const events = harness.subscriptionEvents.events;
-		expect(events).toHaveLength(1);
-		expect(events[0].event).toBe("checkout_return_failed");
-		expect(events[0].reason).toBe(CHECKOUT_RETURN_FAILURE_REASONS.replayed);
-		expect(events[0].checkout_session_id).toBe(checkout.id);
-	});
-
-	it("redirects a repeat visit of the success URL to the stored return URL without recording a second completion", async () => {
+	it("renders 409 when the checkout has been paid but the pending signup was already consumed", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth, hostedCheckout, pendingSignup } = harness;
 
@@ -144,62 +116,22 @@ describe("GET /auth/checkout/success", () => {
 			pendingSignup,
 			email: "double@example.com",
 			password: "password123",
-			returnUrl: "/account",
 		});
 
 		const replay = await request(harness.server)
 			.get(`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`)
 			.set("User-Agent", BROWSER_USER_AGENT);
 
-		expect(replay.status).toBe(303);
-		expect(replay.headers.location).toBe("/account");
+		expect(replay.status).toBe(409);
+		const doc = new JSDOM(replay.text).window.document;
+		expect(assertErrorAlert(doc)?.textContent).toContain("already been used");
+
 		const events = harness.subscriptionEvents.events;
-		expect(events.map((e) => e.event)).toEqual(["checkout_completed"]);
-		expect(events[0].activated_by).toBe("redirect");
-	});
-
-	it("redirects to the stored return URL without a second activation when Stripe's webhook activated the checkout first", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, hostedCheckout, pendingSignup, subscriptionProviders, trialScheduler } = harness;
-
-		const created = await auth.createUser({ email: "webhook-first@example.com", password: "password123" });
-		assert(created.ok, "user must be created before checkout");
-		const checkout = await hostedCheckout.createCheckoutSession({
-			customerEmail: "webhook-first@example.com",
-			priceId: "price_test_yearly",
-			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
-			cancelUrl: "http://localhost:3000/signup",
-			coupon: null,
-		});
-		await pendingSignup.storePendingSignup({
-			checkoutSessionId: checkout.id,
-			signup: {
-				method: "existing-user-subscribe",
-				email: "webhook-first@example.com",
-				userId: created.userId,
-				returnUrl: "/queue",
-				entrySource: null,
-				offer: "none",
-			},
-			createdAt: 1735000000,
-		});
-		hostedCheckout.markPaid(checkout.id);
-		const webhookClaim = await pendingSignup.claimPendingSignup({
-			checkoutSessionId: checkout.id,
-			activatedBy: "webhook",
-			claimedAt: new Date().toISOString(),
-		});
-		assert(webhookClaim.outcome === "claimed", "the webhook claims the checkout first");
-
-		const response = await request(harness.server)
-			.get(`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`)
-			.set("User-Agent", BROWSER_USER_AGENT);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
-		expect(harness.subscriptionEvents.events).toEqual([]);
-		expect(await subscriptionProviders.findByUserId(created.userId)).toBeUndefined();
-		expect(trialScheduler.deleteCalls()).toEqual([]);
+		expect(events).toHaveLength(2);
+		expect(events[0].event).toBe("checkout_completed");
+		expect(events[1].event).toBe("checkout_return_failed");
+		expect(events[1].reason).toBe(CHECKOUT_RETURN_FAILURE_REASONS.replayed);
+		expect(events[1].checkout_session_id).toBe(checkoutSessionId);
 	});
 
 	it("marks the pre-existing user active and redirects to /queue on first paid visit", async () => {
@@ -232,7 +164,6 @@ describe("GET /auth/checkout/success", () => {
 		expect(evt.checkout_session_id).toBe(checkoutSessionId);
 		expect(evt.subscription_id).toMatch(/^sub_test_/);
 		expect(evt.paid_now).toBe(true);
-		expect(evt.activated_by).toBe("redirect");
 		expect(typeof evt.timestamp).toBe("string");
 	});
 
@@ -329,11 +260,10 @@ describe("GET /auth/checkout/success", () => {
 
 	it("records explicit nulls on checkout_completed when the row was stored before attribution existed", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const claimPendingSignup = fixture.pendingSignup.claimPendingSignup;
-		fixture.pendingSignup.claimPendingSignup = async (params) => {
-			const claim = await claimPendingSignup(params);
-			assert(claim.outcome === "claimed", "the first visit claims the stored signup");
-			return { ...claim, signup: { ...claim.signup, entrySource: null, offer: null } };
+		const consumePendingSignup = fixture.pendingSignup.consumePendingSignup;
+		fixture.pendingSignup.consumePendingSignup = async (checkoutSessionId) => {
+			const consumed = await consumePendingSignup(checkoutSessionId);
+			return consumed && { ...consumed, entrySource: null, offer: null };
 		};
 		const harness = useApp(fixture);
 		const { auth, hostedCheckout, pendingSignup } = harness;

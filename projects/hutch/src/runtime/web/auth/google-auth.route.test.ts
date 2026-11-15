@@ -261,12 +261,10 @@ describe("Google auth routes", () => {
 			const lookup = await auth.findUserByEmail("free-google@example.com");
 			expect(lookup?.emailVerified).toBe(true);
 
-			const claim = await pendingSignup.claimPendingSignup({
-				checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_never_created"),
-				activatedBy: "redirect",
-				claimedAt: new Date().toISOString(),
-			});
-			expect(claim).toEqual({ outcome: "not-found" });
+			const consumed = await pendingSignup.consumePendingSignup(
+				CheckoutSessionIdSchema.parse("cs_test_never_created"),
+			);
+			expect(consumed).toBeNull();
 		}, 30000);
 
 		it("sends the welcome email before it answers", async () => {

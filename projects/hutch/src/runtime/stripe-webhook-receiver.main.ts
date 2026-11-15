@@ -7,7 +7,6 @@ import {
 	initEventBridgePublisher,
 } from "@packages/infra-components/runtime";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
-import { initHandleCheckoutSessionCompleted } from "./stripe-webhook-receiver/handlers/checkout-session-completed";
 import { initHandleCustomerSubscriptionDeleted } from "./stripe-webhook-receiver/handlers/customer-subscription-deleted";
 import { initHandleInvoicePaymentFailed } from "./stripe-webhook-receiver/handlers/invoice-payment-failed";
 import {
@@ -35,7 +34,6 @@ const subscriptionProviders = initDynamoDbSubscriptionProviders({
 });
 
 const eventHandlers: Record<StripeEventType, StripeEventHandler> = {
-	"checkout.session.completed": initHandleCheckoutSessionCompleted({ publishEvent }),
 	"customer.subscription.deleted": initHandleCustomerSubscriptionDeleted({
 		findSubscriptionBySubscriptionId: subscriptionProviders.findBySubscriptionId,
 		publishEvent,

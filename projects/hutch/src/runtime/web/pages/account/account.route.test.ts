@@ -1607,8 +1607,8 @@ describe("POST /account/subscribe", () => {
 		const realCreateCheckoutSession = fixture.hostedCheckout.createCheckoutSession;
 		const checkoutCalls: { trialEndsAt?: string }[] = [];
 		const createdSessionIds: Parameters<
-			typeof fixture.pendingSignup.claimPendingSignup
-		>[0]["checkoutSessionId"][] = [];
+			typeof fixture.pendingSignup.consumePendingSignup
+		>[0][] = [];
 		fixture.hostedCheckout.createCheckoutSession = async (params) => {
 			checkoutCalls.push(params);
 			const session = await realCreateCheckoutSession(params);
@@ -1627,9 +1627,8 @@ describe("POST /account/subscribe", () => {
 		expect(checkoutCalls).toHaveLength(1);
 		expect(checkoutCalls[0].trialEndsAt).toBe(trialEndsAt);
 		expect(createdSessionIds).toHaveLength(1);
-		const claim = await pendingSignup.claimPendingSignup({ checkoutSessionId: createdSessionIds[0], activatedBy: "redirect", claimedAt: new Date().toISOString() });
-		assert(claim.outcome === "claimed", "pending signup must be stored for the checkout session");
-		const pending = claim.signup;
+		const pending = await pendingSignup.consumePendingSignup(createdSessionIds[0]);
+		assert(pending, "pending signup must be stored for the checkout session");
 		expect(pending.trialEndsAt).toBe(trialEndsAt);
 	});
 
@@ -2115,9 +2114,8 @@ describe("POST /account/subscribe (which plan gets charged)", () => {
 		await agent.post("/account/subscribe").type("form").send({ plan: "triennial" });
 
 		const [session] = hostedCheckout.createdCheckoutSessions();
-		const claim = await pendingSignup.claimPendingSignup({ checkoutSessionId: session.id, activatedBy: "redirect", claimedAt: new Date().toISOString() });
-		assert(claim.outcome === "claimed", "pending signup must be stored for the checkout session");
-		const pending = claim.signup;
+		const pending = await pendingSignup.consumePendingSignup(session.id);
+		assert(pending, "pending signup must be stored for the checkout session");
 		expect(pending.plan).toBe("triennial");
 	});
 
@@ -2133,9 +2131,8 @@ describe("POST /account/subscribe (which plan gets charged)", () => {
 		await agent.post("/account/subscribe?utm_source=day3-email").type("form").send({ plan: "yearly" });
 
 		const [session] = hostedCheckout.createdCheckoutSessions();
-		const claim = await pendingSignup.claimPendingSignup({ checkoutSessionId: session.id, activatedBy: "redirect", claimedAt: new Date().toISOString() });
-		assert(claim.outcome === "claimed", "pending signup must be stored for the checkout session");
-		const pending = claim.signup;
+		const pending = await pendingSignup.consumePendingSignup(session.id);
+		assert(pending, "pending signup must be stored for the checkout session");
 		expect(pending.entrySource).toBe("day3-email");
 		expect(pending.offer).toBe("none");
 		const started = harness.subscriptionEvents.events.filter(
@@ -2157,9 +2154,8 @@ describe("POST /account/subscribe (which plan gets charged)", () => {
 		await agent.post("/account/subscribe?utm_source=newsletter").type("form").send({ plan: "yearly" });
 
 		const [session] = hostedCheckout.createdCheckoutSessions();
-		const claim = await pendingSignup.claimPendingSignup({ checkoutSessionId: session.id, activatedBy: "redirect", claimedAt: new Date().toISOString() });
-		assert(claim.outcome === "claimed", "pending signup must be stored for the checkout session");
-		const pending = claim.signup;
+		const pending = await pendingSignup.consumePendingSignup(session.id);
+		assert(pending, "pending signup must be stored for the checkout session");
 		expect(pending.entrySource).toBeNull();
 	});
 

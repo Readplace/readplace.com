@@ -2,7 +2,6 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-	writeIfCondition,
 } from "@packages/storage-client";
 import type { Logger } from "@packages/logger";
 import { z } from "zod";
@@ -15,7 +14,7 @@ import {
 } from "@packages/provider-contracts/hosted-checkout";
 import { BillingPlanSchema } from "@packages/provider-contracts/subscription-providers";
 import type {
-	ClaimPendingSignup,
+	ConsumePendingSignup,
 	ConsumedPendingSignup,
 	DeletePendingSignupsByUser,
 	StorePendingSignup,
@@ -23,27 +22,24 @@ import type {
 
 const PendingSignupRow = z.object({
 	checkoutSessionId: CheckoutSessionIdSchema,
+	/** z.string(), not the live `existing-user-subscribe` literal: table.delete()
+	 * parses ALL_OLD *after* the DeleteCommand removes the row, so a literal
+	 * mismatch on a leftover pre-Phase-1 email/google row would throw post-delete
+	 * (HTTP 500 + a silently destroyed paid customer). consumePendingSignup
+	 * narrows to the contract and skips anything else. */
 	method: z.string(),
 	email: z.string(),
 	userId: dynamoField(UserIdSchema),
 	returnUrl: dynamoField(z.string()),
 	trialEndsAt: dynamoField(z.string()),
+	/** z.string() for the same reason as `method`: an unrecognised variant on a
+	 * leftover row must not throw during the post-delete parse. Narrowed on read. */
 	variant: dynamoField(z.string()),
 	plan: dynamoField(z.string()),
 	entrySource: dynamoField(z.string()),
 	offer: dynamoField(z.string()),
 	createdAt: dynamoField(z.number()),
-	consumedAt: dynamoField(z.string()),
-	activatedBy: dynamoField(z.string()),
 });
-
-const RefusedClaimRow = z.object({
-	method: z.object({ S: z.string() }),
-	consumedAt: z.object({ S: z.string() }).optional(),
-	returnUrl: z.object({ S: z.string() }).optional(),
-});
-
-const EXISTING_USER_SUBSCRIBE = "existing-user-subscribe";
 
 /** Projection for the deletion scrub: the key to delete by, plus the two handles
  * a deleted user can be matched on. `userId` is optional because legacy
@@ -60,7 +56,7 @@ export function initDynamoDbPendingSignup(deps: {
 	logger: Logger;
 }): {
 	storePendingSignup: StorePendingSignup;
-	claimPendingSignup: ClaimPendingSignup;
+	consumePendingSignup: ConsumePendingSignup;
 	deleteByUser: DeletePendingSignupsByUser;
 } {
 	const table = defineDynamoTable({
@@ -93,42 +89,22 @@ export function initDynamoDbPendingSignup(deps: {
 		});
 	};
 
-	const claimPendingSignup: ClaimPendingSignup = async ({ checkoutSessionId, activatedBy, claimedAt }) => {
-		const written = await writeIfCondition(() =>
-			table.update({
-				Key: { checkoutSessionId },
-				UpdateExpression: "SET consumedAt = :consumedAt, activatedBy = :activatedBy",
-				ConditionExpression:
-					"attribute_exists(checkoutSessionId) AND attribute_not_exists(consumedAt) AND #method = :method",
-				ExpressionAttributeNames: { "#method": "method" },
-				ExpressionAttributeValues: {
-					":consumedAt": claimedAt,
-					":activatedBy": activatedBy,
-					":method": EXISTING_USER_SUBSCRIBE,
-				},
-				ReturnValues: "ALL_NEW",
-				ReturnValuesOnConditionCheckFailure: "ALL_OLD",
-			}),
-		);
+	const consumePendingSignup: ConsumePendingSignup = async (checkoutSessionId) => {
+		const { Attributes } = await table.delete({
+			Key: { checkoutSessionId },
+			ReturnValues: "ALL_OLD",
+		});
+		if (!Attributes) return null;
 
-		if (written.kind === "condition-failed") {
-			if (!written.oldItem) return { outcome: "not-found" };
-			const refused = RefusedClaimRow.parse(written.oldItem);
-			if (refused.consumedAt) {
-				return {
-					outcome: "already-activated",
-					...(refused.returnUrl ? { returnUrl: refused.returnUrl.S } : {}),
-				};
-			}
+		if (Attributes.method !== "existing-user-subscribe") {
 			deps.logger.warn(
-				`[pending-signup] refused to claim legacy '${refused.method.S}' row for checkout session ${checkoutSessionId}`,
+				`[pending-signup] discarded legacy '${Attributes.method}' row for checkout session ${checkoutSessionId}; the DeleteCommand has already removed it, so this warning is the only remaining trace`,
 			);
-			return { outcome: "not-found" };
+			return null;
 		}
 
-		const Attributes = written.result.Attributes;
-		if (!Attributes?.userId) return { outcome: "not-found" };
 		const userId = Attributes.userId;
+		if (!userId) return null;
 		const returnUrl = Attributes.returnUrl ?? undefined;
 		const trialEndsAt = Attributes.trialEndsAt ?? undefined;
 		const variant = CheckoutVariantSchema.safeParse(Attributes.variant);
@@ -136,7 +112,7 @@ export function initDynamoDbPendingSignup(deps: {
 		const entrySource = SubscribePlansSourceSchema.safeParse(Attributes.entrySource);
 		const offer = CheckoutOfferSchema.safeParse(Attributes.offer);
 		const signup: ConsumedPendingSignup = {
-			method: EXISTING_USER_SUBSCRIBE,
+			method: "existing-user-subscribe",
 			email: Attributes.email,
 			userId,
 			...(returnUrl ? { returnUrl } : {}),
@@ -146,7 +122,7 @@ export function initDynamoDbPendingSignup(deps: {
 			entrySource: entrySource.success ? entrySource.data : null,
 			offer: offer.success ? offer.data : null,
 		};
-		return { outcome: "claimed", signup };
+		return signup;
 	};
 
 	const deleteByUser: DeletePendingSignupsByUser = async ({ userId, email }) => {
@@ -176,7 +152,7 @@ export function initDynamoDbPendingSignup(deps: {
 
 	return {
 		storePendingSignup,
-		claimPendingSignup,
+		consumePendingSignup,
 		deleteByUser,
 	};
 }

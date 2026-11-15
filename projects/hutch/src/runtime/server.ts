@@ -59,7 +59,7 @@ import type {
 	RetrieveCheckoutSession,
 } from "@packages/provider-contracts/hosted-checkout";
 import type {
-	ClaimPendingSignup,
+	ConsumePendingSignup,
 	StorePendingSignup,
 } from "@packages/provider-contracts/pending-signup";
 import type {
@@ -641,7 +641,7 @@ export interface AppDependencies {
 	drawRandomByte: () => number;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
-	claimPendingSignup: ClaimPendingSignup;
+	consumePendingSignup: ConsumePendingSignup;
 	storePendingSignup: StorePendingSignup;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
@@ -1416,7 +1416,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		createVerificationToken: deps.createVerificationToken,
 		verifyEmailToken: deps.verifyEmailToken,
 		retrieveCheckoutSession: deps.retrieveCheckoutSession,
-		claimPendingSignup: deps.claimPendingSignup,
+		consumePendingSignup: deps.consumePendingSignup,
 		subscriptionProviders: {
 			upsertActive: deps.subscriptionProviders.upsertActive,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,

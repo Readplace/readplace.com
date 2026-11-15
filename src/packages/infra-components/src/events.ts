@@ -948,19 +948,6 @@ export type SubscriptionChargeSucceededDetail = z.infer<
 	typeof SubscriptionChargeSucceededEvent.detailSchema
 >;
 
-export const CheckoutCompletedEvent = defineEvent({
-	name: "checkout-completed",
-	source: "hutch.subscriptions",
-	detailType: "CheckoutCompleted",
-	detailSchema: z.object({
-		checkoutSessionId: z.string().min(1),
-		subscriptionId: z.string(),
-		customerId: z.string(),
-		amountTotal: z.number().int().nonnegative(),
-	}),
-});
-export type CheckoutCompletedDetail = z.infer<typeof CheckoutCompletedEvent.detailSchema>;
-
 /** Irreversible fact: a trial-end charge attempt failed. Reasons:
  *   - `no_card_on_file` — the trialing row has no `customerId`, so no card
  *     can be charged. Typical for trials signed up via the no-card path.
