@@ -13,7 +13,6 @@ import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./obse
 import { readEnv } from "@packages/require-env";
 import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
 import { SEND_TRIAL_FEEDBACK_EMAIL_ENV } from "./send-trial-feedback-email.env";
-import { initLoadNextCharge } from "./domain/subscription/next-charge";
 
 const env = readEnv(SEND_TRIAL_FEEDBACK_EMAIL_ENV);
 
@@ -70,12 +69,6 @@ export const handler = initSendTrialFeedbackEmailHandler({
 	findOpenInvoiceFailure: stripeSubscriptions.findOpenInvoiceFailure,
 	claimTrialNudge: subscriptionProviders.claimTrialNudge,
 	releaseTrialNudge: subscriptionProviders.releaseTrialNudge,
-	loadNextCharge: initLoadNextCharge({
-		findSubscriptionNextCharge: stripeSubscriptions.findSubscriptionNextCharge,
-		setSubscriptionNextCharge: subscriptionProviders.setNextCharge,
-		logger: Logger.from(consoleLogger),
-		now: () => new Date(),
-	}),
 	findUserContactByUserId: auth.findUserContactByUserId,
 	signUnsubscribeToken: initQueueDigestUnsubscribeToken(env.ANALYTICS_SALT).sign,
 	sendEmail,

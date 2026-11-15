@@ -1,7 +1,7 @@
 import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
 import { type LocalTime, toAbsoluteDate } from "@packages/web-shell";
 import { z } from "zod";
-import { formatChargeAmount } from "../../billing-amount";
+import { formatChargeAmount } from "./billing-amount";
 
 export interface NextChargeViewModel {
 	state: "visible" | "hidden";

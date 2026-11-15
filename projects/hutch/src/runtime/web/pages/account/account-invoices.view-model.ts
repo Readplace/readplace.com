@@ -7,7 +7,7 @@ import {
 import { type LocalTime, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
 import { z } from "zod";
 import { ACCOUNT_INVOICES_URL, buildAccountUrl } from "./account.url";
-import { formatChargeAmount } from "../../billing-amount";
+import { formatChargeAmount } from "./billing-amount";
 
 const ACCOUNT_INVOICES_SOURCE = "account-invoices";
 

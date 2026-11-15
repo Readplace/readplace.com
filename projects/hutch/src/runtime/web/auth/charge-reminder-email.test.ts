@@ -45,54 +45,6 @@ describe("ChargeReminderEmail", () => {
 			expect(triennial).toContain("once every 3 years after that");
 		});
 
-		it("states the amount Stripe will charge when a once-only coupon discounts the first charge, then the list price it renews at", () => {
-			const text = ChargeReminderEmail({
-				...baseParams,
-				plan: "yearly",
-				charge: { amountMinor: 4900, currency: "usd" },
-			}).to("text/plain");
-			expect(text).toContain(
-				"— $49.00 charged to the card on file on Jul 24, 2026, then $60 once a year after that.",
-			);
-		});
-
-		it("names each plan's own list price for the renewal after a discounted first charge", () => {
-			const monthly = ChargeReminderEmail({
-				...baseParams,
-				plan: "monthly",
-				charge: { amountMinor: 500, currency: "usd" },
-			}).to("text/plain");
-			expect(monthly).toContain("— $5.00 charged to the card on file on Jul 24, 2026, then $10 once a month after that.");
-
-			const triennial = ChargeReminderEmail({
-				...baseParams,
-				plan: "triennial",
-				charge: { amountMinor: 9700, currency: "usd" },
-			}).to("text/plain");
-			expect(triennial).toContain(
-				"— $97.00 charged to the card on file on Jul 24, 2026, then $108 once every 3 years after that.",
-			);
-		});
-
-		it("keeps the plain cadence when Stripe's charge is the list price, because there is no different renewal to name", () => {
-			const text = ChargeReminderEmail({
-				...baseParams,
-				plan: "yearly",
-				charge: { amountMinor: 6000, currency: "usd" },
-			}).to("text/plain");
-			expect(text).toContain("— $60.00 charged to the card on file on Jul 24, 2026, then once a year after that.");
-		});
-
-		it("states Stripe's amount for a grandfathered plan this build does not sell, with no cadence it cannot name", () => {
-			const text = ChargeReminderEmail({
-				...baseParams,
-				charge: { amountMinor: 4500, currency: "usd" },
-			}).to("text/plain");
-			expect(text).toContain(
-				"— $45.00 charged to the card on file on Jul 24, 2026, then renews automatically at the end of each billing period.",
-			);
-		});
-
 		it("names no amount for a subscriber grandfathered onto a plan this build no longer sells, because quoting a current plan's price would state a charge they will never see", () => {
 			const text = ChargeReminderEmail(baseParams).to("text/plain");
 			expect(text).toContain("the plan you are on is charged to the card on file on Jul 24, 2026");
