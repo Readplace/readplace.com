@@ -29,11 +29,11 @@ Pinning is optional. Slots nobody filled take the first readlists in order, so a
 
 ## The rest wait one row down
 
-Under the pinned rows sits More readlists, with a count beside it. On desktop it opens a panel next to the sidebar. On a phone the same panel arrives as a sheet.
+Under the pinned rows sits More readlists, with a count of the readlists that didn't get a row. On desktop it opens a panel next to the sidebar holding exactly those. On a phone, tapping the open readlist's row opens a sheet instead, and the sheet holds every readlist, All and the pinned ones included.
 
-Every readlist is in there. When the panel grows tall enough to scroll, a search field appears at its top, typing narrows the rows letter by letter, and Enter opens the first match. A readlist that didn't earn a pin is a few keystrokes away instead of a scroll away.
+When either list grows tall enough to scroll, a search field appears at its top, typing narrows the rows letter by letter, and Enter opens the first match. A readlist that didn't earn a pin is a few keystrokes away instead of a scroll away.
 
-Create a readlist sits in the panel too, so the view that shows each list is also where a new one starts.
+Create a readlist sits in the panel and the sheet too, so the place the unpinned lists wait is also where a new one starts.
 
 ## Pickers stopped trading buttons for rows
 
