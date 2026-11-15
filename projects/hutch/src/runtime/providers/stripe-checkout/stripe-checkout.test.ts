@@ -49,6 +49,7 @@ describe("initStripeCheckout", () => {
 			assert.ok(body.includes("line_items%5B0%5D%5Bprice%5D=price_test_yearly"));
 			assert.ok(body.includes("customer_email=buyer%40example.com"));
 			assert.ok(body.includes("allow_promotion_codes=true"));
+			assert.equal(new URLSearchParams(body).get("automatic_tax[enabled]"), "true");
 			assert.ok(!body.includes("subscription_data"), "no trial_end without trialEndsAt");
 		});
 

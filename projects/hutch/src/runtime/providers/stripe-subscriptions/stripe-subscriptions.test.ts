@@ -126,6 +126,7 @@ describe("initStripeSubscriptions", () => {
 			assert.ok(body.includes("customer=cus_existing"));
 			assert.ok(body.includes("items%5B0%5D%5Bprice%5D=price_abc"));
 			assert.ok(body.includes("metadata%5BuserId%5D=usr_test_abc123"));
+			assert.equal(new URLSearchParams(body).get("automatic_tax[enabled]"), "true");
 		});
 
 		it("asks Stripe to refuse a subscription whose first invoice cannot be charged, and to charge the saved card off-session", async () => {
