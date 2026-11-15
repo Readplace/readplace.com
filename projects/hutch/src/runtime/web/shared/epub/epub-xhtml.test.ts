@@ -206,4 +206,26 @@ describe("chapterEpubXhtml", () => {
 
 		expect(xhtml).toContain('<p><img src="images/03/abcdef0123456789.jpg" alt="Kept" /></p>');
 	});
+
+	it("drops the reader's measured size and box style from a sanitized image", () => {
+		const xhtml = chapterEpubXhtml({
+			contentHtml: `<img src="${embeddedSrc("abcdef0123456789.jpg")}" alt="Kept" data-reader-image-size="1456x1005" style="--reader-image-width:1456px;--reader-image-ratio:1456 / 1005" />`,
+			title: "Chapter",
+			articleUrl: ARTICLE_URL,
+			imageHrefs: new Map([["abcdef0123456789.jpg", "images/03/abcdef0123456789.jpg"]]),
+		});
+
+		expect(xhtml).toContain('<img src="images/03/abcdef0123456789.jpg" alt="Kept" />');
+	});
+
+	it("drops only the reader's measured size from a raw image, keeping the publisher's style", () => {
+		const xhtml = chapterEpubXhtml({
+			contentHtml: `<img src="${embeddedSrc("abcdef0123456789.jpg")}" alt="Kept" data-reader-image-size="1456x1005" style="float:left">`,
+			title: "Chapter",
+			articleUrl: ARTICLE_URL,
+			imageHrefs: new Map([["abcdef0123456789.jpg", "images/03/abcdef0123456789.jpg"]]),
+		});
+
+		expect(xhtml).toContain('<img src="images/03/abcdef0123456789.jpg" alt="Kept" style="float:left" />');
+	});
 });

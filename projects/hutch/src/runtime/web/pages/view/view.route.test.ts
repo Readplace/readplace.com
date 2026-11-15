@@ -178,6 +178,8 @@ describe("View routes", () => {
 			expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
 			expect(response.text).toContain("/client-dist/reader-top.client.js");
 			expect(doc.body.className).toBe("page-view page-distraction-free");
+			expect(response.text).toContain("/client-dist/reader-image-boxes.client.js");
+			expect(doc.documentElement.hasAttribute("data-reader-image-boxes")).toBe(false);
 		});
 
 		it("offers an anonymous visitor a report link naming the article's public view", async () => {

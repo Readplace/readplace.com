@@ -6,7 +6,10 @@ import { ARTICLE_FRAME_STYLES } from "../../../shared/article-body/article-frame
 import { CRAWL_ESTIMATE_SCRIPT } from "../../../shared/crawl-estimate/crawl-estimate.component";
 import { READLIST_PICKER_SCRIPT } from "../../../shared/article-body/reader-actions/reader-actions.component";
 import { HIGHLIGHT_TOOLBAR_SCRIPT } from "../../../shared/article-body/highlights/highlight-toolbar.component";
-import { CAPTURE_FAILED_RELAY_SCRIPT } from "../../../shared/article-body/reader-slot/reader-slot.component";
+import {
+	CAPTURE_FAILED_RELAY_SCRIPT,
+	READER_IMAGE_BOXES_SCRIPT,
+} from "../../../shared/article-body/reader-slot/reader-slot.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../../shared/article-body/summary-slot/summary-slot.component";
 import { TABLE_OF_CONTENTS_SCRIPT } from "../../../shared/article-body/table-of-contents/table-of-contents.component";
 import { READING_LAYOUT_STYLES } from "../../../shared/reading-layout/reading-layout.styles";
@@ -28,6 +31,7 @@ export const VIEW_BACK_LINK = {
 } as const;
 
 export const READER_PAGE_SCRIPTS =
+	READER_IMAGE_BOXES_SCRIPT +
 	SHARE_DIALOG_SCRIPT +
 	SUMMARY_TOGGLE_SCRIPT +
 	CAPTURE_FAILED_RELAY_SCRIPT +

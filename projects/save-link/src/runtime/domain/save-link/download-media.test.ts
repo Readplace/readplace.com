@@ -59,6 +59,34 @@ describe("initDownloadMedia", () => {
 		expect(init.referer).toBe("https://hotlinkprotected.example/post");
 	});
 
+	it("carries the downloaded image's measured dimensions so the reader can reserve its box", async () => {
+		const { downloadMedia } = createDownloadMedia();
+
+		const media = await downloadMedia({
+			html: '<img src="https://example.com/photo.png">',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(media[0].dimensions).toEqual({ width: 1, height: 1 });
+	});
+
+	it("carries no dimensions when the downloaded bytes cannot be measured", async () => {
+		const fetch = jest.fn().mockImplementation(() =>
+			Promise.resolve(new Response(Buffer.from("not an image"), { status: 200, headers: { "content-type": "image/png" } })),
+		);
+		const { downloadMedia } = createDownloadMedia({ fetch });
+
+		const media = await downloadMedia({
+			html: '<img src="https://example.com/photo.png">',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(media).toHaveLength(1);
+		expect(media[0]).not.toHaveProperty("dimensions");
+	});
+
 	it("downloads image and returns mapping with CDN URL", async () => {
 		const { downloadMedia, putImageObject } = createDownloadMedia();
 

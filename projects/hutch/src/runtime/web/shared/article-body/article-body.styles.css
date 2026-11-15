@@ -201,6 +201,11 @@
   margin: 1rem auto;
 }
 
+:root[data-reader-image-boxes] .article-body__content img[data-reader-image-size]:not(table:not([data-reader-flow]) img, .reader-embed-facade img) {
+  width: min(var(--reader-image-width), 100%);
+  aspect-ratio: auto var(--reader-image-ratio);
+}
+
 .article-body__content a {
   color: var(--primary-text);
 }
