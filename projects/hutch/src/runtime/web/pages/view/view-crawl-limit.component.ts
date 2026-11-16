@@ -17,7 +17,7 @@ function retryWaitFor(retryAfterSeconds: number): string {
 	if (retryAfterSeconds <= 3600) {
 		return tPlural("view.crawlLimit.minutes", { count: Math.max(1, Math.ceil(retryAfterSeconds / 60)) });
 	}
-	return tPlural("view.crawlLimit.hours", { count: Math.ceil(retryAfterSeconds / 3600) });
+	return tPlural("view.crawlLimit.hours", { count: Math.round(retryAfterSeconds / 3600) });
 }
 
 export function ViewCrawlLimitPage(input: { retryAfterSeconds: number }): PageBody {

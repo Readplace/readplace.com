@@ -66,8 +66,8 @@ export const enUS = {
 	view: {
 		crawlLimit: {
 			seoTitle: "Create a free account to keep reading — Readplace",
-			seoDescription: "You've opened a lot of new links today.",
-			title: "You've opened a lot of new links today",
+			seoDescription: "You've reached the daily limit for new links.",
+			title: "You've reached the daily limit for new links",
 			body: "Create a free account to keep reading. We'll save this article to your readlist so it's waiting for you.",
 			signup: "Create a free account",
 			login: "Log in",
