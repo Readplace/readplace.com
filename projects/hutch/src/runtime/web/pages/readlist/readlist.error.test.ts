@@ -221,6 +221,17 @@ describe("collectStatusFlashParams", () => {
 			["moved_to", "finance"],
 		]);
 	});
+
+	it("carries every readlist an add filed the article into", () => {
+		expect(
+			collectStatusFlashParams({ moved_article: "abc", moved_from: "default", moved_to: ["finance", "weekend"] }),
+		).toEqual([
+			["moved_article", "abc"],
+			["moved_from", "default"],
+			["moved_to", "finance"],
+			["moved_to", "weekend"],
+		]);
+	});
 });
 
 describe("moveFlashMapping", () => {
@@ -245,6 +256,21 @@ describe("moveFlashMapping", () => {
 		expect(
 			moveFlashMapping({ moved_article: articleId, moved_from: "weekend", moved_to: "finance" }, readlists),
 		).toEqual({ articleId, message: "Moved to Finance & Tax", undoFrom: "finance", undoTo: "weekend" });
+	});
+
+	it("confirms an add from All into several readlists in one line, undone by taking the article out of all of them", () => {
+		expect(
+			moveFlashMapping(
+				{ moved_article: articleId, moved_from: "default", moved_to: ["finance", "weekend"] },
+				readlists,
+			),
+		).toEqual({ articleId, message: "Added to 2 readlists", undoQueues: ["finance", "weekend"] });
+	});
+
+	it("confirms only the readlists the reader still owns when an add names one deleted since", () => {
+		expect(
+			moveFlashMapping({ moved_article: articleId, moved_from: "default", moved_to: ["gone", "weekend"] }, readlists),
+		).toEqual({ articleId, message: "Added to Weekend", undoFrom: "weekend", undoTo: "default" });
 	});
 
 	it("answers no flash when a move key is missing", () => {

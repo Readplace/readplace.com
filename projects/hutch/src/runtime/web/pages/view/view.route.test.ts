@@ -178,20 +178,22 @@ describe("View routes", () => {
 			expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
 			expect(response.text).toContain("/client-dist/reader-top.client.js");
 			expect(doc.body.className).toBe("page-view page-distraction-free");
+			expect(response.text).toContain("/client-dist/reader-image-boxes.client.js");
+			expect(doc.documentElement.hasAttribute("data-reader-image-boxes")).toBe(false);
 		});
 
-		it("offers an anonymous visitor a report link naming the article's public view", async () => {
+		it("offers an anonymous visitor a report dialog naming the article's public view, asking for an optional email", async () => {
 			const harness = buildReaderHarness();
 
 			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
-			const report = new JSDOM(response.text).window.document.querySelector('[data-test-action="report-article"]');
-			assert(report, "the public reader must offer a report link");
-			const reportHref = report.getAttribute("href");
-			assert(reportHref, "the report link must carry an href");
-			const href = new URL(reportHref);
-			assert.equal(href.pathname, "readplace+report@readplace.com");
-			expect(href.searchParams.get("body")).toContain(`${TEST_APP_ORIGIN}/view/${CANONICAL_PATH}`);
+			const doc = new JSDOM(response.text).window.document;
+			const article = doc.querySelector('[data-test-form="report-article"] input[name="article"]');
+			assert(article, "the public reader must offer a report dialog");
+			assert.equal(article.getAttribute("value"), `${TEST_APP_ORIGIN}/view/${CANONICAL_PATH}`);
+			const email = doc.querySelector("[data-test-report-email]");
+			assert(email, "an anonymous visitor must be asked for an optional email");
+			assert.equal(email.hasAttribute("required"), false);
 		});
 
 		it("lists the article's sections in the table of contents for a logged-out visitor, each row linking to its heading", async () => {

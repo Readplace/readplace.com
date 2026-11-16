@@ -29,20 +29,20 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 export function placeClearOfPassage(input: {
+	gap: number;
 	rects: readonly PassageRect[];
 	panel: { width: number; height: number };
 	viewport: PlacementViewport;
 	order: readonly [PassageSide, ...PassageSide[]];
 	whenNoneFits: "last-side" | "inside-viewport";
 }): ClearPlacement {
-	const { rects, panel, viewport, order } = input;
+	const { gap, rects, panel, viewport, order } = input;
 	assert(rects.length > 0, "a selection holding text has client rects");
 	const boxTop = Math.min(...rects.map((rect) => rect.top));
 	const boxBottom = Math.max(...rects.map((rect) => rect.bottom));
 	const viewportBottom = viewport.offsetTop + viewport.height;
 
-	const topOf = (side: PassageSide): number =>
-		side === "above" ? boxTop - TOOLBAR_GAP_PX - panel.height : boxBottom + TOOLBAR_GAP_PX;
+	const topOf = (side: PassageSide): number => (side === "above" ? boxTop - gap - panel.height : boxBottom + gap);
 	const fits = (side: PassageSide): boolean =>
 		side === "above" ? topOf(side) >= viewport.offsetTop : topOf(side) + panel.height <= viewportBottom;
 	const leftOf = (side: PassageSide): number => {

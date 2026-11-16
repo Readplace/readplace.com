@@ -22,7 +22,7 @@ import type { Persona } from "./persona-fallback";
 import { isProxyWorthyError } from "./proxied-ladder-fallback";
 import { initXTwitterSiteRules } from "./x-twitter-site-rules";
 import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
-import type { SiteRules } from "@packages/site-rules";
+import type { SiteCrawlOutcome, SiteRules } from "@packages/site-rules";
 
 const PDF_BYTES_CAP = 25 * 1024 * 1024;
 
@@ -2878,5 +2878,131 @@ describe("closed publisher notices through the decorated crawler", () => {
 		const crawl = initCrawl({ fetch: async input => { requested.push(String(input)); return new Response(notice(excluded), { headers: { "content-type": "text/html" } }); } });
 		await crawl({ url: source });
 		expect(requested).toEqual([source]);
+	});
+});
+
+describe("initCrawlArticle — site rules claim the terminal an HTTP redirect landed on", () => {
+	const TRACKER_URL = "https://tracker.example/ls/click?upn=abc";
+	const TWEET_URL = "https://x.com/u/status/1";
+	const OEMBED_URL = `https://publish.twitter.com/oembed?url=${encodeURIComponent(TWEET_URL)}`;
+	const SHELL_HTML =
+		"<html><body><article><p>Logged-out shell page the origin served at the redirect terminal, with enough words.</p></article></body></html>";
+
+	function trackerTo(params: { location: string; requested: string[] }): typeof fetch {
+		return async (input) => {
+			const url = String(input);
+			params.requested.push(url);
+			if (url === TRACKER_URL) return new Response(null, { status: 302, headers: { location: params.location } });
+			if (url === OEMBED_URL) {
+				return new Response(JSON.stringify({ author_name: "U", html: "<blockquote><p>The tweet text.</p></blockquote>" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			return new Response(SHELL_HTML, { status: 200, headers: { "content-type": "text/html" } });
+		};
+	}
+
+	function terminalSite(params: { hostname: string; outcome: SiteCrawlOutcome; onCrawlUrls: string[] }): SiteRules {
+		return {
+			matches: ({ hostname }) => hostname === params.hostname,
+			onCrawl: async ({ url }) => {
+				params.onCrawlUrls.push(url);
+				return params.outcome;
+			},
+			recoverContent: noRecovery,
+			extract: noExtract,
+			transform: noTransform,
+		};
+	}
+
+	it("serves the X oEmbed body for a tracker link that redirects to a tweet, as a direct save of the tweet does", async () => {
+		const requested: string[] = [];
+		const crawlArticle = initCrawl({ fetch: trackerTo({ location: TWEET_URL, requested }) });
+
+		const result = await crawlArticle({ url: TRACKER_URL });
+
+		assertFetched(result);
+		expect(result.html).toBe("<html><head><title>U</title></head><body><blockquote><p>The tweet text.</p></blockquote></body></html>");
+		expect(requested).toEqual([TRACKER_URL, TWEET_URL, OEMBED_URL]);
+	});
+
+	it("keeps the fetched body and makes no further fetch when no site rule claims the terminal", async () => {
+		const requested: string[] = [];
+		const crawlArticle = initCrawl({ fetch: trackerTo({ location: "https://dest.example/post", requested }) });
+
+		const result = await crawlArticle({ url: TRACKER_URL });
+
+		assertFetched(result);
+		expect(result.html).toContain("Logged-out shell page");
+		expect(result.finalUrl).toBe("https://dest.example/post");
+		expect(requested).toEqual([TRACKER_URL, "https://dest.example/post"]);
+	});
+
+	it("keeps the fetched body when the rule claiming the terminal skips it", async () => {
+		const requested: string[] = [];
+		const onCrawlUrls: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: trackerTo({ location: "https://claimed.example/post", requested }),
+			siteRules: [terminalSite({ hostname: "claimed.example", outcome: { kind: "skip" }, onCrawlUrls })],
+		});
+
+		const result = await crawlArticle({ url: TRACKER_URL });
+
+		assertFetched(result);
+		expect(result.html).toContain("Logged-out shell page");
+		expect(onCrawlUrls).toEqual(["https://claimed.example/post"]);
+		expect(requested).toEqual([TRACKER_URL, "https://claimed.example/post"]);
+	});
+
+	it("keeps the fetched body when the rule claiming the terminal fails, since a body is already in hand", async () => {
+		const requested: string[] = [];
+		const onCrawlUrls: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: trackerTo({ location: "https://claimed.example/post", requested }),
+			siteRules: [terminalSite({ hostname: "claimed.example", outcome: { kind: "failed" }, onCrawlUrls })],
+		});
+
+		const result = await crawlArticle({ url: TRACKER_URL });
+
+		assertFetched(result);
+		expect(result.html).toContain("Logged-out shell page");
+		expect(onCrawlUrls).toEqual(["https://claimed.example/post"]);
+	});
+
+	it("does not ask the site rules again when the response answered the URL they already skipped", async () => {
+		const onCrawlUrls: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: async (input) =>
+				withResolvedUrl(new Response(SHELL_HTML, { status: 200, headers: { "content-type": "text/html" } }), String(input)),
+			siteRules: [terminalSite({ hostname: "claimed.example", outcome: { kind: "skip" }, onCrawlUrls })],
+		});
+
+		const result = await crawlArticle({ url: "https://claimed.example/post" });
+
+		assertFetched(result);
+		expect(result.html).toContain("Logged-out shell page");
+		expect(onCrawlUrls).toEqual(["https://claimed.example/post"]);
+	});
+
+	it("restarts the crawl at the target of a site-rule redirect on the terminal", async () => {
+		const requested: string[] = [];
+		const onCrawlUrls: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: trackerTo({ location: "https://claimed.example/landing", requested }),
+			siteRules: [
+				terminalSite({
+					hostname: "claimed.example",
+					outcome: { kind: "redirect", url: "https://document.example/file" },
+					onCrawlUrls,
+				}),
+			],
+		});
+
+		const result = await crawlArticle({ url: TRACKER_URL });
+
+		assertFetched(result);
+		expect(requested).toEqual([TRACKER_URL, "https://claimed.example/landing", "https://document.example/file"]);
+		expect(result.finalUrl).toBe("https://document.example/file");
 	});
 });

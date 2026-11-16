@@ -368,6 +368,24 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/report-article/report-article.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "report-article.client.js"),
+    globalName: "ReportArticle",
+    footer: "ReportArticle.initReportArticle({ document: window.document, sendBeacon: function (url) { window.navigator.sendBeacon(url); } });",
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
+      "src/runtime/web/shared/article-body/reader-slot/reader-image-boxes.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "reader-image-boxes.client.js"),
+    globalName: "ReaderImageBoxes",
+    footer: "ReaderImageBoxes.initReaderImageBoxes({ document, isImage: (target) => target instanceof HTMLImageElement });",
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/shared/article-body/reader-slot/capture-failed-relay.client.ts",
     ),
     outfile: path.join(OUT_DIR, "capture-failed-relay.client.js"),

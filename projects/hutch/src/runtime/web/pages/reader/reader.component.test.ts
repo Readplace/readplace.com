@@ -44,6 +44,7 @@ const NO_QUEUE_FILING: ReaderReadlistFiling = {
 const PICKER = {
 	assignUrl: "/queue/abc/assign?swap=filing&utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
 	returnTo: "/queue/abc/view",
+	choice: "single" as const,
 	filterHtml: "",
 	options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" as const }],
 	create: {
@@ -597,20 +598,20 @@ describe("ReaderPage", () => {
 		expect(report.classList.contains("article-body__report--withheld")).toBe(true);
 	});
 
-	it("offers a report link naming the article's public view, against the supplied appOrigin", () => {
+	it("offers a report dialog naming the article's public view, against the supplied appOrigin, with no email field", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), { readerSection: TEST_READER_SECTION, enclosure: ABSENT_ENCLOSURE, highlights: NO_HIGHLIGHTS, content: articleBody("<p>Body</p>"), appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
 
-		const report = doc.querySelector('[data-test-action="report-article"]');
-		assert(report, "the reader must offer a report link");
-		const reportHref = report.getAttribute("href");
-		assert(reportHref, "the report link must carry an href");
-		const href = new URL(reportHref);
-		assert.equal(href.pathname, "readplace+report@readplace.com");
-		expect(href.searchParams.get("body")).toContain("https://staging.readplace.com/view/example.com/post");
+		const opener = doc.querySelector('[data-test-action="report-article"]');
+		assert(opener, "the reader must offer a report button");
+		assert.equal(opener.getAttribute("popovertarget"), "report-article");
+		const article = doc.querySelector('[data-test-form="report-article"] input[name="article"]');
+		assert(article, "the reader must render the report dialog");
+		assert.equal(article.getAttribute("value"), "https://staging.readplace.com/view/example.com/post");
+		assert.equal(doc.querySelector("[data-test-report-email]"), null);
 	});
 
 	it("styles the share and naming dialogs", () => {
@@ -968,7 +969,7 @@ describe("ReaderPage", () => {
 			return {
 				dialog: Array.from(doc.querySelectorAll('[data-test-share-panel="dialog"] [data-test-share-url]'), (field) => field.getAttribute("data-test-share-url")),
 				placements: Array.from(doc.querySelectorAll("[data-test-share-panel]"), (panel) => panel.getAttribute("data-test-share-panel")),
-				report: new URL(doc.querySelector('[data-test-action="report-article"]')?.getAttribute("href") ?? "mailto:").searchParams.get("body")?.includes("https://readplace.com/view/example.com/post"),
+				report: doc.querySelector('[data-test-form="report-article"] input[name="article"]')?.getAttribute("value") === "https://readplace.com/view/example.com/post",
 			};
 		};
 		const body = articleBody("<p>Body</p>");
@@ -1028,7 +1029,7 @@ describe("ReaderPage", () => {
 			toast: {
 				message: "Added to Deep Work",
 				undoUrl: "/queue/abc/unassign",
-				undoFields: { queue: "deep-work", returnTo: "/queue/abc/view" },
+				undoFields: { queue: ["deep-work"], returnTo: "/queue/abc/view" },
 			},
 		});
 		const mount = filed.querySelector("main.reader #status-toast");
