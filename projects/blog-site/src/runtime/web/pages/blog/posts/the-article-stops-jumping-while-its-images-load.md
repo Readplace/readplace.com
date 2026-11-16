@@ -9,9 +9,9 @@ author: "Fayner Brack"
 keywords: "article jumps while images load, reader layout shift, cumulative layout shift, read it later app layout stability, page jumps while reading, text moves while page loads, reserve image space before loading, aspect ratio image box, readplace"
 ---
 
-Chromium lays out an image it hasn't downloaded yet at 0 by 0 pixels when nothing else names its size. The Readplace reader shows images at their natural size, capped at the column's width, so an unloaded picture used to occupy no room at all. Its bytes arrived, it claimed its full height in a single frame, and the text below it dropped by that much.
+Chromium lays out an image it hasn't downloaded yet at 0 by 0 pixels when nothing else names its size. The Readplace reader shows images at their natural size, capped at the column's width, so an unloaded picture used to occupy no room at all. When its bytes arrived, it claimed its full height in a single frame, and the text below it dropped by that much.
 
-One photograph makes that a single hop. A long read can carry 15 of them, each finishing on its own schedule, and the paragraph being read moves every time one lands above it. A selection dragged out for a [highlight](/blog/highlights-and-notes-stay-on-their-passage?utm_source=blog-the-article-stops-jumping-while-its-images-load&utm_medium=internal&utm_content=post-highlights-and-notes-stay-on-their-passage) can be sitting on different words by the time the mouse button comes up.
+One photograph makes that a single hop. A long read can carry a photograph every few paragraphs, each finishing on its own schedule, and the paragraph being read moves every time one lands above it. A selection dragged out for a [highlight](/blog/highlights-and-notes-stay-on-their-passage?utm_source=blog-the-article-stops-jumping-while-its-images-load&utm_medium=internal&utm_content=post-highlights-and-notes-stay-on-their-passage) can be sitting on different words by the time the mouse button comes up.
 
 Now the reader draws an empty box of each picture's exact shape before fetching a byte of it. The text lays out around the box once and stays put.
 
@@ -27,13 +27,13 @@ So the reader sizes images from their actual pixels. That is right once the byte
 
 Saving a link already downloads an article's images and re-hosts them beside the stored text, so [the pictures outlast the page](/blog/saved-articles-keep-their-images?utm_source=blog-the-article-stops-jumping-while-its-images-load&utm_medium=internal&utm_content=post-saved-articles-keep-their-images). The save now reads each downloaded file's width and height straight from its bytes and stores the 2 numbers with the article.
 
-The reader turns them into the empty box. The reservation is 1 CSS rule: the measured width, capped at the column, and the picture's aspect ratio. When the photograph arrives it fills a space that was its size all along, and nothing around it moves.
+The reader turns them into the empty box. The reservation is 1 CSS rule: the image's width, capped at the column, and its measured aspect ratio. When the photograph arrives it fills a space that was its size all along, and nothing around it moves.
 
 ## A box is drawn only when the size is certain
 
 A wrong box jumps twice, once into the wrong shape and once into the right one, so it's worse than no box. A size is stored only when the file makes it certain.
 
-PNG, JPEG and WebP files qualify when they carry no EXIF metadata, because EXIF can tell the browser to rotate the render, and a rotated render swaps the sides of the box. A GIF qualifies when its first frame fits the size its header declares. An image the page offers in several widths through `srcset` gets a box when every copy agrees on the shape, and goes without one when they disagree.
+PNG, JPEG and WebP files qualify when they carry no EXIF metadata, because EXIF can tell the browser to rotate the render, and a rotated render swaps the sides of the box. A GIF qualifies when its first frame fits the size its header declares. An image the page offers in several widths through `srcset` gets a box when every copy agrees on the shape and the page states its display width in a form the reader can read, and goes without one when they disagree.
 
 Anything that goes without a box loads the way it did before.
 
