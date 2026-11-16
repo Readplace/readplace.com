@@ -943,9 +943,13 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			const lastSubscriptionId = row.subscriptionId;
 			let charge: { subscriptionId: string } | "no-saved-card";
 			try {
-				const paymentMethodId = await deps.findSubscriptionPaymentMethod({
+				const subscriptionCard = await deps.findSubscriptionPaymentMethod({
 					subscriptionId: lastSubscriptionId,
 				});
+				const paymentMethodId =
+					subscriptionCard === undefined
+						? (await deps.listCards({ customerId: row.customerId })).find((card) => card.isPrimary)?.id
+						: subscriptionCard;
 				charge =
 					paymentMethodId === undefined
 						? "no-saved-card"
@@ -974,7 +978,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			}
 			if (charge === "no-saved-card") {
 				deps.logger.warn(
-					"[subscribe/cancelled] no saved card on the last subscription — starting checkout",
+					"[subscribe/cancelled] no saved card on the last subscription or the customer — starting checkout",
 					{ userId },
 				);
 				const checkout = await startCheckout(req, {

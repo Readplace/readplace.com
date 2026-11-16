@@ -1822,6 +1822,35 @@ describe("POST /account/subscribe", () => {
 		expect(row.status).toBe("cancelled");
 	});
 
+	it("cancelled user whose last subscription holds no card but whose customer default does — still resubscribes in one click with the customer's card", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "resub-customer-card@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_without_card",
+			customerId: "cus_with_default",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+		harness.paymentMethods.seedCards({
+			customerId: "cus_with_default",
+			cards: [card("pm_backup", false, "1111"), card("pm_customer_default", true, "4242")],
+		});
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const created = subscriptionBilling.createdSubscriptions();
+		expect(created).toHaveLength(1);
+		expect(created[0].customerId).toBe("cus_with_default");
+		expect(created[0].paymentMethodId).toBe("pm_customer_default");
+		expect(harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started")).toHaveLength(0);
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("active");
+	});
+
 	it("cancelled user — saved-card charge SUCCEEDS but the active-row upsert throws → 303 /account?error=payment_method, and NOT a card_decline_fallback checkout (the card was already charged, so it is not a decline)", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.subscriptionProviders.upsertActive = async () => {
