@@ -14,7 +14,7 @@ import {
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
 import { type UserId, UserIdSchema } from '@packages/domain/user'
-import { PrivateItemUrlSchema } from '@packages/media-contracts'
+import { MediaFailureReasonSchema, MediaInspectionFactsSchema, PrivateItemUrlSchema, UploadIdSchema } from '@packages/media-contracts'
 import {
 	ForwardableSenderSchema,
 	GMAIL_HISTORY_IMPORT_OUTCOME_COUNT,
@@ -1451,6 +1451,35 @@ server.post('/queue/save-content', (req, res, next) => {
 server.get('/e2e/received-save-content', (req, res) => {
 	const url = z.string().parse(req.query.url)
 	res.json(receivedSaveContent.filter((received) => received.url === url))
+})
+
+const mediaUploadParts = initMultipartUpload({ maxBytes: MAX_UPLOAD_REQUEST_BYTES })
+const StagedMediaKey = z.string().regex(/^pending\/[^/]+\/original$/).transform((key) => UploadIdSchema.parse(key.split('/')[1]))
+server.post('/e2e/s3-media', mediaUploadParts.rawBodyParser, (req, res) => {
+	const parsed = mediaUploadParts.parseAllParts(req)
+	assert(parsed.ok, 'the staged media form must arrive as multipart')
+	const textPart = (name: string) => parsed.parts.find((part) => part.name === name && !part.isFile)?.content.toString('utf8')
+	const file = parsed.parts.find((part) => part.name === 'file' && part.isFile)
+	assert(file, 'the staged media form must carry a file')
+	fixture.mediaUpload.receivePendingOriginal({ uploadId: StagedMediaKey.parse(textPart('key')), bytes: file.content })
+	res.redirect(303, z.string().parse(textPart('success_action_redirect')))
+})
+
+const MediaInspectionBody = z.object({
+	uploadId: UploadIdSchema,
+	inspection: z.discriminatedUnion('verdict', [
+		z.object({ verdict: z.literal('inspected'), facts: MediaInspectionFactsSchema }),
+		z.object({ verdict: z.literal('rejected'), reason: MediaFailureReasonSchema, notice: z.string().min(1) }),
+	]),
+})
+server.post('/e2e/media-inspection', async (req, res) => {
+	const parsed = MediaInspectionBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const recorded = await fixture.mediaUpload.recordMediaInspection(parsed.data)
+	res.status(200).json({ recorded })
 })
 
 server.get(GMAIL_SENDERS_PATH, (_req, _res, next) => {
