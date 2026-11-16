@@ -1,4 +1,5 @@
 import type { DownloadedMedia } from "@packages/finalize-article";
+import { recordMeasuredImageSizes } from "./record-measured-image-sizes";
 import { stripTrackingImageSources } from "./strip-tracking-image-sources";
 
 export type RewriteHtmlUrls = (
@@ -19,7 +20,7 @@ export function initProcessContentWithLocalMedia(deps: {
 		const { media } = params;
 
 		if (media.length === 0) {
-			return Promise.resolve(html);
+			return Promise.resolve(recordMeasuredImageSizes({ html, media }));
 		}
 
 		const cdnUrlsByOriginal = new Map(media.map((m) => [m.originalUrl, m.cdnUrl]));
@@ -41,6 +42,6 @@ export function initProcessContentWithLocalMedia(deps: {
 			}
 
 			return cdnUrl || url;
-		});
+		}).then((rewritten) => recordMeasuredImageSizes({ html: rewritten, media }));
 	};
 }

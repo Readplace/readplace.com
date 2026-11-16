@@ -1,0 +1,24 @@
+.report-article-form__reasons {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  border: none;
+}
+
+.report-article-form__reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.report-article-form__reason-input {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--primary);
+}

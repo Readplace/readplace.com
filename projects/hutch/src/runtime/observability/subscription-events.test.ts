@@ -139,7 +139,6 @@ describe("buildCheckoutCompletedEvent", () => {
 			paidNow: true,
 			entrySource: "queue-banner",
 			offer: "none",
-			activatedBy: "redirect",
 		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_completed",
@@ -150,7 +149,6 @@ describe("buildCheckoutCompletedEvent", () => {
 			paid_now: true,
 			entry_source: "queue-banner",
 			offer: "none",
-			activated_by: "redirect",
 		});
 	});
 
@@ -162,7 +160,6 @@ describe("buildCheckoutCompletedEvent", () => {
 			paidNow: false,
 			entrySource: "queue-banner",
 			offer: "none",
-			activatedBy: "redirect",
 		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_completed",
@@ -173,7 +170,6 @@ describe("buildCheckoutCompletedEvent", () => {
 			paid_now: false,
 			entry_source: "queue-banner",
 			offer: "none",
-			activated_by: "redirect",
 		});
 	});
 
@@ -186,7 +182,6 @@ describe("buildCheckoutCompletedEvent", () => {
 			variant: CHECKOUT_VARIANTS.cancelledResubscribe,
 			entrySource: "queue-banner",
 			offer: "none",
-			activatedBy: "redirect",
 		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_completed",
@@ -198,7 +193,6 @@ describe("buildCheckoutCompletedEvent", () => {
 			variant: "cancelled_resubscribe",
 			entry_source: "queue-banner",
 			offer: "none",
-			activated_by: "redirect",
 		});
 	});
 
@@ -210,20 +204,7 @@ describe("buildCheckoutCompletedEvent", () => {
 			paidNow: false,
 			entrySource: "keep-panel",
 			offer: "first-year-49",
-			activatedBy: "redirect",
 		})).toMatchObject({ entry_source: "keep-panel", offer: "first-year-49" });
-	});
-
-	it("names the arrival that activated the checkout, so webhook activations of readers who never returned from Stripe are countable", () => {
-		expect(buildCheckoutCompletedEvent({ now: NOW }, {
-			userId: USER_ID,
-			subscriptionId: "sub_123",
-			checkoutSessionId: "cs_test_1",
-			paidNow: true,
-			entrySource: null,
-			offer: null,
-			activatedBy: "webhook",
-		})).toMatchObject({ event: "checkout_completed", activated_by: "webhook" });
 	});
 
 	it("writes a null entry_source and a null offer, so both stay visible in Logs Insights rather than missing", () => {
@@ -234,7 +215,6 @@ describe("buildCheckoutCompletedEvent", () => {
 			paidNow: false,
 			entrySource: null,
 			offer: null,
-			activatedBy: "redirect",
 		});
 
 		expect(JSON.parse(JSON.stringify(event))).toMatchObject({ entry_source: null, offer: null });

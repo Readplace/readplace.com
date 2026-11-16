@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { ReportArticleDialogInput } from "../report-article/report-article-dialog.component";
 import { JSDOM } from "jsdom";
 import { toAbsoluteDate, toAbsoluteTime } from "@packages/web-shell/local-time.format";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
@@ -32,6 +33,13 @@ function parse(html: string) {
 		.document;
 }
 
+const REPORT: ReportArticleDialogInput = {
+	viewUrl: "https://readplace.com/view/example.com/post",
+	title: "A post",
+	surface: "reader",
+	asksForEmail: false,
+};
+
 const STYLESHEET_SHOWN_REPORT = ".article-body__reader-slot--ready + .article-body__report--offered";
 
 function reportSlot(doc: Document): Element {
@@ -45,30 +53,34 @@ function versionAt(iso: string): ArticleVersion {
 }
 
 describe("renderArticleBody", () => {
-	it("shows a report link after a readable article when given its href", () => {
+	it("shows a report button that opens the report dialog after a readable article", () => {
 		const doc = parse(
 			renderArticleBody({
 				...baseInput,
 				crawl: { status: "ready" },
 				content: articleBody("<p>Body</p>"),
-				reportHref: "mailto:report@example.com?subject=Report",
+				report: REPORT,
 			}).html,
 		);
 
 		const report = reportSlot(doc);
 		assert.equal(report.matches(STYLESHEET_SHOWN_REPORT), true);
-		const link = report.querySelector('[data-test-action="report-article"]');
-		assert(link, "an offered report slot must hold the link");
-		assert.equal(link.getAttribute("href"), "mailto:report@example.com?subject=Report");
-		assert.equal(link.textContent, "Report this article");
+		const button = report.querySelector('[data-test-action="report-article"]');
+		assert(button, "an offered report slot must hold the button");
+		assert.equal(button.getAttribute("popovertarget"), "report-article");
+		assert.equal(button.textContent, "Report this article");
+		const dialog = doc.querySelector("#report-article[popover]");
+		assert(dialog, "the report button must have a dialog to open");
+		assert.equal(dialog.querySelector('input[name="article"]')?.getAttribute("value"), REPORT.viewUrl);
 	});
 
-	it("withholds the report link without an href", () => {
+	it("withholds the report button and its dialog without a report input", () => {
 		const doc = parse(renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<p>Body</p>") }).html);
 
 		const report = reportSlot(doc);
 		assert.equal(report.classList.contains("article-body__report--withheld"), true);
 		assert.equal(report.matches(STYLESHEET_SHOWN_REPORT), false);
+		assert.equal(doc.querySelector("#report-article"), null);
 	});
 
 	it("hides the report link when a failed-crawl notice stands in for a stored body", () => {
@@ -78,7 +90,7 @@ describe("renderArticleBody", () => {
 				crawl: { status: "ready" },
 				content: articleBody("<p>Body</p>"),
 				readerNotice: "failed",
-				reportHref: "mailto:report@example.com?subject=Report",
+				report: REPORT,
 			}).html,
 		);
 
@@ -88,7 +100,7 @@ describe("renderArticleBody", () => {
 	});
 
 	it("hides the report link while the article has no content, and shows it once a ready slot is swapped in", () => {
-		const doc = parse(renderArticleBody({ ...baseInput, reportHref: "mailto:report@example.com?subject=Report" }).html);
+		const doc = parse(renderArticleBody({ ...baseInput, report: REPORT }).html);
 		const report = reportSlot(doc);
 		assert.equal(report.matches(STYLESHEET_SHOWN_REPORT), false);
 

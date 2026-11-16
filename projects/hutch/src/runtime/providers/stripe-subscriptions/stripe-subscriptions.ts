@@ -182,7 +182,6 @@ export function initStripeSubscriptions(deps: {
 		body.set("metadata[userId]", userId);
 		body.set("payment_behavior", PAYMENT_BEHAVIOR[onUnpaidFirstInvoice]);
 		body.set("off_session", "true");
-		body.set("automatic_tax[enabled]", "true");
 
 		const response = await deps.fetch(`${STRIPE_API}/subscriptions`, {
 			method: "POST",

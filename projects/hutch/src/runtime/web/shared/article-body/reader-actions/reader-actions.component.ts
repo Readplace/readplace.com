@@ -36,6 +36,7 @@ export interface MarkReadAction {
 export interface ReaderReadlistPicker {
 	assignUrl: string;
 	returnTo: string;
+	choice: "single" | "several";
 	options: readonly { slug: ReadlistSlug; label: string; iconName: IconName }[];
 	filterHtml: string;
 	create:
@@ -207,7 +208,10 @@ export function renderReaderDownloadsOob(params: {
 }
 
 function renderReaderReadlistsSlot(input: { readlistPicker: ReaderReadlistPicker | undefined; oob: boolean }): string {
-	return render(READLISTS_SLOT_TEMPLATE, input);
+	return render(READLISTS_SLOT_TEMPLATE, {
+		...input,
+		several: input.readlistPicker?.choice === "several",
+	});
 }
 
 export function renderReaderReadlistsSlotOob(readlistPicker: ReaderReadlistPicker | undefined): string {

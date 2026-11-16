@@ -191,14 +191,14 @@ describe("initSentenceTap", () => {
 		expect(toolbarOf(h).hidden).toBe(false);
 	});
 
-	it("places the bar 10 px below the tapped sentence", async () => {
+	it("sits the bar the system menu's height below a tapped sentence", async () => {
 		const h = harness();
 
 		tapText(h, "First");
 		await settle(h);
 
 		expect(selectionOf(h).toString()).toBe("First sentence here.");
-		expect(toolbarOf(h).style.top).toBe(`${320 + 10}px`);
+		expect(toolbarOf(h).style.top).toBe(`${320 + 64}px`);
 	});
 
 	it("submits a tapped sentence with origin tap", async () => {

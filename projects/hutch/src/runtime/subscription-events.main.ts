@@ -4,7 +4,6 @@ import { createDynamoDocumentClient } from "@packages/storage-client";
 import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/infra-components/runtime";
 import {
 	CancelSubscriptionCommand,
-	CheckoutCompletedEvent,
 	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
 	SubscriptionChargeFailedEvent,
@@ -13,9 +12,6 @@ import {
 } from "@packages/infra-components";
 import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
-import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
-import { initActivateCheckout } from "./domain/subscription/activate-checkout";
-import { initCheckoutCompletedHandler } from "./checkout-completed/checkout-completed-handler";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
 import { initStripePrices } from "./providers/stripe-prices/stripe-prices";
 import { initEventBridgeCancelSubscriptionCommand } from "./providers/events/eventbridge-cancel-subscription-command";
@@ -31,11 +27,7 @@ import { initScheduleTrialFeedbackEmailHandler } from "./schedule-trial-feedback
 import { initSubscriptionChargeFailedHandler } from "./subscription-charge-failed/subscription-charge-failed-handler";
 import { initSubscriptionChargeSucceededHandler } from "./subscription-charge-succeeded/subscription-charge-succeeded-handler";
 import { initSubscriptionStartRequestHandler } from "./subscription-start-request/subscription-start-request-handler";
-import {
-	buildCheckoutCompletedEvent,
-	initEmitSubscriptionEvent,
-	type SubscriptionLogEvent,
-} from "./observability/subscription-events";
+import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "./observability/subscription-events";
 import { readEnv } from "@packages/require-env";
 import { SUBSCRIPTION_EVENTS_ENV } from "./subscription-events.env";
 
@@ -44,18 +36,10 @@ const env = readEnv(SUBSCRIPTION_EVENTS_ENV);
 const logger = Logger.from(consoleLogger);
 const now = () => new Date();
 
-const dynamoClient = createDynamoDocumentClient();
-
 const subscriptionProviders = initDynamoDbSubscriptionProviders({
-	client: dynamoClient,
+	client: createDynamoDocumentClient(),
 	tableName: env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE,
 	now,
-});
-
-const pendingSignup = initDynamoDbPendingSignup({
-	client: dynamoClient,
-	tableName: env.DYNAMODB_PENDING_SIGNUPS_TABLE,
-	logger,
 });
 
 const stripeSubscriptions = initStripeSubscriptions({
@@ -80,22 +64,8 @@ const trialScheduler = initAwsTrialScheduler({
 	eventBusArn: env.EVENT_BUS_ARN,
 });
 
-const subscriptionLogger = Logger.fromJSON<SubscriptionLogEvent>();
-
 const emit = initEmitSubscriptionEvent({
-	logger: subscriptionLogger,
-	now,
-});
-
-const activateCheckout = initActivateCheckout({
-	claimPendingSignup: pendingSignup.claimPendingSignup,
-	upsertActive: subscriptionProviders.upsertActive,
-	recordCheckoutCompleted: (completion) =>
-		subscriptionLogger.info(buildCheckoutCompletedEvent({ now }, completion)),
-	deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
-	deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
-	createChargeReminderSchedule: trialScheduler.createChargeReminderSchedule,
-	logError: (message, error) => logger.error(message, { error }),
+	logger: Logger.fromJSON<SubscriptionLogEvent>(),
 	now,
 });
 
@@ -156,9 +126,6 @@ export const handler = initHandleByDetailType({
 				emit,
 				logger,
 			}),
-		],
-		[CheckoutCompletedEvent.detailType]: [
-			initCheckoutCompletedHandler({ activateCheckout, logger }),
 		],
 		[SubscriptionStartRequestCommand.detailType]: [
 			initSubscriptionStartRequestHandler({

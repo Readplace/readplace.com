@@ -3,8 +3,8 @@ import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 import { type HighlightPreviews, initHighlightPreviews } from "./highlight-preview.client";
 import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
-import { placeClearOfPassage } from "./place-clear-of-passage";
-import { placeBelowSelection } from "./toolbar-placement-coarse";
+import { placeClearOfPassage, TOOLBAR_GAP_PX } from "./place-clear-of-passage";
+import { placeNearSelection } from "./toolbar-placement-coarse";
 
 export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
 
@@ -13,6 +13,7 @@ export const POINTER_SETTLE_MS = 10;
 
 const CONTENT_SELECTOR = ".article-body__content";
 const TOOLBAR_SELECTOR = "[data-highlight-toolbar]";
+const FLOOR_SELECTOR = "[data-highlight-toolbar-floor]";
 const BUTTON_SELECTOR = "[data-highlight-toolbar-button]";
 const FORM_SELECTOR = "[data-highlight-create-form]";
 const NOTE_INPUT_SELECTOR = "textarea";
@@ -121,7 +122,6 @@ function startToolbar(input: {
 	const place = (range: Range): void => {
 		const toolbar = toolbarOf();
 		if (toolbar === null) return;
-		const rects = deps.rectsOf(range);
 		const viewport = deps.window.visualViewport;
 		const size = toolbar.getBoundingClientRect();
 		const panel = { width: size.width, height: size.height };
@@ -132,9 +132,15 @@ function startToolbar(input: {
 			offsetTop: viewport.offsetTop,
 		};
 		const { top, left } = isCoarse()
-			? placeBelowSelection({ rects, toolbar: panel, viewport: visible })
+			? placeNearSelection({
+					rects: deps.rectsOf(range),
+					toolbar: panel,
+					viewport: visible,
+					floorTop: document.querySelector(FLOOR_SELECTOR)?.getBoundingClientRect().top,
+				})
 			: placeClearOfPassage({
-					rects,
+					gap: TOOLBAR_GAP_PX,
+					rects: deps.rectsOf(range),
 					panel,
 					viewport: visible,
 					order: ["above", "below"],

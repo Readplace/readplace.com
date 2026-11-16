@@ -1,7 +1,7 @@
 import { normalizeEmail } from "@packages/domain/user";
 import type { CheckoutSessionId } from "@packages/provider-contracts/hosted-checkout";
 import type {
-	ClaimPendingSignup,
+	ConsumePendingSignup,
 	DeletePendingSignupsByUser,
 	PendingSignup,
 	StorePendingSignup,
@@ -10,31 +10,24 @@ import type {
 interface StoredEntry {
 	signup: PendingSignup;
 	createdAt?: number;
-	claimed: boolean;
 }
 
 export function initInMemoryPendingSignup(): {
 	storePendingSignup: StorePendingSignup;
-	claimPendingSignup: ClaimPendingSignup;
+	consumePendingSignup: ConsumePendingSignup;
 	deleteByUser: DeletePendingSignupsByUser;
 } {
 	const store = new Map<CheckoutSessionId, StoredEntry>();
 
 	const storePendingSignup: StorePendingSignup = async ({ checkoutSessionId, signup, createdAt }) => {
-		store.set(checkoutSessionId, { signup, createdAt, claimed: false });
+		store.set(checkoutSessionId, { signup, createdAt });
 	};
 
-	const claimPendingSignup: ClaimPendingSignup = async ({ checkoutSessionId }) => {
+	const consumePendingSignup: ConsumePendingSignup = async (checkoutSessionId) => {
 		const entry = store.get(checkoutSessionId);
-		if (!entry) return { outcome: "not-found" };
-		if (entry.claimed) {
-			return {
-				outcome: "already-activated",
-				...(entry.signup.returnUrl ? { returnUrl: entry.signup.returnUrl } : {}),
-			};
-		}
-		entry.claimed = true;
-		return { outcome: "claimed", signup: entry.signup };
+		if (!entry) return null;
+		store.delete(checkoutSessionId);
+		return entry.signup;
 	};
 
 	const deleteByUser: DeletePendingSignupsByUser = async ({ userId, email }) => {
@@ -49,7 +42,7 @@ export function initInMemoryPendingSignup(): {
 
 	return {
 		storePendingSignup,
-		claimPendingSignup,
+		consumePendingSignup,
 		deleteByUser,
 	};
 }

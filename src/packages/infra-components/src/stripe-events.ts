@@ -11,6 +11,5 @@
  * dispatcher throws `UnconfiguredStripeEventError` on unknown event types,
  * which propagates as a Lambda error → 5xx → Stripe retry. */
 export type StripeEventType =
-	| "checkout.session.completed"
 	| "customer.subscription.deleted"
 	| "invoice.payment_failed";

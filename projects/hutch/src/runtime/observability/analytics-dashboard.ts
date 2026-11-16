@@ -937,6 +937,9 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	);
 
 	// --- Checkout funnel ---
+	// These events are emitted by the hutch web app (POST /account/subscribe and
+	// GET /auth/checkout/success), not the subscription Lambdas, so the widget
+	// sources the hutch handler log group.
 
 	const checkoutFunnelFilter = [
 		`| filter stream = "${STREAMS.subscriptions}"`,

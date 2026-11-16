@@ -59,7 +59,7 @@ import type {
 	RetrieveCheckoutSession,
 } from "@packages/provider-contracts/hosted-checkout";
 import type {
-	ClaimPendingSignup,
+	ConsumePendingSignup,
 	StorePendingSignup,
 } from "@packages/provider-contracts/pending-signup";
 import type {
@@ -260,6 +260,7 @@ import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
+import { initReportArticleRoutes } from "./web/pages/report-article/report-article.page";
 import { initBrowserHandoffRoutes } from "./web/auth/browser-handoff.page";
 import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
 import { initUnrouteInboxesOnReadlistDelete } from "./domain/readlist/unroute-inboxes-on-readlist-delete";
@@ -641,7 +642,7 @@ export interface AppDependencies {
 	drawRandomByte: () => number;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
-	claimPendingSignup: ClaimPendingSignup;
+	consumePendingSignup: ConsumePendingSignup;
 	storePendingSignup: StorePendingSignup;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
@@ -1416,7 +1417,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		createVerificationToken: deps.createVerificationToken,
 		verifyEmailToken: deps.verifyEmailToken,
 		retrieveCheckoutSession: deps.retrieveCheckoutSession,
-		claimPendingSignup: deps.claimPendingSignup,
+		consumePendingSignup: deps.consumePendingSignup,
 		subscriptionProviders: {
 			upsertActive: deps.subscriptionProviders.upsertActive,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
@@ -1531,6 +1532,15 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 	});
 	app.use(forgotPasswordRouter);
+
+	app.use(
+		initReportArticleRoutes({
+			sendEmail: deps.sendEmail,
+			findEmailByUserId: deps.findEmailByUserId,
+			appOrigin,
+			logError: deps.logError,
+		}),
+	);
 
 	const dualAuthMiddleware = initDualAuth({
 		validateAccessToken: deps.validateAccessToken,
