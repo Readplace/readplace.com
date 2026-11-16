@@ -62,37 +62,44 @@ function clippedItems(menu: Locator): Promise<string[]> {
 	);
 }
 
-test.describe("Article options on a readlist card", () => {
-	test.use({ viewport: { width: 1366, height: 650 } });
+const CARD_VIEWPORTS = [
+	{ width: 1366, height: 650 },
+	{ width: 390, height: 844 },
+];
 
-	test("a lone card without an excerpt shows all of its options", async ({ page }, testInfo) => {
-		const stamp = `card-${testInfo.workerIndex}-${Date.now()}`;
-		const userId = await signIn(page, stamp);
-		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
-			data: {
-				url: `https://example.com/readlist-more-menu/${stamp}`,
-				title: "A lone card without an excerpt",
-				content: "<p>Seeded body for the readlist article menu test.</p>",
-				contentFetchedAt: "2026-07-10T09:14:00.000Z",
-				savedAt: "2026-07-10T09:15:00.000Z",
-				savedByUserId: userId,
-				excerpt: "",
-			},
+for (const viewport of CARD_VIEWPORTS) {
+	test.describe(`Article options on a readlist card at ${viewport.width}px`, () => {
+		test.use({ viewport });
+
+		test("a lone card without an excerpt shows all of its options", async ({ page }, testInfo) => {
+			const stamp = `card-${testInfo.workerIndex}-${Date.now()}`;
+			const userId = await signIn(page, stamp);
+			const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+				data: {
+					url: `https://example.com/readlist-more-menu/${stamp}`,
+					title: "A lone card without an excerpt",
+					content: "<p>Seeded body for the readlist article menu test.</p>",
+					contentFetchedAt: "2026-07-10T09:14:00.000Z",
+					savedAt: "2026-07-10T09:15:00.000Z",
+					savedByUserId: userId,
+					excerpt: "",
+				},
+			});
+			assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
+			SeededArticle.parse(await seeded.json());
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector("body.page-readlist");
+			await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+
+			const menus = page.locator("[data-test-article-menu]");
+			await expect(menus).toHaveCount(1);
+			const menu = menus.first();
+			await menu.locator('[data-test-action="article-menu"]').click();
+			await expect(menu).toHaveAttribute("open", "");
+			await expect.poll(() => clippedItems(menu), { message: "the card's options must not be clipped" }).toEqual([]);
 		});
-		assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
-		SeededArticle.parse(await seeded.json());
-		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
-		await page.waitForSelector("body.page-readlist");
-		await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-
-		const menus = page.locator("[data-test-article-menu]");
-		await expect(menus).toHaveCount(1);
-		const menu = menus.first();
-		await menu.locator('[data-test-action="article-menu"]').click();
-		await expect(menu).toHaveAttribute("open", "");
-		await expect.poll(() => clippedItems(menu), { message: "the card's options must not be clipped" }).toEqual([]);
 	});
-});
+}
 
 for (const surface of SURFACES) {
 	test.describe(`Readlist options in the ${surface.name}`, () => {
