@@ -122,21 +122,28 @@ async function seedReadlist(page: Page, label: string): Promise<string> {
 	return slug;
 }
 
+async function clickInPlace(page: Page, selector: string): Promise<void> {
+	const box = await page.locator(selector).boundingBox();
+	assert(box, "the picker's control must be laid out to be clicked");
+	await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
 async function fileHoldingScroll(
 	page: Page,
 	input: { slug: string; toast: { label: string } | "none"; top: number },
 ): Promise<void> {
-	const option = `button[data-test-assign-readlist="${input.slug}"]`;
+	const option = `[data-test-assign-readlist="${input.slug}"]`;
 	await page.click("summary[data-test-readlists-trigger]");
 	await page.waitForSelector(option);
 	await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), input.top);
 	expect(await page.evaluate(readScrollY)).toBe(input.top);
 
 	await page.evaluate(() => document.documentElement.removeAttribute("data-test-scroll-after-swap"));
-	await page.evaluate(recordScrollAfterSwap, option);
-	const box = await page.locator(option).boundingBox();
-	assert(box, "the picker's option must be laid out to be clicked");
-	await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+	const ticks = (await page.locator(option).getAttribute("type")) === "checkbox";
+	if (ticks) await clickInPlace(page, option);
+	const submit = ticks ? '[data-test-action="readlists-add-selected"]' : option;
+	await page.evaluate(recordScrollAfterSwap, submit);
+	await clickInPlace(page, submit);
 
 	await page.waitForSelector(`#article-header [data-test-readlist-tag="${input.slug}"]`);
 	if (input.toast === "none") {

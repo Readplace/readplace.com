@@ -46,6 +46,26 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 
 describe("articleMarkdown", () => {
 	describe("a ready article", () => {
+		it("converts a measured image to the same markdown as an unmeasured one", () => {
+			const markdownOf = (img: string) =>
+				articleMarkdown({
+					article: makeArticle(),
+					readlist: DEFAULT_READLIST_SLUG,
+					readlists: [DEFAULT_READLIST],
+					appOrigin: APP_ORIGIN,
+					crawl: { status: "ready" },
+					content: articleBody(`<p>Before</p>${img}<p>After</p>`),
+					summary: { status: "skipped" },
+				});
+
+			const measured = markdownOf(
+				'<img src="https://cdn.example.com/a.png" alt="Chart" data-reader-image-size="1456x1005" style="--reader-image-width:1456px;--reader-image-ratio:1456 / 1005">',
+			);
+
+			expect(measured).toBe(markdownOf('<img src="https://cdn.example.com/a.png" alt="Chart">'));
+			expect(measured).toContain("![Chart](https://cdn.example.com/a.png)");
+		});
+
 		it("writes the frontmatter, the summary callout and the converted body", () => {
 			const parsed = matter(
 				articleMarkdown({

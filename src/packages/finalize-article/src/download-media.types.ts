@@ -2,7 +2,11 @@ import type { ArticleResourceUniqueId } from "@packages/article-resource-unique-
 
 import type { MediaWriteContext } from "./put-image-object.types";
 
-export type DownloadedMedia = { originalUrl: string; cdnUrl: string };
+export type DownloadedMedia = {
+	originalUrl: string;
+	cdnUrl: string;
+	dimensions?: { width: number; height: number };
+};
 
 export type DownloadMedia = (params: {
 	html: string;
