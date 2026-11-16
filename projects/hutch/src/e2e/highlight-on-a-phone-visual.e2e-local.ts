@@ -111,7 +111,7 @@ function checkpoint(name: string): VisualCheckpoint {
 		name,
 		settled: toolbarSettled,
 		geometry: toolbarPastSystemMenu,
-		target: TOOLBAR,
+		target: "body",
 		capture: "page-from-top",
 		pinnedText: [],
 	};
