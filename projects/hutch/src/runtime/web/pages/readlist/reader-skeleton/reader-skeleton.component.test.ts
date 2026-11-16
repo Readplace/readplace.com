@@ -177,8 +177,10 @@ describe("renderReaderSkeleton", () => {
 	it("lists every reader client bundle the filled reader needs, in load order", () => {
 		const srcs = Array.from(READER_PAGE_SCRIPTS.matchAll(/src="([^"]+)"/g)).map((match) => match[1]);
 		expect(srcs).toEqual([
+			"/client-dist/reader-image-boxes.client.js",
 			"/client-dist/share-dialog.client.js",
 			"/client-dist/summary-toggle.client.js",
+			"/client-dist/report-article.client.js",
 			"/client-dist/capture-failed-relay.client.js",
 			"/client-dist/crawl-estimate.client.js",
 			"/client-dist/readlist-picker.client.js",
@@ -187,6 +189,7 @@ describe("renderReaderSkeleton", () => {
 			"/client-dist/offline-reader.client.js",
 			"/client-dist/reader-top.client.js",
 			"/client-dist/table-of-contents.client.js",
+			"/client-dist/highlight-toolbar.client.js",
 		]);
 	});
 });

@@ -268,6 +268,8 @@ function flattenFixtureToAppDependencies(
 		moveReadlistArticles: fixture.articleStore.moveReadlistArticles,
 		listReadlistDefinitions: fixture.articleStore.listReadlistDefinitions,
 		renameReadlistDefinition: fixture.articleStore.renameReadlistDefinition,
+		pinReadlistDefinition: fixture.articleStore.pinReadlistDefinition,
+		unpinReadlistDefinition: fixture.articleStore.unpinReadlistDefinition,
 		setReadlistDefinitionPurpose: fixture.articleStore.setReadlistDefinitionPurpose,
 		clearReadlistDefinitionPurpose: fixture.articleStore.clearReadlistDefinitionPurpose,
 		createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
@@ -399,6 +401,12 @@ function flattenFixtureToAppDependencies(
 				.then(() => undefined),
 		listInboxAddresses: fixture.inboxAddress.inboxAddressStore.listAddressesByUserId,
 		setInboxAddressReadlist: fixture.inboxAddress.inboxAddressStore.setAddressReadlist,
+		createRoutedInboxAddress: (input) =>
+			fixture.inboxAddress.inboxAddressStore.createRoutedAddress({
+				...input,
+				domain: fixture.inboxAddress.inboxAddressDomain,
+				purpose: DEFAULT_INBOX_ADDRESS_PURPOSE,
+			}),
 		clearReadlistFromAddresses: fixture.inboxAddress.inboxAddressStore.clearReadlistFromAddresses,
 		listIssueLinks: fixture.inboxEmail.inboxEmailLinkStore.listLinksByEmail,
 		findIssueLink: fixture.inboxEmail.inboxEmailLinkStore.getLink,

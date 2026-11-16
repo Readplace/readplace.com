@@ -1,3 +1,11 @@
+import assert from "node:assert/strict";
+import { initFetchRedditPostCard } from "@packages/crawl-article";
+import { initTransitionAndPersist, recrawlPromoteTier, type TransitionAndPersist } from "@packages/domain/article-aggregate";
+import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-aggregate";
+import { initRecrawlContentExtractedHandler } from "../select-content/recrawl-content-extracted-handler";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
+import { COMPARISON_COMPLETED } from "../select-content/comparison-log";
 import { createHash } from "node:crypto";
 import { noopLogger } from "@packages/logger";
 import type { CrawlArticle, CrawlUnsupportedReason } from "@packages/crawl-article";
@@ -1764,5 +1772,117 @@ describe("initRenderCrawlHandler", () => {
 			expect(logParseError).toHaveBeenCalledWith({ url: URL, reason: "crawl-blocked: paid render legs deferred" });
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: URL, input: { reason: { kind: "blocked", cause: "edge-block" } } });
 		});
+	});
+});
+
+
+describe("a blocked Reddit recrawl reaching content selection", () => {
+	const postUrl = "https://www.reddit.com/r/example_sub/comments/abc123/a_post_title/";
+	const now = new Date("2026-10-28T12:00:00.000Z");
+	const blockedRender = () => renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: failed("main document answered HTTP 502", 502) });
+
+	it.each(["card", "unavailable", "malformed", "timeout"] as const)("hands the actual render event to the real recrawl selector: %s", async (reply) => {
+		const { publishEvent, published } = initRecordingPublishEvent();
+		const renderTransition = jest.fn();
+		expect(await run(createHandler({ publishEvent, transitionAndPersist: renderTransition, renderPage: blockedRender() }), {
+			url: postUrl, trigger: "recrawl", unsupportedReason: "blocked",
+		})).toEqual({ batchItemFailures: [] });
+		const expectedDetail = {
+			url: postUrl, userId: undefined, saveAttemptId: "attempt-1", candidates: [],
+			liveAttempt: { outcome: "no-body", failureReason: { kind: "blocked", cause: "edge-block" } }, extractedAt: now.toISOString(),
+		};
+		expect(published).toEqual([{ detailType: RecrawlContentExtractedEvent.detailType, detail: expectedDetail }]);
+		expect(renderTransition).toHaveBeenCalledTimes(0);
+		const emitted = published[0];
+		assert(emitted);
+		const store = initInMemoryArticleStore();
+		store.seed({ url: postUrl, metadata: { title: "", siteName: "Reddit", excerpt: "", wordCount: 0 }, estimatedReadTime: 0,
+			freshness: { contentFetchedAt: now.toISOString() }, crawl: { kind: "pending", pendingSince: now.toISOString() }, summary: { kind: "pending", pendingSince: now.toISOString() }, summaryAutoHeal: { attempts: 0 } });
+		const dispatchEffect = jest.fn().mockResolvedValue(undefined);
+		const aggregate = initTransitionAndPersist({ store, dispatchEffect, logCrawlSettled: () => {} });
+		const transitions = jest.fn();
+		const transitionAndPersist: TransitionAndPersist = async (transition, params) => {
+			transitions(transition, params);
+			return aggregate.transitionAndPersist(transition, params);
+		};
+		const putTierSource = jest.fn(async (put: Parameters<HandlerDeps["putTierSource"]>[0]) => ({ ...put.metadata, htmlLocation: "s3://content/post-card.html", evaluationLocation: "s3://content/post-card-evaluation.html" }));
+		const writeCanonicalContent = jest.fn(async ({ source }: Parameters<Parameters<typeof initRecrawlContentExtractedHandler>[0]["writeCanonicalContent"]>[0]) => ({ candidateId: source.metadata.id, tier: source.tier, contentLocation: "s3://content/canonical.html" }));
+		const fetchOembed = jest.fn(async () => {
+			if (reply === "timeout") throw new DOMException("request timed out", "TimeoutError");
+			return new Response(JSON.stringify(reply === "card" ? { title: "Fish & <chips>", author_name: "example_user" } : {}), { status: reply === "unavailable" ? 503 : 200 });
+		});
+		const info = jest.fn();
+		const select = initRecrawlContentExtractedHandler({
+			listAvailableTierSources: async () => [], selectMostCompleteContent: async () => { throw new Error("empty candidates need no judge"); },
+			runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => now }), logger: noopLogger, now: () => now }),
+			writeCanonicalContent, putTierSource, recordCrawlVersion: async () => {}, loadArticle: store.load, readCanonicalContent: async () => undefined,
+			transitionAndPersist, resolveOriginalUrl: async () => postUrl, verifyWrapperSource: async () => undefined,
+			fetchYouTubeVideoCard: async () => undefined, fetchRedditPostCard: initFetchRedditPostCard({ fetch: fetchOembed, logError: jest.fn() }),
+			now: () => now, logger: { ...noopLogger, info }, deepseekCallFailedLog: noopLogger,
+		});
+		const event = createSqsEvent({ url: postUrl });
+		event.Records[0].body = JSON.stringify({ detail: emitted.detail });
+		expect(await select(event, buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+		const row = await store.load(postUrl);
+		assert(row);
+		if (reply !== "card") {
+			expect(row.crawl).toEqual({ kind: "failed", reason: { kind: "blocked", cause: "edge-block" } });
+			expect(row.summary).toEqual({ kind: "skipped", reason: "crawl-failed" });
+			expect(writeCanonicalContent).toHaveBeenCalledTimes(0);
+			expect(putTierSource).toHaveBeenCalledTimes(0);
+			return;
+		}
+		const [put] = putTierSource.mock.calls[0];
+		expect(put).toMatchObject({ url: postUrl, tier: "tier-1", metadata: { originalUrl: postUrl, sourceUrl: "https://www.reddit.com/r/example_sub/comments/abc123/", attemptId: "attempt-1", kind: "live", wordCount: 3, httpStatus: 200 } });
+		expect(put.html).toBe('<p class="reader-embed-facade"><a href="https://www.reddit.com/r/example_sub/comments/abc123/" target="_blank" rel="noopener noreferrer">Fish &amp; &lt;chips&gt;</a></p>');
+		expect(writeCanonicalContent).toHaveBeenCalledWith({ url: postUrl, source: expect.objectContaining({ html: put.html, metadata: expect.objectContaining({ id: put.metadata.id, htmlLocation: "s3://content/post-card.html" }) }) });
+		expect(transitions).toHaveBeenCalledWith(recrawlPromoteTier, expect.objectContaining({ url: postUrl, input: expect.objectContaining({ winnerTier: "tier-1" }) }));
+		expect(row.crawl).toEqual({ kind: "ready" });
+		expect(row.freshness.canonicalContentHash).toBe(computeCanonicalContentHash(put.html));
+		expect(row.contentSelection).toMatchObject({ candidateId: put.metadata.id, tier: "tier-1", contentLocation: "s3://content/canonical.html" });
+		expect(row.metadata).toMatchObject({ title: "Fish & <chips>", wordCount: 3 });
+		expect(dispatchEffect.mock.calls.map(([effect]) => effect)).toEqual([{ kind: "publish-canonical-content-changed", url: postUrl }, { kind: "publish-recrawl-completed", url: postUrl }]);
+		expect(row.summary).toEqual({ kind: "pending", pendingSince: now.toISOString() });
+		const comparison = info.mock.calls.map(([message]) => String(message)).find((line) => line.startsWith(COMPARISON_COMPLETED));
+		assert(comparison);
+		expect(JSON.parse(comparison.slice(COMPARISON_COMPLETED.length))).toMatchObject({ outcome: "selected", selectionRule: "post-card-fallback" });
+	});
+
+	it("keeps the final blocked render's status precedence when handing off", async () => {
+		const { publishEvent, published } = initRecordingPublishEvent();
+		await run(createHandler({ publishEvent, renderPage: renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: blocked(429) }) }), { url: postUrl, trigger: "recrawl", unsupportedReason: "blocked" });
+		expect(published).toEqual([{ detailType: RecrawlContentExtractedEvent.detailType, detail: {
+			url: postUrl, userId: undefined, saveAttemptId: "attempt-1", candidates: [], liveAttempt: { outcome: "no-body", failureReason: { kind: "blocked", cause: "rate-limited" } }, extractedAt: now.toISOString(),
+		} }]);
+	});
+
+	it.each([
+		{ url: URL, trigger: "recrawl" as const },
+		{ url: "https://www.reddit.com/r/example_sub/top/", trigger: "recrawl" as const },
+		{ url: postUrl, trigger: "save" as const },
+		{ url: postUrl, trigger: "refresh" as const },
+	])("retains the prior blocked terminal outcome for $trigger $url", async (detail) => {
+		const { publishEvent, published } = initRecordingPublishEvent();
+		const transitionAndPersist = jest.fn();
+		await run(createHandler({ publishEvent, transitionAndPersist, renderPage: blockedRender() }), { ...detail, unsupportedReason: "blocked" });
+		expect(published).toEqual([]);
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: detail.url, input: { reason: { kind: "blocked", cause: "edge-block" } } });
+	});
+
+	it("does not infer a block from failed renders", async () => {
+		const { publishEvent, published } = initRecordingPublishEvent();
+		const transitionAndPersist = jest.fn();
+		await run(createHandler({ publishEvent, transitionAndPersist, renderPage: renderPageAnswering({ direct: failed("gateway", 502), residential: failed("gateway", 502), webUnlocker: failed("gateway", 502) }) }), { url: postUrl, trigger: "recrawl", unsupportedReason: "blocked" });
+		expect(published).toEqual([]);
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, expect.objectContaining({ url: postUrl }));
+	});
+
+	it.each(["deferred", "budget"] as const)("preserves a %s paid render outcome", async (outcome) => {
+		const { publishEvent, published } = initRecordingPublishEvent();
+		const transitionAndPersist = jest.fn();
+		const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => outcome === "deferred", now: () => now });
+		await run(createHandler({ ...ledger, publishEvent, transitionAndPersist, consumeRenderCrawlBudget: async () => ({ allowed: false }), renderPage: renderPageAnswering({ direct: blocked(403) }) }), { url: postUrl, trigger: "recrawl", unsupportedReason: "blocked" });
+		expect(published).toEqual([]);
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: postUrl, input: { reason: { kind: "blocked", cause: outcome === "budget" ? "spend-capped" : "edge-block" } } });
 	});
 });

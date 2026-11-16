@@ -1,4 +1,4 @@
-import { type ClearPlacement, type PassageRect, placeClearOfPassage } from "./place-clear-of-passage";
+import { type ClearPlacement, type PassageRect, placeClearOfPassage, TOOLBAR_GAP_PX } from "./place-clear-of-passage";
 
 const panel = { width: 100, height: 40 };
 const unzoomed = { width: 400, height: 800, offsetLeft: 0, offsetTop: 0 };
@@ -21,6 +21,7 @@ describe("placeClearOfPassage", () => {
 
 	it("places the panel 10 px above the passage, centred on its first rect", () => {
 		const placement = placeClearOfPassage({
+			gap: TOOLBAR_GAP_PX,
 			rects: twoLines,
 			panel,
 			viewport: unzoomed,
@@ -35,6 +36,7 @@ describe("placeClearOfPassage", () => {
 	it("falls to below the passage, centred on its last rect, when above would cross the viewport's top", () => {
 		const rects = [rect({ top: 20, left: 20, width: 300 }), rect({ top: 40, left: 50, width: 200 })];
 		const placement = placeClearOfPassage({
+			gap: TOOLBAR_GAP_PX,
 			rects,
 			panel,
 			viewport: unzoomed,
@@ -48,6 +50,7 @@ describe("placeClearOfPassage", () => {
 
 	it("tries below first when the order says so", () => {
 		const placement = placeClearOfPassage({
+			gap: TOOLBAR_GAP_PX,
 			rects: twoLines,
 			panel,
 			viewport: unzoomed,
@@ -61,8 +64,22 @@ describe("placeClearOfPassage", () => {
 
 	it("measures the passage's box from its highest top and lowest bottom, whatever the rect order", () => {
 		const rects = [rect({ top: 320, left: 50, width: 200 }), rect({ top: 300, left: 20, width: 300, height: 60 })];
-		const above = placeClearOfPassage({ rects, panel, viewport: unzoomed, order: ["above"], whenNoneFits: "last-side" });
-		const below = placeClearOfPassage({ rects, panel, viewport: unzoomed, order: ["below"], whenNoneFits: "last-side" });
+		const above = placeClearOfPassage({
+			gap: TOOLBAR_GAP_PX,
+			rects,
+			panel,
+			viewport: unzoomed,
+			order: ["above"],
+			whenNoneFits: "last-side",
+		});
+		const below = placeClearOfPassage({
+			gap: TOOLBAR_GAP_PX,
+			rects,
+			panel,
+			viewport: unzoomed,
+			order: ["below"],
+			whenNoneFits: "last-side",
+		});
 
 		expect(above.top).toBe(300 - 10 - 40);
 		expect(below.top).toBe(360 + 10);
@@ -70,11 +87,41 @@ describe("placeClearOfPassage", () => {
 		expect(intersects({ placement: below, rects })).toBe(false);
 	});
 
+	it("keeps the caller's gap between the passage and the panel on either side", () => {
+		const rects = [rect({ top: 300, left: 100, width: 200 })];
+		const above = placeClearOfPassage({
+			gap: 64,
+			rects,
+			panel,
+			viewport: unzoomed,
+			order: ["above"],
+			whenNoneFits: "last-side",
+		});
+		const below = placeClearOfPassage({
+			gap: 64,
+			rects,
+			panel,
+			viewport: unzoomed,
+			order: ["below"],
+			whenNoneFits: "last-side",
+		});
+
+		expect(above.top).toBe(300 - 64 - 40);
+		expect(below.top).toBe(320 + 64);
+	});
+
 	it("uses the last side without a check when no side fits and the caller asks for the last side", () => {
 		const tall = [rect({ top: 20, left: 100, width: 200, height: 770 })];
 
 		expect(
-			placeClearOfPassage({ rects: tall, panel, viewport: unzoomed, order: ["above", "below"], whenNoneFits: "last-side" }),
+			placeClearOfPassage({
+				gap: TOOLBAR_GAP_PX,
+				rects: tall,
+				panel,
+				viewport: unzoomed,
+				order: ["above", "below"],
+				whenNoneFits: "last-side",
+			}),
 		).toEqual({ top: 790 + 10, left: 150, side: "below", clear: true });
 	});
 
@@ -83,6 +130,7 @@ describe("placeClearOfPassage", () => {
 
 		expect(
 			placeClearOfPassage({
+				gap: TOOLBAR_GAP_PX,
 				rects: tall,
 				panel,
 				viewport: unzoomed,
@@ -97,6 +145,7 @@ describe("placeClearOfPassage", () => {
 
 		expect(
 			placeClearOfPassage({
+				gap: TOOLBAR_GAP_PX,
 				rects: tall,
 				panel,
 				viewport: unzoomed,
@@ -111,6 +160,7 @@ describe("placeClearOfPassage", () => {
 
 		expect(
 			placeClearOfPassage({
+				gap: TOOLBAR_GAP_PX,
 				rects: tall,
 				panel: { width: 100, height: 790 },
 				viewport: { ...unzoomed, offsetTop: 50 },
@@ -123,6 +173,7 @@ describe("placeClearOfPassage", () => {
 	it("clamps the left edge 16 px inside the visual viewport", () => {
 		expect(
 			placeClearOfPassage({
+				gap: TOOLBAR_GAP_PX,
 				rects: [rect({ top: 300, left: 0, width: 20 })],
 				panel,
 				viewport: unzoomed,
@@ -135,6 +186,7 @@ describe("placeClearOfPassage", () => {
 	it("clamps the right edge 16 px inside the visual viewport", () => {
 		expect(
 			placeClearOfPassage({
+				gap: TOOLBAR_GAP_PX,
 				rects: [rect({ top: 300, left: 380, width: 20 })],
 				panel,
 				viewport: unzoomed,
@@ -147,6 +199,7 @@ describe("placeClearOfPassage", () => {
 	it("pins a panel wider than the viewport less both gutters to the left gutter", () => {
 		expect(
 			placeClearOfPassage({
+				gap: TOOLBAR_GAP_PX,
 				rects: [rect({ top: 300, left: 150, width: 100 })],
 				panel: { width: 380, height: 40 },
 				viewport: { ...unzoomed, offsetLeft: 30 },
@@ -160,6 +213,7 @@ describe("placeClearOfPassage", () => {
 		const zoomed = { width: 200, height: 400, offsetLeft: 200, offsetTop: 200 };
 		const nearTop = [rect({ top: 230, left: 250, width: 100 })];
 		const placement = placeClearOfPassage({
+			gap: TOOLBAR_GAP_PX,
 			rects: nearTop,
 			panel,
 			viewport: zoomed,
@@ -173,7 +227,14 @@ describe("placeClearOfPassage", () => {
 
 	it("refuses a passage without client rects", () => {
 		expect(() =>
-			placeClearOfPassage({ rects: [], panel, viewport: unzoomed, order: ["above"], whenNoneFits: "last-side" }),
+			placeClearOfPassage({
+				gap: TOOLBAR_GAP_PX,
+				rects: [],
+				panel,
+				viewport: unzoomed,
+				order: ["above"],
+				whenNoneFits: "last-side",
+			}),
 		).toThrow("a selection holding text has client rects");
 	});
 });

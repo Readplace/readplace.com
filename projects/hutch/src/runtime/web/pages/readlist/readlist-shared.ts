@@ -278,7 +278,7 @@ export function readerReadlistFilingFrom(input: {
 	saves: readonly { readlist?: ReadlistSlug }[];
 	signals: Awaited<ReturnType<GetOnboardingSignals>>;
 	returnTo: string;
-	filed: ReadlistSlug | undefined;
+	filed: readonly ReadlistSlug[];
 }): ReaderReadlistFiling {
 	return buildReaderReadlistFiling({
 		articleId: input.article.id.value,

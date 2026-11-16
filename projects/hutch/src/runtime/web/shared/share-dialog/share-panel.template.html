@@ -1,14 +1,29 @@
-<div class="share-dialog__panel" data-share-panel>
-  <div class="form-input form-input--within share-dialog__field">
-    <input class="form-input__control share-dialog__url" type="text" readonly value="{{copyUrl}}" aria-label="Link to this article" data-share-field data-test-share-url>
-    <button class="share-dialog__copy" type="button" data-share-copy data-share-url="{{copyUrl}}" hidden autofocus data-test-share-copy><span class="share-dialog__copy-glyph" data-share-copy-idle>{{icon "copy"}}</span><span class="share-dialog__copy-glyph" data-share-copy-done hidden>{{icon "check"}}</span><span class="sr-only">Copy link</span></button>
+<div id="share-panel-{{instance}}" class="share-dialog__panel{{#if choice}} share-dialog__panel--choice{{/if}}" data-share-panel{{#if oob}} hx-swap-oob="outerHTML"{{/if}} data-test-share-panel="{{instance}}">
+  {{#each links}}
+  <div class="share-dialog__link" data-share-row data-test-share-link="{{key}}">
+    <label class="share-dialog__link-label" for="share-{{../instance}}-{{key}}-url">{{label}}</label>
+    <div class="form-input form-input--within share-dialog__field">
+      <input id="share-{{../instance}}-{{key}}-url" class="form-input__control share-dialog__url" type="text" readonly value="{{copyUrl}}" data-share-field data-test-share-url="{{key}}">
+      <button class="share-dialog__copy" type="button" data-share-copy data-share-url="{{copyUrl}}" hidden{{#if @first}} autofocus{{/if}} data-test-share-copy="{{key}}"><span class="share-dialog__copy-glyph" data-share-copy-idle>{{icon "copy"}}</span><span class="share-dialog__copy-glyph" data-share-copy-done hidden>{{icon "check"}}</span><span class="sr-only">{{copyName}}</span></button>
+    </div>
   </div>
-  <ul class="share-dialog__targets">
+  {{/each}}
+  {{#if choice}}
+  <fieldset class="share-dialog__choice">
+    <legend class="share-dialog__choice-legend">{{t "reader.share.choice.legend"}}</legend>
+    {{#each links}}
+    <label class="share-dialog__choice-option"><input class="share-dialog__choice-input share-dialog__choice-input--{{key}}" type="radio" name="share-{{../instance}}-send" value="{{key}}"{{#if @first}} checked{{/if}} data-test-share-choice="{{key}}"><span>{{label}}</span></label>
+    {{/each}}
+  </fieldset>
+  {{/if}}
+  {{#each links}}
+  <ul class="share-dialog__targets share-dialog__targets--{{key}}" data-test-share-targets="{{key}}">
     {{#each targets}}
     <li class="share-dialog__target-item">
       <a class="share-dialog__target" href="{{href}}"{{#if opensNewTab}} target="_blank" rel="noopener noreferrer"{{/if}} data-test-share-target="{{key}}"><span class="share-dialog__circle {{circleClass}}">{{{logoSvg}}}</span><span class="share-dialog__label">{{label}}</span></a>
     </li>
     {{/each}}
   </ul>
+  {{/each}}
   <span class="sr-only" role="status" aria-live="polite" data-share-status></span>
 </div>

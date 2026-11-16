@@ -141,6 +141,8 @@ import type {
 	ListUserSavesForUrls,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	PinReadlistDefinition,
+	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
 	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
@@ -258,6 +260,7 @@ import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
+import { initReportArticleRoutes } from "./web/pages/report-article/report-article.page";
 import { initBrowserHandoffRoutes } from "./web/auth/browser-handoff.page";
 import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
 import { initUnrouteInboxesOnReadlistDelete } from "./domain/readlist/unroute-inboxes-on-readlist-delete";
@@ -300,7 +303,7 @@ import type {
 	ReadTimedDuration,
 } from "@packages/domain";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
+import type { CreateRoutedInboxAddress, InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
@@ -352,7 +355,6 @@ import {
 	wantsMarkdown,
 } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
-import { setSirenDiscoveryRedirectCaching } from "./web/siren-discovery-cache";
 import { createCrossSiteRequestMiddleware } from "./web/cross-site-request.middleware";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { createListingGenerationMiddleware } from "./web/listing-generation.middleware";
@@ -510,6 +512,8 @@ export interface AppDependencies {
 	moveReadlistArticles: MoveReadlistArticles;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	pinReadlistDefinition: PinReadlistDefinition;
+	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
@@ -632,6 +636,7 @@ export interface AppDependencies {
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
+	createRoutedInboxAddress: CreateRoutedInboxAddress;
 	clearReadlistFromAddresses: InboxAddressStore["clearReadlistFromAddresses"];
 	now: () => Date;
 	drawRandomByte: () => number;
@@ -1174,12 +1179,17 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	/** Firefox extensions enforce CORS preflight for fetches with non-simple headers (Accept: application/vnd.siren+json, Authorization). Register OPTIONS so the preflight succeeds; without this it returns 404 and firefox aborts the fetch with NetworkError. */
 	app.options("/", extensionCors);
-	app.get("/", extensionCors, async (req: Request, res: Response) => {
-		const sirenDiscovery = wantsSiren(req) && !wantsMarkdown(req);
-		if (sirenDiscovery) {
-			setSirenDiscoveryRedirectCaching(res);
-		}
-		if (req.userId || sirenDiscovery) {
+	app.get(
+		"/",
+		extensionCors,
+		(req: Request, _res: Response, next: NextFunction) => {
+			next(wantsSiren(req) && !wantsMarkdown(req) ? undefined : "route");
+		},
+		stampOfflineOwner,
+		(req: Request, res: Response, next: NextFunction) => queueRouter(req, res, next),
+	);
+	app.get("/", async (req: Request, res: Response) => {
+		if (req.userId) {
 			res.redirect(303, READLIST_PATH);
 			return;
 		}
@@ -1522,6 +1532,15 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 	});
 	app.use(forgotPasswordRouter);
+
+	app.use(
+		initReportArticleRoutes({
+			sendEmail: deps.sendEmail,
+			findEmailByUserId: deps.findEmailByUserId,
+			appOrigin,
+			logError: deps.logError,
+		}),
+	);
 
 	const dualAuthMiddleware = initDualAuth({
 		validateAccessToken: deps.validateAccessToken,

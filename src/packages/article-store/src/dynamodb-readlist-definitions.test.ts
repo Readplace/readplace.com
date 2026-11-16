@@ -66,6 +66,28 @@ describe("listReadlistDefinitions", () => {
 		expect(definition?.starterCampaignId).toBe("hn-starter-v1");
 	});
 
+	it("reads when a readlist was pinned, and leaves an unpinned one without a pin", async () => {
+		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[
+					{
+						Items: [
+							definitionItem({ pinnedAt: "2026-11-01T09:00:00.000Z" }),
+							definitionItem({ url: "readplace:queue-def/home", queueSlug: "home", createdAt: "2026-08-20T10:00:00.000Z" }),
+						],
+					},
+				],
+				() => undefined,
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		const [pinned, unpinned] = await listReadlistDefinitions(USER);
+
+		expect(pinned?.pinnedAt).toEqual(new Date("2026-11-01T09:00:00.000Z"));
+		expect(unpinned).not.toHaveProperty("pinnedAt");
+	});
+
 	it("reads a row that still holds a retired email delivery choice", async () => {
 		const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
 			client: createFakeDynamo(
@@ -486,6 +508,82 @@ describe("clearReadlistDefinitionPurpose", () => {
 		await expect(clearReadlistDefinitionPurpose({ userId: USER, slug: WORK })).rejects.toThrow(
 			"throttled",
 		);
+	});
+});
+
+describe("pinReadlistDefinition", () => {
+	it("records the first pin time only, on a row that must already exist", async () => {
+		const commands: { name: string; input: Record<string, unknown> }[] = [];
+		const { pinReadlistDefinition } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo([{}], (c) => commands.push(c)),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(
+			await pinReadlistDefinition({ userId: USER, slug: WORK, pinnedAt: new Date("2026-11-01T09:00:00.000Z") }),
+		).toEqual({ pinned: true });
+		expect(commands[0].name).toBe("UpdateCommand");
+		expect(commands[0].input).toMatchObject({
+			TableName: TABLE,
+			Key: { userId: USER, url: "readplace:queue-def/work" },
+			UpdateExpression: "SET #pinnedAt = if_not_exists(#pinnedAt, :pinnedAt)",
+			ConditionExpression: "attribute_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url", "#pinnedAt": "pinnedAt" },
+			ExpressionAttributeValues: { ":pinnedAt": "2026-11-01T09:00:00.000Z" },
+		});
+	});
+
+	it("reports a readlist that no longer has a definition row", async () => {
+		const { pinReadlistDefinition } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[
+					() => {
+						throw conditionalCheckFailed();
+					},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await pinReadlistDefinition({ userId: USER, slug: WORK, pinnedAt: new Date() })).toEqual({
+			pinned: false,
+		});
+	});
+});
+
+describe("unpinReadlistDefinition", () => {
+	it("removes only the pin, on a row that must already exist", async () => {
+		const commands: { name: string; input: Record<string, unknown> }[] = [];
+		const { unpinReadlistDefinition } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo([{}], (c) => commands.push(c)),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await unpinReadlistDefinition({ userId: USER, slug: WORK })).toEqual({ unpinned: true });
+		expect(commands[0].input).toMatchObject({
+			TableName: TABLE,
+			Key: { userId: USER, url: "readplace:queue-def/work" },
+			UpdateExpression: "REMOVE #pinnedAt",
+			ConditionExpression: "attribute_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url", "#pinnedAt": "pinnedAt" },
+		});
+	});
+
+	it("reports a readlist that no longer has a definition row", async () => {
+		const { unpinReadlistDefinition } = initDynamoDbReadlistDefinitions({
+			client: createFakeDynamo(
+				[
+					() => {
+						throw conditionalCheckFailed();
+					},
+				],
+				() => {},
+			),
+			userArticlesTableName: TABLE,
+		});
+
+		expect(await unpinReadlistDefinition({ userId: USER, slug: WORK })).toEqual({ unpinned: false });
 	});
 });
 

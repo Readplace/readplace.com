@@ -18,6 +18,7 @@ interface SentenceTapDeps {
 	window: SentenceTapWindow;
 	isPopoverOpen: () => boolean;
 	selectionOf: () => Selection;
+	canHighlight: () => boolean;
 }
 
 interface TappedSentence {
@@ -45,6 +46,7 @@ export function initSentenceTap(deps: SentenceTapDeps): SentenceTap {
 
 	const selectSentenceAt = (event: MouseEvent): void => {
 		if (!deps.window.matchMedia(COARSE_POINTER_QUERY).matches) return;
+		if (!deps.canHighlight()) return;
 		if (!selectionWasCollapsed || overlayWasOpen) return;
 		const content = document.querySelector(CONTENT_SELECTOR);
 		const path = event.composedPath();

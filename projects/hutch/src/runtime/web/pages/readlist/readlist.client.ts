@@ -1,3 +1,6 @@
+import { initReadlistFilter } from "../../shared/readlist-filter/readlist-filter.client";
+import { initReadlistMore } from "./readlist-more.client";
+
 export interface ReadlistDeps {
 	document: Document;
 }
@@ -63,7 +66,7 @@ function hostDialogFieldOf(dialog: Element): HTMLElement | null {
 	const parent = dialog.parentElement;
 	assert(parent, "a dialog always sits inside the page");
 	const host = parent.closest("[popover]");
-	return host === null ? null : host.querySelector<HTMLElement>("[autofocus]");
+	return host === null ? null : host.querySelector<HTMLElement>("input[type='url']");
 }
 
 function announce(document: Document, message: string): void {
@@ -72,6 +75,8 @@ function announce(document: Document, message: string): void {
 }
 
 export function initReadlist(deps: ReadlistDeps): void {
+	initReadlistFilter({ document: deps.document });
+	initReadlistMore({ document: deps.document });
 	const openers = new Map<string, HTMLElement>();
 
 	deps.document.addEventListener("click", (event) => {

@@ -245,7 +245,7 @@ describe("empty states", () => {
 		const text = empty.querySelector(".readlist-empty__text");
 		assert(text, "the empty state text must be rendered");
 		expect(text.textContent).toBe(
-			"Save your first article with the Article button, or set up one-tap saving from your browser, phone, or AI assistant.",
+			"Save your first article with the Upload button, or set up one-tap saving from your browser, phone, or AI assistant.",
 		);
 		expect(emptyActionKeys(empty)).toEqual(["install"]);
 		const install = empty.querySelector('[data-test-empty-action="install"]');
@@ -310,7 +310,7 @@ describe("empty states", () => {
 		const text = empty.querySelector(".readlist-empty__text");
 		assert(text, "the empty state text must be rendered");
 		expect(text.textContent).toBe(
-			"Save your first article with the Article button, or use the Readplace browser extension to save it in one click.",
+			"Save your first article with the Upload button, or use the Readplace browser extension to save it in one click.",
 		);
 		expect(emptyActionKeys(empty)).toEqual([]);
 	});

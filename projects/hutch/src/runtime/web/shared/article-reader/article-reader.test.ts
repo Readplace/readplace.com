@@ -554,6 +554,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -584,6 +585,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -615,6 +617,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -647,6 +650,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -681,6 +685,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -712,6 +717,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -741,6 +747,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 				readerSection: TEST_READER_SECTION,
 			};
 		}
@@ -819,6 +826,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -852,6 +860,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -881,6 +890,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -915,6 +925,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -947,6 +958,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -977,6 +989,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1007,6 +1020,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1037,6 +1051,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1065,6 +1080,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -1103,6 +1119,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1146,6 +1163,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1181,6 +1199,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1214,6 +1233,7 @@ describe("initArticleReader", () => {
 				saved: SIX_HOURS_AGO,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			expect(headerOf(parse(toHtml(component)))).toEqual({
@@ -1247,6 +1267,7 @@ describe("initArticleReader", () => {
 				saved: SIX_HOURS_AGO,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1278,6 +1299,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1314,6 +1336,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1346,6 +1369,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1392,6 +1416,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1428,6 +1453,7 @@ describe("initArticleReader", () => {
 				saved: SIX_HOURS_AGO,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			expect(headerOf(parse(toHtml(component)))).toEqual({
@@ -1462,6 +1488,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1503,6 +1530,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1536,6 +1564,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1572,6 +1601,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1605,6 +1635,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1638,6 +1669,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(`<div id="poll-response">${toHtml(component)}</div>`);
@@ -1682,6 +1714,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1722,6 +1755,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 			return parse(toHtml(component));
 		}
@@ -1941,6 +1975,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -1987,6 +2022,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			const notice = parse(toHtml(component)).body.lastElementChild;
@@ -2019,6 +2055,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 				readerSection: TEST_READER_SECTION,
 			};
 		}
@@ -2226,6 +2263,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([
@@ -2259,6 +2297,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([
@@ -2294,6 +2333,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([...READER_POLL_BASELINE, "article-body-reader-notice"]);
@@ -2321,6 +2361,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([...SUMMARY_POLL_BASELINE, "article-body-reader-notice"]);
@@ -2348,6 +2389,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([...READER_POLL_BASELINE, "article-body-reader-notice"]);
@@ -2376,6 +2418,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
+				renderShareOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([...READER_POLL_BASELINE, "article-body-reader-notice"]);
@@ -2451,6 +2494,7 @@ describe("initArticleReader", () => {
 						saved: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
+						renderShareOob: undefined,
 					}),
 				),
 			);
@@ -2499,6 +2543,7 @@ describe("initArticleReader", () => {
 						saved: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
+						renderShareOob: undefined,
 					}),
 				),
 			);
@@ -2532,6 +2577,7 @@ describe("initArticleReader", () => {
 						saved: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
+						renderShareOob: undefined,
 					}),
 				),
 			);
@@ -2566,6 +2612,7 @@ describe("initArticleReader", () => {
 						saved: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
+						renderShareOob: undefined,
 					}),
 				),
 			);
@@ -2607,6 +2654,7 @@ describe("initArticleReader", () => {
 						saved: SIX_HOURS_AGO,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
+						renderShareOob: undefined,
 					}),
 				),
 			);
@@ -2698,6 +2746,7 @@ describe("the reader's gave-up poll", () => {
 			saved: undefined,
 			readerViewFailedOob: () => "",
 			renderDownloadsOob: undefined,
+			renderShareOob: undefined,
 		});
 		return parse(toHtml(component));
 	}

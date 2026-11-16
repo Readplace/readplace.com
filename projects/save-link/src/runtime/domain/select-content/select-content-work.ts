@@ -110,16 +110,17 @@ function noReadableReason(params: { selection: PreparedContentSelection; saveAtt
 
 type OEmbedCard = { selectionRule: "video-card-fallback" | "post-card-fallback"; served: string; siteName: string; title: string; excerpt: string; wordCount: number; sourceUrl: string; imageUrl: string | undefined; html: string };
 
-async function fetchOEmbedCard(deps: SelectContentDependencies, originalUrl: string): Promise<OEmbedCard | undefined> {
+async function fetchOEmbedCard(deps: SelectContentDependencies, originalUrl: string, mode: SelectionMode): Promise<OEmbedCard | undefined> {
 	const video = await deps.fetchYouTubeVideoCard({ url: originalUrl });
 	if (video !== undefined) return { selectionRule: "video-card-fallback", served: "video card", siteName: "YouTube", title: video.title, excerpt: video.excerpt, wordCount: 0, sourceUrl: video.watchUrl, imageUrl: video.posterUrl, html: video.html };
+	if (mode !== "recrawl") return undefined;
 	const post = await deps.fetchRedditPostCard({ url: originalUrl });
 	if (post !== undefined) return { selectionRule: "post-card-fallback", served: "post card", siteName: "Reddit", title: post.title, excerpt: post.excerpt, wordCount: post.wordCount, sourceUrl: post.postUrl, imageUrl: post.posterUrl, html: post.html };
 	return undefined;
 }
 
-async function recoverOEmbedCard(deps: SelectContentDependencies, params: { url: string; saveAttemptId: SaveAttemptId; originalUrl: string }): Promise<{ card: OEmbedCard; source: VerifiedTierSource } | undefined> {
-	const card = await fetchOEmbedCard(deps, params.originalUrl);
+async function recoverOEmbedCard(deps: SelectContentDependencies, params: { url: string; saveAttemptId: SaveAttemptId; originalUrl: string; mode: SelectionMode }): Promise<{ card: OEmbedCard; source: VerifiedTierSource } | undefined> {
+	const card = await fetchOEmbedCard(deps, params.originalUrl, params.mode);
 	if (card === undefined) return undefined;
 	const metadata = candidateProvenance({
 		metadata: { title: card.title, siteName: card.siteName, excerpt: card.excerpt, wordCount: card.wordCount, estimatedReadTime: estimatedReadTimeFromWordCount(card.wordCount), imageUrl: card.imageUrl },
@@ -145,7 +146,7 @@ export function initSelectContentWorkUnderLease(deps: SelectContentDependencies,
 		}
 		const keepRow = params.liveAttempt?.outcome === "deferred" || prepared.legacyCanonicalWithheld;
 		const nothingReadable = prepared.selected === undefined && !keepRow && prepared.selectionRule !== "judge-deferred";
-		const recovered = nothingReadable ? await recoverOEmbedCard(deps, { url: params.url, saveAttemptId: params.saveAttemptId, originalUrl: prepared.originalUrl }) : undefined;
+		const recovered = nothingReadable ? await recoverOEmbedCard(deps, { url: params.url, saveAttemptId: params.saveAttemptId, originalUrl: prepared.originalUrl, mode: params.mode }) : undefined;
 		const selection: PreparedContentSelection = recovered === undefined ? prepared : {
 			...prepared, selected: recovered.source, outcome: "selected", selectionRule: recovered.card.selectionRule, sources: [...prepared.sources, recovered.source],
 			readableIds: new Set([...prepared.readableIds, recovered.source.metadata.id]), reason: `no readable candidate (${prepared.reason}); served the oEmbed ${recovered.card.served}`,

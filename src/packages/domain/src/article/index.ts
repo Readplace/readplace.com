@@ -79,6 +79,13 @@ export {
 	READER_TABLE_FLOW_ATTRIBUTE,
 	sanitizeArticleHtml,
 } from "./sanitize-article-html";
+export {
+	READER_IMAGE_SIZE_ATTRIBUTE,
+	formatReaderImageSize,
+	readerImageBox,
+	isReaderImageBoxStyle,
+	type ReaderImageSize,
+} from "./reader-image-size";
 export { isBlockedIpAddress } from "./blocked-address";
 export { isNonArticleHost } from "./non-article-host";
 export {

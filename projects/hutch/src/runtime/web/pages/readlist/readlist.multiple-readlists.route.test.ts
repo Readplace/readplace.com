@@ -52,7 +52,7 @@ function readlistPopovers(doc: Document): (string | null)[] {
 	);
 }
 
-function renameable(doc: Document): (string | null)[] {
+function renameable(doc: ParentNode): (string | null)[] {
 	return Array.from(
 		doc.querySelectorAll('[data-test-readlist-menu] [data-test-action="readlist-rename"]'),
 		(trigger) => trigger.closest("[data-test-readlist-menu]")?.getAttribute("data-test-readlist-menu") ?? null,
@@ -109,7 +109,7 @@ function addLinkDialogIn(doc: Document): Element {
 	return dialog;
 }
 
-function deleteTriggerTargets(doc: Document): (string | null)[] {
+function deleteTriggerTargets(doc: ParentNode): (string | null)[] {
 	return Array.from(doc.querySelectorAll('[data-test-action="readlist-delete"]'), (el) =>
 		el.getAttribute("popovertarget"),
 	);
@@ -416,9 +416,11 @@ describe("POST /queue/queues", () => {
 
 		const doc = parse((await agent.get(`/queue?queue=${slugs[0]}&q=focus`)).text);
 
+		const sheet = doc.querySelector('[data-test-readlist-popover="sheet"]');
+		assert(sheet, "a reader at the cap reaches every readlist through the readlist sheet");
 		expect(createRowActions(doc)).toEqual(["readlist-limit"]);
-		expect(renameable(doc)).toEqual(slugs);
-		expect(deleteTriggerTargets(doc)).toHaveLength(READLIST_MAX_PER_USER);
+		expect(renameable(sheet)).toEqual(slugs);
+		expect(deleteTriggerTargets(sheet)).toHaveLength(READLIST_MAX_PER_USER);
 		expect(readlistPopovers(doc)).toEqual([
 			...slugs.map(() => "readlist-rename"),
 			...slugs.map(() => "readlist-delete"),

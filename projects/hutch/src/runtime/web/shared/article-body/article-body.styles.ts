@@ -5,6 +5,7 @@ import { CRAWL_ESTIMATE_STYLES } from "../crawl-estimate/crawl-estimate.styles";
 import { DISCLOSURE_CARD_STYLES } from "../disclosure-card/disclosure-card.styles";
 import { SENDER_POPOVER_STYLES } from "../sender-popover/sender-popover.styles";
 import { ARTICLE_FRAME_STYLES } from "./article-frame.styles";
+import { REPORT_ARTICLE_STYLES } from "../report-article/report-article-dialog.component";
 
 const stylesPath = join(__dirname, "article-body.styles.css");
 const articleHistoryStylesPath = join(__dirname, "article-history", "article-history.styles.css");
@@ -24,4 +25,5 @@ export const ARTICLE_BODY_STYLES =
 	readFileSync(tableOfContentsStylesPath, "utf-8") +
 	readFileSync(progressBarStylesPath, "utf-8") +
 	readFileSync(pipelinePanelStylesPath, "utf-8") +
+	REPORT_ARTICLE_STYLES +
 	CRAWL_ESTIMATE_STYLES;

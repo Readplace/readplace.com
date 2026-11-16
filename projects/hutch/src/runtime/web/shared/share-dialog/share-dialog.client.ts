@@ -32,6 +32,12 @@ function panelOf(button: HTMLElement): Element {
 	return panel;
 }
 
+function rowOf(button: HTMLElement): Element {
+	const row = button.closest("[data-share-row]");
+	assert(row, "a copy button always sits in the row of the link it copies");
+	return row;
+}
+
 function show(button: HTMLElement, state: { copied: boolean; message: string }): void {
 	partOf<HTMLElement>(button, "[data-share-copy-idle]").hidden = state.copied;
 	partOf<HTMLElement>(button, "[data-share-copy-done]").hidden = !state.copied;
@@ -76,7 +82,7 @@ export function initShareDialog(deps: ShareDialogDeps): { attach(): void; reveal
 			clipboard.writeText(url).then(
 				() => flash(button, { copied: true, message: COPIED_MESSAGE }),
 				() => {
-					partOf<HTMLInputElement>(panelOf(button), "[data-share-field]").select();
+					partOf<HTMLInputElement>(rowOf(button), "[data-share-field]").select();
 					flash(button, { copied: false, message: FAILED_MESSAGE });
 				},
 			);

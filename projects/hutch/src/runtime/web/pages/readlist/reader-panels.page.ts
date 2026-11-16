@@ -38,6 +38,7 @@ import {
 	DEFAULT_READLIST_SLUG,
 } from "@packages/domain/readlist";
 import { HtmlPage } from "@packages/web-shell";
+import { renderReaderShareUpgradeOob } from "../reader/reader.component";
 import { MAX_POLLS } from "@packages/web-shell";
 import { parsePollParam } from "@packages/web-shell";
 import { renderNextRead } from "../../shared/next-read/next-read.component";
@@ -128,6 +129,7 @@ export function initReaderPanelRoutes(
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
+			renderShareOob: (state) => renderReaderShareUpgradeOob({ article, appOrigin: deps.appOrigin, state }),
 			highlights: await pollHighlightsFor(req, article),
 		});
 		res.vary("User-Agent");
@@ -166,6 +168,7 @@ export function initReaderPanelRoutes(
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
+			renderShareOob: (state) => renderReaderShareUpgradeOob({ article, appOrigin: deps.appOrigin, state }),
 			highlights: await pollHighlightsFor(req, article),
 		});
 		res.vary("User-Agent");

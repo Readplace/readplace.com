@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SaveableUrlErrorCode } from "@packages/domain/article";
 import { AUDIO, BOOK, VIDEO } from "@packages/media-contracts";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import {
 	type AlertContent,
 	render,
@@ -36,13 +38,13 @@ const SKIPPED_TEMPLATE = readFileSync(join(__dirname, "readlist-save-feedback-sk
 export const ADD_LINK_POPOVER_ID = "add-link";
 
 const ADD_ARTICLE_MODES = [
-	{ value: "link", label: "Link", checked: true },
-	{ value: "file", label: "File", checked: false },
+	{ value: "file", label: "File", checked: true },
+	{ value: "link", label: "Link", checked: false },
 ];
 
 const ADD_LINK_TITLE = "Add article";
 
-const ADD_LINK_BODY = "Paste a link, or drop a file: a bookmarks export to review, or a DRM-free EPUB to read.";
+const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 const ADD_LINK_FAILURE = "Couldn't save the link.";
 
@@ -118,7 +120,6 @@ export function renderReadlistAddLink(input: {
 			dialogHtml: "",
 			pendingHtml: render(PENDING_TEMPLATE, {
 				title: ADD_LINK_TITLE,
-				body: ADD_LINK_BODY,
 				accessIsReadOnly: input.accessIsReadOnly,
 				formHtml: form({ value: input.saveUrl, autoSubmit: true, autofocus: false }),
 			}),
@@ -133,12 +134,12 @@ export function renderReadlistAddLink(input: {
 			id: ADD_LINK_POPOVER_ID,
 			key: ADD_LINK_POPOVER_ID,
 			title: ADD_LINK_TITLE,
-			body: ADD_LINK_BODY,
+			body: "",
 			actionsHtml: [
 				render(TABS_TEMPLATE, {
 					modes: ADD_ARTICLE_MODES,
 					accessIsReadOnly: input.accessIsReadOnly,
-					linkFormHtml: form({ value: "", autoSubmit: false, autofocus: true }),
+					linkFormHtml: form({ value: "", autoSubmit: false, autofocus: false }),
 					dropzoneHtml: renderUploadDropzone({
 						importAction: ADD_ARTICLE_IMPORT_ACTION,
 						bookFallbackHref: UPLOAD_ENTRY_HREFS.addArticleFallback,
@@ -163,11 +164,11 @@ export function renderReadlistAddLink(input: {
 				offer: input.offer,
 				gated: input.accessIsReadOnly,
 				key: "add-link",
-				label: ADD_LINK_TITLE,
+				label: t("readlistAddArticle.trigger"),
 				controlClass: "btn btn--neutral btn--s",
 				source: "queue-add-link",
 			});
-			assert(lock, "a reader who needs an upgrade must be offered the Add article lock");
+			assert(lock, "a reader who needs an upgrade must be offered the Upload lock");
 			return {
 				controlHtml: render(CONTROL_TEMPLATE, { locks: [renderNeedsUpgrade(lock)], forms: [] }),
 				dialogHtml: "",

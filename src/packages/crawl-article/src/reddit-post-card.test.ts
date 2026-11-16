@@ -51,7 +51,7 @@ describe("initFetchRedditPostCard", () => {
 			title: "Fish & <chips>",
 			author: "A",
 			subreddit: "example_sub",
-			excerpt: "Post by A in r/example_sub on Reddit.",
+			excerpt: "A",
 			wordCount: 3,
 			postUrl: CANONICAL_POST_URL,
 			posterUrl: undefined,
@@ -72,7 +72,7 @@ describe("initFetchRedditPostCard", () => {
 		const { fetchPostCard, logError } = setup(answering({ status, body: {} }));
 
 		expect(await fetchPostCard({ url: POST_URL })).toBeUndefined();
-		expect(logError.mock.calls).toEqual([[`[CrawlArticle] reddit oembed HTTP ${status} for ${POST_URL}`]]);
+		expect(logError.mock.calls).toEqual([[`[CrawlArticle] reddit oembed HTTP ${status}`]]);
 	});
 
 	it.each([
@@ -83,14 +83,14 @@ describe("initFetchRedditPostCard", () => {
 		const { fetchPostCard, logError } = setup(answering({ status: 200, body }));
 
 		expect(await fetchPostCard({ url: POST_URL })).toBeUndefined();
-		expect(logError.mock.calls).toEqual([[`[CrawlArticle] reddit oembed payload rejected for ${POST_URL}`]]);
+		expect(logError.mock.calls).toEqual([[`[CrawlArticle] reddit oembed payload rejected`]]);
 	});
 
 	it("declines a 200 reply that is not JSON", async () => {
 		const { fetchPostCard, logError } = setup(async () => new Response("<html>Bad gateway</html>", { status: 200 }));
 
 		expect(await fetchPostCard({ url: POST_URL })).toBeUndefined();
-		expect(logError.mock.calls.map(([message]) => message)).toEqual([`[CrawlArticle] reddit oembed error for ${POST_URL}`]);
+		expect(logError.mock.calls.map(([message]) => message)).toEqual([`[CrawlArticle] reddit oembed error`]);
 	});
 
 	it("declines a fetch that throws an Error", async () => {
@@ -98,13 +98,13 @@ describe("initFetchRedditPostCard", () => {
 		const { fetchPostCard, logError } = setup(async () => { throw failure; });
 
 		expect(await fetchPostCard({ url: POST_URL })).toBeUndefined();
-		expect(logError.mock.calls).toEqual([[`[CrawlArticle] reddit oembed error for ${POST_URL}`, { error: failure }]]);
+		expect(logError.mock.calls).toEqual([[`[CrawlArticle] reddit oembed error`]]);
 	});
 
 	it("declines a fetch that throws something other than an Error", async () => {
 		const { fetchPostCard, logError } = setup(async () => { throw "aborted"; });
 
 		expect(await fetchPostCard({ url: POST_URL })).toBeUndefined();
-		expect(logError.mock.calls).toEqual([[`[CrawlArticle] reddit oembed error for ${POST_URL}`, { error: "aborted" }]]);
+		expect(logError.mock.calls).toEqual([[`[CrawlArticle] reddit oembed error`]]);
 	});
 });

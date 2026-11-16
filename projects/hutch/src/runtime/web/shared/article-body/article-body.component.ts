@@ -1,4 +1,8 @@
 import { readFileSync } from "node:fs";
+import {
+	renderReportArticleDialog,
+	type ReportArticleDialogInput,
+} from "../report-article/report-article-dialog.component";
 import { join } from "node:path";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleDestinationUrl, DisplayableReadTime, SiteLabel, ArticleBody } from "@packages/domain/article";
@@ -60,7 +64,7 @@ export interface ArticleBodyInput {
 	readerNotice?: ReaderFailedVariant;
 	issueLinksHtml?: string;
 	previouslyReadHtml?: string;
-	reportHref?: string;
+	report?: ReportArticleDialogInput;
 	readerSection: ReaderSectionInput;
 	highlights?: ReaderHighlights;
 }
@@ -158,7 +162,7 @@ export function renderArticleBody(input: ArticleBodyInput): RenderedArticleBody 
 		previouslyReadHtml: input.previouslyReadHtml ?? "",
 		issueLinksHtml: input.issueLinksHtml ?? "",
 		bottomActionsHtml: input.bottomActionsHtml,
-		reportHref: input.reportHref,
+		reportDialogHtml: input.report === undefined ? undefined : renderReportArticleDialog(input.report),
 	});
 	return { html, states: readerRegions.states };
 }

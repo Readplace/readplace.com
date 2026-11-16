@@ -174,7 +174,7 @@ async function auditShareDialog(page: Page, where: { theme: string; view: string
 	const dialog = page.locator(`${SHARE_DIALOG_ROOT}:popover-open`);
 	await page.locator('[data-test-action="share-open"]').click({ timeout: SETTLE_MS });
 	await expect(dialog).toBeVisible({ timeout: SETTLE_MS });
-	await expect(dialog.locator("[data-test-share-copy]")).toBeVisible({ timeout: SETTLE_MS });
+	await expect(dialog.locator('[data-test-share-copy="reader-view"]')).toBeVisible({ timeout: SETTLE_MS });
 	await page.mouse.move(0, 0);
 
 	const measurements = await stableMeasurements(page, SHARE_DIALOG_ROOT);
@@ -471,8 +471,10 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 		const readerUrl = new URL(readerHref, BASE_URL).toString();
 		const articleId = new URL(readerHref, BASE_URL).pathname.match(/^\/queue\/([^/]+)\/view$/)?.[1];
 		assert(articleId, "a saved card must link to a reader with an article id");
-		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Finance" } });
-		assert.equal(created.status(), 200, "a readlist must exist for the cards to offer a move");
+		for (const label of ["Finance", "Weekend"]) {
+			const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label } });
+			assert.equal(created.status(), 200, "readlists must exist for the cards to offer a choice of them");
+		}
 
 		const viewUrls = {
 			"to-read": `${BASE_URL}/queue`,

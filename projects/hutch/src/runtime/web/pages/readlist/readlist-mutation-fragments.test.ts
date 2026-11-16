@@ -80,6 +80,34 @@ describe("renderMoveToast", () => {
 		);
 		assert.equal(doc.querySelector("[data-test-toast-action]")?.getAttribute("aria-label"), "Undo");
 	});
+
+	it("undoes an add into several readlists by taking the article back out of every one and returning to the listing", () => {
+		const doc = parse(
+			renderMoveToast({
+				message: "Added to 2 readlists",
+				undoUrl: "/queue/abc123/unassign",
+				undoFields: { queue: ["finance", "weekend"], returnTo: "/queue?page=2" },
+			}),
+		);
+
+		const form = doc.querySelector("[data-test-toast-action]")?.closest("form");
+		assert(form, "the Undo must be a form");
+		assert.equal(
+			form.getAttribute("action"),
+			"/queue/abc123/unassign?utm_source=queue-toast&utm_medium=internal&utm_content=undo-move",
+		);
+		assert.deepEqual(
+			Array.from(form.querySelectorAll("input[type='hidden']"), (input) => [
+				input.getAttribute("name"),
+				input.getAttribute("value"),
+			]),
+			[
+				["queue", "finance"],
+				["queue", "weekend"],
+				["returnTo", "/queue?page=2"],
+			],
+		);
+	});
 });
 
 describe("renderFilingToast", () => {
@@ -88,7 +116,7 @@ describe("renderFilingToast", () => {
 			renderFilingToast({
 				message: "Added to Deep Work",
 				undoUrl: "/queue/abc123/unassign",
-				undoFields: { queue: "deep-work", returnTo: "/queue/abc123/view" },
+				undoFields: { queue: ["deep-work"], returnTo: "/queue/abc123/view" },
 			}),
 		);
 

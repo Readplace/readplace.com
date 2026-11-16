@@ -8,6 +8,7 @@ const useApp = useTestServer();
 const READER_PAGE_BUNDLES = [
 	"/client-dist/share-dialog.client.js",
 	"/client-dist/summary-toggle.client.js",
+	"/client-dist/report-article.client.js",
 	"/client-dist/capture-failed-relay.client.js",
 	"/client-dist/readlist-picker.client.js",
 	"/client-dist/reader-exit-confirm.client.js",
@@ -15,6 +16,7 @@ const READER_PAGE_BUNDLES = [
 	"/client-dist/offline-reader.client.js",
 	"/client-dist/reader-top.client.js",
 	"/client-dist/table-of-contents.client.js",
+	"/client-dist/highlight-toolbar.client.js",
 ];
 
 function bundleSrcs(doc: Document): string[] {
