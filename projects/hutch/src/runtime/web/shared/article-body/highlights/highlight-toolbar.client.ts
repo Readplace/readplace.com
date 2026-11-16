@@ -3,8 +3,8 @@ import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 import { type HighlightPreviews, initHighlightPreviews } from "./highlight-preview.client";
 import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
-import { placeClearOfPassage } from "./place-clear-of-passage";
-import { dockToViewportBottom } from "./toolbar-placement-coarse";
+import { placeClearOfPassage, TOOLBAR_GAP_PX } from "./place-clear-of-passage";
+import { placeNearSelection } from "./toolbar-placement-coarse";
 
 export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
 
@@ -132,12 +132,14 @@ function startToolbar(input: {
 			offsetTop: viewport.offsetTop,
 		};
 		const { top, left } = isCoarse()
-			? dockToViewportBottom({
+			? placeNearSelection({
+					rects: deps.rectsOf(range),
 					toolbar: panel,
 					viewport: visible,
 					floorTop: document.querySelector(FLOOR_SELECTOR)?.getBoundingClientRect().top,
 				})
 			: placeClearOfPassage({
+					gap: TOOLBAR_GAP_PX,
 					rects: deps.rectsOf(range),
 					panel,
 					viewport: visible,

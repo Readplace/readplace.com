@@ -191,8 +191,44 @@
   background: var(--card);
 }
 
-.article-body__readlists-form {
+.article-body__readlists-menu > .article-body__readlists-create-item:has(+ .article-body__readlists-footer) {
+  position: static;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.article-body__readlists-menu > .article-body__readlists-footer {
+  position: sticky;
+  bottom: -4px;
+  z-index: 1;
+  margin: 4px -4px -4px;
+  padding: 4px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+}
+
+.article-body__readlists-form,
+.article-body__readlists-add {
   margin: 0;
+}
+
+.article-body__readlists-add-btn {
+  width: 100%;
+}
+
+.article-body__readlists-checkbox {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.article-body__readlists-choice:has(.article-body__readlists-checkbox:checked) {
+  background: var(--secondary);
+  color: var(--primary-text-on-tint);
+}
+
+.article-body__readlists-choice:has(.article-body__readlists-checkbox:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }
 
 .article-body__readlists-option {

@@ -27,27 +27,18 @@ export function selectionIsCollapsed(): boolean {
 	return selection === null || selection.isCollapsed;
 }
 
-export function toolbarDock(input: { toolbar: string }): {
-	bottomGap: number;
-	centreOffset: number;
-	toolbarTop: number;
-	selectionBottom: number;
+export function toolbarNearSelection(input: { toolbar: string }): {
+	gapBelowSelection: number;
 } {
 	const toolbar = document.querySelector(input.toolbar);
-	if (!toolbar) throw new Error(`toolbarDock needs ${input.toolbar}`);
-	const viewport = window.visualViewport;
-	if (!viewport) throw new Error("toolbarDock needs a visual viewport");
+	if (!toolbar) throw new Error(`toolbarNearSelection needs ${input.toolbar}`);
 	const selection = window.getSelection();
-	if (!selection || selection.rangeCount === 0) throw new Error("toolbarDock needs a selection");
+	if (!selection || selection.rangeCount === 0) throw new Error("toolbarNearSelection needs a selection");
 	const rects = selection.getRangeAt(0).getClientRects();
 	const last = rects[rects.length - 1];
-	if (!last) throw new Error("toolbarDock needs a selection holding text");
-	const bar = toolbar.getBoundingClientRect();
+	if (!last) throw new Error("toolbarNearSelection needs a selection holding text");
 	return {
-		bottomGap: viewport.offsetTop + viewport.height - bar.bottom,
-		centreOffset: bar.left + bar.width / 2 - (viewport.offsetLeft + viewport.width / 2),
-		toolbarTop: bar.top,
-		selectionBottom: last.bottom,
+		gapBelowSelection: toolbar.getBoundingClientRect().top - last.bottom,
 	};
 }
 
