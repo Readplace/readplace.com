@@ -17,8 +17,7 @@ const SETTLED = { kind: "settled" } as const;
  * single URL WITHOUT saving it to the reading queue: it keeps only the metadata
  * and discards the article body, so nothing lands in the articles / user-articles
  * tables. A dead/blocked/paywalled link is an expected `failed` preview (the SQS
- * record is ACKed); only a genuine store-write fault or a malformed envelope
- * fails the record to its DLQ. The SSRF guard is inherited from
+ * record is ACKed). The SSRF guard is inherited from
  * `crawlAndFinalize`, which fails closed on localhost/metadata/private-range URLs
  * before any network call.
  */
