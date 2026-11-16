@@ -236,7 +236,7 @@ describe("the reader's add-to-readlist control", () => {
 		expect(statusToast(back).innerHTML).toBe("");
 	});
 
-	it("shows no toast for a flash naming a readlist the article is not in, a malformed slug, or a repeated flash", async () => {
+	it("shows no toast for a flash naming a readlist the article is not in, or a malformed slug", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const work = await createReadlist(agent, "New Readlist");
@@ -248,15 +248,84 @@ describe("the reader's add-to-readlist control", () => {
 			[
 				`filed_readlist=${later}`,
 				"filed_readlist=Not%20A%20Slug",
-				`filed_readlist=${work}&filed_readlist=${work}`,
 			].map(async (flash) => parse((await agent.get(`/queue/${articleId}/view?${flash}`)).text)),
 		);
 
 		expect(readers.map((reader) => [statusToast(reader).innerHTML, readlistTags(reader)])).toEqual([
 			["", [work]],
 			["", [work]],
-			["", [work]],
 		]);
+	});
+
+	it("names a readlist once however often the flash repeats it", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+		await assignTo({ agent, articleId, readlist: work });
+
+		const reader = parse(
+			(await agent.get(`/queue/${articleId}/view?filed_readlist=${work}&filed_readlist=${work}`)).text,
+		);
+
+		expect(statusToast(reader).querySelector("[data-test-toast-message]")?.textContent).toBe("Added to New Readlist");
+	});
+
+	it("files the article into every readlist ticked at once, with one toast whose Undo takes it out of all of them", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "Work");
+		const later = await createReadlist(agent, "Later");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const assigned = await agent
+			.post(`/queue/${articleId}/assign`)
+			.type("form")
+			.send(new URLSearchParams([["queue", work], ["queue", later], ["returnTo", `/queue/${articleId}/view`]]).toString());
+
+		expect(assigned.status).toBe(303);
+		expect(assigned.headers.location).toBe(`/queue/${articleId}/view?filed_readlist=${work}&filed_readlist=${later}`);
+		const reader = parse((await agent.get(assigned.headers.location)).text);
+		expect(readlistTags(reader)).toEqual([work, later]);
+		const toast = statusToast(reader);
+		expect(toast.querySelector("[data-test-toast-message]")?.textContent).toBe("Added to 2 readlists");
+		const undo = toast.querySelector("[data-test-toast-action]")?.closest("form");
+		assert(undo, "the toast must offer Undo");
+		const fields = Array.from(undo.querySelectorAll("input[type='hidden']"), (field): [string, string] => [
+			field.getAttribute("name") ?? "",
+			field.getAttribute("value") ?? "",
+		]);
+		expect(fields).toEqual([
+			["queue", work],
+			["queue", later],
+			["returnTo", `/queue/${articleId}/view`],
+		]);
+
+		const action = new URL(undo.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		const undone = await agent
+			.post(`${action.pathname}${action.search}`)
+			.type("form")
+			.send(new URLSearchParams(fields).toString());
+
+		expect(undone.status).toBe(303);
+		const back = parse((await agent.get(undone.headers.location)).text);
+		expect(readlistTags(back)).toEqual([]);
+		expect([...pickerOptions(back)].sort()).toEqual([work, later].sort());
+	});
+
+	it("files nothing when one of the ticked readlists is not the reader's", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "Work");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const response = await agent
+			.post(`/queue/${articleId}/assign`)
+			.type("form")
+			.send(new URLSearchParams([["queue", work], ["queue", "someone-elses"], ["returnTo", `/queue/${articleId}/view`]]).toString());
+
+		expect(response.status).toBe(404);
+		expect(readlistTags(await openReader(agent, articleId))).toEqual([]);
 	});
 
 	it("shows no toast in the app reader", async () => {
@@ -590,6 +659,28 @@ describe("filing from the reader's picker over htmx", () => {
 		expect(toast.querySelector("[data-test-toast-action]")?.textContent?.trim()).toBe("Undo");
 		expect(toast.querySelector("[data-test-toast-action]")?.closest("form")?.getAttribute("action")).toContain(
 			`/queue/${articleId}/unassign`,
+		);
+	});
+
+	it("swaps in every ticked readlist's tag and one toast counting them", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "Work");
+		const later = await createReadlist(agent, "Later");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const response = await agent
+			.post(`/queue/${articleId}/assign?swap=filing`)
+			.set("HX-Request", "true")
+			.set("HX-Boosted", "true")
+			.type("form")
+			.send(new URLSearchParams([["queue", work], ["queue", later], ["returnTo", `/queue/${articleId}/view`]]).toString());
+
+		expect(response.status).toBe(200);
+		const doc = parse(response.text);
+		expect(readlistTags(doc)).toEqual([work, later]);
+		expect(oobOf(doc, "#status-toast").querySelector("[data-test-toast-message]")?.textContent).toBe(
+			"Added to 2 readlists",
 		);
 	});
 

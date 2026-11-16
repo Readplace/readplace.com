@@ -5,6 +5,7 @@ export interface ReadlistPickerDeps {
 const PICKER = ".article-body__readlists";
 const TRIGGER = ".article-body__readlists-trigger";
 const OPTION = ".article-body__readlists-form .article-body__readlists-option";
+const CHOICE = ".article-body__readlists-checkbox";
 const MENU = ".article-body__readlists-menu";
 const SHEET = "article-body__readlists-menu--sheet";
 const GAP_BELOW_MENU = 16;
@@ -73,7 +74,7 @@ export function initReadlistPicker(deps: ReadlistPickerDeps): { attach(): void }
 					for (const menu of picker.querySelectorAll<HTMLElement>(MENU)) {
 						fitMenu({ menu, viewportHeight: deps.document.documentElement.clientHeight });
 					}
-					picker.querySelector<HTMLElement>(OPTION)?.focus();
+					picker.querySelector<HTMLElement>(`${OPTION}, ${CHOICE}`)?.focus();
 				}
 			},
 			true,

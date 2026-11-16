@@ -44,6 +44,7 @@ const NO_QUEUE_FILING: ReaderReadlistFiling = {
 const PICKER = {
 	assignUrl: "/queue/abc/assign?swap=filing&utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
 	returnTo: "/queue/abc/view",
+	choice: "single" as const,
 	filterHtml: "",
 	options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" as const }],
 	create: {
@@ -1028,7 +1029,7 @@ describe("ReaderPage", () => {
 			toast: {
 				message: "Added to Deep Work",
 				undoUrl: "/queue/abc/unassign",
-				undoFields: { queue: "deep-work", returnTo: "/queue/abc/view" },
+				undoFields: { queue: ["deep-work"], returnTo: "/queue/abc/view" },
 			},
 		});
 		const mount = filed.querySelector("main.reader #status-toast");
