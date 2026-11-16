@@ -1057,50 +1057,49 @@ describe("initHighlightToolbar", () => {
 				return shownAt(h).top;
 			}
 
-			it("sits 10 px below the last rect", () => {
+			it("docks 16 px above the visual viewport's bottom, centred", () => {
 				const h = harness();
 
-				expect(coarseShownAt(h)).toBe(`${320 + 10}px`);
-				expect(toolbarOf(h).style.left).toBe(`${400 + 100 - 60}px`);
+				expect(coarseShownAt(h)).toBe(`${800 - 16 - 44}px`);
+				expect(toolbarOf(h).style.left).toBe(`${(1000 - 120) / 2}px`);
 			});
 
-			it("flips above when a visualViewport resize leaves no room below", () => {
+			it("stays docked wherever a window scroll moves the selection", () => {
 				const h = harness();
 				coarseShownAt(h);
-				h.viewport.offsetTop = 0;
+				h.rects = [{ top: 700, bottom: 720, left: 400, width: 200 }];
+
+				h.scrollWindow();
+				h.runFrames();
+
+				expect(toolbarOf(h).style.top).toBe(`${800 - 16 - 44}px`);
+			});
+
+			it("follows the visual viewport's bottom on a resize", () => {
+				const h = harness();
+				coarseShownAt(h);
 				h.viewport.height = 360;
 
 				h.viewport.fire("resize");
 				h.runFrames();
 
-				expect(toolbarOf(h).style.top).toBe(`${300 - 10 - 44}px`);
+				expect(toolbarOf(h).style.top).toBe(`${360 - 16 - 44}px`);
 			});
 
 			it("repositions once for two visualViewport scrolls in one frame", () => {
 				const h = harness();
 				coarseShownAt(h);
-				h.rects = [{ top: 100, bottom: 120, left: 400, width: 200 }];
+				h.viewport.offsetTop = 100;
 
 				h.viewport.fire("scroll");
 				h.viewport.fire("scroll");
 				expect(h.frameCount()).toBe(1);
 				h.runFrames();
 
-				expect(toolbarOf(h).style.top).toBe(`${120 + 10}px`);
+				expect(toolbarOf(h).style.top).toBe(`${100 + 800 - 16 - 44}px`);
 			});
 
-			it("follows the selection on a passive window scroll", () => {
-				const h = harness();
-				coarseShownAt(h);
-				h.rects = [{ top: 200, bottom: 220, left: 400, width: 200 }];
-
-				h.scrollWindow();
-				h.runFrames();
-
-				expect(toolbarOf(h).style.top).toBe(`${220 + 10}px`);
-			});
-
-			it("leaves a hidden bar where it was on a window scroll", () => {
+			it("leaves a hidden bar where it was on a viewport change", () => {
 				const h = harness();
 				coarseShownAt(h);
 				h.doc.dispatchEvent(
@@ -1109,12 +1108,32 @@ describe("initHighlightToolbar", () => {
 						bubbles: true,
 					}),
 				);
-				h.rects = [{ top: 200, bottom: 220, left: 400, width: 200 }];
+				h.viewport.height = 360;
 
-				h.scrollWindow();
+				h.viewport.fire("resize");
 				h.runFrames();
 
-				expect(toolbarOf(h).style.top).toBe(`${320 + 10}px`);
+				expect(toolbarOf(h).style.top).toBe(`${800 - 16 - 44}px`);
+			});
+
+			it("shows the bar for a selection whose range reports no rects", () => {
+				const h = harness();
+				h.rects = [];
+
+				expect(coarseShownAt(h)).toBe(`${800 - 16 - 44}px`);
+				expect(toolbarOf(h).hidden).toBe(false);
+			});
+
+			it("docks 16 px above a bottom bar the page marks", () => {
+				const h = harness(`${mainHtml()}<aside data-highlight-toolbar-floor></aside>`);
+				const floor = h.doc.querySelector("[data-highlight-toolbar-floor]");
+				assert(floor);
+				Object.defineProperty(floor, "getBoundingClientRect", {
+					value: () => ({ top: 700 }),
+					configurable: true,
+				});
+
+				expect(coarseShownAt(h)).toBe(`${700 - 16 - 44}px`);
 			});
 
 			it("submits a long-pressed selection with origin longpress", () => {

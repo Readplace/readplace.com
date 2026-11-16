@@ -570,6 +570,12 @@ describe("ViewPage", () => {
 		expect(doc.querySelector("[data-test-view-cta] > .reading-frame > .view__cta-content")).not.toBeNull();
 	});
 
+	it("marks the Save bar as the floor a docked Highlight bar sits above", () => {
+		const doc = render(baseInput);
+
+		expect(doc.querySelector("[data-test-view-cta]")?.hasAttribute("data-highlight-toolbar-floor")).toBe(true);
+	});
+
 	it("keeps the rail an unnamed div holding only the hidden table of contents while the reader view is pending", () => {
 		const doc = render({ ...baseInput, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } });
 
