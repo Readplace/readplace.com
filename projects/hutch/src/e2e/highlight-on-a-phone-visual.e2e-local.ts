@@ -4,7 +4,7 @@ import { requireEnv } from "@packages/require-env";
 import { devices, type Page } from "@playwright/test";
 import { z } from "zod";
 import { noteGlyphGeometry } from "./highlight-note-glyph.browser";
-import { pointInsideText, selectedText, toolbarDock } from "./highlight-on-a-phone.browser";
+import { pointInsideText, selectedText, toolbarNearSelection } from "./highlight-on-a-phone.browser";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 import { MACOS_CHROME_USER_AGENT } from "./user-agents";
 
@@ -96,11 +96,11 @@ async function toolbarSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function toolbarDockedAtBottom(page: Page): Promise<void> {
-	const dock = await page.evaluate(toolbarDock, { toolbar: TOOLBAR });
-	assert.ok(Math.abs(dock.bottomGap - 16) <= 1, "the bar sits 16 px above the bottom of the screen");
-	assert.ok(Math.abs(dock.centreOffset) <= 1, "the bar is centred on the screen");
-	assert.ok(dock.toolbarTop >= dock.selectionBottom, "the bar sits below the tapped sentence");
+async function toolbarPastSystemMenu(page: Page): Promise<void> {
+	const { gapBelowSelection } = await page.evaluate(toolbarNearSelection, {
+		toolbar: TOOLBAR,
+	});
+	assert.ok(Math.abs(gapBelowSelection - 64) <= 1, "the bar sits the system menu's height below the tapped sentence");
 	const content = await measuredBox(page, CONTENT);
 	const toolbar = await measuredBox(page, TOOLBAR);
 	assert.ok(toolbar.y + toolbar.height <= content.y + content.height, "the bar sits over the article text");
@@ -110,15 +110,15 @@ function checkpoint(name: string): VisualCheckpoint {
 	return {
 		name,
 		settled: toolbarSettled,
-		geometry: toolbarDockedAtBottom,
+		geometry: toolbarPastSystemMenu,
 		target: TOOLBAR,
 		capture: "page-from-top",
 		pinnedText: [],
 	};
 }
 
-const TOOLBAR_DOCKED_LIGHT = checkpoint("highlight-phone-toolbar-light");
-const TOOLBAR_DOCKED_DARK = checkpoint("highlight-phone-toolbar-dark");
+const TOOLBAR_PAST_MENU_LIGHT = checkpoint("highlight-phone-toolbar-light");
+const TOOLBAR_PAST_MENU_DARK = checkpoint("highlight-phone-toolbar-dark");
 
 async function noteTappedSentence(page: Page): Promise<void> {
 	await page.locator('[data-test-action="add-note"]').tap();
@@ -168,16 +168,16 @@ test.describe("The highlight bar on a phone", () => {
 		userAgent: MACOS_CHROME_USER_AGENT,
 	});
 
-	test("docks to the bottom of the screen (light)", async ({ page }, testInfo) => {
+	test("sits past the system menu below the sentence (light)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openTappedSentence(page, `light-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, TOOLBAR_DOCKED_LIGHT);
+		await captureCheckpoint(page, TOOLBAR_PAST_MENU_LIGHT);
 	});
 
-	test("docks to the bottom of the screen (dark)", async ({ page }, testInfo) => {
+	test("sits past the system menu below the sentence (dark)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openTappedSentence(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, TOOLBAR_DOCKED_DARK);
+		await captureCheckpoint(page, TOOLBAR_PAST_MENU_DARK);
 	});
 
 	test("shows a note glyph after a noted sentence (light)", async ({ page }, testInfo) => {
