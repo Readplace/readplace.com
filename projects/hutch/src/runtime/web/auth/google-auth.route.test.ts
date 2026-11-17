@@ -1022,7 +1022,7 @@ describe("Google signup allowance per network per day", () => {
 			.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 	}
 
-	it("refuses a new Google user with 429 on the login page, keeps the return URL, creates nothing, and does not blame Google", async () => {
+	it("refuses a new Google user with 429 on the login page, keeps the return URL, creates nothing, and records the refusal instead of blaming Google", async () => {
 		const harness = useAppWithLoggers(spentAllowanceFixture("new-google@example.com"));
 		const returnUrl = "/import/abc123/review";
 
@@ -1038,7 +1038,7 @@ describe("Google signup allowance per network per day", () => {
 		expect(await harness.auth.findUserByEmail("new-google@example.com")).toBeNull();
 		expect(harness.email.getSentEmails()).toEqual([]);
 		expect(diagnostics.filter((event) => event.event === "login_finished")).toMatchObject([
-			{ outcome: "failure", http_status: 429, reason: "login" },
+			{ outcome: "failure", http_status: 429, reason: "signup_allowance_spent" },
 		]);
 		expect(signupLines).toEqual([["[Signup] allowance spent", { method: "google" }]]);
 	}, 30000);

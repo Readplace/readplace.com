@@ -5,7 +5,7 @@ import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchAuth } from "@packages/translations/hutch-auth";
 import { rateLimitKeyFromRequest } from "../middleware/rate-limit";
 
-const { t } = translator(hutchAuth, DEFAULT_LOCALE);
+const { tPlural } = translator(hutchAuth, DEFAULT_LOCALE);
 
 export type ClaimSignupAllowance = (req: Request) => Promise<RateLimitDecision>;
 
@@ -22,5 +22,5 @@ export function initClaimSignupAllowance(deps: {
 }
 
 export function signupAllowanceSpentMessage(params: { limit: number }): string {
-	return t("signup.allowanceSpent", { count: params.limit });
+	return tPlural("signup.allowanceSpent", { count: params.limit });
 }

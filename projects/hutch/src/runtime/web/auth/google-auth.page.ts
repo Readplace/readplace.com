@@ -169,6 +169,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		const renderAllowanceSpent = async ({ returnUrl, retryAfterSeconds }: { returnUrl: string | undefined; retryAfterSeconds: number }) => {
 			deps.logger.info("[Signup] allowance spent", { method: "google" });
+			res.locals.authDiagnosticReason = "signup_allowance_spent";
 			res.set("Retry-After", String(retryAfterSeconds));
 			const userCount = await fetchUserCount();
 			sendComponent(

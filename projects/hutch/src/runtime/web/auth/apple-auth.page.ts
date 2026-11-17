@@ -210,6 +210,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 
 		const renderAllowanceSpent = async ({ returnUrl, retryAfterSeconds }: { returnUrl: string | undefined; retryAfterSeconds: number }) => {
 			deps.logger.info("[Signup] allowance spent", { method: "apple" });
+			res.locals.authDiagnosticReason = "signup_allowance_spent";
 			res.set("Retry-After", String(retryAfterSeconds));
 			const userCount = await fetchUserCount();
 			sendComponent(

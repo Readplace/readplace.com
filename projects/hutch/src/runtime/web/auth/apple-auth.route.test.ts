@@ -1054,7 +1054,7 @@ describe("Apple signup allowance per network per day", () => {
 		return postCallback(server, { state, cookie: `hutch_astate=${encodeURIComponent(state)}` });
 	}
 
-	it("refuses a new Apple user with 429 on the login page, keeps the return URL, creates nothing, and does not blame Apple", async () => {
+	it("refuses a new Apple user with 429 on the login page, keeps the return URL, creates nothing, and records the refusal instead of blaming Apple", async () => {
 		const harness = useAppWithLoggers(spentAllowanceFixture("new-apple@example.com"));
 		const returnUrl = "/import/abc123/review";
 
@@ -1070,7 +1070,7 @@ describe("Apple signup allowance per network per day", () => {
 		expect(await harness.auth.findUserByEmail("new-apple@example.com")).toBeNull();
 		expect(harness.email.getSentEmails()).toEqual([]);
 		expect(diagnostics.filter((event) => event.event === "login_finished")).toMatchObject([
-			{ outcome: "failure", http_status: 429, reason: "login" },
+			{ outcome: "failure", http_status: 429, reason: "signup_allowance_spent" },
 		]);
 		expect(signupLines).toEqual([["[Signup] allowance spent", { method: "apple" }]]);
 	}, 30000);

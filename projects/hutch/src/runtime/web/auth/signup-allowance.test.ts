@@ -62,5 +62,6 @@ describe("signupAllowanceSpentMessage", () => {
 			"This network has reached today's limit of 3 new Readplace accounts. Sign in to an account you already have, or try again tomorrow.",
 		);
 		assert.match(signupAllowanceSpentMessage({ limit: 5000 }), /limit of 5000 new/);
+		assert.match(signupAllowanceSpentMessage({ limit: 1 }), /limit of 1 new Readplace account\./);
 	});
 });
