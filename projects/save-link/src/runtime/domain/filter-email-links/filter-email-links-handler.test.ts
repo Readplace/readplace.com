@@ -36,6 +36,7 @@ const PURPOSE_VERSION = readlistPurposeVersion(PURPOSE);
 const EMAIL_PROVENANCE = { kind: "email", senderEmail: "news@example.com" };
 
 const TRIAGED = {
+	scope: "email",
 	userId: USER,
 	receivedAtMessageId: RAM,
 	readlist: "a1b2c3d4",
@@ -374,6 +375,7 @@ describe("initFilterEmailLinksHandler", () => {
 				"EmailLinksFiltered",
 			]);
 			expect(harness.published.at(-1)?.detail).toEqual({
+				scope: "email",
 				userId: USER,
 				receivedAtMessageId: RAM,
 				readlist: "a1b2c3d4",
@@ -572,6 +574,7 @@ describe("initFilterEmailLinksHandler", () => {
 			})),
 		);
 		expect(harness.published.at(-1)?.detail).toEqual({
+			scope: "email",
 			userId: USER,
 			receivedAtMessageId: RAM,
 			readlist: "a1b2c3d4",
@@ -597,6 +600,7 @@ describe("initFilterEmailLinksHandler", () => {
 			{
 				detailType: "EmailLinksFiltered",
 				detail: {
+					scope: "email",
 					userId: USER,
 					receivedAtMessageId: RAM,
 					readlist: "a1b2c3d4",
@@ -634,6 +638,7 @@ describe("initFilterEmailLinksHandler", () => {
 		expect(harness.overrideReads).toEqual([]);
 		expect(harness.decidedLines).toEqual([]);
 		expect(harness.published).toEqual([{ detailType: "EmailLinksFiltered", detail: {
+			scope: "email",
 			userId: USER,
 			receivedAtMessageId: RAM,
 			readlist: "a1b2c3d4",
@@ -1041,6 +1046,130 @@ describe("initFilterEmailLinksHandler", () => {
 				{ userId: USER, readlist: WORK, receivedAtMessageId: RAM, ordinal: "0000", reason: "removed-after-triage" },
 			]);
 			expect((await harness.finalOutcome())?.map((outcome) => outcome.decision)).toEqual(["filtered"]);
+		});
+	});
+
+	describe("a single saved link", () => {
+		const SAVED_LINK = {
+			scope: "link",
+			userId: USER,
+			receivedAtMessageId: RAM,
+			readlist: "a1b2c3d4",
+			senderEmail: "news@example.com",
+			subject: "This week in software",
+			links: [{ ordinal: "0007", url: "https://d.test/code-review", anchorText: "Reviewing code kindly" }],
+		};
+
+		const keepsSavedLink: DecideReadlistFit = async () =>
+			fitResult([{ id: "0007", verdict: "keep", reason: "Code review practice." }]);
+
+		const seedFilteredOutcome = async (harness: ReturnType<typeof makeHarness>) => {
+			await harness.run({ ...TRIAGED, links: [] });
+			harness.published.length = 0;
+		};
+
+		it("decides only that link, files it on keep and announces a link-scoped decision", async () => {
+			const harness = makeHarness({ decideReadlistFit: keepsSavedLink });
+			await seedFilteredOutcome(harness);
+
+			const result = await harness.run(SAVED_LINK);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([]);
+			expect(harness.decisions.map((decision) => decision.candidates)).toEqual([
+				[{ id: "0007", url: "https://d.test/code-review", text: "Reviewing code kindly" }],
+			]);
+			expect(filings(harness.published)).toEqual([
+				{
+					url: "https://d.test/code-review",
+					userId: USER,
+					readlist: "a1b2c3d4",
+					provenance: EMAIL_PROVENANCE,
+					fit: {
+						verdict: "keep",
+						reason: "Code review practice.",
+						purposeVersion: PURPOSE_VERSION,
+						source: { kind: "email", receivedAtMessageId: RAM, ordinal: "0007" },
+					},
+				},
+			]);
+			expect(harness.published.at(-1)).toEqual({
+				detailType: "EmailLinksFiltered",
+				detail: {
+					scope: "link",
+					userId: USER,
+					receivedAtMessageId: RAM,
+					readlist: "a1b2c3d4",
+					readlistLabel: "Work",
+					decision: "filtered",
+					fit: [{ ordinal: "0007", verdict: "keep", reason: "Code review practice." }],
+					purposeVersion: PURPOSE_VERSION,
+					engine: "deepseek-flash",
+					model: "deepseek-chat",
+					inputTokens: 900,
+					outputTokens: 4000,
+					reasoningTokens: 3500,
+				},
+			});
+		});
+
+		it("fails the record without a model call while the readlist has not decided the email", async () => {
+			const harness = makeHarness({ decideReadlistFit: keepsSavedLink });
+
+			const result = await harness.run(SAVED_LINK);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+			expect(harness.decisions).toEqual([]);
+			expect(harness.published).toEqual([]);
+		});
+
+		it("leaves the email's decision standing when the account turned read-only after the save", async () => {
+			let accessLapsed = false;
+			const harness = makeHarness({
+				decideReadlistFit: keepsSavedLink,
+				subscription: () =>
+					accessLapsed
+						? {
+								userId: UserIdSchema.parse(USER),
+								provider: "stripe",
+								status: "cancelled",
+								createdAt: "2026-01-01T00:00:00.000Z",
+								updatedAt: "2026-09-01T00:00:00.000Z",
+							}
+						: undefined,
+			});
+			await seedFilteredOutcome(harness);
+			const decidedOutcome = await harness.finalOutcome();
+			accessLapsed = true;
+
+			const result = await harness.run(SAVED_LINK);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([]);
+			expect(harness.published).toEqual([]);
+			expect(await harness.finalOutcome()).toEqual(decidedOutcome);
+		});
+
+		it("publishes no failed decision on its final receive, since the email's decision stands", async () => {
+			const harness = makeHarness({ decideReadlistFit: keepsSavedLink, receiveCount: 2 });
+
+			const result = await harness.run(SAVED_LINK);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+			expect(harness.published).toEqual([]);
+		});
+
+		it("a message with no scope still marks its readlist failed on its final receive", async () => {
+			const harness = makeHarness({ receiveCount: 2 });
+			const { scope: _scope, ...unscoped } = TRIAGED;
+
+			const result = await harness.run(unscoped);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+			expect(harness.published.map((entry) => entry.detailType)).toEqual(["EmailLinksFilterFailed"]);
 		});
 	});
 });

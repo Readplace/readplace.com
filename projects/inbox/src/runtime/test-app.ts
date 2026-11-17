@@ -31,6 +31,8 @@ export interface TestAppResult {
 	submittedLinks: Array<{ userId: string; url: string; readlist: string }>;
 	filedArticles: FileArticleIntoReadlistDetail[];
 	fitChoiceLines: ReadlistFitOverriddenLogLine[];
+	crawlPreviews: Parameters<Parameters<typeof createInboxApp>[1]["publishCrawlPreview"]>[0][];
+	savedLinkTriages: Parameters<Parameters<typeof createInboxApp>[1]["publishSavedLinkTriaged"]>[0][];
 }
 
 /** Fixed CDN origin the test app pins into the email iframe's CSP, exported so
@@ -55,6 +57,8 @@ export function createInboxTestApp(
 	const submittedLinks: Array<{ userId: string; url: string; readlist: string }> = [];
 	const filedArticles: FileArticleIntoReadlistDetail[] = [];
 	const fitChoiceLines: ReadlistFitOverriddenLogLine[] = [];
+	const crawlPreviews: TestAppResult["crawlPreviews"] = [];
+	const savedLinkTriages: TestAppResult["savedLinkTriages"] = [];
 	const captureFitChoice = (line: ReadlistFitOverriddenLogLine) => {
 		fitChoiceLines.push(line);
 	};
@@ -95,6 +99,12 @@ export function createInboxTestApp(
 			publishFileArticleIntoReadlist: async (detail) => {
 				filedArticles.push(detail);
 			},
+			publishCrawlPreview: async (input) => {
+				crawlPreviews.push(input);
+			},
+			publishSavedLinkTriaged: async (input) => {
+				savedLinkTriages.push(input);
+			},
 			findSavedArticleForLink: initFindSavedArticleForLink({
 				resolveCanonicalIdentity: initResolveCanonicalIdentity({
 					findIdentityRow: fixture.articleStore.findIdentityRow,
@@ -130,6 +140,8 @@ export function createInboxTestApp(
 		submittedLinks,
 		filedArticles,
 		fitChoiceLines,
+		crawlPreviews,
+		savedLinkTriages,
 	};
 }
 

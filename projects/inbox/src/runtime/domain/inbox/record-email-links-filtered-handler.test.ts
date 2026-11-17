@@ -20,6 +20,7 @@ const WORK = ReadlistSlugSchema.parse("work");
 const PURPOSE_VERSION = readlistPurposeVersion("Engineering practice");
 
 function filteredBody(detail: {
+	scope?: "email" | "link";
 	readlistLabel?: string;
 	decision?: "filtered" | "no-purpose" | "readlist-missing";
 	fit: { ordinal: string; verdict: string; reason: string }[];
@@ -30,6 +31,7 @@ function filteredBody(detail: {
 	return JSON.stringify({
 		"detail-type": "EmailLinksFiltered",
 		detail: {
+			scope: detail.scope ?? "email",
 			userId,
 			receivedAtMessageId: RAM,
 			readlist: WORK,
@@ -103,6 +105,7 @@ function createHandler() {
 	const store = initInMemoryInboxEmailLink();
 	const handler = initRecordEmailLinksFilteredHandler({
 		putReadlistOutcome: store.putReadlistOutcome,
+		mergeReadlistOutcomeFit: store.mergeReadlistOutcomeFit,
 		listLinksByEmail: store.listLinksByEmail,
 		logger: Logger.from(noopLogger),
 	});
@@ -305,6 +308,51 @@ describe("recordEmailLinksFilteredHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "m-0" }] });
 		expect((await read()).meta?.readlistOutcomes).toEqual([]);
+	});
+
+	describe("a single saved link's decision", () => {
+		const emailDecision = [{ ordinal: "0000", verdict: "keep", reason: "On topic" }];
+
+		it("adds the link's verdict to the email's decision", async () => {
+			const { store, run, read } = createHandler();
+			await snapshotDestinations(store);
+			await run([filteredBody({ fit: emailDecision, purposeVersion: PURPOSE_VERSION })]);
+
+			const result = await run([
+				filteredBody({ scope: "link", fit: [{ ordinal: "0004", verdict: "drop", reason: "A sale" }] }),
+			]);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect((await read()).meta?.readlistOutcomes?.map((outcome) => outcome.fit)).toEqual([
+				[...emailDecision, { ordinal: "0004", verdict: "drop", reason: "A sale" }],
+			]);
+		});
+
+		it("keeps the verdict already stored for that link", async () => {
+			const { store, run, read } = createHandler();
+			await snapshotDestinations(store);
+			await run([filteredBody({ fit: emailDecision })]);
+
+			const result = await run([
+				filteredBody({ scope: "link", fit: [{ ordinal: "0000", verdict: "drop", reason: "Changed its mind" }] }),
+			]);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect((await read()).meta?.readlistOutcomes?.map((outcome) => outcome.fit)).toEqual([emailDecision]);
+		});
+
+		it("writes nothing for a no-purpose decision", async () => {
+			const { store, run, read } = createHandler();
+			await snapshotDestinations(store);
+			await run([filteredBody({ decision: "no-purpose", fit: [] })]);
+
+			const result = await run([filteredBody({ scope: "link", decision: "no-purpose", fit: [] })]);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect((await read()).meta?.readlistOutcomes).toEqual([
+				{ readlist: WORK, readlistLabel: "Work", decision: "no-purpose", fit: [] },
+			]);
+		});
 	});
 
 	it("fails a body that is not JSON to the DLQ", async () => {
