@@ -819,7 +819,12 @@ describe("ViewPage Keep this one block", () => {
 	it("leaves the signed block out when the block is not signed by the founder", () => {
 		const section = endCtaSection(render({ ...baseInput, endCta }));
 
-		expect(section.querySelectorAll("[data-test-view-end-cta-signed]").length).toBe(0);
+		expect(Array.from(section.querySelectorAll(".reading-frame > *"), (child) => child.className)).toEqual([
+			"view__end-cta-heading",
+			"view__end-cta-line",
+			"view__end-cta-line",
+			"view__end-cta-actions",
+		]);
 	});
 
 	it("sits after the article body in document order", () => {

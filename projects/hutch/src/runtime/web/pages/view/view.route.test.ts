@@ -2922,7 +2922,12 @@ describe("Keep this one block on the public reader", () => {
 		const response = await request(harness.server).get(`/view/${path}`).set(BROWSER_REQUEST_HEADERS);
 
 		const section = endCtaOf(new JSDOM(response.text).window.document);
-		expect(section.querySelectorAll("[data-test-view-end-cta-signed]").length).toBe(0);
+		expect(Array.from(section.querySelectorAll(".reading-frame > *"), (child) => child.className)).toEqual([
+			"view__end-cta-heading",
+			"view__end-cta-line",
+			"view__end-cta-line",
+			"view__end-cta-actions",
+		]);
 	});
 
 	it("is left out while the article's body is still being crawled", async () => {
