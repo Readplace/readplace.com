@@ -24,7 +24,7 @@ import type {
 } from "@packages/provider-contracts/email-verification";
 import { VerificationTokenSchema } from "@packages/provider-contracts/email-verification";
 import assert from "node:assert";
-import type { ClaimPendingSignup } from "@packages/provider-contracts/pending-signup";
+import type { ClaimPendingSignup, FindPendingSignup } from "@packages/provider-contracts/pending-signup";
 import type {
 	FindSubscriptionByUserId,
 	UpsertActiveSubscription,
@@ -119,6 +119,7 @@ interface AuthDependencies {
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
+	findPendingSignup: FindPendingSignup;
 	claimPendingSignup: ClaimPendingSignup;
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
@@ -533,6 +534,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		assert(customerId, "Stripe checkout session must carry a customerId for a paid signup");
 
 		const activateCheckout = initActivateCheckout({
+			findPendingSignup: deps.findPendingSignup,
+			findSubscriptionByUserId: deps.findSubscriptionByUserId,
 			claimPendingSignup: deps.claimPendingSignup,
 			upsertActive: deps.subscriptionProviders.upsertActive,
 			recordCheckoutCompleted: (completion) =>

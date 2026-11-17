@@ -8,23 +8,34 @@ import type {
 import type {
 	CheckoutActivationSource,
 	ClaimPendingSignup,
+	FindPendingSignup,
 } from "@packages/provider-contracts/pending-signup";
-import type { UpsertActiveSubscription } from "@packages/provider-contracts/subscription-providers";
+import type {
+	FindSubscriptionByUserId,
+	UpsertActiveSubscription,
+} from "@packages/provider-contracts/subscription-providers";
 import type {
 	CreateChargeReminderSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
+import type { EventInstant } from "@packages/domain/event-envelope";
 import type { UserId } from "@packages/domain/user";
+import { messagePredatesStatus } from "@packages/subscription-access";
 import { chargeReminderFiresAt } from "../stripe/stripe-trial-config";
 
-export type CompletedCheckout = {
+type CompletedCheckoutFields = {
 	checkoutSessionId: CheckoutSessionId;
 	subscriptionId: string;
 	customerId: string;
 	amountTotal: number;
-	activatedBy: CheckoutActivationSource;
 };
+
+export type RedirectCheckout = CompletedCheckoutFields & { activatedBy: "redirect" };
+
+export type WebhookCheckout = CompletedCheckoutFields & { activatedBy: "webhook"; eventTime: EventInstant };
+
+export type CompletedCheckout = RedirectCheckout | WebhookCheckout;
 
 export type CheckoutCompletion = {
 	userId: UserId;
@@ -42,13 +53,20 @@ export type CheckoutActivation =
 	| { outcome: "already-activated"; returnUrl?: string }
 	| { outcome: "not-found" };
 
-export type ActivateCheckout = (checkout: CompletedCheckout) => Promise<CheckoutActivation>;
+export type WebhookCheckoutActivation = CheckoutActivation | { outcome: "predates-status" };
+
+export type ActivateCheckout = {
+	(checkout: RedirectCheckout): Promise<CheckoutActivation>;
+	(checkout: WebhookCheckout): Promise<WebhookCheckoutActivation>;
+};
 
 function asError(err: unknown): Error {
 	return err instanceof Error ? err : new Error(String(err));
 }
 
 export function initActivateCheckout(deps: {
+	findPendingSignup: FindPendingSignup;
+	findSubscriptionByUserId: FindSubscriptionByUserId;
 	claimPendingSignup: ClaimPendingSignup;
 	upsertActive: UpsertActiveSubscription;
 	recordCheckoutCompleted: (completion: CheckoutCompletion) => void;
@@ -58,7 +76,28 @@ export function initActivateCheckout(deps: {
 	logError: LogError;
 	now: () => Date;
 }): ActivateCheckout {
-	return async (checkout) => {
+	function activate(checkout: RedirectCheckout): Promise<CheckoutActivation>;
+	function activate(checkout: WebhookCheckout): Promise<WebhookCheckoutActivation>;
+	async function activate(checkout: CompletedCheckout): Promise<WebhookCheckoutActivation> {
+		const lookup = await deps.findPendingSignup(checkout.checkoutSessionId);
+		if (lookup.outcome !== "pending") return lookup;
+		const { userId, plan } = lookup.signup;
+
+		if (checkout.activatedBy === "webhook") {
+			const row = await deps.findSubscriptionByUserId(userId);
+			const holdsThisCheckout = row?.status === "active" && row.subscriptionId === checkout.subscriptionId;
+			if (!holdsThisCheckout && messagePredatesStatus({ statusEnteredAt: row?.statusEnteredAt, eventTime: checkout.eventTime })) {
+				return { outcome: "predates-status" };
+			}
+		}
+
+		await deps.upsertActive({
+			userId,
+			subscriptionId: checkout.subscriptionId,
+			customerId: checkout.customerId,
+			plan,
+		});
+
 		const claim = await deps.claimPendingSignup({
 			checkoutSessionId: checkout.checkoutSessionId,
 			activatedBy: checkout.activatedBy,
@@ -67,12 +106,6 @@ export function initActivateCheckout(deps: {
 		if (claim.outcome !== "claimed") return claim;
 		const pending = claim.signup;
 
-		await deps.upsertActive({
-			userId: pending.userId,
-			subscriptionId: checkout.subscriptionId,
-			customerId: checkout.customerId,
-			plan: pending.plan,
-		});
 		deps.recordCheckoutCompleted({
 			userId: pending.userId,
 			subscriptionId: checkout.subscriptionId,
@@ -113,5 +146,6 @@ export function initActivateCheckout(deps: {
 			outcome: "activated",
 			...(pending.returnUrl ? { returnUrl: pending.returnUrl } : {}),
 		};
-	};
+	}
+	return activate;
 }

@@ -415,6 +415,7 @@ function flattenFixtureToAppDependencies(
 		drawRandomByte: () => 0,
 		retrieveCheckoutSession: fixture.hostedCheckout.retrieveCheckoutSession,
 		createCheckoutSession: fixture.hostedCheckout.createCheckoutSession,
+		findPendingSignup: fixture.pendingSignup.findPendingSignup,
 		claimPendingSignup: fixture.pendingSignup.claimPendingSignup,
 		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		subscriptionProviders: {

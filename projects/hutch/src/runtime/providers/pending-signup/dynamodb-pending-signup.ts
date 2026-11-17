@@ -18,8 +18,10 @@ import type {
 	ClaimPendingSignup,
 	ConsumedPendingSignup,
 	DeletePendingSignupsByUser,
+	FindPendingSignup,
 	StorePendingSignup,
 } from "@packages/provider-contracts/pending-signup";
+import type { UserId } from "@packages/domain/user";
 
 const PendingSignupRow = z.object({
 	checkoutSessionId: CheckoutSessionIdSchema,
@@ -36,6 +38,26 @@ const PendingSignupRow = z.object({
 	consumedAt: dynamoField(z.string()),
 	activatedBy: dynamoField(z.string()),
 });
+
+type PendingSignupRecord = z.infer<typeof PendingSignupRow>;
+
+function toSignup(row: PendingSignupRecord, userId: UserId): ConsumedPendingSignup {
+	const variant = CheckoutVariantSchema.safeParse(row.variant);
+	const plan = BillingPlanSchema.safeParse(row.plan);
+	const entrySource = SubscribePlansSourceSchema.safeParse(row.entrySource);
+	const offer = CheckoutOfferSchema.safeParse(row.offer);
+	return {
+		method: EXISTING_USER_SUBSCRIBE,
+		email: row.email,
+		userId,
+		...(row.returnUrl ? { returnUrl: row.returnUrl } : {}),
+		...(row.trialEndsAt ? { trialEndsAt: row.trialEndsAt } : {}),
+		...(variant.success ? { variant: variant.data } : {}),
+		...(plan.success ? { plan: plan.data } : {}),
+		entrySource: entrySource.success ? entrySource.data : null,
+		offer: offer.success ? offer.data : null,
+	};
+}
 
 const RefusedClaimRow = z.object({
 	method: z.object({ S: z.string() }),
@@ -60,6 +82,7 @@ export function initDynamoDbPendingSignup(deps: {
 	logger: Logger;
 }): {
 	storePendingSignup: StorePendingSignup;
+	findPendingSignup: FindPendingSignup;
 	claimPendingSignup: ClaimPendingSignup;
 	deleteByUser: DeletePendingSignupsByUser;
 } {
@@ -91,6 +114,24 @@ export function initDynamoDbPendingSignup(deps: {
 				offer: signup.offer,
 			},
 		});
+	};
+
+	const findPendingSignup: FindPendingSignup = async (checkoutSessionId) => {
+		const row = await table.get({ checkoutSessionId }, { consistentRead: true });
+		if (!row) return { outcome: "not-found" };
+		if (row.method !== EXISTING_USER_SUBSCRIBE || !row.userId) {
+			deps.logger.warn(
+				`[pending-signup] refused to read legacy '${row.method}' row for checkout session ${checkoutSessionId}`,
+			);
+			return { outcome: "not-found" };
+		}
+		if (row.consumedAt) {
+			return {
+				outcome: "already-activated",
+				...(row.returnUrl ? { returnUrl: row.returnUrl } : {}),
+			};
+		}
+		return { outcome: "pending", signup: toSignup(row, row.userId) };
 	};
 
 	const claimPendingSignup: ClaimPendingSignup = async ({ checkoutSessionId, activatedBy, claimedAt }) => {
@@ -128,24 +169,7 @@ export function initDynamoDbPendingSignup(deps: {
 
 		const Attributes = written.result.Attributes;
 		if (!Attributes?.userId) return { outcome: "not-found" };
-		const userId = Attributes.userId;
-		const returnUrl = Attributes.returnUrl ?? undefined;
-		const trialEndsAt = Attributes.trialEndsAt ?? undefined;
-		const variant = CheckoutVariantSchema.safeParse(Attributes.variant);
-		const plan = BillingPlanSchema.safeParse(Attributes.plan);
-		const entrySource = SubscribePlansSourceSchema.safeParse(Attributes.entrySource);
-		const offer = CheckoutOfferSchema.safeParse(Attributes.offer);
-		const signup: ConsumedPendingSignup = {
-			method: EXISTING_USER_SUBSCRIBE,
-			email: Attributes.email,
-			userId,
-			...(returnUrl ? { returnUrl } : {}),
-			...(trialEndsAt ? { trialEndsAt } : {}),
-			...(variant.success ? { variant: variant.data } : {}),
-			...(plan.success ? { plan: plan.data } : {}),
-			entrySource: entrySource.success ? entrySource.data : null,
-			offer: offer.success ? offer.data : null,
-		};
+		const signup = toSignup(Attributes, Attributes.userId);
 		return { outcome: "claimed", signup };
 	};
 
@@ -176,6 +200,7 @@ export function initDynamoDbPendingSignup(deps: {
 
 	return {
 		storePendingSignup,
+		findPendingSignup,
 		claimPendingSignup,
 		deleteByUser,
 	};

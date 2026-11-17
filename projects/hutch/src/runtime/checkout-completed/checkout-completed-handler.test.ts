@@ -15,6 +15,7 @@ const USER_ID = UserIdSchema.parse("c".repeat(32));
 const SESSION_ID = CheckoutSessionIdSchema.parse("cs_test_webhook");
 const NOW = new Date("2026-11-15T10:00:00.000Z");
 const TRIAL_ENDS_AT = "2026-11-27T10:00:00.000Z";
+const EVENT_TIME = "2026-11-15T10:05:00Z";
 
 const COMPLETED_DETAIL = {
 	checkoutSessionId: SESSION_ID,
@@ -25,7 +26,8 @@ const COMPLETED_DETAIL = {
 
 async function buildWorld() {
 	const pendingSignup = initInMemoryPendingSignup();
-	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => NOW });
+	let clock = NOW;
+	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => clock });
 	const trialScheduler = initInMemoryTrialScheduler();
 	const recorded: SubscriptionLogEvent[] = [];
 	await subscriptionProviders.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_AT });
@@ -43,6 +45,8 @@ async function buildWorld() {
 		createdAt: NOW.getTime(),
 	});
 	const activateCheckout = initActivateCheckout({
+		findPendingSignup: pendingSignup.findPendingSignup,
+		findSubscriptionByUserId: subscriptionProviders.findByUserId,
 		claimPendingSignup: pendingSignup.claimPendingSignup,
 		upsertActive: subscriptionProviders.upsertActive,
 		recordCheckoutCompleted: (completion) => {
@@ -56,8 +60,15 @@ async function buildWorld() {
 	});
 	const handler = initCheckoutCompletedHandler({ activateCheckout, logger: Logger.from(noopLogger) });
 	const deliver = (messageId: string, detail: unknown = COMPLETED_DETAIL) =>
-		handler(buildSqsEvent([{ messageId, body: JSON.stringify({ detail }) }]), buildLambdaContext(), () => {});
-	return { activateCheckout, deliver, subscriptionProviders, trialScheduler, recorded };
+		handler(
+			buildSqsEvent([{ messageId, body: JSON.stringify({ detail, time: EVENT_TIME }) }]),
+			buildLambdaContext(),
+			() => {},
+		);
+	const setClock = (at: Date) => {
+		clock = at;
+	};
+	return { activateCheckout, deliver, pendingSignup, subscriptionProviders, trialScheduler, recorded, setClock };
 }
 
 describe("checkout-completed handler", () => {
@@ -110,6 +121,20 @@ describe("checkout-completed handler", () => {
 		expect(world.trialScheduler.deleteCalls()).toEqual([USER_ID]);
 	});
 
+	it("acknowledges a redriven message older than the reader's cancellation, and neither reactivates the row nor claims the checkout", async () => {
+		const world = await buildWorld();
+		world.setClock(new Date("2026-11-20T10:00:00.000Z"));
+		await world.subscriptionProviders.markCancelledByUserId({ userId: USER_ID });
+
+		const result = await world.deliver("msg-redriven-late");
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect((await world.subscriptionProviders.findByUserId(USER_ID))?.status).toBe("cancelled");
+		expect(world.recorded).toEqual([]);
+		expect(world.trialScheduler.allChargeReminderSchedules()).toEqual([]);
+		expect(await world.pendingSignup.findPendingSignup(SESSION_ID)).toMatchObject({ outcome: "pending" });
+	});
+
 	it("acknowledges a completed checkout that has no pending signup, since no retry can make one appear", async () => {
 		const world = await buildWorld();
 
@@ -131,7 +156,7 @@ describe("checkout-completed handler", () => {
 		});
 
 		const result = await handler(
-			buildSqsEvent([{ messageId: "msg-failing", body: JSON.stringify({ detail: COMPLETED_DETAIL }) }]),
+			buildSqsEvent([{ messageId: "msg-failing", body: JSON.stringify({ detail: COMPLETED_DETAIL, time: EVENT_TIME }) }]),
 			buildLambdaContext(),
 			() => {},
 		);

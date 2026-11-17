@@ -17,6 +17,7 @@ type CommandInput = {
 	ExpressionAttributeValues?: Record<string, unknown>;
 	ConditionExpression?: string;
 	ReturnValuesOnConditionCheckFailure?: string;
+	ConsistentRead?: boolean;
 };
 
 function createClient(impl: (input: CommandInput) => unknown): {
@@ -239,6 +240,100 @@ describe("initDynamoDbPendingSignup", () => {
 				userId: USER_ID,
 				offer: "none",
 			});
+		});
+	});
+
+	describe("findPendingSignup", () => {
+		function findWith(item: Record<string, unknown> | undefined) {
+			const warnings: string[] = [];
+			const logger: Logger = { ...noopLogger, warn: (...args) => { warnings.push(String(args[0])); } };
+			const { client, inputs } = createClient(() => ({ Item: item }));
+			const { findPendingSignup } = initDynamoDbPendingSignup({ client, tableName: TABLE, logger });
+			return { find: () => findPendingSignup(SESSION_ID), inputs, warnings };
+		}
+
+		it("reads the row with a strongly consistent get and answers pending with the stored signup", async () => {
+			const { find, inputs } = findWith({
+				checkoutSessionId: SESSION_ID,
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				userId: USER_ID,
+				returnUrl: "/queue",
+				plan: "monthly",
+				offer: "none",
+			});
+
+			const result = await find();
+
+			expect(inputs[0]?.Key).toEqual({ checkoutSessionId: SESSION_ID });
+			expect(inputs[0]).toHaveProperty("ConsistentRead", true);
+			expect(result).toEqual({
+				outcome: "pending",
+				signup: {
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+					returnUrl: "/queue",
+					plan: "monthly",
+					entrySource: null,
+					offer: "none",
+				},
+			});
+		});
+
+		it("answers already-activated with the stored return URL once the row is claimed", async () => {
+			const { find } = findWith({
+				checkoutSessionId: SESSION_ID,
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				userId: USER_ID,
+				returnUrl: "/queue",
+				consumedAt: "2026-11-15T10:00:00.000Z",
+			});
+
+			expect(await find()).toEqual({ outcome: "already-activated", returnUrl: "/queue" });
+		});
+
+		it("answers already-activated with no return URL when the claimed row stored none", async () => {
+			const { find } = findWith({
+				checkoutSessionId: SESSION_ID,
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				userId: USER_ID,
+				consumedAt: "2026-11-15T10:00:00.000Z",
+			});
+
+			expect(await find()).toEqual({ outcome: "already-activated" });
+		});
+
+		it("answers not-found when no row exists for the checkout session", async () => {
+			const { find } = findWith(undefined);
+
+			expect(await find()).toEqual({ outcome: "not-found" });
+		});
+
+		it("refuses a legacy row of another signup method, and warns", async () => {
+			const { find, warnings } = findWith({
+				checkoutSessionId: SESSION_ID,
+				method: "email-signup",
+				email: "e@b.com",
+			});
+
+			expect(await find()).toEqual({ outcome: "not-found" });
+			expect(warnings).toEqual([
+				"[pending-signup] refused to read legacy 'email-signup' row for checkout session cs_test_123",
+			]);
+		});
+
+		it("refuses an existing-user subscribe row that carries no userId", async () => {
+			const { find, warnings } = findWith({
+				checkoutSessionId: SESSION_ID,
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+			});
+
+			expect(await find()).toEqual({ outcome: "not-found" });
+			expect(warnings).toHaveLength(1);
 		});
 	});
 

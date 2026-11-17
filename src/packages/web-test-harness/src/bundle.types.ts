@@ -114,6 +114,7 @@ import type {
 	CheckoutPaymentStatus,
 	CheckoutSessionId,
 	ClaimPendingSignup,
+	FindPendingSignup,
 	ConsumeRateLimit,
 	ContentProvider,
 	ConversionEvent,
@@ -378,6 +379,7 @@ export interface HostedCheckoutBundle {
 
 export interface PendingSignupBundle {
 	storePendingSignup: StorePendingSignup;
+	findPendingSignup: FindPendingSignup;
 	claimPendingSignup: ClaimPendingSignup;
 }
 

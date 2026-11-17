@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { EventInstantSchema } from "@packages/domain/event-envelope";
 import { UserIdSchema } from "@packages/domain/user";
 import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
@@ -10,10 +11,12 @@ const USER_ID = UserIdSchema.parse("a".repeat(32));
 const SESSION_ID = CheckoutSessionIdSchema.parse("cs_test_activate");
 const NOW = new Date("2026-11-15T10:00:00.000Z");
 const TRIAL_ENDS_AT = "2026-11-27T10:00:00.000Z";
+const WEBHOOK = { activatedBy: "webhook", eventTime: EventInstantSchema.parse("2026-11-15T09:59:59Z") } as const;
 
 async function buildWorld(opts?: { trialEndsAt?: string }) {
 	const pendingSignup = initInMemoryPendingSignup();
-	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => NOW });
+	let clock = NOW;
+	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => clock });
 	const trialScheduler = initInMemoryTrialScheduler();
 	const recorded: CheckoutCompletion[] = [];
 	const errors: string[] = [];
@@ -33,6 +36,8 @@ async function buildWorld(opts?: { trialEndsAt?: string }) {
 		createdAt: NOW.getTime(),
 	});
 	const deps = {
+		findPendingSignup: pendingSignup.findPendingSignup,
+		findSubscriptionByUserId: subscriptionProviders.findByUserId,
 		claimPendingSignup: pendingSignup.claimPendingSignup,
 		upsertActive: subscriptionProviders.upsertActive,
 		recordCheckoutCompleted: (completion: CheckoutCompletion) => {
@@ -46,7 +51,10 @@ async function buildWorld(opts?: { trialEndsAt?: string }) {
 		},
 		now: () => NOW,
 	};
-	return { deps, subscriptionProviders, trialScheduler, recorded, errors };
+	const setClock = (at: Date) => {
+		clock = at;
+	};
+	return { deps, pendingSignup, subscriptionProviders, trialScheduler, recorded, errors, setClock };
 }
 
 const COMPLETED = {
@@ -61,7 +69,7 @@ describe("initActivateCheckout", () => {
 		const world = await buildWorld({ trialEndsAt: TRIAL_ENDS_AT });
 		const activateCheckout = initActivateCheckout(world.deps);
 
-		const result = await activateCheckout({ ...COMPLETED, activatedBy: "webhook" });
+		const result = await activateCheckout({ ...COMPLETED, ...WEBHOOK });
 
 		expect(result).toEqual({ outcome: "activated", returnUrl: "/queue" });
 		const row = await world.subscriptionProviders.findByUserId(USER_ID);
@@ -112,7 +120,7 @@ describe("initActivateCheckout", () => {
 			},
 		});
 
-		await activateCheckout({ ...COMPLETED, activatedBy: "webhook" });
+		await activateCheckout({ ...COMPLETED, ...WEBHOOK });
 		const second = await activateCheckout({ ...COMPLETED, activatedBy: "redirect" });
 
 		expect(second).toEqual({ outcome: "already-activated", returnUrl: "/queue" });
@@ -130,7 +138,7 @@ describe("initActivateCheckout", () => {
 		const result = await activateCheckout({
 			...COMPLETED,
 			checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_unknown"),
-			activatedBy: "webhook",
+			...WEBHOOK,
 		});
 
 		expect(result).toEqual({ outcome: "not-found" });
@@ -147,7 +155,7 @@ describe("initActivateCheckout", () => {
 			},
 		});
 
-		const result = await activateCheckout({ ...COMPLETED, activatedBy: "webhook" });
+		const result = await activateCheckout({ ...COMPLETED, ...WEBHOOK });
 
 		expect(result.outcome).toBe("activated");
 		const row = await world.subscriptionProviders.findByUserId(USER_ID);
@@ -184,7 +192,7 @@ describe("initActivateCheckout", () => {
 			},
 		});
 
-		const result = await activateCheckout({ ...COMPLETED, activatedBy: "webhook" });
+		const result = await activateCheckout({ ...COMPLETED, ...WEBHOOK });
 
 		expect(result.outcome).toBe("activated");
 		expect(world.errors).toEqual([
@@ -208,11 +216,103 @@ describe("initActivateCheckout", () => {
 		});
 		const activateCheckout = initActivateCheckout({
 			...world.deps,
+			findPendingSignup: pendingSignup.findPendingSignup,
 			claimPendingSignup: pendingSignup.claimPendingSignup,
 		});
 
-		const result = await activateCheckout({ ...COMPLETED, activatedBy: "webhook" });
+		const result = await activateCheckout({ ...COMPLETED, ...WEBHOOK });
 
 		expect(result).toEqual({ outcome: "activated" });
+	});
+
+	it("leaves the checkout unclaimed when writing the active row fails, so the next delivery activates it", async () => {
+		const world = await buildWorld({ trialEndsAt: TRIAL_ENDS_AT });
+		let failNextUpsert = true;
+		const activateCheckout = initActivateCheckout({
+			...world.deps,
+			upsertActive: async (params) => {
+				if (failNextUpsert) {
+					failNextUpsert = false;
+					throw new Error("ProvisionedThroughputExceeded");
+				}
+				await world.deps.upsertActive(params);
+			},
+		});
+
+		await expect(activateCheckout({ ...COMPLETED, ...WEBHOOK })).rejects.toThrow("ProvisionedThroughputExceeded");
+		expect(await world.pendingSignup.findPendingSignup(SESSION_ID)).toMatchObject({ outcome: "pending" });
+
+		const retried = await activateCheckout({ ...COMPLETED, ...WEBHOOK });
+
+		expect(retried).toEqual({ outcome: "activated", returnUrl: "/queue" });
+		expect(world.recorded).toHaveLength(1);
+		expect(world.trialScheduler.allChargeReminderSchedules()).toHaveLength(1);
+	});
+
+	it("finishes a webhook delivery whose earlier attempt wrote the active row but failed to claim, even though that write is newer than the message", async () => {
+		const world = await buildWorld({ trialEndsAt: TRIAL_ENDS_AT });
+		let failNextClaim = true;
+		const activateCheckout = initActivateCheckout({
+			...world.deps,
+			claimPendingSignup: async (params) => {
+				if (failNextClaim) {
+					failNextClaim = false;
+					throw new Error("ProvisionedThroughputExceeded");
+				}
+				return world.deps.claimPendingSignup(params);
+			},
+		});
+
+		await expect(activateCheckout({ ...COMPLETED, ...WEBHOOK })).rejects.toThrow("ProvisionedThroughputExceeded");
+		world.setClock(new Date("2026-11-15T10:05:00.000Z"));
+
+		const retried = await activateCheckout({ ...COMPLETED, ...WEBHOOK });
+
+		expect(retried).toEqual({ outcome: "activated", returnUrl: "/queue" });
+		expect(world.recorded).toHaveLength(1);
+		expect(world.recorded[0]).toMatchObject({ activatedBy: "webhook" });
+	});
+
+	it("refuses a webhook message older than the subscription row's status, and leaves the row and the checkout untouched", async () => {
+		const world = await buildWorld({ trialEndsAt: TRIAL_ENDS_AT });
+		await world.subscriptionProviders.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_AT });
+		world.setClock(new Date("2026-11-20T10:00:00.000Z"));
+		await world.subscriptionProviders.markCancelledByUserId({ userId: USER_ID });
+		const activateCheckout = initActivateCheckout(world.deps);
+
+		const result = await activateCheckout({ ...COMPLETED, ...WEBHOOK });
+
+		expect(result).toEqual({ outcome: "predates-status" });
+		expect((await world.subscriptionProviders.findByUserId(USER_ID))?.status).toBe("cancelled");
+		expect(world.recorded).toEqual([]);
+		expect(world.trialScheduler.allChargeReminderSchedules()).toEqual([]);
+		expect(await world.pendingSignup.findPendingSignup(SESSION_ID)).toMatchObject({ outcome: "pending" });
+	});
+
+	it("refuses a webhook message older than an active row that holds a different subscription", async () => {
+		const world = await buildWorld();
+		world.setClock(new Date("2026-11-20T10:00:00.000Z"));
+		await world.subscriptionProviders.upsertActive({
+			userId: USER_ID,
+			subscriptionId: "sub_test_later_checkout",
+			customerId: "cus_test_activate",
+		});
+		const activateCheckout = initActivateCheckout(world.deps);
+
+		const result = await activateCheckout({ ...COMPLETED, ...WEBHOOK });
+
+		expect(result).toEqual({ outcome: "predates-status" });
+		expect((await world.subscriptionProviders.findByUserId(USER_ID))?.subscriptionId).toBe("sub_test_later_checkout");
+	});
+
+	it("activates from the redirect whatever the row's status time, because the reader is on the page now", async () => {
+		const world = await buildWorld();
+		world.setClock(new Date("2026-11-20T10:00:00.000Z"));
+		await world.subscriptionProviders.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_AT });
+		const activateCheckout = initActivateCheckout(world.deps);
+
+		const result = await activateCheckout({ ...COMPLETED, activatedBy: "redirect" });
+
+		expect(result.outcome).toBe("activated");
 	});
 });

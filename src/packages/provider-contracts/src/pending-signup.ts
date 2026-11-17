@@ -35,6 +35,13 @@ export type StorePendingSignup = (params: {
 
 export type CheckoutActivationSource = "redirect" | "webhook";
 
+export type PendingSignupLookup =
+	| { outcome: "pending"; signup: ConsumedPendingSignup }
+	| { outcome: "already-activated"; returnUrl?: string }
+	| { outcome: "not-found" };
+
+export type FindPendingSignup = (checkoutSessionId: CheckoutSessionId) => Promise<PendingSignupLookup>;
+
 export type PendingSignupClaim =
 	| { outcome: "claimed"; signup: ConsumedPendingSignup }
 	| { outcome: "already-activated"; returnUrl?: string }

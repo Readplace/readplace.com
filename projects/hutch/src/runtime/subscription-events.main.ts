@@ -88,6 +88,8 @@ const emit = initEmitSubscriptionEvent({
 });
 
 const activateCheckout = initActivateCheckout({
+	findPendingSignup: pendingSignup.findPendingSignup,
+	findSubscriptionByUserId: subscriptionProviders.findByUserId,
 	claimPendingSignup: pendingSignup.claimPendingSignup,
 	upsertActive: subscriptionProviders.upsertActive,
 	recordCheckoutCompleted: (completion) =>

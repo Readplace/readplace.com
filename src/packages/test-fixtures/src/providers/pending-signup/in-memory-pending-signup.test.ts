@@ -11,6 +11,34 @@ function claimFrom(
 }
 
 describe("initInMemoryPendingSignup", () => {
+	it("reads a stored signup as pending until it is claimed, then as already-activated", async () => {
+		const { storePendingSignup, findPendingSignup, claimPendingSignup } = initInMemoryPendingSignup();
+		const checkoutSessionId = CheckoutSessionIdSchema.parse("cs_test_find");
+		const userId = UserIdSchema.parse("u-find");
+		await storePendingSignup({
+			checkoutSessionId,
+			signup: {
+				method: "existing-user-subscribe",
+				email: "find@example.com",
+				userId,
+				returnUrl: "/queue",
+				entrySource: null,
+				offer: "none",
+			},
+			createdAt: 1735000000,
+		});
+
+		const before = await findPendingSignup(checkoutSessionId);
+		assert(before.outcome === "pending", "an unclaimed signup reads as pending");
+		expect(before.signup.userId).toBe(userId);
+
+		await claimFrom(claimPendingSignup, checkoutSessionId);
+
+		expect(await findPendingSignup(checkoutSessionId)).toEqual({ outcome: "already-activated", returnUrl: "/queue" });
+		expect(await findPendingSignup(CheckoutSessionIdSchema.parse("cs_test_unknown"))).toEqual({ outcome: "not-found" });
+	});
+
+
 	it("answers not-found for an unknown checkout session", async () => {
 		const { claimPendingSignup } = initInMemoryPendingSignup();
 		const claim = await claimFrom(claimPendingSignup, CheckoutSessionIdSchema.parse("cs_test_unknown"));
