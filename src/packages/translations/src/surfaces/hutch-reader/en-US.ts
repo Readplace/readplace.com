@@ -101,6 +101,11 @@ export const enUS = {
 			body: "Adding the highlights you made in this browser to your account.",
 			submit: "Keep my highlights",
 		},
+		endCta: {
+			founderLine:
+				"You just read one of my posts in Readplace. I built it so the articles I meant to read would still be there when I had time for them.",
+			founderSignOff: "— Fayner Brack, Founder & CEO",
+		},
 	},
 	reader: {
 		share: {

@@ -62,6 +62,7 @@ import { isReaderViewShareable } from "../../shared/article-reader/reader-view";
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 
 const DEFAULT_OG_IMAGE = `${STATIC_BASE_URL}/og-image-1200x630.png`;
+const FOUNDER_PORTRAIT_URL = `${STATIC_BASE_URL}/fayner-brack.jpg`;
 const DEFAULT_TWITTER_IMAGE = `${STATIC_BASE_URL}/twitter-card-1200x600.png`;
 const DEFAULT_OG_ALT = "Readplace — A read-it-later app";
 
@@ -121,6 +122,7 @@ export type ViewEndCtaAction = ViewEndCtaFormAction | ViewEndCtaGuideAction;
 
 export interface ViewEndCta {
 	heading: "Keep this one";
+	signedByFounder: boolean;
 	lines: readonly string[];
 	actions: readonly ViewEndCtaAction[];
 }
@@ -146,6 +148,7 @@ function renderViewEndCta(endCta: ViewEndCta | undefined): string {
 	if (endCta === undefined) return "";
 	return render(VIEW_END_CTA_TEMPLATE, {
 		heading: endCta.heading,
+		founderPortraitUrl: endCta.signedByFounder ? FOUNDER_PORTRAIT_URL : undefined,
 		lines: endCta.lines,
 		actionsHtml: endCta.actions.map(renderViewEndCtaAction),
 	});

@@ -64,6 +64,38 @@
   text-wrap: pretty;
 }
 
+.view__end-cta-signed {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.view__end-cta-avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.view__end-cta-signed-text {
+  min-width: 0;
+}
+
+.view__end-cta-signed-line {
+  margin: 0 0 4px;
+  font-size: var(--text-sm);
+  color: var(--foreground);
+  text-wrap: pretty;
+}
+
+.view__end-cta-signed-by {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+
 .view__end-cta-actions {
   display: flex;
   flex-wrap: wrap;

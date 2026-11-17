@@ -108,6 +108,12 @@ such as an uploaded book, downloads like any other. The downloader sends those
 headers again on every redirect it follows, so the EPUB route must not redirect to
 another host.
 
+**No landing-tab preference.** iOS remembers the landing tab's href so a cold offline
+launch has a key to look up. Android launches by the remembered readlist href, and
+the stored answer to that href names the tab it landed on, so a failed launch read
+follows that tab's stored copy. Same list, one preference fewer, and no assumption
+about which tab the server lands on.
+
 **A distinct OAuth redirect.** The iOS app is registered against
 `readplace://oauth-callback`; this app is registered against
 `readplace://oauth-callback/android`. Redirect URIs are matched by exact string per
@@ -204,6 +210,19 @@ once doubled every screenshot. Play's API has no draft a caller can choose: an e
 committed or discarded, so a validate-only run stands in for the draft. A Play edit is one
 transaction and supply skips an image whose checksum Play already holds, so there is
 nothing to read back.
+
+**The launcher icon is a vector; the login mark is the iOS script's output.** iOS runs a
+script for its App Store icon because the store takes a 1024px PNG with no alpha.
+Android's launcher is an adaptive icon whose foreground is a vector drawable, and
+`minSdk` 29 needs no PNG fallback, so no script renders it. The login screen's six
+`brand_mark.png` drawables are written by the iOS
+[`scripts/make-brandmark.sh`](../ios/scripts/make-brandmark.sh) and are never edited by
+hand. When the mark changes, run that script, then paste the new ampersand path into the
+launcher foreground vector (grep the resource tree for the old path's opening,
+`M204.28 400Q`). If the amber dot moves, also change the circle path beside the
+ampersand in the same vector, written as an arc starting at cx+r, and the dot centre the
+login screen holds for its replay tap target (grep the Kotlin sources for
+`DOT_CENTER_X`); iOS holds the same constants by hand.
 
 ## Version pins that are not "the latest"
 

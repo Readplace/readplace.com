@@ -89,6 +89,7 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	ResolvePriceId,
 	FindSubscriptionNextCharge,
+	FindSubscriptionPaymentMethod,
 	ListInvoices,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/subscription-billing";
@@ -678,6 +679,7 @@ export interface AppDependencies {
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
+	findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod;
 	listInvoices: ListInvoices;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	paymentMethods: {
