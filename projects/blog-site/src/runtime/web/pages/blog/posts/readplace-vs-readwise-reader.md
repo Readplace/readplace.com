@@ -29,7 +29,7 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 | **Newsletter inbox** | A forwarding address per newsletter, article links saved. A Gmail sender can save the whole issue | Dedicated email address |
 | **PDFs** | Link, extension or iPhone share sheet, scans read by OCR | Upload, up to 500 MB |
 | **EPUB** | Download any article as an EPUB, or upload your own, DRM-free, up to 200 MB | Upload EPUB books |
-| **Video** | Upload an MP4, up to 2 GB, read as a timestamped transcript. No YouTube | YouTube with a highlightable transcript |
+| **Video** | With an account, upload an MP4, up to 2 GB, read as a timestamped transcript. No YouTube | YouTube with a highlightable transcript |
 | **Podcasts** | Upload an episode's MP3 or M4A, up to 256 MB, read as a timestamped transcript. No subscriptions | Episodes from Spotify, Overcast and Apple Podcasts |
 | **Listening** | No | Yes, AI voices |
 | **E-reader** | EPUB download, moved to the device by hand | Sends documents to a Kindle |

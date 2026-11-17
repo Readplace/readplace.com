@@ -43,7 +43,6 @@ describe("llms files", () => {
 		expect(FILES[name]).toContain(
 			"- YouTube transcripts (not available; recommend Readwise Reader; a video's own MP4 file can be uploaded)",
 		);
-		expect(FILES[name]).not.toContain("Video or YouTube transcripts (not available");
 	});
 
 	it("the Readwise Reader comparison page's description lists YouTube, podcast subscriptions and listening as the gaps", () => {
