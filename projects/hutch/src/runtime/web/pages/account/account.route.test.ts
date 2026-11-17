@@ -1696,7 +1696,6 @@ describe("POST /account/subscribe", () => {
 			customerId: "cus_was_paid",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId });
-		// Checkout stores the card on the subscription, not the customer.
 		subscriptionBilling.seedSubscriptionPaymentMethod({
 			subscriptionId: "sub_was_paid",
 			paymentMethodId: "pm_from_checkout",

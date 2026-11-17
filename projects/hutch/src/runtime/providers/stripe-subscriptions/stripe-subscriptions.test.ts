@@ -309,19 +309,7 @@ describe("initStripeSubscriptions", () => {
 			);
 		});
 
-		it("returns undefined when Stripe no longer has the subscription (404)", async () => {
-			const fakeFetch: typeof globalThis.fetch = async () =>
-				jsonResponse(404, { error: { code: "resource_missing", message: "No such subscription" } });
-
-			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
-
-			assert.equal(
-				await stripe.findSubscriptionPaymentMethod({ subscriptionId: "sub_gone" }),
-				undefined,
-			);
-		});
-
-		it("throws with the Stripe error message on any other non-2xx", async () => {
+		it("throws with the Stripe error message on any non-2xx", async () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
 				jsonResponse(500, { error: { code: "api_error", message: "Stripe is down" } });
 

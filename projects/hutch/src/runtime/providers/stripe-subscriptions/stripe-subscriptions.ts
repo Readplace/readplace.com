@@ -220,9 +220,6 @@ export function initStripeSubscriptions(deps: {
 			{ method: "GET", headers: stripeHeaders },
 		);
 
-		if (response.status === 404) {
-			return undefined;
-		}
 		if (!response.ok) {
 			const message = await readStripeErrorMessage(response);
 			throw new Error(
