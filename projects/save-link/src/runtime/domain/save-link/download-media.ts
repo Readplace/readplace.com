@@ -4,6 +4,7 @@ import {
 	isProvenTrackingImageUrl,
 	isValidHttpUrl,
 	MAX_IMAGE_BYTES,
+	measureImageDimensions,
 } from "@packages/crawl-article";
 import { parseHTML } from "linkedom";
 import parseSrcset from "parse-srcset";
@@ -56,7 +57,8 @@ export function initDownloadMedia(deps: {
 					const cdnUrl = articleResourceUniqueId.toImageCdnUrl({ baseUrl: imagesCdnBaseUrl, filename });
 
 					await putImageObject({ key, body: downloaded.body, contentType: downloaded.contentType, writeContext });
-					results.push({ originalUrl, cdnUrl });
+					const dimensions = measureImageDimensions(downloaded.body);
+					results.push(dimensions ? { originalUrl, cdnUrl, dimensions } : { originalUrl, cdnUrl });
 				} catch (error) {
 					logError(
 						`[DownloadMedia] failed to process image ${originalUrl}`,

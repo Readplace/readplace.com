@@ -921,4 +921,21 @@ describe("toReadlistViewModel — move", () => {
 			undoFields: { from: "finance", to: "work" },
 		});
 	});
+
+	it("builds the Undo for an add into several readlists against the unassign route, returning to the page the reader was on", () => {
+		const vm = toReadlistViewModel(makeResult([makeArticle()]), { ...DEFAULT_FILTERS, page: 2 }, {
+			now: NOW,
+			moveFlash: {
+				articleId: ARTICLE_ID,
+				message: "Added to 2 readlists",
+				undoQueues: [finance.slug, work.slug],
+			},
+		});
+
+		expect(vm.moveFlash).toEqual({
+			message: "Added to 2 readlists",
+			undoUrl: `/queue/${ARTICLE_ID}/unassign`,
+			undoFields: { queue: ["finance", "work"], returnTo: "/queue?page=2" },
+		});
+	});
 });

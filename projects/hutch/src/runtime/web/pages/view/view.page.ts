@@ -610,6 +610,7 @@ function handleViewArticle(
 						readerNoticeOf(state.readerView) === undefined &&
 						!isPrivateItemUrl(articleUrl),
 					now: deps.now(),
+					signedIn: req.userId !== undefined,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),

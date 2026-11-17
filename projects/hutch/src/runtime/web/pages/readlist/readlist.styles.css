@@ -1537,23 +1537,33 @@
   padding-block: 16px;
 }
 
-.readlist-move__radio-slot {
+.readlist-move__choice-slot {
   display: inline-flex;
   justify-content: center;
   width: 36px;
 }
 
-.readlist-move__option:not(:has(.readlist-move__radio:checked)):hover,
+.readlist-move__option:not(:has(.readlist-move__choice:checked)):hover,
 .readlist-move__create-row:hover {
   background: var(--muted);
 }
 
-.readlist-move__option:has(.readlist-move__radio:checked) {
+.readlist-move__option:has(.readlist-move__choice:checked) {
   background: var(--secondary);
   color: var(--primary-text-on-tint);
 }
 
-.readlist-move__option:has(.readlist-move__radio:focus-visible) {
+.readlist-move__pick {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.readlist-move__pick:focus-visible,
+.readlist-move__option:has(.readlist-move__choice:focus-visible) {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }

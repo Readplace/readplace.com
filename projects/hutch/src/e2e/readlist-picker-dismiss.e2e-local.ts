@@ -19,7 +19,7 @@ const ARTICLE_COPY = "[data-test-reader-content] p";
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
 
-async function openOwnerReaderWithPicker(page: Page, stamp: string): Promise<void> {
+async function openOwnerReaderWithPicker(page: Page, stamp: string, readlists: readonly string[] = ["New Readlist"]): Promise<void> {
 	const email = `picker-dismiss-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: OWNER_PASSWORD, verified: true },
@@ -47,9 +47,11 @@ async function openOwnerReaderWithPicker(page: Page, stamp: string): Promise<voi
 
 	// A second readlist gives the picker something to offer, so it has a menu to
 	// dismiss rather than only the create row.
-	await openReadlistSwitcher(page);
-	await clickAndWaitForPageReload(page, await nameNewReadlist(page, "New Readlist"));
-	await expect(page.locator("[data-test-readlist]")).toHaveCount(2);
+	for (const label of readlists) {
+		await openReadlistSwitcher(page);
+		await clickAndWaitForPageReload(page, await nameNewReadlist(page, label));
+	}
+	await expect(page.locator("[data-test-readlist]")).toHaveCount(readlists.length + 1);
 
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-reader");
@@ -120,5 +122,24 @@ test.describe("Add-to-readlist picker light dismiss", () => {
 		await page.locator(`${CREATE_DIALOG} [data-test-action="readlist-create-cancel"]`).click();
 		await expect(page.locator(`${CREATE_DIALOG}:popover-open`)).toHaveCount(0);
 		await expect(page.locator(TRIGGER)).toBeFocused();
+	});
+});
+
+test.describe("Add-to-readlist picker with several readlists to offer", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 390, height: 780 } });
+
+	test("ticking two readlists and pressing Add files the article into both in one go", async ({ page }, testInfo) => {
+		await openOwnerReaderWithPicker(page, `several-${testInfo.workerIndex}-${Date.now()}`, ["Finance", "Weekend", "Ideas"]);
+
+		await page.click(TRIGGER);
+		await expect(page.locator(`${MENU} input[type="checkbox"]`).first()).toBeFocused();
+		await page.locator(`${MENU} label`, { hasText: "Finance" }).click();
+		await page.locator(`${MENU} label`, { hasText: "Weekend" }).click();
+		expect(await pickerIsOpen(page)).toBe(true);
+		await page.locator('[data-test-action="readlists-add-selected"]').click();
+
+		await expect(page.locator("[data-test-readlist-tag]")).toHaveText([/Finance/, /Weekend/]);
+		await expect(page.locator("[data-test-toast-message]")).toHaveText("Added to 2 readlists");
+		await expect(page.locator(`${MENU} [data-test-assign-readlist]`)).toHaveCount(1);
 	});
 });

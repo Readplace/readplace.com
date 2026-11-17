@@ -1,0 +1,24 @@
+<form class="confirm-popover__actions report-article-form" method="POST" action="{{action}}" hx-post="{{action}}" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest [popover]:drop" data-report-article-form data-test-form="report-article">
+  <input type="hidden" name="article" value="{{viewUrl}}">
+  <input type="hidden" name="title" value="{{title}}">
+  <input type="hidden" name="surface" value="{{surface}}">
+  <fieldset class="report-article-form__reasons">
+    <legend class="form-field__label">{{t "articleBody.report.reason.legend"}}</legend>
+    {{#each reasons}}
+    <label class="report-article-form__reason"><input class="report-article-form__reason-input" type="radio" name="reason" value="{{value}}"{{#if checked}} checked{{/if}}{{#if @first}} autofocus{{/if}} data-test-report-reason="{{value}}"><span>{{label}}</span></label>
+    {{/each}}
+  </fieldset>
+  <label class="form-field__label" for="report-article-details">{{t "articleBody.report.details"}}</label>
+  <textarea class="form-input form-input--multiline" id="report-article-details" name="details" rows="4" maxlength="{{detailsMaxLength}}" data-test-report-details>{{details}}</textarea>
+  {{#if asksForEmail}}
+  <label class="form-field__label" for="report-article-email">{{t "articleBody.report.email"}}</label>
+  <input class="form-input" id="report-article-email" type="email" name="email" value="{{email}}" autocomplete="email" data-test-report-email>
+  {{/if}}
+  {{#if failed}}
+  <p class="form-field__error" role="alert" data-test-report-error>{{t "articleBody.report.failed"}}</p>
+  {{/if}}
+  <div class="confirm-popover__buttons">
+    <button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="report-article-cancel">{{t "articleBody.report.cancel"}}</button>
+    <button class="btn btn--primary" type="submit" data-test-action="report-article-send">{{t "articleBody.report.send"}}</button>
+  </div>
+</form>

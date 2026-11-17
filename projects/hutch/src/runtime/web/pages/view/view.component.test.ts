@@ -21,6 +21,7 @@ const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view",
 const baseInput: ViewPageInput = {
 	readerSection: TEST_READER_SECTION,
 	now: new Date("2026-11-05T10:00:00.000Z"),
+	signedIn: false,
 	articleUrl: "https://example.com/post",
 	destinationUrl: destinationUrl("https://example.com/post"),
 	appOrigin: "http://localhost:3000",
@@ -570,6 +571,12 @@ describe("ViewPage", () => {
 		expect(doc.querySelector("[data-test-view-cta] > .reading-frame > .view__cta-content")).not.toBeNull();
 	});
 
+	it("marks the Save bar as the floor a docked Highlight bar sits above", () => {
+		const doc = render(baseInput);
+
+		expect(doc.querySelector("[data-test-view-cta]")?.hasAttribute("data-highlight-toolbar-floor")).toBe(true);
+	});
+
 	it("keeps the rail an unnamed div holding only the hidden table of contents while the reader view is pending", () => {
 		const doc = render({ ...baseInput, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } });
 
@@ -684,7 +691,7 @@ describe("ViewPage", () => {
 						field.getAttribute("value"),
 					]),
 					placements: Array.from(doc.querySelectorAll("[data-test-share-panel]"), (panel) => panel.getAttribute("data-test-share-panel")),
-					report: new URL(doc.querySelector('[data-test-action="report-article"]')?.getAttribute("href") ?? "mailto:").searchParams.get("body")?.includes(`${baseInput.appOrigin}/view/example.com/post`),
+					report: doc.querySelector('[data-test-form="report-article"] input[name="article"]')?.getAttribute("value") === `${baseInput.appOrigin}/view/example.com/post`,
 				};
 			};
 			const body = articleBody("<p>Body copy.</p>");

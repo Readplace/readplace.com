@@ -224,3 +224,53 @@ describe("chapterSectionId", () => {
 		]);
 	});
 });
+
+describe("sanitizeArticleHtml on a measured image", () => {
+	it.each([
+		[
+			'<img src="https://cdn.x/a.png" data-reader-image-size="1456x1005" width="1456" height="1005">',
+			'<img src="https://cdn.x/a.png" width="1456" height="1005" data-reader-image-size="1456x1005" style="--reader-image-width:1456px;--reader-image-ratio:1456 / 1005" />',
+		],
+		[
+			'<img src="https://cdn.x/a.png" data-reader-image-size="1456x1005 100vw" style="width:5px">',
+			'<img src="https://cdn.x/a.png" data-reader-image-size="1456x1005 100vw" style="--reader-image-width:100vw;--reader-image-ratio:1456 / 1005" />',
+		],
+		[
+			'<img src="https://cdn.x/a.png" data-reader-image-size="1024x683 min(100vw,1024px)">',
+			'<img src="https://cdn.x/a.png" data-reader-image-size="1024x683 min(100vw,1024px)" style="--reader-image-width:min(100vw,1024px);--reader-image-ratio:1024 / 683" />',
+		],
+		[
+			'<img src="https://cdn.x/a.png" data-reader-image-size="1024x683 600px">',
+			'<img src="https://cdn.x/a.png" data-reader-image-size="1024x683 600px" style="--reader-image-width:600px;--reader-image-ratio:1024 / 683" />',
+		],
+		[
+			'<img src="https://cdn.x/a.png" data-reader-image-size="0x5" style="--reader-image-width:9999px;--reader-image-ratio:1 / 1">',
+			'<img src="https://cdn.x/a.png" />',
+		],
+		[
+			'<img src="https://cdn.x/a.png" style="--reader-image-width:9999px;--reader-image-ratio:1 / 1;position:fixed">',
+			'<img src="https://cdn.x/a.png" />',
+		],
+		['<img src="https://cdn.x/a.png" data-reader-image-size="10x5;position:fixed">', '<img src="https://cdn.x/a.png" />'],
+	])("writes the box only from a valid stored size: %s", (input, expected) => {
+		expect(sanitizeArticleHtml(input)).toBe(expected);
+	});
+
+	it("gives the same output when run over its own output", () => {
+		const once = sanitizeArticleHtml(
+			'<img src="https://cdn.x/a.png" srcset="https://cdn.x/a.png 1456w" sizes="100vw" data-reader-image-size="1456x1005 100vw">',
+		);
+
+		expect(sanitizeArticleHtml(once)).toBe(once);
+	});
+
+	it("leaves an unmeasured image's publisher width and height of zero as they are", () => {
+		const zero = '<img src="https://cdn.x/a.png" width="0" height="0" />';
+
+		expect(sanitizeArticleHtml(zero)).toBe(zero);
+	});
+
+	it("keeps an image with no source", () => {
+		expect(sanitizeArticleHtml('<img alt="x">')).toBe('<img alt="x" />');
+	});
+});

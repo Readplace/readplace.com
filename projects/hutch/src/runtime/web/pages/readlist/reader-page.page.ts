@@ -44,10 +44,7 @@ import {
 	readlistReturnQuery,
 } from "./readlist.url";
 import { type ArticleDeletion, buildArticleDeletion } from "./readlist-card/delete-confirm.component";
-import {
-	ReadlistSlugSchema,
-	type ReadlistSlug,
-} from "@packages/domain/readlist";
+import type { ReadlistSlug } from "@packages/domain/readlist";
 import type {
 	ReaderReadlistFiling,
 } from "./reader-readlist-filing";
@@ -80,6 +77,7 @@ import type { ReadlistDependencies } from "./readlist-dependencies.types";
 import { highlightActionUrl } from "./highlight-surface";
 import { highlightFormScopeFor, initReaderHighlightOptions } from "./reader-highlight-options";
 import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM, readerEpubHrefFor } from "./readlist-shared";
+import { ReadlistSlugsSchema } from "./readlist-slugs";
 
 const pastReadsComputeUrlFor = (params: {
 	articleId: string;
@@ -267,7 +265,7 @@ export function initReaderPageRoutes(deps: Pick<
 		userId: UserId;
 		article: SavedArticle;
 		returnTo: string;
-		filed: ReadlistSlug | undefined;
+		filed: readonly ReadlistSlug[];
 	}): Promise<{ readlistFiling: ReaderReadlistFiling; deleteAcknowledged: boolean }> => {
 		const [definitions, saves, signals] = await Promise.all([
 			deps.listReadlistDefinitions(params.userId),
@@ -389,7 +387,7 @@ export function initReaderPageRoutes(deps: Pick<
 				userId: ownedArticle.userId,
 				article: ownedArticle,
 				returnTo: readerReturnPath(req, ownedArticle.id.value),
-				filed: isAppPlatform(req) ? undefined : ReadlistSlugSchema.safeParse(req.query[FILED_READLIST_PARAM]).data,
+				filed: isAppPlatform(req) ? [] : (ReadlistSlugsSchema.safeParse(req.query[FILED_READLIST_PARAM]).data ?? []),
 			}),
 			deps.resolveReaderProvenance(ownedArticle.provenance),
 		]);
