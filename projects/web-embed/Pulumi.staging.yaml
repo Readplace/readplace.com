@@ -6,4 +6,5 @@ config:
   web-embed:hutchStack: organization/hutch/staging
   web-embed:platformStack: organization/platform/staging
   web-embed:dynamodbSessionsTable: hutch-sessions-d17dbb3
-encryptionsalt: v1:8THQlMwdci8=:v1:/uHyXUtFpsjVNuZ5:JlaKyeUtnhmFI9YYdkGwHW2YsWIDCw==
+secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
+encryptedkey: AQICAHi6S5JWWQJW6rlPXA+EjgBpSa9holo1rtjUEtyWeWu1mwGJWDGXrwbrBR5lnnm6D7iVAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMDtjKdqaBm5c9Z5atAgEQgDsnBD36Xooe6pD9dQMEIuquA9Et/W1yYdG33Z/R5SB8ckH+enrU5c6t/KIL5gra9LFBqKqyXAGAYzp51Q==

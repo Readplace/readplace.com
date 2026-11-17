@@ -3,9 +3,10 @@
                 <summary class="gmail__picker-trigger" aria-labelledby="gmail-readlist-label gmail-readlist-choice" data-gmail-picker-trigger>
                   <span id="gmail-readlist-choice">{{choiceLabel}}</span>{{icon "chevron-down"}}
                 </summary>
-                <ul class="gmail__picker-menu gmail__options">
+                <ul class="gmail__picker-menu gmail__options" data-readlist-filter-scope>
+                  {{{filterHtml}}}
                   {{#each options}}
-                  <li>
+                  <li class="readlist-filter__option">
                     <label class="gmail__picker-option gmail__readlist-option">
                       <input id="gmail-readlist-{{slug}}" type="checkbox" name="readlist" value="{{slug}}"{{#if selected}} checked{{/if}}{{#if locked}} disabled{{else}} data-gmail-picker-option{{/if}} data-gmail-readlist-checkbox data-test-gmail-readlist-option="{{slug}}">
                       <span>{{label}}</span>{{#if locked}}<span class="gmail__readlist-required">Always included</span>{{/if}}

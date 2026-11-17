@@ -105,21 +105,21 @@ it("does not proxy a timeout whose actual cause is a blocked address", async () 
 it.each(["blocked", "unclassified"])("propagates a %s proxy failure instead of returning the retained response", async (kind) => {
 	const error = kind === "blocked"
 		? Object.assign(new Error("blocked address"), { code: "EBLOCKEDADDRESS" })
-		: new TransportLadderFailure({ error: new Error("programming failure"), previousErrors: [], retryDisposition: "unclassified" });
+		: new TransportLadderFailure({ escalatedStatuses: [], error: new Error("programming failure"), previousErrors: [], retryDisposition: "unclassified" });
 	const harness = makeHarness({ direct: async () => new Response("slow down", { status: 429 }), proxy: [async () => { throw error; }] });
 	await expect(harness.fetchIt()).rejects.toBe(error);
 	expect(harness.proxyBudgets).toHaveLength(1);
 });
 
 it("retries a proxied transport timeout with its explicit recoverable disposition", async () => {
-	const error = new TransportLadderFailure({ error: timeout(), previousErrors: [], retryDisposition: "recoverable" });
+	const error = new TransportLadderFailure({ escalatedStatuses: [], error: timeout(), previousErrors: [], retryDisposition: "recoverable" });
 	const harness = makeHarness({ direct: async () => new Response("slow down", { status: 429 }), proxy: [async () => { throw error; }, async () => new Response("article")] });
 	expect(await (await harness.fetchIt()).text()).toBe("article");
 	expect(harness.proxyBudgets).toHaveLength(2);
 });
 
 it("does not treat an unclassified ladder with an earlier timeout as a proxied timeout", async () => {
-	const error = new TransportLadderFailure({ error: timeout(), previousErrors: [new Error("programming failure")], retryDisposition: "unclassified" });
+	const error = new TransportLadderFailure({ escalatedStatuses: [], error: timeout(), previousErrors: [new Error("programming failure")], retryDisposition: "unclassified" });
 	const harness = makeHarness({ direct: async () => { throw error; } });
 	await expect(harness.fetchIt()).rejects.toBe(error);
 	expect(harness.proxyBudgets).toEqual([]);
@@ -838,7 +838,7 @@ it.each(["https://www.cia.gov/readingroom/", DEST_URL, undefined])("pins recover
 	const pdf = "https://www.cia.gov/readingroom/docs/report.pdf";
 	const harness = makeHarness({ direct: async (_controller, _clock, onRedirect) => {
 		if (lastHop !== undefined) onRedirect?.({ fromUrl: pdf, toUrl: lastHop });
-		throw new TransportLadderFailure({ previousErrors: [], error: new DocumentLandingPageError({ requestedUrl: pdf, landingPageUrl: "https://www.cia.gov/readingroom/" }), retryDisposition: "recoverable" });
+		throw new TransportLadderFailure({ escalatedStatuses: [], previousErrors: [], error: new DocumentLandingPageError({ requestedUrl: pdf, landingPageUrl: "https://www.cia.gov/readingroom/" }), retryDisposition: "recoverable" });
 	}, proxy: [async () => new Response("%PDF-1.7")] });
 	await harness.fetchIt();
 	expect(harness.proxyUrls).toEqual([lastHop === "https://www.cia.gov/readingroom/" ? pdf : lastHop ?? ENTRY_URL]);
@@ -849,7 +849,7 @@ it("retries the document after different transports reject different landing pag
 	const landingPages = ["https://publisher.example/archive/", "https://publisher.example/archive/docs/"];
 	const harness = makeHarness({ direct: async (_controller, _clock, onRedirect) => {
 		for (const landingPageUrl of landingPages) onRedirect?.({ fromUrl: pdf, toUrl: landingPageUrl });
-		throw new TransportLadderFailure({
+		throw new TransportLadderFailure({ escalatedStatuses: [],
 			previousErrors: landingPages.map(landingPageUrl => new DocumentLandingPageError({ requestedUrl: pdf, landingPageUrl })),
 			error: Object.assign(new Error("timeout"), { name: "TimeoutError" }),
 			retryDisposition: "recoverable",

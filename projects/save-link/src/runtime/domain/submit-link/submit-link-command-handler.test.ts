@@ -171,6 +171,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		publishUpdateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		refreshArticleIfStale: refreshAs("new"),
 		pinContentSource: jest.fn().mockResolvedValue(undefined),
+		delay: async () => {},
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
@@ -487,7 +488,7 @@ describe("initSubmitLinkCommandHandler", () => {
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				refreshArticleIfStale: refreshAs("skip", captureIdentity),
-				crawlAndFinalizeArticle: async () => ({ status: "failed", reason: "crawl-failed" }),
+				crawlAndFinalizeArticle: async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" }),
 				publishEvent,
 				transitionAndPersist,
 			});
@@ -924,7 +925,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const handler = createHandler({
 			transitionAndPersist,
 			crawlAndFinalizeArticle: (async () => ({
-				status: "failed",
+				status: "failed", decision: undefined,
 				reason: "crawl-failed",
 			})) as CrawlAndFinalizeArticle,
 		});
@@ -943,7 +944,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const handler = createHandler({
 			transitionAndPersist,
 			crawlAndFinalizeArticle: (async () => ({
-				status: "failed",
+				status: "failed", decision: undefined,
 				reason: "Readability returned null",
 			})) as CrawlAndFinalizeArticle,
 		});
@@ -977,7 +978,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const handler = createHandler({
 			transitionAndPersist: jest.fn().mockRejectedValue(new Error("DDB throttled")),
 			crawlAndFinalizeArticle: (async () => ({
-				status: "failed",
+				status: "failed", decision: undefined,
 				reason: "crawl-failed",
 			})) as CrawlAndFinalizeArticle,
 		});

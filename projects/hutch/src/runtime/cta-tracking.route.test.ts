@@ -114,7 +114,13 @@ async function highlightedReaderPath(input: {
 	const created = await input.agent
 		.post(`/queue/${input.articleId}/highlights`)
 		.type("form")
-		.send({ exact: input.exact, start: String(start), end: String(start + input.exact.length), origin: "mouse" });
+		.send({
+			exact: input.exact,
+			start: String(start),
+			end: String(start + input.exact.length),
+			origin: "mouse",
+			note: "A note",
+		});
 	assert.equal(created.status, 303, "the highlight must be created");
 	return path;
 }
@@ -246,6 +252,10 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		expect(noteFormUtm('form[data-test-form="highlight-note-fallback"]')).toEqual({
 			source: "highlights-rail",
 			content: "edit-note",
+		});
+		expect(noteFormUtm('.highlights-rail__actions form[id^="delete-note-highlight-"]')).toEqual({
+			source: "highlights-rail",
+			content: "delete-note",
 		});
 	});
 

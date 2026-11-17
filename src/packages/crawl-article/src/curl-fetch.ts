@@ -33,10 +33,12 @@ export type CurlFetch = (url: string, init: CurlFetchInit) => Promise<Response>;
 
 export class CurlFetchFailure extends Error {
 	readonly exitCode: number | undefined;
+	readonly signal: string | undefined;
 
 	constructor(params: { url: string; error: Error }) {
 		super(`fetchCurl failed for ${params.url}: ${params.error.message}`, { cause: params.error });
 		this.exitCode = "code" in params.error && typeof params.error.code === "number" ? params.error.code : undefined;
+		this.signal = "signal" in params.error && typeof params.error.signal === "string" ? params.error.signal : undefined;
 	}
 }
 

@@ -9,6 +9,9 @@
     <p class="readlist-inboxes__delivery-label" data-test-email-delivery-label>{{deliveryLabel}}</p>
     <p class="readlist-inboxes__delivery-description">The articles each email links to are saved one by one. The email stays on its inbox page.</p>
   </div>
+  <div class="readlist-inboxes__empty" data-test-inboxes-empty>
+    <h3 class="readlist-inboxes__empty-title">No readlist inbox emails yet</h3>
+  </div>
   <ul class="readlist-inboxes__list">
     {{#each rows}}
     <li class="readlist-inboxes__row" data-test-preferences-inbox="{{address}}" data-test-inbox-routing="{{routing}}">
@@ -26,11 +29,15 @@
     </li>
     {{/each}}
   </ul>
+  <form class="readlist-inboxes__create" method="POST" action="{{createAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+    <label class="form-field__label" for="readlist-inbox-create-name">{{t "readlistInboxes.create.label"}}</label>
+    <div class="readlist-inboxes__create-row" data-test-inbox-create-row>
+      <input class="form-input readlist-inboxes__create-input" id="readlist-inbox-create-name" name="name" type="text" value="{{createValue}}" required maxlength="24" pattern="[A-Za-z0-9 -]+" placeholder="{{t "readlistInboxes.create.placeholder"}}" autocomplete="off" aria-invalid="{{#if createError}}true{{else}}false{{/if}}" {{#if createError}}aria-describedby="readlist-inbox-create-error" autofocus {{/if}}data-test-inbox-create-input>
+      <button class="btn btn--neutral btn--m" type="submit" data-test-action="create-inbox">{{t "readlistInboxes.create.submit"}}</button>
+    </div>
+    {{#if createError}}<p class="form-field__error" id="readlist-inbox-create-error" role="alert" data-test-inbox-create-error>{{createError}}</p>{{/if}}
+  </form>
   <div class="readlist-inboxes__manage">
     <a class="btn btn--neutral btn--m" href="{{manageInboxesHref}}" data-test-action="manage-inboxes">Manage readlist inbox emails</a>
-  </div>
-  <div class="readlist-inboxes__empty" data-test-inboxes-empty>
-    <h3 class="readlist-inboxes__empty-title">No readlist inbox emails yet</h3>
-    <a class="btn btn--neutral" href="{{createInboxHref}}" data-test-action="create-inbox">Create a readlist inbox email</a>
   </div>
 </section>

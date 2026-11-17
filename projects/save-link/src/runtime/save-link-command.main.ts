@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { neverResolveChallengedTracker } from "@packages/save-article";
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { S3Client } from "@aws-sdk/client-s3";
@@ -86,6 +87,7 @@ export const handler = initSaveLinkCommandHandler({
 	...articleCrawl,
 	...observability,
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
+	delay: (milliseconds: number) => sleep(milliseconds),
 	emitSimpleCrawlUnsupported,
 	adoptCanonicalIdentity,
 	isSiteRuleUrl: parser.isSiteRuleUrl,

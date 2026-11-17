@@ -6,7 +6,7 @@ import { ANONYMOUS_VIEWER, MinutesSchema } from "@packages/domain/article";
 import { mintPrivateItemUrl, UploadIdSchema } from "@packages/media-contracts";
 import type { UserId } from "@packages/domain/user";
 import type { ParseArticle, ParseArticleResult } from "@packages/article-parser";
-import { useTestServer, type TestAppHarness } from "../../../test-app";
+import { signInPassingAdminChallenge, useTestServer, type TestAppHarness } from "../../../test-app";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 import {
 	TEST_APP_ORIGIN,
@@ -16,6 +16,7 @@ import {
 
 const ADMIN_EMAIL = "ops@readplace.com";
 const ADMIN_PASSWORD = "password123";
+const ADMIN_TOTP_SECRET = Buffer.alloc(20, 7);
 const OTHER_EMAIL = "other@readplace.com";
 const OTHER_PASSWORD = "password456";
 const ARTICLE_URL = "https://example.com/post";
@@ -44,6 +45,7 @@ interface RecrawlHarness {
 	summary: ReturnType<typeof createFakeSummaryProvider>;
 	recrawlPublishedCalls: { url: string }[];
 	publishedQueueEntryCreated: { url: string; userId: UserId }[];
+	signInAsAdmin: () => ReturnType<typeof signInPassingAdminChallenge>;
 }
 
 const useApp = useTestServer();
@@ -98,10 +100,11 @@ function buildHarness(
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 		},
 		summary,
-		admin:{
-	adminEmails: options.adminEmails,
-	recrawlServiceToken: fixture.admin.recrawlServiceToken,
-	},
+		admin: {
+			...fixture.admin,
+			adminEmails: options.adminEmails,
+			totpSecrets: new Map([[ADMIN_EMAIL, ADMIN_TOTP_SECRET]]),
+		},
 	});
 
 	return {
@@ -113,6 +116,14 @@ function buildHarness(
 		summary,
 		recrawlPublishedCalls,
 		publishedQueueEntryCreated: fixture.publishedQueueEntryCreated,
+		signInAsAdmin: () =>
+			signInPassingAdminChallenge({
+				server: harness.server,
+				email: ADMIN_EMAIL,
+				password: ADMIN_PASSWORD,
+				secret: ADMIN_TOTP_SECRET,
+				atMs: fixture.shared.now().getTime(),
+			}),
 	};
 }
 
@@ -161,9 +172,9 @@ describe("Admin recrawl routes", () => {
 
 	describe("GET /admin/recrawl (landing)", () => {
 		it("renders the landing form for an admin with no ?url query", async () => {
-			const { server, auth } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			const { auth, signInAsAdmin } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-			const agent = await loginAs(server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await signInAsAdmin();
 
 			const response = await agent.get("/admin/recrawl");
 
@@ -194,7 +205,7 @@ describe("Admin recrawl routes", () => {
 				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(`/admin/recrawl?url=${ENCODED}`);
 
@@ -213,7 +224,7 @@ describe("Admin recrawl routes", () => {
 				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 			const landing = new JSDOM((await agent.get("/admin/recrawl")).text).window.document;
 			const form = landing.querySelector("[data-test-admin-recrawl-form]");
 			assert(form);
@@ -235,9 +246,9 @@ describe("Admin recrawl routes", () => {
 		});
 
 		it("returns 404 when the submitted ?url is not a valid URL", async () => {
-			const { server, auth } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			const { auth, signInAsAdmin } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-			const agent = await loginAs(server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await signInAsAdmin();
 
 			const response = await agent.get("/admin/recrawl?url=not-a-url");
 
@@ -247,9 +258,9 @@ describe("Admin recrawl routes", () => {
 
 	describe("GET /admin/recrawl/:url", () => {
 		it("returns 404 when the URL is not already in the articles DB", async () => {
-			const { server, auth } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			const { auth, signInAsAdmin } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-			const agent = await loginAs(server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await signInAsAdmin();
 
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
@@ -268,7 +279,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleStore.setContentSourceTier({ url: ARTICLE_URL, tier: "tier-0" });
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
 			expect(response.status).toBe(200);
@@ -294,7 +305,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
 			expect(response.status).toBe(200);
@@ -315,7 +326,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
@@ -335,7 +346,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
@@ -355,7 +366,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
@@ -384,7 +395,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleStore.setContentSourceTier({ url: ARTICLE_URL, tier: "tier-1" });
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
@@ -406,7 +417,7 @@ describe("Admin recrawl routes", () => {
 			await harness.articleStore.setContentSourceTier({ url: ARTICLE_URL, tier: "tier-2" });
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
@@ -426,7 +437,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
@@ -451,7 +462,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
@@ -500,7 +511,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 			await harness.articleStore.setCrawlVersions({ url: ARTICLE_URL, versions });
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
@@ -564,7 +575,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 			await harness.articleStore.setCrawlVersions({ url: ARTICLE_URL, versions: [{ crawledAtMinute: "2026-07-10T09:14Z" }] });
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
@@ -607,7 +618,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 			await harness.articleStore.setCrawlVersions({ url: ARTICLE_URL, versions: [{ crawledAtMinute: "2026-07-10T09:14Z" }] });
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
@@ -654,7 +665,7 @@ describe("Admin recrawl routes", () => {
 			// recrawl must flip it back to `pending` via forceMarkCrawlPending.
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const postResponse = await agent.post(`/admin/recrawl/${ENCODED}`);
 
@@ -677,9 +688,9 @@ describe("Admin recrawl routes", () => {
 		});
 
 		it("returns 404 on POST when the URL is not already in the articles DB", async () => {
-			const { server, auth } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			const { auth, signInAsAdmin } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-			const agent = await loginAs(server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl/${ENCODED}`);
 
@@ -697,7 +708,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 			// A schemeless path segment must still resolve to a URL, not be rejected as missing.
 			const response = await agent.post("/admin/recrawl/example.com/post");
 
@@ -725,7 +736,7 @@ describe("Admin recrawl routes", () => {
 				excerpt: "Existing summary blurb",
 			});
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl/${ENCODED}`);
 
@@ -758,7 +769,7 @@ describe("Admin recrawl routes", () => {
 
 		it("renders the aliased article when ?url= names its adopted destination instead of 404ing on the alias row", async () => {
 			const harness = await seedAdoptedArticle();
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(`/admin/recrawl?url=${TERMINAL_ENCODED}`);
 
@@ -772,7 +783,7 @@ describe("Admin recrawl routes", () => {
 
 		it("recrawls the aliased article when the trigger names its adopted destination", async () => {
 			const harness = await seedAdoptedArticle();
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl?url=${TERMINAL_ENCODED}`);
 
@@ -783,7 +794,7 @@ describe("Admin recrawl routes", () => {
 
 		it("polls the aliased article's reader state through its adopted destination", async () => {
 			const harness = await seedAdoptedArticle();
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(`/admin/recrawl/reader?url=${TERMINAL_ENCODED}&poll=0`);
 
@@ -823,7 +834,7 @@ describe("Admin recrawl routes", () => {
 
 		it("triggers the recrawl against the exact stored URL when addressed via ?url=", async () => {
 			const harness = await seedEmbeddedArticle();
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl?url=${EMBEDDED_ENCODED}`);
 
@@ -835,7 +846,7 @@ describe("Admin recrawl routes", () => {
 
 		it("renders the page for the exact stored URL via ?url=, with a form and canonical link that round-trip it unchanged", async () => {
 			const harness = await seedEmbeddedArticle();
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(`/admin/recrawl?url=${EMBEDDED_ENCODED}`);
 
@@ -852,7 +863,7 @@ describe("Admin recrawl routes", () => {
 
 		it("404s the same URL carried in the path — the collapse makes it a different row, which must not be silently recrawled", async () => {
 			const harness = await seedEmbeddedArticle();
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			// supertest sends the path verbatim; the collapsed form is what the
 			// edge would deliver in production.
@@ -879,7 +890,7 @@ describe("Admin recrawl routes", () => {
 		});
 		await harness.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>Ready content.</p>" });
 		await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
-		const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+		const agent = await harness.signInAsAdmin();
 
 		const response = await agent.get(`/admin/recrawl/${poll}?url=${ENCODED}`);
 
@@ -896,9 +907,9 @@ describe("Admin recrawl routes", () => {
 
 	describe("GET /admin/recrawl/reader (poll) — validation", () => {
 		it("returns 400 when the ?url query is missing", async () => {
-			const { server, auth } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			const { auth, signInAsAdmin } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-			const agent = await loginAs(server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await signInAsAdmin();
 
 			const response = await agent.get("/admin/recrawl/reader");
 
@@ -908,9 +919,9 @@ describe("Admin recrawl routes", () => {
 
 	describe("GET /admin/recrawl/summary (poll) — validation", () => {
 		it("returns 400 when the ?url query is missing", async () => {
-			const { server, auth } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			const { auth, signInAsAdmin } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-			const agent = await loginAs(server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await signInAsAdmin();
 
 			const response = await agent.get("/admin/recrawl/summary");
 
@@ -934,7 +945,7 @@ describe("Admin recrawl routes", () => {
 				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL, measured: false, meteredLegs: "run" });
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(
 				`/admin/recrawl/summary?url=${encodeURIComponent(ARTICLE_URL)}`,
@@ -962,7 +973,7 @@ describe("Admin recrawl routes", () => {
 				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL, measured: false, meteredLegs: "run" });
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(
 				`/admin/recrawl/reader?url=${encodeURIComponent(ARTICLE_URL)}`,
@@ -991,7 +1002,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL, measured: false, meteredLegs: "run" });
 
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(
 				`/admin/recrawl/reader?url=${encodeURIComponent(ARTICLE_URL)}&poll=1`,
@@ -1020,7 +1031,7 @@ describe("Admin recrawl routes", () => {
 				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlFailed({ url: ARTICLE_URL, reason: "blocked" });
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.get(
 				`/admin/recrawl/reader?url=${encodeURIComponent(ARTICLE_URL)}&poll=1`,
@@ -1063,7 +1074,7 @@ describe("Admin recrawl routes", () => {
 		it("re-resolves the wrapper and recrawls the article it still points at", async () => {
 			const harness = await seedResolvedWrapper();
 			harness.wrapperTarget.targets.set(TRACKER, PUBLISHER);
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
 
@@ -1076,7 +1087,7 @@ describe("Admin recrawl routes", () => {
 		it("accepts a fresh target that differs from the saved article only by tracking params", async () => {
 			const harness = await seedResolvedWrapper();
 			harness.wrapperTarget.targets.set(TRACKER, `${PUBLISHER}?utm_source=newsletter`);
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
 
@@ -1086,7 +1097,7 @@ describe("Admin recrawl routes", () => {
 
 		it("answers 502 and recrawls nothing when the wrapper no longer resolves", async () => {
 			const harness = await seedResolvedWrapper();
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
 
@@ -1098,7 +1109,7 @@ describe("Admin recrawl routes", () => {
 			const APPLE_NEWS = "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA";
 			const harness = await seedResolvedWrapper(APPLE_NEWS);
 			harness.wrapperTarget.ownOriginals.add(APPLE_NEWS);
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl?url=${encodeURIComponent(APPLE_NEWS)}`);
 
@@ -1111,7 +1122,7 @@ describe("Admin recrawl routes", () => {
 		it("answers 502 when the wrapper resolves to a URL that cannot be saved", async () => {
 			const harness = await seedResolvedWrapper();
 			harness.wrapperTarget.targets.set(TRACKER, "ftp://files.example/a");
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
 
@@ -1122,7 +1133,7 @@ describe("Admin recrawl routes", () => {
 		it("answers 409 when the wrapper now resolves to a different article than it was saved as", async () => {
 			const harness = await seedResolvedWrapper();
 			harness.wrapperTarget.targets.set(TRACKER, "https://sqlite.org/other-page.html");
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
 
@@ -1141,7 +1152,7 @@ describe("Admin recrawl routes", () => {
 			});
 			await harness.articleCrawl.markCrawlReady({ url: TRACKER });
 			harness.wrapperTarget.targets.set(TRACKER, PUBLISHER);
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
 
@@ -1167,7 +1178,7 @@ describe("Admin recrawl routes", () => {
 				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE });
-			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const agent = await harness.signInAsAdmin();
 
 			const response = await agent.post(`/admin/recrawl?url=${encodeURIComponent(archiveUrl)}`);
 
@@ -1192,7 +1203,7 @@ describe("Admin recrawl of a private item", () => {
 			savedAt: new Date(),
 		});
 		await harness.articleCrawl.markCrawlReady({ url: PRIVATE_URL });
-		const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+		const agent = await harness.signInAsAdmin();
 		return { harness, agent };
 	}
 
@@ -1246,7 +1257,7 @@ describe("Admin recrawl of a long body", () => {
 		});
 		await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-		const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+		const agent = await harness.signInAsAdmin();
 		const response = await agent.get(`/admin/recrawl/${ENCODED}`);
 
 		expect(response.status).toBe(200);

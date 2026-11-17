@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
+import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { captureCheckpoint, expect, measuredBox, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { fitViewportToPage } from "./fit-viewport-to-page";
@@ -456,10 +457,27 @@ test.describe("GMail Newsletters mapping", () => {
 		await expect(tick(page, { group: "known", email: BREW.email })).not.toBeChecked();
 	});
 
-	test("keeps every existing readlist selectable but offers no new one at the seven-readlist cap", async ({
+	test("keeps every existing readlist selectable but offers no new one at the readlist cap", async ({
 		page,
 	}, testInfo) => {
-		const shelves = ["Tech", "Science", "Design", "Business", "Culture", "Health", "Travel"];
+		const shelves = [
+			"Tech",
+			"Science",
+			"Design",
+			"Business",
+			"Culture",
+			"Health",
+			"Travel",
+			"Food",
+			"Finance",
+			"History",
+			"Music",
+			"Sport",
+			"Books",
+			"Climate",
+			"Writing",
+		];
+		assert.equal(shelves.length, READLIST_MAX_PER_USER, "the cap state needs exactly as many readlists as the cap");
 		await openGmail(page, {
 			stamp: `cap-${testInfo.workerIndex}-${Date.now()}`,
 			seed: { readlists: [], mappings: [] },
@@ -474,7 +492,7 @@ test.describe("GMail Newsletters mapping", () => {
 			surface: "popup",
 			reveal: READLIST_PICKER,
 			settled: async (settling) => {
-				await readlistPickerOpen(settling, { options: 8 });
+				await readlistPickerOpen(settling, { options: READLIST_MAX_PER_USER + 1 });
 				await expect(settling.locator(".gmail__readlist-option > span:first-of-type").filter({ hasNotText: "All" })).toHaveText(shelves);
 				await expect(settling.locator("[data-test-gmail-readlist-limit]")).toBeVisible();
 				await expect(settling.locator(CREATE_READLIST)).toHaveCount(0);

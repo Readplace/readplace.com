@@ -57,9 +57,10 @@ import type {
 	ReaderProvenance,
 } from "../../shared/article-body/article-header/provenance-label";
 import type { ReadlistUrlState } from "./readlist.url";
-import { buildReadlistCountsUrl, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
+import { READLIST_PATH, buildReadlistCountsUrl, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
 import { computeArticleContentVersion } from "../../shared/article-content-version";
 import type { MoveFlash, StatusFlash } from "./readlist.error";
+import type { MoveUndoFields } from "./readlist-mutation-fragments";
 import type { EffectiveAccess } from "@packages/subscription-access";
 
 export type SubscriptionBannerState =
@@ -159,7 +160,7 @@ export interface ReadlistViewModel {
 	moveFlash?: {
 		message: string;
 		undoUrl: string;
-		undoFields: { from: ReadlistSlug; to: ReadlistSlug };
+		undoFields: MoveUndoFields;
 	};
 	subscriptionBanner: SubscriptionBannerState;
 	accessIsReadOnly: boolean;
@@ -408,6 +409,21 @@ export function toReadlistArticleViewModel(params: {
 	};
 }
 
+function moveToastFor(flash: MoveFlash, returnQuery: string): NonNullable<ReadlistViewModel["moveFlash"]> {
+	if ("undoQueues" in flash) {
+		return {
+			message: flash.message,
+			undoUrl: `${READLIST_PATH}/${flash.articleId}/unassign`,
+			undoFields: { queue: flash.undoQueues, returnTo: `${READLIST_PATH}${returnQuery}` },
+		};
+	}
+	return {
+		message: flash.message,
+		undoUrl: `/queue/${flash.articleId}/move${returnQuery}`,
+		undoFields: { from: flash.undoFrom, to: flash.undoTo },
+	};
+}
+
 export function toReadlistViewModel(
 	result: FindArticlesResult,
 	filters: ReadlistUrlState,
@@ -494,13 +510,7 @@ export function toReadlistViewModel(
 				undoStatus: options.statusFlash.undoStatus,
 			}
 			: undefined,
-		moveFlash: options.moveFlash
-			? {
-					message: options.moveFlash.message,
-					undoUrl: `/queue/${options.moveFlash.articleId}/move${returnQuery}`,
-					undoFields: { from: options.moveFlash.undoFrom, to: options.moveFlash.undoTo },
-				}
-			: undefined,
+		moveFlash: options.moveFlash ? moveToastFor(options.moveFlash, returnQuery) : undefined,
 		subscriptionBanner: toSubscriptionBannerState(access, now, options.upgradeOffer),
 		accessIsReadOnly: access.access === "read-only",
 	};

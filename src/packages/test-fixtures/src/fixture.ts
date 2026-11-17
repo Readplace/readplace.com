@@ -57,6 +57,7 @@ import { initInMemorySubscriptionReactivated } from "./providers/events/in-memor
 import {
 	createListUserOAuthClients,
 	createOAuthModel,
+	createExpireUserAccessTokens,
 	createRevokeAllUserOAuthTokens,
 	createRevokeOtherUserOAuthGrants,
 	createRevokeUserOAuthClient,
@@ -460,6 +461,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			deleteReadlistArticleByUrl: articleStoreMemory.deleteReadlistArticleByUrl,
 			listReadlistDefinitions: articleStoreMemory.listReadlistDefinitions,
 			renameReadlistDefinition: articleStoreMemory.renameReadlistDefinition,
+			pinReadlistDefinition: articleStoreMemory.pinReadlistDefinition,
+			unpinReadlistDefinition: articleStoreMemory.unpinReadlistDefinition,
 			setReadlistDefinitionPurpose: articleStoreMemory.setReadlistDefinitionPurpose,
 			clearReadlistDefinitionPurpose: articleStoreMemory.clearReadlistDefinitionPurpose,
 			getSummaryToggleState: articleStoreMemory.getSummaryToggleState,
@@ -571,6 +574,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			revokeOtherUserOAuthGrants,
 			listUserOAuthClients,
 			revokeUserOAuthClient,
+			expireUserAccessTokens: createExpireUserAccessTokens(oauthModelDeps),
 			validateAccessToken: createValidateAccessToken(oauthModel),
 			findClient: oauthClientLookup.findClient,
 			validateRedirectUri: oauthClientLookup.validateRedirectUri,
@@ -608,6 +612,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		admin: {
 			adminEmails: [],
 			recrawlServiceToken: "test-service-token-abcdefghij",
+			totpSecrets: new Map(),
+			secondFactorAttemptRule: { limit: 1000, windowSeconds: 900 },
 		},
 		canaryReports: initInMemoryCanaryReports(),
 		adminDashboards: {

@@ -68,6 +68,66 @@ const ssrEdgeSecretValue = new random.RandomPassword("ssr-edge-secret", {
 	special: false,
 });
 
+const pulumiStateSecretsKey = new aws.kms.Key("pulumi-state-secrets", {
+	description: "Encrypts the secret values in every Pulumi stack's state",
+});
+
+new aws.kms.Alias("pulumi-state-secrets", {
+	name: "alias/pulumi-state-secrets",
+	targetKeyId: pulumiStateSecretsKey.keyId,
+});
+
+const auditTrailName = "hutch-audit-trail";
+const awsRegion = new pulumi.Config("aws").require("region");
+const awsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
+
+const auditTrailBucket = new aws.s3.Bucket("audit-trail", {
+	bucket: config.require("auditTrailBucketName"),
+});
+
+const auditTrailBucketPolicy = new aws.s3.BucketPolicy("audit-trail", {
+	bucket: auditTrailBucket.bucket,
+	policy: pulumi.all([auditTrailBucket.arn, awsAccountId]).apply(([bucketArn, accountId]) => {
+		const trailArn = `arn:aws:cloudtrail:${awsRegion}:${accountId}:trail/${auditTrailName}`;
+		return JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Sid: "AWSCloudTrailAclCheck20150319",
+					Effect: "Allow",
+					Principal: { Service: "cloudtrail.amazonaws.com" },
+					Action: "s3:GetBucketAcl",
+					Resource: bucketArn,
+					Condition: { StringEquals: { "aws:SourceArn": trailArn } },
+				},
+				{
+					Sid: "AWSCloudTrailWrite20150319",
+					Effect: "Allow",
+					Principal: { Service: "cloudtrail.amazonaws.com" },
+					Action: "s3:PutObject",
+					Resource: `${bucketArn}/AWSLogs/${accountId}/*`,
+					Condition: {
+						StringEquals: {
+							"s3:x-amz-acl": "bucket-owner-full-control",
+							"aws:SourceArn": trailArn,
+						},
+					},
+				},
+			],
+		});
+	}),
+});
+
+new aws.cloudtrail.Trail(
+	"audit-trail",
+	{
+		name: auditTrailName,
+		s3BucketName: auditTrailBucket.bucket,
+		isMultiRegionTrail: true,
+	},
+	{ dependsOn: [auditTrailBucketPolicy] },
+);
+
 export const hutchEventBusName = eventBus.eventBusName;
 export const hutchEventBusArn = eventBus.eventBusArn;
 export const ocrLambdaRepositoryUrl = ocrLambdaRepository.repositoryUrl;

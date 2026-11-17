@@ -44,6 +44,13 @@ describe("GET /embed", () => {
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
+	it("limits framing, plugin elements and base URLs and leaves script and style sources open", async () => {
+		const response = await request(makeServer()).get("/embed");
+		expect(response.headers["content-security-policy"]).toBe(
+			"frame-ancestors 'self'; object-src 'none'; base-uri 'self'",
+		);
+	});
+
 	it("carries the sitewide Content-Signal policy so /embed matches the rest of the origin", async () => {
 		const response = await request(makeServer()).get("/embed");
 		expect(response.headers["content-signal"]).toBe("search=yes, ai-input=yes, ai-train=no");

@@ -1,37 +1,50 @@
-export const TOOLBAR_GAP_PX = 10;
-export const VIEWPORT_GUTTER_PX = 16;
+import {
+	type PassageRect,
+	type PlacementViewport,
+	placeClearOfPassage,
+	VIEWPORT_GUTTER_PX,
+} from "./place-clear-of-passage";
 
-function assert(condition: unknown, message: string): asserts condition {
-	if (!condition) throw new Error(message);
+export const SYSTEM_MENU_CLEARANCE_PX = 64;
+
+function visibleFloorTop(input: { viewport: PlacementViewport; floorTop: number | undefined }): number | undefined {
+	const { viewport, floorTop } = input;
+	const viewportBottom = viewport.offsetTop + viewport.height;
+	return floorTop !== undefined && floorTop > viewport.offsetTop && floorTop < viewportBottom ? floorTop : undefined;
 }
 
-interface PlacementRect {
-	readonly top: number;
-	readonly bottom: number;
-	readonly left: number;
-	readonly width: number;
-}
-
-export function placeBelowSelection(params: {
-	rects: readonly PlacementRect[];
+export function dockToViewportBottom(params: {
 	toolbar: { width: number; height: number };
-	viewport: {
-		width: number;
-		height: number;
-		offsetLeft: number;
-		offsetTop: number;
+	viewport: PlacementViewport;
+	floorTop: number | undefined;
+}): { left: number; top: number } {
+	const { toolbar, viewport } = params;
+	const edge = visibleFloorTop(params) ?? viewport.offsetTop + viewport.height;
+	const centred = (viewport.width - toolbar.width) / 2;
+	return {
+		top: edge - VIEWPORT_GUTTER_PX - toolbar.height,
+		left: viewport.offsetLeft + Math.max(centred, VIEWPORT_GUTTER_PX),
 	};
+}
+
+export function placeNearSelection(params: {
+	rects: readonly PassageRect[];
+	toolbar: { width: number; height: number };
+	viewport: PlacementViewport;
+	floorTop: number | undefined;
 }): { left: number; top: number } {
 	const { rects, toolbar, viewport } = params;
-	assert(rects.length > 0, "a selection holding text has client rects");
-	const first = rects[0];
-	const last = rects[rects.length - 1];
-	const below = last.bottom + TOOLBAR_GAP_PX;
-	const fitsBelow = below + toolbar.height <= viewport.offsetTop + viewport.height;
-	const anchor = fitsBelow ? last : first;
-	const top = fitsBelow ? below : first.top - TOOLBAR_GAP_PX - toolbar.height;
-	const centred = anchor.left + anchor.width / 2 - toolbar.width / 2;
-	const maxLeft = viewport.offsetLeft + viewport.width - toolbar.width - VIEWPORT_GUTTER_PX;
-	const minLeft = viewport.offsetLeft + VIEWPORT_GUTTER_PX;
-	return { left: Math.max(Math.min(centred, maxLeft), minLeft), top };
+	if (rects.length === 0) return dockToViewportBottom(params);
+	const floorTop = visibleFloorTop(params);
+	const room = floorTop === undefined ? viewport : { ...viewport, height: floorTop - viewport.offsetTop };
+	const placement = placeClearOfPassage({
+		gap: SYSTEM_MENU_CLEARANCE_PX,
+		rects,
+		panel: toolbar,
+		viewport: room,
+		order: ["below", "above"],
+		whenNoneFits: "inside-viewport",
+	});
+	if (!placement.clear) return dockToViewportBottom(params);
+	return { top: placement.top, left: placement.left };
 }

@@ -35,7 +35,8 @@ const SLOT = "[data-test-readlists-slot]";
 const TOOLBAR = ".article-body__toolbar";
 const TRIGGER = `${SLOT} [data-test-readlists-trigger]`;
 const MENU = "[data-test-readlists-menu]";
-const OPTION_BUTTONS = `${MENU} [data-test-assign-readlist]`;
+const OPTION_ROWS = `${MENU} label:has([data-test-assign-readlist])`;
+const ADD_SELECTED = '[data-test-action="readlists-add-selected"]';
 const ROW_ONE = `${MENU} li:nth-child(1)`;
 const ROW_TWO = `${MENU} li:nth-child(2)`;
 const ROW_CREATE = `${MENU} [data-test-readlists-row="create"]`;
@@ -119,7 +120,8 @@ async function openReadlistPicker(
 
 async function assignReadlist(page: Page, label: string): Promise<void> {
 	await page.click(TRIGGER);
-	await page.locator(OPTION_BUTTONS, { hasText: label }).click();
+	await page.locator(OPTION_ROWS, { hasText: label }).click();
+	await page.click(ADD_SELECTED);
 	await expect(page.locator(READLIST_TAG)).toContainText(label);
 }
 
@@ -130,9 +132,9 @@ async function pickerOpen(page: Page): Promise<void> {
 	await page.mouse.move(0, viewport.height - 1);
 	await expect(page.locator(TOOLBAR)).toHaveCSS("transform", "none");
 	await expect(page.locator(MENU)).toBeVisible();
-	await expect(page.locator(OPTION_BUTTONS)).toHaveText([DEEP_WORK, WEEKEND]);
+	await expect(page.locator(OPTION_ROWS)).toHaveText([DEEP_WORK, WEEKEND]);
 	await expect(page.locator(CREATE_OPEN)).toBeVisible();
-	await expect(page.locator(OPTION_BUTTONS).first()).toHaveCSS(
+	await expect(page.locator(OPTION_ROWS).first()).toHaveCSS(
 		"background-color",
 		"rgba(0, 0, 0, 0)",
 	);

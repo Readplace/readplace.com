@@ -118,7 +118,7 @@ describe("a tracker link whose publisher blocked the free crawl", () => {
 			prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: TRACKER }),
 			findAdoptedFetchUrl: async () => undefined,
 			verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
-			crawlArticle: async () => ({ status: "failed" }),
+			crawlArticle: async () => ({ status: "failed", decision: undefined }),
 			proxiedCrawlArticle,
 			finalizeArticle,
 			putTierSource: async (source) => { stored.push(source.url); return source.metadata; },

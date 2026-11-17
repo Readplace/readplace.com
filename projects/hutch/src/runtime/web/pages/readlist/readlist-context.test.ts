@@ -14,6 +14,7 @@ describe("readlistToFileInto", () => {
 				activeReadlist: WORK,
 				readlists: [DEFAULT_READLIST, WORK],
 				activePurpose: undefined,
+				pinnedReadlists: [],
 			}),
 		).toEqual(WORK.slug);
 	});
@@ -25,6 +26,7 @@ describe("readlistToFileInto", () => {
 				activeReadlist: DEFAULT_READLIST,
 				readlists: [DEFAULT_READLIST, WORK],
 				activePurpose: undefined,
+				pinnedReadlists: [],
 			}),
 		).toEqual(undefined);
 	});

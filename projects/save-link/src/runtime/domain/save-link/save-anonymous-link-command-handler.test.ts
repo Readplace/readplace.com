@@ -68,6 +68,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
 		resolveOriginalUrl: async (url) => url,
 		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
+		delay: async () => {},
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
@@ -105,7 +106,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 	});
 
 	it("terminalises an origin failure in-process with its classified reason and writes no tier source, so a refused origin never dead-letters", async () => {
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const { publishEvent, published } = initRecordingPublishEvent();
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
@@ -128,7 +129,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 	});
 
 	it("reports a batch failure when terminalising the origin failure itself fails, so the record is not lost", async () => {
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 		const transitionAndPersist = jest.fn().mockRejectedValue(new Error("dynamodb down"));
 
 		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
@@ -144,7 +145,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 	it("does not report a tier-1 crawl-failed via logParseError (a network fetch failure is not a parse defect, so it stays off the parse-errors stream)", async () => {
 		const logParseError = jest.fn();
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logParseError });
 
@@ -155,7 +156,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 	it("routes terminal parse-error failures through markCrawlFailed via transitionAndPersist so /view + /admin/recrawl polling see failure at t+0", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "Readability crashed on this DOM" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "Readability crashed on this DOM" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
 
@@ -274,7 +275,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 	it("logs a tier-1 crawl-failed at warn (not error) so it stays off the errors dashboard", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
-		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", decision: undefined, reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logger });
 

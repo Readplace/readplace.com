@@ -3,7 +3,8 @@ import { captureCheckpoint, expect, measuredBox, test, type VisualCheckpoint, wa
 import { requireEnv } from "@packages/require-env";
 import { devices, type Page } from "@playwright/test";
 import { z } from "zod";
-import { pointInsideText, selectedText, toolbarBelowSelection } from "./highlight-on-a-phone.browser";
+import { noteGlyphGeometry } from "./highlight-note-glyph.browser";
+import { pointInsideText, selectedText, toolbarNearSelection } from "./highlight-on-a-phone.browser";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 import { MACOS_CHROME_USER_AGENT } from "./user-agents";
 
@@ -17,10 +18,16 @@ const CONTENT = "[data-test-reader-content]";
 const READY_SLOT = '[data-test-reader-slot][data-reader-status="ready"]';
 const TOOLBAR = "[data-test-highlight-toolbar]";
 const SHOWN_TOOLBAR = `${TOOLBAR}:not([hidden])`;
+const NOTE_END = `${CONTENT} mark.article-highlight--note-end`;
+const NOTE_DIALOG = "#note-highlight-dialog";
 const TAPPED_SENTENCE = "A single tap on this sentence selects it whole.";
 const ARTICLE = [
-	`<p>The reader holds the phone in one hand. ${TAPPED_SENTENCE} The bar waits underneath.</p>`,
-	"<p>The next paragraph sits under the bar, so the capture shows the bar over the text it covers.</p>",
+	`<p>The reader holds the phone in one hand. ${TAPPED_SENTENCE} The phone's own menu stays beside the selection.</p>`,
+	"<p>The second paragraph carries on below, so the article runs past the bottom of the screen and the capture shows the bar over the text it covers.</p>",
+	"<p>The third paragraph adds another few lines of plain prose with nothing in it that changes from one run to the next.</p>",
+	"<p>The fourth paragraph keeps the column filled, one short sentence after another, until the page is taller than the phone.</p>",
+	"<p>The fifth paragraph is here for the same reason, and so is the sixth one that follows it.</p>",
+	"<p>The sixth paragraph closes the article with a last line that sits well below the fold.</p>",
 ].join("");
 const VOLATILE_CHROME = [
 	".offline-banner",
@@ -89,13 +96,13 @@ async function toolbarSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function toolbarUnderSentence(page: Page): Promise<void> {
-	const { toolbarTop, selectionBottom } = await page.evaluate(toolbarBelowSelection, { toolbar: TOOLBAR });
-	assert.ok(toolbarTop >= selectionBottom, "the bar sits below the tapped sentence");
+async function toolbarPastSystemMenu(page: Page): Promise<void> {
+	const { gapBelowSelection } = await page.evaluate(toolbarNearSelection, {
+		toolbar: TOOLBAR,
+	});
+	assert.ok(Math.abs(gapBelowSelection - 64) <= 1, "the bar sits the system menu's height below the tapped sentence");
 	const content = await measuredBox(page, CONTENT);
 	const toolbar = await measuredBox(page, TOOLBAR);
-	assert.ok(toolbar.x >= content.x, "the bar starts inside the article column");
-	assert.ok(toolbar.x + toolbar.width <= content.x + content.width, "the bar ends inside the article column");
 	assert.ok(toolbar.y + toolbar.height <= content.y + content.height, "the bar sits over the article text");
 }
 
@@ -103,15 +110,56 @@ function checkpoint(name: string): VisualCheckpoint {
 	return {
 		name,
 		settled: toolbarSettled,
-		geometry: toolbarUnderSentence,
+		geometry: toolbarPastSystemMenu,
+		target: "body",
+		capture: "page-from-top",
+		pinnedText: [],
+	};
+}
+
+const TOOLBAR_PAST_MENU_LIGHT = checkpoint("highlight-phone-toolbar-light");
+const TOOLBAR_PAST_MENU_DARK = checkpoint("highlight-phone-toolbar-dark");
+
+async function noteTappedSentence(page: Page): Promise<void> {
+	await page.locator('[data-test-action="add-note"]').tap();
+	await page.locator("[data-test-highlight-note-input]").fill("Worth coming back to.");
+	await page.locator('[data-test-action="highlight-note-save"]').tap();
+	await expect(page.locator(NOTE_END)).toHaveText(TAPPED_SENTENCE, { timeout: SETTLE_MS });
+}
+
+async function notedSentenceSettled(page: Page): Promise<void> {
+	await expect(page.locator(NOTE_END)).toHaveCount(1);
+	await expect(page.locator(TOOLBAR)).toBeHidden();
+	await expect(page.locator(`${NOTE_DIALOG}[open]`)).toHaveCount(0);
+	await page.evaluate(neutraliseVolatileChrome, {
+		volatile: VOLATILE_CHROME,
+		times: [],
+	});
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function noteGlyphOnLastWordLine(page: Page): Promise<void> {
+	const glyph = await page.evaluate(noteGlyphGeometry, { mark: NOTE_END });
+	assert.ok(Math.abs(glyph.segmentTop - glyph.lastCharacterTop) <= 1, "the glyph sits on the last word's line");
+	assert.ok(
+		Math.abs(glyph.segmentRight - glyph.lastCharacterRight - 1.5 * glyph.fontSize) <= 1,
+		"the glyph's box follows the last character by 1.5em",
+	);
+}
+
+function notedCheckpoint(name: string): VisualCheckpoint {
+	return {
+		name,
+		settled: notedSentenceSettled,
+		geometry: noteGlyphOnLastWordLine,
 		target: CONTENT,
 		capture: "element",
 		pinnedText: [],
 	};
 }
 
-const TOOLBAR_UNDER_SENTENCE_LIGHT = checkpoint("highlight-phone-toolbar-light");
-const TOOLBAR_UNDER_SENTENCE_DARK = checkpoint("highlight-phone-toolbar-dark");
+const NOTED_SENTENCE_LIGHT = notedCheckpoint("highlight-phone-noted-light");
+const NOTED_SENTENCE_DARK = notedCheckpoint("highlight-phone-noted-dark");
 
 test.describe("The highlight bar on a phone", () => {
 	test.use({
@@ -120,15 +168,40 @@ test.describe("The highlight bar on a phone", () => {
 		userAgent: MACOS_CHROME_USER_AGENT,
 	});
 
-	test("sits under a tapped sentence (light)", async ({ page }, testInfo) => {
+	test("sits past the system menu below the sentence (light)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openTappedSentence(page, `light-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, TOOLBAR_UNDER_SENTENCE_LIGHT);
+		await captureCheckpoint(page, TOOLBAR_PAST_MENU_LIGHT);
 	});
 
-	test("sits under a tapped sentence (dark)", async ({ page }, testInfo) => {
+	test("sits past the system menu below the sentence (dark)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openTappedSentence(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, TOOLBAR_UNDER_SENTENCE_DARK);
+		await captureCheckpoint(page, TOOLBAR_PAST_MENU_DARK);
+	});
+
+	test("shows a note glyph after a noted sentence (light)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openTappedSentence(page, `noted-light-${testInfo.workerIndex}-${Date.now()}`);
+		await noteTappedSentence(page);
+		await captureCheckpoint(page, NOTED_SENTENCE_LIGHT);
+	});
+
+	test("shows a note glyph after a noted sentence (dark)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		await openTappedSentence(page, `noted-dark-${testInfo.workerIndex}-${Date.now()}`);
+		await noteTappedSentence(page);
+		await captureCheckpoint(page, NOTED_SENTENCE_DARK);
+	});
+
+	test("keeps the note glyph on its last word's line at every phone width", async ({ page }, testInfo) => {
+		await openTappedSentence(page, `noted-sweep-${testInfo.workerIndex}-${Date.now()}`);
+		await noteTappedSentence(page);
+		const viewport = page.viewportSize();
+		assert(viewport, "the phone project sets a viewport");
+		for (let width = 320; width <= 420; width += 10) {
+			await page.setViewportSize({ width, height: viewport.height });
+			await noteGlyphOnLastWordLine(page);
+		}
 	});
 });

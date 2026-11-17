@@ -164,7 +164,9 @@ import {
 } from "@packages/save-article";
 import { ARTICLE_REFRESH_DEADLINE_MS, isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { getEnv, requireEnv } from "@packages/require-env";
+import { parseAdminTotpSecrets } from "../web/pages/admin/admin-totp-secrets";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
+import type { CreateRoutedInboxAddress } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 
 /**
@@ -287,6 +289,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 			removeGmailFilter: initRewriteGmailFilter({ ...gmailFilterDeps, mappings: { listMappings: async () => [] } }),
 			revokeGmailGrant: initRevokeGmailGrant({ fetch: globalThis.fetch }),
 			cancelGmailHistoryImports,
+			historyImports: gmailHistoryImportStore,
 			logger,
 		});
 		const { publishRewriteGmailFilter, publishDisconnectGmail } = initLocalGmailCommands({ rewriteGmailFilter, disconnectGmail, logger });
@@ -652,6 +655,8 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		},
 		listInboxAddresses: inboxAddressStore.listAddressesByUserId,
 		setInboxAddressReadlist: inboxAddressStore.setAddressReadlist,
+		createRoutedInboxAddress: (input: Parameters<CreateRoutedInboxAddress>[0]) =>
+			inboxAddressStore.createRoutedAddress({ ...input, domain: inboxAddressDomain, purpose: DEFAULT_INBOX_ADDRESS_PURPOSE }),
 		clearReadlistFromAddresses: inboxAddressStore.clearReadlistFromAddresses,
 		listIssueLinks: inboxEmailLinkStore.listLinksByEmail,
 		findIssueLink: inboxEmailLinkStore.getLink,
@@ -684,6 +689,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 			readExcludedIdentities: async () => ({ excludedVisitorIds: [], excludedUserIds: [] }),
 			now: () => new Date(),
 		},
+		readAdminTotpSecrets: async () => parseAdminTotpSecrets(requireEnv("ADMIN_TOTP_SECRETS")),
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens,

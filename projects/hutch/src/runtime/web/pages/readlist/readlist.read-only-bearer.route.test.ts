@@ -44,14 +44,15 @@ function sirenGet(harness: Harness, params: { path: string; token: string }) {
 }
 
 describe("Read-only account with an obsidian-plugin bearer", () => {
-	it("sends the entry point to the listing", async () => {
+	it("answers the entry point with the listing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await readOnlyBearer(harness);
 
 		const response = await sirenGet(harness, { path: "/", token }).redirects(0);
 
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
+		expect(response.status).toBe(200);
+		expect(response.headers.location).toBeUndefined();
+		expect(response.body.class).toContain("collection");
 	});
 
 	it("lists the saved article as Siren with a stable contentVersion", async () => {

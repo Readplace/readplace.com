@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import request from "supertest";
 import type {
 	CheckoutOffer,
+	CheckoutPaymentStatus,
 	CheckoutSessionId,
 	CheckoutVariant,
 	SubscribePlansSource,
@@ -19,7 +20,10 @@ interface HostedCheckoutLike {
 		cancelUrl: string;
 		coupon: string | null;
 	}) => Promise<{ id: CheckoutSessionId; url: string }>;
-	markPaid: (id: CheckoutSessionId) => void;
+	markPaid: (
+		id: CheckoutSessionId,
+		opts?: { paymentStatus: CheckoutPaymentStatus; amountTotal: number },
+	) => void;
 }
 
 /** Drives the existing-user-subscribe path through `GET /auth/checkout/success`:
@@ -44,6 +48,7 @@ export async function completeCheckoutSignup(params: {
 	plan?: BillingPlan;
 	entrySource?: SubscribePlansSource | null;
 	offer?: CheckoutOffer;
+	payment?: { paymentStatus: CheckoutPaymentStatus; amountTotal: number };
 	agent?: ReturnType<typeof request.agent>;
 }): Promise<{
 	successResponse: import("supertest").Response;
@@ -77,7 +82,7 @@ export async function completeCheckoutSignup(params: {
 		},
 		createdAt: 1735000000,
 	});
-	params.hostedCheckout.markPaid(checkout.id);
+	params.hostedCheckout.markPaid(checkout.id, params.payment);
 
 	const agent =
 		params.agent ?? request.agent(params.server).set("User-Agent", BROWSER_USER_AGENT);

@@ -239,7 +239,7 @@ const webLambda = new Lambda("inbox-web", {
 		// Pinned into the email iframe's CSP so only rehosted image copies load.
 		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
 		EVENT_BUS_NAME: eventBus.eventBusName,
-		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		ANALYTICS_SALT: pulumi.secret(requireEnv("ANALYTICS_SALT")),
 		SSR_EDGE_SECRET: ssrEdgeSecretFromPlatformStack(config),
 		APP_ORIGIN: hutchApiUrl,
 	},
@@ -679,8 +679,7 @@ const crawlEmailLinkPreviewDynamodb = new DynamoDBAccess(
 	"inbox-crawl-email-link-preview-dynamodb",
 	{
 		tables: [{ arn: inboxStorage.emailLinksTable.arn, includeIndexes: false }],
-		// setLinkOutcome is an UpdateItem; getLink is not used by the worker.
-		actions: ["dynamodb:UpdateItem"],
+		actions: ["dynamodb:UpdateItem", "dynamodb:GetItem"],
 	},
 );
 
@@ -705,9 +704,19 @@ const crawlEmailLinkPreviewLambda = new Lambda("inbox-crawl-email-link-preview",
 		// save-link content-media CDN (derived from config above).
 		CONTENT_BUCKET_NAME: contentBucketName,
 		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
+		CRAWL_EMAIL_LINK_PREVIEW_QUEUE_URL: crawlEmailLinkPreviewQueue.queueUrl,
 	},
 	policies: [
 		...crawlEmailLinkPreviewDynamodb.policies,
+		{
+			name: "inbox-crawl-email-link-preview-change-visibility",
+			policy: pulumi.output(crawlEmailLinkPreviewQueue.queueArn).apply((arn) =>
+				JSON.stringify({
+					Version: "2012-10-17",
+					Statement: [{ Effect: "Allow", Action: ["sqs:ChangeMessageVisibility"], Resource: [arn] }],
+				}),
+			),
+		},
 		// Only writes the content bucket (the lead-image thumbnail) — no read, and
 		// no access to the articles/user-articles tables (the preview itself
 		// saves nothing to /queue; the queue save rides SubmitLinkCommand from

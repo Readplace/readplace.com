@@ -98,6 +98,7 @@ function setup(params: { seed: Article; loadable: readonly VerifiedTierSource[];
 		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), logger: noopLogger, now: () => NOW }),
 		writeCanonicalContent, recordCrawlVersion, loadArticle: store.load, readCanonicalContent: async () => undefined, transitionAndPersist,
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+		fetchRedditPostCard: async () => undefined,
 		fetchYouTubeVideoCard: async () => undefined, putTierSource: async (put) => put.metadata,
 		now: () => NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger,
 	});

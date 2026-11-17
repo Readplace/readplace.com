@@ -21,7 +21,7 @@ function createDeps(overrides?: Partial<FreshnessDependencies>): FreshnessDepend
 	return {
 		findArticleFreshness: async (_url: string) => null,
 		findArticleCrawlStatus: async (_url: string) => undefined,
-		crawlArticle: async () => ({ status: "failed" as const }),
+		crawlArticle: async () => ({ status: "failed" as const, decision: undefined }),
 		finalizeArticle,
 		publishRefreshArticleContent: async () => {},
 		publishUpdateFetchTimestamp: async () => {},
@@ -228,7 +228,7 @@ describe("refreshArticleIfStale", () => {
 				contentFetchedAt: "2026-03-19T00:00:00Z",
 			}),
 			findArticleCrawlStatus: async () => ({ status: "ready" as const }),
-			crawlArticle: async () => ({ status: "failed" as const }),
+			crawlArticle: async () => ({ status: "failed" as const, decision: undefined }),
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 

@@ -9,7 +9,7 @@ function buildHarness() {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const harness = useApp({
 		...fixture,
-		admin: { adminEmails: ["ops@readplace.com"], recrawlServiceToken: fixture.admin.recrawlServiceToken },
+		admin: { ...fixture.admin, adminEmails: ["ops@readplace.com"] },
 	});
 	return { server: harness.server, serviceToken: fixture.admin.recrawlServiceToken };
 }

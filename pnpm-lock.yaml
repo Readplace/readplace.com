@@ -1574,6 +1574,9 @@ importers:
       escape-html:
         specifier: 1.0.3
         version: 1.0.3
+      image-size:
+        specifier: 2.0.4
+        version: 2.0.4
       linkedom:
         specifier: 0.18.12
         version: 0.18.12
@@ -5898,6 +5901,12 @@ packages:
   image-size@2.0.2:
     resolution: {integrity: sha512-IRqXKlaXwgSMAMtpNzZa1ZAe8m+Sa1770Dhk8VkSsP9LS+iHD62Zd8FQKs8fbPiagBE7BzoFX23cxFnwshpV6w==}
     engines: {node: '>=16.x'}
+    deprecated: Use latest 2.x please
+    hasBin: true
+
+  image-size@2.0.4:
+    resolution: {integrity: sha512-QRUkFFsRV/6fuESxb9Vkq+a0LkSrgKXuc2NEqfikiXxxN/G3tjWt5EVUlMaImRBZRZK/jRBEbYvpPYZL8t08Zw==}
+    engines: {node: '>=18'}
     hasBin: true
 
   immediate@3.0.6:
@@ -11566,6 +11575,8 @@ snapshots:
   ignore@7.0.5: {}
 
   image-size@2.0.2: {}
+
+  image-size@2.0.4: {}
 
   immediate@3.0.6: {}
 

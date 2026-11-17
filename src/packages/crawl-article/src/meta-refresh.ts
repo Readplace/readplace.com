@@ -1,6 +1,7 @@
 import { parseHTML } from "linkedom";
 import { MAX_HTML_BYTES } from "./html-body-limit";
 import { classifyMediaType } from "./media-type";
+import { publisherPublicRefreshTarget } from "./publisher-public-refresh";
 
 const REFRESH_DECLARATION = /^\s*[\d.]+(?:\s*[;,]\s*|\s+)url\s*=\s*(.+)$/is;
 const LEADING_QUOTE = /^['"]/;
@@ -24,14 +25,18 @@ export function metaRefreshTarget(page: { response: Response; buffer: Buffer; do
 	if (buffer.byteLength > MAX_HTML_BYTES.bytes) return undefined;
 	if (classifyMediaType({ contentType: response.headers.get("content-type") ?? "", buffer }) !== "html") return undefined;
 	const { document } = parseHTML(new TextDecoder().decode(buffer));
-	const refresh = [...document.querySelectorAll("meta")].find((meta) => attributeValue(meta, "http-equiv").toLowerCase() === "refresh");
+	const refreshes = [...document.querySelectorAll("meta")].filter((meta) => attributeValue(meta, "http-equiv").toLowerCase() === "refresh");
+	const [refresh] = refreshes;
 	if (refresh === undefined) return undefined;
 	const declared = REFRESH_DECLARATION.exec(attributeValue(refresh, "content"))?.[1];
 	if (declared === undefined) return undefined;
 	const quote = LEADING_QUOTE.exec(declared)?.[0];
-	const target = URL.parse(quote === undefined ? declared : declared.slice(1).split(quote)[0], documentUrl);
+	const declaredTarget = quote === undefined ? declared : declared.slice(1).split(quote)[0];
+	const target = URL.parse(declaredTarget, documentUrl);
 	if (target === null) return undefined;
 	if (!ALLOWED_PROTOCOLS.has(target.protocol)) return undefined;
+	const publicTarget = publisherPublicRefreshTarget({ document, documentUrl, httpStatus: response.status, refreshCount: refreshes.length, declaration: attributeValue(refresh, "content"), declaredTarget, target });
+	if (publicTarget !== undefined) return publicTarget;
 	if (!isTextlessOnceHidden(document)) return undefined;
 	return target.href;
 }

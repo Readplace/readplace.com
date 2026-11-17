@@ -3,7 +3,6 @@ import { JSDOM } from "jsdom";
 import { generateCspNonce } from "@packages/web-shell";
 import { WebReader } from "../../../shared/article-body/reader-actions/reader-actions.component";
 import {
-	READER_PAGE_SCRIPTS,
 	renderReaderSkeleton,
 	VIEW_BACK_LINK,
 } from "./reader-skeleton.component";
@@ -172,21 +171,5 @@ describe("renderReaderSkeleton", () => {
 		expect(styled.length).toBeGreaterThan(10);
 		const unstyled = styled.filter((name) => !new RegExp(`\\.${name}(?![\\w-])`).test(css));
 		expect(unstyled).toEqual([]);
-	});
-
-	it("lists every reader client bundle the filled reader needs, in load order", () => {
-		const srcs = Array.from(READER_PAGE_SCRIPTS.matchAll(/src="([^"]+)"/g)).map((match) => match[1]);
-		expect(srcs).toEqual([
-			"/client-dist/share-dialog.client.js",
-			"/client-dist/summary-toggle.client.js",
-			"/client-dist/capture-failed-relay.client.js",
-			"/client-dist/crawl-estimate.client.js",
-			"/client-dist/readlist-picker.client.js",
-			"/client-dist/reader-exit-confirm.client.js",
-			"/client-dist/reader-open.client.js",
-			"/client-dist/offline-reader.client.js",
-			"/client-dist/reader-top.client.js",
-			"/client-dist/table-of-contents.client.js",
-		]);
 	});
 });

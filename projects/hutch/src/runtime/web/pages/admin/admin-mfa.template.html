@@ -1,0 +1,22 @@
+<main class="admin-mfa" data-test-admin-mfa>
+  <div class="admin-mfa__layout">
+    <h1 class="admin-mfa__title">Confirm it is you</h1>
+    <form class="admin-mfa__form" method="post" action="/admin/mfa" data-test-form="admin-mfa">
+      <label class="form-field__label" for="admin-mfa-code">Authenticator code</label>
+      <input
+        id="admin-mfa-code"
+        class="form-input admin-mfa__input"
+        type="text"
+        name="code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        required
+        {{#if error}}aria-invalid="true" aria-describedby="admin-mfa-code-error"{{/if}}>
+      {{#if error}}
+      <p class="form-field__error" id="admin-mfa-code-error" data-test-admin-mfa-error>That code did not match. Enter the current code from your authenticator app.</p>
+      {{/if}}
+      <button type="submit" class="btn btn--primary admin-mfa__submit">Continue</button>
+    </form>
+  </div>
+</main>

@@ -90,6 +90,10 @@ export type FindSessionReadlistFilter = (sessionId: string) => Promise<ReadlistF
 
 export type FindSessionOAuthGrant = (sessionId: string) => Promise<OAuthGrantId | undefined>;
 
+export type MarkSessionAdminMfaVerified = (input: { sessionId: string; at: number }) => Promise<void>;
+
+export type FindSessionAdminMfaVerifiedAt = (sessionId: string) => Promise<number | undefined>;
+
 export type UserExistsByEmail = (email: string) => Promise<boolean>;
 
 export type UpdatePassword = (args: { email: string; password: string; updatedAt: string }) => Promise<void>;

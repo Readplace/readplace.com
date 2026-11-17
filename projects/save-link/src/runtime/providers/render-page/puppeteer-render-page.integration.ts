@@ -116,7 +116,7 @@ function recordingProxy(proxied: string[]) {
 }
 
 const parser = initReadabilityParser({
-	crawlArticle: async () => ({ status: "failed", reason: "the integration test parses rendered HTML only" }),
+	crawlArticle: async () => ({ status: "failed", decision: undefined, reason: "the integration test parses rendered HTML only" }),
 	siteRules: [],
 	readabilityAdditions,
 	logError: () => undefined,

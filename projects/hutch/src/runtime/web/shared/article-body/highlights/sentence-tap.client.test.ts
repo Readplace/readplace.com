@@ -98,6 +98,8 @@ function harness(): Harness {
 		isPopoverOpen: () => h.popoverOpen,
 		supportsPopover: () => true,
 		showPopover: () => undefined,
+		hidePopover: () => undefined,
+		isFocusVisible: () => false,
 		sendBeacon: () => undefined,
 	});
 	const marked = elementOf(h, ".article-body__content em");
@@ -189,14 +191,14 @@ describe("initSentenceTap", () => {
 		expect(toolbarOf(h).hidden).toBe(false);
 	});
 
-	it("places the bar 10 px below the tapped sentence", async () => {
+	it("sits the bar the system menu's height below a tapped sentence", async () => {
 		const h = harness();
 
 		tapText(h, "First");
 		await settle(h);
 
 		expect(selectionOf(h).toString()).toBe("First sentence here.");
-		expect(toolbarOf(h).style.top).toBe(`${320 + 10}px`);
+		expect(toolbarOf(h).style.top).toBe(`${320 + 64}px`);
 	});
 
 	it("submits a tapped sentence with origin tap", async () => {
@@ -308,6 +310,15 @@ describe("initSentenceTap", () => {
 		const h = harness();
 
 		tapText(h, needle);
+
+		expect(selectionOf(h).isCollapsed).toBe(true);
+	});
+
+	it("leaves a tap alone on a reader that cannot highlight", () => {
+		const h = harness();
+		toolbarOf(h).remove();
+
+		tapText(h, "First");
 
 		expect(selectionOf(h).isCollapsed).toBe(true);
 	});
