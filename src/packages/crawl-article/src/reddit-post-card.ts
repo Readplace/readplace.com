@@ -5,11 +5,18 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 const REDDIT_POST_URL = /^https?:\/\/(?:www\.|old\.)?reddit\.com\/r\/([A-Za-z0-9_]+)\/comments\/([a-z0-9]+)(?:[/?#].*)?$/;
 
-const OembedPostSchema = z.object({ title: z.string().min(1), author_name: z.string().min(1), thumbnail_url: z.string().url().startsWith("https://").optional() });
+const OembedPostSchema = z.object({ title: z.string().trim().min(1), author_name: z.string().min(1), thumbnail_url: z.string().url().startsWith("https://").optional() });
 
 export type RedditPostCard = { title: string; author: string; subreddit: string; excerpt: string; wordCount: number; postUrl: string; posterUrl: string | undefined; html: string };
 
 export type FetchRedditPostCard = (params: { url: string }) => Promise<RedditPostCard | undefined>;
+
+export function parseRedditPostUrl(url: string): { subreddit: string; postUrl: string } | undefined {
+	const post = REDDIT_POST_URL.exec(url);
+	if (post === null) return undefined;
+	const [, subreddit, id] = post;
+	return { subreddit, postUrl: `https://www.reddit.com/r/${subreddit}/comments/${id}/` };
+}
 
 function postCardHtml(params: { postUrl: string; title: string; posterUrl: string | undefined }): string {
 	const title = escapeHtmlText(params.title);
@@ -19,19 +26,18 @@ function postCardHtml(params: { postUrl: string; title: string; posterUrl: strin
 
 export function initFetchRedditPostCard(deps: { fetch: typeof fetch; logError: (message: string, details?: { readonly error?: unknown }) => void }): FetchRedditPostCard {
 	return async (params) => {
-		const post = REDDIT_POST_URL.exec(params.url);
-		if (post === null) return undefined;
-		const [, subreddit, id] = post;
-		const postUrl = `https://www.reddit.com/r/${subreddit}/comments/${id}/`;
+		const post = parseRedditPostUrl(params.url);
+		if (post === undefined) return undefined;
+		const { subreddit, postUrl } = post;
 		try {
 			const response = await deps.fetch(`https://www.reddit.com/oembed?format=json&url=${encodeURIComponent(postUrl)}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
 			if (!response.ok) {
-				deps.logError(`[CrawlArticle] reddit oembed HTTP ${response.status} for ${params.url}`);
+				deps.logError(`[CrawlArticle] reddit oembed HTTP ${response.status}`);
 				return undefined;
 			}
 			const oembed = OembedPostSchema.safeParse(await response.json());
 			if (!oembed.success) {
-				deps.logError(`[CrawlArticle] reddit oembed payload rejected for ${params.url}`);
+				deps.logError(`[CrawlArticle] reddit oembed payload rejected`);
 				return undefined;
 			}
 			const { title, author_name: author, thumbnail_url: posterUrl } = oembed.data;
@@ -39,14 +45,14 @@ export function initFetchRedditPostCard(deps: { fetch: typeof fetch; logError: (
 				title,
 				author,
 				subreddit,
-				excerpt: `Post by ${author} in r/${subreddit} on Reddit.`,
+				excerpt: author,
 				wordCount: title.split(/\s+/).filter(Boolean).length,
 				postUrl,
 				posterUrl,
 				html: postCardHtml({ postUrl, title, posterUrl }),
 			};
-		} catch (error) {
-			deps.logError(`[CrawlArticle] reddit oembed error for ${params.url}`, { error });
+		} catch {
+			deps.logError(`[CrawlArticle] reddit oembed error`);
 			return undefined;
 		}
 	};

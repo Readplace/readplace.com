@@ -24,7 +24,7 @@ final class RedirectHeadersTests: XCTestCase {
 		XCTAssertEqual(followed.value(forHTTPHeaderField: "X-Readplace-Client"), "ios")
 		XCTAssertEqual(
 			followed.value(forHTTPHeaderField: "User-Agent"), TestSupport.nativeUserAgent,
-			"the entry point redirects to the collection, so a followed request that lost it reverts to CFNetwork's stock string and the log names the wrong client for the request that actually reached the server"
+			"a followed request that lost it reverts to CFNetwork's stock string and the log names the wrong client for the request that actually reached the server"
 		)
 		XCTAssertEqual(followed.value(forHTTPHeaderField: AppConfig.saveContinuityHeader), AppConfig.saveContinuityBackground)
 	}

@@ -26,6 +26,7 @@ import type { ReaderSectionInput } from "./section-pages";
 import type { CapturePollUrls } from "../../article-reader/article-reader.types";
 
 export const CAPTURE_FAILED_RELAY_SCRIPT = `<script src="/client-dist/capture-failed-relay.client.js" defer></script>`;
+export const READER_IMAGE_BOXES_SCRIPT = '<script src="/client-dist/reader-image-boxes.client.js" defer></script>';
 
 export type ReaderSlotCapture =
 	| { kind: "none" }

@@ -11,11 +11,16 @@ export {
 	type DispatchCommand,
 } from "./sqs-command-dispatcher";
 export {
+	initRetryingSqsRecordHandler,
 	initSqsRecordHandler,
+	type ChangeVisibility,
 	type RecordContext,
+	type RecordSettlement,
 	type RecordFailureReport,
 	type MalformedRecordPolicy,
 } from "./sqs-record-handler";
+
+export { initSqsChangeVisibility } from "./sqs-change-visibility";
 
 export { initHandleByDetailType } from "./handle-by-detail-type";
 

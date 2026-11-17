@@ -13,7 +13,7 @@ Conventions for building the web adapter layer that connects the application dom
 
 [Server-Side Rendering with Progressive Enhancement](references/server-side-rendering.md) — read when building server-rendered behaviour, a boosted link or form, or a swap.
 
-[CSS and Styling Conventions](references/css-and-styling.md) — read when writing or changing styles.
+[CSS and Styling Conventions](references/css-and-styling.md) — read when writing or changing styles, or when a menu, picker or flyout is cut off by its container.
 
 [Client-Side JavaScript Conventions](references/client-side-javascript.md) — read when writing or changing client-side JavaScript.
 
@@ -49,6 +49,19 @@ The one function that both the article body and the table of contents read runs 
 | Sanitise again, as the last transform | A linkedom serialisation decodes one level of attribute escaping, so an entity-encoded `javascript:` href comes out live unless the sanitiser runs after it |
 
 Both prefixes are exported beside the sanitiser, and each minting step builds its ids from one of them (grep the workspace packages' non-test sources for the quoted `"section-"` or `"highlight-"` literal; the single hit for each is it). The highlight step strips any id a publisher's own `<mark>` carries before it wraps the reader's passages, so a captured `highlight-` id cannot shadow a minted one. Nothing else adds ids to article content.
+
+## Reserving image boxes in the reader
+
+The reader's image rule keeps `width: auto` for publisher markup that declares `width="0"`. Under it Chromium lays out an image that has not loaded as 0x0, so the text jumps when the bytes arrive and a selection the reader has started moves under them. The reservation must not change how any image looks once it has loaded, for stored and future articles alike.
+
+| Part | Why it is shaped this way |
+|---|---|
+| Save time writes `data-reader-image-size` only on a re-hosted image whose final size is certain, and strips any copy a publisher sent | Measurement is the only source we trust. A file whose displayed size depends on metadata the measurement does not read (EXIF, a PNG `eXIf` chunk, a GIF frame outside its screen) gets no attribute. So does an SVG, an unsupported `sizes` form or a srcset candidate that was not measured |
+| The sanitiser turns the attribute into inert custom properties, and a reader CSS rule applies them only under a marker the reader script sets on the root | Without the script (JavaScript off, a missing bundle) nothing is reserved and the page is exactly what it was before |
+| The script removes the attribute and the style on each image's `load` or `error` | A settled image is the same markup under the same CSS as before, so a wrong measurement or a broken image ends looking exactly as it did without the reservation |
+| Tables outside the reader's flow layout and embed facades are excluded | Browsers do not reserve the box inside them before load anyway, and the facade sizes itself |
+
+Do not replace this with publisher `width`/`height` attributes, a direct inline width, or removing `width: auto`. Each was tried, and each changed how loaded images look: placeholder attributes shrank full-size images, and a GIF placeholder became a blank square. Bodies saved before the attribute existed stay unreserved until a recrawl rewrites them. Grep the non-test sources for `data-reader-image-size`. It finds the domain module that owns the attribute's name and grammar (the save-time writer and the sanitiser import both from it), the CSS rule, the script, and the browser test that holds a body's images back and checks both that the box is reserved before load and that nothing changes after.
 
 ## HTML Template Conventions
 
@@ -120,4 +133,5 @@ When staged changes include `.css`, `.html`, or `.client.ts` files:
 - [ ] Every boosted swap declares its scroll intent with a `show:` modifier, and a new swap shape has a browser test asserting `scrollY` after a real click
 - [ ] A pending state ends on the first poll that sees its outcome; a spent budget or a device give-up renders its own outcome for work the reader started, and the stored state's view for work the page started on its own
 - [ ] Browser JS is bundled and referenced via a same-origin `<script src>`, not inlined via `Function.toString()` or served through the static asset CDN base URL
+- [ ] A panel that opens beside its trigger is in the top layer or `position: fixed`, and a browser test hit-tests its items in every container it opens in
 - [ ] Web app manifest is served same-origin (not the static-asset CDN); icon `src` values are absolute CDN URLs

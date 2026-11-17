@@ -3,7 +3,7 @@ import { strFromU8, unzipSync } from "fflate";
 import { JSDOM } from "jsdom";
 import { UserIdSchema } from "@packages/domain/user";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { noopLogger } from "@packages/logger";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
@@ -346,7 +346,7 @@ describe("starter eligibility and insertion", () => {
 			"unavailable custom slot",
 			{
 				listReadlistDefinitions: async () =>
-					Array.from({ length: 7 }, (_, i) => ({
+					Array.from({ length: READLIST_MAX_PER_USER }, (_, i) => ({
 						slug: ReadlistSlugSchema.parse(`list-${i}`),
 						label: `List ${i}`,
 						createdAt: NOW,

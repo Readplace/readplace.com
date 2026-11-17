@@ -445,7 +445,7 @@ describe("plan.buildExtension", () => {
 		const written = writtenFiles.get(manifestPath);
 		assert(written, `Expected manifest written at ${manifestPath}`);
 		const manifest = JSON.parse(written);
-		expect(manifest.host_permissions).toEqual(["https://readplace.com/*", "http://127.0.0.1:3000/*"]);
+		expect(manifest.host_permissions).toEqual(["https://readplace.com/*", "http://127.0.0.1/*"]);
 	});
 
 	it("adds localhost to permissions for Firefox MV2 dev builds", async () => {
@@ -466,7 +466,7 @@ describe("plan.buildExtension", () => {
 		const written = writtenFiles.get(manifestPath);
 		assert(written, `Expected manifest written at ${manifestPath}`);
 		const manifest = JSON.parse(written);
-		expect(manifest.permissions).toEqual(["activeTab", "tabs", "https://readplace.com/*", "http://127.0.0.1:3000/*"]);
+		expect(manifest.permissions).toEqual(["activeTab", "tabs", "https://readplace.com/*", "http://127.0.0.1/*"]);
 	});
 
 	it("writes version into output manifest, overriding source placeholder", async () => {

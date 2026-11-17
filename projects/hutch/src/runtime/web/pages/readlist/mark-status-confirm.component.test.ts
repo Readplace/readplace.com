@@ -111,6 +111,13 @@ describe("renderMarkStatusConfirm", () => {
 		expect(unread.querySelector("[data-test-action='mark-status-confirm-never']")?.textContent).toBe("Mark as unread and don't ask again");
 	});
 
+	it("stacks both answers across the full width of the panel", () => {
+		const buttons = panelFor().querySelector(".confirm-popover__buttons");
+
+		assert(buttons, "the answers must be rendered");
+		expect(buttons.classList.contains("confirm-popover__buttons--full-width")).toBe(true);
+	});
+
 	it("offers both a plain confirmation and one that also silences the panel", () => {
 		const doc = panelFor();
 		const confirm = doc.querySelector("[data-test-action='mark-status-confirm']");

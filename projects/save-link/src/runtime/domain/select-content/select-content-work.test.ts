@@ -61,8 +61,8 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 		readCanonicalContent: async () => undefined, loadArticle: async () => article(), transitionAndPersist,
 		resolveOriginalUrl: async () => URL,
 		verifyWrapperSource: async () => ({ originalUrl: URL, sourceUrl: "https://archive.ph/abc12" }),
+		fetchRedditPostCard: async () => undefined,
 		fetchYouTubeVideoCard: jest.fn(async () => undefined),
-		fetchRedditPostCard: jest.fn(async () => undefined),
 		putTierSource: jest.fn(async (params: Parameters<PutTierSource>[0]) => ({ ...params.metadata, htmlLocation: "s3://bucket/card.html", evaluationLocation: "s3://bucket/card-evaluation.html" })),
 		now: () => new Date(NOW), logger: { ...noopLogger, info: jest.fn(() => { events.push("completion"); }) },
 		...overrides,
@@ -668,7 +668,8 @@ describe("the video card fallback", () => {
 			loadArticle: async () => article({ url: VIDEO_URL }), resolveOriginalUrl: async () => VIDEO_URL,
 			listAvailableTierSources: async () => [renderedShell()],
 			selectMostCompleteContent: async () => ({ kind: "none", reason: "Empty shell" }),
-			fetchYouTubeVideoCard: jest.fn(async () => CARD),
+			fetchRedditPostCard: async () => undefined,
+		fetchYouTubeVideoCard: jest.fn(async () => CARD),
 			...overrides,
 		});
 	}
@@ -683,7 +684,6 @@ describe("the video card fallback", () => {
 		await work(videoRequest);
 
 		expect(deps.fetchYouTubeVideoCard).toHaveBeenCalledWith({ url: VIDEO_URL });
-		expect(deps.fetchRedditPostCard).not.toHaveBeenCalled();
 		expect(deps.putTierSource).toHaveBeenCalledWith({
 			url: VIDEO_URL, tier: "tier-1", html: CARD.html, evaluationHtml: CARD.html,
 			metadata: expect.objectContaining({ attemptId: request.saveAttemptId, originalUrl: VIDEO_URL, sourceUrl: VIDEO_URL, kind: "live", httpStatus: 200 }),
@@ -702,7 +702,8 @@ describe("the video card fallback", () => {
 	});
 
 	it("fails the save as it does today when no card comes back", async () => {
-		const { work, deps, events } = setupVideo({ fetchYouTubeVideoCard: jest.fn(async () => undefined) });
+		const { work, deps, events } = setupVideo({ fetchRedditPostCard: async () => undefined,
+		fetchYouTubeVideoCard: jest.fn(async () => undefined) });
 
 		await work(videoRequest);
 
@@ -789,7 +790,8 @@ describe("the video card fallback", () => {
 		const later = setupVideo({
 			loadArticle: async () => article({ url: VIDEO_URL, contentSelection: { candidateId: stored.id, tier, revision: 1 } }),
 			listAvailableTierSources: async () => [{ tier, html, evaluationHtml, metadata: stored }],
-			fetchYouTubeVideoCard: jest.fn(async () => undefined),
+			fetchRedditPostCard: async () => undefined,
+		fetchYouTubeVideoCard: jest.fn(async () => undefined),
 		});
 		await later.work({ ...videoRequest, saveAttemptId: laterRequest.saveAttemptId });
 
@@ -802,10 +804,10 @@ describe("the post card fallback", () => {
 	const POST_URL = "https://www.reddit.com/r/example_sub/comments/abc123/a_post_title/";
 	const CANONICAL_POST_URL = "https://www.reddit.com/r/example_sub/comments/abc123/";
 	const CARD = {
-		title: "A post title", author: "example_user", subreddit: "example_sub", excerpt: "Post by example_user in r/example_sub on Reddit.", wordCount: 3, postUrl: CANONICAL_POST_URL, posterUrl: undefined,
+		title: "A post title", author: "example_user", subreddit: "example_sub", excerpt: "example_user", wordCount: 3, postUrl: CANONICAL_POST_URL, posterUrl: undefined,
 		html: '<p class="reader-embed-facade"><a href="https://www.reddit.com/r/example_sub/comments/abc123/" target="_blank" rel="noopener noreferrer">A post title</a></p>',
 	};
-	const postRequest = { ...request, url: POST_URL };
+	const postRequest = { ...request, url: POST_URL, mode: "recrawl" as const, candidates: [] };
 	function challengePage(): VerifiedTierSource {
 		const html = "<p>Please wait for verification</p>";
 		return { tier: "tier-1", html, metadata: { ...candidateProvenance({
@@ -832,7 +834,7 @@ describe("the post card fallback", () => {
 		return JSON.parse(String(line).slice(COMPARISON_COMPLETED.length));
 	}
 
-	it("commits the card as this attempt's live candidate when a first save finds nothing readable", async () => {
+	it("commits the card as this attempt's live candidate when a recrawl finds nothing readable", async () => {
 		const { work, deps, events } = setupPost();
 
 		await work(postRequest);
@@ -843,8 +845,8 @@ describe("the post card fallback", () => {
 			url: POST_URL, tier: "tier-1", html: CARD.html, evaluationHtml: CARD.html,
 			metadata: expect.objectContaining({ attemptId: request.saveAttemptId, originalUrl: POST_URL, sourceUrl: CANONICAL_POST_URL, kind: "live", httpStatus: 200 }),
 		});
-		expect(deps.transitionAndPersist).toHaveBeenCalledWith(promoteTier, expect.objectContaining({ input: expect.objectContaining({
-			tier: "tier-1",
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlPromoteTier, expect.objectContaining({ input: expect.objectContaining({
+			winnerTier: "tier-1",
 			estimatedReadTime: 1,
 			metadata: expect.objectContaining({ title: CARD.title, siteName: "Reddit", excerpt: CARD.excerpt, wordCount: CARD.wordCount }),
 		}) }));
@@ -856,7 +858,7 @@ describe("the post card fallback", () => {
 		expect(comparison.candidates.at(-1)).toMatchObject({ id: comparison.selectedCandidateId, kind: "live", httpStatus: 200, sourceUrl: CANONICAL_POST_URL, readable: true, fresh: true });
 	});
 
-	it("fails the save as it does today when no card comes back", async () => {
+	it("fails the recrawl as it does today when no card comes back", async () => {
 		const { work, deps, events } = setupPost({ fetchRedditPostCard: jest.fn(async () => undefined) });
 
 		await work(postRequest);
@@ -902,21 +904,13 @@ describe("the post card fallback", () => {
 		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({ url: POST_URL, source: storedPost("tier-1") });
 	});
 
-	it("repairs a legacy zero-word row through the refresh transition", async () => {
-		const html = "<p></p>";
-		const zeroWord: VerifiedTierSource = { tier: "tier-1", html, metadata: { ...candidateProvenance({
-			metadata: { ...metadata, wordCount: 0 }, html, evaluationHtml: html, attemptId: request.saveAttemptId, originalUrl: POST_URL, sourceUrl: POST_URL, kind: "live", fetchedAt: NOW,
-		}), id: cid("tier-1") } };
-		const existing = article({ url: POST_URL, contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 1 }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash("") } });
-		const { work, deps } = setupPost({ loadArticle: async () => existing, listAvailableTierSources: async () => [zeroWord] });
+	it.each(["save", "refresh"] as const)("preserves Reddit %s selection without asking for a card", async (mode) => {
+		const { work, deps } = setupPost();
 		const freshness = { bodyHash: "raw-body-hash", contentFetchedAt: NOW };
-
-		await work({ ...postRequest, mode: "refresh", refresh: freshness });
-
-		expect(deps.fetchRedditPostCard).toHaveBeenCalledWith({ url: POST_URL });
-		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({ url: POST_URL, source: expect.objectContaining({ html: CARD.html }) });
-		expect(deps.transitionAndPersist).toHaveBeenCalledWith(refreshContent, expect.objectContaining({ input: expect.objectContaining({ freshness, metadata: expect.objectContaining({ title: CARD.title, wordCount: CARD.wordCount }) }) }));
-		expect(deps.transitionAndPersist).not.toHaveBeenCalledWith(markNoReadableArticle, expect.anything());
+		if (mode === "refresh") await work({ ...postRequest, mode, refresh: freshness });
+		else await work({ ...postRequest, mode });
+		expect(deps.fetchRedditPostCard).toHaveBeenCalledTimes(0);
+		expect(deps.writeCanonicalContent).toHaveBeenCalledTimes(0);
 	});
 
 	it("promotes the card through the recrawl transition", async () => {

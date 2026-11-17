@@ -80,7 +80,7 @@ Always link `url` when showing or recommending an article.
 Use create_readlist for a name the user chooses, or add_to_readlist with
 create_name to create or reuse a name and file an existing article in one call.
 With add_to_readlist, pass exactly one of readlist or create_name. Names are
-matched without regard to case. Readers can create up to 7 named readlists
+matched without regard to case. Readers can create up to 15 named readlists
 beside All. An unknown id or a reached limit is a refusal, so do not report a
 successful save or filing when the tool returns an error.
 

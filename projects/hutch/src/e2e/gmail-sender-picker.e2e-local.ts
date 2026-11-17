@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { measuredBox, test, waitForBrandFonts } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { expect, type Page } from "@playwright/test";
@@ -427,12 +428,12 @@ test.describe("Gmail sender picker", () => {
 		page,
 	}, testInfo) => {
 		await openGmail(page, `cap-${testInfo.workerIndex}-${Date.now()}`, {
-			readlists: Array.from({ length: 7 }, (_, index) => `Shelf ${index}`),
+			readlists: Array.from({ length: READLIST_MAX_PER_USER }, (_, index) => `Shelf ${index}`),
 		});
 		await pickSender(page, { email: KALE, search: "kale@" });
 		await openReadlistPicker(page);
 		await expect(page.locator("[data-test-gmail-readlist-limit]")).toBeVisible();
-		await expect(page.locator(CUSTOM_READLIST_OPTION)).toHaveCount(7);
+		await expect(page.locator(CUSTOM_READLIST_OPTION)).toHaveCount(READLIST_MAX_PER_USER);
 		await expect(page.locator(CREATE_READLIST)).toHaveCount(0);
 		const shelf = page.locator(CUSTOM_READLIST_OPTION).first();
 		const shelfName = await shelf.locator("..").locator("span").first().textContent();

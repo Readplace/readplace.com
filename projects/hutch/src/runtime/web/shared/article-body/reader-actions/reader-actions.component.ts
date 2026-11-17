@@ -36,7 +36,9 @@ export interface MarkReadAction {
 export interface ReaderReadlistPicker {
 	assignUrl: string;
 	returnTo: string;
+	choice: "single" | "several";
 	options: readonly { slug: ReadlistSlug; label: string; iconName: IconName }[];
+	filterHtml: string;
 	create:
 		| { createUrl: string; maxLength: number; popoverId: string; nameLabel: string; namePlaceholder: string }
 		| undefined;
@@ -49,8 +51,13 @@ interface DialogTrigger {
 	fallbackHtml: string;
 }
 
+interface ShareTrigger {
+	popoverId: string;
+	fallbackHtml: Record<ReaderControlPlacement, string>;
+}
+
 interface OfferedSharing {
-	share?: DialogTrigger;
+	share?: ShareTrigger;
 	epubDownloadHref?: string;
 	epubDownloadGuide?: EpubDownloadGuide;
 	withheld?: never;
@@ -132,7 +139,7 @@ function downloadsSlotView(params: { href: string | undefined; guide: EpubDownlo
 	};
 }
 
-function shareTriggerView(actionBtns: ActionButtons) {
+function shareTriggerView(actionBtns: ActionButtons, placement: ReaderControlPlacement) {
 	if (actionBtns.withheld !== undefined) {
 		return { ...actionBtns.withheld, testAction: "share-withheld", disabled: true };
 	}
@@ -140,7 +147,12 @@ function shareTriggerView(actionBtns: ActionButtons) {
 		return { ...actionBtns.shareWithheld, testAction: "share-withheld", disabled: true };
 	}
 	if (actionBtns.share === undefined) return undefined;
-	return { ...actionBtns.share, testAction: "share-open", disabled: false };
+	return {
+		popoverId: actionBtns.share.popoverId,
+		fallbackHtml: actionBtns.share.fallbackHtml[placement],
+		testAction: "share-open",
+		disabled: false,
+	};
 }
 
 function downloadsView(actionBtns: ActionButtons) {
@@ -161,12 +173,10 @@ function renderReaderDownloads(params: {
 	return render(DOWNLOADS_TEMPLATE, { ...params.view, menu: params.placement === "menu", oob: params.oob });
 }
 
-function renderReaderShare(params: {
-	share: ReturnType<typeof shareTriggerView>;
-	placement: ReaderControlPlacement;
-}): string {
-	if (params.share === undefined) return "";
-	return render(SHARE_TEMPLATE, { ...params.share, menu: params.placement === "menu" });
+function renderReaderShare(params: { actionBtns: ActionButtons; placement: ReaderControlPlacement }): string {
+	const share = shareTriggerView(params.actionBtns, params.placement);
+	if (share === undefined) return "";
+	return render(SHARE_TEMPLATE, { ...share, menu: params.placement === "menu" });
 }
 
 export function renderReaderDownloadsSlotOob(params: {
@@ -198,7 +208,10 @@ export function renderReaderDownloadsOob(params: {
 }
 
 function renderReaderReadlistsSlot(input: { readlistPicker: ReaderReadlistPicker | undefined; oob: boolean }): string {
-	return render(READLISTS_SLOT_TEMPLATE, input);
+	return render(READLISTS_SLOT_TEMPLATE, {
+		...input,
+		several: input.readlistPicker?.choice === "several",
+	});
 }
 
 export function renderReaderReadlistsSlotOob(readlistPicker: ReaderReadlistPicker | undefined): string {
@@ -206,7 +219,6 @@ export function renderReaderReadlistsSlotOob(readlistPicker: ReaderReadlistPicke
 }
 
 function topBar(actionBtns: ActionButtons): string {
-	const share = shareTriggerView(actionBtns);
 	const downloads = downloadsView(actionBtns);
 	const downloadsAt = (placement: ReaderControlPlacement): string =>
 		renderReaderDownloads({ view: downloads, placement, oob: false });
@@ -215,13 +227,13 @@ function topBar(actionBtns: ActionButtons): string {
 			? { href: actionBtns.backLink.topHref, label: actionBtns.backLink.label }
 			: undefined,
 		readlistsSlotHtml: renderReaderReadlistsSlot({ readlistPicker: actionBtns.readlistPicker, oob: false }),
-		shareHtml: renderReaderShare({ share, placement: "toolbar" }),
+		shareHtml: renderReaderShare({ actionBtns, placement: "toolbar" }),
 		downloadsHtml: downloadsAt("toolbar"),
 		menu:
 			actionBtns.menu === undefined
 				? undefined
 				: {
-						shareHtml: renderReaderShare({ share, placement: "menu" }),
+						shareHtml: renderReaderShare({ actionBtns, placement: "menu" }),
 						downloadsHtml: downloadsAt("menu"),
 						deleteItemsHtml: actionBtns.menu.deleteItemsHtml,
 					},

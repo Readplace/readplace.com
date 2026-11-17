@@ -79,6 +79,7 @@ import { initStartAnonymousCrawl, type ResolveSaveIdentity } from "@packages/sav
 import {
 	ViewPage,
 	renderViewDownloadsOob,
+	renderViewShareUpgradeOob,
 	viewEpubHref,
 	viewEndCtaEpubHref,
 	splitTrackedHref,
@@ -473,7 +474,7 @@ function handleViewArticle(
 					}
 				}
 			}
-			if (!wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.publishStaleCheckRequested({ url: articleUrl });
+			if (existing !== null && !wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.publishStaleCheckRequested({ url: articleUrl });
 		}
 		const fallbackDestination = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const renderStub: SavedArticle["metadata"] = { ...hostStubMetadata(fallbackDestination), wordCount: 0 };
@@ -604,6 +605,7 @@ function handleViewArticle(
 					backLink: req.userId === undefined ? undefined : PUBLIC_VIEW_BACK_LINK,
 					endCta,
 					now: deps.now(),
+					signedIn: req.userId !== undefined,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),
@@ -645,6 +647,9 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			renderDownloadsOob: offersEpubDownload(existing ?? {})
 				? (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) })
 				: undefined,
+			renderShareOob: existing === null
+				? undefined
+				: (state) => renderViewShareUpgradeOob({ articleUrl, destinationUrl: existing.destinationUrl, title: existing.metadata.title, appOrigin: deps.appOrigin, state }),
 		});
 		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));
@@ -685,6 +690,9 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			renderDownloadsOob: offersEpubDownload(existing ?? {})
 				? (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) })
 				: undefined,
+			renderShareOob: existing === null
+				? undefined
+				: (state) => renderViewShareUpgradeOob({ articleUrl, destinationUrl: existing.destinationUrl, title: existing.metadata.title, appOrigin: deps.appOrigin, state }),
 		});
 		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));

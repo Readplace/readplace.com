@@ -4,7 +4,7 @@ import { requireEnv } from "@packages/require-env";
 import { devices, type Page } from "@playwright/test";
 import { z } from "zod";
 import { noteGlyphGeometry } from "./highlight-note-glyph.browser";
-import { pointInsideText, selectedText, toolbarBelowSelection } from "./highlight-on-a-phone.browser";
+import { pointInsideText, selectedText, toolbarNearSelection } from "./highlight-on-a-phone.browser";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 import { MACOS_CHROME_USER_AGENT } from "./user-agents";
 
@@ -22,8 +22,12 @@ const NOTE_END = `${CONTENT} mark.article-highlight--note-end`;
 const NOTE_DIALOG = "#note-highlight-dialog";
 const TAPPED_SENTENCE = "A single tap on this sentence selects it whole.";
 const ARTICLE = [
-	`<p>The reader holds the phone in one hand. ${TAPPED_SENTENCE} The bar waits underneath.</p>`,
-	"<p>The next paragraph sits under the bar, so the capture shows the bar over the text it covers.</p>",
+	`<p>The reader holds the phone in one hand. ${TAPPED_SENTENCE} The phone's own menu stays beside the selection.</p>`,
+	"<p>The second paragraph carries on below, so the article runs past the bottom of the screen and the capture shows the bar over the text it covers.</p>",
+	"<p>The third paragraph adds another few lines of plain prose with nothing in it that changes from one run to the next.</p>",
+	"<p>The fourth paragraph keeps the column filled, one short sentence after another, until the page is taller than the phone.</p>",
+	"<p>The fifth paragraph is here for the same reason, and so is the sixth one that follows it.</p>",
+	"<p>The sixth paragraph closes the article with a last line that sits well below the fold.</p>",
 ].join("");
 const VOLATILE_CHROME = [
 	".offline-banner",
@@ -92,13 +96,13 @@ async function toolbarSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function toolbarUnderSentence(page: Page): Promise<void> {
-	const { toolbarTop, selectionBottom } = await page.evaluate(toolbarBelowSelection, { toolbar: TOOLBAR });
-	assert.ok(toolbarTop >= selectionBottom, "the bar sits below the tapped sentence");
+async function toolbarPastSystemMenu(page: Page): Promise<void> {
+	const { gapBelowSelection } = await page.evaluate(toolbarNearSelection, {
+		toolbar: TOOLBAR,
+	});
+	assert.ok(Math.abs(gapBelowSelection - 64) <= 1, "the bar sits the system menu's height below the tapped sentence");
 	const content = await measuredBox(page, CONTENT);
 	const toolbar = await measuredBox(page, TOOLBAR);
-	assert.ok(toolbar.x >= content.x, "the bar starts inside the article column");
-	assert.ok(toolbar.x + toolbar.width <= content.x + content.width, "the bar ends inside the article column");
 	assert.ok(toolbar.y + toolbar.height <= content.y + content.height, "the bar sits over the article text");
 }
 
@@ -106,15 +110,15 @@ function checkpoint(name: string): VisualCheckpoint {
 	return {
 		name,
 		settled: toolbarSettled,
-		geometry: toolbarUnderSentence,
-		target: CONTENT,
-		capture: "element",
+		geometry: toolbarPastSystemMenu,
+		target: "body",
+		capture: "page-from-top",
 		pinnedText: [],
 	};
 }
 
-const TOOLBAR_UNDER_SENTENCE_LIGHT = checkpoint("highlight-phone-toolbar-light");
-const TOOLBAR_UNDER_SENTENCE_DARK = checkpoint("highlight-phone-toolbar-dark");
+const TOOLBAR_PAST_MENU_LIGHT = checkpoint("highlight-phone-toolbar-light");
+const TOOLBAR_PAST_MENU_DARK = checkpoint("highlight-phone-toolbar-dark");
 
 async function noteTappedSentence(page: Page): Promise<void> {
 	await page.locator('[data-test-action="add-note"]').tap();
@@ -164,16 +168,16 @@ test.describe("The highlight bar on a phone", () => {
 		userAgent: MACOS_CHROME_USER_AGENT,
 	});
 
-	test("sits under a tapped sentence (light)", async ({ page }, testInfo) => {
+	test("sits past the system menu below the sentence (light)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openTappedSentence(page, `light-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, TOOLBAR_UNDER_SENTENCE_LIGHT);
+		await captureCheckpoint(page, TOOLBAR_PAST_MENU_LIGHT);
 	});
 
-	test("sits under a tapped sentence (dark)", async ({ page }, testInfo) => {
+	test("sits past the system menu below the sentence (dark)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openTappedSentence(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, TOOLBAR_UNDER_SENTENCE_DARK);
+		await captureCheckpoint(page, TOOLBAR_PAST_MENU_DARK);
 	});
 
 	test("shows a note glyph after a noted sentence (light)", async ({ page }, testInfo) => {

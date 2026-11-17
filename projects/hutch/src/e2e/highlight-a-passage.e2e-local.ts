@@ -4,6 +4,7 @@ import { requireEnv } from "@packages/require-env";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { selectPassage } from "./highlight-a-passage.browser";
+import { htmxIsLive } from "./readlist-reader-skeleton.browser";
 import { recordScrollAfterSwap } from "./readlist-scroll-stability.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -21,9 +22,14 @@ const MARK = `${CONTENT} mark.article-highlight`;
 const RAIL_ROW = "[data-test-highlight-row]";
 const TOAST_MESSAGE = "#status-toast [data-test-toast-message]";
 const SCROLL_STAMP = "data-test-scroll-after-swap";
+const CARD_TITLE = "[data-test-article-title]";
+const PENDING_CARD = '[data-card-status="pending"]';
+const BACK_LINK = "[data-test-back-link]";
+const SAME_DOCUMENT = "data-test-same-document";
 
-const FILLER =
-	"<p>Every filler paragraph of this seeded article repeats one sentence about keeping a long read in view, so the passages worth marking sit well below the fold of the first screen.</p>";
+const FILLER_SENTENCE =
+	"Every filler paragraph of this seeded article repeats one sentence about keeping a long read in view, so the passages worth marking sit well below the fold of the first screen.";
+const FILLER = `<p>${FILLER_SENTENCE}</p>`;
 const FIRST_PASSAGE =
 	"The first passage worth keeping explains why a reader marks a sentence.";
 const SECOND_PASSAGE =
@@ -39,10 +45,7 @@ const ARTICLE = [
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
 
-async function openHighlightableReader(
-	page: Page,
-	stamp: string,
-): Promise<string> {
+async function seedAndLogin(page: Page, stamp: string): Promise<string> {
 	const email = `highlight-a-passage-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -80,10 +83,41 @@ async function openHighlightableReader(
 	await page.locator("#password").fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
+	return articleId;
+}
+
+async function openHighlightableReader(
+	page: Page,
+	stamp: string,
+): Promise<string> {
+	const articleId = await seedAndLogin(page, stamp);
 	const readerUrl = `${BASE_URL}/queue/${articleId}/view`;
 	await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector(READY_SLOT);
 	return readerUrl;
+}
+
+async function openReaderFromCard(
+	page: Page,
+	articleId: string,
+): Promise<void> {
+	await page.waitForSelector("body.page-readlist");
+	await page.waitForFunction(htmxIsLive);
+	await expect(page.locator(PENDING_CARD)).toHaveCount(0, {
+		timeout: SETTLE_MS,
+	});
+	await page.evaluate(
+		(stamp) => document.documentElement.setAttribute(stamp, ""),
+		SAME_DOCUMENT,
+	);
+	await page
+		.locator(`[data-test-article="${articleId}"] ${CARD_TITLE}`)
+		.click();
+	await expect(page.locator("body.page-reader")).toHaveCount(1, {
+		timeout: SETTLE_MS,
+	});
+	await page.waitForSelector(READY_SLOT);
+	await expect(page.locator("html")).toHaveAttribute(SAME_DOCUMENT, "");
 }
 
 async function highlight(page: Page, exact: string): Promise<void> {
@@ -161,6 +195,41 @@ test.describe("Highlighting a passage in the reader", () => {
 		).toHaveCount(1);
 		await expect(markHolding(page, SECOND_PASSAGE)).toHaveCount(0);
 		await expect(markHolding(page, FIRST_PASSAGE)).toHaveCount(1);
+	});
+
+	test("marks passages in a reader opened from a readlist card, and again after going back to the list", async ({
+		page,
+	}, testInfo) => {
+		const articleId = await seedAndLogin(
+			page,
+			`card-${testInfo.workerIndex}-${Date.now()}`,
+		);
+		await openReaderFromCard(page, articleId);
+
+		const createPath = await page.locator(CREATE_FORM).getAttribute("action");
+		assert.ok(createPath, "the create form must name its action");
+		const createUrl = new URL(createPath, BASE_URL).href;
+		const creates: string[] = [];
+		page.on("request", (request) => {
+			if (request.method() === "POST" && request.url() === createUrl) {
+				creates.push(request.url());
+			}
+		});
+
+		await highlight(page, FIRST_PASSAGE);
+		await expect(markHolding(page, FIRST_PASSAGE)).toHaveCount(1);
+		await highlight(page, SECOND_PASSAGE);
+		await expect(markHolding(page, SECOND_PASSAGE)).toHaveCount(1);
+		await expect(page.locator(RAIL_ROW)).toHaveCount(2);
+		expect(creates).toHaveLength(2);
+
+		await page.locator(BACK_LINK).first().click();
+		await openReaderFromCard(page, articleId);
+		await page.evaluate(selectPassage, {
+			root: CONTENT,
+			exact: FILLER_SENTENCE,
+		});
+		await expect(page.locator(TOOLBAR)).toBeVisible({ timeout: SETTLE_MS });
 	});
 
 	test("a click on a highlight keeps the page where it was", async ({

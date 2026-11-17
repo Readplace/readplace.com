@@ -364,6 +364,7 @@ export interface ReadlistDefinitionData {
 	label: string;
 	createdAt: Date;
 	purpose?: string;
+	pinnedAt?: Date;
 }
 
 export type CreateReadlistDefinition = (params: {
@@ -380,6 +381,17 @@ export type RenameReadlistDefinition = (params: {
 	slug: ReadlistSlug;
 	label: string;
 }) => Promise<{ renamed: boolean }>;
+
+export type PinReadlistDefinition = (params: {
+	userId: UserId;
+	slug: ReadlistSlug;
+	pinnedAt: Date;
+}) => Promise<{ pinned: boolean }>;
+
+export type UnpinReadlistDefinition = (params: {
+	userId: UserId;
+	slug: ReadlistSlug;
+}) => Promise<{ unpinned: boolean }>;
 
 export type SetReadlistDefinitionPurpose = (params: {
 	userId: UserId;

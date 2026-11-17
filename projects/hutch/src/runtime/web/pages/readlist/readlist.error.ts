@@ -17,6 +17,9 @@ import {
 import type { Request } from "express";
 import { z } from "zod";
 import { DEFAULT_LOCALE } from "@packages/translations/locale";
+import { translator } from "@packages/translations";
+import { hutchReadlist } from "@packages/translations/hutch-readlist";
+import { ReadlistSlugsSchema } from "./readlist-slugs";
 
 export const SAVE_FAILED_MESSAGE = "Couldn't save this article. Try again.";
 
@@ -57,6 +60,8 @@ export function skippedLinkReasonLabel(code: SaveableUrlErrorCode): string {
 export const READLIST_ERROR_LIMIT = "limit";
 
 export const READLIST_ERROR_UNKNOWN_READLIST = "unknown_readlist";
+
+export const READLIST_ERROR_PIN_LIMIT = "pin_limit";
 
 export const READLIST_NOTICE_SAVE_QUEUED = "save_queued";
 
@@ -143,32 +148,44 @@ export const statusFlashMapping = (
 	return statusFlashFor({ articleId, changed });
 };
 
+const FlashParamValuesSchema = z.union([z.string().transform((value) => [value]), z.array(z.string())]);
+
 /** Pulls the one-shot status flash params off the query so an intervening
  * redirect — e.g. the out-of-bounds page clamp in GET /queue — carries the Undo
  * toast across the extra hop. statusFlashMapping renders them. */
 export function collectStatusFlashParams(query: Request["query"]): [string, string][] {
 	return (["status_changed", "status_article", "moved_article", "moved_from", "moved_to"] as const).flatMap(
 		(key): [string, string][] => {
-			const value = query[key];
-			return typeof value === "string" ? [[key, value]] : [];
+			const values = FlashParamValuesSchema.safeParse(query[key]);
+			return values.success ? values.data.map((value): [string, string] => [key, value]) : [];
 		},
 	);
 }
 
-export interface MoveFlash {
+interface SingleMoveFlash {
 	articleId: string;
 	message: string;
 	undoFrom: ReadlistSlug;
 	undoTo: ReadlistSlug;
 }
 
+interface SeveralAddedFlash {
+	articleId: string;
+	message: string;
+	undoQueues: readonly ReadlistSlug[];
+}
+
+export type MoveFlash = SingleMoveFlash | SeveralAddedFlash;
+
+const { tPlural } = translator(hutchReadlist, DEFAULT_LOCALE);
+
 const MoveFlashQuerySchema = z.object({
 	moved_article: ReaderArticleHashIdSchema,
 	moved_from: ReadlistSlugSchema,
-	moved_to: ReadlistSlugSchema,
+	moved_to: ReadlistSlugsSchema,
 });
 
-function moveFlashCopy(move: { from: ReadlistRef; to: ReadlistRef }): Omit<MoveFlash, "articleId"> {
+function moveFlashCopy(move: { from: ReadlistRef; to: ReadlistRef }): Omit<SingleMoveFlash, "articleId"> {
 	if (move.from.slug === DEFAULT_READLIST_SLUG) {
 		return { message: `Added to ${move.to.label}`, undoFrom: move.to.slug, undoTo: DEFAULT_READLIST_SLUG };
 	}
@@ -181,13 +198,18 @@ function moveFlashCopy(move: { from: ReadlistRef; to: ReadlistRef }): Omit<MoveF
 function moveFlashFor(input: {
 	articleId: string;
 	from: ReadlistSlug;
-	to: ReadlistSlug;
+	to: readonly ReadlistSlug[];
 	readlists: readonly ReadlistRef[];
 }): MoveFlash | undefined {
 	const from = input.readlists.find((readlist) => readlist.slug === input.from);
-	const to = input.readlists.find((readlist) => readlist.slug === input.to);
-	if (from === undefined || to === undefined) return undefined;
-	return { articleId: input.articleId, ...moveFlashCopy({ from, to }) };
+	const to = input.readlists.filter((readlist) => input.to.includes(readlist.slug));
+	if (from === undefined || to.length === 0) return undefined;
+	if (to.length === 1) return { articleId: input.articleId, ...moveFlashCopy({ from, to: to[0] }) };
+	return {
+		articleId: input.articleId,
+		message: tPlural("readlistPicker.added", { count: to.length }),
+		undoQueues: to.map((readlist) => readlist.slug),
+	};
 }
 
 export function moveFlashMapping(

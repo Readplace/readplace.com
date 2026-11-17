@@ -13,6 +13,7 @@ import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components"
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initSaveLinkWork, logRecordFailure } from "./save-link-work";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
+import { withRefusedConnectionRetry } from "./retry-refused-connection";
 import { initCrawlSaveCandidates } from "./crawl-save-candidates";
 import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
@@ -22,6 +23,7 @@ import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 
 export function initSaveLinkCommandHandler(deps: {
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
+	delay: (milliseconds: number) => Promise<unknown>;
 	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
 	putTierSource: PutTierSource;
 	updateFetchTimestamp: UpdateFetchTimestamp;
@@ -62,7 +64,7 @@ export function initSaveLinkCommandHandler(deps: {
 	});
 
 	const crawlArchiveCapture = initCrawlArchiveCapture({
-		crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
+		crawlAndFinalizeArticle: withRefusedConnectionRetry({ crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle, delay: deps.delay, logger }),
 		putTierSource: deps.putTierSource,
 		readTierSnapshot: deps.readTierSnapshot,
 		logCrawlOutcome: deps.logCrawlOutcome,

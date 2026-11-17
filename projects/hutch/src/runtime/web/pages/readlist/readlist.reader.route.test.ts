@@ -488,6 +488,8 @@ describe("Readlist routes", () => {
 			const doc = new JSDOM(readerResponse.text).window.document;
 
 			expect(readerResponse.text).not.toContain("/client-dist/reader-nav.client.js");
+			expect(readerResponse.text).toContain("/client-dist/reader-image-boxes.client.js");
+			expect(doc.documentElement.hasAttribute("data-reader-image-boxes")).toBe(false);
 
 			const topForm = doc.querySelector("[data-test-mark-read-form]");
 			assert(topForm, "the toolbar mark-read form must be rendered");
