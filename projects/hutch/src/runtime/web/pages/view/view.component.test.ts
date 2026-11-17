@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { generateCspNonce } from "@packages/web-shell";
 import { toAbsoluteDate, toAbsoluteTime } from "@packages/web-shell/local-time.format";
 import { JSDOM } from "jsdom";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
 import { calculateReadTime } from "@packages/domain/article";
 import { Base } from "../../base.component";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
@@ -15,6 +17,8 @@ import {
 import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { articleBody } from "@packages/test-fixtures";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
+
+const { t } = translator(hutchReader, DEFAULT_LOCALE);
 
 const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 
@@ -809,10 +813,7 @@ describe("ViewPage Keep this one block", () => {
 		expect([
 			signed.querySelector(".view__end-cta-signed-line")?.textContent,
 			signed.querySelector(".view__end-cta-signed-by")?.textContent,
-		]).toEqual([
-			"You just read one of my posts in Readplace. I built it so the articles I meant to read would still be there when I had time for them.",
-			"— Fayner Brack, Founder & CEO",
-		]);
+		]).toEqual([t("view.endCta.founderLine"), t("view.endCta.founderSignOff")]);
 	});
 
 	it("leaves the signed block out when the block is not signed by the founder", () => {

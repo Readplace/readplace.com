@@ -186,10 +186,10 @@ function saveAction(input: {
 	};
 }
 
-const FOUNDER_HOSTS: readonly string[] = ["fagnerbrack.com", "www.fagnerbrack.com"];
+const FOUNDER_POST_HOSTS: readonly string[] = ["fagnerbrack.com", "www.fagnerbrack.com"];
 
 function isFounderPost(articleUrl: string): boolean {
-	return FOUNDER_HOSTS.includes(articleHostFrom(articleUrl));
+	return FOUNDER_POST_HOSTS.includes(articleHostFrom(articleUrl));
 }
 
 function endCtaSaveAction(articleUrl: string): ViewEndCtaAction {

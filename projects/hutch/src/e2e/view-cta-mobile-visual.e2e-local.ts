@@ -344,9 +344,9 @@ test.describe("Public view CTA row on a phone", () => {
 		await captureCheckpoint(page, signedEndCtaCheckpoint("reader-end-cta-signed-phone", endCtaActionsStack));
 	});
 
-	test("signs the end block under the dark palette", async ({ page }, testInfo) => {
+	test("signs the end block on the www host under the dark palette", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
-		await openPublicView(page, { host: "fagnerbrack.com", stamp: `signed-phone-dark-${testInfo.workerIndex}-${Date.now()}`, query: "" });
+		await openPublicView(page, { host: "www.fagnerbrack.com", stamp: `signed-phone-dark-${testInfo.workerIndex}-${Date.now()}`, query: "" });
 		await captureCheckpoint(page, signedEndCtaCheckpoint("reader-end-cta-signed-phone-dark", endCtaActionsStack));
 	});
 
