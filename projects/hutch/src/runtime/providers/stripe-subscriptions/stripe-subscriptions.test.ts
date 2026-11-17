@@ -122,11 +122,11 @@ describe("initStripeSubscriptions", () => {
 			const headers = new Headers(receivedInit?.headers);
 			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
 			assert.equal(headers.get("Content-Type"), "application/x-www-form-urlencoded");
-			const body = String(receivedInit?.body ?? "");
-			assert.ok(body.includes("customer=cus_existing"));
-			assert.ok(body.includes("items%5B0%5D%5Bprice%5D=price_abc"));
-			assert.ok(body.includes("metadata%5BuserId%5D=usr_test_abc123"));
-			assert.equal(new URLSearchParams(body).get("automatic_tax[enabled]"), "true");
+			const params = new URLSearchParams(String(receivedInit?.body ?? ""));
+			assert.equal(params.get("customer"), "cus_existing");
+			assert.equal(params.get("items[0][price]"), "price_abc");
+			assert.equal(params.get("metadata[userId]"), USER_ID);
+			assert.equal(params.get("automatic_tax[enabled]"), "true");
 		});
 
 		it("asks Stripe to refuse a subscription whose first invoice cannot be charged, and to charge the saved card off-session", async () => {
