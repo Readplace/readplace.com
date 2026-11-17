@@ -201,6 +201,27 @@ describe("ScreenshotGalleryReporter", () => {
 		);
 	});
 
+	it("writes a capture identical to its baseline once and shows it in both places", async () => {
+		await commitBaseline(workspace, { relativePath: "home-visual.e2e-local.ts-snapshots/home-desktop-light-chromium.png", pixels: "same pixels" });
+		const reporter = startedReporter(workspace);
+
+		reporter.onTestEnd(
+			{ location: { file: path.join(workspace.testDir, "home-visual.e2e-local.ts") } },
+			{
+				status: "passed",
+				attachments: [{ name: "home-desktop-light.png", contentType: "image/png", body: Buffer.from("same pixels") }],
+			},
+		);
+		await reporter.onEnd({ status: "passed" });
+
+		const [row] = rowsOf(sectionOf({ html: await readGallery(workspace), spec: "home-visual.e2e-local.ts" }));
+		const [baseline, captured] = row.cells[0];
+		expect([baseline.caption, captured.caption]).toEqual(["Committed baseline", "Captured this run"]);
+		expect(captured.src).toBe(baseline.src);
+		expect(await pixelsAt(workspace, captured.src)).toBe("same pixels");
+		expect(await readdir(path.join(galleryFolder(workspace), "images"))).toHaveLength(1);
+	});
+
 	it("files an unstable screenshot's previous frame under its own checkpoint as a failure image", async () => {
 		const reporter = startedReporter(workspace);
 

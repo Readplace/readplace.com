@@ -7,6 +7,10 @@ import type { GetEffectiveAccess } from "@packages/subscription-access";
 const DAY_MS = 86_400_000;
 const KEEP_OFFER_WINDOW_MS = 4 * DAY_MS;
 const KEEP_OFFER_MIN_TRIAL_LEFT_MS = 7 * DAY_MS;
+export const KEEP_OFFER_ENDS_AT = new Date("2027-02-01T00:00:00.000Z");
+
+export const KEEP_OFFER_FIRST_YEAR_PRICE = "$49";
+
 export type KeepOfferEligibility =
 	| { shown: true; trialEndsAt: string; trialDay: number; savesCount: number; offer: CheckoutOffer }
 	| { shown: false; reason: "not-trial" | "no-crossing" | "window-passed" | "trial-ending" | "dismissed" };

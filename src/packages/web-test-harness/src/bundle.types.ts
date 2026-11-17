@@ -165,7 +165,6 @@ import type {
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 	FindSubscriptionNextCharge,
-	FindSubscriptionPaymentMethod,
 	FindUnreadSavesForDigest,
 	InvoiceSummary,
 	ListInvoices,
@@ -443,8 +442,6 @@ export interface PaymentMethodsBundle {
 export interface SubscriptionBillingBundle {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
-	findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod;
-	seedSubscriptionPaymentMethod: (input: { subscriptionId: string; paymentMethodId: string }) => void;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	createdSubscriptions: () => readonly {
@@ -452,7 +449,6 @@ export interface SubscriptionBillingBundle {
 		priceId: string;
 		userId: UserId;
 		onUnpaidFirstInvoice: OnUnpaidFirstInvoice;
-		paymentMethodId?: string;
 		subscriptionId: string;
 	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];

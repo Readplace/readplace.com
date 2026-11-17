@@ -61,8 +61,8 @@ export function toReadlistSubscriptionDisplayModel(
 		priceStatement: PRICE_STATEMENT,
 		renewalPrices: RENEWAL_PRICES,
 		savesStayStatement: SAVES_STAY_STATEMENT,
-		yearlyPrice: PRICING_PLANS.yearly.periodDisplay,
-		monthlyPrice: PRICING_PLANS.monthly.periodDisplay,
+		yearlyPrice: PRICING_PLANS.yearly.totalDisplay,
+		monthlyPrice: PRICING_PLANS.monthly.totalDisplay,
 	};
 	switch (banner.state) {
 		case "trial-status":

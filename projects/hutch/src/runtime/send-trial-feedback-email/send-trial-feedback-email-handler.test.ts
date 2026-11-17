@@ -911,6 +911,39 @@ describe("send-trial-feedback-email handler", () => {
 			assert.deepEqual(row.nextCharge, { amountMinor: 4900, currency: "usd", at: CHARGE_AT });
 		});
 
+		it("dates the reminder from the stored next charge it quotes, not the command's chargeAt", async () => {
+			const subject = buildSubject();
+			await subject.providers.upsertActive({
+				userId: USER_ID,
+				subscriptionId: "sub_trial_preserving",
+				customerId: "cus_trial_preserving",
+				plan: "yearly",
+			});
+			await subject.providers.setNextCharge({
+				userId: USER_ID,
+				subscriptionId: "sub_trial_preserving",
+				nextCharge: { amountMinor: 4900, currency: "usd", at: "2026-06-20T00:00:00.000Z" },
+			});
+
+			await subject.handler(
+				buildSqsEvent([
+					{ messageId: "msg-cr-moved", body: buildChargeReminderBody(USER_ID, CHARGE_AT) },
+				]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.equal(subject.email.getSentEmails().length, 1);
+			const sent = subject.email.getSentEmails()[0];
+			assert.ok(sent.text);
+			assert.ok(
+				sent.text.includes(
+					"— $49.00 charged to the card on file on Jun 20, 2026, then $60 once a year after that.",
+				),
+			);
+			assert.ok(!sent.text.includes("Jun 6, 2026"));
+		});
+
 		it("still sends the reminder at the list price when Stripe cannot be read", async () => {
 			const subject = buildSubject({
 				findSubscriptionNextCharge: async () => {

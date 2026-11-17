@@ -16,10 +16,10 @@ function track(path: string, content: string): string {
 }
 
 export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-10",
+	lastModified: "2026-11-15",
 	title: "Readwise Reader Alternative, With the Gaps Listed | Readplace",
 	description:
-		"Readplace next to Readwise Reader, row by row: what it does for less, and the RSS, video, podcast and listening features it doesn't have.",
+		"Readplace next to Readwise Reader, row by row: what it does for less, and the RSS, YouTube, podcast subscription and listening features it doesn't have.",
 	keywords:
 		"readwise reader alternative, cheaper readwise reader, read it later app with ai summaries",
 	headline: "A Readwise Reader alternative, with the gaps listed",
@@ -27,7 +27,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	titleLead: "What Reader does that this ",
 	titleHighlight: "doesn't",
 	titleTail: ", in one table.",
-	lede: `Readplace saves articles, PDFs and newsletter links, writes an AI TL;DR for each, and costs ${PRICING_PLANS.yearly.periodDisplay}, or ${PRICING_PLANS.monthly.totalDisplay} month to month. Readwise Reader does much more. The table lists what Reader has that Readplace doesn't, so you can check the rows you'd miss.`,
+	lede: `Readplace saves articles, PDFs and newsletter links, writes an AI TL;DR for each, and costs ${PRICING_PLANS.yearly.totalDisplay} a year, or ${PRICING_PLANS.monthly.totalDisplay} month to month. Readwise Reader does much more. The table lists what Reader has that Readplace doesn't, so you can check the rows you'd miss.`,
 	ogImageAlt: "Readplace and Readwise Reader compared row by row, gaps included.",
 	primaryAction: {
 		key: "try-reader",
@@ -77,7 +77,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 			rows: [
 				{
 					feature: "Price",
-					readplace: `${PRICING_PLANS.yearly.periodDisplay}, or ${PRICING_PLANS.monthly.totalDisplay} month to month`,
+					readplace: `${PRICING_PLANS.yearly.totalDisplay} a year, or ${PRICING_PLANS.monthly.totalDisplay} month to month`,
 					competitor: "$9.99/month billed annually, $12.99 month to month",
 				},
 				{

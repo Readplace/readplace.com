@@ -4,6 +4,7 @@ import express from "express";
 import { z } from "zod";
 import { sendComponent } from "@packages/web-shell";
 import {
+	type EmailLinkOrdinal,
 	EmailLinkOrdinalSchema,
 	isLiveAddress,
 	isCappedAddress,
@@ -22,6 +23,7 @@ import {
 import type { UserId } from "@packages/domain/user";
 import type {
 	InboxAddressStore,
+	InboxEmailEntry,
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
 	InboxEmailLinkStore,
@@ -41,6 +43,7 @@ import type { FileArticleIntoReadlistDetail } from "@packages/infra-components";
 import type { Logger, LogError } from "@packages/logger";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
+import { TRIAGED_ANCHOR_TEXT_MAX_CHARS } from "../../../domain/inbox/extract-email-links-handler";
 import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
 import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
 import { Base } from "../../base.component";
@@ -52,13 +55,10 @@ import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { renderInboxArticlesMore } from "./inbox-articles-more.component";
 import { parseArticlesShown } from "./inbox-articles-more.url";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
-import { renderInboxExcludedLink } from "./inbox-excluded-link.component";
-import { computeInboxExcludedRowEtag } from "./inbox-excluded-link.etag";
 import {
-	INITIAL_SAVE_POLL_COUNT,
-	type ExcludedLinkViewModel,
-	toInboxExcludedLinkViewModel,
-} from "./inbox-excluded-link.viewmodel";
+	buildSavedAsArticleAnnouncement,
+	renderInboxExcludedLinkMoved,
+} from "./inbox-excluded-link-moved.component";
 import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
 import {
 	InboxEmailDetailPage,
@@ -76,6 +76,7 @@ import {
 	renderInboxLiveStatus,
 } from "./inbox-live-status.component";
 import { renderInboxMailTabs } from "./inbox-mail-tabs.component";
+import { buildMailTabs } from "./mail-tabs";
 import {
 	fitStatusToast,
 	toInboxArticlesMoreViewModel,
@@ -130,6 +131,21 @@ interface InboxDependencies extends InboxReadlistFitDependencies {
 		saveTrigger: SaveTrigger;
 		saveAttemptId: SaveAttemptId;
 	}) => Promise<void>;
+	publishCrawlPreview: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		ordinal: EmailLinkOrdinal;
+		url: string;
+	}) => Promise<void>;
+	publishSavedLinkTriaged: (input: {
+		scope: "link";
+		userId: UserId;
+		receivedAtMessageId: string;
+		readlist: ReadlistSlug;
+		senderEmail: string;
+		subject: string;
+		links: [{ ordinal: EmailLinkOrdinal; url: string; anchorText: string }];
+	}) => Promise<void>;
 	recordEngagementActivity: RecordEngagementActivity;
 	/** Save gates applied to the write actions — the per-link save (it lands an article
 	 * in the reader's queue). Both gates run: `requireNotLocked` blocks a
@@ -143,6 +159,8 @@ interface InboxDependencies extends InboxReadlistFitDependencies {
 /** The tabs whose panel is extraction-driven, so each needs a poll fragment. `view`
  * renders the stored email and has nothing to wait for. Typed off `MailTabKey` so a
  * new tab has to decide whether it polls rather than silently not doing so. */
+const INITIAL_SAVE_POLL_COUNT = 1;
+
 const POLLABLE_PANELS: readonly Exclude<MailTabKey, "view">[] = ["articles", "excluded"];
 
 const POLL_PANEL_RENDERERS: Record<
@@ -169,22 +187,6 @@ function sendInboxArticleCard(
 		.status(200)
 		.type("html")
 		.send(`${renderInboxArticleCard(input.vm)}${liveStatusHtml}`);
-}
-
-function sendInboxExcludedRow(
-	res: Response,
-	input: { vm: ExcludedLinkViewModel; saveState: InboxLinkSaveState | undefined },
-): void {
-	const announcement = buildSaveSettledAnnouncement({
-		saveState: input.saveState,
-		url: input.vm.url,
-	});
-	const liveStatusHtml =
-		announcement === "" ? "" : renderInboxLiveStatus({ message: announcement, oob: true });
-	res
-		.status(200)
-		.type("html")
-		.send(`${renderInboxExcludedLink(input.vm)}${liveStatusHtml}`);
 }
 
 const LinkFitChoiceSchema = z.object({
@@ -267,6 +269,74 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				),
 			),
 		);
+
+	const moveSkippedLinkToArticles = async (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		link: InboxEmailLinkEntry;
+		email: InboxEmailEntry;
+	}): Promise<void> => {
+		const { userId, receivedAtMessageId, link, email } = input;
+		const rescue = await deps.inboxEmailLinkStore.rescueSkippedLink({
+			userId,
+			receivedAtMessageId,
+			ordinal: link.ordinal,
+		});
+		if (rescue === "not-skipped") return;
+		await deps.publishCrawlPreview({ userId, receivedAtMessageId, ordinal: link.ordinal, url: link.url });
+		await deps.inboxEmailStore.moveLinkCountToKept({ userId, receivedAtMessageId });
+		const { meta } = await deps.inboxEmailLinkStore.listLinksByEmail({ userId, receivedAtMessageId });
+		assert(meta, "a skipped link's email has finished extraction");
+		if (meta.selectedReadlists === undefined) return;
+		await deps.inboxEmailLinkStore.addEligibleArticle({ userId, receivedAtMessageId });
+		if (meta.savesHeld === true) return;
+		for (const { readlist } of meta.selectedReadlists) {
+			await deps.publishSavedLinkTriaged({
+				scope: "link",
+				userId,
+				receivedAtMessageId,
+				readlist,
+				senderEmail: email.senderEmail,
+				subject: email.subject,
+				links: [
+					{
+						ordinal: link.ordinal,
+						url: link.url,
+						anchorText: (link.anchorText ?? "").slice(0, TRIAGED_ANCHOR_TEXT_MAX_CHARS),
+					},
+				],
+			});
+		}
+	};
+
+	const sendSkippedLinkMoved = async (
+		res: Response,
+		input: { userId: UserId; receivedAtMessageId: string; link: InboxEmailLinkEntry; articlesHref: string },
+	): Promise<void> => {
+		const { links } = await deps.inboxEmailLinkStore.listLinksByEmail({
+			userId: input.userId,
+			receivedAtMessageId: input.receivedAtMessageId,
+		});
+		const excluded = links.filter(isExcludedLink).length;
+		const tabs = buildMailTabs({
+			emailId: input.receivedAtMessageId,
+			active: "excluded",
+			counts: { articles: links.length - excluded, excluded },
+		});
+		res
+			.status(200)
+			.type("html")
+			.send(
+				`${renderInboxExcludedLinkMoved({
+					ordinal: input.link.ordinal,
+					url: input.link.url,
+					articlesHref: input.articlesHref,
+				})}${renderInboxMailTabs({ tabs, oob: true })}${renderInboxLiveStatus({
+					message: buildSavedAsArticleAnnouncement({ url: input.link.url }),
+					oob: true,
+				})}`,
+			);
+	};
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -507,51 +577,6 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		},
 	);
 
-	router.get(
-		"/:id/links/:ordinal/excluded",
-		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
-			assert(req.userId, "userId required - route must be protected by requireAuth");
-			const userId = req.userId;
-			const receivedAtMessageId = req.params.id;
-			const parsedOrdinal = EmailLinkOrdinalSchema.safeParse(req.params.ordinal);
-			const link = parsedOrdinal.success
-				? await deps.inboxEmailLinkStore.getLink({
-						userId,
-						receivedAtMessageId,
-						ordinal: parsedOrdinal.data,
-					})
-				: undefined;
-			if (link === undefined || !isExcludedLink(link)) {
-				res.status(404).type("html").send("");
-				return;
-			}
-			const linkSaveStates = await findLinkSaveStates({ userId, links: [link] });
-			const saveState = linkSaveStates.get(link.url);
-			const etag = computeInboxExcludedRowEtag({ link, saveState });
-			res.set("Cache-Control", "private, no-cache");
-			res.set("Vary", "Cookie");
-			res.set("ETag", etag);
-			if (etagMatches(req.get("If-None-Match"), etag)) {
-				res.status(304).end();
-				return;
-			}
-			const requestedPoll = parsePollParam(req.query.poll, MAX_SAVE_SETTLE_POLLS);
-			sendInboxExcludedRow(res, {
-				vm: toInboxExcludedLinkViewModel({
-					link,
-					emailId: receivedAtMessageId,
-					linkSaveStates,
-					pollContext: {
-						mode: "save-poll",
-						pollCount: requestedPoll + 1,
-						maxPolls: MAX_SAVE_SETTLE_POLLS,
-					},
-				}),
-				saveState,
-			});
-		},
-	);
-
 	router.post(
 		"/:id/links/:ordinal/feedback",
 		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
@@ -641,32 +666,29 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// was wrong to skip it, so it emits the same classifier-audit line the
 			// removed "This is an article" report button did — Save both remediates and
 			// reports. A kept card's save carries no such verdict, so it stays silent.
-			if (link.status === "skipped") {
+			if (isExcludedLink(link)) {
 				logLinkClassificationFeedback({
 					logError: deps.logError,
 					verdict: "should-be-included",
 					receivedAtMessageId,
 					link,
 				});
+				await moveSkippedLinkToArticles({ userId, receivedAtMessageId, link, email });
+				const articlesHref = buildInboxEmailDetailUrl({
+					emailId: receivedAtMessageId,
+					tab: "articles",
+					shown: parseArticlesShown(req.body),
+					filter: parseInboxEmailFilter(req.body),
+				});
+				if (isNonBoostedHtmxRequest(req)) {
+					await sendSkippedLinkMoved(res, { userId, receivedAtMessageId, link, articlesHref });
+					return;
+				}
+				res.redirect(303, `${articlesHref}&saved=1`);
+				return;
 			}
 			if (isNonBoostedHtmxRequest(req)) {
 				const linkSaveStates = await findLinkSaveStates({ userId, links: [link] });
-				if (isExcludedLink(link)) {
-					sendInboxExcludedRow(res, {
-						vm: toInboxExcludedLinkViewModel({
-							link,
-							emailId: receivedAtMessageId,
-							linkSaveStates,
-							pollContext: {
-								mode: "save-poll",
-								pollCount: INITIAL_SAVE_POLL_COUNT,
-								maxPolls: MAX_SAVE_SETTLE_POLLS,
-							},
-						}),
-						saveState: linkSaveStates.get(link.url),
-					});
-					return;
-				}
 				const { meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
 					userId,
 					receivedAtMessageId,
@@ -704,7 +726,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				303,
 				`${buildInboxEmailDetailUrl({
 					emailId: receivedAtMessageId,
-					tab: tabForLinkRow(link),
+					tab: "articles",
 					shown: parseArticlesShown(req.body),
 					filter: parseInboxEmailFilter(req.body),
 				})}&saved=1`,

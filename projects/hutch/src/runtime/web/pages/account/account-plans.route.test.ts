@@ -360,17 +360,8 @@ describe("GET /account/plans (the first charge is today)", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, userId } = await signedInReader(harness, "plans-cancelled-monthly@example.com");
 		harness.subscriptionProviders.seedRow(
-			subscriptionRow(userId, {
-				status: "cancelled",
-				subscriptionId: "sub_plans_monthly",
-				customerId: "cus_plans_monthly",
-				plan: "monthly",
-			}),
+			subscriptionRow(userId, { status: "cancelled", customerId: "cus_plans_monthly", plan: "monthly" }),
 		);
-		harness.subscriptionBilling.seedSubscriptionPaymentMethod({
-			subscriptionId: "sub_plans_monthly",
-			paymentMethodId: "pm_plans_monthly",
-		});
 
 		const response = await agent.get(PAY_DIGEST_CLICK);
 		const form = new JSDOM(response.text).window.document.querySelector(

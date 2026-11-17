@@ -171,6 +171,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		publishUpdateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		refreshArticleIfStale: refreshAs("new"),
 		pinContentSource: jest.fn().mockResolvedValue(undefined),
+		delay: async () => {},
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
@@ -390,7 +391,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const deliveries = buildSqsEvent([accepted, rejected, unavailable].map((readlist) => ({
 			messageId: readlist,
 			body: JSON.stringify({ detail: {
-				userId, receivedAtMessageId: "2026-10-04#gmail-issue", readlist,
+				scope: "email", userId, receivedAtMessageId: "2026-10-04#gmail-issue", readlist,
 				senderEmail: "letter@example.com", subject: "Weekly articles",
 				links: [{ ordinal: "0000", url: exampleUrl, anchorText: "Story" }],
 			}, time: fixedNow().toISOString() }),

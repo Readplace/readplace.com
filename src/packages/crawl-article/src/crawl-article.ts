@@ -57,6 +57,15 @@ export const PROXIED_FETCH_TIMEOUTS = {
 
 const MAX_SITE_RULE_REDIRECTS = 3;
 
+type SiteRuleCrawl =
+	| Exclude<SiteCrawlOutcome, { kind: "skip" | "redirect" }>
+	| { kind: "redirect"; url: string; site: { site: SiteRules; url: string } }
+	| { kind: "unclaimed" };
+
+function siteRuleContent(html: string): CrawlArticleResult {
+	return { status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex") };
+}
+
 type RefusedTerminal = Exclude<FetchOutcome, { status: "ok" }>;
 
 async function recoverRefusedTerminal(params: {
@@ -479,6 +488,34 @@ export function initCrawlArticle(deps: {
 		conditionalGet: initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts, rejectDocumentLandingPage }),
 		logInfo,
 	});
+	const crawlBySiteRule = async (url: string): Promise<SiteRuleCrawl> => {
+		for (const site of siteRules) {
+			let claimedUrl: string | undefined;
+			try {
+				claimedUrl = matchingSiteRuleUrl({ site, url });
+			} catch (error) {
+				logError(`[CrawlArticle] Site matches threw for ${url}`, error instanceof Error ? error : undefined);
+				continue;
+			}
+			if (claimedUrl === undefined) continue;
+			let outcome: SiteCrawlOutcome;
+			try {
+				outcome = await site.onCrawl({ url: claimedUrl });
+			} catch (error) {
+				logError(`[CrawlArticle] Site onCrawl threw for ${url}`, error instanceof Error ? error : undefined);
+				return { kind: "failed" };
+			}
+			if (outcome.kind === "skip") continue;
+			if (outcome.kind === "redirect") return { ...outcome, site: { site, url: claimedUrl } };
+			return outcome;
+		}
+		return { kind: "unclaimed" };
+	};
+	const claimRedirectTerminal = async (input: { requestedUrl: string; response: Response }): Promise<SiteRuleCrawl> => {
+		const terminal = terminalUrl(input.response);
+		if (terminal === undefined || terminal === input.requestedUrl) return { kind: "unclaimed" };
+		return crawlBySiteRule(terminal);
+	};
 	return async (params) => {
 		let currentUrl = params.url;
 		let redirectingSite: { site: SiteRules; url: string } | undefined;
@@ -497,51 +534,34 @@ export function initCrawlArticle(deps: {
 			 * returns content (e.g. X/Twitter oembed), redirects the crawl (e.g. the
 			 * apple.news shell), or fails closed wins; `skip` falls through to the
 			 * normal fetch cascade below. */
-			let siteRedirect: string | undefined;
-			let claimingSite: { site: SiteRules; url: string } | undefined;
-			for (const site of siteRules) {
-				let claimedUrl: string | undefined;
-				try {
-					claimedUrl = matchingSiteRuleUrl({ site, url: currentUrl });
-				} catch (error) {
-					logError(
-						`[CrawlArticle] Site matches threw for ${currentUrl}`,
-						error instanceof Error ? error : undefined,
-					);
-					continue;
-				}
-				if (claimedUrl === undefined) continue;
-				claimingSite = { site, url: claimedUrl };
-				let outcome: SiteCrawlOutcome;
-				try {
-					outcome = await site.onCrawl({ url: claimedUrl });
-				} catch (error) {
-					logError(
-						`[CrawlArticle] Site onCrawl threw for ${currentUrl}`,
-						error instanceof Error ? error : undefined,
-					);
-					return { status: "failed", decision: undefined };
-				}
-				if (outcome.kind === "skip") continue;
-				if (outcome.kind === "failed") return { status: "failed", decision: undefined };
-				if (outcome.kind === "redirect") {
-					siteRedirect = outcome.url;
-					break;
-				}
-				return {
-					status: "fetched",
-					html: outcome.html,
-					bodyHash: createHash("sha256").update(outcome.html).digest("hex"),
-				};
+			const claimed = await crawlBySiteRule(currentUrl);
+			if (claimed.kind === "failed") return { status: "failed", decision: undefined };
+			if (claimed.kind === "content") return siteRuleContent(claimed.html);
+			if (claimed.kind === "redirect") {
+				redirectingSite = claimed.site;
+				currentUrl = claimed.url;
+				continue;
 			}
-			if (siteRedirect === undefined) break;
-			redirectingSite = claimingSite;
-			currentUrl = siteRedirect;
+			const fetched = await conditionalGet({ ...params, url: currentUrl });
+			if (fetched.status !== "ok") return recoverRefusedTerminal({ fetched, redirectingSite, logInfo });
+			/* c8 ignore next -- V8 block-coverage phantom: the early-return continuation gets a spurious zero-count sub-range even though the ok and non-ok statuses both have tests; restructuring only relocates it. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
+			const terminalClaim = await claimRedirectTerminal({ requestedUrl: currentUrl, response: fetched.response });
+			if (terminalClaim.kind === "content") return siteRuleContent(terminalClaim.html);
+			if (terminalClaim.kind === "redirect") {
+				redirectingSite = terminalClaim.site;
+				currentUrl = terminalClaim.url;
+				continue;
+			}
+			return parseFetched({ params, currentUrl, fetched });
 		}
-		const fetched = await conditionalGet({ ...params, url: currentUrl });
-		if (fetched.status !== "ok") return recoverRefusedTerminal({ fetched, redirectingSite, logInfo });
-		/* c8 ignore next -- V8 block-coverage phantom: the early-return continuation directly after the site-rule redirect loop gets a spurious zero-count sub-range even though the ok and non-ok statuses both have tests; restructuring only relocates it. See bcoe/c8#319 and https://v8.dev/blog/javascript-code-coverage */
-		const { response, buffer } = fetched;
+	};
+	async function parseFetched(input: {
+		params: Parameters<CrawlArticle>[0];
+		currentUrl: string;
+		fetched: Extract<FetchOutcome, { status: "ok" }>;
+	}): Promise<CrawlArticleResult> {
+		const { params, currentUrl } = input;
+		const { response, buffer } = input.fetched;
 		/* Pre-parse byte gate: many origins ignore conditional headers and
 		 * return 200 OK even when the body is byte-identical to the previous
 		 * fetch (static-file hosts, asset CDNs that strip validators,
@@ -597,7 +617,7 @@ export function initCrawlArticle(deps: {
 			}
 		}
 		return result;
-	};
+	}
 }
 
 /**

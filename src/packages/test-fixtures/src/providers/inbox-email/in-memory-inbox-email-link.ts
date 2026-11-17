@@ -120,6 +120,39 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 			});
 			return "stored";
 		},
+		rescueSkippedLink: async ({ userId, receivedAtMessageId, ordinal }) => {
+			const key = linkKey(groupKey({ userId, receivedAtMessageId }), ordinal);
+			const existing = links.get(key);
+			if (existing === undefined || existing.status !== "skipped")
+				return "not-skipped";
+			links.set(key, { ...existing, status: "pending", skipReason: undefined });
+			return "rescued";
+		},
+		addEligibleArticle: async (input) => {
+			const group = groupKey(input);
+			const meta = metas.get(group);
+			if (meta?.selectedReadlists === undefined) return;
+			metas.set(group, {
+				...meta,
+				eligibleArticleCount: (meta.eligibleArticleCount ?? 0) + 1,
+			});
+		},
+		mergeReadlistOutcomeFit: async ({
+			userId,
+			receivedAtMessageId,
+			readlist,
+			entry,
+		}) => {
+			const group = groupKey({ userId, receivedAtMessageId });
+			const results = outcomes.get(group);
+			const stored = results?.get(readlist);
+			if (results === undefined || stored?.decision !== "filtered")
+				return "not-filtered";
+			if (stored.fit.some((fit) => fit.ordinal === entry.ordinal))
+				return "already-decided";
+			results.set(readlist, { ...stored, fit: [...stored.fit, entry] });
+			return "merged";
+		},
 		putReadlistOutcome: async ({ userId, receivedAtMessageId, outcome }) => {
 			const group = groupKey({ userId, receivedAtMessageId });
 			const results =

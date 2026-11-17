@@ -49,7 +49,7 @@ describe("ChargeReminderEmail", () => {
 			const text = ChargeReminderEmail({
 				...baseParams,
 				plan: "yearly",
-				charge: { amountMinor: 4900, currency: "usd" },
+				charge: { amountMinor: 4900, currency: "usd", at: baseParams.chargeAt },
 			}).to("text/plain");
 			expect(text).toContain(
 				"— $49.00 charged to the card on file on Jul 24, 2026, then $60 once a year after that.",
@@ -60,33 +60,48 @@ describe("ChargeReminderEmail", () => {
 			const monthly = ChargeReminderEmail({
 				...baseParams,
 				plan: "monthly",
-				charge: { amountMinor: 500, currency: "usd" },
+				charge: { amountMinor: 500, currency: "usd", at: baseParams.chargeAt },
 			}).to("text/plain");
 			expect(monthly).toContain("— $5.00 charged to the card on file on Jul 24, 2026, then $10 once a month after that.");
 
 			const triennial = ChargeReminderEmail({
 				...baseParams,
 				plan: "triennial",
-				charge: { amountMinor: 9700, currency: "usd" },
+				charge: { amountMinor: 9700, currency: "usd", at: baseParams.chargeAt },
 			}).to("text/plain");
 			expect(triennial).toContain(
 				"— $97.00 charged to the card on file on Jul 24, 2026, then $108 once every 3 years after that.",
 			);
 		});
 
-		it("keeps the plain cadence when Stripe's charge is the list price, because there is no different renewal to name", () => {
-			const text = ChargeReminderEmail({
+		it("words a list-price charge from Stripe exactly as the list-price fallback does, so the email reads the same whether or not Stripe answered", () => {
+			const fromStripe = ChargeReminderEmail({
 				...baseParams,
 				plan: "yearly",
-				charge: { amountMinor: 6000, currency: "usd" },
+				charge: { amountMinor: 6000, currency: "usd", at: baseParams.chargeAt },
 			}).to("text/plain");
-			expect(text).toContain("— $60.00 charged to the card on file on Jul 24, 2026, then once a year after that.");
+			const fallback = ChargeReminderEmail({ ...baseParams, plan: "yearly" }).to("text/plain");
+			expect(fromStripe).toContain("— $60 charged to the card on file on Jul 24, 2026, then once a year after that.");
+			expect(fromStripe).toBe(fallback);
+		});
+
+		it("dates the charge from Stripe's charge, so the amount and the date always describe the same charge", () => {
+			const email = ChargeReminderEmail({
+				...baseParams,
+				plan: "yearly",
+				charge: { amountMinor: 4900, currency: "usd", at: "2026-08-07T00:00:00.000Z" },
+			});
+			const text = email.to("text/plain");
+			expect(email.subject).toBe("your Readplace membership starts on Aug 7, 2026");
+			expect(text).toContain("— $49.00 charged to the card on file on Aug 7, 2026, then $60 once a year after that.");
+			expect(text).toContain("Cancel any time before Aug 7, 2026");
+			expect(text).not.toContain("Jul 24, 2026");
 		});
 
 		it("states Stripe's amount for a grandfathered plan this build does not sell, with no cadence it cannot name", () => {
 			const text = ChargeReminderEmail({
 				...baseParams,
-				charge: { amountMinor: 4500, currency: "usd" },
+				charge: { amountMinor: 4500, currency: "usd", at: baseParams.chargeAt },
 			}).to("text/plain");
 			expect(text).toContain(
 				"— $45.00 charged to the card on file on Jul 24, 2026, then renews automatically at the end of each billing period.",

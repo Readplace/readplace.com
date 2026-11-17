@@ -257,4 +257,29 @@ describe("processContentWithLocalMedia", () => {
 		expect(result).toContain('href="https://example.com/page"');
 		expect(result).toContain('src="https://cdn.example.com/images/abc.png"');
 	});
+	it("records the measured size of a rehosted image without giving it a width or height", async () => {
+		const result = await processContentWithLocalMedia({
+			html: '<p><img src="https://example.com/photo.png" alt="Photo"></p>',
+			media: [
+				{
+					originalUrl: "https://example.com/photo.png",
+					cdnUrl: "https://cdn.example.com/images/photo.png",
+					dimensions: { width: 1456, height: 1005 },
+				},
+			],
+		});
+
+		expect(result).toBe(
+			'<p><img data-reader-image-size="1456x1005" src="https://cdn.example.com/images/photo.png" alt="Photo"></p>',
+		);
+	});
+
+	it("removes a size a publisher supplied when there is no media", async () => {
+		const result = await processContentWithLocalMedia({
+			html: '<img src="https://example.com/photo.png" data-reader-image-size="10x10">',
+			media: [],
+		});
+
+		expect(result).toBe('<img src="https://example.com/photo.png">');
+	});
 });

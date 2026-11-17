@@ -68,6 +68,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
 		resolveOriginalUrl: async (url) => url,
 		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
+		delay: async () => {},
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),

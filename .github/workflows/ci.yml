@@ -22,7 +22,7 @@ jobs:
   # packages). The iOS suite cannot live in this job: it needs Xcode on a macOS
   # runner and is path-gated to iOS changes (see ios-tests below).
   web-tests:
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && fromJSON('["self-hosted", "orbstack"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && fromJSON('["self-hosted", "ci-runner"]') || 'ubuntu-latest' }}
     environment: staging
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -196,7 +196,7 @@ jobs:
     # runner, so this runner ships no docker and mounts no docker socket. No fork
     # fallback like web-tests needs — the `if:` above already restricts this to
     # main pushes, so only trusted (merged) code ever runs here.
-    runs-on: [self-hosted, orbstack]
+    runs-on: [self-hosted, ci-runner]
     environment: staging
     permissions:
       contents: read

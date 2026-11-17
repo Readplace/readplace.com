@@ -1,27 +1,28 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { useTestServer, loginAgent } from "../../../test-app";
+import { ReaderArticleHashId } from "@packages/domain/article";
+import { EnclosureSchema } from "@packages/media-contracts";
+import { BROWSER_REQUEST_HEADERS, useTestServer, loginAgent } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 
 const useApp = useTestServer();
 
-const READER_PAGE_BUNDLES = [
-	"/client-dist/share-dialog.client.js",
-	"/client-dist/summary-toggle.client.js",
-	"/client-dist/capture-failed-relay.client.js",
-	"/client-dist/readlist-picker.client.js",
-	"/client-dist/reader-exit-confirm.client.js",
-	"/client-dist/reader-open.client.js",
-	"/client-dist/offline-reader.client.js",
-	"/client-dist/reader-top.client.js",
-	"/client-dist/table-of-contents.client.js",
-	"/client-dist/highlight-toolbar.client.js",
-];
+const AUDIO_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const AUDIO_ID = ReaderArticleHashId.from(AUDIO_URL).value;
+const ENCLOSURE = EnclosureSchema.parse({
+	object: `objects/sha256/${"0123456789abcdef".repeat(4)}/1`,
+	mediaType: "audio/mpeg",
+	durationSeconds: 2820,
+});
 
-function bundleSrcs(doc: Document): string[] {
-	return Array.from(doc.querySelectorAll("script[src]"))
-		.map((el) => el.getAttribute("src") ?? "")
-		.filter((src) => src.startsWith("/client-dist/"));
+function scriptsOutsideMain(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll("script"))
+		.filter((el) => el.closest("main") === null)
+		.map(
+			(el) =>
+				el.getAttribute("src") ??
+				`inline script /queue must render with the same text: ${(el.textContent ?? "").trim()}`,
+		);
 }
 
 describe("GET /queue reader skeleton", () => {
@@ -45,15 +46,36 @@ describe("GET /queue reader skeleton", () => {
 		expect(slot.getAttribute("data-reader-status")).toBe("loading");
 	});
 
-	it("loads every reader client bundle on the queue, in order, so a filled reader works", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+	it("loads on the queue every script the reader renders outside main, so a card's boosted open keeps them", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "the logged-in user must exist");
+		await fixture.articleStore.savePrivateItem({
+			url: AUDIO_URL,
+			ownerUserId: user.userId,
+			media: { kind: "audio", fileName: "talk.mp3" },
+			savedAt: new Date("2026-11-05T00:00:00.000Z"),
+		});
+		assert.equal(await fixture.articleStore.setArticleEnclosure({ url: AUDIO_URL, enclosure: ENCLOSURE }), "recorded");
 
-		const response = await agent.get("/queue");
-		const doc = new JSDOM(response.text).window.document;
-		const srcs = bundleSrcs(doc);
-		const readerPageSrcs = srcs.filter((src) => READER_PAGE_BUNDLES.includes(src));
-		expect(readerPageSrcs).toEqual(READER_PAGE_BUNDLES);
+		const reader = await agent.get(`/queue/${AUDIO_ID}/view`).set(BROWSER_REQUEST_HEADERS);
+		const queue = await agent.get("/queue").set(BROWSER_REQUEST_HEADERS);
+		expect(reader.status).toBe(200);
+		expect(queue.status).toBe(200);
+
+		const readerScripts = scriptsOutsideMain(new JSDOM(reader.text).window.document);
+		const queueScripts = scriptsOutsideMain(new JSDOM(queue.text).window.document);
+		expect(readerScripts).toEqual(
+			expect.arrayContaining([
+				"/client-dist/player.client.js",
+				"/client-dist/highlight-toolbar.client.js",
+				"/client-dist/reader-exit-confirm.client.js",
+			]),
+		);
+		const missing = readerScripts.filter((script) => !queueScripts.includes(script));
+		expect({ missing }).toEqual({ missing: [] });
 	});
 
 	it("keeps the skeleton template on a queue that holds a saved article", async () => {

@@ -1090,16 +1090,16 @@ test.describe("Move dialog interaction states hold their WCAG contrast in both t
 		await page.locator('[data-test-action="move"]').click();
 		await page.waitForSelector(`${dialog}:popover-open`);
 		const firstRow = page.locator(`${dialog} [data-test-move-destination]`).first();
-		const radio = firstRow.locator('input[type="radio"]');
-		await expect(radio).toBeFocused();
+		const choice = firstRow.locator('input[name="to"]');
+		await expect(choice).toBeFocused();
 		await page.keyboard.press("Space");
-		await expect(radio).toBeChecked();
-		await expect.poll(() => radio.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
+		await expect(choice).toBeChecked();
+		await expect.poll(() => choice.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
 		const slug = await firstRow.getAttribute("data-test-move-destination");
 		assert(slug, "every move-dialog row names the readlist it moves the article to");
 		const client = await auditContext(page);
 		await stamp(page, { selector: `${dialog} [data-test-move-destination="${slug}"]`, auditId: "move-row" });
-		await stamp(page, { selector: `${dialog} [data-test-move-destination="${slug}"] input`, auditId: "move-radio" });
+		await stamp(page, { selector: `${dialog} [data-test-move-destination="${slug}"] input`, auditId: "move-choice" });
 		await stamp(page, {
 			selector: `${dialog} [data-test-move-destination]:not([data-test-move-destination="${slug}"])`,
 			auditId: "move-row-unselected",
@@ -1108,13 +1108,13 @@ test.describe("Move dialog interaction states hold their WCAG contrast in both t
 		for (const theme of THEMES) {
 			await page.emulateMedia({ colorScheme: theme });
 			const focused = await measure(page, client, "move-row", []);
-			const ownRing = await measure(page, client, "move-radio", []);
+			const ownRing = await measure(page, client, "move-choice", []);
 			const rest = await measure(page, client, "move-row-unselected", []);
 			const hover = await measure(page, client, "move-row-unselected", ["hover"]);
 			assert.equal(focused.outline.width, 2, `${theme}/queue/move: the row ring must be 2px wide`);
 			assert.equal(focused.outline.offset, 2, `${theme}/queue/move: the row ring must sit 2px outside the row`);
 			assert.notEqual(focused.outline.style, "none", `${theme}/queue/move: the row ring must be visible`);
-			assert.notEqual(ownRing.outline.style, "none", `${theme}/queue/move: the radio must keep its own focus ring`);
+			assert.notEqual(ownRing.outline.style, "none", `${theme}/queue/move: the checkbox must keep its own focus ring`);
 			const panel: Neighbour = { name: "panel", colour: focused.surface };
 			for (const [lensName, lens] of Object.entries(LENSES)) {
 				const view = `${theme}/queue/move/${lensName}`;

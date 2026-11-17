@@ -1,4 +1,5 @@
 import { S3Client } from "@aws-sdk/client-s3";
+import { SQSClient } from "@aws-sdk/client-sqs";
 import {
 	initArticleSiteRules,
 	initReadabilityParser,
@@ -16,6 +17,7 @@ import {
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
+import { initSqsChangeVisibility } from "@packages/infra-components/runtime";
 import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { getEnv, readEnv } from "@packages/require-env";
@@ -29,8 +31,10 @@ const env = readEnv(CRAWL_EMAIL_LINK_PREVIEW_ENV);
 const inboxEmailLinksTable = env.DYNAMODB_INBOX_EMAIL_LINKS_TABLE;
 const contentBucketName = env.CONTENT_BUCKET_NAME;
 const imagesCdnBaseUrl = env.IMAGES_CDN_BASE_URL;
+const crawlEmailLinkPreviewQueueUrl = env.CRAWL_EMAIL_LINK_PREVIEW_QUEUE_URL;
 
 const s3Client = new S3Client({});
+const sqsClient = new SQSClient({});
 const dynamoClient = createDynamoDocumentClient();
 const logger = Logger.from(consoleLogger);
 const logError = (message: string, error?: Error) =>
@@ -93,5 +97,8 @@ const inboxEmailLinkStore = initDynamoDbInboxEmailLink({
 export const handler = initCrawlEmailLinkPreviewHandler({
 	crawlAndFinalize,
 	setLinkOutcome: inboxEmailLinkStore.setLinkOutcome,
+	getLink: inboxEmailLinkStore.getLink,
+	changeVisibility: initSqsChangeVisibility({ client: sqsClient, queueUrl: crawlEmailLinkPreviewQueueUrl }),
+	random: Math.random,
 	logger,
 });

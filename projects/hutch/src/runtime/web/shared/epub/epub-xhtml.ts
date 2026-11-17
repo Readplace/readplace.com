@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { isReaderImageBoxStyle, READER_IMAGE_SIZE_ATTRIBUTE } from "@packages/domain/article";
 import { parseHTML } from "linkedom";
 import { imageFilenameOf } from "./image-filename-of";
 
@@ -23,7 +24,7 @@ const VOID_ELEMENTS = new Set([
 ]);
 
 const DROP_ELEMENTS = ["script", "style", "iframe"];
-const DROP_IMAGE_ATTRIBUTES = ["srcset", "sizes", "loading", "decoding"];
+const DROP_IMAGE_ATTRIBUTES = ["srcset", "sizes", "loading", "decoding", READER_IMAGE_SIZE_ATTRIBUTE];
 
 export function collectArticleImages(params: {
 	contentHtml: string;
@@ -78,6 +79,7 @@ export function chapterEpubXhtml(params: {
 	}
 	for (const img of root.querySelectorAll("img")) {
 		for (const attribute of DROP_IMAGE_ATTRIBUTES) img.removeAttribute(attribute);
+		if (isReaderImageBoxStyle(img.getAttribute("style"))) img.removeAttribute("style");
 		const src = img.getAttribute("src");
 		const filename = src === null ? undefined : filenameOf(src);
 		const href = filename === undefined ? undefined : params.imageHrefs.get(filename);

@@ -211,6 +211,12 @@ async function main(): Promise<void> {
 			publishFileArticleIntoReadlist: async (detail) => {
 				logger.info("[dev] file-article-into-readlist", detail);
 			},
+			publishCrawlPreview: async (input) => {
+				logger.info("[dev] crawl-email-link-preview", input);
+			},
+			publishSavedLinkTriaged: async (input) => {
+				logger.info("[dev] email-links-triaged", input);
+			},
 			findSavedArticleForLink: initFindSavedArticleForLink({
 				resolveCanonicalIdentity: initResolveCanonicalIdentity({
 					findIdentityRow: fixture.articleStore.findIdentityRow,

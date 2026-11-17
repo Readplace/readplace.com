@@ -12,7 +12,7 @@ import {
 } from "@packages/test-fixtures/providers/transcript-quota";
 import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
-import { PLAN_OFFERS } from "@packages/web-shell";
+import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
 import express, { type Express } from "express";
 import { type Logger, noopLogger } from "@packages/logger";
 import { initRefreshWithSaveIdentity, initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget, type ResolveSaveIdentity } from "@packages/save-article";
@@ -441,8 +441,6 @@ function flattenFixtureToAppDependencies(
 			fixture.subscriptionBilling.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge:
 			fixture.subscriptionBilling.findSubscriptionNextCharge,
-		findSubscriptionPaymentMethod:
-			fixture.subscriptionBilling.findSubscriptionPaymentMethod,
 		listInvoices: fixture.subscriptionBilling.listInvoices,
 		reverseScheduledCancellation:
 			fixture.subscriptionBilling.reverseScheduledCancellation,
@@ -463,7 +461,7 @@ function flattenFixtureToAppDependencies(
 		authDiagnosticsLogger: noopLogger,
 		salt: "test-analytics-salt",
 		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
-		keepOfferEndsAt: PLAN_OFFERS.firstYear49.endsAt,
+		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
 		guestUploadKinds: GUEST_UPLOAD_KINDS,
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,

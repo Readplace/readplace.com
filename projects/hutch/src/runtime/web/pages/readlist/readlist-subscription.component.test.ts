@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { toAbsoluteDate } from "@packages/web-shell";
+import { PRICING_PLANS, toAbsoluteDate } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
@@ -64,7 +64,7 @@ describe("toReadlistSubscriptionDisplayModel / renderReadlistSubscription", () =
 
 		expect(banner(doc).classList.contains("readlist-subscription--trial-status")).toBe(true);
 		expect(banner(doc).textContent?.trim()).toBe(
-			`Trial · 12 days left · then $60 a year or $10 a month`,
+			`Trial · 12 days left · then ${PRICING_PLANS.yearly.totalDisplay} a year or ${PRICING_PLANS.monthly.totalDisplay} a month`,
 		);
 	});
 

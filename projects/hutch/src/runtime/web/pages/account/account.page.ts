@@ -52,7 +52,6 @@ import type {
 import type {
 	CreateSubscriptionOnExistingCustomer,
 	FindSubscriptionNextCharge,
-	FindSubscriptionPaymentMethod,
 	ListInvoices,
 	ResolvePriceId,
 	ReverseScheduledCancellation,
@@ -170,7 +169,6 @@ interface AccountDependencies {
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 	createCheckoutSession: CreateCheckoutSession;
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
-	findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	listCards: ListCards;
 	beginAddCard: BeginAddCard;
@@ -939,23 +937,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				redirectFullPage(req, res, checkout.url);
 				return;
 			}
-			assert(row.subscriptionId, "a cancelled row with a customer keeps its last subscriptionId");
-			const lastSubscriptionId = row.subscriptionId;
-			let charge: { subscriptionId: string } | "no-saved-card";
+			let subscriptionId: string;
 			try {
-				const paymentMethodId = await deps.findSubscriptionPaymentMethod({
-					subscriptionId: lastSubscriptionId,
-				});
-				charge =
-					paymentMethodId === undefined
-						? "no-saved-card"
-						: await deps.createSubscriptionOnExistingCustomer({
-								customerId: row.customerId,
-								priceId: await deps.resolvePriceId(plan),
-								userId,
-								onUnpaidFirstInvoice: "refuse",
-								paymentMethodId,
-							});
+				({ subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
+					customerId: row.customerId,
+					priceId: await deps.resolvePriceId(plan),
+					userId,
+					onUnpaidFirstInvoice: "refuse",
+				}));
 			} catch (err) {
 				deps.logger.error(
 					`[subscribe/cancelled] saved-card charge failed for ${userId} — falling back to checkout: ${
@@ -972,22 +961,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				redirectFullPage(req, res, checkout.url);
 				return;
 			}
-			if (charge === "no-saved-card") {
-				deps.logger.warn(
-					"[subscribe/cancelled] no saved card on the last subscription — starting checkout",
-					{ userId },
-				);
-				const checkout = await startCheckout(req, {
-					trialEndsAt: undefined,
-					variant: CHECKOUT_VARIANTS.cancelledResubscribe,
-					plan,
-					offer: CHECKOUT_OFFERS.none,
-					coupon: null,
-				});
-				redirectFullPage(req, res, checkout.url);
-				return;
-			}
-			const { subscriptionId } = charge;
 			await deps.upsertActiveSubscription({
 				userId,
 				subscriptionId,

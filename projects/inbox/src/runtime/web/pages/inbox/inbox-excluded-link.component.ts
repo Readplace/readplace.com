@@ -3,22 +3,14 @@ import { join } from "node:path";
 import { render, renderInFlightDots } from "@packages/web-shell";
 import type { ExcludedLinkViewModel } from "./inbox-excluded-link.viewmodel";
 import type { InboxCardSaveAction } from "./inbox-link-card.viewmodel";
-import {
-	type SaveButtonLabelReserves,
-	type SaveButtonState,
-	saveButtonLabelReserves,
-} from "./inbox-save-button.viewmodel";
+import { type SaveButtonLabelReserves, saveButtonLabelReserves } from "./inbox-save-button.viewmodel";
 
 const INBOX_EXCLUDED_LINK_TEMPLATE = readFileSync(
 	join(__dirname, "inbox-excluded-link.template.html"),
 	"utf-8",
 );
 
-const SAVE_BUTTON_CLASSES: Record<SaveButtonState, string> = {
-	unsaved: "btn btn--secondary btn--m",
-	saving: "btn btn--secondary btn--m inbox-excluded-link__save-button--saving",
-	saved: "btn btn--secondary btn--m inbox-excluded-link__save-button--saved",
-};
+const SAVE_BUTTON_CLASS = "btn btn--secondary btn--m inbox-excluded-link__save-button";
 
 const SAVE_LOADER_HTML = renderInFlightDots("inbox-excluded-link__save-loader in-flight-dots");
 
@@ -37,7 +29,7 @@ function toDisplayModel(vm: ExcludedLinkViewModel): InboxExcludedLinkDisplayMode
 		actions: vm.actions.map((action) => ({
 			...action,
 			...saveButtonLabelReserves(action.saveState),
-			buttonClass: `${SAVE_BUTTON_CLASSES[action.saveState]} inbox-excluded-link__save-button`,
+			buttonClass: SAVE_BUTTON_CLASS,
 			loaderHtml: SAVE_LOADER_HTML,
 		})),
 	};

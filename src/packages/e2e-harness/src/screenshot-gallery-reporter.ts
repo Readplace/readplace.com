@@ -1,5 +1,6 @@
 import assert from "node:assert";
-import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { FullProject, FullResult, Location, Reporter, TestResult } from "@playwright/test/reporter";
 
@@ -218,15 +219,17 @@ export default class ScreenshotGalleryReporter implements Reporter {
 		const imagesFolder = path.join(this.outputFolder, "images");
 		await rm(this.outputFolder, { recursive: true, force: true });
 		await mkdir(imagesFolder, { recursive: true });
-		const published = await Promise.all(
-			images.map(async (image, index) => {
-				const file = `images/${String(index).padStart(4, "0")}-${fileSafe(`${image.spec}-${image.checkpoint}`)}-${image.kind}.png`;
-				const destination = path.join(this.outputFolder, file);
-				if ("path" in image.source) await copyFile(image.source.path, destination);
-				else await writeFile(destination, image.source.body);
-				return { ...image, file };
-			}),
-		);
+		const written = new Set<string>();
+		const published: (GalleryImage & { file: string })[] = [];
+		for (const image of images) {
+			const body = "path" in image.source ? await readFile(image.source.path) : image.source.body;
+			const file = `images/${createHash("sha256").update(body).digest("hex").slice(0, 16)}.png`;
+			if (!written.has(file)) {
+				written.add(file);
+				await writeFile(path.join(this.outputFolder, file), body);
+			}
+			published.push({ ...image, file });
+		}
 		await writeFile(path.join(this.outputFolder, "index.html"), renderGallery({ status: result.status, images: published }));
 	}
 }

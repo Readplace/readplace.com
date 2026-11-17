@@ -6,11 +6,16 @@ import { ARTICLE_FRAME_STYLES } from "../../../shared/article-body/article-frame
 import { CRAWL_ESTIMATE_SCRIPT } from "../../../shared/crawl-estimate/crawl-estimate.component";
 import { READLIST_PICKER_SCRIPT } from "../../../shared/article-body/reader-actions/reader-actions.component";
 import { HIGHLIGHT_TOOLBAR_SCRIPT } from "../../../shared/article-body/highlights/highlight-toolbar.component";
-import { CAPTURE_FAILED_RELAY_SCRIPT } from "../../../shared/article-body/reader-slot/reader-slot.component";
+import {
+	CAPTURE_FAILED_RELAY_SCRIPT,
+	READER_IMAGE_BOXES_SCRIPT,
+} from "../../../shared/article-body/reader-slot/reader-slot.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../../shared/article-body/summary-slot/summary-slot.component";
+import { REPORT_ARTICLE_SCRIPT } from "../../../shared/report-article/report-article-dialog.component";
 import { TABLE_OF_CONTENTS_SCRIPT } from "../../../shared/article-body/table-of-contents/table-of-contents.component";
 import { READING_LAYOUT_STYLES } from "../../../shared/reading-layout/reading-layout.styles";
 import { SHARE_DIALOG_SCRIPT } from "../../../shared/share-dialog/share-dialog.component";
+import { PLAYER_SCRIPT } from "../../../shared/player/player.component";
 import { OFFLINE_READER_SCRIPT } from "../../../shared/offline-reader/offline-reader-script";
 import { READER_OPEN_SCRIPT } from "../../../shared/reader-open/reader-open-script";
 import { READER_EXIT_CONFIRM_SCRIPT } from "../../reader/reader-exit-confirm.component";
@@ -28,8 +33,10 @@ export const VIEW_BACK_LINK = {
 } as const;
 
 export const READER_PAGE_SCRIPTS =
+	READER_IMAGE_BOXES_SCRIPT +
 	SHARE_DIALOG_SCRIPT +
 	SUMMARY_TOGGLE_SCRIPT +
+	REPORT_ARTICLE_SCRIPT +
 	CAPTURE_FAILED_RELAY_SCRIPT +
 	CRAWL_ESTIMATE_SCRIPT +
 	READLIST_PICKER_SCRIPT +
@@ -38,7 +45,8 @@ export const READER_PAGE_SCRIPTS =
 	OFFLINE_READER_SCRIPT +
 	READER_TOP_SCRIPT +
 	TABLE_OF_CONTENTS_SCRIPT +
-	HIGHLIGHT_TOOLBAR_SCRIPT;
+	HIGHLIGHT_TOOLBAR_SCRIPT +
+	PLAYER_SCRIPT;
 
 export function renderReaderSkeleton(options: { cspNonce: CspNonce }): string {
 	return render(TEMPLATE, {

@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer, loginAgent } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { PRICING_PLANS } from "@packages/web-shell";
 import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 
@@ -90,7 +91,7 @@ describe("Readlist page banner state", () => {
 		assert(banner, "readlist banner aside must be rendered");
 		expect(banner.classList.contains("readlist-subscription--trial-status")).toBe(true);
 		expect(banner.textContent?.trim()).toBe(
-			`Trial · 12 days left · then $60 a year or $10 a month`,
+			`Trial · 12 days left · then ${PRICING_PLANS.yearly.totalDisplay} a year or ${PRICING_PLANS.monthly.totalDisplay} a month`,
 		);
 		assert(doc.querySelector("[data-test-trial-status]"), "the status line must carry its test hook");
 		expect(banner.querySelector('[data-test-action="subscribe-plans-open"]')).toBeNull();

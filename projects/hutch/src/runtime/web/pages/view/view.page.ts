@@ -474,7 +474,7 @@ function handleViewArticle(
 					}
 				}
 			}
-			if (!wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.publishStaleCheckRequested({ url: articleUrl });
+			if (existing !== null && !wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.publishStaleCheckRequested({ url: articleUrl });
 		}
 		const fallbackDestination = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const renderStub: SavedArticle["metadata"] = { ...hostStubMetadata(fallbackDestination), wordCount: 0 };
@@ -605,6 +605,7 @@ function handleViewArticle(
 					backLink: req.userId === undefined ? undefined : PUBLIC_VIEW_BACK_LINK,
 					endCta,
 					now: deps.now(),
+					signedIn: req.userId !== undefined,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),
