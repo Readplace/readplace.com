@@ -27,7 +27,7 @@ Creating a highlight has the same gate as saving a link: a signed-in account wit
 
 ## On a phone and inside the iPhone app
 
-On a phone, a long press and the native handles select the passage as on any other page. A single tap on a sentence selects that sentence, so a highlight of 1 sentence needs no handles at all. The bar sits below the selection, clear of the system's copy menu.
+On a phone, a long press and the native handles select the passage as on any other page. A single tap on a sentence selects that sentence, so a highlight of 1 sentence needs no handles at all. The bar appears just below the selection, far enough away that the system's copy menu fits between them, so Copy and Highlight are both in reach.
 
 The iPhone app opens the same reader page, so the bar, the rail and the note dialog work there without an app update.
 

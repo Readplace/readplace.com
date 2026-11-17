@@ -128,12 +128,13 @@ async function createHighlight(
 		articleId: string;
 		exact: string;
 		origin?: HighlightCreatedEvent["origin"];
+		note?: string;
 	},
 ): Promise<string> {
 	const response = await agent
 		.post(createPath(range.articleId))
 		.type("form")
-		.send(await rangeOf(agent, range));
+		.send({ ...(await rangeOf(agent, range)), ...(range.note === undefined ? {} : { note: range.note }) });
 	assert.equal(response.status, 303);
 	return highlightIdFrom(response.headers.location);
 }
@@ -192,10 +193,26 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		expect(deleteForm?.getAttribute("hx-push-url")).toBe("false");
 	});
 
+	it("marks a noted highlight's segment as having a note and as the note's end", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-noted`);
+		const created = await agent
+			.post(createPath(articleId))
+			.type("form")
+			.send({ ...(await rangeOf(agent, { articleId, exact: "readability parser" })), note: "My thought" });
+		assert.equal(created.status, 303);
+
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
+
+		expect(Array.from(page.querySelectorAll("mark.article-highlight"), (mark) => mark.getAttribute("class"))).toEqual([
+			"article-highlight article-highlight--has-note article-highlight--note-end",
+		]);
+	});
+
 	it("posts the rail's note forms back to the app surface without pushing history", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-note-forms`);
-		await createHighlight(agent, { articleId, exact: "readability parser" });
+		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Kept" });
 
 		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
 
@@ -211,12 +228,16 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 			expect(form.getAttribute("action")).toContain(`platform=${platform}`);
 			expect(form.getAttribute("hx-push-url")).toBe("false");
 		}
+		const deleteNoteForm = page.getElementById(`delete-note-highlight-${id}`);
+		expect(deleteNoteForm?.getAttribute("action")).toContain(`platform=${platform}`);
+		expect(deleteNoteForm?.getAttribute("action")).toContain("utm_content=delete-note");
+		expect(deleteNoteForm?.getAttribute("hx-push-url")).toBe("false");
 	});
 
 	it("shows a read-only account its marks and rail with no toolbar or highlight forms", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-read-only`);
-		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Kept" });
 		await makeReadOnly(harness);
 
 		const html = (await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text;
@@ -228,6 +249,46 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		expect(formActionsIn(page.querySelector("[data-test-highlights-rail]"))).toEqual([]);
 		expect(page.querySelector("[data-test-highlight-toolbar]")).toBeNull();
 		expect(page.querySelectorAll("main form").length).toBeGreaterThan(0);
+	});
+
+	it("renders a read-only account's note previews on the page and the reader poll", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-read-only-preview`);
+		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Read-only note" });
+		await makeReadOnly(harness);
+
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
+		const poll = doc((await agent.get(`/queue/${articleId}/reader?poll=1&platform=${platform}`)).text);
+
+		expect(page.querySelector("[data-test-highlight-toolbar]")).toBeNull();
+		for (const answer of [page, poll]) {
+			expect(
+				Array.from(answer.querySelectorAll("[data-test-highlight-preview]"), (preview) => ({
+					id: preview.getAttribute("data-highlight-preview"),
+					note: preview.textContent,
+				})),
+			).toEqual([{ id, note: "Read-only note" }]);
+		}
+	});
+
+	it("loads the highlight script for a read-only account's noted highlight, and not for highlights without a note", async () => {
+		const harness = useApp(parsedFixture());
+		const noted = await saveArticle(harness, `https://example.com/app-${platform}-read-only-script`);
+		await createHighlight(noted.agent, { articleId: noted.articleId, exact: "readability parser", note: "Script note" });
+		const bare = await saveArticle(harness, `https://example.com/app-${platform}-read-only-bare`);
+		await createHighlight(bare.agent, { articleId: bare.articleId, exact: "readability parser" });
+		await makeReadOnly(harness);
+
+		const scriptsOf = async (input: { agent: Agent; articleId: string }) =>
+			Array.from(
+				doc((await input.agent.get(`/queue/${input.articleId}/view?platform=${platform}`)).text).querySelectorAll("script[src]"),
+				(script) => script.getAttribute("src"),
+			);
+		const notedScripts = await scriptsOf(noted);
+		const bareScripts = await scriptsOf(bare);
+
+		expect(notedScripts).toContain("/client-dist/highlight-toolbar.client.js");
+		expect(bareScripts).toEqual(notedScripts.filter((src) => src !== "/client-dist/highlight-toolbar.client.js"));
 	});
 
 	it("keeps the marks and the surface on the reader poll's rail", async () => {

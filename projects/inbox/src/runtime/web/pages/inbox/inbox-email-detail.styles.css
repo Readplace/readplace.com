@@ -330,32 +330,30 @@
   gap: 4px;
 }
 
-.inbox-article-card__action-button--saved,
-.inbox-excluded-link__save-button--saved {
+.inbox-excluded-link__save-button .btn__label-stack::before {
+  padding-inline-start: calc(1em + 4px);
+}
+
+.inbox-article-card__action-button--saved {
   --inbox-saved-check: var(--success-text);
 }
 
 .inbox-article-card__action-button--saved:hover,
-.inbox-article-card__action-button--saved:active,
-.inbox-excluded-link__save-button--saved:hover,
-.inbox-excluded-link__save-button--saved:active {
+.inbox-article-card__action-button--saved:active {
   --inbox-saved-check: currentColor;
 }
 
-.inbox-article-card__action-button--saved svg,
-.inbox-excluded-link__save-button--saved svg {
+.inbox-article-card__action-button--saved svg {
   width: 1em;
   height: 1em;
   color: var(--inbox-saved-check);
 }
 
-.inbox-article-card__action-button:not(.inbox-article-card__action-button--saved) .btn__label-stack::before,
-.inbox-excluded-link__save-button:not(.inbox-excluded-link__save-button--saved) .btn__label-stack::before {
+.inbox-article-card__action-button:not(.inbox-article-card__action-button--saved) .btn__label-stack::before {
   padding-inline-start: calc(1em + 4px);
 }
 
-.inbox-article-card__action-button--saving,
-.inbox-excluded-link__save-button--saving {
+.inbox-article-card__action-button--saving {
   cursor: progress;
 }
 

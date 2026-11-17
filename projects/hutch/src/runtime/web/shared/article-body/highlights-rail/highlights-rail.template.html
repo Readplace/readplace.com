@@ -12,10 +12,11 @@
                 <div class="highlights-rail__actions">
                   {{#if jumpHref}}<a class="btn btn--neutral btn--s highlights-rail__jump" href="{{jumpHref}}" data-highlight-jump="{{highlightId}}" data-test-action="highlight-jump">Jump</a>{{/if}}
                   {{#with edit}}<form method="POST" action="{{deleteUrl}}" class="highlights-rail__delete-form highlights-rail__delete-form--fallback" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="find button">
-                    <button class="btn btn--neutral btn--s" type="submit" data-test-action="highlight-delete-fallback">Delete</button>
+                    <button class="btn btn--neutral btn--s" type="submit" data-test-action="highlight-delete-fallback">{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
                   </form>
-                  <button class="btn btn--neutral btn--s highlights-rail__delete-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="highlight-delete">Delete</button>
-                  <button class="btn btn--neutral btn--s highlight-note__trigger" type="button" popovertarget="{{notePopoverId}}" aria-haspopup="dialog" data-test-action="highlight-note">{{noteLabel}}</button>{{/with}}
+                  <button class="btn btn--neutral btn--s highlights-rail__delete-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="highlight-delete">{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
+                  <button class="btn btn--neutral btn--s highlight-note__trigger" type="button" popovertarget="{{notePopoverId}}" aria-haspopup="dialog" data-test-action="highlight-note">{{noteLabel}}</button>
+                  {{{noteDeleteHtml}}}{{/with}}
                 </div>
                 {{#with edit}}<details class="highlight-note__fallback" data-test-highlight-note-fallback>
                   <summary>{{noteLabel}}</summary>

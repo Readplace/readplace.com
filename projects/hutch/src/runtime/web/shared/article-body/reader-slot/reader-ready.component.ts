@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
+import { renderHighlightPreviews } from "../highlights/highlight-preview.component";
+import { highlightsRailRowsFromStates } from "../highlights-rail/highlights-rail.component";
 import type { ReaderHighlightState, ReaderHighlights } from "./mark-highlights";
 import { prepareReaderContent } from "./reader-content";
 import type { ArticleBody } from "@packages/domain/article";
@@ -44,6 +46,7 @@ export function renderReaderReady(input: ReaderReadyInput): RenderedReaderReady 
 		html: render(TEMPLATE, {
 			content: page.html,
 			pagerHtml: pagerHtmlFor(page),
+			previewsHtml: renderHighlightPreviews(highlightsRailRowsFromStates(page.states)),
 			oob: input.oob === true,
 		}),
 		states: page.states,

@@ -1,3 +1,5 @@
+import { READER_IMAGE_BOXES_SCRIPT } from "./article-body/reader-slot/reader-slot.component";
+
 /** The client bundle that slides the nav up out of view on scroll-down and back
  * on scroll-up (reader-nav.client.ts). Injected per page — see {@link ReaderScripts}. */
 export const NAV_HIDE_SCRIPT =
@@ -17,5 +19,5 @@ export interface ReaderScripts {
 }
 
 export function readerScripts({ navHide, page }: ReaderScripts): string {
-	return navHide + page;
+	return READER_IMAGE_BOXES_SCRIPT + navHide + page;
 }

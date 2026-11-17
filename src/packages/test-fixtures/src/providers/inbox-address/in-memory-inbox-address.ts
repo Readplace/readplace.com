@@ -24,26 +24,35 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 	const listAddressesByUserId = async (userId: UserId) =>
 		[...rows.values()].filter((row) => row.userId === userId);
 
+	const createCappedAddress = async ({
+		userId,
+		domain,
+		name,
+		purpose,
+		readlist,
+	}: Parameters<InboxAddressStore["createAddress"]>[0] & { readlist: ReadlistSlug | undefined }) => {
+		if (addressCapReached({ purpose, owned: await listAddressesByUserId(userId) })) {
+			throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
+		}
+		const token = generateInboxToken();
+		const address = buildInboxAddress({ name, token, domain });
+		const entry: InboxAddressEntry = {
+			address,
+			userId,
+			name,
+			token,
+			createdAt: deps.now().toISOString(),
+			disabledAt: undefined,
+			purpose,
+			readlist,
+		};
+		rows.set(address, entry);
+		return entry;
+	};
+
 	const store: InboxAddressStore = {
-		createAddress: async ({ userId, domain, name, purpose }) => {
-			if (addressCapReached({ purpose, owned: await listAddressesByUserId(userId) })) {
-				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
-			}
-			const token = generateInboxToken();
-			const address = buildInboxAddress({ name, token, domain });
-			const entry: InboxAddressEntry = {
-				address,
-				userId,
-				name,
-				token,
-				createdAt: deps.now().toISOString(),
-				disabledAt: undefined,
-				purpose,
-				readlist: undefined,
-			};
-			rows.set(address, entry);
-			return entry;
-		},
+		createAddress: (input) => createCappedAddress({ ...input, readlist: undefined }),
+		createRoutedAddress: createCappedAddress,
 		listAddressesByUserId,
 		disableAddress: async ({ userId, address }) => {
 			const row = rows.get(address);

@@ -57,6 +57,22 @@ function moveArticle(
 		.send({ from: input.from, to: input.to });
 }
 
+function addToSeveral(agent: TestAgent, input: { articleId: string; from: string; to: string[] }): request.Test {
+	return agent
+		.post(`/queue/${input.articleId}/move`)
+		.type("form")
+		.send(new URLSearchParams([["from", input.from], ...input.to.map((slug) => ["to", slug])]).toString());
+}
+
+function undoFieldPairs(doc: Document): [string | null, string | null][] {
+	const form = doc.querySelector("#status-toast [data-test-toast-action]")?.closest("form");
+	assert(form, "the toast must offer its Undo as a form");
+	return Array.from(form.querySelectorAll("input[type='hidden']"), (input) => [
+		input.getAttribute("name"),
+		input.getAttribute("value"),
+	]);
+}
+
 function createAndMove(
 	agent: TestAgent,
 	input: { action: string; from: string; label: string; htmx: boolean },
@@ -98,7 +114,7 @@ async function listedOn(agent: TestAgent, path: string): Promise<(string | null)
 }
 
 async function readlistLabels(agent: TestAgent): Promise<(string | null)[]> {
-	return Array.from((await listing(agent, "/queue")).querySelectorAll("[data-test-readlist]"), (el) => el.textContent);
+	return Array.from((await listing(agent, "/queue")).querySelectorAll('[data-test-readlist], [data-test-readlist-popover="more"] [data-test-readlist-more-entry]'), (el) => el.textContent);
 }
 
 function toastMessage(doc: Document): string | null | undefined {
@@ -310,6 +326,54 @@ describe("POST /queue/:id/move", () => {
 			const doc = await listing(agent, undone.headers.location);
 			expect(toastMessage(doc)).toBe("Removed from Finance");
 			expect(toastUndo(doc).fields).toEqual({ from: "default", to: finance });
+		});
+
+		it("adds an article from All to every readlist the reader ticked, keeping it in All", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const finance = await createReadlist(agent, "Finance");
+			const weekend = await createReadlist(agent, "Weekend");
+			const articleId = await saveArticle(agent, "https://example.com/added-to-several");
+
+			const response = await addToSeveral(agent, { articleId, from: "default", to: [finance, weekend] });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(
+				`/queue?moved_article=${articleId}&moved_from=default&moved_to=${finance}&moved_to=${weekend}`,
+			);
+			expect(await listedOn(agent, "/queue")).toEqual([articleId]);
+			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([articleId]);
+			expect(await listedOn(agent, `/queue?queue=${weekend}`)).toEqual([articleId]);
+		});
+
+		it("confirms an add into several readlists in one toast whose Undo takes the article out of all of them", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const finance = await createReadlist(agent, "Finance");
+			const weekend = await createReadlist(agent, "Weekend");
+			const articleId = await saveArticle(agent, "https://example.com/undo-several");
+			const added = await addToSeveral(agent, { articleId, from: "default", to: [finance, weekend] });
+			const doc = await listing(agent, added.headers.location);
+
+			expect(toastMessage(doc)).toBe("Added to 2 readlists");
+			expect(toastUndo(doc).action).toBe(
+				`/queue/${articleId}/unassign?utm_source=queue-toast&utm_medium=internal&utm_content=undo-move`,
+			);
+			expect(undoFieldPairs(doc)).toEqual([
+				["queue", finance],
+				["queue", weekend],
+				["returnTo", "/queue"],
+			]);
+
+			const undone = await agent
+				.post(toastUndo(doc).action)
+				.type("form")
+				.send(new URLSearchParams(undoFieldPairs(doc).map(([name, value]) => [String(name), String(value)])).toString());
+
+			expect(undone.status).toBe(303);
+			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([]);
+			expect(await listedOn(agent, `/queue?queue=${weekend}`)).toEqual([]);
+			expect(await listedOn(agent, "/queue")).toEqual([articleId]);
 		});
 
 		it("copies the article back into All when a move back to All finds its All copy gone", async () => {
@@ -559,6 +623,35 @@ describe("POST /queue/:id/move", () => {
 				"Readlist not found",
 			);
 			expect(listedArticleIds(doc)).toEqual([articleId]);
+		});
+
+		it("sends an add naming a readlist the reader does not own to the readlist-not-found alert, filing into none", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const finance = await createReadlist(agent, "Finance");
+			const articleId = await saveArticle(agent, "https://example.com/several-one-unknown");
+
+			const response = await addToSeveral(agent, { articleId, from: "default", to: [finance, "gone"] });
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
+			expect(await listedOn(agent, `/queue?queue=${finance}`)).toEqual([]);
+		});
+
+		it("answers a move out of a custom readlist into several with an empty 404, writing nothing", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const weekend = await createReadlist(agent, "Weekend");
+			const finance = await createReadlist(agent, "Finance");
+			const ideas = await createReadlist(agent, "Ideas");
+			const articleId = await saveArticle(agent, "https://example.com/move-into-several");
+			await fileInto(agent, { articleId, readlist: weekend });
+
+			const response = await addToSeveral(agent, { articleId, from: weekend, to: [finance, ideas] });
+
+			expect(response.status).toBe(404);
+			expect(response.text).toBe("");
+			expect(await listedOn(agent, `/queue?queue=${weekend}`)).toEqual([articleId]);
 		});
 
 		it("quietly re-renders the return page when the destination already holds the article", async () => {

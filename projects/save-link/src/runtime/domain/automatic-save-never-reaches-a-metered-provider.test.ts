@@ -113,6 +113,7 @@ function initPipeline(tier1: CrawlAndFinalizeResult) {
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => undefined, loadArticle: aggregates.load, transitionAndPersist,
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+		fetchRedditPostCard: async () => undefined,
 		fetchYouTubeVideoCard: async () => undefined, putTierSource: async (params) => params.metadata,
 		now: () => NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger,
 	});
@@ -178,6 +179,7 @@ function initPipeline(tier1: CrawlAndFinalizeResult) {
 		publishUpdateFetchTimestamp: async () => {},
 		refreshArticleIfStale: async ({ url }) => ({ action: "new", identity: { status: "resolved", url, originalUrl: url } }),
 		pinContentSource: async () => {},
+		delay: async () => {},
 		crawlAndFinalizeArticle: async () => tier1,
 		emitSimpleCrawlUnsupported: async ({ unsupportedReason }) => { deferredReasons.push(unsupportedReason); },
 		putTierSource: async (params) => params.metadata,

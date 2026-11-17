@@ -60,6 +60,7 @@ import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-
 import { assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PARAMETER_NAME } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
 import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
+import { ADMIN_TOTP_SECRETS_PARAMETER_NAME, adminTotpSecretsParameterValue } from "../runtime/web/pages/admin/admin-totp-secrets";
 import type { DynamoTables } from "../runtime/providers/dynamodb-tables";
 import { formatEnvMap } from "../runtime/providers/env-map";
 import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
@@ -101,6 +102,7 @@ import { EVALUATE_OAUTH_REFRESH_ENV } from "../runtime/evaluate-oauth-refresh.en
 import { requireEnv } from "@packages/require-env";
 
 const config = new pulumi.Config();
+const storedAdminTotpSecrets = pulumi.secret(adminTotpSecretsParameterValue(requireEnv("ADMIN_TOTP_SECRETS")));
 const stage = config.require("stage");
 const excludedUserIds = config.requireObject<string[]>("excludedUserIds");
 assertExcludedUserIds(excludedUserIds);
@@ -110,6 +112,11 @@ const excludedIdentitiesParameter = new aws.ssm.Parameter("excluded-identities",
 	name: EXCLUDED_IDENTITIES_PARAMETER_NAME,
 	type: "String",
 	value: JSON.stringify({ excludedVisitorIds, excludedUserIds }),
+});
+const adminTotpSecretsParameter = new aws.ssm.Parameter("admin-totp-secrets", {
+	name: ADMIN_TOTP_SECRETS_PARAMETER_NAME,
+	type: "SecureString",
+	value: storedAdminTotpSecrets,
 });
 const engagementDeploymentSha = config.require("engagementStarterDeploymentSha");
 const trialSchedulerGroupName = config.require("trialSchedulerGroupName");
@@ -143,11 +150,13 @@ const gmailEmailUpdateFailedThreshold = config.requireNumber("gmailEmailUpdateFa
 const readlistCapWarnThreshold = config.getNumber("readlistCapWarnThreshold");
 const mcpScanListingWindowHours = config.getNumber("mcpScanListingWindowHours");
 const analyticsSaltGeneration = config.requireNumber("analyticsSaltGeneration");
-const analyticsSalt = checkedAnalyticsSalt({
-	functionName: Lambda.handlerFunctionName(LAMBDA_NAMES.hutchHandler),
-	stack: pulumi.getStack(),
-	next: { salt: requireEnv("ANALYTICS_SALT"), generation: analyticsSaltGeneration },
-});
+const analyticsSalt = pulumi.secret(
+	checkedAnalyticsSalt({
+		functionName: Lambda.handlerFunctionName(LAMBDA_NAMES.hutchHandler),
+		stack: pulumi.getStack(),
+		next: { salt: requireEnv("ANALYTICS_SALT"), generation: analyticsSaltGeneration },
+	}),
+);
 const rawEmailBucketName = config.require("rawEmailBucketName");
 const newsletterCatalogBucketName = config.require("newsletterCatalogBucketName");
 
@@ -523,17 +532,17 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		RATE_LIMITS: formatEnvMap(rateLimitRules),
 		OAUTH_REFRESH_ENROLLMENT_ENABLED: String(config.requireBoolean("oauthRefreshEnrollmentEnabled")),
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
-		GOOGLE_LOGIN_CLIENT_SECRET: requireEnv("GOOGLE_LOGIN_CLIENT_SECRET"),
+		GOOGLE_LOGIN_CLIENT_SECRET: pulumi.secret(requireEnv("GOOGLE_LOGIN_CLIENT_SECRET")),
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
-		GMAIL_INTEGRATION_STATE_SECRET: requireEnv("GMAIL_INTEGRATION_STATE_SECRET"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
+		GMAIL_INTEGRATION_STATE_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_STATE_SECRET")),
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
 		APPLE_LOGIN_CLIENT_ID: requireEnv("APPLE_LOGIN_CLIENT_ID"),
 		APPLE_LOGIN_TEAM_ID: requireEnv("APPLE_LOGIN_TEAM_ID"),
 		APPLE_LOGIN_KEY_ID: requireEnv("APPLE_LOGIN_KEY_ID"),
-		APPLE_LOGIN_PRIVATE_KEY_BASE64: requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"),
-		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
-		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
+		APPLE_LOGIN_PRIVATE_KEY_BASE64: pulumi.secret(requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64")),
+		RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
+		STRIPE_SECRET_KEY: pulumi.secret(requireEnv("STRIPE_SECRET_KEY")),
 		STRIPE_PUBLISHABLE_KEY: requireEnv("STRIPE_PUBLISHABLE_KEY"),
 		STATIC_BASE_URL: staticAssets.baseUrl,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -547,7 +556,7 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 		SSR_EDGE_SECRET: ssrEdgeSecret,
 		ADMIN_EMAILS: requireEnv("ADMIN_EMAILS"),
 		TRANSCRIPT_ALLOWANCE_SECONDS: String(transcriptAllowanceSeconds),
-		RECRAWL_SERVICE_TOKEN: requireEnv("RECRAWL_SERVICE_TOKEN"),
+		RECRAWL_SERVICE_TOKEN: pulumi.secret(requireEnv("RECRAWL_SERVICE_TOKEN")),
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 		FOUNDING_MEMBER_LIMIT: config.require("foundingMemberLimit"),
@@ -939,18 +948,18 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 		MEDIA_TABLE_NAME: mediaTableName,
 		USER_EXPORT_BUCKET_NAME: userExportBucketName,
 		ANALYTICS_SALT: analyticsSalt,
-		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
+		STRIPE_SECRET_KEY: pulumi.secret(requireEnv("STRIPE_SECRET_KEY")),
 		APPLE_LOGIN_CLIENT_ID: requireEnv("APPLE_LOGIN_CLIENT_ID"),
 		APPLE_LOGIN_TEAM_ID: requireEnv("APPLE_LOGIN_TEAM_ID"),
 		APPLE_LOGIN_KEY_ID: requireEnv("APPLE_LOGIN_KEY_ID"),
-		APPLE_LOGIN_PRIVATE_KEY_BASE64: requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64"),
+		APPLE_LOGIN_PRIVATE_KEY_BASE64: pulumi.secret(requireEnv("APPLE_LOGIN_PRIVATE_KEY_BASE64")),
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		EVENT_BUS_ARN: eventBus.eventBusArn,
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroupName,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
-		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
+		RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
 	},
 	policies: [
 		...userDataJobsDynamodb.policies,
@@ -1027,7 +1036,7 @@ const sendUserDigestLambda = new Lambda("send-user-digest", {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
 		ENGAGEMENT_EXCLUDED_USER_IDS: JSON.stringify(excludedUserIds),
-		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
+		RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
@@ -1322,7 +1331,7 @@ new StripeWebhookReceiver("stripe-webhook-receiver", {
 		arn: storage.subscriptionProvidersTable.arn,
 		name: storage.subscriptionProvidersTable.name,
 	},
-	webhookSecret: parseStripeWebhookSecret(requireEnv("STRIPE_WEBHOOK_SECRET")),
+	webhookSecret: pulumi.secret(parseStripeWebhookSecret(requireEnv("STRIPE_WEBHOOK_SECRET"))),
 	events: ["customer.subscription.deleted", "invoice.payment_failed"],
 	alertEmail,
 });
@@ -1353,7 +1362,7 @@ const subscriptionEventsLambda = new Lambda(LAMBDA_NAMES.subscriptionEvents, {
 	environmentNames: SUBSCRIPTION_EVENTS_ENV,
 	environment: {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
-		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
+		STRIPE_SECRET_KEY: pulumi.secret(requireEnv("STRIPE_SECRET_KEY")),
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		EVENT_BUS_ARN: eventBus.eventBusArn,
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
@@ -1443,8 +1452,8 @@ const sendTrialFeedbackEmailLambda = new Lambda(
 			DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 			DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 			DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
-			RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
-			STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
+			RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
+			STRIPE_SECRET_KEY: pulumi.secret(requireEnv("STRIPE_SECRET_KEY")),
 			STATIC_BASE_URL: staticAssets.baseUrl,
 			APP_ORIGIN: appOrigin,
 		},
@@ -1635,7 +1644,7 @@ const sendFirstInboxEmailNoticeLambda = new Lambda("send-first-inbox-email-notic
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
-		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
+		RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
 		STATIC_BASE_URL: staticAssets.baseUrl,
 		APP_ORIGIN: appOrigin,
 	},
@@ -1758,7 +1767,7 @@ const rewriteGmailFilterDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filte
 
 const rewriteGmailFilterGmailHistoryDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filter-gmail-history", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:Query", "dynamodb:UpdateItem"],
+	actions: ["dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
 });
 
 const rewriteGmailFilterGmailMonitoringDynamodb = new DynamoDBAccess("hutch-rewrite-gmail-filter-gmail-monitoring", {
@@ -1788,7 +1797,7 @@ const rewriteGmailFilterLambda = new Lambda("rewrite-gmail-filter", {
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
 	},
 	policies: [...rewriteGmailFilterDynamodb.policies, ...rewriteGmailFilterGmailHistoryDynamodb.policies, ...rewriteGmailFilterGmailMonitoringDynamodb.policies],
 });
@@ -1894,7 +1903,7 @@ const gmailNewsletterNoticeLambda = new Lambda("gmail-newsletter-notice", {
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
-		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
+		RESEND_API_KEY: pulumi.secret(requireEnv("RESEND_API_KEY")),
 		STATIC_BASE_URL: staticAssets.baseUrl,
 		APP_ORIGIN: appOrigin,
 	},
@@ -1932,7 +1941,7 @@ const gmailNewsletterMonitorLambda = new Lambda("gmail-newsletter-monitor", {
 		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
 	},
 	policies: [
 		...gmailNewsletterMonitoringAccess.policies,
@@ -2012,7 +2021,7 @@ const gmailDiscoveryLambda = new Lambda("gmail-discovery", {
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
 	},
 	policies: [...gmailDiscoveryAccess.policies, ...gmailDiscoveryAccountRead.policies, ...gmailDiscoveryConnectionUpdate.policies, ...gmailDiscoveryQueue.policies],
 	recursiveLoop: "Allow",
@@ -2116,7 +2125,7 @@ const gmailHistoryImportLambda = new Lambda("gmail-history-import", {
 		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
 	},
 	policies: [
 		...gmailHistoryImportAccess.policies,
@@ -2205,7 +2214,7 @@ const gmailMessageUpdatesLambda = new Lambda("gmail-message-updates", {
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
 	},
 	policies: [...gmailMessageUpdatesAccess.policies, ...gmailMessageUpdatesAccountRead.policies],
 });
@@ -2268,7 +2277,7 @@ const gmailMarkBackfillLambda = new Lambda("gmail-mark-backfill", {
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
-		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),
 	},
 	policies: [
 		...gmailMarkBackfillAccess.policies,
@@ -2502,6 +2511,22 @@ const authDiagnosticsLogGroup = new aws.cloudwatch.LogGroup("auth-diagnostics-lo
 	name: AUTH_DIAGNOSTICS_LOG_GROUP,
 	retentionInDays: 365,
 }, { retainOnDelete: true });
+
+new aws.iam.RolePolicy("hutch-admin-totp-secrets-read", {
+	role: lambda.role.name,
+	policy: adminTotpSecretsParameter.arn.apply((parameterArn) =>
+		JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Effect: "Allow",
+					Action: ["ssm:GetParameter"],
+					Resource: [parameterArn],
+				},
+			],
+		}),
+	),
+});
 
 new aws.iam.RolePolicy("hutch-admin-dashboards-read", {
 	role: lambda.role.name,

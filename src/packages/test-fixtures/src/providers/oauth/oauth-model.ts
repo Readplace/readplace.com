@@ -125,6 +125,24 @@ export function createRevokeAllUserOAuthTokens(deps: OAuthModelDeps): RevokeAllU
 	};
 }
 
+export function createExpireUserAccessTokens(deps: OAuthModelDeps): (input: { userId: UserId; forget: boolean }) => Promise<number> {
+	return async ({ userId, forget }) => {
+		const accessTokens = deps.userIdIndex.get(userId) ?? new Set<string>();
+		let expired = 0;
+		for (const accessToken of accessTokens) {
+			const stored = deps.tokens.get(accessToken);
+			if (!stored) continue;
+			stored.accessTokenExpiresAt = new Date(0);
+			expired += 1;
+			if (!forget) continue;
+			deps.refreshTokenIndex.delete(stored.refreshToken);
+			deps.tokens.delete(accessToken);
+			accessTokens.delete(accessToken);
+		}
+		return expired;
+	};
+}
+
 export function createRevokeOtherUserOAuthGrants(deps: OAuthModelDeps): RevokeOtherUserOAuthGrants {
 	const { store, advanceEpochKeeping } = createInMemoryRefreshStore(deps);
 	const keepCurrentGrant = initKeepCurrentGrant({ store, advanceEpochKeeping });

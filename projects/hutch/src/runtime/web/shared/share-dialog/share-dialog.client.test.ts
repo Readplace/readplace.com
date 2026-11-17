@@ -3,14 +3,17 @@ import { JSDOM } from "jsdom";
 import { initShareDialog } from "./share-dialog.client";
 import { renderShareDialog, renderSharePanel } from "./share-dialog.component";
 
+const ORIGINAL_LINK = "https://example.com/post";
+
 const ARTICLE = {
-	shareUrl: "https://readplace.com/view/example.com/post",
+	readerViewUrl: "https://readplace.com/view/example.com/post",
+	originalUrl: ORIGINAL_LINK,
 	title: "Why readers keep tabs open",
 	campaign: "reader-internal",
 } as const;
 
 const COPIED_LINK =
-	"https://readplace.com/view/example.com/post?utm_source=share-dialog&utm_medium=copy&utm_campaign=reader-internal";
+	"https://readplace.com/view/example.com/post?utm_source=share-dialog&utm_medium=copy&utm_campaign=reader-internal&utm_content=reader-view";
 
 const DIALOG = '[data-test-confirm-popover="share"]';
 const FALLBACK = "[data-test-share-fallback]";
@@ -39,7 +42,7 @@ function clipboardThat(answer: "grants" | "refuses"): FakeClipboard {
 
 function pageWithShare(fake: FakeClipboard | undefined) {
 	const dom = new JSDOM(
-		`<!DOCTYPE html><html><body>${renderShareDialog(ARTICLE)}<details data-test-share-fallback open><summary>Share</summary><div>${renderSharePanel(ARTICLE)}</div></details><p id="elsewhere">The article itself.</p></body></html>`,
+		`<!DOCTYPE html><html><body>${renderShareDialog(ARTICLE)}<details data-test-share-fallback open><summary>Share</summary><div>${renderSharePanel(ARTICLE, "toolbar")}</div></details><p id="elsewhere">The article itself.</p></body></html>`,
 	);
 	const shareDialog = initShareDialog({
 		document: dom.window.document,
@@ -105,7 +108,7 @@ describe("share dialog copy", () => {
 		const { dom, shareDialog } = pageWithShare(clipboardThat("grants"));
 		const swapped = dom.window.document.createElement("section");
 		swapped.id = "swapped";
-		swapped.innerHTML = renderSharePanel(ARTICLE);
+		swapped.innerHTML = renderSharePanel(ARTICLE, "menu");
 		dom.window.document.body.append(swapped);
 		expect(inside(dom, { scope: "#swapped", selector: "[data-share-copy]" }).hasAttribute("hidden")).toBe(true);
 
@@ -142,6 +145,39 @@ describe("share dialog copy", () => {
 		expect(copyState(dom, DIALOG)).toEqual({ idleHidden: false, doneHidden: true, status: "Press Ctrl+C" });
 		jest.advanceTimersByTime(2000);
 		expect(copyState(dom, DIALOG)).toEqual(IDLE);
+	});
+
+	it("copies the original link from its own row", async () => {
+		const fake = clipboardThat("grants");
+		const { dom } = pageWithShare(fake);
+
+		click(dom, inside(dom, { scope: DIALOG, selector: '[data-test-share-copy="original"]' }));
+		await fake.settled();
+
+		expect(fake.writes).toEqual([ORIGINAL_LINK]);
+		expect(copyState(dom, DIALOG)).toEqual({ idleHidden: false, doneHidden: true, status: "Link copied to clipboard" });
+		expect(
+			[
+				inside(dom, { scope: `${DIALOG} [data-test-share-link="original"]`, selector: "[data-share-copy-done]" }).hasAttribute("hidden"),
+				inside(dom, { scope: `${DIALOG} [data-test-share-link="reader-view"]`, selector: "[data-share-copy-done]" }).hasAttribute("hidden"),
+			],
+		).toEqual([false, true]);
+	});
+
+	it("selects the original link, not the reader view, when the clipboard refuses the original", async () => {
+		const fake = clipboardThat("refuses");
+		const { dom } = pageWithShare(fake);
+
+		click(dom, inside(dom, { scope: DIALOG, selector: '[data-test-share-copy="original"]' }));
+		await fake.settled();
+
+		const original = inside(dom, { scope: DIALOG, selector: '[data-test-share-url="original"]' });
+		const readerView = inside(dom, { scope: DIALOG, selector: '[data-test-share-url="reader-view"]' });
+		assert(original instanceof dom.window.HTMLInputElement && readerView instanceof dom.window.HTMLInputElement, "links sit in text fields");
+		expect([
+			[original.selectionStart, original.selectionEnd],
+			(readerView.selectionEnd ?? 0) - (readerView.selectionStart ?? 0),
+		]).toEqual([[0, ORIGINAL_LINK.length], 0]);
 	});
 
 	it("keeps a single restore timer when Copy is pressed twice in quick succession", async () => {

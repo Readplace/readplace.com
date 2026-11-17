@@ -125,6 +125,27 @@ describe("Owner reader EPUB (GET /queue/:id/view?format=epub)", () => {
 		expect(sectionEntries(chapter)).toEqual(["passage worth keeping"]);
 	});
 
+	it("links a noted passage's reference to its note in the Highlights section and the note back to it", async () => {
+		const { harness, agent, userId } = await signedInHarness();
+		await saveArticle({ harness, userId, url: ARTICLE_URL, body: ARTICLE_BODY });
+		const highlightId = await createHighlight({ agent, exact: "passage worth keeping", occurrence: "first" });
+		const noted = await agent
+			.post(`/queue/${ARTICLE_ID}/highlights/${highlightId}/note`)
+			.type("form")
+			.send({ note: "Worth a reread" });
+		assert.equal(noted.status, 303);
+
+		const { chapter } = await downloadChapter(agent, `/queue/${ARTICLE_ID}/view?format=epub`);
+
+		const linksOf = (role: string) =>
+			Array.from(chapter.querySelectorAll(`a[role="${role}"]`), (link) => {
+				const href = link.getAttribute("href") ?? "";
+				return [href, chapter.getElementById(href.slice(1))?.textContent];
+			});
+		expect(linksOf("doc-noteref")).toEqual([[`#endnote-highlight-${highlightId}`, "1 Worth a reread"]]);
+		expect(linksOf("doc-backlink")).toEqual([[`#noteref-highlight-${highlightId}`, "1"]]);
+	});
+
 	it("marks the second of two identical passages when no canonical snapshot exists", async () => {
 		const { harness, agent, userId } = await signedInHarness();
 		await saveArticle({

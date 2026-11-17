@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { InboxReadlistOutcome } from "@packages/domain/inbox";
+import { EmailLinkOrdinalSchema, type InboxReadlistOutcome } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
@@ -26,8 +26,9 @@ function lapsedSubscription(): SubscriptionRecord {
 
 async function admit(opts: {
 	meta?: Meta;
-	outcome?: Omit<InboxReadlistOutcome, "readlist" | "readlistLabel" | "fit">;
+	outcome?: Omit<InboxReadlistOutcome, "readlist" | "readlistLabel" | "fit"> & { fit?: InboxReadlistOutcome["fit"] };
 	subscription?: SubscriptionRecord;
+	target?: Parameters<ReturnType<typeof initAdmitTriagedMessage>>[0]["target"];
 }) {
 	const inboxLinks = initInMemoryInboxEmailLink();
 	if (opts.meta !== undefined) {
@@ -45,7 +46,12 @@ async function admit(opts: {
 		findSubscriptionByUserId: async () => opts.subscription,
 		now: () => NOW,
 	});
-	return admitTriagedMessage({ userId: USER, receivedAtMessageId: RAM, readlist: WORK });
+	return admitTriagedMessage({
+		userId: USER,
+		receivedAtMessageId: RAM,
+		readlist: WORK,
+		target: opts.target ?? { scope: "email" },
+	});
 }
 
 const SELECTS_WORK: Meta = {
@@ -88,5 +94,62 @@ describe("initAdmitTriagedMessage", () => {
 
 	it("a failed outcome with full access proceeds", async () => {
 		assert.deepEqual(await admit({ meta: SELECTS_WORK, outcome: { decision: "failed" } }), { kind: "proceed" });
+	});
+
+	describe("a single saved link", () => {
+		const RESCUED = EmailLinkOrdinalSchema.parse("0004");
+		const target = { scope: "link" as const, ordinal: RESCUED };
+		const decided = { ordinal: EmailLinkOrdinalSchema.parse("0000"), verdict: "keep" as const, reason: "On topic" };
+
+		it("proceeds when the readlist decided the email without this link", async () => {
+			assert.deepEqual(await admit({ meta: SELECTS_WORK, outcome: { decision: "filtered", fit: [decided] }, target }), {
+				kind: "proceed",
+			});
+		});
+
+		it.each(["no-purpose", "readlist-missing"] as const)("proceeds after a %s decision", async (decision) => {
+			assert.deepEqual(await admit({ meta: SELECTS_WORK, outcome: { decision }, target }), { kind: "proceed" });
+		});
+
+		it("is skipped as already decided when the readlist already judged this link", async () => {
+			assert.deepEqual(
+				await admit({
+					meta: SELECTS_WORK,
+					outcome: { decision: "filtered", fit: [decided, { ...decided, ordinal: RESCUED }] },
+					target,
+				}),
+				{ kind: "skip", reason: "already-decided" },
+			);
+		});
+
+		it("is skipped when the readlist's decision for the email failed", async () => {
+			assert.deepEqual(await admit({ meta: SELECTS_WORK, outcome: { decision: "failed" }, target }), {
+				kind: "skip",
+				reason: "decision-failed",
+			});
+		});
+
+		it("is skipped for a read-only account, leaving the email's decision as it stands", async () => {
+			assert.deepEqual(
+				await admit({
+					meta: SELECTS_WORK,
+					outcome: { decision: "filtered", fit: [decided] },
+					target,
+					subscription: lapsedSubscription(),
+				}),
+				{ kind: "skip", reason: "write-access-lapsed" },
+			);
+		});
+
+		it("waits while the readlist has not decided the email yet", async () => {
+			assert.deepEqual(await admit({ meta: SELECTS_WORK, target }), { kind: "wait" });
+		});
+
+		it("is skipped when the readlist is no longer selected", async () => {
+			assert.deepEqual(await admit({ meta: { truncated: false, extractionFailed: false }, target }), {
+				kind: "skip",
+				reason: "no-longer-selected",
+			});
+		});
 	});
 });

@@ -9,4 +9,5 @@ config:
   media-book:articlesTableName: hutch-articles-cda0a08
   media-book:articlesTableArn: arn:aws:dynamodb:ap-southeast-2:572337278115:table/hutch-articles-cda0a08
   media-book:userArticlesTableName: hutch-user-articles-8226beb
-encryptionsalt: v1:45grXncAXNY=:v1:SzsPtmhVQlJojvof:yboPL2G9+vEThMbfja9+CXY6cBLFxQ==
+secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
+encryptedkey: AQICAHi6S5JWWQJW6rlPXA+EjgBpSa9holo1rtjUEtyWeWu1mwHnnAGnd0YTPmXrfl59qv7ZAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMe3fvugpT1QmlAod9AgEQgDvBY9HjR/WH55sJWVnweiMeusZge0jV8jMoZWlO+doEExDIcUZSyyLaO86nb+ehtXndGE2P7n05R+BUhg==

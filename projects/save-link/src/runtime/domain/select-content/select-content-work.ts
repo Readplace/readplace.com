@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { setTimeout } from "node:timers/promises";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 import { z } from "zod";
@@ -5,7 +6,7 @@ import type { SelectArticleContentDetail, SelectionSourceKind } from "@packages/
 import type { DispatchSelectArticleContent } from "../../dep-bundles/select-article-content-dispatch";
 import { type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
-import { type FetchYouTubeVideoCard, isBlockClassStatus } from "@packages/crawl-article";
+import { type FetchRedditPostCard, type FetchYouTubeVideoCard, isBlockClassStatus } from "@packages/crawl-article";
 import { estimatedReadTimeFromWordCount } from "@packages/finalize-article";
 import { formatErrorLogLine, type Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
@@ -34,7 +35,7 @@ import { type LiveAttempt, type PreparedContentSelection, type SelectionMode, in
 import { markNoReadableArticle } from "./mark-no-readable-article";
 import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { SELECT_CONTENT_TIMEOUTS } from "./timeouts";
-import { ContentJudgeClaimHeldError, type HeldJudgeClaim, initJudgeUnderLedger } from "./judge-under-ledger";
+import { ContentJudgeClaimHeldError, ContentJudgeInFlightError, initJudgeUnderLedger } from "./judge-under-ledger";
 import type { RunMeteredLeg } from "../metered-leg/run-metered-leg";
 import type { FindArticleContent } from "../save-link/article-content.types";
 import { candidateProvenance, type PutTierSource, type VerifiedTierSource } from "@packages/tier-source";
@@ -51,6 +52,7 @@ export interface SelectContentDependencies {
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	verifyWrapperSource: VerifyWrapperSource;
 	fetchYouTubeVideoCard: FetchYouTubeVideoCard;
+	fetchRedditPostCard: FetchRedditPostCard;
 	putTierSource: PutTierSource;
 	now: () => Date;
 	logger: Logger;
@@ -75,6 +77,11 @@ type DecidedSelection =
 const MAX_DECISION_ATTEMPTS = 3;
 const DECISION_RETRY_DELAY_MS = 25;
 const COMMIT_RESERVE_MS = 5_000;
+const HOLDER_WAIT: HolderWait = { delayMs: 1_000, maxWaits: 15, sleep: setTimeout };
+
+type HolderWait = { delayMs: number; maxWaits: number; sleep: (delayMs: number) => Promise<unknown> };
+
+type JudgeLease = { judgeClaimTtlMs: number } & ({ heldClaim: "raise-ownership-anomaly" } | { heldClaim: "wait-for-holder"; holderWait: HolderWait });
 
 function freshTierOneDisplay(params: { selection: PreparedContentSelection; candidates: readonly CandidateReference[] }) {
 	const { selection } = params;
@@ -101,22 +108,33 @@ function noReadableReason(params: { selection: PreparedContentSelection; saveAtt
 	return { kind: "parse-error", detail };
 }
 
-async function recoverVideoCard(deps: SelectContentDependencies, params: { url: string; saveAttemptId: SaveAttemptId; originalUrl: string }): Promise<VerifiedTierSource | undefined> {
-	const card = await deps.fetchYouTubeVideoCard({ url: params.originalUrl });
+type OEmbedCard = { selectionRule: "video-card-fallback" | "post-card-fallback"; served: string; siteName: string; title: string; excerpt: string; wordCount: number; sourceUrl: string; imageUrl: string | undefined; html: string };
+
+async function fetchOEmbedCard(deps: SelectContentDependencies, originalUrl: string, mode: SelectionMode): Promise<OEmbedCard | undefined> {
+	const video = await deps.fetchYouTubeVideoCard({ url: originalUrl });
+	if (video !== undefined) return { selectionRule: "video-card-fallback", served: "video card", siteName: "YouTube", title: video.title, excerpt: video.excerpt, wordCount: 0, sourceUrl: video.watchUrl, imageUrl: video.posterUrl, html: video.html };
+	if (mode !== "recrawl") return undefined;
+	const post = await deps.fetchRedditPostCard({ url: originalUrl });
+	if (post !== undefined) return { selectionRule: "post-card-fallback", served: "post card", siteName: "Reddit", title: post.title, excerpt: post.excerpt, wordCount: post.wordCount, sourceUrl: post.postUrl, imageUrl: post.posterUrl, html: post.html };
+	return undefined;
+}
+
+async function recoverOEmbedCard(deps: SelectContentDependencies, params: { url: string; saveAttemptId: SaveAttemptId; originalUrl: string; mode: SelectionMode }): Promise<{ card: OEmbedCard; source: VerifiedTierSource } | undefined> {
+	const card = await fetchOEmbedCard(deps, params.originalUrl, params.mode);
 	if (card === undefined) return undefined;
 	const metadata = candidateProvenance({
-		metadata: { title: card.title, siteName: "YouTube", excerpt: card.excerpt, wordCount: 0, estimatedReadTime: estimatedReadTimeFromWordCount(0), imageUrl: card.posterUrl },
-		html: card.html, evaluationHtml: card.html, attemptId: params.saveAttemptId, originalUrl: params.originalUrl, sourceUrl: card.watchUrl, kind: "live", fetchedAt: deps.now().toISOString(), httpStatus: 200,
+		metadata: { title: card.title, siteName: card.siteName, excerpt: card.excerpt, wordCount: card.wordCount, estimatedReadTime: estimatedReadTimeFromWordCount(card.wordCount), imageUrl: card.imageUrl },
+		html: card.html, evaluationHtml: card.html, attemptId: params.saveAttemptId, originalUrl: params.originalUrl, sourceUrl: card.sourceUrl, kind: "live", fetchedAt: deps.now().toISOString(), httpStatus: 200,
 	});
 	const persisted = await deps.putTierSource({ url: params.url, tier: "tier-1", html: card.html, evaluationHtml: card.html, metadata });
-	return { tier: "tier-1", html: card.html, evaluationHtml: card.html, metadata: persisted };
+	return { card, source: { tier: "tier-1", html: card.html, evaluationHtml: card.html, metadata: persisted } };
 }
 
 export function initSelectContentWork(deps: SelectContentDependencies) {
-	return initSelectContentWorkUnderLease(deps, { judgeClaimTtlMs: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds * 1000, heldClaim: "assert" });
+	return initSelectContentWorkUnderLease(deps, { judgeClaimTtlMs: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds * 1000, heldClaim: "wait-for-holder", holderWait: HOLDER_WAIT });
 }
 
-export function initSelectContentWorkUnderLease(deps: SelectContentDependencies, lease: { judgeClaimTtlMs: number; heldClaim: HeldJudgeClaim }) {
+export function initSelectContentWorkUnderLease(deps: SelectContentDependencies, lease: JudgeLease) {
 	const judge = initJudgeUnderLedger({ selectMostCompleteContent: deps.selectMostCompleteContent, runMeteredLeg: deps.runMeteredLeg, claimTtlMs: lease.judgeClaimTtlMs, heldClaim: lease.heldClaim });
 	const prepare = initPrepareContentSelection({ ...deps, judge });
 	const logContentSelection = initLogContentSelection(deps);
@@ -128,10 +146,10 @@ export function initSelectContentWorkUnderLease(deps: SelectContentDependencies,
 		}
 		const keepRow = params.liveAttempt?.outcome === "deferred" || prepared.legacyCanonicalWithheld;
 		const nothingReadable = prepared.selected === undefined && !keepRow && prepared.selectionRule !== "judge-deferred";
-		const card = nothingReadable ? await recoverVideoCard(deps, { url: params.url, saveAttemptId: params.saveAttemptId, originalUrl: prepared.originalUrl }) : undefined;
-		const selection: PreparedContentSelection = card === undefined ? prepared : {
-			...prepared, selected: card, outcome: "selected", selectionRule: "video-card-fallback", sources: [...prepared.sources, card],
-			readableIds: new Set([...prepared.readableIds, card.metadata.id]), reason: `no readable candidate (${prepared.reason}); served the oEmbed video card`,
+		const recovered = nothingReadable ? await recoverOEmbedCard(deps, { url: params.url, saveAttemptId: params.saveAttemptId, originalUrl: prepared.originalUrl, mode: params.mode }) : undefined;
+		const selection: PreparedContentSelection = recovered === undefined ? prepared : {
+			...prepared, selected: recovered.source, outcome: "selected", selectionRule: recovered.card.selectionRule, sources: [...prepared.sources, recovered.source],
+			readableIds: new Set([...prepared.readableIds, recovered.source.metadata.id]), reason: `no readable candidate (${prepared.reason}); served the oEmbed ${recovered.card.served}`,
 		};
 		const expected = selection.article.contentSelection;
 		const source = selection.selected;
@@ -175,18 +193,32 @@ export function initSelectContentWorkUnderLease(deps: SelectContentDependencies,
 	};
 	const decideWithinBudget = async (params: SelectContentRequest & { claimId: string; remainingTimeMs: () => number }): Promise<DecidedSelection> => {
 		const conflicts: SelectionConflict[] = [];
+		let holderWaits = 0;
+		const judgeCallNeedsMs = SELECT_CONTENT_TIMEOUTS.deepseekMs + COMMIT_RESERVE_MS;
 		const beforeProviderCall = () => {
 			const remainingMs = params.remainingTimeMs();
-			if (remainingMs < SELECT_CONTENT_TIMEOUTS.deepseekMs + COMMIT_RESERVE_MS) {
-				throw new Error(`[SelectContent] ${remainingMs} ms left after a changed selection snapshot (${conflicts.join(", ")}); a fresh content judge call needs ${SELECT_CONTENT_TIMEOUTS.deepseekMs + COMMIT_RESERVE_MS} ms`);
+			if (remainingMs < judgeCallNeedsMs) {
+				throw new Error(`[SelectContent] ${remainingMs} ms left on a re-decided selection (snapshot conflicts: ${conflicts.join(", ")}; waits for another delivery's judge: ${holderWaits}); a fresh content judge call needs ${judgeCallNeedsMs} ms`);
 			}
 		};
 		for (;;) {
 			try {
-				const decided = await decideAndCommit({ ...params, beforeProviderCall: conflicts.length === 0 ? undefined : beforeProviderCall });
+				const decided = await decideAndCommit({ ...params, beforeProviderCall: conflicts.length === 0 && holderWaits === 0 ? undefined : beforeProviderCall });
 				if (conflicts.length > 0) deps.logger.info("[SelectContent] recovered a changed selection snapshot", { url: params.url, saveAttemptId: params.saveAttemptId, conflicts, attempts: conflicts.length + 1 });
+				if (holderWaits > 0) deps.logger.info("[SelectContent] decided after waiting for another delivery's content judge", { url: params.url, saveAttemptId: params.saveAttemptId, holderWaits });
 				return decided;
 			} catch (error) {
+				if (error instanceof ContentJudgeInFlightError) {
+					assert(lease.heldClaim === "wait-for-holder", "only a lease that waits for the holder sees an in-flight content judge");
+					const { delayMs, maxWaits, sleep } = lease.holderWait;
+					if (holderWaits >= maxWaits || params.remainingTimeMs() < judgeCallNeedsMs + delayMs) {
+						deps.logger.info("[SelectContent] stopped waiting for another delivery's content judge", { url: params.url, saveAttemptId: params.saveAttemptId, holderWaits });
+						throw error;
+					}
+					holderWaits += 1;
+					await sleep(delayMs);
+					continue;
+				}
 				if (!(error instanceof SelectionSnapshotChangedError) || conflicts.length + 1 >= MAX_DECISION_ATTEMPTS || params.remainingTimeMs() < COMMIT_RESERVE_MS + DECISION_RETRY_DELAY_MS) throw error;
 				conflicts.push(error.conflict);
 				await setTimeout(DECISION_RETRY_DELAY_MS);

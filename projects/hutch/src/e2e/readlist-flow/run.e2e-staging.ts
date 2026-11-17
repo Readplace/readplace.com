@@ -23,6 +23,7 @@ import type { ReadlistProgress, TestArticleData } from './readlist-actions'
 import { runReadlistFlow } from './readlist-flow'
 import { runDisconnectFlow } from '../oauth-revoke/disconnect-flow'
 import { runOAuthRevokeFlow } from '../oauth-revoke/oauth-revoke-flow'
+import { clickAndWaitForPageReload } from '../page-interactions'
 
 // No-op factory for action groups that staging legitimately cannot exercise
 // (e.g. password reset needs /e2e/sent-emails, onboarding needs an extension
@@ -226,6 +227,48 @@ test.describe('Readlist management flow (staging)', () => {
 			email: 'oauth-disconnect-e2e@example.com',
 			password: 'test-password-123',
 		})
+	})
+
+	test('a trialing reader picks monthly on the account page, reaches Stripe Checkout and comes back to the readlist', async ({ page, baseURL }) => {
+		assert(baseURL, "baseURL must be defined — set STAGING_URL env var")
+		const plansPanel = '[data-test-confirm-popover="subscribe-plans"]'
+
+		await page.goto(`${baseURL}/signup`, { waitUntil: 'domcontentloaded' })
+		await page.waitForSelector('body.page-signup')
+		await page.locator('#email').fill('subscribe-checkout-e2e@example.com')
+		await page.locator('#password').fill('test-password-123')
+		await page.locator('input[name="loadedAt"]').evaluate(
+			(el: HTMLInputElement) => { el.value = String(Date.now() - 5000) },
+		)
+		await clickAndWaitForPageReload(page, page.locator('[data-test-action="signup"]'))
+		await page.waitForSelector('body.page-readlist')
+
+		await page.goto(`${baseURL}/account`, { waitUntil: 'domcontentloaded' })
+		await page.waitForSelector('body.page-account')
+		const accountCard = page.locator('[data-test-account-card]')
+		const openPlans = accountCard.locator('[data-test-action="subscribe-plans-open"]')
+		assert.equal(
+			await openPlans.count(),
+			1,
+			`the account card must offer the plans dialog, it shows state ${await accountCard.getAttribute('data-test-account-state')}`,
+		)
+		await openPlans.click()
+		await page.waitForSelector(`${plansPanel}:popover-open`)
+		await page.click(`${plansPanel} [data-test-plan="monthly"]`)
+
+		const stripeCheckout = page.waitForResponse(
+			(response) =>
+				response.request().isNavigationRequest() &&
+				response.frame() === page.mainFrame() &&
+				new URL(response.url()).host === 'checkout.stripe.com' &&
+				response.status() === 200,
+		)
+		await page.click(`${plansPanel} [data-test-action="subscribe-plans-submit"]`)
+		await stripeCheckout
+		await page.waitForURL((url) => url.host === 'checkout.stripe.com', { waitUntil: 'load' })
+
+		await page.goto(`${baseURL}/queue`, { waitUntil: 'domcontentloaded' })
+		await page.waitForSelector('body.page-readlist')
 	})
 })
 /* c8 ignore stop */

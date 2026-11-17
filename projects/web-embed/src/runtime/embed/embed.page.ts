@@ -6,6 +6,7 @@ import {
 	generateCspNonce,
 	type RenderBase,
 	sendComponent,
+	sendContentSecurityPolicy,
 } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import { z } from "zod";
@@ -36,6 +37,7 @@ export function initEmbedRoutes(deps: {
 	const router = express.Router();
 
 	router.use(createCspNonceMiddleware({ generateCspNonce }));
+	router.use(sendContentSecurityPolicy);
 	router.use(
 		helmet({
 			contentSecurityPolicy: false,

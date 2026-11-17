@@ -27,20 +27,18 @@ export function selectionIsCollapsed(): boolean {
 	return selection === null || selection.isCollapsed;
 }
 
-export function toolbarBelowSelection(input: { toolbar: string }): {
-	toolbarTop: number;
-	selectionBottom: number;
+export function toolbarNearSelection(input: { toolbar: string }): {
+	gapBelowSelection: number;
 } {
 	const toolbar = document.querySelector(input.toolbar);
-	if (!toolbar) throw new Error(`toolbarBelowSelection needs ${input.toolbar}`);
+	if (!toolbar) throw new Error(`toolbarNearSelection needs ${input.toolbar}`);
 	const selection = window.getSelection();
-	if (!selection || selection.rangeCount === 0) throw new Error("toolbarBelowSelection needs a selection");
+	if (!selection || selection.rangeCount === 0) throw new Error("toolbarNearSelection needs a selection");
 	const rects = selection.getRangeAt(0).getClientRects();
 	const last = rects[rects.length - 1];
-	if (!last) throw new Error("toolbarBelowSelection needs a selection holding text");
+	if (!last) throw new Error("toolbarNearSelection needs a selection holding text");
 	return {
-		toolbarTop: toolbar.getBoundingClientRect().top,
-		selectionBottom: last.bottom,
+		gapBelowSelection: toolbar.getBoundingClientRect().top - last.bottom,
 	};
 }
 
@@ -73,4 +71,19 @@ export function scrollWindowToTop(): void {
 
 export function windowScrollY(): number {
 	return window.scrollY;
+}
+
+export function previewClearOfMarks(input: { preview: string; marks: string }): boolean {
+	const preview = document.querySelector(input.preview);
+	if (!preview) throw new Error(`previewClearOfMarks needs ${input.preview}`);
+	const rects = Array.from(document.querySelectorAll(input.marks)).flatMap((mark) => Array.from(mark.getClientRects()));
+	if (rects.length === 0) throw new Error(`previewClearOfMarks needs ${input.marks}`);
+	const box = {
+		top: Math.min(...rects.map((rect) => rect.top)),
+		bottom: Math.max(...rects.map((rect) => rect.bottom)),
+		left: Math.min(...rects.map((rect) => rect.left)),
+		right: Math.max(...rects.map((rect) => rect.right)),
+	};
+	const panel = preview.getBoundingClientRect();
+	return panel.bottom <= box.top || panel.top >= box.bottom || panel.right <= box.left || panel.left >= box.right;
 }

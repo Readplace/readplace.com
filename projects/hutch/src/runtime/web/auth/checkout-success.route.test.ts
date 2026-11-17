@@ -145,6 +145,7 @@ describe("GET /auth/checkout/success", () => {
 			pendingSignup,
 			email: "buyer@example.com",
 			password: "password123",
+			payment: { paymentStatus: "paid", amountTotal: 4900 },
 		});
 
 		expect(successResponse.status).toBe(303);
@@ -334,6 +335,48 @@ describe("GET /auth/checkout/success", () => {
 		expect(harness.subscriptionEvents.events[0].event).toBe("checkout_completed");
 	});
 
+	it("records paid_now:false on checkout_completed when Stripe marks a trial checkout paid with a total of 0, as the first live yearly checkout came back", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, pendingSignup } = harness;
+
+		const created = await auth.createUser({
+			email: "paid-zero@example.com",
+			password: "password123",
+		});
+		assert(created.ok, "user must be created before driving Stripe success");
+		const checkout = await hostedCheckout.createCheckoutSession({
+			customerEmail: "paid-zero@example.com",
+			priceId: "price_test_yearly",
+			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
+			cancelUrl: "http://localhost:3000/signup",
+			coupon: "first-year-49",
+		});
+		await pendingSignup.storePendingSignup({
+			checkoutSessionId: checkout.id,
+			signup: {
+				method: "existing-user-subscribe",
+				email: "paid-zero@example.com",
+				userId: created.userId,
+				trialEndsAt: new Date(Date.now() + 13 * 86_400_000).toISOString(),
+				entrySource: null,
+				offer: "first-year-49",
+			},
+			createdAt: 1735000000,
+		});
+		hostedCheckout.markPaid(checkout.id, { paymentStatus: "paid", amountTotal: 0 });
+
+		const response = await request
+			.agent(harness.server)
+			.set("User-Agent", BROWSER_USER_AGENT)
+			.get(`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`);
+
+		expect(response.status).toBe(303);
+		expect(harness.subscriptionEvents.events).toHaveLength(1);
+		const evt = harness.subscriptionEvents.events[0];
+		expect(evt.event).toBe("checkout_completed");
+		expect(evt.paid_now).toBe(false);
+	});
+
 	it("records paid_now:false on checkout_completed when Stripe collected nothing now (a $0 trial-preserving checkout returns no_payment_required)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth, hostedCheckout, pendingSignup } = harness;
@@ -362,7 +405,7 @@ describe("GET /auth/checkout/success", () => {
 			},
 			createdAt: 1735000000,
 		});
-		hostedCheckout.markPaid(checkout.id, { paymentStatus: "no_payment_required" });
+		hostedCheckout.markPaid(checkout.id, { paymentStatus: "no_payment_required", amountTotal: 0 });
 
 		const response = await request
 			.agent(harness.server)

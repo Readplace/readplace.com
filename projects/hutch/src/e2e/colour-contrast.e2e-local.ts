@@ -6,6 +6,7 @@ import { EXPERIMENT_COOKIE_NAME } from "../runtime/web/experiments/homepage-assi
 import { HOMEPAGE_SPLIT } from "../runtime/web/experiments/homepage-split";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
+import { passAdminChallenge } from "./admin-extend-trial/admin-challenge";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import {
 	ALIVE_COOKIE_NAME,
@@ -173,7 +174,7 @@ async function auditShareDialog(page: Page, where: { theme: string; view: string
 	const dialog = page.locator(`${SHARE_DIALOG_ROOT}:popover-open`);
 	await page.locator('[data-test-action="share-open"]').click({ timeout: SETTLE_MS });
 	await expect(dialog).toBeVisible({ timeout: SETTLE_MS });
-	await expect(dialog.locator("[data-test-share-copy]")).toBeVisible({ timeout: SETTLE_MS });
+	await expect(dialog.locator('[data-test-share-copy="reader-view"]')).toBeVisible({ timeout: SETTLE_MS });
 	await page.mouse.move(0, 0);
 
 	const measurements = await stableMeasurements(page, SHARE_DIALOG_ROOT);
@@ -470,8 +471,10 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 		const readerUrl = new URL(readerHref, BASE_URL).toString();
 		const articleId = new URL(readerHref, BASE_URL).pathname.match(/^\/queue\/([^/]+)\/view$/)?.[1];
 		assert(articleId, "a saved card must link to a reader with an article id");
-		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Finance" } });
-		assert.equal(created.status(), 200, "a readlist must exist for the cards to offer a move");
+		for (const label of ["Finance", "Weekend"]) {
+			const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label } });
+			assert.equal(created.status(), 200, "readlists must exist for the cards to offer a choice of them");
+		}
 
 		const viewUrls = {
 			"to-read": `${BASE_URL}/queue`,
@@ -883,6 +886,58 @@ test.describe("A highlighted passage in the reader holds its WCAG contrast in bo
 				`${theme}/reader-highlight: the audit must measure the marked passage's ink`,
 			);
 			assertContrast(measurements, { theme, view: "reader-highlight" });
+		}
+	});
+});
+
+test.describe("A highlight's note preview holds its WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the hovered note clears colour and greyscale minimums on its panel", async ({ page }, testInfo) => {
+		const run = `${testInfo.workerIndex}-${Date.now()}`;
+		const email = `colour-contrast-note-preview-${run}@example.com`;
+		const userId = await createChipReader(page, email);
+		const passage = "a note read in place keeps the reader on the page";
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://example.com/colour-contrast-note-preview-${run}`,
+				title: "A note beside the passage",
+				content: `<p>Seeded body for the note preview contrast sweep: ${passage}, in both themes.</p>`,
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+				savedByUserId: userId,
+				generatedSummary: { summary: "Seeded summary.", excerpt: "Seeded summary." },
+			},
+		});
+		assert.equal(seeded.status(), 201);
+		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
+		const readerUrl = `${BASE_URL}/queue/${articleId}/view`;
+		await loginChipReader(page, email);
+		await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]', { timeout: SETTLE_MS });
+		await page.evaluate(selectPassage, { root: "[data-test-reader-content]", exact: passage });
+		await expect(page.locator("[data-test-highlight-toolbar]")).toBeVisible({ timeout: SETTLE_MS });
+		await page.locator('[data-test-action="add-note"]').click();
+		const dialog = page.locator("#note-highlight-dialog:popover-open");
+		await expect(dialog).toHaveCount(1, { timeout: SETTLE_MS });
+		await dialog.locator("[data-test-highlight-note-input]").fill("Worth rereading before the next chapter.");
+		await dialog.locator('[data-test-action="highlight-note-save"]').click();
+		await expect(page.locator("[data-test-highlight-preview]")).toHaveCount(1, { timeout: SETTLE_MS });
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			await expect(page.locator('[data-test-reader-content] mark.article-highlight[tabindex="0"]')).toHaveCount(1, {
+				timeout: SETTLE_MS,
+			});
+			await page.mouse.move(0, 0);
+			await page.locator("[data-test-reader-content] mark.article-highlight").hover();
+			await expect(page.locator("[data-test-highlight-preview]:popover-open")).toHaveCount(1, { timeout: SETTLE_MS });
+			const measurements = await stableMeasurements(page, "[data-test-highlight-preview]:popover-open");
+			assert.ok(
+				measurements.some((measured) => measured.role === "text"),
+				`${theme}/note-preview: the audit must measure the note's ink`,
+			);
+			assertContrast(measurements, { theme, view: "note-preview" });
 		}
 	});
 });
@@ -1380,6 +1435,7 @@ test.describe("Admin newsletter colour roles hold their WCAG contrast in both th
 		await page.locator("#password").fill(E2E_ADMIN_PASSWORD);
 		await page.locator('[data-test-form="login"] button[type="submit"]').click();
 		await page.waitForSelector("body.page-readlist");
+		await passAdminChallenge(page, { baseURL: BASE_URL });
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
@@ -1446,6 +1502,7 @@ test.describe("Admin dashboard colour roles hold their WCAG contrast in both the
 		await page.locator("#password").fill(E2E_ADMIN_PASSWORD);
 		await page.locator('[data-test-form="login"] button[type="submit"]').click();
 		await page.waitForSelector("body.page-readlist");
+		await passAdminChallenge(page, { baseURL: BASE_URL });
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });

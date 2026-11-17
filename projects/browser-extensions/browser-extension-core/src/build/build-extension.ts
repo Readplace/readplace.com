@@ -172,7 +172,8 @@ export function initBuildExtension(deps: Partial<BuildExtensionDeps> = {}) {
 					manifest.version = version;
 
 					if (serverUrl.includes("127.0.0.1")) {
-						const localhostPattern = `${serverUrl}/*`;
+						const { protocol, hostname } = new URL(serverUrl);
+						const localhostPattern = `${protocol}//${hostname}/*`;
 
 						if (Array.isArray(manifest.host_permissions)) {
 							manifest.host_permissions.push(localhostPattern);

@@ -4,3 +4,4 @@
  * readlist-flow and oauth-revoke specs never share a session with this flow. */
 export const E2E_ADMIN_EMAIL = 'admin-e2e@example.com'
 export const E2E_ADMIN_PASSWORD = 'admin-password-123'
+export const E2E_ADMIN_TOTP_SECRET = Buffer.from('3132333435363738393031323334353637383930', 'hex')

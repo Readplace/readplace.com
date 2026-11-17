@@ -156,7 +156,7 @@ Content-Type: application/json
               <div class="developers__prose">
                 <h2 class="developers__heading">Start from one URL</h2>
                 <p class="developers__text">Every request carries the reader's access token and the Siren media type. Start at <code>/</code>.</p>
-                <p class="developers__text">It answers with a redirect to the reader's collection:</p>
+                <p class="developers__text">It answers with the reader's collection:</p>
                 <ul class="developers__list">
                   <li class="developers__item" data-test-copy="redirects">Follow every redirect yourself, sending the token and the <code>Accept</code> header again. Some HTTP clients drop <code>Authorization</code> when they follow a redirect, and the API then answers <code>401</code>.</li>
                   <li class="developers__item">Hard-code only <code>/</code>, the two media types, the action names you use, what the fields you fill in mean, the link rels you follow, and the frontmatter keys you read. Read everything else from the answers: every href, method and field list.</li>
@@ -172,8 +172,8 @@ Authorization: Bearer ACCESS_TOKEN
 Accept: {{sirenMediaType}}{{/if}}</code></pre>
                 </div>
                 <div class="developers__sample" data-sample-language="HTTP">
-                  <pre class="developers__code" data-test-sample="discovery-answer"><code class="language-http">HTTP/1.1 303 See Other
-Location: COLLECTION_HREF</code></pre>
+                  <pre class="developers__code" data-test-sample="discovery-answer"><code class="language-http">HTTP/1.1 200 OK
+Content-Type: {{sirenMediaType}}</code></pre>
                 </div>
               </aside>
             </div>

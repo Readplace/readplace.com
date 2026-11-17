@@ -41,8 +41,61 @@
   gap: 24px;
 }
 
+.share-dialog__link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-dialog__link-label,
+.share-dialog__choice-legend {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--foreground);
+}
+
 .share-dialog__field {
   background: var(--muted);
+}
+
+.share-dialog__choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.share-dialog__choice-legend {
+  margin-bottom: 8px;
+}
+
+.share-dialog__choice-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.share-dialog__choice-input {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--primary);
+}
+
+.share-dialog__panel--choice .share-dialog__targets--original,
+.share-dialog__panel--choice:has(.share-dialog__choice-input--original:checked) .share-dialog__targets--reader-view {
+  display: none;
+}
+
+.share-dialog__panel--choice:has(.share-dialog__choice-input--original:checked) .share-dialog__targets--original {
+  display: flex;
 }
 
 .share-dialog__url {

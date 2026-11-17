@@ -1,92 +1,143 @@
-import { placeBelowSelection } from "./toolbar-placement-coarse";
+import { dockToViewportBottom, placeNearSelection, SYSTEM_MENU_CLEARANCE_PX } from "./toolbar-placement-coarse";
 
 const toolbar = { width: 100, height: 40 };
 const unzoomed = { width: 400, height: 800, offsetLeft: 0, offsetTop: 0 };
 
-function rect(params: { top: number; left: number; width: number; height?: number }) {
-	const height = params.height ?? 20;
+function line(params: { top: number; left?: number; width?: number }) {
 	return {
 		top: params.top,
-		bottom: params.top + height,
-		left: params.left,
-		width: params.width,
+		bottom: params.top + 20,
+		left: params.left ?? 100,
+		width: params.width ?? 200,
 	};
 }
 
-describe("placeBelowSelection", () => {
-	it("places the bar 10 px below the last rect, centred on it", () => {
-		const position = placeBelowSelection({
-			rects: [rect({ top: 100, left: 20, width: 300 }), rect({ top: 120, left: 50, width: 200 })],
+describe("placeNearSelection", () => {
+	it("sits the system menu's height below the selection, centred on its last line", () => {
+		const position = placeNearSelection({
+			rects: [line({ top: 280, left: 0, width: 400 }), line({ top: 300 })],
 			toolbar,
 			viewport: unzoomed,
+			floorTop: undefined,
 		});
 
-		expect(position).toEqual({ top: 150, left: 100 });
+		expect(SYSTEM_MENU_CLEARANCE_PX).toBe(64);
+		expect(position).toEqual({ top: 320 + 64, left: 150 });
 	});
 
-	it("flips above the first rect when the bar would cross the visual viewport's bottom", () => {
-		const position = placeBelowSelection({
-			rects: [rect({ top: 720, left: 100, width: 200 }), rect({ top: 745, left: 20, width: 100 })],
+	it("moves above the selection, the system menu's height away, when there is no room below", () => {
+		const position = placeNearSelection({
+			rects: [line({ top: 700 })],
 			toolbar,
 			viewport: unzoomed,
+			floorTop: undefined,
 		});
 
-		expect(position).toEqual({ top: 720 - 10 - 40, left: 150 });
+		expect(position).toEqual({ top: 700 - 64 - 40, left: 150 });
 	});
 
-	it("clamps the left edge 16 px inside the visual viewport", () => {
-		const position = placeBelowSelection({
-			rects: [rect({ top: 100, left: 0, width: 20 })],
+	it("docks to the bottom when the selection leaves no room above or below", () => {
+		const position = placeNearSelection({
+			rects: [{ top: 50, bottom: 760, left: 0, width: 400 }],
 			toolbar,
 			viewport: unzoomed,
+			floorTop: undefined,
+		});
+
+		expect(position).toEqual({ top: 800 - 16 - 40, left: 150 });
+	});
+
+	it("docks to the bottom when the selection reports no rects", () => {
+		const position = placeNearSelection({
+			rects: [],
+			toolbar,
+			viewport: unzoomed,
+			floorTop: undefined,
+		});
+
+		expect(position).toEqual({ top: 800 - 16 - 40, left: 150 });
+	});
+
+	it("moves above the selection when the slot below would cross a bottom bar inside the viewport", () => {
+		const position = placeNearSelection({
+			rects: [line({ top: 560 })],
+			toolbar,
+			viewport: unzoomed,
+			floorTop: 650,
+		});
+
+		expect(position.top).toBe(560 - 64 - 40);
+	});
+
+	it("ignores a bottom bar below the visual viewport when measuring the room below", () => {
+		const position = placeNearSelection({
+			rects: [line({ top: 560 })],
+			toolbar,
+			viewport: unzoomed,
+			floorTop: 900,
+		});
+
+		expect(position.top).toBe(580 + 64);
+	});
+
+	it("keeps the bar inside the left gutter for a selection at the screen's edge", () => {
+		const position = placeNearSelection({
+			rects: [line({ top: 300, left: 0, width: 40 })],
+			toolbar,
+			viewport: unzoomed,
+			floorTop: undefined,
 		});
 
 		expect(position.left).toBe(16);
 	});
+});
 
-	it("clamps the right edge 16 px inside the visual viewport", () => {
-		const position = placeBelowSelection({
-			rects: [rect({ top: 100, left: 380, width: 20 })],
-			toolbar,
-			viewport: unzoomed,
-		});
+describe("dockToViewportBottom", () => {
+	it("docks the bar 16 px above the visual viewport's bottom, centred", () => {
+		const position = dockToViewportBottom({ toolbar, viewport: unzoomed, floorTop: undefined });
 
-		expect(position.left).toBe(400 - 100 - 16);
+		expect(position).toEqual({ top: 800 - 16 - 40, left: 150 });
 	});
 
 	it("pins a bar wider than the viewport less both gutters to the left gutter", () => {
-		const position = placeBelowSelection({
-			rects: [rect({ top: 100, left: 150, width: 100 })],
+		const position = dockToViewportBottom({
 			toolbar: { width: 380, height: 40 },
 			viewport: { width: 400, height: 800, offsetLeft: 30, offsetTop: 0 },
+			floorTop: undefined,
 		});
 
 		expect(position.left).toBe(30 + 16);
 	});
 
-	it("places a mid-screen rect in a zoomed viewport where it would sit unzoomed", () => {
-		const selection = [rect({ top: 400, left: 250, width: 100 })];
-		const zoomed = { width: 200, height: 400, offsetLeft: 200, offsetTop: 200 };
-
-		expect(placeBelowSelection({ rects: selection, toolbar, viewport: zoomed })).toEqual(
-			placeBelowSelection({ rects: selection, toolbar, viewport: unzoomed }),
-		);
-		expect(placeBelowSelection({ rects: selection, toolbar, viewport: zoomed })).toEqual({ top: 430, left: 250 });
-	});
-
-	it("flips a rect near the bottom of a zoomed viewport", () => {
-		const position = placeBelowSelection({
-			rects: [rect({ top: 570, left: 250, width: 100 })],
+	it("docks to the bottom and centre of a zoomed viewport", () => {
+		const position = dockToViewportBottom({
 			toolbar,
 			viewport: { width: 200, height: 400, offsetLeft: 200, offsetTop: 200 },
+			floorTop: undefined,
 		});
 
-		expect(position).toEqual({ top: 570 - 10 - 40, left: 250 });
+		expect(position).toEqual({ top: 600 - 16 - 40, left: 250 });
 	});
 
-	it("refuses a selection without client rects", () => {
-		expect(() => placeBelowSelection({ rects: [], toolbar, viewport: unzoomed })).toThrow(
-			"a selection holding text has client rects",
-		);
+	it("docks 16 px above a bottom bar whose top is inside the visual viewport", () => {
+		const position = dockToViewportBottom({ toolbar, viewport: unzoomed, floorTop: 700 });
+
+		expect(position).toEqual({ top: 700 - 16 - 40, left: 150 });
+	});
+
+	it("ignores a bottom bar below the visual viewport's bottom", () => {
+		const position = dockToViewportBottom({
+			toolbar,
+			viewport: { width: 200, height: 400, offsetLeft: 0, offsetTop: 0 },
+			floorTop: 700,
+		});
+
+		expect(position.top).toBe(400 - 16 - 40);
+	});
+
+	it("ignores a bottom bar at or above the visual viewport's top, as a hidden element measures", () => {
+		const position = dockToViewportBottom({ toolbar, viewport: unzoomed, floorTop: 0 });
+
+		expect(position.top).toBe(800 - 16 - 40);
 	});
 });

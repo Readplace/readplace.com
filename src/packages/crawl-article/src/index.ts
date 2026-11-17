@@ -10,9 +10,12 @@ export {
 } from "./crawl-article";
 export { isBlockClassStatus, type Persona } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";
+export { measureImageDimensions, type ImageDimensions } from "./measure-image-dimensions";
 export { describeRejection } from "./describe-rejection";
 export { initFetchYouTubeVideoCard } from "./youtube-video-card";
 export type { FetchYouTubeVideoCard, YouTubeVideoCard } from "./youtube-video-card";
+export { initFetchRedditPostCard, parseRedditPostUrl } from "./reddit-post-card";
+export type { FetchRedditPostCard, RedditPostCard } from "./reddit-post-card";
 export {
 	extractThumbnailCandidates,
 	initFetchThumbnailImage,
@@ -31,6 +34,7 @@ export type {
 } from "./crawl-article.types";
 export { resolveDocumentUrl } from "./resolve-document-url";
 export { initCrawlFetch } from "./crawl-fetch";
+export type { FetchRetryDecision } from "./fetch-retry-decision";
 export { initFetchPinnedCrawl } from "./fetch-pinned-crawl";
 export type { CrawlEgress, CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
 export { isProxyWorthyError, isProxyWorthyResponse } from "./proxied-ladder-fallback";
@@ -70,5 +74,6 @@ export { initHnSearchSiteRules } from "./hn-search-site-rules";
 export { initGitHubPdfSiteRules } from "./github-pdf-site-rules";
 export { initOjsGalleySiteRules } from "./ojs-galley-site-rules";
 export { initGallupDocumentSiteRules } from "./gallup-document-site-rules";
+export { initFtPartnersTransactionSiteRules } from "./ftpartners-transaction-site-rules";
 export { parseYouTubeEmbed } from "./parse-embed-url";
 export type { YouTubeEmbed } from "./parse-embed-url";

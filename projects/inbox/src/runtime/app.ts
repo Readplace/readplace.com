@@ -1,6 +1,6 @@
 import { CUSTOM_EMAILS_PATH, INBOX_PATH } from "@packages/domain/inbox";
 import { resolve } from "node:path";
-import { createCspNonceMiddleware, generateCspNonce } from "@packages/web-shell";
+import { createCspNonceMiddleware, generateCspNonce, sendContentSecurityPolicy } from "@packages/web-shell";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cookieParser from "cookie-parser";
 import type {
@@ -70,6 +70,8 @@ export function createInboxApp(
 			saveTrigger: SaveTrigger;
 			saveAttemptId: SaveAttemptId;
 		}) => Promise<void>;
+		publishCrawlPreview: Parameters<typeof initInboxRoutes>[0]["publishCrawlPreview"];
+		publishSavedLinkTriaged: Parameters<typeof initInboxRoutes>[0]["publishSavedLinkTriaged"];
 		recordEngagementActivity: RecordEngagementActivity;
 		logError: LogError;
 		now: () => Date;
@@ -89,6 +91,7 @@ export function createInboxApp(
 
 	app.use(createViewerIdentityMiddleware({ edgeSecret: deps.edgeSecret }));
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
+	app.use(sendContentSecurityPolicy);
 	app.use(utmValidationMiddleware);
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
@@ -164,6 +167,8 @@ export function createInboxApp(
 		inboxSavedLinkStore: deps.inboxSavedLinkStore,
 		readEmailContent: deps.readEmailContent,
 		publishSubmitLink: deps.publishSubmitLink,
+		publishCrawlPreview: deps.publishCrawlPreview,
+		publishSavedLinkTriaged: deps.publishSavedLinkTriaged,
 		recordEngagementActivity,
 		imagesCdnBaseUrl: config.imagesCdnBaseUrl,
 		logError: deps.logError,

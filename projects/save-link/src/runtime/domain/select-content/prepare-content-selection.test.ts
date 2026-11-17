@@ -102,7 +102,7 @@ function setup(overrides: Partial<Dependencies> = {}) {
 		const decision = await deps.selectMostCompleteContent(params);
 		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: judgeReply(decision, params.candidates) } }] }), logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent(params);
 	};
-	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "assert" });
+	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "wait-for-holder" });
 	const prepare = initPrepareContentSelection({ ...deps, judge });
 	return { prepare: (params: Omit<Parameters<typeof prepare>[0], "saveAttemptId" | "claimId" | "mode"> & { mode?: SelectionMode }) => prepare({ mode: "save", ...params, saveAttemptId: FRESH, claimId: "message-1" }), deps };
 }
@@ -750,7 +750,7 @@ describe("initPrepareContentSelection", () => {
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [live],
-			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "assert" }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "wait-for-holder" }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
 		const result = await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1", mode: "save", candidates: [{ tier: "tier-1", id: cid("live") }] });
 		expect(result.audit?.responseStatus).toBe("rejected");
@@ -766,7 +766,7 @@ describe("initPrepareContentSelection", () => {
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [blank],
-			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "assert" }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000, heldClaim: "wait-for-holder" }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
 		expect((await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1", mode: "save" })).outcome).toBe("no-readable");
 	});
@@ -853,6 +853,67 @@ describe("initPrepareContentSelection", () => {
 
 			expect(select).not.toHaveBeenCalled();
 			expect(result).toMatchObject({ outcome: "selected", selectionRule: "lone-body", selected: capture, ownCaptureFailed: false });
+		});
+
+		describe("when a wrapper copy holds the same body as the live fetch", () => {
+			it("selects the live copy by the lone-body rule without the judge, whichever is listed first", async () => {
+				const live = source("tier-1", "live");
+				const select = judge();
+				const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-2", "wrapper"), live], selectMostCompleteContent: select });
+
+				const result = await prepare({ url: URL });
+
+				expect(select).not.toHaveBeenCalled();
+				expect(result).toMatchObject({ outcome: "selected", selectionRule: "lone-body", selected: live, readableIds: new Set(["wrapper", "live"]), judgedBodies: 0 });
+			});
+
+			it("judges the pair when the body is under 100 words", async () => {
+				const select = judge();
+				const { prepare } = setup({ listAvailableTierSources: async () => [withWordCount(source("tier-1", "live"), 99), withWordCount(source("tier-2", "wrapper"), 99)], selectMostCompleteContent: select });
+
+				const result = await prepare({ url: URL });
+
+				expect(select).toHaveBeenCalledTimes(1);
+				expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "judge" });
+			});
+
+			it("judges the pair when any copy of the body answered HTTP 400 or more", async () => {
+				const wrapper = source("tier-2", "wrapper");
+				wrapper.metadata.httpStatus = 403;
+				const select = judge();
+				const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-1", "live"), wrapper], selectMostCompleteContent: select });
+
+				const result = await prepare({ url: URL });
+
+				expect(select).toHaveBeenCalledTimes(1);
+				expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "judge" });
+			});
+
+			it("judges the pair when every copy was fetched from a wrapper host", async () => {
+				const tracked = source("tier-1", "tracked");
+				tracked.metadata.sourceUrl = ARCHIVE;
+				const select = judge();
+				const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-2", "wrapper"), tracked], selectMostCompleteContent: select });
+
+				const result = await prepare({ url: URL });
+
+				expect(select).toHaveBeenCalledTimes(1);
+				expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "judge" });
+			});
+		});
+
+		it("judges a live body beside a wrapper copy that answered HTTP 403 with a different body", async () => {
+			const live = withWordCount(source("tier-1", "live"), 110);
+			live.metadata.httpStatus = 200;
+			const wrapper = source("tier-2", "wrapper", { html: "<p>Access denied</p>" });
+			wrapper.metadata.httpStatus = 403;
+			const select = judge();
+			const { prepare } = setup({ listAvailableTierSources: async () => [live, wrapper], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "judge", judgedBodies: 2 });
 		});
 	});
 
@@ -1148,7 +1209,7 @@ describe("candidates sharing a content hash", () => {
 
 	it("judges the live copy in place of a byte-identical wrapper copy listed before it", async () => {
 		const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("live"), reason: "Same article" });
-		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-2", "wrapper"), source("tier-1", "live")], selectMostCompleteContent: select });
+		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-2", "wrapper"), withWordCount(source("tier-1", "live"), 99)], selectMostCompleteContent: select });
 
 		const result = await prepare({ url: URL });
 
@@ -1158,7 +1219,7 @@ describe("candidates sharing a content hash", () => {
 	});
 
 	it("keeps the judge's rejection of a byte-identical wrapper and live pair", async () => {
-		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-2", "wrapper"), source("tier-1", "live")] });
+		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-2", "wrapper"), withWordCount(source("tier-1", "live"), 99)] });
 
 		const result = await prepare({ url: URL });
 
@@ -1214,7 +1275,7 @@ describe("candidates sharing a content hash", () => {
 	});
 
 	it("logs one judged body for a byte-identical pair", async () => {
-		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-2", "wrapper"), source("tier-1", "live")] });
+		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-2", "wrapper"), withWordCount(source("tier-1", "live"), 99)] });
 
 		expect(logged(await prepare({ url: URL }))).toMatchObject({ selectionRule: "judge", judgedBodies: 1 });
 	});
@@ -1233,7 +1294,7 @@ describe("candidates whose prose is identical", () => {
 
 	it("sends the judge one body for a live copy and a tracker copy of the same prose in different markup", async () => {
 		const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("live"), reason: "The article" });
-		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-1", "live"), tracker("wrapper")], selectMostCompleteContent: select });
+		const { prepare } = setup({ listAvailableTierSources: async () => [withWordCount(source("tier-1", "live"), 99), tracker("wrapper")], selectMostCompleteContent: select });
 
 		const result = await prepare({ url: URL });
 
@@ -1244,7 +1305,7 @@ describe("candidates whose prose is identical", () => {
 	});
 
 	it("keeps the judge's rejection of a live copy and a tracker copy of the same prose", async () => {
-		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-1", "live"), tracker("wrapper")] });
+		const { prepare } = setup({ listAvailableTierSources: async () => [withWordCount(source("tier-1", "live"), 99), tracker("wrapper")] });
 
 		const result = await prepare({ url: URL });
 
@@ -1340,7 +1401,7 @@ describe("candidates whose prose is identical", () => {
 	});
 
 	it("logs one judged body for a prose-identical pair", async () => {
-		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-1", "live"), tracker("wrapper")] });
+		const { prepare } = setup({ listAvailableTierSources: async () => [withWordCount(source("tier-1", "live"), 99), tracker("wrapper")] });
 		const info = jest.fn();
 
 		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection: await prepare({ url: URL }) });

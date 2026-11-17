@@ -62,6 +62,10 @@ export interface InboxEmailStore {
 		receivedAtMessageId: string;
 		linkCounts: InboxEmailLinkCounts;
 	}) => Promise<void>;
+	moveLinkCountToKept: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+	}) => Promise<void>;
 	/** Account-deletion read pass: enumerate every email the user owns WITHOUT
 	 * deleting, returning the pointers those rows hold — the raw `.eml` and
 	 * rendered-body S3 keys (different buckets, so returned apart; the body only on

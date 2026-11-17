@@ -2,9 +2,17 @@
 <div id="reader-readlists-slot" class="article-body__readlists-slot article-body__readlists-slot--visible"{{#if oob}} hx-swap-oob="outerHTML"{{/if}} data-test-readlists-slot>
   <details class="article-body__readlists">
     <summary class="btn btn--neutral article-body__readlists-trigger" data-test-readlists-trigger>{{icon "plus"}}<span class="article-body__action-label">Add to readlist</span><span class="article-body__readlists-chevron" aria-hidden="true">{{icon "chevron-down"}}</span></summary>
-    <ul class="article-body__readlists-menu" data-test-readlists-menu>
+    <ul class="article-body__readlists-menu" data-readlist-filter-scope data-test-readlists-menu>
+      {{{readlistPicker.filterHtml}}}
+      {{#if several}}
       {{#each readlistPicker.options}}
-      <li class="article-body__readlists-item" data-test-readlists-row="{{slug}}">
+      <li class="article-body__readlists-item readlist-filter__option" data-test-readlists-row="{{slug}}">
+        <label class="article-body__readlists-option article-body__readlists-choice">{{icon iconName}}<span class="article-body__readlists-option-label">{{label}}</span><input class="form-choice article-body__readlists-checkbox" type="checkbox" name="queue" value="{{slug}}" form="reader-readlists-add" data-test-assign-readlist="{{slug}}"></label>
+      </li>
+      {{/each}}
+      {{else}}
+      {{#each readlistPicker.options}}
+      <li class="article-body__readlists-item readlist-filter__option" data-test-readlists-row="{{slug}}">
         <form class="article-body__readlists-form" method="POST" action="{{../readlistPicker.assignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
           <input type="hidden" name="queue" value="{{slug}}">
           <input type="hidden" name="returnTo" value="{{../readlistPicker.returnTo}}">
@@ -12,6 +20,7 @@
         </form>
       </li>
       {{/each}}
+      {{/if}}
       {{#if readlistPicker.create}}
       <li class="article-body__readlists-create-item" data-test-readlists-row="create">
         <button class="article-body__readlists-option article-body__readlists-create-trigger" type="button" popovertarget="{{readlistPicker.create.popoverId}}" aria-haspopup="dialog" data-test-action="readlist-create-open">{{icon "plus"}}<span class="article-body__readlists-option-label">Create a readlist</span></button>
@@ -19,6 +28,14 @@
           <input type="hidden" name="returnTo" value="{{readlistPicker.returnTo}}">
           <input class="form-input" type="text" name="label" required maxlength="{{readlistPicker.create.maxLength}}" placeholder="{{readlistPicker.create.namePlaceholder}}" aria-label="{{readlistPicker.create.nameLabel}}" autocomplete="off" data-test-readlist-create-name>
           <button class="article-body__readlists-create-btn" type="submit" data-test-action="readlist-create-assign">{{icon "plus"}}<span class="sr-only">Create readlist and add</span></button>
+        </form>
+      </li>
+      {{/if}}
+      {{#if several}}
+      <li class="article-body__readlists-footer" data-test-readlists-row="add">
+        <form id="reader-readlists-add" class="article-body__readlists-add" method="POST" action="{{readlistPicker.assignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-form="readlists-add">
+          <input type="hidden" name="returnTo" value="{{readlistPicker.returnTo}}">
+          <button class="btn btn--primary article-body__readlists-add-btn" type="submit" data-test-action="readlists-add-selected">{{t "readlistPicker.addSelected"}}</button>
         </form>
       </li>
       {{/if}}

@@ -41,7 +41,7 @@ import {
 	type NavigationKind,
 	type ScreenResponseOp,
 	type ScreenResponseOpId,
-	assignButton,
+	assignCheckbox,
 	assignOp,
 	backToReadlistOp,
 	openArticleOp,
@@ -457,7 +457,7 @@ async function collectAssign(browser: Browser): Promise<MeasuredScreenResponse[]
 		const samples: MeasuredScreenResponse[] = [];
 		for (let index = 0; index < counts.warmups + counts.measured; index += 1) {
 			await page.locator(READLISTS_TRIGGER).click();
-			await expect(page.locator(assignButton(dataset.assignSlug))).toBeVisible();
+			await page.locator(assignCheckbox(dataset.assignSlug)).check();
 			samples.push(await measure({ page, op: assignOp({ slug: dataset.assignSlug }) }));
 			await page.locator(unassignButton(dataset.assignSlug)).click();
 			await expect(page.locator(readlistTag(dataset.assignSlug))).toHaveCount(0);

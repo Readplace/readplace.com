@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { captureCheckpoint, expect, measuredBox, test, type VisualCheckpoint } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { clickAndWaitForPageReload } from "./page-interactions";
+import { clickAndWaitForPageReload, pickReaderReadlist } from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -18,7 +18,7 @@ const TOAST = "#status-toast [data-test-toast]";
 const TOAST_MESSAGE = `${TOAST} [data-test-toast-message]`;
 const TOAST_UNDO = `${TOAST} [data-test-toast-action]`;
 const TAGS = "#article-header [data-test-readlist-tag]";
-const ASSIGN_ROWS = "button[data-test-assign-readlist]";
+const ASSIGN_ROWS = "[data-test-assign-readlist]";
 const TOAST_HEIGHT_PX = 58;
 const DESKTOP_TOAST_INSET_PX = 48;
 const PHONE_TOAST_INSET_PX = 20;
@@ -76,7 +76,7 @@ async function openReaderBesideAReadlist(page: Page, stamp: string): Promise<str
 
 async function fileFromThePicker(page: Page, slug: string): Promise<void> {
 	await page.click(TRIGGER);
-	await page.click(`button[data-test-assign-readlist="${slug}"]`);
+	await pickReaderReadlist(page, slug);
 	await expect(page.locator(TOAST_MESSAGE)).toHaveText(`Added to ${READLIST_LABEL}`);
 }
 
@@ -167,7 +167,7 @@ test.describe("Filing in place from a card's reader", () => {
 		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 		await clickAndWaitForPageReload(page, page.locator("[data-test-article-title]").first());
 		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
-		const returnPath = await page.locator('form:has(button[data-test-assign-readlist]) input[name="returnTo"]').first().inputValue();
+		const returnPath = await page.locator('[data-test-readlists-menu] input[name="returnTo"]').first().inputValue();
 		const returnUrl = new URL(returnPath, BASE_URL).href;
 		const historyLength = await page.evaluate(() => window.history.length);
 		const content = await page.locator("[data-test-reader-slot]").elementHandle();
@@ -179,7 +179,7 @@ test.describe("Filing in place from a card's reader", () => {
 			{ filed: secondSlug, label: "Finance" },
 		]) {
 			await page.click(TRIGGER);
-			await page.click(`button[data-test-assign-readlist="${filed}"]`);
+			await pickReaderReadlist(page, filed);
 			await expect(page.locator(TOAST_MESSAGE)).toHaveText(`Added to ${label}`);
 			await page.waitForSelector(`${TAGS}[data-test-readlist-tag="${filed}"]`);
 			expect(page.url()).toBe(returnUrl);

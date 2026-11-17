@@ -1,3 +1,4 @@
 config:
   firefox-extension:stage: staging
-encryptionsalt: v1:zsCCZUCs2ew=:v1:eP5MEqPczirE3UNv:S+piKjfmlrHMDGu6WVvlZmec5ox4iA==
+secretsprovider: awskms://alias/pulumi-state-secrets?region=ap-southeast-2
+encryptedkey: AQICAHi6S5JWWQJW6rlPXA+EjgBpSa9holo1rtjUEtyWeWu1mwFwVo8RBrVtq6innWdF5QT1AAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM0Lzi/BaXY0IW+O0MAgEQgDudQNELGqbRGR3icyFJU1PlBza/wQzFw/ud9EjmLzluYkmt+mMO8/HeV8kfTOxGqUzFz012Iqgro2XpJA==

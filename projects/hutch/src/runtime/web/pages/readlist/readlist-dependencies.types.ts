@@ -5,6 +5,7 @@ import type { initKeepOffer } from "../../../domain/engagement/keep-offer";
 import type { RequestHandler, } from "express";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import type {
+	CreateRoutedInboxAddress,
 	InboxAddressStore,
 	InboxEmailLinkStore,
 	InboxSavedLinkStore,
@@ -40,6 +41,8 @@ import type {
 	FindSavedUrls,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	PinReadlistDefinition,
+	UnpinReadlistDefinition,
 	SetReadlistDefinitionPurpose,
 	ClearReadlistDefinitionPurpose,
 	ListUserSavesForUrl,
@@ -170,6 +173,8 @@ export interface ReadlistDependencies {
 	moveReadlistArticles: MoveReadlistArticles;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	pinReadlistDefinition: PinReadlistDefinition;
+	unpinReadlistDefinition: UnpinReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
@@ -178,6 +183,7 @@ export interface ReadlistDependencies {
 	deleteReadlistFitOverride: DeleteReadlistFitOverride;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
+	createRoutedInboxAddress: CreateRoutedInboxAddress;
 	markSummaryToggled: MarkSummaryToggled;
 	recordEngagementActivity: RecordEngagementActivity;
 	markRelatedDismissed: MarkRelatedDismissed;

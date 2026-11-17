@@ -69,7 +69,8 @@ import {
 	SHARE_DIALOG_SCRIPT,
 	type ShareInput,
 	renderShareDialog,
-	renderSharePanel,
+	renderShareFallbacks,
+	renderSharePanelsOob,
 } from "../../shared/share-dialog/share-dialog.component";
 import { renderReadlistCreate } from "../readlist/readlist-create.component";
 import { READLIST_CLIENT_SCRIPT } from "../readlist/readlist-name-form.component";
@@ -92,7 +93,10 @@ import type { EnclosureRead } from "@packages/domain/article";
 import { displayableTime } from "../../shared/displayable-time";
 import { PLAYER_SCRIPT, renderPlayer } from "../../shared/player/player.component";
 import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
-import { reportArticleHref } from "../../shared/report-article/report-article-href";
+import {
+	REPORT_ARTICLE_SCRIPT,
+} from "../../shared/report-article/report-article-dialog.component";
+import { isReaderViewShareable } from "../../shared/article-reader/reader-view";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 
@@ -153,24 +157,57 @@ function sharingOffReasonFor(articleUrl: string): SharingOffReason | undefined {
 	return undefined;
 }
 
-function readerSharingFor(input: {
+function readerShareInput(input: {
 	articleUrl: string;
+	originalUrl: string;
 	title: string;
 	appOrigin: string;
+	readerViewShareable: boolean;
+}): ShareInput {
+	return {
+		title: input.title,
+		campaign: "reader-internal",
+		originalUrl: input.originalUrl,
+		readerViewUrl: input.readerViewShareable ? `${input.appOrigin}${viewPathFor(input.articleUrl)}` : undefined,
+	};
+}
+
+const READER_SHARE_PANELS = ["dialog", "toolbar", "menu"] as const;
+
+export function renderReaderShareUpgradeOob(input: {
+	article: Pick<SavedArticle, "url" | "destinationUrl" | "metadata">;
+	appOrigin: string;
+	state: { content: ArticleBody | undefined; crawl: ArticleCrawl | undefined };
+}): string {
+	if (sharingOffReasonFor(input.article.url) !== undefined || !isReaderViewShareable(input.state)) return "";
+	return renderSharePanelsOob(
+		readerShareInput({
+			articleUrl: input.article.url,
+			originalUrl: input.article.destinationUrl,
+			title: input.article.metadata.title,
+			appOrigin: input.appOrigin,
+			readerViewShareable: true,
+		}),
+		READER_SHARE_PANELS,
+	);
+}
+
+function readerSharingFor(input: {
+	articleUrl: string;
+	originalUrl: string;
+	title: string;
+	appOrigin: string;
+	readerViewShareable: boolean;
 	epubDownloadHref: string | undefined;
 	epubDownloadGuide: EpubDownloadGuide | undefined;
-}): { share: ShareInput | undefined; sharing: ReaderSharing; shareDialogHtml: string } {
+}): { reportViewUrl: string | undefined; sharing: ReaderSharing; shareDialogHtml: string } {
 	const reason = sharingOffReasonFor(input.articleUrl);
 	if (reason === undefined) {
-		const share: ShareInput = {
-			shareUrl: `${input.appOrigin}${viewPathFor(input.articleUrl)}`,
-			title: input.title,
-			campaign: "reader-internal",
-		};
+		const share = readerShareInput(input);
 		return {
-			share,
+			reportViewUrl: `${input.appOrigin}${viewPathFor(input.articleUrl)}`,
 			sharing: {
-				share: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
+				share: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderShareFallbacks(share) },
 				epubDownloadHref: input.epubDownloadHref,
 				epubDownloadGuide: input.epubDownloadGuide,
 			},
@@ -179,7 +216,7 @@ function readerSharingFor(input: {
 	}
 	const off = { popoverId: SHARING_OFF_POPOVER_ID, fallbackHtml: renderSharingOffNote(reason) };
 	return {
-		share: undefined,
+		reportViewUrl: undefined,
 		sharing:
 			reason === "email-issue"
 				? { withheld: off }
@@ -257,10 +294,12 @@ export function ReaderPage(
 				: { confirmPopoverId: markStatusConfirm.popoverId }),
 		},
 	];
-	const { share, sharing, shareDialogHtml } = readerSharingFor({
+	const { reportViewUrl, sharing, shareDialogHtml } = readerSharingFor({
 		articleUrl: article.url,
+		originalUrl: article.destinationUrl,
 		title: article.metadata.title,
 		appOrigin: options.appOrigin,
+		readerViewShareable: isReaderViewShareable({ content: options.content, crawl: options.crawl }),
 		epubDownloadHref: options.epubDownloadHref,
 		epubDownloadGuide: options.epubDownloadGuide,
 	});
@@ -310,10 +349,10 @@ export function ReaderPage(
 		extensionInstallUrl: options.extensionInstallUrl,
 		readerNotice: options.readerNotice,
 		issueLinksHtml: renderIssueLinksSection(options.issueLinks),
-		reportHref:
-			share === undefined
+		report:
+			reportViewUrl === undefined
 				? undefined
-				: reportArticleHref({ viewUrl: share.shareUrl, title: article.metadata.title }),
+				: { viewUrl: reportViewUrl, title: article.metadata.title, surface: "reader", asksForEmail: false },
 		previouslyReadHtml:
 			pastReadsInput === undefined
 				? undefined
@@ -448,6 +487,7 @@ export function ReaderPage(
 			page:
 				SHARE_DIALOG_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
+				REPORT_ARTICLE_SCRIPT +
 				CAPTURE_FAILED_RELAY_SCRIPT +
 				CRAWL_ESTIMATE_SCRIPT +
 				READLIST_PICKER_SCRIPT +
@@ -457,7 +497,9 @@ export function ReaderPage(
 				READER_OPEN_SCRIPT +
 				READER_TOP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT +
-				(highlights.scope === undefined ? "" : HIGHLIGHT_TOOLBAR_SCRIPT),
+				(highlights.scope === undefined && highlights.rows.every((row) => row.note === undefined)
+					? ""
+					: HIGHLIGHT_TOOLBAR_SCRIPT),
 		}),
 	};
 }

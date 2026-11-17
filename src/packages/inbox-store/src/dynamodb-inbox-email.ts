@@ -123,6 +123,14 @@ export function initDynamoDbInboxEmail(deps: {
 				ExpressionAttributeValues: { ":linkCounts": linkCounts },
 			});
 		},
+		moveLinkCountToKept: async ({ userId, receivedAtMessageId }) => {
+			await table.update({
+				Key: { userId, receivedAtMessageId },
+				ConditionExpression: "attribute_exists(linkCounts)",
+				UpdateExpression: "ADD linkCounts.kept :one, linkCounts.skipped :minusOne",
+				ExpressionAttributeValues: { ":one": 1, ":minusOne": -1 },
+			});
+		},
 		listDeletionReferencesByUserId: async (userId) => {
 			const receivedAtMessageIds: string[] = [];
 			const rawEmailS3Keys: string[] = [];
