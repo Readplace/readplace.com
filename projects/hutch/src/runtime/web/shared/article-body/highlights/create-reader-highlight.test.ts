@@ -18,13 +18,15 @@ const NOW = new Date("2026-11-01T10:00:00.000Z");
 const ID_1 = "00000000-0000-4000-8000-000000000001";
 const ID_2 = "00000000-0000-4000-8000-000000000002";
 const ID_3 = "00000000-0000-4000-8000-000000000003";
+const ID_4 = "00000000-0000-4000-8000-000000000004";
 
-function setup(ids: string[] = [ID_1, ID_2, ID_3]) {
+function setup(ids: string[] = [ID_1, ID_2, ID_3, ID_4]) {
 	const store = initInMemoryHighlights();
 	const queue = [...ids];
 	const createReaderHighlight = initCreateReaderHighlight({
 		listArticleHighlights: store.listArticleHighlights,
 		createHighlight: store.createHighlight,
+		updateHighlightNote: store.updateHighlightNote,
 		newHighlightId: () => {
 			const next = queue.shift();
 			assert(next, "test ran out of ids");
@@ -137,9 +139,11 @@ describe("initCreateReaderHighlight", () => {
 		assert.deepEqual(outcome, { status: "passage-changed" });
 	});
 
-	it("answers too-long when exact is over the cap", async () => {
-		const { createReaderHighlight } = setup();
-		const long = "a".repeat(HIGHLIGHT_MAX_EXACT_LENGTH + 1);
+	it("stores a selection over the cap as consecutive highlights within it, with the note on the last", async () => {
+		const { store, createReaderHighlight } = setup();
+		const paragraph = `${"word ".repeat(1499)}end.`;
+		const long = Array.from({ length: 3 }, () => paragraph).join("\n");
+		assert.equal(long.length > 20_000, true);
 
 		const outcome = await createReaderHighlight({
 			text: long,
@@ -149,12 +153,27 @@ describe("initCreateReaderHighlight", () => {
 			exact: long,
 			start: 0,
 			end: long.length,
+			note: "whole chapter",
 		});
 
-		assert.deepEqual(outcome, { status: "too-long" });
+		assert.equal(outcome.status, "created");
+		const rows = await store.listArticleHighlights({ userId, url });
+		assert.deepEqual(
+			rows.map((row) => [row.highlightId, row.start, row.end, row.note]),
+			[
+				[ID_1, 0, paragraph.length + 1, undefined],
+				[ID_2, paragraph.length + 1, 2 * (paragraph.length + 1), undefined],
+				[ID_3, 2 * (paragraph.length + 1), long.length, "whole chapter"],
+			],
+		);
+		assert.equal(
+			rows.map((row) => row.exact).join(""),
+			long,
+		);
+		assert.equal(rows.every((row) => row.exact.length <= HIGHLIGHT_MAX_EXACT_LENGTH), true);
 	});
 
-	it("answers too-long when the merged range is over the cap", async () => {
+	it("keeps a neighbour the merge would take past the cap, and highlights only the text it does not cover", async () => {
 		const { store, createReaderHighlight } = setup();
 		const half = HIGHLIGHT_MAX_EXACT_LENGTH - 10;
 		const long = "a".repeat(HIGHLIGHT_MAX_EXACT_LENGTH + 20);
@@ -178,8 +197,169 @@ describe("initCreateReaderHighlight", () => {
 			end: long.length,
 		});
 
-		assert.deepEqual(outcome, { status: "too-long" });
-		assert.equal((await store.listArticleHighlights({ userId, url })).length, 1);
+		assert.equal(outcome.status, "created");
+		const rows = await store.listArticleHighlights({ userId, url });
+		assert.deepEqual(
+			rows.map((row) => [row.highlightId, row.start, row.end]),
+			[
+				[ID_1, 0, half],
+				[ID_2, half, long.length],
+			],
+		);
+	});
+
+	it("creates a highlight on each side of a neighbour inside the selection that it cannot merge", async () => {
+		const { store, createReaderHighlight } = setup([ID_1, ID_2]);
+		await store.createHighlight({
+			userId,
+			highlights: [storedRow({ ...rangeOf("fox"), note: "a".repeat(HIGHLIGHT_NOTE_MAX_LENGTH - 5) })],
+			replacedIds: [],
+		});
+
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown fox jumps"),
+			note: "my note",
+		});
+
+		assert.equal(outcome.status, "created");
+		const rows = await store.listArticleHighlights({ userId, url });
+		assert.deepEqual(
+			rows.map((row) => [row.highlightId, row.exact, row.note?.length]),
+			[
+				[ID_1, "brown ", undefined],
+				[ID_3, "fox", HIGHLIGHT_NOTE_MAX_LENGTH - 5],
+				[ID_2, " jumps", "my note".length],
+			],
+		);
+	});
+
+	it("writes nothing and names the highlight for a selection already inside one", async () => {
+		const { store, createReaderHighlight } = setup();
+		await createReaderHighlight({ text, contentHash, userId, url, ...rangeOf("quick brown fox") });
+
+		const outcome = await createReaderHighlight({ text, contentHash, userId, url, ...rangeOf("brown") });
+
+		assert.equal(outcome.status, "unchanged");
+		assert(outcome.status === "unchanged");
+		assert.equal(outcome.highlight.highlightId, ID_1);
+		const rows = await store.listArticleHighlights({ userId, url });
+		assert.deepEqual(
+			rows.map((row) => [row.highlightId, row.exact]),
+			[[ID_1, "quick brown fox"]],
+		);
+	});
+
+	it("joins the note onto the highlight a selection already lies inside", async () => {
+		const { store, createReaderHighlight } = setup();
+		await store.createHighlight({
+			userId,
+			highlights: [storedRow({ ...rangeOf("quick brown fox"), highlightId: HighlightIdSchema.parse(ID_2), note: "older note" })],
+			replacedIds: [],
+		});
+
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown"),
+			note: "request note",
+		});
+
+		assert.equal(outcome.status, "noted");
+		assert(outcome.status === "noted");
+		assert.equal(outcome.highlight.highlightId, ID_2);
+		const rows = await store.listArticleHighlights({ userId, url });
+		assert.deepEqual(
+			rows.map((row) => [row.highlightId, row.exact, row.note]),
+			[[ID_2, "quick brown fox", "request note\n\nolder note"]],
+		);
+	});
+
+	it("joins the note onto the last of the highlights that together cover the selection", async () => {
+		const { store, createReaderHighlight } = setup();
+		const long = "a".repeat(16_300);
+		await store.createHighlight({
+			userId,
+			highlights: [
+				storedRow({ exact: long.slice(0, 8150), start: 0, end: 8150, highlightId: HighlightIdSchema.parse(ID_2) }),
+				storedRow({ exact: long.slice(8150), start: 8150, end: 16_300, highlightId: HighlightIdSchema.parse(ID_3) }),
+			],
+			replacedIds: [],
+		});
+
+		const outcome = await createReaderHighlight({
+			text: long,
+			contentHash,
+			userId,
+			url,
+			exact: long.slice(8100, 8200),
+			start: 8100,
+			end: 8200,
+			note: "spans both",
+		});
+
+		assert.equal(outcome.status, "noted");
+		assert(outcome.status === "noted");
+		assert.equal(outcome.highlight.highlightId, ID_3);
+		const rows = await store.listArticleHighlights({ userId, url });
+		assert.deepEqual(
+			rows.map((row) => [row.highlightId, row.note]),
+			[
+				[ID_2, undefined],
+				[ID_3, "spans both"],
+			],
+		);
+	});
+
+	it("answers notes-too-long without writing when the note does not fit on the highlight already covering the selection", async () => {
+		const { store, createReaderHighlight } = setup();
+		const stored = "a".repeat(HIGHLIGHT_NOTE_MAX_LENGTH - 5);
+		await store.createHighlight({
+			userId,
+			highlights: [storedRow({ ...rangeOf("quick brown fox"), note: stored })],
+			replacedIds: [],
+		});
+
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown"),
+			note: "four",
+		});
+
+		assert.deepEqual(outcome, { status: "notes-too-long" });
+		const [row] = await store.listArticleHighlights({ userId, url });
+		assert.equal(row.note, stored);
+	});
+
+	it("answers cancelled when the highlight covering the selection is gone before its note is joined", async () => {
+		const store = initInMemoryHighlights();
+		const covering = storedRow({ ...rangeOf("quick brown fox"), note: "kept" });
+		const createReaderHighlight = initCreateReaderHighlight({
+			listArticleHighlights: async () => [covering],
+			createHighlight: store.createHighlight,
+			updateHighlightNote: store.updateHighlightNote,
+			newHighlightId: () => ID_1,
+			now: () => NOW,
+		});
+
+		const outcome = await createReaderHighlight({
+			text,
+			contentHash,
+			userId,
+			url,
+			...rangeOf("brown"),
+			note: "late note",
+		});
+
+		assert.deepEqual(outcome, { status: "cancelled" });
 	});
 
 	it("merges an overlapping highlight into one row spanning both", async () => {
@@ -215,12 +395,12 @@ describe("initCreateReaderHighlight", () => {
 		const lazy = rangeOf("lazy dog");
 		await store.createHighlight({
 			userId,
-			highlight: storedRow({
+			highlights: [storedRow({
 				exact: "lazy dog",
 				start: lazy.start - 5,
 				end: lazy.end - 5,
 				anchoredContentHash: "old",
-			}),
+			})],
 			replacedIds: [],
 		});
 
@@ -245,12 +425,12 @@ describe("initCreateReaderHighlight", () => {
 		const fox = rangeOf("brown fox");
 		await store.createHighlight({
 			userId,
-			highlight: storedRow({
+			highlights: [storedRow({
 				exact: "vanished words",
 				start: fox.start,
 				end: fox.end,
 				anchoredContentHash: "old",
-			}),
+			})],
 			replacedIds: [],
 		});
 
@@ -325,24 +505,24 @@ describe("initCreateReaderHighlight", () => {
 		const fox = rangeOf("fox");
 		await store.createHighlight({
 			userId,
-			highlight: storedRow({
+			highlights: [storedRow({
 				...quick,
 				highlightId: HighlightIdSchema.parse(ID_2),
 				note: "older note",
 				createdAt: new Date("2026-10-01T00:00:00.000Z"),
 				updatedAt: new Date("2026-10-30T00:00:00.000Z"),
-			}),
+			})],
 			replacedIds: [],
 		});
 		await store.createHighlight({
 			userId,
-			highlight: storedRow({
+			highlights: [storedRow({
 				...fox,
 				highlightId: HighlightIdSchema.parse(ID_3),
 				note: "newer note",
 				createdAt: new Date("2026-10-15T00:00:00.000Z"),
 				updatedAt: new Date("2026-10-15T00:00:00.000Z"),
-			}),
+			})],
 			replacedIds: [],
 		});
 
@@ -367,7 +547,7 @@ describe("initCreateReaderHighlight", () => {
 		const { store, createReaderHighlight } = setup([ID_1]);
 		await store.createHighlight({
 			userId,
-			highlight: storedRow({ ...rangeOf("quick brown"), note: "kept note" }),
+			highlights: [storedRow({ ...rangeOf("quick brown"), note: "kept note" })],
 			replacedIds: [],
 		});
 
@@ -385,12 +565,12 @@ describe("initCreateReaderHighlight", () => {
 		assert.equal(row.note, "kept note");
 	});
 
-	it("answers notes-too-long without writing when the joined notes are over the cap", async () => {
+	it("leaves a neighbour whose notes would not fit separate and highlights the rest", async () => {
 		const { store, createReaderHighlight } = setup([ID_1]);
 		const stored = "a".repeat(HIGHLIGHT_NOTE_MAX_LENGTH - 5);
 		await store.createHighlight({
 			userId,
-			highlight: storedRow({ ...rangeOf("quick brown"), note: stored }),
+			highlights: [storedRow({ ...rangeOf("quick brown"), note: stored })],
 			replacedIds: [],
 		});
 
@@ -403,11 +583,14 @@ describe("initCreateReaderHighlight", () => {
 			note: "four",
 		});
 
-		assert.deepEqual(outcome, { status: "notes-too-long" });
+		assert.equal(outcome.status, "created");
 		const rows = await store.listArticleHighlights({ userId, url });
 		assert.deepEqual(
-			rows.map((row) => [row.highlightId, row.note]),
-			[[ID_3, stored]],
+			rows.map((row) => [row.highlightId, row.exact, row.note]),
+			[
+				[ID_3, "quick brown", stored],
+				[ID_1, " fox", "four"],
+			],
 		);
 	});
 });

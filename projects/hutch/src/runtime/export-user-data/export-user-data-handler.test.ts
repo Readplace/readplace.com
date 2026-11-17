@@ -410,7 +410,7 @@ describe("initExportUserDataHandler", () => {
 			]) {
 				const created = await harness.highlights.createHighlight({
 					userId: harness.userId,
-					highlight,
+					highlights: [highlight],
 					replacedIds: [],
 				});
 				assert.equal(created.status, "created");
@@ -448,11 +448,11 @@ describe("initExportUserDataHandler", () => {
 			await saveArticle(harness, "https://example.com/plain");
 			const created = await harness.highlights.createHighlight({
 				userId: harness.userId,
-				highlight: aHighlight({
+				highlights: [aHighlight({
 					highlightId: HighlightIdSchema.parse("00000000-0000-4000-8000-000000000003"),
 					exact: "a passage",
 					orderKey: 1,
-				}),
+				})],
 				replacedIds: [],
 			});
 			assert.equal(created.status, "created");

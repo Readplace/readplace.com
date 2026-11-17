@@ -45,16 +45,20 @@ export function initInMemoryHighlights(): InMemoryHighlights {
 			.map(([, row]) => ({ ...row.highlight }))
 			.sort((a, b) => a.orderKey - b.orderKey || a.highlightId.localeCompare(b.highlightId));
 
-	const createHighlight: CreateHighlight = async ({ userId, highlight, replacedIds }) => {
-		const url = highlight.highlightOf;
-		const key = keyOf({ userId, url, highlightId: highlight.highlightId });
+	const createHighlight: CreateHighlight = async ({ userId, highlights, replacedIds }) => {
+		const [first] = highlights;
+		assert(first, "createHighlight needs at least one highlight");
+		const url = first.highlightOf;
+		const keys = highlights.map((highlight) => keyOf({ userId, url, highlightId: highlight.highlightId }));
 		const replacedKeys = replacedIds.map((highlightId) => keyOf({ userId, url, highlightId }));
-		if (createCancelled || rows.has(key) || replacedKeys.some((replaced) => !rows.has(replaced))) {
+		if (createCancelled || keys.some((key) => rows.has(key)) || replacedKeys.some((replaced) => !rows.has(replaced))) {
 			return { status: "cancelled" };
 		}
 		for (const replaced of replacedKeys) rows.delete(replaced);
-		rows.set(key, { userId, highlight: { ...highlight } });
-		return { status: replacedIds.length === 0 ? "created" : "merged", highlight, replacedIds };
+		highlights.forEach((highlight, index) => {
+			rows.set(keys[index], { userId, highlight: { ...highlight } });
+		});
+		return { status: replacedIds.length === 0 ? "created" : "merged", highlights, replacedIds };
 	};
 
 	const deleteHighlight: DeleteHighlight = async (params) => ({ deleted: rows.delete(keyOf(params)) });
