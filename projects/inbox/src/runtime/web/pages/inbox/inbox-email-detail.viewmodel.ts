@@ -742,8 +742,6 @@ export function toInboxEmailDetailViewModel(input: {
 		toInboxExcludedLinkViewModel({
 			link,
 			emailId,
-			linkSaveStates: input.linkSaveStates,
-			pollContext: { mode: "static" },
 		}),
 	);
 	const truncated = linksMeta?.truncated === true;

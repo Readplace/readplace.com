@@ -389,7 +389,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const deliveries = buildSqsEvent([accepted, rejected, unavailable].map((readlist) => ({
 			messageId: readlist,
 			body: JSON.stringify({ detail: {
-				userId, receivedAtMessageId: "2026-10-04#gmail-issue", readlist,
+				scope: "email", userId, receivedAtMessageId: "2026-10-04#gmail-issue", readlist,
 				senderEmail: "letter@example.com", subject: "Weekly articles",
 				links: [{ ordinal: "0000", url: exampleUrl, anchorText: "Story" }],
 			}, time: fixedNow().toISOString() }),

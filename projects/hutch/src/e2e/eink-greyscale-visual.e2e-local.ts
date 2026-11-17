@@ -521,10 +521,13 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			await loginAs(page, email);
 			await expect(page.locator("[data-test-article]")).toHaveCount(READLIST_ARTICLES.length + 1);
 			await expect(page.locator('[data-card-status="pending"]')).toHaveCount(0);
+			await page.addStyleTag({ path: CONTRAST_SENSITIVE.stylePath });
+			await page.locator(READLIST_LIST).scrollIntoViewIfNeeded();
+			await settle(page, READLIST_LIST);
 			const card = page.locator("[data-test-article]").first();
 			await card.locator('[data-test-action="article-menu"]').click();
 			await expect(card.locator(".menu__panel")).toBeVisible();
-			await settle(page, READLIST_LIST);
+			await page.mouse.move(0, 0);
 
 			await expect(page.locator(READLIST_LIST)).toHaveScreenshot(
 				`eink-readlist-menu-open-${theme}.png`,

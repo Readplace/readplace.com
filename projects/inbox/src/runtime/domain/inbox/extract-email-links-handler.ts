@@ -51,7 +51,7 @@ import { collectEmailAnchors } from "./collect-email-anchors";
 import { resolveEmailFanOut } from "./email-fan-out";
 import { LLM_SKIP_REASONS, type TriageEmailLinks } from "./triage-email-links";
 
-const TRIAGED_ANCHOR_TEXT_MAX_CHARS = 120;
+export const TRIAGED_ANCHOR_TEXT_MAX_CHARS = 120;
 
 export interface EmailOutputCorrelation {
 	receivedAtMessageId: string;
@@ -110,6 +110,7 @@ export function initExtractEmailLinksHandler(deps: {
 		emailOutput: EmailOutputCorrelation;
 	}) => Promise<void>;
 	publishEmailLinksTriaged: (input: {
+		scope: "email";
 		userId: UserId;
 		receivedAtMessageId: string;
 		readlist: ReadlistSlug;
@@ -561,6 +562,7 @@ export function initExtractEmailLinksHandler(deps: {
 				const publishReadlistSelections = async () => {
 					for (const readlist of decidingReadlists) {
 						await publishEmailLinksTriaged({
+							scope: "email",
 							userId,
 							receivedAtMessageId,
 							readlist,

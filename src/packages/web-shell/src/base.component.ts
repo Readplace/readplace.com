@@ -93,6 +93,8 @@ function externalCanonicalUrl(canonicalUrl: string): string {
  * inside an htmx-swapped <main>, which a page-scoped script would never see. */
 const TOAST_SCRIPT = `<script src="/client-dist/toast.client.js" defer></script>`;
 
+const MENU_SCRIPT = `<script src="/client-dist/menu.client.js" defer></script>`;
+
 export const OFFLINE_BANNER_TEXT =
 	"Your internet is not working, your reading is offline. Readplace is read-only until you're back online.";
 
@@ -422,6 +424,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				config.htmx.script +
 				EXTENSION_SUGGESTION_BANNER_SCRIPT +
 				TOAST_SCRIPT +
+				MENU_SCRIPT +
 				(body.scripts ?? "") +
 				(state.requestScripts ?? "") +
 				siteScripts +

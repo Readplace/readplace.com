@@ -47,8 +47,9 @@ class NativeRefreshRecovery(
 	)
 
 	fun record(event: AuthEvent, outcome: AuthOutcome? = null, reason: AuthReason? = null,
-		operation: String? = null, attempt: String? = null, status: Int? = null, owner: NativeRefreshOperation? = null) {
-		val entry = NativeAuthEvent(UUID.randomUUID().toString(), event, Instant.now().toString(), "android", surface,
+		operation: String? = null, attempt: String? = null, status: Int? = null, owner: NativeRefreshOperation? = null,
+		surface: AuthSurface? = null) {
+		val entry = NativeAuthEvent(UUID.randomUUID().toString(), event, Instant.now().toString(), "android", surface ?: this.surface,
 			context, version, operation, attempt, status, outcome, reason)
 		runCatching { records.update { state ->
 			val earliest = Instant.now().minusSeconds(7 * 86400).toString()

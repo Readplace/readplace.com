@@ -50,6 +50,7 @@ import {
 	AUTOMATION_SAVES_HELD_EMAIL_SUBJECT,
 } from "../web/auth/automation-saves-held-email";
 import { trialDayOf } from "../domain/trial/trial-day";
+import type { LoadNextCharge } from "../domain/subscription/next-charge";
 import type { EmitLifecycleEmailSent } from "../observability/lifecycle-email-events";
 
 const EMAIL_FROM = "Readplace <readplace@readplace.com>";
@@ -71,6 +72,7 @@ export interface SendTrialFeedbackEmailDeps {
 	findOpenInvoiceFailure: FindOpenInvoiceFailure;
 	claimTrialNudge: ClaimTrialNudge;
 	releaseTrialNudge: ReleaseTrialNudge;
+	loadNextCharge: LoadNextCharge;
 	findUserContactByUserId: FindUserContactByUserId;
 	signUnsubscribeToken: (userId: UserId) => string;
 	sendEmail: SendEmail;
@@ -449,11 +451,14 @@ async function processChargeReminder(
 		return;
 	}
 
+	const nextCharge = await deps.loadNextCharge({ userId, row, suppressed: false });
+
 	const component = ChargeReminderEmail({
 		founderAvatarUrl: deps.founderAvatarUrl,
 		chargeAt,
 		ctaUrl: `${deps.appOrigin}/account?utm_source=charge-reminder&utm_medium=email&utm_campaign=trial-precharge&utm_content=manage-subscription`,
 		plan: row.plan,
+		charge: nextCharge,
 	});
 
 	await sendUnlessKeyReused(

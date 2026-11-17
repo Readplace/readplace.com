@@ -302,16 +302,6 @@
   white-space: nowrap;
 }
 
-.readlist-nav__menu--up .menu__panel {
-  top: auto;
-  bottom: 100%;
-}
-
-.readlist-nav__menu--floating .menu__panel {
-  position: fixed;
-  inset: var(--menu-top) auto auto var(--menu-left);
-}
-
 .readlist-more__head {
   display: flex;
   flex-wrap: nowrap;

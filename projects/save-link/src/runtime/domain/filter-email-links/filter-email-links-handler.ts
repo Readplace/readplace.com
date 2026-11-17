@@ -48,6 +48,8 @@ const FailedTriageIds = z.object({
 	detail: z.object({ userId: UserIdSchema, receivedAtMessageId: z.string(), readlist: z.string() }),
 });
 
+const LinkScopedTriage = z.object({ detail: z.object({ scope: z.literal("link") }) });
+
 function failedTriageIds(body: string) {
 	let envelope: unknown;
 	try {
@@ -55,6 +57,7 @@ function failedTriageIds(body: string) {
 	} catch {
 		return undefined;
 	}
+	if (LinkScopedTriage.safeParse(envelope).success) return undefined;
 	const parsed = FailedTriageIds.safeParse(envelope);
 	return parsed.success ? parsed.data.detail : undefined;
 }
@@ -283,7 +286,9 @@ export function initFilterEmailLinksHandler(deps: {
 				userId,
 				receivedAtMessageId: detail.receivedAtMessageId,
 				readlist,
+				target: detail.scope === "link" ? { scope: "link", ordinal: EmailLinkOrdinalSchema.parse(detail.links[0].ordinal) } : { scope: "email" },
 			});
+			assert(admission.kind !== "wait", "the readlist has not decided the email yet");
 			if (admission.kind === "skip") {
 				logger.info("[filter-email-links] skipped", {
 					receivedAtMessageId: detail.receivedAtMessageId,
@@ -333,6 +338,7 @@ export function initFilterEmailLinksHandler(deps: {
 				});
 			}
 			await publishEvent(EmailLinksFilteredEvent, {
+				scope: detail.scope,
 				userId,
 				receivedAtMessageId: detail.receivedAtMessageId,
 				readlist,

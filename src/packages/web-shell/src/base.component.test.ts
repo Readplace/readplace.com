@@ -1127,7 +1127,7 @@ describe("Base component", () => {
 				assert(src, "a script matched by [src] must carry a src");
 				return new URL(src, "https://readplace.com").origin;
 			}),
-		).toEqual(["https://readplace.com", "https://readplace.com", "https://readplace.com"]);
+		).toEqual(["https://readplace.com", "https://readplace.com", "https://readplace.com", "https://readplace.com"]);
 
 		const configMeta = doc.head.querySelector('meta[name="htmx-config"]');
 		assert(configMeta, "htmx config must ride a <head> meta so htmx reads it at init");
@@ -1165,10 +1165,12 @@ describe("Base component", () => {
 			"/client-dist/htmx.client.js",
 			"/client-dist/extension-suggestion-banner.client.js",
 			"/client-dist/toast.client.js",
+			"/client-dist/menu.client.js",
 		]);
 		expect(loadedClientScripts(omitted)).toEqual([
 			"/client-dist/extension-suggestion-banner.client.js",
 			"/client-dist/toast.client.js",
+			"/client-dist/menu.client.js",
 		]);
 	});
 
@@ -1599,6 +1601,7 @@ describe("Base component", () => {
 			"/client-dist/htmx.client.js",
 			"/client-dist/extension-suggestion-banner.client.js",
 			"/client-dist/toast.client.js",
+			"/client-dist/menu.client.js",
 		]);
 	});
 
@@ -1611,6 +1614,7 @@ describe("Base component", () => {
 			"/client-dist/htmx.client.js",
 			"/client-dist/extension-suggestion-banner.client.js",
 			"/client-dist/toast.client.js",
+			"/client-dist/menu.client.js",
 		]);
 	});
 

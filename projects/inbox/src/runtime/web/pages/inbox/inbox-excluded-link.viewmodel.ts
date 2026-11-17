@@ -2,17 +2,9 @@ import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { inbox } from "@packages/translations/inbox";
 import { withInternalTracking } from "@packages/web-shell";
 import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
-import type {
-	EmailLinkSkipReason,
-	InboxEmailLinkEntry,
-	InboxLinkSaveState,
-} from "@packages/domain/inbox";
-import { buildInboxExcludedLinkPollUrl } from "./inbox-excluded-link-poll-url";
+import type { EmailLinkSkipReason, InboxEmailLinkEntry } from "@packages/domain/inbox";
 import type { InboxCardSaveAction } from "./inbox-link-card.viewmodel";
 import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
-import { toInboxSaveButtonViewModel } from "./inbox-save-button.viewmodel";
-
-export const INITIAL_SAVE_POLL_COUNT = 1;
 
 const { t } = translator(inbox, DEFAULT_LOCALE);
 
@@ -39,56 +31,22 @@ export interface ExcludedLinkViewModel {
 	reasonLabel: string;
 	domId: string;
 	actions: InboxCardSaveAction[];
-	pollUrl: string | undefined;
-}
-
-export type ExcludedLinkPollContext =
-	| { mode: "static" }
-	| { mode: "save-poll"; pollCount: number; maxPolls: number };
-
-function saveSettlePollUrl(input: {
-	link: InboxEmailLinkEntry;
-	emailId: string;
-	saveState: InboxLinkSaveState | undefined;
-	pollContext: ExcludedLinkPollContext;
-}): string | undefined {
-	const { pollContext } = input;
-	if (pollContext.mode === "static") return undefined;
-	if (input.saveState !== undefined) return undefined;
-	if (pollContext.pollCount > pollContext.maxPolls) return undefined;
-	return buildInboxExcludedLinkPollUrl({
-		emailId: input.emailId,
-		ordinal: input.link.ordinal,
-		pollCount: pollContext.pollCount,
-	});
 }
 
 export function toInboxExcludedLinkViewModel(input: {
 	link: InboxEmailLinkEntry;
 	emailId: string;
-	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
-	pollContext: ExcludedLinkPollContext;
 }): ExcludedLinkViewModel {
-	const { link, emailId, linkSaveStates } = input;
+	const { link, emailId } = input;
 	const domId = `inbox-skipped-${link.ordinal}`;
-	const pollUrl = saveSettlePollUrl({
-		link,
-		emailId,
-		saveState: linkSaveStates.get(link.url),
-		pollContext: input.pollContext,
-	});
 	const actions: InboxCardSaveAction[] = [];
 	if (validateSaveableInboxLink(link.url).status === "SUCCESS") {
 		actions.push({
 			key: "save",
-			// A skipped row shows its URL byte-exact — no crawl has resolved it —
-			// so the key it is looked up by is also the one the label names.
-			...toInboxSaveButtonViewModel({
-				linkSaveStates,
-				url: link.url,
-				displayUrl: link.url,
-				whenNotSaved: pollUrl === undefined ? "unsaved" : "saving",
-			}),
+			label: t("excludedLink.save.label"),
+			ariaLabel: t("excludedLink.save.ariaLabel", { url: link.url }),
+			saveState: "unsaved",
+			iconName: undefined,
 			buttonId: `${domId}-save`,
 			href: withInternalTracking(buildInboxLinkSaveUrl({ emailId, ordinal: link.ordinal }), {
 				source: "inbox-excluded-link",
@@ -104,6 +62,5 @@ export function toInboxExcludedLinkViewModel(input: {
 		reasonLabel: reasonLabelFor(link),
 		domId,
 		actions,
-		pollUrl,
 	};
 }

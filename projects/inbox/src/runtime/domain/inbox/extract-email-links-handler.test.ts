@@ -1116,6 +1116,7 @@ describe("initExtractEmailLinksHandler", () => {
 			]);
 			expect(harness.triaged).toEqual([
 				{
+					scope: "email",
 					userId: USER,
 					receivedAtMessageId: RAM,
 					readlist: WORK,
@@ -1295,6 +1296,7 @@ describe("initExtractEmailLinksHandler", () => {
 
 			expect(harness.triaged).toEqual([
 				{
+					scope: "email",
 					userId: USER,
 					receivedAtMessageId: RAM,
 					readlist: WORK,
@@ -1685,8 +1687,8 @@ describe("Gmail destination snapshots", () => {
 		expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
 		const dlq = initExtractEmailLinksDlqHandler({ markLinksExtractionFailed: harness.linkStore.markLinksExtractionFailed, logger: noopLogger });
 		await dlq(buildSqsEvent([{ messageId: "extraction-dlq", body }]), buildLambdaContext(), () => {});
-		const recorder = initRecordEmailLinksFilteredHandler({ putReadlistOutcome: harness.linkStore.putReadlistOutcome, listLinksByEmail: harness.linkStore.listLinksByEmail, logger: noopLogger });
-		const rejection = { userId: USER, receivedAtMessageId: RAM, readlist: WORK, readlistLabel: "Work", decision: "filtered", fit: [{ ordinal: "0000", verdict: "drop", reason: "Outside the list topic" }] };
+		const recorder = initRecordEmailLinksFilteredHandler({ putReadlistOutcome: harness.linkStore.putReadlistOutcome, mergeReadlistOutcomeFit: harness.linkStore.mergeReadlistOutcomeFit, listLinksByEmail: harness.linkStore.listLinksByEmail, logger: noopLogger });
+		const rejection = { scope: "email", userId: USER, receivedAtMessageId: RAM, readlist: WORK, readlistLabel: "Work", decision: "filtered", fit: [{ ordinal: "0000", verdict: "drop", reason: "Outside the list topic" }] };
 		expect(await recorder(buildSqsEvent([{ messageId: "late-rejection", body: JSON.stringify({ "detail-type": EmailLinksFilteredEvent.detailType, detail: rejection }) }]), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
 		expect(links.map(({ status }) => status)).toEqual(["pending"]);

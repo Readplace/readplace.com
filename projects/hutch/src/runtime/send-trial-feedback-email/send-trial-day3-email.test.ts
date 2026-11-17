@@ -62,6 +62,7 @@ function buildSubject(options: { contact?: UserContact | null; sendEmail?: SendE
 		findOpenInvoiceFailure: async () => undefined,
 		claimTrialNudge: providers.claimTrialNudge,
 		releaseTrialNudge: options.releaseTrialNudge ?? providers.releaseTrialNudge,
+		loadNextCharge: async () => undefined,
 		findUserContactByUserId: async () => contact,
 		signUnsubscribeToken: unsubscribeToken.sign,
 		sendEmail: options.sendEmail ?? email.sendEmail,

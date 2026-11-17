@@ -11,7 +11,7 @@ this file records only what Android forced to differ, and why.
 make emulator-boot        # headless boot of the readplace-android AVD
 make install-emulator     # staging APK → installed → launched
 make screenshot           # build/screenshot.png
-make test                 # unit suite + coverage ratchet + staging config pins
+make test                 # unit suite + pixel tests + coverage ratchet + staging config pins; RECORD_SNAPSHOTS=1 re-records the pictures
 make emulator-stop        # stop the emulator — it outlives your shell, so this is not optional
 ```
 
@@ -71,7 +71,12 @@ that share nothing but an App Group. Android's share target is an `Activity` in 
 same APK, so the entire App Group layer disappears: no shared container, no keychain
 access group, no provisioning-profile group-id resolution, no legacy-defaults
 migration. Storage roots are plain injected `File`s under the app's own
-`filesDir`/`cacheDir`.
+`filesDir`/`cacheDir`. The same single process owns token refresh, sign-in and
+sign-out, so their auth diagnostic events carry the `app` surface whichever screen
+caused them; only the share screen's own start and sign-in-prompt events carry `share`.
+One process also means one diagnostic context: a share made while the app is running
+records its `share` events under the same `context_id` as the app's own events, where
+iOS gives the share extension a context of its own.
 
 That also removes the background-upload machinery. iOS needs a background
 `URLSession` because the share extension is killed the moment its sheet closes; the
@@ -200,6 +205,19 @@ committed or discarded, so a validate-only run stands in for the draft. A Play e
 transaction and supply skips an image whose checksum Play already holds, so there is
 nothing to read back.
 
+**The launcher icon is a vector; the login mark is the iOS script's output.** iOS runs a
+script for its App Store icon because the store takes a 1024px PNG with no alpha.
+Android's launcher is an adaptive icon whose foreground is a vector drawable, and
+`minSdk` 29 needs no PNG fallback, so no script renders it. The login screen's six
+`brand_mark.png` drawables are written by the iOS
+[`scripts/make-brandmark.sh`](../ios/scripts/make-brandmark.sh) and are never edited by
+hand. When the mark changes, run that script, then paste the new ampersand path into the
+launcher foreground vector (grep the resource tree for the old path's opening,
+`M204.28 400Q`). If the amber dot moves, also change the circle path beside the
+ampersand in the same vector, written as an arc starting at cx+r, and the dot centre the
+login screen holds for its replay tap target (grep the Kotlin sources for
+`DOT_CENTER_X`); iOS holds the same constants by hand.
+
 ## Version pins that are not "the latest"
 
 Two dependencies are deliberately held back, both for the same reason: their AAR
@@ -221,8 +239,12 @@ share chooser's layout: touch-target floors on the narrowest window and at the s
 text size. Android measures the same chooser in one Robolectric Compose test at set
 window sizes and font scales, the largest font and landscape included. Otherwise
 Robolectric is used only where a framework type is genuinely unavoidable (Intent/ClipData
-reading); the decision cores are deliberately kept off `android.*` so they stay
-plain-JVM testable.
+reading, and drawing a Compose leaf for a pixel test); the decision cores are deliberately
+kept off `android.*` so they stay plain-JVM testable.
+
+Pixel tests draw a Compose leaf in light and dark and compare it with a picture
+committed under `app/src/test/pixel-baselines/`, with the iOS comparison rule and
+tolerances. `make test RECORD_SNAPSHOTS=1` records them again and always fails.
 
 `scripts/check-coverage.py` enforces the same per-file ratchet the iOS app uses,
 against JaCoCo's XML instead of an `.xcresult`: files listed in

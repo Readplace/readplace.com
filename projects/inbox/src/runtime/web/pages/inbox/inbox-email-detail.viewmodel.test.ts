@@ -554,8 +554,8 @@ describe("toInboxEmailDetailViewModel", () => {
 				actions: [
 					{
 						key: "save",
-						label: "Save to All",
-						ariaLabel: "Save to All: https://news.example.com/unsub",
+						label: "Save as article",
+						ariaLabel: "Save as article: https://news.example.com/unsub",
 						saveState: "unsaved",
 						iconName: undefined,
 						buttonId: "inbox-skipped-0001-save",
@@ -574,8 +574,8 @@ describe("toInboxEmailDetailViewModel", () => {
 				actions: [
 					{
 						key: "save",
-						label: "Save to All",
-						ariaLabel: "Save to All: https://sponsor.example.com/deal",
+						label: "Save as article",
+						ariaLabel: "Save as article: https://sponsor.example.com/deal",
 						saveState: "unsaved",
 						iconName: undefined,
 						buttonId: "inbox-skipped-0002-save",
@@ -699,28 +699,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		]);
 	});
 
-	it("shows a skipped link the reader already saved as saved, and still saveable", () => {
-		const vm = build({
-			links: [link({ status: "skipped", skipReason: "llm-ad" })],
-			linksMeta: {
-				truncated: false,
-				extractionFailed: false,
-			},
-			linkSaveStates: new Map([["https://example.com/post", "saved"]]),
-		});
-
-		expect(vm.excluded.links[0].actions).toEqual([
-			expect.objectContaining({
-				label: "Save again",
-				ariaLabel: "Saved to All \u2014 save again: https://example.com/post",
-				saveState: "saved",
-				iconName: "check",
-				href: `/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
-			}),
-		]);
-	});
-
-	it("shows a skipped link with no recorded save as unsaved", () => {
+	it("offers a skipped link to save as an article", () => {
 		const vm = build({
 			links: [link({ status: "skipped", skipReason: "llm-ad" })],
 			linksMeta: {
@@ -731,30 +710,12 @@ describe("toInboxEmailDetailViewModel", () => {
 
 		expect(vm.excluded.links[0].actions).toEqual([
 			expect.objectContaining({
-				label: "Save to All",
-				ariaLabel: "Save to All: https://example.com/post",
+				label: "Save as article",
+				ariaLabel: "Save as article: https://example.com/post",
 				saveState: "unsaved",
 				iconName: undefined,
 			}),
 		]);
-	});
-
-	it("shows a skipped link whose save failed as unsaved, so the reader can try again", () => {
-		const vm = build({
-			links: [link({ status: "skipped", skipReason: "llm-ad" })],
-			linksMeta: {
-				truncated: false,
-				extractionFailed: false,
-			},
-			linkSaveStates: new Map([["https://example.com/post", "failed"]]),
-		});
-
-		expect(
-			vm.excluded.links[0].actions.map((action) => [
-				action.saveState,
-				action.label,
-			]),
-		).toEqual([["unsaved", "Save to All"]]);
 	});
 
 	it("withholds the save action from a skipped link whose URL is unsaveable", () => {

@@ -127,6 +127,12 @@ const SHARED_CLIENT_BUNDLES = [
       "});",
     ].join("\n"),
   },
+  {
+    outfile: "menu.client.js",
+    entry: path.join(SRC_DIR, "shared/menu/menu.client.ts"),
+    globalName: "Menu",
+    footer: "Menu.initFloatingMenus({ document: window.document });",
+  },
 ];
 
 module.exports = { SHARED_CLIENT_BUNDLES };

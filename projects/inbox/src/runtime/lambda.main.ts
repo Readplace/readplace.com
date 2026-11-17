@@ -23,7 +23,12 @@ import {
 	initFindSavedArticleForLink,
 	initS3ReadContent,
 } from "@packages/article-store";
-import { FileArticleIntoReadlistCommand, SubmitLinkCommand } from "@packages/infra-components";
+import {
+	CrawlEmailLinkPreview,
+	EmailLinksTriagedEvent,
+	FileArticleIntoReadlistCommand,
+	SubmitLinkCommand,
+} from "@packages/infra-components";
 import type { ReadlistFitOverriddenLogLine } from "@packages/domain/readlist";
 import { initResolveCanonicalIdentity } from "@packages/save-article";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
@@ -132,6 +137,8 @@ const application = express()
 				}),
 				readEmailContent,
 				publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
+				publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
+				publishSavedLinkTriaged: (input) => publishEvent(EmailLinksTriagedEvent, input),
 				publishFileArticleIntoReadlist: (detail) => publishEvent(FileArticleIntoReadlistCommand, detail),
 				findSavedArticleForLink,
 				listReadlistFitOverrides: readlistFitOverrides.listReadlistFitOverrides,

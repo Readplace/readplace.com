@@ -65,6 +65,35 @@ async function seed(
 	return user.userId;
 }
 
+type LinksMeta = Parameters<
+	ReturnType<typeof createDefaultTestAppFixture>["inboxEmail"]["inboxEmailLinkStore"]["putLinksMeta"]
+>[0]["meta"];
+
+/** A skipped row exists only once extraction finished, so its email carries
+ * link counts and its links carry meta, as they do in production. */
+async function seedSkipped(
+	fixture: ReturnType<typeof createDefaultTestAppFixture>,
+	input: { link?: Partial<InboxEmailLinkEntry>; meta?: LinksMeta } = {},
+): Promise<UserId> {
+	const userId = await seed(fixture, {
+		status: "skipped",
+		skipReason: "llm-ad",
+		title: undefined,
+		...input.link,
+	});
+	await fixture.inboxEmail.inboxEmailStore.setEmailLinkCounts({
+		userId,
+		receivedAtMessageId: SK,
+		linkCounts: { kept: 2, skipped: 3, truncated: false },
+	});
+	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
+		userId,
+		receivedAtMessageId: SK,
+		meta: input.meta ?? { truncated: false, extractionFailed: false },
+	});
+	return userId;
+}
+
 const savePath = `/inbox/${encodeURIComponent(SK)}/links/0000/save`;
 const cardPath = `/inbox/${encodeURIComponent(SK)}/links/0000/card`;
 
@@ -270,7 +299,7 @@ describe("Inbox link save route", () => {
 		expect(harness.submittedLinks).toEqual([]);
 	});
 
-	it("saves a misclassified skipped link byte-exact, reports it, and redirects back to the Skipped tab", async () => {
+	it("saves a misclassified skipped link byte-exact, reports it, and redirects to the Articles tab", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const errors: string[] = [];
 		fixture.shared.logError = (message) => {
@@ -278,18 +307,15 @@ describe("Inbox link save route", () => {
 		};
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const userId = await seed(fixture, {
-			status: "skipped",
-			skipReason: "llm-ad",
-			title: undefined,
-			url: "https://example.com/story?utm_source=nl&sig=abc",
+		const userId = await seedSkipped(fixture, {
+			link: { url: "https://example.com/story?utm_source=nl&sig=abc" },
 		});
 
 		const response = await agent.post(savePath);
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
-			`/inbox/${encodeURIComponent(SK)}?tab=excluded&saved=1`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&saved=1`,
 		);
 		expect(harness.submittedLinks).toEqual([
 			{ userId, url: "https://example.com/story?utm_source=nl&sig=abc", provenance: EMAIL_PROVENANCE, saveTrigger: "manual", readlist: DEFAULT_READLIST_SLUG },
@@ -315,11 +341,8 @@ describe("Inbox link save route", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const userId = await seed(fixture, {
-			status: "skipped",
-			skipReason: "social-host",
-			title: undefined,
-			url: "https://x.com/someone/status/1",
+		const userId = await seedSkipped(fixture, {
+			link: { skipReason: "social-host", url: "https://x.com/someone/status/1" },
 		});
 
 		const response = await agent.post(savePath);
@@ -404,27 +427,6 @@ describe("Inbox link save route answering htmx in place", () => {
 		},
 	});
 
-	const skipped = {
-		status: "skipped",
-		skipReason: "llm-ad",
-		title: undefined,
-	} satisfies Partial<InboxEmailLinkEntry>;
-
-	function excludedRow(html: string): Element {
-		const doc = new JSDOM(html).window.document;
-		const rows = doc.querySelectorAll("[data-test-inbox-excluded-link]");
-		assert.equal(rows.length, 1, "the response carries exactly one skipped row");
-		const row = rows[0];
-		assert(row, "the skipped row must render");
-		return row;
-	}
-
-	function saveButton(row: Element): Element {
-		const button = row.querySelector("[data-test-inbox-excluded-save]");
-		assert(button, "the skipped row must keep offering its save button");
-		return button;
-	}
-
 	function articleCard(html: string): Element {
 		const doc = new JSDOM(html).window.document;
 		const cards = doc.querySelectorAll("[data-test-inbox-article-card]");
@@ -440,54 +442,11 @@ describe("Inbox link save route answering htmx in place", () => {
 		return button;
 	}
 
-	it("answers a non-boosted htmx save with the row itself, saving and polling for the settle", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const errors: string[] = [];
-		fixture.shared.logError = (message) => {
-			errors.push(message);
-		};
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		const userId = await seed(fixture, skipped);
-
-		const response = await agent.post(savePath).set("HX-Request", "true");
-
-		expect(response.status).toBe(200);
-		const row = excludedRow(response.text);
-		expect(row.getAttribute("id")).toBe("inbox-skipped-0000");
-		expect(row.getAttribute("hx-get")).toMatch(/poll=1(?:&|$)/);
-		expect(row.getAttribute("hx-trigger")).toBe("every 3s");
-		const button = saveButton(row);
-		expect(button.getAttribute("data-test-save-state")).toBe("saving");
-		expect(button.textContent?.trim()).toBe("Saving…");
-		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, saveTrigger: "manual", readlist: DEFAULT_READLIST_SLUG }]);
-		expect(errors).toHaveLength(1);
-		assert(errors[0].startsWith("[inbox-link-feedback] "));
-	});
-
-	it("posts the row form to itself rather than boosting the whole page", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		await seed(fixture, skipped);
-
-		const response = await agent.post(savePath).set("HX-Request", "true");
-
-		const form = saveButton(excludedRow(response.text)).closest("form");
-		assert(form, "the save button must stay inside its form");
-		expect(form.getAttribute("method")).toBe("POST");
-		expect(form.getAttribute("action")).toBe(`${savePath}?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`);
-		expect(form.getAttribute("hx-post")).toBe(`${savePath}?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`);
-		expect(form.getAttribute("hx-target")).toBe("#inbox-skipped-0000");
-		expect(form.getAttribute("hx-swap")).toBe("outerHTML");
-		expect(form.getAttribute("hx-disabled-elt")).toBe("find button");
-	});
-
 	it("keeps the boosted whole-page redirect for a page still running the old markup", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		await seed(fixture, skipped);
+		await seedSkipped(fixture);
 
 		const response = await agent
 			.post(savePath)
@@ -496,7 +455,7 @@ describe("Inbox link save route answering htmx in place", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(
-			`/inbox/${encodeURIComponent(SK)}?tab=excluded&saved=1`,
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&saved=1`,
 		);
 	});
 
@@ -630,54 +589,11 @@ describe("Inbox link save route answering htmx in place", () => {
 		).toEqual(new Map());
 	});
 
-	it("reads the save state after publishing, so a settle that already landed skips Saving… entirely", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		settlingFixture = fixture;
-		const harness = useSettlingApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		await seed(fixture, skipped);
-
-		const response = await agent.post(savePath).set("HX-Request", "true");
-
-		expect(response.status).toBe(200);
-		const row = excludedRow(response.text);
-		expect(row.hasAttribute("hx-get")).toBe(false);
-		expect(saveButton(row).getAttribute("data-test-save-state")).toBe("saved");
-		const live = new JSDOM(response.text).window.document.querySelector(
-			"[data-test-inbox-live-status]",
-		);
-		assert(live, "a save that settled inside the request must announce itself");
-		expect(live.textContent).toBe("Saved to All: https://example.com/post");
-	});
-
-	it("retracts a recorded failure before retrying, so the retry reads as in flight rather than dead", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		const userId = await seed(fixture, skipped);
-		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaveFailed({
-			userId,
-			url: "https://example.com/post",
-		});
-
-		const response = await agent.post(savePath).set("HX-Request", "true");
-
-		const row = excludedRow(response.text);
-		expect(row.getAttribute("hx-get")).toMatch(/poll=1(?:&|$)/);
-		expect(saveButton(row).getAttribute("data-test-save-state")).toBe("saving");
-		expect(
-			await fixture.inboxEmail.inboxSavedLinkStore.findSavedLinks({
-				userId,
-				urls: ["https://example.com/post"],
-			}),
-		).toEqual(new Map());
-	});
-
 	it("retracts a recorded failure on the plain form post too", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const userId = await seed(fixture, skipped);
+		const userId = await seed(fixture);
 		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaveFailed({
 			userId,
 			url: "https://example.com/post",
@@ -694,21 +610,170 @@ describe("Inbox link save route answering htmx in place", () => {
 		).toEqual(new Map());
 	});
 
-	it("leaves an accepted save standing when the reader saves again", async () => {
+});
+
+describe("Inbox link save route moving a skipped link to Extracted Articles", () => {
+	const WORK_ONLY: LinksMeta = {
+		truncated: false,
+		extractionFailed: false,
+		selectedReadlists: [{ readlist: WORK, label: "Work" }],
+		eligibleArticleCount: 2,
+	};
+
+	async function savedLink(fixture: ReturnType<typeof createDefaultTestAppFixture>, userId: UserId) {
+		const { links, meta } = await fixture.inboxEmail.inboxEmailLinkStore.listLinksByEmail({
+			userId,
+			receivedAtMessageId: SK,
+		});
+		const email = await fixture.inboxEmail.inboxEmailStore.getEmail({ userId, receivedAtMessageId: SK });
+		return { status: links[0]?.status, meta, linkCounts: email?.linkCounts };
+	}
+
+	it("answers an in-place save with the moved row, the new tab counts and an announcement", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const userId = await seed(fixture, skipped);
-		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({
-			userId,
-			url: "https://example.com/post",
-		});
+		await seedSkipped(fixture);
 
 		const response = await agent.post(savePath).set("HX-Request", "true");
 
-		const row = excludedRow(response.text);
-		expect(row.hasAttribute("hx-get")).toBe(false);
-		expect(saveButton(row).getAttribute("data-test-save-state")).toBe("saved");
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const row = doc.querySelector('[data-test-inbox-excluded-link="0000"]');
+		assert(row, "the response replaces the skipped row");
+		expect(row.getAttribute("id")).toBe("inbox-skipped-0000");
+		expect(row.hasAttribute("data-test-inbox-excluded-moved")).toBe(true);
+		expect(row.querySelector("[data-test-inbox-excluded-moved-notice]")?.textContent?.trim()).toBe(
+			"Saved as article. View in Articles",
+		);
+		expect(row.querySelector("[data-test-inbox-excluded-moved-link]")?.getAttribute("href")).toBe(
+			`/inbox/${encodeURIComponent(SK)}?tab=articles`,
+		);
+		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
+			"Extracted Articles (1)",
+		);
+		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe("Skipped (0)");
+		expect(doc.querySelector("[data-test-inbox-live-status]")?.textContent).toBe(
+			"Saved as article: https://example.com/post",
+		);
+	});
+
+	it("moves the link to pending, starts its preview crawl and moves one count to kept", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seedSkipped(fixture);
+
+		await agent.post(savePath);
+
+		const after = await savedLink(fixture, userId);
+		expect(after.status).toBe("pending");
+		expect(after.linkCounts).toEqual({ kept: 3, skipped: 2, truncated: false });
+		expect(harness.crawlPreviews).toEqual([
+			{ userId, receivedAtMessageId: SK, ordinal: "0000", url: "https://example.com/post" },
+		]);
+		expect(harness.submittedLinks).toEqual([
+			{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, saveTrigger: "manual", readlist: DEFAULT_READLIST_SLUG },
+		]);
+	});
+
+	it("sends the link to each readlist the email was routed to, to be judged on its own", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const home = ReadlistSlugSchema.parse("home");
+		const userId = await seedSkipped(fixture, {
+			link: { anchorText: "a".repeat(130) },
+			meta: {
+				...WORK_ONLY,
+				selectedReadlists: [
+					{ readlist: WORK, label: "Work" },
+					{ readlist: home, label: "Home" },
+				],
+			},
+		});
+
+		await agent.post(savePath);
+
+		const triaged = {
+			scope: "link",
+			userId,
+			receivedAtMessageId: SK,
+			senderEmail: "news@example.com",
+			subject: "Weekly digest",
+			links: [{ ordinal: "0000", url: "https://example.com/post", anchorText: "a".repeat(120) }],
+		};
+		expect(harness.savedLinkTriages).toEqual([
+			{ ...triaged, readlist: WORK },
+			{ ...triaged, readlist: home },
+		]);
+		expect((await savedLink(fixture, userId)).meta?.eligibleArticleCount).toBe(3);
+	});
+
+	it("judges a link with no anchor text by its URL alone", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedSkipped(fixture, { meta: WORK_ONLY });
+
+		await agent.post(savePath);
+
+		expect(harness.savedLinkTriages.map((triage) => triage.links)).toEqual([
+			[{ ordinal: "0000", url: "https://example.com/post", anchorText: "" }],
+		]);
+	});
+
+	it("counts the link for a held email's readlists without judging it", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seedSkipped(fixture, { meta: { ...WORK_ONLY, savesHeld: true } });
+
+		await agent.post(savePath);
+
+		const after = await savedLink(fixture, userId);
+		expect(after.status).toBe("pending");
+		expect(after.meta?.eligibleArticleCount).toBe(3);
+		expect(harness.savedLinkTriages).toEqual([]);
+	});
+
+	it("saves a link from an email routed to no readlist to All only", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seedSkipped(fixture);
+
+		await agent.post(savePath);
+
+		const after = await savedLink(fixture, userId);
+		expect(after.status).toBe("pending");
+		expect(after.meta).toEqual({ truncated: false, extractionFailed: false });
+		expect(harness.savedLinkTriages).toEqual([]);
+	});
+
+	it("moves nothing a second time when another save already moved the link", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const owner = await seedSkipped(fixture, { meta: WORK_ONLY });
+		const linkStore = fixture.inboxEmail.inboxEmailLinkStore;
+		const stale = await linkStore.getLink({
+			userId: owner,
+			receivedAtMessageId: SK,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+		});
+		await linkStore.rescueSkippedLink({
+			userId: owner,
+			receivedAtMessageId: SK,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+		});
+		linkStore.getLink = async () => stale;
+
+		await agent.post(savePath);
+
+		expect(harness.crawlPreviews).toEqual([]);
+		expect(harness.savedLinkTriages).toEqual([]);
+		expect((await savedLink(fixture, owner)).linkCounts).toEqual({ kept: 2, skipped: 3, truncated: false });
 	});
 });
 
@@ -786,42 +851,23 @@ describe("Inbox link save route with a relayed publisher", () => {
 		},
 	});
 
-	it("shows a saved skipped link as saved on the tab the save redirects back to", async () => {
+	it("shows a saved skipped link as an article on the tab the save redirects to", async () => {
 		relayed.length = 0;
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useRelayingApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
-		const userId = await seed(fixture, { status: "skipped", skipReason: "llm-ad" });
-		// The barrier extraction always writes on completion, so the seeded row
-		// renders as the terminal Skipped list rather than a still-extracting panel.
-		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
-			userId,
-			receivedAtMessageId: SK,
-			meta: { truncated: false, extractionFailed: false },
-		});
-
-		const beforeSave = new JSDOM(
-			(await agent.get(`/inbox/${encodeURIComponent(SK)}?tab=excluded&utm_source=inbox-mail-tabs&utm_medium=internal&utm_content=excluded`)).text,
-		).window.document.querySelector("[data-test-inbox-excluded-save]");
-		assert(beforeSave, "the skipped row must offer its save button before the save");
-		expect(beforeSave.getAttribute("data-test-save-state")).toBe("unsaved");
+		await seedSkipped(fixture);
 
 		const response = await agent.post(savePath);
-		// The deployed pipeline records the fact from the accepted save; the relay
-		// stands in for it so the follow-up render reads the state a reader would see.
-		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({
-			userId,
-			url: "https://example.com/post",
-		});
 		const doc = new JSDOM((await agent.get(response.headers.location)).text).window.document;
 
-		expect(response.headers.location).toContain("tab=excluded");
-		const afterSave = doc.querySelector("[data-test-inbox-excluded-save]");
-		assert(afterSave, "the saved skipped row stays on the Skipped tab with its button");
-		expect(afterSave.getAttribute("data-test-save-state")).toBe("saved");
-		expect(afterSave.textContent?.trim()).toBe("Save again");
+		expect(response.headers.location).toContain("tab=articles");
+		const card = doc.querySelector('[data-test-inbox-article-card="0000"]');
+		assert(card, "the saved link is listed among the extracted articles");
+		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
+			"Extracted Articles (1)",
+		);
 	});
-
 	it("relays the submitted link to the injected publisher as well as recording it", async () => {
 		relayed.length = 0;
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
