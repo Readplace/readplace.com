@@ -16,6 +16,23 @@
   color: var(--color-text-secondary);
 }
 
+.view-highlights__elsewhere[hidden] {
+  display: none;
+}
+
+.view-highlights__elsewhere-title {
+  margin: 0;
+  padding: 0 16px;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.view-highlights__source {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
 .view-highlights__keep-trigger {
   display: none;
   align-self: flex-start;

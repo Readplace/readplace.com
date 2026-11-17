@@ -296,6 +296,31 @@ describe("/view/highlights/claim", () => {
 		expect(marks).toEqual(["The first paragraph is quoted again here."]);
 	});
 
+	it("keeps the highlights and the cookie when the claim fails partway, so a retry claims them", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const refresh = fixture.freshness.refreshArticleIfStale;
+		let failRefresh = false;
+		fixture.freshness.refreshArticleIfStale = async (input) => {
+			if (failRefresh) throw new Error("throttled");
+			return refresh(input);
+		};
+		const harness = await harnessWithArticle(fixture);
+		const agent = request.agent(harness.server);
+		await keep({ agent, items: [SECOND_SENTENCE] });
+		await signUp(agent);
+		failRefresh = true;
+
+		const failed = await agent.post(CLAIM_PATH).set(BROWSER_REQUEST_HEADERS).type("form").send({});
+		failRefresh = false;
+		const retry = await agent.post(CLAIM_PATH).set(BROWSER_REQUEST_HEADERS).type("form").send({});
+
+		expect([failed.status, pendingCookieOf(failed.headers)]).toEqual([500, []]);
+		expect(retry.status).toBe(303);
+		expect(retry.headers.location).toMatch(/^\/queue\/[^/]+\/view#highlights-rail$/);
+		const reader = await agent.get(retry.headers.location).set(BROWSER_REQUEST_HEADERS);
+		expect(railRowsOf(reader.text)).toEqual([{ exact: "A second sentence", note: "Worth keeping" }]);
+	});
+
 	it("sends a reader whose kept highlights are gone to their readlist", async () => {
 		const harness = await harnessWithArticle();
 		const agent = await loginAgent(harness.server, harness.auth);

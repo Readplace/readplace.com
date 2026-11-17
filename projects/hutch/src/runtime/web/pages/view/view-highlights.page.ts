@@ -14,8 +14,9 @@ import express, { type Request, type RequestHandler, type Response, type Router 
 import { z } from "zod";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import {
-	type ClaimPendingViewHighlights,
+	type FindPendingViewHighlights,
 	PENDING_VIEW_HIGHLIGHTS_TTL_SECONDS,
+	type ReleasePendingViewHighlights,
 	type StorePendingViewHighlights,
 } from "../../../providers/pending-view-highlights/pending-view-highlights.types";
 import { Base } from "../../base.component";
@@ -78,7 +79,8 @@ export function initViewHighlightsRoutes(deps: {
 	appOrigin: string;
 	validateSaveableUrl: ValidateSaveableUrl;
 	storePendingViewHighlights: StorePendingViewHighlights;
-	claimPendingViewHighlights: ClaimPendingViewHighlights;
+	findPendingViewHighlights: FindPendingViewHighlights;
+	releasePendingViewHighlights: ReleasePendingViewHighlights;
 	claimViewHighlights: ClaimViewHighlights;
 	generatePendingId: () => string;
 	secureCookies: boolean;
@@ -185,10 +187,11 @@ export function initViewHighlightsRoutes(deps: {
 		deps.requireWriteAccess,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireSessionForClaim");
-			const pendingId = pendingViewHighlightsCookie.consume({ req, res });
+			const pendingId = pendingViewHighlightsCookie.read(req);
 			assert(pendingId, "the claim gate only lets a request with a pending id through");
-			const pending = await deps.claimPendingViewHighlights(pendingId);
+			const pending = await deps.findPendingViewHighlights(pendingId);
 			if (pending === undefined) {
+				pendingViewHighlightsCookie.consume({ req, res });
 				res.redirect(303, "/queue");
 				return;
 			}
@@ -197,6 +200,8 @@ export function initViewHighlightsRoutes(deps: {
 				provenance: resolveSaveProvenance(req.oauthClientId),
 				pending,
 			});
+			await deps.releasePendingViewHighlights(pendingId);
+			pendingViewHighlightsCookie.consume({ req, res });
 			deps.recordAnalyticsEvent(req, {
 				stream: STREAMS.analytics,
 				event: ANALYTICS_EVENTS.viewHighlightsClaimed,

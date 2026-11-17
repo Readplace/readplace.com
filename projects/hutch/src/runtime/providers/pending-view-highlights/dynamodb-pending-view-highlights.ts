@@ -1,9 +1,9 @@
-import assert from "node:assert";
-import { type DynamoDBDocumentClient, defineDynamoTable, writeIfCondition } from "@packages/storage-client";
+import { type DynamoDBDocumentClient, defineDynamoTable } from "@packages/storage-client";
 import { z } from "zod";
 import {
-	type ClaimPendingViewHighlights,
+	type FindPendingViewHighlights,
 	PENDING_VIEW_HIGHLIGHTS_TTL_SECONDS,
+	type ReleasePendingViewHighlights,
 	type StorePendingViewHighlights,
 } from "./pending-view-highlights.types";
 
@@ -28,7 +28,8 @@ export function initDynamoDbPendingViewHighlights(deps: {
 	now: () => Date;
 }): {
 	storePendingViewHighlights: StorePendingViewHighlights;
-	claimPendingViewHighlights: ClaimPendingViewHighlights;
+	findPendingViewHighlights: FindPendingViewHighlights;
+	releasePendingViewHighlights: ReleasePendingViewHighlights;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -49,21 +50,15 @@ export function initDynamoDbPendingViewHighlights(deps: {
 		});
 	};
 
-	const claimPendingViewHighlights: ClaimPendingViewHighlights = async (pendingId) => {
-		const outcome = await writeIfCondition(() =>
-			table.delete({
-				Key: { pendingId },
-				ConditionExpression: "attribute_exists(#pendingId)",
-				ExpressionAttributeNames: { "#pendingId": "pendingId" },
-				ReturnValues: "ALL_OLD",
-			}),
-		);
-		if (outcome.kind === "condition-failed") return undefined;
-		const { Attributes } = outcome.result;
-		assert(Attributes, "a conditional delete with ReturnValues ALL_OLD always returns the prior item");
-		if (Attributes.expiresAt <= nowSeconds()) return undefined;
-		return { articleUrl: Attributes.articleUrl, items: Attributes.items };
+	const findPendingViewHighlights: FindPendingViewHighlights = async (pendingId) => {
+		const row = await table.get({ pendingId }, { consistentRead: true });
+		if (row === undefined || row.expiresAt <= nowSeconds()) return undefined;
+		return { articleUrl: row.articleUrl, items: row.items };
 	};
 
-	return { storePendingViewHighlights, claimPendingViewHighlights };
+	const releasePendingViewHighlights: ReleasePendingViewHighlights = async (pendingId) => {
+		await table.delete({ Key: { pendingId } });
+	};
+
+	return { storePendingViewHighlights, findPendingViewHighlights, releasePendingViewHighlights };
 }

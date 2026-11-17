@@ -15,4 +15,5 @@ export const PENDING_VIEW_HIGHLIGHTS_TTL_SECONDS = 24 * 60 * 60;
 
 export type StorePendingViewHighlights = (input: { pendingId: string } & PendingViewHighlights) => Promise<void>;
 
-export type ClaimPendingViewHighlights = (pendingId: string) => Promise<PendingViewHighlights | undefined>;
+export type FindPendingViewHighlights = (pendingId: string) => Promise<PendingViewHighlights | undefined>;
+export type ReleasePendingViewHighlights = (pendingId: string) => Promise<void>;

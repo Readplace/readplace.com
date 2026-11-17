@@ -67,6 +67,7 @@ export const enUS = {
 		highlights: {
 			title: "Highlights",
 			kept: "Kept in this browser only. Up to {limit}.",
+			elsewhere: "On other articles",
 			notFound: "Not found in this version",
 			jump: "Jump",
 			delete: "Delete",

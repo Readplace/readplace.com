@@ -1,6 +1,7 @@
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import {
 	initLocalHighlights,
+	type LocalHighlight,
 	type LocalHighlightState,
 	type LocalHighlightStorage,
 } from "../../shared/article-body/highlights/local-highlights";
@@ -86,6 +87,12 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 	const inlineForm = partOf({ root: document, selector: `#${attributeOf({ element: card, name: "data-view-highlights-inline-form" })}` });
 	const list = partOf({ root: card, selector: "[data-view-highlights-list]" });
 	const rowTemplate = partOf<HTMLTemplateElement>({ root: card, selector: "template[data-view-highlights-row]" });
+	const elsewhere = partOf<HTMLElement>({ root: card, selector: "[data-view-highlights-elsewhere]" });
+	const elsewhereList = partOf({ root: elsewhere, selector: "[data-view-highlights-elsewhere-list]" });
+	const elsewhereRowTemplate = partOf<HTMLTemplateElement>({
+		root: card,
+		selector: "template[data-view-highlights-elsewhere-row]",
+	});
 
 	const beacon = (action: ViewHighlightBeacon): void => {
 		deps.sendBeacon(`${eventUrl}?${new URLSearchParams({ action })}`);
@@ -126,6 +133,15 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 		return row;
 	};
 
+	const elsewhereRowOf = (highlight: LocalHighlight): Element => {
+		const row = partOf({ root: elsewhereRowTemplate.content, selector: ROW_SELECTOR }).cloneNode(true);
+		assert(isElement(row), "a highlight row clones to an element");
+		row.setAttribute("data-view-highlight-row", highlight.id);
+		partOf({ root: row, selector: "[data-view-highlight-exact]" }).textContent = highlight.exact;
+		partOf({ root: row, selector: "[data-view-highlight-source]" }).textContent = new URL(highlight.url).hostname;
+		return row;
+	};
+
 	const render = (): void => {
 		const content = document.querySelector(CONTENT_SELECTOR);
 		assert(content, "a page offering local highlights renders the article");
@@ -142,12 +158,16 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 			idPrefix,
 		});
 		list.replaceChildren(...[...states].sort(byPosition).map(rowOf));
-		card.hidden = states.length === 0;
+		const keptElsewhere = store.all().filter((highlight) => highlight.url !== url);
+		elsewhereList.replaceChildren(...keptElsewhere.map(elsewhereRowOf));
+		elsewhere.hidden = keptElsewhere.length === 0;
+		card.hidden = states.length === 0 && keptElsewhere.length === 0;
 		fillKeepFields();
 	};
 
 	const openKeep = (): void => {
 		fillKeepFields();
+		card.hidden = false;
 		if (deps.supportsPopover()) deps.showPopover(popover);
 		else deps.scrollIntoView(inlineForm);
 	};

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initDynamoDbPendingViewHighlights } from "./dynamodb-pending-view-highlights";
 
 interface CapturedCommand {
@@ -7,7 +7,7 @@ interface CapturedCommand {
 	input: Record<string, unknown>;
 }
 
-function createFakeClient(opts: { deleteAttributes?: Record<string, unknown>; deleteError?: Error }): {
+function createFakeClient(opts: { item?: Record<string, unknown> }): {
 	client: DynamoDBDocumentClient;
 	commands: CapturedCommand[];
 } {
@@ -16,10 +16,7 @@ function createFakeClient(opts: { deleteAttributes?: Record<string, unknown>; de
 		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
-			if (name === "DeleteCommand") {
-				if (opts.deleteError) throw opts.deleteError;
-				return opts.deleteAttributes ? { Attributes: opts.deleteAttributes } : {};
-			}
+			if (name === "GetCommand") return opts.item ? { Item: opts.item } : {};
 			return {};
 		}) as DynamoDBDocumentClient["send"],
 	};
@@ -61,33 +58,41 @@ describe("initDynamoDbPendingViewHighlights", () => {
 		});
 	});
 
-	it("claims the row once, deleting it on the condition that it still exists", async () => {
+	it("finds the kept highlights with a consistent read and leaves the row in place", async () => {
 		const { client, commands } = createFakeClient({
-			deleteAttributes: { pendingId: PENDING_ID, articleUrl: ITEM.url, items: [ITEM], expiresAt: NOW_SECONDS + 10 },
+			item: { pendingId: PENDING_ID, articleUrl: ITEM.url, items: [ITEM], expiresAt: NOW_SECONDS + 10 },
 		});
 
-		const claimed = await storeOn(client).claimPendingViewHighlights(PENDING_ID);
+		const found = await storeOn(client).findPendingViewHighlights(PENDING_ID);
 
-		assert.deepEqual(claimed, { articleUrl: ITEM.url, items: [ITEM] });
+		assert.deepEqual(found, { articleUrl: ITEM.url, items: [ITEM] });
+		const get = commands.find((command) => command.name === "GetCommand");
+		assert.deepEqual(get?.input.Key, { pendingId: PENDING_ID });
+		assert.equal(get?.input.ConsistentRead, true);
+		assert.equal(commands.some((command) => command.name === "DeleteCommand"), false);
+	});
+
+	it("finds nothing once the row is gone", async () => {
+		const { client } = createFakeClient({});
+
+		assert.equal(await storeOn(client).findPendingViewHighlights(PENDING_ID), undefined);
+	});
+
+	it("finds nothing in a row past its expiry that TTL has not yet removed", async () => {
+		const { client } = createFakeClient({
+			item: { pendingId: PENDING_ID, articleUrl: ITEM.url, items: [ITEM], expiresAt: NOW_SECONDS },
+		});
+
+		assert.equal(await storeOn(client).findPendingViewHighlights(PENDING_ID), undefined);
+	});
+
+	it("releases the row by deleting it", async () => {
+		const { client, commands } = createFakeClient({});
+
+		await storeOn(client).releasePendingViewHighlights(PENDING_ID);
+
 		const remove = commands.find((command) => command.name === "DeleteCommand");
+		assert.equal(remove?.input.TableName, TABLE);
 		assert.deepEqual(remove?.input.Key, { pendingId: PENDING_ID });
-		expect(remove?.input.ConditionExpression).toContain("attribute_exists(#pendingId)");
-		assert.equal(remove?.input.ReturnValues, "ALL_OLD");
-	});
-
-	it("claims nothing once the row is gone", async () => {
-		const { client } = createFakeClient({
-			deleteError: new ConditionalCheckFailedException({ message: "gone", $metadata: {} }),
-		});
-
-		assert.equal(await storeOn(client).claimPendingViewHighlights(PENDING_ID), undefined);
-	});
-
-	it("claims nothing from a row past its expiry that TTL has not yet removed", async () => {
-		const { client } = createFakeClient({
-			deleteAttributes: { pendingId: PENDING_ID, articleUrl: ITEM.url, items: [ITEM], expiresAt: NOW_SECONDS },
-		});
-
-		assert.equal(await storeOn(client).claimPendingViewHighlights(PENDING_ID), undefined);
 	});
 });

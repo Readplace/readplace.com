@@ -1,13 +1,15 @@
 import {
-	type ClaimPendingViewHighlights,
+	type FindPendingViewHighlights,
 	PENDING_VIEW_HIGHLIGHTS_TTL_SECONDS,
 	type PendingViewHighlights,
+	type ReleasePendingViewHighlights,
 	type StorePendingViewHighlights,
 } from "./pending-view-highlights.types";
 
 export function initInMemoryPendingViewHighlights(deps: { now: () => Date }): {
 	storePendingViewHighlights: StorePendingViewHighlights;
-	claimPendingViewHighlights: ClaimPendingViewHighlights;
+	findPendingViewHighlights: FindPendingViewHighlights;
+	releasePendingViewHighlights: ReleasePendingViewHighlights;
 } {
 	const rows = new Map<string, PendingViewHighlights & { expiresAtMs: number }>();
 	return {
@@ -18,11 +20,13 @@ export function initInMemoryPendingViewHighlights(deps: { now: () => Date }): {
 				expiresAtMs: deps.now().getTime() + PENDING_VIEW_HIGHLIGHTS_TTL_SECONDS * 1000,
 			});
 		},
-		claimPendingViewHighlights: async (pendingId) => {
+		findPendingViewHighlights: async (pendingId) => {
 			const row = rows.get(pendingId);
-			rows.delete(pendingId);
 			if (row === undefined || row.expiresAtMs <= deps.now().getTime()) return undefined;
 			return { articleUrl: row.articleUrl, items: row.items };
+		},
+		releasePendingViewHighlights: async (pendingId) => {
+			rows.delete(pendingId);
 		},
 	};
 }

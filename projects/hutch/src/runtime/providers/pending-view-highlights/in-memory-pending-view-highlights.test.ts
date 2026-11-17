@@ -4,21 +4,22 @@ import { initInMemoryPendingViewHighlights } from "./in-memory-pending-view-high
 const ITEM = { url: "https://example.com/post", exact: "A second", prefix: "", suffix: "" };
 
 describe("initInMemoryPendingViewHighlights", () => {
-	it("hands a stored row to its first claim only", async () => {
+	it("finds a stored row until it is released", async () => {
 		const store = initInMemoryPendingViewHighlights({ now: () => new Date(0) });
 		await store.storePendingViewHighlights({ pendingId: "p-1", articleUrl: ITEM.url, items: [ITEM] });
 
-		assert.deepEqual(await store.claimPendingViewHighlights("p-1"), { articleUrl: ITEM.url, items: [ITEM] });
-		assert.equal(await store.claimPendingViewHighlights("p-1"), undefined);
+		assert.deepEqual(await store.findPendingViewHighlights("p-1"), { articleUrl: ITEM.url, items: [ITEM] });
+		assert.deepEqual(await store.findPendingViewHighlights("p-1"), { articleUrl: ITEM.url, items: [ITEM] });
+		await store.releasePendingViewHighlights("p-1");
+		assert.equal(await store.findPendingViewHighlights("p-1"), undefined);
 	});
 
-	it("claims nothing a day after the row was stored", async () => {
+	it("finds nothing a day after the row was stored", async () => {
 		let nowMs = 0;
 		const store = initInMemoryPendingViewHighlights({ now: () => new Date(nowMs) });
 		await store.storePendingViewHighlights({ pendingId: "p-1", articleUrl: ITEM.url, items: [ITEM] });
-
 		nowMs = 86_400_000;
 
-		assert.equal(await store.claimPendingViewHighlights("p-1"), undefined);
+		assert.equal(await store.findPendingViewHighlights("p-1"), undefined);
 	});
 });

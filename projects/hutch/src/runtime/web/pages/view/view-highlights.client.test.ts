@@ -43,6 +43,15 @@ const PAGE_HTML = Base(ViewPage(viewInput), {
 	.to("text/html")
 	.body;
 
+const OTHER_ARTICLE_URL = "https://other.example.org/essay";
+
+const OTHER_PAGE_HTML = Base(
+	ViewPage({ ...viewInput, articleUrl: OTHER_ARTICLE_URL, destinationUrl: destinationUrl(OTHER_ARTICLE_URL) }),
+	{ isAuthenticated: false, emailVerified: undefined, cspNonce: generateCspNonce() },
+)
+	.to("text/html")
+	.body;
+
 function mapStorage(): LocalHighlightStorage {
 	const values = new Map<string, string>();
 	return {
@@ -65,8 +74,13 @@ interface Harness {
 	beacons: string[];
 }
 
-function harness(input: { storage: LocalHighlightStorage; supportsPopover?: boolean; withToolbarScript?: boolean }): Harness {
-	const dom = new JSDOM(PAGE_HTML);
+function harness(input: {
+	storage: LocalHighlightStorage;
+	supportsPopover?: boolean;
+	withToolbarScript?: boolean;
+	pageHtml?: string;
+}): Harness {
+	const dom = new JSDOM(input.pageHtml ?? PAGE_HTML);
 	const h: Harness = {
 		doc: dom.window.document,
 		window: dom.window,
@@ -164,6 +178,19 @@ function keptFields(h: Harness): unknown[] {
 	);
 }
 
+function elsewhereRowsOf(h: Harness): { exact: string; source: string }[] {
+	return Array.from(cardOf(h).querySelectorAll("[data-test-view-highlight-elsewhere-row]"), (row) => ({
+		exact: row.querySelector("[data-view-highlight-exact]")?.textContent ?? "",
+		source: row.querySelector("[data-view-highlight-source]")?.textContent ?? "",
+	}));
+}
+
+function elsewhereOf(h: Harness): HTMLElement {
+	const elsewhere = h.doc.querySelector<HTMLElement>("[data-test-view-highlights-elsewhere]");
+	assert(elsewhere, "the card renders the list of highlights kept on other articles");
+	return elsewhere;
+}
+
 const FIVE_QUOTES = ["The first", "paragraph opens", "A second sentence", "Another paragraph", "several words"];
 
 describe("initViewHighlights", () => {
@@ -257,6 +284,58 @@ describe("initViewHighlights", () => {
 		assert.deepEqual(
 			Array.isArray(popupField) ? popupField.map((item) => Reflect.get(Object(item), "exact")) : [],
 			FIVE_QUOTES,
+		);
+	});
+
+	it("lists the highlights kept on other articles so a visitor at the limit can free a slot", () => {
+		const storage = mapStorage();
+		const other = harness({ storage, pageHtml: OTHER_PAGE_HTML });
+		for (const quote of FIVE_QUOTES) highlight({ h: other, quote });
+		const h = harness({ storage });
+
+		assert.equal(cardOf(h).hidden, false);
+		assert.equal(elsewhereOf(h).hidden, false);
+		assert.deepEqual(rowsOf(h), []);
+		assert.deepEqual(
+			elsewhereRowsOf(h),
+			FIVE_QUOTES.map((exact) => ({ exact, source: "other.example.org" })),
+		);
+		const remove = elsewhereOf(h).querySelector<HTMLButtonElement>("[data-view-highlight-delete]");
+		assert(remove, "a row kept on another article renders its delete control");
+		remove.click();
+		highlight({ h, quote: "It closes" });
+
+		assert.deepEqual(rowsOf(h), ["It closes"]);
+		assert.deepEqual(
+			elsewhereRowsOf(h).map((row) => row.exact),
+			FIVE_QUOTES.slice(1),
+		);
+		assert.deepEqual(h.shownPopovers, []);
+	});
+
+	it("hides the other-articles list when every kept highlight is on this article", () => {
+		const h = harness({ storage: mapStorage() });
+
+		highlight({ h, quote: "A second sentence" });
+
+		assert.equal(elsewhereOf(h).hidden, true);
+		assert.deepEqual(elsewhereRowsOf(h), []);
+	});
+
+	it("shows the card holding the in-flow form when a too-long selection is refused before anything is kept", () => {
+		const h = harness({ storage: mapStorage(), supportsPopover: false });
+		const form = h.doc.querySelector("[data-highlight-create-form]");
+		assert(form, "the local toolbar renders its create form");
+		contentOf(h).insertAdjacentHTML("beforeend", `<p>${"word ".repeat(300)}</p>`);
+		const longer = normaliseText(collectTextChunks<Node>(contentOf(h))).text;
+		fill({ form, values: { exact: longer, start: "0", end: String(longer.length), origin: "mouse" } });
+
+		submit({ h, form });
+
+		assert.equal(cardOf(h).hidden, false);
+		assert.deepEqual(
+			h.scrolledTo.map((element) => element.id),
+			["view-highlights-keep-inline"],
 		);
 	});
 

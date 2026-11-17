@@ -7,6 +7,10 @@
     <div class="disclosure-card__body view-highlights__body">
       <p class="view-highlights__kept">{{t "view.highlights.kept" limit=limit}}</p>
       <ol class="highlights-rail__list" role="list" data-view-highlights-list data-test-view-highlights-list></ol>
+      <div class="view-highlights__elsewhere" data-view-highlights-elsewhere hidden data-test-view-highlights-elsewhere>
+        <p class="view-highlights__elsewhere-title">{{t "view.highlights.elsewhere"}}</p>
+        <ol class="highlights-rail__list" role="list" data-view-highlights-elsewhere-list></ol>
+      </div>
       <button class="btn btn--primary btn--s view-highlights__keep-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="view-highlights-keep">{{t "view.highlights.actions.signup"}}</button>
       {{{inlineKeepFormHtml}}}
     </div>
@@ -28,6 +32,15 @@
           <button class="btn btn--primary btn--s" type="submit" data-test-action="view-highlight-note-save">{{t "view.highlights.saveNote"}}</button>
         </form>
       </details>
+    </li>
+  </template>
+  <template data-view-highlights-elsewhere-row>
+    <li class="highlights-rail__row" data-view-highlight-row data-test-view-highlight-elsewhere-row>
+      <blockquote class="highlights-rail__excerpt" data-view-highlight-exact></blockquote>
+      <p class="view-highlights__source" data-view-highlight-source></p>
+      <div class="highlights-rail__actions">
+        <button class="btn btn--neutral btn--s" type="button" data-view-highlight-delete data-test-action="view-highlight-delete">{{t "view.highlights.delete"}}</button>
+      </div>
     </li>
   </template>
 </section>

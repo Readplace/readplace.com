@@ -315,7 +315,8 @@ import { VIEW_HIGHLIGHTS_MOUNT } from "./web/pages/view/view-highlights-paths";
 import { initClaimViewHighlights } from "./web/pages/view/claim-view-highlights";
 import { initCreateHighlightByQuote } from "./web/shared/article-body/highlights/create-highlight-by-quote";
 import type {
-	ClaimPendingViewHighlights,
+	FindPendingViewHighlights,
+	ReleasePendingViewHighlights,
 	StorePendingViewHighlights,
 } from "./providers/pending-view-highlights/pending-view-highlights.types";
 import { initAdminRoutes } from "./web/pages/admin/admin.routes";
@@ -626,7 +627,8 @@ export interface AppDependencies {
 	refundUnstartedCharge: RefundUnstartedCharge;
 	createMediaUploadSession: CreateMediaUploadSession;
 	storePendingViewHighlights: StorePendingViewHighlights;
-	claimPendingViewHighlights: ClaimPendingViewHighlights;
+	findPendingViewHighlights: FindPendingViewHighlights;
+	releasePendingViewHighlights: ReleasePendingViewHighlights;
 	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
@@ -1690,7 +1692,8 @@ export function createApp(dependencies: AppDependencies): Express {
 			appOrigin,
 			validateSaveableUrl: deps.validateSaveableUrl,
 			storePendingViewHighlights: deps.storePendingViewHighlights,
-			claimPendingViewHighlights: deps.claimPendingViewHighlights,
+			findPendingViewHighlights: deps.findPendingViewHighlights,
+			releasePendingViewHighlights: deps.releasePendingViewHighlights,
 			claimViewHighlights: initClaimViewHighlights({
 				validateNewSaveUrl,
 				refreshArticleIfStale: deps.refreshArticleIfStale,
