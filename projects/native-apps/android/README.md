@@ -11,7 +11,7 @@ this file records only what Android forced to differ, and why.
 make emulator-boot        # headless boot of the readplace-android AVD
 make install-emulator     # staging APK → installed → launched
 make screenshot           # build/screenshot.png
-make test                 # unit suite + coverage ratchet + staging config pins
+make test                 # unit suite + pixel tests + coverage ratchet + staging config pins; RECORD_SNAPSHOTS=1 re-records the pictures
 make emulator-stop        # stop the emulator — it outlives your shell, so this is not optional
 ```
 
@@ -226,8 +226,12 @@ share chooser's layout: touch-target floors on the narrowest window and at the s
 text size. Android measures the same chooser in one Robolectric Compose test at set
 window sizes and font scales, the largest font and landscape included. Otherwise
 Robolectric is used only where a framework type is genuinely unavoidable (Intent/ClipData
-reading); the decision cores are deliberately kept off `android.*` so they stay
-plain-JVM testable.
+reading, and drawing a Compose leaf for a pixel test); the decision cores are deliberately
+kept off `android.*` so they stay plain-JVM testable.
+
+Pixel tests draw a Compose leaf in light and dark and compare it with a picture
+committed under `app/src/test/pixel-baselines/`, with the iOS comparison rule and
+tolerances. `make test RECORD_SNAPSHOTS=1` records them again and always fails.
 
 `scripts/check-coverage.py` enforces the same per-file ratchet the iOS app uses,
 against JaCoCo's XML instead of an `.xcresult`: files listed in
