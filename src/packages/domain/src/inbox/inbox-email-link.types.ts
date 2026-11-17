@@ -104,6 +104,21 @@ export interface InboxEmailLinkStore {
 		userId: UserId;
 		receivedAtMessageId: string;
 	}) => Promise<"stored" | "superseded">;
+	rescueSkippedLink: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		ordinal: EmailLinkOrdinal;
+	}) => Promise<"rescued" | "not-skipped">;
+	addEligibleArticle: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+	}) => Promise<void>;
+	mergeReadlistOutcomeFit: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		readlist: ReadlistSlug;
+		entry: InboxReadlistOutcome["fit"][number];
+	}) => Promise<"merged" | "already-decided" | "not-filtered">;
 	putReadlistOutcome: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;

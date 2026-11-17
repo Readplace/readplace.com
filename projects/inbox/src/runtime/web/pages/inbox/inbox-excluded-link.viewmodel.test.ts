@@ -1,14 +1,7 @@
 import assert from "node:assert/strict";
-import {
-	EmailLinkOrdinalSchema,
-	type InboxEmailLinkEntry,
-	type InboxLinkSaveState,
-} from "@packages/domain/inbox";
+import { EmailLinkOrdinalSchema, type InboxEmailLinkEntry } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import {
-	type ExcludedLinkPollContext,
-	toInboxExcludedLinkViewModel,
-} from "./inbox-excluded-link.viewmodel";
+import { toInboxExcludedLinkViewModel } from "./inbox-excluded-link.viewmodel";
 
 const SK = "2026-06-24T09:00:00.000Z#<m@x>";
 const URL = "https://sponsor.example.com/deal";
@@ -32,18 +25,8 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 	};
 }
 
-function build(input: {
-	link?: InboxEmailLinkEntry;
-	saveState?: InboxLinkSaveState;
-	pollContext?: ExcludedLinkPollContext;
-}) {
-	return toInboxExcludedLinkViewModel({
-		link: input.link ?? link(),
-		emailId: SK,
-		linkSaveStates:
-			input.saveState === undefined ? new Map() : new Map([[URL, input.saveState]]),
-		pollContext: input.pollContext ?? { mode: "static" },
-	});
+function build(input: { link?: InboxEmailLinkEntry }) {
+	return toInboxExcludedLinkViewModel({ link: input.link ?? link(), emailId: SK });
 }
 
 function saveActionOf(vm: ReturnType<typeof build>) {
@@ -52,12 +35,6 @@ function saveActionOf(vm: ReturnType<typeof build>) {
 	assert.equal(rest.length, 0, "a skipped row offers its save and nothing else");
 	return action;
 }
-
-const savePoll = (pollCount: number): ExcludedLinkPollContext => ({
-	mode: "save-poll",
-	pollCount,
-	maxPolls: 20,
-});
 
 describe("toInboxExcludedLinkViewModel", () => {
 	it("names the row and its save button with ids stable across a swap", () => {
@@ -104,61 +81,14 @@ describe("toInboxExcludedLinkViewModel", () => {
 		expect(build({ link: link({ url: "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef" }) }).actions).toEqual([]);
 	});
 
-	it("never polls on a page render, where no recorded save means nobody clicked", () => {
-		const vm = build({ pollContext: { mode: "static" } });
-
-		expect(vm.pollUrl).toBeUndefined();
-		expect(saveActionOf(vm).saveState).toBe("unsaved");
-		expect(saveActionOf(vm).label).toBe("Save to All");
-	});
-
-	it("renders a page render of an already-saved row as saved, still without polling", () => {
-		const vm = build({ saveState: "saved", pollContext: { mode: "static" } });
-
-		expect(vm.pollUrl).toBeUndefined();
-		expect(saveActionOf(vm).saveState).toBe("saved");
-		expect(saveActionOf(vm).label).toBe("Save again");
-	});
-
-	it("reads as saving and polls on while an accepted save has not reached the read model", () => {
-		const vm = build({ pollContext: savePoll(4) });
-
-		expect(vm.pollUrl).toBe(`/inbox/${encodeURIComponent(SK)}/links/0000/excluded?poll=4`);
-		expect(saveActionOf(vm)).toEqual(
+	it("offers to save the link as an article", () => {
+		expect(saveActionOf(build({}))).toEqual(
 			expect.objectContaining({
-				label: "Saving…",
-				ariaLabel: `Saving to All: ${URL}`,
-				saveState: "saving",
+				label: "Save as article",
+				ariaLabel: `Save as article: ${URL}`,
+				saveState: "unsaved",
 				iconName: undefined,
 			}),
-		);
-	});
-
-	it("stops polling the moment the save is recorded", () => {
-		const vm = build({ saveState: "saved", pollContext: savePoll(4) });
-
-		expect(vm.pollUrl).toBeUndefined();
-		expect(saveActionOf(vm).saveState).toBe("saved");
-	});
-
-	it("stops polling on a recorded failure and offers the save again", () => {
-		const vm = build({ saveState: "failed", pollContext: savePoll(4) });
-
-		expect(vm.pollUrl).toBeUndefined();
-		expect(saveActionOf(vm).saveState).toBe("unsaved");
-		expect(saveActionOf(vm).label).toBe("Save to All");
-	});
-
-	it("gives up rather than claim Saving… forever once the settle budget is spent", () => {
-		const vm = build({ pollContext: savePoll(21) });
-
-		expect(vm.pollUrl).toBeUndefined();
-		expect(saveActionOf(vm).saveState).toBe("unsaved");
-	});
-
-	it("keeps polling on the last tick the budget allows", () => {
-		expect(build({ pollContext: savePoll(20) }).pollUrl).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0000/excluded?poll=20`,
 		);
 	});
 });
