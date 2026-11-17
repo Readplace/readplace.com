@@ -85,7 +85,7 @@ test.describe("Inbox article cards", () => {
 });
 
 test.describe("Inbox skipped links", () => {
-	test("saves a skipped row in place, without navigating away from the tab", async ({ page }) => {
+	test("saves a skipped row as an article in place, without navigating away from the tab", async ({ page }) => {
 		await page.request.post("/e2e/session");
 		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
 		const seeded = await page.request.post("/e2e/seed-email", {
@@ -102,25 +102,15 @@ test.describe("Inbox skipped links", () => {
 
 		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=excluded`);
 		const urlBeforeSave = page.url();
-		const saveControl = page.locator("#inbox-skipped-0000 [data-test-save-state]");
-		await expect(saveControl).toHaveAttribute("data-test-save-state", "unsaved");
-		await waitForBrandFonts(page, ["Inter"]);
-		const unsavedBox = await measuredBox(page, "#inbox-skipped-0000 [data-test-save-state]");
+		const articlesTab = page.locator('[data-test-inbox-tab="articles"]');
+		await expect(articlesTab).toHaveText("Extracted Articles (0)");
 
-		await saveControl.click();
+		await page.locator("#inbox-skipped-0000 [data-test-inbox-excluded-save]").click();
 
-		await expect(page.locator("#inbox-skipped-0000 [data-test-save-state]")).toHaveAttribute(
-			"data-test-save-state",
-			"saved",
+		await expect(page.locator("#inbox-skipped-0000 [data-test-inbox-excluded-moved-notice]")).toContainText(
+			"Saved as article.",
 		);
-		await expect(page.locator("#inbox-skipped-0000 [data-test-save-state]")).toContainText(
-			"Save again",
-		);
-		const savedBox = await measuredBox(page, "#inbox-skipped-0000 [data-test-save-state]");
-		assert.ok(
-			Math.abs(savedBox.width - unsavedBox.width) <= 0.5,
-			`the skipped row's save button must keep its width once saved, measured unsaved=${unsavedBox.width} saved=${savedBox.width}`,
-		);
+		await expect(articlesTab).toHaveText("Extracted Articles (1)");
 		expect(page.url()).toBe(urlBeforeSave);
 	});
 });

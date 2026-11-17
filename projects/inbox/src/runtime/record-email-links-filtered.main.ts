@@ -17,6 +17,7 @@ const inboxEmailLinkStore = initDynamoDbInboxEmailLink({
 
 export const handler = initRecordEmailLinksFilteredHandler({
 	putReadlistOutcome: inboxEmailLinkStore.putReadlistOutcome,
+	mergeReadlistOutcomeFit: inboxEmailLinkStore.mergeReadlistOutcomeFit,
 	listLinksByEmail: inboxEmailLinkStore.listLinksByEmail,
 	logger,
 });

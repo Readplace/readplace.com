@@ -13,7 +13,7 @@ Conventions for building the web adapter layer that connects the application dom
 
 [Server-Side Rendering with Progressive Enhancement](references/server-side-rendering.md) — read when building server-rendered behaviour, a boosted link or form, or a swap.
 
-[CSS and Styling Conventions](references/css-and-styling.md) — read when writing or changing styles.
+[CSS and Styling Conventions](references/css-and-styling.md) — read when writing or changing styles, or when a menu, picker or flyout is cut off by its container.
 
 [Client-Side JavaScript Conventions](references/client-side-javascript.md) — read when writing or changing client-side JavaScript.
 
@@ -133,4 +133,5 @@ When staged changes include `.css`, `.html`, or `.client.ts` files:
 - [ ] Every boosted swap declares its scroll intent with a `show:` modifier, and a new swap shape has a browser test asserting `scrollY` after a real click
 - [ ] A pending state ends on the first poll that sees its outcome; a spent budget or a device give-up renders its own outcome for work the reader started, and the stored state's view for work the page started on its own
 - [ ] Browser JS is bundled and referenced via a same-origin `<script src>`, not inlined via `Function.toString()` or served through the static asset CDN base URL
+- [ ] A panel that opens beside its trigger is in the top layer or `position: fixed`, and a browser test hit-tests its items in every container it opens in
 - [ ] Web app manifest is served same-origin (not the static-asset CDN); icon `src` values are absolute CDN URLs

@@ -517,6 +517,32 @@ describe("initDynamoDbInboxEmail", () => {
 		});
 	});
 
+	describe("moveLinkCountToKept", () => {
+		it("adds one to kept and takes one from skipped on a counted row", async () => {
+			let captured: CapturedCommand | undefined;
+			const store = initDynamoDbInboxEmail({
+				client: createFakeClient((cmd) => {
+					captured = cmd as CapturedCommand;
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.moveLinkCountToKept({
+				userId: USER,
+				receivedAtMessageId: "2026-06-23T00:00:00.000Z#<m-1@example.com>",
+			});
+
+			expect(captured?.input).toEqual({
+				TableName: TABLE,
+				Key: { userId: USER, receivedAtMessageId: "2026-06-23T00:00:00.000Z#<m-1@example.com>" },
+				ConditionExpression: "attribute_exists(linkCounts)",
+				UpdateExpression: "ADD linkCounts.kept :one, linkCounts.skipped :minusOne",
+				ExpressionAttributeValues: { ":one": 1, ":minusOne": -1 },
+			});
+		});
+	});
+
 	describe("setEmailLinkCounts", () => {
 		it("stamps the counts onto the row only when it still exists", async () => {
 			let captured: CapturedCommand | undefined;
