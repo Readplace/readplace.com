@@ -19,6 +19,7 @@ export interface ViewHighlightsDeps {
 	hidePopover: (panel: Element) => void;
 	scrollIntoView: (element: Element) => void;
 	sendBeacon: (url: string) => void;
+	submitForm: (input: { form: HTMLFormElement; submitter: HTMLElement }) => void;
 }
 
 const CONTENT_SELECTOR = ".article-body__content";
@@ -30,6 +31,8 @@ const ROW_SELECTOR = "[data-view-highlight-row]";
 const DELETE_SELECTOR = "[data-view-highlight-delete]";
 const KEEP_FIELD_SELECTOR = "[data-view-highlights-field]";
 const MARK_SELECTOR = "mark[data-highlight-id]";
+const GET_FORM_SELECTOR = 'form[method="GET" i][action]';
+const RETURN_FIELD_SELECTOR = "[data-view-highlights-return]";
 
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
@@ -83,8 +86,14 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 	const url = attributeOf({ element: card, name: "data-view-highlights-url" });
 	const eventUrl = attributeOf({ element: card, name: "data-view-highlights-event-url" });
 	const idPrefix = attributeOf({ element: card, name: "data-highlight-id-prefix" });
+	const savePath = attributeOf({ element: card, name: "data-view-highlights-save-path" });
+	const authIntents = new Map<string, "signup" | "login">([
+		[savePath, "signup"],
+		[attributeOf({ element: card, name: "data-view-highlights-signup-path" }), "signup"],
+		[attributeOf({ element: card, name: "data-view-highlights-login-path" }), "login"],
+	]);
 	const popover = partOf({ root: document, selector: `#${attributeOf({ element: card, name: "data-view-highlights-popover" })}` });
-	const inlineForm = partOf({ root: document, selector: `#${attributeOf({ element: card, name: "data-view-highlights-inline-form" })}` });
+	const inlineForm = partOf<HTMLFormElement>({ root: document, selector: `#${attributeOf({ element: card, name: "data-view-highlights-inline-form" })}` });
 	const list = partOf({ root: card, selector: "[data-view-highlights-list]" });
 	const rowTemplate = partOf<HTMLTemplateElement>({ root: card, selector: "template[data-view-highlights-row]" });
 	const elsewhere = partOf<HTMLElement>({ root: card, selector: "[data-view-highlights-elsewhere]" });
@@ -220,11 +229,32 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 		render();
 	};
 
+	const handOver = (target: URL): boolean => {
+		const intent = authIntents.get(target.pathname);
+		if (target.origin !== document.location.origin || intent === undefined || store.all().length === 0) return false;
+		fillKeepFields();
+		partOf<HTMLInputElement>({ root: inlineForm, selector: RETURN_FIELD_SELECTOR }).value =
+			target.pathname === savePath ? `${target.pathname}${target.search}` : (target.searchParams.get("return") ?? "");
+		deps.submitForm({
+			form: inlineForm,
+			submitter: partOf<HTMLElement>({ root: inlineForm, selector: `button[name="intent"][value="${intent}"]` }),
+		});
+		return true;
+	};
+
 	document.addEventListener(
 		"submit",
 		(event) => {
 			const form = event.target;
 			if (!isElement(form)) return;
+			if (form.matches(GET_FORM_SELECTOR)) {
+				const target = new URL(attributeOf({ element: form, name: "action" }), document.location.href);
+				for (const field of Array.from(form.querySelectorAll<HTMLInputElement>("input[name]"))) {
+					target.searchParams.append(field.name, field.value);
+				}
+				if (handOver(target)) event.preventDefault();
+				return;
+			}
 			if (form.matches(LOCAL_FORM_SELECTOR)) {
 				event.preventDefault();
 				keepSelection(form);
@@ -234,6 +264,17 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 				event.preventDefault();
 				saveNote(form);
 			}
+		},
+		{ capture: true },
+	);
+
+	document.addEventListener(
+		"click",
+		(event) => {
+			const target = event.target;
+			if (!isElement(target)) return;
+			const link = target.closest<HTMLAnchorElement>("a[href]");
+			if (link !== null && handOver(new URL(link.href, document.location.href))) event.preventDefault();
 		},
 		{ capture: true },
 	);

@@ -25,6 +25,7 @@ function createFakeClient(opts: { item?: Record<string, unknown> }): {
 
 const TABLE = "hutch-pending-view-highlights";
 const NOW_SECONDS = 1_700_000_000;
+const RETURN_TO = "/save?url=https%3A%2F%2Fexample.com%2Fpost";
 const PENDING_ID = "6f1c1d2e-3a4b-4c5d-8e9f-0a1b2c3d4e5f";
 const ITEM = {
 	url: "https://example.com/post",
@@ -46,6 +47,7 @@ describe("initDynamoDbPendingViewHighlights", () => {
 			pendingId: PENDING_ID,
 			articleUrl: ITEM.url,
 			items: [ITEM],
+			returnTo: undefined,
 		});
 
 		const put = commands.find((command) => command.name === "PutCommand");
@@ -54,22 +56,53 @@ describe("initDynamoDbPendingViewHighlights", () => {
 			pendingId: PENDING_ID,
 			articleUrl: ITEM.url,
 			items: [ITEM],
+			returnTo: null,
+			expiresAt: NOW_SECONDS + 86_400,
+		});
+	});
+
+	it("puts the page to return to once the highlights are claimed", async () => {
+		const { client, commands } = createFakeClient({});
+
+		await storeOn(client).storePendingViewHighlights({
+			pendingId: PENDING_ID,
+			articleUrl: ITEM.url,
+			items: [ITEM],
+			returnTo: RETURN_TO,
+		});
+
+		const put = commands.find((command) => command.name === "PutCommand");
+		assert.deepEqual(put?.input.Item, {
+			pendingId: PENDING_ID,
+			articleUrl: ITEM.url,
+			items: [ITEM],
+			returnTo: RETURN_TO,
 			expiresAt: NOW_SECONDS + 86_400,
 		});
 	});
 
 	it("finds the kept highlights with a consistent read and leaves the row in place", async () => {
 		const { client, commands } = createFakeClient({
-			item: { pendingId: PENDING_ID, articleUrl: ITEM.url, items: [ITEM], expiresAt: NOW_SECONDS + 10 },
+			item: { pendingId: PENDING_ID, articleUrl: ITEM.url, items: [ITEM], returnTo: null, expiresAt: NOW_SECONDS + 10 },
 		});
 
 		const found = await storeOn(client).findPendingViewHighlights(PENDING_ID);
 
-		assert.deepEqual(found, { articleUrl: ITEM.url, items: [ITEM] });
+		assert.deepEqual(found, { articleUrl: ITEM.url, items: [ITEM], returnTo: undefined });
 		const get = commands.find((command) => command.name === "GetCommand");
 		assert.deepEqual(get?.input.Key, { pendingId: PENDING_ID });
 		assert.equal(get?.input.ConsistentRead, true);
 		assert.equal(commands.some((command) => command.name === "DeleteCommand"), false);
+	});
+
+	it("finds the page to return to once the highlights are claimed", async () => {
+		const { client } = createFakeClient({
+			item: { pendingId: PENDING_ID, articleUrl: ITEM.url, items: [ITEM], returnTo: RETURN_TO, expiresAt: NOW_SECONDS + 10 },
+		});
+
+		const found = await storeOn(client).findPendingViewHighlights(PENDING_ID);
+
+		assert.equal(found?.returnTo, RETURN_TO);
 	});
 
 	it("finds nothing once the row is gone", async () => {
@@ -80,7 +113,7 @@ describe("initDynamoDbPendingViewHighlights", () => {
 
 	it("finds nothing in a row past its expiry that TTL has not yet removed", async () => {
 		const { client } = createFakeClient({
-			item: { pendingId: PENDING_ID, articleUrl: ITEM.url, items: [ITEM], expiresAt: NOW_SECONDS },
+			item: { pendingId: PENDING_ID, articleUrl: ITEM.url, items: [ITEM], returnTo: null, expiresAt: NOW_SECONDS },
 		});
 
 		assert.equal(await storeOn(client).findPendingViewHighlights(PENDING_ID), undefined);

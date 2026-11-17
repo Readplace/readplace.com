@@ -9,6 +9,7 @@ export interface PendingViewHighlight {
 export interface PendingViewHighlights {
 	articleUrl: string;
 	items: readonly PendingViewHighlight[];
+	returnTo: string | undefined;
 }
 
 export const PENDING_VIEW_HIGHLIGHTS_TTL_SECONDS = 24 * 60 * 60;

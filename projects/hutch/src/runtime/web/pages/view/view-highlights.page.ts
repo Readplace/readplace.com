@@ -19,6 +19,7 @@ import {
 	type ReleasePendingViewHighlights,
 	type StorePendingViewHighlights,
 } from "../../../providers/pending-view-highlights/pending-view-highlights.types";
+import { extractReturnUrl } from "../../auth/parse-return-url";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { createRateLimitMiddleware } from "../../middleware/rate-limit";
@@ -66,6 +67,7 @@ const KeepBodySchema = z.object({
 		.pipe(z.array(KeptHighlightSchema).min(1).max(VIEW_HIGHLIGHT_LIMIT)),
 	article: z.string(),
 	intent: z.enum(["signup", "login"]),
+	return: z.string().optional(),
 });
 
 const EventQuerySchema = z.union([
@@ -74,6 +76,12 @@ const EventQuerySchema = z.union([
 ]);
 
 const EVENT_ACTIONS = { kept: "kept", "limit-reached": "limit_reached" } as const;
+
+function claimedLocation(articleId: string | undefined): string {
+	return articleId === undefined
+		? "/queue"
+		: highlightReaderLocation({ articleId, readlist: [], surface: [], fragment: "rail" });
+}
 
 export function initViewHighlightsRoutes(deps: {
 	appOrigin: string;
@@ -126,6 +134,7 @@ export function initViewHighlightsRoutes(deps: {
 				pendingId,
 				articleUrl: body.data.article,
 				items: body.data.highlights,
+				returnTo: extractReturnUrl({ return: body.data.return }),
 			});
 			pendingViewHighlightsCookie.set({ res, value: pendingId, secure: deps.secureCookies });
 			deps.recordAnalyticsEvent(req, {
@@ -211,12 +220,7 @@ export function initViewHighlightsRoutes(deps: {
 				dropped: claimed.dropped,
 				visitor_hash: visitorHash(req),
 			});
-			res.redirect(
-				303,
-				claimed.articleId === undefined
-					? "/queue"
-					: highlightReaderLocation({ articleId: claimed.articleId, readlist: [], surface: [], fragment: "rail" }),
-			);
+			res.redirect(303, pending.returnTo ?? claimedLocation(claimed.articleId));
 		},
 	);
 

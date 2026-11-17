@@ -1,6 +1,7 @@
 <form class="confirm-popover__actions view-highlights__keep-form{{#if inline}} view-highlights__keep-form--inline{{/if}}" method="POST" action="{{action}}"{{#if inline}} id="{{inlineId}}"{{/if}} data-view-highlights-keep-form data-test-form="view-highlights-keep{{#if inline}}-inline{{/if}}">
   <input type="hidden" name="highlights" value="" data-view-highlights-field>
   <input type="hidden" name="article" value="{{articleUrl}}">
+  <input type="hidden" name="return" value="" data-view-highlights-return>
   <div class="confirm-popover__buttons">
     {{#if popoverId}}
     <button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="view-highlights-not-now">{{t "view.highlights.actions.notNow"}}</button>

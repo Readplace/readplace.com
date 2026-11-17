@@ -13,17 +13,18 @@ export function initInMemoryPendingViewHighlights(deps: { now: () => Date }): {
 } {
 	const rows = new Map<string, PendingViewHighlights & { expiresAtMs: number }>();
 	return {
-		storePendingViewHighlights: async ({ pendingId, articleUrl, items }) => {
+		storePendingViewHighlights: async ({ pendingId, articleUrl, items, returnTo }) => {
 			rows.set(pendingId, {
 				articleUrl,
 				items,
+				returnTo,
 				expiresAtMs: deps.now().getTime() + PENDING_VIEW_HIGHLIGHTS_TTL_SECONDS * 1000,
 			});
 		},
 		findPendingViewHighlights: async (pendingId) => {
 			const row = rows.get(pendingId);
 			if (row === undefined || row.expiresAtMs <= deps.now().getTime()) return undefined;
-			return { articleUrl: row.articleUrl, items: row.items };
+			return { articleUrl: row.articleUrl, items: row.items, returnTo: row.returnTo };
 		},
 		releasePendingViewHighlights: async (pendingId) => {
 			rows.delete(pendingId);

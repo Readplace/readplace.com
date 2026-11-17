@@ -25,6 +25,8 @@ const MARK = `${CONTENT} mark.article-highlight`;
 const CARD_ROW = "[data-test-view-highlight-row]";
 const KEEP_POPUP = "#view-highlights-keep";
 const RAIL_ROW = "[data-test-highlight-row]";
+const SAVE_CTA = `${VIEW_CTA} [data-test-view-cta-action][href^="/save"]`;
+const CARD_TITLE = "[data-test-article-title]";
 
 const KEPT_PASSAGES = [
 	"deterministic, path-uniqued article",
@@ -96,6 +98,23 @@ test("a logged-out visitor keeps five highlights in the browser, then carries th
 	for (const passage of KEPT_PASSAGES) {
 		await expect(page.locator(RAIL_ROW).filter({ hasText: passage })).toHaveCount(1);
 	}
+});
+
+test("a logged-out visitor who highlights and then taps Save carries the highlight into the new account", async ({
+	page,
+}, testInfo) => {
+	const stamp = `save-${testInfo.workerIndex}-${Date.now()}`;
+	await openReadableView(page, `${BASE_URL}/e2e/article/view-highlights-${stamp}`);
+	await highlight(page, KEPT_PASSAGES[0]);
+	await expect(page.locator(CARD_ROW)).toHaveCount(1);
+
+	await clickAndWaitForPageReload(page, page.locator(SAVE_CTA));
+	await signUp(page, `view-highlights-${stamp}@example.com`);
+
+	await page.waitForSelector("body.page-readlist", { timeout: SETTLE_MS });
+	await page.locator(CARD_TITLE).first().click();
+	await page.waitForSelector("body.page-reader", { timeout: SETTLE_MS });
+	await expect(page.locator(RAIL_ROW).filter({ hasText: KEPT_PASSAGES[0] })).toHaveCount(1);
 });
 
 test.describe("Highlighting on /view on a phone", () => {

@@ -19,6 +19,7 @@ const PendingViewHighlightsRow = z.object({
 			note: z.string().optional(),
 		}),
 	),
+	returnTo: z.string().nullable(),
 	expiresAt: z.number(),
 });
 
@@ -39,12 +40,13 @@ export function initDynamoDbPendingViewHighlights(deps: {
 
 	const nowSeconds = () => Math.floor(deps.now().getTime() / 1000);
 
-	const storePendingViewHighlights: StorePendingViewHighlights = async ({ pendingId, articleUrl, items }) => {
+	const storePendingViewHighlights: StorePendingViewHighlights = async ({ pendingId, articleUrl, items, returnTo }) => {
 		await table.put({
 			Item: {
 				pendingId,
 				articleUrl,
 				items: items.map((item) => ({ ...item })),
+				returnTo: returnTo ?? null,
 				expiresAt: nowSeconds() + PENDING_VIEW_HIGHLIGHTS_TTL_SECONDS,
 			},
 		});
@@ -53,7 +55,7 @@ export function initDynamoDbPendingViewHighlights(deps: {
 	const findPendingViewHighlights: FindPendingViewHighlights = async (pendingId) => {
 		const row = await table.get({ pendingId }, { consistentRead: true });
 		if (row === undefined || row.expiresAt <= nowSeconds()) return undefined;
-		return { articleUrl: row.articleUrl, items: row.items };
+		return { articleUrl: row.articleUrl, items: row.items, returnTo: row.returnTo ?? undefined };
 	};
 
 	const releasePendingViewHighlights: ReleasePendingViewHighlights = async (pendingId) => {

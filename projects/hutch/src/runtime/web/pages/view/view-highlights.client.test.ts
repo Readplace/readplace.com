@@ -43,6 +43,8 @@ const PAGE_HTML = Base(ViewPage(viewInput), {
 	.to("text/html")
 	.body;
 
+const PAGE_URL = "http://localhost:3000/view/example.com/post";
+
 const OTHER_ARTICLE_URL = "https://other.example.org/essay";
 
 const OTHER_PAGE_HTML = Base(
@@ -72,6 +74,7 @@ interface Harness {
 	hiddenPopovers: Element[];
 	scrolledTo: Element[];
 	beacons: string[];
+	submitted: { action: string; fields: Record<string, string>; intent: string }[];
 }
 
 function harness(input: {
@@ -80,7 +83,7 @@ function harness(input: {
 	withToolbarScript?: boolean;
 	pageHtml?: string;
 }): Harness {
-	const dom = new JSDOM(input.pageHtml ?? PAGE_HTML);
+	const dom = new JSDOM(input.pageHtml ?? PAGE_HTML, { url: PAGE_URL });
 	const h: Harness = {
 		doc: dom.window.document,
 		window: dom.window,
@@ -88,6 +91,7 @@ function harness(input: {
 		hiddenPopovers: [],
 		scrolledTo: [],
 		beacons: [],
+		submitted: [],
 	};
 	let counter = 0;
 	initViewHighlights({
@@ -100,6 +104,14 @@ function harness(input: {
 		hidePopover: (panel) => h.hiddenPopovers.push(panel),
 		scrollIntoView: (element) => h.scrolledTo.push(element),
 		sendBeacon: (url) => h.beacons.push(url),
+		submitForm: ({ form, submitter }) =>
+			h.submitted.push({
+				action: new URL(form.action).pathname,
+				fields: Object.fromEntries(
+					Array.from(form.querySelectorAll<HTMLInputElement>("input[name]"), (field) => [field.name, field.value]),
+				),
+				intent: submitter.getAttribute("value") ?? "",
+			}),
 	});
 	if (input.withToolbarScript) {
 		initHighlightToolbar({
@@ -478,6 +490,7 @@ describe("initViewHighlights", () => {
 			hidePopover: () => undefined,
 			scrollIntoView: () => undefined,
 			sendBeacon: (url) => beacons.push(url),
+			submitForm: () => undefined,
 		});
 
 		assert.equal(dom.window.document.body.innerHTML, "<main><p>Signed-in view</p></main>");
@@ -500,6 +513,7 @@ describe("initViewHighlights", () => {
 					hidePopover: () => undefined,
 					scrollIntoView: () => undefined,
 					sendBeacon: () => undefined,
+					submitForm: () => undefined,
 				}),
 			/the view highlights markup carries \[data-view-highlights-list\]/,
 		);
@@ -549,5 +563,105 @@ describe("initViewHighlights", () => {
 		h.doc.dispatchEvent(new h.window.Event("htmx:afterSettle"));
 
 		assert.deepEqual(markedText(h), ["A second sentence"]);
+	});
+
+	function addToPage(input: { h: Harness; html: string }): Element {
+		const holder = input.h.doc.createElement("div");
+		holder.innerHTML = input.html;
+		input.h.doc.body.append(holder);
+		const element = holder.firstElementChild;
+		assert(element, "the added markup holds an element");
+		return element;
+	}
+
+	function click(input: { h: Harness; element: Element }): boolean {
+		return input.element.dispatchEvent(new input.h.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+	}
+
+	it("hands the kept highlights over before the Save button sends the visitor to sign up, returning to the save", () => {
+		const h = harness({ storage: mapStorage() });
+		highlight({ h, quote: "A second sentence" });
+		const save = addToPage({ h, html: '<a href="/save?url=https%3A%2F%2Fexample.com%2Fpost&amp;surface=reader-view">Save</a>' });
+
+		const followed = click({ h, element: save });
+
+		assert.equal(followed, false, "the Save link does not navigate");
+		assert.deepEqual(
+			h.submitted.map(({ action, fields, intent }) => ({ action, article: fields.article, return: fields.return, intent })),
+			[
+				{
+					action: "/view/highlights/keep",
+					article: ARTICLE_URL,
+					return: "/save?url=https%3A%2F%2Fexample.com%2Fpost&surface=reader-view",
+					intent: "signup",
+				},
+			],
+		);
+		assert.deepEqual(
+			h.submitted.map(({ fields }) => JSON.parse(fields.highlights ?? "[]").map((item: { exact: string }) => item.exact)),
+			[["A second sentence"]],
+		);
+	});
+
+	it("hands the kept highlights over before the end-of-article Save form sends the visitor to sign up", () => {
+		const h = harness({ storage: mapStorage() });
+		highlight({ h, quote: "A second sentence" });
+		const form = addToPage({
+			h,
+			html: '<form method="GET" action="/save"><input type="hidden" name="url" value="https://example.com/post"></form>',
+		});
+
+		const allowed = submit({ h, form });
+
+		assert.equal(allowed, false, "the Save form does not submit");
+		assert.deepEqual(
+			h.submitted.map(({ fields, intent }) => [fields.return, intent]),
+			[["/save?url=https%3A%2F%2Fexample.com%2Fpost", "signup"]],
+		);
+	});
+
+	it("hands the kept highlights over before a log-in or sign-up link, keeping the page that link returns to", () => {
+		const h = harness({ storage: mapStorage() });
+		highlight({ h, quote: "A second sentence" });
+		const login = addToPage({ h, html: '<a href="/login">Log in</a>' });
+		const signup = addToPage({ h, html: '<a href="/signup?return=%2Finbox"><span>Sign up</span></a>' });
+
+		click({ h, element: login });
+		const label = signup.querySelector("span");
+		assert(label, "the sign-up link holds its label");
+		click({ h, element: label });
+
+		assert.deepEqual(
+			h.submitted.map(({ fields, intent }) => [fields.return, intent]),
+			[
+				["", "login"],
+				["/inbox", "signup"],
+			],
+		);
+	});
+
+	it("lets the Save button, the Save form and other links through while the browser keeps no highlight", () => {
+		const h = harness({ storage: mapStorage() });
+		const save = addToPage({ h, html: '<a href="/save?url=https%3A%2F%2Fexample.com%2Fpost">Save</a>' });
+		const form = addToPage({ h, html: '<form method="GET" action="/save"></form>' });
+
+		assert.deepEqual([click({ h, element: save }), submit({ h, form })], [true, true]);
+		assert.deepEqual(h.submitted, []);
+	});
+
+	it("lets links and forms that do not lead to sign-up through while highlights are kept", () => {
+		const h = harness({ storage: mapStorage() });
+		highlight({ h, quote: "A second sentence" });
+		const elsewhere = addToPage({ h, html: '<a href="https://other.example/login">Log in elsewhere</a>' });
+		const top = addToPage({ h, html: '<a href="#top">Top</a>' });
+		const search = addToPage({ h, html: '<form method="get" action="/search"><input name="q" value="x"></form>' });
+
+		assert.deepEqual([click({ h, element: elsewhere }), click({ h, element: top }), submit({ h, form: search })], [
+			true,
+			true,
+			true,
+		]);
+		assert.deepEqual(h.submitted, []);
+		assert.deepEqual(rowsOf(h), ["A second sentence"]);
 	});
 });

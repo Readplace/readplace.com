@@ -33,7 +33,7 @@ describe("initClaimViewHighlights", () => {
 		const claimed = await claim({
 			userId: READER,
 			provenance: { kind: "web" },
-			pending: { articleUrl: PRIVATE_URL, items: [{ url: PRIVATE_URL, exact: "Quote", prefix: "", suffix: "" }] },
+			pending: { articleUrl: PRIVATE_URL, items: [{ url: PRIVATE_URL, exact: "Quote", prefix: "", suffix: "" }], returnTo: undefined },
 		});
 
 		assert.deepEqual(claimed, { articleId: undefined, created: 0, dropped: 1 });
@@ -48,6 +48,7 @@ describe("initClaimViewHighlights", () => {
 			provenance: { kind: "web" },
 			pending: {
 				articleUrl: ARTICLE_URL,
+				returnTo: undefined,
 				items: [
 					{ url: ARTICLE_URL, exact: "First", prefix: "", suffix: "" },
 					{ url: ARTICLE_URL, exact: "Second", prefix: "", suffix: "" },

@@ -71,20 +71,26 @@ async function harnessWithArticle(fixture = createDefaultTestAppFixture(TEST_APP
 	return harness;
 }
 
-function keepBody(input: { items: readonly KeptItem[]; intent?: "signup" | "login"; article?: string }) {
+function keepBody(input: {
+	items: readonly KeptItem[];
+	intent?: "signup" | "login";
+	article?: string;
+	returnTo?: string;
+}) {
 	return {
 		highlights: JSON.stringify(input.items),
 		article: input.article ?? ARTICLE_URL,
 		intent: input.intent ?? "signup",
+		return: input.returnTo ?? "",
 	};
 }
 
-async function keep(input: { agent: ReturnType<typeof request.agent>; items: readonly KeptItem[] }) {
+async function keep(input: { agent: ReturnType<typeof request.agent>; items: readonly KeptItem[]; returnTo?: string }) {
 	return input.agent
 		.post("/view/highlights/keep")
 		.set(BROWSER_REQUEST_HEADERS)
 		.type("form")
-		.send(keepBody({ items: input.items }));
+		.send(keepBody({ items: input.items, returnTo: input.returnTo }));
 }
 
 async function signUp(agent: ReturnType<typeof request.agent>) {
@@ -109,9 +115,13 @@ function railRowsOf(html: string): { exact: string; note: string | undefined }[]
 	}));
 }
 
-async function keepThenSignUpAndClaim(input: { harness: TestAppHarness; items: readonly KeptItem[] }) {
+async function keepThenSignUpAndClaim(input: {
+	harness: TestAppHarness;
+	items: readonly KeptItem[];
+	returnTo?: string;
+}) {
 	const agent = request.agent(input.harness.server);
-	await keep({ agent, items: input.items });
+	await keep({ agent, items: input.items, returnTo: input.returnTo });
 	await signUp(agent);
 	const claim = await agent.post(CLAIM_PATH).set(BROWSER_REQUEST_HEADERS).type("form").send({});
 	return { agent, claim };
@@ -251,6 +261,32 @@ describe("/view/highlights/claim", () => {
 		expect(harness.analytics.events.filter((event) => event.event === "view_highlights_claimed")).toEqual([
 			expect.objectContaining({ created: 1, dropped: 0 }),
 		]);
+	});
+
+	it("returns to the Save the visitor tapped once the highlights are claimed, and that save lands the article", async () => {
+		const harness = await harnessWithArticle();
+		const save = `/save?url=${encodeURIComponent(ARTICLE_URL)}`;
+
+		const { agent, claim } = await keepThenSignUpAndClaim({ harness, items: [SECOND_SENTENCE], returnTo: save });
+
+		expect([claim.status, claim.headers.location]).toEqual([303, save]);
+		const saved = await agent.get(save).set(BROWSER_REQUEST_HEADERS);
+		expect(saved.headers.location).toBe(`/queue?url=${encodeURIComponent(ARTICLE_URL)}`);
+		expect(harness.analytics.events.filter((event) => event.event === "view_highlights_claimed")).toEqual([
+			expect.objectContaining({ created: 1, dropped: 0 }),
+		]);
+	});
+
+	it("ignores a page to return to that leaves the site", async () => {
+		const harness = await harnessWithArticle();
+
+		const { claim } = await keepThenSignUpAndClaim({
+			harness,
+			items: [SECOND_SENTENCE],
+			returnTo: "//evil.example/save",
+		});
+
+		expect(claim.headers.location).toMatch(/^\/queue\/[^/]+\/view#highlights-rail$/);
 	});
 
 	it("claims the kept highlights once", async () => {
