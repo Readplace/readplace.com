@@ -1306,6 +1306,19 @@ describe("View routes", () => {
 
 			expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
 		});
+
+		it("publishes no stale check for a GET of an unstored URL whose first crawl it starts", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+			expect(response.status).toBe(200);
+			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
+			assert(saved, "the GET must start the article's first crawl");
+			expect(staleChecks).toEqual([]);
+		});
 	});
 
 	describe("Share dialog", () => {
@@ -2480,6 +2493,26 @@ describe("View routes", () => {
 			expect(staleChecks).toEqual([{ url: PUBLISHER }]);
 		});
 
+		it("checks staleness of the stored original that a first tracker visit resolves to through the target's alias", async () => {
+			const formerPublisherUrl = "https://sqlite.org/old/lang_with.html";
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.wrapperTarget.targets.set(TRACKER, formerPublisherUrl);
+			const saves: Parameters<PublishSaveAnonymousLink>[0][] = [];
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async (event) => { saves.push(event); }, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: PUBLISHER, metadata: { title: "Seeded title", siteName: "sqlite.org", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlReady({ url: PUBLISHER });
+			await harness.articleStore.claimAlias({ aliasUrl: formerPublisherUrl, targetOriginalUrl: PUBLISHER, now: new Date() });
+
+			const response = await request(harness.server).get(`/view/${TRACKER_PATH}`);
+
+			expect(response.status).toBe(200);
+			expect(new JSDOM(response.text).window.document.title).toContain("Seeded title");
+			expect(harness.wrapperTarget.calls).toEqual([TRACKER]);
+			expect(saves).toEqual([]);
+			expect(staleChecks).toEqual([{ url: PUBLISHER }]);
+		});
+
 		it("renders the stored article through an alias without a recorded source once the crawl budget is spent", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			fixture.rateLimit = {
@@ -2498,7 +2531,7 @@ describe("View routes", () => {
 			expect(response.status).toBe(200);
 			expect(new JSDOM(response.text).window.document.title).toContain("Seeded title");
 			expect(harness.wrapperTarget.calls).toEqual([]);
-			expect(staleChecks).toEqual([{ url: "https://example.com/spends-the-budget" }, { url: PUBLISHER }]);
+			expect(staleChecks).toEqual([{ url: PUBLISHER }]);
 		});
 
 		it("only checks staleness on a repeat visit through a tracker whose capture was already offered, spending no crawl budget", async () => {
@@ -2874,6 +2907,60 @@ describe("Keep this one block on the public reader", () => {
 
 		endCtaOf(new JSDOM(response.text).window.document);
 		expect(readerEvents(harness).slice(eventsBeforePrefetch)).toEqual([]);
+	});
+
+	it("signs the block with the founder's line, sign-off and portrait on a fagnerbrack.com post", async () => {
+		const harness = buildReaderHarness();
+
+		const response = await request(harness.server).get("/view/fagnerbrack.com/a-post").set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		const section = endCtaOf(new JSDOM(response.text).window.document);
+		const signed = section.querySelector("[data-test-view-end-cta-signed]");
+		assert(signed, "the signed block must render inside the end block on a founder post");
+		expect(signed.querySelector(".view__end-cta-signed-line")?.textContent).toBe(
+			"You just read one of my posts in Readplace. I built it so the articles I meant to read would still be there when I had time for them.",
+		);
+		expect(signed.querySelector(".view__end-cta-signed-by")?.textContent).toBe("— Fayner Brack, Founder & CEO");
+		const portrait = signed.querySelector("img");
+		assert(portrait, "the signed block must carry the founder's portrait");
+		expect(portrait.getAttribute("src")).toMatch(/\/fayner-brack\.jpg$/);
+		expect(portrait.getAttribute("alt")).toBe("");
+		expect(portrait.getAttribute("aria-hidden")).toBe("true");
+		expect([portrait.getAttribute("width"), portrait.getAttribute("height")]).toEqual(["40", "40"]);
+		expect(Array.from(section.querySelectorAll(".reading-frame > *"), (child) => child.className)).toEqual([
+			"view__end-cta-heading",
+			"view__end-cta-signed",
+			"view__end-cta-line",
+			"view__end-cta-line",
+			"view__end-cta-actions",
+		]);
+		expect(readerEvents(harness)[1]).toMatchObject({ event: "view_end_cta_shown", article_host: "fagnerbrack.com" });
+	});
+
+	it("signs the block on a www.fagnerbrack.com post", async () => {
+		const harness = buildReaderHarness();
+
+		const response = await request(harness.server).get("/view/www.fagnerbrack.com/a-post").set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		const section = endCtaOf(new JSDOM(response.text).window.document);
+		expect(section.querySelectorAll("[data-test-view-end-cta-signed]").length).toBe(1);
+		expect(readerEvents(harness)[1]).toMatchObject({ event: "view_end_cta_shown", article_host: "www.fagnerbrack.com" });
+	});
+
+	it.each([CANONICAL_PATH, "blog.fagnerbrack.com/a-post"])("leaves the block unsigned on %s", async (path) => {
+		const harness = buildReaderHarness();
+
+		const response = await request(harness.server).get(`/view/${path}`).set(BROWSER_REQUEST_HEADERS);
+
+		const section = endCtaOf(new JSDOM(response.text).window.document);
+		expect(Array.from(section.querySelectorAll(".reading-frame > *"), (child) => child.className)).toEqual([
+			"view__end-cta-heading",
+			"view__end-cta-line",
+			"view__end-cta-line",
+			"view__end-cta-actions",
+		]);
 	});
 
 	it("is left out while the article's body is still being crawled", async () => {

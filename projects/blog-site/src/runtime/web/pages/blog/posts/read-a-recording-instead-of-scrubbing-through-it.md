@@ -5,6 +5,7 @@ excerpt: "A scrub bar is the only way back into an hour of audio. A transcript g
 tldr: "A talk, an interview or a podcast episode saved as an MP3 or M4A becomes a timestamped transcript at readplace.com/upload. Readplace turns each stretch of speech into a paragraph stamped with the second it starts and keeps the recording on the same page, so a tap on a stamp plays that line and the paragraph being spoken stays marked. The review step shows how many of the day's transcript minutes a file uses before any are spent, files go up to 256 MB, and the transcript belongs to the account that uploaded it."
 slug: "read-a-recording-instead-of-scrubbing-through-it"
 date: "2026-11-09"
+lastModified: "2026-11-15"
 author: "Fayner Brack"
 keywords: "turn audio into a readable transcript, upload mp3 and read it as text, read a podcast episode instead of listening, timestamped transcript reader, m4a to text transcript, read a recorded lecture, read-it-later app for audio files, readplace"
 ---
@@ -23,7 +24,7 @@ The upload page now takes audio. An MP3 or M4A dropped at [readplace.com/upload]
 
 ## What the upload takes
 
-MP3 and M4A files go up to 256 MB each, on the same page that takes [DRM-free EPUB books](/blog/drm-free-epub-books-in-the-same-reader?utm_source=blog-read-a-recording-instead-of-scrubbing-through-it&utm_medium=internal&utm_content=post-drm-free-epub-books-in-the-same-reader). A file Readplace can't read as audio gets a notice asking for one that plays on the device, and a video file is refused as an unsupported type.
+MP3 and M4A files go up to 256 MB each, on the same page that takes [DRM-free EPUB books](/blog/drm-free-epub-books-in-the-same-reader?utm_source=blog-read-a-recording-instead-of-scrubbing-through-it&utm_medium=internal&utm_content=post-drm-free-epub-books-in-the-same-reader). A file Readplace can't read as audio gets a notice asking for one that plays on the device. With an account, an MP4 video goes up on the same page too, up to 2 GB, and comes back as the same kind of transcript.
 
 No account is needed to start. The upload and the review both work signed out, and Save to my library is the step that asks for a sign-in, then returns to the same review.
 

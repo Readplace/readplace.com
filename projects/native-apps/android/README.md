@@ -11,7 +11,7 @@ this file records only what Android forced to differ, and why.
 make emulator-boot        # headless boot of the readplace-android AVD
 make install-emulator     # staging APK → installed → launched
 make screenshot           # build/screenshot.png
-make test                 # unit suite + coverage ratchet + staging config pins
+make test                 # unit suite + pixel tests + coverage ratchet + staging config pins; RECORD_SNAPSHOTS=1 re-records the pictures
 make emulator-stop        # stop the emulator — it outlives your shell, so this is not optional
 ```
 
@@ -25,6 +25,11 @@ the save, then writes a take the hutch media toolkit encodes — see
 [its runbook](../../hutch/scripts/media/README.md). It needs the app installed and signed in on a
 visible emulator (`make emulator-window`), and it unpins Readplace itself between takes so the
 recording can teach the pinning.
+
+The script stops before recording when the app is signed out. Unlike the iOS recording, it
+deliberately does not sign in by itself: sign-in here is the server's sign-in and consent pages in
+a Chrome Custom Tab, so a sign-in driver would have to be edited whenever those pages are reworded,
+as the iOS driver was on 2026-10-16, and all it would save is one manual sign-in.
 
 Every toolchain invocation goes through `scripts/ax.sh`. See
 [`.claude/skills/android-emulator/SKILL.md`](../../../.claude/skills/android-emulator/SKILL.md)
@@ -47,6 +52,17 @@ TestFlight build for App Store review.
 - **A local signed bundle.** `make bundle VERSION_CODE=<n>` with `READPLACE_UPLOAD_KEYSTORE`
   and `READPLACE_UPLOAD_KEYSTORE_PASSWORD` set. Without them the build fails at
   `validateSigningProductionRelease` rather than producing an unsigned bundle Play rejects.
+- **Store listing.** The Play listing's text and images live under
+  `fastlane/metadata/android/<locale>/` in fastlane supply's own layout, and the manual
+  **Publish Android Play listing** workflow pushes them. Play's limits as of 2026-11-12:
+  title 30 characters, short description 80, full description 4,000, and 2 to 8 phone
+  screenshots. Text files carry no final newline, because supply sends them verbatim. An
+  unticked run writes the listing into a Play edit, asks Play to validate it and discards
+  it, so readers see no change; a run with `publish` ticked commits the edit, and Play
+  publishes it after review. Only the owner dispatches a `publish` run; an agent never
+  does. The `prod` environment has no required reviewer, so dispatching the run is the
+  whole publish act. The run names the internal track only because supply looks up one release there;
+  it uploads no binary and changes no track.
 
 ## What differs from iOS, and why
 
@@ -55,18 +71,48 @@ that share nothing but an App Group. Android's share target is an `Activity` in 
 same APK, so the entire App Group layer disappears: no shared container, no keychain
 access group, no provisioning-profile group-id resolution, no legacy-defaults
 migration. Storage roots are plain injected `File`s under the app's own
-`filesDir`/`cacheDir`.
+`filesDir`/`cacheDir`. The same single process owns token refresh, sign-in and
+sign-out, so their auth diagnostic events carry the `app` surface whichever screen
+caused them; only the share screen's own start and sign-in-prompt events carry `share`.
+One process also means one diagnostic context: a share made while the app is running
+records its `share` events under the same `context_id` as the app's own events, where
+iOS gives the share extension a context of its own.
 
 That also removes the background-upload machinery. iOS needs a background
 `URLSession` because the share extension is killed the moment its sheet closes; the
 Android share Activity hands its staged job to the same process that will drain it.
 Uploads drain when the app next opens, exactly as they do on iOS.
 
-**No Chrome-first URL opening.** `ChromeFirstURL` exists on iOS because the OS
-default browser is usually Safari while the user actually browses in Chrome, so a
-readplace.com link would open somewhere they are not signed in. Android's default
-browser *is* the browser they use, and it carries their cookie jar, so our-host
-links are handed to the system untouched.
+**No Chrome-first URL opening, and no browser sign-in handoff.** The iOS app signs
+in inside itself and opens readplace.com links Chrome-first, so a tapped link can
+land in a browser the reader never signed in through. iOS therefore rewrites the
+link for Chrome and, since 2026-10-30, signs that browser in with a single-use code
+(the `create-browser-handoff` Siren action, redeemed at `GET /auth/handoff`).
+Android has no such split: sign-in runs in a Custom Tab of the default browser and
+leaves a persistent `hutch_sid` session there, and our-host links are handed to that
+same browser untouched. The server offers the handoff action on every collection;
+this app does not call it. A browser that has lost its session (cookies cleared, a
+changed default browser, about 180 days with no web visit) asks for one sign-in,
+and `/login?return=` then lands the reader on the page they tapped. Build the
+handoff once a reader is seen landing signed out, not before.
+
+**A downloaded EPUB goes to Downloads, not a share sheet.** Tapping Download EPUB
+hands the file to the system downloader, which writes it into the public Downloads
+collection and posts the notification that opens it in the reader's EPUB app. iOS
+has no such public collection, which is why it offers the file to a share sheet;
+Android's share sheet has no "save to device" target, so a share-only flow would
+lose keeping the file. The system names the file and de-duplicates the name, so the
+app needs no filename rule and no temporary directory. The download request carries
+the WebView's cookies for our own article link, so a file only its owner may read,
+such as an uploaded book, downloads like any other. The downloader sends those
+headers again on every redirect it follows, so the EPUB route must not redirect to
+another host.
+
+**No landing-tab preference.** iOS remembers the landing tab's href so a cold offline
+launch has a key to look up. Android launches by the remembered readlist href, and
+the stored answer to that href names the tab it landed on, so a failed launch read
+follows that tab's stored copy. Same list, one preference fewer, and no assumption
+about which tab the server lands on.
 
 **A distinct OAuth redirect.** The iOS app is registered against
 `readplace://oauth-callback`; this app is registered against
@@ -158,6 +204,26 @@ default ignores an app's orientation and resizability restrictions on displays 6
 and wider once it targets API 36, as this app does. So the manifest restricts nothing,
 and the app can run on tablets and in split screen with the phone layout.
 
+**No draft listing on Play, and no read-back.** iOS pushes its listing to an App Store
+Connect draft and reads the screenshots back, because App Store Connect's processing delay
+once doubled every screenshot. Play's API has no draft a caller can choose: an edit is
+committed or discarded, so a validate-only run stands in for the draft. A Play edit is one
+transaction and supply skips an image whose checksum Play already holds, so there is
+nothing to read back.
+
+**The launcher icon is a vector; the login mark is the iOS script's output.** iOS runs a
+script for its App Store icon because the store takes a 1024px PNG with no alpha.
+Android's launcher is an adaptive icon whose foreground is a vector drawable, and
+`minSdk` 29 needs no PNG fallback, so no script renders it. The login screen's six
+`brand_mark.png` drawables are written by the iOS
+[`scripts/make-brandmark.sh`](../ios/scripts/make-brandmark.sh) and are never edited by
+hand. When the mark changes, run that script, then paste the new ampersand path into the
+launcher foreground vector (grep the resource tree for the old path's opening,
+`M204.28 400Q`). If the amber dot moves, also change the circle path beside the
+ampersand in the same vector, written as an arc starting at cx+r, and the dot centre the
+login screen holds for its replay tap target (grep the Kotlin sources for
+`DOT_CENTER_X`); iOS holds the same constants by hand.
+
 ## Version pins that are not "the latest"
 
 Two dependencies are deliberately held back, both for the same reason: their AAR
@@ -174,9 +240,17 @@ platform 37 ships. Everything else is current.
 
 Unit tests run on the JVM (JUnit4 + `mockwebserver3`), not on an emulator. The iOS
 suite is the same shape — pure logic tests with the OS boundaries excluded — and ran
-on a simulator only because Xcode offers no other way. Robolectric is used only where
-a framework type is genuinely unavoidable (Intent/ClipData reading); the decision
-cores are deliberately kept off `android.*` so they stay plain-JVM testable.
+on a simulator only because Xcode offers no other way. The iOS suite also measures the
+share chooser's layout: touch-target floors on the narrowest window and at the smallest
+text size. Android measures the same chooser in one Robolectric Compose test at set
+window sizes and font scales, the largest font and landscape included. Otherwise
+Robolectric is used only where a framework type is genuinely unavoidable (Intent/ClipData
+reading, and drawing a Compose leaf for a pixel test); the decision cores are deliberately
+kept off `android.*` so they stay plain-JVM testable.
+
+Pixel tests draw a Compose leaf in light and dark and compare it with a picture
+committed under `app/src/test/pixel-baselines/`, with the iOS comparison rule and
+tolerances. `make test RECORD_SNAPSHOTS=1` records them again and always fails.
 
 `scripts/check-coverage.py` enforces the same per-file ratchet the iOS app uses,
 against JaCoCo's XML instead of an `.xcresult`: files listed in

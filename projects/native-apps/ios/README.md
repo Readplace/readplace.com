@@ -375,7 +375,9 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   serif ampersand and amber dot — above the title, as the `BrandMark` image set in
   the asset catalog. It has light (navy ampersand) and dark (white ampersand)
   variants so it stays legible on both login backgrounds, rendered from the brand
-  geometry by `scripts/make-brandmark.sh`.
+  geometry by `scripts/make-brandmark.sh`. The same script copies each PNG into
+  the Android app's `drawable-*` and `drawable-night-*` folders as
+  `brand_mark.png`, so both login screens ship the same bytes.
 - **Builds from the repo's devbox shell.** Every Xcode entry point — `make test`,
   `make test-staging`, `make run-local`, and `build-unsigned-ipa.sh` (so
   `nx run ios:compile` too) — runs through [`scripts/xc.sh`](./scripts/xc.sh), which scrubs the nix

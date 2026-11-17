@@ -8,6 +8,7 @@ import com.readplace.android.core.AuthorizationRequest
 import com.readplace.android.core.EphemeralCookieJar
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthError
+import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.ShareArtifacts
 import com.readplace.android.core.SloganDiagnostics
@@ -87,6 +88,7 @@ class AppSession(
 	private val makeWebAuthFlow: (OAuth) -> WebAuthFlow,
 	private val webDataWiper: WebDataWiper,
 	private val shareArtifacts: ShareArtifacts,
+	private val offlineReading: OfflineReadlistSnapshot,
 	private val sloganDiagnostics: SloganDiagnostics,
 	/** Forgets the reader's persistent readlist/share choices. Invoked only on a
 	 * deliberate native sign-out, separately from the share-artifact purge — a forced
@@ -168,6 +170,7 @@ class AppSession(
 			oauth.revoke()
 			clearSessionCookie()
 			shareArtifacts.purge()
+			offlineReading.purge()
 			// Separate from the share-artifact purge: a deliberate sign-out also forgets
 			// the reader's readlist/share choices, which a forced logout preserves.
 			forgetReaderChoices()
@@ -184,6 +187,7 @@ class AppSession(
 		oauth.endSession()
 		clearSessionCookie()
 		shareArtifacts.purge()
+		offlineReading.purge()
 		val readerWipe = scope.launch { webDataWiper.wipe(serverHost) }
 		_isLoggedIn.value = false
 		return readerWipe

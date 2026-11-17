@@ -7,6 +7,7 @@ import {
 	type DeleteCustomer,
 	type FindOpenInvoiceFailure,
 	type FindSubscriptionNextCharge,
+	type FindSubscriptionPaymentMethod,
 	type ListInvoices,
 	type OnUnpaidFirstInvoice,
 	type ReverseScheduledCancellation,
@@ -31,6 +32,10 @@ const StripeErrorResponse = z.object({
 
 const StripeSubscriptionResponse = z.object({
 	id: z.string(),
+});
+
+const StripeSubscriptionPaymentMethod = z.object({
+	default_payment_method: z.string().nullable(),
 });
 
 const PAYMENT_BEHAVIOR = {
@@ -127,6 +132,7 @@ export function initStripeSubscriptions(deps: {
 	cancelImmediately: CancelSubscriptionImmediately;
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
+	findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	deleteCustomer: DeleteCustomer;
@@ -174,6 +180,7 @@ export function initStripeSubscriptions(deps: {
 		priceId,
 		userId,
 		onUnpaidFirstInvoice,
+		paymentMethodId,
 	}) => {
 		const body = new URLSearchParams();
 		body.set("customer", customerId);
@@ -183,6 +190,9 @@ export function initStripeSubscriptions(deps: {
 		body.set("payment_behavior", PAYMENT_BEHAVIOR[onUnpaidFirstInvoice]);
 		body.set("off_session", "true");
 		body.set("automatic_tax[enabled]", "true");
+		if (paymentMethodId !== undefined) {
+			body.set("default_payment_method", paymentMethodId);
+		}
 
 		const response = await deps.fetch(`${STRIPE_API}/subscriptions`, {
 			method: "POST",
@@ -203,6 +213,23 @@ export function initStripeSubscriptions(deps: {
 		const json = await response.json();
 		const subscription = StripeSubscriptionResponse.parse(json);
 		return { subscriptionId: subscription.id };
+	};
+
+	const findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod = async ({ subscriptionId }) => {
+		const response = await deps.fetch(
+			`${STRIPE_API}/subscriptions/${encodeURIComponent(subscriptionId)}`,
+			{ method: "GET", headers: stripeHeaders },
+		);
+
+		if (!response.ok) {
+			const message = await readStripeErrorMessage(response);
+			throw new Error(
+				`Stripe findSubscriptionPaymentMethod failed (${response.status}): ${message}`,
+			);
+		}
+
+		const subscription = StripeSubscriptionPaymentMethod.parse(await response.json());
+		return subscription.default_payment_method ?? undefined;
 	};
 
 	const scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd = async ({
@@ -432,6 +459,7 @@ export function initStripeSubscriptions(deps: {
 		cancelImmediately,
 		createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge,
+		findSubscriptionPaymentMethod,
 		scheduleCancellationAtPeriodEnd,
 		reverseScheduledCancellation,
 		deleteCustomer,
