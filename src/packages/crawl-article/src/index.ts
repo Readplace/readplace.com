@@ -10,9 +10,12 @@ export {
 } from "./crawl-article";
 export { isBlockClassStatus, type Persona } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";
+export { measureImageDimensions, type ImageDimensions } from "./measure-image-dimensions";
 export { describeRejection } from "./describe-rejection";
 export { initFetchYouTubeVideoCard } from "./youtube-video-card";
 export type { FetchYouTubeVideoCard, YouTubeVideoCard } from "./youtube-video-card";
+export { initFetchRedditPostCard, parseRedditPostUrl } from "./reddit-post-card";
+export type { FetchRedditPostCard, RedditPostCard } from "./reddit-post-card";
 export {
 	extractThumbnailCandidates,
 	initFetchThumbnailImage,

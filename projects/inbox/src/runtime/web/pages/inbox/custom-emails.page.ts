@@ -13,7 +13,7 @@ import {
 	InboxAddressSchema,
 	isLiveAddress,
 	isCappedAddress,
-	normalizeAliasName,
+	decideAliasName,
 	addressCapReached,
 	parseCustomEmailsOrigin,
 } from "@packages/domain/inbox";
@@ -77,19 +77,18 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsed = CreateAddressSchema.safeParse(req.body);
-		const name = parsed.success ? normalizeAliasName(parsed.data.name) : undefined;
-		if (name === undefined) {
-			res.redirect(303, addressesUrl(req, { error: "name" }));
-			return;
-		}
 		// Best-effort like the per-user cap — the eventually-consistent list read can
 		// miss a just-minted row — so a rare racing pair may both land; harmless, since
 		// the random token still keeps the two addresses distinct.
 		const owned = await deps.inboxAddressStore.listAddressesByUserId(userId);
-		if (owned.some((entry) => isCappedAddress(entry) && isLiveAddress(entry) && entry.name === name)) {
-			res.redirect(303, addressesUrl(req, { error: "name-taken", name }));
+		const decision = decideAliasName({ requested: parsed.success ? parsed.data.name : "", owned });
+		if (!decision.ok) {
+			const error: Record<string, string> =
+				decision.reason === "name-taken" ? { error: "name-taken", name: decision.name } : { error: "name" };
+			res.redirect(303, addressesUrl(req, error));
 			return;
 		}
+		const name = decision.name;
 		try {
 			await deps.inboxAddressStore.createAddress({
 				userId,

@@ -1,5 +1,6 @@
 import sanitizeHtml from "sanitize-html";
 import { HighlightIdSchema } from "./highlight/highlight";
+import { READER_IMAGE_SIZE_ATTRIBUTE, readerImageBox } from "./reader-image-size";
 
 const ALLOWED_TAGS = [
 	"p",
@@ -104,11 +105,20 @@ const keepOnlyHighlightIds: sanitizeHtml.Transformer = (tagName, attribs) => {
 	};
 };
 
+const keepOnlyMeasuredImageBox: sanitizeHtml.Transformer = (tagName, attribs) => {
+	const { style: _publisherStyle, [READER_IMAGE_SIZE_ATTRIBUTE]: stored, ...rest } = attribs;
+	const box = readerImageBox(stored);
+	return {
+		tagName,
+		attribs: box ? { ...rest, [READER_IMAGE_SIZE_ATTRIBUTE]: box.attribute, style: box.style } : rest,
+	};
+};
+
 const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 	allowedTags: ALLOWED_TAGS,
 	allowedAttributes: {
 		a: ["href", "target", "rel", "title"],
-		img: ["src", "srcset", "sizes", "alt", "width", "height", "loading"],
+		img: ["src", "srcset", "sizes", "alt", "width", "height", "loading", READER_IMAGE_SIZE_ATTRIBUTE, "style"],
 		td: ["colspan", "rowspan", READER_CELL_LABEL_ATTRIBUTE],
 		th: ["colspan", "rowspan", READER_CELL_LABEL_ATTRIBUTE],
 		tr: [READER_HEADER_ROW_ATTRIBUTE],
@@ -128,6 +138,12 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 			"article-highlight--note-end",
 		],
 	},
+	allowedStyles: {
+		img: {
+			"--reader-image-width": [/^(?:[1-9]\d{0,4}px|100vw|min\(100vw,[1-9]\d{0,4}px\))$/],
+			"--reader-image-ratio": [/^[1-9]\d{0,4} \/ [1-9]\d{0,4}$/],
+		},
+	},
 	allowedSchemes: ["http", "https", "mailto"],
 	allowedSchemesByTag: { img: ["http", "https", "data"] },
 	disallowedTagsMode: "discard",
@@ -140,6 +156,7 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 		h2: keepOnlySectionId,
 		h3: keepOnlySectionId,
 		mark: keepOnlyHighlightIds,
+		img: keepOnlyMeasuredImageBox,
 	},
 };
 

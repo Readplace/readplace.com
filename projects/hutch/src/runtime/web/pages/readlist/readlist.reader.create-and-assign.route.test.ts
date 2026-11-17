@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { READLIST_LABEL_MAX_LENGTH } from "@packages/domain/readlist";
+import { READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -190,19 +190,19 @@ describe("the reader's inline create-a-readlist control", () => {
 		expect(response.status).toBe(404);
 	});
 
-	it("refuses to mint an eighth readlist, returning to the reader with nothing filed", async () => {
+	it("refuses to mint a readlist past the cap, returning to the reader with nothing filed", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		for (let created = 1; created <= 7; created += 1) await createReadlist(agent, `Readlist ${created}`);
+		for (let created = 1; created <= READLIST_MAX_PER_USER; created += 1) await createReadlist(agent, `Readlist ${created}`);
 		const articleId = await saveArticle(agent, "https://example.com/a");
-		expect(pickerOptions(await openReader(agent, articleId))).toHaveLength(7);
+		expect(pickerOptions(await openReader(agent, articleId))).toHaveLength(READLIST_MAX_PER_USER);
 
-		const response = await createAndAssign({ agent, articleId, label: "Eighth" });
+		const response = await createAndAssign({ agent, articleId, label: "One Too Many" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(`/queue/${articleId}/view`);
 		const reader = await openReader(agent, articleId);
-		expect(pickerOptions(reader)).toHaveLength(7);
+		expect(pickerOptions(reader)).toHaveLength(READLIST_MAX_PER_USER);
 		expect(readlistTagLabels(reader)).toEqual([]);
 	});
 
@@ -345,19 +345,19 @@ describe("the reader's create dialog, posted through htmx", () => {
 		expect(readlistTagLabels(await openReader(agent, articleId))).toEqual([]);
 	});
 
-	it("refuses an eighth readlist in the dialog, naming the cap", async () => {
+	it("refuses a readlist past the cap in the dialog, naming the cap", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
-		for (let created = 1; created <= 7; created += 1) await createReadlist(agent, `Readlist ${created}`);
+		for (let created = 1; created <= READLIST_MAX_PER_USER; created += 1) await createReadlist(agent, `Readlist ${created}`);
 		const articleId = await saveArticle(agent, "https://example.com/a");
 
-		const response = await createAndAssign({ agent, articleId, label: "Eighth", htmx: true });
+		const response = await createAndAssign({ agent, articleId, label: "One Too Many", htmx: true });
 
 		expect(response.status).toBe(422);
 		expect(parse(response.text).querySelector("[data-test-readlist-create-error]")?.textContent).toBe(
 			READLIST_LIMIT_MESSAGE,
 		);
-		expect(pickerOptions(await openReader(agent, articleId))).toHaveLength(7);
+		expect(pickerOptions(await openReader(agent, articleId))).toHaveLength(READLIST_MAX_PER_USER);
 	});
 
 	it("sends the dialog to the top of the return path for an article the reader no longer holds", async () => {

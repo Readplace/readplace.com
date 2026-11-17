@@ -1063,11 +1063,10 @@ class SaveSharedPageTest {
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
 		val cache = Cache(temporaryFolder.newFolder("cache"), 10L * 1024 * 1024)
-		val queueGets = AtomicInteger()
+		val entryGets = AtomicInteger()
 		server.handle { record ->
 			when (record.path) {
-				"/" -> Stub(303, headers = mapOf("Location" to "/queue", "Cache-Control" to "private, max-age=3600"))
-				"/queue" -> cacheableCollection(saveArticleHref = if (queueGets.incrementAndGet() == 1) "/queue/save-v1" else "/queue/save-v2")
+				"/" -> cacheableCollection(saveArticleHref = if (entryGets.incrementAndGet() == 1) "/queue/save-v1" else "/queue/save-v2")
 				"/queue/save-v1" -> Stub.json(410, "{}")
 				"/queue/save-v2" -> Stub.json(201, Fixtures.article("url-saved"))
 				else -> Stub.json(404, "{}")
@@ -1090,17 +1089,12 @@ class SaveSharedPageTest {
 			server.records.filter { it.method == "POST" }.map { it.path },
 		)
 		assertEquals("https://example.com/post", postedUrl(server.records.last { it.method == "POST" }))
-		val rediscovery = server.records.filter { it.method == "GET" }.takeLast(2)
+		val rediscovery = server.records.filter { it.method == "GET" }.last()
+		assertEquals("the re-discovery starts from the entry point, the one URL the client knows", "/", rediscovery.path)
 		assertEquals(
-			"the re-discovery starts from the entry point, the one URL the client knows",
-			listOf("/", "/queue"),
-			rediscovery.map { it.path },
-		)
-		val bypass = CacheControl.FORCE_NETWORK.toString()
-		assertEquals(
-			"and bypasses the discovery cache on every rebuilt hop, so the moved href is never re-read from the stale copy",
-			listOf(bypass, bypass),
-			rediscovery.map { it.header("Cache-Control") },
+			"and bypasses the discovery cache, so the moved href is never re-read from the stale copy",
+			CacheControl.FORCE_NETWORK.toString(),
+			rediscovery.header("Cache-Control"),
 		)
 		assertEquals("the rediscovered page admits exactly one capture job", 1, queuedJobs(container).size)
 		assertEquals("the sheet is told the link is saved exactly once", 1, saved)

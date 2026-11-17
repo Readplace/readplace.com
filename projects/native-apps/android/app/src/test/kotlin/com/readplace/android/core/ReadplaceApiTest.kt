@@ -190,7 +190,7 @@ class ReadplaceApiTest {
 	// region Listing
 
 	@Test
-	fun `loadReadlist follows the entry-point redirect and re-attaches the client's headers on the hop`() = runTest {
+	fun `loadReadlist follows a redirect and re-attaches the client's headers on the hop`() = runTest {
 		val store = loggedInStore(access = "access-1")
 		server.handle { record ->
 			when (record.path) {
@@ -208,7 +208,7 @@ class ReadplaceApiTest {
 		assertEquals("Bearer access-1", hop.header("Authorization"))
 		assertEquals("application/vnd.siren+json", hop.header("Accept"))
 		assertEquals(
-			"the Android client header must survive the GET / → /queue redirect so the server records onboarding",
+			"the Android client header must survive the redirect so the server records onboarding",
 			"android",
 			hop.header("X-Readplace-Client"),
 		)
@@ -240,15 +240,11 @@ class ReadplaceApiTest {
 	@Test
 	fun `rediscoverReadlist bypasses the discovery cache an ordinary load reuses`() = runTest {
 		val cache = Cache(folder.newFolder(), 10L * 1024 * 1024)
-		val queueGets = AtomicInteger()
+		val entryGets = AtomicInteger()
 		server.handle { record ->
 			when (record.path) {
-				"/" -> Stub(
-					303,
-					headers = mapOf("Location" to "/queue", "Cache-Control" to "private, max-age=3600"),
-				)
-				"/queue" -> {
-					val version = if (queueGets.incrementAndGet() == 1) "v1" else "v2"
+				"/" -> {
+					val version = if (entryGets.incrementAndGet() == 1) "v1" else "v2"
 					Stub(
 						200,
 						headers = mapOf(
@@ -272,24 +268,16 @@ class ReadplaceApiTest {
 
 		val reused = api.loadReadlist()
 		assertEquals("the collection is served from the cache, so its stale action stands", "/queue/save-v1", reused.action("save-article")?.href)
-		assertEquals("an ordinary discovery does not re-read the collection over the network", 1, server.records("/queue").count { it.method == "GET" })
+		assertEquals("an ordinary discovery does not re-read the entry point over the network", 1, server.records("/").count { it.method == "GET" })
 
 		val rediscovered = api.rediscoverReadlist()
 		assertEquals("the fresh network read carries the moved action", "/queue/save-v2", rediscovered.action("save-article")?.href)
-		assertEquals("the rediscovery re-reads the collection over the network", 2, server.records("/queue").count { it.method == "GET" })
-		assertEquals(
-			"a 303 entry redirect is never cached even with max-age, so the entry is re-read on every discovery",
-			3,
-			server.records("/").count { it.method == "GET" },
-		)
+		assertEquals("the rediscovery re-reads the entry point over the network", 2, server.records("/").count { it.method == "GET" })
 
-		val bypass = CacheControl.FORCE_NETWORK.toString()
-		val rediscoveryHops = server.records.takeLast(2)
-		assertEquals(listOf("/", "/queue"), rediscoveryHops.map { it.path })
 		assertEquals(
-			"every rebuilt GET carries the bypass policy, so the redirected collection is never re-read from the stale copy",
-			listOf(bypass, bypass),
-			rediscoveryHops.map { it.header("Cache-Control") },
+			"the rediscovery GET carries the bypass policy, so the collection is never re-read from the stale copy",
+			CacheControl.FORCE_NETWORK.toString(),
+			server.records.last().header("Cache-Control"),
 		)
 	}
 
@@ -707,8 +695,7 @@ class ReadplaceApiTest {
 	fun `loadReadlist projects the root, tabs and readlists the server advertised`() = runTest {
 		server.handle { record ->
 			when (record.path) {
-				"/" -> Stub.redirect(to = "/queue")
-				"/queue" -> Stub.json(
+				"/" -> Stub.json(
 					200,
 					"""
 					{
@@ -1474,8 +1461,7 @@ class ReadplaceApiTest {
 	fun `the local flavor's policy lets the API reach the loopback dev server`() = runTest {
 		server.handle { record ->
 			when (record.path) {
-				"/" -> Stub.redirect(to = "/queue")
-				"/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), total = 1))
+				"/" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), total = 1))
 				else -> Stub.json(404, "{}")
 			}
 		}

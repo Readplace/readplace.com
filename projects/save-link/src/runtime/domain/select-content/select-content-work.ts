@@ -6,7 +6,7 @@ import type { SelectArticleContentDetail, SelectionSourceKind } from "@packages/
 import type { DispatchSelectArticleContent } from "../../dep-bundles/select-article-content-dispatch";
 import { type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
-import { type FetchYouTubeVideoCard, isBlockClassStatus } from "@packages/crawl-article";
+import { type FetchRedditPostCard, type FetchYouTubeVideoCard, isBlockClassStatus } from "@packages/crawl-article";
 import { estimatedReadTimeFromWordCount } from "@packages/finalize-article";
 import { formatErrorLogLine, type Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
@@ -52,6 +52,7 @@ export interface SelectContentDependencies {
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	verifyWrapperSource: VerifyWrapperSource;
 	fetchYouTubeVideoCard: FetchYouTubeVideoCard;
+	fetchRedditPostCard: FetchRedditPostCard;
 	putTierSource: PutTierSource;
 	now: () => Date;
 	logger: Logger;
@@ -107,15 +108,26 @@ function noReadableReason(params: { selection: PreparedContentSelection; saveAtt
 	return { kind: "parse-error", detail };
 }
 
-async function recoverVideoCard(deps: SelectContentDependencies, params: { url: string; saveAttemptId: SaveAttemptId; originalUrl: string }): Promise<VerifiedTierSource | undefined> {
-	const card = await deps.fetchYouTubeVideoCard({ url: params.originalUrl });
+type OEmbedCard = { selectionRule: "video-card-fallback" | "post-card-fallback"; served: string; siteName: string; title: string; excerpt: string; wordCount: number; sourceUrl: string; imageUrl: string | undefined; html: string };
+
+async function fetchOEmbedCard(deps: SelectContentDependencies, originalUrl: string, mode: SelectionMode): Promise<OEmbedCard | undefined> {
+	const video = await deps.fetchYouTubeVideoCard({ url: originalUrl });
+	if (video !== undefined) return { selectionRule: "video-card-fallback", served: "video card", siteName: "YouTube", title: video.title, excerpt: video.excerpt, wordCount: 0, sourceUrl: video.watchUrl, imageUrl: video.posterUrl, html: video.html };
+	if (mode !== "recrawl") return undefined;
+	const post = await deps.fetchRedditPostCard({ url: originalUrl });
+	if (post !== undefined) return { selectionRule: "post-card-fallback", served: "post card", siteName: "Reddit", title: post.title, excerpt: post.excerpt, wordCount: post.wordCount, sourceUrl: post.postUrl, imageUrl: post.posterUrl, html: post.html };
+	return undefined;
+}
+
+async function recoverOEmbedCard(deps: SelectContentDependencies, params: { url: string; saveAttemptId: SaveAttemptId; originalUrl: string; mode: SelectionMode }): Promise<{ card: OEmbedCard; source: VerifiedTierSource } | undefined> {
+	const card = await fetchOEmbedCard(deps, params.originalUrl, params.mode);
 	if (card === undefined) return undefined;
 	const metadata = candidateProvenance({
-		metadata: { title: card.title, siteName: "YouTube", excerpt: card.excerpt, wordCount: 0, estimatedReadTime: estimatedReadTimeFromWordCount(0), imageUrl: card.posterUrl },
-		html: card.html, evaluationHtml: card.html, attemptId: params.saveAttemptId, originalUrl: params.originalUrl, sourceUrl: card.watchUrl, kind: "live", fetchedAt: deps.now().toISOString(), httpStatus: 200,
+		metadata: { title: card.title, siteName: card.siteName, excerpt: card.excerpt, wordCount: card.wordCount, estimatedReadTime: estimatedReadTimeFromWordCount(card.wordCount), imageUrl: card.imageUrl },
+		html: card.html, evaluationHtml: card.html, attemptId: params.saveAttemptId, originalUrl: params.originalUrl, sourceUrl: card.sourceUrl, kind: "live", fetchedAt: deps.now().toISOString(), httpStatus: 200,
 	});
 	const persisted = await deps.putTierSource({ url: params.url, tier: "tier-1", html: card.html, evaluationHtml: card.html, metadata });
-	return { tier: "tier-1", html: card.html, evaluationHtml: card.html, metadata: persisted };
+	return { card, source: { tier: "tier-1", html: card.html, evaluationHtml: card.html, metadata: persisted } };
 }
 
 export function initSelectContentWork(deps: SelectContentDependencies) {
@@ -134,10 +146,10 @@ export function initSelectContentWorkUnderLease(deps: SelectContentDependencies,
 		}
 		const keepRow = params.liveAttempt?.outcome === "deferred" || prepared.legacyCanonicalWithheld;
 		const nothingReadable = prepared.selected === undefined && !keepRow && prepared.selectionRule !== "judge-deferred";
-		const card = nothingReadable ? await recoverVideoCard(deps, { url: params.url, saveAttemptId: params.saveAttemptId, originalUrl: prepared.originalUrl }) : undefined;
-		const selection: PreparedContentSelection = card === undefined ? prepared : {
-			...prepared, selected: card, outcome: "selected", selectionRule: "video-card-fallback", sources: [...prepared.sources, card],
-			readableIds: new Set([...prepared.readableIds, card.metadata.id]), reason: `no readable candidate (${prepared.reason}); served the oEmbed video card`,
+		const recovered = nothingReadable ? await recoverOEmbedCard(deps, { url: params.url, saveAttemptId: params.saveAttemptId, originalUrl: prepared.originalUrl, mode: params.mode }) : undefined;
+		const selection: PreparedContentSelection = recovered === undefined ? prepared : {
+			...prepared, selected: recovered.source, outcome: "selected", selectionRule: recovered.card.selectionRule, sources: [...prepared.sources, recovered.source],
+			readableIds: new Set([...prepared.readableIds, recovered.source.metadata.id]), reason: `no readable candidate (${prepared.reason}); served the oEmbed ${recovered.card.served}`,
 		};
 		const expected = selection.article.contentSelection;
 		const source = selection.selected;

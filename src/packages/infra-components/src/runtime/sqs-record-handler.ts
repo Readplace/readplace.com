@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 import { z } from "zod";
 import type { CommandDefinition } from "../events";
@@ -58,14 +59,20 @@ function toRecordContext(sqsRecord: SQSRecord): RecordContext {
 	};
 }
 
-export function initSqsRecordHandler<D extends CommandDefinition<z.ZodTypeAny>>(deps: {
+type RecordOutcome = "acknowledge" | "retry";
+
+function initRecordLoop<D extends CommandDefinition<z.ZodTypeAny>>(deps: {
 	definition: D;
 	logger: RecordLogger;
 	failure: RecordFailureReport<z.infer<D["detailSchema"]>>;
 	malformed: MalformedRecordPolicy<z.infer<D["detailSchema"]>>;
-	handle: (detail: z.infer<D["detailSchema"]>, record: RecordContext) => Promise<void>;
+	processRecord: (params: {
+		detail: z.infer<D["detailSchema"]>;
+		record: RecordContext;
+		sqsRecord: SQSRecord;
+	}) => Promise<RecordOutcome>;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { definition, logger, failure, malformed, handle } = deps;
+	const { definition, logger, failure, malformed, processRecord } = deps;
 	const malformedReport: RecordFailureReport<z.infer<D["detailSchema"]>> =
 		"message" in malformed || "report" in malformed ? malformed : failure;
 
@@ -80,7 +87,8 @@ export function initSqsRecordHandler<D extends CommandDefinition<z.ZodTypeAny>>(
 				continue;
 			}
 			try {
-				await handle(parsed.detail, record);
+				const outcome = await processRecord({ detail: parsed.detail, record, sqsRecord });
+				if (outcome === "retry") batchItemFailures.push({ itemIdentifier: record.messageId });
 			} catch (error) {
 				await reportFailure({ logger, failure, record, error, detail: parsed.detail });
 				batchItemFailures.push({ itemIdentifier: record.messageId });
@@ -88,4 +96,58 @@ export function initSqsRecordHandler<D extends CommandDefinition<z.ZodTypeAny>>(
 		}
 		return { batchItemFailures };
 	};
+}
+
+export function initSqsRecordHandler<D extends CommandDefinition<z.ZodTypeAny>>(deps: {
+	definition: D;
+	logger: RecordLogger;
+	failure: RecordFailureReport<z.infer<D["detailSchema"]>>;
+	malformed: MalformedRecordPolicy<z.infer<D["detailSchema"]>>;
+	handle: (detail: z.infer<D["detailSchema"]>, record: RecordContext) => Promise<void>;
+}): Handler<SQSEvent, SQSBatchResponse> {
+	const { handle, ...loop } = deps;
+	return initRecordLoop({
+		...loop,
+		processRecord: async ({ detail, record }) => {
+			await handle(detail, record);
+			return "acknowledge";
+		},
+	});
+}
+
+export type RecordSettlement = { kind: "settled" } | { kind: "retry-later" };
+
+export type ChangeVisibility = (params: { receiptHandle: string; visibilityTimeoutSeconds: number }) => Promise<void>;
+
+export function initRetryingSqsRecordHandler<D extends CommandDefinition<z.ZodTypeAny>>(deps: {
+	definition: D;
+	logger: RecordLogger;
+	failure: RecordFailureReport<z.infer<D["detailSchema"]>>;
+	malformed: MalformedRecordPolicy<z.infer<D["detailSchema"]>>;
+	changeVisibility: ChangeVisibility;
+	random: () => number;
+	retryScheduleSeconds: readonly number[];
+	visibilityFailureMessage: string;
+	handle: (detail: z.infer<D["detailSchema"]>, record: RecordContext) => Promise<RecordSettlement>;
+}): Handler<SQSEvent, SQSBatchResponse> {
+	const { handle, changeVisibility, random, retryScheduleSeconds, visibilityFailureMessage, ...loop } = deps;
+	return initRecordLoop({
+		...loop,
+		processRecord: async ({ detail, record, sqsRecord }) => {
+			const settlement = await handle(detail, record);
+			if (settlement.kind === "settled") return "acknowledge";
+			const baseSeconds = retryScheduleSeconds[record.receiveCount - 1];
+			assert(
+				baseSeconds !== undefined,
+				`retry requested on receive ${record.receiveCount}, past a schedule of ${retryScheduleSeconds.length}`,
+			);
+			const visibilityTimeoutSeconds = Math.round(baseSeconds * (0.8 + 0.4 * random()));
+			try {
+				await changeVisibility({ receiptHandle: sqsRecord.receiptHandle, visibilityTimeoutSeconds });
+			} catch (error) {
+				loop.logger.error(visibilityFailureMessage, { messageId: record.messageId, error });
+			}
+			return "retry";
+		},
+	});
 }

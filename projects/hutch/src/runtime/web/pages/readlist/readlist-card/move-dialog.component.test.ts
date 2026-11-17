@@ -138,6 +138,49 @@ describe("renderMoveDialogs", () => {
 		expect(textOf(panel, "[data-test-action='move-confirm']")).toBe("Add");
 	});
 
+	it("lets the reader tick several readlists to add an article to on All, choosing none for them", () => {
+		const panel = moveDialogOf(dialogsFor(moveFromIdeas({ mode: "add" })));
+
+		expect(
+			Array.from(panel.querySelectorAll("[data-test-move-destination] input"), (choice) => ({
+				type: choice.getAttribute("type"),
+				name: choice.getAttribute("name"),
+				value: choice.getAttribute("value"),
+				required: choice.hasAttribute("required"),
+				checked: choice.hasAttribute("checked"),
+				autofocus: choice.hasAttribute("autofocus"),
+			})),
+		).toEqual([
+			{ type: "checkbox", name: "to", value: "finance", required: false, checked: false, autofocus: true },
+			{ type: "checkbox", name: "to", value: "weekend", required: false, checked: false, autofocus: false },
+		]);
+		expect(actionsOf(panel)).toEqual(["move-create", "move-cancel", "move-confirm"]);
+	});
+
+	it("adds an article to the only readlist left on All in one click on its row", () => {
+		const panel = moveDialogOf(dialogsFor(moveFromIdeas({ mode: "add", destinations: [{ slug: WEEKEND, label: "Weekend" }] })));
+
+		const row = panel.querySelector("[data-test-move-destination='weekend']");
+		assert(row, "the only readlist left must be offered");
+		expect(row.tagName.toLowerCase()).toBe("button");
+		expect(row.getAttribute("type")).toBe("submit");
+		expect(row.getAttribute("name")).toBe("to");
+		expect(row.getAttribute("value")).toBe("weekend");
+		expect(row.hasAttribute("autofocus")).toBe(true);
+		expect(row.querySelector(".readlist-row__label")?.textContent).toBe("Weekend");
+		expect(actionsOf(panel)).toEqual(["move-create", "move-cancel"]);
+	});
+
+	it("still asks for one readlist to move an article to when only one is left", () => {
+		const panel = moveDialogOf(dialogsFor(moveFromIdeas({ destinations: [{ slug: WEEKEND, label: "Weekend" }] })));
+
+		const radio = panel.querySelector("[data-test-move-destination='weekend'] input");
+		assert(radio, "the only readlist left must be offered");
+		expect(radio.getAttribute("type")).toBe("radio");
+		expect(radio.hasAttribute("required")).toBe(true);
+		expect(actionsOf(panel)).toEqual(["move-create", "move-cancel", "move-confirm"]);
+	});
+
 	it("opens on the article id so one page of cards keeps its panels apart", () => {
 		const panel = moveDialogOf(dialogsFor(moveFromIdeas()));
 
@@ -415,6 +458,32 @@ describe("renderMoveMenuItems", () => {
 		expect(textOf(items, "[data-test-action='move-fallback']")).toBe("Move");
 	});
 
+	it("lets the fallback select several readlists for an add on All, without the single-choice chevron", () => {
+		const items = itemsFor(moveFromIdeas({ mode: "add" }));
+
+		const select = items.querySelector("select[data-test-move-select]");
+		assert(select, "the fallback must offer a select");
+		expect(select.hasAttribute("multiple")).toBe(true);
+		expect(Array.from(items.querySelectorAll(".form-input__chevron"))).toEqual([]);
+	});
+
+	it("keeps the fallback a single choice for a move, or an add with one readlist left", () => {
+		const selects = [
+			moveFromIdeas(),
+			moveFromIdeas({ mode: "add", destinations: [{ slug: WEEKEND, label: "Weekend" }] }),
+		].map((move) => {
+			const items = itemsFor(move);
+			const select = items.querySelector("select[data-test-move-select]");
+			assert(select, "the fallback must offer a select");
+			return { multiple: select.hasAttribute("multiple"), chevrons: items.querySelectorAll(".form-input__chevron").length };
+		});
+
+		expect(selects).toEqual([
+			{ multiple: false, chevrons: 1 },
+			{ multiple: false, chevrons: 1 },
+		]);
+	});
+
 	it("labels the fallback for an add on All", () => {
 		const items = itemsFor(moveFromIdeas({ mode: "add" }));
 
@@ -435,5 +504,30 @@ describe("renderMoveDialogs opening focus", () => {
 
 		expect(radios).toEqual([true, false]);
 		expect(focusTargets(moveDialogOf(dialogsFor(moveFromIdeas())))).toHaveLength(1);
+	});
+});
+
+describe("move dialog readlist filter", () => {
+	function destinations(count: number): ArticleMoveViewModel["destinations"] {
+		return Array.from({ length: count }, (_unused, index) => ({ slug: ReadlistSlugSchema.parse(`list-${index}`), label: `List ${index}` }));
+	}
+
+	it("offers no filter to a reader choosing among ten readlists", () => {
+		const dialog = moveDialogOf(dialogsFor(moveFromIdeas({ destinations: destinations(10) })));
+
+		expect(dialog.querySelector("[data-test-readlist-filter]")).toBeNull();
+	});
+
+	it("renders a filter above the list, hidden until the page script reveals it, once there are more than ten readlists", () => {
+		const dialog = moveDialogOf(dialogsFor(moveFromIdeas({ destinations: destinations(11) })));
+		const form = dialog.querySelector("[data-test-form='readlist-move']");
+		const filter = dialog.querySelector("[data-test-readlist-filter]");
+
+		assert(form, "the move form must be rendered");
+		assert(filter, "the filter must be rendered");
+		expect(filter.hasAttribute("hidden")).toBe(true);
+		expect(form.hasAttribute("data-readlist-filter-scope")).toBe(true);
+		expect(filter.nextElementSibling?.classList.contains("readlist-move__list")).toBe(true);
+		expect(dialog.querySelectorAll("[data-test-move-destination].readlist-filter__option")).toHaveLength(11);
 	});
 });

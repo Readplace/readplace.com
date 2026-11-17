@@ -80,16 +80,11 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 		});
 		const token = await createAccessToken(harness);
 
-		const entry = await request(harness.server)
-			.get("/")
-			.set("Accept", SIREN_MEDIA_TYPE)
-			.set("Authorization", `Bearer ${token}`)
-			.redirects(0);
-		const collection = await sirenGet(harness, { path: entry.headers.location, token });
-		const readHref = firstReadHref(collection);
+		const entry = await sirenGet(harness, { path: "/", token });
+		const readHref = firstReadHref(entry);
 		const response = await markdownGet(harness, { path: readHref, token });
 
-		expect(entry.status).toBe(303);
+		expect(entry.status).toBe(200);
 		expect(readHref).toBe(`/queue/${id}/view`);
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");

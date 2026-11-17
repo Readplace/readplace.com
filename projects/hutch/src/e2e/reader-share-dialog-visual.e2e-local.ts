@@ -18,17 +18,24 @@ const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
 const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 390, height: 844 };
 const PINNED_SHARE_URL =
-	"https://readplace.com/view/example.com/why-readers-keep-tabs-open?utm_source=share-dialog&utm_medium=copy&utm_campaign=reader-internal";
+	"https://readplace.com/view/example.com/why-readers-keep-tabs-open?utm_source=share-dialog&utm_medium=copy&utm_campaign=reader-internal&utm_content=reader-view";
+const PINNED_ORIGINAL_URL = "https://example.com/why-readers-keep-tabs-open";
 
 const SHARE = '[data-test-action="share-open"]';
+const FAILED_NOTICE = '[data-test-reader-notice][data-reader-status="failed"].article-body__reader-notice--visible';
 const DIALOG = '[data-test-confirm-popover="share"]';
-const FIELD = `${DIALOG} .share-dialog__field`;
-const LINK = `${DIALOG} [data-test-share-url]`;
-const COPY = `${DIALOG} [data-test-share-copy]`;
+const FIELD = `${DIALOG} [data-test-share-link="reader-view"] .share-dialog__field`;
+const LINK = `${DIALOG} [data-test-share-url="reader-view"]`;
+const ORIGINAL_LINK = `${DIALOG} [data-test-share-url="original"]`;
+const COPY = `${DIALOG} [data-test-share-copy="reader-view"]`;
+const FIRST_COPY = `${DIALOG} [data-test-share-copy]`;
+const ROWS = `${DIALOG} [data-test-share-link]`;
+const CHOICES = `${DIALOG} [data-test-share-choice]`;
+const CHOOSE_ORIGINAL = `${DIALOG} [data-test-share-choice="original"]`;
 const COPY_IDLE = `${COPY} [data-share-copy-idle]`;
 const COPY_DONE = `${COPY} [data-share-copy-done]`;
 const STATUS = `${DIALOG} [data-share-status]`;
-const TARGETS = `${DIALOG} [data-test-share-target]`;
+const TARGETS = `${DIALOG} [data-test-share-target]:visible`;
 const CANCEL = `${DIALOG} [data-test-action="share-cancel"]`;
 const AVATAR = `${DIALOG} [data-test-share-avatar]`;
 const SHARE_TARGET_COUNT = 5;
@@ -50,7 +57,11 @@ const VOLATILE_CHROME = [
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededArticle = z.object({ articleId: z.string() });
 
-async function openOwnerReader(page: Page, stamp: string): Promise<void> {
+async function openOwnerReader(
+	page: Page,
+	stamp: string,
+	crawl: "ready" | "failed" = "ready",
+): Promise<void> {
 	const email = `reader-share-dialog-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
@@ -70,6 +81,17 @@ async function openOwnerReader(page: Page, stamp: string): Promise<void> {
 	});
 	assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
 	const { articleId } = SeededArticle.parse(await seeded.json());
+	const settleFailed = async (): Promise<void> => {
+		const url = `https://example.com/reader-share-dialog-${stamp}`;
+		for (const status of [
+			{ url, status: "pending" },
+			{ url, status: "failed", reason: JSON.stringify({ kind: "fetch-failed" }) },
+		]) {
+			const moved = await page.request.post(`${BASE_URL}/e2e/seed-crawl-status`, { data: status });
+			assert.equal(moved.status(), 201, `the crawl-status seed must move the crawl to ${status.status}`);
+		}
+	};
+	if (crawl === "failed") await settleFailed();
 
 	await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
 	await page.locator("#email").fill(email);
@@ -78,7 +100,12 @@ async function openOwnerReader(page: Page, stamp: string): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 
 	await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
-	await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
+	if (crawl === "failed") {
+		await settleFailed();
+		await page.waitForSelector(FAILED_NOTICE);
+	} else {
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
+	}
 }
 
 async function openShareDialog(page: Page): Promise<void> {
@@ -89,8 +116,8 @@ async function openShareDialog(page: Page): Promise<void> {
 		await page.click('[data-test-reader-menu-panel] [data-test-action="menu-share-open"]');
 	}
 	await page.waitForSelector(`${DIALOG}:popover-open`);
-	await expect(page.locator(COPY)).toBeVisible();
-	await expect(page.locator(COPY)).toBeFocused();
+	await expect(page.locator(FIRST_COPY).first()).toBeVisible();
+	await expect(page.locator(FIRST_COPY).first()).toBeFocused();
 	await expect
 		.poll(() =>
 			page.locator(AVATAR).evaluate((avatar: HTMLImageElement) => avatar.complete && avatar.naturalWidth > 0),
@@ -100,15 +127,25 @@ async function openShareDialog(page: Page): Promise<void> {
 
 async function shareDialogSettled(page: Page): Promise<void> {
 	await openShareDialog(page);
-	await page.locator(LINK).evaluate((link: HTMLInputElement, pinned: string) => {
-		link.value = pinned;
-	}, PINNED_SHARE_URL);
+	for (const [selector, pinned] of [
+		[LINK, PINNED_SHARE_URL],
+		[ORIGINAL_LINK, PINNED_ORIGINAL_URL],
+	]) {
+		await page.locator(selector).evaluateAll((links: HTMLInputElement[], value: string) => {
+			for (const link of links) link.value = value;
+		}, pinned);
+	}
 	await page.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
 	await page.mouse.move(0, 0);
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
 async function shareDialogGeometry(page: Page, layout: { padding: number; targetsWrap: boolean }): Promise<void> {
+	assert.deepEqual(
+		await page.locator(ROWS).evaluateAll((rows) => rows.map((row) => row.getAttribute("data-test-share-link"))),
+		["reader-view", "original"],
+		"the dialog must offer the reader view and the original link",
+	);
 	const panel = await measuredBox(page, DIALOG);
 	const targets = await page.locator(TARGETS).evaluateAll((links) =>
 		links.map((link) => {
@@ -166,6 +203,29 @@ async function phoneGeometry(page: Page): Promise<void> {
 	await shareDialogGeometry(page, { padding: PHONE_PADDING_PX, targetsWrap: true });
 }
 
+async function visibleTargetLinks(page: Page): Promise<string[]> {
+	return page.locator(TARGETS).evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+}
+
+async function originalChosenGeometry(page: Page): Promise<void> {
+	const shared = await visibleTargetLinks(page);
+	assert.equal(shared.length, SHARE_TARGET_COUNT, "choosing the original must still offer five share targets");
+	assert.ok(
+		shared.every((href) => !href.includes("utm_content")),
+		"the targets shown after choosing the original must send the untagged original link",
+	);
+}
+
+async function originalOnlyGeometry(page: Page): Promise<void> {
+	assert.deepEqual(
+		await page.locator(ROWS).evaluateAll((rows) => rows.map((row) => row.getAttribute("data-test-share-link"))),
+		["original"],
+		"a reader view that has not loaded must offer the original link alone",
+	);
+	assert.equal(await page.locator(CHOICES).count(), 0, "a lone original link offers no choice");
+	assert.equal((await visibleTargetLinks(page)).length, SHARE_TARGET_COUNT, "the original link keeps five targets");
+}
+
 function checkpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {
 	return {
 		name,
@@ -180,20 +240,41 @@ function checkpoint(name: string, geometry: (page: Page) => Promise<void>): Visu
 const SHARE_DIALOG_LIGHT = checkpoint("reader-share-dialog-light", desktopGeometry);
 const SHARE_DIALOG_DARK = checkpoint("reader-share-dialog-dark", desktopGeometry);
 const SHARE_DIALOG_PHONE = checkpoint("reader-share-dialog-phone", phoneGeometry);
+const SHARE_DIALOG_ORIGINAL_CHOSEN: VisualCheckpoint = {
+	...checkpoint("reader-share-dialog-original-chosen", originalChosenGeometry),
+	settled: async (page) => {
+		await shareDialogSettled(page);
+		await page.locator(CHOOSE_ORIGINAL).check();
+		await page.mouse.move(0, 0);
+	},
+};
+const SHARE_DIALOG_ORIGINAL_ONLY = checkpoint("reader-share-dialog-original-only", originalOnlyGeometry);
 
 test.describe("Reader share dialog", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("offers the founder's note, one copyable link and five targets (light)", async ({ page }, testInfo) => {
+	test("offers the founder's note, the reader view and original links, and five targets (light)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openOwnerReader(page, `light-${testInfo.workerIndex}-${Date.now()}`);
 		await captureCheckpoint(page, SHARE_DIALOG_LIGHT);
 	});
 
-	test("offers the founder's note, one copyable link and five targets (dark)", async ({ page }, testInfo) => {
+	test("offers the founder's note, the reader view and original links, and five targets (dark)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openOwnerReader(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
 		await captureCheckpoint(page, SHARE_DIALOG_DARK);
+	});
+
+	test("sends the original link once the reader chooses it", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openOwnerReader(page, `original-${testInfo.workerIndex}-${Date.now()}`);
+		await captureCheckpoint(page, SHARE_DIALOG_ORIGINAL_CHOSEN);
+	});
+
+	test("offers only the original link while the reader view has not loaded", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openOwnerReader(page, `failed-${testInfo.workerIndex}-${Date.now()}`, "failed");
+		await captureCheckpoint(page, SHARE_DIALOG_ORIGINAL_ONLY);
 	});
 });
 

@@ -73,9 +73,11 @@ export function terminalCard(articleId: string): string {
 	return `${articleCard(articleId)}[data-card-status="terminal"]`;
 }
 
-export function assignButton(slug: string): string {
-	return `button[data-test-assign-readlist="${slug}"]`;
+export function assignCheckbox(slug: string): string {
+	return `input[data-test-assign-readlist="${slug}"]`;
 }
+
+export const ADD_SELECTED_READLISTS = 'button[data-test-action="readlists-add-selected"]';
 
 export function readlistTag(slug: string): string {
 	return `${ARTICLE_HEADER} [data-test-readlist-tag="${slug}"]`;
@@ -124,7 +126,7 @@ export function tabSwitchOp(input: {
 export function assignOp(input: { slug: string }): ScreenResponseOp {
 	return {
 		id: "assign-to-readlist",
-		trigger: assignButton(input.slug),
+		trigger: ADD_SELECTED_READLISTS,
 		predicate: {
 			required: [{ selector: readlistTag(input.slug), laidOut: true }],
 			oneOf: [{ selector: READER_CONTENT, laidOut: true }],

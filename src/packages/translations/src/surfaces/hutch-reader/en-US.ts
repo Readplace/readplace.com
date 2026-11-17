@@ -8,6 +8,17 @@ export const enUS = {
 		highlightToolbar: {
 			beta: "Beta",
 		},
+		highlightNote: {
+			delete: "Delete note",
+		},
+		highlightsRail: {
+			deleteHighlight: "Delete highlight",
+			deleteConfirm: {
+				title: "Delete this highlight?",
+				body: "The passage stays in the article; only your highlight is removed.",
+				bodyWithNote: "The passage stays in the article; your highlight and its note are removed.",
+			},
+		},
 		readerFailed: {
 			title: {
 				linkSaved: "Your link is saved",
@@ -42,8 +53,42 @@ export const enUS = {
 				link: "See ways to save",
 			},
 		},
+		report: {
+			trigger: "Report this article",
+			title: "Report this article",
+			body: "Tell us what's wrong. Every field is optional.",
+			reason: {
+				legend: "What's the problem?",
+				badSummary: "Bad summary",
+				wrongInformation: "Wrong information",
+				spamAbuse: "Spam or abuse",
+				illegalContent: "Illegal content",
+				other: "Other",
+			},
+			details: "Details",
+			email: "Your email (optional)",
+			send: "Send report",
+			cancel: "Cancel",
+			close: "Close",
+			sent: "Thanks, your report was sent.",
+			failed: "Your report couldn't be sent. Try again in a moment.",
+		},
 	},
 	reader: {
+		share: {
+			lead: "Copy a link to this article or send it to an app.",
+			link: {
+				readerView: "Reader view",
+				original: "Original link",
+			},
+			copy: {
+				readerView: "Copy reader view link",
+				original: "Copy original link",
+			},
+			choice: {
+				legend: "Send to an app",
+			},
+		},
 		sharingOff: {
 			privateUpload: {
 				title: "Sharing is off",

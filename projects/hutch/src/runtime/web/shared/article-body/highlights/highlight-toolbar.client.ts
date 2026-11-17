@@ -3,8 +3,8 @@ import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 import { type HighlightPreviews, initHighlightPreviews } from "./highlight-preview.client";
 import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
-import { placeClearOfPassage } from "./place-clear-of-passage";
-import { placeBelowSelection } from "./toolbar-placement-coarse";
+import { placeClearOfPassage, TOOLBAR_GAP_PX } from "./place-clear-of-passage";
+import { placeNearSelection } from "./toolbar-placement-coarse";
 
 export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
 
@@ -13,6 +13,7 @@ export const POINTER_SETTLE_MS = 10;
 
 const CONTENT_SELECTOR = ".article-body__content";
 const TOOLBAR_SELECTOR = "[data-highlight-toolbar]";
+const FLOOR_SELECTOR = "[data-highlight-toolbar-floor]";
 const BUTTON_SELECTOR = "[data-highlight-toolbar-button]";
 const FORM_SELECTOR = "[data-highlight-create-form]";
 const NOTE_INPUT_SELECTOR = "textarea";
@@ -20,6 +21,7 @@ const NOTE_ERROR_SELECTOR = "[data-dialog-form-error]";
 const PASSAGE_REFUSAL = "passage";
 const JUMP_SELECTOR = "[data-highlight-jump]";
 const OPENED_URL_ATTRIBUTE = "data-highlight-opened-url";
+const OWNED_ATTRIBUTE = "data-highlight-toolbar-owned";
 
 export interface ToolbarRect {
 	readonly top: number;
@@ -102,11 +104,14 @@ function startToolbar(input: {
 
 	const isCoarse = (): boolean => deps.window.matchMedia(COARSE_POINTER_QUERY).matches;
 
+	const toolbarOf = (): HTMLElement | null => document.querySelector<HTMLElement>(TOOLBAR_SELECTOR);
+
 	const sentenceTap = initSentenceTap({
 		document,
 		window: deps.window,
 		isPopoverOpen: deps.isPopoverOpen,
 		selectionOf,
+		canHighlight: () => toolbarOf() !== null,
 	});
 
 	const pressOrigin = (range: Range): HighlightCreatedEvent["origin"] => {
@@ -114,15 +119,9 @@ function startToolbar(input: {
 		return isCoarse() ? "longpress" : "mouse";
 	};
 
-	const toolbarOf = (): HTMLElement => {
-		const toolbar = document.querySelector<HTMLElement>(TOOLBAR_SELECTOR);
-		assert(toolbar, "the highlight script ships with its toolbar");
-		return toolbar;
-	};
-
 	const place = (range: Range): void => {
 		const toolbar = toolbarOf();
-		const rects = deps.rectsOf(range);
+		if (toolbar === null) return;
 		const viewport = deps.window.visualViewport;
 		const size = toolbar.getBoundingClientRect();
 		const panel = { width: size.width, height: size.height };
@@ -133,9 +132,15 @@ function startToolbar(input: {
 			offsetTop: viewport.offsetTop,
 		};
 		const { top, left } = isCoarse()
-			? placeBelowSelection({ rects, toolbar: panel, viewport: visible })
+			? placeNearSelection({
+					rects: deps.rectsOf(range),
+					toolbar: panel,
+					viewport: visible,
+					floorTop: document.querySelector(FLOOR_SELECTOR)?.getBoundingClientRect().top,
+				})
 			: placeClearOfPassage({
-					rects,
+					gap: TOOLBAR_GAP_PX,
+					rects: deps.rectsOf(range),
 					panel,
 					viewport: visible,
 					order: ["above", "below"],
@@ -147,27 +152,29 @@ function startToolbar(input: {
 
 	const hide = (): void => {
 		shown = undefined;
-		toolbarOf().hidden = true;
+		const toolbar = toolbarOf();
+		if (toolbar !== null) toolbar.hidden = true;
 	};
 
-	const show = (range: Range): void => {
+	const show = (input: { toolbar: HTMLElement; range: Range }): void => {
 		previews.hide();
-		shown = range;
-		toolbarOf().hidden = false;
-		place(range);
+		shown = input.range;
+		input.toolbar.hidden = false;
+		place(input.range);
 	};
 
 	const check = (): void => {
 		const selection = selectionOf();
 		if (selection.anchorNode === null) return;
 		const content = document.querySelector(CONTENT_SELECTOR);
-		if (selection.isCollapsed || content === null) {
+		const toolbar = toolbarOf();
+		if (selection.isCollapsed || content === null || toolbar === null) {
 			hide();
 			return;
 		}
 		const range = selection.getRangeAt(0).cloneRange();
 		if (passageOf({ range, content }) === undefined) hide();
-		else show(range);
+		else show({ toolbar, range });
 	};
 
 	const scheduleCheck = (delayMs: number): void => {
@@ -230,7 +237,9 @@ function startToolbar(input: {
 	};
 
 	const opened = (input: { highlightId: string | null; origin: HighlightOpenedEvent["origin"] }): void => {
-		const url = toolbarOf().getAttribute(OPENED_URL_ATTRIBUTE);
+		const toolbar = toolbarOf();
+		if (toolbar === null) return;
+		const url = toolbar.getAttribute(OPENED_URL_ATTRIBUTE);
 		assert(url, "the highlight toolbar names its opened beacon");
 		assert(input.highlightId, "an opened highlight carries its id");
 		deps.sendBeacon(`${url}?${new URLSearchParams({ highlight: input.highlightId, origin: input.origin })}`);
@@ -244,13 +253,13 @@ function startToolbar(input: {
 		if (event.key === "Escape") hide();
 	});
 	document.addEventListener("pointerdown", (event) => {
-		if (!event.composedPath().includes(toolbarOf())) hide();
+		const toolbar = toolbarOf();
+		if (toolbar === null || !event.composedPath().includes(toolbar)) hide();
 	});
 	document.addEventListener("htmx:afterSettle", check);
 	document.addEventListener("click", (event) => {
 		const path = event.composedPath();
 		const buttons = Array.from(document.querySelectorAll(BUTTON_SELECTOR));
-		assert(buttons.length > 0, "the highlight toolbar carries its button");
 		const button = buttons.find((candidate) => path.includes(candidate));
 		if (button !== undefined) {
 			press(button);
@@ -280,6 +289,9 @@ function startToolbar(input: {
 
 export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 	const { document } = deps;
+	const root = document.documentElement;
+	if (root.hasAttribute(OWNED_ATTRIBUTE)) return;
+	root.setAttribute(OWNED_ATTRIBUTE, "");
 	let frameRequested = false;
 
 	const selectionOf = (): Selection => {
@@ -300,15 +312,14 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		isFocusVisible: deps.isFocusVisible,
 	});
 
-	const placeToolbar =
-		document.querySelector(TOOLBAR_SELECTOR) === null ? undefined : startToolbar({ deps, previews, selectionOf });
+	const placeToolbar = startToolbar({ deps, previews, selectionOf });
 
 	const reposition = (): void => {
 		if (frameRequested) return;
 		frameRequested = true;
 		deps.window.requestAnimationFrame(() => {
 			frameRequested = false;
-			placeToolbar?.();
+			placeToolbar();
 			previews.reposition();
 		});
 	};

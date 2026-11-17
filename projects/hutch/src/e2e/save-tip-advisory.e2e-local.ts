@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { ADD_ARTICLE_LINK_TAB } from "./page-interactions";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
@@ -33,6 +34,8 @@ test.describe("The save tip meets a reader at the Add link field", () => {
 		await page.waitForLoadState("domcontentloaded");
 
 		await addLink.click();
+		await page.locator(ADD_ARTICLE_LINK_TAB).click();
+		await field.click();
 
 		await expect(dialog).toBeVisible();
 		await expect(saveTip).toBeVisible();
@@ -52,7 +55,7 @@ test.describe("The save tip meets a reader at the Add link field", () => {
 
 		await addLink.click();
 		await expect(dialog).toBeVisible();
-		await expect(field).toBeFocused();
+		await expect(dialog.locator('[data-test-add-article-mode="link"]')).toBeChecked();
 		await expect(field).toHaveValue(draft);
 		await expect(saveTip).toBeHidden();
 
@@ -66,6 +69,7 @@ test.describe("The save tip meets a reader at the Add link field", () => {
 		await expect(form).toHaveAttribute("data-save-tip", "seen");
 
 		await addLink.click();
+		await page.locator(ADD_ARTICLE_LINK_TAB).click();
 		await expect(saveTip).toBeHidden();
 		await field.fill(draft);
 		await dialog.locator('[data-test-action="add-link-save"]').click();
@@ -79,6 +83,8 @@ test.describe("The save tip meets a reader at the Add link field", () => {
 		const saveTip = page.locator("[data-test-confirm-popover='save-tip']");
 
 		await page.locator('[data-test-action="add-link"]').click();
+		await page.locator(ADD_ARTICLE_LINK_TAB).click();
+		await dialog.locator('input[name="url"]').focus();
 		await expect(saveTip).toBeVisible();
 		await page.keyboard.press("Escape");
 

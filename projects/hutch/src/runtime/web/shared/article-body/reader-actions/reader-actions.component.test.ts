@@ -65,7 +65,7 @@ const CREATE = {
 describe("readlists slot", () => {
 	it("gives the slot a stable id and no out-of-band swap inline", () => {
 		const { top } = WebReader({
-			actionBtns: { ...ACTION_BTNS, readlistPicker: { assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE } },
+			actionBtns: { ...ACTION_BTNS, readlistPicker: { assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", choice: "single", filterHtml: "", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE } },
 		});
 
 		const slot = parse(top.to("text/html").body).querySelector("#reader-readlists-slot");
@@ -75,7 +75,7 @@ describe("readlists slot", () => {
 
 	it("swaps the picker out of band with a slug it offers", () => {
 		const slot = parse(
-			renderReaderReadlistsSlotOob({ assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE }),
+			renderReaderReadlistsSlotOob({ assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", choice: "single", filterHtml: "", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE }),
 		).querySelector("#reader-readlists-slot");
 
 		assert(slot, "the slot must render");
@@ -101,6 +101,8 @@ describe("readlist picker", () => {
 				readlistPicker: {
 					assignUrl: "/queue/abc/assign",
 					returnTo: "/queue/abc/view",
+					choice: "single",
+					filterHtml: "",
 					options: [
 						{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" },
 						{ slug: ReadlistSlugSchema.parse("later"), label: "Later", iconName: "file" },
@@ -147,6 +149,56 @@ describe("readlist picker", () => {
 		).toEqual(["work", "later"]);
 	});
 
+	it("lets the reader tick several readlists and add them all with one Add button", () => {
+		const { top } = WebReader({
+			actionBtns: {
+				...ACTION_BTNS,
+				readlistPicker: {
+					assignUrl: "/queue/abc/assign",
+					returnTo: "/queue/abc/view",
+					choice: "several",
+					filterHtml: "",
+					options: [
+						{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" },
+						{ slug: ReadlistSlugSchema.parse("later"), label: "Later", iconName: "file" },
+					],
+					create: CREATE,
+				},
+			},
+		});
+		const doc = parse(top.to("text/html").body);
+
+		const form = doc.querySelector('[data-test-form="readlists-add"]');
+		assert(form, "the several-readlists form must render");
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("action")).toBe("/queue/abc/assign");
+		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none");
+		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe("/queue/abc/view");
+		const submit = form.querySelector('[data-test-action="readlists-add-selected"]');
+		assert(submit, "the form must carry its Add button");
+		expect(submit.getAttribute("type")).toBe("submit");
+		expect(submit.textContent).toBe("Add");
+
+		const choices = Array.from(doc.querySelectorAll("input[data-test-assign-readlist]"));
+		expect(
+			choices.map((box) => box.closest("label")?.querySelector(".article-body__readlists-option-label")?.textContent),
+		).toEqual(["Work", "Later"]);
+		expect(
+			choices.map(
+				(box) =>
+					`${box.getAttribute("type")}:${box.getAttribute("name")}=${box.getAttribute("value")} form=${box.getAttribute("form")}`,
+			),
+		).toEqual([
+			`checkbox:queue=work form=${form.id}`,
+			`checkbox:queue=later form=${form.id}`,
+		]);
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-readlists-row]"), (el) =>
+				el.getAttribute("data-test-readlists-row"),
+			),
+		).toEqual(["work", "later", "create", "add"]);
+	});
+
 	it("opens from a neutral Add to readlist trigger that leads with its plus", () => {
 		const { top } = WebReader({
 			actionBtns: {
@@ -154,6 +206,8 @@ describe("readlist picker", () => {
 				readlistPicker: {
 					assignUrl: "/queue/abc/assign",
 					returnTo: "/queue/abc/view",
+					choice: "single",
+					filterHtml: "",
 					options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }],
 					create: undefined,
 				},
@@ -178,6 +232,8 @@ describe("readlist picker", () => {
 				readlistPicker: {
 					assignUrl: "/queue/abc/assign",
 					returnTo: "/queue/abc/view",
+					choice: "single",
+					filterHtml: "",
 					options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }],
 					create: CREATE,
 				},
@@ -383,10 +439,18 @@ describe("toolbar order", () => {
 		readlistPicker: {
 			assignUrl: "/queue/abc/assign",
 			returnTo: "/queue/abc/view",
+			choice: "single",
+			filterHtml: "",
 			options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }],
 			create: undefined,
 		},
-		share: { popoverId: "reader-share", fallbackHtml: '<p class="share-fixture">The share panel</p>' },
+		share: {
+			popoverId: "reader-share",
+			fallbackHtml: {
+				toolbar: '<p class="share-fixture">The toolbar share panel</p>',
+				menu: '<p class="share-fixture">The menu share panel</p>',
+			},
+		},
 		epubDownloadHref: "/view/example.com/a?format=epub",
 	} satisfies ActionButtons;
 
@@ -444,8 +508,18 @@ describe("toolbar order", () => {
 		expect(fallback.querySelector("summary .sr-only")?.textContent).toBe("Share");
 		expect(fallback.querySelector("summary")?.hasAttribute("aria-disabled")).toBe(false);
 		expect(fallback.querySelector(".article-body__share-fallback-panel")?.innerHTML).toBe(
-			'<p class="share-fixture">The share panel</p>',
+			'<p class="share-fixture">The toolbar share panel</p>',
 		);
+	});
+
+	it("gives the menu's share disclosure the panel rendered for the menu", () => {
+		const doc = parse(
+			RegularReader({ actionBtns: { ...FULL_ACTION_BTNS, menu: { deleteItemsHtml: "" } } }).top.to("text/html").body,
+		);
+
+		expect(
+			doc.querySelector("[data-test-menu-share-fallback] .article-body__menu-fallback-panel")?.innerHTML,
+		).toBe('<p class="share-fixture">The menu share panel</p>');
 	});
 
 	it("draws Mark as a secondary button whose icon follows the direction it marks in", () => {

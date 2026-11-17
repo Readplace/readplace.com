@@ -1,4 +1,4 @@
-# docker-compose.yml: ephemeral self-hosted runner on OrbStack.
+# docker-compose.yml: ephemeral self-hosted runners on OrbStack.
 #
 # Setup:
 #   1. Fine-grained PAT scoped to Readplace/readplace.com with
@@ -8,10 +8,9 @@
 #   2. Write the token ALONE (no KEY= prefix) to gh-pat.env — it is mounted as a
 #      root-only docker secret, never as an env var, so it never reaches a job
 #      (the container's initial env is readable from /proc/1/environ).
-#   3. ./rebuild.sh — wraps `docker compose build && up -d`, passes the pinned
-#      browser image, and prints the recreated container's toolchain; a bare
-#      `up -d` reuses the stale image, and a bare `build` has no browsers.
-#   4. Verify: repo Settings -> Actions -> Runners shows the runner Idle.
+#   3. ./rebuild.sh — a bare `up -d` reuses the stale image, and a bare
+#      `build` has no browsers.
+#   4. Verify: repo Settings -> Actions -> Runners shows each runner Idle.
 #
 # EPHEMERAL=true: runner takes exactly one job, exits, container restarts clean
 # and re-registers. Note this wipes the WORKSPACE, not the named volumes below —
@@ -19,7 +18,7 @@
 # Jobs run as the unprivileged `runner` user (RUN_AS_ROOT=false) so they can read
 # neither /proc/1/environ nor the PAT secret file.
 services:
-  gha-runner:
+  ci-runner:
     build: .
     restart: unless-stopped
     # NET_ADMIN lets entrypoint-secure.sh block job egress to the OrbStack host
@@ -33,8 +32,8 @@ services:
     command: ["./bin/Runner.Listener", "run", "--startuptype", "service"]
     environment:
       REPO_URL: https://github.com/Readplace/readplace.com
-      RUNNER_NAME_PREFIX: orb-m5
-      LABELS: orbstack,docker
+      RUNNER_NAME_PREFIX: local-m5-ci-runner
+      LABELS: ci-runner,orbstack,docker
       EPHEMERAL: "true"
       DISABLE_AUTO_UPDATE: "true"
       RUN_AS_ROOT: "false"
@@ -51,7 +50,7 @@ services:
       NX_MAX_CACHE_SIZE: 5GB
       # Pin the work directory onto the persistent volume (mounted below).
       # Without this the base image derives it from the random ephemeral runner
-      # name (/_work/orb-m5-<random>) — a dir nothing ever deletes, leaking
+      # name — a dir nothing ever deletes, leaking
       # ~1.4 GB per job into the container's writable layer and forcing a full
       # re-clone every job. A fixed path lets each job incrementally fetch.
       RUNNER_WORKDIR: /persist/work
@@ -107,13 +106,13 @@ services:
       # Persistent workspace pinned by RUNNER_WORKDIR above: the checkout lives
       # at /persist/work/readplace.com/readplace.com and survives the ephemeral
       # re-register, so jobs incrementally fetch instead of re-cloning and the
-      # per-job /_work/orb-m5-* leak is gone. The pnpm store also lives here at
+      # per-job /_work leak is gone. The pnpm store also lives here at
       # /persist/pnpm-store (npm_config_store_dir above) so store and workspace
       # share one filesystem — btrfs reflink/hardlink instead of a 735 MB EXDEV
       # copy per install.
       # Single writer only: a fixed workdir is unsafe under
-      # `docker compose --scale gha-runner=N` — each replica would need its own
-      # persist volume. Today there is exactly one runner.
+      # `docker compose --scale` — each replica would need its own
+      # persist volume.
       - persist:/persist
       - ~/ci-frames:/frames
       # NO docker socket. It used to be mounted so detect-projects' save-link
@@ -124,7 +123,35 @@ services:
       # deploy-infra on a github-hosted runner. runner-secret-audit.yml check 7
       # asserts this socket stays unmounted — re-adding it reopens the escape.
 
+  claude-listener-runner:
+    build: .
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/usr/local/bin/entrypoint-secure.sh"]
+    command: ["./bin/Runner.Listener", "run", "--startuptype", "service"]
+    environment:
+      REPO_URL: https://github.com/Readplace/readplace.com
+      RUNNER_NAME_PREFIX: local-m5-claude-listener-runner
+      LABELS: claude-listener-runner
+      EPHEMERAL: "true"
+      DISABLE_AUTO_UPDATE: "true"
+      RUN_AS_ROOT: "false"
+      NX_CACHE_DIRECTORY: /nx/cache
+      NX_WORKSPACE_DATA_DIRECTORY: /nx/workspace-data
+      NX_MAX_CACHE_SIZE: 5GB
+      RUNNER_WORKDIR: /persist/work
+      npm_config_store_dir: /persist/pnpm-store
+    volumes:
+      - ./gh-pat.env:/root/gh-pat.env:ro
+      - claude-listener-runner-toolcache:/opt/hostedtoolcache
+      - claude-listener-runner-nx:/nx
+      - claude-listener-runner-persist:/persist
+
 volumes:
   toolcache:
   nx:
   persist:
+  claude-listener-runner-toolcache:
+  claude-listener-runner-nx:
+  claude-listener-runner-persist:

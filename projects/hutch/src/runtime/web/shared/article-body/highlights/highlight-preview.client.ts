@@ -1,5 +1,10 @@
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
-import { type PassageRect, type PlacementViewport, placeClearOfPassage } from "./place-clear-of-passage";
+import {
+	type PassageRect,
+	type PlacementViewport,
+	placeClearOfPassage,
+	TOOLBAR_GAP_PX,
+} from "./place-clear-of-passage";
 
 export const HOVER_SHOW_MS = 400;
 export const HOVER_GRACE_MS = 300;
@@ -129,6 +134,7 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 		const size = shown.preview.getBoundingClientRect();
 		const viewport = deps.window.visualViewport;
 		const { top, left } = placeClearOfPassage({
+			gap: TOOLBAR_GAP_PX,
 			rects,
 			panel: { width: size.width, height: size.height },
 			viewport: {

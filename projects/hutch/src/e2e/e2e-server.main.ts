@@ -6,11 +6,15 @@ import { Logger, consoleLogger, noopLogger } from '@packages/logger'
 import {
 	calculateReadTime,
 	CRAWL_STAGES,
+	ItemMediaSchema,
+	MAX_UPLOAD_REQUEST_BYTES,
+	ReaderArticleHashId,
 	SaveProvenanceSchema,
 	validateSaveableUrl,
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
 import { type UserId, UserIdSchema } from '@packages/domain/user'
+import { MediaFailureReasonSchema, MediaInspectionFactsSchema, PrivateItemUrlSchema, UploadIdSchema } from '@packages/media-contracts'
 import {
 	ForwardableSenderSchema,
 	GMAIL_HISTORY_IMPORT_OUTCOME_COUNT,
@@ -56,6 +60,8 @@ import {
 import { initUpsertReadlist } from '@packages/save-article'
 import { readNewsletterCatalogSeed } from '../runtime/domain/newsletter-catalog/newsletter-catalog-seed'
 import { createTestApp } from '../runtime/test-app'
+import { initMultipartUpload } from '../runtime/web/pages/import/multipart-upload'
+import { GMAIL_SENDERS_PATH } from '../runtime/web/pages/integrations/gmail.url'
 import { initInMemoryArticleImages } from '../runtime/providers/in-memory-article-images'
 import {
 	createDefaultTestAppFixture,
@@ -177,9 +183,12 @@ const gmailNow = () => {
 	return new Date(lastGmailInstant)
 }
 
+const SEEDED_GMAIL_ACCOUNT_EMAIL = GmailAccountEmailSchema.parse('reader@gmail.com')
+
 const gmailIntegration = initInMemoryGmailIntegration({
 	addresses: fixture.inboxAddress.inboxAddressStore,
 	now: gmailNow,
+	accountEmail: { ok: true, value: SEEDED_GMAIL_ACCOUNT_EMAIL },
 	grant: {
 		ok: true,
 		grant: {
@@ -190,15 +199,34 @@ const gmailIntegration = initInMemoryGmailIntegration({
 	},
 })
 const completeGmailDiscoveryOnStart = new Set<UserId>()
+const completeGmailDiscoveryOnPoll = new Set<UserId>()
+const gmailDiscoveriesAwaitingPoll = new Set<UserId>()
 const recordGmailDiscoveryStart = gmailIntegration.bundle.publishStartGmailSenderDiscovery
 gmailIntegration.bundle.publishStartGmailSenderDiscovery = async (detail) => {
 	await recordGmailDiscoveryStart(detail)
-	if (!completeGmailDiscoveryOnStart.delete(detail.userId)) return
-	const discovery = await gmailIntegration.bundle.gmailDiscoveryStore.findDiscoveryByUserId(detail.userId)
+	if (completeGmailDiscoveryOnPoll.delete(detail.userId)) gmailDiscoveriesAwaitingPoll.add(detail.userId)
+	if (completeGmailDiscoveryOnStart.delete(detail.userId)) await completeGmailDiscovery(detail.userId)
+}
+async function completeGmailDiscovery(userId: UserId) {
+	const found = await gmailIntegration.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId)
+	assert(found)
+	if (found.state !== 'running') {
+		await gmailIntegration.bundle.gmailDiscoveryStore.startDiscovery({
+			userId,
+			accountEmail: found.accountEmail,
+			gatewayAddress: found.gatewayAddress,
+			generation: found.generation,
+			mode: found.mode,
+			historyId: found.historyId,
+			checkedMessageCount: found.checkedMessageCount,
+			resume: found,
+		})
+	}
+	const discovery = await gmailIntegration.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId)
 	assert(discovery)
 	assert(
 		await gmailIntegration.bundle.gmailDiscoveryStore.claimPage({
-			userId: detail.userId,
+			userId,
 			generation: discovery.generation,
 			page: discovery.page,
 		}),
@@ -366,6 +394,16 @@ const { refreshArticleIfStale, publishLinkSaved } =
 // the redirect chain (POST /signup → local checkout → /auth/checkout/success)
 // instead of hitting the unreachable https://checkout.stripe.test domain.
 const e2eStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout`, now: () => new Date() })
+const failNextCheckoutFor = new Set<string>()
+const e2eHostedCheckout: typeof e2eStripe = {
+	...e2eStripe,
+	createCheckoutSession: async (params) => {
+		if (failNextCheckoutFor.delete(params.customerEmail)) {
+			throw new Error('e2e: checkout session creation failed on request')
+		}
+		return e2eStripe.createCheckoutSession(params)
+	},
+}
 
 const e2eLogsInsights = initInMemoryLogsInsights()
 for (const answer of e2eDashboardAnswers()) e2eLogsInsights.answerQuery(answer)
@@ -385,7 +423,7 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		readExcludedIdentities: fixture.adminDashboards.readExcludedIdentities,
 		now: () => E2E_DASHBOARDS_NOW,
 	},
-	hostedCheckout: e2eStripe,
+	hostedCheckout: e2eHostedCheckout,
 	gmailIntegration: gmailIntegration.bundle,
 	newsletterCatalog: {
 		readNewsletterCatalog: readE2eNewsletterCatalog,
@@ -480,6 +518,18 @@ server.post('/e2e/users', async (req, res) => {
 	res.status(201).json(created)
 })
 
+const ExpireAccessTokensBody = z.object({
+	email: z.email(),
+	forget: z.boolean().default(false),
+})
+server.post('/e2e/expire-access-tokens', async (req, res) => {
+	const { email: userEmail, forget } = ExpireAccessTokensBody.parse(req.body)
+	const user = await fixture.auth.findUserByEmail(userEmail)
+	assert(user, `no user registered as ${userEmail}`)
+	const expired = await fixture.oauth.expireUserAccessTokens({ userId: user.userId, forget })
+	res.status(200).json({ expired })
+})
+
 // Expose sent emails for E2E tests (password reset flow needs the reset token from email)
 server.get('/e2e/sent-emails', (_req, res) => {
 	res.json(email.getSentEmails())
@@ -508,10 +558,12 @@ const SeedCrawledArticleBody = z.object({
 	generatedSummary: z.object({ summary: z.string(), excerpt: z.string() }).optional(),
 	summaryState: z
 		.discriminatedUnion('status', [
+			z.object({ status: z.literal('pending') }),
 			z.object({ status: z.literal('failed'), reason: z.string() }),
 			z.object({ status: z.literal('skipped'), reason: z.string() }),
 		])
 		.optional(),
+	media: ItemMediaSchema.pick({ kind: true, fileName: true, transcript: true }).optional(),
 })
 server.post('/e2e/seed-crawled-article', async (req, res) => {
 	const parsed = SeedCrawledArticleBody.safeParse(req.body)
@@ -534,7 +586,33 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		excerpt,
 		generatedSummary,
 		summaryState,
+		media,
 	} = parsed.data
+	const seedSummary = (seededUrl: string) => {
+		if (generatedSummary) summary.markSummaryReady({ url: seededUrl, ...generatedSummary })
+		if (summaryState?.status === 'pending') summary.forceMarkSummaryPending(seededUrl)
+		if (summaryState?.status === 'failed') summary.markSummaryFailed({ url: seededUrl, reason: summaryState.reason })
+		if (summaryState?.status === 'skipped') summary.markSummarySkipped({ url: seededUrl, reason: summaryState.reason })
+	}
+	if (media) {
+		assert(savedByUserId, 'a seeded private upload needs the uploader as savedByUserId')
+		const privateUrl = PrivateItemUrlSchema.parse(url)
+		await fixture.articleStore.savePrivateItem({
+			url: privateUrl,
+			ownerUserId: savedByUserId,
+			media: { kind: media.kind, fileName: media.fileName },
+			savedAt: new Date(savedAt ?? contentFetchedAt),
+		})
+		await fixture.articleStore.writeContent({ url: privateUrl, content })
+		await fixture.articleCrawl.markCrawlReady({ url: privateUrl })
+		if (media.transcript) {
+			await fixture.articleStore.recordTranscriptOutcome({ url: privateUrl, transcript: media.transcript })
+		}
+		seedSummary(privateUrl)
+		await fixture.articleStore.setContentFetchedAt({ url: privateUrl, at: contentFetchedAt })
+		res.status(201).json({ ok: true, articleId: ReaderArticleHashId.from(privateUrl).value })
+		return
+	}
 	const hostname = new URL(url).hostname
 	const metadata = {
 		title,
@@ -564,9 +642,7 @@ server.post('/e2e/seed-crawled-article', async (req, res) => {
 		: undefined
 	await fixture.articleStore.writeContent({ url, content })
 	await fixture.articleCrawl.markCrawlReady({ url })
-	if (generatedSummary) summary.markSummaryReady({ url, ...generatedSummary })
-	if (summaryState?.status === 'failed') summary.markSummaryFailed({ url, reason: summaryState.reason })
-	if (summaryState?.status === 'skipped') summary.markSummarySkipped({ url, reason: summaryState.reason })
+	seedSummary(url)
 	await fixture.articleStore.setContentFetchedAt({ url, at: contentFetchedAt })
 	await fixture.articleStore.setCrawlVersions({
 		url,
@@ -735,7 +811,6 @@ server.post('/e2e/seed-readlist-fit-overrides', async (req, res) => {
 	res.status(201).json({ ok: true })
 })
 
-const SEEDED_GMAIL_ACCOUNT_EMAIL = GmailAccountEmailSchema.parse('reader@gmail.com')
 const MISSING_MAPPING_DESTINATION = InboxAddressSchema.parse('gmail-000000@missing.invalid')
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -905,6 +980,7 @@ const SeedGmailStateBody = z
 		discoveryCheckedMessages: z.number().int().nonnegative().optional(),
 		discoveryEstimatedTotalMessages: z.number().int().nonnegative().optional(),
 		completeDiscoveryOnStart: z.boolean().default(false),
+		completeDiscoveryOnPoll: z.boolean().default(false),
 		filter: SeedGmailFilterSchema.default('live'),
 		readlists: z.array(z.string().min(1)).default([]),
 		senders: z
@@ -1132,6 +1208,9 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 	})
 	await seedGmailDiscovery({ body, gatewayAddress })
 	if (body.completeDiscoveryOnStart) completeGmailDiscoveryOnStart.add(userId)
+	completeGmailDiscoveryOnPoll.delete(userId)
+	gmailDiscoveriesAwaitingPoll.delete(userId)
+	if (body.completeDiscoveryOnPoll) completeGmailDiscoveryOnPoll.add(userId)
 	completeGmailImportOnStart.delete(userId)
 	if (body.completeImportsOnStart !== undefined) completeGmailImportOnStart.set(userId, body.completeImportsOnStart)
 	await connection.beforeSenders(userId)
@@ -1232,6 +1311,7 @@ const SeedSubscriptionStateBody = z.object({
 	cards: z.enum(['primary', 'primary-and-backup']).optional(),
 	nextChargeAt: z.string().optional(),
 	invoices: z.number().int().nonnegative().optional(),
+	checkout: z.enum(['opens', 'fails-next']).optional(),
 })
 server.post('/e2e/seed-subscription-state', async (req, res) => {
 	const parsed = SeedSubscriptionStateBody.safeParse(req.body)
@@ -1239,7 +1319,7 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const { userId, state, at, plan, cards, nextChargeAt, invoices } = parsed.data
+	const { userId, state, at, plan, cards, nextChargeAt, invoices, checkout } = parsed.data
 	const subscriptionId = `e2e-sub-${userId}`
 	const customerId = `e2e-cus-${userId}`
 	if (state === 'trialing') {
@@ -1272,6 +1352,11 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 	}
 	if (invoices !== undefined) {
 		fixture.subscriptionBilling.seedInvoices({ customerId, invoices: e2eInvoices(invoices) })
+	}
+	if (checkout === 'fails-next') {
+		const email = await fixture.auth.findEmailByUserId(userId)
+		assert(email, 'a checkout failure is seeded for an existing user')
+		failNextCheckoutFor.add(email)
 	}
 	res.status(201).json({ ok: true })
 })
@@ -1342,6 +1427,65 @@ server.get('/blog/changelog-banner', (req, res) => {
 		return
 	}
 	res.type('html').send(renderChangelogBannerShell({ banner: E2E_CHANGELOG_BANNER }))
+})
+
+type ReceivedSaveContent = { url: string | undefined; mediaType: string | undefined; contentBytes: number | undefined; contentBase64: string | undefined; status: number }
+const receivedSaveContent: ReceivedSaveContent[] = []
+const saveContentParts = initMultipartUpload({ maxBytes: MAX_UPLOAD_REQUEST_BYTES })
+server.post('/queue/save-content', (req, res, next) => {
+	res.on('finish', () => {
+		const parsed = saveContentParts.parseAllParts(req)
+		const parts = parsed.ok ? parsed.parts : []
+		const textPart = (name: string) => parts.find((part) => part.name === name && !part.isFile)?.content.toString('utf8')
+		const content = parts.find((part) => part.name === 'content' && part.isFile)?.content
+		receivedSaveContent.push({
+			url: textPart('url'),
+			mediaType: textPart('mediaType'),
+			contentBytes: content?.length,
+			contentBase64: content?.toString('base64'),
+			status: res.statusCode,
+		})
+	})
+	next()
+})
+server.get('/e2e/received-save-content', (req, res) => {
+	const url = z.string().parse(req.query.url)
+	res.json(receivedSaveContent.filter((received) => received.url === url))
+})
+
+const mediaUploadParts = initMultipartUpload({ maxBytes: MAX_UPLOAD_REQUEST_BYTES })
+const StagedMediaKey = z.string().regex(/^pending\/[^/]+\/original$/).transform((key) => UploadIdSchema.parse(key.split('/')[1]))
+server.post('/e2e/s3-media', mediaUploadParts.rawBodyParser, (req, res) => {
+	const parsed = mediaUploadParts.parseAllParts(req)
+	assert(parsed.ok, 'the staged media form must arrive as multipart')
+	const textPart = (name: string) => parsed.parts.find((part) => part.name === name && !part.isFile)?.content.toString('utf8')
+	const file = parsed.parts.find((part) => part.name === 'file' && part.isFile)
+	assert(file, 'the staged media form must carry a file')
+	fixture.mediaUpload.receivePendingOriginal({ uploadId: StagedMediaKey.parse(textPart('key')), bytes: file.content })
+	res.redirect(303, z.string().parse(textPart('success_action_redirect')))
+})
+
+const MediaInspectionBody = z.object({
+	uploadId: UploadIdSchema,
+	inspection: z.discriminatedUnion('verdict', [
+		z.object({ verdict: z.literal('inspected'), facts: MediaInspectionFactsSchema }),
+		z.object({ verdict: z.literal('rejected'), reason: MediaFailureReasonSchema, notice: z.string().min(1) }),
+	]),
+})
+server.post('/e2e/media-inspection', async (req, res) => {
+	const parsed = MediaInspectionBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const recorded = await fixture.mediaUpload.recordMediaInspection(parsed.data)
+	res.status(200).json({ recorded })
+})
+
+server.get(GMAIL_SENDERS_PATH, (_req, _res, next) => {
+	const awaiting = [...gmailDiscoveriesAwaitingPoll]
+	gmailDiscoveriesAwaitingPoll.clear()
+	Promise.all(awaiting.map(completeGmailDiscovery)).then(() => next(), next)
 })
 
 server.use(readplaceApp)

@@ -27,7 +27,7 @@ export interface PreparedContentSelection {
 	selected: VerifiedTierSource | undefined;
 	outcome: "selected" | "retained" | "no-readable" | "refused";
 	reason: string;
-	selectionRule: "first-capture" | "superseded-by-canonical" | "direct-resource" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict" | "lone-body" | "lone-error-status" | "judge-deferred" | "video-card-fallback" | "refresh-refused";
+	selectionRule: "first-capture" | "superseded-by-canonical" | "direct-resource" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict" | "lone-body" | "lone-error-status" | "judge-deferred" | "video-card-fallback" | "post-card-fallback" | "refresh-refused";
 	ownCaptureFailed: boolean;
 	readableIds: ReadonlySet<CandidateId>;
 	audit?: SelectionAudit;

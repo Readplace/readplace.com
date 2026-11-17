@@ -28,10 +28,25 @@ export function renderStatusToast(toast: StatusToastModel): string {
 	});
 }
 
+export type MoveUndoFields = { from: string; to: string } | { queue: readonly string[]; returnTo: string };
+
 interface MoveToastModel {
 	message: string;
 	undoUrl: string;
-	undoFields: { from: string; to: string };
+	undoFields: MoveUndoFields;
+}
+
+function moveUndoFields(fields: MoveUndoFields): { name: string; value: string }[] {
+	if ("queue" in fields) {
+		return [
+			...fields.queue.map((queue) => ({ name: "queue", value: queue })),
+			{ name: "returnTo", value: fields.returnTo },
+		];
+	}
+	return [
+		{ name: "from", value: fields.from },
+		{ name: "to", value: fields.to },
+	];
 }
 
 export function renderMoveToast(toast: MoveToastModel): string {
@@ -43,10 +58,7 @@ export function renderMoveToast(toast: MoveToastModel): string {
 				method: "POST",
 				url: withInternalTracking(toast.undoUrl, { source: "queue-toast", content: "undo-move" }),
 				label: "Undo",
-				fields: [
-					{ name: "from", value: toast.undoFields.from },
-					{ name: "to", value: toast.undoFields.to },
-				],
+				fields: moveUndoFields(toast.undoFields),
 			},
 		],
 	});
@@ -55,7 +67,7 @@ export function renderMoveToast(toast: MoveToastModel): string {
 export interface FilingToast {
 	message: string;
 	undoUrl: string;
-	undoFields: { queue: string; returnTo: string };
+	undoFields: { queue: readonly string[]; returnTo: string };
 }
 
 export function renderFilingToast(toast: FilingToast): string {
@@ -68,7 +80,7 @@ export function renderFilingToast(toast: FilingToast): string {
 				url: withInternalTracking(toast.undoUrl, { source: "reader-toast", content: "undo-filing" }),
 				label: "Undo",
 				fields: [
-					{ name: "queue", value: toast.undoFields.queue },
+					...toast.undoFields.queue.map((queue) => ({ name: "queue", value: queue })),
 					{ name: "returnTo", value: toast.undoFields.returnTo },
 				],
 			},

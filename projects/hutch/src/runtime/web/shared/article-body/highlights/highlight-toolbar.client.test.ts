@@ -114,6 +114,8 @@ interface Harness {
 	shownPopovers: Element[];
 	hiddenPopovers: Element[];
 	beacons: string[];
+	initAgain(): void;
+	listenerCounts(): { viewport: number; scroll: number };
 }
 
 function harness(bodyHtml: string = mainHtml()): Harness {
@@ -162,8 +164,10 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		scrollWindow() {
 			for (const entry of scrollListeners) if (entry.passive) entry.listener();
 		},
+		initAgain: () => initHighlightToolbar(deps),
+		listenerCounts: () => ({ viewport: viewportListeners.length, scroll: scrollListeners.length }),
 	};
-	initHighlightToolbar({
+	const deps: Parameters<typeof initHighlightToolbar>[0] = {
 		document: doc,
 		window: {
 			visualViewport: {
@@ -204,7 +208,8 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		hidePopover: (panel) => h.hiddenPopovers.push(panel),
 		isFocusVisible: () => true,
 		sendBeacon: (url) => h.beacons.push(url),
-	});
+	};
+	initHighlightToolbar(deps);
 	const toolbar = doc.querySelector("[data-test-highlight-toolbar]");
 	if (toolbar !== null) {
 		Object.defineProperty(toolbar, "getBoundingClientRect", {
@@ -304,6 +309,12 @@ function markWord(h: Harness, word: string): Element {
 	return mark;
 }
 
+function swapMain(h: Harness, html: string): void {
+	const main = h.doc.querySelector("main");
+	assert(main);
+	main.outerHTML = html;
+}
+
 function formFields(form: HTMLFormElement): Record<string, string> {
 	return Object.fromEntries(Array.from(form.querySelectorAll("input"), (input) => [input.name, input.value]));
 }
@@ -334,6 +345,84 @@ describe("initHighlightToolbar", () => {
 		expect(preview.style.top).toBe(`${500 - 10 - 40}px`);
 
 		expect(h.beacons).toEqual([]);
+	});
+
+	it("on a page without its toolbar, a selection, a press, Escape and a click do nothing", () => {
+		const h = harness(mainHtml({ toolbar: false }));
+		selectWords(h, { from: "beta" });
+		const errors: string[] = [];
+		h.window.addEventListener("error", (event) => {
+			event.preventDefault();
+			errors.push(event.message);
+		});
+
+		settleSelection(h);
+		h.runTimer(POINTER_SETTLE_MS);
+		contentOf(h).dispatchEvent(new h.window.Event("pointerdown", { bubbles: true }));
+		h.doc.dispatchEvent(new h.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+		click(h, contentOf(h));
+
+		expect(errors).toEqual([]);
+		expect(h.submitted).toHaveLength(0);
+		expect(h.doc.getSelection()?.isCollapsed).toBe(false);
+	});
+
+	it("starts working for a reader a swap brings in after the script loaded", () => {
+		const h = harness("<main></main>");
+		swapMain(h, mainHtml());
+		fire(h, "htmx:afterSettle");
+
+		selectWords(h, { from: "beta" });
+		settleSelection(h);
+		expect(toolbarOf(h).hidden).toBe(false);
+		click(h, buttonOf(h));
+
+		expect(h.submitted).toHaveLength(1);
+		expect(h.submitted[0]).toBe(h.doc.querySelector("[data-test-highlight-create-form]"));
+	});
+
+	it("goes quiet when a swap takes the reader away and works on the next one", () => {
+		const h = harness();
+		selectWords(h, { from: "beta" });
+		settleSelection(h);
+		expect(toolbarOf(h).hidden).toBe(false);
+
+		swapMain(h, "<main></main>");
+		const errors: string[] = [];
+		h.window.addEventListener("error", (event) => {
+			event.preventDefault();
+			errors.push(event.message);
+		});
+		h.scrollWindow();
+		h.runFrames();
+		h.doc.body.dispatchEvent(new h.window.Event("pointerdown", { bubbles: true }));
+		click(h, h.doc.body);
+		fire(h, "htmx:afterSettle");
+		expect(errors).toEqual([]);
+		expect(h.submitted).toHaveLength(0);
+
+		swapMain(h, mainHtml());
+		fire(h, "htmx:afterSettle");
+		selectWords(h, { from: "zeta" });
+		settleSelection(h);
+		click(h, buttonOf(h));
+
+		expect(h.submitted).toHaveLength(1);
+		expect(h.submitted[0].isConnected).toBe(true);
+	});
+
+	it("binds only once when the bundle footer runs again", () => {
+		const h = harness();
+		expect(h.doc.documentElement.hasAttribute("data-highlight-toolbar-owned")).toBe(true);
+		expect(h.listenerCounts()).toEqual({ viewport: 2, scroll: 1 });
+
+		h.initAgain();
+
+		expect(h.listenerCounts()).toEqual({ viewport: 2, scroll: 1 });
+		selectWords(h, { from: "beta" });
+		settleSelection(h);
+		click(h, buttonOf(h));
+		expect(h.submitted).toHaveLength(1);
 	});
 
 	it("shows the bar for a selection inside the article, once the selection has rested 100 ms", () => {
@@ -968,50 +1057,49 @@ describe("initHighlightToolbar", () => {
 				return shownAt(h).top;
 			}
 
-			it("sits 10 px below the last rect", () => {
+			it("sits the system menu's height below the selection, centred on it", () => {
 				const h = harness();
 
-				expect(coarseShownAt(h)).toBe(`${320 + 10}px`);
-				expect(toolbarOf(h).style.left).toBe(`${400 + 100 - 60}px`);
+				expect(coarseShownAt(h)).toBe(`${320 + 64}px`);
+				expect(toolbarOf(h).style.left).toBe(`${400 + 200 / 2 - 120 / 2}px`);
 			});
 
-			it("flips above when a visualViewport resize leaves no room below", () => {
+			it("follows the selection through a window scroll", () => {
 				const h = harness();
 				coarseShownAt(h);
-				h.viewport.offsetTop = 0;
-				h.viewport.height = 360;
+				h.rects = [{ top: 100, bottom: 120, left: 400, width: 200 }];
+
+				h.scrollWindow();
+				h.runFrames();
+
+				expect(toolbarOf(h).style.top).toBe(`${120 + 64}px`);
+			});
+
+			it("moves above the selection when a visual viewport resize leaves no room below", () => {
+				const h = harness();
+				coarseShownAt(h);
+				h.viewport.height = 400;
 
 				h.viewport.fire("resize");
 				h.runFrames();
 
-				expect(toolbarOf(h).style.top).toBe(`${300 - 10 - 44}px`);
+				expect(toolbarOf(h).style.top).toBe(`${300 - 64 - 44}px`);
 			});
 
 			it("repositions once for two visualViewport scrolls in one frame", () => {
 				const h = harness();
 				coarseShownAt(h);
-				h.rects = [{ top: 100, bottom: 120, left: 400, width: 200 }];
+				h.rects = [{ top: 600, bottom: 620, left: 400, width: 200 }];
 
 				h.viewport.fire("scroll");
 				h.viewport.fire("scroll");
 				expect(h.frameCount()).toBe(1);
 				h.runFrames();
 
-				expect(toolbarOf(h).style.top).toBe(`${120 + 10}px`);
+				expect(toolbarOf(h).style.top).toBe(`${620 + 64}px`);
 			});
 
-			it("follows the selection on a passive window scroll", () => {
-				const h = harness();
-				coarseShownAt(h);
-				h.rects = [{ top: 200, bottom: 220, left: 400, width: 200 }];
-
-				h.scrollWindow();
-				h.runFrames();
-
-				expect(toolbarOf(h).style.top).toBe(`${220 + 10}px`);
-			});
-
-			it("leaves a hidden bar where it was on a window scroll", () => {
+			it("leaves a hidden bar where it was on a viewport change", () => {
 				const h = harness();
 				coarseShownAt(h);
 				h.doc.dispatchEvent(
@@ -1020,12 +1108,39 @@ describe("initHighlightToolbar", () => {
 						bubbles: true,
 					}),
 				);
-				h.rects = [{ top: 200, bottom: 220, left: 400, width: 200 }];
+				h.viewport.height = 400;
 
-				h.scrollWindow();
+				h.viewport.fire("resize");
 				h.runFrames();
 
-				expect(toolbarOf(h).style.top).toBe(`${320 + 10}px`);
+				expect(toolbarOf(h).style.top).toBe(`${320 + 64}px`);
+			});
+
+			it("docks to the bottom for a selection that fills the screen", () => {
+				const h = harness();
+				h.rects = [{ top: 20, bottom: 780, left: 0, width: 1000 }];
+
+				expect(coarseShownAt(h)).toBe(`${800 - 16 - 44}px`);
+			});
+
+			it("docks to the bottom for a selection whose range reports no rects", () => {
+				const h = harness();
+				h.rects = [];
+
+				expect(coarseShownAt(h)).toBe(`${800 - 16 - 44}px`);
+				expect(toolbarOf(h).hidden).toBe(false);
+			});
+
+			it("moves above the selection when the slot below would cross a bottom bar the page marks", () => {
+				const h = harness(`${mainHtml()}<aside data-highlight-toolbar-floor></aside>`);
+				const floor = h.doc.querySelector("[data-highlight-toolbar-floor]");
+				assert(floor);
+				Object.defineProperty(floor, "getBoundingClientRect", {
+					value: () => ({ top: 400 }),
+					configurable: true,
+				});
+
+				expect(coarseShownAt(h)).toBe(`${300 - 64 - 44}px`);
 			});
 
 			it("submits a long-pressed selection with origin longpress", () => {

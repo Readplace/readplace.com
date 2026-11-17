@@ -40,6 +40,7 @@ import {
 	type ReadlistSlug,
 	type ReadlistRef,
 	decideReadlistArticleMove,
+	type ReadlistArticleMoveDecision,
 	readlistsHoldingArticle,
 } from "@packages/domain/readlist";
 import {
@@ -78,6 +79,7 @@ import {
 import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
 import { type ReadlistShared, SaveArticleReadlistsSchema, isAppPlatform, readerReadlistFilingFrom, } from "./readlist-shared";
+import { ReadlistSlugsSchema } from "./readlist-slugs";
 
 /** Minute-precision UTC id as recorded in the crawl-version log, e.g.
  * "2026-07-10T09:41Z" — the value the reader's remove-version form submits. */
@@ -86,7 +88,9 @@ const CrawlVersionMinuteIdSchema = z
 	.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/);
 
 const ArticleMoveBodySchema = z.union([
-	z.object({ from: ReadlistSlugSchema, to: ReadlistSlugSchema }),
+	z
+		.object({ from: ReadlistSlugSchema, to: ReadlistSlugsSchema })
+		.refine((body) => body.to.length === 1 || body.from === DEFAULT_READLIST_SLUG),
 	z.object({ from: ReadlistSlugSchema, label: z.string() }),
 ]);
 
@@ -108,9 +112,9 @@ export function initReadlistCardRoutes(
 		res.redirect(303, APP_BACK_LINK.topHref);
 	};
 
-	const filedLanding = (returnTo: unknown, slug: ReadlistSlug): string => {
+	const filedLanding = (returnTo: unknown, slugs: readonly ReadlistSlug[]): string => {
 		const landing = new URL(safeReturnPath(returnTo), deps.appOrigin);
-		landing.searchParams.set(FILED_READLIST_PARAM, slug);
+		for (const slug of slugs) landing.searchParams.append(FILED_READLIST_PARAM, slug);
 		return `${landing.pathname}${landing.search}`;
 	};
 
@@ -428,25 +432,30 @@ export function initReadlistCardRoutes(
 				);
 				return;
 			}
-			const parsedReadlist = ReadlistSlugSchema.safeParse(req.body?.queue);
-			if (!parsedId.success || !parsedReadlist.success || parsedReadlist.data === DEFAULT_READLIST_SLUG) {
+			const parsedReadlists = ReadlistSlugsSchema.safeParse(req.body?.queue);
+			if (!parsedId.success || !parsedReadlists.success) {
 				res.status(404).type("html").send("");
 				return;
 			}
 			const definitions = await deps.listReadlistDefinitions(userId);
-			const target = definitions.find((definition) => definition.slug === parsedReadlist.data);
-			if (!target) {
+			const owned = new Set(definitions.map((definition) => definition.slug));
+			if (!parsedReadlists.data.every((slug) => owned.has(slug))) {
 				res.status(404).type("html").send("");
 				return;
 			}
+			const targets = [...new Set(parsedReadlists.data)];
 			const article = await deps.findArticleById(parsedId.data, userId);
 			if (article) {
-				const { assigned } = await deps.addArticleToReadlist({
-					userId,
-					readlist: target.slug,
-					from: DEFAULT_READLIST_SLUG,
-					url: article.url,
-				});
+				const filed: ReadlistSlug[] = [];
+				for (const target of targets) {
+					const { assigned } = await deps.addArticleToReadlist({
+						userId,
+						readlist: target,
+						from: DEFAULT_READLIST_SLUG,
+						url: article.url,
+					});
+					if (assigned) filed.push(target);
+				}
 				if (req.get("HX-Request") === "true" && req.query.swap === "filing") {
 					const returnPath = safeReturnPath(req.body.returnTo);
 					const returnQuery = new URL(returnPath, deps.appOrigin).searchParams;
@@ -472,7 +481,7 @@ export function initReadlistCardRoutes(
 						saves,
 						signals,
 						returnTo: returnPath,
-						filed: assigned && !appSurface ? target.slug : undefined,
+						filed: appSurface ? [] : filed,
 					});
 					res
 						.set("HX-Reswap", "none show:none")
@@ -489,8 +498,8 @@ export function initReadlistCardRoutes(
 						);
 					return;
 				}
-				if (assigned) {
-					res.redirect(303, filedLanding(req.body.returnTo, target.slug));
+				if (filed.length > 0) {
+					res.redirect(303, filedLanding(req.body.returnTo, filed));
 					return;
 				}
 			}
@@ -547,7 +556,7 @@ export function initReadlistCardRoutes(
 						from: DEFAULT_READLIST_SLUG,
 						url: article.url,
 					});
-					land({ path: assigned ? filedLanding(returnTo, outcome.readlist.slug) : returnTo, scroll: "stay-put" });
+					land({ path: assigned ? filedLanding(returnTo, [outcome.readlist.slug]) : returnTo, scroll: "stay-put" });
 					return;
 				}
 				case "invalid-name":
@@ -585,9 +594,11 @@ export function initReadlistCardRoutes(
 			);
 			return;
 		}
-		const parsedReadlist = ReadlistSlugSchema.safeParse(req.body?.queue);
-		if (parsedId.success && parsedReadlist.success && parsedReadlist.data !== DEFAULT_READLIST_SLUG) {
-			await deleteArticleFromReadlistFor(parsedReadlist.data)({ articleId: parsedId.data, userId });
+		const parsedReadlists = ReadlistSlugsSchema.safeParse(req.body?.queue);
+		if (parsedId.success && parsedReadlists.success) {
+			for (const slug of new Set(parsedReadlists.data)) {
+				if (slug !== DEFAULT_READLIST_SLUG) await deleteArticleFromReadlistFor(slug)({ articleId: parsedId.data, userId });
+			}
 		}
 		res.redirect(303, safeReturnPath(req.body.returnTo));
 	});
@@ -630,38 +641,39 @@ export function initReadlistCardRoutes(
 				return;
 			}
 			const moveInto = async (destination: {
-				to: ReadlistSlug;
+				to: readonly ReadlistSlug[];
 				readlists: readonly ReadlistRef[];
 			}): Promise<void> => {
-				const decision = decideReadlistArticleMove({
-					from,
-					to: destination.to,
-					readlists: destination.readlists,
-					saves,
-				});
-				if (!decision.ok) {
-					land(
-						decision.reason === "unknown-readlist"
-							? {
-									path: buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_UNKNOWN_READLIST]]),
-									scroll: "top",
-								}
-							: quietLanding,
-					);
-					return;
+				const accepted: Extract<ReadlistArticleMoveDecision, { ok: true }>[] = [];
+				for (const to of destination.to) {
+					const decision = decideReadlistArticleMove({ from, to, readlists: destination.readlists, saves });
+					if (!decision.ok) {
+						land(
+							decision.reason === "unknown-readlist"
+								? {
+										path: buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_UNKNOWN_READLIST]]),
+										scroll: "top",
+									}
+								: quietLanding,
+						);
+						return;
+					}
+					accepted.push(decision);
 				}
-				if (decision.copyInto !== undefined) {
-					await deps.addArticleToReadlist({ userId, readlist: decision.copyInto, from, url });
-				}
-				if (decision.removeFrom !== undefined) {
-					await deleteArticleFromReadlistFor(decision.removeFrom)({ articleId, userId });
+				for (const decision of accepted) {
+					if (decision.copyInto !== undefined) {
+						await deps.addArticleToReadlist({ userId, readlist: decision.copyInto, from, url });
+					}
+					if (decision.removeFrom !== undefined) {
+						await deleteArticleFromReadlistFor(decision.removeFrom)({ articleId, userId });
+					}
 				}
 				land({
 					path: buildReadlistUrl(context.state, [
 						...collectUtmParams(req.query),
 						["moved_article", articleId.value],
 						["moved_from", from],
-						["moved_to", destination.to],
+						...accepted.map((decision): [string, string] => ["moved_to", decision.to]),
 					]),
 					scroll: "stay-put",
 				});
@@ -692,7 +704,7 @@ export function initReadlistCardRoutes(
 						refuse("name-taken");
 						return;
 					}
-					await moveInto({ to: outcome.readlist.slug, readlists: [...context.readlists, outcome.readlist] });
+					await moveInto({ to: [outcome.readlist.slug], readlists: [...context.readlists, outcome.readlist] });
 					return;
 				case "invalid-name":
 				case "reserved-name":
