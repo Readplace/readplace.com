@@ -30,21 +30,13 @@ class NativeRefreshRecoveryTest {
 	}
 	@get:Rule val serverRule = MockWebServerRule()
 	private val server get() = serverRule.server
-	private class Storage : AuthRecordStorage {
-		var value: String? = null
-		var fail = false
-		var rejectReplacement = false
-		override fun read() = value
-		override fun write(value: String) { if (fail || (rejectReplacement && value.contains("new-access"))) throw java.io.IOException("unavailable"); this.value = value }
-		override fun <T> locked(work: () -> T): T = synchronized(this) { work() }
-	}
 	private class Legacy : TokenStorage {
 		val values = mutableMapOf<TokenKey, String>()
 		override fun readValue(key: TokenKey) = Result.success(values[key])
 		override fun setValue(key: TokenKey, value: String) { values[key] = value }
 		override fun removeValue(key: TokenKey) { values.remove(key) }
 	}
-	private fun records(storage: Storage = Storage(), legacy: Legacy = Legacy()) = NativeAuthRecords(storage, legacy)
+	private fun records(storage: InMemoryAuthRecordStorage = InMemoryAuthRecordStorage(), legacy: Legacy = Legacy()) = NativeAuthRecords(storage, legacy)
 	private fun recovery(records: NativeAuthRecords, proof: NativeProof = NativeProof { "test-proof" }) = NativeRefreshRecovery(
 		ServerEndpoints(server.url("/").toString().removeSuffix("/")), records, OkHttpClient(), proof, "117", AuthSurface.APP)
 	private val old = OAuthTokens(AccessToken("old-access"), RefreshToken("old-refresh"))
@@ -74,7 +66,7 @@ class NativeRefreshRecoveryTest {
 	}
 
 	@Test fun `lost response resumes pending operation after coordinator recreation`() = runTest {
-		val storage = Storage(); val records = records(storage); records.replace(old)
+		val storage = InMemoryAuthRecordStorage(); val records = records(storage); records.replace(old)
 		val operation = records.prepare(old)
 		server.enqueue(MockResponse.Builder().code(503).body("temporarily unavailable").build())
 		assertTrue(runCatching { recovery(records).refresh(old) }.isFailure)
@@ -98,7 +90,7 @@ class NativeRefreshRecoveryTest {
 	}
 
 	@Test fun `failed durable write retains legacy credentials for retry`() {
-		val storage = Storage(); val legacy = Legacy()
+		val storage = InMemoryAuthRecordStorage(); val legacy = Legacy()
 		legacy.setValue(TokenKey.ACCESS_TOKEN, "old-access"); legacy.setValue(TokenKey.REFRESH_TOKEN, "old-refresh")
 		val records = records(storage, legacy); storage.fail = true
 		assertTrue(runCatching { records.prepare(old) }.isFailure)
@@ -137,7 +129,7 @@ class NativeRefreshRecoveryTest {
 	}
 
 	@Test fun `failed replacement commit keeps pending operation and records the failure`() = runTest {
-		val storage = Storage(); val records = records(storage); records.replace(old)
+		val storage = InMemoryAuthRecordStorage(); val records = records(storage); records.replace(old)
 		val operation = records.prepare(old); storage.rejectReplacement = true
 		server.enqueue(success(operation.id))
 		assertTrue(runCatching { recovery(records).refresh(old) }.isFailure)
@@ -196,6 +188,30 @@ class NativeRefreshRecoveryTest {
 		assertEquals("Bearer login-permit", uploaded?.headers?.get("Authorization"))
 		assertEquals("login-permit", records.read().diagnosticsPermit)
 		assertTrue(uploaded?.body?.utf8()?.contains("login_completed") == true)
+	}
+
+	@Test fun `an event recorded for another surface carries it and the next carries the recovery's own`() {
+		val records = records(); val client = recovery(records)
+		client.record(AuthEvent.CONTEXT_STARTED, surface = AuthSurface.SHARE)
+		client.record(AuthEvent.CONTEXT_STARTED)
+		val entries = records.read().diagnostics
+		assertEquals(listOf(AuthSurface.SHARE, AuthSurface.APP), entries.map { it.event.surface })
+		assertEquals(entries[0].event.context_id, entries[1].event.context_id)
+	}
+
+	@Test fun `a share event recorded through OAuth uploads with the share surface`() {
+		val legacy = Legacy(); val records = records(legacy = legacy); val store = TokenStore(legacy, records)
+		val recovery = recovery(records)
+		records.update { it.diagnosticsPermit = "share-permit" }
+		val oauth = OAuth(ServerEndpoints(server.url("/").toString().removeSuffix("/")), store, OkHttpClient(), "Readplace/117", recovery)
+		server.enqueue(MockResponse.Builder().code(202).body("""{"accepted_event_ids":[]}""").build())
+		oauth.recordAuthEvent(AuthEvent.CONTEXT_STARTED, surface = AuthSurface.SHARE)
+		val uploaded = requireNotNull(server.takeRequest(2, java.util.concurrent.TimeUnit.SECONDS))
+		assertEquals("/diagnostics/auth", uploaded.url.encodedPath)
+		val events = requireNotNull(Json.parseToJsonElement(requireNotNull(uploaded.body).utf8()).jsonObject["events"]).jsonArray
+		assertEquals(listOf("context_started" to "share"), events.map {
+			requireNotNull(it.jsonObject["event"]).jsonPrimitive.content to requireNotNull(it.jsonObject["surface"]).jsonPrimitive.content
+		})
 	}
 
 	@Test fun `transport failure keeps parent and prepared operation`() = runTest {
