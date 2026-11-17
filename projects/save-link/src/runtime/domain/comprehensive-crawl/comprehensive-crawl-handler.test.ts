@@ -1435,15 +1435,31 @@ describe("OCR page allowance", () => {
 		expect(published).toContainEqual({ detailType: TierContentExtractedEvent.detailType, detail: expect.objectContaining({ candidates: refs, saveAttemptId: "save" }) });
 	});
 
-	it.each(["save", "recrawl"] as const)("leaves a PDF with no saver awaiting a reader (trigger=%s), refunding the paid slot", async (trigger) => {
+	it("leaves a saved PDF with no saver awaiting a reader, refunding the paid slot", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const refundPaidCrawlBudget = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({ crawlArticle: awaitingSaver, transitionAndPersist, refundPaidCrawlBudget });
 
-		await handler(createSqsEvent({ url, trigger }), buildLambdaContext(), () => {});
+		await handler(createSqsEvent({ url, trigger: "save" }), buildLambdaContext(), () => {});
 
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
 		expect(refundPaidCrawlBudget).toHaveBeenCalledTimes(1);
+	});
+
+	it("lets an operator's recrawl, which names no saver, run OCR without charging an account", async () => {
+		const chargeOcrPagesFor = jest.fn();
+		const charges: unknown[] = [];
+		const crawlArticle: CrawlArticle = async (params) => {
+			assert.ok(params.chargeOcrPages);
+			charges.push(await params.chargeOcrPages({ pages: 300 }));
+			return successfulComprehensiveCrawl(params);
+		};
+		const handler = createHandler({ crawlArticle, chargeOcrPagesFor });
+
+		await handler(createSqsEvent({ url, trigger: "recrawl" }), buildLambdaContext(), () => {});
+
+		expect(charges).toEqual([{ allowed: true }]);
+		expect(chargeOcrPagesFor).not.toHaveBeenCalled();
 	});
 
 	it("writes nothing for a refresh of a PDF with no saver", async () => {

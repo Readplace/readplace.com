@@ -24,14 +24,14 @@ export function initRecrawlLinkInitiatedHandler(deps: RunCrawlFromTier1Deps & {
 		failure: { report: ({ record, error }) => logRecordFailure({ logger, logPrefix, record, error }) },
 		malformed: { policy: "retry" },
 		handle: async (detail, record) => {
-			const { saveAttemptId } = detail;
+			const { saveAttemptId, requester } = detail;
 
 			logger.info("[RecrawlLinkInitiated] processing", { url: detail.url });
 			const identity = await deps.prepareArticleIdentity(detail.url);
 			assert(identity.status === "resolved", "recrawl original identity is unresolved");
 
 			try {
-				const extracted = await runCrawlFromTier1({ url: detail.url, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl, userId: undefined });
+				const extracted = await runCrawlFromTier1({ url: detail.url, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl, userId: requester.kind === "reader" ? requester.userId : undefined });
 				if (extracted === undefined) return;
 
 				await publishEvent(RecrawlContentExtractedEvent, {

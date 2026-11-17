@@ -64,6 +64,7 @@ export type PublishComputeRelatedPastReads = (params: {
 export type PublishRecrawlLinkInitiated = (params: {
 	url: string;
 	saveAttemptId: SaveAttemptId;
+	requester: { kind: "operator" };
 }) => Promise<void>;
 
 export type PublishRemoveMyContent = (params: {

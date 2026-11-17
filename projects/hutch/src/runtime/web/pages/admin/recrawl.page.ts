@@ -285,7 +285,7 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies, resolveStoredArtic
 		// publishes CanonicalContentChanged, whose subscriber re-primes and
 		// regenerates the summary, so wiping it here would be redundant.
 		await deps.forceMarkCrawlPending({ url: articleUrl });
-		await deps.publishRecrawlLinkInitiated({ url: articleUrl, saveAttemptId: newSaveAttemptId() });
+		await deps.publishRecrawlLinkInitiated({ url: articleUrl, saveAttemptId: newSaveAttemptId(), requester: { kind: "operator" } });
 
 		res.redirect(303, `${recrawlPathFor(articleUrl)}&started=1`);
 	};

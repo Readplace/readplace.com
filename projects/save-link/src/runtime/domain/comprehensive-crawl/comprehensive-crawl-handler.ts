@@ -49,6 +49,8 @@ const REFUNDED_CRAWL_STATUSES: ReadonlySet<Awaited<ReturnType<CrawlArticle>>["st
 
 const RecordedComprehensiveCandidate = z.object({ id: CandidateIdSchema, tier: z.literal("tier-1") });
 
+const chargeNoAccountForAnOperatorRecrawl: ChargeOcrPages = async () => ({ allowed: true });
+
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComprehensiveCrawlHandler(deps: {
 	resolveOriginalUrl: (url: string) => Promise<string>;
@@ -319,7 +321,9 @@ export function initComprehensiveCrawlHandler(deps: {
 						permit,
 						url: identity.originalUrl,
 						previousBodyHash,
-						chargeOcrPages: userId === undefined ? undefined : chargeOcrPagesFor({ userId, claimId: record.messageId }),
+						chargeOcrPages: userId !== undefined
+							? chargeOcrPagesFor({ userId, claimId: record.messageId })
+							: trigger === "recrawl" ? chargeNoAccountForAnOperatorRecrawl : undefined,
 						...(runCandidates !== undefined ? { retainResponseBody: true } : {}),
 						onProgress: ({ partIndex, partCount, stage }) => {
 							const effectiveStage = stage ?? "comprehensive-extracting";

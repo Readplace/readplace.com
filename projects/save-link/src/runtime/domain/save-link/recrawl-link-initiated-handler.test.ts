@@ -24,7 +24,7 @@ function createSqsEvent(detail: { url: string }): SQSEvent {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail: { ...detail, saveAttemptId: "attempt-1" } }),
+			body: JSON.stringify({ detail: { ...detail, saveAttemptId: "attempt-1", requester: { kind: "operator" } } }),
 			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",

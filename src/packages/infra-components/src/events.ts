@@ -576,6 +576,10 @@ export const RecrawlLinkInitiatedEvent = defineEvent({
 	detailSchema: z.object({
 		url: z.string(),
 		saveAttemptId: SaveAttemptIdSchema,
+		requester: z.discriminatedUnion("kind", [
+			z.object({ kind: z.literal("operator") }),
+			z.object({ kind: z.literal("reader"), userId: UserIdSchema }),
+		]),
 	}),
 });
 export type RecrawlLinkInitiatedDetail = z.infer<

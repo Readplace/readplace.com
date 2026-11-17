@@ -393,7 +393,7 @@ describe("createFakePublishRecrawlLinkInitiated", () => {
 		};
 		const publish = createFakePublishRecrawlLinkInitiated(apply);
 
-		await publish({ url: "https://example.com/x", saveAttemptId: SaveAttemptIdSchema.parse("attempt-1") });
+		await publish({ url: "https://example.com/x", saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"), requester: { kind: "operator" } });
 
 		expect(calls).toEqual(["https://example.com/x"]);
 	});
