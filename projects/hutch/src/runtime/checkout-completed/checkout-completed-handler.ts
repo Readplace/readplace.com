@@ -3,7 +3,6 @@ import { EventEnvelope } from "@packages/domain/event-envelope";
 import { CheckoutCompletedEvent } from "@packages/infra-components";
 import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
 import type { ActivateCheckout } from "../domain/subscription/activate-checkout";
 
 export function initCheckoutCompletedHandler(deps: {
@@ -18,7 +17,7 @@ export function initCheckoutCompletedHandler(deps: {
 		handle: async (detail, record) => {
 			const { time: eventTime } = EventEnvelope.parse(JSON.parse(record.body));
 			const activation = await deps.activateCheckout({
-				checkoutSessionId: CheckoutSessionIdSchema.parse(detail.checkoutSessionId),
+				checkoutSessionId: detail.checkoutSessionId,
 				subscriptionId: detail.subscriptionId,
 				customerId: detail.customerId,
 				amountTotal: detail.amountTotal,
@@ -33,7 +32,7 @@ export function initCheckoutCompletedHandler(deps: {
 				return;
 			}
 			if (activation.outcome === "predates-status") {
-				deps.logger.info("[checkout-completed] message predates row status — noop", {
+				deps.logger.warn("[checkout-completed] message predates row status — noop; the reader paid in Stripe, so check the Stripe subscription by hand", {
 					checkoutSessionId: detail.checkoutSessionId,
 					subscriptionId: detail.subscriptionId,
 					eventTime,

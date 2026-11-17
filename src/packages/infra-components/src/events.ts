@@ -6,6 +6,7 @@ import {
 	PrivateItemUrlSchema,
 	UploadIdSchema,
 } from "@packages/media-contracts";
+import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
 import { z } from "zod";
 
 type EventDefinition<T extends z.ZodTypeAny> = {
@@ -953,7 +954,7 @@ export const CheckoutCompletedEvent = defineEvent({
 	source: "hutch.subscriptions",
 	detailType: "CheckoutCompleted",
 	detailSchema: z.object({
-		checkoutSessionId: z.string().min(1),
+		checkoutSessionId: CheckoutSessionIdSchema,
 		subscriptionId: z.string(),
 		customerId: z.string(),
 		amountTotal: z.number().int().nonnegative(),

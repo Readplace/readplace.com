@@ -1,11 +1,12 @@
 import assert from "node:assert";
 import { z } from "zod";
 import { CheckoutCompletedEvent } from "@packages/infra-components";
+import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { StripeEventHandler } from "../stripe-webhook-receiver-handler";
 
 const CheckoutSessionPayload = z.object({
-	id: z.string(),
+	id: CheckoutSessionIdSchema,
 	mode: z.string(),
 	status: z.string(),
 	payment_status: z.enum(["paid", "unpaid", "no_payment_required"]),

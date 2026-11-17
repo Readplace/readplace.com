@@ -374,7 +374,7 @@ describe("initDynamoDbPendingSignup", () => {
 			expect(update?.ReturnValuesOnConditionCheckFailure).toBe("ALL_OLD");
 		});
 
-		it("answers already-activated with the stored return URL when an earlier arrival claimed the row", async () => {
+		it("answers already-activated with the stored return URL when an earlier arrival claimed the row, reading the refused row in DynamoDB's marshalled { S } shape because the document client does not unmarshall ReturnValuesOnConditionCheckFailure", async () => {
 			const { client } = createClient(() => {
 				throw conditionFailed({
 					checkoutSessionId: { S: SESSION_ID },

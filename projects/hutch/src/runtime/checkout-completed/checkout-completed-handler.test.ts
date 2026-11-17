@@ -30,6 +30,7 @@ async function buildWorld() {
 	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => clock });
 	const trialScheduler = initInMemoryTrialScheduler();
 	const recorded: SubscriptionLogEvent[] = [];
+	const warnings: unknown[][] = [];
 	await subscriptionProviders.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_AT });
 	await pendingSignup.storePendingSignup({
 		checkoutSessionId: SESSION_ID,
@@ -58,7 +59,10 @@ async function buildWorld() {
 		logError: () => {},
 		now: () => NOW,
 	});
-	const handler = initCheckoutCompletedHandler({ activateCheckout, logger: Logger.from(noopLogger) });
+	const handler = initCheckoutCompletedHandler({
+		activateCheckout,
+		logger: Logger.from({ ...noopLogger, warn: (...args: unknown[]) => warnings.push(args) }),
+	});
 	const deliver = (messageId: string, detail: unknown = COMPLETED_DETAIL) =>
 		handler(
 			buildSqsEvent([{ messageId, body: JSON.stringify({ detail, time: EVENT_TIME }) }]),
@@ -68,7 +72,7 @@ async function buildWorld() {
 	const setClock = (at: Date) => {
 		clock = at;
 	};
-	return { activateCheckout, deliver, pendingSignup, subscriptionProviders, trialScheduler, recorded, setClock };
+	return { activateCheckout, deliver, pendingSignup, subscriptionProviders, trialScheduler, recorded, warnings, setClock };
 }
 
 describe("checkout-completed handler", () => {
@@ -133,6 +137,21 @@ describe("checkout-completed handler", () => {
 		expect(world.recorded).toEqual([]);
 		expect(world.trialScheduler.allChargeReminderSchedules()).toEqual([]);
 		expect(await world.pendingSignup.findPendingSignup(SESSION_ID)).toMatchObject({ outcome: "pending" });
+	});
+
+	it("warns with the Stripe subscription id when it refuses a message older than the row's status, because the reader paid and the row says otherwise", async () => {
+		const world = await buildWorld();
+		world.setClock(new Date("2026-11-20T10:00:00.000Z"));
+		await world.subscriptionProviders.markCancelledByUserId({ userId: USER_ID });
+
+		await world.deliver("msg-redriven-late");
+
+		expect(world.warnings).toEqual([
+			[
+				expect.stringContaining("[checkout-completed] message predates row status"),
+				{ checkoutSessionId: SESSION_ID, subscriptionId: "sub_test_webhook", eventTime: EVENT_TIME },
+			],
+		]);
 	});
 
 	it("acknowledges a completed checkout that has no pending signup, since no retry can make one appear", async () => {

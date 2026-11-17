@@ -2,6 +2,8 @@
 
 Snapshot of the uncommitted working tree over `4164d10fb` (`main`), whose 2026-11-15 subject is **fix: count a checkout as a charge only when it collected money**. Generated 2026-11-15. The webhook arrival, the claim and the new `CheckoutCompleted` event are uncommitted and not deployed.
 
+> **Changed after this snapshot.** In 588d9cc, `activateCheckout` stopped claiming first. It now reads the pending signup, refuses a webhook message older than the subscription row's status (`predates-status`, unless the row is already active with this checkout's subscription), upserts the row active, and only then claims. A failed write or claim leaves the signup unclaimed, so the next arrival finishes the activation. Steps 1–3 below and the `activateCheckout` diagram show the earlier claim-first order; read `activate-checkout.ts` for the current one.
+
 A trialing or cancelled reader subscribes from `/account`. The web route creates a Stripe Checkout session in subscription mode and stores a pending signup keyed by the session id. When the reader pays, Stripe can tell Readplace in two ways, and either may arrive first:
 
 - **Redirect (changed).** Stripe sends the browser to `GET /auth/checkout/success`. The route retrieves the session from Stripe, refuses an unknown (404) or unpaid/open (402) session, then runs `activateCheckout` inline with `activatedBy: redirect`, so the reader's next page already sees them active.
