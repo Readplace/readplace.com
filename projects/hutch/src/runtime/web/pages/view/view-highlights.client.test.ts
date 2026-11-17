@@ -32,6 +32,7 @@ const viewInput: ViewPageInput = {
 	backLink: undefined,
 	endCta: undefined,
 	offersLocalHighlights: true,
+	signedIn: false,
 };
 
 const PAGE_HTML = Base(ViewPage(viewInput), {
