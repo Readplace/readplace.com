@@ -46,8 +46,10 @@ describe("llms files", () => {
 		expect(FILES[name]).not.toContain("Video or YouTube transcripts (not available");
 	});
 
-	it("the Readwise Reader comparison page's description does not list video as missing", () => {
-		expect(LANDING_PAGE_CONTENT["readwise-reader-alternative"].description).not.toContain("RSS, video, podcast");
+	it("the Readwise Reader comparison page's description lists YouTube, podcast subscriptions and listening as the gaps", () => {
+		expect(LANDING_PAGE_CONTENT["readwise-reader-alternative"].description).toContain(
+			"RSS, YouTube, podcast subscription and listening features",
+		);
 	});
 
 	it("llms-full.txt says a file uploaded before signing up is collected and deleted unless saved", () => {
