@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
@@ -150,6 +151,7 @@ const crawlDeps = {
 	...articleCrawl,
 	...observability,
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
+	delay: (milliseconds: number) => sleep(milliseconds),
 	emitSimpleCrawlUnsupported,
 	adoptCanonicalIdentity,
 	isSiteRuleUrl: parser.isSiteRuleUrl,

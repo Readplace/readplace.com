@@ -103,6 +103,7 @@ dependencies {
 	testImplementation(libs.robolectric)
 	testImplementation(libs.okhttp.mockwebserver)
 	testImplementation(libs.kotlinx.coroutines.test)
+	testImplementation(libs.compose.ui.test.junit4)
 }
 
 tasks.withType<Test>().configureEach {

@@ -38,7 +38,7 @@ The gate counts **lines**, not branches. A line that never runs fails it, but a 
 | An `android.*` type (Uri, Log, Context, Bundle) | It needs Robolectric or an emulator to run | `java.net.URI`, `java.time`, `java.io.File`, or an interface seam |
 | `Dispatchers.IO` or `Instant.now()` written inline | A test cannot control time or threading | An injected `CoroutineDispatcher` and an injected `() -> Instant` or `Clock` |
 | Logging from the core | That pulls `android.util.Log` into a JVM test | An injected failure callback, logged by the composition root |
-| Robolectric for a decision | It is slow and hides that the decision depends on the framework | Plain JUnit. Keep Robolectric for tests whose subject is a real framework object: Intent or ClipData reading, Keystore providers, nested-scroll dispatch |
+| Robolectric for a decision | It is slow and hides that the decision depends on the framework | Plain JUnit. Keep Robolectric for tests whose subject is a real framework object: Intent or ClipData reading, Keystore providers, nested-scroll dispatch, a Compose layout's measured sizes at a set window size and font scale |
 
 JaCoCo skips classes that Robolectric loads through its own class loader unless the test task includes no-location classes. The app's Gradle build sets this up, so don't remove it when you touch the test configuration.
 

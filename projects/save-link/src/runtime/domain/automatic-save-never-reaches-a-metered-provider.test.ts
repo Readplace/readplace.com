@@ -177,6 +177,7 @@ function initPipeline(tier1: CrawlAndFinalizeResult) {
 		publishUpdateFetchTimestamp: async () => {},
 		refreshArticleIfStale: async ({ url }) => ({ action: "new", identity: { status: "resolved", url, originalUrl: url } }),
 		pinContentSource: async () => {},
+		delay: async () => {},
 		crawlAndFinalizeArticle: async () => tier1,
 		emitSimpleCrawlUnsupported: async ({ unsupportedReason }) => { deferredReasons.push(unsupportedReason); },
 		putTierSource: async (params) => params.metadata,

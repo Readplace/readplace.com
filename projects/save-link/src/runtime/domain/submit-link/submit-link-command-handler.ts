@@ -44,6 +44,7 @@ import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identi
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import { ClassifiedCrawlError, initSaveLinkWork, logRecordFailure } from "../save-link/save-link-work";
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
+import { withRefusedConnectionRetry } from "../save-link/retry-refused-connection";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import { initCrawlSaveCandidates } from "../save-link/crawl-save-candidates";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "./max-receive-count";
@@ -65,6 +66,7 @@ export function initSubmitLinkCommandHandler(deps: {
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	pinContentSource: SaveArticleFromUrlDependencies["pinContentSource"];
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
+	delay: (milliseconds: number) => Promise<unknown>;
 	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
 	putTierSource: PutTierSource;
 	updateFetchTimestamp: UpdateFetchTimestamp;
@@ -104,7 +106,7 @@ export function initSubmitLinkCommandHandler(deps: {
 	});
 
 	const crawlArchiveCapture = initCrawlArchiveCapture({
-		crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
+		crawlAndFinalizeArticle: withRefusedConnectionRetry({ crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle, delay: deps.delay, logger }),
 		putTierSource: deps.putTierSource,
 		readTierSnapshot: deps.readTierSnapshot,
 		logCrawlOutcome: deps.logCrawlOutcome,

@@ -224,7 +224,7 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 	it("posts the rail's note forms back to the app surface without pushing history", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-note-forms`);
-		await createHighlight(agent, { articleId, exact: "readability parser" });
+		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Kept" });
 
 		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
 
@@ -240,13 +240,17 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 			expect(form.getAttribute("action")).toContain(`platform=${platform}`);
 			expect(form.getAttribute("hx-push-url")).toBe("false");
 		}
+		const deleteNoteForm = page.getElementById(`delete-note-highlight-${id}`);
+		expect(deleteNoteForm?.getAttribute("action")).toContain(`platform=${platform}`);
+		expect(deleteNoteForm?.getAttribute("action")).toContain("utm_content=delete-note");
+		expect(deleteNoteForm?.getAttribute("hx-push-url")).toBe("false");
 	});
 
 	it("shows a locked account its marks and rail with no toolbar or highlight forms", async () => {
 		const { fixture: lockable, lock } = lockedFixture();
 		const harness = useApp(lockable);
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-read-only`);
-		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Kept" });
 		lock();
 
 		const html = (await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text;

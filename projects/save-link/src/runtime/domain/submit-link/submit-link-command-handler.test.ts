@@ -169,6 +169,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		publishUpdateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		refreshArticleIfStale: refreshAs("new"),
 		pinContentSource: jest.fn().mockResolvedValue(undefined),
+		delay: async () => {},
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),

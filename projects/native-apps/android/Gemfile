@@ -1,0 +1,7 @@
+source "https://rubygems.org"
+
+gem "fastlane"
+
+# Ruby 4.0 no longer bundles multi_json, which fastlane's representable dependency
+# lazily requires for JSON; declare it explicitly so the bundle is complete.
+gem "multi_json"

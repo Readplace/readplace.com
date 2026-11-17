@@ -494,7 +494,7 @@ function handleViewArticle(
 					}
 				}
 			}
-			if (!wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.requestStaleCheck({ url: articleUrl, requester: staleCheckRequesterOf(req) });
+			if (existing !== null && !wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.requestStaleCheck({ url: articleUrl, requester: staleCheckRequesterOf(req) });
 		}
 		const fallbackDestination = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const renderStub: SavedArticle["metadata"] = { ...hostStubMetadata(fallbackDestination), wordCount: 0 };

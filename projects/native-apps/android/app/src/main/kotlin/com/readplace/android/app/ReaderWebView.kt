@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.DialogProperties
 import com.readplace.android.core.AppConfig
+import com.readplace.android.core.articleDownloadHeaders
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.launch
@@ -240,9 +241,13 @@ private fun enqueueArticleDownload(
 	val filename = URLUtil.guessFileName(url, contentDisposition, mimeType)
 	val request = DownloadManager.Request(Uri.parse(url))
 		.setMimeType(mimeType)
-		.addRequestHeader("User-Agent", userAgent)
 		.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
 		.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
+	articleDownloadHeaders(
+		url = url,
+		userAgent = userAgent,
+		cookiesFor = CookieManager.getInstance()::getCookie,
+	).forEach { (name, value) -> request.addRequestHeader(name, value) }
 	val manager = context.getSystemService(DownloadManager::class.java)
 	if (manager == null) {
 		Log.e("ReaderDownload", "no DownloadManager on this device")
