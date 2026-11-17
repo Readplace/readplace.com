@@ -78,11 +78,18 @@ That also removes the background-upload machinery. iOS needs a background
 Android share Activity hands its staged job to the same process that will drain it.
 Uploads drain when the app next opens, exactly as they do on iOS.
 
-**No Chrome-first URL opening.** `ChromeFirstURL` exists on iOS because the OS
-default browser is usually Safari while the user actually browses in Chrome, so a
-readplace.com link would open somewhere they are not signed in. Android's default
-browser *is* the browser they use, and it carries their cookie jar, so our-host
-links are handed to the system untouched.
+**No Chrome-first URL opening, and no browser sign-in handoff.** The iOS app signs
+in inside itself and opens readplace.com links Chrome-first, so a tapped link can
+land in a browser the reader never signed in through. iOS therefore rewrites the
+link for Chrome and, since 2026-10-30, signs that browser in with a single-use code
+(the `create-browser-handoff` Siren action, redeemed at `GET /auth/handoff`).
+Android has no such split: sign-in runs in a Custom Tab of the default browser and
+leaves a persistent `hutch_sid` session there, and our-host links are handed to that
+same browser untouched. The server offers the handoff action on every collection;
+this app does not call it. A browser that has lost its session (cookies cleared, a
+changed default browser, about 180 days with no web visit) asks for one sign-in,
+and `/login?return=` then lands the reader on the page they tapped. Build the
+handoff once a reader is seen landing signed out, not before.
 
 **A downloaded EPUB goes to Downloads, not a share sheet.** Tapping Download EPUB
 hands the file to the system downloader, which writes it into the public Downloads
