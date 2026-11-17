@@ -359,6 +359,7 @@ export interface AuthBundle {
 	setQueueDigestOptOut: SetQueueDigestOptOut;
 	setUserDisplayName: SetUserDisplayName;
 	deleteUser: (email: string) => Promise<void>;
+	backdateRegistration: (params: { userId: UserId; registeredAt: string }) => Promise<void>;
 	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
 }
 

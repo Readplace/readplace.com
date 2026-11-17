@@ -44,10 +44,11 @@ const SeededArticle = z.object({ articleId: z.string() });
 async function openHighlightableReader(
 	page: Page,
 	stamp: string,
+	account: { verified: boolean } = { verified: true },
 ): Promise<{ userId: string; articleId: string }> {
 	const email = `highlight-note-${stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
-		data: { email, password: PASSWORD, verified: true },
+		data: { email, password: PASSWORD, verified: account.verified },
 	});
 	assert.equal(
 		created.status(),
@@ -342,12 +343,12 @@ test.describe("Reading a note beside its highlight", () => {
 	test("a read-only account sees the note in the in-app reader, with no write action and no beacon", async ({
 		page,
 	}, testInfo) => {
-		const { userId, articleId } = await openHighlightableReader(page, `read-only-${testInfo.workerIndex}-${Date.now()}`);
-		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
-		const lapsed = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
-			data: { userId, state: "trialing", at: "2020-01-01T00:00:00.000Z" },
+		const { userId, articleId } = await openHighlightableReader(page, `read-only-${testInfo.workerIndex}-${Date.now()}`, {
+			verified: false,
 		});
-		assert.equal(lapsed.status(), 201, "the subscription seed must lapse the account");
+		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+		const locked = await page.request.post(`${BASE_URL}/e2e/lock-account`, { data: { userId } });
+		assert.equal(locked.status(), 204, "the lock seam must lock the unverified account");
 		const opened: string[] = [];
 		page.on("request", (request) => {
 			if (new URL(request.url()).pathname.endsWith("/highlights/opened")) opened.push(request.url());

@@ -684,6 +684,26 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("backdateRegistration", () => {
+		it("should move the user's registeredAt to the given time", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "test@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			await auth.backdateRegistration({ userId: created.userId, registeredAt: "2020-01-01T00:00:00.000Z" });
+
+			expect((await auth.findUserById(created.userId))?.registeredAt).toBe("2020-01-01T00:00:00.000Z");
+		});
+
+		it("should refuse an unknown userId", async () => {
+			const auth = makeAuth();
+
+			await expect(
+				auth.backdateRegistration({ userId: UserIdSchema.parse("nobody"), registeredAt: "2020-01-01T00:00:00.000Z" }),
+			).rejects.toThrow("Cannot backdate registration: no user found for nobody");
+		});
+	});
+
 	describe("findUserById", () => {
 		it("should return null for an unknown userId", async () => {
 			const auth = makeAuth();

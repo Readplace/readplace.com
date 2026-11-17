@@ -927,7 +927,7 @@ async function subscriptionCancellationGeometry(page: Page): Promise<void> {
 async function subscriptionInactiveGeometry(page: Page): Promise<void> {
 	const card = await measuredBox(page, SUBSCRIPTION_BANNER);
 	const guide = await measuredBox(page, SETUP_GUIDE);
-	assertSubscriptionMeasurement({ description: "the inactive card height", actual: card.height, expected: 314 });
+	assertSubscriptionMeasurement({ description: "the inactive card height", actual: card.height, expected: 356 });
 	assertSubscriptionMeasurement({
 		description: "the subscription-to-setup-guide gap",
 		actual: guide.y - (card.y + card.height),
@@ -2578,7 +2578,7 @@ test.describe("Readlist subscription banner on the 300px track", () => {
 		assertSubscriptionMeasurement({ description: "the narrow cancellation body height", actual: body.height, expected: 42 });
 	});
 
-	test("wraps the inactive body on three lines", async ({ page }, testInfo) => {
+	test("wraps the inactive body on five lines", async ({ page }, testInfo) => {
 		const email = `readlist-subscription-inactive-narrow-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createVerifiedUser(page, email);
 		await seedSubscriptionState(page, { userId, state: "free" });
@@ -2589,8 +2589,8 @@ test.describe("Readlist subscription banner on the 300px track", () => {
 		const card = await measuredBox(page, SUBSCRIPTION_BANNER);
 		const body = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-banner-message]`);
 		assertSubscriptionMeasurement({ description: "the narrow inactive card width", actual: card.width, expected: 300 });
-		assertSubscriptionMeasurement({ description: "the narrow inactive card height", actual: card.height, expected: 335 });
-		assertSubscriptionMeasurement({ description: "the narrow inactive body height", actual: body.height, expected: 63 });
+		assertSubscriptionMeasurement({ description: "the narrow inactive card height", actual: card.height, expected: 377 });
+		assertSubscriptionMeasurement({ description: "the narrow inactive body height", actual: body.height, expected: 105 });
 	});
 });
 

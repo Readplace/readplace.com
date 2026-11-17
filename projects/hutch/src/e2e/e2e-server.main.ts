@@ -13,7 +13,7 @@ import {
 	validateSaveableUrl,
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
-import { type UserId, UserIdSchema } from '@packages/domain/user'
+import { type UserId, UserIdSchema, VERIFICATION_WINDOW_MS } from '@packages/domain/user'
 import { MediaFailureReasonSchema, MediaInspectionFactsSchema, PrivateItemUrlSchema, UploadIdSchema } from '@packages/media-contracts'
 import {
 	ForwardableSenderSchema,
@@ -77,7 +77,7 @@ import { getEnv, requireEnv } from "@packages/require-env"
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe"
 import { initFinalizeArticle, initRefreshArticleIfStale } from '@packages/finalize-article'
 import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget } from '@packages/save-article'
-import type { ExtractPdf, IsBlockedAddress, ThumbnailNotDeliveredEvent } from '@packages/crawl-article'
+import type { ChargeOcrPages, CrawlArticle, ExtractPdf, IsBlockedAddress, ThumbnailNotDeliveredEvent } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, rejectDocumentLandingPage, initCrawlFetch, initFetchThumbnailImage } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
 import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from '@packages/article-parser'
@@ -144,7 +144,9 @@ const extractPdf: ExtractPdf = async () => ({
 })
 const { siteRules } = initArticleSiteRules({ crawlFetch, logError })
 const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().warn
-const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
+const crawlWithoutSaver = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
+const chargeSaverOcrPages: ChargeOcrPages = async () => ({ allowed: true })
+const crawlArticle: CrawlArticle = (params) => crawlWithoutSaver({ ...params, chargeOcrPages: chargeSaverOcrPages })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, readabilityAdditions, logError })
 const images = initInMemoryArticleImages()
 const finalizeArticle = initFinalizeArticle({
@@ -524,6 +526,15 @@ server.post('/e2e/users', async (req, res) => {
 	const created = await auth.createUser(credentials)
 	if (verified && created.ok) await auth.markEmailVerified(credentials.email)
 	res.status(201).json(created)
+})
+
+const LockAccountBody = z.object({ userId: UserIdSchema })
+
+server.post('/e2e/lock-account', async (req, res) => {
+	const { userId } = LockAccountBody.parse(req.body)
+	const pastWindow = new Date(Date.now() - VERIFICATION_WINDOW_MS - 24 * 60 * 60 * 1000)
+	await fixture.auth.backdateRegistration({ userId, registeredAt: pastWindow.toISOString() })
+	res.status(204).end()
 })
 
 const ExpireAccessTokensBody = z.object({
