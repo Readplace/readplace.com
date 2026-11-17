@@ -1,5 +1,7 @@
 export const enUS = {
 	chargeReminder: {
+		subject: "your Readplace membership starts on {chargeDate}",
+		title: "Your Readplace membership starts soon",
 		charge: {
 			stated:
 				"Your free trial ends on {chargeDate}. You added a card when you upgraded, so your membership starts on its own — {amount} charged to the card on file on {chargeDate}, {renewal}.",
@@ -19,5 +21,11 @@ export const enUS = {
 				triennial: "then {listPrice} once every 3 years after that",
 			},
 		},
+		cancel:
+			"Changed your mind? Cancel any time before {chargeDate} from your account page — the button below takes you there — and nothing is charged.",
+		questions: "Questions about the charge or the timing — just reply. I answer everything personally.",
+		cta: "Manage your subscription",
+		ctaPlain: "Manage your subscription: {ctaUrl}",
+		signoff: "— Fayner Brack, Founder & CEO",
 	},
 } as const;
