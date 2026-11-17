@@ -135,6 +135,28 @@ describe("/view — highlights kept in a logged-out visitor's browser", () => {
 		assert.equal(doc.querySelector("#view-highlights-keep [autofocus]")?.getAttribute("value"), "signup");
 	});
 
+	it("states the browser's limit as a rule and holds back the too-long sentence until a refusal", async () => {
+		const harness = await harnessWith({ urls: [ARTICLE_URL] });
+
+		const response = await request(harness.server).get(VIEW_PATH).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		assert.equal(
+			doc.getElementById("view-highlights-keep-body")?.textContent,
+			"This browser keeps up to 5 highlights. Create a free account to keep them and add as many as you like.",
+		);
+		assert.deepEqual(
+			Array.from(doc.querySelectorAll<HTMLElement>("[data-view-highlights-too-long]"), (sentence) => [
+				sentence.hidden,
+				sentence.textContent,
+			]),
+			[
+				[true, "A passage or note longer than 1,000 characters needs an account."],
+				[true, "A passage or note longer than 1,000 characters needs an account."],
+			],
+		);
+	});
+
 	it("offers none of it to a signed-in reader", async () => {
 		const harness = await harnessWith({ urls: [ARTICLE_URL] });
 		const agent = await loginAgent(harness.server, harness.auth);

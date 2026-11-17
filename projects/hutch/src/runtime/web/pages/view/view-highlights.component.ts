@@ -40,6 +40,7 @@ function renderKeepForm(input: { articleUrl: string; placement: "popover" | "inl
 		inlineId: INLINE_KEEP_FORM_ID,
 		popoverId: input.placement === "popover" ? VIEW_HIGHLIGHTS_POPOVER_ID : undefined,
 		autofocus: input.placement === "popover",
+		maxLength: VIEW_HIGHLIGHT_MAX_TEXT_LENGTH.toLocaleString(DEFAULT_LOCALE),
 	}).trim();
 }
 

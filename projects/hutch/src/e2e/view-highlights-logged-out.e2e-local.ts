@@ -85,6 +85,10 @@ test("a logged-out visitor keeps five highlights in the browser, then carries th
 
 	await highlight(page, ONE_TOO_MANY);
 	await expect(page.locator(`${KEEP_POPUP}:popover-open`)).toHaveCount(1);
+	await expect(page.locator(`${KEEP_POPUP} .confirm-popover__body`)).toHaveText(
+		"This browser keeps up to 5 highlights. Create a free account to keep them and add as many as you like.",
+	);
+	await expect(page.locator(`${KEEP_POPUP} [data-test-view-highlights-too-long]`)).toBeHidden();
 	await expect(page.locator(MARK).filter({ hasText: ONE_TOO_MANY })).toHaveCount(0);
 
 	await clickAndWaitForPageReload(

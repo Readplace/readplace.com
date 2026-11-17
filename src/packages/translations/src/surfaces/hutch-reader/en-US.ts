@@ -88,7 +88,8 @@ export const enUS = {
 			saveNote: "Save note",
 			popup: {
 				title: "Keep your highlights",
-				body: "You have {limit} highlights in this browser. Create a free account to keep them and add as many as you like.",
+				body: "This browser keeps up to {limit} highlights. Create a free account to keep them and add as many as you like.",
+				tooLong: "A passage or note longer than {max} characters needs an account.",
 			},
 			actions: {
 				signup: "Create a free account",

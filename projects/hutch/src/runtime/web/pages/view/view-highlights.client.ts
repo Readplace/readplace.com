@@ -33,6 +33,8 @@ const KEEP_FIELD_SELECTOR = "[data-view-highlights-field]";
 const MARK_SELECTOR = "mark[data-highlight-id]";
 const GET_FORM_SELECTOR = 'form[method="GET" i][action]';
 const RETURN_FIELD_SELECTOR = "[data-view-highlights-return]";
+const TOO_LONG_SELECTOR = "[data-view-highlights-too-long]";
+const KEEP_TRIGGER_SELECTOR = "[data-view-highlights-keep-trigger]";
 
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
@@ -174,8 +176,15 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 		fillKeepFields();
 	};
 
-	const openKeep = (): void => {
+	const explainTooLong = (shown: boolean): void => {
+		for (const sentence of Array.from(document.querySelectorAll<HTMLElement>(TOO_LONG_SELECTOR))) {
+			sentence.hidden = !shown;
+		}
+	};
+
+	const openKeep = (reason: "limit-reached" | "too-long"): void => {
 		fillKeepFields();
+		explainTooLong(reason === "too-long");
 		card.hidden = false;
 		if (deps.supportsPopover()) deps.showPopover(popover);
 		else deps.scrollIntoView(inlineForm);
@@ -202,10 +211,10 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 				return;
 			case "limit-reached":
 				beacon("limit-reached");
-				openKeep();
+				openKeep("limit-reached");
 				return;
 			case "too-long":
-				openKeep();
+				openKeep("too-long");
 				return;
 			case "unavailable":
 				document.querySelector(TOOLBAR_SELECTOR)?.remove();
@@ -223,7 +232,7 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 			note: fieldValue({ form, name: "note" }),
 		});
 		if (outcome.status === "too-long") {
-			openKeep();
+			openKeep("too-long");
 			return;
 		}
 		render();
@@ -282,6 +291,7 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 	document.addEventListener("click", (event) => {
 		const target = event.target;
 		if (!isElement(target)) return;
+		if (target.closest(KEEP_TRIGGER_SELECTOR) !== null) explainTooLong(false);
 		const remove = target.closest(DELETE_SELECTOR);
 		const row = remove?.closest(ROW_SELECTOR);
 		if (row === null || row === undefined) return;

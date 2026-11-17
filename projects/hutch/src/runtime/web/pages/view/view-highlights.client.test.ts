@@ -67,6 +67,10 @@ function mapStorage(): LocalHighlightStorage {
 	};
 }
 
+function tooLongShown(h: { doc: Document }): boolean[] {
+	return Array.from(h.doc.querySelectorAll<HTMLElement>("[data-view-highlights-too-long]"), (sentence) => !sentence.hidden);
+}
+
 interface Harness {
 	doc: Document;
 	window: DOMWindow;
@@ -292,6 +296,7 @@ describe("initViewHighlights", () => {
 			["view-highlights-keep"],
 		);
 		assert.equal(h.beacons.at(-1), "/view/highlights/event?action=limit-reached");
+		assert.deepEqual(tooLongShown(h), [false, false]);
 		const [popupField] = keptFields(h);
 		assert.deepEqual(
 			Array.isArray(popupField) ? popupField.map((item) => Reflect.get(Object(item), "exact")) : [],
@@ -395,6 +400,31 @@ describe("initViewHighlights", () => {
 			h.shownPopovers.map((panel) => panel.id),
 			["view-highlights-keep"],
 		);
+		assert.deepEqual(tooLongShown(h), [true, true]);
+	});
+
+	it("drops the too-long sentence when the popup is opened from the card's button", () => {
+		const h = harness({ storage: mapStorage() });
+		const form = h.doc.querySelector("[data-highlight-create-form]");
+		assert(form, "the local toolbar renders its create form");
+		contentOf(h).insertAdjacentHTML("beforeend", `<p>${"word ".repeat(300)}</p>`);
+		const longer = normaliseText(collectTextChunks<Node>(contentOf(h))).text;
+		fill({ form, values: { exact: longer, start: "0", end: String(longer.length), origin: "mouse" } });
+		submit({ h, form });
+		const trigger = h.doc.querySelector<HTMLButtonElement>("[data-view-highlights-keep-trigger]");
+		assert(trigger, "the card renders its create-account button");
+
+		trigger.click();
+
+		assert.deepEqual(tooLongShown(h), [false, false]);
+	});
+
+	it("hides the too-long sentence until a passage or note is refused for its length", () => {
+		const h = harness({ storage: mapStorage() });
+
+		highlight({ h, quote: "A second sentence" });
+
+		assert.deepEqual(tooLongShown(h), [false, false]);
 	});
 
 	it("ignores a submitted passage that no longer matches the article", () => {
@@ -448,6 +478,7 @@ describe("initViewHighlights", () => {
 			h.shownPopovers.map((panel) => panel.id),
 			["view-highlights-keep"],
 		);
+		assert.deepEqual(tooLongShown(h), [true, true]);
 	});
 
 	it("lists a kept highlight whose passage is gone last, marked as not found, with no Jump", () => {

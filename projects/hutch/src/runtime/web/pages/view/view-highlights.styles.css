@@ -43,6 +43,13 @@
   margin: 0 16px;
 }
 
+.view-highlights__too-long {
+  margin: 0 0 16px;
+  font-size: var(--text-sm);
+  line-height: 22px;
+  color: var(--muted-foreground);
+}
+
 @supports selector(:popover-open) {
   .view-highlights__keep-trigger {
     display: inline-flex;
