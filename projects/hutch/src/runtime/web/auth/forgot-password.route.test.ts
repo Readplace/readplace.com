@@ -75,8 +75,10 @@ describe("Forgot password", () => {
 			expect(doc.querySelector("h1")?.textContent).toBe("Check your email");
 		});
 
-		it("states the per-address daily limit on the confirmation page for known and unknown addresses alike", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		it("states the configured per-address daily limit on the confirmation page for known and unknown addresses alike", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit.rules.forgotPasswordAccount = { limit: 7, windowSeconds: 86400 };
+			const harness = useApp(fixture);
 			await harness.auth.createUser({ email: "user@example.com", password: "password123" });
 			const requestReset = (email: string) =>
 				request(harness.server).post("/forgot-password").type("form").send({ email });
@@ -84,7 +86,9 @@ describe("Forgot password", () => {
 			const limitLines = [await requestReset("user@example.com"), await requestReset("nobody@example.com")]
 				.map((response) => new JSDOM(response.text).window.document.querySelector("[data-test-reset-limit]")?.textContent);
 
-			expect(limitLines).toEqual([t("forgotPassword.sent.limit"), t("forgotPassword.sent.limit")]);
+			const limitLine = t("forgotPassword.sent.limit", { count: 7 });
+			expect(limitLine).toContain("up to 7 times");
+			expect(limitLines).toEqual([limitLine, limitLine]);
 		});
 
 		it("should send a password reset email for existing user", async () => {

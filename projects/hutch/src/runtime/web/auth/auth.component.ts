@@ -206,7 +206,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 }
 
 export function ForgotPasswordPage(
-	data?: { email?: string; errors?: ComponentError[]; sent?: boolean },
+	data?: { email?: string; errors?: ComponentError[]; sent?: { addressLimit: number } },
 	options?: { statusCode?: number },
 ): PageBody {
 	const email = data?.email ?? "";

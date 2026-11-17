@@ -115,7 +115,7 @@ describe("Per-IP rate limiting", () => {
 	});
 
 	describe("POST /forgot-password", () => {
-		const { tPlural } = translator(hutchAuth, DEFAULT_LOCALE);
+		const { t, tPlural } = translator(hutchAuth, DEFAULT_LOCALE);
 		const withoutNonces = (html: string) => html.replace(/ nonce="[^"]*"/g, "");
 
 		it("answers past the IP limit with the forgot-password page, a paused notice and Retry-After", async () => {
@@ -146,10 +146,32 @@ describe("Per-IP rate limiting", () => {
 				notice.textContent,
 				tPlural("forgotPassword.ipPaused", { count: Math.ceil(retryAfter / 3600) }),
 			);
+			assert.equal(doc.querySelector<HTMLInputElement>("#email")?.value, "user@example.com");
 			assert.equal(harness.email.getSentEmails().length, 2);
 			assert.deepEqual(harness.passwordResetRefusals.events, [
 				{ event: "password_reset_refused", key: "ip", retryAfterSeconds: retryAfter },
 			]);
+		});
+
+		it("says less than an hour when the IP pause ends within the hour", async () => {
+			const { fixture, clock } = fixtureWithTightRules({
+				forgotPassword: { limit: 1, windowSeconds: 86400 },
+			});
+			const harness = useApp(fixture);
+			const requestReset = () =>
+				request(harness.server)
+					.post("/forgot-password")
+					.type("form")
+					.send({ email: "user@example.com" });
+
+			await requestReset();
+			clock.advanceSeconds(3000);
+			const throttled = await requestReset();
+
+			assert.equal(throttled.status, 429);
+			assert.ok(Number(throttled.headers["retry-after"]) < 3600);
+			const notice = new JSDOM(throttled.text).window.document.querySelector('[data-test-alert="global-error"] [data-test-alert-title]');
+			assert.equal(notice?.textContent, t("forgotPassword.ipPausedUnderAnHour"));
 		});
 
 		it("accepts requests from the same IP again once the UTC day rolls over", async () => {

@@ -30,7 +30,7 @@ import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oaut
 
 const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
 
-const { tPlural } = translator(hutchAuth, DEFAULT_LOCALE);
+const { t, tPlural } = translator(hutchAuth, DEFAULT_LOCALE);
 
 interface ForgotPasswordDependencies {
 	sendEmail: SendEmail;
@@ -50,6 +50,12 @@ interface ForgotPasswordDependencies {
 	now: () => Date;
 }
 
+function ipPausedNotice(retryAfterSeconds: number): string {
+	return retryAfterSeconds < 3600
+		? t("forgotPassword.ipPausedUnderAnHour")
+		: tPlural("forgotPassword.ipPaused", { count: Math.ceil(retryAfterSeconds / 3600) });
+}
+
 export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Router {
 	const router = express.Router();
 
@@ -67,7 +73,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 			sendComponent(
 				req, res,
 				Base(ForgotPasswordPage(
-					{ errors: [{ message: tPlural("forgotPassword.ipPaused", { count: Math.ceil(retryAfterSeconds / 3600) }) }] },
+					{ email: req.body.email, errors: [{ message: ipPausedNotice(retryAfterSeconds) }] },
 					{ statusCode: 429 },
 				), bannerStateFromRequest(req)),
 			);
@@ -102,7 +108,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 
 		await requestPasswordReset({ email: parsed.data.email });
 
-		sendComponent(req, res, Base(ForgotPasswordPage({ sent: true }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(ForgotPasswordPage({ sent: { addressLimit: deps.accountRateLimitRule.limit } }), bannerStateFromRequest(req)));
 	});
 
 	router.get("/reset-password", (req: Request, res: Response) => {
