@@ -108,6 +108,12 @@ such as an uploaded book, downloads like any other. The downloader sends those
 headers again on every redirect it follows, so the EPUB route must not redirect to
 another host.
 
+**No landing-tab preference.** iOS remembers the landing tab's href so a cold offline
+launch has a key to look up. Android launches by the remembered readlist href, and
+the stored answer to that href names the tab it landed on, so a failed launch read
+follows that tab's stored copy. Same list, one preference fewer, and no assumption
+about which tab the server lands on.
+
 **A distinct OAuth redirect.** The iOS app is registered against
 `readplace://oauth-callback`; this app is registered against
 `readplace://oauth-callback/android`. Redirect URIs are matched by exact string per
