@@ -1,4 +1,11 @@
 export const enUS = {
+	connectors: {
+		api: {
+			before: "Building something of your own? The ",
+			link: "Readplace API",
+			after: " lets your app save, list, read and file articles for you.",
+		},
+	},
 	saveTip: {
 		continue: "Continue here",
 	},
