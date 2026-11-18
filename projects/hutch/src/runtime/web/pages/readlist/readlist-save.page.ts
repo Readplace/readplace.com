@@ -33,7 +33,7 @@ import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
-import { toSavedArticleEntity } from "../../api/article-siren";
+import { articleSelfHref, toSavedArticleEntity } from "../../api/article-siren";
 import { readlistsAtHrefs } from "../../api/readlist-href";
 import { megabytesLabel } from "../../shared/bytes-to-mb";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
@@ -347,7 +347,7 @@ export function initReadlistSaveRoutes(
 			}
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-			res.status(201).type(SIREN_MEDIA_TYPE).json(
+			res.status(201).location(articleSelfHref(result.saved.id.value)).type(SIREN_MEDIA_TYPE).json(
 				toSavedArticleEntity({
 					article: result.saved,
 					createdUserArticle: filings.some((filing) => filing.createdUserArticle),
@@ -690,7 +690,7 @@ export function initReadlistSaveRoutes(
 				const context = await resolveReadlistContext(req, userId);
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-				res.status(201).type(SIREN_MEDIA_TYPE).json(
+				res.status(201).location(articleSelfHref(result.saved.id.value)).type(SIREN_MEDIA_TYPE).json(
 					toSavedArticleEntity({
 						article: result.saved,
 						createdUserArticle: result.createdUserArticle,

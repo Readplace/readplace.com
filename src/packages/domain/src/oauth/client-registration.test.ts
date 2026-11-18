@@ -37,6 +37,14 @@ describe("defaultOAuthClientName", () => {
 		assert.equal(defaultOAuthClientName(["https://claude.ai/api/mcp/auth_callback"]), "claude.ai");
 	});
 
+	it("drops the port from a loopback redirect URI, as /developers documents", () => {
+		assert.equal(defaultOAuthClientName(["http://127.0.0.1:8765/callback"]), "127.0.0.1");
+	});
+
+	it("keeps the brackets of an IPv6 loopback host and drops its port", () => {
+		assert.equal(defaultOAuthClientName(["http://[::1]:8765/callback"]), "[::1]");
+	});
+
 	it("falls back to a generic noun for a malformed URI", () => {
 		assert.equal(defaultOAuthClientName(["not a url"]), "an application");
 	});

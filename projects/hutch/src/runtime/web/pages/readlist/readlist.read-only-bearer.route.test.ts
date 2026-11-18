@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import request from "supertest";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
@@ -108,5 +109,98 @@ describe("Read-only account with an obsidian-plugin bearer", () => {
 
 		expect(response.status).toBe(402);
 		expect(response.headers["content-type"]).toMatch(/^application\/vnd\.siren\+json/);
+	});
+});
+
+describe("Read-only account's Siren writes", () => {
+	type SirenAction = { name: string; href: string; fields?: { name: string; value?: string }[] };
+	type SirenEntity = { actions: SirenAction[] };
+
+	async function readOnlyBearerWithReadlist(harness: Harness): Promise<{ token: string; readlistHref: string }> {
+		const agent = await loginAgent(harness.server, harness.auth);
+		const created = await agent.post("/queue/queues").type("form").send({ label: "Work" });
+		const slug = new URL(created.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
+		assert(slug, "creating a readlist must land the reader on it");
+		const token = await readOnlyBearer(harness);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "the logged-in user must exist");
+		await harness.articleStore.saveReadlistArticle({
+			userId: user.userId,
+			readlist: ReadlistSlugSchema.parse(slug),
+			url: ARTICLE_URL,
+			metadata: { title: "Kept article", siteName: "example.com", excerpt: "Kept.", wordCount: 2 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+		});
+		const listing = await sirenGet(harness, { path: "/queue", token });
+		const readlist = listing.body.properties.readlists.find((entry: { href: string }) => entry.href.includes(slug));
+		assert(readlist, "the collection must list the named readlist");
+		return { token, readlistHref: readlist.href };
+	}
+
+	function actionOf(entity: SirenEntity, name: string): SirenAction {
+		const action = entity.actions.find((candidate) => candidate.name === name);
+		assert(action, `the entity must advertise ${name}`);
+		return action;
+	}
+
+	function sirenPost(harness: Harness, params: { href: string; token: string }) {
+		return request(harness.server)
+			.post(params.href)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${params.token}`)
+			.redirects(0);
+	}
+
+	it("refuses add-to-readlist with a 402 Siren answer", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { token, readlistHref } = await readOnlyBearerWithReadlist(harness);
+		const listing = await sirenGet(harness, { path: "/queue", token });
+		const add = actionOf(listing.body.entities[0], "add-to-readlist");
+
+		const response = await sirenPost(harness, { href: add.href, token }).type("json").send({ readlists: [readlistHref] });
+
+		expect(response.status).toBe(402);
+		expect(response.headers["content-type"]).toMatch(/^application\/vnd\.siren\+json/);
+	});
+
+	it("refuses create-readlist with a 402 Siren answer", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { token } = await readOnlyBearerWithReadlist(harness);
+		const listing = await sirenGet(harness, { path: "/queue", token });
+		const create = actionOf(listing.body, "create-readlist");
+
+		const response = await sirenPost(harness, { href: create.href, token }).type("form").send({ label: "Later" });
+
+		expect(response.status).toBe(402);
+		expect(response.headers["content-type"]).toMatch(/^application\/vnd\.siren\+json/);
+	});
+
+	it("still marks an article as read with a 303", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { token } = await readOnlyBearerWithReadlist(harness);
+		const listing = await sirenGet(harness, { path: "/queue", token });
+		const update = actionOf(listing.body.entities[0], "update-status");
+		const status = update.fields?.find((field) => field.name === "status")?.value;
+
+		const response = await sirenPost(harness, { href: update.href, token }).type("form").send({ status });
+		const read = await sirenGet(harness, { path: "/queue?status=read", token });
+
+		expect(response.status).toBe(303);
+		expect(read.body.entities).toHaveLength(1);
+	});
+
+	it("still removes an article from a named readlist with a 303", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { token, readlistHref } = await readOnlyBearerWithReadlist(harness);
+		const readlist = await sirenGet(harness, { path: readlistHref, token });
+		const remove = actionOf(readlist.body.entities[0], "remove-from-readlist");
+
+		const response = await sirenPost(harness, { href: remove.href, token }).type("form").send({});
+		const after = await sirenGet(harness, { path: readlistHref, token });
+
+		expect(response.status).toBe(303);
+		expect(after.body.entities).toEqual([]);
 	});
 });

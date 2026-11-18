@@ -13,6 +13,11 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 
+import { MinutesSchema } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/domain/user";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import { createAccessToken } from "../../test-helpers/oauth-token";
+import { EXTENSION_READLIST_PAGE_SIZE } from "./readlist-page-size";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { FindArticlesQuery } from "@packages/provider-contracts/article-store";
 
@@ -23,6 +28,16 @@ describe("Readlist routes", () => {
 		it("should redirect to /login", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).get("/queue");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/login");
+		});
+
+		it("sends a bearer request without the Siren Accept header to /login", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await createAccessToken(harness);
+
+			const response = await request(harness.server).get("/queue").set("Authorization", `Bearer ${token}`).redirects(0);
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/login");
@@ -388,6 +403,36 @@ describe("Readlist routes", () => {
 
 			expect(response.status).toBe(302);
 			expect(response.headers.location).toBe("/queue");
+		});
+
+		it("keeps the article matching the url search field only on the page that holds it", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await createAccessToken(harness);
+			const oldest = "https://example.com/paged-0";
+			for (let i = 0; i <= EXTENSION_READLIST_PAGE_SIZE; i++) {
+				await harness.articleStore.saveArticle({
+					userId: UserIdSchema.parse("test-user-123"),
+					url: `https://example.com/paged-${i}`,
+					metadata: { title: `Paged ${i}`, siteName: "example.com", excerpt: "", wordCount: 0 },
+					estimatedReadTime: MinutesSchema.parse(1),
+					provenance: { kind: "web" },
+					savedAt: new Date(Date.UTC(2026, 8, 1, 0, i)),
+				});
+			}
+			const search = (page: number) =>
+				request(harness.server)
+					.get("/queue")
+					.query({ page, url: oldest })
+					.set("Accept", SIREN_MEDIA_TYPE)
+					.set("Authorization", `Bearer ${token}`);
+
+			const pageOne = await search(1);
+			const pageTwo = await search(2);
+
+			expect(pageOne.status).toBe(200);
+			expect(pageOne.body.entities).toEqual([]);
+			expect(pageTwo.status).toBe(200);
+			expect(pageTwo.body.entities.map((entity: { properties: { url: string } }) => entity.properties.url)).toEqual([oldest]);
 		});
 	});
 

@@ -106,3 +106,62 @@ it("rejects a bodyless proof request without consuming credentials", async () =>
 	assert(parent);
 	expect(parent.refreshToken).toBe("parent");
 });
+
+it("answers a code exchange with a Bearer token_type and a positive expires_in", async () => {
+	const s = await create();
+	const verifier = "x".repeat(43);
+	await s.model.saveAuthorizationCode({ authorizationCode: "code", expiresAt: new Date(Date.now() + 60_000), redirectUri: s.client.redirectUris[0],
+		codeChallenge: createHash("sha256").update(verifier).digest("base64url"), codeChallengeMethod: "S256" }, s.client, s.user);
+	const response = await request(serve(s.app)).post("/oauth/token").type("form")
+		.send({ grant_type: "authorization_code", code: "code", client_id: s.client.id, redirect_uri: s.client.redirectUris[0], code_verifier: verifier });
+	expect(response.status).toBe(200);
+	expect(typeof response.body.access_token).toBe("string");
+	expect(typeof response.body.refresh_token).toBe("string");
+	expect(response.body.token_type).toBe("Bearer");
+	expect(typeof response.body.expires_in).toBe("number");
+	expect(response.body.expires_in).toBeGreaterThan(0);
+});
+
+it("answers a plain refresh with a Bearer token_type and a positive expires_in", async () => {
+	const s = await create();
+	const response = await request(serve(s.app)).post("/oauth/token").type("form")
+		.send({ grant_type: "refresh_token", client_id: s.client.id, refresh_token: "parent" });
+	expect(response.status).toBe(200);
+	expect(response.body.token_type).toBe("Bearer");
+	expect(typeof response.body.expires_in).toBe("number");
+	expect(response.body.expires_in).toBeGreaterThan(0);
+});
+
+it("carries error_description alongside error on a refused code exchange", async () => {
+	const s = await create();
+	const response = await request(serve(s.app)).post("/oauth/token").type("form")
+		.send({ grant_type: "authorization_code", code: "never-issued", client_id: s.client.id, redirect_uri: s.client.redirectUris[0], code_verifier: "x".repeat(43) });
+	expect(response.status).toBe(400);
+	expect(response.body.error).toBe("invalid_grant");
+	expect(typeof response.body.error_description).toBe("string");
+	expect(response.body.error_description.length).toBeGreaterThan(0);
+});
+
+it("refuses a refresh for an unknown client_id with 400 invalid_client", async () => {
+	const s = await create();
+	const response = await request(serve(s.app)).post("/oauth/token").type("form")
+		.send({ grant_type: "refresh_token", client_id: "no-such-client", refresh_token: "parent" });
+	expect(response.status).toBe(400);
+	expect(response.body).toEqual({ error: "invalid_client", readplace_reason: "unknown" });
+	const parent = await s.model.getAccessToken("access");
+	assert(parent);
+	expect(parent.refreshToken).toBe("parent");
+});
+
+it("refuses a refresh with 400 invalid_client for a client registered without the refresh_token grant", async () => {
+	const s = await create();
+	const codeOnly = { ...s.client, grants: ["authorization_code"] };
+	const app = express().use(express.urlencoded({ extended: false, verify: captureOAuthBody }));
+	app.use((_req, _res, next) => refreshContext.run({}, next));
+	app.post("/oauth/token", initTokenExchange({ model: s.model, server: new OAuthServer({ model: s.model, requireClientAuthentication: { authorization_code: false, refresh_token: false } }),
+		findClient: async id => (id === codeOnly.id ? codeOnly : undefined), baseUrl: "https://readplace.com", salt: "test-only", now: s.now }));
+	const response = await request(serve(app)).post("/oauth/token").type("form")
+		.send({ grant_type: "refresh_token", client_id: codeOnly.id, refresh_token: "parent" });
+	expect(response.status).toBe(400);
+	expect(response.body).toEqual({ error: "invalid_client", readplace_reason: "unknown" });
+});

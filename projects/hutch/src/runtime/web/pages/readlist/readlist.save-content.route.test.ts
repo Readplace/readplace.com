@@ -890,6 +890,56 @@ describe("POST /queue/save-content upload-slot flow", () => {
 		expect(response.status).toBe(422);
 		expect(response.body.properties.code).toBe("invalid-save-content");
 	});
+
+	it("saves an upload as a tapped capture even when the slot request said captureTrigger=automatic", async () => {
+		const { testApp, publishedSaveHtml } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+		const htmlUrl = "https://example.com/big.html";
+		const slot = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", htmlUrl)
+			.field("mediaType", "text/html")
+			.field("captureTrigger", "automatic")
+			.field("size", String(64 * 1024));
+		const complete = slot.body.actions.find((a: { name: string }) => a.name === "save-uploaded-content");
+		assert(complete, "a slot must advertise save-uploaded-content");
+		const values: [string, string][] = complete.fields
+			.filter((f: { value?: string }) => typeof f.value === "string")
+			.map((f: { name: string; value: string }) => [f.name, f.value]);
+		const saveAttemptId = Object.fromEntries(values).saveAttemptId;
+		await testApp.pendingUpload.stageUploaded({ saveAttemptId, url: htmlUrl, mediaType: "text/html", bytes: VALID_HTML });
+
+		const submit = request(testApp.server)
+			.post(complete.href)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+		for (const [name, value] of values) submit.field(name, value);
+		const response = await submit;
+
+		expect(slot.status).toBe(200);
+		expect(values.map(([name]) => name)).not.toContain("captureTrigger");
+		expect(response.status).toBe(201);
+		expect(publishedSaveHtml).toEqual([expect.objectContaining({ url: htmlUrl, captureTrigger: "manual" })]);
+	});
+
+	it("refuses a slot request whose captureTrigger is neither automatic nor manual", async () => {
+		const { testApp } = setupUpload();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", PDF_URL)
+			.field("mediaType", "application/pdf")
+			.field("captureTrigger", "background")
+			.field("size", String(50 * 1024 * 1024));
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.code).toBe("invalid-save-content");
+	});
 });
 
 describe("POST /queue/save-content for a host that can never hold an article", () => {
