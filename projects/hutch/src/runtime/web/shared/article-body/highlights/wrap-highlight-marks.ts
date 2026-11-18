@@ -1,4 +1,4 @@
-import type { Anchor, NormalisedText, TextChunk } from "@packages/domain/article/highlight";
+import type { NormalisedText, TextChunk, TextRange } from "@packages/domain/article/highlight";
 import {
 	ARTICLE_HIGHLIGHT_CLASS,
 	ARTICLE_HIGHLIGHT_HAS_NOTE_CLASS,
@@ -8,7 +8,7 @@ import {
 export interface MarkableHighlight<Id extends string> {
 	highlightId: Id;
 	note?: string;
-	anchor: Anchor;
+	place: TextRange | undefined;
 }
 
 interface Piece<Id extends string> {
@@ -22,9 +22,9 @@ function piecesByChunk<Id extends string>(input: {
 	spans: NormalisedText["spans"];
 }): Map<number, Piece<Id>[]> {
 	const byChunk = new Map<number, Piece<Id>[]>();
-	for (const { highlightId, anchor } of input.highlights) {
-		if (anchor.anchorState === "orphaned") continue;
-		for (const span of input.spans.slice(anchor.start, anchor.end)) {
+	for (const { highlightId, place } of input.highlights) {
+		if (place === undefined) continue;
+		for (const span of input.spans.slice(place.start, place.end)) {
 			if (span.start === span.end) continue;
 			const pieces = byChunk.get(span.chunk) ?? [];
 			byChunk.set(span.chunk, pieces);

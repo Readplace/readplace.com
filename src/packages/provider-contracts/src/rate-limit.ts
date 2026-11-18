@@ -17,6 +17,7 @@ export type RateLimitBucket =
 	| "import"
 	| "import-from-url"
 	| "upload-stage"
+	| "signup-created"
 	| "view-highlights-keep";
 
 /**
@@ -53,4 +54,5 @@ export interface RateLimitRules {
 	 * attacker-chosen origin (SSRF/DoS amplification surface). */
 	importFromUrl: RateLimitRule;
 	uploadStage: RateLimitRule;
+	signupCreated: RateLimitRule;
 }

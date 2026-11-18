@@ -25,7 +25,7 @@ function wrap(input: { html: string; quote: string; note?: string }) {
 			{
 				highlightId: "local-1",
 				note: input.note,
-				anchor: { start, end: start + input.quote.length, anchorState: "anchored" },
+				place: { start, end: start + input.quote.length },
 			},
 		],
 		idPrefix: "highlight-",
@@ -81,7 +81,7 @@ describe("wrapHighlightMarks", () => {
 			root,
 			chunks,
 			spans,
-			highlights: [{ highlightId: "local-1", anchor: { start: 0, end: 7, anchorState: "orphaned" } }],
+			highlights: [{ highlightId: "local-1", place: undefined }],
 			idPrefix: "highlight-",
 		});
 

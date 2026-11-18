@@ -7,6 +7,8 @@ import {
 	describeRange,
 	mergeRanges,
 	normaliseText,
+	occurrencesOf,
+	snapToWords,
 } from "./text-anchoring";
 
 const chunk = (text: string, blockBoundaryBefore = false) => ({
@@ -510,5 +512,59 @@ describe("mergeRanges", () => {
 				[earlierStart, earlierEnd, laterEnd],
 			);
 		}
+	});
+});
+
+describe("snapToWords", () => {
+	const wordsAt = (params: { text: string; range: { start: number; end: number } }) =>
+		params.text.slice(params.range.start, params.range.end);
+
+	it("widens edges that split a word to the whole word", () => {
+		const text = "The quick brown fox.";
+
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 6, end: 12 }, exact: "quick brown" }) }), "quick brown");
+	});
+
+	it("keeps a place that holds the reader's words, white space aside", () => {
+		const text = "a cat and a dog";
+
+		assert.deepEqual(snapToWords({ text, range: { start: 2, end: 5 }, exact: "cat" }), { start: 2, end: 5 });
+		assert.deepEqual(snapToWords({ text: "x\nab", range: { start: 0, end: 3 }, exact: "x a" }), { start: 0, end: 3 });
+	});
+
+	it("keeps letters joined by a full stop, hyphen, comma or apostrophe as one word", () => {
+		const text = "The U.S. economy and the e-mail of 1,000 people don't count.";
+
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 6, end: 16 }, exact: "US economy" }) }), "U.S. economy");
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 27, end: 31 }, exact: "email" }) }), "e-mail");
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 37, end: 40 }, exact: "1000" }) }), "1,000");
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 48, end: 51 }, exact: "dont" }) }), "don't");
+	});
+
+	it("takes punctuation glued to a word at either edge", () => {
+		const text = "Prices rose to $5 in March.";
+
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 12, end: 16 }, exact: "to five" }) }), "to $5");
+		const after = "Prices rose to 5$ in March.";
+		assert.equal(wordsAt({ text: after, range: snapToWords({ text: after, range: { start: 16, end: 20 }, exact: "five in" }) }), "5$ in");
+	});
+
+	it("does not take a full stop that ends a sentence", () => {
+		const text = "It ended. Then";
+
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 4, end: 8 }, exact: "end" }) }), "ended");
+	});
+
+	it("leaves Thai, Han and Kana edges where they are", () => {
+		const text = "ช่วยเหลือชาวบ้าน";
+
+		assert.deepEqual(snapToWords({ text, range: { start: 3, end: 6 }, exact: "x" }), { start: 3, end: 6 });
+		assert.deepEqual(snapToWords({ text: "東京タワー", range: { start: 1, end: 3 }, exact: "x" }), { start: 1, end: 3 });
+	});
+});
+
+describe("occurrencesOf", () => {
+	it("lists every start of the words, overlapping ones included", () => {
+		assert.deepEqual(occurrencesOf({ text: "aaa", exact: "aa" }), [0, 1]);
 	});
 });

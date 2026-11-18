@@ -22,6 +22,10 @@ export interface HighlightAnchorUpdate {
 	anchorState: AnchorState;
 	anchoredContentHash: string;
 	anchoredCandidateId?: CandidateId;
+	basisCandidateId?: CandidateId;
+	basisQuote?: string;
+	prefix?: string;
+	suffix?: string;
 	orderKey: number;
 }
 

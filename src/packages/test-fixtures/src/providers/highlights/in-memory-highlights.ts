@@ -87,7 +87,12 @@ export function initInMemoryHighlights(): InMemoryHighlights {
 		const row = rows.get(keyOf({ userId, url, highlightId }));
 		if (row === undefined) return { outcome: "deleted" };
 		if (row.highlight.anchorRevision !== expectedRevision) return { outcome: "stale" };
-		const { anchoredCandidateId: _previous, ...current } = row.highlight;
+		const {
+			anchoredCandidateId: _previousCandidate,
+			basisCandidateId: _previousBasis,
+			basisQuote: _previousQuote,
+			...current
+		} = row.highlight;
 		row.highlight = {
 			...current,
 			...anchor,

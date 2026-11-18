@@ -165,7 +165,11 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 			root: content,
 			chunks,
 			spans,
-			highlights: states.map(({ highlight, anchor }) => ({ highlightId: highlight.id, note: highlight.note, anchor })),
+			highlights: states.map(({ highlight, anchor }) => ({
+				highlightId: highlight.id,
+				note: highlight.note,
+				place: anchor.anchorState === "orphaned" ? undefined : anchor,
+			})),
 			idPrefix,
 		});
 		list.replaceChildren(...[...states].sort(byPosition).map(rowOf));

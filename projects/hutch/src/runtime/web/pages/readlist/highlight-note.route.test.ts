@@ -25,6 +25,26 @@ import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cach
 
 const useApp = useTestServer();
 
+async function orphanStoredRow(params: { fixture: TestAppFixture; url: string; highlightId: string }): Promise<void> {
+	const rows = await params.fixture.highlights.listHighlightsOfArticle(params.url);
+	const row = rows.find((candidate) => candidate.highlight.highlightId === params.highlightId);
+	assert(row, "the highlight was created");
+	const result = await params.fixture.highlights.writeHighlightAnchor({
+		userId: row.userId,
+		url: row.highlight.highlightOf,
+		highlightId: row.highlight.highlightId,
+		expectedRevision: row.highlight.anchorRevision,
+		anchor: {
+			start: row.highlight.start,
+			end: row.highlight.end,
+			anchorState: "orphaned",
+			anchoredContentHash: row.highlight.anchoredContentHash,
+			orderKey: row.highlight.orderKey,
+		},
+	});
+	assert.equal(result.outcome, "written");
+}
+
 const ARTICLE_HTML = `
 <html><head><title>Highlight Note Post</title></head>
 <body><article>
@@ -855,6 +875,7 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 		});
 
 		await fixture.articleStore.writeContent({ url, content: SECOND_PARAGRAPH });
+		await orphanStoredRow({ fixture, url, highlightId: id });
 		const reopened = (await agent.get(viewPath(articleId))).text;
 
 		expect(
@@ -981,6 +1002,7 @@ describe("Note previews beside the marks", () => {
 		const { agent, articleId } = await saveArticle(harness, url);
 		const lost = await createHighlight(agent, { articleId, exact: "readability parser", note: "Lost" });
 		await fixture.articleStore.writeContent({ url, content: SECOND_PARAGRAPH });
+		await orphanStoredRow({ fixture, url, highlightId: lost });
 		const noted = await createHighlight(agent, { articleId, exact: "second paragraph", note: "Kept" });
 		const plain = await createHighlight(agent, { articleId, exact: "minimum word count" });
 

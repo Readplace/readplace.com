@@ -127,26 +127,22 @@ const BODY = "<p>Readplace keeps the passages you highlight.</p><p>Notes sit bes
 
 describe("initMcpHighlightOperations", () => {
 	describe("listHighlights", () => {
-		it("lists highlights in reading order as anchored, moved and orphaned against the current body", async () => {
+		it("lists highlights in reading order with each one's stored state against the current version", async () => {
 			const harness = build();
-			await seedArticle(harness, { html: BODY, hash: "hash-1" });
-			const second = await harness.ops.createHighlight({ userId, id: ID_A, quote: "Notes sit beside them." });
-			const first = await harness.ops.createHighlight({ userId, id: ID_A, quote: "keeps the passages" });
-			assert(second.status === "created" && first.status === "created");
-			await harness.store.replaceCanonicalContent({
-				url: URL_A,
-				content: "<p>A new opening.</p><p>Readplace keeps the passages you highlight.</p>",
-				canonicalContentHash: "hash-2",
-				canonicalCandidateId: CandidateIdSchema.parse("candidate-2"),
-			});
+			await seedArticle(harness, { html: BODY, hash: "hash-2" });
+			const moved = seededRow({ exact: "keeps the passages", start: 10, end: 28, anchorState: "moved", anchoredContentHash: "hash-2" });
+			const orphaned = seededRow({ exact: "Notes sit beside them.", start: 50, end: 72, anchorState: "orphaned", anchoredContentHash: "hash-2" });
+			const pending = seededRow({ exact: "you highlight", start: 30, end: 43, anchoredContentHash: "hash-1" });
+			await harness.highlights.createHighlight({ userId, highlights: [moved, orphaned, pending], replacedIds: [] });
 
 			const listed = await harness.ops.listHighlights({ userId, id: ID_A });
 
 			assert(listed.status === "ready");
 			expect(listed.articleId).toBe(ID_A);
 			expect(listed.highlights.map(({ id, quote, state }) => ({ id, quote, state }))).toEqual([
-				{ id: first.highlight.id, quote: "keeps the passages", state: "moved" },
-				{ id: second.highlight.id, quote: "Notes sit beside them.", state: "orphaned" },
+				{ id: moved.highlightId, quote: "keeps the passages", state: "moved" },
+				{ id: pending.highlightId, quote: "you highlight", state: "pending" },
+				{ id: orphaned.highlightId, quote: "Notes sit beside them.", state: "orphaned" },
 			]);
 		});
 
