@@ -22,6 +22,7 @@ async function seedReadable(input: { fixture: TestAppFixture; url: string; userI
 		metadata: { title: "A readable post", siteName: "Example", excerpt: "An excerpt.", wordCount: 6 },
 		estimatedReadTime: calculateReadTime(6),
 		provenance: { kind: "web" },
+		saveTrigger: "manual",
 		savedAt: new Date("2026-11-01T00:00:00.000Z"),
 	});
 	await input.fixture.articleStore.writeContent({
