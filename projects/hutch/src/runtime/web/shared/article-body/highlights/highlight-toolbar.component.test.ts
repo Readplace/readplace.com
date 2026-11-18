@@ -156,6 +156,17 @@ describe("renderLocalHighlightToolbar", () => {
 		assert.equal(toolbar.getAttribute("data-highlight-opened-url"), "/view/highlights/event");
 	});
 
+	it("marks only Add note as a note trigger, so browsers without popovers hide it", () => {
+		const page = doc();
+		const addNote = page.querySelector('[data-test-action="add-note"]');
+		const highlight = page.querySelector('[data-test-action="highlight"]');
+		assert(addNote, "the Add note button renders");
+		assert(highlight, "the Highlight button renders");
+
+		assert.equal(addNote.classList.contains("highlight-note__trigger"), true);
+		assert.equal(highlight.classList.contains("highlight-note__trigger"), false);
+	});
+
 	it("keeps the create form in the browser: a dialog-method form with no htmx or server action", () => {
 		const form = doc().querySelector("[data-highlight-create-form]");
 		assert(form, "the create form renders, so a sentence tap still finds it");
