@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { type Highlight, HighlightIdSchema } from "@packages/domain/article";
-import { toExportHighlights } from "./build-export-highlight";
+import { groupHighlightsByArticle, toExportHighlights } from "./build-export-highlight";
 
 let idCounter = 0;
 function aHighlight(overrides: Partial<Highlight> = {}): Highlight {
@@ -23,35 +23,42 @@ function aHighlight(overrides: Partial<Highlight> = {}): Highlight {
 	};
 }
 
-describe("toExportHighlights", () => {
+describe("groupHighlightsByArticle", () => {
 	it("groups highlights by the article they belong to", () => {
-		const exported = toExportHighlights([
+		const grouped = groupHighlightsByArticle([
 			aHighlight({ highlightOf: "example.com/a", exact: "first" }),
 			aHighlight({ highlightOf: "example.com/b", exact: "second" }),
 			aHighlight({ highlightOf: "example.com/a", exact: "third" }),
 		]);
 
-		expect([...exported.keys()].sort()).toEqual(["example.com/a", "example.com/b"]);
-		expect(exported.get("example.com/a")?.map((h) => h.quote)).toEqual(["first", "third"]);
-		expect(exported.get("example.com/b")?.map((h) => h.quote)).toEqual(["second"]);
+		expect([...grouped.keys()].sort()).toEqual(["example.com/a", "example.com/b"]);
+		expect(grouped.get("example.com/a")?.map((h) => h.exact)).toEqual(["first", "third"]);
+		expect(grouped.get("example.com/b")?.map((h) => h.exact)).toEqual(["second"]);
 	});
 
 	it("orders each article's highlights by their position in the article", () => {
-		const exported = toExportHighlights([
+		const grouped = groupHighlightsByArticle([
 			aHighlight({ exact: "late", orderKey: 40 }),
 			aHighlight({ exact: "early", orderKey: 5 }),
 			aHighlight({ exact: "middle", orderKey: 12 }),
 		]);
 
-		expect(exported.get("example.com/a")?.map((h) => h.quote)).toEqual(["early", "middle", "late"]);
+		expect(grouped.get("example.com/a")?.map((h) => h.exact)).toEqual(["early", "middle", "late"]);
 	});
 
-	it("exports the quote, its context, its anchor state and ISO dates", () => {
-		const exported = toExportHighlights([
-			aHighlight({ exact: "the quote", prefix: "pre ", suffix: " post", anchorState: "orphaned" }),
-		]);
+	it("groups nothing when the reader has no highlights", () => {
+		expect(groupHighlightsByArticle([]).size).toBe(0);
+	});
+});
 
-		expect(exported.get("example.com/a")).toEqual([
+describe("toExportHighlights", () => {
+	it("exports the quote, its context, its anchor state and ISO dates", () => {
+		const exported = toExportHighlights({
+			highlights: [aHighlight({ exact: "the quote", prefix: "pre ", suffix: " post", anchorState: "orphaned" })],
+			contentHash: "hash-1",
+		});
+
+		expect(exported).toEqual([
 			{
 				quote: "the quote",
 				prefix: "pre ",
@@ -63,23 +70,31 @@ describe("toExportHighlights", () => {
 		]);
 	});
 
-	it("leaves the note key out when the highlight has no note", () => {
-		const exported = toExportHighlights([aHighlight()]).get("example.com/a");
-		assert(exported, "the article must be in the map");
-		const [highlight] = exported;
+	it("exports a highlight anchored to an older version as pending", () => {
+		const [highlight] = toExportHighlights({ highlights: [aHighlight()], contentHash: "hash-2" });
+
+		expect(highlight?.state).toBe("pending");
+	});
+
+	it("exports an edited highlight with the current wording and what the reader highlighted", () => {
+		const [highlight] = toExportHighlights({
+			highlights: [aHighlight({ exact: "old wording", basisQuote: "new wording", anchorState: "moved" })],
+			contentHash: "hash-1",
+		});
+
+		expect(highlight).toMatchObject({ quote: "new wording", highlighted: "old wording", state: "moved" });
+	});
+
+	it("leaves the note and highlighted keys out when the highlight has no note and was not edited", () => {
+		const [highlight] = toExportHighlights({ highlights: [aHighlight()], contentHash: undefined });
+		assert(highlight, "the highlight must be exported");
 
 		expect(Object.keys(highlight)).toEqual(["quote", "prefix", "suffix", "state", "createdAt", "updatedAt"]);
 	});
 
 	it("exports the note when the highlight has one", () => {
-		const exported = toExportHighlights([aHighlight({ note: "worth rereading" })]).get("example.com/a");
-		assert(exported, "the article must be in the map");
-		const [highlight] = exported;
+		const [highlight] = toExportHighlights({ highlights: [aHighlight({ note: "worth rereading" })], contentHash: undefined });
 
-		expect(highlight.note).toBe("worth rereading");
-	});
-
-	it("exports nothing when the reader has no highlights", () => {
-		expect(toExportHighlights([]).size).toBe(0);
+		expect(highlight?.note).toBe("worth rereading");
 	});
 });

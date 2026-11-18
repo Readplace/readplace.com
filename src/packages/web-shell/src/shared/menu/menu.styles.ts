@@ -46,6 +46,11 @@ export const MENU_STYLES = `.menu {
 	box-shadow: var(--shadow-menu);
 }
 
+.menu--floating .menu__panel {
+	position: fixed;
+	inset: var(--menu-top) auto auto var(--menu-left);
+}
+
 .menu__panel > * {
 	background: var(--card);
 }

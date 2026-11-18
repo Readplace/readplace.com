@@ -20,6 +20,8 @@ export interface Highlight extends TextQuoteSelector {
 	end: number;
 	anchoredContentHash: string;
 	anchoredCandidateId?: CandidateId;
+	basisCandidateId?: CandidateId;
+	basisQuote?: string;
 	anchorState: AnchorState;
 	orderKey: number;
 	note?: string;
@@ -38,13 +40,17 @@ export const HighlightNoteSchema = z
 
 export type JoinedNote = { ok: true; note?: string } | { ok: false };
 
-export function joinNotes(notes: {
-	newer?: string;
-	older?: string;
-}): JoinedNote {
-	const parts = [notes.newer, notes.older].filter((part) => part !== undefined);
+export function joinNotesNewestFirst(notes: readonly (string | undefined)[]): JoinedNote {
+	const parts = notes.filter((part) => part !== undefined);
 	if (parts.length === 0) return { ok: true };
 	const note = parts.join("\n\n");
 	if (note.length > HIGHLIGHT_NOTE_MAX_LENGTH) return { ok: false };
 	return { ok: true, note };
+}
+
+export function joinNotes(notes: {
+	newer?: string;
+	older?: string;
+}): JoinedNote {
+	return joinNotesNewestFirst([notes.newer, notes.older]);
 }

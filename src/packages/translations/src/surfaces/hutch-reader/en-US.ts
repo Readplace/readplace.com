@@ -8,6 +8,27 @@ export const enUS = {
 		highlightToolbar: {
 			beta: "Beta",
 		},
+		highlightNote: {
+			delete: "Delete note",
+		},
+		highlightsRail: {
+			title: "Highlights",
+			notFound: "Not found in this version",
+			edited: "Edited in this version. You highlighted: “{quote}”",
+			jump: "Jump",
+			addNote: "Add note",
+			editNote: "Edit note",
+			deleteHighlight: "Delete highlight",
+			deleteConfirm: {
+				title: "Delete this highlight?",
+				body: "The passage stays in the article; only your highlight is removed.",
+				bodyWithNote: "The passage stays in the article; your highlight and its note are removed.",
+			},
+		},
+		highlightExport: {
+			edited: "(edited in the current version; you highlighted “{quote}”)",
+			notFound: "(not found in the current version)",
+		},
 		readerFailed: {
 			title: {
 				linkSaved: "Your link is saved",
@@ -74,6 +95,38 @@ export const enUS = {
 			wait: "Or come back in about {wait}.",
 			minutes: { one: "{count} minute", other: "{count} minutes" },
 			hours: { one: "{count} hour", other: "{count} hours" },
+		},
+		highlights: {
+			title: "Highlights",
+			kept: "Kept in this browser only. Up to {limit}.",
+			elsewhere: "On other articles",
+			notFound: "Not found in this version",
+			jump: "Jump",
+			delete: "Delete",
+			addNote: "Add note",
+			editNote: "Edit note",
+			noteLabel: "Note",
+			saveNote: "Save note",
+			popup: {
+				title: "Keep your highlights",
+				body: "This browser keeps up to {limit} highlights. Create a free account to keep them and add as many as you like.",
+				tooLong: "A passage or note longer than {max} characters needs an account.",
+			},
+			actions: {
+				signup: "Create a free account",
+				login: "Log in",
+				notNow: "Not now",
+			},
+		},
+		highlightsClaim: {
+			title: "Keep your highlights",
+			body: "Adding the highlights you made in this browser to your account.",
+			submit: "Keep my highlights",
+		},
+		endCta: {
+			founderLine:
+				"You just read one of my posts in Readplace. I built it so the articles I meant to read would still be there when I had time for them.",
+			founderSignOff: "— Fayner Brack, Founder & CEO",
 		},
 	},
 	reader: {

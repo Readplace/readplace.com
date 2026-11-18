@@ -87,6 +87,7 @@ class AuthDiagnosticVocabularyTest {
 				"newer_generation",
 				"callback_invalid",
 				"provider_rejected",
+				"signup_allowance_spent",
 				"user_cancelled",
 				"cookie_absent",
 				"row_missing",

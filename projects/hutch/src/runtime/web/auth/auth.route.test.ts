@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { assertErrorAlert } from "./assert-error-alert";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -10,6 +11,9 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
+import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
+import { AppleIdSchema } from "@packages/test-fixtures/providers/apple-auth";
+import { signupAllowanceSpentMessage } from "./signup-allowance";
 import { completeCheckoutSignup } from "./test-helpers/complete-checkout-signup";
 import { createAccessToken, saveAccessTokenForClient, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
@@ -588,10 +592,12 @@ describe("Auth routes", () => {
 			assert(lookup, "free signup must persist a user");
 			expect(lookup.emailVerified).toBe(false);
 
-			const consumed = await pendingSignup.consumePendingSignup(
-				CheckoutSessionIdSchema.parse("cs_test_never_created"),
-			);
-			expect(consumed).toBeNull();
+			const claim = await pendingSignup.claimPendingSignup({
+				checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_never_created"),
+				activatedBy: "redirect",
+				claimedAt: new Date().toISOString(),
+			});
+			expect(claim).toEqual({ outcome: "not-found" });
 		}, 30000);
 
 		it("creates a trialing subscription_providers row and redirects to /queue when the founding allocation is exhausted", async () => {
@@ -642,10 +648,12 @@ describe("Auth routes", () => {
 			expect(conversionEvent.homepage_variant).toBe("variant-f");
 
 			// No Stripe checkout, no pending signup row.
-			const consumed = await pendingSignup.consumePendingSignup(
-				CheckoutSessionIdSchema.parse("cs_test_never_created"),
-			);
-			expect(consumed).toBeNull();
+			const claim = await pendingSignup.claimPendingSignup({
+				checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_never_created"),
+				activatedBy: "redirect",
+				claimedAt: new Date().toISOString(),
+			});
+			expect(claim).toEqual({ outcome: "not-found" });
 			// hostedCheckout.markPaid stays accessible for callers — confirming the bundle is unaffected.
 			expect(typeof hostedCheckout.markPaid).toBe("function");
 		}, 30000);
@@ -2051,13 +2059,13 @@ describe("Auth routes", () => {
 			expect(response.headers.location).toBe("/?signup=pending");
 			expect(botDefense.events).toHaveLength(1);
 			/** No Stripe session was created — if one had been, the redirect would
-			 * be to checkout.stripe.test/. We also confirm storePendingSignup was
-			 * never invoked by attempting to consume any plausible session id and
-			 * receiving null. */
-			const consumed = await pendingSignup.consumePendingSignup(
-				CheckoutSessionIdSchema.parse("cs_test_never_created"),
-			);
-			expect(consumed).toBeNull();
+			 * be to checkout.stripe.test/. */
+			const claim = await pendingSignup.claimPendingSignup({
+				checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_never_created"),
+				activatedBy: "redirect",
+				claimedAt: new Date().toISOString(),
+			});
+			expect(claim).toEqual({ outcome: "not-found" });
 		});
 
 		it("falls through to the trial signup happy path (303 to /queue) when the honeypot is empty, loadedAt is older than 2.5s, and the founding allocation is exhausted", async () => {
@@ -2837,5 +2845,126 @@ describe("Auth routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe("Sign in to your Readplace account");
 		});
+	});
+	describe("signup allowance per network per day", () => {
+		const THREE_A_DAY = { limit: 3, windowSeconds: 86400 };
+		const GOOGLE_SECRET = "allowance-google-secret";
+		const APPLE_SECRET = "allowance-apple-secret";
+
+		function signedState(payload: object, secret: string): string {
+			const raw = JSON.stringify(payload);
+			return `${raw}.${createHmac("sha256", secret).update(raw).digest("base64url")}`;
+		}
+
+		function fixtureAllowingThree() {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, signupCreated: THREE_A_DAY },
+			};
+			fixture.google = {
+				exchangeGoogleCode: async () => ({
+					googleId: GoogleIdSchema.parse("google-allowance"),
+					email: "google-allowance@example.com",
+					emailVerified: true,
+				}),
+				clientId: "allowance-google-client",
+				clientSecret: GOOGLE_SECRET,
+			};
+			fixture.apple = {
+				exchangeAppleCode: async () => ({
+					appleId: AppleIdSchema.parse("apple-allowance"),
+					email: "apple-allowance@example.com",
+					emailVerified: true,
+					appleRefreshToken: "apple-allowance-refresh",
+				}),
+				clientId: "com.readplace.web",
+				stateSigningSecret: APPLE_SECRET,
+			};
+			return fixture;
+		}
+
+		function emailSignup(server: Parameters<typeof request>[0], email: string) {
+			return request(server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).type("form").send({
+				email,
+				password: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+		}
+
+		function signupAttemptOutcomes(harness: { analytics: { events: Array<{ event: string }> } }) {
+			return harness.analytics.events
+				.filter((e) => e.event === ANALYTICS_EVENTS.signupAttempted)
+				.map((e) => ("outcome" in e ? e.outcome : undefined));
+		}
+
+		it("refuses the fourth new account from one network with 429, a Retry-After to 00:00 UTC and the configured limit, before creating anything", async () => {
+			const harness = useApp(fixtureAllowingThree());
+
+			for (const email of ["one@example.com", "two@example.com", "three@example.com"]) {
+				expect((await emailSignup(harness.server, email)).status).toBe(303);
+			}
+			const refused = await emailSignup(harness.server, "four@example.com");
+
+			expect(refused.status).toBe(429);
+			const retryAfter = Number(refused.headers["retry-after"]);
+			const nowSeconds = Math.floor(Date.now() / 1000);
+			expect(retryAfter).toBe(86400 - (nowSeconds % 86400));
+			const doc = new JSDOM(refused.text).window.document;
+			expect(assertErrorAlert(doc)?.textContent).toContain(signupAllowanceSpentMessage({ limit: 3 }));
+			expect(await harness.auth.findUserByEmail("four@example.com")).toBeNull();
+			expect([...new Set(harness.email.getSentEmails().map((sent) => sent.to))].sort()).toEqual([
+				"one@example.com",
+				"three@example.com",
+				"two@example.com",
+			]);
+			expect(signupAttemptOutcomes(harness)).toEqual(["created", "created", "created", "allowance_spent"]);
+		}, 30000);
+
+		it("counts accounts created, not form posts: invalid posts and a returning user's sign-in leave all three accounts available", async () => {
+			const harness = useApp(fixtureAllowingThree());
+			await harness.auth.createUser({ email: "returning@example.com", password: "password123" });
+
+			await emailSignup(harness.server, "not-an-email");
+			await emailSignup(harness.server, "also not an email");
+			const returning = await emailSignup(harness.server, "returning@example.com");
+			const created = [
+				await emailSignup(harness.server, "one@example.com"),
+				await emailSignup(harness.server, "two@example.com"),
+				await emailSignup(harness.server, "three@example.com"),
+			];
+
+			expect(returning.status).toBe(303);
+			expect(created.map((response) => response.status)).toEqual([303, 303, 303]);
+			expect(signupAttemptOutcomes(harness)).toEqual([
+				"invalid_input",
+				"invalid_input",
+				"signed_in",
+				"created",
+				"created",
+				"created",
+			]);
+		}, 30000);
+
+		it("shares one allowance across email, Google and Apple signups from the same network", async () => {
+			const harness = useApp(fixtureAllowingThree());
+			const googleState = signedState({ nonce: "n", createdAt: Date.now() }, GOOGLE_SECRET);
+			const appleState = signedState({ nonce: "n", createdAt: Date.now() }, APPLE_SECRET);
+
+			await emailSignup(harness.server, "one@example.com");
+			await emailSignup(harness.server, "two@example.com");
+			const google = await request(harness.server)
+				.get(`/auth/google/callback?code=c&state=${encodeURIComponent(googleState)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(googleState)}`);
+			const apple = await request(harness.server)
+				.post("/auth/apple/callback")
+				.type("form")
+				.set("Cookie", `hutch_astate=${encodeURIComponent(appleState)}`)
+				.send({ code: "c", state: appleState });
+
+			expect(google.status).toBe(303);
+			expect(apple.status).toBe(429);
+			expect(await harness.auth.findUserByEmail("apple-allowance@example.com")).toBeNull();
+		}, 30000);
 	});
 });

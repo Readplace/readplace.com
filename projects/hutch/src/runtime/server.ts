@@ -59,7 +59,8 @@ import type {
 	RetrieveCheckoutSession,
 } from "@packages/provider-contracts/hosted-checkout";
 import type {
-	ConsumePendingSignup,
+	ClaimPendingSignup,
+	FindPendingSignup,
 	StorePendingSignup,
 } from "@packages/provider-contracts/pending-signup";
 import type {
@@ -89,6 +90,7 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	ResolvePriceId,
 	FindSubscriptionNextCharge,
+	FindSubscriptionPaymentMethod,
 	ListInvoices,
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/subscription-billing";
@@ -263,6 +265,7 @@ import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initReportArticleRoutes } from "./web/pages/report-article/report-article.page";
 import { initBrowserHandoffRoutes } from "./web/auth/browser-handoff.page";
 import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
+import { isHighlightCreateRequest } from "./web/pages/readlist/highlights.page";
 import { initUnrouteInboxesOnReadlistDelete } from "./domain/readlist/unroute-inboxes-on-readlist-delete";
 import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
@@ -310,6 +313,15 @@ import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.erro
 import { initSaveRoutes } from "./web/pages/save/save.page";
 import { type ValidateSaveableUrl, withNewSavePreparation, withPrivateItemRefusal } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
+import { initViewHighlightsRoutes } from "./web/pages/view/view-highlights.page";
+import { VIEW_HIGHLIGHTS_MOUNT } from "./web/pages/view/view-highlights-paths";
+import { initClaimViewHighlights } from "./web/pages/view/claim-view-highlights";
+import { initCreateHighlightByQuote } from "./web/shared/article-body/highlights/create-highlight-by-quote";
+import type {
+	FindPendingViewHighlights,
+	ReleasePendingViewHighlights,
+	StorePendingViewHighlights,
+} from "./providers/pending-view-highlights/pending-view-highlights.types";
 import { initAdminRoutes } from "./web/pages/admin/admin.routes";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initQueueDigestUnsubscribeRoutes } from "./web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page";
@@ -617,6 +629,9 @@ export interface AppDependencies {
 	chargeTranscriptQuota: ChargeTranscriptQuota;
 	refundUnstartedCharge: RefundUnstartedCharge;
 	createMediaUploadSession: CreateMediaUploadSession;
+	storePendingViewHighlights: StorePendingViewHighlights;
+	findPendingViewHighlights: FindPendingViewHighlights;
+	releasePendingViewHighlights: ReleasePendingViewHighlights;
 	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
@@ -642,7 +657,8 @@ export interface AppDependencies {
 	drawRandomByte: () => number;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
-	consumePendingSignup: ConsumePendingSignup;
+	findPendingSignup: FindPendingSignup;
+	claimPendingSignup: ClaimPendingSignup;
 	storePendingSignup: StorePendingSignup;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
@@ -666,6 +682,7 @@ export interface AppDependencies {
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
+	findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod;
 	listInvoices: ListInvoices;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	paymentMethods: {
@@ -683,6 +700,7 @@ export interface AppDependencies {
 	funnelLogger: Logger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
 	analytics: Logger.Typed<AnalyticsEvent>;
 	authDiagnosticsLogger: Logger.Typed<Record<string, unknown>>;
+	signupLogger: Logger;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
@@ -833,6 +851,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const createReaderHighlight = initCreateReaderHighlight({
 		listArticleHighlights: deps.listArticleHighlights,
 		createHighlight: deps.createHighlight,
+		updateHighlightNote: deps.updateHighlightNote,
 		newHighlightId: randomUUID,
 		now: deps.now,
 	});
@@ -861,7 +880,8 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const secureCookies = isHttpsOrigin(appOrigin);
 
-	app.use(express.urlencoded({ extended: true, verify: captureOAuthBody }));
+	const parseForm = express.urlencoded({ extended: true, verify: captureOAuthBody });
+	app.use((req, res, next) => (isHighlightCreateRequest(req) ? next() : parseForm(req, res, next)));
 	app.use(cookieParser());
 	app.use(createCrossSiteRequestMiddleware({ appOrigin }));
 	app.use(initAuthDiagnosticMiddleware({ diagnostics: authDiagnostics, now: deps.now, secureCookies }));
@@ -1417,7 +1437,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		createVerificationToken: deps.createVerificationToken,
 		verifyEmailToken: deps.verifyEmailToken,
 		retrieveCheckoutSession: deps.retrieveCheckoutSession,
-		consumePendingSignup: deps.consumePendingSignup,
+		findPendingSignup: deps.findPendingSignup,
+		claimPendingSignup: deps.claimPendingSignup,
 		subscriptionProviders: {
 			upsertActive: deps.subscriptionProviders.upsertActive,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
@@ -1440,6 +1461,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			login: deps.rateLimitRules.login,
 			loginAccount: deps.rateLimitRules.loginAccount,
 			signup: deps.rateLimitRules.signup,
+			signupCreated: deps.rateLimitRules.signupCreated,
 		},
 	});
 	app.use("/auth/session", sessionBridgeCors);
@@ -1483,6 +1505,9 @@ export function createApp(dependencies: AppDependencies): Express {
 			recordAnalyticsEvent,
 			salt: deps.salt,
 			foundingAllocation,
+			consumeRateLimit: deps.consumeRateLimit,
+			signupCreatedRule: deps.rateLimitRules.signupCreated,
+			logger: deps.signupLogger,
 		});
 		app.use(googleAuthRouter);
 	}
@@ -1513,6 +1538,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordAnalyticsEvent,
 		salt: deps.salt,
 		foundingAllocation,
+		consumeRateLimit: deps.consumeRateLimit,
+		signupCreatedRule: deps.rateLimitRules.signupCreated,
+		logger: deps.signupLogger,
 	});
 	app.use(appleAuthRouter);
 
@@ -1673,6 +1701,37 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const saveRouter = initSaveRoutes({ buildBannerState, recordAnalyticsEvent, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID, ownHost });
 	app.use("/save", saveRouter);
+
+	app.use(
+		VIEW_HIGHLIGHTS_MOUNT,
+		initViewHighlightsRoutes({
+			appOrigin,
+			validateSaveableUrl: deps.validateSaveableUrl,
+			storePendingViewHighlights: deps.storePendingViewHighlights,
+			findPendingViewHighlights: deps.findPendingViewHighlights,
+			releasePendingViewHighlights: deps.releasePendingViewHighlights,
+			claimViewHighlights: initClaimViewHighlights({
+				validateNewSaveUrl,
+				refreshArticleIfStale: deps.refreshArticleIfStale,
+				saveArticleAtReadlistTop,
+				createHighlightByQuote: initCreateHighlightByQuote({
+					readArticleContent: deps.readArticleContent,
+					readCanonicalSnapshot: deps.readCanonicalSnapshot,
+					createHighlight: createReaderHighlight,
+					appOrigin,
+				}),
+			}),
+			generatePendingId: randomUUID,
+			secureCookies,
+			consumeRateLimit: deps.consumeRateLimit,
+			keepRateLimitRule: deps.rateLimitRules.signup,
+			requireWriteAccess,
+			buildBannerState,
+			recordAnalyticsEvent,
+			salt: deps.salt,
+			now: deps.now,
+		}),
+	);
 
 	const viewRouter = initViewRoutes(viewDependenciesFrom(deps, {
 		appOrigin,

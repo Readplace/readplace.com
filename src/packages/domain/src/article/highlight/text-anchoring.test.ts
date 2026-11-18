@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import {
 	HIGHLIGHT_CONTEXT_LENGTH,
 	HIGHLIGHT_MAX_EXACT_LENGTH,
+	HIGHLIGHT_MAX_SELECTION_LENGTH,
 	anchorHighlight,
 	describeRange,
 	mergeRanges,
 	normaliseText,
+	occurrencesOf,
+	snapToWords,
 } from "./text-anchoring";
 
 const chunk = (text: string, blockBoundaryBefore = false) => ({
@@ -17,6 +20,10 @@ describe("named limits", () => {
 	it("keeps 32 code units of context and caps a quote at 8191", () => {
 		assert.equal(HIGHLIGHT_CONTEXT_LENGTH, 32);
 		assert.equal(HIGHLIGHT_MAX_EXACT_LENGTH, 8191);
+	});
+
+	it("bounds one selection at 65536 code units", () => {
+		assert.equal(HIGHLIGHT_MAX_SELECTION_LENGTH, 65536);
 	});
 });
 
@@ -347,13 +354,15 @@ describe("anchorHighlight", () => {
 });
 
 describe("mergeRanges", () => {
+	const anyNotes = () => true;
+
 	it("merges an overlapping range into the span of both", () => {
 		const existing = [{ id: "a", start: 5, end: 15 }];
 
-		assert.deepEqual(mergeRanges({ range: { start: 10, end: 20 }, existing }), {
-			range: { start: 5, end: 20 },
-			merged: existing,
-		});
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: anyNotes }),
+			{ merged: existing, parts: [{ start: 5, end: 20 }], covering: [] },
+		);
 	});
 
 	it("merges a range that only touches", () => {
@@ -362,19 +371,19 @@ describe("mergeRanges", () => {
 			{ id: "after", start: 20, end: 25 },
 		];
 
-		assert.deepEqual(mergeRanges({ range: { start: 10, end: 20 }, existing }), {
-			range: { start: 0, end: 25 },
-			merged: existing,
-		});
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: anyNotes }),
+			{ merged: existing, parts: [{ start: 0, end: 25 }], covering: [] },
+		);
 	});
 
 	it("leaves disjoint ranges alone", () => {
 		const existing = [{ id: "far", start: 30, end: 40 }];
 
-		assert.deepEqual(mergeRanges({ range: { start: 0, end: 10 }, existing }), {
-			range: { start: 0, end: 10 },
-			merged: [],
-		});
+		assert.deepEqual(
+			mergeRanges({ range: { start: 0, end: 10 }, existing, maxLength: 100, canMerge: anyNotes }),
+			{ merged: [], parts: [{ start: 0, end: 10 }], covering: [] },
+		);
 	});
 
 	it("merges a range reached only through another merged range", () => {
@@ -384,9 +393,178 @@ describe("mergeRanges", () => {
 			{ id: "far", start: 50, end: 60 },
 		];
 
-		assert.deepEqual(mergeRanges({ range: { start: 10, end: 20 }, existing }), {
-			range: { start: 10, end: 30 },
-			merged: [existing[1], existing[0]],
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: anyNotes }),
+			{ merged: [existing[1], existing[0]], parts: [{ start: 10, end: 30 }], covering: [] },
+		);
+	});
+
+	it("leaves a touching neighbour alone and keeps its text out of the range when the merge would pass the length cap", () => {
+		const existing = [{ id: "before", start: 0, end: 15 }];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 19, canMerge: anyNotes }),
+			{ merged: [], parts: [{ start: 15, end: 20 }], covering: existing },
+		);
+	});
+
+	it("merges up to exactly the length cap", () => {
+		const existing = [{ id: "before", start: 0, end: 15 }];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 20, canMerge: anyNotes }),
+			{ merged: existing, parts: [{ start: 0, end: 20 }], covering: [] },
+		);
+	});
+
+	it("leaves a neighbour alone when its notes cannot be joined", () => {
+		const existing = [{ id: "noted", start: 18, end: 30 }];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: () => false }),
+			{ merged: [], parts: [{ start: 10, end: 18 }], covering: existing },
+		);
+	});
+
+	it("passes every row merged so far, and the candidate, to the note check", () => {
+		const existing = [
+			{ id: "first", start: 5, end: 12 },
+			{ id: "second", start: 18, end: 25 },
+		];
+		const asked: string[][] = [];
+
+		mergeRanges({
+			range: { start: 10, end: 20 },
+			existing,
+			maxLength: 100,
+			canMerge: (rows) => {
+				asked.push(rows.map((row) => row.id));
+				return true;
+			},
 		});
+
+		assert.deepEqual(asked, [["first"], ["first", "second"]]);
+	});
+
+	it("returns the existing highlight and no remainder for a selection lying wholly inside it", () => {
+		const existing = [{ id: "around", start: 0, end: 30 }];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: anyNotes }),
+			{ merged: [], parts: [], covering: existing },
+		);
+	});
+
+	it("splits a selection around a neighbour inside it that it cannot merge", () => {
+		const existing = [{ id: "inside", start: 10, end: 20 }];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 0, end: 30 }, existing, maxLength: 25, canMerge: anyNotes }),
+			{
+				merged: [],
+				parts: [
+					{ start: 0, end: 10 },
+					{ start: 20, end: 30 },
+				],
+				covering: existing,
+			},
+		);
+	});
+
+	it("returns no remainder for a selection covered by neighbours it cannot merge", () => {
+		const existing = [
+			{ id: "right", start: 10, end: 25 },
+			{ id: "left", start: 0, end: 10 },
+		];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 5, end: 20 }, existing, maxLength: 12, canMerge: anyNotes }),
+			{ merged: [], parts: [], covering: [existing[1], existing[0]] },
+		);
+	});
+
+	it("merges the neighbour nearer the selection's start first when only one fits", () => {
+		const before = { id: "before", start: 0, end: 10 };
+		const after = { id: "after", start: 20, end: 32 };
+
+		for (const existing of [
+			[before, after],
+			[after, before],
+		]) {
+			assert.deepEqual(
+				mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 25, canMerge: anyNotes }),
+				{ merged: [before], parts: [{ start: 0, end: 20 }], covering: [] },
+			);
+		}
+	});
+
+	it("merges neighbours equally near the selection's start by their start, then by their end, whatever their order", () => {
+		const earlierStart = { id: "earlier-start", start: 0, end: 10 };
+		const earlierEnd = { id: "earlier-end", start: 5, end: 10 };
+		const laterEnd = { id: "later-end", start: 5, end: 12 };
+
+		for (const existing of [
+			[laterEnd, earlierEnd, earlierStart],
+			[earlierStart, earlierEnd, laterEnd],
+		]) {
+			assert.deepEqual(
+				mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: anyNotes }).merged,
+				[earlierStart, earlierEnd, laterEnd],
+			);
+		}
+	});
+});
+
+describe("snapToWords", () => {
+	const wordsAt = (params: { text: string; range: { start: number; end: number } }) =>
+		params.text.slice(params.range.start, params.range.end);
+
+	it("widens edges that split a word to the whole word", () => {
+		const text = "The quick brown fox.";
+
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 6, end: 12 }, exact: "quick brown" }) }), "quick brown");
+	});
+
+	it("keeps a place that holds the reader's words, white space aside", () => {
+		const text = "a cat and a dog";
+
+		assert.deepEqual(snapToWords({ text, range: { start: 2, end: 5 }, exact: "cat" }), { start: 2, end: 5 });
+		assert.deepEqual(snapToWords({ text: "x\nab", range: { start: 0, end: 3 }, exact: "x a" }), { start: 0, end: 3 });
+	});
+
+	it("keeps letters joined by a full stop, hyphen, comma or apostrophe as one word", () => {
+		const text = "The U.S. economy and the e-mail of 1,000 people don't count.";
+
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 6, end: 16 }, exact: "US economy" }) }), "U.S. economy");
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 27, end: 31 }, exact: "email" }) }), "e-mail");
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 37, end: 40 }, exact: "1000" }) }), "1,000");
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 48, end: 51 }, exact: "dont" }) }), "don't");
+	});
+
+	it("takes punctuation glued to a word at either edge", () => {
+		const text = "Prices rose to $5 in March.";
+
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 12, end: 16 }, exact: "to five" }) }), "to $5");
+		const after = "Prices rose to 5$ in March.";
+		assert.equal(wordsAt({ text: after, range: snapToWords({ text: after, range: { start: 16, end: 20 }, exact: "five in" }) }), "5$ in");
+	});
+
+	it("does not take a full stop that ends a sentence", () => {
+		const text = "It ended. Then";
+
+		assert.equal(wordsAt({ text, range: snapToWords({ text, range: { start: 4, end: 8 }, exact: "end" }) }), "ended");
+	});
+
+	it("leaves Thai, Han and Kana edges where they are", () => {
+		const text = "ช่วยเหลือชาวบ้าน";
+
+		assert.deepEqual(snapToWords({ text, range: { start: 3, end: 6 }, exact: "x" }), { start: 3, end: 6 });
+		assert.deepEqual(snapToWords({ text: "東京タワー", range: { start: 1, end: 3 }, exact: "x" }), { start: 1, end: 3 });
+	});
+});
+
+describe("occurrencesOf", () => {
+	it("lists every start of the words, overlapping ones included", () => {
+		assert.deepEqual(occurrencesOf({ text: "aaa", exact: "aa" }), [0, 1]);
 	});
 });

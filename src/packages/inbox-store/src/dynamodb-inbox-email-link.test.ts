@@ -418,6 +418,138 @@ describe("initDynamoDbInboxEmailLink", () => {
 		});
 	});
 
+	describe("rescueSkippedLink", () => {
+		it("moves the link to pending only while it is skipped", async () => {
+			let captured: CapturedCommand | undefined;
+
+			const result = await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).rescueSkippedLink({ userId: USER, receivedAtMessageId: RAM, ordinal: ORDINAL });
+
+			expect(result).toBe("rescued");
+			expect(captured?.input).toEqual({
+				TableName: TABLE,
+				Key: { userLinkGroup: GROUP, ordinal: ORDINAL },
+				ConditionExpression: "#status = :skipped",
+				UpdateExpression: "SET #status = :pending REMOVE #skipReason",
+				ExpressionAttributeNames: { "#status": "status", "#skipReason": "skipReason" },
+				ExpressionAttributeValues: { ":skipped": "skipped", ":pending": "pending" },
+			});
+		});
+
+		it("reports not-skipped when the link already left the skipped state", async () => {
+			const result = await store(() => {
+				throw conditionalCheckFailed();
+			}).rescueSkippedLink({ userId: USER, receivedAtMessageId: RAM, ordinal: ORDINAL });
+
+			expect(result).toBe("not-skipped");
+		});
+	});
+
+	describe("addEligibleArticle", () => {
+		it("adds one to the eligible count only on a meta row with selected readlists", async () => {
+			let captured: CapturedCommand | undefined;
+
+			await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).addEligibleArticle({ userId: USER, receivedAtMessageId: RAM });
+
+			expect(captured?.input).toEqual({
+				TableName: TABLE,
+				Key: { userLinkGroup: GROUP, ordinal: "meta" },
+				ConditionExpression: "attribute_exists(selectedReadlists)",
+				UpdateExpression: "ADD eligibleArticleCount :one",
+				ExpressionAttributeValues: { ":one": 1 },
+			});
+		});
+
+		it("does nothing when the email has no selected readlists", async () => {
+			await expect(
+				store(() => {
+					throw conditionalCheckFailed();
+				}).addEligibleArticle({ userId: USER, receivedAtMessageId: RAM }),
+			).resolves.toBeUndefined();
+		});
+	});
+
+	describe("mergeReadlistOutcomeFit", () => {
+		const kept = { ordinal: EmailLinkOrdinalSchema.parse("0000"), verdict: "keep" as const, reason: "On topic" };
+		const entry = { ordinal: ORDINAL, verdict: "drop" as const, reason: "Off topic" };
+		const outcomeRow = (readlistOutcome: Record<string, unknown>) => ({
+			userLinkGroup: GROUP,
+			ordinal: `readlist#${WORK}`,
+			userId: USER,
+			receivedAtMessageId: RAM,
+			readlistOutcome,
+		});
+		const filtered = { readlist: WORK, readlistLabel: "Work", decision: "filtered", fit: [kept] };
+
+		function storeReading(row: Record<string, unknown> | undefined, onUpdate: (cmd: CapturedCommand) => unknown = () => ({})) {
+			const commands: CapturedCommand[] = [];
+			const merge = store((cmd) => {
+				commands.push(cmd as CapturedCommand);
+				if (commands.length === 1) return { Item: row };
+				return onUpdate(cmd as CapturedCommand);
+			});
+			return { merge, commands };
+		}
+
+		it("appends the entry while the decision and its size are unchanged", async () => {
+			const { merge, commands } = storeReading(outcomeRow(filtered));
+
+			const result = await merge.mergeReadlistOutcomeFit({ userId: USER, receivedAtMessageId: RAM, readlist: WORK, entry });
+
+			expect(result).toBe("merged");
+			expect(commands[0]?.input).toEqual({
+				TableName: TABLE,
+				Key: { userLinkGroup: GROUP, ordinal: `readlist#${WORK}` },
+				ConsistentRead: true,
+			});
+			expect(commands[1]?.input).toEqual({
+				TableName: TABLE,
+				Key: { userLinkGroup: GROUP, ordinal: `readlist#${WORK}` },
+				ConditionExpression: "readlistOutcome.decision = :filtered AND size(readlistOutcome.fit) = :size",
+				UpdateExpression: "SET readlistOutcome.fit = list_append(readlistOutcome.fit, :entry)",
+				ExpressionAttributeValues: { ":filtered": "filtered", ":size": 1, ":entry": [entry] },
+			});
+		});
+
+		it("keeps an existing entry for the same link", async () => {
+			const { merge, commands } = storeReading(outcomeRow({ ...filtered, fit: [kept, { ...entry, verdict: "keep" }] }));
+
+			expect(
+				await merge.mergeReadlistOutcomeFit({ userId: USER, receivedAtMessageId: RAM, readlist: WORK, entry }),
+			).toBe("already-decided");
+			expect(commands).toHaveLength(1);
+		});
+
+		it("reports not-filtered for a missing or non-filtered decision", async () => {
+			expect(
+				await storeReading(undefined).merge.mergeReadlistOutcomeFit({ userId: USER, receivedAtMessageId: RAM, readlist: WORK, entry }),
+			).toBe("not-filtered");
+			expect(
+				await storeReading(outcomeRow({ ...filtered, decision: "failed", fit: [] })).merge.mergeReadlistOutcomeFit({
+					userId: USER,
+					receivedAtMessageId: RAM,
+					readlist: WORK,
+					entry,
+				}),
+			).toBe("not-filtered");
+		});
+
+		it("throws when the decision changed between the read and the write", async () => {
+			const { merge } = storeReading(outcomeRow(filtered), () => {
+				throw conditionalCheckFailed();
+			});
+
+			await expect(
+				merge.mergeReadlistOutcomeFit({ userId: USER, receivedAtMessageId: RAM, readlist: WORK, entry }),
+			).rejects.toThrow(ConditionalCheckFailedException);
+		});
+	});
+
 	describe("putLinksMeta", () => {
 		it("upserts the truncated meta item under the reserved sort key", async () => {
 			let captured: CapturedCommand | undefined;

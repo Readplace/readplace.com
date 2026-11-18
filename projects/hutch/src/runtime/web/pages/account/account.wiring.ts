@@ -4,7 +4,7 @@ import { ignoreLogLine } from "../../ignore-log-line";
 import type { initAccountRoutes } from "./account.page";
 
 export function accountDependenciesFrom(
-	deps: Pick<AppDependencies, "subscriptionProviders" | "findEmailByUserId" | "findUserById" | "findUserPasswordStatus" | "setUserAppearance" | "setUserDisplayName" | "destroyUserSessions" | "revokeAllUserOAuthTokens" | "revokeUserOAuthClient" | "markAccountDeleted" | "publishDeleteAccountCommand" | "publishCancelSubscriptionCommand" | "publishSubscriptionReactivated" | "createCheckoutSession" | "createSubscriptionOnExistingCustomer" | "findSubscriptionNextCharge" | "listInvoices" | "reverseScheduledCancellation" | "paymentMethods" | "stripePublishableKey" | "trialScheduler" | "storePendingSignup" | "resolvePriceId" | "keepOfferCouponId" | "salt" | "logError" | "now">,
+	deps: Pick<AppDependencies, "subscriptionProviders" | "findEmailByUserId" | "findUserById" | "findUserPasswordStatus" | "setUserAppearance" | "setUserDisplayName" | "destroyUserSessions" | "revokeAllUserOAuthTokens" | "revokeUserOAuthClient" | "markAccountDeleted" | "publishDeleteAccountCommand" | "publishCancelSubscriptionCommand" | "publishSubscriptionReactivated" | "createCheckoutSession" | "createSubscriptionOnExistingCustomer" | "findSubscriptionNextCharge" | "findSubscriptionPaymentMethod" | "listInvoices" | "reverseScheduledCancellation" | "paymentMethods" | "stripePublishableKey" | "trialScheduler" | "storePendingSignup" | "resolvePriceId" | "keepOfferCouponId" | "salt" | "logError" | "now">,
 	built: Pick<
 		Parameters<typeof initAccountRoutes>[0],
 		"keepOffer" | "getEffectiveAccess" | "listConnectedOAuthClients" | "appOrigin" | "buildBannerState" | "recordSubscriptionEvent" | "recordAnalyticsEvent"
@@ -44,6 +44,7 @@ export function accountDependenciesFrom(
 		createCheckoutSession: deps.createCheckoutSession,
 		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge: deps.findSubscriptionNextCharge,
+		findSubscriptionPaymentMethod: deps.findSubscriptionPaymentMethod,
 		listInvoices: deps.listInvoices,
 		setSubscriptionNextCharge: deps.subscriptionProviders.setNextCharge,
 		reverseScheduledCancellation: deps.reverseScheduledCancellation,

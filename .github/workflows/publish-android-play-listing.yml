@@ -1,0 +1,47 @@
+name: Publish Android Play listing
+run-name: ${{ inputs.publish && 'Publish the Play listing' || 'Validate the Play listing' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Unticked: validate the committed listing against Google Play and change nothing. Ticked: commit it, and Play publishes it after review"
+        type: boolean
+        default: false
+
+concurrency:
+  group: android-play-listing
+  cancel-in-progress: false
+
+jobs:
+  listing:
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: projects/native-apps/android
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: projects/native-apps/android
+
+      - name: Write the listing into a Google Play edit
+        env:
+          SUPPLY_JSON_KEY_DATA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          VALIDATE_ONLY: ${{ inputs.publish != true }}
+        run: |
+          bundle exec fastlane supply \
+            --package_name com.readplace.app \
+            --track internal \
+            --metadata_path fastlane/metadata/android \
+            --skip_upload_apk true \
+            --skip_upload_aab true \
+            --skip_upload_changelogs true \
+            --sync_image_upload true \
+            --validate_only "$VALIDATE_ONLY"

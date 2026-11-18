@@ -20,7 +20,6 @@ import {
 	type RenderLadderLegs,
 	type RenderLegClaim,
 	type RenderMeteredLeg,
-	type RenderRecoveryAttempt,
 	runRenderLadder,
 } from "./render-ladder";
 
@@ -97,7 +96,6 @@ const noBodyFetch: ProxiedFetchAttempt = {
 };
 
 function ladderWith(script: {
-	url?: string;
 	direct: RenderOutcome;
 	residential?: RenderOutcome;
 	webUnlockerRender?: RenderOutcome;
@@ -110,7 +108,6 @@ function ladderWith(script: {
 }) {
 	const steps: string[] = [];
 	const ledger: string[] = [];
-	const recoveryReports: RenderRecoveryAttempt[] = [];
 	const permitFor = (leg: RenderMeteredLeg): PaidLegPermit =>
 		PaidLegPermitSchema.parse({ leg, claimId: "msg-1", inputHash: `hash-${leg}` });
 	const assertHeld = (permit: PaidLegPermit, leg: RenderMeteredLeg) =>
@@ -124,7 +121,7 @@ function ladderWith(script: {
 		return script.webUnlockerRender;
 	};
 	const renderPage: RenderPage = async (params) => {
-		assert.equal(params.url, script.url ?? URL);
+		assert.equal(params.url, URL);
 		steps.push(
 			`render ${params.egress.kind} ${params.navigationTimeoutMilliseconds}`,
 		);
@@ -135,7 +132,7 @@ function ladderWith(script: {
 	};
 	const legs: RenderLadderLegs = {
 		renderPage,
-		url: script.url ?? URL,
+		url: URL,
 		residentialEgress: (permit): ResidentialEgress => {
 			assertHeld(permit, "render-residential-per-gb");
 			residentialSessions += 1;
@@ -191,9 +188,8 @@ function ladderWith(script: {
 			steps.push(`time ${next}`);
 			return next;
 		},
-		reportRecoveryAttempt: (attempt) => recoveryReports.push(attempt),
 	};
-	return { run: () => runRenderLadder(legs), steps, ledger, renderedEgresses, recoveryReports };
+	return { run: () => runRenderLadder(legs), steps, ledger, renderedEgresses };
 }
 
 describe("runRenderLadder", () => {
@@ -695,132 +691,6 @@ describe("runRenderLadder", () => {
 			residential: residentialFailure,
 			webUnlockerFetch: { kind: "skipped", reason: "no-block-evidence" },
 			webUnlockerRender: { kind: "skipped", reason: "time-exhausted" },
-		});
-	});
-
-	describe("bounded residential recovery after an unlocker browser 502", () => {
-		const gatewayFailure: RenderOutcome = { ...failedRender, detail: "main document answered HTTP 502", httpStatus: 502 };
-		const eligible = {
-			url: "https://publisher.test/article",
-			direct: blockedRender,
-			webUnlockerFetch: noBodyFetch,
-			webUnlockerRender: gatewayFailure,
-		};
-
-		it.each([
-			{ host: "publisher.test", port: "" },
-			{ host: "journal.example.org", port: ":443" },
-			{ host: "www.mckinsey.com", port: "" },
-			{ host: "email.mckinsey.com", port: "" },
-			{ host: "mckinsey.com", port: "" },
-		])("tries the unused residential leg once on $host$port with exactly its remaining allowance", async ({ host, port }) => {
-			const { run, steps, ledger, renderedEgresses, recoveryReports } = ladderWith({
-				...eligible,
-				url: `https://${host}${port}/article?private-token=hidden`,
-				residential: renderedBody,
-				commits: { "residential-per-gb": committed },
-				remaining: [FETCH_THRESHOLD, WEB_UNLOCKER_RENDER_THRESHOLD, RESIDENTIAL_THRESHOLD, RESIDENTIAL_THRESHOLD],
-			});
-
-			assert.deepEqual(await run(), { kind: "settled", settledThrough: "residential-per-gb", residentialSkipped: false });
-			assert.deepEqual(renderedEgresses.map((egress) => egress.kind), ["direct", "web-unlocker", "residential"]);
-			assert.equal(steps.filter((step) => step === "claim residential").length, 1);
-			assert(steps.includes("commit residential-per-gb available"));
-			assert.deepEqual(ledger, ["release fetch", "release render", "settle residential candidate-1"]);
-			assert.deepEqual(recoveryReports, [
-				{ policyVersion: "residential-after-gateway-502-v1", host, phase: "started" },
-				{ policyVersion: "residential-after-gateway-502-v1", host, phase: "finished", outcome: "committed" },
-			]);
-		});
-
-		it.each(["http://publisher.test/article", "https://publisher.test:444/article", "ftp://publisher.test/article", "invalid"])("does not retry outside standard HTTPS URLs: %s", async (url) => {
-			const { run, steps, recoveryReports } = ladderWith({ ...eligible, url });
-			assert.equal((await run()).kind, "unrendered");
-			assert(!steps.includes("claim residential"));
-			assert.deepEqual(recoveryReports, []);
-		});
-
-		it.each([failedRender, { ...failedRender, httpStatus: 500 }, { ...blockedRender, httpStatus: 502 }])("does not retry a final outcome without failed HTTP 502: $kind $httpStatus", async (webUnlockerRender) => {
-			const { run, steps, recoveryReports } = ladderWith({ ...eligible, webUnlockerRender });
-			assert.equal((await run()).kind, "unrendered");
-			assert(!steps.includes("claim residential"));
-			assert.deepEqual(recoveryReports, []);
-		});
-
-		it("does not repeat residential when it already ran before the 502", async () => {
-			const { run, steps, recoveryReports } = ladderWith({ ...eligible, direct: failedRender, residential: blockedRender });
-			assert.equal((await run()).kind, "unrendered");
-			assert.equal(steps.filter((step) => step === "render residential 30000").length, 1);
-			assert.deepEqual(recoveryReports, []);
-		});
-
-		it.each([
-			{ route: "direct-egress", direct: renderedBody, webUnlockerFetch: noBodyFetch, webUnlockerRender: gatewayFailure },
-			{ route: "web-unlocker-fetch", direct: blockedRender, webUnlockerFetch: committed, webUnlockerRender: gatewayFailure },
-			{ route: "web-unlocker-render", direct: blockedRender, webUnlockerFetch: noBodyFetch, webUnlockerRender: renderedBody },
-		])("preserves a success through $route", async ({ route, ...outcomes }) => {
-			const { run, steps, recoveryReports } = ladderWith({
-				...eligible, ...outcomes,
-				commits: { "direct-egress": committed, "web-unlocker-render": committed },
-			});
-			assert.deepEqual(await run(), { kind: "settled", settledThrough: route, residentialSkipped: route !== "direct-egress" });
-			assert(!steps.includes("claim residential"));
-			assert.deepEqual(recoveryReports, []);
-		});
-
-		it.each([false, true])("preserves the original failures when time expires (after claim: %s)", async (afterClaim) => {
-			const { run, steps, ledger, recoveryReports } = ladderWith({
-				...eligible,
-				remaining: [FETCH_THRESHOLD, WEB_UNLOCKER_RENDER_THRESHOLD, ...(afterClaim ? [RESIDENTIAL_THRESHOLD] : []), RESIDENTIAL_THRESHOLD - 1],
-			});
-			assert.deepEqual(await run(), {
-				kind: "unrendered", direct: blockedRender, residential: { kind: "skipped", reason: "time-exhausted" },
-				webUnlockerFetch: noBodyFetch, webUnlockerRender: gatewayFailure,
-			});
-			assert.equal(steps.includes("claim residential"), afterClaim);
-			assert(!steps.some((step) => step.startsWith("mint residential")));
-			assert.deepEqual(ledger, ["release fetch", "release render", ...(afterClaim ? ["release residential"] : [])]);
-			assert.deepEqual(recoveryReports, []);
-		});
-
-		it.each([
-			{ claim: { kind: "deferred" } as const, result: { kind: "deferred", awaiting: "render-residential-per-gb", direct: blockedRender } },
-			{ claim: { kind: "in-flight" } as const, result: { kind: "in-flight", leg: "render-residential-per-gb" } },
-			{ claim: { kind: "settled", outcome: "recorded-candidate" } as const, result: { kind: "recorded", leg: "render-residential-per-gb", outcome: "recorded-candidate" } },
-			{ claim: { kind: "budget-exhausted" } as const, result: { kind: "budget-exhausted", gate: "residential-per-gb", direct: blockedRender } },
-		])("honors the recovery leg's $claim.kind claim without starting an attempt", async ({ claim, result }) => {
-			const { run, steps, recoveryReports } = ladderWith({ ...eligible, claims: { "render-residential-per-gb": claim } });
-			assert.deepEqual(await run(), result);
-			assert(!steps.some((step) => step.startsWith("mint residential")));
-			assert.deepEqual(recoveryReports, []);
-		});
-
-		it.each([residentialFailure, blockedRender])("retains every earlier cause after a $kind recovery", async (residential) => {
-			const { run, ledger, recoveryReports } = ladderWith({ ...eligible, residential });
-			assert.deepEqual(await run(), { kind: "unrendered", direct: blockedRender, residential, webUnlockerFetch: noBodyFetch, webUnlockerRender: gatewayFailure });
-			assert.deepEqual(ledger, ["release fetch", "release render", "release residential"]);
-			assert.deepEqual(recoveryReports.at(-1), { policyVersion: "residential-after-gateway-502-v1", host: "publisher.test", phase: "finished", outcome: residential.kind, httpStatus: residential.httpStatus });
-		});
-
-		it("does not count an unreadable recovery body as a successful article", async () => {
-			const { run, recoveryReports } = ladderWith({ ...eligible, residential: renderedBody, commits: { "residential-per-gb": { kind: "unreadable", detail: "challenge body" } } });
-			const result = await run();
-			assert.equal(result.kind, "unrendered");
-			assert.deepEqual(recoveryReports.at(-1), { policyVersion: "residential-after-gateway-502-v1", host: "publisher.test", phase: "finished", outcome: "failed", httpStatus: 200 });
-		});
-
-		it("retains the existing terminal settlement without calling another route", async () => {
-			const { run, ledger, recoveryReports } = ladderWith({ ...eligible, residential: renderedBody, commits: { "residential-per-gb": { kind: "settled" } } });
-			assert.equal((await run()).kind, "settled");
-			assert.deepEqual(ledger, ["release fetch", "release render", "release residential"]);
-			assert.equal(recoveryReports.at(-1)?.phase, "finished");
-		});
-
-		it("releases and reports a thrown recovery without swallowing the original error", async () => {
-			const { run, ledger, recoveryReports } = ladderWith({ ...eligible, residential: renderedBody });
-			await assert.rejects(run(), /the residential-per-gb commit was not expected to run/);
-			assert.deepEqual(ledger, ["release fetch", "release render", "release residential"]);
-			assert.deepEqual(recoveryReports.at(-1), { policyVersion: "residential-after-gateway-502-v1", host: "publisher.test", phase: "finished", outcome: "threw" });
 		});
 	});
 

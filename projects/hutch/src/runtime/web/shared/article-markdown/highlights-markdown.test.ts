@@ -1,4 +1,4 @@
-import { type AnchorState, type Highlight, HighlightIdSchema } from "@packages/domain/article";
+import { type Highlight, HighlightIdSchema, type StoredHighlightState } from "@packages/domain/article";
 import type { ReaderHighlightState } from "../article-body/reader-slot/mark-highlights";
 import { highlightsMarkdown } from "./highlights-markdown";
 
@@ -7,7 +7,8 @@ function stateOf(input: {
 	exact: string;
 	orderKey: number;
 	note?: string;
-	anchorState?: AnchorState;
+	anchorState?: StoredHighlightState["state"];
+	basisQuote?: string;
 }): ReaderHighlightState {
 	const highlight: Highlight = {
 		highlightId: HighlightIdSchema.parse(input.id),
@@ -25,9 +26,14 @@ function stateOf(input: {
 		updatedAt: new Date("2026-11-01T00:00:00.000Z"),
 		anchorRevision: 0,
 	};
+	const state = input.anchorState ?? "anchored";
+	if (state === "orphaned" || state === "pending") {
+		return { highlight, place: undefined, shown: { state, edited: false, quote: input.exact } };
+	}
 	return {
 		highlight,
-		anchor: { start: 0, end: input.exact.length, anchorState: input.anchorState ?? "anchored" },
+		place: { start: 0, end: input.exact.length },
+		shown: { state, edited: input.basisQuote !== undefined, quote: input.basisQuote ?? input.exact },
 	};
 }
 
@@ -60,6 +66,24 @@ describe("highlightsMarkdown", () => {
 		]);
 
 		expect(markdown.split("\n")).toContain("> Gone passage (not found in the current version)");
+	});
+
+	it("quotes an edited highlight's current wording and says what the reader highlighted", () => {
+		const markdown = highlightsMarkdown([
+			stateOf({ id: FIRST_ID, exact: "Old wording", orderKey: 0, anchorState: "moved", basisQuote: "New wording" }),
+		]);
+
+		expect(markdown.split("\n")).toContain(
+			"> New wording (edited in the current version; you highlighted “Old wording”)",
+		);
+	});
+
+	it("quotes a pending highlight as stored, with no suffix", () => {
+		const markdown = highlightsMarkdown([
+			stateOf({ id: FIRST_ID, exact: "Waiting passage", orderKey: 0, anchorState: "pending" }),
+		]);
+
+		expect(markdown.split("\n")).toContain("> Waiting passage");
 	});
 
 	it("quotes markdown characters and a two-block passage so the text round-trips", () => {

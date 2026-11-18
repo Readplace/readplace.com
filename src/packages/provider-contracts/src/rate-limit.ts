@@ -16,7 +16,9 @@ export type RateLimitBucket =
 	| "browser-handoff"
 	| "import"
 	| "import-from-url"
-	| "upload-stage";
+	| "upload-stage"
+	| "signup-created"
+	| "view-highlights-keep";
 
 /**
  * Atomically count one request against `(bucket, key)` for the rule's current
@@ -52,4 +54,5 @@ export interface RateLimitRules {
 	 * attacker-chosen origin (SSRF/DoS amplification surface). */
 	importFromUrl: RateLimitRule;
 	uploadStage: RateLimitRule;
+	signupCreated: RateLimitRule;
 }

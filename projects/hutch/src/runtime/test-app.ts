@@ -44,6 +44,7 @@ import type {
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { initReadArticleImageByIdentity } from "./providers/read-article-image-by-identity";
+import { initInMemoryPendingViewHighlights } from "./providers/pending-view-highlights/in-memory-pending-view-highlights";
 import { createApp } from "./server";
 import { initFetchFirefoxDownloadUrl, type FetchFirefoxDownloadUrl } from "./web/pages/install";
 import { batchFromSingular } from "./batch-from-singular";
@@ -111,6 +112,8 @@ interface TestAppOverrides {
 	readerSectionThresholdBytes?: number;
 	mediaKinds?: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	readDurationByMeter?: ReadonlyMap<Meter, ReadTimedDuration>;
+	signupLogger?: Logger;
+	authDiagnosticsLogger?: Logger.Typed<Record<string, unknown>>;
 }
 
 export const TEST_TRANSCRIPT_ALLOWANCE_SECONDS = 1250;
@@ -379,6 +382,7 @@ function flattenFixtureToAppDependencies(
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		importSessionStore: fixture.importSession.importSessionStore,
 		savePrivateItem: fixture.articleStore.savePrivateItem,
+		...initInMemoryPendingViewHighlights({ now: fixture.shared.now }),
 		...fixture.mediaUpload,
 		mediaKinds: MEDIA_KINDS,
 		readDurationByMeter: new Map([["transcript-seconds" as const, readOneMinute]]),
@@ -415,7 +419,8 @@ function flattenFixtureToAppDependencies(
 		drawRandomByte: () => 0,
 		retrieveCheckoutSession: fixture.hostedCheckout.retrieveCheckoutSession,
 		createCheckoutSession: fixture.hostedCheckout.createCheckoutSession,
-		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
+		findPendingSignup: fixture.pendingSignup.findPendingSignup,
+		claimPendingSignup: fixture.pendingSignup.claimPendingSignup,
 		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		subscriptionProviders: {
 			upsertActive: fixture.subscriptionProviders.upsertActive,
@@ -441,6 +446,8 @@ function flattenFixtureToAppDependencies(
 			fixture.subscriptionBilling.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge:
 			fixture.subscriptionBilling.findSubscriptionNextCharge,
+		findSubscriptionPaymentMethod:
+			fixture.subscriptionBilling.findSubscriptionPaymentMethod,
 		listInvoices: fixture.subscriptionBilling.listInvoices,
 		reverseScheduledCancellation:
 			fixture.subscriptionBilling.reverseScheduledCancellation,
@@ -459,6 +466,7 @@ function flattenFixtureToAppDependencies(
 		funnelLogger: funnelBundle.logger,
 		analytics: analyticsBundle.logger,
 		authDiagnosticsLogger: noopLogger,
+		signupLogger: noopLogger,
 		salt: "test-analytics-salt",
 		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
 		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,

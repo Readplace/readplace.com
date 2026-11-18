@@ -62,6 +62,7 @@ function buildSubject(options: { contact?: UserContact | null; sendEmail?: SendE
 		findOpenInvoiceFailure: async () => undefined,
 		claimTrialNudge: providers.claimTrialNudge,
 		releaseTrialNudge: options.releaseTrialNudge ?? providers.releaseTrialNudge,
+		loadNextCharge: async () => undefined,
 		findUserContactByUserId: async () => contact,
 		signUnsubscribeToken: unsubscribeToken.sign,
 		sendEmail: options.sendEmail ?? email.sendEmail,
@@ -98,6 +99,7 @@ async function save(
 		estimatedReadTime: MinutesSchema.parse(2),
 		provenance: input.provenance ?? { kind: "web" },
 		savedAt: input.savedAt,
+		saveTrigger: "manual",
 	});
 	return saved;
 }

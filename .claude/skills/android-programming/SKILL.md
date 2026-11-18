@@ -1,6 +1,6 @@
 ---
 name: android-programming
-description: Kotlin, Jetpack Compose and Android framework conventions for the Android app and its share target. Use when writing or changing a .kt file, when deciding where a screen's logic lives versus its Compose or WebView glue, when a file fails the Android coverage gate, when adding audio or media playback, when a WebView or player renders blank, dark or with a flashing control in the app or a recording, or when preparing a Play release — writing "What's new" text or promoting an internal-testing build to production.
+description: Kotlin, Jetpack Compose and Android framework conventions for the Android app and its share target. Use when writing or changing a .kt file, when deciding where a screen's logic lives versus its Compose or WebView glue, when a file fails the Android coverage gate, when adding audio or media playback, when adding or re-recording a pixel test picture, when a WebView or player renders blank, dark or with a flashing control in the app or a recording, or when preparing a Play release — writing "What's new" text or promoting an internal-testing build to production.
 ---
 
 # Android Programming
@@ -38,13 +38,13 @@ The gate counts **lines**, not branches. A line that never runs fails it, but a 
 | An `android.*` type (Uri, Log, Context, Bundle) | It needs Robolectric or an emulator to run | `java.net.URI`, `java.time`, `java.io.File`, or an interface seam |
 | `Dispatchers.IO` or `Instant.now()` written inline | A test cannot control time or threading | An injected `CoroutineDispatcher` and an injected `() -> Instant` or `Clock` |
 | Logging from the core | That pulls `android.util.Log` into a JVM test | An injected failure callback, logged by the composition root |
-| Robolectric for a decision | It is slow and hides that the decision depends on the framework | Plain JUnit. Keep Robolectric for tests whose subject is a real framework object: Intent or ClipData reading, Keystore providers, nested-scroll dispatch |
+| Robolectric for a decision | It is slow and hides that the decision depends on the framework | Plain JUnit. Keep Robolectric for tests whose subject is a real framework object: Intent or ClipData reading, Keystore providers, nested-scroll dispatch, a Compose layout's measured sizes at a set window size and font scale, and a pixel test of a Compose leaf |
 
 JaCoCo skips classes that Robolectric loads through its own class loader unless the test task includes no-location classes. The app's Gradle build sets this up, so don't remove it when you touch the test configuration.
 
 ## A WebView or player that renders wrong
 
-There are no pixel snapshot tests. What you see is the emulator's framebuffer (`make screenshot`) or a recording. These failures look like rendering bugs but are construction-order bugs:
+Pixel tests cover Compose leaves only; Robolectric draws nothing for a WebView or a media player view. For those, what you see is the emulator's framebuffer (`make screenshot`) or a recording. These failures look like rendering bugs but are construction-order bugs:
 
 | Symptom | Cause | Fix |
 |---|---|---|
@@ -52,9 +52,16 @@ There are no pixel snapshot tests. What you see is the emulator's framebuffer (`
 | A WebView in a bottom sheet renders dark in light mode | It takes its theme from the dialog window's platform theme | Build it from a context themed from the Compose dark-mode state |
 | A media player view flashes its controls over the first frames | The controller was enabled when the player was attached | Turn the controller off before attaching the player |
 
+## Pixel tests
+
+- A pixel test takes a leaf whose appearance is a pure function of its parameters (a fixed clock, no network image, no running animation) and carries `@GraphicsMode(NATIVE)`; without it Robolectric draws nothing and the capture is refused as a single colour.
+- Record with `make test RECORD_SNAPSHOTS=1`, which always fails, then open every new picture at full size before committing it.
+- The pictures are a declared input of the test task; removing that lets Gradle replay a green run after only a picture changed.
+- A layout file stays in the coverage gate's `excluded` list whatever a pixel test runs.
+
 ## Every production promotion describes what changed since the last one
 
-CI uploads every shipping change to the internal testing track and sends no release notes. Production is a manual promotion in Play Console, and that is where the "What's new" text gets written. Play caps it at 500 characters per language. Write it from git history, not from memory. The baseline is the version code currently on the production track, which Play Console shows. Diff from its `android-readplace@v<N>` tag (`git tag --list 'android-readplace@v*' --sort=-v:refname`).
+CI uploads every shipping change to the internal testing track, and each upload sends the "What's new" text from one committed file; the [Android README's Releasing section](../../../projects/native-apps/android/README.md#releasing) says where it lives, its limit, how to send a text-only edit, and when to promote in Play Console instead. Production is a dispatch of the "Promote Android build to Play production" workflow, and a promotion carries the text its internal upload sent; dispatching it in `promote` mode is the human's act, and an agent dispatches `check` only. Rewrite the text when preparing a promotion and land it before the upload you intend to promote; until then every internal upload carries the text last written. Write it from git history, not from memory. The baseline is the version code currently on the production track: successful runs titled `Promote Android v<N> …` in `gh run list --workflow "Promote Android build to Play production"` name the codes promoted from CI, and Play Console remains the source when the list is empty or a promotion was made there. Diff from its `android-readplace@v<N>` tag (`git tag --list 'android-readplace@v*' --sort=-v:refname`).
 
 Read the same two scopes as an iOS release ([ios-programming](../ios-programming/SKILL.md#every-release-describes-everything-that-changed-since-the-one-apple-last-saw)): the app project's own commits, and the server surfaces the app shows or obeys. Sort each commit into feature, behaviour change, fix or internal. Leave internal ones out. Write the rest in the [brand voice](../../../BRAND_GUIDELINES.md).
 

@@ -98,11 +98,8 @@ describe("markHighlights", () => {
 		expect(marked.states).toEqual([
 			{
 				highlight,
-				anchor: {
-					start: highlight.start,
-					end: highlight.end,
-					anchorState: "anchored",
-				},
+				place: { start: highlight.start, end: highlight.end },
+				shown: { state: "anchored", edited: false, quote: highlight.exact },
 			},
 		]);
 	});
@@ -234,9 +231,10 @@ describe("markHighlights", () => {
 
 	it("leaves an orphaned highlight unmarked and reports it in the states", () => {
 		const html = "<p>Nothing to see</p>";
-		const highlight = {
+		const highlight: Highlight = {
 			...highlightOn({ html, exact: "Nothing", highlightId: FIRST_ID }),
 			exact: "absent passage",
+			anchorState: "orphaned",
 		};
 
 		const marked = markHighlights({
@@ -245,8 +243,8 @@ describe("markHighlights", () => {
 		});
 
 		expect(marksOf(marked.html)).toEqual([]);
-		expect(marked.states.map((state) => state.anchor.anchorState)).toEqual([
-			"orphaned",
+		expect(marked.states.map((state) => [state.place, state.shown.state])).toEqual([
+			[undefined, "orphaned"],
 		]);
 	});
 
@@ -267,11 +265,7 @@ describe("markHighlights", () => {
 		expect(marksOf(marked.html).map((mark) => mark.textContent)).toEqual([
 			"world",
 		]);
-		expect(marked.states[0].anchor).toEqual({
-			start: 9,
-			end: 14,
-			anchorState: "anchored",
-		});
+		expect(marked.states[0].place).toEqual({ start: 9, end: 14 });
 	});
 
 	it("strips the class, id and data-highlight-id a publisher's own mark carries", () => {
@@ -388,9 +382,10 @@ describe("markHighlights", () => {
 
 	it("leaves an orphaned noted highlight unmarked and keeps its note in the states", () => {
 		const html = "<p>Nothing to see here</p>";
-		const orphaned = {
+		const orphaned: Highlight = {
 			...highlightOn({ html, exact: "Nothing", highlightId: FIRST_ID }),
 			exact: "absent passage",
+			anchorState: "orphaned",
 			note: "Lost thought",
 		};
 		const anchored = {
@@ -413,7 +408,7 @@ describe("markHighlights", () => {
 		expect(
 			marked.states.map((state) => [
 				state.highlight.highlightId,
-				state.anchor.anchorState,
+				state.shown.state,
 				state.highlight.note,
 			]),
 		).toEqual([
@@ -465,10 +460,6 @@ describe("markHighlights", () => {
 			highlights: { rows: [highlight], canonicalContentHash: undefined },
 		});
 
-		expect(marked.states[0].anchor).toEqual({
-			start: 9,
-			end: 10,
-			anchorState: "anchored",
-		});
+		expect(marked.states[0].place).toEqual({ start: 9, end: 10 });
 	});
 });

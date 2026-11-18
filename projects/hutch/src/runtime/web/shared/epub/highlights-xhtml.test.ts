@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type AnchorState, type Highlight, type HighlightId, HighlightIdSchema } from "@packages/domain/article";
+import { type Highlight, type HighlightId, HighlightIdSchema, type StoredHighlightState } from "@packages/domain/article";
 import { parseHTML } from "linkedom";
 import type { ReaderHighlightState } from "../article-body/reader-slot/mark-highlights";
 import { highlightsXhtml, noteReferencedChapterXhtml } from "./highlights-xhtml";
@@ -9,7 +9,8 @@ function stateOf(input: {
 	exact: string;
 	orderKey: number;
 	note?: string;
-	anchorState?: AnchorState;
+	anchorState?: StoredHighlightState["state"];
+	basisQuote?: string;
 }): ReaderHighlightState {
 	const highlight: Highlight = {
 		highlightId: HighlightIdSchema.parse(input.id),
@@ -27,9 +28,14 @@ function stateOf(input: {
 		updatedAt: new Date("2026-11-01T00:00:00.000Z"),
 		anchorRevision: 0,
 	};
+	const state = input.anchorState ?? "anchored";
+	if (state === "orphaned" || state === "pending") {
+		return { highlight, place: undefined, shown: { state, edited: false, quote: input.exact } };
+	}
 	return {
 		highlight,
-		anchor: { start: 0, end: input.exact.length, anchorState: input.anchorState ?? "anchored" },
+		place: { start: 0, end: input.exact.length },
+		shown: { state, edited: input.basisQuote !== undefined, quote: input.basisQuote ?? input.exact },
 	};
 }
 
@@ -82,6 +88,19 @@ describe("highlightsXhtml", () => {
 		const root = sectionOf(highlightsXhtml([stateOf({ id: FIRST_ID, exact: "first\nsecond", orderKey: 0 })]));
 
 		expect(Array.from(root.querySelectorAll("blockquote > p"), (p) => p.textContent)).toEqual(["first", "second"]);
+	});
+
+	it("quotes an edited highlight's current wording and says what the reader highlighted after its last block", () => {
+		const root = sectionOf(
+			highlightsXhtml([
+				stateOf({ id: FIRST_ID, exact: "Old\nwording", orderKey: 0, anchorState: "moved", basisQuote: "New\nwording" }),
+			]),
+		);
+
+		expect(Array.from(root.querySelectorAll("blockquote > p"), (p) => p.textContent)).toEqual([
+			"New",
+			"wording (edited in the current version; you highlighted “Old\nwording”)",
+		]);
 	});
 
 	it("suffixes an orphan's quote after its last block", () => {

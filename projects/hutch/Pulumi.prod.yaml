@@ -38,6 +38,7 @@ config:
   hutch:dynamodbPendingSignupsTable: hutch-pending-signups
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-prod
   hutch:dynamodbMediaUploadSessionsTable: hutch-media-upload-sessions-prod
+  hutch:dynamodbPendingViewHighlightsTable: hutch-pending-view-highlights-prod
   hutch:dynamodbInboxAddressesTable: hutch-inbox-addresses-prod
   hutch:dynamodbInboxEmailsTable: hutch-inbox-emails-prod
   hutch:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-prod
@@ -59,6 +60,7 @@ config:
   hutch:rateLimitLogin: 10/900
   hutch:rateLimitLoginAccount: 20/900
   hutch:rateLimitSignup: 10/3600
+  hutch:rateLimitSignupCreated: 3/86400
   hutch:rateLimitForgotPassword: 5/3600
   hutch:rateLimitOauthRegister: 30/3600
   hutch:rateLimitOauthToken: 60/3600

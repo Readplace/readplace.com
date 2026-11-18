@@ -28,6 +28,9 @@ export const ANALYTICS_EVENTS = {
 	highlightDeleted: "highlight_deleted",
 	highlightNoteSaved: "highlight_note_saved",
 	highlightOpened: "highlight_opened",
+	viewHighlight: "view_highlight",
+	viewHighlightsHandedOver: "view_highlights_handed_over",
+	viewHighlightsClaimed: "view_highlights_claimed",
 	viewOpened: "view_opened",
 	viewCrawlLimited: "view_crawl_limited",
 	viewSaveIntent: "view_save_intent",
@@ -155,6 +158,7 @@ export const SIGNUP_OUTCOMES = {
 	duplicateEmail: "duplicate_email",
 	tooFast: "too_fast",
 	signedIn: "signed_in",
+	allowanceSpent: "allowance_spent",
 } as const;
 
 export type SignupOutcome = (typeof SIGNUP_OUTCOMES)[keyof typeof SIGNUP_OUTCOMES];

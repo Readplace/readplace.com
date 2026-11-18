@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { type ArticleBody, type Highlight, viewerFor } from "@packages/domain/article";
+import { type ArticleBody, type Highlight, storedHighlightState, viewerFor } from "@packages/domain/article";
 import { readerReadlists, readlistsHoldingArticle } from "@packages/domain/readlist";
 import type { ArticleCrawl, FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
 import type {
@@ -33,10 +33,14 @@ interface OwnerArticleMarkdownDeps {
 	readCanonicalSnapshot: ReadCanonicalSnapshot;
 }
 
-function storedHighlightStates(rows: readonly Highlight[]): readonly ReaderHighlightState[] {
-	return rows.map((highlight) => ({
+function storedHighlightStates(input: {
+	rows: readonly Highlight[];
+	snapshot: CanonicalSnapshot | undefined;
+}): readonly ReaderHighlightState[] {
+	return input.rows.map((highlight) => ({
 		highlight,
-		anchor: { start: highlight.start, end: highlight.end, anchorState: highlight.anchorState },
+		place: undefined,
+		shown: storedHighlightState({ highlight, contentHash: input.snapshot?.canonicalContentHash }),
 	}));
 }
 
@@ -50,7 +54,7 @@ function markdownHighlightStates(input: {
 }): readonly ReaderHighlightState[] {
 	const { content, crawl } = input;
 	if (input.rows.length === 0 || content === undefined || (crawl !== undefined && crawl.status !== "ready")) {
-		return storedHighlightStates(input.rows);
+		return storedHighlightStates({ rows: input.rows, snapshot: input.snapshot });
 	}
 	return prepareReaderContent({
 		content,

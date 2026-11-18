@@ -22,6 +22,7 @@ function noteForm(
 			answersInPlace: true,
 			pushesHistory: true,
 			autofocus: true,
+			local: false,
 			...overrides,
 		})}</div>`,
 	).window.document;
@@ -205,6 +206,33 @@ describe("renderHighlightNoteForm", () => {
 		expect(save?.getAttribute("type")).toBe("submit");
 		expect(save?.classList.contains("btn--primary")).toBe(true);
 		expect(save?.textContent).toBe("Save note");
+	});
+
+	it("puts a given second action first, before Cancel and Save note", () => {
+		const doc = noteForm({
+			deleteTriggerHtml:
+				'<button type="submit" form="elsewhere" data-test-action="highlight-note-delete">Delete note</button>',
+		});
+
+		expect(
+			Array.from(
+				doc.querySelectorAll(".confirm-popover__buttons > button"),
+				(button) => button.getAttribute("data-test-action"),
+			),
+		).toEqual([
+			"highlight-note-delete",
+			"highlight-note-cancel",
+			"highlight-note-save",
+		]);
+	});
+
+	it("holds only Cancel and Save note without a second action", () => {
+		expect(
+			Array.from(
+				noteForm().querySelectorAll(".confirm-popover__buttons > button"),
+				(button) => button.getAttribute("data-test-action"),
+			),
+		).toEqual(["highlight-note-cancel", "highlight-note-save"]);
 	});
 
 	it("offers no Cancel without a popover to hide", () => {

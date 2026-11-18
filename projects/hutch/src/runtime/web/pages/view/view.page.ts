@@ -186,6 +186,12 @@ function saveAction(input: {
 	};
 }
 
+const FOUNDER_POST_HOSTS: readonly string[] = ["fagnerbrack.com", "www.fagnerbrack.com"];
+
+function isFounderPost(articleUrl: string): boolean {
+	return FOUNDER_POST_HOSTS.includes(articleHostFrom(articleUrl));
+}
+
 function endCtaSaveAction(articleUrl: string): ViewEndCtaAction {
 	const saveParams = new URLSearchParams([["url", articleUrl], [SAVE_SURFACE_QUERY, SAVE_SURFACES.readerViewEnd]]);
 	return {
@@ -474,7 +480,7 @@ function handleViewArticle(
 					}
 				}
 			}
-			if (!wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.publishStaleCheckRequested({ url: articleUrl });
+			if (existing !== null && !wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.publishStaleCheckRequested({ url: articleUrl });
 		}
 		const fallbackDestination = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const renderStub: SavedArticle["metadata"] = { ...hostStubMetadata(fallbackDestination), wordCount: 0 };
@@ -523,6 +529,7 @@ function handleViewArticle(
 			req.userId === undefined && state.content !== undefined
 				? {
 						heading: "Keep this one",
+						signedByFounder: isFounderPost(articleUrl),
 						lines: [PRICE_STATEMENT, SAVES_STAY_STATEMENT],
 						actions: [endCtaSaveAction(articleUrl), endCtaEpubAction({ articleUrl, guide: epubDownloadGuide })],
 					}
@@ -604,6 +611,11 @@ function handleViewArticle(
 					readerNotice: readerNoticeOf(state.readerView),
 					backLink: req.userId === undefined ? undefined : PUBLIC_VIEW_BACK_LINK,
 					endCta,
+					offersLocalHighlights:
+						req.userId === undefined &&
+						state.content !== undefined &&
+						readerNoticeOf(state.readerView) === undefined &&
+						!isPrivateItemUrl(articleUrl),
 					now: deps.now(),
 					signedIn: req.userId !== undefined,
 				}),

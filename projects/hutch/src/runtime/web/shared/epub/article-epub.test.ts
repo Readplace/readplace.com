@@ -451,6 +451,7 @@ describe("initBuildArticleEpub with highlights", () => {
 		const orphan = {
 			...highlightOn({ content: CONTENT, exact: "zeta eta", highlightId: SECOND_ID, orderKey: 20 }),
 			exact: "Words that are nowhere",
+			anchorState: "orphaned" as const,
 		};
 
 		const body = bodyOf(await chapterXhtml({ content: CONTENT, rows: [orphan, anchored] }));

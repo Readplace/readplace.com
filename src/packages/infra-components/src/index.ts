@@ -88,6 +88,8 @@ export {
 	type SubscriptionStartRequestDetail,
 	SubscriptionChargeSucceededEvent,
 	type SubscriptionChargeSucceededDetail,
+	CheckoutCompletedEvent,
+	type CheckoutCompletedDetail,
 	SubscriptionChargeFailedEvent,
 	type SubscriptionChargeFailedDetail,
 	EvaluateOAuthRefreshCommand,

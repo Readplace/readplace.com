@@ -10,6 +10,7 @@ const RENDERED_BY_INBOX_PAGES = new Set([
   "extension-suggestion-banner.client.js",
   "inbox.client.js",
   "local-time.client.js",
+  "menu.client.js",
   "toast.client.js",
   "webmcp.client.js",
 ]);

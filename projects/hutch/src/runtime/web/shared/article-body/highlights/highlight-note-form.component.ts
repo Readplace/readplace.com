@@ -32,6 +32,8 @@ export function renderHighlightNoteForm(input: {
 	answersInPlace: boolean;
 	pushesHistory: boolean;
 	autofocus: boolean;
+	local: boolean;
+	deleteTriggerHtml?: string;
 }): string {
 	return render(TEMPLATE, {
 		...input,

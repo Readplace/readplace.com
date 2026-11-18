@@ -61,6 +61,7 @@ function makeHarness(overrides: Overrides = {}) {
 	const createReaderHighlight = initCreateReaderHighlight({
 		listArticleHighlights: highlights.listArticleHighlights,
 		createHighlight: highlights.createHighlight,
+		updateHighlightNote: highlights.updateHighlightNote,
 		newHighlightId: randomUUID,
 		now: () => new Date("2026-11-01T00:00:00.000Z"),
 	});
@@ -109,6 +110,7 @@ function makeHarness(overrides: Overrides = {}) {
 			estimatedReadTime: MinutesSchema.parse(2),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-11-01T00:00:00.000Z"),
+			saveTrigger: "manual",
 		});
 		if (params.hash === undefined) return;
 		await articleStore.replaceCanonicalContent({
@@ -133,7 +135,7 @@ function makeHarness(overrides: Overrides = {}) {
 			end: start + params.exact.length,
 		});
 		assert(outcome.status === "created");
-		return outcome.highlight;
+		return outcome.highlights[0];
 	};
 
 	const rowsOf = async (url: string) => highlights.listHighlightsOfArticle(url);
@@ -247,8 +249,8 @@ describe("initReanchorHighlightsHandler", () => {
 			highlights: { rows: [row], canonicalContentHash: HASH_TWO },
 		});
 		const [state] = rendered.states;
-		assert.equal(state.anchor.start, row.start);
-		assert.equal(state.anchor.end, row.end);
+		assert.equal(state.place?.start, row.start);
+		assert.equal(state.place?.end, row.end);
 		assert.equal(rendered.text.slice(row.start, row.end), seeded.exact);
 		assert.ok(row.start > seeded.start);
 	});

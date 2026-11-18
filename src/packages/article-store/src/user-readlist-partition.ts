@@ -1,3 +1,5 @@
+import assert from "node:assert";
+import { createHash } from "node:crypto";
 import {
 	DEFAULT_READLIST_SLUG,
 	type ReadlistFitOverrideId,
@@ -13,6 +15,20 @@ export const READLIST_DEFINITION_KEY_PREFIX = "readplace:queue-def/";
 export const HIGHLIGHT_KEY_PREFIX = "readplace:highlight/";
 
 export const READLIST_FIT_OVERRIDE_KEY_PREFIX = "readplace:queue-override/";
+
+const REMOVED_LINKS_PARTITION_SUFFIX = "#removed";
+
+export function removedLinksPartition(userId: UserId): string {
+	return `${userId}${REMOVED_LINKS_PARTITION_SUFFIX}`;
+}
+
+export function removedLinkKey(params: { jobId: string; storedKey: string }): string {
+	return `readplace:removed/${params.jobId}/${createHash("sha256").update(params.storedKey).digest("hex")}`;
+}
+
+export function savedLinksJobKey(userId: UserId): string {
+	return `readplace:saved-links-job/${userId}`;
+}
 
 export function readlistPartitionValue(params: { userId: UserId; readlist: ReadlistSlug }): string {
 	return `${params.userId}${READLIST_PARTITION_INFIX}${params.readlist}`;
@@ -30,6 +46,7 @@ export function decodeUserArticlePartition(value: string): {
 	userId: UserId;
 	readlist?: ReadlistSlug;
 } {
+	assert(!value.endsWith(REMOVED_LINKS_PARTITION_SUFFIX), "a removed-links holding partition is not a readlist partition");
 	const infixAt = value.indexOf(READLIST_PARTITION_INFIX);
 	if (infixAt === -1) return { userId: UserIdSchema.parse(value) };
 	return {
