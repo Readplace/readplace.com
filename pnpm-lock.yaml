@@ -473,6 +473,9 @@ importers:
       '@packages/supported-clients':
         specifier: workspace:*
         version: link:../../src/packages/supported-clients
+      '@packages/tier-source':
+        specifier: workspace:*
+        version: link:../../src/packages/tier-source
       '@packages/time-left':
         specifier: workspace:*
         version: link:../../src/packages/time-left

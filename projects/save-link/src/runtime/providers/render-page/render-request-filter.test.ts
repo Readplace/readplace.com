@@ -144,15 +144,37 @@ describe("initRenderRequestFilter", () => {
 		});
 	});
 
-	it("never aborts the navigation request past the cap", async () => {
+	it("aborts a main-frame navigation once 40 proxied requests have continued", async () => {
 		const filter = legacyFilter({ proxied: true });
 		for (let request = 1; request <= 40; request++) await filter.decide(script);
 
 		const verdict = await filter.decide({ url: "https://example-spa.test/next", resourceType: "document", isNavigation: true });
 
-		expect(verdict.abort).toBe(false);
-		expect(filter.tally().continuedByResourceType).toEqual({ script: 40, document: 1 });
-		expect(filter.tally().continuedNavigations).toBe(1);
+		expect(verdict.abort).toBe(true);
+		expect(filter.tally()).toMatchObject({ continued: 40, continuedNavigations: 0, abortedBy: { type: 0, address: 0, budget: 1 } });
+	});
+
+	it("counts the first navigation as request 1 of 40", async () => {
+		const filter = legacyFilter({ proxied: true });
+		const navigation = { url: ARTICLE_URL, resourceType: "document", isNavigation: true };
+
+		const verdicts = [aborts(await filter.decide(navigation))];
+		for (let request = 2; request <= 41; request++) verdicts.push(aborts(await filter.decide(script)));
+
+		expect(verdicts.slice(0, 40)).toEqual(Array(40).fill(false));
+		expect(verdicts[40]).toBe(true);
+		expect(filter.tally()).toMatchObject({ continued: 40, continuedNavigations: 1, continuedByResourceType: { document: 1, script: 39 } });
+	});
+
+	it("aborts a second navigation once 40 requests have continued", async () => {
+		const filter = legacyFilter({ proxied: true });
+		await filter.decide({ url: ARTICLE_URL, resourceType: "document", isNavigation: true });
+		for (let request = 2; request <= 40; request++) await filter.decide(script);
+
+		const verdict = await filter.decide({ url: "https://example-spa.test/consent", resourceType: "document", isNavigation: true });
+
+		expect(verdict.abort).toBe(true);
+		expect(filter.tally()).toMatchObject({ continuedProxied: 40, continuedNavigations: 1, abortedBy: { type: 0, address: 0, budget: 1 } });
 	});
 
 	it("aborts a subframe document past the cap", async () => {

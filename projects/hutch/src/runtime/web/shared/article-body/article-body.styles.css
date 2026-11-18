@@ -151,7 +151,7 @@
   line-height: 1.5;
   color: var(--foreground);
   overflow-wrap: anywhere;
-  container: reader-article / inline-size;
+  display: flow-root;
 }
 
 .article-body__content p {
@@ -419,7 +419,11 @@
   display: none;
 }
 
-@container reader-article (width >= 37.5rem) {
+@media (max-width: 600px) and (min-width: calc(37.5rem + 82px)) and (max-width: calc((746px - 37.5rem) * 100000)),
+  (max-width: 767.98px) and (min-width: calc(37.5rem + 106px)) and (max-width: calc((746px - 37.5rem) * 100000)),
+  (max-width: 1023.98px) and (min-width: calc(37.5rem + 114px)) and (max-width: calc((746px - 37.5rem) * 100000)),
+  (max-width: 1199.98px) and (min-width: calc(37.5rem + 478px)) and (max-width: calc((746px - 37.5rem) * 100000)),
+  (min-width: calc(37.5rem + 550px)) and (max-width: calc((746px - 37.5rem) * 100000)) {
   .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table)) {
     display: table;
     width: 100%; /* 1 */
@@ -474,6 +478,66 @@
   }
 
   .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody, tfoot):last-child > tr:last-child > :last-child) {
+    border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+  }
+}
+
+@media (max-width: 1199.98px) and (min-width: calc(37.5rem + 386px)) and (max-width: calc((746px - 37.5rem) * 100000)),
+  (min-width: calc(37.5rem + 482px)) and (max-width: calc((746px - 37.5rem) * 100000)) {
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table)) {
+    display: table;
+    width: 100%;
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(caption, thead, tbody, tfoot)),
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr),
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr > :is(th, td)) {
+    display: revert;
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > caption) {
+    padding: revert;
+    border: revert;
+    font-weight: revert;
+    text-align: revert;
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr) {
+    padding: 0;
+    border: 0;
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr > :is(th, td)) {
+    padding: 15px 16px;
+    border-bottom: 1px solid var(--border);
+    overflow-wrap: break-word;
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr > th) {
+    background: var(--muted);
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr > :is(th, td)[data-label])::before {
+    content: none;
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody, tfoot):last-child > tr:last-child > :is(th, td)) {
+    border-bottom: 0;
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody):not(:is(thead, tbody, tfoot) ~ *) > tr:first-child > :first-child) {
+    border-top-left-radius: calc(var(--radius-lg) - 1px);
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody):not(:is(thead, tbody, tfoot) ~ *) > tr:first-child > :last-child) {
+    border-top-right-radius: calc(var(--radius-lg) - 1px);
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody, tfoot):last-child > tr:last-child > :first-child) {
+    border-bottom-left-radius: calc(var(--radius-lg) - 1px);
+  }
+
+  :where(.reading-layout:not(.reading-layout--with-rail-card, :has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, .highlights-rail:empty, noscript, template)))) .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody, tfoot):last-child > tr:last-child > :last-child) {
     border-bottom-right-radius: calc(var(--radius-lg) - 1px);
   }
 }

@@ -77,7 +77,7 @@ const CONTENT_CAPTURE_CLIENTS = ADVERTISED_CLIENTS.flatMap((client) =>
 const COLLECTION_PROPERTY_DOCS = {
 	tabs: "the To Read and Read tabs, each a <code>{label, rel, href}</code>. The tab you're on has the rel <code>current</code>. A listing holds one tab only, so walk both to see everything.",
 	pages:
-		"one <code>{label, rel, href}</code> per page, where the page you're on has the rel <code>current</code>. The <code>next</code> and <code>prev</code> links step one page at a time, and the <code>self</code> link is the page you're on.",
+		"one <code>{label, rel, href}</code> per page, where the page you're on has the rel <code>current</code>, every earlier page <code>prev</code> and every later page <code>next</code>. An empty tab lists page 1 as <code>current</code>. The <code>next</code> and <code>prev</code> links step one page at a time, and the <code>self</code> link is the page you're on.",
 	readlists:
 		"All and each named readlist, each a <code>{label, rel, href}</code>. Follow an href to open that readlist, or send it in a save's <code>readlists</code> field.",
 	total: "a <code>{label}</code> to show the reader, not a number to compute with.",
@@ -89,10 +89,11 @@ const COLLECTION_PROPERTY_DOCS = {
 } satisfies Record<keyof CollectionProperties, string>;
 
 const SEARCH_FIELD_DOCS = {
-	status: "<code>unread</code> or <code>read</code>.",
-	order: "<code>asc</code> or <code>desc</code>.",
+	status: "<code>unread</code> or <code>read</code>. Without it, <code>search</code> lists unread articles.",
+	order:
+		"<code>asc</code> or <code>desc</code>. Unread articles sort by when they were saved and read ones by when they were read. Without it, the newest come first.",
 	page: "1 or more.",
-	url: "keeps only the article saved under that URL, if it's on the page you asked for.",
+	url: "keeps only the article saved under that URL, if it's on the page you asked for. <code>total</code> and <code>pages</code> then count only that match, so the answer has one page and no <code>next</code>.",
 } satisfies Record<SearchFieldName, string>;
 
 const ARTICLE_PROPERTY_DOCS = {
@@ -103,8 +104,8 @@ const ARTICLE_PROPERTY_DOCS = {
 	excerpt: "what to show.",
 	imageUrl: "an image URL, or <code>null</code>.",
 	readTime:
-		"<code>{value, label}</code>, where <code>value</code> is the minutes as a string and <code>label</code> is display text such as <code>5 min read</code>, or <code>null</code> when Readplace has no word count for the article.",
-	sectionCount: "present on a document with sections, such as a PDF: how many it has.",
+		"<code>{value, label}</code>, where <code>value</code> is the minutes as a string and <code>label</code> is display text such as <code>5 min read</code>. On an article with audio, the minutes are its listening time and <code>label</code> reads like <code>12 min listen</code>. It's <code>null</code> when Readplace has no word count for an article without audio.",
+	sectionCount: "present on an uploaded EPUB book: how many sections it has.",
 	status: "<code>unread</code> or <code>read</code>.",
 	isRead: "the same fact as <code>status</code>, as a boolean.",
 	savedAt: "an ISO 8601 UTC timestamp.",
@@ -121,7 +122,7 @@ const ARTICLE_PROPERTY_DOCS = {
 		'the kind of an uploaded file, such as <code>"book"</code> or <code>"audio"</code>; <code>null</code> for a saved link.',
 	durationSeconds: "the length in seconds of an uploaded audio file the reader owns; <code>null</code> otherwise.",
 	processing:
-		"present only while Readplace is still working on the article. <code>label</code> is display text, <code>estimate</code> is an optional time left, and <code>refresh</code> gives the <code>href</code> to fetch after <code>afterSeconds</code> for the article's next version. When the next version has no <code>processing</code>, the work has settled or Readplace has stopped waiting, and a <code>messages</code> warning may say why.",
+		"present only while Readplace is still working on the article. <code>label</code> is display text, <code>estimate</code> is an optional time left, an object whose <code>kind</code> is <code>quiet</code>, with <code>seconds</code> left and <code>revealInSeconds</code> before a countdown is worth showing, <code>counting</code>, with <code>seconds</code> left, or <code>almost-there</code>, with nothing more. <code>refresh</code> gives the <code>href</code> to fetch after <code>afterSeconds</code> for the article's next version. When the next version has no <code>processing</code>, the work has settled or Readplace has stopped waiting, and a <code>messages</code> warning may say why.",
 	messages: "server-authored messages to show the reader, present only when there are any; see Save links and pages.",
 } satisfies Record<keyof ArticleEntityProperties, string>;
 

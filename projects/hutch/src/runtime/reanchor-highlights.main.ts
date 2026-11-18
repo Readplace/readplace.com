@@ -13,6 +13,7 @@ import { readEnv } from "@packages/require-env";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initReanchorHighlightsHandler } from "./highlights/reanchor-highlights-handler";
 import type { HighlightsReanchoredLine } from "./observability/events";
+import { initS3ReadCandidateBody } from "./providers/candidate-body/s3-read-candidate-body";
 import { REANCHOR_HIGHLIGHTS_ENV } from "./reanchor-highlights.env";
 
 const env = readEnv(REANCHOR_HIGHLIGHTS_ENV);
@@ -28,6 +29,8 @@ const { listHighlightsOfArticle, writeHighlightAnchor } = initDynamoDbHighlightA
 	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 });
 
+const { findItemOwner } = initDynamoDbFindItemOwner({ client: dynamoClient, tableName: articlesTable });
+
 const readArticleContent = initReadArticleContentOrThrow({
 	storageProviderQueryOrder: [
 		initS3ReadContent({
@@ -39,7 +42,7 @@ const readArticleContent = initReadArticleContentOrThrow({
 			}),
 		}),
 	],
-	findItemOwner: initDynamoDbFindItemOwner({ client: dynamoClient, tableName: articlesTable }).findItemOwner,
+	findItemOwner,
 });
 
 const { publishEvent } = initEventBridgePublisher({
@@ -51,6 +54,11 @@ export const handler = initReanchorHighlightsHandler({
 	listHighlightsOfArticle,
 	readCanonicalSnapshot: initReadCanonicalSnapshot({ client: dynamoClient, tableName: articlesTable }),
 	readArticleContent,
+	readCandidateBody: initS3ReadCandidateBody({
+		send: (command) => s3.send(command),
+		bucketName: contentBucketName,
+	}),
+	findItemOwner,
 	writeHighlightAnchor,
 	publishEvent,
 	appOrigin: env.APP_ORIGIN,
