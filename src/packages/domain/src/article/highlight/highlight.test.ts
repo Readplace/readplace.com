@@ -5,6 +5,7 @@ import {
 	HighlightIdSchema,
 	HighlightNoteSchema,
 	joinNotes,
+	joinNotesNewestFirst,
 } from "./highlight";
 
 describe("HighlightIdSchema", () => {
@@ -106,5 +107,18 @@ describe("joinNotes", () => {
 			ok: true,
 			note: "request\n\nnewest row\n\noldest row",
 		});
+	});
+});
+
+describe("joinNotesNewestFirst", () => {
+	it("joins every present note in the order given, separated by blank lines", () => {
+		assert.deepEqual(joinNotesNewestFirst(["request", undefined, "newest row", "oldest row"]), {
+			ok: true,
+			note: "request\n\nnewest row\n\noldest row",
+		});
+	});
+
+	it("refuses notes that join past the cap", () => {
+		assert.deepEqual(joinNotesNewestFirst(["a".repeat(HIGHLIGHT_NOTE_MAX_LENGTH - 3), "b", "c"]), { ok: false });
 	});
 });
