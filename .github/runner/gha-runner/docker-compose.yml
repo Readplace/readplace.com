@@ -126,6 +126,8 @@ services:
   claude-listener-runner:
     build: .
     restart: unless-stopped
+    cpu_shares: 256
+    cpus: 6
     cap_add:
       - NET_ADMIN
     entrypoint: ["/usr/local/bin/entrypoint-secure.sh"]
