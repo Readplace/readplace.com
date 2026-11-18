@@ -163,7 +163,11 @@ export function initComprehensiveCrawlHandler(deps: {
 				pagesLeft: hold.pagesLeft,
 				retryAt: hold.retryAt.toISOString(),
 			});
-			return ctx.candidates === undefined ? { via: "committed-in-process" } : compareCandidates(ctx.candidates);
+			if (ctx.candidates !== undefined) return compareCandidates(ctx.candidates);
+			if (ctx.trigger !== "refresh") {
+				await transitionAndPersist(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
+			}
+			return { via: "committed-in-process" };
 		}
 		if (crawlResult.status === "pdf-awaiting-saver") {
 			if (ctx.candidates !== undefined) return compareCandidates(ctx.candidates);

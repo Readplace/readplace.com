@@ -471,25 +471,25 @@ export function initReadlistSaveRoutes(
 			}
 		});
 
-		const allowance = await deps.claimDailySaves({ userId, urls: manifestJobs.map((job) => job.url) });
-		if (manifestJobs.length > 0 && allowance.granted.length === 0) {
+		const isPdfJob = (job: PageJob): boolean => job.kind === "content" && isPdfMediaType(job.mediaType);
+		const outOfOcrPages = manifestJobs.some(isPdfJob) && (await deps.hasNoOcrPagesLeft({ userId }));
+		const ocrAdmittedJobs = outOfOcrPages ? manifestJobs.filter((job) => !isPdfJob(job)) : manifestJobs;
+		for (const job of manifestJobs) {
+			if (!outOfOcrPages || !isPdfJob(job)) continue;
+			skipped.push({ url: manifest.data[job.index].url, code: OCR_PAGE_QUOTA_CODE, message: OCR_PAGE_QUOTA_MESSAGE });
+			entryOutcomes[job.index] = { outcome: "skipped", code: OCR_PAGE_QUOTA_CODE };
+		}
+		const allowance = await deps.claimDailySaves({ userId, urls: ocrAdmittedJobs.map((job) => job.url) });
+		if (ocrAdmittedJobs.length > 0 && allowance.granted.length === 0) {
 			sendDailySaveLimit(res, allowance);
 			return;
 		}
 		const refusedUrls = new Set<string>(allowance.refused);
-		const grantedJobs = manifestJobs.filter((job) => !refusedUrls.has(job.url));
-		for (const job of manifestJobs) {
+		const jobs = ocrAdmittedJobs.filter((job) => !refusedUrls.has(job.url));
+		for (const job of ocrAdmittedJobs) {
 			if (!refusedUrls.has(job.url)) continue;
 			skipped.push({ url: manifest.data[job.index].url, code: SAVE_REFUSAL_CODES.dailySaveLimit, message: DAILY_SAVE_LIMIT_MESSAGE });
 			entryOutcomes[job.index] = { outcome: "skipped", code: SAVE_REFUSAL_CODES.dailySaveLimit };
-		}
-		const isPdfJob = (job: PageJob): boolean => job.kind === "content" && isPdfMediaType(job.mediaType);
-		const outOfOcrPages = grantedJobs.some(isPdfJob) && (await deps.hasNoOcrPagesLeft({ userId }));
-		const jobs = outOfOcrPages ? grantedJobs.filter((job) => !isPdfJob(job)) : grantedJobs;
-		for (const job of grantedJobs) {
-			if (!outOfOcrPages || !isPdfJob(job)) continue;
-			skipped.push({ url: manifest.data[job.index].url, code: OCR_PAGE_QUOTA_CODE, message: OCR_PAGE_QUOTA_MESSAGE });
-			entryOutcomes[job.index] = { outcome: "skipped", code: OCR_PAGE_QUOTA_CODE };
 		}
 
 		const failOnePage = (job: PageJob, error: unknown): PageOutcome => {
@@ -760,8 +760,8 @@ export function initReadlistSaveRoutes(
 						refuse(validation.error.message);
 						return;
 					}
-					if (!(await claimOneDailySave(validation.url))) return;
 					if (await refuseWithoutOcrPages(mediaType)) return;
+					if (!(await claimOneDailySave(validation.url))) return;
 					const freshness = await deps.refreshArticleIfStale({ url: validation.url, requester: { account: userId } });
 					if (freshness.action === "unresolved") {
 						await queueUnresolvedSave({
@@ -842,8 +842,8 @@ export function initReadlistSaveRoutes(
 						refuse(ORIGINAL_UNRESOLVED_MESSAGE, "original-unresolved");
 						return;
 					}
-					if (!(await claimOneDailySave(identity.url))) return;
 					if (await refuseWithoutOcrPages(target.normalized)) return;
+					if (!(await claimOneDailySave(identity.url))) return;
 					const slot = await deps.createUploadSlot({ url: identity.url, mediaType: target.normalized, byteLength: size, saveAttemptId });
 					res.status(200).type(SIREN_MEDIA_TYPE).json(
 						toUploadSlotEntity({

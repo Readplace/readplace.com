@@ -1402,7 +1402,7 @@ describe("OCR page allowance", () => {
 		expect(seen).toEqual([charge, undefined]);
 	});
 
-	it("holds an over-quota PDF on the saver's row without touching the shared crawl row", async () => {
+	it("holds an over-quota PDF on the saver's row and leaves the crawl awaiting a reader, so a view resumes it", async () => {
 		const markOcrPagesHeld = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const refundPaidCrawlBudget = jest.fn().mockResolvedValue(undefined);
@@ -1415,13 +1415,24 @@ describe("OCR page allowance", () => {
 
 		expect(response).toEqual({ batchItemFailures: [] });
 		expect(markOcrPagesHeld).toHaveBeenCalledWith({ userId: "user-1", url, hold: { pages: 40, pagesLeft: 12, retryAt } });
-		expect(transitionAndPersist).not.toHaveBeenCalled();
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
 		expect(published).toEqual([]);
 		expect(refundPaidCrawlBudget).toHaveBeenCalledTimes(1);
 		expect(infos).toContainEqual({
 			message: "[ComprehensiveCrawlCommand] ocr_page_quota_held",
 			context: { url, saveAttemptId: "attempt-9", pages: 40, pagesLeft: 12, retryAt: "2026-04-19T09:00:00.000Z" },
 		});
+	});
+
+	it("holds an over-quota PDF on a refresh without marking the crawl row", async () => {
+		const markOcrPagesHeld = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ crawlArticle: overQuota, markOcrPagesHeld, transitionAndPersist });
+
+		await handler(createSqsEvent({ url, userId: "user-1", trigger: "refresh" }), buildLambdaContext(), () => {});
+
+		expect(markOcrPagesHeld).toHaveBeenCalledTimes(1);
+		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
 
 	it("holds an over-quota PDF and still compares the archive candidates", async () => {

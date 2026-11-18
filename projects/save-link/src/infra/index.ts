@@ -138,7 +138,6 @@ const inboxEmailLinksTableArn = config.require("inboxEmailLinksTableArn");
 // "<budget>/<windowSeconds>" ceiling on comprehensive-crawl runs (OCR + LLM
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
-const ocrPageQuota = config.require("ocrPageQuota");
 const renderCrawlBudget = config.require("renderCrawlBudget");
 const renderRequestDiagnostics = config.require("renderRequestDiagnostics");
 const readlistFitEngine = config.require("readlistFitEngine");
@@ -1038,7 +1037,6 @@ const comprehensiveCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.compre
 		PDF_PAGE_HTML_CONVERT_FUNCTION_NAME: pdfPageHtmlConvertLambda.functionName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
-		OCR_PAGE_QUOTA: ocrPageQuota,
 	},
 	policies: [
 		...comprehensiveCrawlCommandDynamodb.policies,
@@ -1220,7 +1218,6 @@ const saveLinkRawPdfCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRa
 		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: subscriptionProvidersTableName,
-		OCR_PAGE_QUOTA: ocrPageQuota,
 	},
 	policies: [
 		...saveLinkRawPdfCommandDynamodb.policies,

@@ -25,8 +25,17 @@ function fixtureWithOcrPagesLeft(pagesLeft: number) {
 			await putPendingPdf(params);
 		},
 	};
-	fixture.rateLimit = { ...fixture.rateLimit, readOcrPagesLeft: async () => pagesLeft };
-	return { fixture, stagedPdfs };
+	const claimedSaveUnits: number[] = [];
+	const claimRateLimitUnits = fixture.rateLimit.claimRateLimitUnits;
+	fixture.rateLimit = {
+		...fixture.rateLimit,
+		readOcrPagesLeft: async () => pagesLeft,
+		claimRateLimitUnits: async (claim) => {
+			claimedSaveUnits.push(claim.requested);
+			return claimRateLimitUnits(claim);
+		},
+	};
+	return { fixture, stagedPdfs, claimedSaveUnits };
 }
 
 async function signedInReader(harness: TestAppHarness) {
@@ -66,7 +75,7 @@ async function isSaved(harness: TestAppHarness, input: { userId: UserId; url: st
 describe("daily OCR page allowance on the save routes", () => {
 	describe("POST /queue/save-content", () => {
 		it("refuses an inline PDF from a metered account with no pages left with a 429 ocr-page-quota error and stages nothing", async () => {
-			const { fixture, stagedPdfs } = fixtureWithOcrPagesLeft(0);
+			const { fixture, stagedPdfs, claimedSaveUnits } = fixtureWithOcrPagesLeft(0);
 			const harness = useMeteredApp(fixture);
 			const { accessToken, userId } = await signedInReader(harness);
 
@@ -79,6 +88,7 @@ describe("daily OCR page allowance on the save routes", () => {
 			assert.equal(response.body.properties.code, "ocr-page-quota");
 			assert.equal(response.body.properties.message, OCR_QUOTA_MESSAGE);
 			assert.deepEqual(stagedPdfs, []);
+			assert.deepEqual(claimedSaveUnits, [], "a refused PDF must not spend a daily save");
 			assert.equal(await isSaved(harness, { userId, url: "https://example.com/paper.pdf" }), false);
 		});
 
@@ -124,7 +134,7 @@ describe("daily OCR page allowance on the save routes", () => {
 		});
 
 		it("refuses a PDF upload slot to a metered account with no pages left", async () => {
-			const { fixture } = fixtureWithOcrPagesLeft(0);
+			const { fixture, claimedSaveUnits } = fixtureWithOcrPagesLeft(0);
 			const harness = useMeteredApp(fixture);
 			const { accessToken } = await signedInReader(harness);
 
@@ -135,6 +145,7 @@ describe("daily OCR page allowance on the save routes", () => {
 
 			expect(response.status).toBe(429);
 			assert.equal(response.body.properties.code, "ocr-page-quota");
+			assert.deepEqual(claimedSaveUnits, [], "a refused PDF must not spend a daily save");
 		});
 
 		it("refuses to complete a PDF upload for a metered account with no pages left", async () => {
@@ -158,7 +169,7 @@ describe("daily OCR page allowance on the save routes", () => {
 
 	describe("POST /queue/save-articles", () => {
 		it("skips a metered account's PDF tab as ocr-page-quota and saves its other tabs", async () => {
-			const { fixture, stagedPdfs } = fixtureWithOcrPagesLeft(0);
+			const { fixture, stagedPdfs, claimedSaveUnits } = fixtureWithOcrPagesLeft(0);
 			const harness = useMeteredApp(fixture);
 			const { accessToken, userId } = await signedInReader(harness);
 			const pdfUrl = "https://example.com/paper.pdf";
@@ -174,6 +185,7 @@ describe("daily OCR page allowance on the save routes", () => {
 			assert.deepEqual(response.body.properties.skippedUrls, [{ url: pdfUrl, code: "ocr-page-quota", message: OCR_QUOTA_MESSAGE }]);
 			assert.deepEqual(response.body.properties.results[0], { url: pdfUrl, outcome: "skipped", code: "ocr-page-quota" });
 			assert.deepEqual(stagedPdfs, []);
+			assert.deepEqual(claimedSaveUnits, [1], "only the HTML tab spends a daily save");
 			assert.equal(await isSaved(harness, { userId, url: htmlUrl }), true);
 		});
 
