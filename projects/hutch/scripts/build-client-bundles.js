@@ -156,6 +156,32 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/pages/view/view-highlights.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "view-highlights.client.js"),
+    globalName: "ViewHighlights",
+    footer: [
+      "(function () {",
+      "  var storage;",
+      "  try { storage = window.localStorage; } catch (e) { storage = { getItem: function () { return null; }, setItem: function () { throw e; }, removeItem: function () {} }; }",
+      "  ViewHighlights.initViewHighlights({",
+      "    document: window.document,",
+      "    storage: storage,",
+      "    now: function () { return new Date(); },",
+      "    newId: function () { return window.crypto.randomUUID(); },",
+      "    supportsPopover: function () { return typeof HTMLElement.prototype.showPopover === 'function'; },",
+      "    showPopover: function (panel) { panel.showPopover(); },",
+      "    hidePopover: function (panel) { panel.hidePopover(); },",
+      "    scrollIntoView: function (element) { element.scrollIntoView({ block: 'center' }); },",
+      "    sendBeacon: function (url) { window.navigator.sendBeacon(url); },",
+      "    submitForm: function (input) { input.form.requestSubmit(input.submitter); }",
+      "  });",
+      "})();",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/pages/reader/reader-exit-confirm.client.ts",
     ),
     outfile: path.join(OUT_DIR, "reader-exit-confirm.client.js"),

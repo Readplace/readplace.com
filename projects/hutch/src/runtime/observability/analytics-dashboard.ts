@@ -1182,7 +1182,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 350, width: 8, height: 4,
+			x: index * 8, y: 358, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1379,6 +1379,21 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count_distinct(user_id) as users by event, surface",
 			].join(" "),
 			x: 12, y: 342, width: 12, height: 8,
+			view: "table",
+		}),
+	);
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Logged-out highlights: kept, limit reached, handed over, claimed",
+			logGroupNames: analyticsSource,
+			query: [
+				`filter stream = "${STREAMS.analytics}" and event in ["${ANALYTICS_EVENTS.viewHighlight}","${ANALYTICS_EVENTS.viewHighlightsHandedOver}","${ANALYTICS_EVENTS.viewHighlightsClaimed}"]`,
+				...exclude,
+				"| stats count(*) as events, sum(highlights) as handedOver, sum(created) as created, sum(dropped) as dropped by event, action, bin(1d)",
+			].join(" "),
+			x: 0, y: 350, width: 24, height: 8,
 			view: "table",
 		}),
 	);
