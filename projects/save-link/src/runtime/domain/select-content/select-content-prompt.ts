@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Logger } from "@packages/logger";
 import { condenseCandidateHtml } from "./condense-candidate-html";
 import { DEEPSEEK_CONTEXT_TOKENS, DEEPSEEK_MAX_OUTPUT_TOKENS } from "./deepseek-limits";
@@ -75,7 +74,7 @@ export function buildSelectContentUserMessage(params: {
 			body = `${cleaned.slice(0, cap)}\n[truncated: showing the first ${cap} of ${cleaned.length} characters]`;
 		}
 		lines.push(
-			`--- candidate ${labelForIndex(index)} (contentHash=${createHash("sha256").update(candidate.html).digest("hex")}, tier=${candidate.tier}, HTTP=${candidate.httpStatus ?? "unknown"}, title ${JSON.stringify(candidate.title)}, words ${candidate.wordCount}) ---`,
+			`--- candidate ${labelForIndex(index)} (tier=${candidate.tier}, HTTP=${candidate.httpStatus ?? "unknown"}, title ${JSON.stringify(candidate.title)}, words ${candidate.wordCount}) ---`,
 			body,
 			"",
 		);
