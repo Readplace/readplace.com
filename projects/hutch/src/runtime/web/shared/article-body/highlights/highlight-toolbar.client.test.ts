@@ -48,7 +48,7 @@ function railHtml(): string {
 		anchorRevision: 0,
 	};
 	return renderHighlightsRail({
-		rows: [{ highlight: row, state: "anchored" }],
+		rows: [{ highlight: row, shown: { state: "anchored", edited: false, quote: row.exact }, marked: true }],
 		scope: { articleId: "abc", readlist: [], surface: [] },
 		oob: false,
 	}).html;

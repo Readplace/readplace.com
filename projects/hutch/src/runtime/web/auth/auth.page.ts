@@ -47,6 +47,7 @@ import type {
 } from "@packages/provider-contracts/rate-limit";
 import { createRateLimitMiddleware, sendRateLimited } from "../middleware/rate-limit";
 import { initActivateCheckout } from "../../domain/subscription/activate-checkout";
+import { initClaimSignupAllowance, signupAllowanceSpentMessage } from "./signup-allowance";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import type { BuildBannerState } from "../banner-state";
@@ -142,7 +143,7 @@ interface AuthDependencies {
 	foundingAllocation: FoundingAllocation;
 	buildBannerState: BuildBannerState;
 	consumeRateLimit: ConsumeRateLimit;
-	rateLimitRules: Pick<RateLimitRules, "login" | "loginAccount" | "signup">;
+	rateLimitRules: Pick<RateLimitRules, "login" | "loginAccount" | "signup" | "signupCreated">;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 	resolveSignupClient: ResolveSignupClient;
 	signUnsubscribeToken: (userId: UserId) => string;
@@ -288,6 +289,10 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		bucket: "signup",
 		rule: deps.rateLimitRules.signup,
 	});
+	const claimSignupAllowance = initClaimSignupAllowance({
+		consumeRateLimit: deps.consumeRateLimit,
+		rule: deps.rateLimitRules.signupCreated,
+	});
 	router.post("/signup", signupRateLimit, async (req: Request, res: Response) => {
 		const returnUrl = extractReturnUrl(req.query);
 		const pendingSaveHost = pendingSaveHostFrom(returnUrl);
@@ -299,7 +304,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				buildSignupAttemptedEvent({ now: deps.now, salt: deps.salt }, { req, outcome }),
 			);
 
-		const renderFailure = async (email: string | undefined, errors: ComponentError[]) => {
+		const renderFailure = async ({ email, errors, statusCode = 422 }: { email: string | undefined; errors: ComponentError[]; statusCode?: number }) => {
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
@@ -314,7 +319,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						email,
 						errors,
 					},
-					{ statusCode: 422 },
+					{ statusCode },
 				), bannerStateFromRequest(req)),
 			);
 		};
@@ -327,9 +332,10 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					return;
 				}
 				logSignupAttempt(SIGNUP_OUTCOMES.duplicateEmail);
-				await renderFailure(credentials.email, [
-					{ message: "This email is already registered. Check the password, or sign in the way you signed up." },
-				]);
+				await renderFailure({
+					email: credentials.email,
+					errors: [{ message: "This email is already registered. Check the password, or sign in the way you signed up." }],
+				});
 				return;
 			}
 			sessionCookie.set({ res, value: signIn.sessionId, secure: deps.secureCookies });
@@ -352,10 +358,10 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					}));
 					if (result.reason === "submit_too_fast") {
 						logSignupAttempt(SIGNUP_OUTCOMES.tooFast);
-						await renderFailure(
-							typeof body.email === "string" ? body.email : undefined,
-							[{ message: "Please try again" }],
-						);
+						await renderFailure({
+							email: typeof body.email === "string" ? body.email : undefined,
+							errors: [{ message: "Please try again" }],
+						});
 						break;
 					}
 					suppressClickCount(res);
@@ -367,7 +373,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 							? SIGNUP_OUTCOMES.disposableEmail
 							: SIGNUP_OUTCOMES.invalidInput,
 					);
-					await renderFailure(result.email, result.errors);
+					await renderFailure({ email: result.email, errors: result.errors });
 					break;
 				case "duplicate-email":
 					await signInExistingAccount({ email: result.email, password: result.password });
@@ -377,6 +383,17 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		const { email, password } = result;
+		const allowance = await claimSignupAllowance(req);
+		if (!allowance.allowed) {
+			res.set("Retry-After", String(allowance.retryAfterSeconds));
+			logSignupAttempt(SIGNUP_OUTCOMES.allowanceSpent);
+			await renderFailure({
+				email,
+				errors: [{ message: signupAllowanceSpentMessage({ limit: deps.rateLimitRules.signupCreated.limit }) }],
+				statusCode: 429,
+			});
+			return;
+		}
 		const passwordHash = await deps.hashPassword(password);
 		const userCount = await fetchUserCount();
 		/* Read once, then persisted on the user row (durable) AND emitted on the

@@ -30,7 +30,7 @@ import {
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import {
 	highlightsRailRowsFromStates,
-	pendingHighlightsRailRows,
+	storedHighlightsRailRows,
 	renderHighlightsRail,
 } from "../article-body/highlights-rail/highlights-rail.component";
 import { type ReaderSlotCapture, renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
@@ -120,7 +120,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 			: renderHighlightsRail({
 					rows:
 						reader.states.length === 0
-							? pendingHighlightsRailRows(input.highlights.rows)
+							? storedHighlightsRailRows(input.highlights)
 							: highlightsRailRowsFromStates(reader.states),
 					scope: input.highlights.scope,
 					oob: true,

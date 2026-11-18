@@ -111,6 +111,8 @@ interface TestAppOverrides {
 	readerSectionThresholdBytes?: number;
 	mediaKinds?: ReadonlyMap<MediaKindName, MediaKindManifest>;
 	readDurationByMeter?: ReadonlyMap<Meter, ReadTimedDuration>;
+	signupLogger?: Logger;
+	authDiagnosticsLogger?: Logger.Typed<Record<string, unknown>>;
 }
 
 export const TEST_TRANSCRIPT_ALLOWANCE_SECONDS = 1250;
@@ -462,6 +464,7 @@ function flattenFixtureToAppDependencies(
 		funnelLogger: funnelBundle.logger,
 		analytics: analyticsBundle.logger,
 		authDiagnosticsLogger: noopLogger,
+		signupLogger: noopLogger,
 		salt: "test-analytics-salt",
 		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
 		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,

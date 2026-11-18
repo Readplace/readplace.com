@@ -5,7 +5,7 @@ import {
 	type Highlight,
 	HighlightIdSchema,
 } from "@packages/domain/article";
-import { HIGHLIGHT_MAX_EXACT_LENGTH } from "@packages/domain/article/highlight";
+import { describeRange, HIGHLIGHT_MAX_EXACT_LENGTH, normaliseText } from "@packages/domain/article/highlight";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryHighlights } from "@packages/test-fixtures/providers/highlights";
 import { initCreateReaderHighlight } from "./create-reader-highlight";
@@ -592,5 +592,113 @@ describe("initCreateReaderHighlight", () => {
 				[ID_1, " fox", "four"],
 			],
 		);
+	});
+
+	describe("merging only with a highlight drawn where the design places it", () => {
+		const INTRO = "Intro here.";
+		const OUTRO = "Outro here.";
+		const MILD = "Weather was mild all week.";
+		const NORTH = "Up north the old bridge was closed for repairs in autumn.";
+		const NORTH_EDITED = NORTH.replace("old bridge", "old iron bridge");
+		const SOUTH = "Down south the old bridge carried trains until the flood came.";
+		const FOX = "Yesterday the quick brown fox jumps over the lazy dog near the old river bank.";
+
+		function textOf(paragraphs: string[]): string {
+			return normaliseText(paragraphs.map((paragraph) => ({ text: paragraph, blockBoundaryBefore: true }))).text;
+		}
+
+		function rowAt(params: { text: string; quote: string }): Highlight {
+			const start = params.text.indexOf(params.quote);
+			assert.notEqual(start, -1);
+			return storedRow({ ...describeRange({ text: params.text, start, end: start + params.quote.length }) });
+		}
+
+		const editedText = textOf([INTRO, NORTH_EDITED, MILD, SOUTH, OUTRO]);
+		const followedEdit: Highlight = {
+			...rowAt({ text: editedText, quote: "the old iron bridge" }),
+			exact: "the old bridge",
+			basisQuote: "the old iron bridge",
+			basisCandidateId: CandidateIdSchema.parse("candidate-h1"),
+			anchoredContentHash: "h1",
+			anchorState: "moved",
+		};
+
+		async function select(params: { text: string; contentHash: string; row: Highlight; quote: string }) {
+			const { store, createReaderHighlight } = setup([ID_1]);
+			await store.createHighlight({ userId, highlights: [params.row], replacedIds: [] });
+			const start = params.text.indexOf(params.quote);
+			assert.notEqual(start, -1);
+			const outcome = await createReaderHighlight({
+				text: params.text,
+				contentHash: params.contentHash,
+				userId,
+				url,
+				exact: params.quote,
+				start,
+				end: start + params.quote.length,
+			});
+			const rows = await store.listArticleHighlights({ userId, url });
+			return {
+				status: outcome.status,
+				replaced: !rows.some((row) => row.highlightId === params.row.highlightId),
+				created: rows.find((row) => row.highlightId === ID_1)?.exact,
+			};
+		}
+
+		it("MG2: does not merge with the same words in another paragraph than the one the edit was followed into", async () => {
+			expect(
+				await select({ text: editedText, contentHash: "h1", row: followedEdit, quote: "south the old bridge carried" }),
+			).toEqual({ status: "created", replaced: false, created: "south the old bridge carried" });
+		});
+
+		it("MG3: does not merge with a highlight whose passage was not found", async () => {
+			const text = textOf([INTRO, MILD, SOUTH, OUTRO]);
+			const notFound: Highlight = {
+				...rowAt({ text: textOf([INTRO, NORTH, MILD, SOUTH, OUTRO]), quote: "the old bridge" }),
+				basisCandidateId: CandidateIdSchema.parse("candidate-h1"),
+				anchoredContentHash: "h1",
+				anchorState: "orphaned",
+			};
+
+			expect(await select({ text, contentHash: "h1", row: notFound, quote: "old bridge carried trains" })).toEqual({
+				status: "created",
+				replaced: false,
+				created: "old bridge carried trains",
+			});
+		});
+
+		it("MG4: does not merge at a newer hash where the highlight's context no longer proves a place", async () => {
+			const text = textOf([INTRO, MILD, SOUTH, OUTRO]);
+
+			expect(await select({ text, contentHash: "h2", row: followedEdit, quote: "old bridge carried trains" })).toEqual({
+				status: "created",
+				replaced: false,
+				created: "old bridge carried trains",
+			});
+		});
+
+		it("MG5: merges with the highlight where the edit was followed", async () => {
+			expect(
+				await select({ text: editedText, contentHash: "h1", row: followedEdit, quote: "old iron bridge was closed" }),
+			).toEqual({ status: "merged", replaced: true, created: "the old iron bridge was closed" });
+		});
+
+		it("MG6: merges with a highlight without a basis where today's pass places it, widened to whole words", async () => {
+			const text = textOf([INTRO, FOX.replace("jumps", "leaps"), OUTRO]);
+			const row = { ...rowAt({ text: textOf([INTRO, FOX, OUTRO]), quote: "quick brown fox jumps over the lazy dog" }), anchoredContentHash: "h0" };
+
+			expect(await select({ text, contentHash: "h1", row, quote: "lazy dog near the old river" })).toEqual({
+				status: "merged",
+				replaced: true,
+				created: "quick brown fox leaps over the lazy dog near the old river",
+			});
+		});
+
+		it("MG6.2: does not merge a selection elsewhere with a highlight without a basis", async () => {
+			const text = textOf([INTRO, FOX.replace("jumps", "leaps"), OUTRO]);
+			const row = { ...rowAt({ text: textOf([INTRO, FOX, OUTRO]), quote: "quick brown fox jumps over the lazy dog" }), anchoredContentHash: "h0" };
+
+			expect(await select({ text, contentHash: "h1", row, quote: "Outro" })).toEqual({ status: "created", replaced: false, created: "Outro" });
+		});
 	});
 });

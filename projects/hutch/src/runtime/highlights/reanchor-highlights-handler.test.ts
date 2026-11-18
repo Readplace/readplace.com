@@ -248,8 +248,8 @@ describe("initReanchorHighlightsHandler", () => {
 			highlights: { rows: [row], canonicalContentHash: HASH_TWO },
 		});
 		const [state] = rendered.states;
-		assert.equal(state.anchor.start, row.start);
-		assert.equal(state.anchor.end, row.end);
+		assert.equal(state.place?.start, row.start);
+		assert.equal(state.place?.end, row.end);
 		assert.equal(rendered.text.slice(row.start, row.end), seeded.exact);
 		assert.ok(row.start > seeded.start);
 	});

@@ -628,6 +628,8 @@ describe("renderArticleBody highlight states", () => {
 			highlights: { rows: [highlight], canonicalContentHash: "hash" },
 		});
 
-		expect(rendered.states).toEqual([{ highlight, anchor: { start: 0, end: 14, anchorState: "orphaned" } }]);
+		expect(rendered.states).toEqual([
+			{ highlight, place: undefined, shown: { state: "anchored", edited: false, quote: "absent passage" } },
+		]);
 	});
 });

@@ -1,11 +1,11 @@
 import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
-	type AnchorState,
 	HIGHLIGHT_NOTE_MAX_LENGTH,
 	type Highlight,
 	locateQuote,
 	type QuoteLocation,
+	type StoredHighlightState,
 	viewerFor,
 } from "@packages/domain/article";
 import {
@@ -25,13 +25,18 @@ import { servedContentHash } from "../shared/article-body/reader-slot/served-con
 import type { ResolveOwnedArticle } from "./article-lookup";
 import type { McpHighlight, McpServerDeps } from "./mcp-ports.types";
 
-function toMcpHighlight(params: { highlight: Highlight; state: AnchorState }): McpHighlight {
-	const { highlight, state } = params;
+function justWritten(highlight: Highlight): { highlight: Highlight; shown: StoredHighlightState } {
+	return { highlight, shown: { state: "anchored", edited: false, quote: highlight.exact } };
+}
+
+function toMcpHighlight(params: { highlight: Highlight; shown: StoredHighlightState }): McpHighlight {
+	const { highlight, shown } = params;
 	return {
 		id: highlight.highlightId,
-		quote: highlight.exact,
+		quote: shown.quote,
+		...(shown.edited ? { highlighted: highlight.exact } : {}),
 		...(highlight.note === undefined ? {} : { note: highlight.note }),
-		state,
+		state: shown.state,
 		createdAt: highlight.createdAt.toISOString(),
 		updatedAt: highlight.updatedAt.toISOString(),
 	};
@@ -103,7 +108,7 @@ export function initMcpHighlightOperations(deps: {
 						a.highlight.orderKey - b.highlight.orderKey ||
 						a.highlight.highlightId.localeCompare(b.highlight.highlightId),
 				)
-				.map(({ highlight, anchor }) => toMcpHighlight({ highlight, state: anchor.anchorState }));
+				.map(({ highlight, shown }) => toMcpHighlight({ highlight, shown }));
 			return { status: "ready", articleId: article.id.value, readlist, highlights };
 		},
 
@@ -142,7 +147,7 @@ export function initMcpHighlightOperations(deps: {
 						status: outcome.status,
 						articleId: article.id.value,
 						readlist,
-						highlight: toMcpHighlight({ highlight: outcome.highlights[outcome.highlights.length - 1], state: "anchored" }),
+						highlight: toMcpHighlight(justWritten(outcome.highlights[outcome.highlights.length - 1])),
 					};
 				case "unchanged":
 				case "noted":
@@ -150,7 +155,7 @@ export function initMcpHighlightOperations(deps: {
 						status: "merged",
 						articleId: article.id.value,
 						readlist,
-						highlight: toMcpHighlight({ highlight: outcome.highlight, state: "anchored" }),
+						highlight: toMcpHighlight(justWritten(outcome.highlight)),
 					};
 				case "cancelled":
 					return { status: "conflict" };

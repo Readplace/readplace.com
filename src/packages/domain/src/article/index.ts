@@ -190,9 +190,13 @@ export {
 	type JoinedNote,
 } from "./highlight/highlight";
 export {
-	anchorHighlightFuzzy,
-	type FuzzyAnchorableHighlight,
-} from "./highlight/anchor-highlight-fuzzy";
+	highlightOnPage,
+	type PlaceableHighlight,
+} from "./highlight/highlight-on-page";
+export {
+	storedHighlightState,
+	type StoredHighlightState,
+} from "./highlight/stored-highlight-state";
 export {
 	reanchorArticleHighlights,
 	type ReanchorableHighlight,

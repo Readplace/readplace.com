@@ -1,8 +1,7 @@
 import assert from "node:assert";
 import type { CandidateId } from "@packages/article-state-types";
-import { type Highlight, HighlightIdSchema, joinNotesNewestFirst } from "@packages/domain/article";
+import { type Highlight, HighlightIdSchema, highlightOnPage, joinNotesNewestFirst } from "@packages/domain/article";
 import {
-	anchorHighlight,
 	cutRange,
 	describeRange,
 	HIGHLIGHT_MAX_EXACT_LENGTH,
@@ -54,8 +53,8 @@ export function initCreateReaderHighlight(deps: {
 
 		const rows = await deps.listArticleHighlights({ userId, url });
 		const anchored = rows.flatMap((row) => {
-			const anchor = anchorHighlight({ text, contentHash, highlight: row });
-			return anchor.anchorState === "orphaned" ? [] : [{ start: anchor.start, end: anchor.end, row }];
+			const place = highlightOnPage({ text, contentHash, highlight: row });
+			return place === undefined ? [] : [{ start: place.start, end: place.end, row }];
 		});
 		const { merged, parts, covering } = mergeRanges({
 			range: { start: params.start, end: params.end },
