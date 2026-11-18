@@ -8,6 +8,7 @@ import type {
 	ArticleStatus,
 	ItemMedia,
 	Minutes,
+	NewsletterLinkRow,
 	SaveProvenance,
 	SaveTrigger,
 	SavedArticle,
@@ -222,6 +223,8 @@ export function initInMemoryArticleStore(): {
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
 	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
+	readNewsletterLinkRows: (userId: UserId) => NewsletterLinkRow[];
+	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
@@ -604,6 +607,25 @@ export function initInMemoryArticleStore(): {
 
 	const readHandPickedAt = ({ userId, url }: { userId: UserId; url: string }): Date | undefined =>
 		userArticles.get(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value))?.handPickedAt;
+
+	const readNewsletterLinkRows = (userId: UserId): NewsletterLinkRow[] =>
+		[...userArticles.values()]
+			.filter((row) => row.userId === userId && row.readlist === undefined)
+			.map((row) => ({
+				storedKey: row.url,
+				status: row.status,
+				savedAt: row.savedAt,
+				...(row.provenance === undefined ? {} : { provenance: row.provenance }),
+				...(row.handPickedAt === undefined ? {} : { handPickedAt: row.handPickedAt }),
+				...(row.viewedAt === undefined ? {} : { viewedAt: row.viewedAt }),
+			}));
+
+	const readOpenedInReadlists = (userId: UserId): ReadonlySet<string> =>
+		new Set(
+			[...userArticles.values()]
+				.filter((row) => row.userId === userId && row.readlist !== undefined && row.viewedAt !== undefined)
+				.map((row) => row.url),
+		);
 
 	const hasSaveLandedSince: HasSaveLandedSince = async ({ userId, url, requestedAt }) => {
 		const row = userArticles.get(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value));
@@ -1562,6 +1584,8 @@ export function initInMemoryArticleStore(): {
 		saveArticle,
 		saveArticleKeepingPosition,
 		readHandPickedAt,
+		readNewsletterLinkRows,
+		readOpenedInReadlists,
 		allocateSavedAt,
 		allocateSavedAtSequence,
 		findSavedUrls,

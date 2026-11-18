@@ -9,7 +9,13 @@ import type {
 	SuggestionAttribution,
 	SavedArticle,
 } from "@packages/domain/article";
-import type { ItemMedia, ReaderArticleHashId, StoredArticleBody, Viewer } from "@packages/domain/article";
+import type {
+	ItemMedia,
+	NewsletterLinkSummary,
+	ReaderArticleHashId,
+	StoredArticleBody,
+	Viewer,
+} from "@packages/domain/article";
 import type { EventInstant } from "@packages/domain/event-envelope";
 import type { EmailLinkOrdinal } from "@packages/domain/inbox";
 import type {
@@ -563,3 +569,9 @@ export type RepairWrapperIdentity = (params: {
 	originalUrl: string;
 	contentSourceUrl?: string;
 }) => Promise<boolean>;
+
+export type HasNewsletterLink = (params: { userId: UserId }) => Promise<boolean>;
+
+export type SummariseNewsletterLinks = (params: { userId: UserId; cutoff: Date }) => Promise<NewsletterLinkSummary>;
+
+export type CountNewsletterIssues = (params: { userId: UserId }) => Promise<number>;

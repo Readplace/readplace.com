@@ -70,6 +70,19 @@ export {
 	type SuggestionAttribution,
 	type SaveProvenance,
 } from "./save-provenance";
+export { HAND_PICKED_MARKER_SINCE } from "./hand-picked-marker";
+export {
+	REMOVAL_SKIP_REASONS,
+	classifyForRemoval,
+	isHandPicked,
+	isNewsletterLink,
+	summariseNewsletterLinkRows,
+	type NewsletterLinkCandidate,
+	type NewsletterLinkRow,
+	type NewsletterLinkSummary,
+	type RemovalClassification,
+	type RemovalSkipReason,
+} from "./newsletter-link";
 export {
 	ARTICLE_SECTION_ID_PREFIX,
 	ARTICLE_HIGHLIGHT_ID_PREFIX,

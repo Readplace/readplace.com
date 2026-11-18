@@ -5,7 +5,7 @@ import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema } from "@p
 import { UserIdSchema } from "@packages/domain/user";
 import type { ArticleCrawl, MeteredLegsMode } from "@packages/provider-contracts/article-crawl";
 import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, initInMemoryRemovedLinks } from "@packages/test-fixtures/providers/article-store";
 import { initFindEmailIssueStanding } from "./email-issue-standing";
 import { initSaveEmailIssue } from "./save-email-issue";
 
@@ -461,5 +461,32 @@ describe("initSaveEmailIssue", () => {
 			assert.deepEqual(outcome, { kind: "removed-by-reader", contentPending: true });
 			assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all"]);
 		});
+	});
+});
+
+describe("an issue saved to All beside the links it carried", () => {
+	it("is never selected for removal while an emailed link is", async () => {
+		const h = await harness(undefined);
+		await h.save([]);
+		await h.store.saveArticle({
+			userId: READER,
+			url: "https://example.com/yahoo",
+			metadata: METADATA,
+			estimatedReadTime: ESTIMATED_READ_TIME,
+			provenance: PROVENANCE,
+			savedAt: await h.store.allocateSavedAt({ userId: READER }),
+			saveTrigger: "automatic",
+		});
+		const removedLinks = initInMemoryRemovedLinks({
+			readNewsletterLinkRows: h.store.readNewsletterLinkRows,
+			readOpenedInReadlists: h.store.readOpenedInReadlists,
+			listAllUserHighlights: async () => [],
+		});
+
+		const summary = await removedLinks.summariseNewsletterLinks({ userId: READER, cutoff: new Date(Date.now() + 60_000) });
+
+		assert.equal(summary.selected, 1);
+		assert.deepEqual(summary.bySender, [{ senderEmail: "dan@tldr.tech", count: 1 }]);
+		assert.equal(await removedLinks.countNewsletterIssues({ userId: READER }), 1);
 	});
 });
