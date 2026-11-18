@@ -188,6 +188,7 @@ export {
 	HIGHLIGHT_NOTE_MAX_LENGTH,
 	HighlightNoteSchema,
 	joinNotes,
+	joinNotesNewestFirst,
 	type JoinedNote,
 } from "./highlight/highlight";
 export {

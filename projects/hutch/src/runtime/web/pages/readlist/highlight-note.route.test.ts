@@ -322,7 +322,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		});
 	});
 
-	it("answers 422 with the note form and the passage refusal when exact is over 8191 code units", async () => {
+	it("answers 422 with the note form and the passage refusal when exact is over 65536 code units", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -332,9 +332,9 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		const response = await dialogCreate(agent, {
 			articleId,
 			body: {
-				exact: "x".repeat(8192),
+				exact: "x".repeat(65_537),
 				start: "0",
-				end: "8192",
+				end: "65537",
 				origin: "mouse",
 				note: "Too long a passage",
 			},
@@ -376,7 +376,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		});
 	});
 
-	it("refuses a join over the note cap in the form, then saves the retry with a shorter note", async () => {
+	it("refuses a note that does not fit on the highlight already covering the selection, then saves the retry with a shorter note", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -389,7 +389,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		});
 		const range = await rangeOf(agent, {
 			articleId,
-			exact: "parser to extract",
+			exact: "parser",
 		});
 
 		const refused = await dialogCreate(agent, {
@@ -406,7 +406,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 			invalid: "true",
 		});
 		expect(form.hidden).toMatchObject({
-			exact: "parser to extract",
+			exact: "parser",
 			start: range.start,
 			answer: "dialog",
 		});
@@ -467,7 +467,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		expect(noteEvents(harness)).toHaveLength(1);
 	});
 
-	it("answers a plain Highlight spanning two large notes with 422 and the over-cap toast", async () => {
+	it("merges a plain Highlight with the first of two large notes and leaves the second beside it", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -494,11 +494,12 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 				}),
 			);
 
-		expect(response.status).toBe(422);
-		expect(response.text).toContain(
-			"Joined with the highlights it overlaps, the notes are over 8,191 characters.",
-		);
-		expect(doc(response.text).querySelector("main")).not.toBeNull();
+		expect(response.status).toBe(303);
+		const reopened = (await agent.get(viewPath(articleId))).text;
+		expect(
+			doc(reopened).querySelectorAll("[data-test-highlight-row]"),
+		).toHaveLength(2);
+		expect(notesOf(reopened)).toEqual(["a".repeat(5000), "b".repeat(5000)]);
 	});
 
 	it("answers 400 to a hand-built note over 8191 code units and to an unknown answer", async () => {

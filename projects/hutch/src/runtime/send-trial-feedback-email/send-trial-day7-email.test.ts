@@ -63,6 +63,7 @@ function buildSubject(options: { contact?: UserContact; readAtOf?: Record<string
 		findOpenInvoiceFailure: async () => undefined,
 		claimTrialNudge: providers.claimTrialNudge,
 		releaseTrialNudge: providers.releaseTrialNudge,
+		loadNextCharge: async () => undefined,
 		findUserContactByUserId: async () => options.contact ?? CONTACT,
 		signUnsubscribeToken: unsubscribeToken.sign,
 		sendEmail: options.sendEmail ?? email.sendEmail,

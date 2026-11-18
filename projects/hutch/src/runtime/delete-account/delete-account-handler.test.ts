@@ -870,12 +870,12 @@ describe("delete-account handler", () => {
 		});
 		await s.highlights.createHighlight({
 			userId: account.userId,
-			highlight: highlightFor("00000000-0000-4000-8000-000000000001"),
+			highlights: [highlightFor("00000000-0000-4000-8000-000000000001")],
 			replacedIds: [],
 		});
 		await s.highlights.createHighlight({
 			userId: otherUserId,
-			highlight: highlightFor("00000000-0000-4000-8000-000000000002"),
+			highlights: [highlightFor("00000000-0000-4000-8000-000000000002")],
 			replacedIds: [],
 		});
 

@@ -56,7 +56,12 @@ export type CreateSubscriptionOnExistingCustomer = (input: {
 	priceId: string;
 	userId: UserId;
 	onUnpaidFirstInvoice: OnUnpaidFirstInvoice;
+	paymentMethodId?: string;
 }) => Promise<{ subscriptionId: string }>;
+
+export type FindSubscriptionPaymentMethod = (input: {
+	subscriptionId: string;
+}) => Promise<string | undefined>;
 
 export type ScheduleCancellationAtPeriodEnd = (input: {
 	subscriptionId: string;

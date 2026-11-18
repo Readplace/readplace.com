@@ -44,6 +44,8 @@ import com.readplace.android.core.CaptureTrigger
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.NativeCleartextPolicy
+import com.readplace.android.core.OfflineReadingDiagnostics
+import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ShareArtifacts
 import com.readplace.android.core.ShareTarget
 import com.readplace.android.core.SloganDiagnostics
@@ -56,6 +58,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import java.io.File
 import java.time.Clock
 import java.time.Instant
 import kotlin.coroutines.resume
@@ -89,6 +92,12 @@ class MainActivity : ComponentActivity() {
 		val jobs = UploadJobStore(filesDir, Dispatchers.IO)
 		val unseenSave = UnseenSave(filesDir)
 		val discoveryCache = DiscoveryHttpCache(cacheDir)
+		val snapshot = OfflineReadlistSnapshot(
+			File(filesDir, "offline-reading"),
+			Dispatchers.IO,
+			now = { Instant.now() },
+			diagnostics = OfflineReadingDiagnostics { failure -> Log.w("OfflineReading", "offline copy failed: $failure") },
+		)
 		val customTabAuth = CustomTabAuth(this, relays)
 		val readerChoices = PreferenceReaderChoiceStorage(
 			getSharedPreferences(PreferenceReaderChoiceStorage.PREFERENCES_NAME, Context.MODE_PRIVATE),
@@ -110,6 +119,7 @@ class MainActivity : ComponentActivity() {
 			makeWebAuthFlow = { oauth -> initWebAuthFlow(present = { url -> customTabAuth.present(url) }, oauth = oauth) },
 			webDataWiper = WebViewDataWiper,
 			shareArtifacts = ShareArtifacts(jobs, unseenSave, discoveryCache),
+			offlineReading = snapshot,
 			sloganDiagnostics = SloganDiagnostics { failure -> Log.w("Slogans", "slogan load failed: $failure") },
 			// A deliberate sign-out forgets the reader's readlist/share choices; a
 			// forced or expiry logout preserves them, so only this action clears them.
@@ -126,6 +136,7 @@ class MainActivity : ComponentActivity() {
 		val createReadingList: () -> ReadingListViewModel = {
 			ReadingListViewModel(
 				api = api,
+				snapshot = snapshot,
 				unseenSave = unseenSave,
 				lastViewed = lastViewed,
 				shareTarget = shareTarget,

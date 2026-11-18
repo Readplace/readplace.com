@@ -40,6 +40,7 @@ const SAVE = "#view-cta-save";
 const END_CTA = "[data-test-view-end-cta]";
 const END_CTA_HEADING = `${END_CTA} .view__end-cta-heading`;
 const END_CTA_ACTION = "[data-test-view-end-cta-action]";
+const END_CTA_PORTRAIT = `${END_CTA} [data-test-view-end-cta-signed] img`;
 const PHONE_END_CTA_SPAN = { left: 20, right: 370 };
 
 const VOLATILE_CHROME = [
@@ -51,18 +52,18 @@ const VOLATILE_CHROME = [
 	".table-of-contents",
 ];
 
-async function openPublicView(page: Page, params: { stamp: string; query: string }): Promise<void> {
+async function openPublicView(page: Page, params: { host: string; stamp: string; query: string }): Promise<void> {
 	const slug = `view-cta-${params.stamp}`;
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 		data: {
-			url: `https://example.com/${slug}`,
+			url: `https://${params.host}/${slug}`,
 			title: "How Google Sold Its Engineers on Management",
 			content: "<p>Seeded body for the public view CTA baseline.</p>",
 			contentFetchedAt: CONTENT_FETCHED_AT,
 		},
 	});
 	assert.equal(seeded.status(), 201, "the seed endpoint must create the crawled article");
-	await page.goto(`${BASE_URL}/view/example.com/${slug}${params.query}`, {
+	await page.goto(`${BASE_URL}/view/${params.host}/${slug}${params.query}`, {
 		waitUntil: "domcontentloaded",
 	});
 	await page.waitForSelector(CTA);
@@ -76,6 +77,15 @@ async function ctaSettled(page: Page): Promise<void> {
 async function endCtaSettled(page: Page): Promise<void> {
 	await ctaSettled(page);
 	await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+}
+
+async function signedEndCtaSettled(page: Page): Promise<void> {
+	await endCtaSettled(page);
+	await expect
+		.poll(() =>
+			page.locator(END_CTA_PORTRAIT).evaluate((portrait: HTMLImageElement) => portrait.complete && portrait.naturalWidth > 0),
+		)
+		.toBe(true);
 }
 
 async function everyLabelOnOneLine(page: Page, barHeight: number): Promise<void> {
@@ -290,6 +300,17 @@ function endCtaCheckpoint(name: string, geometry: (page: Page) => Promise<void>)
 	};
 }
 
+function signedEndCtaCheckpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {
+	return {
+		name,
+		settled: signedEndCtaSettled,
+		geometry,
+		target: END_CTA,
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
 function checkpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {
 	return {
 		name,
@@ -306,15 +327,27 @@ test.describe("Public view CTA row on a phone", () => {
 
 	test("paste and save share one row without squeezing it to three lines", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
-		await openPublicView(page, { stamp: `phone-${testInfo.workerIndex}-${Date.now()}`, query: "" });
+		await openPublicView(page, { host: "example.com", stamp: `phone-${testInfo.workerIndex}-${Date.now()}`, query: "" });
 		await captureCheckpoint(page, checkpoint("view-cta-phone", phoneGeometry));
 		await captureCheckpoint(page, endCtaCheckpoint("reader-end-cta-phone", endCtaActionsStack));
 	});
 
 	test("stacks the end block's actions under the dark palette", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
-		await openPublicView(page, { stamp: `phone-dark-${testInfo.workerIndex}-${Date.now()}`, query: "" });
+		await openPublicView(page, { host: "example.com", stamp: `phone-dark-${testInfo.workerIndex}-${Date.now()}`, query: "" });
 		await captureCheckpoint(page, endCtaCheckpoint("reader-end-cta-phone-dark", endCtaActionsStack));
+	});
+
+	test("signs the end block with the founder's portrait on his own post", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openPublicView(page, { host: "fagnerbrack.com", stamp: `signed-phone-${testInfo.workerIndex}-${Date.now()}`, query: "" });
+		await captureCheckpoint(page, signedEndCtaCheckpoint("reader-end-cta-signed-phone", endCtaActionsStack));
+	});
+
+	test("signs the end block on the www host under the dark palette", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		await openPublicView(page, { host: "www.fagnerbrack.com", stamp: `signed-phone-dark-${testInfo.workerIndex}-${Date.now()}`, query: "" });
+		await captureCheckpoint(page, signedEndCtaCheckpoint("reader-end-cta-signed-phone-dark", endCtaActionsStack));
 	});
 
 	test("Download appears when content arrives and survives the summary settling", async ({ page }, testInfo) => {
@@ -352,6 +385,7 @@ test.describe("Public view CTA row above the breakpoint", () => {
 	test("keeps the full labels, with the bar's edges on the card column's on a page whose rail shows no card", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openPublicView(page, {
+			host: "example.com",
 			stamp: `desktop-${testInfo.workerIndex}-${Date.now()}`,
 			query: "",
 		});
@@ -371,6 +405,7 @@ test.describe("Public view CTA row above the breakpoint", () => {
 	test("lays the bar on the dark card under its deeper halo", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openPublicView(page, {
+			host: "example.com",
 			stamp: `desktop-dark-${testInfo.workerIndex}-${Date.now()}`,
 			query: "",
 		});
@@ -378,9 +413,21 @@ test.describe("Public view CTA row above the breakpoint", () => {
 		await captureCheckpoint(page, endCtaCheckpoint("reader-end-cta-desktop-dark", endCtaActionsShareARow));
 	});
 
+	test("signs the end block beside the card column on the founder's own post", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openPublicView(page, {
+			host: "fagnerbrack.com",
+			stamp: `signed-desktop-${testInfo.workerIndex}-${Date.now()}`,
+			query: "",
+		});
+		await endCtaHeadingSharesTheColumn(page);
+		await captureCheckpoint(page, signedEndCtaCheckpoint("reader-end-cta-signed-desktop", endCtaActionsShareARow));
+	});
+
 	test("reaches paste then save by keyboard after the toolbar, each ringed inside the bar", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openPublicView(page, {
+			host: "example.com",
 			stamp: `keyboard-${testInfo.workerIndex}-${Date.now()}`,
 			query: "",
 		});

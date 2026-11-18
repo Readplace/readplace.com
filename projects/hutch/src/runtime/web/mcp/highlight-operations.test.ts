@@ -66,6 +66,7 @@ function build(options: { createHighlight?: CreateReaderHighlight } = {}) {
 	const createReaderHighlight = initCreateReaderHighlight({
 		listArticleHighlights: highlights.listArticleHighlights,
 		createHighlight: highlights.createHighlight,
+		updateHighlightNote: highlights.updateHighlightNote,
 		newHighlightId: randomUUID,
 		now: () => CREATED_AT,
 	});
@@ -174,7 +175,7 @@ describe("initMcpHighlightOperations", () => {
 			await seedArticle(harness, { html: BODY, hash: "hash-1" });
 			await harness.highlights.createHighlight({
 				userId,
-				highlight: seededRow({ exact: "Notes sit beside them.", start: 0, end: 22, anchorState: "orphaned" }),
+				highlights: [seededRow({ exact: "Notes sit beside them.", start: 0, end: 22, anchorState: "orphaned" })],
 				replacedIds: [],
 			});
 
@@ -193,7 +194,7 @@ describe("initMcpHighlightOperations", () => {
 			for (const id of ids) {
 				await harness.highlights.createHighlight({
 					userId,
-					highlight: seededRow({ ...selector, highlightId: HighlightIdSchema.parse(id) }),
+					highlights: [seededRow({ ...selector, highlightId: HighlightIdSchema.parse(id) })],
 					replacedIds: [],
 				});
 			}
@@ -211,7 +212,7 @@ describe("initMcpHighlightOperations", () => {
 			const start = text.indexOf("the passages");
 			await harness.highlights.createHighlight({
 				userId,
-				highlight: seededRow({ ...describeRange({ text, start, end: start + 12 }) }),
+				highlights: [seededRow({ ...describeRange({ text, start, end: start + 12 }) })],
 				replacedIds: [],
 			});
 
@@ -359,7 +360,7 @@ describe("initMcpHighlightOperations", () => {
 			const start = text.indexOf("the passages");
 			await harness.highlights.createHighlight({
 				userId,
-				highlight: seededRow({ ...describeRange({ text, start, end: start + 12 }) }),
+				highlights: [seededRow({ ...describeRange({ text, start, end: start + 12 }) })],
 				replacedIds: [],
 			});
 
@@ -369,7 +370,7 @@ describe("initMcpHighlightOperations", () => {
 			expect(await rows(harness)).toHaveLength(1);
 		});
 
-		it("refuses a merge whose passage would exceed the cap and writes nothing", async () => {
+		it("keeps a neighbour the merge would take past the cap and highlights only the rest", async () => {
 			const harness = build();
 			const words = Array.from({ length: 1700 }, (_, index) => `w${index}`).join(" ");
 			await seedArticle(harness, { html: `<p>${words}</p>`, hash: "hash-1" });
@@ -377,10 +378,10 @@ describe("initMcpHighlightOperations", () => {
 			const existingEnd = text.indexOf(" w1500 ");
 			await harness.highlights.createHighlight({
 				userId,
-				highlight: seededRow({ ...describeRange({ text, start: 0, end: existingEnd }) }),
+				highlights: [seededRow({ ...describeRange({ text, start: 0, end: existingEnd }) })],
 				replacedIds: [],
 			});
-			const before = await rows(harness);
+			const [existing] = await rows(harness);
 
 			const result = await harness.ops.createHighlight({
 				userId,
@@ -388,15 +389,15 @@ describe("initMcpHighlightOperations", () => {
 				quote: text.slice(text.indexOf("w1499 "), text.indexOf(" w1699")),
 			});
 
-			expect(result).toEqual({ status: "too_long", limit: 8191 });
-			expect(await rows(harness)).toEqual(before);
+			assert(result.status === "created");
+			expect(result.highlight.quote).toBe(text.slice(existingEnd, text.indexOf(" w1699")));
+			expect((await rows(harness)).map((row) => row.highlightId)).toEqual([existing.highlightId, result.highlight.id]);
 		});
 
-		it("refuses a merge whose joined notes would exceed the cap and writes nothing", async () => {
+		it("keeps a neighbour whose joined notes would pass the cap and highlights only the rest", async () => {
 			const harness = build();
 			await seedArticle(harness, { html: BODY, hash: "hash-1" });
 			await harness.ops.createHighlight({ userId, id: ID_A, quote: "keeps the passages", note: "a".repeat(8000) });
-			const before = await rows(harness);
 
 			const result = await harness.ops.createHighlight({
 				userId,
@@ -405,8 +406,72 @@ describe("initMcpHighlightOperations", () => {
 				note: "b".repeat(500),
 			});
 
+			assert(result.status === "created");
+			expect(result.highlight.quote).toBe(" you");
+			expect(result.highlight.note).toBe("b".repeat(500));
+			expect(await rows(harness)).toHaveLength(2);
+		});
+
+		it("answers merged with the highlight a quote already lies inside, writing nothing", async () => {
+			const harness = build();
+			await seedArticle(harness, { html: BODY, hash: "hash-1" });
+			const created = await harness.ops.createHighlight({ userId, id: ID_A, quote: "keeps the passages" });
+			assert(created.status === "created");
+			const before = await rows(harness);
+
+			const result = await harness.ops.createHighlight({ userId, id: ID_A, quote: "the passages" });
+
+			assert(result.status === "merged");
+			expect(result.highlight.id).toBe(created.highlight.id);
+			expect(await rows(harness)).toEqual(before);
+		});
+
+		it("adds the note to the highlight a quote already lies inside", async () => {
+			const harness = build();
+			await seedArticle(harness, { html: BODY, hash: "hash-1" });
+			const created = await harness.ops.createHighlight({ userId, id: ID_A, quote: "keeps the passages", note: "older" });
+			assert(created.status === "created");
+
+			const result = await harness.ops.createHighlight({ userId, id: ID_A, quote: "the passages", note: "newer" });
+
+			assert(result.status === "merged");
+			expect(result.highlight.id).toBe(created.highlight.id);
+			expect(result.highlight.note).toBe("newer\n\nolder");
+		});
+
+		it("answers too_long when the note does not fit on the highlight a quote already lies inside", async () => {
+			const harness = build();
+			await seedArticle(harness, { html: BODY, hash: "hash-1" });
+			await harness.ops.createHighlight({ userId, id: ID_A, quote: "keeps the passages", note: "a".repeat(8000) });
+			const before = await rows(harness);
+
+			const result = await harness.ops.createHighlight({
+				userId,
+				id: ID_A,
+				quote: "the passages",
+				note: "b".repeat(500),
+			});
+
 			expect(result).toEqual({ status: "too_long", limit: HIGHLIGHT_NOTE_MAX_LENGTH });
 			expect(await rows(harness)).toEqual(before);
+		});
+
+		it("returns the last highlight, which carries the note, when a quote spans a neighbour it cannot merge", async () => {
+			const harness = build();
+			await seedArticle(harness, { html: BODY, hash: "hash-1" });
+			await harness.ops.createHighlight({ userId, id: ID_A, quote: "the passages", note: "a".repeat(8000) });
+
+			const result = await harness.ops.createHighlight({
+				userId,
+				id: ID_A,
+				quote: "keeps the passages you",
+				note: "b".repeat(500),
+			});
+
+			assert(result.status === "created");
+			expect(result.highlight.quote).toBe(" you");
+			expect(result.highlight.note).toBe("b".repeat(500));
+			expect(await rows(harness)).toHaveLength(3);
 		});
 
 		it("answers not_found for an unknown id and another reader's article, writing nothing", async () => {
