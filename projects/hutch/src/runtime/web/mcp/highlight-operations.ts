@@ -5,7 +5,6 @@ import {
 	type Highlight,
 	viewerFor,
 } from "@packages/domain/article";
-import { HIGHLIGHT_MAX_EXACT_LENGTH } from "@packages/domain/article/highlight";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type { ListArticleHighlights } from "@packages/provider-contracts/highlights";
@@ -94,14 +93,20 @@ export function initMcpHighlightOperations(deps: {
 						status: outcome.status,
 						articleId: article.id.value,
 						readlist,
+						highlight: toMcpHighlight({ highlight: outcome.highlights[outcome.highlights.length - 1], state: "anchored" }),
+					};
+				case "unchanged":
+				case "noted":
+					return {
+						status: "merged",
+						articleId: article.id.value,
+						readlist,
 						highlight: toMcpHighlight({ highlight: outcome.highlight, state: "anchored" }),
 					};
 				case "cancelled":
 					return { status: "conflict" };
 				case "passage-changed":
 					return { status: "quote_not_found" };
-				case "too-long":
-					return { status: "too_long", limit: HIGHLIGHT_MAX_EXACT_LENGTH };
 				case "notes-too-long":
 					return { status: "too_long", limit: HIGHLIGHT_NOTE_MAX_LENGTH };
 			}

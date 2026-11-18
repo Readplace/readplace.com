@@ -137,10 +137,17 @@ export function initLocalHighlights(deps: {
 		const anchored = anchorsOn({ url: input.url, text: input.text }).flatMap(({ highlight, anchor }) =>
 			anchor.anchorState === "orphaned" ? [] : [{ highlight, start: anchor.start, end: anchor.end }],
 		);
-		const { range, merged } = mergeRanges({
+		const planned = mergeRanges({
 			range: { start: input.start, end: input.end },
 			existing: anchored,
+			maxLength: Number.POSITIVE_INFINITY,
+			canMerge: () => true,
 		});
+		const merged = [...planned.merged, ...planned.covering];
+		const range = merged.reduce(
+			(grown, other) => ({ start: Math.min(grown.start, other.start), end: Math.max(grown.end, other.end) }),
+			{ start: input.start, end: input.end },
+		);
 		const described = describeRange({ text: input.text, start: range.start, end: range.end });
 		const newestFirst = [...merged].sort((a, b) => b.highlight.createdAt.localeCompare(a.highlight.createdAt));
 		const note = joinNotes([cleanNote(input.note), ...newestFirst.map(({ highlight }) => highlight.note)]);
