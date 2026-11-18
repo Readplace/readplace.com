@@ -75,7 +75,7 @@ describe("initSelectMostCompleteContent", () => {
 		expect(createChatCompletion).toHaveBeenCalledTimes(1);
 	});
 
-	it("sends candidate labels and content hashes, never candidate ids, with the actual challenge body under the content_selection feature in JSON mode at temperature 0", async () => {
+	it("sends candidate labels, never candidate ids, with the actual challenge body under the content_selection feature in JSON mode at temperature 0", async () => {
 		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, { readable: ["A", "B"] })));
 		const info = jest.fn();
 		const result = await initSelectMostCompleteContent({ createChatCompletion, logger: { ...noopLogger, info }, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent(request);
@@ -92,11 +92,10 @@ describe("initSelectMostCompleteContent", () => {
 			promptHash: createHash("sha256").update(JSON.stringify(actualMessages)).digest("hex"),
 			responseStatus: "completed",
 		});
-		const [extension, live, archive] = result.audit.judgedCandidates.map((candidate) => candidate.contentHash);
 		expect(actualMessages?.[1]?.content.split("\n").filter((line) => line.startsWith("--- candidate "))).toEqual([
-			`--- candidate A (contentHash=${extension}, tier=tier-0, HTTP=unknown, title "Article", words 100) ---`,
-			`--- candidate B (contentHash=${live}, tier=tier-1, HTTP=unknown, title "Article", words 100) ---`,
-			`--- candidate C (contentHash=${archive}, tier=tier-2, HTTP=403, title "Challenge", words 20) ---`,
+			'--- candidate A (tier=tier-0, HTTP=unknown, title "Article", words 100) ---',
+			'--- candidate B (tier=tier-1, HTTP=unknown, title "Article", words 100) ---',
+			'--- candidate C (tier=tier-2, HTTP=403, title "Challenge", words 20) ---',
 		]);
 	});
 
