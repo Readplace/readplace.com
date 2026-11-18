@@ -14,6 +14,7 @@ import type { JudgeCandidates } from "./judge-under-ledger";
 import { chooseTiedCandidate } from "./resolve-tie";
 import { canonicalSupersedes } from "./canonical-supersedes";
 import { refreshRefusalFor } from "./refresh-refusal";
+import { bodiesAreNearIdentical } from "./near-identical-bodies";
 import { COMPARISON_COMPLETED } from "./comparison-log";
 import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import type { FindArticleContent } from "../save-link/article-content.types";
@@ -27,7 +28,7 @@ export interface PreparedContentSelection {
 	selected: VerifiedTierSource | undefined;
 	outcome: "selected" | "retained" | "no-readable" | "refused";
 	reason: string;
-	selectionRule: "first-capture" | "superseded-by-canonical" | "direct-resource" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict" | "lone-body" | "lone-error-status" | "judge-deferred" | "video-card-fallback" | "post-card-fallback" | "refresh-refused";
+	selectionRule: "first-capture" | "superseded-by-canonical" | "direct-resource" | "unchanged-content" | "judge" | "provider-rejected-fallback" | "own-capture-over-verdict" | "lone-body" | "lone-error-status" | "near-identical-refresh" | "judge-deferred" | "video-card-fallback" | "post-card-fallback" | "refresh-refused";
 	ownCaptureFailed: boolean;
 	readableIds: ReadonlySet<CandidateId>;
 	audit?: SelectionAudit;
@@ -224,6 +225,11 @@ export function initPrepareContentSelection(deps: {
 		const loneBodyAnsweredWithError = loneBodyMembers?.some((member) => answeredWithError(member.metadata.httpStatus));
 		const loneErrorStatus = loneBodyAnsweredWithError && sources.length === 1;
 		const loneAccepted = loneBody !== undefined && !loneBodyAnsweredWithError && loneBody.metadata.wordCount >= LONE_BODY_MIN_WORDS && !isWrapperUrl(loneBody.metadata.sourceUrl);
+		const refreshed = sources.find((source) => source !== previous);
+		const nearIdenticalRefresh = mode === "refresh" && previous !== undefined && sources.length === 2 && refreshed !== undefined &&
+			previous.tier === "tier-1" && refreshed.tier === "tier-1" &&
+			!isWrapperUrl(previous.metadata.sourceUrl) && !isWrapperUrl(refreshed.metadata.sourceUrl) &&
+			candidateIsReadable(refreshed) && bodiesAreNearIdentical({ fresh: refreshed.html, canonical: previous.html });
 		const decision = firstCapture !== undefined
 			? { kind: "winner", candidateId: firstCapture.metadata.id, reason: "the reader's capture is the article's first content", readability: [{ candidateId: firstCapture.metadata.id, readable: true }], judgedBodies: 0 } as const
 			: superseded !== undefined
@@ -236,6 +242,8 @@ export function initPrepareContentSelection(deps: {
 			? { kind: "none", reason: `the only candidate answered HTTP ${loneBody.metadata.httpStatus}`, readability: [{ candidateId: loneBody.metadata.id, readable: false }], judgedBodies: 0 } as const
 			: loneBody !== undefined && loneAccepted
 			? { kind: "winner", candidateId: loneBody.metadata.id, reason: `the only candidate holds ${LONE_BODY_MIN_WORDS} words or more and the article has no content yet`, readability: sources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
+			: nearIdenticalRefresh
+			? { kind: "winner", candidateId: refreshed.metadata.id, reason: "the refreshed body is near-identical to the canonical", readability: sources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
 			: await deps.judge({ url, originalUrl, sources, proseHashOf, claimId, beforeProviderCall });
 		const audit = "audit" in decision ? decision.audit : undefined;
 		const chooseAmong = (tied: readonly VerifiedTierSource[]) => chooseTiedCandidate({
@@ -245,7 +253,7 @@ export function initPrepareContentSelection(deps: {
 			canonicalNeedsRetry: article.summary.kind === "skipped" && article.summary.reason === "content-too-short",
 		});
 		let selected: VerifiedTierSource | undefined;
-		let selectionRule: PreparedContentSelection["selectionRule"] = firstCapture !== undefined ? "first-capture" : superseded !== undefined ? "superseded-by-canonical" : directResources.length > 0 ? "direct-resource" : proseUnchanged ? "unchanged-content" : loneErrorStatus ? "lone-error-status" : loneAccepted ? "lone-body" : decision.kind === "deferred" ? "judge-deferred" : "judge";
+		let selectionRule: PreparedContentSelection["selectionRule"] = firstCapture !== undefined ? "first-capture" : superseded !== undefined ? "superseded-by-canonical" : directResources.length > 0 ? "direct-resource" : proseUnchanged ? "unchanged-content" : loneErrorStatus ? "lone-error-status" : loneAccepted ? "lone-body" : nearIdenticalRefresh ? "near-identical-refresh" : decision.kind === "deferred" ? "judge-deferred" : "judge";
 		if (decision.kind === "winner") selected = sources.find((source) => source.metadata.id === decision.candidateId);
 		if (decision.kind === "tie") selected = chooseAmong(sources.filter((source) => decision.candidateIds.includes(source.metadata.id)));
 		if (audit?.responseStatus === "rejected") {
