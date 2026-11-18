@@ -86,6 +86,7 @@ describe("initDynamoDbPrivateItem savePrivateItem", () => {
 						savedAt: "2026-11-05T10:00:00.000Z",
 						status: "unread",
 						provenance: { kind: "upload" },
+						handPickedAt: "2026-11-05T10:00:00.000Z",
 					},
 				},
 			},

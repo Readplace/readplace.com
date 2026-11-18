@@ -250,6 +250,7 @@ describe("initExportUserDataHandler", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date(),
+			saveTrigger: "manual",
 		});
 
 		const response = await invokeHandler(harness, {
@@ -304,6 +305,7 @@ describe("initExportUserDataHandler", () => {
 				estimatedReadTime: MinutesSchema.parse(1),
 				provenance: { kind: "web" },
 				savedAt: new Date(),
+				saveTrigger: "manual",
 			});
 		}
 
@@ -327,6 +329,7 @@ describe("initExportUserDataHandler", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-04-28T00:00:00.000Z"),
+			saveTrigger: "manual",
 		});
 		const work = ReadlistSlugSchema.parse("work");
 		await harness.store.createReadlistDefinition({
@@ -385,6 +388,7 @@ describe("initExportUserDataHandler", () => {
 				estimatedReadTime: MinutesSchema.parse(1),
 				provenance: { kind: "web" },
 				savedAt: new Date("2026-04-28T00:00:00.000Z"),
+				saveTrigger: "manual",
 			});
 		}
 

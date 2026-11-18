@@ -17,7 +17,8 @@ export type RateLimitBucket =
 	| "import"
 	| "import-from-url"
 	| "upload-stage"
-	| "signup-created";
+	| "signup-created"
+	| "view-highlights-keep";
 
 /**
  * Atomically count one request against `(bucket, key)` for the rule's current

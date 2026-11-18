@@ -90,6 +90,7 @@ import { READLIST_STYLES } from "./readlist.styles";
 import { READLIST_PURPOSE_CARD_STYLES, renderReadlistPurpose } from "./readlist-purpose-card.component";
 import { standingOf } from "../../shared/upgrade-offer/upgrade-offer";
 import { WIZARD_STYLES } from "../../shared/wizard/wizard.component";
+import { autoSubmitScript } from "../../shared/auto-submit-script";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist.template.html"), "utf-8");
 
@@ -634,18 +635,3 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 	};
 }
 
-const autoSubmitScript = (cspNonce: CspNonce) => `
-<script nonce="${cspNonce}">
-	(function () {
-		function run() {
-			var form = document.querySelector('[data-auto-submit]');
-			if (form) form.requestSubmit();
-		}
-		if (document.readyState === 'loading') {
-			document.addEventListener('DOMContentLoaded', run, { once: true });
-		} else {
-			run();
-		}
-	})();
-</script>
-`;

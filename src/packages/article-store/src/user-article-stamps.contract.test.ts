@@ -128,7 +128,7 @@ function inMemoryHarness(): StampHarness {
 			provenance: { kind: "client", clientName: "chrome" } as const,
 			savedAt: SAVED_AT,
 		};
-		if (placement.readlist === undefined) await twin.saveArticle(params);
+		if (placement.readlist === undefined) await twin.saveArticle({ ...params, saveTrigger: "manual" });
 		else await twin.saveReadlistArticle({ ...params, readlist: placement.readlist });
 	};
 	return {

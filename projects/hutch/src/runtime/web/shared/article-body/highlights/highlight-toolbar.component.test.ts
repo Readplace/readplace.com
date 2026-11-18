@@ -1,5 +1,6 @@
 import { JSDOM } from "jsdom";
-import { renderHighlightToolbar } from "./highlight-toolbar.component";
+import assert from "node:assert/strict";
+import { renderHighlightToolbar, renderLocalHighlightToolbar } from "./highlight-toolbar.component";
 
 function toolbarDocument(
 	scope: Parameters<typeof renderHighlightToolbar>[0]["scope"] = {
@@ -141,5 +142,45 @@ describe("renderHighlightToolbar", () => {
 		);
 
 		expect(form?.hasAttribute("hx-push-url")).toBe(false);
+	});
+});
+
+describe("renderLocalHighlightToolbar", () => {
+	const doc = (): Document =>
+		new JSDOM(renderLocalHighlightToolbar({ openedUrl: "/view/highlights/event" })).window.document;
+
+	it("names the public event route as the opened beacon", () => {
+		const toolbar = doc().querySelector("[data-test-highlight-toolbar]");
+		assert(toolbar, "the toolbar renders");
+
+		assert.equal(toolbar.getAttribute("data-highlight-opened-url"), "/view/highlights/event");
+	});
+
+	it("keeps the create form in the browser: a dialog-method form with no htmx or server action", () => {
+		const form = doc().querySelector("[data-highlight-create-form]");
+		assert(form, "the create form renders, so a sentence tap still finds it");
+
+		assert.deepEqual(
+			form.getAttributeNames().filter((name) => name.startsWith("hx-") || name === "action"),
+			[],
+		);
+		assert.equal(form.getAttribute("method"), "dialog");
+		assert.equal(form.hasAttribute("data-highlight-local"), true);
+	});
+
+	it("keeps the note form in the browser too, still carrying the passage fields and the note", () => {
+		const form = doc().querySelector("#note-highlight-dialog form");
+		assert(form, "the note dialog renders its form");
+
+		assert.deepEqual(
+			form.getAttributeNames().filter((name) => name.startsWith("hx-") || name === "action"),
+			[],
+		);
+		assert.equal(form.getAttribute("method"), "dialog");
+		assert.equal(form.hasAttribute("data-highlight-local"), true);
+		assert.deepEqual(
+			Array.from(form.querySelectorAll("[name]")).map((field) => field.getAttribute("name")),
+			["exact", "start", "end", "origin", "answer", "note"],
+		);
 	});
 });

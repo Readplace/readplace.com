@@ -168,6 +168,7 @@ import { parseAdminTotpSecrets } from "../web/pages/admin/admin-totp-secrets";
 import { DEFAULT_INBOX_ADDRESS_PURPOSE, DEFAULT_INBOX_ALIAS, GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import type { CreateRoutedInboxAddress } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
+import { initInMemoryPendingViewHighlights } from "./pending-view-highlights/in-memory-pending-view-highlights";
 
 /**
  * Hutch SSR does not run PDF extraction in-process — the
@@ -629,6 +630,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		}),
 		importSessionStore,
 		savePrivateItem: articleStore.savePrivateItem,
+		...initInMemoryPendingViewHighlights({ now: () => new Date() }),
 		...initInMemoryMediaUploadSessions(),
 		...mediaPending,
 		presignMediaImage: initInMemoryPresignMediaImage().presignMediaImage,
@@ -679,7 +681,8 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		createCheckoutSession: devStripe.createCheckoutSession,
 		retrieveCheckoutSession: devStripe.retrieveCheckoutSession,
 		storePendingSignup: devPendingSignup.storePendingSignup,
-		consumePendingSignup: devPendingSignup.consumePendingSignup,
+		findPendingSignup: devPendingSignup.findPendingSignup,
+		claimPendingSignup: devPendingSignup.claimPendingSignup,
 		googleAuth,
 		gmailIntegration,
 		readNewsletterCatalog: newsletterCatalog.readCatalog,
