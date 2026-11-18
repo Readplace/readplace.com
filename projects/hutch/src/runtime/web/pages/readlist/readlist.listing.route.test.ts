@@ -418,6 +418,7 @@ describe("Readlist routes", () => {
 					provenance: { kind: "web" },
 					saveTrigger: "manual",
 					savedAt: new Date(Date.UTC(2026, 8, 1, 0, i)),
+					saveTrigger: "manual",
 				});
 			}
 			const search = (page: number) =>
