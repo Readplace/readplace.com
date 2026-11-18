@@ -11,7 +11,12 @@ export {
 	parseInboxHighlight,
 	type CustomEmailsOrigin,
 } from "./inbox-routes";
-export { emailIssueArticleUrl, emailIssueReceivedAt, parseEmailIssueArticleUrl } from "./email-issue-url";
+export {
+	emailIssueArticleUrl,
+	emailIssueKeyPrefix,
+	emailIssueReceivedAt,
+	parseEmailIssueArticleUrl,
+} from "./email-issue-url";
 export { deriveEmailIssueMetadata } from "./email-issue-metadata";
 export type {
 	CreateRoutedInboxAddress,

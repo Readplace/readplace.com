@@ -50,6 +50,7 @@ describe("starter readlist", () => {
 			provenance: { kind: "hn-suggestion", ...suggestionAttribution },
 			suggestionAttribution,
 			savedAt: NOW,
+			saveTrigger: "manual",
 		});
 		const activity: Parameters<RecordEngagementActivity>[0][] = [];
 		fixture.engagementStarter.recordEngagementActivity = async (input) => {
@@ -239,6 +240,7 @@ describe("starter readlist", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: NOW,
+			saveTrigger: "manual",
 		});
 		assert(
 			(
@@ -393,6 +395,7 @@ describe("starter readlist", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: NOW,
+			saveTrigger: "manual",
 		});
 		const app = useApp(fixture);
 		const path = buildOwnerReaderPath(ReaderArticleHashId.from(url), {

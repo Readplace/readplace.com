@@ -6,6 +6,7 @@ import type {
 	FindArticleById,
 	FindReadlistArticleById,
 	SaveArticle,
+	SaveArticleParams,
 	SaveReadlistArticle,
 } from "@packages/provider-contracts/article-store";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
@@ -36,7 +37,7 @@ export function initRecordPersonalSaves(deps: {
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
 } {
 	const record = async (
-		params: Parameters<SaveArticle>[0],
+		params: Omit<SaveArticleParams, "saveTrigger">,
 		result: Awaited<ReturnType<SaveArticle>>,
 	) => {
 		if (

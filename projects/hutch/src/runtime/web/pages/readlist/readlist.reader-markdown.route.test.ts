@@ -70,6 +70,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 		await harness.articleStore.writeContent({ url, content: "<p>Body copy.</p>" });
 		await harness.articleCrawl.markCrawlReady({ url });
@@ -134,6 +135,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 		await harness.articleStore.writeContent({ url, content: "<p>Body copy.</p>" });
 		await harness.articleCrawl.markCrawlReady({ url });
@@ -179,6 +181,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 		const token = await createAccessToken(harness);
 
@@ -202,6 +205,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 
 		const response = await markdownGet(harness, { path: `/queue/${id}/view`, token: "invalid-token" });
@@ -224,6 +228,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 		const token = await createAccessToken(harness);
 
@@ -258,6 +263,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 
 		const response = await request(harness.server)
@@ -279,6 +285,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 		await harness.auth.createUser({ email: "guest@example.com", password: "password123" });
 		const guestAgent = request.agent(harness.server);
@@ -304,6 +311,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 
 		const response = await request(harness.server)
@@ -327,6 +335,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 
 		const response = await agent.get(`/queue/${id}/view`).set("Accept", "text/markdown");
@@ -352,6 +361,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 
 		const bearerFetch = await markdownGet(harness, { path: `/queue/${id}/view`, token });
@@ -378,6 +388,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 		await harness.articleStore.createReadlistDefinition({
 			userId,
@@ -491,6 +502,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 		await harness.articleStore.writeContent({ url, content: "<p>Older body.</p>" });
 		await harness.articleCrawl.markCrawlPending({ url, measured: false, meteredLegs: "run" });
@@ -529,6 +541,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 		await harness.articleStore.writeContent({
 			url,
@@ -558,6 +571,7 @@ describe("Private upload reader Markdown (GET /queue/:id/view with Accept: text/
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 		await params.harness.articleStore.writeContent({ url: privateUrl, content: "<p>PRIVATE-BOOK-BODY</p>" });
 		await params.harness.articleCrawl.markCrawlReady({ url: privateUrl });
@@ -610,6 +624,7 @@ describe("Owner reader Markdown highlights (GET /queue/:id/view with Accept: tex
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
 		});
 		await harness.articleStore.writeContent({
 			url,
