@@ -77,7 +77,7 @@ Renaming an action is a breaking change — both sides must ship together. Renam
 | Rename an action | **Yes** | Action name is the contract |
 | Rename a field a client must author the value for (`search`'s `url`) | **Yes** | A bespoke handler hardcodes the name to supply the value, and the invoker, which looks each declared field up by name in the handler-supplied values, then misses **silently** — the request goes out without that input rather than erroring |
 | Rename a field the server carries a `value` for (`update-status`'s `status`) | No | The generic invoker copies the declared `name`/`value` pair verbatim; no client ever knows the name |
-| Remove a field with no server `value` that no client authors (`search`'s `order`) | No | Nothing can supply it — no `value` for the generic invoker, no bespoke handler — so no conforming client can reach it |
+| Remove a field with no server `value` that no first-party client authors (`search`'s `order`) | **Yes** once `/developers` publishes it | Our own clients never supply it, but the public docs tell clients we don't control to author it, so one may depend on it |
 | Rename a property in `properties` that clients read | **Yes** | Treat known property names as the contract |
 | Change an action's `method` | No | Client follows what the server declares |
 | Change an action's `href` | No | Same reason, bounded by discovery freshness: a warm client may still hold the old `href` until its cached representation expires, and the re-discover-and-retry rule in [Client Conformance](references/client-conformance.md#client-conformance) closes that window |
@@ -100,10 +100,24 @@ A client binds both levels: collection-level actions (e.g. `save-article`, `sear
 
 [Client Conformance](references/client-conformance.md) — read when building or changing a client; it ends with the per-client implementation notes.
 
+## Every API Change Ships Its Public Release
+
+The API Readplace's own clients use is the same API third-party integrations build on: the public developer docs at `https://readplace.com/developers` describe it to them. A change to that API made for any client — an action, field, property, link `rel`, status, error code, limit, header or Markdown frontmatter key added, changed or removed — **MUST** ship with its public release on `/developers` in the same change. An integrator can only discover what the docs and the responses tell them; an undocumented capability is one they cannot rely on, and an undocumented change is one that breaks them without warning.
+
+| Change | What `/developers` must say |
+|---|---|
+| New action, field, property, `rel` or frontmatter key | What it is, where it appears, what its values mean |
+| Changed behaviour, status, error code or limit | The new behaviour, replacing the old sentence |
+| Removed or deprecated | That it is going, and what replaces it |
+| Something only Readplace's own apps should use | That integrators skip it, as the page already says for its other own-app links |
+
+The developers page's route test pins what the page says, so the release is reviewed with the code that motivates it.
+
 ## Checklist — Adding a New Capability to the API
 
 1. **Name the action as a capability**, not a domain fact. Check the Evolvability table before picking a name.
 2. **Emit the capability on the server** — Siren: an action in the collection emitter (collection-level) or the article-entity emitter (entity-level) — both anchored under [References](#references) — with its `fields` declared as Siren field types; MCP: a tool in the tool catalogue, with its `inputSchema`, following the [MCP skill](../mcp/SKILL.md).
 3. **Implement the route handler** behind the Siren content-negotiation predicate; return `303` for mutations that should land the client back on a collection.
 4. **Add a handler for the action name on each client** that should expose the capability — see [Per-Client Implementations](references/client-conformance.md#per-client-implementations).
-5. **Test server and client independently** — server integration tests, plus each client's own tests. The contract surface (action name + fields + method + response class) is what both sides pin down.
+5. **Publish it on `/developers`** — see [Every API Change Ships Its Public Release](#every-api-change-ships-its-public-release).
+6. **Test server and client independently** — server integration tests, plus each client's own tests. The contract surface (action name + fields + method + response class) is what both sides pin down.
