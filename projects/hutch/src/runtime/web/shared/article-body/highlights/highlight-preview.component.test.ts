@@ -1,7 +1,11 @@
 import { type Highlight, HighlightIdSchema } from "@packages/domain/article";
 import { JSDOM } from "jsdom";
-import type { HighlightsRailRowState } from "../highlights-rail/highlights-rail.component";
+import type { HighlightsRailRow } from "../highlights-rail/highlights-rail.component";
 import { renderHighlightPreviews } from "./highlight-preview.component";
+
+function railRow(input: { highlight: Highlight; state: HighlightsRailRow["shown"]["state"]; marked: boolean }): HighlightsRailRow {
+	return { highlight: input.highlight, shown: { state: input.state, edited: false, quote: input.highlight.exact }, marked: input.marked };
+}
 
 function highlight(input: { id: string; note?: string }): Highlight {
 	return {
@@ -31,13 +35,13 @@ const IDS = {
 };
 
 describe("renderHighlightPreviews", () => {
-	it("renders a preview for each anchored or moved highlight that has a note, holding the note as text", () => {
-		const rows: { highlight: Highlight; state: HighlightsRailRowState }[] = [
-			{ highlight: highlight({ id: IDS.anchored, note: "Anchored <b>note</b>" }), state: "anchored" },
-			{ highlight: highlight({ id: IDS.moved, note: "Moved note" }), state: "moved" },
-			{ highlight: highlight({ id: IDS.orphaned, note: "Lost note" }), state: "orphaned" },
-			{ highlight: highlight({ id: IDS.pending, note: "Pending note" }), state: "pending" },
-			{ highlight: highlight({ id: IDS.plain }), state: "anchored" },
+	it("renders a preview for each highlight marked on the page that has a note, holding the note as text", () => {
+		const rows = [
+			railRow({ highlight: highlight({ id: IDS.anchored, note: "Anchored <b>note</b>" }), state: "anchored", marked: true }),
+			railRow({ highlight: highlight({ id: IDS.moved, note: "Moved note" }), state: "moved", marked: true }),
+			railRow({ highlight: highlight({ id: IDS.orphaned, note: "Lost note" }), state: "orphaned", marked: false }),
+			railRow({ highlight: highlight({ id: IDS.pending, note: "Pending note" }), state: "pending", marked: false }),
+			railRow({ highlight: highlight({ id: IDS.plain }), state: "anchored", marked: true }),
 		];
 
 		const page = new JSDOM(renderHighlightPreviews(rows)).window.document;
@@ -54,6 +58,6 @@ describe("renderHighlightPreviews", () => {
 	});
 
 	it("renders nothing without a noted highlight", () => {
-		expect(renderHighlightPreviews([{ highlight: highlight({ id: IDS.plain }), state: "anchored" }])).toBe("");
+		expect(renderHighlightPreviews([railRow({ highlight: highlight({ id: IDS.plain }), state: "anchored", marked: true })])).toBe("");
 	});
 });

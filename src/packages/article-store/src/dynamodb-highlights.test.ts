@@ -148,6 +148,8 @@ describe("initDynamoDbHighlights", () => {
 		const store = initStore(table.client);
 		const highlight = aHighlight({
 			anchoredCandidateId: CandidateIdSchema.parse("candidate-1"),
+			basisCandidateId: CandidateIdSchema.parse("candidate-0"),
+			basisQuote: "the words before an edit",
 			note: "a note",
 		});
 

@@ -225,6 +225,7 @@ const rateLimitRules = {
 	bookUpload: config.require("rateLimitBookUpload"),
 	staleCheck: config.require("rateLimitStaleCheck"),
 	export: config.require("rateLimitExport"),
+	signupCreated: config.require("rateLimitSignupCreated"),
 } satisfies Record<keyof RateLimitRules, string>;
 
 /* Blunt TOTAL-rate ceiling (all clients combined) applied by API Gateway before

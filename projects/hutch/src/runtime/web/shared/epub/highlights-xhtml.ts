@@ -1,10 +1,12 @@
 import assert from "node:assert";
 import type { HighlightId } from "@packages/domain/article";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
 import { parseHTML } from "linkedom";
 import type { ReaderHighlightState } from "../article-body/reader-slot/mark-highlights";
 import { escapeXmlAttribute, escapeXmlText } from "./epub-xhtml";
 
-export const ORPHAN_SUFFIX = " (not found in the current version)";
+const { t } = translator(hutchReader, DEFAULT_LOCALE);
 
 const NOTE_REFERENCE_ID_PREFIX = "noteref-highlight-";
 const NOTE_ID_PREFIX = "endnote-highlight-";
@@ -19,9 +21,13 @@ function numberedNote(input: { state: ReaderHighlightState; note: string; number
 }
 
 function entryXhtml(entry: { state: ReaderHighlightState; number?: number }): string {
-	const { highlight, anchor } = entry.state;
-	const blocks = highlight.exact.split("\n");
-	const suffix = anchor.anchorState === "orphaned" ? ORPHAN_SUFFIX : "";
+	const { highlight, shown } = entry.state;
+	const blocks = shown.quote.split("\n");
+	const suffix = shown.edited
+		? ` ${t("articleBody.highlightExport.edited", { quote: highlight.exact })}`
+		: shown.state === "orphaned"
+			? ` ${t("articleBody.highlightExport.notFound")}`
+			: "";
 	const quoted = blocks.map((block, index) => paragraph(index === blocks.length - 1 ? block + suffix : block)).join("");
 	if (highlight.note === undefined) return `<blockquote>${quoted}</blockquote>`;
 	const note =

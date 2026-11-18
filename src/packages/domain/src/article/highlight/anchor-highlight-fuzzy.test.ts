@@ -20,6 +20,28 @@ function highlightOn(params: {
 }
 
 describe("anchorHighlightFuzzy", () => {
+	it("widens a fuzzy place that ends mid-word to the whole word", () => {
+		const oldText =
+			"Intro here.\nTwo years on, ridership has passed the forecasts and traffic on the avenue has fallen by a fifth.";
+		const newText =
+			"Intro here.\nTwo years on, ridership has passed the projections and traffic on the boulevard has fallen by a fifth.";
+		const quote = "ridership has passed the forecasts and traffic on the avenue";
+		const highlight = highlightOn({
+			text: oldText,
+			start: oldText.indexOf(quote),
+			end: oldText.indexOf(quote) + quote.length,
+			anchoredContentHash: "old",
+			anchorState: "anchored",
+		});
+		const anchor = anchorHighlightFuzzy({ text: newText, contentHash: "new", highlight });
+
+		assert.equal(anchor.anchorState, "moved");
+		assert.equal(
+			newText.slice(anchor.start, anchor.end),
+			"ridership has passed the projections and traffic on the boulevard",
+		);
+	});
+
 	it("reaches the fuzzy pass when the exact pass misses", () => {
 		const oldText =
 			"Intro sentence here. The committee approved the new budget on Monday after a long debate. Closing remarks follow.";

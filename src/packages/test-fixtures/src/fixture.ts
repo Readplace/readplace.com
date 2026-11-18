@@ -343,6 +343,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			bookUpload: unlimitedRule,
 			staleCheck: unlimitedRule,
 			export: unlimitedRule,
+			signupCreated: unlimitedRule,
 		},
 	};
 	const pendingHtml = initInMemoryPendingHtml();

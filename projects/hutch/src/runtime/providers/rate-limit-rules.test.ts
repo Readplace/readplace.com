@@ -20,6 +20,7 @@ const RULES = {
 	bookUpload: "9/86400",
 	staleCheck: "158/86400",
 	export: "3/86400",
+	signupCreated: "3/86400",
 };
 
 describe("parseRateLimitRules", () => {
@@ -34,6 +35,7 @@ describe("parseRateLimitRules", () => {
 		assert.deepEqual(rules.bookUpload, { limit: 9, windowSeconds: 86400 });
 		assert.deepEqual(rules.staleCheck, { limit: 158, windowSeconds: 86400 });
 		assert.deepEqual(rules.export, { limit: 3, windowSeconds: 86400 });
+		assert.deepEqual(rules.signupCreated, { limit: 3, windowSeconds: 86400 });
 		assert.deepEqual(Object.keys(rules).sort(), Object.keys(RULES).sort());
 	});
 

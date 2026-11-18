@@ -204,7 +204,7 @@ function contextScore(params: {
 	);
 }
 
-function occurrencesOf(params: { text: string; exact: string }): number[] {
+export function occurrencesOf(params: { text: string; exact: string }): number[] {
 	const starts: number[] = [];
 	let at = params.text.indexOf(params.exact);
 	while (at !== -1) {
@@ -212,6 +212,53 @@ function occurrencesOf(params: { text: string; exact: string }): number[] {
 		at = params.text.indexOf(params.exact, at + 1);
 	}
 	return starts;
+}
+
+export function sameWords(params: { place: string; quote: string }): boolean {
+	return params.place.replace(/\s+/g, " ") === params.quote.replace(/\s+/g, " ");
+}
+
+const SOLID = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/u;
+const ALNUM = /[\p{L}\p{N}\p{M}]/u;
+const JOINERS: ReadonlySet<string> = new Set([".", "-", ",", "'", "’"]);
+
+function isLetter(character: string | undefined): boolean {
+	return character !== undefined && ALNUM.test(character) && !SOLID.test(character);
+}
+
+function inWord(params: { text: string; at: number }): boolean {
+	const { text, at } = params;
+	return isLetter(text[at]) || (JOINERS.has(text[at]) && isLetter(text[at - 1]) && isLetter(text[at + 1]));
+}
+
+function gluedPunctuation(params: { text: string; at: number }): boolean {
+	const character = params.text[params.at];
+	return character !== undefined && !/\s/.test(character) && !inWord(params);
+}
+
+function splitsWord(params: { text: string; at: number }): boolean {
+	const { text, at } = params;
+	return inWord({ text, at: at - 1 }) && inWord({ text, at });
+}
+
+function roughStart(params: { text: string; at: number }): boolean {
+	const { text, at } = params;
+	return splitsWord(params) || (gluedPunctuation(params) && inWord({ text, at: at - 1 }));
+}
+
+function roughEnd(params: { text: string; at: number }): boolean {
+	const { text, at } = params;
+	return splitsWord(params) || (gluedPunctuation({ text, at: at - 1 }) && inWord({ text, at }));
+}
+
+export function snapToWords(params: { text: string; range: TextRange; exact: string }): TextRange {
+	const { text, range, exact } = params;
+	if (sameWords({ place: text.slice(range.start, range.end), quote: exact })) return range;
+	let start = range.start;
+	let end = range.end;
+	while (start > 0 && roughStart({ text, at: start })) start--;
+	while (end < text.length && roughEnd({ text, at: end })) end++;
+	return { start, end };
 }
 
 export function anchorHighlight(params: {

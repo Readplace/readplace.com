@@ -1,14 +1,16 @@
 import assert from "node:assert";
 import {
 	ARTICLE_HIGHLIGHT_ID_PREFIX,
-	anchorHighlightFuzzy,
 	type Highlight,
 	type HighlightId,
+	highlightOnPage,
+	type StoredHighlightState,
+	storedHighlightState,
 } from "@packages/domain/article";
 import {
-	type Anchor,
 	collectTextChunks,
 	normaliseText,
+	type TextRange,
 } from "@packages/domain/article/highlight";
 import { parseHTML } from "linkedom";
 import {
@@ -25,7 +27,8 @@ export interface ReaderHighlights {
 
 export interface ReaderHighlightState {
 	highlight: Highlight;
-	anchor: Anchor;
+	place: TextRange | undefined;
+	shown: StoredHighlightState;
 }
 
 interface MarkedHighlights {
@@ -46,9 +49,9 @@ function piecesByChunk(input: {
 	spans: ReturnType<typeof normaliseText>["spans"];
 }): Map<number, Piece[]> {
 	const byChunk = new Map<number, Piece[]>();
-	for (const { highlight, anchor } of input.states) {
-		if (anchor.anchorState === "orphaned") continue;
-		for (const span of input.spans.slice(anchor.start, anchor.end)) {
+	for (const { highlight, place } of input.states) {
+		if (place === undefined) continue;
+		for (const span of input.spans.slice(place.start, place.end)) {
 			if (span.start === span.end) continue;
 			const pieces = byChunk.get(span.chunk) ?? [];
 			byChunk.set(span.chunk, pieces);
@@ -155,7 +158,11 @@ export function markHighlights(input: {
 		input.highlights.canonicalContentHash ?? servedContentHash(normalised.text);
 	const states = input.highlights.rows.map((highlight) => ({
 		highlight,
-		anchor: anchorHighlightFuzzy({ text: normalised.text, contentHash, highlight }),
+		place: highlightOnPage({ text: normalised.text, contentHash, highlight }),
+		shown: storedHighlightState({
+			highlight,
+			contentHash: input.highlights.canonicalContentHash,
+		}),
 	}));
 	const minted = new Set<HighlightId>();
 	const byChunk = [...piecesByChunk({ states, spans: normalised.spans })].sort(

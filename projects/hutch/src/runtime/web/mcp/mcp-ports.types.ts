@@ -4,7 +4,7 @@ import type {
 } from "@packages/web-analytics";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
-	AnchorState,
+	StoredHighlightState,
 	ArticleStatus,
 	DisplayableReadTime,
 	ArticleBody,
@@ -134,8 +134,9 @@ export type ArticleStatusResult =
 export interface McpHighlight {
 	readonly id: string;
 	readonly quote: string;
+	readonly highlighted?: string;
 	readonly note?: string;
-	readonly state: AnchorState;
+	readonly state: StoredHighlightState["state"];
 	readonly createdAt: string;
 	readonly updatedAt: string;
 }

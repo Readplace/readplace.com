@@ -155,6 +155,7 @@ export const SIGNUP_OUTCOMES = {
 	duplicateEmail: "duplicate_email",
 	tooFast: "too_fast",
 	signedIn: "signed_in",
+	allowanceSpent: "allowance_spent",
 } as const;
 
 export type SignupOutcome = (typeof SIGNUP_OUTCOMES)[keyof typeof SIGNUP_OUTCOMES];

@@ -73,6 +73,7 @@ enum class AuthReason {
 	@SerialName("newer_generation") NEWER_GENERATION,
 	@SerialName("callback_invalid") CALLBACK_INVALID,
 	@SerialName("provider_rejected") PROVIDER_REJECTED,
+	@SerialName("signup_allowance_spent") SIGNUP_ALLOWANCE_SPENT,
 	@SerialName("user_cancelled") USER_CANCELLED,
 	@SerialName("cookie_absent") COOKIE_ABSENT,
 	@SerialName("row_missing") ROW_MISSING,

@@ -9,7 +9,6 @@ export {
 	HIGHLIGHT_MAX_SELECTION_LENGTH,
 	normaliseText,
 	describeRange,
-	anchorHighlight,
 	mergeRanges,
 	type NormalisableChunk,
 	type RawSpan,

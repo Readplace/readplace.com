@@ -941,7 +941,9 @@ describe("renderReaderSlot highlight states", () => {
 	it("returns the marked body's states when the reader is ready", () => {
 		const regions = renderReaderSlot({ ...input, crawl: { status: "ready" }, content: articleBody("<p>Body</p>") });
 
-		expect(regions.states).toEqual([{ highlight, anchor: { start: 0, end: 4, anchorState: "anchored" } }]);
+		expect(regions.states).toEqual([
+			{ highlight, place: { start: 0, end: 4 }, shown: { state: "anchored", edited: false, quote: "Body" } },
+		]);
 		expect(regions.slot).toContain(`id="highlight-${highlight.highlightId}"`);
 	});
 

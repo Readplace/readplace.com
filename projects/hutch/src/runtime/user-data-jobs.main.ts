@@ -21,6 +21,7 @@ import {
 	initDynamoDbEngagementStarter,
 	initDynamoDbReadlistDefinitions,
 	initDynamoDbSavedArticleStore,
+	initReadCanonicalSnapshot,
 } from "@packages/article-store";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
@@ -377,6 +378,7 @@ export const handler = initHandleByDetailType({
 				listReadlistDefinitions: readlistDefinitions.listReadlistDefinitions,
 				findArticlesAcrossReadlists: articleStore.findArticlesAcrossReadlists,
 				listAllUserHighlights: highlights.listAllUserHighlights,
+				readCanonicalSnapshot: initReadCanonicalSnapshot({ client: dynamoClient, tableName: env.DYNAMODB_ARTICLES_TABLE }),
 				uploadUserDataExport,
 				deleteUserExports,
 				findExportRecipient: auth.findExportRecipient,

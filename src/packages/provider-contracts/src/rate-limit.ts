@@ -23,7 +23,8 @@ export type RateLimitBucket =
 	| "book-upload"
 	| "stale-check-account"
 	| "stale-check-ip"
-	| "export";
+	| "export"
+	| "signup-created";
 
 /**
  * Atomically count one request against `(bucket, key)` for the rule's current
@@ -73,4 +74,5 @@ export interface RateLimitRules {
 	bookUpload: RateLimitRule;
 	staleCheck: RateLimitRule;
 	export: RateLimitRule;
+	signupCreated: RateLimitRule;
 }

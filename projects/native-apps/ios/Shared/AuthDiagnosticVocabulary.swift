@@ -65,6 +65,7 @@ enum AuthReason: String, Codable, CaseIterable {
 	case newerGeneration = "newer_generation"
 	case callbackInvalid = "callback_invalid"
 	case providerRejected = "provider_rejected"
+	case signupAllowanceSpent = "signup_allowance_spent"
 	case userCancelled = "user_cancelled"
 	case cookieAbsent = "cookie_absent"
 	case rowMissing = "row_missing"

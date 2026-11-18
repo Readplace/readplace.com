@@ -20,7 +20,7 @@ import type { PageBody } from "@packages/web-shell";
 import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
 import {
 	highlightsRailRowsFromStates,
-	pendingHighlightsRailRows,
+	storedHighlightsRailRows,
 	renderHighlightsRail,
 } from "../../shared/article-body/highlights-rail/highlights-rail.component";
 import type { HighlightFormScope } from "../../shared/article-body/highlights/highlight-note-dialog.component";
@@ -367,7 +367,7 @@ export function ReaderPage(
 	const highlightsRail = renderHighlightsRail({
 		rows:
 			highlightStates.length === 0
-				? pendingHighlightsRailRows(highlights.rows)
+				? storedHighlightsRailRows(highlights)
 				: highlightsRailRowsFromStates(highlightStates),
 		scope: highlights.scope,
 		oob: false,

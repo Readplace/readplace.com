@@ -4,6 +4,9 @@ import { createHmac } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
+import { noopLogger } from "@packages/logger";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
+import { signupAllowanceSpentMessage } from "./signup-allowance";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -1020,4 +1023,67 @@ describe("Apple auth routes", () => {
 			expect(harness.funnelEvents.events).toEqual([]);
 		});
 	});
+});
+
+describe("Apple signup allowance per network per day", () => {
+	const signupLines: unknown[][] = [];
+	const diagnostics: Record<string, unknown>[] = [];
+	const useAppWithLoggers = useTestServer({
+		signupLogger: { ...noopLogger, info: (...args: unknown[]) => { signupLines.push(args); } },
+		authDiagnosticsLogger: { ...noopLogger, info: (event: Record<string, unknown>) => { diagnostics.push(event); } },
+	});
+	beforeEach(() => {
+		signupLines.length = 0;
+		diagnostics.length = 0;
+	});
+
+	function spentAllowanceFixture(email: string) {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		return {
+			...fixture,
+				apple: appleWith(stubExchange({ email })),
+			rateLimit: {
+				...fixture.rateLimit,
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, signupCreated: { limit: 0, windowSeconds: 86400 } },
+			},
+		};
+	}
+
+	function callback(server: Parameters<typeof request>[0], returnUrl?: string) {
+		const state = signState(freshState({ returnUrl }));
+		return postCallback(server, { state, cookie: `hutch_astate=${encodeURIComponent(state)}` });
+	}
+
+	it("refuses a new Apple user with 429 on the login page, keeps the return URL, creates nothing, and records the refusal instead of blaming Apple", async () => {
+		const harness = useAppWithLoggers(spentAllowanceFixture("new-apple@example.com"));
+		const returnUrl = "/import/abc123/review";
+
+		const response = await callback(harness.server, returnUrl);
+
+		expect(response.status).toBe(429);
+		expect(String(response.headers["retry-after"])).toMatch(/^\d+$/);
+		const doc = new JSDOM(response.text).window.document;
+		expect(assertErrorAlert(doc)?.textContent).toContain(signupAllowanceSpentMessage({ limit: 0 }));
+		const form = doc.querySelector("[data-test-form='login']");
+		assert(form, "the login form must render");
+		expect(new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN).searchParams.get("return")).toBe(returnUrl);
+		expect(await harness.auth.findUserByEmail("new-apple@example.com")).toBeNull();
+		expect(harness.email.getSentEmails()).toEqual([]);
+		expect(diagnostics.filter((event) => event.event === "login_finished")).toMatchObject([
+			{ outcome: "failure", http_status: 429, reason: "signup_allowance_spent" },
+		]);
+		expect(signupLines).toEqual([["[Signup] allowance spent", { method: "apple" }]]);
+	}, 30000);
+
+	it("still signs in a returning user when the network's allowance is spent", async () => {
+		const harness = useAppWithLoggers(spentAllowanceFixture("returning-apple@example.com"));
+		await harness.auth.createUser({ email: "returning-apple@example.com", password: "password123" });
+
+		const response = await callback(harness.server);
+
+		expect(response.status).toBe(303);
+		expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
+		expect(signupLines).toEqual([]);
+	}, 30000);
 });

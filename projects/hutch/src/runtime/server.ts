@@ -691,6 +691,7 @@ export interface AppDependencies {
 	funnelLogger: Logger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
 	analytics: Logger.Typed<AnalyticsEvent>;
 	authDiagnosticsLogger: Logger.Typed<Record<string, unknown>>;
+	signupLogger: Logger;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
@@ -1460,6 +1461,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			login: deps.rateLimitRules.login,
 			loginAccount: deps.rateLimitRules.loginAccount,
 			signup: deps.rateLimitRules.signup,
+			signupCreated: deps.rateLimitRules.signupCreated,
 		},
 	});
 	app.use("/auth/session", sessionBridgeCors);
@@ -1503,6 +1505,9 @@ export function createApp(dependencies: AppDependencies): Express {
 			recordAnalyticsEvent,
 			salt: deps.salt,
 			foundingAllocation,
+			consumeRateLimit: deps.consumeRateLimit,
+			signupCreatedRule: deps.rateLimitRules.signupCreated,
+			logger: deps.signupLogger,
 		});
 		app.use(googleAuthRouter);
 	}
@@ -1533,6 +1538,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordAnalyticsEvent,
 		salt: deps.salt,
 		foundingAllocation,
+		consumeRateLimit: deps.consumeRateLimit,
+		signupCreatedRule: deps.rateLimitRules.signupCreated,
+		logger: deps.signupLogger,
 	});
 	app.use(appleAuthRouter);
 

@@ -23,6 +23,7 @@ const RateLimitRulesSchema = z.strictObject({
 	bookUpload: Rule,
 	staleCheck: Rule,
 	export: Rule,
+	signupCreated: Rule,
 } satisfies Record<keyof RateLimitRules, typeof Rule>);
 
 export function parseRateLimitRules(raw: string): RateLimitRules {

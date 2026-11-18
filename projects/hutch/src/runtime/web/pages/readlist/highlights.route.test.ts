@@ -378,7 +378,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(response.text).toContain("That highlight just changed; try again");
 	});
 
-	it("anchors on the canonical content hash when the article has one", async () => {
+	it("anchors on the canonical content hash, reading pending once the hash moves on before a re-anchor", async () => {
 		const fixture = parsedFixture();
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-canonical";
@@ -400,7 +400,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			canonicalContentHash: "changed-hash",
 		});
 		expect(rowsOf((await agent.get(viewPath(articleId))).text)).toEqual([
-			{ id, state: "anchored" },
+			{ id, state: "pending" },
 		]);
 	});
 
@@ -1321,7 +1321,7 @@ async function runReanchorHandler(
 }
 
 describe("Highlights when the served body changes", () => {
-	it("marks a highlight moved when a changed body still holds the quote", async () => {
+	it("keeps a highlight's stored state and draws its mark where a changed body now holds the quote", async () => {
 		const fixture = parsedFixture();
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-body-moved";
@@ -1337,11 +1337,11 @@ describe("Highlights when the served body changes", () => {
 		});
 		const reopened = (await agent.get(viewPath(articleId))).text;
 
-		expect(rowsOf(reopened)).toEqual([{ id, state: "moved" }]);
+		expect(rowsOf(reopened)).toEqual([{ id, state: "anchored" }]);
 		expect(marksOf(reopened)).toEqual(["readability parser"]);
 	});
 
-	it("marks a highlight orphaned, with its chip and no mark or Jump, when a changed body loses the quote", async () => {
+	it("keeps a highlight's stored state, with no chip, mark or Jump, when a changed body loses the quote before a re-anchor", async () => {
 		const fixture = parsedFixture();
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-body-orphaned";
@@ -1357,8 +1357,8 @@ describe("Highlights when the served body changes", () => {
 			`[data-test-highlight-row="${id}"]`,
 		);
 
-		expect(rowsOf(reopened)).toEqual([{ id, state: "orphaned" }]);
-		expect(row?.textContent).toContain("Not found in this version");
+		expect(rowsOf(reopened)).toEqual([{ id, state: "anchored" }]);
+		expect(row?.textContent).not.toContain("Not found in this version");
 		expect(marksOf(reopened)).toEqual([]);
 		expect(
 			row?.querySelector('[data-test-action="highlight-jump"]'),
@@ -1547,7 +1547,7 @@ describe("Highlights on the polls while the crawl is pending", () => {
 		expect(poll.querySelectorAll("[data-test-highlight-row]")).toHaveLength(0);
 	});
 
-	it("lists a stored highlight as pending on the summary poll's rail while a recrawl runs over a served body", async () => {
+	it("lists a stored highlight with its stored state and no Jump on the summary poll's rail while a recrawl runs over a served body", async () => {
 		const fixture = parsedFixture();
 		const harness = useApp(fixture);
 		const url = "https://example.com/highlight-recrawl-summary-poll";
@@ -1567,7 +1567,8 @@ describe("Highlights on the polls while the crawl is pending", () => {
 				.querySelector("[data-test-highlights-rail]")
 				?.getAttribute("hx-swap-oob"),
 		).toBe("outerHTML");
-		expect(rowsOf(poll)).toEqual([{ id, state: "pending" }]);
+		expect(rowsOf(poll)).toEqual([{ id, state: "anchored" }]);
+		expect(doc(poll).querySelector('[data-test-action="highlight-jump"]')).toBeNull();
 	});
 
 	it("leaves the marked reader and its rail alone on the summary poll once the body is served", async () => {

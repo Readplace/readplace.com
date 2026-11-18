@@ -12,12 +12,22 @@ export const enUS = {
 			delete: "Delete note",
 		},
 		highlightsRail: {
+			title: "Highlights",
+			notFound: "Not found in this version",
+			edited: "Edited in this version. You highlighted: “{quote}”",
+			jump: "Jump",
+			addNote: "Add note",
+			editNote: "Edit note",
 			deleteHighlight: "Delete highlight",
 			deleteConfirm: {
 				title: "Delete this highlight?",
 				body: "The passage stays in the article; only your highlight is removed.",
 				bodyWithNote: "The passage stays in the article; your highlight and its note are removed.",
 			},
+		},
+		highlightExport: {
+			edited: "(edited in the current version; you highlighted “{quote}”)",
+			notFound: "(not found in the current version)",
 		},
 		readerFailed: {
 			title: {

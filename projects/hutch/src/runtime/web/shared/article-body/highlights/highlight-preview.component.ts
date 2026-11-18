@@ -7,7 +7,7 @@ const TEMPLATE = readFileSync(join(__dirname, "highlight-preview.template.html")
 
 export function renderHighlightPreviews(rows: readonly HighlightsRailRow[]): string {
 	const previews = rows
-		.filter((row) => row.state === "anchored" || row.state === "moved")
+		.filter((row) => row.marked)
 		.flatMap(({ highlight }) =>
 			highlight.note === undefined ? [] : [{ highlightId: highlight.highlightId, note: highlight.note }],
 		);

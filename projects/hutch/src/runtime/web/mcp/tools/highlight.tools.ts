@@ -1,7 +1,6 @@
 import { HIGHLIGHT_NOTE_MAX_LENGTH } from "@packages/domain/article";
 import { HIGHLIGHT_MAX_EXACT_LENGTH } from "@packages/domain/article/highlight";
 import type { ReadlistSlug } from "@packages/domain/readlist";
-import { ORPHAN_SUFFIX } from "../../shared/epub/highlights-xhtml";
 import {
 	ArticleIdArgs,
 	CREATE_HIGHLIGHT_TOOL,
@@ -12,9 +11,16 @@ import {
 import type { McpHighlight, McpHighlightOutput, McpServerDeps, McpRequestContext } from "../mcp-ports.types";
 import { type ToolOutputs, type ToolResult, data, toolError, NOT_AN_ARTICLE_REPLY, PENDING_REPLY, notFoundResult } from "../tool-result";
 
+function stateSuffix(highlight: McpHighlightOutput): string {
+	if (highlight.highlighted !== undefined) {
+		return ` (edited in the current version; you highlighted “${highlight.highlighted}”)`;
+	}
+	return highlight.state === "orphaned" ? " (not found in the current version)" : "";
+}
+
 function formatHighlight(highlight: McpHighlightOutput): string {
 	const lines = highlight.quote.split("\n").map((line) => `> ${line}`);
-	const quoted = highlight.state === "orphaned" ? `${lines.join("\n")}${ORPHAN_SUFFIX}` : lines.join("\n");
+	const quoted = `${lines.join("\n")}${stateSuffix(highlight)}`;
 	return highlight.note === undefined ? quoted : `${quoted}\n${highlight.note}`;
 }
 
@@ -30,7 +36,7 @@ export function initHighlightTools(
 		highlight: McpHighlight;
 	}): McpHighlightOutput {
 		const url = new URL(privateArticleUrl({ articleId: params.articleId, readlist: params.readlist }));
-		if (params.highlight.state !== "orphaned") url.hash = `highlight-${params.highlight.id}`;
+		if (params.highlight.state === "anchored" || params.highlight.state === "moved") url.hash = `highlight-${params.highlight.id}`;
 		return { ...params.highlight, url: url.toString() };
 	}
 
