@@ -117,8 +117,8 @@ describe("prepareReaderContent highlights", () => {
 				className: "article-highlight",
 			},
 		]);
-		expect(prepared.states.map((state) => state.anchor.anchorState)).toEqual([
-			"anchored",
+		expect(prepared.states.map((state) => state.place)).toEqual([
+			{ start: highlight.start, end: highlight.end },
 		]);
 	});
 
@@ -163,8 +163,8 @@ describe("prepareReaderContent highlights", () => {
 		const prepared = prepare({ content, highlights: [highlight] });
 
 		expect(browserTextOf(prepared.html)).toBe(servedText);
-		expect(prepared.states.map((state) => state.anchor)).toEqual([
-			{ start: highlight.start, end: highlight.end, anchorState: "anchored" },
+		expect(prepared.states.map((state) => state.place)).toEqual([
+			{ start: highlight.start, end: highlight.end },
 		]);
 		expect(
 			marksOf(prepared.html)

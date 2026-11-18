@@ -36,29 +36,43 @@ export function initDynamoDbHighlightAnchors(deps: {
 	};
 
 	const writeHighlightAnchor: WriteHighlightAnchor = async ({ userId, url, highlightId, expectedRevision, anchor }) => {
-		const candidate =
-			anchor.anchoredCandidateId === undefined
-				? { set: "", remove: " REMOVE anchoredCandidateId", values: {} }
-				: {
-						set: ", anchoredCandidateId = :anchoredCandidateId",
-						remove: "",
-						values: { ":anchoredCandidateId": anchor.anchoredCandidateId },
-					};
+		const kept = {
+			start: anchor.start,
+			end: anchor.end,
+			anchorState: anchor.anchorState,
+			anchoredContentHash: anchor.anchoredContentHash,
+			orderKey: anchor.orderKey,
+			...(anchor.prefix === undefined ? {} : { prefix: anchor.prefix }),
+			...(anchor.suffix === undefined ? {} : { suffix: anchor.suffix }),
+		};
+		const optional = {
+			anchoredCandidateId: anchor.anchoredCandidateId,
+			basisCandidateId: anchor.basisCandidateId,
+			basisQuote: anchor.basisQuote,
+		};
+		const set = Object.entries({
+			...kept,
+			...Object.fromEntries(Object.entries(optional).filter(([, value]) => value !== undefined)),
+		});
+		const removed = Object.entries(optional)
+			.filter(([, value]) => value === undefined)
+			.map(([name]) => `#${name}`);
 		const outcome = await writeIfCondition(() =>
 			highlights.update({
 				Key: { userId, url: highlightKey({ url, highlightId }) },
-				UpdateExpression: `SET #start = :start, #end = :end, anchorState = :anchorState, anchoredContentHash = :anchoredContentHash, orderKey = :orderKey, anchorRevision = anchorRevision + :one${candidate.set}${candidate.remove}`,
+				UpdateExpression: [
+					`SET ${[...set.map(([name]) => `#${name} = :${name}`), "anchorRevision = anchorRevision + :one"].join(", ")}`,
+					...(removed.length === 0 ? [] : [`REMOVE ${removed.join(", ")}`]),
+				].join(" "),
 				ConditionExpression: "anchorRevision = :expectedRevision AND attribute_exists(#url)",
-				ExpressionAttributeNames: { "#url": "url", "#start": "start", "#end": "end" },
+				ExpressionAttributeNames: {
+					"#url": "url",
+					...Object.fromEntries([...set.map(([name]) => name), ...Object.keys(optional)].map((name) => [`#${name}`, name])),
+				},
 				ExpressionAttributeValues: {
-					":start": anchor.start,
-					":end": anchor.end,
-					":anchorState": anchor.anchorState,
-					":anchoredContentHash": anchor.anchoredContentHash,
-					":orderKey": anchor.orderKey,
+					...Object.fromEntries(set.map(([name, value]) => [`:${name}`, value])),
 					":one": 1,
 					":expectedRevision": expectedRevision,
-					...candidate.values,
 				},
 				ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 			}),

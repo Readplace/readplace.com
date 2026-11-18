@@ -668,7 +668,7 @@ describe("Owner reader Markdown highlights (GET /queue/:id/view with Accept: tex
 		expect(response.text.endsWith("## Highlights\n\n> same words again\n")).toBe(true);
 	});
 
-	it("anchors against the canonical snapshot's body, listing a quote it lost as not found", async () => {
+	it("renders the canonical snapshot's body, listing a highlight not yet re-anchored to it without a suffix", async () => {
 		const { harness, fixture } = buildHarness();
 		const agent = await savedReadyArticle(harness);
 		await createHighlight(agent, "passage worth keeping");
@@ -684,7 +684,7 @@ describe("Owner reader Markdown highlights (GET /queue/:id/view with Accept: tex
 		expect(response.status).toBe(200);
 		expect(response.text).toContain("A rewritten second paragraph.");
 		expect(
-			response.text.endsWith("## Highlights\n\n> passage worth keeping (not found in the current version)\n"),
+			response.text.endsWith("## Highlights\n\n> passage worth keeping\n"),
 		).toBe(true);
 	});
 

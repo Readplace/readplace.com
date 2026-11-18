@@ -82,18 +82,20 @@ function createFakeTable() {
 				...(existing === undefined ? {} : { Item: {} }),
 			});
 		}
-		const { anchoredCandidateId: _previous, ...rest } = existing;
-		const removesCandidate = String(input.UpdateExpression).includes("REMOVE anchoredCandidateId");
-		const next: Item = {
-			...rest,
-			...(removesCandidate ? {} : { anchoredCandidateId: values[":anchoredCandidateId"] }),
-			start: values[":start"],
-			end: values[":end"],
-			anchorState: values[":anchorState"],
-			anchoredContentHash: values[":anchoredContentHash"],
-			orderKey: values[":orderKey"],
-			anchorRevision: Number(existing.anchorRevision) + Number(values[":one"]),
-		};
+		const names: Item = Object(input.ExpressionAttributeNames);
+		const nameOf = (token: string) => String(token.startsWith("#") ? names[token] : token);
+		const [setClause = "", removeClause = ""] = String(input.UpdateExpression)
+			.replace(/^SET /, "")
+			.split(" REMOVE ");
+		const removed = removeClause === "" ? [] : removeClause.split(", ").map(nameOf);
+		const next: Item = Object.fromEntries(Object.entries(existing).filter(([name]) => !removed.includes(name)));
+		for (const assignment of setClause.split(", ")) {
+			const [target = "", expression = ""] = assignment.split(" = ");
+			next[nameOf(target)] =
+				expression === "anchorRevision + :one"
+					? Number(existing.anchorRevision) + Number(values[":one"])
+					: values[expression];
+		}
 		items.set(key, next);
 		return {};
 	};
@@ -202,6 +204,41 @@ describe("initDynamoDbHighlightAnchors", () => {
 
 		expect(table.items.get(rowKey(seeded))?.anchoredCandidateId).toBeUndefined();
 		expect(table.items.get(rowKey(seeded))?.anchorRevision).toBe(1);
+	});
+
+	it("writes the whole anchor: a basis is set and removed, the context is replaced only when supplied, the note is kept", async () => {
+		const table = createFakeTable();
+		const seeded = { ...aRow({ userId: USER, highlightOf: URL_ID, highlightId: idOf(1) }), note: "my note" };
+		table.seed(seeded);
+		const store = initDynamoDbHighlightAnchors({ client: table.client, userArticlesTableName: TABLE });
+
+		await store.writeHighlightAnchor({
+			userId: USER,
+			url: URL_ID,
+			highlightId: idOf(1),
+			expectedRevision: 0,
+			anchor: {
+				...MOVED,
+				basisCandidateId: CandidateIdSchema.parse("candidate-2"),
+				basisQuote: "a passage",
+				prefix: "new before ",
+				suffix: " new after",
+			},
+		});
+		const withBasis = table.items.get(rowKey(seeded));
+		expect(withBasis).toMatchObject({
+			basisCandidateId: "candidate-2",
+			basisQuote: "a passage",
+			prefix: "new before ",
+			suffix: " new after",
+			note: "my note",
+		});
+
+		await store.writeHighlightAnchor({ userId: USER, url: URL_ID, highlightId: idOf(1), expectedRevision: 1, anchor: MOVED });
+
+		assert(withBasis);
+		const { basisCandidateId: _candidate, basisQuote: _quote, ...withoutBasis } = withBasis;
+		expect(table.items.get(rowKey(seeded))).toEqual({ ...withoutBasis, anchorRevision: 2 });
 	});
 
 	it("answers deleted when the row is gone", async () => {

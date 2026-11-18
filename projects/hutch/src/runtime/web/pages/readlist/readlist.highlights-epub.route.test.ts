@@ -166,7 +166,7 @@ describe("Owner reader EPUB (GET /queue/:id/view?format=epub)", () => {
 		expect(sectionEntries(chapter)).toEqual(["same words again"]);
 	});
 
-	it("anchors against the canonical snapshot's body, listing a quote it lost as not found", async () => {
+	it("renders the canonical snapshot's body, listing a highlight not yet re-anchored to it without a suffix", async () => {
 		const { harness, agent, userId } = await signedInHarness();
 		await saveArticle({ harness, userId, url: ARTICLE_URL, body: ARTICLE_BODY });
 		await createHighlight({ agent, exact: "passage worth keeping", occurrence: "first" });
@@ -183,7 +183,7 @@ describe("Owner reader EPUB (GET /queue/:id/view?format=epub)", () => {
 		expect(
 			Array.from(chapter.querySelectorAll("mark[data-highlight-id]"), (mark) => mark.getAttribute("data-highlight-id")),
 		).toEqual([]);
-		expect(sectionEntries(chapter)).toEqual(["passage worth keeping (not found in the current version)"]);
+		expect(sectionEntries(chapter)).toEqual(["passage worth keeping"]);
 	});
 
 	it("answers a prefetch of the owner EPUB with 204", async () => {
