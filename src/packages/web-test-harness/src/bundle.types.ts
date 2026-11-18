@@ -113,7 +113,8 @@ import type {
 	BumpArticleSavedAt,
 	CheckoutPaymentStatus,
 	CheckoutSessionId,
-	ConsumePendingSignup,
+	ClaimPendingSignup,
+	FindPendingSignup,
 	ConsumeRateLimit,
 	ContentProvider,
 	ConversionEvent,
@@ -379,7 +380,8 @@ export interface HostedCheckoutBundle {
 
 export interface PendingSignupBundle {
 	storePendingSignup: StorePendingSignup;
-	consumePendingSignup: ConsumePendingSignup;
+	findPendingSignup: FindPendingSignup;
+	claimPendingSignup: ClaimPendingSignup;
 }
 
 export interface SubscriptionProvidersBundle {

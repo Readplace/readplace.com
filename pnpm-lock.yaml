@@ -1864,6 +1864,9 @@ importers:
       '@packages/media-contracts':
         specifier: workspace:*
         version: link:../media-contracts
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
       esbuild:
         specifier: 'catalog:'
         version: 0.28.0
