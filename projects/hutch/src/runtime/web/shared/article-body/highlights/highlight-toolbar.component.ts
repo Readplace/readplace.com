@@ -26,6 +26,7 @@ export const HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS: readonly { name: string; value
 
 export function renderHighlightToolbar(input: {
 	scope: HighlightFormScope;
+	rowNoteOpen: boolean;
 }): string {
 	return render(HIGHLIGHT_TOOLBAR_TEMPLATE, {
 		createUrl: highlightFormUrl({
@@ -41,6 +42,7 @@ export function renderHighlightToolbar(input: {
 		noteDialogHtml: renderHighlightNoteDialog({
 			scope: input.scope,
 			hiddenFields: HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS,
+			autofocus: !input.rowNoteOpen,
 		}),
 	}).trim();
 }

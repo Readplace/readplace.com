@@ -7,8 +7,9 @@ function toolbarDocument(
 		readlist: [],
 		surface: [],
 	},
+	rowNoteOpen = false,
 ): Document {
-	return new JSDOM(renderHighlightToolbar({ scope })).window.document;
+	return new JSDOM(renderHighlightToolbar({ scope, rowNoteOpen })).window.document;
 }
 
 describe("renderHighlightToolbar", () => {
@@ -31,7 +32,7 @@ describe("renderHighlightToolbar", () => {
 			["Highlight", "submit", "FORM"],
 			["Add note", "dialog", "FORM"],
 		]);
-		expect(buttons[1].classList.contains("highlight-note__trigger")).toBe(true);
+		expect(Array.from(buttons[1].classList)).toEqual(Array.from(buttons[0].classList));
 	});
 
 	it("renders the note dialog beside the bar, posting the selection fields with answer=dialog to the tracked url", () => {
@@ -78,7 +79,7 @@ describe("renderHighlightToolbar", () => {
 		expect(url.searchParams.get("utm_content")).toBe("highlight");
 		expect(
 			Array.from(form?.querySelectorAll("input") ?? [], (input) => input.name),
-		).toEqual(["exact", "start", "end", "origin"]);
+		).toEqual(["exact", "start", "end", "origin", "after"]);
 		expect(form?.getAttribute("hx-target")).toBe("main");
 		expect(form?.getAttribute("hx-select")).toBe("main");
 		expect(form?.getAttribute("hx-swap")).toBe("outerHTML show:none");
@@ -116,6 +117,22 @@ describe("renderHighlightToolbar", () => {
 		}).querySelector("[data-test-highlight-create-form]");
 
 		expect(form?.getAttribute("hx-push-url")).toBe("false");
+	});
+
+	it("focuses the note dialog's field when no rail row's note form is open", () => {
+		const note = toolbarDocument().querySelector(
+			"#note-highlight-dialog [data-test-highlight-note-input]",
+		);
+
+		expect(note?.hasAttribute("autofocus")).toBe(true);
+	});
+
+	it("leaves the note dialog's field unfocused when a rail row's note form is open", () => {
+		const note = toolbarDocument(undefined, true).querySelector(
+			"#note-highlight-dialog [data-test-highlight-note-input]",
+		);
+
+		expect(note?.hasAttribute("autofocus")).toBe(false);
 	});
 
 	it("lets the web create form push history", () => {

@@ -41,6 +41,7 @@ export interface HighlightsRailRow {
 export interface HighlightsRailInput {
 	rows: readonly HighlightsRailRow[];
 	scope: HighlightFormScope | undefined;
+	openNote: HighlightId | undefined;
 	oob: boolean;
 }
 
@@ -83,7 +84,7 @@ function byOrder(a: HighlightsRailRow, b: HighlightsRailRow): number {
 		: a.highlight.highlightId.localeCompare(b.highlight.highlightId);
 }
 
-function editView(input: { highlight: Highlight; scope: HighlightFormScope }) {
+function editView(input: { highlight: Highlight; scope: HighlightFormScope; noteOpen: boolean }) {
 	const { highlight } = input;
 	const popoverId = deletePopoverId(highlight.highlightId);
 	const deleteUrl = highlightFormUrl({
@@ -108,7 +109,8 @@ function editView(input: { highlight: Highlight; scope: HighlightFormScope }) {
 				: t("articleBody.highlightsRail.editNote"),
 		notePopoverId: highlightNoteEditPopoverId(highlight.highlightId),
 		noteDialogHtml: renderHighlightNoteEditDialog(noteInput),
-		noteFallbackHtml: renderHighlightNoteFallbackForm(noteInput),
+		noteOpen: input.noteOpen,
+		noteFallbackHtml: renderHighlightNoteFallbackForm({ ...noteInput, open: input.noteOpen }),
 		noteDeleteHtml:
 			highlight.note === undefined
 				? undefined
@@ -131,7 +133,11 @@ function editView(input: { highlight: Highlight; scope: HighlightFormScope }) {
 	};
 }
 
-function rowView(input: { row: HighlightsRailRow; scope: HighlightFormScope | undefined }) {
+function rowView(input: {
+	row: HighlightsRailRow;
+	scope: HighlightFormScope | undefined;
+	openNote: HighlightId | undefined;
+}) {
 	const { highlight, shown, marked } = input.row;
 	return {
 		highlightId: highlight.highlightId,
@@ -145,7 +151,14 @@ function rowView(input: { row: HighlightsRailRow; scope: HighlightFormScope | un
 			? `#${ARTICLE_HIGHLIGHT_ID_PREFIX}${highlight.highlightId}`
 			: "",
 		note: highlight.note,
-		edit: input.scope === undefined ? undefined : editView({ highlight, scope: input.scope }),
+		edit:
+			input.scope === undefined
+				? undefined
+				: editView({
+						highlight,
+						scope: input.scope,
+						noteOpen: highlight.highlightId === input.openNote,
+					}),
 	};
 }
 
@@ -154,7 +167,7 @@ export function renderHighlightsRail(
 ): RenderedHighlightsRail {
 	const rows = [...input.rows]
 		.sort(byOrder)
-		.map((row) => rowView({ row, scope: input.scope }));
+		.map((row) => rowView({ row, scope: input.scope, openNote: input.openNote }));
 	return {
 		html: render(HIGHLIGHTS_RAIL_TEMPLATE, { rows, oob: input.oob }).trim(),
 		hasRows: rows.length > 0,
