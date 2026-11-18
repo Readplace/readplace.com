@@ -6,6 +6,7 @@ import {
 	PrivateItemUrlSchema,
 	UploadIdSchema,
 } from "@packages/media-contracts";
+import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
 import { z } from "zod";
 
 type EventDefinition<T extends z.ZodTypeAny> = {
@@ -948,6 +949,19 @@ export type SubscriptionChargeSucceededDetail = z.infer<
 	typeof SubscriptionChargeSucceededEvent.detailSchema
 >;
 
+export const CheckoutCompletedEvent = defineEvent({
+	name: "checkout-completed",
+	source: "hutch.subscriptions",
+	detailType: "CheckoutCompleted",
+	detailSchema: z.object({
+		checkoutSessionId: CheckoutSessionIdSchema,
+		subscriptionId: z.string(),
+		customerId: z.string(),
+		amountTotal: z.number().int().nonnegative(),
+	}),
+});
+export type CheckoutCompletedDetail = z.infer<typeof CheckoutCompletedEvent.detailSchema>;
+
 /** Irreversible fact: a trial-end charge attempt failed. Reasons:
  *   - `no_card_on_file` — the trialing row has no `customerId`, so no card
  *     can be charged. Typical for trials signed up via the no-card path.
@@ -1124,18 +1138,32 @@ export const CrawlEmailLinkPreview = defineEvent({
 });
 export type CrawlEmailLinkPreviewDetail = z.infer<typeof CrawlEmailLinkPreview.detailSchema>;
 
+const TriagedLinkSchema = z.object({ ordinal: z.string(), url: z.string(), anchorText: z.string() });
+
 export const EmailLinksTriagedEvent = defineEvent({
 	name: "email-links-triaged",
 	source: "hutch.inbox",
 	detailType: "EmailLinksTriaged",
-	detailSchema: z.object({
-		userId: UserIdSchema,
-		receivedAtMessageId: z.string(),
-		readlist: z.string(),
-		senderEmail: z.string(),
-		subject: z.string(),
-		links: z.array(z.object({ ordinal: z.string(), url: z.string(), anchorText: z.string() })),
-	}),
+	detailSchema: z.discriminatedUnion("scope", [
+		z.object({
+			scope: z.literal("email"),
+			userId: UserIdSchema,
+			receivedAtMessageId: z.string(),
+			readlist: z.string(),
+			senderEmail: z.string(),
+			subject: z.string(),
+			links: z.array(TriagedLinkSchema),
+		}),
+		z.object({
+			scope: z.literal("link"),
+			userId: UserIdSchema,
+			receivedAtMessageId: z.string(),
+			readlist: z.string(),
+			senderEmail: z.string(),
+			subject: z.string(),
+			links: z.tuple([TriagedLinkSchema]),
+		}),
+	]),
 });
 export type EmailLinksTriagedDetail = z.infer<typeof EmailLinksTriagedEvent.detailSchema>;
 
@@ -1161,6 +1189,7 @@ export const EmailLinksFilteredEvent = defineEvent({
 	source: "hutch.save-link",
 	detailType: "EmailLinksFiltered",
 	detailSchema: z.object({
+		scope: z.enum(["email", "link"]),
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		readlist: z.string(),

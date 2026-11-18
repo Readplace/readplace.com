@@ -4,6 +4,9 @@ import { createHmac } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
+import { noopLogger } from "@packages/logger";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
+import { signupAllowanceSpentMessage } from "./signup-allowance";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -261,10 +264,12 @@ describe("Google auth routes", () => {
 			const lookup = await auth.findUserByEmail("free-google@example.com");
 			expect(lookup?.emailVerified).toBe(true);
 
-			const consumed = await pendingSignup.consumePendingSignup(
-				CheckoutSessionIdSchema.parse("cs_test_never_created"),
-			);
-			expect(consumed).toBeNull();
+			const claim = await pendingSignup.claimPendingSignup({
+				checkoutSessionId: CheckoutSessionIdSchema.parse("cs_test_never_created"),
+				activatedBy: "redirect",
+				claimedAt: new Date().toISOString(),
+			});
+			expect(claim).toEqual({ outcome: "not-found" });
 		}, 30000);
 
 		it("sends the welcome email before it answers", async () => {
@@ -982,4 +987,72 @@ describe("Google auth routes", () => {
 			expect(harness.funnelEvents.events).toEqual([]);
 		});
 	});
+});
+
+describe("Google signup allowance per network per day", () => {
+	const signupLines: unknown[][] = [];
+	const diagnostics: Record<string, unknown>[] = [];
+	const useAppWithLoggers = useTestServer({
+		signupLogger: { ...noopLogger, info: (...args: unknown[]) => { signupLines.push(args); } },
+		authDiagnosticsLogger: { ...noopLogger, info: (event: Record<string, unknown>) => { diagnostics.push(event); } },
+	});
+	beforeEach(() => {
+		signupLines.length = 0;
+		diagnostics.length = 0;
+	});
+
+	function spentAllowanceFixture(email: string) {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		return {
+			...fixture,
+				google: {
+					exchangeGoogleCode: async () => ({ googleId: GoogleIdSchema.parse("google-sub-limit"), email, emailVerified: true }),
+					clientId: TEST_CLIENT_ID,
+					clientSecret: TEST_CLIENT_SECRET,
+				},
+			rateLimit: {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, signupCreated: { limit: 0, windowSeconds: 86400 } },
+			},
+		};
+	}
+
+	function callback(server: Parameters<typeof request>[0], returnUrl?: string) {
+		const state = signState(freshState({ returnUrl }));
+		return request(server)
+			.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+			.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+	}
+
+	it("refuses a new Google user with 429 on the login page, keeps the return URL, creates nothing, and records the refusal instead of blaming Google", async () => {
+		const harness = useAppWithLoggers(spentAllowanceFixture("new-google@example.com"));
+		const returnUrl = "/import/abc123/review";
+
+		const response = await callback(harness.server, returnUrl);
+
+		expect(response.status).toBe(429);
+		expect(String(response.headers["retry-after"])).toMatch(/^\d+$/);
+		const doc = new JSDOM(response.text).window.document;
+		expect(assertErrorAlert(doc)?.textContent).toContain(signupAllowanceSpentMessage({ limit: 0 }));
+		const form = doc.querySelector("[data-test-form='login']");
+		assert(form, "the login form must render");
+		expect(new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN).searchParams.get("return")).toBe(returnUrl);
+		expect(await harness.auth.findUserByEmail("new-google@example.com")).toBeNull();
+		expect(harness.email.getSentEmails()).toEqual([]);
+		expect(diagnostics.filter((event) => event.event === "login_finished")).toMatchObject([
+			{ outcome: "failure", http_status: 429, reason: "signup_allowance_spent" },
+		]);
+		expect(signupLines).toEqual([["[Signup] allowance spent", { method: "google" }]]);
+	}, 30000);
+
+	it("still signs in a returning user when the network's allowance is spent", async () => {
+		const harness = useAppWithLoggers(spentAllowanceFixture("returning-google@example.com"));
+		await harness.auth.createUser({ email: "returning-google@example.com", password: "password123" });
+
+		const response = await callback(harness.server);
+
+		expect(response.status).toBe(303);
+		expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
+		expect(signupLines).toEqual([]);
+	}, 30000);
 });

@@ -4,6 +4,7 @@ import {
 	type Anchor,
 	type AnchorableHighlight,
 	anchorHighlight,
+	snapToWords,
 } from "./text-anchoring";
 
 export interface FuzzyAnchorableHighlight extends AnchorableHighlight {
@@ -34,5 +35,6 @@ export function anchorHighlightFuzzy(params: {
 		hintStart: highlight.start,
 	});
 	if (fuzzy.state === "orphaned") return exact;
-	return { start: fuzzy.start, end: fuzzy.end, anchorState: fuzzy.state };
+	const snapped = snapToWords({ text, range: fuzzy, exact: highlight.exact });
+	return { start: snapped.start, end: snapped.end, anchorState: fuzzy.state };
 }

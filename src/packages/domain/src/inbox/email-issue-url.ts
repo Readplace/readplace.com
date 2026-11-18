@@ -1,3 +1,4 @@
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { type UserId, UserIdSchema } from "../user";
 
 const EMAIL_ISSUE_URL = /^email:\/\/inbox\/([^/?#]+)\/([^/?#]+)$/;
@@ -9,6 +10,11 @@ interface EmailIssueRef {
 
 export function emailIssueArticleUrl(ref: EmailIssueRef): string {
 	return `email://inbox/${encodeURIComponent(ref.userId)}/${encodeURIComponent(ref.receivedAtMessageId)}`;
+}
+
+export function emailIssueKeyPrefix(userId: UserId): string {
+	const storedKey = ArticleResourceUniqueId.parse(emailIssueArticleUrl({ userId, receivedAtMessageId: "issue" })).value;
+	return storedKey.slice(0, storedKey.lastIndexOf("/") + 1);
 }
 
 export function emailIssueReceivedAt(receivedAtMessageId: string): string {

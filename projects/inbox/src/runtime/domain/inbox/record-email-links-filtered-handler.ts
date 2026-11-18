@@ -19,6 +19,7 @@ import type {
 import { z } from "zod";
 
 const FilteredFactSchema = InboxReadlistOutcomeSchema.extend({
+	scope: z.enum(["email", "link"]),
 	userId: UserIdSchema,
 	receivedAtMessageId: z.string(),
 	decision: z.enum(["filtered", "no-purpose", "readlist-missing"]),
@@ -32,10 +33,11 @@ const FilterFailedFactSchema = z.object({
 
 export function initRecordEmailLinksFilteredHandler(deps: {
 	putReadlistOutcome: InboxEmailLinkStore["putReadlistOutcome"];
+	mergeReadlistOutcomeFit: InboxEmailLinkStore["mergeReadlistOutcomeFit"];
 	listLinksByEmail: InboxEmailLinkStore["listLinksByEmail"];
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { putReadlistOutcome, listLinksByEmail, logger } = deps;
+	const { putReadlistOutcome, mergeReadlistOutcomeFit, listLinksByEmail, logger } = deps;
 
 	const destinationSnapshot = async (fact: {
 		userId: UserId;
@@ -55,15 +57,46 @@ export function initRecordEmailLinksFilteredHandler(deps: {
 		return destination;
 	};
 
-	const recordFiltered = async (detail: unknown): Promise<void> => {
-		const { userId, receivedAtMessageId, ...outcome } =
-			FilteredFactSchema.parse(detail);
-		await destinationSnapshot({
-			userId,
-			receivedAtMessageId,
-			readlist: outcome.readlist,
-		});
+	type FilteredFact = z.infer<typeof FilteredFactSchema>;
+
+	const recordEmailDecision = async ({ scope: _scope, userId, receivedAtMessageId, ...outcome }: FilteredFact) => {
 		await putReadlistOutcome({ userId, receivedAtMessageId, outcome });
+	};
+
+	const recordLinkDecision = async (fact: FilteredFact) => {
+		const { userId, receivedAtMessageId, readlist, decision, fit } = fact;
+		if (decision !== "filtered") {
+			logger.info("[record-email-links-filtered] saved link needs no merge", {
+				receivedAtMessageId,
+				readlist,
+				decision,
+			});
+			return;
+		}
+		const [entry] = fit;
+		assert(entry !== undefined && fit.length === 1, "a saved link's decision holds exactly that link");
+		const merged = await mergeReadlistOutcomeFit({ userId, receivedAtMessageId, readlist, entry });
+		logger.info("[record-email-links-filtered] saved link decided", {
+			receivedAtMessageId,
+			readlist,
+			ordinal: entry.ordinal,
+			result: merged,
+		});
+	};
+
+	const RECORD_BY_SCOPE = { email: recordEmailDecision, link: recordLinkDecision } satisfies Record<
+		FilteredFact["scope"],
+		(fact: FilteredFact) => Promise<void>
+	>;
+
+	const recordFiltered = async (detail: unknown): Promise<void> => {
+		const fact = FilteredFactSchema.parse(detail);
+		await destinationSnapshot({
+			userId: fact.userId,
+			receivedAtMessageId: fact.receivedAtMessageId,
+			readlist: fact.readlist,
+		});
+		await RECORD_BY_SCOPE[fact.scope](fact);
 	};
 
 	const recordFilterFailed = async (detail: unknown): Promise<void> => {

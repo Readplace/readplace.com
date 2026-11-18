@@ -68,17 +68,45 @@ async function seedPending(
 	});
 }
 
+type VisibilityChange = { receiptHandle: string; visibilityTimeoutSeconds: number };
+
 function makeHandler(deps: {
 	crawlAndFinalize: CrawlAndFinalizeArticle;
 	setLinkOutcome: InboxEmailLinkStore["setLinkOutcome"];
+	getLink?: InboxEmailLinkStore["getLink"];
 }) {
+	const visibilityChanges: VisibilityChange[] = [];
+	const getLinkCalls: number[] = [];
 	const handler = initCrawlEmailLinkPreviewHandler({
 		crawlAndFinalize: deps.crawlAndFinalize,
 		setLinkOutcome: deps.setLinkOutcome,
+		getLink: async (input) => {
+			getLinkCalls.push(1);
+			assert(deps.getLink, "this test does not expect the link row to be re-read");
+			return deps.getLink(input);
+		},
+		changeVisibility: async (change) => {
+			visibilityChanges.push(change);
+		},
+		random: () => 0.5,
 		logger: Logger.from(noopLogger),
 	});
-	return (body: string) => handler(buildSqsEvent([{ messageId: "rec-1", body }]), buildLambdaContext(), () => {});
+	const run = (body: string, receiveCount = 1) => {
+		const event = buildSqsEvent([{ messageId: "rec-1", body }]);
+		const records = event.Records.map((record) => ({
+			...record,
+			attributes: { ...record.attributes, ApproximateReceiveCount: String(receiveCount) },
+		}));
+		return handler({ Records: records }, buildLambdaContext(), () => {});
+	};
+	return Object.assign(run, { visibilityChanges, getLinkCalls });
 }
+
+const transientReset: CrawlAndFinalizeResult = {
+	status: "failed",
+	reason: "crawl-failed",
+	decision: { kind: "retryable", scope: "local", cause: Object.assign(new Error("socket hang up"), { code: "ECONNRESET" }) },
+};
 
 async function getLink(store: InboxEmailLinkStore, ordinal = "0000") {
 	const link = await store.getLink({
@@ -268,5 +296,202 @@ describe("initCrawlEmailLinkPreviewHandler", () => {
 		const link = await getLink(store);
 		expect(link.status).toBe("failed");
 		expect(link.failureReason).toBe("unsafe-url");
+	});
+
+	it("keeps the link pending and asks for a retry when receive 1's crawl fails with a retryable decision", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await seedPending(store);
+		const run = makeHandler({ crawlAndFinalize: async () => transientReset, setLinkOutcome: store.setLinkOutcome });
+
+		const result = await run(commandBody(), 1);
+
+		assert(result);
+		expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		expect(run.visibilityChanges).toEqual([{ receiptHandle: "handle", visibilityTimeoutSeconds: 60 }]);
+		expect((await getLink(store)).status).toBe("pending");
+	});
+
+	it("asks for a retry on receive 2 with 600 s", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await seedPending(store);
+		const run = makeHandler({
+			crawlAndFinalize: async () => transientReset,
+			setLinkOutcome: store.setLinkOutcome,
+			getLink: store.getLink,
+		});
+
+		const result = await run(commandBody(), 2);
+
+		assert(result);
+		expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		expect(run.visibilityChanges).toEqual([{ receiptHandle: "handle", visibilityTimeoutSeconds: 600 }]);
+		expect((await getLink(store)).status).toBe("pending");
+	});
+
+	it("settles the link failed on receive 3 with the crawl's reason when the decision is still retryable", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await seedPending(store);
+		const run = makeHandler({
+			crawlAndFinalize: async () => transientReset,
+			setLinkOutcome: store.setLinkOutcome,
+			getLink: store.getLink,
+		});
+
+		const result = await run(commandBody(), 3);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		expect(run.visibilityChanges).toEqual([]);
+		const link = await getLink(store);
+		expect(link.status).toBe("failed");
+		expect(link.failureReason).toBe("crawl-failed");
+	});
+
+	it.each<{ name: string; decision: Extract<CrawlAndFinalizeResult, { status: "failed" }>["decision"] }>([
+		{ name: "terminal", decision: { kind: "terminal", cause: new Error("certificate has expired") } },
+		{ name: "cancelled", decision: { kind: "cancelled", cause: new Error("aborted") } },
+		{ name: "undefined", decision: undefined },
+	])("settles failed on receive 1 when the decision is $name", async ({ decision }) => {
+		const store = initInMemoryInboxEmailLink();
+		await seedPending(store);
+		const run = makeHandler({
+			crawlAndFinalize: async () => ({ status: "failed", reason: "crawl-failed", decision }),
+			setLinkOutcome: store.setLinkOutcome,
+		});
+
+		const result = await run(commandBody(), 1);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		expect(run.visibilityChanges).toEqual([]);
+		const link = await getLink(store);
+		expect(link.status).toBe("failed");
+		expect(link.failureReason).toBe("crawl-failed");
+	});
+
+	it("writes crawled on receive 2 after a retryable failure on receive 1", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await seedPending(store);
+		const results: CrawlAndFinalizeResult[] = [
+			transientReset,
+			fetched({ title: "A title", siteName: "Example", excerpt: "An excerpt" }),
+		];
+		const run = makeHandler({
+			crawlAndFinalize: async () => {
+				const next = results.shift();
+				assert(next, "only two crawls are expected");
+				return next;
+			},
+			setLinkOutcome: store.setLinkOutcome,
+			getLink: store.getLink,
+		});
+
+		const first = await run(commandBody(), 1);
+		const second = await run(commandBody(), 2);
+
+		assert(first);
+		assert(second);
+		expect(first.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		expect(second.batchItemFailures).toHaveLength(0);
+		const link = await getLink(store);
+		expect(link.status).toBe("crawled");
+		expect(link.title).toBe("A title");
+	});
+
+	it("makes no crawl request on a redelivery when the link row is gone", async () => {
+		const store = initInMemoryInboxEmailLink();
+		let crawls = 0;
+		const run = makeHandler({
+			crawlAndFinalize: async () => {
+				crawls += 1;
+				return transientReset;
+			},
+			setLinkOutcome: store.setLinkOutcome,
+			getLink: store.getLink,
+		});
+
+		const result = await run(commandBody(), 2);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		expect(crawls).toBe(0);
+	});
+
+	it.each<{ name: string; outcome: Parameters<InboxEmailLinkStore["setLinkOutcome"]>[0]["outcome"] }>([
+		{
+			name: "crawled",
+			outcome: { status: "crawled", title: "t", excerpt: "e", siteName: "s", imageUrl: undefined, resolvedUrl: undefined },
+		},
+		{ name: "failed", outcome: { status: "failed", failureReason: "crawl-failed" } },
+	])("makes no crawl request on a redelivery when the link is already $name", async ({ outcome }) => {
+		const store = initInMemoryInboxEmailLink();
+		await seedPending(store);
+		await store.setLinkOutcome({ userId: USER, receivedAtMessageId: RAM, ordinal: EmailLinkOrdinalSchema.parse("0000"), outcome });
+		let crawls = 0;
+		const run = makeHandler({
+			crawlAndFinalize: async () => {
+				crawls += 1;
+				return transientReset;
+			},
+			setLinkOutcome: store.setLinkOutcome,
+			getLink: store.getLink,
+		});
+
+		const result = await run(commandBody(), 3);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		expect(crawls).toBe(0);
+		expect((await getLink(store)).status).toBe(outcome.status);
+	});
+
+	it("makes no crawl request on a redelivery when the link was skipped", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await store.putLink({
+			userId: USER,
+			receivedAtMessageId: RAM,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+			url: "https://example.com/post",
+			resolvedUrl: undefined,
+			status: "skipped",
+			title: undefined,
+			excerpt: undefined,
+			siteName: undefined,
+			imageUrl: undefined,
+			failureReason: undefined,
+			skipReason: "list-unsubscribe",
+			anchorText: undefined,
+		});
+		let crawls = 0;
+		const run = makeHandler({
+			crawlAndFinalize: async () => {
+				crawls += 1;
+				return transientReset;
+			},
+			setLinkOutcome: store.setLinkOutcome,
+			getLink: store.getLink,
+		});
+
+		const result = await run(commandBody(), 2);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		expect(crawls).toBe(0);
+		expect((await getLink(store)).status).toBe("skipped");
+	});
+
+	it("does not re-read the row on receive 1", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await seedPending(store);
+		const run = makeHandler({
+			crawlAndFinalize: async () => fetched({ title: "x", siteName: "y", excerpt: "z" }),
+			setLinkOutcome: store.setLinkOutcome,
+			getLink: store.getLink,
+		});
+
+		await run(commandBody(), 1);
+
+		expect(run.getLinkCalls).toHaveLength(0);
+		expect((await getLink(store)).status).toBe("crawled");
 	});
 });

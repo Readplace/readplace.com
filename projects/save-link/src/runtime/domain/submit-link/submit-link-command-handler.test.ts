@@ -171,6 +171,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		publishUpdateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		refreshArticleIfStale: refreshAs("new"),
 		pinContentSource: jest.fn().mockResolvedValue(undefined),
+		delay: async () => {},
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
@@ -390,7 +391,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const deliveries = buildSqsEvent([accepted, rejected, unavailable].map((readlist) => ({
 			messageId: readlist,
 			body: JSON.stringify({ detail: {
-				userId, receivedAtMessageId: "2026-10-04#gmail-issue", readlist,
+				scope: "email", userId, receivedAtMessageId: "2026-10-04#gmail-issue", readlist,
 				senderEmail: "letter@example.com", subject: "Weekly articles",
 				links: [{ ordinal: "0000", url: exampleUrl, anchorText: "Story" }],
 			}, time: fixedNow().toISOString() }),
@@ -547,6 +548,19 @@ describe("initSubmitLinkCommandHandler", () => {
 		await run(handler, createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" }]));
 
 		expect(publishedDetailTypes(published)).not.toContain("QueueEntryCreated");
+	});
+
+	it("marks an imported link as one the reader chose, though the import asks for it as an automatic save", async () => {
+		const store = initInMemoryArticleStore();
+		const handler = createHandler({
+			saveArticleAsRequested: store.saveArticleAsRequested,
+			updateArticleStatus: store.updateArticleStatus,
+		});
+
+		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "import" }, saveTrigger: "automatic" }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(store.readHandPickedAt({ userId, url: exampleUrl })).toEqual(allocatedSavedAt);
 	});
 
 	it("asks nothing for a newsletter link already sitting in the reader's queue", async () => {
@@ -1428,6 +1442,7 @@ describe("a redelivered save against the stored rows", () => {
 		metadata: { title: "Post", siteName: "example.com", excerpt: "", wordCount: 10 },
 		estimatedReadTime: MinutesSchema.parse(1),
 		provenance: { kind: "web" } as const,
+		saveTrigger: "manual" as const,
 	};
 
 	function storeHandler(store: ReturnType<typeof initInMemoryArticleStore>, overrides: Partial<HandlerDeps> = {}) {

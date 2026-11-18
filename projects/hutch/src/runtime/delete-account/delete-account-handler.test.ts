@@ -423,6 +423,7 @@ async function seedAccount(
 		estimatedReadTime: MinutesSchema.parse(4),
 		provenance: { kind: "web" },
 		savedAt: new Date(),
+		saveTrigger: "manual",
 	});
 
 	const claim = await s.readerReady.claimReaderReadyEmailSlot({
@@ -830,6 +831,7 @@ describe("delete-account handler", () => {
 			estimatedReadTime: MinutesSchema.parse(47),
 			provenance: { kind: "web" },
 			savedAt: new Date(),
+			saveTrigger: "manual",
 		});
 		await s.articleStore.recordItemOwner({ url: audioUrl, ownerUserId: account.userId });
 
@@ -868,12 +870,12 @@ describe("delete-account handler", () => {
 		});
 		await s.highlights.createHighlight({
 			userId: account.userId,
-			highlight: highlightFor("00000000-0000-4000-8000-000000000001"),
+			highlights: [highlightFor("00000000-0000-4000-8000-000000000001")],
 			replacedIds: [],
 		});
 		await s.highlights.createHighlight({
 			userId: otherUserId,
-			highlight: highlightFor("00000000-0000-4000-8000-000000000002"),
+			highlights: [highlightFor("00000000-0000-4000-8000-000000000002")],
 			replacedIds: [],
 		});
 

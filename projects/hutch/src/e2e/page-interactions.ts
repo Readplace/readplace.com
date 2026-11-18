@@ -126,6 +126,16 @@ export async function nameNewReadlist(page: Page, name: string): Promise<Locator
 	return dialog.locator('[data-test-action="readlist-create-save"]')
 }
 
+export async function pickReaderReadlist(page: Page, slug: string): Promise<void> {
+	const choice = page.locator(`[data-test-assign-readlist="${slug}"]`)
+	if ((await choice.getAttribute('type', { timeout: 15000 })) === 'checkbox') {
+		await choice.check()
+		await page.click('[data-test-action="readlists-add-selected"]')
+		return
+	}
+	await choice.click()
+}
+
 export async function fileArticleIntoReadlist(
 	page: Page,
 	input: { articleId: string; readlistSlug: string },
@@ -133,8 +143,8 @@ export async function fileArticleIntoReadlist(
 	await page.goto(new URL(`/queue/${input.articleId}/view`, page.url()).href, { waitUntil: 'domcontentloaded' })
 	await page.waitForSelector('body.page-reader')
 	await page.click('summary[data-test-readlists-trigger]', { timeout: 15000 })
-	await expect(page.locator('button[data-test-assign-readlist]').first()).toBeFocused()
-	await page.click(`button[data-test-assign-readlist="${input.readlistSlug}"]`, { timeout: 15000 })
+	await expect(page.locator('[data-test-assign-readlist]').first()).toBeFocused()
+	await pickReaderReadlist(page, input.readlistSlug)
 	await page.waitForSelector(`#article-header [data-test-readlist-tag="${input.readlistSlug}"]`)
 }
 

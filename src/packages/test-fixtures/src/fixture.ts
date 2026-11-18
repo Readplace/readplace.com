@@ -333,6 +333,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			import: unlimitedRule,
 			importFromUrl: unlimitedRule,
 			uploadStage: unlimitedRule,
+			signupCreated: unlimitedRule,
 		},
 	};
 	const pendingHtml = initInMemoryPendingHtml();
@@ -410,6 +411,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			allocateSavedAtSequence: articleStoreMemory.allocateSavedAtSequence,
 			findSavedUrls: articleStoreMemory.findSavedUrls,
 			saveArticleKeepingPosition: articleStoreMemory.saveArticleKeepingPosition,
+			readHandPickedAt: articleStoreMemory.readHandPickedAt,
+			readNewsletterLinkRows: articleStoreMemory.readNewsletterLinkRows,
+			readOpenedInReadlists: articleStoreMemory.readOpenedInReadlists,
 			saveArticleAsRequested: articleStoreMemory.saveArticleAsRequested,
 			saveReadlistArticleAsRequested: articleStoreMemory.saveReadlistArticleAsRequested,
 			hasSaveLandedSince: articleStoreMemory.hasSaveLandedSince,

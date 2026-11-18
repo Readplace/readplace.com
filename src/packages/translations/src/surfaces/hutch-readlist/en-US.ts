@@ -4,6 +4,11 @@ export const enUS = {
 			label: "Filter readlists",
 			noMatch: "No readlists match",
 		},
+		addSelected: "Add",
+		added: {
+			one: "Added to {count} readlist",
+			other: "Added to {count} readlists",
+		},
 	},
 	readlistAddArticle: {
 		trigger: "Upload",

@@ -5,6 +5,7 @@ tldr: "Highlight and Add note, both marked Beta, appear when text is selected in
 excerpt: "Highlights and notes in the reader, kept on their passage when the article is fetched again."
 slug: "highlights-and-notes-stay-on-their-passage"
 date: "2026-11-09"
+lastModified: "2026-11-15"
 author: "Fayner Brack"
 keywords: "highlights, notes, annotations, reader, recrawl, re-anchoring, markdown, EPUB, account export, MCP tools"
 tags: ["changelog"]
@@ -21,13 +22,13 @@ Highlight marks the passage in 1 colour and adds it to a Highlights rail beside 
 
 Each row in the rail shows the quote, its note when it has one, a Jump link to the passage and a Delete button. A note can be added, edited or cleared later from its row.
 
-A new selection that overlaps or touches an existing highlight merges into it, and the notes are joined. Quotes and notes are each capped at 8,191 characters.
+A new selection that overlaps or touches an existing highlight merges into it, and the notes are joined, as long as the result stays within 8,191 characters. Past that, the two sit side by side, and a long selection is kept as several highlights back to back. A note is capped at 8,191 characters.
 
 Creating a highlight has the same gate as saving a link: a signed-in account with write access. A public `/view` page has no highlighting, since no account owns a mark there.
 
 ## On a phone and inside the iPhone app
 
-On a phone, a long press and the native handles select the passage as on any other page. A single tap on a sentence selects that sentence, so a highlight of 1 sentence needs no handles at all. The bar stays at the bottom of the screen, clear of the system's copy menu wherever the phone draws it.
+On a phone, a long press and the native handles select the passage as on any other page. A single tap on a sentence selects that sentence, so a highlight of 1 sentence needs no handles at all. The bar appears just below the selection, far enough away that the system's copy menu fits between them, so Copy and Highlight are both in reach.
 
 The iPhone app opens the same reader page, so the bar, the rail and the note dialog work there without an app update.
 

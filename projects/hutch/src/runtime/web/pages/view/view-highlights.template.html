@@ -1,0 +1,46 @@
+<section id="view-highlights" class="highlights-rail view-highlights" aria-label="{{t "view.highlights.title"}}" data-view-highlights data-view-highlights-url="{{articleUrl}}" data-view-highlights-event-url="{{eventUrl}}" data-view-highlights-popover="{{popoverId}}" data-view-highlights-inline-form="{{inlineId}}" data-highlight-id-prefix="{{idPrefix}}" data-view-highlights-save-path="{{savePath}}" data-view-highlights-signup-path="{{signupPath}}" data-view-highlights-login-path="{{loginPath}}" hidden data-test-view-highlights>
+  <details class="disclosure-card highlights-rail__card" open>
+    <summary class="disclosure-card__header">
+      <span class="disclosure-card__title">{{t "view.highlights.title"}}</span>
+      <span class="disclosure-card__chevron">{{icon "chevron-down"}}</span>
+    </summary>
+    <div class="disclosure-card__body view-highlights__body">
+      <p class="view-highlights__kept">{{t "view.highlights.kept" limit=limit}}</p>
+      <ol class="highlights-rail__list" role="list" data-view-highlights-list data-test-view-highlights-list></ol>
+      <div class="view-highlights__elsewhere" data-view-highlights-elsewhere hidden data-test-view-highlights-elsewhere>
+        <p class="view-highlights__elsewhere-title">{{t "view.highlights.elsewhere"}}</p>
+        <ol class="highlights-rail__list" role="list" data-view-highlights-elsewhere-list></ol>
+      </div>
+      <button class="btn btn--primary btn--s view-highlights__keep-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-view-highlights-keep-trigger data-test-action="view-highlights-keep">{{t "view.highlights.actions.signup"}}</button>
+      {{{inlineKeepFormHtml}}}
+    </div>
+  </details>
+  <template data-view-highlights-row>
+    <li class="highlights-rail__row" data-view-highlight-row data-test-view-highlight-row>
+      <blockquote class="highlights-rail__excerpt" data-view-highlight-exact></blockquote>
+      <p class="highlight-note" data-view-highlight-note hidden></p>
+      <p class="highlights-rail__chip" data-view-highlight-orphan hidden data-test-highlight-orphan>{{t "view.highlights.notFound"}}</p>
+      <div class="highlights-rail__actions">
+        <a class="btn btn--neutral btn--s highlights-rail__jump" href="#view-highlights" data-view-highlight-jump data-test-action="view-highlight-jump">{{t "view.highlights.jump"}}</a>
+        <button class="btn btn--neutral btn--s" type="button" data-view-highlight-delete data-test-action="view-highlight-delete">{{t "view.highlights.delete"}}</button>
+      </div>
+      <details class="view-highlights__note-edit">
+        <summary><span data-view-highlight-note-label="add">{{t "view.highlights.addNote"}}</span><span data-view-highlight-note-label="edit" hidden>{{t "view.highlights.editNote"}}</span></summary>
+        <form class="view-highlights__note-form" method="dialog" data-view-highlight-note-form data-test-form="view-highlight-note">
+          <label class="form-field__label" data-view-highlight-note-input-label>{{t "view.highlights.noteLabel"}}</label>
+          <textarea class="form-input form-input--multiline" name="note" rows="3" maxlength="{{maxLength}}" data-view-highlight-note-input></textarea>
+          <button class="btn btn--primary btn--s" type="submit" data-test-action="view-highlight-note-save">{{t "view.highlights.saveNote"}}</button>
+        </form>
+      </details>
+    </li>
+  </template>
+  <template data-view-highlights-elsewhere-row>
+    <li class="highlights-rail__row" data-view-highlight-row data-test-view-highlight-elsewhere-row>
+      <blockquote class="highlights-rail__excerpt" data-view-highlight-exact></blockquote>
+      <p class="view-highlights__source" data-view-highlight-source></p>
+      <div class="highlights-rail__actions">
+        <button class="btn btn--neutral btn--s" type="button" data-view-highlight-delete data-test-action="view-highlight-delete">{{t "view.highlights.delete"}}</button>
+      </div>
+    </li>
+  </template>
+</section>

@@ -15,6 +15,7 @@ import { REPORT_ARTICLE_SCRIPT } from "../../../shared/report-article/report-art
 import { TABLE_OF_CONTENTS_SCRIPT } from "../../../shared/article-body/table-of-contents/table-of-contents.component";
 import { READING_LAYOUT_STYLES } from "../../../shared/reading-layout/reading-layout.styles";
 import { SHARE_DIALOG_SCRIPT } from "../../../shared/share-dialog/share-dialog.component";
+import { PLAYER_SCRIPT } from "../../../shared/player/player.component";
 import { OFFLINE_READER_SCRIPT } from "../../../shared/offline-reader/offline-reader-script";
 import { READER_OPEN_SCRIPT } from "../../../shared/reader-open/reader-open-script";
 import { READER_EXIT_CONFIRM_SCRIPT } from "../../reader/reader-exit-confirm.component";
@@ -44,7 +45,8 @@ export const READER_PAGE_SCRIPTS =
 	OFFLINE_READER_SCRIPT +
 	READER_TOP_SCRIPT +
 	TABLE_OF_CONTENTS_SCRIPT +
-	HIGHLIGHT_TOOLBAR_SCRIPT;
+	HIGHLIGHT_TOOLBAR_SCRIPT +
+	PLAYER_SCRIPT;
 
 export function renderReaderSkeleton(options: { cspNonce: CspNonce }): string {
 	return render(TEMPLATE, {

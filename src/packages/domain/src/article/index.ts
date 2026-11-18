@@ -63,11 +63,26 @@ export {
 	withPrivateItemRefusal,
 } from "./saveable-url";
 export {
+	PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE,
 	SaveProvenanceSchema,
 	SuggestionAttributionSchema,
+	keepsProvenanceAgainstAutomaticSave,
 	type SuggestionAttribution,
 	type SaveProvenance,
 } from "./save-provenance";
+export { HAND_PICKED_MARKER_SINCE } from "./hand-picked-marker";
+export {
+	REMOVAL_SKIP_REASONS,
+	classifyForRemoval,
+	isHandPicked,
+	isNewsletterLink,
+	summariseNewsletterLinkRows,
+	type NewsletterLinkCandidate,
+	type NewsletterLinkRow,
+	type NewsletterLinkSummary,
+	type RemovalClassification,
+	type RemovalSkipReason,
+} from "./newsletter-link";
 export {
 	ARTICLE_SECTION_ID_PREFIX,
 	ARTICLE_HIGHLIGHT_ID_PREFIX,
@@ -186,12 +201,17 @@ export {
 	HIGHLIGHT_NOTE_MAX_LENGTH,
 	HighlightNoteSchema,
 	joinNotes,
+	joinNotesNewestFirst,
 	type JoinedNote,
 } from "./highlight/highlight";
 export {
-	anchorHighlightFuzzy,
-	type FuzzyAnchorableHighlight,
-} from "./highlight/anchor-highlight-fuzzy";
+	highlightOnPage,
+	type PlaceableHighlight,
+} from "./highlight/highlight-on-page";
+export {
+	storedHighlightState,
+	type StoredHighlightState,
+} from "./highlight/stored-highlight-state";
 export {
 	reanchorArticleHighlights,
 	type ReanchorableHighlight,

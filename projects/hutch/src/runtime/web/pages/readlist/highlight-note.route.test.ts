@@ -25,6 +25,26 @@ import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cach
 
 const useApp = useTestServer();
 
+async function orphanStoredRow(params: { fixture: TestAppFixture; url: string; highlightId: string }): Promise<void> {
+	const rows = await params.fixture.highlights.listHighlightsOfArticle(params.url);
+	const row = rows.find((candidate) => candidate.highlight.highlightId === params.highlightId);
+	assert(row, "the highlight was created");
+	const result = await params.fixture.highlights.writeHighlightAnchor({
+		userId: row.userId,
+		url: row.highlight.highlightOf,
+		highlightId: row.highlight.highlightId,
+		expectedRevision: row.highlight.anchorRevision,
+		anchor: {
+			start: row.highlight.start,
+			end: row.highlight.end,
+			anchorState: "orphaned",
+			anchoredContentHash: row.highlight.anchoredContentHash,
+			orderKey: row.highlight.orderKey,
+		},
+	});
+	assert.equal(result.outcome, "written");
+}
+
 const ARTICLE_HTML = `
 <html><head><title>Highlight Note Post</title></head>
 <body><article>
@@ -322,7 +342,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		});
 	});
 
-	it("answers 422 with the note form and the passage refusal when exact is over 8191 code units", async () => {
+	it("answers 422 with the note form and the passage refusal when exact is over 65536 code units", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -332,9 +352,9 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		const response = await dialogCreate(agent, {
 			articleId,
 			body: {
-				exact: "x".repeat(8192),
+				exact: "x".repeat(65_537),
 				start: "0",
-				end: "8192",
+				end: "65537",
 				origin: "mouse",
 				note: "Too long a passage",
 			},
@@ -376,7 +396,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		});
 	});
 
-	it("refuses a join over the note cap in the form, then saves the retry with a shorter note", async () => {
+	it("refuses a note that does not fit on the highlight already covering the selection, then saves the retry with a shorter note", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -389,7 +409,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		});
 		const range = await rangeOf(agent, {
 			articleId,
-			exact: "parser to extract",
+			exact: "parser",
 		});
 
 		const refused = await dialogCreate(agent, {
@@ -406,7 +426,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 			invalid: "true",
 		});
 		expect(form.hidden).toMatchObject({
-			exact: "parser to extract",
+			exact: "parser",
 			start: range.start,
 			answer: "dialog",
 		});
@@ -467,7 +487,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		expect(noteEvents(harness)).toHaveLength(1);
 	});
 
-	it("answers a plain Highlight spanning two large notes with 422 and the over-cap toast", async () => {
+	it("merges a plain Highlight with the first of two large notes and leaves the second beside it", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -494,11 +514,12 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 				}),
 			);
 
-		expect(response.status).toBe(422);
-		expect(response.text).toContain(
-			"Joined with the highlights it overlaps, the notes are over 8,191 characters.",
-		);
-		expect(doc(response.text).querySelector("main")).not.toBeNull();
+		expect(response.status).toBe(303);
+		const reopened = (await agent.get(viewPath(articleId))).text;
+		expect(
+			doc(reopened).querySelectorAll("[data-test-highlight-row]"),
+		).toHaveLength(2);
+		expect(notesOf(reopened)).toEqual(["a".repeat(5000), "b".repeat(5000)]);
 	});
 
 	it("answers 400 to a hand-built note over 8191 code units and to an unknown answer", async () => {
@@ -608,6 +629,71 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 		expect(rowOf(reopened, id)).not.toBeNull();
 		expect(notesOf(reopened)).toHaveLength(0);
 		expect(noteTriggerOf(reopened, id)).toBe("Add note");
+	});
+
+	it("deletes a note with the rail's Delete note form, which the edit dialog's Delete note also submits, keeping the highlight and its mark", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/note-delete-button",
+		);
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+			note: "Delete me",
+		});
+		const page = doc((await agent.get(viewPath(articleId))).text);
+		const form = page
+			.querySelector(
+				`[data-test-highlight-row="${id}"] .highlights-rail__actions [data-test-action="highlight-note-delete"]`,
+			)
+			?.closest("form");
+		assert(form, "a noted row must offer Delete note");
+		expect(
+			page
+				.getElementById(`note-highlight-${id}`)
+				?.querySelector('[data-test-action="highlight-note-delete"]')
+				?.getAttribute("form"),
+		).toBe(form.id);
+		const fields = Object.fromEntries(
+			Array.from(form.querySelectorAll<HTMLInputElement>("input"), (input) => [
+				input.name,
+				input.value,
+			]),
+		);
+
+		const response = await agent
+			.post(form.getAttribute("action") ?? "")
+			.type("form")
+			.send(fields);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(
+			`/queue/${articleId}/view#highlight-${id}`,
+		);
+		expect(noteEvents(harness).map((event) => event.action)).toEqual([
+			"added",
+			"removed",
+		]);
+		const reopened = (await agent.get(viewPath(articleId))).text;
+		expect(notesOf(reopened)).toHaveLength(0);
+		expect(noteTriggerOf(reopened, id)).toBe("Add note");
+		expect(
+			Array.from(
+				rowOf(reopened, id)?.querySelectorAll(
+					".highlights-rail__actions [data-test-action]",
+				) ?? [],
+				(action) => action.getAttribute("data-test-action"),
+			),
+		).toEqual([
+			"highlight-jump",
+			"highlight-delete-fallback",
+			"highlight-delete",
+			"highlight-note",
+		]);
+		expect(
+			doc(reopened).querySelectorAll(`mark[data-highlight-id="${id}"]`).length,
+		).toBeGreaterThan(0);
 	});
 
 	it("keeps a named readlist on the create and note redirects", async () => {
@@ -789,6 +875,7 @@ describe("Highlight notes (POST /queue/:id/highlights/:highlightId/note)", () =>
 		});
 
 		await fixture.articleStore.writeContent({ url, content: SECOND_PARAGRAPH });
+		await orphanStoredRow({ fixture, url, highlightId: id });
 		const reopened = (await agent.get(viewPath(articleId))).text;
 
 		expect(
@@ -915,6 +1002,7 @@ describe("Note previews beside the marks", () => {
 		const { agent, articleId } = await saveArticle(harness, url);
 		const lost = await createHighlight(agent, { articleId, exact: "readability parser", note: "Lost" });
 		await fixture.articleStore.writeContent({ url, content: SECOND_PARAGRAPH });
+		await orphanStoredRow({ fixture, url, highlightId: lost });
 		const noted = await createHighlight(agent, { articleId, exact: "second paragraph", note: "Kept" });
 		const plain = await createHighlight(agent, { articleId, exact: "minimum word count" });
 

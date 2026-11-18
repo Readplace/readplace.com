@@ -122,10 +122,11 @@ describe("initStripeSubscriptions", () => {
 			const headers = new Headers(receivedInit?.headers);
 			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
 			assert.equal(headers.get("Content-Type"), "application/x-www-form-urlencoded");
-			const body = String(receivedInit?.body ?? "");
-			assert.ok(body.includes("customer=cus_existing"));
-			assert.ok(body.includes("items%5B0%5D%5Bprice%5D=price_abc"));
-			assert.ok(body.includes("metadata%5BuserId%5D=usr_test_abc123"));
+			const params = new URLSearchParams(String(receivedInit?.body ?? ""));
+			assert.equal(params.get("customer"), "cus_existing");
+			assert.equal(params.get("items[0][price]"), "price_abc");
+			assert.equal(params.get("metadata[userId]"), USER_ID);
+			assert.equal(params.get("automatic_tax[enabled]"), "true");
 		});
 
 		it("asks Stripe to refuse a subscription whose first invoice cannot be charged, and to charge the saved card off-session", async () => {
@@ -221,6 +222,110 @@ describe("initStripeSubscriptions", () => {
 						onUnpaidFirstInvoice: "refuse",
 					}),
 				/Stripe createSubscriptionOnExistingCustomer failed \(400\): Stripe error/,
+			);
+		});
+
+		it("charges the given card — Checkout leaves it on the old subscription, not the customer, so Stripe has no other card to use", async () => {
+			let receivedBody: string | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (_input, init) => {
+				receivedBody = String(init?.body ?? "");
+				return jsonResponse(200, { id: "sub_with_card" });
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.createSubscriptionOnExistingCustomer({
+				customerId: "cus_existing",
+				priceId: "price_abc",
+				userId: USER_ID,
+				onUnpaidFirstInvoice: "refuse",
+				paymentMethodId: "pm_from_last_subscription",
+			});
+
+			const params = new URLSearchParams(receivedBody);
+			assert.equal(params.get("default_payment_method"), "pm_from_last_subscription");
+		});
+
+		it("sends no card when none is given, leaving Stripe to use the customer's default", async () => {
+			let receivedBody: string | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (_input, init) => {
+				receivedBody = String(init?.body ?? "");
+				return jsonResponse(200, { id: "sub_customer_default" });
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.createSubscriptionOnExistingCustomer({
+				customerId: "cus_existing",
+				priceId: "price_abc",
+				userId: USER_ID,
+				onUnpaidFirstInvoice: "leave-pending",
+			});
+
+			const params = new URLSearchParams(receivedBody);
+			assert.deepEqual(
+				[...params.keys()],
+				[
+					"customer",
+					"items[0][price]",
+					"metadata[userId]",
+					"payment_behavior",
+					"off_session",
+					"automatic_tax[enabled]",
+				],
+			);
+		});
+	});
+
+	describe("findSubscriptionPaymentMethod", () => {
+		it("reads the card off GET /v1/subscriptions/<id>, which still answers for a cancelled subscription", async () => {
+			let receivedUrl: string | undefined;
+			let receivedInit: RequestInit | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (input, init) => {
+				receivedUrl = typeof input === "string" ? input : input.toString();
+				receivedInit = init;
+				return jsonResponse(200, {
+					id: "sub_was paid",
+					status: "canceled",
+					default_payment_method: "pm_saved_visa",
+				});
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			const paymentMethodId = await stripe.findSubscriptionPaymentMethod({
+				subscriptionId: "sub_was paid",
+			});
+
+			assert.equal(paymentMethodId, "pm_saved_visa");
+			assert.equal(receivedUrl, "https://api.stripe.com/v1/subscriptions/sub_was%20paid");
+			assert.equal(receivedInit?.method, "GET");
+			const headers = new Headers(receivedInit?.headers);
+			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
+			assert.equal(headers.get("Stripe-Version"), "2026-04-22.dahlia");
+		});
+
+		it("returns undefined when the subscription holds no card", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(200, { id: "sub_no_card", status: "canceled", default_payment_method: null });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			assert.equal(
+				await stripe.findSubscriptionPaymentMethod({ subscriptionId: "sub_no_card" }),
+				undefined,
+			);
+		});
+
+		it("throws with the Stripe error message on any non-2xx", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(500, { error: { code: "api_error", message: "Stripe is down" } });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await assert.rejects(
+				() => stripe.findSubscriptionPaymentMethod({ subscriptionId: "sub_kaboom" }),
+				/Stripe findSubscriptionPaymentMethod failed \(500\): Stripe is down/,
 			);
 		});
 	});

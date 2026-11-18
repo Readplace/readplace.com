@@ -25,7 +25,7 @@ function createdSlug(location: string): string {
 	return slug;
 }
 
-const GUEST_PATHS = ["/", "/import", "/save"];
+const GUEST_PATHS = ["/", "/import", "/save", "/view/example.com/article"];
 
 const MEMBER_PATHS = [
 	"/queue",
@@ -141,6 +141,7 @@ describe("every popup opens on its first decision", () => {
 
 		expect(gaps).toEqual([]);
 		expect(keys.has("save-tip")).toBe(true);
+		expect(keys.has("view-highlights-keep")).toBe(true);
 	});
 
 	it("holds across the signed-in surfaces, including the reader and its article history", async () => {
@@ -182,6 +183,7 @@ describe("every popup opens on its first decision", () => {
 			estimatedReadTime: MinutesSchema.parse(2),
 			provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
 			savedAt: new Date("2026-06-24T09:01:00.000Z"),
+			saveTrigger: "manual",
 		});
 		await fixture.articleStore.writeContent({ url: issueUrl, content: "<p>Today's links, with commentary.</p>" });
 		await fixture.articleCrawl.markCrawlReady({ url: issueUrl });

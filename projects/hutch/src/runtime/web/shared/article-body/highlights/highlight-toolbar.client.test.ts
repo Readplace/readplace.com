@@ -48,7 +48,7 @@ function railHtml(): string {
 		anchorRevision: 0,
 	};
 	return renderHighlightsRail({
-		rows: [{ highlight: row, state: "anchored" }],
+		rows: [{ highlight: row, shown: { state: "anchored", edited: false, quote: row.exact }, marked: true }],
 		scope: { articleId: "abc", readlist: [], surface: [] },
 		oob: false,
 	}).html;
@@ -1057,46 +1057,46 @@ describe("initHighlightToolbar", () => {
 				return shownAt(h).top;
 			}
 
-			it("docks 16 px above the visual viewport's bottom, centred", () => {
+			it("sits the system menu's height below the selection, centred on it", () => {
 				const h = harness();
 
-				expect(coarseShownAt(h)).toBe(`${800 - 16 - 44}px`);
-				expect(toolbarOf(h).style.left).toBe(`${(1000 - 120) / 2}px`);
+				expect(coarseShownAt(h)).toBe(`${320 + 64}px`);
+				expect(toolbarOf(h).style.left).toBe(`${400 + 200 / 2 - 120 / 2}px`);
 			});
 
-			it("stays docked wherever a window scroll moves the selection", () => {
+			it("follows the selection through a window scroll", () => {
 				const h = harness();
 				coarseShownAt(h);
-				h.rects = [{ top: 700, bottom: 720, left: 400, width: 200 }];
+				h.rects = [{ top: 100, bottom: 120, left: 400, width: 200 }];
 
 				h.scrollWindow();
 				h.runFrames();
 
-				expect(toolbarOf(h).style.top).toBe(`${800 - 16 - 44}px`);
+				expect(toolbarOf(h).style.top).toBe(`${120 + 64}px`);
 			});
 
-			it("follows the visual viewport's bottom on a resize", () => {
+			it("moves above the selection when a visual viewport resize leaves no room below", () => {
 				const h = harness();
 				coarseShownAt(h);
-				h.viewport.height = 360;
+				h.viewport.height = 400;
 
 				h.viewport.fire("resize");
 				h.runFrames();
 
-				expect(toolbarOf(h).style.top).toBe(`${360 - 16 - 44}px`);
+				expect(toolbarOf(h).style.top).toBe(`${300 - 64 - 44}px`);
 			});
 
 			it("repositions once for two visualViewport scrolls in one frame", () => {
 				const h = harness();
 				coarseShownAt(h);
-				h.viewport.offsetTop = 100;
+				h.rects = [{ top: 600, bottom: 620, left: 400, width: 200 }];
 
 				h.viewport.fire("scroll");
 				h.viewport.fire("scroll");
 				expect(h.frameCount()).toBe(1);
 				h.runFrames();
 
-				expect(toolbarOf(h).style.top).toBe(`${100 + 800 - 16 - 44}px`);
+				expect(toolbarOf(h).style.top).toBe(`${620 + 64}px`);
 			});
 
 			it("leaves a hidden bar where it was on a viewport change", () => {
@@ -1108,15 +1108,22 @@ describe("initHighlightToolbar", () => {
 						bubbles: true,
 					}),
 				);
-				h.viewport.height = 360;
+				h.viewport.height = 400;
 
 				h.viewport.fire("resize");
 				h.runFrames();
 
-				expect(toolbarOf(h).style.top).toBe(`${800 - 16 - 44}px`);
+				expect(toolbarOf(h).style.top).toBe(`${320 + 64}px`);
 			});
 
-			it("shows the bar for a selection whose range reports no rects", () => {
+			it("docks to the bottom for a selection that fills the screen", () => {
+				const h = harness();
+				h.rects = [{ top: 20, bottom: 780, left: 0, width: 1000 }];
+
+				expect(coarseShownAt(h)).toBe(`${800 - 16 - 44}px`);
+			});
+
+			it("docks to the bottom for a selection whose range reports no rects", () => {
 				const h = harness();
 				h.rects = [];
 
@@ -1124,16 +1131,16 @@ describe("initHighlightToolbar", () => {
 				expect(toolbarOf(h).hidden).toBe(false);
 			});
 
-			it("docks 16 px above a bottom bar the page marks", () => {
+			it("moves above the selection when the slot below would cross a bottom bar the page marks", () => {
 				const h = harness(`${mainHtml()}<aside data-highlight-toolbar-floor></aside>`);
 				const floor = h.doc.querySelector("[data-highlight-toolbar-floor]");
 				assert(floor);
 				Object.defineProperty(floor, "getBoundingClientRect", {
-					value: () => ({ top: 700 }),
+					value: () => ({ top: 400 }),
 					configurable: true,
 				});
 
-				expect(coarseShownAt(h)).toBe(`${700 - 16 - 44}px`);
+				expect(coarseShownAt(h)).toBe(`${300 - 64 - 44}px`);
 			});
 
 			it("submits a long-pressed selection with origin longpress", () => {

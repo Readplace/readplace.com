@@ -64,6 +64,7 @@ export function initStripeCheckout(deps: {
 			success_url: successUrl,
 			cancel_url: cancelUrl,
 			"payment_method_types[0]": "card",
+			"automatic_tax[enabled]": "true",
 		});
 		if (coupon === null) {
 			body.set("allow_promotion_codes", "true");

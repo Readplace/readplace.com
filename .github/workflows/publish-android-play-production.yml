@@ -1,0 +1,79 @@
+name: Promote Android build to Play production
+run-name: ${{ inputs.mode == 'promote' && 'Promote' || 'Check' }} Android v${{ inputs.version_code }} for Play production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "Version code on the internal testing track to promote (e.g. 3)"
+        type: string
+        required: true
+      mode:
+        description: "check asks Play whether it would accept the promotion and releases nothing; promote releases to production"
+        type: choice
+        options:
+          - check
+          - promote
+        default: check
+
+concurrency:
+  group: android-play-production
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: projects/native-apps/android
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Refuse a version code that is not a positive whole number
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          if [[ ! "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::version_code must be a positive whole number, got: '$VERSION_CODE'"
+            exit 1
+          fi
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: projects/native-apps/android
+
+      - name: Promote the internal release to production (validate only in check mode)
+        env:
+          SUPPLY_JSON_KEY_DATA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          VALIDATE_ONLY: ${{ inputs.mode != 'promote' }}
+        run: |
+          bundle exec fastlane supply \
+            --package_name com.readplace.app \
+            --track internal \
+            --track_promote_to production \
+            --version_code "$VERSION_CODE" \
+            --validate_only "$VALIDATE_ONLY" \
+            --rescue_changes_not_sent_for_review false \
+            --skip_upload_apk true \
+            --skip_upload_aab true \
+            --skip_upload_metadata true \
+            --skip_upload_changelogs true \
+            --skip_upload_images true \
+            --skip_upload_screenshots true
+
+      - name: Record what was sent
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          if [ "$MODE" = "promote" ]; then
+            echo "Version code $VERSION_CODE was sent to Play production at 100%. It goes live after Play's review." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Play accepts promoting version code $VERSION_CODE to production. Nothing was released." >> "$GITHUB_STEP_SUMMARY"
+          fi

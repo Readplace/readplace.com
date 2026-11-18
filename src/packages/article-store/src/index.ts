@@ -12,6 +12,7 @@ export { initDynamoDbClaimResolutionOnView } from "./dynamodb-resolution-on-view
 export { initDynamoDbRelatedArticles } from "./dynamodb-related-articles";
 export { initDynamoDbPastReads } from "./dynamodb-past-reads";
 export { initDynamoDbRelatedPassRequests } from "./dynamodb-related-pass-requests";
+export { initDynamoDbRemovedLinks } from "./dynamodb-removed-links";
 export {
 	initCanonicalAliasStore,
 	type ClaimCanonicalAlias,

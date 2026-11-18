@@ -73,7 +73,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 			sendComponent(
 				req, res,
 				Base(ForgotPasswordPage(
-					{ email: req.body.email, errors: [{ message: ipPausedNotice(retryAfterSeconds) }] },
+					{ email: req.body?.email, errors: [{ message: ipPausedNotice(retryAfterSeconds) }] },
 					{ statusCode: 429 },
 				), bannerStateFromRequest(req)),
 			);

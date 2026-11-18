@@ -70,6 +70,8 @@ export function createInboxApp(
 			saveTrigger: SaveTrigger;
 			saveAttemptId: SaveAttemptId;
 		}) => Promise<void>;
+		publishCrawlPreview: Parameters<typeof initInboxRoutes>[0]["publishCrawlPreview"];
+		publishSavedLinkTriaged: Parameters<typeof initInboxRoutes>[0]["publishSavedLinkTriaged"];
 		recordEngagementActivity: RecordEngagementActivity;
 		logError: LogError;
 		now: () => Date;
@@ -165,6 +167,8 @@ export function createInboxApp(
 		inboxSavedLinkStore: deps.inboxSavedLinkStore,
 		readEmailContent: deps.readEmailContent,
 		publishSubmitLink: deps.publishSubmitLink,
+		publishCrawlPreview: deps.publishCrawlPreview,
+		publishSavedLinkTriaged: deps.publishSavedLinkTriaged,
 		recordEngagementActivity,
 		imagesCdnBaseUrl: config.imagesCdnBaseUrl,
 		logError: deps.logError,

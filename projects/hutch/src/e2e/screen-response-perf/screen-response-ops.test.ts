@@ -4,6 +4,7 @@ import {
 	EMPTY_READLIST,
 	READER_CONTENT,
 	SCREEN_RESPONSE_OP_IDS,
+	assignCheckbox,
 	assignOp,
 	backToReadlistOp,
 	filterLink,
@@ -83,7 +84,7 @@ describe("screen response operations", () => {
 	it("stops the assign clock on the readlist tag appearing in the article header", () => {
 		const op = assignOp({ slug: "target-readlist" });
 
-		assert.equal(op.trigger, 'button[data-test-assign-readlist="target-readlist"]');
+		assert.equal(op.trigger, 'button[data-test-action="readlists-add-selected"]');
 		assert.deepEqual(
 			op.predicate.required.map((condition) => condition.selector),
 			['#article-header [data-test-readlist-tag="target-readlist"]'],
@@ -97,6 +98,10 @@ describe("screen response operations", () => {
 			'#article-header [data-test-readlist-tag="target-readlist"] ' +
 				'button[data-test-unassign-readlist="target-readlist"]',
 		);
+	});
+
+	it("ticks the assign readlist by its own checkbox", () => {
+		assert.equal(assignCheckbox("target-readlist"), 'input[data-test-assign-readlist="target-readlist"]');
 	});
 
 	it("opens an article by its card's title link, never by href", () => {

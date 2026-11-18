@@ -153,6 +153,29 @@ describe("Per-IP rate limiting", () => {
 			]);
 		});
 
+		it("answers a bodiless request past the IP limit with the forgot-password page and Retry-After", async () => {
+			const { fixture } = fixtureWithTightRules({
+				forgotPassword: { limit: 1, windowSeconds: 86400 },
+			});
+			const harness = useApp(fixture);
+			await request(harness.server)
+				.post("/forgot-password")
+				.type("form")
+				.send({ email: "user@example.com" });
+
+			const throttled = await request(harness.server).post("/forgot-password");
+
+			assert.equal(throttled.status, 429);
+			const retryAfter = Number(throttled.headers["retry-after"]);
+			assert.ok(Number.isInteger(retryAfter) && retryAfter > 0);
+			const doc = new JSDOM(throttled.text).window.document;
+			assert.equal(
+				doc.querySelector('[data-test-alert="global-error"] [data-test-alert-title]')?.textContent,
+				tPlural("forgotPassword.ipPaused", { count: Math.ceil(retryAfter / 3600) }),
+			);
+			assert.equal(doc.querySelector<HTMLInputElement>("#email")?.value, "");
+		});
+
 		it("says less than an hour when the IP pause ends within the hour", async () => {
 			const { fixture, clock } = fixtureWithTightRules({
 				forgotPassword: { limit: 1, windowSeconds: 86400 },

@@ -261,6 +261,21 @@ describe("readlist picker opening", () => {
 		expect(focusedElement(dom)?.textContent).toBe("Work");
 	});
 
+	it("moves focus to the first readlist's checkbox when the reader can tick several", () => {
+		const dom = attachedDom(`<details class="article-body__readlists" open>
+	<summary class="article-body__readlists-trigger">Add</summary>
+	<ul class="article-body__readlists-menu">
+		<li><label class="article-body__readlists-option"><input class="article-body__readlists-checkbox" type="checkbox" name="queue" value="work" form="reader-readlists-add"></label></li>
+		<li><label class="article-body__readlists-option"><input class="article-body__readlists-checkbox" type="checkbox" name="queue" value="later" form="reader-readlists-add"></label></li>
+		<li><form id="reader-readlists-add"><button type="submit">Add</button></form></li>
+	</ul>
+</details>`);
+
+		togglePicker(dom);
+
+		expect(focusedElement(dom)?.getAttribute("value")).toBe("work");
+	});
+
 	it("leaves focus alone when the toggle closed it", () => {
 		const dom = attachedDom(picker("closed"));
 

@@ -49,6 +49,7 @@ type AssemblyProvidedKeys =
 	| "funnelLogger"
 	| "analytics"
 	| "authDiagnosticsLogger"
+	| "signupLogger"
 	| "salt"
 	| "keepOfferCouponId"
 	| "keepOfferEndsAt"
@@ -119,6 +120,7 @@ export function assembleReadplaceApp(input: {
 		funnelLogger: Logger.fromJSON<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>(),
 		analytics: analyticsLogger,
 		authDiagnosticsLogger: Logger.fromJSON<Record<string, unknown>>(),
+		signupLogger: Logger.from(consoleLogger),
 		salt,
 		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),
 		newsletterCatalogSeed: readNewsletterCatalogSeed(),

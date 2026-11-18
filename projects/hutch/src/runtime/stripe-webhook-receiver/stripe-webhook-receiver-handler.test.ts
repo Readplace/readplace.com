@@ -62,6 +62,7 @@ function buildEventHandlers(
 	overrides: Partial<Record<StripeEventType, StripeEventHandler>> = {},
 ): Record<StripeEventType, StripeEventHandler> {
 	return {
+		"checkout.session.completed": async () => {},
 		"customer.subscription.deleted": async () => {},
 		"invoice.payment_failed": async () => {},
 		...overrides,

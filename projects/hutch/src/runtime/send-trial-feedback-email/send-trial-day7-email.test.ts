@@ -63,6 +63,7 @@ function buildSubject(options: { contact?: UserContact; readAtOf?: Record<string
 		findOpenInvoiceFailure: async () => undefined,
 		claimTrialNudge: providers.claimTrialNudge,
 		releaseTrialNudge: providers.releaseTrialNudge,
+		loadNextCharge: async () => undefined,
 		findUserContactByUserId: async () => options.contact ?? CONTACT,
 		signUnsubscribeToken: unsubscribeToken.sign,
 		sendEmail: options.sendEmail ?? email.sendEmail,
@@ -100,6 +101,7 @@ async function save(subject: Subject, input: { slug: string; savedAt: Date; prov
 		estimatedReadTime: MinutesSchema.parse(2),
 		provenance: input.provenance ?? { kind: "web" },
 		savedAt: input.savedAt,
+		saveTrigger: "manual",
 	});
 	return saved;
 }

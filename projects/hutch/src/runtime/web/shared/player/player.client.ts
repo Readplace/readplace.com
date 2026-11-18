@@ -1,6 +1,7 @@
 interface PlayerWindow {
 	readonly location: { readonly search: string };
 	readonly history: { replaceState(data: null, unused: "", url: string): void };
+	readonly Event: typeof Event;
 	addEventListener(type: "click", listener: (event: MouseEvent) => void, capture: true): void;
 }
 
@@ -14,6 +15,8 @@ const AUDIO_SELECTOR = "[data-player-audio]";
 const SEEK_LINK_SELECTOR = '[data-article-body] a[href^="?t="]';
 const CURRENT_SELECTOR = '[data-article-body] [aria-current="true"]';
 const BOUND_FLAG = "data-player-bound";
+const OWNED_ATTRIBUTE = "data-player-owned";
+const BIND_EVENT = "player:bind";
 const HAVE_METADATA = 1;
 
 function isElement(node: EventTarget | null): node is Element {
@@ -35,7 +38,6 @@ function noop(): void {}
 
 export function initPlayer(deps: PlayerDeps): void {
 	const findAudio = () => deps.document.querySelector<HTMLAudioElement>(AUDIO_SELECTOR);
-	if (findAudio() === null) return;
 
 	const highlight = (audio: HTMLAudioElement): void => {
 		let current: Element | null = null;
@@ -64,6 +66,15 @@ export function initPlayer(deps: PlayerDeps): void {
 		else audio.addEventListener("loadedmetadata", seek, { once: true });
 	};
 
+	const root = deps.document.documentElement;
+	if (root.hasAttribute(OWNED_ATTRIBUTE)) {
+		root.dispatchEvent(new deps.window.Event(BIND_EVENT));
+		return;
+	}
+	root.setAttribute(OWNED_ATTRIBUTE, "");
+	root.addEventListener(BIND_EVENT, bind);
+	bind();
+
 	deps.window.addEventListener(
 		"click",
 		(event) => {
@@ -84,5 +95,4 @@ export function initPlayer(deps: PlayerDeps): void {
 		true,
 	);
 	deps.addSwapListener(bind);
-	bind();
 }

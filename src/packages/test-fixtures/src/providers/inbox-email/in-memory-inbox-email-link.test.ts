@@ -475,3 +475,91 @@ it("preserves the first record of where a Gmail issue went when extraction retri
 	await store.putLinksMeta({ ...key, meta: { ...first, issueSave: { readlists: [], held: true } } });
 	expect((await store.listLinksByEmail(key)).meta).toEqual(first);
 });
+
+describe("rescueSkippedLink", () => {
+	it("moves a skipped link to pending once, clearing its skip reason", async () => {
+		const store = initInMemoryInboxEmailLink();
+		const link = makeLink({ status: "skipped", skipReason: "llm-noise" });
+		await store.putLink(link);
+		const key = { userId: owner, receivedAtMessageId: RAM, ordinal: link.ordinal };
+
+		expect(await store.rescueSkippedLink(key)).toBe("rescued");
+		expect(await store.getLink(key)).toEqual({ ...link, status: "pending", skipReason: undefined });
+		expect(await store.rescueSkippedLink(key)).toBe("not-skipped");
+	});
+
+	it("reports not-skipped for a missing link", async () => {
+		const store = initInMemoryInboxEmailLink();
+		expect(
+			await store.rescueSkippedLink({ userId: owner, receivedAtMessageId: RAM, ordinal: EmailLinkOrdinalSchema.parse("0000") }),
+		).toBe("not-skipped");
+	});
+});
+
+describe("addEligibleArticle", () => {
+	const key = { userId: owner, receivedAtMessageId: RAM };
+
+	it("adds one to the eligible count of an email with selected readlists", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await store.putLinksMeta({
+			...key,
+			meta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 2 },
+		});
+		await store.addEligibleArticle(key);
+		expect((await store.findLinksMeta(key))?.eligibleArticleCount).toBe(3);
+	});
+
+	it("starts the count at one when none was recorded", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await store.putLinksMeta({
+			...key,
+			meta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }] },
+		});
+		await store.addEligibleArticle(key);
+		expect((await store.findLinksMeta(key))?.eligibleArticleCount).toBe(1);
+	});
+
+	it("leaves an email without selected readlists unchanged", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await store.putLinksMeta({ ...key, meta: { truncated: false, extractionFailed: false } });
+		await store.addEligibleArticle(key);
+		expect(await store.findLinksMeta(key)).toEqual({ truncated: false, extractionFailed: false });
+	});
+});
+
+describe("mergeReadlistOutcomeFit", () => {
+	const key = { userId: owner, receivedAtMessageId: RAM };
+	const kept = { ordinal: EmailLinkOrdinalSchema.parse("0000"), verdict: "keep" as const, reason: "On topic" };
+	const rescued = { ordinal: EmailLinkOrdinalSchema.parse("0004"), verdict: "drop" as const, reason: "Off topic" };
+	const filtered = { readlist: WORK, readlistLabel: "Work", decision: "filtered" as const, fit: [kept] };
+
+	async function seeded(outcome?: Parameters<ReturnType<typeof initInMemoryInboxEmailLink>["putReadlistOutcome"]>[0]["outcome"]) {
+		const store = initInMemoryInboxEmailLink();
+		await store.putLinksMeta({
+			...key,
+			meta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }] },
+		});
+		if (outcome) await store.putReadlistOutcome({ ...key, outcome });
+		return store;
+	}
+
+	it("appends the entry to a filtered decision", async () => {
+		const store = await seeded(filtered);
+		expect(await store.mergeReadlistOutcomeFit({ ...key, readlist: WORK, entry: rescued })).toBe("merged");
+		expect((await store.listLinksByEmail(key)).meta?.readlistOutcomes).toEqual([{ ...filtered, fit: [kept, rescued] }]);
+	});
+
+	it("keeps an existing entry for the same link", async () => {
+		const store = await seeded(filtered);
+		expect(
+			await store.mergeReadlistOutcomeFit({ ...key, readlist: WORK, entry: { ...kept, verdict: "drop" } }),
+		).toBe("already-decided");
+		expect((await store.listLinksByEmail(key)).meta?.readlistOutcomes).toEqual([filtered]);
+	});
+
+	it("reports not-filtered when the readlist has no decision or a different one", async () => {
+		expect(await (await seeded()).mergeReadlistOutcomeFit({ ...key, readlist: WORK, entry: rescued })).toBe("not-filtered");
+		const failed = await seeded({ ...filtered, decision: "failed", fit: [] });
+		expect(await failed.mergeReadlistOutcomeFit({ ...key, readlist: WORK, entry: rescued })).toBe("not-filtered");
+	});
+});

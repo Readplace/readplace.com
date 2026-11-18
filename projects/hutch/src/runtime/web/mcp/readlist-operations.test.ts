@@ -37,6 +37,7 @@ function saveParams(): SaveArticleParams {
 		estimatedReadTime: MinutesSchema.parse(2),
 		provenance: { kind: "web" },
 		savedAt: new Date("2026-01-01"),
+		saveTrigger: "manual",
 	};
 }
 

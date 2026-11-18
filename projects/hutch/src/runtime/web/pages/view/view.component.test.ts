@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { generateCspNonce } from "@packages/web-shell";
 import { toAbsoluteDate, toAbsoluteTime } from "@packages/web-shell/local-time.format";
 import { JSDOM } from "jsdom";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
 import { calculateReadTime } from "@packages/domain/article";
 import { Base } from "../../base.component";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
@@ -15,6 +17,8 @@ import {
 import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { articleBody } from "@packages/test-fixtures";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
+
+const { t } = translator(hutchReader, DEFAULT_LOCALE);
 
 const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
 
@@ -47,10 +51,12 @@ const baseInput: ViewPageInput = {
 	],
 	backLink: undefined,
 	endCta: undefined,
+	offersLocalHighlights: false,
 };
 
 const endCta: ViewEndCta = {
 	heading: "Keep this one",
+	signedByFounder: false,
 	lines: [PRICE_STATEMENT, SAVES_STAY_STATEMENT],
 	actions: [
 		{
@@ -792,6 +798,34 @@ describe("ViewPage Keep this one block", () => {
 		expect(control.tagName).toBe("BUTTON");
 		expect(control.getAttribute("popovertarget")).toBe("reader-download-guide");
 		expect(control.textContent).toBe("Download EPUB");
+	});
+
+	it("signs the block with the founder's portrait, line and sign-off when it is signed by the founder", () => {
+		const signed = endCtaSection(render({ ...baseInput, endCta: { ...endCta, signedByFounder: true } })).querySelector(
+			"[data-test-view-end-cta-signed]",
+		);
+		assert(signed, "the signed block must render when the block is signed by the founder");
+		const portrait = signed.querySelector("img");
+		assert(portrait, "the signed block must carry the founder's portrait");
+
+		expect(portrait.getAttribute("src")).toMatch(/\/fayner-brack\.jpg$/);
+		expect(portrait.getAttribute("alt")).toBe("");
+		expect(portrait.getAttribute("aria-hidden")).toBe("true");
+		expect([
+			signed.querySelector(".view__end-cta-signed-line")?.textContent,
+			signed.querySelector(".view__end-cta-signed-by")?.textContent,
+		]).toEqual([t("view.endCta.founderLine"), t("view.endCta.founderSignOff")]);
+	});
+
+	it("leaves the signed block out when the block is not signed by the founder", () => {
+		const section = endCtaSection(render({ ...baseInput, endCta }));
+
+		expect(Array.from(section.querySelectorAll(".reading-frame > *"), (child) => child.className)).toEqual([
+			"view__end-cta-heading",
+			"view__end-cta-line",
+			"view__end-cta-line",
+			"view__end-cta-actions",
+		]);
 	});
 
 	it("sits after the article body in document order", () => {

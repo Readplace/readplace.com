@@ -581,6 +581,22 @@ describe("POST /queue/save-articles", () => {
 		);
 	});
 
+	it("reads page bytes only from a content-<index> part, saving a page sent under a plain content part as a link", async () => {
+		const { testApp, publishedSaveHtml } = setup();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: "https://example.com/a", title: "A", mediaType: "text/html" }]))
+			.attach("content", VALID_HTML, "content");
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toEqual(expect.objectContaining({ saved: 1, skipped: 0, failed: 0 }));
+		expect(publishedSaveHtml).toEqual([]);
+	});
+
 	it("saves a content page, a url-only page, skips an unsaveable scheme, and returns the summary", async () => {
 		const { testApp, publishedSaveHtml } = setup();
 		const accessToken = await createAccessToken(testApp);

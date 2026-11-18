@@ -177,6 +177,7 @@ export interface HighlightCreatedEvent {
 	visitor_hash: string | null;
 	origin: "mouse" | "tap" | "longpress";
 	highlight_id: HighlightId;
+	pieces: number;
 	surface: "web" | "ios" | "android";
 }
 
@@ -206,6 +207,35 @@ export interface HighlightOpenedEvent {
 	visitor_hash: string | null;
 	origin: "mark" | "rail";
 	highlight_id: HighlightId;
+}
+
+export interface ViewHighlightEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.viewHighlight;
+	timestamp: string;
+	action: "kept" | "limit_reached" | "opened";
+	visitor_hash: string | null;
+	visitor_id: string | null;
+}
+
+export interface ViewHighlightsHandedOverEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.viewHighlightsHandedOver;
+	timestamp: string;
+	intent: "signup" | "login";
+	highlights: number;
+	visitor_hash: string | null;
+	visitor_id: string | null;
+}
+
+export interface ViewHighlightsClaimedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.viewHighlightsClaimed;
+	timestamp: string;
+	user_id: UserId;
+	created: number;
+	dropped: number;
+	visitor_hash: string | null;
 }
 
 /**
@@ -519,4 +549,7 @@ export type AnalyticsEvent =
 	| HighlightCreatedEvent
 	| HighlightDeletedEvent
 	| HighlightNoteSavedEvent
-	| HighlightOpenedEvent;
+	| HighlightOpenedEvent
+	| ViewHighlightEvent
+	| ViewHighlightsHandedOverEvent
+	| ViewHighlightsClaimedEvent;

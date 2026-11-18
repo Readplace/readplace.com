@@ -51,6 +51,7 @@ import { viewPathFor } from "./view-path";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { VIEW_STYLES } from "./view.styles";
+import { renderLocalViewHighlights, VIEW_HIGHLIGHTS_SCRIPTS } from "./view-highlights.component";
 import { displayableReadTime, isPrivateItemUrl } from "@packages/domain/article";
 import {
 	REPORT_ARTICLE_SCRIPT,
@@ -61,6 +62,7 @@ import { isReaderViewShareable } from "../../shared/article-reader/reader-view";
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 
 const DEFAULT_OG_IMAGE = `${STATIC_BASE_URL}/og-image-1200x630.png`;
+const FOUNDER_PORTRAIT_URL = `${STATIC_BASE_URL}/fayner-brack.jpg`;
 const DEFAULT_TWITTER_IMAGE = `${STATIC_BASE_URL}/twitter-card-1200x600.png`;
 const DEFAULT_OG_ALT = "Readplace — A read-it-later app";
 
@@ -120,6 +122,7 @@ export type ViewEndCtaAction = ViewEndCtaFormAction | ViewEndCtaGuideAction;
 
 export interface ViewEndCta {
 	heading: "Keep this one";
+	signedByFounder: boolean;
 	lines: readonly string[];
 	actions: readonly ViewEndCtaAction[];
 }
@@ -145,6 +148,7 @@ function renderViewEndCta(endCta: ViewEndCta | undefined): string {
 	if (endCta === undefined) return "";
 	return render(VIEW_END_CTA_TEMPLATE, {
 		heading: endCta.heading,
+		founderPortraitUrl: endCta.signedByFounder ? FOUNDER_PORTRAIT_URL : undefined,
 		lines: endCta.lines,
 		actionsHtml: endCta.actions.map(renderViewEndCtaAction),
 	});
@@ -254,6 +258,7 @@ export interface ViewPageInput {
 	readerNotice?: ReaderFailedVariant;
 	backLink: { topHref: string; label: string } | undefined;
 	endCta: ViewEndCta | undefined;
+	offersLocalHighlights: boolean;
 	now: Date;
 	signedIn: boolean;
 }
@@ -286,7 +291,10 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			epubDownloadGuide: input.epubDownloadGuide,
 		},
 	});
-	const { html: innerContent } = renderArticleBody({
+	const localHighlights = input.offersLocalHighlights
+		? renderLocalViewHighlights({ articleUrl: input.articleUrl })
+		: undefined;
+	const { html: articleBodyHtml } = renderArticleBody({
 		readerSection: input.readerSection,
 		now: input.now,
 		title: input.metadata.title,
@@ -311,6 +319,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		readerNotice: input.readerNotice,
 		report: share === undefined ? undefined : reportFor({ input, viewUrl: shareableViewUrl }),
 	});
+	const innerContent = articleBodyHtml + (localHighlights?.toolbarHtml ?? "");
 	const crawlVersions = input.crawlVersions ?? [];
 	const railLandmark = railLandmarkFor({
 		hasCard:
@@ -330,6 +339,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		readerNotice: input.readerNotice,
 		appOrigin: input.appOrigin,
 		crawlVersions,
+		highlightsHtml: localHighlights?.cardHtml,
 	});
 
 	const ctaItems = input.actions.map((action) => ({
@@ -346,6 +356,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		saveTipHtml: input.saveTip.html,
 		shareDialogHtml: share === undefined ? "" : renderShareDialog(share),
 		downloadGuideHtml: input.epubDownloadGuide === undefined ? "" : renderDownloadGuideDialog(input.epubDownloadGuide),
+		localHighlightsDialogHtml: localHighlights?.dialogHtml ?? "",
 	});
 
 	const ogImage = input.metadata.imageUrl ?? DEFAULT_OG_IMAGE;
@@ -395,7 +406,8 @@ export function ViewPage(input: ViewPageInput): PageBody {
 				CRAWL_ESTIMATE_SCRIPT +
 				SAVE_TIP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT +
-				READER_TOP_SCRIPT,
+				READER_TOP_SCRIPT +
+				(localHighlights === undefined ? "" : VIEW_HIGHLIGHTS_SCRIPTS),
 		}),
 	};
 }

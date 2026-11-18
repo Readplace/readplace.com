@@ -116,6 +116,7 @@ async function createHarness(hooks: HarnessHooks = {}): Promise<HandlerHarness> 
 		listReadlistDefinitions: store.listReadlistDefinitions,
 		findArticlesAcrossReadlists: store.findArticlesAcrossReadlists,
 		listAllUserHighlights: highlights.listAllUserHighlights,
+		readCanonicalSnapshot: store.readCanonicalSnapshot,
 		uploadUserDataExport,
 		deleteUserExports: async (deletedUserId) => {
 			objects.delete(deletedUserId);
@@ -249,6 +250,7 @@ describe("initExportUserDataHandler", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date(),
+			saveTrigger: "manual",
 		});
 
 		const response = await invokeHandler(harness, {
@@ -303,6 +305,7 @@ describe("initExportUserDataHandler", () => {
 				estimatedReadTime: MinutesSchema.parse(1),
 				provenance: { kind: "web" },
 				savedAt: new Date(),
+				saveTrigger: "manual",
 			});
 		}
 
@@ -326,6 +329,7 @@ describe("initExportUserDataHandler", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-04-28T00:00:00.000Z"),
+			saveTrigger: "manual",
 		});
 		const work = ReadlistSlugSchema.parse("work");
 		await harness.store.createReadlistDefinition({
@@ -384,6 +388,7 @@ describe("initExportUserDataHandler", () => {
 				estimatedReadTime: MinutesSchema.parse(1),
 				provenance: { kind: "web" },
 				savedAt: new Date("2026-04-28T00:00:00.000Z"),
+				saveTrigger: "manual",
 			});
 		}
 
@@ -410,7 +415,7 @@ describe("initExportUserDataHandler", () => {
 			]) {
 				const created = await harness.highlights.createHighlight({
 					userId: harness.userId,
-					highlight,
+					highlights: [highlight],
 					replacedIds: [],
 				});
 				assert.equal(created.status, "created");
@@ -442,17 +447,52 @@ describe("initExportUserDataHandler", () => {
 			]);
 		});
 
+		it("exports each highlight as it stands against the article's current version", async () => {
+			const harness = await createHarness();
+			await saveArticle(harness, HIGHLIGHTED_URL);
+			await harness.store.setCanonicalContentHash({ url: HIGHLIGHTED_URL, canonicalContentHash: "hash-2" });
+			const created = await harness.highlights.createHighlight({
+				userId: harness.userId,
+				highlights: [
+					aHighlight({
+						highlightId: HighlightIdSchema.parse("00000000-0000-4000-8000-000000000004"),
+						exact: "the old wording",
+						orderKey: 1,
+						anchoredContentHash: "hash-2",
+						anchorState: "moved",
+						basisQuote: "the new wording",
+					}),
+					aHighlight({
+						highlightId: HighlightIdSchema.parse("00000000-0000-4000-8000-000000000005"),
+						exact: "not yet re-anchored",
+						orderKey: 2,
+					}),
+				],
+				replacedIds: [],
+			});
+			assert.equal(created.status, "created");
+
+			await invokeHandler(harness, { userId: harness.userId, requestedAt: "2026-04-30T11:59:00.000Z" });
+
+			const body = ExportWithHighlightsSchema.parse(harness.uploadCalls[0].parsedBody);
+			const [article] = body.articles;
+			expect(article.highlights).toEqual([
+				expect.objectContaining({ quote: "the new wording", highlighted: "the old wording", state: "moved" }),
+				expect.objectContaining({ quote: "not yet re-anchored", state: "pending" }),
+			]);
+		});
+
 		it("writes no highlights key on an article without highlights", async () => {
 			const harness = await createHarness();
 			await saveArticle(harness, HIGHLIGHTED_URL);
 			await saveArticle(harness, "https://example.com/plain");
 			const created = await harness.highlights.createHighlight({
 				userId: harness.userId,
-				highlight: aHighlight({
+				highlights: [aHighlight({
 					highlightId: HighlightIdSchema.parse("00000000-0000-4000-8000-000000000003"),
 					exact: "a passage",
 					orderKey: 1,
-				}),
+				})],
 				replacedIds: [],
 			});
 			assert.equal(created.status, "created");
@@ -544,6 +584,7 @@ describe("initExportUserDataHandler", () => {
 			listReadlistDefinitions: async () => [],
 			findArticlesAcrossReadlists,
 			listAllUserHighlights: async () => [],
+			readCanonicalSnapshot: async () => undefined,
 			uploadUserDataExport: async ({ userId: uid, body }) => {
 				uploadCalls.push({ parsedBody: JSON.parse(body) });
 				return { s3Key: `exports/${uid}/x.json`, downloadUrl: "https://example.com/d" };

@@ -471,8 +471,10 @@ test.describe("Readlist colour roles hold their WCAG contrast in both themes", (
 		const readerUrl = new URL(readerHref, BASE_URL).toString();
 		const articleId = new URL(readerHref, BASE_URL).pathname.match(/^\/queue\/([^/]+)\/view$/)?.[1];
 		assert(articleId, "a saved card must link to a reader with an article id");
-		const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Finance" } });
-		assert.equal(created.status(), 200, "a readlist must exist for the cards to offer a move");
+		for (const label of ["Finance", "Weekend"]) {
+			const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label } });
+			assert.equal(created.status(), 200, "readlists must exist for the cards to offer a choice of them");
+		}
 
 		const viewUrls = {
 			"to-read": `${BASE_URL}/queue`,
@@ -1093,6 +1095,26 @@ test.describe("Public reader colour roles hold their WCAG contrast in both theme
 			await auditRoot(page, { root: ".article-body__toolbar", theme, view: "public-reader/toolbar" });
 			await auditRoot(page, { root: "[data-test-view-cta]", theme, view: "public-reader/action-bar" });
 			await auditRoot(page, { root: "[data-test-view-end-cta]", theme, view: "public-reader/end-cta" });
+		}
+	});
+
+	test("the end block signed on the founder's own post clears colour and greyscale minimums", async ({ page }, testInfo) => {
+		const slug = `colour-contrast-signed-end-cta-${testInfo.workerIndex}-${Date.now()}`;
+		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
+			data: {
+				url: `https://fagnerbrack.com/${slug}`,
+				title: "A post by the founder a guest opens",
+				content: "<p>Seeded body above the founder's signed end block.</p>",
+				contentFetchedAt: "2026-07-10T09:14:00.000Z",
+			},
+		});
+		assert.equal(seeded.status(), 201);
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/view/fagnerbrack.com/${slug}`, { waitUntil: "domcontentloaded" });
+			await expect(page.locator("[data-test-view-end-cta-signed]")).toBeVisible({ timeout: SETTLE_MS });
+			await auditRoot(page, { root: "[data-test-view-end-cta]", theme, view: "public-reader/end-cta-signed" });
 		}
 	});
 });

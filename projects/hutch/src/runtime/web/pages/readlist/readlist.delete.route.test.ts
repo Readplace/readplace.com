@@ -6,6 +6,8 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { loginAgent, useTestServer } from "../../../test-app";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import { createAccessToken } from "../../test-helpers/oauth-token";
 
 const useApp = useTestServer();
 
@@ -521,5 +523,26 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 
 		expect(await harness.articleStore.listReadlistFitOverrides({ userId, readlist: deleted })).toEqual([]);
 		expect(await harness.articleStore.listReadlistFitOverrides({ userId, readlist: kept })).toHaveLength(1);
+	});
+});
+
+describe("A deleted readlist's href over Siren", () => {
+	it("answers with All's collection", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+		const siren = (call: request.Test) =>
+			call.set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).redirects(0);
+		const created = await siren(request(harness.server).post("/queue/queues")).type("form").send({ label: "Work" });
+		const readlistHref = created.headers.location;
+		const named = await siren(request(harness.server).get(readlistHref));
+		const deleteAction = named.body.actions.find((action: { name: string }) => action.name === "delete-readlist");
+		assert(deleteAction, "a named readlist's collection must advertise delete-readlist");
+
+		const deleted = await siren(request(harness.server).post(deleteAction.href)).type("form").send({});
+		const response = await siren(request(harness.server).get(readlistHref));
+
+		expect(deleted.status).toBe(303);
+		expect(response.status).toBe(200);
+		expect(response.body.properties.readlists).toEqual([expect.objectContaining({ rel: "current" })]);
 	});
 });
