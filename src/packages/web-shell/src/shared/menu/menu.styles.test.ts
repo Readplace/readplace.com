@@ -11,4 +11,12 @@ describe("MENU_STYLES", () => {
 		expect(MENU_STYLES).toContain(".menu__item:focus-visible {");
 		expect(MENU_STYLES).toContain("outline-offset: -2px;");
 	});
+
+	it("pins a floating panel to the viewport position its script measured", () => {
+		expect(MENU_STYLES).toContain(".menu--floating .menu__panel {");
+		expect(MENU_STYLES).toContain("position: fixed;");
+		expect(MENU_STYLES).toContain(
+			"inset: var(--menu-top) auto auto var(--menu-left);",
+		);
+	});
 });

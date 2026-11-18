@@ -151,9 +151,9 @@ describe("initDynamoDbHighlights", () => {
 			note: "a note",
 		});
 
-		const outcome = await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		const outcome = await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
-		assert.deepEqual(outcome, { status: "created", highlight, replacedIds: [] });
+		assert.deepEqual(outcome, { status: "created", highlights: [highlight], replacedIds: [] });
 		assert.deepEqual([...table.items.values()].map((item) => item.url), [
 			`readplace:highlight/${ARTICLE}/${highlight.highlightId}`,
 		]);
@@ -164,7 +164,7 @@ describe("initDynamoDbHighlights", () => {
 		const table = createFakeTable();
 		const store = initStore(table.client);
 		const highlight = aHighlight();
-		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 		const [stored] = [...table.items.values()];
 		assert(stored);
 		table.seed({ ...stored, anchoredCandidateId: null, note: null });
@@ -180,9 +180,9 @@ describe("initDynamoDbHighlights", () => {
 		const table = createFakeTable();
 		const store = initStore(table.client);
 		const highlight = aHighlight();
-		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
-		const outcome = await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		const outcome = await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
 		assert.deepEqual(outcome, { status: "cancelled" });
 	});
@@ -195,7 +195,7 @@ describe("initDynamoDbHighlights", () => {
 			},
 		} as unknown as DynamoDBDocumentClient);
 
-		await expect(store.createHighlight({ userId: USER, highlight: aHighlight(), replacedIds: [] })).rejects.toBe(
+		await expect(store.createHighlight({ userId: USER, highlights: [aHighlight()], replacedIds: [] })).rejects.toBe(
 			error,
 		);
 	});
@@ -207,7 +207,7 @@ describe("initDynamoDbHighlights", () => {
 		const earlyB = aHighlight({ orderKey: 5 });
 		const earlyA = aHighlight({ orderKey: 5 });
 		for (const highlight of [late, earlyB, earlyA]) {
-			await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+			await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 		}
 
 		const listed = await store.listArticleHighlights({ userId: USER, url: ARTICLE });
@@ -223,8 +223,8 @@ describe("initDynamoDbHighlights", () => {
 		const store = initStore(table.client);
 		const onX = aHighlight();
 		const onNested = aHighlight({ highlightOf: NESTED_ARTICLE });
-		await store.createHighlight({ userId: USER, highlight: onX, replacedIds: [] });
-		await store.createHighlight({ userId: USER, highlight: onNested, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [onX], replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [onNested], replacedIds: [] });
 
 		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [onX]);
 		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: NESTED_ARTICLE }), [onNested]);
@@ -235,19 +235,19 @@ describe("initDynamoDbHighlights", () => {
 		const store = initStore(table.client);
 		const first = aHighlight();
 		const second = aHighlight();
-		await store.createHighlight({ userId: USER, highlight: first, replacedIds: [] });
-		await store.createHighlight({ userId: USER, highlight: second, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [first], replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [second], replacedIds: [] });
 		const merged = aHighlight({ start: 0, end: 40 });
 
 		const outcome = await store.createHighlight({
 			userId: USER,
-			highlight: merged,
+			highlights: [merged],
 			replacedIds: [first.highlightId, second.highlightId],
 		});
 
 		assert.deepEqual(outcome, {
 			status: "merged",
-			highlight: merged,
+			highlights: [merged],
 			replacedIds: [first.highlightId, second.highlightId],
 		});
 		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [merged]);
@@ -258,6 +258,67 @@ describe("initDynamoDbHighlights", () => {
 			transactItems.map((entry) => entry.Put?.ConditionExpression ?? entry.Delete?.ConditionExpression),
 			["attribute_not_exists(#url)", "attribute_exists(#url)", "attribute_exists(#url)"],
 		);
+	});
+
+	it("creates several highlights with no replaced row in one transaction", async () => {
+		const table = createFakeTable();
+		const store = initStore(table.client);
+		const before = aHighlight({ start: 0, end: 10, orderKey: 0 });
+		const after = aHighlight({ start: 10, end: 20, orderKey: 10 });
+
+		const outcome = await store.createHighlight({ userId: USER, highlights: [before, after], replacedIds: [] });
+
+		assert.deepEqual(
+			table.sent.map((command) => command.name),
+			["TransactWriteCommand"],
+		);
+		assert.deepEqual(outcome, { status: "created", highlights: [before, after], replacedIds: [] });
+		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [before, after]);
+	});
+
+	it("creates several highlights and deletes each replaced row in one transaction", async () => {
+		const table = createFakeTable();
+		const store = initStore(table.client);
+		const replaced = aHighlight({ start: 5, end: 12, orderKey: 5 });
+		await store.createHighlight({ userId: USER, highlights: [replaced], replacedIds: [] });
+		const before = aHighlight({ start: 0, end: 15, orderKey: 0 });
+		const after = aHighlight({ start: 15, end: 30, orderKey: 15 });
+
+		const outcome = await store.createHighlight({
+			userId: USER,
+			highlights: [before, after],
+			replacedIds: [replaced.highlightId],
+		});
+
+		assert.deepEqual(outcome, { status: "merged", highlights: [before, after], replacedIds: [replaced.highlightId] });
+		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [before, after]);
+		const transactions = table.sent.filter((command) => command.name === "TransactWriteCommand");
+		assert.equal(transactions.length, 1);
+		const transactItems: { Put?: Item; Delete?: Item }[] = Object(transactions[0].input.TransactItems);
+		assert.deepEqual(
+			transactItems.map((entry) => entry.Put?.ConditionExpression ?? entry.Delete?.ConditionExpression),
+			["attribute_not_exists(#url)", "attribute_not_exists(#url)", "attribute_exists(#url)"],
+		);
+	});
+
+	it("creates none of several highlights when DynamoDB cancels their transaction", async () => {
+		const table = createFakeTable({
+			transactionError: new TransactionCanceledException({
+				message: "Transaction cancelled",
+				$metadata: {},
+				CancellationReasons: [{ Code: "None" }, { Code: "ConditionalCheckFailed" }],
+			}),
+		});
+		const store = initStore(table.client);
+
+		const outcome = await store.createHighlight({
+			userId: USER,
+			highlights: [aHighlight(), aHighlight()],
+			replacedIds: [],
+		});
+
+		assert.deepEqual(outcome, { status: "cancelled" });
+		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), []);
 	});
 
 	it("answers cancelled when DynamoDB cancels the merge transaction", async () => {
@@ -273,7 +334,7 @@ describe("initDynamoDbHighlights", () => {
 
 		const outcome = await store.createHighlight({
 			userId: USER,
-			highlight: aHighlight(),
+			highlights: [aHighlight()],
 			replacedIds: [replaced.highlightId],
 		});
 
@@ -286,7 +347,7 @@ describe("initDynamoDbHighlights", () => {
 		const store = initStore(table.client);
 
 		await expect(
-			store.createHighlight({ userId: USER, highlight: aHighlight(), replacedIds: [nextId()] }),
+			store.createHighlight({ userId: USER, highlights: [aHighlight()], replacedIds: [nextId()] }),
 		).rejects.toBe(error);
 	});
 
@@ -295,8 +356,8 @@ describe("initDynamoDbHighlights", () => {
 		const store = initStore(table.client);
 		const kept = aHighlight();
 		const removed = aHighlight();
-		await store.createHighlight({ userId: USER, highlight: kept, replacedIds: [] });
-		await store.createHighlight({ userId: USER, highlight: removed, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [kept], replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [removed], replacedIds: [] });
 
 		assert.deepEqual(
 			await store.deleteHighlight({ userId: USER, url: ARTICLE, highlightId: removed.highlightId }),
@@ -314,9 +375,9 @@ describe("initDynamoDbHighlights", () => {
 		const store = initStore(table.client);
 		const onNested = aHighlight({ highlightOf: NESTED_ARTICLE });
 		for (const highlight of [aHighlight(), aHighlight(), aHighlight()]) {
-			await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+			await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 		}
-		await store.createHighlight({ userId: USER, highlight: onNested, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [onNested], replacedIds: [] });
 
 		await store.deleteArticleHighlights({ userId: USER, url: ARTICLE });
 
@@ -328,10 +389,10 @@ describe("initDynamoDbHighlights", () => {
 		const table = createFakeTable();
 		const store = initStore(table.client);
 		for (const url of [ARTICLE, ARTICLE, NESTED_ARTICLE, "example.org/z", "example.org/w"]) {
-			await store.createHighlight({ userId: USER, highlight: aHighlight({ highlightOf: url }), replacedIds: [] });
+			await store.createHighlight({ userId: USER, highlights: [aHighlight({ highlightOf: url })], replacedIds: [] });
 		}
 		const otherUsers = aHighlight();
-		await store.createHighlight({ userId: OTHER_USER, highlight: otherUsers, replacedIds: [] });
+		await store.createHighlight({ userId: OTHER_USER, highlights: [otherUsers], replacedIds: [] });
 		table.seed({ userId: USER, url: ARTICLE, savedAt: "2026-11-01T10:00:00.000Z" });
 
 		await store.deleteAllUserHighlights(USER);
@@ -349,9 +410,9 @@ describe("initDynamoDbHighlights", () => {
 		const store = initStore(table.client);
 		const mine = [ARTICLE, ARTICLE, NESTED_ARTICLE].map((url) => aHighlight({ highlightOf: url }));
 		for (const highlight of mine) {
-			await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+			await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 		}
-		await store.createHighlight({ userId: OTHER_USER, highlight: aHighlight(), replacedIds: [] });
+		await store.createHighlight({ userId: OTHER_USER, highlights: [aHighlight()], replacedIds: [] });
 		table.seed({ userId: USER, url: ARTICLE, savedAt: "2026-11-01T10:00:00.000Z" });
 
 		const listed = await store.listAllUserHighlights(USER);
@@ -371,7 +432,7 @@ describe("initDynamoDbHighlights", () => {
 			const table = createFakeTable();
 			const store = initStore(table.client);
 			const highlight = aHighlight({ anchorRevision: 3 });
-			await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+			await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
 			const outcome = await store.updateHighlightNote({
 				userId: USER,
@@ -396,7 +457,7 @@ describe("initDynamoDbHighlights", () => {
 			const table = createFakeTable();
 			const store = initStore(table.client);
 			const highlight = aHighlight({ note: "old" });
-			await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+			await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
 			const outcome = await store.updateHighlightNote({
 				userId: USER,
@@ -415,7 +476,7 @@ describe("initDynamoDbHighlights", () => {
 			const table = createFakeTable();
 			const store = initStore(table.client);
 			const highlight = aHighlight({ note: "old" });
-			await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+			await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
 			const outcome = await store.updateHighlightNote({
 				userId: USER,

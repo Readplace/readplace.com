@@ -6,6 +6,7 @@ export {
 export {
 	HIGHLIGHT_CONTEXT_LENGTH,
 	HIGHLIGHT_MAX_EXACT_LENGTH,
+	HIGHLIGHT_MAX_SELECTION_LENGTH,
 	normaliseText,
 	describeRange,
 	anchorHighlight,
@@ -17,3 +18,5 @@ export {
 	type AnchorableHighlight,
 	type Anchor,
 } from "./text-anchoring";
+export { cutRange } from "./cut-range";
+export { sentenceBoundsAt } from "./sentence-bounds";

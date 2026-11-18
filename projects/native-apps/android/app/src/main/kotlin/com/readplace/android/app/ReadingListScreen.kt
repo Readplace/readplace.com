@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import com.readplace.android.core.Affordance
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
+import com.readplace.android.core.OfflineReading
 import com.readplace.android.core.Readlist
 import com.readplace.android.core.ReadlistTab
 import com.readplace.android.core.ServerMessage
@@ -278,7 +279,7 @@ fun ReadingListScreen(
 					when {
 						state.isLoading && state.articles.isEmpty() ->
 							CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-						state.articles.isEmpty() -> EmptyState(modifier = Modifier.align(Alignment.Center))
+						state.articles.isEmpty() -> EmptyState(isOffline = state.isOffline, modifier = Modifier.align(Alignment.Center))
 						else -> ArticleList(
 							state = state,
 							clock = clock,
@@ -297,25 +298,21 @@ fun ReadingListScreen(
 			if (messages.isNotEmpty()) {
 				Banner(
 					text = messages.joinToString(separator = "\n") { it.plainText },
-					color = if (messages.any { it.kind == ServerMessage.Kind.ERROR }) {
-						LocalBrandColors.current.error
-					} else {
-						LocalBrandColors.current.warning
-					},
+					tone = if (messages.any { it.kind == ServerMessage.Kind.ERROR }) BannerTone.ERROR else BannerTone.WARNING,
 					onDismiss = viewModel::dismissMessages,
 					modifier = bottom,
 				)
 			} else if (errorText != null) {
 				Banner(
 					text = errorText,
-					color = LocalBrandColors.current.error,
+					tone = BannerTone.ofError(errorText),
 					onDismiss = viewModel::dismissError,
 					modifier = bottom,
 				)
 			} else if (warningText != null) {
 				Banner(
 					text = warningText,
-					color = LocalBrandColors.current.warning,
+					tone = BannerTone.WARNING,
 					onDismiss = viewModel::dismissWarning,
 					modifier = bottom,
 				)
@@ -829,46 +826,63 @@ private fun Modifier.longPressAheadOfTap(onLongPress: () -> Unit): Modifier =
 	}
 
 @Composable
-private fun EmptyState(modifier: Modifier = Modifier) {
+private fun EmptyState(isOffline: Boolean, modifier: Modifier = Modifier) {
 	Column(
 		modifier = modifier.padding(40.dp),
 		verticalArrangement = Arrangement.spacedBy(12.dp),
 		horizontalAlignment = Alignment.CenterHorizontally,
 	) {
 		Icon(
-			imageVector = Glyph.TRAY,
+			imageVector = if (isOffline) Glyph.WIFI_OFF else Glyph.TRAY,
 			contentDescription = null,
 			modifier = Modifier.size(44.dp),
 			tint = MaterialTheme.colorScheme.onSurfaceVariant,
 		)
-		Text(text = "Nothing saved yet", style = MaterialTheme.typography.titleMedium)
-		Text(
-			text = "Open a link in any app, tap Share, and choose Readplace. Tap + for help.",
-			style = MaterialTheme.typography.bodyMedium,
-			color = MaterialTheme.colorScheme.onSurfaceVariant,
-			textAlign = TextAlign.Center,
-		)
+		if (isOffline) {
+			Text(
+				text = OfflineReading.EMPTY_LIST_TEXT,
+				style = MaterialTheme.typography.titleMedium,
+				textAlign = TextAlign.Center,
+			)
+		} else {
+			Text(text = "Nothing saved yet", style = MaterialTheme.typography.titleMedium)
+			Text(
+				text = "Open a link in any app, tap Share, and choose Readplace. Tap + for help.",
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+				textAlign = TextAlign.Center,
+			)
+		}
 	}
 }
 
 @Composable
-private fun Banner(text: String, color: Color, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+private fun Banner(text: String, tone: BannerTone, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+	val colors = LocalBrandColors.current
+	val fill = when (tone) {
+		BannerTone.OFFLINE -> colors.secondary
+		BannerTone.ERROR -> colors.error
+		BannerTone.WARNING -> colors.warning
+	}
+	val ink = if (tone == BannerTone.OFFLINE) colors.textPrimary else Color.White
+	val backdrop = if (tone == BannerTone.OFFLINE) colors.surface else Color.Transparent
 	Row(
 		modifier = modifier
+			.background(backdrop)
 			.padding(16.dp)
 			.fillMaxWidth()
-			.background(color, RoundedCornerShape(10.dp))
+			.background(fill, RoundedCornerShape(10.dp))
 			.padding(12.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
 		Text(
 			text = text,
 			style = MaterialTheme.typography.bodySmall,
-			color = Color.White,
+			color = ink,
 			modifier = Modifier.weight(1f),
 		)
 		IconButton(onClick = onDismiss) {
-			Icon(imageVector = Glyph.CLOSE_CIRCLE, contentDescription = "Dismiss", tint = Color.White)
+			Icon(imageVector = Glyph.CLOSE_CIRCLE, contentDescription = "Dismiss", tint = ink)
 		}
 	}
 }
@@ -932,6 +946,13 @@ private object Glyph {
 		name = "Tray",
 		pathData = "M19 3H4.99c-1.11 0-1.98.89-1.98 2L3 19c0 1.1.88 2 1.99 2H19c1.1 0 2-.9 2-2V5c0-" +
 			"1.11-.9-2-2-2zm0 12h-4c0 1.66-1.35 3-3 3s-3-1.34-3-3H4.99V5H19v10z",
+	)
+	val WIFI_OFF: ImageVector = materialGlyph(
+		name = "WifiOff",
+		pathData = "M22.99 9C19.15 5.16 13.8 3.76 8.84 4.78l2.52 2.52c3.47-.17 6.99 1.05 9.63 3.7l2-2zm-4 " +
+			"4c-1.29-1.29-2.84-2.13-4.49-2.56l3.53 3.53.96-.97zM2 3.05L5.07 6.1C3.6 6.82 2.22 7.78 1 9l1.99 " +
+			"2c1.24-1.24 2.67-2.16 4.2-2.77l2.24 2.24C7.81 10.89 6.27 11.73 5 13v.01L6.99 15c1.36-1.36 3.14-2.04 " +
+			"4.92-2.06L18.98 20l1.27-1.26L3.29 1.79 2 3.05zM9 17l3 3 3-3c-1.65-1.66-4.34-1.66-6 0z",
 	)
 	val CLOSE_CIRCLE: ImageVector = materialGlyph(
 		name = "CloseCircle",

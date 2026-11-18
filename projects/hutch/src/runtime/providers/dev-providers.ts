@@ -665,6 +665,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge: devStripeSubscriptions.findSubscriptionNextCharge,
+		findSubscriptionPaymentMethod: devStripeSubscriptions.findSubscriptionPaymentMethod,
 		listInvoices: devStripeSubscriptions.listInvoices,
 		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
 		paymentMethods: devPaymentMethods,

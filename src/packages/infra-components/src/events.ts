@@ -1138,18 +1138,32 @@ export const CrawlEmailLinkPreview = defineEvent({
 });
 export type CrawlEmailLinkPreviewDetail = z.infer<typeof CrawlEmailLinkPreview.detailSchema>;
 
+const TriagedLinkSchema = z.object({ ordinal: z.string(), url: z.string(), anchorText: z.string() });
+
 export const EmailLinksTriagedEvent = defineEvent({
 	name: "email-links-triaged",
 	source: "hutch.inbox",
 	detailType: "EmailLinksTriaged",
-	detailSchema: z.object({
-		userId: UserIdSchema,
-		receivedAtMessageId: z.string(),
-		readlist: z.string(),
-		senderEmail: z.string(),
-		subject: z.string(),
-		links: z.array(z.object({ ordinal: z.string(), url: z.string(), anchorText: z.string() })),
-	}),
+	detailSchema: z.discriminatedUnion("scope", [
+		z.object({
+			scope: z.literal("email"),
+			userId: UserIdSchema,
+			receivedAtMessageId: z.string(),
+			readlist: z.string(),
+			senderEmail: z.string(),
+			subject: z.string(),
+			links: z.array(TriagedLinkSchema),
+		}),
+		z.object({
+			scope: z.literal("link"),
+			userId: UserIdSchema,
+			receivedAtMessageId: z.string(),
+			readlist: z.string(),
+			senderEmail: z.string(),
+			subject: z.string(),
+			links: z.tuple([TriagedLinkSchema]),
+		}),
+	]),
 });
 export type EmailLinksTriagedDetail = z.infer<typeof EmailLinksTriagedEvent.detailSchema>;
 
@@ -1175,6 +1189,7 @@ export const EmailLinksFilteredEvent = defineEvent({
 	source: "hutch.save-link",
 	detailType: "EmailLinksFiltered",
 	detailSchema: z.object({
+		scope: z.enum(["email", "link"]),
 		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		readlist: z.string(),

@@ -1,6 +1,15 @@
 <section class="view__end-cta" aria-labelledby="view-end-cta-heading" data-test-view-end-cta>
   <div class="reading-frame">
     <h2 id="view-end-cta-heading" class="view__end-cta-heading">{{heading}}</h2>
+    {{#if founderPortraitUrl}}
+    <div class="view__end-cta-signed" data-test-view-end-cta-signed>
+      <img class="view__end-cta-avatar" src="{{founderPortraitUrl}}" alt="" width="40" height="40" aria-hidden="true">
+      <div class="view__end-cta-signed-text">
+        <p class="view__end-cta-signed-line">{{t "view.endCta.founderLine"}}</p>
+        <p class="view__end-cta-signed-by">{{t "view.endCta.founderSignOff"}}</p>
+      </div>
+    </div>
+    {{/if}}
     {{#each lines}}
     <p class="view__end-cta-line">{{this}}</p>
     {{/each}}

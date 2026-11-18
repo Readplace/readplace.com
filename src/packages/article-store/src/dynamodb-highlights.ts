@@ -146,35 +146,37 @@ export function initDynamoDbHighlights(deps: {
 			.sort((a, b) => a.orderKey - b.orderKey || a.highlightId.localeCompare(b.highlightId));
 	};
 
-	const createHighlight: CreateHighlight = async ({ userId, highlight, replacedIds }) => {
-		const item = toItem({ userId, highlight });
-		if (replacedIds.length === 0) {
+	const createHighlight: CreateHighlight = async ({ userId, highlights: created, replacedIds }) => {
+		const [first] = created;
+		assert(first, "createHighlight needs at least one highlight");
+		const status = replacedIds.length === 0 ? "created" : "merged";
+		if (created.length === 1 && replacedIds.length === 0) {
 			const outcome = await writeIfCondition(() =>
 				highlights.put({
-					Item: item,
+					Item: toItem({ userId, highlight: first }),
 					ConditionExpression: "attribute_not_exists(#url)",
 					ExpressionAttributeNames: { "#url": "url" },
 				}),
 			);
 			if (outcome.kind === "condition-failed") return { status: "cancelled" };
-			return { status: "created", highlight, replacedIds };
+			return { status, highlights: created, replacedIds };
 		}
 		try {
 			await deps.client.send(
 				new TransactWriteCommand({
 					TransactItems: [
-						{
+						...created.map((highlight) => ({
 							Put: {
 								TableName: tableName,
-								Item: item,
+								Item: toItem({ userId, highlight }),
 								ConditionExpression: "attribute_not_exists(#url)",
 								ExpressionAttributeNames: { "#url": "url" },
 							},
-						},
+						})),
 						...replacedIds.map((highlightId) => ({
 							Delete: {
 								TableName: tableName,
-								Key: { userId, url: highlightKey({ url: highlight.highlightOf, highlightId }) },
+								Key: { userId, url: highlightKey({ url: first.highlightOf, highlightId }) },
 								ConditionExpression: "attribute_exists(#url)",
 								ExpressionAttributeNames: { "#url": "url" },
 							},
@@ -186,7 +188,7 @@ export function initDynamoDbHighlights(deps: {
 			if (error instanceof TransactionCanceledException) return { status: "cancelled" };
 			throw error;
 		}
-		return { status: "merged", highlight, replacedIds };
+		return { status, highlights: created, replacedIds };
 	};
 
 	const deleteHighlight: DeleteHighlight = async ({ userId, url, highlightId }) => {

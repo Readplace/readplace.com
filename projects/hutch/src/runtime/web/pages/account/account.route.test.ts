@@ -1240,6 +1240,10 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 			plan: "monthly",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId });
+		subscriptionBilling.seedSubscriptionPaymentMethod({
+			subscriptionId: "sub_was_monthly",
+			paymentMethodId: "pm_was_monthly",
+		});
 
 		const response = await agent.get("/account");
 		const doc = new JSDOM(response.text).window.document;
@@ -1683,7 +1687,7 @@ describe("POST /account/subscribe", () => {
 		expect(checkoutCalls[0].trialEndsAt).toBeUndefined();
 	});
 
-	it("Phase 3: cancelled user with customerId resubscribes in ONE click via Stripe subscriptions.create (NO checkout UI)", async () => {
+	it("Phase 3: cancelled user with customerId resubscribes in ONE click via Stripe subscriptions.create (NO checkout UI), charging the card their last subscription held", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders, subscriptionBilling } = harness;
 		const { agent, userId } = await loginUser(harness, "one-click@example.com");
@@ -1693,6 +1697,10 @@ describe("POST /account/subscribe", () => {
 			customerId: "cus_was_paid",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId });
+		subscriptionBilling.seedSubscriptionPaymentMethod({
+			subscriptionId: "sub_was_paid",
+			paymentMethodId: "pm_from_checkout",
+		});
 
 		const response = await agent.post("/account/subscribe");
 
@@ -1706,6 +1714,7 @@ describe("POST /account/subscribe", () => {
 		// userId rides into Stripe metadata so the subscription is traceable to this account.
 		expect(created[0].userId).toBe(userId);
 		expect(created[0].onUnpaidFirstInvoice).toBe("refuse");
+		expect(created[0].paymentMethodId).toBe("pm_from_checkout");
 
 		// Row is now active with the NEW subscriptionId, replacing sub_was_paid.
 		const row = await subscriptionProviders.findByUserId(userId);
@@ -1747,6 +1756,10 @@ describe("POST /account/subscribe", () => {
 			customerId: "cus_will_fail",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId });
+		harness.subscriptionBilling.seedSubscriptionPaymentMethod({
+			subscriptionId: "sub_was_paid",
+			paymentMethodId: "pm_now_declined",
+		});
 
 		const response = await agent.post("/account/subscribe");
 
@@ -1776,6 +1789,68 @@ describe("POST /account/subscribe", () => {
 		);
 	});
 
+	it("cancelled user whose last subscription holds no card — straight to Checkout as a resubscribe, never a card decline, and no subscription is attempted", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errorLines: string[] = [];
+		fixture.shared.logError = (message: string) => {
+			errorLines.push(message);
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "resub-no-card@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_without_card",
+			customerId: "cus_without_card",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		const location = response.headers.location;
+		assert(
+			typeof location === "string" && location.includes("checkout.stripe.test"),
+			"with no card to charge the reader is sent to Checkout",
+		);
+		expect(subscriptionBilling.createdSubscriptions()).toEqual([]);
+		const started = harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started");
+		expect(started.map((e) => e.variant)).toEqual([CHECKOUT_VARIANTS.cancelledResubscribe]);
+		expect(errorLines).toEqual([]);
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must still exist");
+		expect(row.status).toBe("cancelled");
+	});
+
+	it("cancelled user whose last subscription holds no card but whose customer default does — still resubscribes in one click with the customer's card", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "resub-customer-card@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_without_card",
+			customerId: "cus_with_default",
+		});
+		await subscriptionProviders.markCancelledByUserId({ userId });
+		harness.paymentMethods.seedCards({
+			customerId: "cus_with_default",
+			cards: [card("pm_backup", false, "1111"), card("pm_customer_default", true, "4242")],
+		});
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const created = subscriptionBilling.createdSubscriptions();
+		expect(created).toHaveLength(1);
+		expect(created[0].customerId).toBe("cus_with_default");
+		expect(created[0].paymentMethodId).toBe("pm_customer_default");
+		expect(harness.subscriptionEvents.events.filter((e) => e.event === "checkout_started")).toHaveLength(0);
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("active");
+	});
+
 	it("cancelled user — saved-card charge SUCCEEDS but the active-row upsert throws → 303 /account?error=payment_method, and NOT a card_decline_fallback checkout (the card was already charged, so it is not a decline)", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.subscriptionProviders.upsertActive = async () => {
@@ -1793,6 +1868,10 @@ describe("POST /account/subscribe", () => {
 			customerId: "cus_was_paid",
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
+		});
+		subscriptionBilling.seedSubscriptionPaymentMethod({
+			subscriptionId: "sub_was_paid",
+			paymentMethodId: "pm_was_paid",
 		});
 
 		const response = await agent.post("/account/subscribe");
@@ -1885,6 +1964,10 @@ describe("POST /account/subscribe", () => {
 			customerId: "cus_was_paid",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId });
+		harness.subscriptionBilling.seedSubscriptionPaymentMethod({
+			subscriptionId: "sub_was_paid",
+			paymentMethodId: "pm_was_paid",
+		});
 
 		const response = await agent.post("/account/subscribe");
 
@@ -2007,6 +2090,10 @@ describe("POST /account/subscribe", () => {
 			customerId: "cus_was_paid",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId });
+		harness.subscriptionBilling.seedSubscriptionPaymentMethod({
+			subscriptionId: "sub_was_paid",
+			paymentMethodId: "pm_was_paid",
+		});
 
 		const response = await agent.post("/account/subscribe").set("User-Agent", GOOGLEBOT);
 
@@ -2029,6 +2116,10 @@ describe("POST /account/subscribe", () => {
 			customerId: "cus_was_paid",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId });
+		harness.subscriptionBilling.seedSubscriptionPaymentMethod({
+			subscriptionId: "sub_was_paid",
+			paymentMethodId: "pm_was_paid",
+		});
 
 		const response = await agent.post("/account/subscribe").set("User-Agent", BROWSER_USER_AGENT);
 
@@ -2208,6 +2299,10 @@ describe("POST /account/subscribe (which plan gets charged)", () => {
 			plan: "monthly",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId });
+		subscriptionBilling.seedSubscriptionPaymentMethod({
+			subscriptionId: "sub_was_paid",
+			paymentMethodId: "pm_was_paid",
+		});
 
 		await agent.post("/account/subscribe").type("form").send({ plan: "triennial" });
 
@@ -2230,6 +2325,10 @@ describe("POST /account/subscribe (which plan gets charged)", () => {
 			plan: "monthly",
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId });
+		subscriptionBilling.seedSubscriptionPaymentMethod({
+			subscriptionId: "sub_was_paid",
+			paymentMethodId: "pm_was_paid",
+		});
 
 		await agent.post("/account/subscribe");
 

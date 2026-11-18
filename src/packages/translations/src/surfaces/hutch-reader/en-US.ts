@@ -8,6 +8,17 @@ export const enUS = {
 		highlightToolbar: {
 			beta: "Beta",
 		},
+		highlightNote: {
+			delete: "Delete note",
+		},
+		highlightsRail: {
+			deleteHighlight: "Delete highlight",
+			deleteConfirm: {
+				title: "Delete this highlight?",
+				body: "The passage stays in the article; only your highlight is removed.",
+				bodyWithNote: "The passage stays in the article; your highlight and its note are removed.",
+			},
+		},
 		readerFailed: {
 			title: {
 				linkSaved: "Your link is saved",
@@ -83,6 +94,13 @@ export const enUS = {
 				title: "Sharing is off",
 				body: "This is your private upload, so only you can open it. It has no public link to share.",
 			},
+		},
+	},
+	view: {
+		endCta: {
+			founderLine:
+				"You just read one of my posts in Readplace. I built it so the articles I meant to read would still be there when I had time for them.",
+			founderSignOff: "— Fayner Brack, Founder & CEO",
 		},
 	},
 } as const;

@@ -442,6 +442,8 @@ function flattenFixtureToAppDependencies(
 			fixture.subscriptionBilling.createSubscriptionOnExistingCustomer,
 		findSubscriptionNextCharge:
 			fixture.subscriptionBilling.findSubscriptionNextCharge,
+		findSubscriptionPaymentMethod:
+			fixture.subscriptionBilling.findSubscriptionPaymentMethod,
 		listInvoices: fixture.subscriptionBilling.listInvoices,
 		reverseScheduledCancellation:
 			fixture.subscriptionBilling.reverseScheduledCancellation,

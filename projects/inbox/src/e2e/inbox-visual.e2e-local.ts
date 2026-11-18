@@ -4,6 +4,7 @@ import {
 	captureCheckpoint,
 	expect,
 	measuredBox,
+	snapToWholePixels,
 	test,
 	type VisualCheckpoint,
 } from "@packages/e2e-harness";
@@ -426,6 +427,7 @@ const articleMenuOpen: VisualCheckpoint = {
 			"data-articles-status",
 			"terminal",
 		);
+		await snapToWholePixels(page, FIRST_ARTICLE_CARD);
 		await page.locator(`${FIRST_ARTICLE_MENU} summary`).click();
 		await expect(page.locator(FIRST_ARTICLE_MENU)).toHaveAttribute("open", "");
 		await expect(page.locator(`${FIRST_ARTICLE_MENU} .menu__panel`)).toBeVisible();

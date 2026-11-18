@@ -251,6 +251,29 @@ describe("initInMemoryInboxEmail", () => {
 		});
 	});
 
+	describe("moveLinkCountToKept", () => {
+		it("moves one link from skipped to kept", async () => {
+			const store = initInMemoryInboxEmail();
+			const entry = makeEntry({ linkCounts: { kept: 2, skipped: 3, truncated: true } });
+			await store.putEmail(entry);
+
+			await store.moveLinkCountToKept({ userId: owner, receivedAtMessageId: entry.receivedAtMessageId });
+
+			const found = await store.getEmail({ userId: owner, receivedAtMessageId: entry.receivedAtMessageId });
+			expect(found?.linkCounts).toEqual({ kept: 3, skipped: 2, truncated: true });
+		});
+
+		it("rejects an email whose links were never counted", async () => {
+			const store = initInMemoryInboxEmail();
+			const entry = makeEntry();
+			await store.putEmail(entry);
+
+			await expect(
+				store.moveLinkCountToKept({ userId: owner, receivedAtMessageId: entry.receivedAtMessageId }),
+			).rejects.toThrow("moveLinkCountToKept requires counted links");
+		});
+	});
+
 	describe("listDeletionReferencesByUserId", () => {
 		it("returns the owner's raw and body S3 keys and message ids without deleting", async () => {
 			const store = initInMemoryInboxEmail();

@@ -324,6 +324,59 @@ export function initDynamoDbInboxEmailLink(deps: {
 			if (outcome.kind === "condition-failed") return "superseded";
 			return "stored";
 		},
+		rescueSkippedLink: async ({ userId, receivedAtMessageId, ordinal }) => {
+			const outcome = await writeIfCondition(() => table.update({
+				Key: {
+					userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+					ordinal,
+				},
+				ConditionExpression: "#status = :skipped",
+				UpdateExpression: "SET #status = :pending REMOVE #skipReason",
+				ExpressionAttributeNames: { "#status": "status", "#skipReason": "skipReason" },
+				ExpressionAttributeValues: { ":skipped": "skipped", ":pending": "pending" },
+			}));
+			if (outcome.kind === "condition-failed") return "not-skipped";
+			return "rescued";
+		},
+		addEligibleArticle: async ({ userId, receivedAtMessageId }) => {
+			await writeIfCondition(() => table.update({
+				Key: {
+					userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+					ordinal: META_SORT_KEY,
+				},
+				ConditionExpression: "attribute_exists(selectedReadlists)",
+				UpdateExpression: "ADD eligibleArticleCount :one",
+				ExpressionAttributeValues: { ":one": 1 },
+			}));
+		},
+		mergeReadlistOutcomeFit: async ({
+			userId,
+			receivedAtMessageId,
+			readlist,
+			entry,
+		}) => {
+			const Key = {
+				userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+				ordinal: `${READLIST_OUTCOME_PREFIX}${readlist}`,
+			};
+			const stored = (await table.get(Key, { consistentRead: true }))?.readlistOutcome;
+			if (stored?.decision !== "filtered") return "not-filtered";
+			if (stored.fit.some((fit) => fit.ordinal === entry.ordinal))
+				return "already-decided";
+			await table.update({
+				Key,
+				ConditionExpression:
+					"readlistOutcome.decision = :filtered AND size(readlistOutcome.fit) = :size",
+				UpdateExpression:
+					"SET readlistOutcome.fit = list_append(readlistOutcome.fit, :entry)",
+				ExpressionAttributeValues: {
+					":filtered": "filtered",
+					":size": stored.fit.length,
+					":entry": [entry],
+				},
+			});
+			return "merged";
+		},
 		putReadlistOutcome: async ({ userId, receivedAtMessageId, outcome }) => {
 			const { purposeVersion, engine, model, ...decided } = outcome;
 			const readlistOutcome: Record<string, unknown> = { ...decided };

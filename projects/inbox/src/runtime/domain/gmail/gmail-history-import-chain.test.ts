@@ -507,6 +507,7 @@ describe("gmail history import chain (inbox half)", () => {
 			pipeline.publishedOf(EmailLinksTriagedEvent).map((entry) => entry.detail),
 			[
 				{
+					scope: "email",
 					userId: READER,
 					receivedAtMessageId,
 					readlist: WORK,
@@ -833,6 +834,7 @@ for (const delivery of ["forward", "import"] as const) {
 		const row = (await pipeline.rows())[0];
 		const recordOutcome = initRecordEmailLinksFilteredHandler({
 			putReadlistOutcome: pipeline.links.putReadlistOutcome,
+			mergeReadlistOutcomeFit: pipeline.links.mergeReadlistOutcomeFit,
 			listLinksByEmail: pipeline.links.listLinksByEmail,
 			logger: Logger.from(noopLogger),
 		});
@@ -840,6 +842,7 @@ for (const delivery of ["forward", "import"] as const) {
 			{
 				"detail-type": "EmailLinksFiltered",
 				detail: {
+					scope: "email",
 					userId: READER,
 					receivedAtMessageId: row.receivedAtMessageId,
 					readlist: WORK,
@@ -851,6 +854,7 @@ for (const delivery of ["forward", "import"] as const) {
 			{
 				"detail-type": "EmailLinksFiltered",
 				detail: {
+					scope: "email",
 					userId: READER,
 					receivedAtMessageId: row.receivedAtMessageId,
 					readlist: LATER,
