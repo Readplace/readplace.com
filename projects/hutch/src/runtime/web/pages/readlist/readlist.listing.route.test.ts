@@ -416,6 +416,7 @@ describe("Readlist routes", () => {
 					metadata: { title: `Paged ${i}`, siteName: "example.com", excerpt: "", wordCount: 0 },
 					estimatedReadTime: MinutesSchema.parse(1),
 					provenance: { kind: "web" },
+					saveTrigger: "manual",
 					savedAt: new Date(Date.UTC(2026, 8, 1, 0, i)),
 				});
 			}
