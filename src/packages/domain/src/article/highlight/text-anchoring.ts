@@ -2,6 +2,7 @@ import type { AnchorState, TextQuoteSelector } from "./highlight";
 
 export const HIGHLIGHT_CONTEXT_LENGTH = 32;
 export const HIGHLIGHT_MAX_EXACT_LENGTH = 8191;
+export const HIGHLIGHT_MAX_SELECTION_LENGTH = 65536;
 export const FUZZY_MAX_ERROR_RATIO = 0.2;
 export const FUZZY_MAX_ERRORS = 256;
 export const MIN_SCORE = 0.8;
@@ -255,33 +256,67 @@ export function anchorHighlight(params: {
 	};
 }
 
+function touches(params: { range: TextRange; other: TextRange }): boolean {
+	return params.other.start <= params.range.end && params.other.end >= params.range.start;
+}
+
+function overlaps(params: { range: TextRange; other: TextRange }): boolean {
+	return params.other.start < params.range.end && params.other.end > params.range.start;
+}
+
+function distanceFrom(params: { offset: number; other: TextRange }): number {
+	return Math.max(params.other.start - params.offset, params.offset - params.other.end, 0);
+}
+
+function uncoveredParts(params: { range: TextRange; covered: readonly TextRange[] }): TextRange[] {
+	const parts: TextRange[] = [];
+	let cursor = params.range.start;
+	for (const other of [...params.covered].sort((a, b) => a.start - b.start)) {
+		if (other.start > cursor) parts.push({ start: cursor, end: Math.min(other.start, params.range.end) });
+		cursor = Math.max(cursor, other.end);
+	}
+	if (cursor < params.range.end) parts.push({ start: cursor, end: params.range.end });
+	return parts;
+}
+
 export function mergeRanges<R extends TextRange>(params: {
 	range: TextRange;
 	existing: readonly R[];
+	maxLength: number;
+	canMerge: (merged: readonly R[]) => boolean;
 }): {
-	range: TextRange;
 	merged: R[];
+	parts: TextRange[];
+	covering: R[];
 } {
-	let range = params.range;
+	const selection = params.range;
+	const container = params.existing.find((other) => other.start <= selection.start && other.end >= selection.end);
 	const merged: R[] = [];
-	let remaining = [...params.existing];
-	let grew = true;
-	while (grew) {
-		grew = false;
-		const next: R[] = [];
-		for (const other of remaining) {
-			if (other.start <= range.end && other.end >= range.start) {
-				range = {
-					start: Math.min(range.start, other.start),
-					end: Math.max(range.end, other.end),
-				};
-				merged.push(other);
-				grew = true;
-			} else {
-				next.push(other);
-			}
+	const kept: R[] = container === undefined ? [] : [container];
+	let range = selection;
+	while (container === undefined) {
+		const [nearest] = params.existing
+			.filter((other) => !merged.includes(other) && !kept.includes(other) && touches({ range, other }))
+			.sort(
+				(a, b) =>
+					distanceFrom({ offset: selection.start, other: a }) - distanceFrom({ offset: selection.start, other: b }) ||
+					a.start - b.start ||
+					a.end - b.end,
+			);
+		if (nearest === undefined) break;
+		const grown = { start: Math.min(range.start, nearest.start), end: Math.max(range.end, nearest.end) };
+		if (grown.end - grown.start <= params.maxLength && params.canMerge([...merged, nearest])) {
+			merged.push(nearest);
+			range = grown;
+		} else {
+			kept.push(nearest);
 		}
-		remaining = next;
 	}
-	return { range, merged };
+	return {
+		merged,
+		parts: uncoveredParts({ range, covered: kept.filter((other) => overlaps({ range, other })) }),
+		covering: kept
+			.filter((other) => overlaps({ range: selection, other }))
+			.sort((a, b) => a.start - b.start),
+	};
 }

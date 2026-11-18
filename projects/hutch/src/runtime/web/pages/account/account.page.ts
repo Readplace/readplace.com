@@ -52,6 +52,7 @@ import type {
 import type {
 	CreateSubscriptionOnExistingCustomer,
 	FindSubscriptionNextCharge,
+	FindSubscriptionPaymentMethod,
 	ListInvoices,
 	ResolvePriceId,
 	ReverseScheduledCancellation,
@@ -168,6 +169,7 @@ interface AccountDependencies {
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 	createCheckoutSession: CreateCheckoutSession;
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	findSubscriptionPaymentMethod: FindSubscriptionPaymentMethod;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	listCards: ListCards;
 	beginAddCard: BeginAddCard;
@@ -936,14 +938,27 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				redirectFullPage(req, res, checkout.url);
 				return;
 			}
-			let subscriptionId: string;
+			assert(row.subscriptionId, "a cancelled row with a customer keeps its last subscriptionId");
+			const lastSubscriptionId = row.subscriptionId;
+			let charge: { subscriptionId: string } | "no-saved-card";
 			try {
-				({ subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
-					customerId: row.customerId,
-					priceId: await deps.resolvePriceId(plan),
-					userId,
-					onUnpaidFirstInvoice: "refuse",
-				}));
+				const subscriptionCard = await deps.findSubscriptionPaymentMethod({
+					subscriptionId: lastSubscriptionId,
+				});
+				const paymentMethodId =
+					subscriptionCard === undefined
+						? (await deps.listCards({ customerId: row.customerId })).find((card) => card.isPrimary)?.id
+						: subscriptionCard;
+				charge =
+					paymentMethodId === undefined
+						? "no-saved-card"
+						: await deps.createSubscriptionOnExistingCustomer({
+								customerId: row.customerId,
+								priceId: await deps.resolvePriceId(plan),
+								userId,
+								onUnpaidFirstInvoice: "refuse",
+								paymentMethodId,
+							});
 			} catch (err) {
 				deps.logger.error(
 					`[subscribe/cancelled] saved-card charge failed for ${userId} — falling back to checkout: ${
@@ -960,6 +975,22 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				redirectFullPage(req, res, checkout.url);
 				return;
 			}
+			if (charge === "no-saved-card") {
+				deps.logger.warn(
+					"[subscribe/cancelled] no saved card on the last subscription or the customer — starting checkout",
+					{ userId },
+				);
+				const checkout = await startCheckout(req, {
+					trialEndsAt: undefined,
+					variant: CHECKOUT_VARIANTS.cancelledResubscribe,
+					plan,
+					offer: CHECKOUT_OFFERS.none,
+					coupon: null,
+				});
+				redirectFullPage(req, res, checkout.url);
+				return;
+			}
+			const { subscriptionId } = charge;
 			await deps.upsertActiveSubscription({
 				userId,
 				subscriptionId,

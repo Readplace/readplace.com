@@ -49,6 +49,15 @@ TestFlight build for App Store review.
   the upload key in the `prod` environment's `ANDROID_UPLOAD_KEYSTORE_BASE64` and
   `ANDROID_UPLOAD_KEYSTORE_PASSWORD` secrets, alias `upload`. A lost upload key is reset
   through Play Console support; it never locks the app.
+- **What's new text.** Every upload sends `distribution/whatsnew/whatsnew-en-US` as the
+  release's "What's new" text. The file has no extension because the upload action reads the
+  locale from the name after `whatsnew-`; a second language is a second `whatsnew-<locale>`
+  file. Play allows 500 characters per language; count the final newline to be safe. An
+  edit to the file alone uploads nothing, so run the publish workflow by hand
+  (`gh workflow run publish-android-play.yml --ref main`) when the text must reach Play
+  before the next shipping change. iOS sets its note in a second workflow
+  because TestFlight takes one only after it has processed the build; Play takes the text with
+  the upload.
 - **A local signed bundle.** `make bundle VERSION_CODE=<n>` with `READPLACE_UPLOAD_KEYSTORE`
   and `READPLACE_UPLOAD_KEYSTORE_PASSWORD` set. Without them the build fails at
   `validateSigningProductionRelease` rather than producing an unsigned bundle Play rejects.
@@ -107,6 +116,12 @@ the WebView's cookies for our own article link, so a file only its owner may rea
 such as an uploaded book, downloads like any other. The downloader sends those
 headers again on every redirect it follows, so the EPUB route must not redirect to
 another host.
+
+**No landing-tab preference.** iOS remembers the landing tab's href so a cold offline
+launch has a key to look up. Android launches by the remembered readlist href, and
+the stored answer to that href names the tab it landed on, so a failed launch read
+follows that tab's stored copy. Same list, one preference fewer, and no assumption
+about which tab the server lands on.
 
 **A distinct OAuth redirect.** The iOS app is registered against
 `readplace://oauth-callback`; this app is registered against

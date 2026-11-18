@@ -41,10 +41,10 @@ const ARTICLE_HTML = `
 	<p>A second paragraph so the parser has more than the minimum word count to work with.</p>
 </article></body></html>`;
 
-function parsedFixture(): TestAppFixture {
+function parsedFixture(html = ARTICLE_HTML): TestAppFixture {
 	const crawlArticle = async () => ({
 		status: "fetched" as const,
-		html: ARTICLE_HTML,
+		html,
 		bodyHash: "sha256-stub",
 	});
 	const base = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -339,18 +339,18 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(response.text).toContain("That passage changed; select it again");
 	});
 
-	it("answers 422 with a toast when exact is longer than 8191 code units", async () => {
+	it("answers 422 with a toast when exact is longer than 65536 code units", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
 			"https://example.com/highlight-long",
 		);
-		const exact = "x".repeat(8192);
+		const exact = "x".repeat(65_537);
 
 		const response = await agent
 			.post(createPath(articleId))
 			.type("form")
-			.send({ exact, start: "0", end: "8192", origin: "mouse" });
+			.send({ exact, start: "0", end: "65537", origin: "mouse" });
 
 		expect(response.status).toBe(422);
 		expect(response.text).toContain("Select a shorter passage");
@@ -518,6 +518,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			"event",
 			"highlight_id",
 			"origin",
+			"pieces",
 			"stream",
 			"surface",
 			"timestamp",
@@ -526,6 +527,113 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		]);
 		expect(events[0].origin).toBe("mouse");
 		expect(events[0].surface).toBe("web");
+		expect(events[0].pieces).toBe(1);
+	});
+
+	describe("long selections", () => {
+		const sentence = "読書の場所を守る。";
+		const longArticleHtml = (paragraphs: number) => `
+<html><head><title>Long Post</title></head>
+<body><article>
+	<h1>Long Post</h1>
+	${Array.from({ length: paragraphs }, () => `<p>${sentence.repeat(1000)}</p>`).join("\n")}
+</article></body></html>`;
+
+		async function servedText(agent: Agent, articleId: string): Promise<string> {
+			const page = doc((await agent.get(viewPath(articleId))).text);
+			const content = page.querySelector(".article-body__content");
+			assert(content, "the reader must render its content");
+			return normaliseText(collectTextChunks<Node>(content)).text;
+		}
+
+		function highlightRowIds(html: string): string[] {
+			return Array.from(
+				doc(html).querySelectorAll("[data-test-highlight-row]"),
+				(row) => row.getAttribute("data-test-highlight-row") ?? "",
+			);
+		}
+
+		it("accepts a full-length non-Latin selection with a full-length note, whose form is over 100 kB", async () => {
+			const harness = useApp(parsedFixture(longArticleHtml(1)));
+			const { agent, articleId } = await saveArticle(
+				harness,
+				"https://example.com/highlight-full-length-note",
+			);
+			const text = await servedText(agent, articleId);
+			const start = text.indexOf(sentence);
+			const exact = text.slice(start, start + 8191);
+			const form = { ...(await rangeOf(agent, { articleId, exact })), note: "注".repeat(8191) };
+			assert.equal(new URLSearchParams(form).toString().length > 102_400, true);
+
+			const response = await agent.post(createPath(articleId)).type("form").send(form);
+
+			expect(response.status).toBe(303);
+			const reopened = (await agent.get(viewPath(articleId))).text;
+			expect(highlightRowIds(reopened)).toEqual([highlightIdFrom(response.headers.location)]);
+		});
+
+		it("stores a 65536-character non-Latin selection with a full-length note as consecutive highlights", async () => {
+			const harness = useApp(parsedFixture(longArticleHtml(8)));
+			const { agent, articleId } = await saveArticle(
+				harness,
+				"https://example.com/highlight-longest",
+			);
+			const text = await servedText(agent, articleId);
+			const start = text.indexOf(sentence);
+			const exact = text.slice(start, start + 65_536);
+			assert.equal(exact.length, 65_536);
+
+			const response = await agent
+				.post(createPath(articleId))
+				.type("form")
+				.send({ ...(await rangeOf(agent, { articleId, exact })), note: "注".repeat(8191) });
+
+			expect(response.status).toBe(303);
+			const rows = highlightRowIds((await agent.get(viewPath(articleId))).text);
+			expect(rows.length).toBeGreaterThan(8);
+			expect(highlightIdFrom(response.headers.location)).toBe(rows[0]);
+			const events = harness.analytics.events.filter(
+				(event) => event.event === "highlight_created",
+			);
+			expect(events).toHaveLength(1);
+			expect(events[0]).toMatchObject({ highlight_id: rows[0], pieces: rows.length });
+		});
+
+		it("still answers 413 to a form over 100 kB posted to another route", async () => {
+			const harness = useApp(parsedFixture());
+			const { agent } = await saveArticle(
+				harness,
+				"https://example.com/highlight-other-form",
+			);
+
+			const response = await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: `https://example.com/${"x".repeat(150_000)}` });
+
+			expect(response.status).toBe(413);
+		});
+	});
+
+	it("writes nothing for a selection already inside a highlight and lands on that highlight", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-unchanged",
+		);
+		const highlightId = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const response = await agent
+			.post(createPath(articleId))
+			.type("form")
+			.send(await rangeOf(agent, { articleId, exact: "parser" }));
+
+		expect(response.status).toBe(303);
+		expect(highlightIdFrom(response.headers.location)).toBe(highlightId);
+		expect(rowsOf((await agent.get(viewPath(articleId))).text)).toHaveLength(1);
+		expect(
+			harness.analytics.events.filter((event) => event.event === "highlight_created"),
+		).toHaveLength(1);
 	});
 
 	it("records a tap create's origin and highlight id", async () => {
