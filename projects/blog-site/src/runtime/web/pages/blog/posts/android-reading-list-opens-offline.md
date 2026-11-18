@@ -23,7 +23,7 @@ A cold start with no signal works the same way. The app launches into the readli
 
 The kept list appears under the sentence the iPhone app already shows: "Your internet is not working, your reading is offline. Readplace is read-only until you're back online."
 
-Read-only is literal. Archiving, deleting and marking as read wait for the connection, and a row that was still being saved when the signal dropped stops asking the server about its progress. The first live page to arrive ends the offline state. The banner drops, and the rows that were mid-save start checking in again.
+Read-only is literal. Archiving, deleting and marking as read need the connection, and a row that was still being saved when the signal dropped stops asking the server about its progress. The first live page to arrive ends the offline state. The banner drops, and the rows that were mid-save start checking in again.
 
 A phone that holds nothing yet gets a plainer screen: "You're offline. Your reading list will appear once you're back online."
 
