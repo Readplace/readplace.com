@@ -50,6 +50,15 @@ counterpart of dispatching the iOS submit workflow.
   the upload key in the `prod` environment's `ANDROID_UPLOAD_KEYSTORE_BASE64` and
   `ANDROID_UPLOAD_KEYSTORE_PASSWORD` secrets, alias `upload`. A lost upload key is reset
   through Play Console support; it never locks the app.
+- **What's new text.** Every upload sends `distribution/whatsnew/whatsnew-en-US` as the
+  release's "What's new" text. The file has no extension because the upload action reads the
+  locale from the name after `whatsnew-`; a second language is a second `whatsnew-<locale>`
+  file. Play allows 500 characters per language; count the final newline to be safe. An
+  edit to the file alone uploads nothing, so run the publish workflow by hand
+  (`gh workflow run publish-android-play.yml --ref main`) when the text must reach Play
+  before the next shipping change. iOS sets its note in a second workflow
+  because TestFlight takes one only after it has processed the build; Play takes the text with
+  the upload.
 - **A local signed bundle.** `make bundle VERSION_CODE=<n>` with `READPLACE_UPLOAD_KEYSTORE`
   and `READPLACE_UPLOAD_KEYSTORE_PASSWORD` set. Without them the build fails at
   `validateSigningProductionRelease` rather than producing an unsigned bundle Play rejects.
@@ -62,9 +71,8 @@ counterpart of dispatching the iOS submit workflow.
   permission for the app. Play Console's Promote button still works. When Play answers that
   `changesNotSentForReview` must be set to true, or must not be set, the run fails with Play's
   message and nothing was promoted: promote the release with Play Console's Promote button. A
-  promotion carries the internal release's "What's new" text. While the publish workflow
-  passes no `whatsNewDirectory` to the upload, promote in Play Console, where the text is
-  written.
+  promotion carries the "What's new" text its internal upload sent (see **What's new text**),
+  so land the text before the upload you promote.
 - **Store listing.** The Play listing's text and images live under
   `fastlane/metadata/android/<locale>/` in fastlane supply's own layout, and the manual
   **Publish Android Play listing** workflow pushes them. Play's limits as of 2026-11-12:
@@ -120,6 +128,12 @@ the WebView's cookies for our own article link, so a file only its owner may rea
 such as an uploaded book, downloads like any other. The downloader sends those
 headers again on every redirect it follows, so the EPUB route must not redirect to
 another host.
+
+**No landing-tab preference.** iOS remembers the landing tab's href so a cold offline
+launch has a key to look up. Android launches by the remembered readlist href, and
+the stored answer to that href names the tab it landed on, so a failed launch read
+follows that tab's stored copy. Same list, one preference fewer, and no assumption
+about which tab the server lands on.
 
 **A distinct OAuth redirect.** The iOS app is registered against
 `readplace://oauth-callback`; this app is registered against
@@ -217,6 +231,19 @@ once doubled every screenshot. Play's API has no draft a caller can choose: an e
 committed or discarded, so a validate-only run stands in for the draft. A Play edit is one
 transaction and supply skips an image whose checksum Play already holds, so there is
 nothing to read back.
+
+**The launcher icon is a vector; the login mark is the iOS script's output.** iOS runs a
+script for its App Store icon because the store takes a 1024px PNG with no alpha.
+Android's launcher is an adaptive icon whose foreground is a vector drawable, and
+`minSdk` 29 needs no PNG fallback, so no script renders it. The login screen's six
+`brand_mark.png` drawables are written by the iOS
+[`scripts/make-brandmark.sh`](../ios/scripts/make-brandmark.sh) and are never edited by
+hand. When the mark changes, run that script, then paste the new ampersand path into the
+launcher foreground vector (grep the resource tree for the old path's opening,
+`M204.28 400Q`). If the amber dot moves, also change the circle path beside the
+ampersand in the same vector, written as an arc starting at cx+r, and the dot centre the
+login screen holds for its replay tap target (grep the Kotlin sources for
+`DOT_CENTER_X`); iOS holds the same constants by hand.
 
 ## Version pins that are not "the latest"
 

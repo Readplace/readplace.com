@@ -41,9 +41,9 @@ describe("initInMemoryHighlights", () => {
 		const earlyA = aHighlight({ orderKey: 1 });
 		const earlyB = aHighlight({ orderKey: 1 });
 		for (const highlight of [late, earlyB, earlyA]) {
-			assert.deepEqual(await store.createHighlight({ userId: USER, highlight, replacedIds: [] }), {
+			assert.deepEqual(await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] }), {
 				status: "created",
-				highlight,
+				highlights: [highlight],
 				replacedIds: [],
 			});
 		}
@@ -57,8 +57,8 @@ describe("initInMemoryHighlights", () => {
 		const store = initInMemoryHighlights();
 		const onX = aHighlight();
 		const onNested = aHighlight({ highlightOf: NESTED_ARTICLE });
-		await store.createHighlight({ userId: USER, highlight: onX, replacedIds: [] });
-		await store.createHighlight({ userId: USER, highlight: onNested, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [onX], replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [onNested], replacedIds: [] });
 
 		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [onX]);
 		assert.deepEqual(await store.listArticleHighlights({ userId: OTHER_USER, url: ARTICLE }), []);
@@ -67,24 +67,53 @@ describe("initInMemoryHighlights", () => {
 	it("merges by replacing the named rows", async () => {
 		const store = initInMemoryHighlights();
 		const first = aHighlight();
-		await store.createHighlight({ userId: USER, highlight: first, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [first], replacedIds: [] });
 		const merged = aHighlight({ end: 20 });
 
-		const outcome = await store.createHighlight({ userId: USER, highlight: merged, replacedIds: [first.highlightId] });
+		const outcome = await store.createHighlight({ userId: USER, highlights: [merged], replacedIds: [first.highlightId] });
 
-		assert.deepEqual(outcome, { status: "merged", highlight: merged, replacedIds: [first.highlightId] });
+		assert.deepEqual(outcome, { status: "merged", highlights: [merged], replacedIds: [first.highlightId] });
 		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [merged]);
+	});
+
+	it("creates several highlights at once, replacing the named rows", async () => {
+		const store = initInMemoryHighlights();
+		const replaced = aHighlight({ orderKey: 5 });
+		await store.createHighlight({ userId: USER, highlights: [replaced], replacedIds: [] });
+		const before = aHighlight({ orderKey: 0 });
+		const after = aHighlight({ orderKey: 15 });
+
+		const outcome = await store.createHighlight({
+			userId: USER,
+			highlights: [before, after],
+			replacedIds: [replaced.highlightId],
+		});
+
+		assert.deepEqual(outcome, { status: "merged", highlights: [before, after], replacedIds: [replaced.highlightId] });
+		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [before, after]);
+	});
+
+	it("creates none of several highlights when one of their ids is taken", async () => {
+		const store = initInMemoryHighlights();
+		const existing = aHighlight({ orderKey: 0 });
+		await store.createHighlight({ userId: USER, highlights: [existing], replacedIds: [] });
+
+		assert.deepEqual(
+			await store.createHighlight({ userId: USER, highlights: [aHighlight({ orderKey: 9 }), existing], replacedIds: [] }),
+			{ status: "cancelled" },
+		);
+		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), [existing]);
 	});
 
 	it("cancels a merge whose replaced row is already gone, or a create whose id is taken", async () => {
 		const store = initInMemoryHighlights();
 		const existing = aHighlight();
-		await store.createHighlight({ userId: USER, highlight: existing, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [existing], replacedIds: [] });
 
-		assert.deepEqual(await store.createHighlight({ userId: USER, highlight: aHighlight(), replacedIds: [nextId()] }), {
+		assert.deepEqual(await store.createHighlight({ userId: USER, highlights: [aHighlight()], replacedIds: [nextId()] }), {
 			status: "cancelled",
 		});
-		assert.deepEqual(await store.createHighlight({ userId: USER, highlight: existing, replacedIds: [] }), {
+		assert.deepEqual(await store.createHighlight({ userId: USER, highlights: [existing], replacedIds: [] }), {
 			status: "cancelled",
 		});
 	});
@@ -93,20 +122,20 @@ describe("initInMemoryHighlights", () => {
 		const store = initInMemoryHighlights();
 		store.setCreateCancelled(true);
 
-		assert.deepEqual(await store.createHighlight({ userId: USER, highlight: aHighlight(), replacedIds: [] }), {
+		assert.deepEqual(await store.createHighlight({ userId: USER, highlights: [aHighlight()], replacedIds: [] }), {
 			status: "cancelled",
 		});
 		assert.deepEqual(await store.listArticleHighlights({ userId: USER, url: ARTICLE }), []);
 
 		store.setCreateCancelled(false);
 		const highlight = aHighlight();
-		assert.equal((await store.createHighlight({ userId: USER, highlight, replacedIds: [] })).status, "created");
+		assert.equal((await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] })).status, "created");
 	});
 
 	it("bumps a stored row's anchorRevision by one under the same id", async () => {
 		const store = initInMemoryHighlights();
 		const highlight = aHighlight({ anchorRevision: 3 });
-		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
 		store.bumpAnchorRevision({ userId: USER, url: ARTICLE, highlightId: highlight.highlightId });
 
@@ -119,7 +148,7 @@ describe("initInMemoryHighlights", () => {
 	it("deletes one highlight and reports whether it existed", async () => {
 		const store = initInMemoryHighlights();
 		const highlight = aHighlight();
-		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
 		assert.deepEqual(await store.deleteHighlight({ userId: USER, url: ARTICLE, highlightId: highlight.highlightId }), {
 			deleted: true,
@@ -132,8 +161,8 @@ describe("initInMemoryHighlights", () => {
 	it("deleteArticleHighlights of /x leaves /x/y's rows", async () => {
 		const store = initInMemoryHighlights();
 		const onNested = aHighlight({ highlightOf: NESTED_ARTICLE });
-		await store.createHighlight({ userId: USER, highlight: aHighlight(), replacedIds: [] });
-		await store.createHighlight({ userId: USER, highlight: onNested, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [aHighlight()], replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [onNested], replacedIds: [] });
 
 		await store.deleteArticleHighlights({ userId: USER, url: ARTICLE });
 
@@ -144,9 +173,9 @@ describe("initInMemoryHighlights", () => {
 	it("deleteAllUserHighlights removes only that reader's rows", async () => {
 		const store = initInMemoryHighlights();
 		const others = aHighlight();
-		await store.createHighlight({ userId: USER, highlight: aHighlight(), replacedIds: [] });
-		await store.createHighlight({ userId: USER, highlight: aHighlight({ highlightOf: NESTED_ARTICLE }), replacedIds: [] });
-		await store.createHighlight({ userId: OTHER_USER, highlight: others, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [aHighlight()], replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [aHighlight({ highlightOf: NESTED_ARTICLE })], replacedIds: [] });
+		await store.createHighlight({ userId: OTHER_USER, highlights: [others], replacedIds: [] });
 
 		await store.deleteAllUserHighlights(USER);
 
@@ -161,9 +190,9 @@ describe("initInMemoryHighlights listAllUserHighlights", () => {
 		const store = initInMemoryHighlights();
 		const onX = aHighlight();
 		const onNested = aHighlight({ highlightOf: NESTED_ARTICLE });
-		await store.createHighlight({ userId: USER, highlight: onX, replacedIds: [] });
-		await store.createHighlight({ userId: USER, highlight: onNested, replacedIds: [] });
-		await store.createHighlight({ userId: OTHER_USER, highlight: aHighlight(), replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [onX], replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [onNested], replacedIds: [] });
+		await store.createHighlight({ userId: OTHER_USER, highlights: [aHighlight()], replacedIds: [] });
 
 		assert.deepEqual(await store.listAllUserHighlights(USER), [onX, onNested]);
 	});
@@ -184,9 +213,9 @@ describe("initInMemoryHighlights anchors", () => {
 		const store = initInMemoryHighlights();
 		const mine = aHighlight({ highlightOf: POST });
 		const theirs = aHighlight({ highlightOf: POST });
-		await store.createHighlight({ userId: USER, highlight: mine, replacedIds: [] });
-		await store.createHighlight({ userId: OTHER_USER, highlight: theirs, replacedIds: [] });
-		await store.createHighlight({ userId: USER, highlight: aHighlight({ highlightOf: OTHER_POST }), replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [mine], replacedIds: [] });
+		await store.createHighlight({ userId: OTHER_USER, highlights: [theirs], replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [aHighlight({ highlightOf: OTHER_POST })], replacedIds: [] });
 
 		assert.deepEqual(await store.listHighlightsOfArticle("https://EXAMPLE.com/post"), [
 			{ userId: USER, highlight: mine },
@@ -197,7 +226,7 @@ describe("initInMemoryHighlights anchors", () => {
 	it("writes the anchor, bumps anchorRevision and keeps updatedAt", async () => {
 		const store = initInMemoryHighlights();
 		const seeded = aHighlight({ highlightOf: POST, anchoredCandidateId: CandidateIdSchema.parse("candidate-1") });
-		await store.createHighlight({ userId: USER, highlight: seeded, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [seeded], replacedIds: [] });
 
 		const result = await store.writeHighlightAnchor({
 			userId: USER,
@@ -217,7 +246,7 @@ describe("initInMemoryHighlights anchors", () => {
 	it("writes the new candidate id with the anchor", async () => {
 		const store = initInMemoryHighlights();
 		const seeded = aHighlight({ highlightOf: POST });
-		await store.createHighlight({ userId: USER, highlight: seeded, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [seeded], replacedIds: [] });
 		const anchoredCandidateId = CandidateIdSchema.parse("candidate-2");
 
 		await store.writeHighlightAnchor({
@@ -235,7 +264,7 @@ describe("initInMemoryHighlights anchors", () => {
 	it("answers deleted for a missing row and stale for a moved-on revision", async () => {
 		const store = initInMemoryHighlights();
 		const seeded = aHighlight({ highlightOf: POST, anchorRevision: 2 });
-		await store.createHighlight({ userId: USER, highlight: seeded, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [seeded], replacedIds: [] });
 
 		assert.deepEqual(
 			await store.writeHighlightAnchor({ userId: USER, url: POST, highlightId: nextId(), expectedRevision: 0, anchor }),
@@ -261,7 +290,7 @@ describe("initInMemoryHighlights notes", () => {
 	it("sets a note on a noteless row, moves updatedAt and keeps the anchor revision", async () => {
 		const store = initInMemoryHighlights();
 		const highlight = aHighlight({ anchorRevision: 2 });
-		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
 		const outcome = await store.updateHighlightNote({
 			userId: USER,
@@ -280,7 +309,7 @@ describe("initInMemoryHighlights notes", () => {
 	it("replaces a note and reports that it had one", async () => {
 		const store = initInMemoryHighlights();
 		const highlight = aHighlight({ note: "old" });
-		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
 		const outcome = await store.updateHighlightNote({
 			userId: USER,
@@ -298,7 +327,7 @@ describe("initInMemoryHighlights notes", () => {
 	it("clears the note when none is given", async () => {
 		const store = initInMemoryHighlights();
 		const highlight = aHighlight({ note: "old" });
-		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
 		const outcome = await store.updateHighlightNote({
 			userId: USER,
@@ -317,7 +346,7 @@ describe("initInMemoryHighlights notes", () => {
 	it("answers updated false for a missing row or another reader's", async () => {
 		const store = initInMemoryHighlights();
 		const highlight = aHighlight();
-		await store.createHighlight({ userId: USER, highlight, replacedIds: [] });
+		await store.createHighlight({ userId: USER, highlights: [highlight], replacedIds: [] });
 
 		for (const params of [
 			{ userId: USER, highlightId: nextId() },

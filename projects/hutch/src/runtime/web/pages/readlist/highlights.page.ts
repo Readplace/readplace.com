@@ -11,6 +11,7 @@ import {
 } from "@packages/domain/article";
 import {
 	collectTextChunks,
+	HIGHLIGHT_MAX_SELECTION_LENGTH,
 	normaliseText,
 } from "@packages/domain/article/highlight";
 import { DEFAULT_LOCALE } from "@packages/translations/locale";
@@ -50,6 +51,12 @@ const CreateHighlightBodySchema = z
 		answer: z.literal("dialog").optional(),
 	})
 	.refine((body) => body.start <= body.end);
+
+const HIGHLIGHT_CREATE_PATH = new RegExp(`^${READLIST_PATH}/[^/]+/highlights$`);
+
+export function isHighlightCreateRequest(req: Request): boolean {
+	return req.method === "POST" && HIGHLIGHT_CREATE_PATH.test(req.path);
+}
 
 const HighlightOpenedQuerySchema = z.object({
 	highlight: HighlightIdSchema,
@@ -126,7 +133,7 @@ export function initHighlightRoutes(
 		"/:id/highlights",
 		requireNotLocked,
 		deps.requireWriteAccess,
-		express.urlencoded({ extended: false }),
+		express.urlencoded({ extended: false, limit: "1mb" }),
 		async (req: Request<{ id: string }>, res: Response) => {
 			assert(
 				req.userId,
@@ -189,6 +196,10 @@ export function initHighlightRoutes(
 					markViewed: false,
 				});
 			};
+			if (body.data.exact.length > HIGHLIGHT_MAX_SELECTION_LENGTH) {
+				await refuse("too-long");
+				return;
+			}
 			const stored = await deps.readArticleContent({
 				url: article.url,
 				viewer: viewerFor(userId),
@@ -221,6 +232,16 @@ export function initHighlightRoutes(
 				end: body.data.end + offset,
 				note: body.data.note,
 			});
+			if (
+				outcome.status === "passage-changed" ||
+				outcome.status === "notes-too-long" ||
+				outcome.status === "cancelled"
+			) {
+				await refuse(outcome.status);
+				return;
+			}
+			const landing =
+				"highlight" in outcome ? outcome.highlight : outcome.highlights[0];
 			if (outcome.status === "created" || outcome.status === "merged") {
 				deps.recordAnalyticsEvent(req, {
 					stream: STREAMS.analytics,
@@ -229,40 +250,39 @@ export function initHighlightRoutes(
 					user_id: userId,
 					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					origin: body.data.origin,
-					highlight_id: outcome.highlight.highlightId,
+					highlight_id: landing.highlightId,
+					pieces: outcome.highlights.length,
 					surface: nativeSurfaceOf(req) ?? "web",
 				});
-				if (body.data.note !== undefined) {
-					deps.recordAnalyticsEvent(req, {
-						stream: STREAMS.analytics,
-						event: ANALYTICS_EVENTS.highlightNoteSaved,
-						timestamp: deps.now().toISOString(),
-						user_id: userId,
-						visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
-						action: "added",
-					});
-				}
-				if (inDialog) {
-					answerReadlistNaming(req, res, {
-						dialogId: HIGHLIGHT_NOTE_DIALOG_ID,
-						naming: {
-							landing: viewPath,
-							scroll: "stay-put",
-							...(pushesHistory(scope) ? {} : { push: false as const }),
-						},
-					});
-					return;
-				}
-				res.redirect(
-					303,
-					highlightReaderLocation({
-						...scope,
-						fragment: { highlightId: outcome.highlight.highlightId },
-					}),
-				);
+			}
+			if (body.data.note !== undefined) {
+				deps.recordAnalyticsEvent(req, {
+					stream: STREAMS.analytics,
+					event: ANALYTICS_EVENTS.highlightNoteSaved,
+					timestamp: deps.now().toISOString(),
+					user_id: userId,
+					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
+					action: "added",
+				});
+			}
+			if (inDialog) {
+				answerReadlistNaming(req, res, {
+					dialogId: HIGHLIGHT_NOTE_DIALOG_ID,
+					naming: {
+						landing: viewPath,
+						scroll: "stay-put",
+						...(pushesHistory(scope) ? {} : { push: false as const }),
+					},
+				});
 				return;
 			}
-			await refuse(outcome.status);
+			res.redirect(
+				303,
+				highlightReaderLocation({
+					...scope,
+					fragment: { highlightId: landing.highlightId },
+				}),
+			);
 		},
 	);
 

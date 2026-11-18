@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
 	HIGHLIGHT_CONTEXT_LENGTH,
 	HIGHLIGHT_MAX_EXACT_LENGTH,
+	HIGHLIGHT_MAX_SELECTION_LENGTH,
 	anchorHighlight,
 	describeRange,
 	mergeRanges,
@@ -17,6 +18,10 @@ describe("named limits", () => {
 	it("keeps 32 code units of context and caps a quote at 8191", () => {
 		assert.equal(HIGHLIGHT_CONTEXT_LENGTH, 32);
 		assert.equal(HIGHLIGHT_MAX_EXACT_LENGTH, 8191);
+	});
+
+	it("bounds one selection at 65536 code units", () => {
+		assert.equal(HIGHLIGHT_MAX_SELECTION_LENGTH, 65536);
 	});
 });
 
@@ -347,13 +352,15 @@ describe("anchorHighlight", () => {
 });
 
 describe("mergeRanges", () => {
+	const anyNotes = () => true;
+
 	it("merges an overlapping range into the span of both", () => {
 		const existing = [{ id: "a", start: 5, end: 15 }];
 
-		assert.deepEqual(mergeRanges({ range: { start: 10, end: 20 }, existing }), {
-			range: { start: 5, end: 20 },
-			merged: existing,
-		});
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: anyNotes }),
+			{ merged: existing, parts: [{ start: 5, end: 20 }], covering: [] },
+		);
 	});
 
 	it("merges a range that only touches", () => {
@@ -362,19 +369,19 @@ describe("mergeRanges", () => {
 			{ id: "after", start: 20, end: 25 },
 		];
 
-		assert.deepEqual(mergeRanges({ range: { start: 10, end: 20 }, existing }), {
-			range: { start: 0, end: 25 },
-			merged: existing,
-		});
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: anyNotes }),
+			{ merged: existing, parts: [{ start: 0, end: 25 }], covering: [] },
+		);
 	});
 
 	it("leaves disjoint ranges alone", () => {
 		const existing = [{ id: "far", start: 30, end: 40 }];
 
-		assert.deepEqual(mergeRanges({ range: { start: 0, end: 10 }, existing }), {
-			range: { start: 0, end: 10 },
-			merged: [],
-		});
+		assert.deepEqual(
+			mergeRanges({ range: { start: 0, end: 10 }, existing, maxLength: 100, canMerge: anyNotes }),
+			{ merged: [], parts: [{ start: 0, end: 10 }], covering: [] },
+		);
 	});
 
 	it("merges a range reached only through another merged range", () => {
@@ -384,9 +391,124 @@ describe("mergeRanges", () => {
 			{ id: "far", start: 50, end: 60 },
 		];
 
-		assert.deepEqual(mergeRanges({ range: { start: 10, end: 20 }, existing }), {
-			range: { start: 10, end: 30 },
-			merged: [existing[1], existing[0]],
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: anyNotes }),
+			{ merged: [existing[1], existing[0]], parts: [{ start: 10, end: 30 }], covering: [] },
+		);
+	});
+
+	it("leaves a touching neighbour alone and keeps its text out of the range when the merge would pass the length cap", () => {
+		const existing = [{ id: "before", start: 0, end: 15 }];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 19, canMerge: anyNotes }),
+			{ merged: [], parts: [{ start: 15, end: 20 }], covering: existing },
+		);
+	});
+
+	it("merges up to exactly the length cap", () => {
+		const existing = [{ id: "before", start: 0, end: 15 }];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 20, canMerge: anyNotes }),
+			{ merged: existing, parts: [{ start: 0, end: 20 }], covering: [] },
+		);
+	});
+
+	it("leaves a neighbour alone when its notes cannot be joined", () => {
+		const existing = [{ id: "noted", start: 18, end: 30 }];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: () => false }),
+			{ merged: [], parts: [{ start: 10, end: 18 }], covering: existing },
+		);
+	});
+
+	it("passes every row merged so far, and the candidate, to the note check", () => {
+		const existing = [
+			{ id: "first", start: 5, end: 12 },
+			{ id: "second", start: 18, end: 25 },
+		];
+		const asked: string[][] = [];
+
+		mergeRanges({
+			range: { start: 10, end: 20 },
+			existing,
+			maxLength: 100,
+			canMerge: (rows) => {
+				asked.push(rows.map((row) => row.id));
+				return true;
+			},
 		});
+
+		assert.deepEqual(asked, [["first"], ["first", "second"]]);
+	});
+
+	it("returns the existing highlight and no remainder for a selection lying wholly inside it", () => {
+		const existing = [{ id: "around", start: 0, end: 30 }];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: anyNotes }),
+			{ merged: [], parts: [], covering: existing },
+		);
+	});
+
+	it("splits a selection around a neighbour inside it that it cannot merge", () => {
+		const existing = [{ id: "inside", start: 10, end: 20 }];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 0, end: 30 }, existing, maxLength: 25, canMerge: anyNotes }),
+			{
+				merged: [],
+				parts: [
+					{ start: 0, end: 10 },
+					{ start: 20, end: 30 },
+				],
+				covering: existing,
+			},
+		);
+	});
+
+	it("returns no remainder for a selection covered by neighbours it cannot merge", () => {
+		const existing = [
+			{ id: "right", start: 10, end: 25 },
+			{ id: "left", start: 0, end: 10 },
+		];
+
+		assert.deepEqual(
+			mergeRanges({ range: { start: 5, end: 20 }, existing, maxLength: 12, canMerge: anyNotes }),
+			{ merged: [], parts: [], covering: [existing[1], existing[0]] },
+		);
+	});
+
+	it("merges the neighbour nearer the selection's start first when only one fits", () => {
+		const before = { id: "before", start: 0, end: 10 };
+		const after = { id: "after", start: 20, end: 32 };
+
+		for (const existing of [
+			[before, after],
+			[after, before],
+		]) {
+			assert.deepEqual(
+				mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 25, canMerge: anyNotes }),
+				{ merged: [before], parts: [{ start: 0, end: 20 }], covering: [] },
+			);
+		}
+	});
+
+	it("merges neighbours equally near the selection's start by their start, then by their end, whatever their order", () => {
+		const earlierStart = { id: "earlier-start", start: 0, end: 10 };
+		const earlierEnd = { id: "earlier-end", start: 5, end: 10 };
+		const laterEnd = { id: "later-end", start: 5, end: 12 };
+
+		for (const existing of [
+			[laterEnd, earlierEnd, earlierStart],
+			[earlierStart, earlierEnd, laterEnd],
+		]) {
+			assert.deepEqual(
+				mergeRanges({ range: { start: 10, end: 20 }, existing, maxLength: 100, canMerge: anyNotes }).merged,
+				[earlierStart, earlierEnd, laterEnd],
+			);
+		}
 	});
 });

@@ -1,6 +1,6 @@
+import { sentenceBoundsAt } from "@packages/domain/article/highlight";
 import { blockTextOf } from "./block-text";
 import { caretAtPoint } from "./caret-at-point";
-import { sentenceBoundsAt } from "./sentence-bounds";
 
 export const COARSE_POINTER_QUERY = "(pointer: coarse)";
 
