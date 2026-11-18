@@ -220,6 +220,7 @@ const rateLimitRules = {
 	import: config.require("rateLimitImport"),
 	importFromUrl: config.require("rateLimitImportFromUrl"),
 	uploadStage: config.require("rateLimitUploadStage"),
+	signupCreated: config.require("rateLimitSignupCreated"),
 } satisfies Record<keyof RateLimitRules, string>;
 
 /* Blunt TOTAL-rate ceiling (all clients combined) applied by API Gateway before
