@@ -1,9 +1,23 @@
-import { newSaveAttemptId, type SaveProvenance, type ValidateSaveableUrl } from "@packages/domain/article";
+import {
+	newSaveAttemptId,
+	type SaveProvenance,
+	type ValidateSaveableUrl,
+} from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { SaveArticleAtReadlistTop } from "@packages/save-article";
 import type { PendingViewHighlights } from "../../../providers/pending-view-highlights/pending-view-highlights.types";
-import type { CreateHighlightByQuote } from "../../shared/article-body/highlights/create-highlight-by-quote";
+import type {
+	CreateHighlightByQuote,
+	CreateHighlightByQuoteOutcome,
+} from "../../shared/article-body/highlights/create-highlight-by-quote";
+
+const KEPT = new Set<CreateHighlightByQuoteOutcome["status"]>([
+	"created",
+	"merged",
+	"unchanged",
+	"noted",
+]);
 
 export interface ClaimedViewHighlights {
 	articleId: string | undefined;
@@ -63,7 +77,7 @@ export function initClaimViewHighlights(deps: {
 					note: item.note,
 					textBefore: item.prefix.trimEnd(),
 				});
-				if (outcome.status === "created" || outcome.status === "merged") created += 1;
+				if (KEPT.has(outcome.status)) created += 1;
 				else dropped += 1;
 			}
 		}
