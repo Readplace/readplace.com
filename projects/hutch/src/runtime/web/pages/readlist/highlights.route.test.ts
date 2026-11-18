@@ -1302,6 +1302,8 @@ async function runReanchorHandler(
 		listHighlightsOfArticle: fixture.highlights.listHighlightsOfArticle,
 		readCanonicalSnapshot: fixture.articleStore.readCanonicalSnapshot,
 		readArticleContent: fixture.articleStore.readArticleContent,
+		readCandidateBody: async () => undefined,
+		findItemOwner: fixture.articleStore.findItemOwner,
 		writeHighlightAnchor: fixture.highlights.writeHighlightAnchor,
 		publishEvent,
 		appOrigin: TEST_APP_ORIGIN,
