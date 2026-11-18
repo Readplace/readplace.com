@@ -18,6 +18,7 @@ const ORIGIN = "https://readplace.com";
 const CACHE_NAME = "readplace-offline-v1";
 const READER_URL = `${ORIGIN}/queue/abc123/view?v=token`;
 const FILED_READER_URL = `${ORIGIN}/queue/abc123/view?filed_readlist=deep-work`;
+const NOTE_READER_URL = `${ORIGIN}/queue/abc123/view?note=0b8f6c1e-2d3a-4b5c-8d9e-0f1a2b3c4d5e`;
 const READER_KEY = `${ORIGIN}/queue/abc123/view`;
 const READER_PATH = "/queue/abc123/view";
 const STORED_ETAG = 'W/"stored-page"';
@@ -905,6 +906,30 @@ describe("offline reader worker revalidation", () => {
 				message: { type: "readplace:reader-version", path: READER_PATH, version: "same" },
 			},
 		]);
+	});
+
+	it("keeps the stored copy when the reader it serves opens a highlight's note form, so the form never reopens offline", async () => {
+		const landing = fakeResponse("reader with a note form open", signedIn);
+		const worker = startWorker({
+			fetch: async () => landing,
+			cached: {
+				[CACHE_NAME]: {
+					...confirmedSession,
+					[READER_KEY]: fakeResponse("reader with every note form closed", { savedAt: SAVED_YESTERDAY, ...signedIn }),
+				},
+			},
+		});
+
+		const event = worker.dispatchFetch(fakeRequest({ url: NOTE_READER_URL }), {
+			resultingClientId: "new-document",
+		});
+
+		expect(await event.response()).toBe(landing);
+		await event.settled();
+		expect(worker.storedLabels()).toEqual({
+			[OWNER_KEY]: "owner marker",
+			[READER_KEY]: "reader with every note form closed",
+		});
 	});
 
 	it("keeps the stored copy when the page asking about it carries the one-time filing confirmation", async () => {

@@ -1590,3 +1590,240 @@ describe("Highlights on the polls while the crawl is pending", () => {
 		expect(poll.querySelectorAll("mark.article-highlight")).toHaveLength(0);
 	});
 });
+
+describe("Add note without the Popover API (POST /queue/:id/highlights with after=note)", () => {
+	function noteLocation(articleId: string, id: string): string {
+		return `/queue/${articleId}/view?note=${id}`;
+	}
+
+	function noteIdFrom(location: string): string {
+		const id = new URL(location, TEST_APP_ORIGIN).searchParams.get("note");
+		assert(id, "the note landing must name the new highlight");
+		return HighlightIdSchema.parse(id);
+	}
+
+	function fallbackOf(page: Document, id: string): HTMLDetailsElement {
+		const fallback = page.querySelector<HTMLDetailsElement>(
+			`[data-test-highlight-row="${id}"] [data-test-highlight-note-fallback]`,
+		);
+		assert(fallback, "each editable row renders its fallback note form");
+		return fallback;
+	}
+
+	function fallbackInputOf(page: Document, id: string): HTMLTextAreaElement {
+		const input = fallbackOf(page, id).querySelector<HTMLTextAreaElement>(
+			"[data-test-highlight-note-input]",
+		);
+		assert(input, "the fallback note form carries its note field");
+		return input;
+	}
+
+	function shownAutofocusOf(page: Document): Element[] {
+		return Array.from(page.querySelectorAll("main [autofocus]")).filter(
+			(element) => element.closest("[popover], [hidden]") === null,
+		);
+	}
+
+	function createNoteInputOf(page: Document): HTMLTextAreaElement {
+		const input = page.querySelector<HTMLTextAreaElement>(
+			"#note-highlight-dialog [data-test-highlight-note-input]",
+		);
+		assert(input, "the reader renders the toolbar's note dialog");
+		return input;
+	}
+
+	it("answers an htmx create with 200 and HX-Redirect to the reader naming the new highlight's note", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-after-note-htmx",
+		);
+
+		const response = await agent
+			.post(createPath(articleId))
+			.set("HX-Request", "true")
+			.type("form")
+			.send({
+				...(await rangeOf(agent, { articleId, exact: "readability parser" })),
+				after: "note",
+			});
+
+		expect(response.status).toBe(200);
+		const id = noteIdFrom(response.headers["hx-redirect"]);
+		expect(response.headers["hx-redirect"]).toBe(noteLocation(articleId, id));
+		expect(rowsOf((await agent.get(viewPath(articleId))).text)).toEqual([
+			{ id, state: "anchored" },
+		]);
+	});
+
+	it("redirects a create without htmx 303 to the same reader URL, keeping the readlist return state", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-after-note-plain",
+		);
+
+		const response = await agent
+			.post(`/queue/${articleId}/highlights?order=asc`)
+			.type("form")
+			.send({
+				...(await rangeOf(agent, { articleId, exact: "readability parser" })),
+				after: "note",
+			});
+
+		expect(response.status).toBe(303);
+		const id = noteIdFrom(response.headers.location);
+		expect(response.headers.location).toBe(
+			`/queue/${articleId}/view?order=asc&note=${id}`,
+		);
+	});
+
+	it("redirects a create whose after field was cleared exactly as a plain Highlight", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-after-cleared",
+		);
+
+		const response = await agent
+			.post(createPath(articleId))
+			.type("form")
+			.send({
+				...(await rangeOf(agent, { articleId, exact: "readability parser" })),
+				after: "",
+			});
+
+		expect(response.status).toBe(303);
+		const id = highlightIdFrom(response.headers.location);
+		expect(response.headers.location).toBe(
+			`/queue/${articleId}/view#highlight-${id}`,
+		);
+	});
+
+	it("answers a refused create with the reader's 422 toast, as a plain Highlight does", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-after-note-refused",
+		);
+
+		const response = await agent
+			.post(createPath(articleId))
+			.set("HX-Request", "true")
+			.type("form")
+			.send({
+				exact: "readability parser",
+				start: "0",
+				end: "18",
+				origin: "mouse",
+				after: "note",
+			});
+
+		expect(response.status).toBe(422);
+		expect(response.headers["hx-redirect"]).toBeUndefined();
+		expect(
+			doc(response.text).querySelector(".toast")?.textContent,
+		).toContain("That passage changed; select it again");
+	});
+
+	it("opens and focuses the named row's note form, leaving every other row closed", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-note-landing",
+		);
+		const first = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+		const second = await createHighlight(agent, {
+			articleId,
+			exact: "second paragraph",
+		});
+
+		const page = doc(
+			(await agent.get(noteLocation(articleId, second))).text,
+		);
+
+		expect(fallbackOf(page, second).open).toBe(true);
+		expect(fallbackOf(page, first).open).toBe(false);
+		expect(shownAutofocusOf(page)).toEqual([fallbackInputOf(page, second)]);
+		expect(fallbackInputOf(page, first).hasAttribute("autofocus")).toBe(false);
+		expect(createNoteInputOf(page).hasAttribute("autofocus")).toBe(false);
+	});
+
+	it("opens the named row while the rail lists it pending a re-anchor", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/highlight-note-landing-pending";
+		const { agent, articleId } = await saveArticle(harness, url);
+		fixture.articleStore.setCanonicalContentHash({
+			url,
+			canonicalContentHash: "canonical-hash",
+		});
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+		fixture.articleStore.setCanonicalContentHash({
+			url,
+			canonicalContentHash: "changed-hash",
+		});
+
+		const html = (await agent.get(noteLocation(articleId, id))).text;
+		const page = doc(html);
+
+		expect(rowsOf(html)).toEqual([{ id, state: "pending" }]);
+		expect(fallbackOf(page, id).open).toBe(true);
+		expect(fallbackInputOf(page, id).hasAttribute("autofocus")).toBe(true);
+	});
+
+	it.each([
+		["an unknown highlight", "0b8f6c1e-2d3a-4b5c-8d9e-0f1a2b3c4d5e"],
+		["a value that is not a highlight id", "not-an-id"],
+	])("ignores a note parameter naming %s", async (_label, note) => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			`https://example.com/highlight-note-landing-unknown-${note}`,
+		);
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+
+		const page = doc(
+			(await agent.get(`/queue/${articleId}/view?note=${note}`)).text,
+		);
+
+		expect(fallbackOf(page, id).open).toBe(false);
+		expect(fallbackInputOf(page, id).hasAttribute("autofocus")).toBe(false);
+		expect(createNoteInputOf(page).hasAttribute("autofocus")).toBe(true);
+	});
+
+	it("carries the note parameter into no link or form action on the page", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(
+			harness,
+			"https://example.com/highlight-note-landing-links",
+		);
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+
+		const page = doc(
+			(await agent.get(noteLocation(articleId, id))).text,
+		);
+
+		const urls = Array.from(
+			page.querySelectorAll("[href], [action], [hx-get], [hx-post], [value]"),
+			(element) =>
+				["href", "action", "hx-get", "hx-post", "value"]
+					.map((name) => element.getAttribute(name) ?? "")
+					.join(" "),
+		);
+		expect(urls.filter((url) => url.includes(`note=${id}`))).toEqual([]);
+		expect(fallbackOf(page, id).open).toBe(true);
+	});
+});

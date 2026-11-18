@@ -17,6 +17,7 @@ import {
 	offlinePageKind,
 } from "./offline-cache";
 import { FILED_READLIST_PARAM } from "../filing-flash";
+import { OPEN_NOTE_PARAM } from "../open-note-flash";
 import { initOfflineOwnership } from "./offline-owner";
 
 export { offlineOwnerMarker, stampOfflineCopy } from "./offline-cache";
@@ -109,7 +110,7 @@ function read(value: unknown, name: string): unknown {
 }
 
 function rendersOnce(url: URL): boolean {
-	return url.searchParams.has(FILED_READLIST_PARAM);
+	return url.searchParams.has(FILED_READLIST_PARAM) || url.searchParams.has(OPEN_NOTE_PARAM);
 }
 
 export function initOfflineReaderWorker(deps: OfflineReaderWorkerDeps): void {

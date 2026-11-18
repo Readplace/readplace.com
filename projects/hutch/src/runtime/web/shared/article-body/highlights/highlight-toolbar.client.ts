@@ -182,7 +182,12 @@ function startToolbar(input: {
 		pending = deps.timers.setTimeout(check, delayMs);
 	};
 
-	const fill = (input: { range: Range; origin: string; formSelector: string }): HTMLFormElement | undefined => {
+	const fill = (input: {
+		range: Range;
+		origin: string;
+		formSelector: string;
+		fields: Record<string, string>;
+	}): HTMLFormElement | undefined => {
 		const content = document.querySelector(CONTENT_SELECTOR);
 		const form = document.querySelector<HTMLFormElement>(input.formSelector);
 		if (content === null || form === null) return undefined;
@@ -193,6 +198,7 @@ function startToolbar(input: {
 			start: String(passage.start),
 			end: String(passage.end),
 			origin: input.origin,
+			...input.fields,
 		};
 		for (const [name, value] of Object.entries(values)) {
 			const field = form.querySelector<HTMLInputElement>(`input[name="${name}"]`);
@@ -202,8 +208,8 @@ function startToolbar(input: {
 		return form;
 	};
 
-	const submit = (input: { range: Range; origin: string; formSelector: string }): void => {
-		const form = fill(input);
+	const submit = (input: { range: Range; origin: string; formSelector: string; after: "" | "note" }): void => {
+		const form = fill({ ...input, fields: { after: input.after } });
 		if (form === undefined) return;
 		form.requestSubmit();
 		selectionOf().removeAllRanges();
@@ -211,8 +217,11 @@ function startToolbar(input: {
 	};
 
 	const openNoteDialog = (input: { range: Range; origin: string; formSelector: string }): void => {
-		if (!deps.supportsPopover()) return;
-		const form = fill(input);
+		if (!deps.supportsPopover()) {
+			submit({ range: input.range, origin: input.origin, formSelector: FORM_SELECTOR, after: "note" });
+			return;
+		}
+		const form = fill({ ...input, fields: {} });
 		if (form === undefined) return;
 		const note = form.querySelector<HTMLTextAreaElement>(NOTE_INPUT_SELECTOR);
 		const error = form.querySelector(NOTE_ERROR_SELECTOR);
@@ -232,8 +241,9 @@ function startToolbar(input: {
 		if (shown === undefined) return;
 		const formSelector = button.getAttribute("data-highlight-form");
 		assert(formSelector, "each highlight toolbar button names its form");
-		const commit = button.getAttribute("data-highlight-commit") === "dialog" ? openNoteDialog : submit;
-		commit({ range: shown, origin: pressOrigin(shown), formSelector });
+		const pressed = { range: shown, origin: pressOrigin(shown), formSelector };
+		if (button.getAttribute("data-highlight-commit") === "dialog") openNoteDialog(pressed);
+		else submit({ ...pressed, after: "" });
 	};
 
 	const opened = (input: { highlightId: string | null; origin: HighlightOpenedEvent["origin"] }): void => {
@@ -280,7 +290,7 @@ function startToolbar(input: {
 		const origin = originOf(event);
 		const selection = selectionOf();
 		if (typeof origin !== "string" || selection.rangeCount === 0) return;
-		submit({ range: selection.getRangeAt(0).cloneRange(), origin, formSelector: FORM_SELECTOR });
+		submit({ range: selection.getRangeAt(0).cloneRange(), origin, formSelector: FORM_SELECTOR, after: "" });
 	});
 	return () => {
 		if (shown !== undefined) place(shown);
