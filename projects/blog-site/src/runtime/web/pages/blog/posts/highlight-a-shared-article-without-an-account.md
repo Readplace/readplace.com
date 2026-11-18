@@ -49,8 +49,8 @@ The article lands saved on the new account, and each mark is recreated from its 
 
 The Save button on a shared page, the save form under the article and the Log in link all hand the marks over the same way before the account pages load, so saving the article doesn't cost the marks either. A handover that no sign-up follows expires: after 24 hours the server's copy can no longer be claimed and is deleted, which [the privacy page](/privacy?utm_source=blog-highlight-a-shared-article-without-an-account&utm_medium=internal&utm_content=privacy) spells out.
 
-## The line that made someone share it
+## Group chats already send the passage
 
 A link that arrives in a group chat tends to have one passage doing the arguing. Open the link, find that passage, and the toolbar is already there.
 
-The account can wait for the 6th mark, and when the 6th comes, signing up at [readplace.com](/?utm_source=blog-highlight-a-shared-article-without-an-account&utm_medium=internal&utm_content=home) brings the first 5 along.
+The 6th mark is when the account is worth making, and a new one at [readplace.com](/?utm_source=blog-highlight-a-shared-article-without-an-account&utm_medium=internal&utm_content=home) arrives with the first 5 already in it.
