@@ -13,6 +13,7 @@ import android.provider.Settings
 import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebStorage
+import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -117,7 +118,7 @@ class MainActivity : ComponentActivity() {
 			ioDispatcher = Dispatchers.IO,
 			scope = lifecycleScope,
 			makeWebAuthFlow = { oauth -> initWebAuthFlow(present = { url -> customTabAuth.present(url) }, oauth = oauth) },
-			webDataWiper = WebViewDataWiper,
+			webDataWiper = WebViewDataWiper(applicationContext),
 			shareArtifacts = ShareArtifacts(jobs, unseenSave, discoveryCache),
 			offlineReading = snapshot,
 			sloganDiagnostics = SloganDiagnostics { failure -> Log.w("Slogans", "slogan load failed: $failure") },
@@ -259,7 +260,7 @@ class MainActivity : ComponentActivity() {
  * value is lost — along with every non-cookie data type, so a signed-out
  * account's reading history does not stay on disk.
  */
-private object WebViewDataWiper : WebDataWiper {
+private class WebViewDataWiper(private val context: Context) : WebDataWiper {
 	/** Never throws, matching the iOS seam's non-throwing contract: a device whose
 	 * WebView provider is missing must still finish signing out. */
 	override suspend fun wipe(serverHost: String) = withContext(Dispatchers.Main) {
@@ -269,6 +270,10 @@ private object WebViewDataWiper : WebDataWiper {
 			}
 			CookieManager.getInstance().flush()
 			WebStorage.getInstance().deleteAllData()
+			WebView(context).run {
+				clearCache(true)
+				destroy()
+			}
 		} catch (_: RuntimeException) {
 		}
 	}

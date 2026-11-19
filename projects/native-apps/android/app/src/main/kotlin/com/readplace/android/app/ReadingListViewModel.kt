@@ -799,11 +799,13 @@ class ReadingListViewModel(
 		try {
 			ReaderSessionMint.Minted(api.bootstrapSession(sessionAction))
 		} catch (error: Exception) {
-			if (currentCoroutineContext().isActive) {
-				handle(error)
-				ReaderSessionMint.Failed
-			} else {
-				ReaderSessionMint.Superseded
+			when {
+				!currentCoroutineContext().isActive -> ReaderSessionMint.Superseded
+				OfflineReading.isTransportFailure(error) -> ReaderSessionMint.Offline
+				else -> {
+					handle(error)
+					ReaderSessionMint.Failed
+				}
 			}
 		}
 

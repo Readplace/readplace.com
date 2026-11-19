@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.readplace.android.core.OfflineReading
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.launch
 import okhttp3.Cookie
@@ -99,21 +100,26 @@ fun ReaderSheet(
 	) {
 		Box(modifier = Modifier.fillMaxSize()) {
 			when (val current = bootstrap) {
-				is ReaderBootstrap.Ready -> Reader(
-					url = readerUrl,
-					cookies = current.cookies,
-					loadPhase = loadPhase,
-					reduceMotion = reduceMotion,
-					onLoadPhaseChange = { loadPhase = it },
-					onMarkedRead = leaving(onMarkedRead),
-					onStatusChanged = onStatusChanged,
-					onCaptureBlocked = onCaptureBlocked,
-					claimAutomaticCapture = claimAutomaticCapture,
-					onCaptureAvailable = onCaptureAvailable,
-					onClose = leaving(onClose),
-					onLogout = leaving(onLogout),
-					onOpenExternally = onOpenExternally,
-				)
+				is ReaderBootstrap.Opens -> Column(modifier = Modifier.fillMaxSize()) {
+					if (current.showsOfflineBanner) ReaderOfflineBanner()
+					Reader(
+						url = readerUrl,
+						cookies = current.cookies,
+						cacheMode = current.cacheMode,
+						loadPhase = loadPhase,
+						reduceMotion = reduceMotion,
+						onLoadPhaseChange = { loadPhase = it },
+						onMarkedRead = leaving(onMarkedRead),
+						onStatusChanged = onStatusChanged,
+						onCaptureBlocked = onCaptureBlocked,
+						claimAutomaticCapture = claimAutomaticCapture,
+						onCaptureAvailable = onCaptureAvailable,
+						onClose = leaving(onClose),
+						onLogout = leaving(onLogout),
+						onOpenExternally = onOpenExternally,
+						modifier = Modifier.weight(1f).fillMaxWidth(),
+					)
+				}
 				ReaderBootstrap.Unavailable -> ReaderUnavailable(onClose = leaving(onClose))
 				ReaderBootstrap.Loading -> ReaderSkeleton(reduceMotion = reduceMotion)
 			}
@@ -131,6 +137,7 @@ fun ReaderSheet(
 private fun Reader(
 	url: String,
 	cookies: List<Cookie>,
+	cacheMode: ReaderCacheMode,
 	loadPhase: ReaderLoadPhase,
 	reduceMotion: Boolean,
 	onLoadPhaseChange: (ReaderLoadPhase) -> Unit,
@@ -142,12 +149,14 @@ private fun Reader(
 	onClose: () -> Unit,
 	onLogout: () -> Unit,
 	onOpenExternally: (String) -> Unit,
+	modifier: Modifier,
 ) {
 	val overlay = ReaderLoad.overlay(loadPhase)
-	Box(modifier = Modifier.fillMaxSize()) {
+	Box(modifier = modifier) {
 		ReaderWebView(
 			url = url,
 			cookies = cookies,
+			cacheMode = cacheMode,
 			onMarkedRead = onMarkedRead,
 			onStatusChanged = onStatusChanged,
 			onCaptureBlocked = onCaptureBlocked,
@@ -337,3 +346,17 @@ private fun materialGlyph(name: String, pathData: String): ImageVector =
 		pathData = PathParser().parsePathString(pathData).toNodes(),
 		fill = SolidColor(Color.Black),
 	).build()
+
+@Composable
+private fun ReaderOfflineBanner() {
+	Text(
+		text = OfflineReading.BANNER_TEXT,
+		style = MaterialTheme.typography.bodySmall,
+		color = LocalBrandColors.current.textPrimary,
+		modifier = Modifier
+			.padding(16.dp)
+			.fillMaxWidth()
+			.background(LocalBrandColors.current.secondary, RoundedCornerShape(10.dp))
+			.padding(12.dp),
+	)
+}
