@@ -26,6 +26,7 @@ data class SirenLink(
 	val rel: List<String>,
 	val href: String?,
 	val title: String?,
+	val classes: List<String>? = null,
 )
 
 /**
@@ -294,7 +295,7 @@ object SirenDecoding {
 	fun link(element: JsonElement): SirenLink? {
 		val obj = element as? JsonObject ?: return null
 		val rel = stringList(obj["rel"]) ?: return null
-		return SirenLink(rel = rel, href = string(obj["href"]), title = string(obj["title"]))
+		return SirenLink(rel = rel, href = string(obj["href"]), title = string(obj["title"]), classes = stringList(obj["class"]))
 	}
 
 	fun action(element: JsonElement): SirenAction? {

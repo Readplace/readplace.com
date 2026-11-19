@@ -260,10 +260,7 @@ ampersand in the same vector, written as an arc starting at cx+r, and the dot ce
 login screen holds for its replay tap target (grep the Kotlin sources for
 `DOT_CENTER_X`); iOS holds the same constants by hand.
 
-**"Download unread for offline reading" differs from iOS in four ways.**
-- Listing pages 3 and later are requested with `Sec-Purpose: prefetch`, so the server
-  resolves the rows of the first two pages only. The iOS walk sends no purpose header
-  on its listing loads yet.
+**"Download unread for offline reading" differs from iOS in three ways.**
 - The download does not wait for the first two pages' rows to settle, and shows no
   "open online to get content" banner. A row still processing is stored as served;
   the reader URL carries no `v=`, so the server answers it `private, no-cache` and the

@@ -105,29 +105,61 @@ class DownloadUnreadOfflineTest {
 
 	private fun readerUrl(id: String): String = "${server.baseUrl}/queue/$id/view?platform=android"
 
-	private fun listing(pages: List<List<String>>, gate: Gate? = null, mint: Stub = MINTED): (Record) -> Stub = { record ->
+	private fun listing(
+		pages: List<List<String>>,
+		gate: Gate? = null,
+		mint: Stub = MINTED,
+		markedNextOn: Set<Int> = emptySet(),
+	): (Record) -> Stub = { record ->
 		val number = record.request.url.queryParameter("page")?.toInt() ?: 1
 		when {
 			record.path == "/auth/session" -> mint
-			record.path == "/queue" && number == 2 && gate != null -> gate.holding(Stub.json(200, page(pages, number)))
-			record.path == "/queue" && number <= pages.size -> Stub.json(200, page(pages, number))
+			record.path == "/queue" && number == 2 && gate != null -> gate.holding(Stub.json(200, page(pages, number, markedNextOn)))
+			record.path == "/queue" && number <= pages.size -> Stub.json(200, page(pages, number, markedNextOn))
 			else -> Stub.json(404, "{}")
 		}
 	}
 
-	private fun page(pages: List<List<String>>, number: Int): String =
-		Fixtures.collection(pages[number - 1], next = if (number < pages.size) "/queue?page=${number + 1}" else null)
+	private fun page(pages: List<List<String>>, number: Int, markedNextOn: Set<Int>): String =
+		Fixtures.collection(
+			pages[number - 1],
+			next = if (number < pages.size) "/queue?page=${number + 1}" else null,
+			nextMarked = number in markedNextOn,
+		)
 
 	private fun pageHeaders(): List<Pair<String?, String?>> =
 		server.records("/queue").map { it.request.url.queryParameter("page") to it.header("Sec-Purpose") }
 
 	@Test
-	fun `listing pages after the second are loaded as a prefetch`() = runTest {
-		server.handle(listing(listOf(listOf(Fixtures.article("a1")), listOf(Fixtures.article("a2")), listOf(Fixtures.article("a3")))))
+	fun `a listing page reached through a next link marked for offline prefetch is loaded as a prefetch`() = runTest {
+		server.handle(
+			listing(
+				listOf(listOf(Fixtures.article("a1")), listOf(Fixtures.article("a2")), listOf(Fixtures.article("a3"))),
+				markedNextOn = setOf(2),
+			),
+		)
 
 		download(RecordingPrefetcher()).run(START) {}
 
 		assertEquals(listOf(null to null, "2" to null, "3" to "prefetch"), pageHeaders())
+	}
+
+	@Test
+	fun `a third listing page behind an unmarked next link is loaded as an ordinary request`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1")), listOf(Fixtures.article("a2")), listOf(Fixtures.article("a3")))))
+
+		download(RecordingPrefetcher()).run(START) {}
+
+		assertEquals(listOf(null to null, "2" to null, "3" to null), pageHeaders())
+	}
+
+	@Test
+	fun `a second listing page behind a marked next link is loaded as a prefetch`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1")), listOf(Fixtures.article("a2"))), markedNextOn = setOf(1)))
+
+		download(RecordingPrefetcher()).run(START) {}
+
+		assertEquals(listOf(null to null, "2" to "prefetch"), pageHeaders())
 	}
 
 	@Test
@@ -334,8 +366,9 @@ class DownloadUnreadOfflineTest {
 				}
 			"""
 
-		fun collection(entities: List<String>, next: String?): String {
-			val nextLink = if (next != null) """, { "rel": ["next"], "href": "$next" }""" else ""
+		fun collection(entities: List<String>, next: String?, nextMarked: Boolean = false): String {
+			val nextClass = if (nextMarked) """, "class": ["offline-prefetch"]""" else ""
+			val nextLink = if (next != null) """, { "rel": ["next"], "href": "$next"$nextClass }""" else ""
 			return """
 				{
 					"class": ["collection", "articles"],

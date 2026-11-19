@@ -44,12 +44,10 @@ class DownloadUnreadOffline(
 	private suspend fun walk(startHref: String, generation: Long, queue: SendChannel<String>, tally: Tally) {
 		var page = api.loadReadlist(startHref)
 		snapshot.keepFirstPage(page, href = startHref, generation = generation)
-		var walked = 1
 		while (true) {
 			enqueue(page, queue, tally)
 			val next = page.nextHref ?: return
-			walked += 1
-			page = if (walked <= RESOLVING_LISTING_PAGES) api.loadReadlist(next) else api.loadReadlistAsPrefetch(next)
+			page = if (page.nextIsOfflinePrefetch) api.loadReadlistAsPrefetch(next) else api.loadReadlist(next)
 			snapshot.keepNextPage(page, href = next, generation = generation)
 		}
 	}
@@ -91,6 +89,5 @@ class DownloadUnreadOffline(
 
 	companion object {
 		const val CONCURRENT_ARTICLES = 4
-		const val RESOLVING_LISTING_PAGES = 2
 	}
 }
