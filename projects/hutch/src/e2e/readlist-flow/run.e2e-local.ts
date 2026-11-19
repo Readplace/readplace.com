@@ -155,6 +155,12 @@ test.describe('Readlist management flow (local)', () => {
 			},
 			preReadlistProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress, importProgress, importFromUrlProgress],
 			onActionComplete: async (actionName) => {
+				if (actionName === 'submit-signup-form') {
+					const trialing = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+						data: { email: authData.email, state: 'trialing' },
+					})
+					assert.equal(trialing.status(), 201, 'the new account must be a trial member, not a founding member, whatever signups ran before it')
+				}
 				const checkpoint = visualCheckpoints.get(actionName)
 				if (!checkpoint) return
 				firedCheckpointActions.add(actionName)

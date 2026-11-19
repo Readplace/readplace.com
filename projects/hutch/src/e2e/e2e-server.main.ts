@@ -1304,8 +1304,7 @@ function e2eInvoices(count: number): InvoiceSummary[] {
 	}))
 }
 
-const SeedSubscriptionStateBody = z.object({
-	userId: UserIdSchema,
+const SubscriptionStateSeed = z.object({
 	state: z.enum(['trialing', 'active', 'cancellation-scheduled', 'inactive']),
 	at: z.string().optional(),
 	plan: z.enum(BILLING_PLANS).optional(),
@@ -1314,13 +1313,19 @@ const SeedSubscriptionStateBody = z.object({
 	invoices: z.number().int().nonnegative().optional(),
 	checkout: z.enum(['opens', 'fails-next']).optional(),
 })
+const SeedSubscriptionStateBody = z.union([
+	SubscriptionStateSeed.extend({ userId: UserIdSchema }),
+	SubscriptionStateSeed.extend({ email: z.email() }),
+])
 server.post('/e2e/seed-subscription-state', async (req, res) => {
 	const parsed = SeedSubscriptionStateBody.safeParse(req.body)
 	if (!parsed.success) {
 		res.status(400).json({ error: parsed.error.flatten() })
 		return
 	}
-	const { userId, state, at, plan, cards, nextChargeAt, invoices, checkout } = parsed.data
+	const { state, at, plan, cards, nextChargeAt, invoices, checkout } = parsed.data
+	const userId = 'userId' in parsed.data ? parsed.data.userId : (await fixture.auth.findUserByEmail(parsed.data.email))?.userId
+	assert(userId, 'a subscription state is seeded for an existing user')
 	const subscriptionId = `e2e-sub-${userId}`
 	const customerId = `e2e-cus-${userId}`
 	if (state === 'trialing') {
