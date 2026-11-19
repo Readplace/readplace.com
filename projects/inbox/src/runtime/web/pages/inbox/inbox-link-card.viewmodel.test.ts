@@ -237,6 +237,52 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(pending.url).toBe("https://link.mail.example.com/ss/c/token?utm_source=nl");
 	});
 
+	describe("a tracker link that carries its destination", () => {
+		const TRACKER = "https://click.tracker.test/c?id=42&url=https%3A%2F%2Fdestination.test%2Fpost%3Fref%3Dnl%26utm_source%3Dnl";
+		const OPAQUE_TRACKER = "https://click.tracker.test/c/opaque?utm_source=nl";
+
+		function cardUrl(overrides: Partial<InboxEmailLinkEntry>): string {
+			return toInboxLinkCardViewModel({
+				paidFeaturesLocked: false,
+				link: link(overrides),
+				emailId: EMAIL_ID,
+				pollCount: 1,
+				maxPolls: 300,
+				shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savedDestinations: new Map(), savePollContext: { mode: "static" } }).url;
+		}
+
+		it.each(["pending", "failed", "crawled"] as const)("shows the decoded destination, without utm tags, on a %s card", (status) => {
+			expect(cardUrl({ status, url: TRACKER })).toBe("https://destination.test/post?ref=nl");
+		});
+
+		it("shows a pending tracker with nothing to decode byte-exact", () => {
+			expect(cardUrl({ status: "pending", url: OPAQUE_TRACKER })).toBe(OPAQUE_TRACKER);
+		});
+
+		it("shows a failed tracker with nothing to decode without its utm tags", () => {
+			expect(cardUrl({ status: "failed", url: OPAQUE_TRACKER })).toBe("https://click.tracker.test/c/opaque");
+		});
+
+		it("prefers where the crawl landed over the destination the tracker carries", () => {
+			expect(cardUrl({ status: "crawled", url: TRACKER, resolvedUrl: "https://landed.test/post" })).toBe(
+				"https://landed.test/post",
+			);
+		});
+
+		it("still posts the stored tracker link when saved", () => {
+			const vm = toInboxLinkCardViewModel({
+				paidFeaturesLocked: false,
+				link: link({ status: "failed", url: TRACKER }),
+				emailId: EMAIL_ID,
+				pollCount: 1,
+				maxPolls: 300,
+				shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map([[TRACKER, "saved"]]), savedDestinations: new Map(), savePollContext: { mode: "static" } });
+
+			expect(vm.actions[0]?.saveState).toBe("saved");
+			expect(vm.actions[0]?.ariaLabel).toContain("https://destination.test/post?ref=nl");
+		});
+	});
+
 	it("treats a crawled link whose page had no title as a bare row", () => {
 		const crawled = toInboxLinkCardViewModel({
 			paidFeaturesLocked: false,
