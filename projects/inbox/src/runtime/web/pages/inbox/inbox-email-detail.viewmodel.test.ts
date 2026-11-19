@@ -112,6 +112,7 @@ function build(input: {
 		shown: input.shown,
 		panelPollCount: input.panelPollCount,
 		linkSaveStates: input.linkSaveStates ?? new Map(),
+		savedDestinations: new Map(),
 		fitOverrides: input.fitOverrides ?? new Map(),
 		filter: input.filter,
 	});
@@ -695,6 +696,7 @@ describe("toInboxEmailDetailViewModel", () => {
 			maxPolls: 300,
 			...confirmation,
 			linkSaveStates: new Map(),
+			savedDestinations: new Map(),
 			fitOverrides: new Map(),
 		});
 	}
@@ -890,6 +892,7 @@ describe("toInboxEmailDetailViewModel", () => {
 				linkData: { source: "entry" },
 				maxPolls: 300,
 				linkSaveStates: new Map(),
+				savedDestinations: new Map(),
 				fitOverrides: new Map(),
 			});
 		}
@@ -945,6 +948,7 @@ describe("toInboxArticlesMoreViewModel", () => {
 			shown: input.shown,
 			maxPolls: 300,
 			linkSaveStates: new Map(),
+			savedDestinations: new Map(),
 			fitOverrides: new Map(),
 			filter: input.filter,
 		});
@@ -1391,6 +1395,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 				shown: 40,
 				maxPolls: 300,
 				linkSaveStates: new Map(),
+				savedDestinations: new Map(),
 				fitOverrides: new Map(),
 				filter: { readlist: WORK, show: "fit" },
 			});

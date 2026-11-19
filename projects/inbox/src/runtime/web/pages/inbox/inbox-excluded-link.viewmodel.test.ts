@@ -25,8 +25,13 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 	};
 }
 
-function build(input: { link?: InboxEmailLinkEntry }) {
-	return toInboxExcludedLinkViewModel({ paidFeaturesLocked: false, link: input.link ?? link(), emailId: SK });
+function build(input: { link?: InboxEmailLinkEntry; savedDestinations?: ReadonlyMap<string, string> }) {
+	return toInboxExcludedLinkViewModel({
+		paidFeaturesLocked: false,
+		link: input.link ?? link(),
+		emailId: SK,
+		savedDestinations: input.savedDestinations ?? new Map(),
+	});
 }
 
 function saveActionOf(vm: ReturnType<typeof build>) {
@@ -59,6 +64,16 @@ describe("toInboxExcludedLinkViewModel", () => {
 		expect(vm.reasonLabel).toBe("Social link — not saved automatically");
 		expect(vm.url).toBe("https://www.linkedin.com/posts/someone");
 		expect(saveActionOf(vm).method).toBe("POST");
+	});
+
+	it("shows the destination a save of the skipped tracker resolved", () => {
+		const tracker = "https://link.mail.beehiiv.com/ss/c/u001.token-for-the-post/4ab/h1/sig";
+		const vm = build({
+			link: link({ url: tracker }),
+			savedDestinations: new Map([[tracker, "https://example.com/post"]]),
+		});
+
+		expect(vm.url).toBe("https://example.com/post");
 	});
 
 	it("says a free account's link went unchecked because email triage is part of a paid plan", () => {

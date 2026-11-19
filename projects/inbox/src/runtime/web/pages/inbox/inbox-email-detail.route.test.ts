@@ -13,7 +13,9 @@ import {
 	parseEmail,
 	sanitizeEmailHtml,
 } from "@packages/domain/inbox";
+import { validateSaveableUrl } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { initResolveSaveIdentity } from "@packages/save-article";
 import type { UserId } from "@packages/domain/user";
 import {
 	TEST_APP_ORIGIN,
@@ -840,6 +842,35 @@ describe("Inbox email detail Skipped tab", () => {
 
 		expect(bodyReads).toBe(0);
 		expect(doc.querySelector("[data-test-inbox-email-iframe]")).toBeNull();
+	});
+
+	it("shows the destination a save resolved for a skipped tracker the reader saved", async () => {
+		const tracker = "https://link.mail.beehiiv.com/ss/c/u001.token-for-the-post/4ab/h1/sig";
+		const destination = "https://example.com/the-tracked-post";
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), url: tracker, status: "skipped", skipReason: "llm-ad" },
+		]);
+		const save = initResolveSaveIdentity({
+			validateUrl: validateSaveableUrl,
+			findIdentityRow: fixture.articleStore.findIdentityRow,
+			claimAlias: fixture.articleStore.claimAlias,
+			resolveWrapperTarget: async (url) => (url === tracker ? { url: destination, contentSourceUrl: tracker } : undefined),
+			now: () => new Date("2026-11-18T10:00:00.000Z"),
+		});
+		assert.equal((await save(tracker)).status, "resolved", "the save must resolve the tracker");
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist");
+		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({ userId: user.userId, url: tracker });
+
+		const doc = parseDoc((await agent.get(excludedTabPath)).text);
+
+		const row = doc.querySelector('[data-test-inbox-excluded-link="0000"]');
+		assert(row, "the skipped tracker must stay listed on the Skipped tab");
+		expect(row.querySelector("[data-test-inbox-excluded-url]")?.textContent).toBe(destination);
 	});
 
 	it("lists a social link byte-exact with its reason, count and Save form, alongside the email's kept article", async () => {
