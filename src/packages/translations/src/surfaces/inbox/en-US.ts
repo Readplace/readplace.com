@@ -3,7 +3,9 @@ export const enUS = {
 		savesHeld: {
 			readlist: "No articles were saved to {label}: saving from the Inbox is part of a paid plan.",
 			issue: "This issue wasn't saved: saving from the Inbox is part of a paid plan.",
+			links: "No links from this email were saved: saving from the Inbox is part of a paid plan.",
 		},
+		paidPlanLocked: "Saving links from the Inbox is part of a paid plan.",
 	},
 	excludedLink: {
 		reason: {
@@ -16,6 +18,13 @@ export const enUS = {
 		moved: {
 			notice: "Saved as article.",
 			link: "View in Articles",
+		},
+	},
+	customEmails: {
+		paidPlanLocked: {
+			title: "Custom emails are part of a paid plan",
+			body: "Emails already sent to your custom emails stay in your Inbox, but their links aren't saved to All on the free plan.",
+			link: "See plans",
 		},
 	},
 	liveStatus: {

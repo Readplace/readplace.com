@@ -9,6 +9,7 @@ import {
 import { DEFAULT_READLIST, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { JSDOM } from "jsdom";
+import type { UpgradeOffer, UpgradeStanding } from "../../shared/upgrade-offer/upgrade-offer";
 import { buildReadlistInboxes, type InboxNameError, renderReadlistInboxes } from "./readlist-inboxes.component";
 
 const READER = UserIdSchema.parse("reader-1");
@@ -40,6 +41,8 @@ function renderInboxes(input: {
 	purpose?: string;
 	label?: string;
 	create?: { submittedName: string | undefined; error: InboxNameError | undefined };
+	standing?: UpgradeStanding;
+	offer?: UpgradeOffer;
 }): Document {
 	return new JSDOM(
 		`<main>${renderReadlistInboxes(
@@ -56,6 +59,8 @@ function renderInboxes(input: {
 					{ slug: LATER, label: "Later" },
 				],
 				create: input.create ?? { submittedName: undefined, error: undefined },
+				standing: input.standing ?? "open",
+				offer: input.offer,
 			}),
 		)}</main>`,
 	).window.document;
@@ -377,5 +382,40 @@ describe("buildReadlistInboxes", () => {
 
 		expect(section(doc).getAttribute("data-test-inboxes-state")).toBe("listed");
 		expect(section(doc).classList.contains("readlist-inboxes--listed")).toBe(true);
+	});
+
+	it("locks the routing checkboxes and create form for a free-plan reader who can upgrade, keeping the list and Manage", () => {
+		const doc = renderInboxes({
+			inboxes: [inbox({ name: "news", token: "aaa111", readlist: WORK })],
+			standing: "needs-upgrade",
+			offer: { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" },
+		});
+
+		expect(section(doc).querySelectorAll("form")).toHaveLength(0);
+		expect(doc.querySelector("[data-test-inbox-address]")?.textContent).toBe("news-aaa111@read.place");
+		expect(doc.querySelector("[data-test-inboxes-locked]")?.textContent).toBe("Readlist inbox emails are part of a paid plan.");
+		const lock = doc.querySelector('[data-test-action="upgrade-open"]');
+		assert(lock, "the create control must carry the lock");
+		expect(lock.getAttribute("data-test-needs-upgrade")).toBe("create-inbox");
+		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
+		expect(doc.querySelector('[data-test-action="upgrade-fallback"]')?.getAttribute("href")).toBe(
+			"/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-create-inbox",
+		);
+		expect(doc.querySelector('[data-test-action="manage-inboxes"]')).not.toBeNull();
+	});
+
+	it("withholds the controls without a lock on a surface with no upgrade offer", () => {
+		const doc = renderInboxes({ inboxes: [inbox({ name: "news", token: "aaa111" })], standing: "withheld" });
+
+		expect(section(doc).querySelectorAll("form")).toHaveLength(0);
+		expect(doc.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
+		expect(doc.querySelector("[data-test-inboxes-locked]")?.textContent).toBe("Readlist inbox emails are part of a paid plan.");
+	});
+
+	it("shows no locked note while the reader has paid features", () => {
+		const doc = renderInboxes({ inboxes: [] });
+
+		expect(doc.querySelector("[data-test-inboxes-locked]")).toBeNull();
+		expect(doc.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
 	});
 });

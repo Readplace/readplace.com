@@ -5,7 +5,7 @@ excerpt: "For 11 months a year, the account page said nothing about the renewal 
 tldr: "Subscription pages tend to stay quiet about money until the day the card is charged. Readplace's account page does the reverse. Under the plan and its price, it shows the exact date the next charge falls and the exact amount, read from the billing provider and shown in your own currency. The figure is cached on your subscription record and refetched only when the stored copy is missing, stale, or sitting in the past, so most of the year nothing is fetched at all. Cancel, and the card shows a live Cancelling state while the request runs, then settles into your subscription's end date with a one-tap Reactivate. Inside the iPhone app the price line is stripped, because App Store rules object to a web page naming a price. The reminder that goes out before a free trial ends now says where a subscription's money goes, too. None of the billing is hidden until after it has already happened."
 slug: "next-charge-shown-before-it-lands"
 date: "2026-07-14"
-lastModified: "2026-10-14"
+lastModified: "2026-11-19"
 author: "Fayner Brack"
 keywords: "when will I be charged subscription, see next charge date read it later, read it later app subscription cost, no surprise renewal reading app, cancel read it later subscription, reactivate subscription read later, read it later free trial no card, transparent subscription billing app, subscription renewal reminder, read it later app pricing"
 tags: ["changelog"]
@@ -67,7 +67,7 @@ else: ok | Shown | The stored copy is still in the future, so that is the answer
 
 ## Seeing the bill is part of trusting the app
 
-There is no company behind Readplace and no investors, just one person paying the cloud bills. No card is asked for up front, so a trial that ends charges nothing and drops the account to read-only rather than billing you by surprise. The reminder before a trial ends says that plainly now, and says a subscription covers those bills and the hours spent building the thing, with the blog left free to read. It states where the money goes and stops. Whether that is worth it is yours to weigh.
+There is no company behind Readplace and no investors, just one person paying the cloud bills. No card is asked for up front, so a trial that ends charges nothing and moves the account to the free plan rather than billing you by surprise. The reminder before a trial ends says that plainly now, and says a subscription covers those bills and the hours spent building the thing, with the blog left free to read. It states where the money goes and stops. Whether that is worth it is yours to weigh.
 
 A page that shows the charge before it lands belongs to the same idea. A subscription that is easy to start should be just as easy to see and just as easy to leave. An app that hides the next charge until the day it takes it is asking for a trust it has not earned.
 

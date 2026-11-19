@@ -181,7 +181,7 @@ describe("POST /newsletters/gmail/connect", () => {
 		expect(response.headers.location).toBe("/login?return=%2Fnewsletters%2Fgmail%2Fconnect");
 	});
 
-	it("redirects a read-only reader to newsletters without starting the grant", async () => {
+	it("redirects a free-plan reader to newsletters without starting the grant", async () => {
 		const { fixture, codes, gmailCredentialsStore, gmailConnectionStore } = fixtureWithGmail();
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);

@@ -40,7 +40,7 @@ function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 		markAsUnread: async () => ({ status: "not_found" }),
 		listHighlights: async () => ({ status: "not_found" }),
 		createHighlight: async () => ({ status: "not_found" }),
-		resolveToolAccess: async () => ({ state: "ok", dailyLimited: false }),
+		resolveToolAccess: async () => ({ state: "ok", dailyLimited: false, paidFeatures: true }),
 		consumeRateLimit: async () => {
 			throw new Error("consumeRateLimit must not be called for an account without a daily limit");
 		},
@@ -1297,6 +1297,7 @@ describe("initMcpServer", () => {
 		const free: McpServerDeps["resolveToolAccess"] = async () => ({
 			state: "ok",
 			dailyLimited: true,
+			paidFeatures: false,
 		});
 		const unlimited = initInMemoryRateLimit({ now: () => new Date("2026-06-16T00:00:00.000Z") }).consumeRateLimit;
 
@@ -1347,7 +1348,6 @@ describe("initMcpServer", () => {
 				"get_article",
 				"get_article_content",
 				GET_ARTICLE_SUMMARY_LEGACY_NAME,
-				GET_RELATED_ARTICLES_LEGACY_NAME,
 				"mark_as_read",
 				"mark_as_unread",
 				"get_article_deletion_steps",
@@ -1360,6 +1360,63 @@ describe("initMcpServer", () => {
 			expect(listReadlist).toHaveBeenCalled();
 			expect(markAsRead).toHaveBeenCalledTimes(1);
 			expect(markAsUnread).toHaveBeenCalledTimes(1);
+		});
+
+		it("refuses the related articles to a free account without loading them, saying they are paid-only, and records the paywalled outcome", async () => {
+			const getRelatedArticles = jest.fn(fakeDeps().getRelatedArticles);
+			const recordToolCall = jest.fn();
+			const server = initMcpServer(
+				fakeDeps({ getRelatedArticles, recordToolCall, resolveToolAccess: free, consumeRateLimit: unlimited }),
+			);
+			const response = await call(server, 78, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				id: 78,
+				result: {
+					isError: true,
+					content: [{ type: "text", text: "Related articles are only on Readplace's paid plans, and this account is on the free plan. Upgrading to a paid plan in Readplace turns them on." }],
+				},
+			});
+			expect(getRelatedArticles).not.toHaveBeenCalled();
+			expect(recordToolCall).toHaveBeenCalledWith(expect.objectContaining({ tool: GET_RELATED_ARTICLES_LEGACY_NAME, outcome: "paywalled" }));
+		});
+
+		it("does not spend a free account's daily tool calls on a refused related-articles call", async () => {
+			const consumeRateLimit = jest.fn(unlimited);
+			const server = initMcpServer(fakeDeps({ resolveToolAccess: free, consumeRateLimit }));
+			await call(server, 79, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) });
+			expect(consumeRateLimit).not.toHaveBeenCalled();
+		});
+
+		it("serves the related articles to an account with the paid features", async () => {
+			const getRelatedArticles = jest.fn(fakeDeps().getRelatedArticles);
+			const server = initMcpServer(fakeDeps({ getRelatedArticles }));
+			const response = await call(server, 80, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) });
+			expect(response).not.toMatchObject({ result: { isError: true } });
+			expect(getRelatedArticles).toHaveBeenCalledTimes(1);
+		});
+
+		it("refuses the related articles without loading them when the subscription check throws", async () => {
+			const getRelatedArticles = jest.fn(fakeDeps().getRelatedArticles);
+			const recordToolCall = jest.fn();
+			const server = initMcpServer(
+				fakeDeps({
+					getRelatedArticles,
+					recordToolCall,
+					resolveToolAccess: async () => {
+						throw new Error("subscription store unavailable");
+					},
+				}),
+			);
+			const response = await call(server, 81, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				id: 81,
+				result: {
+					isError: true,
+					content: [{ type: "text", text: "Related articles weren't loaded because the subscription check didn't go through. Try again in a moment." }],
+				},
+			});
+			expect(getRelatedArticles).not.toHaveBeenCalled();
+			expect(recordToolCall).toHaveBeenCalledWith(expect.objectContaining({ tool: GET_RELATED_ARTICLES_LEGACY_NAME, outcome: "access_check_failed" }));
 		});
 
 		const ACCESS_CHECK_FAILED_MESSAGE =
@@ -1493,7 +1550,7 @@ describe("initMcpServer", () => {
 			const recordToolCall = jest.fn<void, [McpToolCallRecord]>();
 			const server = initMcpServer(
 				fakeDeps({
-					resolveToolAccess: async () => ({ state: "ok", dailyLimited: true }),
+					resolveToolAccess: async () => ({ state: "ok", dailyLimited: true, paidFeatures: false }),
 					consumeRateLimit,
 					mcpCallRule: { limit: 2, windowSeconds: 86_400 },
 					recordToolCall,
@@ -1730,7 +1787,7 @@ describe("initMcpServer", () => {
 
 		it("records save_refused once for a save_link refused by the daily save limit and answers with its tool error", async () => {
 			const { response, refusals } = callRecordingRefusals({
-				access: { state: "ok", dailyLimited: false },
+				access: { state: "ok", dailyLimited: false, paidFeatures: true },
 				name: "save_link",
 				args: { url: "https://example.com/a" },
 				saveLink: async () => ({ ok: false, refused: "daily-save-limit", message: "limit reached" }),
@@ -1743,7 +1800,7 @@ describe("initMcpServer", () => {
 
 		it("records no save_refused when save_link fails for a reason other than the daily save limit", async () => {
 			const { response, refusals } = callRecordingRefusals({
-				access: { state: "ok", dailyLimited: false },
+				access: { state: "ok", dailyLimited: false, paidFeatures: true },
 				name: "save_link",
 				args: { url: "https://example.com/a" },
 				saveLink: async () => ({ ok: false, message: "nope" }),

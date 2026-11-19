@@ -1738,6 +1738,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			releasePendingViewHighlights: deps.releasePendingViewHighlights,
 			claimViewHighlights: initClaimViewHighlights({
 				validateNewSaveUrl,
+				claimDailySaves,
 				refreshArticleIfStale: deps.refreshArticleIfStale,
 				saveArticleAtReadlistTop,
 				createHighlightByQuote: initCreateHighlightByQuote({

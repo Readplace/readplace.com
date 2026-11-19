@@ -2800,7 +2800,7 @@ describe("Free-plan and locked readers", () => {
 			expect(form.getAttribute("method")).toBe("GET");
 			expect(form.getAttribute("action")).toBe("/account/plans?utm_source=integrations-gmail&utm_medium=internal&utm_content=upgrade-gmail");
 			expect(hiddenFields(form)).toEqual({ utm_source: "integrations-gmail", utm_medium: "internal", utm_content: "upgrade-gmail" });
-			expect(rowActionKeys(mapping)).toEqual(["edit", "cancel-import", "remove"]);
+			expect(rowActionKeys(mapping)).toEqual(trialDays > 0 ? ["edit", "cancel-import", "remove"] : ["cancel-import", "remove"]);
 		}
 	});
 
@@ -2874,7 +2874,7 @@ describe("Free-plan and locked readers", () => {
 		expect(form.getAttribute("action")).toBe("/newsletters/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=grant-sender-access");
 	});
 
-	it("lets a read-only reader remove a newsletter, cancel an import and disconnect", async () => {
+	it("lets a free-plan reader remove a newsletter, cancel an import and disconnect", async () => {
 		const { agent, gmail, userId, harness, mapSender, seedJob, findJob } = await connectedAgent();
 		const destination = await mapSender(TLDR, "default");
 		const jobId = await seedJob({ sender: MORNING, destination, state: "running" });
@@ -2885,6 +2885,18 @@ describe("Free-plan and locked readers", () => {
 		expect(await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId)).toEqual([]);
 		expect((await agent.post(`${GMAIL}/disconnect`).send()).headers.location).toBe("/newsletters?notice=gmail_disconnected");
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
+	});
+
+	it("shows a free-plan reader whose mailbox has no discovery the upgrade and Disconnect instead of loading senders", async () => {
+		const { agent, gmail, userId, harness } = await connectedAgent({ discovered: false });
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString() });
+		const response = await agent.get(GMAIL);
+		expect(response.status).toBe(200);
+		const doc = load(response.text);
+		expect(doc.querySelectorAll("[data-test-gmail-auto-load-senders]")).toHaveLength(0);
+		expect(doc.querySelector("[data-test-gmail-upgrade]")?.textContent).toContain("Gmail integration is only available with an active paid subscription.");
+		expect(doc.querySelector("[data-test-gmail-disconnect]")?.textContent).toBe("Disconnect Gmail");
+		expect(gmail.discoveryRequests).toEqual([]);
 	});
 
 	it("lets a locked reader disconnect Gmail", async () => {

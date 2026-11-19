@@ -2,7 +2,9 @@ import {
 	type ReaderSectionInput,
 	requestedReaderSection,
 } from "../../shared/article-body/reader-slot/section-pages";
-import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
+import { renderedLockFor, upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
 import { isFreePlanBannerDismissed } from "./free-plan-banner-dismiss";
 
 import {
@@ -196,6 +198,21 @@ export const pastReadsPollUrlFor = (params: {
 	surfaceQuery: string;
 }): string =>
 	`${READLIST_PATH}/${params.articleId}/topic-reads?poll=${params.pollCount}${joinedSurfaceQuery(params.surfaceQuery)}`;
+
+const { t: tReader } = translator(hutchReader, DEFAULT_LOCALE);
+
+export const NO_PAST_READS: PastReads = { status: "ready", items: [] };
+
+export function nextReadLocksFor(input: { req: Request; access: EffectiveAccess }): readonly string[] {
+	return renderedLockFor({
+		offer: upgradeOfferFor(input),
+		gated: true,
+		key: "next-read",
+		label: tReader("reader.nextRead.lock"),
+		controlClass: "btn btn--neutral btn--m",
+		source: "reader",
+	});
+}
 
 export async function loadPastReads(
 	findPastReads: FindPastReads,

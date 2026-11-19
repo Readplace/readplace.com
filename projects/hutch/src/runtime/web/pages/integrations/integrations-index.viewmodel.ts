@@ -231,7 +231,7 @@ const GMAIL_UPGRADE_ACTIONS: Record<UpgradeStanding, IntegrationActionViewModel[
 	})],
 };
 
-const GMAIL_LOCK_LABELS: Record<GmailConnectionState, string> = {
+export const GMAIL_LOCK_LABELS: Record<GmailConnectionState, string> = {
 	disconnected: "Connect Gmail",
 	disconnecting: "Connect Gmail",
 	revoked: "Connect Gmail",
@@ -288,6 +288,40 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 			fields: [{ name: CUSTOM_EMAILS_ORIGIN_PARAM, value: "newsletters" satisfies CustomEmailsOrigin }],
 			boost: true,
 		})],
+	};
+}
+
+const CUSTOM_EMAILS_UPGRADE_ACTIONS: Record<UpgradeStanding, IntegrationActionViewModel[]> = {
+	open: [],
+	"needs-upgrade": [],
+	withheld: [trackedAction({
+		key: "upgrade-custom-emails",
+		method: "GET",
+		href: ACCOUNT_PLANS_URL,
+		label: t("connectors.customEmails.upgrade"),
+		variant: "primary",
+		fields: [],
+		boost: true,
+	})],
+};
+
+function customEmailsUpgradeRow(input: { activeCount: number; offer: UpgradeOffer | undefined }): IntegrationRowViewModel {
+	const row = customEmailsRow(input.activeCount);
+	return {
+		...row,
+		description: t("connectors.customEmails.locked"),
+		locks: renderedLockFor({
+			offer: input.offer,
+			gated: true,
+			key: "custom-emails",
+			label: t("connectors.customEmails.lock"),
+			controlClass: "btn btn--primary btn--s",
+			source: "connectors",
+		}),
+		actions: [
+			...CUSTOM_EMAILS_UPGRADE_ACTIONS[standingOf({ gated: true, offer: input.offer })],
+			...row.actions.map((action): IntegrationActionViewModel => ({ ...action, variant: "secondary" })),
+		],
 	};
 }
 
@@ -362,6 +396,7 @@ export function toIntegrationsIndexViewModel(input: {
 	activeCustomEmailCount: number;
 	connectedClientIds: readonly OAuthClientId[];
 	canConnectGmail: boolean;
+	paidFeaturesLocked: boolean;
 	error?: string;
 	notice?: string;
 }): IntegrationsIndexViewModel {
@@ -370,7 +405,9 @@ export function toIntegrationsIndexViewModel(input: {
 	return {
 		services: [
 			input.canConnectGmail ? gmailRow(input.connection) : gmailUpgradeRow({ connection: input.connection, offer: input.offer }),
-			customEmailsRow(input.activeCustomEmailCount),
+			input.paidFeaturesLocked
+				? customEmailsUpgradeRow({ activeCount: input.activeCustomEmailCount, offer: input.offer })
+				: customEmailsRow(input.activeCustomEmailCount),
 			aiAssistantRow(input.connectedClientIds),
 			apiRow(),
 		],

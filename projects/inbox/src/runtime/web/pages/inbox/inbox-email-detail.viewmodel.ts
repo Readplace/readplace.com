@@ -65,7 +65,7 @@ export interface PanelAlert extends AlertCopy {
 }
 
 export interface PanelNotice {
-	key: "extracting" | "deciding" | "truncated" | "decided" | "skipped-note";
+	key: "extracting" | "deciding" | "truncated" | "decided" | "skipped-note" | "held" | "paid-plan-locked";
 	text: string;
 	iconName: "loader" | undefined;
 }
@@ -109,6 +109,18 @@ const STALE_ALERT: AlertCopy = {
 const SKIPPED_NOTE_NOTICE: PanelNotice = {
 	key: "skipped-note",
 	text: "These looked like unsubscribe, ad, or menu links — not articles — so they weren't fetched or added.",
+	iconName: undefined,
+};
+
+const HELD_LINKS_NOTICE: PanelNotice = {
+	key: "held",
+	text: t("emailDetail.savesHeld.links"),
+	iconName: undefined,
+};
+
+const PAID_PLAN_LOCKED_NOTICE: PanelNotice = {
+	key: "paid-plan-locked",
+	text: t("emailDetail.paidPlanLocked"),
 	iconName: undefined,
 };
 
@@ -527,6 +539,7 @@ function buildArticleCardsPage(input: {
 	filter: InboxEmailFilter | undefined;
 	meta: InboxEmailLinksMeta | undefined;
 	fitOverrides: ReadlistFitOverridesByReadlist;
+	paidFeaturesLocked: boolean;
 }): ArticleCardsPage {
 	const cards = input.allCards.slice(input.from, input.to).map((link) =>
 		toInboxLinkCardViewModel({
@@ -544,6 +557,7 @@ function buildArticleCardsPage(input: {
 			}),
 			linkSaveStates: input.linkSaveStates,
 			savePollContext: { mode: "static" },
+			paidFeaturesLocked: input.paidFeaturesLocked,
 		}),
 	);
 	const shown = Math.min(input.to, input.allCards.length);
@@ -608,6 +622,7 @@ export function toInboxArticlesMoreViewModel(input: {
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 	fitOverrides: ReadlistFitOverridesByReadlist;
 	filter: InboxEmailFilter | undefined;
+	paidFeaturesLocked: boolean;
 }): ArticleCardsPage {
 	const filtered = applyReadlistFilter({
 		context: readlistFitContext({
@@ -628,6 +643,7 @@ export function toInboxArticlesMoreViewModel(input: {
 		linkSaveStates: input.linkSaveStates,
 		meta: input.meta,
 		fitOverrides: input.fitOverrides,
+		paidFeaturesLocked: input.paidFeaturesLocked,
 	});
 }
 
@@ -672,6 +688,7 @@ export function toInboxLinkFitViewModel(input: {
 			}),
 			linkSaveStates: input.linkSaveStates,
 			savePollContext: { mode: "static" },
+			paidFeaturesLocked: false,
 		}),
 		line,
 	};
@@ -707,6 +724,7 @@ export function toInboxEmailDetailViewModel(input: {
 	fitConfirmed?: InboxFitConfirmation;
 	fitOverrides: ReadlistFitOverridesByReadlist;
 	filter?: InboxEmailFilter;
+	paidFeaturesLocked: boolean;
 }): InboxEmailDetailViewModel {
 	const emailId = input.entry.receivedAtMessageId;
 	const canRenderBody =
@@ -736,12 +754,14 @@ export function toInboxEmailDetailViewModel(input: {
 		linkSaveStates: input.linkSaveStates,
 		meta: linksMeta,
 		fitOverrides: input.fitOverrides,
+		paidFeaturesLocked: input.paidFeaturesLocked,
 	});
 	const excludedEntries = links.filter(isExcludedLink);
 	const excludedLinks = excludedEntries.map((link) =>
 		toInboxExcludedLinkViewModel({
 			link,
 			emailId,
+			paidFeaturesLocked: input.paidFeaturesLocked,
 		}),
 	);
 	const truncated = linksMeta?.truncated === true;
@@ -829,10 +849,13 @@ export function toInboxEmailDetailViewModel(input: {
 		);
 	}
 	const skippedNotices = excludedEntries.some(
-		(link) => link.status === "skipped",
+		(link) => link.status === "skipped" && link.skipReason !== "paid-plan",
 	)
 		? [SKIPPED_NOTE_NOTICE]
 		: [];
+	const heldLinksNotices = linksMeta?.savesHeld === true ? [HELD_LINKS_NOTICE] : [];
+	const lockedNotices =
+		input.paidFeaturesLocked && linksMeta?.savesHeld !== true ? [PAID_PLAN_LOCKED_NOTICE] : [];
 	const shared = {
 		isExtracting,
 		isStalePending,
@@ -883,7 +906,12 @@ export function toInboxEmailDetailViewModel(input: {
 			...buildPanelRegions({
 				status: panelStatus,
 				terminalAlerts: [],
-				terminalNotices: [...truncatedNotices, ...decisionNotices],
+				terminalNotices: [
+					...truncatedNotices,
+					...decisionNotices,
+					...(decisionNotices.length === 0 ? heldLinksNotices : []),
+					...lockedNotices,
+				],
 				countLabel: `${totalCards} Extracted ${totalCards === 1 ? "Article" : "Articles"}`,
 				emptyStates:
 					totalCards > 0
@@ -909,7 +937,7 @@ export function toInboxEmailDetailViewModel(input: {
 			...buildPanelRegions({
 				status: panelStatus,
 				terminalAlerts: [],
-				terminalNotices: [...truncatedNotices, ...skippedNotices],
+				terminalNotices: [...truncatedNotices, ...skippedNotices, ...heldLinksNotices, ...lockedNotices],
 				countLabel: `${excludedLinks.length} Skipped`,
 				emptyStates:
 					excludedLinks.length > 0

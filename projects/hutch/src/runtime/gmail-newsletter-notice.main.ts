@@ -7,6 +7,7 @@ import { Logger, consoleLogger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initDynamoDbGmailConnection, initDynamoDbGmailMapping, initDynamoDbGmailMonitoring } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
+import { initDynamoDbSubscriptionRead, initGetEffectiveAccess } from "@packages/subscription-access";
 import { initSendGmailNewsletterNoticeHandler } from "./domain/gmail/send-gmail-newsletter-notice-handler";
 import { GmailNewsletterNoticeEmail } from "./web/auth/gmail-newsletter-notice-email";
 import { GMAIL_PATH } from "./web/pages/integrations/gmail.url";
@@ -34,6 +35,10 @@ export const handler = initSendGmailNewsletterNoticeHandler({
 	detectNewsletters: initCatalogNewsletterDetector(catalog),
 	listReadlistDefinitions: initDynamoDbReadlistDefinitions({ client, userArticlesTableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE") }).listReadlistDefinitions,
 	findEmailByUserId: auth.findEmailByUserId,
+	getEffectiveAccess: initGetEffectiveAccess({
+		findSubscriptionByUserId: initDynamoDbSubscriptionRead({ client, tableName: requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE") }).findByUserId,
+		now,
+	}),
 	sendEmail,
 	founderAvatarUrl: `${requireEnv("STATIC_BASE_URL")}/fayner-brack.jpg`,
 	gmailPageUrl: new URL(GMAIL_PATH, requireEnv("APP_ORIGIN")).toString(),

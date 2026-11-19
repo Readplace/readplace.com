@@ -49,7 +49,7 @@ const GUEST_STATE: BannerState = {
 	emailVerified: undefined,
 };
 
-const READ_ONLY_STATE: BannerState = {
+const FREE_PLAN_STATE: BannerState = {
 	cspNonce: CSP_NONCE,
 	isAuthenticated: true,
 	emailVerified: true,
@@ -1767,7 +1767,7 @@ describe("Base upgrade slot", () => {
 
 	it("places the site dialog inside <main> so a boosted main swap carries it", () => {
 		const main = mainOf(
-			Base(createTestPageBody(), { ...READ_ONLY_STATE, upgrade: UPGRADE, siteDialog: SITE_DIALOG }).to("text/html").body,
+			Base(createTestPageBody(), { ...FREE_PLAN_STATE, upgrade: UPGRADE, siteDialog: SITE_DIALOG }).to("text/html").body,
 		);
 		expect(main.querySelector("#subscribe-plans")).not.toBeNull();
 		expect(main.querySelector("p")?.textContent).toBe("Test content");
@@ -1776,7 +1776,7 @@ describe("Base upgrade slot", () => {
 	it("ships the page's styles, the dialog's styles and the lock styles together in the one <main> style tag", () => {
 		const main = mainOf(
 			Base(createTestPageBody({ styles: ".page { color: blue; }" }), {
-				...READ_ONLY_STATE,
+				...FREE_PLAN_STATE,
 				upgrade: UPGRADE,
 				siteDialog: SITE_DIALOG,
 			}).to("text/html").body,
@@ -1788,19 +1788,19 @@ describe("Base upgrade slot", () => {
 	});
 
 	it("draws the nav lock from the state's upgrade", () => {
-		const doc = new JSDOM(Base(createTestPageBody(), { ...READ_ONLY_STATE, upgrade: UPGRADE }).to("text/html").body).window.document;
+		const doc = new JSDOM(Base(createTestPageBody(), { ...FREE_PLAN_STATE, upgrade: UPGRADE }).to("text/html").body).window.document;
 		expect(doc.querySelector('button[data-test-needs-upgrade="inbox"]')?.getAttribute("popovertarget")).toBe("subscribe-plans");
 	});
 
 	it("ships neither the dialog nor the lock styles to a state without them", () => {
-		const html = Base(createTestPageBody(), READ_ONLY_STATE).to("text/html").body;
+		const html = Base(createTestPageBody(), FREE_PLAN_STATE).to("text/html").body;
 		expect(html).not.toContain("needs-upgrade");
 		expect(mainOf(html).querySelector("style")).toBeNull();
 	});
 
 	it("refuses a site dialog on a page with no <main>", () => {
 		const body = createTestPageBody({ content: { html: "<p>No main</p>" } });
-		expect(() => Base(body, { ...READ_ONLY_STATE, siteDialog: SITE_DIALOG }).to("text/html")).toThrow(
+		expect(() => Base(body, { ...FREE_PLAN_STATE, siteDialog: SITE_DIALOG }).to("text/html")).toThrow(
 			"PageBody.content must contain a <main> element when a site dialog is provided",
 		);
 	});

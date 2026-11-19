@@ -4,6 +4,7 @@ import { CheckGmailNewslettersCommand, GmailNewsletterAccountsCheckedEvent, Moni
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
 import type { ListConnectedGmailAccounts } from "@packages/provider-contracts/gmail-account";
+import { type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import type { Handler, SQSEvent, SQSBatchResponse, SQSBatchItemFailure } from "aws-lambda";
 import type { MonitorGmailNewsletters } from "./monitor-gmail-newsletters";
 
@@ -23,6 +24,7 @@ const Envelope = z.union([
 export function initGmailNewsletterMonitorHandler(deps: {
 	monitor: MonitorGmailNewsletters;
 	listConnectedAccounts: ListConnectedGmailAccounts;
+	getEffectiveAccess: GetEffectiveAccess;
 	dispatchCheck: (input: { accountsPageToken?: string }) => Promise<void>;
 	dispatchMonitor: (input: { userId: UserId; continuation?: { generation: string; page: number } }) => Promise<void>;
 	dispatchNotice: (input: { userId: UserId }) => Promise<void>;
@@ -45,6 +47,10 @@ export function initGmailNewsletterMonitorHandler(deps: {
 				} else if (envelope["detail-type"] === MonitorGmailNewslettersCommand.detailType) {
 					const detail = MonitorGmailNewslettersCommand.detailSchema.parse(envelope.detail);
 					const { userId } = detail;
+					if (!hasPaidFeatures(await deps.getEffectiveAccess(userId))) {
+						deps.logger.info("[gmail-newsletter-monitor] skipped free-plan account", { messageId: record.messageId });
+						continue;
+					}
 					const result = detail.continuation === undefined ? await deps.monitor.start(userId) : await deps.monitor.page({ userId, ...detail.continuation });
 					await deps.publishEvent(GmailNewsletterMonitoringProgressedEvent, { userId, nextPage: result.nextPage, notices: result.notices });
 				} else {

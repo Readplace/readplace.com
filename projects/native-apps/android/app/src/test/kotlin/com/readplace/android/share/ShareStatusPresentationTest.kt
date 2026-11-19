@@ -209,4 +209,13 @@ class ShareStatusPresentationTest {
 		assertEquals(ShareStatusIcon.WARNING_TRIANGLE, status.icon)
 		assertEquals(ShareStatusTone.ERROR, status.tone)
 	}
+
+	@Test
+	fun `daily save limit says the limit is reached as a warning`() {
+		val status = present(SaveSharedOutcome.DailySaveLimitReached("You've reached today's limit for new saves. Links you already saved still open."))
+		assertEquals("You've reached today's limit for new saves. Links you already saved still open.", status.message)
+		assertNull(status.subtitle)
+		assertEquals(ShareStatusIcon.LOCK, status.icon)
+		assertEquals(ShareStatusTone.WARNING, status.tone)
+	}
 }

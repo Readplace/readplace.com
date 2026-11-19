@@ -95,8 +95,10 @@ function build(input: {
 	linkSaveStates?: ReadonlyMap<string, InboxLinkSaveState>;
 	fitOverrides?: ReadlistFitOverridesByReadlist;
 	filter?: InboxEmailFilter;
+	paidFeaturesLocked?: boolean;
 }) {
 	return toInboxEmailDetailViewModel({
+		paidFeaturesLocked: input.paidFeaturesLocked ?? false,
 		entry: input.entry ?? entry(),
 		activeTab: input.activeTab ?? "view",
 		bodyHtml: input.bodyHtml,
@@ -144,6 +146,63 @@ function crawledLinks(count: number, startIndex = 0): InboxEmailLinkEntry[] {
 		}),
 	);
 }
+
+describe("toInboxEmailDetailViewModel (free plan)", () => {
+	const HELD_NOTICE = {
+		key: "held",
+		text: "No links from this email were saved: saving from the Inbox is part of a paid plan.",
+		iconName: undefined,
+	};
+	const LOCKED_NOTICE = {
+		key: "paid-plan-locked",
+		text: "Saving links from the Inbox is part of a paid plan.",
+		iconName: undefined,
+	};
+	const heldLinks = [
+		link({ status: "skipped", skipReason: "paid-plan" }),
+		link({ ordinal: EmailLinkOrdinalSchema.parse("0001"), url: "https://example.com/two", status: "skipped", skipReason: "paid-plan" }),
+	];
+
+	it("says a held email's links were not saved on both tabs, not that they looked like junk", () => {
+		const vm = build({
+			activeTab: "excluded",
+			links: heldLinks,
+			linksMeta: { truncated: false, extractionFailed: false, savesHeld: true },
+			paidFeaturesLocked: true,
+		});
+
+		expect(vm.excluded.notices).toEqual([HELD_NOTICE]);
+		expect(vm.articles.notices).toEqual([HELD_NOTICE]);
+	});
+
+	it("keeps the junk note for a held email that also skipped an unsubscribe link", () => {
+		const vm = build({
+			activeTab: "excluded",
+			links: [...heldLinks, link({ ordinal: EmailLinkOrdinalSchema.parse("0002"), status: "skipped", skipReason: "list-unsubscribe" })],
+			linksMeta: { truncated: false, extractionFailed: false, savesHeld: true },
+			paidFeaturesLocked: true,
+		});
+
+		expect(vm.excluded.notices).toEqual([SKIPPED_NOTE, HELD_NOTICE]);
+	});
+
+	it("withholds every Save and fit control from a free account and says why", () => {
+		const vm = build({
+			activeTab: "articles",
+			links: [
+				link({ status: "crawled", title: "Kept" }),
+				link({ ordinal: EmailLinkOrdinalSchema.parse("0001"), url: "https://sponsor.example.com/deal", status: "skipped", skipReason: "llm-ad" }),
+			],
+			linksMeta: { truncated: false, extractionFailed: false },
+			paidFeaturesLocked: true,
+		});
+
+		expect(vm.articles.cards.map((card) => [card.actions, card.fitActions])).toEqual([[[], []]]);
+		expect(vm.excluded.links.map((row) => row.actions)).toEqual([[]]);
+		expect(vm.articles.notices).toEqual([LOCKED_NOTICE]);
+		expect(vm.excluded.notices).toEqual([SKIPPED_NOTE, LOCKED_NOTICE]);
+	});
+});
 
 describe("toInboxEmailDetailViewModel", () => {
 	it("renders the body for a received email with content, View tab active", () => {
@@ -620,6 +679,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		savedConfirmed?: boolean;
 	}): InboxEmailDetailViewModel {
 		return toInboxEmailDetailViewModel({
+			paidFeaturesLocked: false,
 			entry: entry(),
 			activeTab: "articles",
 			bodyHtml: undefined,
@@ -822,6 +882,7 @@ describe("toInboxEmailDetailViewModel", () => {
 	describe("View tab without link rows", () => {
 		function buildFromEntry(entryOverride: InboxEmailEntry) {
 			return toInboxEmailDetailViewModel({
+				paidFeaturesLocked: false,
 				entry: entryOverride,
 				activeTab: "view",
 				bodyHtml: "<p>hi</p>",
@@ -877,6 +938,7 @@ describe("toInboxArticlesMoreViewModel", () => {
 		filter?: InboxEmailFilter;
 	}) {
 		return toInboxArticlesMoreViewModel({
+			paidFeaturesLocked: false,
 			links: input.links,
 			meta: input.meta,
 			emailId: SK,
@@ -1322,6 +1384,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		it("reveals the next page of filtered articles, keeping the filter on Show more", () => {
 			const links = crawledLinks(45);
 			const vm = toInboxArticlesMoreViewModel({
+				paidFeaturesLocked: false,
 				links,
 				meta: decided(links.map(({ ordinal }) => fitEntry(ordinal, ordinal === "0003" ? "drop" : "keep"))),
 				emailId: SK,

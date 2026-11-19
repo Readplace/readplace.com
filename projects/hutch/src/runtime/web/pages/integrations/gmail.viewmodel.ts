@@ -24,6 +24,7 @@ import {
 import type { UserId } from "@packages/domain/user";
 import { INTEGRATIONS_PATH } from "./gmail-connect.url";
 import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
+import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
 import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
 import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
 import { type FormField, gmailBodyFields, gmailGetFields, trackGmail } from "./gmail-form-fields";
@@ -62,6 +63,7 @@ export interface GmailNoticeViewModel extends GmailBannerViewModel { variant: Al
 export interface GmailPageInput {
 	userId: UserId;
 	canConnectGmail: boolean;
+	paidFeaturesLocked: boolean;
 	offer: UpgradeOffer | undefined;
 	connection: GmailConnection;
 	senders: readonly GmailMapping[];
@@ -178,7 +180,9 @@ export interface GmailPageViewModel {
 	disconnectAction: string;
 	reconnect: GmailConnectionPrompt;
 	metadataReconnect: GmailConnectionPrompt;
+	upgrade: GmailConnectionPrompt;
 	showStep: boolean;
+	showUpgrade: boolean;
 	showSenders: boolean;
 	showReconnect: boolean;
 	showMetadataReconnect: boolean;
@@ -538,7 +542,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const choiceFor = input.state.readlist_choice_for ?? (notified !== undefined && entryFor(notified)?.mappedAddresses === undefined ? notified : undefined);
 	const pending = choiceFor !== undefined && ticked.some((email) => email === choiceFor) && entryFor(choiceFor)?.mappedAddresses === undefined && input.readlists.some((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
 	const invalid = gmailSelectedReadlists(input.state).some((slug) => !input.readlists.some((readlist) => readlist.slug === slug));
-	const showSenders = !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect;
+	const showSenders = !input.paidFeaturesLocked && !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect;
 	const mode = dialogMode({ page: input, showSenders, ticked });
 	const focus = openingFocus({ mode, focusOnOpen: input.focusOnOpen, checklist });
 	const banners = bannerKeys({ error: input.error, notice: input.notice, mode });
@@ -586,11 +590,18 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			content: "grant-sender-access", label: "Reconnect Gmail", variant: commitVariant, fields: [],
 			lock: { offer: input.offer, controlClass: `btn btn--${commitVariant}` },
 		}),
+		upgrade: gmailConnectionPrompt({
+			canConnectGmail: false,
+			message: GMAIL_UPGRADE_MESSAGE,
+			content: "add-newsletters", label: "Add newsletters", variant: "primary", fields: [],
+			lock: { offer: input.offer, controlClass: "btn btn--primary" },
+		}),
 		showStep,
+		showUpgrade: input.paidFeaturesLocked,
 		showSenders,
 		showReconnect: revoked,
-		showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
-		autoDiscoverAction: input.discoveryStarted || input.discovery.state !== "idle" ? undefined : GMAIL_DISCOVERY_START_PATH,
+		showMetadataReconnect: !input.paidFeaturesLocked && !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
+		autoDiscoverAction: input.paidFeaturesLocked || input.discoveryStarted || input.discovery.state !== "idle" ? undefined : GMAIL_DISCOVERY_START_PATH,
 		dialog: dialogFor({ mode, state: pickerState, ticked, banners, saved: input.saved, awaitingConfirmation: pollState !== undefined, candidates }),
 		senderPicker: { open: focus === "search", searchAutofocus: focus === "search" },
 		search: pickerState.search ?? "",
@@ -623,6 +634,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		mappings: toGmailMappingsViewModel({
 			userId: input.userId,
 			canConnectGmail: input.canConnectGmail,
+			paidFeaturesLocked: input.paidFeaturesLocked,
 			offer: input.offer,
 			connection: input.connection,
 			senders: input.senders,

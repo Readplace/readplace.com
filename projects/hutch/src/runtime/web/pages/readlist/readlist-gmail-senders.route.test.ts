@@ -204,6 +204,19 @@ describe("Readlist Gmail newsletters section", () => {
 		expect(fallback.getAttribute("href")).toBe("/account/plans?utm_source=connectors&utm_medium=internal&utm_content=upgrade-connect-gmail");
 	});
 
+	it("locks the sender picker for a free-plan reader whose Gmail is still connected, starting no discovery", async () => {
+		const { agent, gmail, harness, userId } = await readerAgent();
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString() });
+		const doc = load((await agent.get(PREFERENCES)).text);
+		expect(sectionState(doc)).toBe("upgrade");
+		expect(section(doc).querySelectorAll("form")).toHaveLength(0);
+		const trigger = section(doc).querySelector('[data-test-needs-upgrade="connect-gmail"][data-test-action="upgrade-open"]');
+		assert(trigger, "the Gmail lock must render its trigger");
+		expect(trigger.textContent).toContain("Keep Gmail connected");
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
+		expect(gmail.discoveryRequests).toEqual([]);
+	});
+
 	it("keeps the Upgrade link for a reader on the in-app surface who cannot connect Gmail", async () => {
 		const { agent, harness, userId } = await readerAgent({ connected: false });
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString() });

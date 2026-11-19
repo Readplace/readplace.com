@@ -70,6 +70,23 @@
         </section>
         {{/if}}
 
+        {{#if showUpgrade}}
+        <section class="gmail__reconnect" data-test-gmail-upgrade>
+          <p class="gmail__step-copy">{{upgrade.message}}</p>
+          {{#each upgrade.locks}}
+          {{{this}}}
+          {{/each}}
+          {{#each upgrade.actions}}
+          <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+            {{#each fields}}
+            <input type="hidden" name="{{name}}" value="{{value}}">
+            {{/each}}
+            <button type="submit" class="btn btn--{{variant}}" data-test-gmail-upgrade-button data-test-gmail-connection-action="{{key}}">{{label}}</button>
+          </form>
+          {{/each}}
+        </section>
+        {{/if}}
+
         {{{pageAutoDiscoverHtml}}}
         {{{dialogHtml}}}
         {{{mappingsHtml}}}

@@ -34,7 +34,9 @@ sealed class ApiError(message: String) : Exception(message) {
 	class Unauthorized : ApiError("Your session expired. Please sign in again.")
 
 	class Server(val status: Int, val code: String?, val serverMessage: String?) :
-		ApiError(serverMessage ?: "Server error $status${code?.let { " ($it)" } ?: ""}.")
+		ApiError(serverMessage ?: "Server error $status${code?.let { " ($it)" } ?: ""}.") {
+		val isDailySaveLimit: Boolean get() = status == 429 && code == "daily_save_limit"
+	}
 
 	/** The server refused the request with messages for the client to render.
 	 * Carries the server-authored messages; the refusal models no action — there
@@ -54,7 +56,7 @@ sealed class ApiError(message: String) : Exception(message) {
 	companion object {
 		fun isRefusalOrAuthFailure(error: Throwable): Boolean = when (error) {
 			is Refused, is Unauthorized, is NoToken -> true
-			is Server -> error.status == 403
+			is Server -> error.status == 403 || error.status == 429
 			else -> false
 		}
 	}

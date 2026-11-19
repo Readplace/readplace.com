@@ -96,6 +96,7 @@ const activateCheckout = initActivateCheckout({
 		subscriptionLogger.info(buildCheckoutCompletedEvent({ now }, completion)),
 	deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 	deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
+	deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,
 	createChargeReminderSchedule: trialScheduler.createChargeReminderSchedule,
 	logError: (message, error) => logger.error(message, { error }),
 	now,

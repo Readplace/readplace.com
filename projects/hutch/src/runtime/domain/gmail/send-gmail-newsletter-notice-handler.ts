@@ -10,6 +10,7 @@ import type { ListReadlistDefinitions } from "@packages/provider-contracts/artic
 import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
 import type { EmailMessage, SendEmail } from "@packages/provider-contracts/email";
 import type { GmailMonitoringStore, GmailNewsletterNotice, GmailNewsletterNoticeBatch } from "@packages/provider-contracts/gmail-monitoring";
+import { type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import type { Handler, SQSEvent, SQSBatchResponse } from "aws-lambda";
 import { GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS } from "./gmail-newsletter-notice-cadence";
 import { selectGmailNewsletterNotices } from "./gmail-newsletter-notice-selection";
@@ -30,6 +31,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 	detectNewsletters: DetectNewsletters;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	findEmailByUserId: FindEmailByUserId;
+	getEffectiveAccess: GetEffectiveAccess;
 	sendEmail: SendEmail;
 	founderAvatarUrl: string;
 	gmailPageUrl: string;
@@ -91,16 +93,17 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 	async function readEligibility(userId: UserId, pending: GmailNewsletterNotice[]): Promise<{ eligible: EligibleNewsletter[]; ineligible: ForwardableSender[]; email: string | null }> {
 		const detection = await deps.detectNewsletters(pending.map((notice) => notice.senderEmail));
 		if (detection.status === "unavailable") throw new Error("Newsletter catalog unavailable before notification");
-		const [connection, checkpoint, email] = await Promise.all([
-			deps.connections.findConnectionByUserId(userId), deps.monitoring.findCheckpoint(userId), deps.findEmailByUserId(userId),
+		const [connection, checkpoint, email, access] = await Promise.all([
+			deps.connections.findConnectionByUserId(userId), deps.monitoring.findCheckpoint(userId), deps.findEmailByUserId(userId), deps.getEffectiveAccess(userId),
 		]);
+		const paidFeatures = hasPaidFeatures(access);
 		const eligible: EligibleNewsletter[] = [];
 		const ineligible: ForwardableSender[] = [];
 		for (const notice of pending) {
 			const mapping = await deps.mappings.findMapping({ userId, accountEmail: notice.accountEmail, senderEmail: notice.senderEmail });
 			const matching = connection !== undefined && connection.revokedAt === undefined && connection.disconnectRequestedAt === undefined && connection.gatewayAddress === notice.gatewayAddress && connection.accountEmail?.toLowerCase() === notice.accountEmail.toLowerCase() && checkpoint?.mailboxId === notice.mailboxId;
 			const recognition = detection.recognized.get(notice.senderEmail);
-			if (!matching || mapping?.addedToFilterAt !== undefined || recognition === undefined || email === null) {
+			if (!paidFeatures || !matching || mapping?.addedToFilterAt !== undefined || recognition === undefined || email === null) {
 				ineligible.push(notice.senderEmail);
 			} else {
 				eligible.push({ senderEmail: notice.senderEmail, newsletterName: recognition.name, pendingSince: notice.pendingSince });

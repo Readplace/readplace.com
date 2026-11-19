@@ -193,6 +193,32 @@ export function throwIfBlocked(body: unknown): void {
 	if (messages.length > 0) throw new SaveBlockedError(messages);
 }
 
+export const DAILY_SAVE_LIMIT_CODE = "daily_save_limit";
+
+const DailySaveLimitSchema = z.object({
+	properties: z.object({ code: z.literal(DAILY_SAVE_LIMIT_CODE), message: z.string() }),
+});
+
+export function readDailySaveLimitMessage(body: unknown): string | undefined {
+	const parsed = DailySaveLimitSchema.safeParse(body);
+	return parsed.success ? parsed.data.properties.message : undefined;
+}
+
+function escapeHtml(text: string): string {
+	return text
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
+}
+
+export function throwIfDailySaveLimitReached(body: unknown): void {
+	const message = readDailySaveLimitMessage(body);
+	if (message === undefined) return;
+	throw new SaveBlockedError([{ type: "warning", content: { type: "text/html", body: escapeHtml(message) } }]);
+}
+
 const SirenWarningSchema = z.object({
 	code: z.string(),
 	message: z.string(),

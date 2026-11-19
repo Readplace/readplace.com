@@ -15,6 +15,7 @@ import {
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import { render, withInternalTracking } from "@packages/web-shell";
+import { type UpgradeOffer, type UpgradeStanding, renderedLockFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { type PurposeState, purposeStateOf } from "./readlist-purpose-card.component";
 import { readlistPreferencesInboxesCreatePath, readlistPreferencesInboxesPath } from "./readlist.url";
 
@@ -84,13 +85,41 @@ export interface ReadlistInboxesDisplayModel {
 	createValue: string;
 	createError: string | undefined;
 	manageInboxesHref: string;
+	editable: boolean;
+	lockedNotes: readonly string[];
+	locks: readonly string[];
 }
+
+interface InboxesLocking {
+	editable: boolean;
+	lockedNotes: readonly string[];
+	locks: readonly string[];
+}
+
+const LOCKING: Record<UpgradeStanding, (offer: UpgradeOffer | undefined) => InboxesLocking> = {
+	open: () => ({ editable: true, lockedNotes: [], locks: [] }),
+	"needs-upgrade": (offer) => ({
+		editable: false,
+		lockedNotes: [t("readlistInboxes.locked.note")],
+		locks: renderedLockFor({
+			offer,
+			gated: true,
+			key: "create-inbox",
+			label: t("readlistInboxes.create.submit"),
+			controlClass: "btn btn--neutral btn--m",
+			source: INBOXES_SOURCE,
+		}),
+	}),
+	withheld: () => ({ editable: false, lockedNotes: [t("readlistInboxes.locked.note")], locks: [] }),
+};
 
 export function buildReadlistInboxes(input: {
 	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
 	inboxes: readonly InboxAddressEntry[];
 	readlists: readonly ReadlistRef[];
 	create: { submittedName: string | undefined; error: InboxNameError | undefined };
+	standing: UpgradeStanding;
+	offer: UpgradeOffer | undefined;
 }): ReadlistInboxesDisplayModel {
 	const action = readlistPreferencesInboxesPath(input.readlist.slug);
 	const rows = input.inboxes
@@ -139,6 +168,7 @@ export function buildReadlistInboxes(input: {
 			source: INBOXES_SOURCE,
 			content: "manage-inboxes",
 		}),
+		...LOCKING[input.standing](input.offer),
 	};
 }
 

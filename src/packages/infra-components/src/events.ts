@@ -881,8 +881,7 @@ export type CancelSubscriptionDetail = z.infer<typeof CancelSubscriptionCommand.
  *
  * `subscriptionId` is present for paid (active) cancels and absent for trial
  * cancels — the same trial-vs-paid discriminator the rest of the chain uses.
- * `cancellationEffectiveAt` is the instant access flips from full to
- * read-only: `current_period_end` for paid, `trialEndsAt` for trial. */
+ * `cancellationEffectiveAt`: `current_period_end` for paid, `trialEndsAt` for trial. */
 export const SubscriptionCancellationScheduledEvent = defineEvent({
 	name: "subscription-cancellation-scheduled",
 	source: "hutch.subscriptions",

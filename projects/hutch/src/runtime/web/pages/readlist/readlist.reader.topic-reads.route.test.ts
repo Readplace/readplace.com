@@ -377,6 +377,34 @@ describe("Reader previously-read-on-this-topic slot", () => {
 		expect(publishedComputeRequests).toEqual([]);
 	});
 
+	it("hides the stored matches from a free-plan reader's article reader", async () => {
+		const { agent, harness, userId, articleId, seedPastReads } = await buildHarness();
+		await seedPastReads("work");
+		await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_free", customerId: "cus_free" });
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.get(`/queue/${articleId}/view`);
+
+		expect(rowIdsOf(slotOf(response.text))).toEqual([]);
+		expect(rowIdsOf(inlineSlotOf(response.text))).toEqual([]);
+		expect(slotOf(response.text).getAttribute("hx-get")).toBe(null);
+	});
+
+	it("answers a free-plan reader's poll without the stored matches and stops the chain", async () => {
+		const { agent, harness, userId, articleId, seedPastReads } = await buildHarness();
+		await seedPastReads("work");
+		await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_free", customerId: "cus_free" });
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.get(`/queue/${articleId}/topic-reads?poll=1`);
+
+		expect(response.status).toBe(286);
+		const rail = slotOf(response.text);
+		expect(rowIdsOf(rail)).toEqual([]);
+		expect(rail.getAttribute("hx-get")).toBe(null);
+		expect(rowIdsOf(inlineSlotOf(response.text))).toEqual([]);
+	});
+
 	it("never requests computation for a locked reader", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.shared.now = () => new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);

@@ -66,7 +66,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	mechanismParagraphs: [
 		`Price. ${PRICING_PLANS.yearly.monthlyDisplay}/month billed yearly, or ${PRICING_PLANS.monthly.totalDisplay} month to month, and every plan is the whole product.`,
 		`Scanned PDFs. Every page is read from its pixels, and a cleanup pass that changes a number is discarded. <a href="${track("/pdf-ocr", "pdf-ocr")}">How the checks work</a>.`,
-		`Leaving. If you stop paying, the account moves to the free plan rather than being locked, and export needs only a sign-in. <a href="${track("/read-it-later-that-wont-die", "read-only")}">What happens when a subscription ends</a>.`,
+		`Leaving. If you stop paying, the account moves to the free plan rather than being locked, and export needs only a sign-in. <a href="${track("/read-it-later-that-wont-die", "free-plan")}">What happens when a subscription ends</a>.`,
 		`AI assistants. ChatGPT, Claude and Gemini can save to and read from a readlist. <a href="${track("/ai-reading-list", "ai-reading-list")}">How the assistant connection works</a>.`,
 	],
 	comparisons: [

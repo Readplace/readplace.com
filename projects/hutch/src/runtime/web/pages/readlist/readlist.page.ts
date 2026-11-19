@@ -284,6 +284,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				listArticleHighlights: deps.listArticleHighlights,
 				readCanonicalSnapshot: deps.readCanonicalSnapshot,
 				canSaveContent: deps.canSaveContent,
+				getEffectiveAccess: deps.getEffectiveAccess,
 			},
 			shared,
 		),

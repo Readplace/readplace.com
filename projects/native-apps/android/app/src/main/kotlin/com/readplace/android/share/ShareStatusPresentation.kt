@@ -27,6 +27,8 @@ sealed interface SaveSharedOutcome {
 
 	data class Refused(val messages: List<ServerMessage>) : SaveSharedOutcome
 
+	data class DailySaveLimitReached(val message: String) : SaveSharedOutcome
+
 	data class Failed(val message: String) : SaveSharedOutcome
 }
 
@@ -121,6 +123,13 @@ data class ShareStatusPresentation(
 				} else {
 					ShareStatusTone.WARNING
 				},
+			)
+
+			is SaveSharedOutcome.DailySaveLimitReached -> ShareStatusPresentation(
+				message = outcome.message,
+				subtitle = null,
+				icon = ShareStatusIcon.LOCK,
+				tone = ShareStatusTone.WARNING,
 			)
 
 			is SaveSharedOutcome.Failed -> ShareStatusPresentation(

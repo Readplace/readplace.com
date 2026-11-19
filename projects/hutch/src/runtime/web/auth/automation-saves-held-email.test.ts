@@ -6,8 +6,8 @@ const REACTIVATE_URL = "https://readplace.com/account?utm_content=reactivate";
 const MANAGE_URL = "https://readplace.com/newsletters/custom-emails?utm_content=manage-addresses";
 
 const AFTER_THE_OPENING = [
-	`Don't worry, you didn't lose anything. The email and the extracted articles stay in your Inbox. You can save them yourself, and new emails go back to saving automatically, once you upgrade: ${REACTIVATE_URL}`,
-	`See the articles waiting: ${INBOX_URL}`,
+	`Don't worry, you didn't lose anything. The email and its links stay in your Inbox. You can save them yourself, and new emails go back to saving automatically, once you upgrade: ${REACTIVATE_URL}`,
+	`See the links waiting: ${INBOX_URL}`,
 	"If you have any questions, please reply to this email",
 	`If you'd rather not continue, disable your custom emails and nothing more will be forwarded and you will stop receiving these emails: ${MANAGE_URL}`,
 	"— Fayner Brack, Founder & CEO",
@@ -46,7 +46,7 @@ describe("AutomationSavesHeldEmail", () => {
 		);
 		expect([...document.querySelectorAll("a")].map((anchor) => [anchor.textContent, anchor.getAttribute("href")])).toEqual([
 			["you upgrade", REACTIVATE_URL],
-			["See the articles waiting", INBOX_URL],
+			["See the links waiting", INBOX_URL],
 			["disable your custom emails", MANAGE_URL],
 		]);
 	});

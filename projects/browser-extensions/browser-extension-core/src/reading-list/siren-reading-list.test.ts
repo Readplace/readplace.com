@@ -749,6 +749,91 @@ describe("initSirenReadingList", () => {
 			expect(messages[0].content.type).toBe("text/markdown");
 		});
 
+		it("returns the server's daily-limit message as escaped HTML when a save is refused with daily_save_limit", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"POST http://localhost:3000/queue": {
+						status: 429,
+						body: JSON.stringify({
+							class: ["error"],
+							properties: { code: "daily_save_limit", message: "You've reached today's limit for new saves. <b>Links</b> still open." },
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.saveUrl({ url: "https://example.com/article", title: "Ignored" });
+			expect(result).toEqual({
+				ok: false,
+				messages: [
+					{
+						type: "warning",
+						content: { type: "text/html", body: "You&#39;ve reached today&#39;s limit for new saves. &lt;b&gt;Links&lt;/b&gt; still open." },
+					},
+				],
+			});
+		});
+
+		it("still fails generically on a 429 that is not the daily save limit", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"POST http://localhost:3000/queue": {
+						status: 429,
+						body: JSON.stringify({ class: ["error"], properties: { code: "ocr-page-quota", message: "No PDF pages left." } }),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await expect(list.saveUrl({ url: "https://example.com/article", title: "Ignored" })).rejects.toThrow("Save failed: 429");
+		});
+
+		it("shows the daily-limit message without following the fallback when save-content is refused with daily_save_limit", async () => {
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: JSON.stringify({
+							class: ["collection", "articles"],
+							entities: [],
+							links: [{ rel: ["self"], href: "/queue" }],
+							actions: [
+								COLLECTION_ACTIONS[0],
+								{ name: "save-content", href: "/queue/save-content", method: "POST", type: "multipart/form-data", fields: [{ name: "url", type: "url" }, { name: "content", type: "file" }, { name: "mediaType", type: "text" }] },
+								COLLECTION_ACTIONS[1],
+							],
+						}),
+					},
+					"POST http://localhost:3000/queue/save-content": {
+						status: 429,
+						body: JSON.stringify({
+							class: ["error"],
+							properties: { code: "daily_save_limit", message: "You've reached today's limit for new saves." },
+							actions: [{ name: "save-article", href: "/queue", method: "POST", type: "application/json", fields: [{ name: "url", type: "url" }] }],
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.saveUrl({
+				url: "https://example.com/x.pdf",
+				title: "",
+				content: { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]).buffer, mediaType: "application/pdf" },
+			});
+			expect(result).toEqual({
+				ok: false,
+				messages: [{ type: "warning", content: { type: "text/html", body: "You&#39;ve reached today&#39;s limit for new saves." } }],
+			});
+			expect(calls).not.toContain("POST http://localhost:3000/queue");
+		});
+
 		it("returns a not-saveable result with collection items when server rejects with a collection body", async () => {
 			const existing = articleEntity({
 				id: "article-existing",

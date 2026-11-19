@@ -64,7 +64,7 @@ describe("initRecordMcpToolCall", () => {
 		});
 	});
 
-	it.each([["error"], ["paywalled"], ["access_check_failed"]] as const)(
+	it.each([["error"], ["access_check_failed"]] as const)(
 		"records a save_link that did not save as a failed save-intent (outcome=%s)",
 		(outcome) => {
 			const captured = run({ tool: "save_link", outcome, submittedUrl: "https://example.com/a" });

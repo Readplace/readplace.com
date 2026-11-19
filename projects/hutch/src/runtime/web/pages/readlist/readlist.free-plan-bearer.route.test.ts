@@ -11,9 +11,9 @@ const useApp = useTestServer();
 
 type Harness = ReturnType<typeof useApp>;
 
-const ARTICLE_URL = "https://example.com/read-only";
+const ARTICLE_URL = "https://example.com/free-plan";
 
-async function readOnlyBearer(harness: Harness): Promise<string> {
+async function freePlanBearer(harness: Harness): Promise<string> {
 	await loginAgent(harness.server, harness.auth);
 	const user = await harness.auth.findUserByEmail("test@example.com");
 	assert(user, "the logged-in user must exist");
@@ -48,7 +48,7 @@ function sirenGet(harness: Harness, params: { path: string; token: string }) {
 describe("Free-plan account with an obsidian-plugin bearer", () => {
 	it("answers the entry point with the listing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const token = await readOnlyBearer(harness);
+		const token = await freePlanBearer(harness);
 
 		const response = await sirenGet(harness, { path: "/", token }).redirects(0);
 
@@ -59,7 +59,7 @@ describe("Free-plan account with an obsidian-plugin bearer", () => {
 
 	it("lists the saved article as Siren with a stable contentVersion", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const token = await readOnlyBearer(harness);
+		const token = await freePlanBearer(harness);
 
 		const first = await sirenGet(harness, { path: "/queue", token });
 		const second = await sirenGet(harness, { path: "/queue", token });
@@ -77,7 +77,7 @@ describe("Free-plan account with an obsidian-plugin bearer", () => {
 
 	it("serves the article's read link as Markdown", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const token = await readOnlyBearer(harness);
+		const token = await freePlanBearer(harness);
 		const listing = await sirenGet(harness, { path: "/queue", token });
 		const read = listing.body.entities[0].links.find((link: { rel: string[] }) => link.rel.includes("read"));
 		assert(read, "the article entity must carry a read link");
@@ -95,7 +95,7 @@ describe("Free-plan account with an obsidian-plugin bearer", () => {
 
 	it("saves a new link, since saving is core on the free plan", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const token = await readOnlyBearer(harness);
+		const token = await freePlanBearer(harness);
 		const listing = await sirenGet(harness, { path: "/queue", token });
 		const save = listing.body.actions.find((action: { name: string }) => action.name === "save-article");
 		assert(save, "the listing must advertise the save-article action");
@@ -116,12 +116,12 @@ describe("Free-plan account's Siren writes", () => {
 	type SirenAction = { name: string; href: string; fields?: { name: string; value?: string }[] };
 	type SirenEntity = { actions: SirenAction[] };
 
-	async function readOnlyBearerWithReadlist(harness: Harness): Promise<{ token: string; readlistHref: string }> {
+	async function freePlanBearerWithReadlist(harness: Harness): Promise<{ token: string; readlistHref: string }> {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const created = await agent.post("/queue/queues").type("form").send({ label: "Work" });
 		const slug = new URL(created.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
 		assert(slug, "creating a readlist must land the reader on it");
-		const token = await readOnlyBearer(harness);
+		const token = await freePlanBearer(harness);
 		const user = await harness.auth.findUserByEmail("test@example.com");
 		assert(user, "the logged-in user must exist");
 		await harness.articleStore.saveReadlistArticle({
@@ -155,7 +155,7 @@ describe("Free-plan account's Siren writes", () => {
 
 	it("adds an article to a readlist with a 303, since readlists are core on the free plan", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { token, readlistHref } = await readOnlyBearerWithReadlist(harness);
+		const { token, readlistHref } = await freePlanBearerWithReadlist(harness);
 		const listing = await sirenGet(harness, { path: "/queue", token });
 		const add = actionOf(listing.body.entities[0], "add-to-readlist");
 
@@ -166,7 +166,7 @@ describe("Free-plan account's Siren writes", () => {
 
 	it("creates a readlist with a 303, since readlists are core on the free plan", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { token } = await readOnlyBearerWithReadlist(harness);
+		const { token } = await freePlanBearerWithReadlist(harness);
 		const listing = await sirenGet(harness, { path: "/queue", token });
 		const create = actionOf(listing.body, "create-readlist");
 
@@ -179,7 +179,7 @@ describe("Free-plan account's Siren writes", () => {
 
 	it("still marks an article as read with a 303", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { token } = await readOnlyBearerWithReadlist(harness);
+		const { token } = await freePlanBearerWithReadlist(harness);
 		const listing = await sirenGet(harness, { path: "/queue", token });
 		const update = actionOf(listing.body.entities[0], "update-status");
 		const status = update.fields?.find((field) => field.name === "status")?.value;
@@ -193,7 +193,7 @@ describe("Free-plan account's Siren writes", () => {
 
 	it("still removes an article from a named readlist with a 303", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { token, readlistHref } = await readOnlyBearerWithReadlist(harness);
+		const { token, readlistHref } = await freePlanBearerWithReadlist(harness);
 		const readlist = await sirenGet(harness, { path: readlistHref, token });
 		const remove = actionOf(readlist.body.entities[0], "remove-from-readlist");
 

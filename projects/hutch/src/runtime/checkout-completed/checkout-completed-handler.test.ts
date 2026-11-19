@@ -55,6 +55,7 @@ async function buildWorld() {
 		},
 		deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 		deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
+		deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,
 		createChargeReminderSchedule: trialScheduler.createChargeReminderSchedule,
 		logError: () => {},
 		now: () => NOW,

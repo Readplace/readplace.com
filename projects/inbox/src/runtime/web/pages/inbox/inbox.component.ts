@@ -8,6 +8,12 @@ import { INBOX_STYLES } from "./inbox.styles";
 import { INBOX_COPYABLE_ADDRESS_STYLES } from "./inbox-copyable-address.styles";
 import { renderCopyableAddress } from "./inbox-copyable-address.component";
 import { toInboxAddressesViewModel, toInboxAlerts, toInboxNameErrors } from "./inbox.viewmodel";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { inbox } from "@packages/translations/inbox";
+
+const { t } = translator(inbox, DEFAULT_LOCALE);
+
+const PLANS_PATH = "/account/plans";
 
 const INBOX_TEMPLATE = readFileSync(join(__dirname, "inbox.template.html"), "utf-8");
 
@@ -35,6 +41,7 @@ export function InboxPage(params: {
 	createdName?: string;
 	submittedName: string;
 	origin: CustomEmailsOrigin;
+	paidFeaturesLocked: boolean;
 }): PageBody {
 	const back = BACK_LINKS[params.origin];
 	const actionUrl = (subpath: string) => buildCustomEmailsUrl({ origin: params.origin, subpath, params: {} });
@@ -55,8 +62,29 @@ export function InboxPage(params: {
 					dismissMs: STATUS_TOAST_DISMISS_MS,
 					actions: [],
 				});
+	const paidPlanAlertHtml = params.paidFeaturesLocked
+		? renderAlert({
+				key: "paid-plan-locked",
+				content: {
+					variant: "info",
+					title: { text: t("customEmails.paidPlanLocked.title"), element: "p" },
+					message: {
+						html: render(
+							'{{body}} <a href="{{href}}" data-test-inbox-plans-link>{{link}}</a>',
+							{
+								body: t("customEmails.paidPlanLocked.body"),
+								href: trackAddresses(PLANS_PATH, "upgrade-custom-emails"),
+								link: t("customEmails.paidPlanLocked.link"),
+							},
+						),
+					},
+				},
+			})
+		: "";
 	const content = render(INBOX_TEMPLATE, {
 		...addresses,
+		paidFeaturesLocked: params.paidFeaturesLocked,
+		paidPlanAlertHtml,
 		activeAddresses: addresses.activeAddresses.map((row) => ({
 			...row,
 			copyableHtml: renderCopyableAddress(row),

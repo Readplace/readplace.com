@@ -14,7 +14,7 @@ import { READLIST_MAX_PER_USER, readerReadlists } from "@packages/domain/readlis
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import { GMAIL_MESSAGE_READ_SCOPES, GMAIL_METADATA_SCOPE, GMAIL_MODIFY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
-import type { GetEffectiveAccess } from "@packages/subscription-access";
+import { type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import { initMapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-mapping";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -129,6 +129,7 @@ export function registerGmailPageRoutes(
 		return toGmailPageViewModel({
 			userId,
 			canConnectGmail: canConnectGmail(access),
+			paidFeaturesLocked: !hasPaidFeatures(access),
 			offer: upgradeOfferFor({ req, access }),
 			connection,
 			senders,

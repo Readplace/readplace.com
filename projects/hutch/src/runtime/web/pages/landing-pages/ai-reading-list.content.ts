@@ -5,7 +5,7 @@ import { READLIST_SHOT, founderLine, PLAN_CHOICES, START_TRIAL } from "./landing
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const AI_READING_LIST_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-04",
+	lastModified: "2026-11-19",
 	title: "Save Links from Claude, ChatGPT or Gemini — MCP | Readplace",
 	description:
 		"Connect Readplace to your assistant once, then save links mid-conversation and read them later. It can add to your readlist and read it back, never delete.",
@@ -104,7 +104,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		paragraphs: [
 			`Connecting costs nothing. The readlist behind the connection is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			`${PRICING_PLANS.yearly.periodDisplay} is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
-			"If the subscription lapses, saving and readlist changes refuse. Your assistant can still list your readlist, pull an article's text or summary, and mark things read as you work through them. It cannot add anything new.",
+			"If the subscription lapses, the account moves to the free plan. Your assistant can keep saving links, list your readlist, pull an article's text or summary, and mark things read as you work through them, all within daily limits.",
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},

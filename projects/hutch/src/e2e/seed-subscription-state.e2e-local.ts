@@ -51,7 +51,7 @@ test.describe("Subscription state seed fixture", () => {
 		assert.equal(response.status(), 400, "a body without a userId must be rejected");
 	});
 
-	test("a seeded inactive subscription shows the inactive banner on /queue", async ({ page }, testInfo) => {
+	test("a seeded free subscription shows the free plan banner on /queue", async ({ page }, testInfo) => {
 		const email = `seed-subscription-inactive-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createVerifiedUser(page, email);
 		await seedSubscriptionState(page, { userId, state: "free" });

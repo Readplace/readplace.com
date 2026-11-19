@@ -42,6 +42,7 @@ function cardActionKeys(row: Element): string[] {
 
 const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
+const ONE_HOUR_MS = 3_600_000;
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 async function loginUser(
@@ -2078,6 +2079,82 @@ describe("POST /account/subscribe", () => {
 		// No NEW subscription created — the user still has the existing one
 		// with cancel-at-period-end set; Reactivate is the only un-cancel path.
 		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(0);
+	});
+
+	it("charges the saved card on /subscribe once a pending_cancellation row has passed its effective date, and deletes the deferred cancel so it cannot cancel the new subscription", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling, trialScheduler } = harness;
+		const { agent, userId } = await loginUser(harness, "lapsed-pending-subscribe@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_lapsed_pending",
+			customerId: "cus_lapsed_pending",
+		});
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: new Date(Date.now() - ONE_HOUR_MS / 2).toISOString(),
+		});
+		await trialScheduler.createDeferredCancellationSchedule({
+			userId,
+			firesAt: new Date(Date.now() + ONE_HOUR_MS / 2).toISOString(),
+		});
+		subscriptionBilling.seedSubscriptionPaymentMethod({
+			subscriptionId: "sub_lapsed_pending",
+			paymentMethodId: "pm_lapsed_pending",
+		});
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(1);
+		expect(trialScheduler.getDeferredCancellationSchedule(userId)).toBeUndefined();
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("active");
+		expect(row.subscriptionId).not.toBe("sub_lapsed_pending");
+		expect(await subscriptionProviders.findBySubscriptionId("sub_lapsed_pending")).toBeUndefined();
+	});
+
+	it("starts checkout on /subscribe for a trial that lapsed without a card while its row is still pending_cancellation", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling } = harness;
+		const { agent, userId } = await loginUser(harness, "lapsed-trial-subscribe@example.com");
+		const lapsedAt = new Date(Date.now() - ONE_HOUR_MS / 2).toISOString();
+		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt: lapsedAt });
+		await subscriptionProviders.markPendingCancellation({ userId, cancellationEffectiveAt: lapsedAt });
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		const location = response.headers.location;
+		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
+		expect(subscriptionBilling.createdSubscriptions()).toHaveLength(0);
+	});
+
+	it("leaves a pending_cancellation row that has passed its effective date alone on /reactivate, since the subscription it would un-cancel has ended", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, subscriptionBilling, trialScheduler } = harness;
+		const { agent, userId } = await loginUser(harness, "lapsed-pending-reactivate@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_lapsed_reactivate",
+			customerId: "cus_lapsed_reactivate",
+		});
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: new Date(Date.now() - ONE_HOUR_MS / 2).toISOString(),
+		});
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		expect(subscriptionBilling.reversedCancellations()).toEqual([]);
+		expect(trialScheduler.deferredCancellationDeleteCalls()).toEqual([]);
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("pending_cancellation");
 	});
 
 	it("records the resubscribe_completed of a signed-in card charge carrying a crawler User-Agent, since only an authenticated account has a card to charge", async () => {

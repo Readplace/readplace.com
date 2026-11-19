@@ -281,6 +281,36 @@ describe("cancel-subscription handler", () => {
 		assert.equal(subject.cancelledEvents[0].reason, "user_initiated_trial");
 	});
 
+	it("a deferred cancel already in flight when the reader resubscribed does nothing to the new active subscription, because its envelope predates the row's status", async () => {
+		const subject = buildSubject();
+		await subject.providers.upsertActive({
+			userId: USER_ID,
+			subscriptionId: "sub_resubscribed",
+			customerId: "cus_resubscribed",
+		});
+
+		const result = await subject.handler(
+			buildSqsEvent([
+				{
+					messageId: "msg-in-flight",
+					body: JSON.stringify({ detail: { userId: USER_ID }, time: "2026-05-23T09:59:00Z" }),
+				},
+			]),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 0);
+		assert.deepEqual(subject.stripeSubscriptions.scheduledCancellations(), []);
+		assert.deepEqual(subject.trialScheduler.allDeferredCancellationSchedules(), []);
+		assert.equal(subject.scheduledEvents.length, 0);
+		assert.equal(subject.cancelledEvents.length, 0);
+		const row = await subject.providers.findByUserId(USER_ID);
+		assert(row, "row must exist");
+		assert.equal(row.status, "active");
+	});
+
 	it("already-cancelled rows are a noop — no Stripe, no events, no schedules touched", async () => {
 		const subject = buildSubject();
 		await subject.providers.upsertActive({

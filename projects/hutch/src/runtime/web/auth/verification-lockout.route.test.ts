@@ -148,7 +148,7 @@ describe("Email verification lockout", () => {
 		expect(remaining.articles).toHaveLength(0);
 	});
 
-	it("keeps the /import upload+review public but locks the commit (the bulk save) for a lapsed account", async () => {
+	it("keeps the /import upload+review public but locks the commit (the bulk save) for a locked unverified account", async () => {
 		const harness = useApp(fixtureClockedDaysAhead(8));
 		const agent = await loginAgent(harness.server, harness.auth);
 

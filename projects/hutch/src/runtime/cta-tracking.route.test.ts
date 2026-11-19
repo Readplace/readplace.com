@@ -495,7 +495,14 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		}
 
 		expect(untracked).toEqual([]);
-		expect([...lockKeys].sort()).toEqual(["connect-gmail", "inbox", "next-read", "set-up-readlist"]);
+		expect([...lockKeys].sort()).toEqual([
+			"connect-gmail",
+			"create-inbox",
+			"custom-emails",
+			"inbox",
+			"next-read",
+			"set-up-readlist",
+		]);
 	});
 
 	it("holds across homepage arm B, including its comparison signup link", async () => {

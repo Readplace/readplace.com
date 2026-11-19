@@ -18,6 +18,7 @@ import {
 	initDynamoDbGmailMapping,
 } from "@packages/inbox-store";
 import { readEnv } from "@packages/require-env";
+import { initDynamoDbSubscriptionRead, initGetEffectiveAccess } from "@packages/subscription-access";
 import { initGmailNewsletterMonitorHandler } from "./domain/gmail/gmail-newsletter-monitor-handler";
 import { initMonitorGmailNewsletters } from "./domain/gmail/monitor-gmail-newsletters";
 import { initGmailAccessToken } from "./providers/gmail-api/gmail-access-token";
@@ -47,6 +48,10 @@ const mailbox = initGmailMailbox({
 export const handler = initGmailNewsletterMonitorHandler({
 	monitor: initMonitorGmailNewsletters({ mailbox, connections, discovery, monitoring, mappings, detectNewsletters: initCatalogNewsletterDetector(catalog), newGeneration: randomUUID, now }),
 	listConnectedAccounts: connections.listConnectedPage,
+	getEffectiveAccess: initGetEffectiveAccess({
+		findSubscriptionByUserId: initDynamoDbSubscriptionRead({ client, tableName: env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE }).findByUserId,
+		now,
+	}),
 	dispatchCheck: initSqsCommandDispatcher({ sqsClient, queueUrl, command: CheckGmailNewslettersCommand }).dispatch,
 	dispatchMonitor: initSqsCommandDispatcher({ sqsClient, queueUrl, command: MonitorGmailNewslettersCommand }).dispatch,
 	dispatchNotice: initSqsCommandDispatcher({ sqsClient, queueUrl: env.GMAIL_NEWSLETTER_NOTICE_QUEUE_URL, command: SendGmailNewsletterNoticeCommand }).dispatch,

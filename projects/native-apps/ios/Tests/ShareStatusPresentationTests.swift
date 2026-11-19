@@ -131,4 +131,12 @@ final class ShareStatusPresentationTests: XCTestCase {
 		XCTAssertEqual(status.symbol, "exclamationmark.triangle.fill")
 		XCTAssertEqual(status.tone, .error)
 	}
+
+	func testTheDailySaveLimitSaysTheLimitIsReachedAsAWarning() {
+		let status = present(.dailySaveLimitReached("You've reached today's limit for new saves. Links you already saved still open."))
+		XCTAssertEqual(status.message, "You've reached today's limit for new saves. Links you already saved still open.")
+		XCTAssertNil(status.subtitle)
+		XCTAssertEqual(status.symbol, "lock.fill")
+		XCTAssertEqual(status.tone, .warning)
+	}
 }

@@ -5,6 +5,7 @@ tldr: "Sync is the part of a note app that tends to cost extra, either as an add
 excerpt: "Sync is the part of a note app that tends to cost extra. Readplace has nothing to sell there."
 slug: "sync-across-your-devices-comes-with-the-plan"
 date: "2026-11-08"
+lastModified: "2026-11-19"
 author: "Fayner Brack"
 keywords: "free sync read it later, sync articles across devices, read it later app sync, obsidian sync alternative, no device limit, read later iphone and laptop, cross device reading list, evernote device limit, bear pro sync, readplace"
 ---
@@ -39,7 +40,7 @@ What follows you between devices:
 
 There is no device count and no session cap on the account. Signing in on a work laptop does not sign the iPhone out.
 
-Sync comes with every plan, because there is no separate piece of it to price. Readplace itself is a paid app, and [the current plans](/?utm_source=blog-sync-across-your-devices-comes-with-the-plan&utm_medium=internal&utm_content=pricing#pricing) say what it costs.
+Sync comes with every plan, because there is no separate piece of it to price. Readplace itself runs on paid plans, with a free plan under daily limits, and [the current plans](/?utm_source=blog-sync-across-your-devices-comes-with-the-plan&utm_medium=internal&utm_content=pricing#pricing) say what it costs.
 
 ## What "the same account" means in practice
 

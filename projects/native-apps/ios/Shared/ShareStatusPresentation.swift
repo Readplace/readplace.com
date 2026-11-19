@@ -62,6 +62,11 @@ struct ShareStatusPresentation: Equatable {
 			subtitle = nil
 			symbol = "lock.fill"
 			tone = messages.contains { $0.kind == .error } ? .error : .warning
+		case .dailySaveLimitReached(let limitMessage):
+			message = limitMessage
+			subtitle = nil
+			symbol = "lock.fill"
+			tone = .warning
 		case .failed(let failureMessage):
 			message = failureMessage
 			subtitle = nil

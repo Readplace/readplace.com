@@ -559,6 +559,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				deps.recordSubscriptionEvent(req, buildCheckoutCompletedEvent({ now: deps.now }, completion)),
 			deleteTrialEndSchedule: deps.trialScheduler.deleteTrialEndSchedule,
 			deleteTrialReminderSchedule: deps.trialScheduler.deleteTrialReminderSchedule,
+			deleteDeferredCancellationSchedule: deps.trialScheduler.deleteDeferredCancellationSchedule,
 			createChargeReminderSchedule: deps.trialScheduler.createChargeReminderSchedule,
 			logError: deps.logError,
 			now: deps.now,

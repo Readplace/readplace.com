@@ -712,7 +712,7 @@ export function initReadlistCardRoutes(
 
 	/** Remove one crawl-version snapshot the viewer authored. Guardless (only
 	 * dualAuth + resolveVerificationStatus, matching `/delete`): removing content
-	 * you authored is a deletion right, reachable for read-only/locked users. The
+	 * you authored is a deletion right. The
 	 * publisher only ever deletes objects whose sidecar/log entry credits this
 	 * userId, so a forged id/version resolves to nothing server-side. */
 	router.post("/:id/remove-my-version", async (req: Request<{ id: string }>, res: Response) => {

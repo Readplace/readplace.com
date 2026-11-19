@@ -131,6 +131,10 @@ describe("readlistGmailSectionState", () => {
 		["filtering without the metadata scope", { metadataScopeGranted: false }, "reconnect"],
 		["filtering after a same-mailbox discovery asked to reconnect", { discovery: discovery({ requiresReconnect: true }) }, "reconnect"],
 		["filtering with no discovery", { discovery: undefined }, "picker"],
+		["filtering, cannot connect", { canConnectGmail: false }, "upgrade"],
+		["ready to filter, cannot connect", { connection: connection({ filterCount: 0 }), canConnectGmail: false }, "upgrade"],
+		["awaiting confirmation, cannot connect", { connection: connection({ forwardingConfirmedAt: undefined }), canConnectGmail: false }, "upgrade"],
+		["filter failed, cannot connect", { connection: connection({ lastFilterError: { code: "rejected", message: "nope", at: "2026-08-29T00:00:00.000Z" } }), canConnectGmail: false }, "upgrade"],
 	] as const)("%s", (_name, overrides, expected) => {
 		assert.equal(readlistGmailSectionState(input(overrides)), expected);
 	});
@@ -142,6 +146,25 @@ describe("toReadlistGmailSenders section copy", () => {
 		assert.equal(vm.sectionClass, "readlist-gmail--upgrade");
 		assert.equal(vm.picker, undefined);
 		assert.equal(vm.prompt?.actions.length, 1);
+	});
+
+	it("locks the sender picker for a connected reader who cannot use Gmail, offering no discovery and keeping Manage", () => {
+		const vm = toReadlistGmailSenders(input({ canConnectGmail: false, offer: OFFER }));
+		assert.equal(vm.state, "upgrade");
+		assert.equal(vm.picker, undefined);
+		assert.deepEqual(vm.prompt?.actions, []);
+		assert.equal(vm.prompt?.message, "Gmail integration is only available with an active paid subscription.");
+		assert.match(String(vm.prompt?.locks[0]), /data-test-needs-upgrade="connect-gmail"/);
+		assert.match(String(vm.prompt?.locks[0]), /Keep Gmail connected/);
+		assert.deepEqual(vm.links.map((link) => [link.key, link.href]), [
+			["manage-gmail-newsletters", "/newsletters/gmail?utm_source=queue-preferences&utm_medium=internal&utm_content=manage-gmail-newsletters"],
+		]);
+	});
+
+	it("keeps no Gmail link for a disconnected reader who cannot connect", () => {
+		const vm = toReadlistGmailSenders(input({ connection: undefined, canConnectGmail: false, offer: OFFER }));
+		assert.deepEqual(vm.links, []);
+		assert.match(String(vm.prompt?.locks[0]), /Connect Gmail/);
 	});
 
 	it("keeps the Upgrade link for a reader on a surface with no offer", () => {

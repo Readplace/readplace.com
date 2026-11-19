@@ -3,12 +3,14 @@
     <div class="inbox__header">
       <a class="inbox__back" href="{{backHref}}" data-test-inbox-back>{{icon "arrow-left"}} {{backLabel}}</a>
       <h1 class="inbox__title">From My Custom Emails</h1>
-      <p class="inbox__subtitle">Subscribe to a newsletter with one of these custom emails, or forward an issue to it. The issue stays in Inbox, and Readplace saves its article links to All.</p>
+      {{#unless paidFeaturesLocked}}<p class="inbox__subtitle">Subscribe to a newsletter with one of these custom emails, or forward an issue to it. The issue stays in Inbox, and Readplace saves its article links to All.</p>{{/unless}}
     </div>
 
     {{{statusToastHtml}}}
 
     {{{alertsHtml}}}
+
+    {{{paidPlanAlertHtml}}}
 
     <section class="inbox__create-section" data-test-inbox-section="create">
       <section class="inbox__instructions">
@@ -21,6 +23,7 @@
         </ol>
       </section>
 
+      {{#unless paidFeaturesLocked}}
       <form action="{{createAction}}" method="POST" class="inbox__create">
         <label class="form-field__label inbox__create-label" for="inbox-name">Name this custom email</label>
         <div class="inbox__create-row">
@@ -31,6 +34,7 @@
         <p class="form-field__error inbox__field-error" id="inbox-name-error" role="alert" data-test-inbox-field-error="{{key}}">{{message}}</p>
         {{/each}}
       </form>
+      {{/unless}}
     </section>
 
     <div class="inbox__addresses" data-test-inbox-list data-test-inbox-addresses-state="{{addressesState}}">
@@ -66,10 +70,12 @@
               <span class="inbox__status inbox__status--disabled" data-test-inbox-status="disabled">Disabled</span>
             </div>
             <input class="form-input inbox__address-field" type="text" value="{{this.address}}" disabled aria-label="{{this.addressAriaLabel}}" />
+            {{#unless ../paidFeaturesLocked}}
             <form action="{{../enableAction}}" method="POST" class="inbox__enable">
               <input type="hidden" name="address" value="{{this.address}}" />
               <button type="submit" class="btn btn--secondary btn--m" data-test-inbox-enable>Enable</button>
             </form>
+            {{/unless}}
           </li>
           {{/each}}
         </ul>

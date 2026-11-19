@@ -216,6 +216,8 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				inboxes: vm.inboxes,
 				readlists: vm.rail.readlists,
 				create: vm.inboxCreate,
+				standing,
+				offer: vm.rail.offer,
 			}),
 		),
 		gmailSendersHtml: vm.gmailSenders === undefined ? "" : renderReadlistGmailSenders(vm.gmailSenders),

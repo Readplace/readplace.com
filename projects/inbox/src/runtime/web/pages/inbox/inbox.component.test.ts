@@ -49,14 +49,14 @@ function shape(el: Element): string {
 
 describe("InboxPage", () => {
 	it("noindexes the page and ships the copy-enhancement script", () => {
-		const page = InboxPage({ addresses: [], limitReached: false, submittedName: "", origin: "inbox" });
+		const page = InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, submittedName: "", origin: "inbox" });
 		assert.equal(page.seo.robots, "noindex, nofollow");
 		assert.equal(page.bodyClass, "page-inbox");
 		assert.match(page.scripts ?? "", /inbox\.client\.js/);
 	});
 
 	it("shows an empty state with a create CTA when the user has no addresses", () => {
-		const doc = parse(InboxPage({ addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 		assert.ok(doc.querySelector("[data-test-inbox-empty]"), "empty state must render");
 		assert.ok(doc.querySelector("[data-test-inbox-create]"), "create CTA must render");
 		const list = doc.querySelector("[data-test-inbox-list]");
@@ -65,7 +65,7 @@ describe("InboxPage", () => {
 	});
 
 	it("fills the list card with a titled empty state when the user has no addresses", () => {
-		const doc = parse(InboxPage({ addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 		const listing = doc.querySelector(".inbox__listing");
 		assert.ok(listing, "the list card must render");
 		assert.equal(listing.classList.contains("inbox__listing--visible"), true);
@@ -82,7 +82,7 @@ describe("InboxPage", () => {
 	});
 
 	it("hides the empty state once an active address fills the list card", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 		const listing = doc.querySelector(".inbox__listing");
 		assert.ok(listing, "the list card must render");
 		assert.equal(listing.classList.contains("inbox__listing--visible"), true);
@@ -94,6 +94,7 @@ describe("InboxPage", () => {
 	it("hides the list card when every address is disabled, leaving only the disabled group", () => {
 		const doc = parse(
 			InboxPage({
+				paidFeaturesLocked: false,
 				addresses: [entry({ disabledAt: "2026-06-22T00:00:00.000Z" })],
 				limitReached: false,
 				submittedName: "",
@@ -106,14 +107,14 @@ describe("InboxPage", () => {
 	});
 
 	it("switches the same list element to its populated state once an address exists", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 		const list = doc.querySelector("[data-test-inbox-list]");
 		assert.ok(list, "the address list must render");
 		assert.equal(list.getAttribute("data-test-inbox-addresses-state"), "list");
 	});
 
 	it("renders each address into a selectable read-only field with a copy button", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 		const field = doc.querySelector("input[data-inbox-address]");
 		assert.equal(field?.getAttribute("value"), "in-3f9a2c@read.place");
 		assert.equal(field?.getAttribute("readonly"), "");
@@ -133,6 +134,7 @@ describe("InboxPage", () => {
 	it("renders a disabled address as a disabled field and drops its copy button, leaving the copy affordance only on the active one", () => {
 		const doc = parse(
 			InboxPage({
+				paidFeaturesLocked: false,
 				addresses: [
 					entry(),
 					entry({
@@ -179,6 +181,7 @@ describe("InboxPage", () => {
 	it("gives each control in a row a per-row accessible name so screen-reader users can tell rows apart", () => {
 		const doc = parse(
 			InboxPage({
+				paidFeaturesLocked: false,
 				addresses: [
 					entry({
 						name: AliasNameSchema.parse("my-newsletter"),
@@ -223,6 +226,7 @@ describe("InboxPage", () => {
 	it("shows a Disable action for enabled addresses and a Disabled marker (no action) for disabled ones", () => {
 		const doc = parse(
 			InboxPage({
+				paidFeaturesLocked: false,
 				addresses: [
 					entry(),
 					entry({
@@ -245,7 +249,7 @@ describe("InboxPage", () => {
 	});
 
 	it("points the create and disable forms at their routes", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 		assert.equal(
 			doc.querySelector(".inbox__create")?.getAttribute("action"),
 			"/newsletters/custom-emails/create?utm_source=inbox-addresses&utm_medium=internal&utm_content=create-address",
@@ -259,6 +263,7 @@ describe("InboxPage", () => {
 	it("renders the chosen alias name as a per-row label", () => {
 		const doc = parse(
 			InboxPage({
+				paidFeaturesLocked: false,
 				addresses: [entry({ name: AliasNameSchema.parse("my-newsletter") })],
 				limitReached: false,
 				submittedName: "",
@@ -270,7 +275,7 @@ describe("InboxPage", () => {
 	});
 
 	it("offers a required, length-capped name input on the create form", () => {
-		const doc = parse(InboxPage({ addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 		const input = doc.querySelector("[data-test-inbox-name-input]");
 		assert.ok(input, "name input must render");
 		assert.equal(input.getAttribute("name"), "name");
@@ -279,26 +284,26 @@ describe("InboxPage", () => {
 	});
 
 	it("shows exactly the alerts and field errors its inputs call for, and none otherwise", () => {
-		const plain = parse(InboxPage({ addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const plain = parse(InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 		assert.deepEqual(alertKeys(plain), []);
 		assert.deepEqual(fieldErrorKeys(plain), []);
 
 		const nameInvalid = parse(
-			InboxPage({ addresses: [], limitReached: false, nameInvalid: true, submittedName: "", origin: "inbox" }).content
+			InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, nameInvalid: true, submittedName: "", origin: "inbox" }).content
 				.html,
 		);
 		assert.deepEqual(alertKeys(nameInvalid), []);
 		assert.deepEqual(fieldErrorKeys(nameInvalid), ["name-invalid"]);
 
 		const nameTaken = parse(
-			InboxPage({ addresses: [], limitReached: false, nameTaken: true, submittedName: "", origin: "inbox" }).content
+			InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, nameTaken: true, submittedName: "", origin: "inbox" }).content
 				.html,
 		);
 		assert.deepEqual(alertKeys(nameTaken), []);
 		assert.deepEqual(fieldErrorKeys(nameTaken), ["name-taken"]);
 
 		const createFailed = parse(
-			InboxPage({ addresses: [], limitReached: false, createFailed: true, submittedName: "", origin: "inbox" }).content
+			InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, createFailed: true, submittedName: "", origin: "inbox" }).content
 				.html,
 		);
 		assert.deepEqual(alertKeys(createFailed), ["create-failed"]);
@@ -307,7 +312,7 @@ describe("InboxPage", () => {
 
 	it("keeps a rejected name on its field while the standing cap notice stays a page alert", () => {
 		const doc = parse(
-			InboxPage({ addresses: [entry()], limitReached: true, nameTaken: true, submittedName: "", origin: "inbox" })
+			InboxPage({ paidFeaturesLocked: false, addresses: [entry()], limitReached: true, nameTaken: true, submittedName: "", origin: "inbox" })
 				.content.html,
 		);
 
@@ -317,7 +322,7 @@ describe("InboxPage", () => {
 
 	it("sets a rejected name's message directly under the name field, as the field's described-by target", () => {
 		const doc = parse(
-			InboxPage({ addresses: [], limitReached: false, nameInvalid: true, submittedName: "", origin: "inbox" }).content
+			InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, nameInvalid: true, submittedName: "", origin: "inbox" }).content
 				.html,
 		);
 
@@ -344,6 +349,7 @@ describe("InboxPage", () => {
 	it("draws the name field, its label and error, and both address fields with the shared form controls", () => {
 		const doc = parse(
 			InboxPage({
+				paidFeaturesLocked: false,
 				addresses: [
 					entry(),
 					entry({
@@ -389,7 +395,7 @@ describe("InboxPage", () => {
 
 	it("titles each page alert with what happened and puts what to do next in its body", () => {
 		const doc = parse(
-			InboxPage({ addresses: [entry()], limitReached: true, createFailed: true, submittedName: "", origin: "inbox" })
+			InboxPage({ paidFeaturesLocked: false, addresses: [entry()], limitReached: true, createFailed: true, submittedName: "", origin: "inbox" })
 				.content.html,
 		);
 
@@ -423,7 +429,7 @@ describe("InboxPage", () => {
 
 	it("names the cap in the limit message so the reader knows the number", () => {
 		const doc = parse(
-			InboxPage({ addresses: [entry()], limitReached: true, submittedName: "", origin: "inbox" }).content.html,
+			InboxPage({ paidFeaturesLocked: false, addresses: [entry()], limitReached: true, submittedName: "", origin: "inbox" }).content.html,
 		);
 
 		const message = doc.querySelector('[data-test-alert="limit"]');
@@ -437,6 +443,7 @@ describe("InboxPage", () => {
 	it("orders active addresses before disabled ones regardless of creation order", () => {
 		const doc = parse(
 			InboxPage({
+				paidFeaturesLocked: false,
 				addresses: [
 					entry({
 						name: AliasNameSchema.parse("gmail"),
@@ -469,6 +476,7 @@ describe("InboxPage", () => {
 	it("collapses every disabled address into a closed details group holding the disabled rows", () => {
 		const doc = parse(
 			InboxPage({
+				paidFeaturesLocked: false,
 				addresses: [
 					entry(),
 					entry({
@@ -505,7 +513,7 @@ describe("InboxPage", () => {
 	});
 
 	it("keeps the details group rendered but hidden when no address is disabled", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 
 		const group = doc.querySelector("[data-test-inbox-disabled-group]");
 		assert.ok(group, "disabled group must render");
@@ -519,6 +527,7 @@ describe("InboxPage", () => {
 	it("marks the details group visible when a disabled address exists", () => {
 		const doc = parse(
 			InboxPage({
+				paidFeaturesLocked: false,
 				addresses: [
 					entry({
 						address: InboxAddressSchema.parse("in-abc123@read.place"),
@@ -538,7 +547,7 @@ describe("InboxPage", () => {
 	});
 
 	it("lays out the page as create, then active, then disabled sections", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 
 		const sections = Array.from(doc.querySelectorAll("[data-test-inbox-section]")).map((el) =>
 			el.getAttribute("data-test-inbox-section"),
@@ -547,7 +556,7 @@ describe("InboxPage", () => {
 	});
 
 	it("orders an active row as the name and status line, the one-box copyable address, then the row toggle", () => {
-		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [entry()], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 
 		const lastClass = (el: Element) => el.classList[el.classList.length - 1];
 		const row = doc.querySelector('[data-test-inbox-section="active"] [data-test-inbox-item]');
@@ -568,6 +577,7 @@ describe("InboxPage", () => {
 	it("orders a disabled row as the name and status line, the disabled address field, then the row toggle", () => {
 		const doc = parse(
 			InboxPage({
+				paidFeaturesLocked: false,
 				addresses: [entry({ disabledAt: "2026-06-22T00:00:00.000Z" })],
 				limitReached: false,
 				submittedName: "",
@@ -593,7 +603,7 @@ describe("InboxPage", () => {
 
 	it("keeps the create card to the explainer then the form, with page alerts stacked above the card", () => {
 		const withLimit = parse(
-			InboxPage({ addresses: [], limitReached: true, submittedName: "", origin: "inbox" }).content.html,
+			InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: true, submittedName: "", origin: "inbox" }).content.html,
 		);
 		const section = withLimit.querySelector('[data-test-inbox-section="create"]');
 		assert.ok(section, "create section must render");
@@ -614,7 +624,7 @@ describe("InboxPage", () => {
 	});
 
 	it("says what a custom email does and walks through setting one up", () => {
-		const doc = parse(InboxPage({ addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
+		const doc = parse(InboxPage({ paidFeaturesLocked: false, addresses: [], limitReached: false, submittedName: "", origin: "inbox" }).content.html);
 		assert.equal(
 			doc.querySelector(".inbox__subtitle")?.textContent,
 			"Subscribe to a newsletter with one of these custom emails, or forward an issue to it. The issue stays in Inbox, and Readplace saves its article links to All.",
@@ -628,5 +638,23 @@ describe("InboxPage", () => {
 				"New issues show up in your Inbox automatically.",
 			],
 		);
+	});
+
+	it("locks the create form and Enable buttons for a free account and links the plans", () => {
+		const doc = parse(
+			InboxPage({
+				paidFeaturesLocked: true,
+				addresses: [entry({ disabledAt: "2026-06-24T00:00:00.000Z" })],
+				limitReached: false,
+				submittedName: "",
+				origin: "inbox",
+			}).content.html,
+		);
+
+		expect(doc.querySelector("[data-test-inbox-create]")).toBeNull();
+		expect(doc.querySelector("[data-test-inbox-enable]")).toBeNull();
+		expect(doc.querySelector(".inbox__subtitle")).toBeNull();
+		expect(doc.querySelector("[data-test-inbox-plans-link]")?.getAttribute("href")).toContain("/account/plans");
+		expect(doc.body.textContent).toContain("Custom emails are part of a paid plan");
 	});
 });

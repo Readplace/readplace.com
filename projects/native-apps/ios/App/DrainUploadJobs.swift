@@ -41,6 +41,8 @@ struct DrainUploadJobs {
 			return false
 		} catch APIError.refused {
 			jobs.remove(current)
+		} catch APIError.server(429, _, _) {
+			reschedule(current)
 		} catch APIError.server(let status, _, _) where (400..<500).contains(status) {
 			jobs.remove(current)
 		} catch {

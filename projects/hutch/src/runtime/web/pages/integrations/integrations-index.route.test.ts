@@ -417,6 +417,37 @@ describe("GET /newsletters", () => {
 		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
 	});
 
+	it.each([
+		["trial", false],
+		["expired", true],
+		["cancelled", true],
+	] as const)("locks My Custom Emails only when a %s reader has no paid features", async (state, locked) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "the signed-in reader must exist");
+		harness.subscriptionProviders.seedRow({
+			userId: user.userId,
+			provider: "stripe",
+			status: state === "cancelled" ? "cancelled" : "trialing",
+			trialEndsAt: new Date(Date.now() + (state === "trial" ? 86_400_000 : -86_400_000)).toISOString(),
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const doc = load((await agent.get("/newsletters")).text);
+
+		const row = doc.querySelector('[data-test-integration="custom-emails"]');
+		assert(row, "the Custom Emails row must render");
+		expect(row.querySelector(".integrations__description")?.textContent).toBe(
+			locked ? "Custom emails are part of a paid plan." : "Sign up for newsletters with your own Readplace emails.",
+		);
+		expect(Array.from(row.querySelectorAll('[data-test-needs-upgrade][data-test-action="upgrade-open"]'), (lock) => lock.getAttribute("data-test-needs-upgrade"))).toEqual(
+			locked ? ["custom-emails"] : [],
+		);
+		expect(row.querySelector('[data-test-integration-action="custom-emails"]')?.textContent).toBe("Manage");
+	});
+
 	it("routes a connected-but-unconfirmed reader to finish setup on the Gmail page", async () => {
 		const gmail = initInMemoryGmailIntegration({
 			addresses: initInMemoryInboxAddress({ now: () => new Date() }),

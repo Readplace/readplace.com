@@ -747,6 +747,34 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertEqual(StubURLProtocol.records(path: "/queue").filter { $0.request.httpMethod == "GET" }.count, 1)
 	}
 
+	func testSaysTheDailySaveLimitIsReachedWithoutReDiscoveringOrPostingAgain() async throws {
+		let store = TestSupport.loggedInStore()
+		let container = TestSupport.temporaryContainer()
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return request.httpMethod == "POST"
+					? .json(429, Fixtures.sirenError(code: "daily_save_limit", message: "You've reached today's limit for new saves. Links you already saved still open."))
+					: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = makeSaver(
+			store: store,
+			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil, mediaType: nil, mainFrameStatus: nil)),
+			container: container
+		)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		XCTAssertEqual(outcome, .dailySaveLimitReached("You've reached today's limit for new saves. Links you already saved still open."))
+		XCTAssertEqual(urlOnlyPosts().count, 1, "the daily limit is the server's answer, not a stale address: no re-discovery, no second post")
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue").filter { $0.request.httpMethod == "GET" }.count, 1)
+	}
+
 	func testGivesUpWhenTheReDiscoveredCollectionOffersNoSaveAction() async throws {
 		let store = TestSupport.loggedInStore()
 		let container = TestSupport.temporaryContainer()

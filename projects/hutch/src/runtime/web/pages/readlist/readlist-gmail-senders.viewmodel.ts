@@ -48,7 +48,7 @@ import { toGmailSenderStatus } from "../integrations/gmail-sender-status.viewmod
 import type { GmailChecklistView, GmailSenderWidgetViewModel } from "../integrations/gmail-sender-widget.component";
 import { GMAIL_PATH } from "../integrations/gmail.url";
 import { GMAIL_CONFIRM_FAILED_MESSAGES } from "../integrations/gmail.viewmodel";
-import { GMAIL_CONNECT_DISCLAIMER_ID } from "../integrations/integrations-index.viewmodel";
+import { GMAIL_CONNECT_DISCLAIMER_ID, GMAIL_LOCK_LABELS } from "../integrations/integrations-index.viewmodel";
 import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import {
 	buildReadlistGmailUrl,
@@ -150,7 +150,8 @@ function connected(state: ReadlistGmailSectionState): (input: ReadlistGmailSecti
 			connection.accountEmail === undefined
 			|| !input.metadataScopeGranted
 			|| sameMailboxDiscovery({ discovery: input.discovery, connection })?.requiresReconnect === true;
-		return senderAccessLost ? "reconnect" : state;
+		if (senderAccessLost) return "reconnect";
+		return input.canConnectGmail ? state : "upgrade";
 	};
 }
 
@@ -395,7 +396,8 @@ function promptLock(input: ReadlistGmailSendersInput): { offer: UpgradeOffer | u
 const SECTION_VIEW: Record<ReadlistGmailSectionState, (input: ReadlistGmailSendersInput) => SectionView> = {
 	upgrade: (input) => ({
 		...NO_VIEW,
-		prompt: buildLockableGmailConnectionPrompt({ canConnectGmail: false, message: "", content: "connect-gmail", label: "Connect Gmail", variant: "primary", fields: [], track, lock: promptLock(input) }),
+		prompt: buildLockableGmailConnectionPrompt({ canConnectGmail: false, message: "", content: "connect-gmail", label: GMAIL_LOCK_LABELS[gmailConnectionState(input.connection)], variant: "primary", fields: [], track, lock: promptLock(input) }),
+		links: input.connection === undefined ? [] : [gmailLink({ key: "manage-gmail-newsletters", label: "Manage Gmail newsletters" })],
 	}),
 	connect: () => ({
 		...NO_VIEW,

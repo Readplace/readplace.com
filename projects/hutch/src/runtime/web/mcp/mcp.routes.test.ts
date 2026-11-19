@@ -43,7 +43,7 @@ function buildObservedApp(overrides: Partial<McpServerDeps> = {}): { app: Expres
 		markAsUnread: async () => ({ status: "not_found" }),
 		listHighlights: async () => ({ status: "not_found" }),
 		createHighlight: async () => ({ status: "not_found" }),
-		resolveToolAccess: async () => ({ state: "ok", dailyLimited: false }),
+		resolveToolAccess: async () => ({ state: "ok", dailyLimited: false, paidFeatures: true }),
 		consumeRateLimit: async () => {
 			throw new Error("consumeRateLimit must not be called for an account without a daily limit");
 		},

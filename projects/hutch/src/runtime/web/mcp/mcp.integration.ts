@@ -721,4 +721,18 @@ describe("MCP server over the real app", () => {
 		expect(listed.body.result.tools).toHaveLength(TOOL_DEFINITIONS.length);
 	});
 
+	it("refuses the related articles to a caller on the free plan, as the reader page locks Next read", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await obtainAccessToken(harness);
+		const id = await saveAndGetFirstId(harness, token);
+		const user = await harness.auth.findUserByEmail("mcp@example.com");
+		assert(user);
+		await harness.subscriptionProviders.upsertTrialing({ userId: user.userId, trialEndsAt: "2000-01-01T00:00:00.000Z" });
+		const related = await callTool(harness, token, tool(GET_RELATED_ARTICLES_LEGACY_NAME, { id }));
+		expect(related.body.result.isError).toBe(true);
+		expect(related.body.result.structuredContent).toBeUndefined();
+		const listed = await callTool(harness, token, { jsonrpc: "2.0", id: nextId++, method: "tools/list" });
+		expect(listed.body.result.tools).toHaveLength(TOOL_DEFINITIONS.length);
+	});
+
 });

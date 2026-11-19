@@ -113,6 +113,7 @@ export function initRecomputeSkippedNextReadHandler(deps: {
 			});
 
 			for (const save of eligible) {
+				if ((await deps.findPlanAccess({ userId: save.userId })) === "free") continue;
 				await computeNextRead({
 					save: { userId: save.userId, url, receiveCount: record.receiveCount, messageId: record.messageId, trigger: TRIGGER },
 					target: recompute.target,

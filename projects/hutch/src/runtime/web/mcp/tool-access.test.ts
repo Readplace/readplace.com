@@ -45,11 +45,11 @@ function resolve(row: SubscriptionRecord | undefined, isDailyLimited: (access: E
 
 describe("initResolveToolAccess", () => {
 	it("leaves a founding member (no subscription row) ungated", async () => {
-		expect(await resolve(undefined)).toEqual({ state: "ok", dailyLimited: false });
+		expect(await resolve(undefined)).toEqual({ state: "ok", dailyLimited: false, paidFeatures: true });
 	});
 
 	it("leaves an active subscriber ungated", async () => {
-		expect(await resolve(sub({ status: "active" }))).toEqual({ state: "ok", dailyLimited: false });
+		expect(await resolve(sub({ status: "active" }))).toEqual({ state: "ok", dailyLimited: false, paidFeatures: true });
 	});
 
 	it("leaves an in-window pending cancellation ungated", async () => {
@@ -59,28 +59,28 @@ describe("initResolveToolAccess", () => {
 				cancellationEffectiveAt: at(5 * DAY_MS),
 			}),
 		);
-		expect(access).toEqual({ state: "ok", dailyLimited: false });
+		expect(access).toEqual({ state: "ok", dailyLimited: false, paidFeatures: true });
 	});
 
 	it("leaves a trial with more than a week left ungated", async () => {
 		const access = await resolve(
 			sub({ status: "trialing", trialEndsAt: at(8 * DAY_MS) }),
 		);
-		expect(access).toEqual({ state: "ok", dailyLimited: false });
+		expect(access).toEqual({ state: "ok", dailyLimited: false, paidFeatures: true });
 	});
 
 	it("leaves a trial at the seven-day boundary ungated — a live trial is a paid-equivalent account and gets no upsell", async () => {
 		const access = await resolve(
 			sub({ status: "trialing", trialEndsAt: at(7 * DAY_MS) }),
 		);
-		expect(access).toEqual({ state: "ok", dailyLimited: false });
+		expect(access).toEqual({ state: "ok", dailyLimited: false, paidFeatures: true });
 	});
 
 	it("leaves a trial in its final hours ungated, so nothing is ever attached to a successful tool result", async () => {
 		const access = await resolve(
 			sub({ status: "trialing", trialEndsAt: at(12 * HOUR_MS) }),
 		);
-		expect(access).toEqual({ state: "ok", dailyLimited: false });
+		expect(access).toEqual({ state: "ok", dailyLimited: false, paidFeatures: true });
 	});
 
 	it("marks an open account daily-limited when its access is metered", async () => {
@@ -89,7 +89,7 @@ describe("initResolveToolAccess", () => {
 			seen.push(effective);
 			return true;
 		});
-		expect(access).toEqual({ state: "ok", dailyLimited: true });
+		expect(access).toEqual({ state: "ok", dailyLimited: true, paidFeatures: true });
 		expect(seen).toEqual([{ tier: "founding", banner: "none" }]);
 	});
 
@@ -100,8 +100,8 @@ describe("initResolveToolAccess", () => {
 			name: "a pending cancellation whose window has elapsed",
 			row: sub({ status: "pending_cancellation", cancellationEffectiveAt: at(-1 * DAY_MS) }),
 		},
-	])("leaves $name open on the free plan, metered by the daily limits", async ({ row }) => {
-		expect(await resolve(row)).toEqual({ state: "ok", dailyLimited: true });
+	])("leaves $name open on the free plan, metered by the daily limits and without the paid features", async ({ row }) => {
+		expect(await resolve(row)).toEqual({ state: "ok", dailyLimited: true, paidFeatures: false });
 	});
 });
 

@@ -33,7 +33,7 @@ const ADDRESS = { name: "inbox", address: "inbox-3f9a2c@read.place" };
 function build(entries: InboxEmailEntry[], activeAddresses = [ADDRESS]) {
 	return toInboxEmailsViewModel(
 		{ emails: entries, hasNewer: false, hasOlder: false },
-		{ now: NOW, activeAddresses },
+		{ now: NOW, activeAddresses, paidFeaturesLocked: false },
 	);
 }
 
@@ -46,7 +46,7 @@ function buildNav(input: { hasNewer: boolean; hasOlder: boolean }) {
 			],
 			...input,
 		},
-		{ now: NOW, activeAddresses: [ADDRESS] },
+		{ now: NOW, activeAddresses: [ADDRESS], paidFeaturesLocked: false },
 	);
 }
 
@@ -88,6 +88,27 @@ describe("toInboxEmailsViewModel", () => {
 				key: "create-first-address",
 				href: "/newsletters/custom-emails?utm_source=inbox-empty&utm_medium=internal&utm_content=create-first-address",
 				label: "Create my first custom email",
+			},
+		]);
+		expect(empty?.addresses).toEqual([]);
+	});
+
+	it("tells a free-plan reader with an empty inbox that custom emails need a paid plan", () => {
+		const { empty } = toInboxEmailsViewModel(
+			{ emails: [], hasNewer: false, hasOlder: false },
+			{ now: NOW, activeAddresses: [ADDRESS], paidFeaturesLocked: true },
+		);
+
+		expect(empty?.key).toBe("paid-plan");
+		expect(empty?.title).toBe("Custom emails are part of a paid plan");
+		expect(empty?.body).toBe(
+			"Emails already sent to your custom emails stay in your Inbox, but their links aren't saved to All on the free plan.",
+		);
+		expect(empty?.actions).toEqual([
+			{
+				key: "see-plans",
+				href: "/account/plans?utm_source=inbox-empty&utm_medium=internal&utm_content=see-plans",
+				label: "See plans",
 			},
 		]);
 		expect(empty?.addresses).toEqual([]);

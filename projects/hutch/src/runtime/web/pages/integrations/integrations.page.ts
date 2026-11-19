@@ -5,7 +5,7 @@ import { sendComponent } from "@packages/web-shell";
 import { countLiveCappedAddresses } from "@packages/domain/inbox";
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import type { GetEffectiveAccess } from "@packages/subscription-access";
+import { type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import type { ListConnectedOAuthClients } from "../../../domain/oauth/connected-oauth-clients";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -83,6 +83,7 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 		const vm = toIntegrationsIndexViewModel({
 			connection,
 			canConnectGmail: canConnectGmail(access),
+			paidFeaturesLocked: !hasPaidFeatures(access),
 			offer: upgradeOfferFor({ req, access }),
 			activeCustomEmailCount: countLiveCappedAddresses(addresses),
 			connectedClientIds: connectedClients.map((row) => row.client.id),

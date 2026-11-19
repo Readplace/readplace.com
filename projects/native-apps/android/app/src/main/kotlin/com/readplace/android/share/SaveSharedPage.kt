@@ -108,7 +108,12 @@ class SaveSharedPage(
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (error: Exception) {
-				SaveSharedOutcome.Failed(error.message ?: "Save failed.")
+				val message = error.message ?: "Save failed."
+				if (error is ApiError.Server && error.isDailySaveLimit) {
+					SaveSharedOutcome.DailySaveLimitReached(message)
+				} else {
+					SaveSharedOutcome.Failed(message)
+				}
 			} finally {
 				content.cancel()
 			}

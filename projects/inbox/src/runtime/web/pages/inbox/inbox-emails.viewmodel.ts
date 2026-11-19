@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { inbox } from "@packages/translations/inbox";
 import { type LocalTime, toRelativeOrDate, withInternalTracking } from "@packages/web-shell";
 import {
 	CUSTOM_EMAILS_PATH,
@@ -13,6 +15,9 @@ import { buildInboxEmailsUrl } from "./inbox-emails.url";
 const INBOX_EMAILS_SOURCE = "inbox-emails";
 const INBOX_EMPTY_SOURCE = "inbox-empty";
 const INBOX_PAGINATION_SOURCE = "inbox-pagination";
+const PLANS_PATH = "/account/plans";
+
+const { t } = translator(inbox, DEFAULT_LOCALE);
 
 export interface InboxEmailRowViewModel {
 	href: string;
@@ -36,7 +41,7 @@ export interface InboxEmailRowViewModel {
 }
 
 
-export type InboxEmptyStateKey = "no-address" | "no-mail";
+export type InboxEmptyStateKey = "no-address" | "no-mail" | "paid-plan";
 
 export interface InboxEmptyAddressViewModel {
 	name: string;
@@ -47,7 +52,7 @@ export interface InboxEmailsEmptyViewModel {
 	key: InboxEmptyStateKey;
 	title: string;
 	body: string;
-	actions: { key: "create-first-address"; href: string; label: string }[];
+	actions: { key: "create-first-address" | "see-plans"; href: string; label: string }[];
 	addresses: InboxEmptyAddressViewModel[];
 }
 
@@ -92,6 +97,19 @@ const EMPTY_STATES: Record<InboxEmptyStateKey, InboxEmailsEmptyViewModel> = {
 		title: "No emails yet",
 		body: "Subscribe to a newsletter with one of these custom emails, or forward an issue to it. Each issue appears here, and Readplace saves the articles it links to into All.",
 		actions: [],
+		addresses: [],
+	},
+	"paid-plan": {
+		key: "paid-plan",
+		title: t("customEmails.paidPlanLocked.title"),
+		body: t("customEmails.paidPlanLocked.body"),
+		actions: [
+			{
+				key: "see-plans",
+				href: withInternalTracking(PLANS_PATH, { source: INBOX_EMPTY_SOURCE, content: "see-plans" }),
+				label: t("customEmails.paidPlanLocked.link"),
+			},
+		],
 		addresses: [],
 	},
 };
@@ -157,9 +175,14 @@ function buildCountLabel(result: ListInboxEmailsResult): string {
 	return `${count} ${count === 1 ? "Email" : "Emails"}`;
 }
 
-function buildEmptyState(
-	activeAddresses: InboxEmptyAddressViewModel[],
-): InboxEmailsEmptyViewModel {
+function buildEmptyState({
+	activeAddresses,
+	paidFeaturesLocked,
+}: {
+	activeAddresses: InboxEmptyAddressViewModel[];
+	paidFeaturesLocked: boolean;
+}): InboxEmailsEmptyViewModel {
+	if (paidFeaturesLocked) return EMPTY_STATES["paid-plan"];
 	return activeAddresses.length === 0
 		? EMPTY_STATES["no-address"]
 		: { ...EMPTY_STATES["no-mail"], addresses: activeAddresses };
@@ -170,13 +193,14 @@ export function toInboxEmailsViewModel(
 	options: {
 		now: Date;
 		activeAddresses: InboxEmptyAddressViewModel[];
+		paidFeaturesLocked: boolean;
 		highlight?: string;
 	},
 ): InboxEmailsViewModel {
 	return {
 		countLabel: buildCountLabel(result),
 		empty:
-			result.emails.length === 0 ? buildEmptyState(options.activeAddresses) : undefined,
+			result.emails.length === 0 ? buildEmptyState(options) : undefined,
 		showPagination: result.hasNewer || result.hasOlder,
 		paginationLinks: buildPaginationLinks(result),
 		rows: result.emails.map((entry) => ({

@@ -32,10 +32,10 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 
 type IndexInput = Parameters<typeof toIntegrationsIndexViewModel>[0];
 
-type GmailIndexInput = Omit<IndexInput, "activeCustomEmailCount" | "canConnectGmail" | "connectedClientIds" | "offer"> & { canConnectGmail?: boolean; offer?: IndexInput["offer"] };
+type GmailIndexInput = Omit<IndexInput, "activeCustomEmailCount" | "canConnectGmail" | "paidFeaturesLocked" | "connectedClientIds" | "offer"> & { canConnectGmail?: boolean; offer?: IndexInput["offer"] };
 
 function indexViewModel(input: GmailIndexInput) {
-	return toIntegrationsIndexViewModel({ offer: undefined, canConnectGmail: true, ...input, activeCustomEmailCount: 0, connectedClientIds: [] });
+	return toIntegrationsIndexViewModel({ offer: undefined, canConnectGmail: true, paidFeaturesLocked: false, ...input, activeCustomEmailCount: 0, connectedClientIds: [] });
 }
 
 function aiAssistantRow(connectedClientIds: string[]) {
@@ -43,7 +43,7 @@ function aiAssistantRow(connectedClientIds: string[]) {
 		connection: undefined,
 		activeCustomEmailCount: 0,
 		offer: undefined,
-		canConnectGmail: true,
+		canConnectGmail: true, paidFeaturesLocked: false,
 		connectedClientIds: connectedClientIds.map((id) => OAuthClientIdSchema.parse(id)),
 	}).services.find((s) => s.key === "ai-assistant");
 	assert(row, "the AI assistant row is always present");
@@ -123,7 +123,7 @@ describe("toIntegrationsIndexViewModel", () => {
 	});
 
 	it("counts the active custom emails and links to manage them", () => {
-		const customEmails = toIntegrationsIndexViewModel({ offer: undefined, connection: undefined, activeCustomEmailCount: 2, canConnectGmail: true, connectedClientIds: [] })
+		const customEmails = toIntegrationsIndexViewModel({ offer: undefined, connection: undefined, activeCustomEmailCount: 2, canConnectGmail: true, paidFeaturesLocked: false, connectedClientIds: [] })
 			.services.find((s) => s.key === "custom-emails");
 		assert(customEmails, "the Custom Emails row is always present");
 
@@ -143,12 +143,58 @@ describe("toIntegrationsIndexViewModel", () => {
 	});
 
 	it("shows custom emails as not set up while none is active", () => {
-		const customEmails = toIntegrationsIndexViewModel({ offer: undefined, connection: undefined, activeCustomEmailCount: 0, canConnectGmail: true, connectedClientIds: [] })
+		const customEmails = toIntegrationsIndexViewModel({ offer: undefined, connection: undefined, activeCustomEmailCount: 0, canConnectGmail: true, paidFeaturesLocked: false, connectedClientIds: [] })
 			.services.find((s) => s.key === "custom-emails");
 		assert(customEmails, "the Custom Emails row is always present");
 
 		assert.equal(customEmails.statusKey, "not-set-up");
 		assert.equal(customEmails.statusLabel, "Not set up");
+	});
+
+	it("locks custom emails for a free-plan reader who can upgrade, keeping Manage", () => {
+		const customEmails = toIntegrationsIndexViewModel({
+			offer: { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" },
+			connection: undefined,
+			activeCustomEmailCount: 1,
+			canConnectGmail: false,
+			paidFeaturesLocked: true,
+			connectedClientIds: [],
+		}).services.find((s) => s.key === "custom-emails");
+		assert(customEmails, "the Custom Emails row is always present");
+
+		assert.equal(customEmails.description, "Custom emails are part of a paid plan.");
+		assert.deepEqual(customEmails.actions.map((a) => [a.key, a.variant]), [["custom-emails", "secondary"]]);
+		assert.equal(customEmails.locks.length, 1);
+		const lock = parseHTML(`<div>${customEmails.locks[0]}</div>`).document;
+		const trigger = lock.querySelector('[data-test-action="upgrade-open"]');
+		assert(trigger);
+		assert.equal(trigger.getAttribute("data-test-needs-upgrade"), "custom-emails");
+		assert.equal(trigger.querySelector(".needs-upgrade__label")?.textContent, "Set up custom emails");
+		assert.equal(
+			lock.querySelector('[data-test-action="upgrade-fallback"]')?.getAttribute("href"),
+			"/account/plans?utm_source=connectors&utm_medium=internal&utm_content=upgrade-custom-emails",
+		);
+	});
+
+	it("offers an Upgrade link for custom emails to a free-plan reader on a surface with no offer", () => {
+		const customEmails = toIntegrationsIndexViewModel({
+			offer: undefined,
+			connection: undefined,
+			activeCustomEmailCount: 0,
+			canConnectGmail: false,
+			paidFeaturesLocked: true,
+			connectedClientIds: [],
+		}).services.find((s) => s.key === "custom-emails");
+		assert(customEmails, "the Custom Emails row is always present");
+
+		assert.deepEqual(customEmails.locks, []);
+		assert.deepEqual(
+			customEmails.actions.map((a) => [a.key, a.href, a.label, a.variant]),
+			[
+				["upgrade-custom-emails", "/account/plans?utm_source=integrations&utm_medium=internal&utm_content=upgrade-custom-emails", "Upgrade", "primary"],
+				["custom-emails", `${CUSTOM_EMAILS_PATH}?utm_source=integrations&utm_medium=internal&utm_content=custom-emails`, "Manage", "secondary"],
+			],
+		);
 	});
 
 	it("offers Connect behind the experimental disclaimer while Gmail is not set up", () => {
@@ -172,7 +218,7 @@ describe("toIntegrationsIndexViewModel", () => {
 		["a reader who may connect", true],
 		["a reader who must upgrade first", false],
 	])("tags Gmail as beta and Custom Emails as not for %s", (_reader, canConnectGmail) => {
-		const vm = toIntegrationsIndexViewModel({ offer: undefined, connection: undefined, activeCustomEmailCount: 0, canConnectGmail, connectedClientIds: [] });
+		const vm = toIntegrationsIndexViewModel({ offer: undefined, connection: undefined, activeCustomEmailCount: 0, canConnectGmail, paidFeaturesLocked: false, connectedClientIds: [] });
 
 		assert.deepEqual(
 			vm.services.map((s) => [s.key, s.beta]),
@@ -238,7 +284,7 @@ describe("toIntegrationsIndexViewModel", () => {
 			connection: undefined,
 			activeCustomEmailCount: 0,
 			connectedClientIds: [],
-			canConnectGmail: true,
+			canConnectGmail: true, paidFeaturesLocked: false,
 			offer: { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" },
 		});
 

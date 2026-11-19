@@ -353,12 +353,14 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						.filter((entry) => isLiveAddress(entry) && isCappedAddress(entry))
 						.map((entry) => ({ name: entry.name, address: entry.address }))
 				: [];
+		const bannerState = await deps.buildBannerState(req);
 		const vm = toInboxEmailsViewModel(result, {
 			now: deps.now(),
 			activeAddresses,
+			paidFeaturesLocked: bannerState.paidFeaturesLocked === true,
 			highlight: parseInboxHighlight(req.query),
 		});
-		sendComponent(req, res, Base(InboxEmailsPage(vm), await deps.buildBannerState(req)));
+		sendComponent(req, res, Base(InboxEmailsPage(vm), bannerState));
 	});
 
 	// `id` is the URL-encoded `receivedAtMessageId`.
@@ -390,6 +392,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 							receivedAtMessageId,
 						})),
 					};
+		const bannerState = await deps.buildBannerState(req);
 		const vm = toInboxEmailDetailViewModel({
 			entry,
 			activeTab,
@@ -410,8 +413,9 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				meta: linkData.source === "rows" ? linkData.meta : undefined,
 			}),
 			filter: parseInboxEmailFilter(req.query),
+			paidFeaturesLocked: bannerState.paidFeaturesLocked === true,
 		});
-		sendComponent(req, res, Base(InboxEmailDetailPage(vm), await deps.buildBannerState(req)));
+		sendComponent(req, res, Base(InboxEmailDetailPage(vm), bannerState));
 	});
 
 	// Page-level poll for a panel while extraction is still running. Until the
@@ -446,6 +450,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				panelPollCount: requestedPoll + 1,
 				fitOverrides: await readFitOverrides({ userId, meta }),
 				filter: parseInboxEmailFilter(req.query),
+				paidFeaturesLocked: (await deps.buildBannerState(req)).paidFeaturesLocked === true,
 			});
 			// The swap only replaces this one panel, so pair it with an out-of-band
 			// swap of the tab strip — otherwise its counts would lag the swapped-in
@@ -485,6 +490,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			linkSaveStates: await findLinkSaveStates({ userId, links }),
 			fitOverrides: await readFitOverrides({ userId, meta }),
 			filter: parseInboxEmailFilter(req.query),
+			paidFeaturesLocked: (await deps.buildBannerState(req)).paidFeaturesLocked === true,
 		});
 		res.status(200).type("html").send(renderInboxArticlesMore(vm));
 	});
@@ -556,6 +562,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 							maxPolls: MAX_SAVE_SETTLE_POLLS,
 						}
 					: { mode: "static" },
+				paidFeaturesLocked: (await deps.buildBannerState(req)).paidFeaturesLocked === true,
 			});
 			sendInboxArticleCard(res, {
 				vm: cardVm,
@@ -708,6 +715,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						pollCount: INITIAL_SAVE_POLL_COUNT,
 						maxPolls: MAX_SAVE_SETTLE_POLLS,
 					},
+					paidFeaturesLocked: false,
 				});
 				sendInboxArticleCard(res, {
 					vm: cardVm,

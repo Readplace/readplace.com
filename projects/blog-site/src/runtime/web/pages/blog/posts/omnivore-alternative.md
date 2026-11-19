@@ -5,7 +5,7 @@ excerpt: "Omnivore users had 17 days between the ElevenLabs announcement and the
 tldr: "Omnivore shut down 2 weeks after its team joined ElevenLabs. The cause was venture capital that needed an exit. Readplace is self-funded through subscriptions, with no investors. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, a JSON export of every saved article, and source-available code. It runs in Sydney under Australian privacy law."
 slug: "omnivore-alternative"
 date: "2026-05-06"
-lastModified: "2026-11-11"
+lastModified: "2026-11-19"
 author: "Fayner Brack"
 keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read it later app, ElevenLabs Omnivore, Readwise Reader alternative, Pocket alternative"
 ---
@@ -94,7 +94,7 @@ The team went to ElevenLabs to work on text-to-speech rather than reading tools,
 
 **Is there a free Omnivore alternative?**
 
-Readplace is paid, with its current plans on the [home page](/?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pricing#pricing). The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $119.88/year. [Free read-it-later apps](/blog/free-read-it-later-apps-2026?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-free-read-it-later-apps-2026) breaks down what each free option costs in money and time.
+Readplace has paid plans and a free plan with daily limits, with its current plans on the [home page](/?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pricing#pricing). The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $119.88/year. [Free read-it-later apps](/blog/free-read-it-later-apps-2026?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-free-read-it-later-apps-2026) breaks down what each free option costs in money and time.
 
 **Can I import my Omnivore data into Readplace?**
 

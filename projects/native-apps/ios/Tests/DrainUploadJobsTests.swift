@@ -313,6 +313,25 @@ final class DrainUploadJobsTests: XCTestCase {
 		XCTAssertFalse(FileManager.default.fileExists(atPath: jobs.bytesURL(for: ready).path))
 	}
 
+	func testSchedulesABackoffRetryWhenTheDailyPdfPageAllowanceIsSpent() async throws {
+		let jobs = makeStore()
+		let admitted = job()
+		try await jobs.admit(admitted)
+		let ready = try await jobs.stageReady(admitted, form: TestSupport.multipartForm())
+		serveReadlist(saveContent: {
+			.json(429, Fixtures.sirenError(code: "ocr-page-quota", message: "You've used today's PDF page allowance. Try again tomorrow, or upgrade for no daily limit."))
+		})
+
+		await makeDrain(jobs: jobs, captor: emptyCaptor()).run()
+
+		let waiting = try XCTUnwrap(jobs.loadAll(now: Self.epoch.addingTimeInterval(60)).first)
+		XCTAssertEqual(waiting.attempts, 1)
+		XCTAssertTrue(
+			FileManager.default.fileExists(atPath: jobs.bytesURL(for: ready).path),
+			"a 429 says try later, so the shared bytes are kept for a retry instead of being dropped like a judged 4xx"
+		)
+	}
+
 	func testSchedulesABackoffRetryWhenTheServerFailsTransiently() async throws {
 		let jobs = makeStore()
 		let admitted = job()

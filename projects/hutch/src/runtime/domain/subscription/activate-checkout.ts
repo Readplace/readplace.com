@@ -16,6 +16,7 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import type {
 	CreateChargeReminderSchedule,
+	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
@@ -72,6 +73,7 @@ export function initActivateCheckout(deps: {
 	recordCheckoutCompleted: (completion: CheckoutCompletion) => void;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
+	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	logError: LogError;
 	now: () => Date;
@@ -91,6 +93,7 @@ export function initActivateCheckout(deps: {
 			}
 		}
 
+		await deps.deleteDeferredCancellationSchedule({ userId });
 		await deps.upsertActive({
 			userId,
 			subscriptionId: checkout.subscriptionId,

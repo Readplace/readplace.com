@@ -54,6 +54,7 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 		const limitReached =
 			req.query.error === "limit" || countLiveCappedAddresses(addresses) >= INBOX_ADDRESS_MAX_PER_USER;
 		const submittedName = typeof req.query.name === "string" ? req.query.name : "";
+		const bannerState = await deps.buildBannerState(req);
 		sendComponent(
 			req,
 			res,
@@ -67,8 +68,9 @@ export function initCustomEmailsRoutes(deps: CustomEmailsDependencies): Router {
 					createdName: createdName.success ? createdName.data : undefined,
 					submittedName,
 					origin: parseCustomEmailsOrigin(req.query),
+					paidFeaturesLocked: bannerState.paidFeaturesLocked === true,
 				}),
-				await deps.buildBannerState(req),
+				bannerState,
 			),
 		);
 	});

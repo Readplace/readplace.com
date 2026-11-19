@@ -55,9 +55,6 @@ import { VIEW_BACK_LINK } from "./reader-skeleton/reader-skeleton.component";
 import type { PageBody } from "@packages/web-shell";
 import { ReaderPage, type ReaderPageHighlights } from "../reader/reader.component";
 import { hasPaidFeatures } from "@packages/subscription-access";
-import { DEFAULT_LOCALE, translator } from "@packages/translations";
-import { hutchReader } from "@packages/translations/hutch-reader";
-import { renderedLockFor, upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { isPrefetchRequest } from "../../shared/prefetch-request";
 import { isBotUserAgent } from "@packages/web-analytics";
 import { requestCanCapture } from "../../onboarding/capture-capable-request";
@@ -81,7 +78,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
 import { highlightActionUrl } from "./highlight-surface";
 import { highlightFormScopeFor, initReaderHighlightOptions } from "./reader-highlight-options";
-import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM, ISSUE_LINK_DAILY_LIMIT_PARAM, readerEpubHrefFor } from "./readlist-shared";
+import { type ReadlistShared, joinedSurfaceQuery, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, nextReadLocksFor, NO_PAST_READS, isAppPlatform, readerReadlistFilingFrom, ISSUE_LINK_SAVED_PARAM, ISSUE_LINK_DAILY_LIMIT_PARAM, readerEpubHrefFor } from "./readlist-shared";
 import { ReadlistSlugsSchema } from "./readlist-slugs";
 
 const pastReadsComputeUrlFor = (params: {
@@ -184,7 +181,6 @@ export type RenderOwnerReader = (
 	},
 ) => Promise<void>;
 
-const { t } = translator(hutchReader, DEFAULT_LOCALE);
 
 function withStatusCode(component: Component, statusCode: number): Component {
 	return { to: (mediaType) => ({ ...component.to(mediaType), statusCode }) };
@@ -440,7 +436,7 @@ export function initReaderPageRoutes(deps: Pick<
 				state,
 				related: { status: "skipped" },
 				relatedPollUrl: undefined,
-				previouslyRead: { status: "ready", items: [] },
+				previouslyRead: NO_PAST_READS,
 				previouslyReadPollUrl: undefined,
 				previouslyReadBudgetBlocked: false,
 				readlistFiling,
@@ -567,18 +563,9 @@ export function initReaderPageRoutes(deps: Pick<
 				: withStatusCode(component, options.statusCode);
 		const access = await deps.getEffectiveAccess(ownedArticle.userId);
 		const paidFeaturesLocked = !hasPaidFeatures(access);
-		const nextReadLocks = paidFeaturesLocked
-			? renderedLockFor({
-					offer: upgradeOfferFor({ req, access }),
-					gated: true,
-					key: "next-read",
-					label: t("reader.nextRead.lock"),
-					controlClass: "btn btn--neutral btn--m",
-					source: "reader",
-				})
-			: undefined;
+		const nextReadLocks = paidFeaturesLocked ? nextReadLocksFor({ req, access }) : undefined;
 		const pastReadsOptions = {
-			previouslyRead,
+			previouslyRead: paidFeaturesLocked ? NO_PAST_READS : previouslyRead,
 			previouslyReadPollUrl: paidFeaturesLocked ? undefined : previouslyReadPollUrl,
 			previouslyReadComputeUrl:
 				paidFeaturesLocked || previouslyReadBudgetBlocked || (isAppPlatform(req) && isPrefetchRequest(req))

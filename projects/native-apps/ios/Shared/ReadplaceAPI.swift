@@ -36,9 +36,14 @@ extension APIError {
 		guard let apiError = error as? APIError else { return false }
 		switch apiError {
 		case .refused, .unauthorized, .noToken: return true
-		case .server(let status, _, _): return status == 403
+		case .server(let status, _, _): return status == 403 || status == 429
 		case .unsupportedMediaType, .decoding: return false
 		}
+	}
+
+	var isDailySaveLimit: Bool {
+		guard case .server(429, "daily_save_limit", _) = self else { return false }
+		return true
 	}
 }
 

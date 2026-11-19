@@ -761,25 +761,26 @@ final class ReadplaceAPITests: XCTestCase {
 		}
 	}
 
-	func testSaveArticleSurfacesRefusalOnPaymentRequiredStatus() async {
-		// An inactive subscription refuses the save with a 402 carrying a server-authored
-		// message. The share extension must render that message (a `.refused`), not fall
-		// through to the cryptic "Server error 402" — the client reads messages[] on any
-		// non-2xx status, so the fix is purely the server attaching the message body.
+	func testSaveArticleSurfacesTheDailySaveLimitWithTheServersMessage() async {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { _, _ in
-			.json(402, Fixtures.messageRefusal([
-				(type: "warning", mediaType: "text/html", body: "Couldn't save — your subscription isn't active."),
-			]))
+			.json(429, Fixtures.sirenError(code: "daily_save_limit", message: "You've reached today's limit for new saves. Links you already saved still open."))
 		}
 		do {
 			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", readlists: [])
-			XCTFail("Expected a message-only refusal")
-		} catch let APIError.refused(messages) {
-			XCTAssertTrue(messages.first?.content.body.contains("subscription isn't active") ?? false)
+			XCTFail("Expected the daily save limit")
+		} catch let error as APIError {
+			XCTAssertTrue(error.isDailySaveLimit, "\(error)")
+			XCTAssertEqual(error.errorDescription, "You've reached today's limit for new saves. Links you already saved still open.")
 		} catch {
-			XCTFail("Expected APIError.refused, got \(error)")
+			XCTFail("Expected APIError.server, got \(error)")
 		}
+	}
+
+	func testOnlyA429WithTheDailySaveLimitCodeIsTheDailySaveLimit() {
+		XCTAssertFalse(APIError.server(status: 429, code: "ocr-page-quota", message: nil).isDailySaveLimit)
+		XCTAssertFalse(APIError.server(status: 422, code: "daily_save_limit", message: nil).isDailySaveLimit)
+		XCTAssertFalse(APIError.refused(messages: []).isDailySaveLimit)
 	}
 
 	func testSaveSurfacesARefusalEvenWhenItCannotRenderItsMessage() async {
@@ -806,6 +807,7 @@ final class ReadplaceAPITests: XCTestCase {
 			APIError.unauthorized,
 			APIError.noToken,
 			APIError.server(status: 403, code: nil, message: nil),
+			APIError.server(status: 429, code: "daily_save_limit", message: nil),
 		] {
 			XCTAssertTrue(
 				APIError.isRefusalOrAuthFailure(answered),

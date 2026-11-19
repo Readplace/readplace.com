@@ -14,6 +14,7 @@ import request from "supertest";
 import { BROWSER_REQUEST_HEADERS, loginAgent, type TestAppHarness, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
+const useMeteredApp = useTestServer({ isDailyLimited: () => true });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ARTICLE_URL = "https://example.com/post";
@@ -48,7 +49,10 @@ async function seedArticle(fixture: TestAppFixture): Promise<void> {
 	await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 }
 
-async function harnessWithArticle(fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN)): Promise<TestAppHarness> {
+async function harnessWithArticle(
+	fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN),
+	serve: typeof useApp = useApp,
+): Promise<TestAppHarness> {
 	const parseArticle: ParseArticle = async () => ({
 		ok: true,
 		article: { title: "A readable post", siteName: "Example", excerpt: "An excerpt.", wordCount: 20, content: ARTICLE_HTML },
@@ -58,7 +62,7 @@ async function harnessWithArticle(fixture = createDefaultTestAppFixture(TEST_APP
 		articleCrawl: fixture.articleCrawl,
 		parseArticle,
 	});
-	const harness = useApp({
+	const harness = serve({
 		...fixture,
 		parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
 		events: {
@@ -390,6 +394,26 @@ describe("/view/highlights/claim", () => {
 		expect(harness.analytics.events.filter((event) => event.event === "view_highlights_claimed")).toEqual([
 			expect.objectContaining({ created: 0, dropped: 1 }),
 		]);
+	});
+
+	it("refuses the claim once a free account's new saves for the day are spent, and keeps the highlights for later", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.rateLimit = {
+			...fixture.rateLimit,
+			rules: { ...fixture.rateLimit.rules, dailySaves: { limit: 0, windowSeconds: 86_400 } },
+		};
+		const harness = await harnessWithArticle(fixture, useMeteredApp);
+
+		const { agent, claim } = await keepThenSignUpAndClaim({ harness, items: [SECOND_SENTENCE] });
+
+		expect([claim.status, pendingCookieOf(claim.headers)]).toEqual([429, []]);
+		expect(String(claim.headers["retry-after"])).toMatch(/^\d+$/);
+		const page = new JSDOM(claim.text).window.document.querySelector("[data-test-view-daily-save-limit]");
+		assert(page, "the daily-limit page must render");
+		const queue = await agent.get("/queue").set(BROWSER_REQUEST_HEADERS);
+		const empty = new JSDOM(queue.text).window.document.querySelector("[data-test-empty-readlist]");
+		assert(empty, "nothing is saved past the day's allowance");
+		expect(harness.analytics.events.filter((event) => event.event === "view_highlights_claimed")).toEqual([]);
 	});
 
 	it("refuses a locked account and keeps nothing", async () => {

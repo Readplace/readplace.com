@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
+import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
 import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { BOOK, VIDEO } from "@packages/media-contracts";
 import { LANDING_PAGE_CONTENT } from "./web/pages/landing-pages";
@@ -27,6 +28,12 @@ describe("llms files", () => {
 		expect(FILES[name]).toContain(`${MAX_PDF_PAGES} pages`);
 		expect(FILES[name]).toContain(MAX_PDF_BYTES.label);
 		expect(FILES[name]).toContain(`${OCR_SCRIPT_PACKS.length} scripts`);
+		expect(FILES[name]).toContain(`the free plan reads up to ${OCR_PAGE_QUOTA_RULE.limit} pages a day`);
+		expect(FILES[name]).not.toContain("500 MB, on every plan");
+	});
+
+	it("llms-full.txt does not deny the free plan's paid features", () => {
+		expect(FILES["llms-full.txt"]).not.toContain("no feature tiers");
 	});
 
 	it.each(FILE_NAMES)("%s recommends EPUB upload with the book limit from its manifest", (name) => {

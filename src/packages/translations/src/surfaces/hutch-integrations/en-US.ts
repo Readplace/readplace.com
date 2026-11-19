@@ -9,6 +9,11 @@ export const enUS = {
 			description: "Build your own app or script that saves, lists, reads and files articles for you.",
 			action: "Read the docs",
 		},
+		customEmails: {
+			locked: "Custom emails are part of a paid plan.",
+			lock: "Set up custom emails",
+			upgrade: "Upgrade",
+		},
 	},
 	saveTip: {
 		continue: "Continue here",

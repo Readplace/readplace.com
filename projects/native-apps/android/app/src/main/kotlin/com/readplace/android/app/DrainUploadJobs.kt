@@ -71,7 +71,7 @@ class DrainUploadJobs(
 		} catch (_: ApiError.Refused) {
 			jobs.remove(current)
 		} catch (error: ApiError.Server) {
-			if (error.status in 400..499) jobs.remove(current) else reschedule(current)
+			if (error.status in 400..499 && error.status != 429) jobs.remove(current) else reschedule(current)
 		} catch (_: ApiError) {
 			reschedule(current)
 		} catch (_: IOException) {

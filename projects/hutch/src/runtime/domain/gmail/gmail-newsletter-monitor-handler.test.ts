@@ -6,6 +6,8 @@ import { CheckGmailNewslettersCommand, GmailNewsletterAccountsCheckedEvent, Moni
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import { Logger, noopLogger } from "@packages/logger";
 import type { GmailMonitoringPage } from "@packages/provider-contracts/gmail-monitoring";
+import { initGetEffectiveAccess } from "@packages/subscription-access";
+import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initGmailNewsletterMonitorHandler } from "./gmail-newsletter-monitor-handler";
@@ -14,6 +16,7 @@ import type { GmailMonitoringProgress, MonitorGmailNewsletters } from "./monitor
 const USER = UserIdSchema.parse("reader-1");
 const OTHER = UserIdSchema.parse("reader-2");
 const SENDER = ForwardableSenderSchema.parse("news@example.com");
+const NOW = new Date("2026-11-19T00:00:00.000Z");
 const NEXT: GmailMonitoringPage = { userId: USER, generation: "generation-1", page: 1 };
 
 function body(event: { detailType: string }, detail: unknown) {
@@ -40,16 +43,18 @@ function harness() {
 		page: async (input) => { pages.push(input); return result; },
 	};
 	const publishEvent: PublishEvent = async (event, detail) => { published.push({ event, detail }); };
+	const subscriptions = initInMemorySubscriptionProviders({ now: () => NOW });
 	const deps: Parameters<typeof initGmailNewsletterMonitorHandler>[0] = {
 		monitor,
 		listConnectedAccounts: async (input) => { accountsQueries.push(input); return { userIds: [USER, OTHER], nextPageToken: "next-accounts" }; },
+		getEffectiveAccess: initGetEffectiveAccess({ findSubscriptionByUserId: subscriptions.findByUserId, now: () => NOW }),
 		dispatchCheck: async (input) => { checked.push(input); },
 		dispatchMonitor: async (input) => { dispatched.push(input); },
 		dispatchNotice: async (input) => { notices.push(input); },
 		publishEvent,
 		logger: Logger.from(noopLogger),
 	};
-	return { deps, published, accountsQueries, checked, dispatched, notices, started, pages, complete: () => { result = { nextPage: undefined, notices: [] }; } };
+	return { deps, subscriptions, published, accountsQueries, checked, dispatched, notices, started, pages, complete: () => { result = { nextPage: undefined, notices: [] }; } };
 }
 
 describe("initGmailNewsletterMonitorHandler", () => {
@@ -98,6 +103,19 @@ describe("initGmailNewsletterMonitorHandler", () => {
 		h.complete();
 		await run(handler, [{ messageId: "complete", body: body(MonitorGmailNewslettersCommand, { userId: USER }) }]);
 		assert.deepEqual(h.published[2], { event: GmailNewsletterMonitoringProgressedEvent, detail: { userId: USER, nextPage: undefined, notices: [] } });
+	});
+
+	it("leaves a free-plan account's mailbox unread on new and continuation commands", async () => {
+		const h = harness();
+		await h.subscriptions.upsertTrialing({ userId: USER, trialEndsAt: new Date(NOW.getTime() - 86_400_000).toISOString() });
+		assert.deepEqual(await run(initGmailNewsletterMonitorHandler(h.deps), [
+			{ messageId: "new-check", body: body(MonitorGmailNewslettersCommand, { userId: USER }) },
+			{ messageId: "continue", body: body(MonitorGmailNewslettersCommand, { userId: USER, continuation: { generation: NEXT.generation, page: NEXT.page } }) },
+			{ messageId: "paid", body: body(MonitorGmailNewslettersCommand, { userId: OTHER }) },
+		]), { batchItemFailures: [] });
+		assert.deepEqual(h.started, [OTHER]);
+		assert.deepEqual(h.pages, []);
+		assert.deepEqual(h.published, [{ event: GmailNewsletterMonitoringProgressedEvent, detail: { userId: OTHER, nextPage: NEXT, notices: [SENDER] } }]);
 	});
 
 	it("routes monitoring facts into one notification command per page of waiting notices and page continuations, and stops at completion", async () => {

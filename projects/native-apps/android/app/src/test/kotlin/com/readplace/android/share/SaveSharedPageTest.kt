@@ -1189,6 +1189,34 @@ class SaveSharedPageTest {
 	}
 
 	@Test
+	fun `says the daily save limit is reached without re-discovering or posting again`() = runTest {
+		val store = loggedInStore()
+		val container = temporaryFolder.newFolder("files")
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" ->
+					if (record.method == "POST") {
+						Stub.json(
+								429,
+								"""{ "class": ["error"], "properties": { "code": "daily_save_limit", "message": "You've reached today's limit for new saves. Links you already saved still open." } }""",
+							)
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+					}
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val saver = makeSaver(store = store, captor = FakeHtmlCaptor(page = CapturedPage.Empty), container = container)
+		val outcome = saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
+
+		assertEquals(SaveSharedOutcome.DailySaveLimitReached("You've reached today's limit for new saves. Links you already saved still open."), outcome)
+		assertEquals("the daily limit is the server's answer, not a stale address: no re-discovery, no second post", 1, urlOnlyPosts().size)
+		assertEquals(1, server.records("/queue").count { it.method == "GET" })
+	}
+
+	@Test
 	fun `does not re-discover after a non-403 refusal`() = runTest {
 		val store = loggedInStore()
 		val container = temporaryFolder.newFolder("files")
@@ -1197,7 +1225,7 @@ class SaveSharedPageTest {
 				"/" -> Stub.redirect(to = "/queue")
 				"/queue" ->
 					if (record.method == "POST") {
-						Stub.json(402, Fixtures.messageRefusal(mediaType = "text/markdown", body = "**inactive**"))
+						Stub.json(422, Fixtures.messageRefusal(mediaType = "text/markdown", body = "**refused**"))
 					} else {
 						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
 					}

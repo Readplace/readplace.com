@@ -2,10 +2,10 @@
 title: "Free Read-It-Later Apps: 5 Options and Their Costs"
 description: "Instapaper and Raindrop free tiers, self-hosted Karakeep and Wallabag, and bookmarks, with the catch in each: shutdown risk, a server bill or no reader view."
 excerpt: "Instapaper and Raindrop run free tiers, and Pocket and Omnivore were free until both shut down."
-tldr: "Free read-it-later options sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace, which I build, is paid, and the subscription is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged. The account just drops to read-only. For most readers I'd start there."
+tldr: "Free read-it-later options sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace, which I build, runs on paid plans, and the subscription is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged. The account just moves to the free plan, where you can keep saving within daily limits. For most readers I'd start there."
 slug: "free-read-it-later-apps-2026"
 date: "2026-05-06"
-lastModified: "2026-11-03"
+lastModified: "2026-11-19"
 author: "Fayner Brack"
 keywords: "free read it later app, read it later free, instapaper free, wallabag, karakeep, raindrop free tier"
 ---
@@ -98,7 +98,7 @@ The current plans are on the [home page](/?utm_source=blog-free-apps-2026&utm_me
 
 That subscription is the whole funding source. There is no venture capital to run out, no acqui-hire to pull the team onto someone else's roadmap, no ads, and no data selling. Nothing here needs your reading history to work. If the product stays good enough that people keep paying, it keeps running, which is the same test any honest business has to pass.
 
-You don't have to pay up front to find out whether it deserves the money. Readplace starts with a 14-day free trial that doesn't ask for a credit card, and if the trial ends without a subscription nothing is charged. The account drops to read-only, so what you saved stays readable. Two weeks is enough to judge it by your own reading rather than by this post.
+You don't have to pay up front to find out whether it deserves the money. Readplace starts with a 14-day free trial that doesn't ask for a credit card, and if the trial ends without a subscription nothing is charged. The account moves to the free plan, so what you saved stays readable and you can keep saving within daily limits. Two weeks is enough to judge it by your own reading rather than by this post.
 
 It is still not the right fit for every reader, and the table below should tell you why. If your budget is zero (not small, zero, indefinitely), Instapaper's free tier is the pick among the hosted options, with the ownership-change risk priced in. If you are a developer who enjoys running servers, Karakeep or Wallabag hand you full control. If you file links more than you read them, Raindrop fits. Everyone else wants to save an article, read it clean, and trust it will still be there next year. That is the reader I built Readplace for.
 
@@ -106,7 +106,7 @@ It is still not the right fit for every reader, and the table below should tell 
 <p class="blog-cta__title">Judge it by your own reading</p>
 <p class="blog-cta__text">Fourteen days with the full product, on the articles you actually save, settles the free-versus-paid question better than any table.</p>
 <a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=inline-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. If the trial ends without a subscription, nothing is charged. The account drops to read-only.</p>
+<p class="blog-cta__note">No credit card required. If the trial ends without a subscription, nothing is charged. The account moves to the free plan.</p>
 </div>
 
 ## The Short Version
@@ -118,7 +118,7 @@ It is still not the right fit for every reader, and the table below should tell 
 | Karakeep | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Wallabag | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Browser bookmarks | $0 | Zero dependencies | No reader view, no offline, no organisation |
-| Readplace | 14-day free trial (no card), then [a paid plan](/?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=pricing#pricing) | Hosted, maintained, no ads | A young service can shut down too |
+| Readplace | 14-day free trial (no card), then [a paid plan](/?utm_source=blog-free-apps-2026&utm_medium=internal&utm_content=pricing#pricing) or the free plan within daily limits | Hosted, maintained, no ads | A young service can shut down too |
 
 Every row in that table is a real bargain, not a free lunch.
 

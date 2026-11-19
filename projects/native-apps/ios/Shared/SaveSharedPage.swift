@@ -16,6 +16,7 @@ enum SaveSharedOutcome: Equatable {
 	case noLink
 	case noSaveAction
 	case refused([ServerMessage])
+	case dailySaveLimitReached(String)
 	case failed(String)
 }
 
@@ -108,7 +109,7 @@ struct SaveSharedPage {
 			return .refused(messages)
 		} catch {
 			let message = (error as? LocalizedError)?.errorDescription ?? "Save failed."
-			return .failed(message)
+			return (error as? APIError)?.isDailySaveLimit == true ? .dailySaveLimitReached(message) : .failed(message)
 		}
 	}
 

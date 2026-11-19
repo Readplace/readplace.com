@@ -30,7 +30,7 @@ interface AutomationSavesHeldEmailComponent {
 
 const { t } = translator(hutchEmails, DEFAULT_LOCALE);
 
-const CTA_LABEL = "See the articles waiting";
+const CTA_LABEL = t("automationSavesHeldEmail.ctaLabel");
 
 const OPENING_AFTER = t("automationSavesHeldEmail.openingAfter");
 
@@ -49,8 +49,7 @@ function openingFragments(inboxAddress: string | undefined): {
 	};
 }
 
-const REASSURANCE_PREFIX =
-	"Don't worry, you didn't lose anything. The email and the extracted articles stay in your Inbox. You can save them yourself, and new emails go back to saving automatically, once ";
+const REASSURANCE_PREFIX = t("automationSavesHeldEmail.reassurancePrefix");
 
 const REASSURANCE_LINK_TEXT = t("automationSavesHeldEmail.reassuranceLink");
 

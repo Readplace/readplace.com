@@ -10,6 +10,7 @@ import { payCutoff } from "../../../domain/stripe/stripe-trial-config";
 
 const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
+const ONE_HOUR_MS = 3_600_000;
 const PAY_DIGEST_CLICK =
 	"/account/plans?utm_source=queue-digest&utm_medium=email&utm_campaign=pay&utm_content=keep-readplace&utm_term=msg-pay-1";
 
@@ -429,6 +430,29 @@ describe("GET /account/plans (nothing to choose)", () => {
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account");
+	});
+
+	it("shows the plans to a reader on the free plan whose trial lapsed while the row is still pending_cancellation", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await signedInReader(harness, "plans-pending-lapsed@example.com");
+		const lapsedAt = new Date(Date.now() - ONE_HOUR_MS / 2).toISOString();
+		harness.subscriptionProviders.seedRow(
+			subscriptionRow(userId, {
+				status: "pending_cancellation",
+				trialEndsAt: lapsedAt,
+				cancellationEffectiveAt: lapsedAt,
+			}),
+		);
+
+		const response = await agent.get(PAY_DIGEST_CLICK);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(termsOf(doc).getAttribute("data-test-plans-terms")).toBe("charge_today");
+		expect(planKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
+		expect(plansPageViews(harness)).toEqual([
+			expect.objectContaining({ user_id: userId, tier: "free", terms: "charge_today" }),
+		]);
 	});
 
 	it("sends a founding member, who has nothing to pay for, to the account page", async () => {

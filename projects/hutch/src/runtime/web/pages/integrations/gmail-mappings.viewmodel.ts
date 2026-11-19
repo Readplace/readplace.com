@@ -140,6 +140,7 @@ export interface GmailMappingsViewModel {
 export interface GmailMappingsInput {
 	userId: UserId;
 	canConnectGmail: boolean;
+	paidFeaturesLocked: boolean;
 	offer: UpgradeOffer | undefined;
 	connection: GmailConnection;
 	senders: readonly GmailMapping[];
@@ -290,6 +291,7 @@ function rowActions(input: {
 	job: GmailHistoryImportJob | undefined;
 	readScopeGranted: boolean;
 	readlistChoiceShown: boolean;
+	paidFeaturesLocked: boolean;
 	state: GmailPickerState;
 }): GmailFormAction[] {
 	const { sender: _picked, ...listState } = closeGmailDialog(input.state);
@@ -314,10 +316,10 @@ function rowActions(input: {
 			opener: input.sender.senderEmail,
 		});
 	}
-	if (input.importable && STARTABLE.has(input.importState)) {
+	if (!input.paidFeaturesLocked && input.importable && STARTABLE.has(input.importState)) {
 		actions.push(postAction({ key: "start-import", content: "start-import", path: GMAIL_IMPORT_START_PATH, label: "Import unread messages", variant: "neutral", fields: senderFields }));
 	}
-	if (input.importable && input.readScopeGranted && input.job !== undefined && RESTARTABLE.has(input.importState)) {
+	if (!input.paidFeaturesLocked && input.importable && input.readScopeGranted && input.job !== undefined && RESTARTABLE.has(input.importState)) {
 		actions.push(postAction({ key: "retry-import", content: "retry-import", path: GMAIL_IMPORT_RETRY_PATH, label: "Retry import", variant: "neutral", fields: jobFields(input.job) }));
 	}
 	if (input.job !== undefined && UNFINISHED.has(input.importState)) {
@@ -410,6 +412,7 @@ function markFor(input: {
 	destination: GmailMappingDestination;
 	connection: GmailConnection;
 	canConnectGmail: boolean;
+	paidFeaturesLocked: boolean;
 	offer: UpgradeOffer | undefined;
 	modifyScopeGranted: boolean;
 	metadataScopeGranted: boolean;
@@ -424,7 +427,7 @@ function markFor(input: {
 	const revoked = input.connection.revokedAt !== undefined;
 	const state = markState({ checked, modifyScopeGranted: input.modifyScopeGranted });
 	const unavailable = !input.modifyScopeGranted && !input.canConnectGmail;
-	const consent = state === "permission-lost" || (state === "off" && unavailable)
+	const consent = !input.paidFeaturesLocked && (state === "permission-lost" || (state === "off" && unavailable))
 		? gmailConnectionPrompt({
 			canConnectGmail: input.canConnectGmail,
 			message: PERMISSION_LOST_MESSAGE,
@@ -447,11 +450,11 @@ function markFor(input: {
 		fields: senderFields,
 		label: GMAIL_MARK_OPTION_LABEL,
 		checked,
-		disabled: !checked && (revoked || unavailable || !input.metadataScopeGranted),
+		disabled: !checked && (input.paidFeaturesLocked || revoked || unavailable || !input.metadataScopeGranted),
 		hint: consent.message,
 		prompt: revoked ? [] : consent.actions,
 		promptLocks: revoked ? [] : consent.locks,
-		backfill: state === "on" ? markBackfill({ job, revoked, senderFields }) : undefined,
+		backfill: state === "on" && !input.paidFeaturesLocked ? markBackfill({ job, revoked, senderFields }) : undefined,
 	};
 }
 
@@ -492,6 +495,7 @@ function toRow(input: GmailMappingsInput & { sender: GmailMapping; job: GmailHis
 			destination,
 			connection: input.connection,
 			canConnectGmail: input.canConnectGmail,
+			paidFeaturesLocked: input.paidFeaturesLocked,
 			offer: input.offer,
 			modifyScopeGranted: input.modifyScopeGranted,
 			metadataScopeGranted: input.metadataScopeGranted,
@@ -506,6 +510,7 @@ function toRow(input: GmailMappingsInput & { sender: GmailMapping; job: GmailHis
 			job: currentJob,
 			readScopeGranted: input.readScopeGranted,
 			readlistChoiceShown: input.readlistChoiceShown,
+			paidFeaturesLocked: input.paidFeaturesLocked,
 			state: input.state,
 		}),
 	};
@@ -626,7 +631,7 @@ export function toGmailMappingsViewModel(input: GmailMappingsInput): GmailMappin
 			state,
 			message: filterMessage(input, state),
 			presentation: state === "failed" ? "alert" : "copy",
-			actions: FILTER_ACTIONS_BY_STATE[state],
+			actions: input.paidFeaturesLocked ? [] : FILTER_ACTIONS_BY_STATE[state],
 		},
 	};
 }

@@ -11,6 +11,8 @@ import { Logger, noopLogger } from "@packages/logger";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
 import type { EmailMessage } from "@packages/provider-contracts/email";
+import { initGetEffectiveAccess } from "@packages/subscription-access";
+import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailMonitoring } from "@packages/test-fixtures/providers/gmail-monitoring";
 import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
@@ -42,6 +44,7 @@ async function harness() {
 	const connections = initInMemoryGmailConnection({ now });
 	const monitoring = initInMemoryGmailMonitoring({ now });
 	const mappings = initInMemoryGmailMapping({ now });
+	const subscriptions = initInMemorySubscriptionProviders({ now });
 	await connections.createConnection({ userId: USER, gatewayAddress: GATEWAY });
 	await connections.recordAccountEmail({ userId: USER, accountEmail: ACCOUNT });
 	const checkpoint: GmailMonitoringCheckpoint = { userId: USER, generation: "run", page: 0, mailboxId: "mailbox", accountEmail: ACCOUNT, gatewayAddress: GATEWAY, mode: "arrivals", initializing: false, historyId: "100", pageToken: undefined, scannedCount: 0, lastCheckedAt: NOW };
@@ -50,12 +53,12 @@ async function harness() {
 	await observe(SENDER);
 	const published: { event: unknown; detail: unknown }[] = [];
 	const sent: EmailMessage[] = [];
-	const deps = { connections, monitoring, mappings, detectNewsletters: recognizing([[SENDER, "Example Letter"], [SECOND, "Another Digest"], [THIRD, undefined]]), listReadlistDefinitions: async (): Promise<ReadlistDefinitionData[]> => [WORK], findEmailByUserId: async (): Promise<string | null> => "readplace-account@example.com", sendEmail: async (message: EmailMessage) => { sent.push(message); }, founderAvatarUrl: "https://static.test/fayner.jpg", gmailPageUrl: "https://readplace.test/newsletters/gmail", renderNewsletterNotice: GmailNewsletterNoticeEmail, now, publishEvent: (async (event, detail) => { published.push({ event, detail }); }) as PublishEvent, logger: Logger.from(noopLogger) };
+	const deps = { connections, monitoring, mappings, detectNewsletters: recognizing([[SENDER, "Example Letter"], [SECOND, "Another Digest"], [THIRD, undefined]]), listReadlistDefinitions: async (): Promise<ReadlistDefinitionData[]> => [WORK], findEmailByUserId: async (): Promise<string | null> => "readplace-account@example.com", getEffectiveAccess: initGetEffectiveAccess({ findSubscriptionByUserId: subscriptions.findByUserId, now }), sendEmail: async (message: EmailMessage) => { sent.push(message); }, founderAvatarUrl: "https://static.test/fayner.jpg", gmailPageUrl: "https://readplace.test/newsletters/gmail", renderNewsletterNotice: GmailNewsletterNoticeEmail, now, publishEvent: (async (event, detail) => { published.push({ event, detail }); }) as PublishEvent, logger: Logger.from(noopLogger) };
 	async function run(records = [{ messageId: "notice", body: JSON.stringify({ detail: { userId: USER } }) }]) {
 		const response = await initSendGmailNewsletterNoticeHandler(deps)(buildSqsEvent(records), buildLambdaContext(), () => {}); assert(response); return response;
 	}
 	const status = async (senderEmail: ForwardableSender) => (await monitoring.findNotice({ userId: USER, senderEmail }))?.status;
-	return { deps, checkpoint, connections, monitoring, mappings, sent, published, run, observe, status, advance: (ms = 120_001) => { instant += ms; } };
+	return { deps, checkpoint, connections, subscriptions, monitoring, mappings, sent, published, run, observe, status, advance: (ms = 120_001) => { instant += ms; } };
 }
 
 function links(html: string) {
@@ -197,7 +200,7 @@ describe("approved Gmail newsletter notices", () => {
 		await other.run();
 		assert.match(other.sent[0].html, /&lt;script&gt;alert/);
 	});
-	it.each(["mapped", "revoked", "disconnecting", "disconnected", "changed-account", "changed-gateway", "changed-checkpoint", "unapproved", "missing-email"])("suppresses %s immediately before sending", async (condition) => {
+	it.each(["mapped", "revoked", "disconnecting", "disconnected", "changed-account", "changed-gateway", "changed-checkpoint", "unapproved", "missing-email", "free-plan"])("suppresses %s immediately before sending", async (condition) => {
 		const h = await harness();
 		if (condition === "mapped") await h.mappings.addSenderToFilter({ userId: USER, accountEmail: ACCOUNT, senderEmail: SENDER });
 		if (condition === "revoked") await h.connections.markRevoked({ userId: USER, reason: "invalid-grant" });
@@ -208,6 +211,7 @@ describe("approved Gmail newsletter notices", () => {
 		if (condition === "changed-checkpoint") await h.monitoring.startRun({ checkpoint: { ...h.checkpoint, mailboxId: "new-mailbox" }, previous: h.checkpoint });
 		if (condition === "unapproved") h.deps.detectNewsletters = recognizing([]);
 		if (condition === "missing-email") h.deps.findEmailByUserId = async () => null;
+		if (condition === "free-plan") await h.subscriptions.upsertTrialing({ userId: USER, trialEndsAt: new Date(NOW - 1).toISOString() });
 		assert.deepEqual(await h.run(), { batchItemFailures: [] });
 		assert.equal(h.sent.length, 0);
 		assert.equal(await h.status(SENDER), "cancelled");

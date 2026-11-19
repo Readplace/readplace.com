@@ -185,6 +185,7 @@ function buildCardActions(input: {
 	fit: readonly InboxLinkCardReadlistFit[];
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 	whenNotSaved: "saving" | "unsaved";
+	paidFeaturesLocked: boolean;
 }): Pick<InboxLinkCardViewModel, "actions" | "menuActions" | "fitMarkers" | "fitActions"> {
 	const { link, emailId, displayUrl, shown, filter, linkSaveStates, whenNotSaved } = input;
 	const buttonId = (key: string) => `${cardDomId(link.ordinal)}-${key}`;
@@ -197,7 +198,7 @@ function buildCardActions(input: {
 	const actions: InboxCardSaveAction[] = [];
 	// Crawl state does not gate saving: the queue save runs its own crawl, so a
 	// link whose preview is still pending or failed is still worth saving.
-	const saveable = validateSaveableInboxLink(link.url).status === "SUCCESS";
+	const saveable = !input.paidFeaturesLocked && validateSaveableInboxLink(link.url).status === "SUCCESS";
 	if (saveable) {
 		actions.push({
 			key: "save",
@@ -278,6 +279,7 @@ export function toInboxLinkCardViewModel(input: {
 	fit: readonly InboxLinkCardReadlistFit[];
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 	savePollContext: LinkCardSavePollContext;
+	paidFeaturesLocked: boolean;
 }): InboxLinkCardViewModel {
 	const { link, emailId, pollCount, maxPolls, shown, filter, linkSaveStates } = input;
 	const reachedTerminal = link.status !== "pending";
@@ -322,6 +324,7 @@ export function toInboxLinkCardViewModel(input: {
 			fit: input.fit,
 			linkSaveStates,
 			whenNotSaved: savePollUrl === undefined ? "unsaved" : "saving",
+			paidFeaturesLocked: input.paidFeaturesLocked,
 		}),
 	};
 }

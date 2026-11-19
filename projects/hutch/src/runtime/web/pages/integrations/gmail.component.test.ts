@@ -30,6 +30,7 @@ function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 	return {
 		userId: USER,
 		canConnectGmail: true,
+		paidFeaturesLocked: false,
 		offer: undefined,
 		connection: connection(),
 		senders: [],

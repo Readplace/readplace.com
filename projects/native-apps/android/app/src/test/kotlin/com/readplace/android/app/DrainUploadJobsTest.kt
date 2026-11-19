@@ -420,6 +420,29 @@ class DrainUploadJobsTest {
 	}
 
 	@Test
+	fun `schedules a backoff retry when the daily pdf page allowance is spent`() = runTest {
+		val jobs = makeStore()
+		val admitted = job()
+		jobs.admit(admitted)
+		val ready = jobs.stageReady(admitted, multipartForm())
+		serveReadlist(saveContent = {
+			Stub.json(
+				429,
+				Fixtures.sirenError(code = "ocr-page-quota", message = "You've used today's PDF page allowance. Try again tomorrow, or upgrade for no daily limit."),
+			)
+		})
+
+		makeDrain(jobs, emptyCaptor()).run()
+
+		val waiting = jobs.loadAll(now = epoch.plusSeconds(60)).first()
+		assertEquals(1, waiting.attempts)
+		assertTrue(
+			"a 429 says try later, so the shared bytes are kept for a retry instead of being dropped like a judged 4xx",
+			jobs.bytesFile(ready).exists(),
+		)
+	}
+
+	@Test
 	fun `schedules a backoff retry when the server fails transiently`() = runTest {
 		val jobs = makeStore()
 		val admitted = job()

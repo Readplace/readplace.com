@@ -5,6 +5,7 @@ import { AliasNameSchema, type InboxAddressEntry, InboxAddressSchema, InboxToken
 import { NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
 import { DEFAULT_READLIST, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
+import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
 import { GMAIL_CONFIRM_MAX_POLLS } from "./gmail.url";
 import { type GmailPageInput, toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
 
@@ -52,6 +53,7 @@ function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 	return {
 		userId: USER,
 		canConnectGmail: true,
+		paidFeaturesLocked: false,
 		offer: undefined,
 		connection: connection(),
 		senders: [],
@@ -107,6 +109,34 @@ describe("GMail Newsletters calls to action", () => {
 		assert.equal(toGmailPageViewModel(input()).mailboxUrl, "https://mail.google.com/mail/u/0/");
 		const withAccount = toGmailPageViewModel(input({ connection: connection({ accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com") }) }));
 		assert.equal(withAccount.mailboxUrl, "https://mail.google.com/mail/u/0/?authuser=reader%40gmail.com");
+	});
+});
+
+describe("GMail Newsletters on the free plan", () => {
+	const idle: GmailPageInput["discovery"] = { state: "idle", mode: "profile", checkedMessageCount: 0 };
+	const view = (paidFeaturesLocked: boolean) => toGmailPageViewModel(input({
+		paidFeaturesLocked, discovery: idle, readScopeGranted: true, senders: [mapped(TLDR)], destinations: new Map([[ALL_ADDRESS, ALL_ENTRY]]),
+	}));
+
+	it("starts no discovery on load and shows the upgrade instead of the sender picker", () => {
+		const vm = view(true);
+		assert.deepEqual([vm.autoDiscoverAction, vm.showSenders, vm.showUpgrade], [undefined, false, true]);
+		assert.equal(vm.upgrade.message, GMAIL_UPGRADE_MESSAGE);
+		assert.deepEqual([vm.mappings.headerActions, vm.mappings.emptyActions], [[], []]);
+		assert.deepEqual([view(false).autoDiscoverAction, view(false).showUpgrade], ["/newsletters/gmail/discovery/start", false]);
+	});
+
+	it("keeps removing a newsletter but offers no import, mark-as-read or filter retry", () => {
+		const locked = view(true).mappings;
+		const [row] = locked.rows;
+		assert(row);
+		assert.deepEqual(row.actions.map((action) => action.key), ["remove"]);
+		assert.equal(row.mark?.disabled, true);
+		assert.deepEqual(locked.filter.actions, []);
+		const [unlockedRow] = view(false).mappings.rows;
+		assert(unlockedRow);
+		assert.equal(unlockedRow.actions.some((action) => action.key === "start-import"), true);
+		assert.equal(unlockedRow.mark?.disabled, false);
 	});
 });
 

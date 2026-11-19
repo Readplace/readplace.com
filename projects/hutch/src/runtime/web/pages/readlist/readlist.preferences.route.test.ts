@@ -505,6 +505,27 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		).toHaveLength(0);
 	});
 
+	it("locks the readlist inbox emails for a free-plan reader on the web, leaving no form to route or create one", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await makeFreePlan(harness);
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		const inboxes = doc.querySelector("[data-test-readlist-inboxes]");
+		assert(inboxes, "the inboxes section must render");
+		expect(inboxes.querySelectorAll("form")).toHaveLength(0);
+		expect(inboxes.querySelector("[data-test-inboxes-locked]")?.textContent).toBe("Readlist inbox emails are part of a paid plan.");
+		expect(
+			Array.from(inboxes.querySelectorAll('[data-test-action="upgrade-open"]'), (lock) => [
+				lock.getAttribute("data-test-needs-upgrade"),
+				lock.getAttribute("popovertarget"),
+			]),
+		).toEqual([["create-inbox", "subscribe-plans"]]);
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
+	});
+
 	it("shows an active trial reader today's purpose controls, with no lock on them", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

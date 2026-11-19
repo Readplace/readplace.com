@@ -4,6 +4,9 @@
     {{#each descriptionLines}}
     <p class="readlist-inboxes__lede" data-test-inboxes-description>{{this}}</p>
     {{/each}}
+    {{#each lockedNotes}}
+    <p class="readlist-inboxes__lede" data-test-inboxes-locked>{{this}}</p>
+    {{/each}}
   </header>
   <div class="readlist-inboxes__delivery" data-test-readlist-email-delivery>
     <p class="readlist-inboxes__delivery-label" data-test-email-delivery-label>{{deliveryLabel}}</p>
@@ -18,6 +21,7 @@
       <p class="readlist-inboxes__name" id="{{nameId}}" data-test-inbox-name>{{name}}</p>
       <p class="readlist-inboxes__address" data-test-inbox-address>{{address}}</p>
       <p class="readlist-inboxes__destination" data-test-inbox-destination>{{destinationText}}</p>
+      {{#if ../editable}}
       <form class="readlist-inboxes__form" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
         <input type="hidden" name="address" value="{{address}}">
         <label class="readlist-inboxes__route" for="readlist-inbox-{{address}}">
@@ -26,9 +30,11 @@
         </label>
         <noscript><button class="btn btn--secondary btn--m" type="submit" aria-describedby="{{nameId}}">Save</button></noscript>
       </form>
+      {{/if}}
     </li>
     {{/each}}
   </ul>
+  {{#if editable}}
   <form class="readlist-inboxes__create" method="POST" action="{{createAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
     <label class="form-field__label" for="readlist-inbox-create-name">{{t "readlistInboxes.create.label"}}</label>
     <div class="readlist-inboxes__create-row" data-test-inbox-create-row>
@@ -37,6 +43,10 @@
     </div>
     {{#if createError}}<p class="form-field__error" id="readlist-inbox-create-error" role="alert" data-test-inbox-create-error>{{createError}}</p>{{/if}}
   </form>
+  {{/if}}
+  {{#each locks}}
+  <div class="readlist-inboxes__create-row" data-test-inbox-create-row>{{{this}}}</div>
+  {{/each}}
   <div class="readlist-inboxes__manage">
     <a class="btn btn--neutral btn--m" href="{{manageInboxesHref}}" data-test-action="manage-inboxes">Manage readlist inbox emails</a>
   </div>

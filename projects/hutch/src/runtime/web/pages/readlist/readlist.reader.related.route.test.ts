@@ -418,6 +418,21 @@ describe("GET /queue/:id/related", () => {
 		}).toEqual({ datetime: related.savedAt.toISOString(), mode: "relative" });
 	});
 
+	it("answers a free-plan reader's poll with the Next read lock instead of the stored relations, and stops the chain", async () => {
+		const { agent, harness, userId, articleId, seedRelated } = await buildHarness();
+		await seedRelated();
+		await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_free", customerId: "cus_free" });
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.get(`/queue/${articleId}/related?poll=1`);
+
+		expect(response.status).toBe(286);
+		expect(relatedIdsOf(response.text)).toEqual([]);
+		const slot = relatedSlotOf(response.text);
+		expect(slot.hasAttribute("hx-get")).toBe(false);
+		expect(slot.querySelectorAll('button[data-test-needs-upgrade="next-read"]')).toHaveLength(1);
+	});
+
 	it("stops the chain once the poll budget is spent, even while still computing", async () => {
 		const { agent, articleId } = await buildHarness();
 

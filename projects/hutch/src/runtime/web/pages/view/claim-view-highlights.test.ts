@@ -13,18 +13,39 @@ import {
 	withPrivateItemRefusal,
 } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import type { CreateHighlightByQuoteOutcome } from "../../shared/article-body/highlights/create-highlight-by-quote";
 import { initClaimViewHighlights } from "./claim-view-highlights";
+import { type ClaimDailySaves, initClaimDailySaves } from "../readlist/daily-save-allowance";
 
 const READER = UserIdSchema.parse("reader-1");
 const ARTICLE_URL = "https://example.com/post";
 const PRIVATE_URL =
 	"https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const OTHER_URL = "https://example.com/other";
+
+const grantAll: ClaimDailySaves = async ({ urls }) => ({
+	granted: [...urls],
+	refused: [],
+	retryAfterSeconds: undefined,
+});
+
+function freeAccountAllowance(limit: number): ClaimDailySaves {
+	const limiter = initInMemoryRateLimit({ now: () => new Date("2026-11-18T00:00:00.000Z") });
+	return initClaimDailySaves({
+		getEffectiveAccess: async () => ({ tier: "free", banner: "free", reason: "trial-expired" }),
+		isDailyLimited: () => true,
+		findSavedUrls: async () => [],
+		claimRateLimitUnits: limiter.claimRateLimitUnits,
+		rule: { limit, windowSeconds: 86_400 },
+	});
+}
 
 function claimWith(input: { unresolved: boolean }) {
 	const refreshed: string[] = [];
 	const claim = initClaimViewHighlights({
 		validateNewSaveUrl: withPrivateItemRefusal(validateSaveableUrl),
+		claimDailySaves: grantAll,
 		refreshArticleIfStale: async ({ url }) => {
 			refreshed.push(url);
 			assert.equal(
@@ -44,7 +65,10 @@ function claimWith(input: { unresolved: boolean }) {
 	return { claim, refreshed };
 }
 
-function claimAnswering(outcome: CreateHighlightByQuoteOutcome) {
+function claimAnswering(
+	outcome: CreateHighlightByQuoteOutcome,
+	allowance: { claimDailySaves: ClaimDailySaves; savedUrls: string[] } = { claimDailySaves: grantAll, savedUrls: [] },
+) {
 	const url = SaveableUrlSchema.parse(ARTICLE_URL);
 	const destinationUrl = articleDestinationUrl({ url, displayUrl: undefined });
 	const saved: SavedArticle = {
@@ -71,11 +95,14 @@ function claimAnswering(outcome: CreateHighlightByQuoteOutcome) {
 	};
 	return initClaimViewHighlights({
 		validateNewSaveUrl: withPrivateItemRefusal(validateSaveableUrl),
+		claimDailySaves: allowance.claimDailySaves,
 		refreshArticleIfStale: async () => ({
 			action: "skip",
 			identity: { status: "resolved", url, originalUrl: url },
 		}),
-		saveArticleAtReadlistTop: async () => ({
+		saveArticleAtReadlistTop: async (input) => {
+			allowance.savedUrls.push(input.url);
+			return {
 			saved,
 			canonicalUrl: ARTICLE_URL,
 			createdUserArticle: true,
@@ -83,7 +110,8 @@ function claimAnswering(outcome: CreateHighlightByQuoteOutcome) {
 			resurfacedFromRead: false,
 			meteredLegs: "run",
 			crawlPending: { kind: "not-attempted" },
-		}),
+			};
+		},
 		createHighlightByQuote: async () => outcome,
 	});
 }
@@ -138,8 +166,12 @@ describe("initClaimViewHighlights", () => {
 			},
 		});
 
-		assert.equal(claimed.created, 1);
-		assert.equal(claimed.dropped, 0);
+		assert.deepEqual(claimed, {
+			status: "claimed",
+			articleId: "0123456789abcdef0123456789abcdef",
+			created: 1,
+			dropped: 0,
+		});
 	});
 
 	it("drops the highlights of a link a reader may not save", async () => {
@@ -155,7 +187,7 @@ describe("initClaimViewHighlights", () => {
 			},
 		});
 
-		assert.deepEqual(claimed, { articleId: undefined, created: 0, dropped: 1 });
+		assert.deepEqual(claimed, { status: "claimed", articleId: undefined, created: 0, dropped: 1 });
 		assert.deepEqual(refreshed, []);
 	});
 
@@ -175,7 +207,57 @@ describe("initClaimViewHighlights", () => {
 			},
 		});
 
-		assert.deepEqual(claimed, { articleId: undefined, created: 0, dropped: 2 });
+		assert.deepEqual(claimed, { status: "claimed", articleId: undefined, created: 0, dropped: 2 });
 		assert.deepEqual(refreshed, [ARTICLE_URL]);
+	});
+
+	it("refuses the claim and saves nothing once a free account's new saves are spent", async () => {
+		const savedUrls: string[] = [];
+		const claim = claimAnswering(
+			{ status: "unchanged", highlight: EXISTING },
+			{ claimDailySaves: freeAccountAllowance(0), savedUrls },
+		);
+
+		const claimed = await claim({
+			userId: READER,
+			provenance: { kind: "web" },
+			pending: {
+				articleUrl: ARTICLE_URL,
+				returnTo: undefined,
+				items: [{ url: ARTICLE_URL, exact: "Quote", prefix: "", suffix: "" }],
+			},
+		});
+
+		assert.equal(claimed.status, "daily-save-limit");
+		assert.deepEqual(savedUrls, []);
+	});
+
+	it("saves the links the day's allowance grants and drops the highlights of the rest", async () => {
+		const savedUrls: string[] = [];
+		const claim = claimAnswering(
+			{ status: "unchanged", highlight: EXISTING },
+			{ claimDailySaves: freeAccountAllowance(1), savedUrls },
+		);
+
+		const claimed = await claim({
+			userId: READER,
+			provenance: { kind: "web" },
+			pending: {
+				articleUrl: ARTICLE_URL,
+				returnTo: undefined,
+				items: [
+					{ url: ARTICLE_URL, exact: "First", prefix: "", suffix: "" },
+					{ url: OTHER_URL, exact: "Second", prefix: "", suffix: "" },
+				],
+			},
+		});
+
+		assert.deepEqual(claimed, {
+			status: "claimed",
+			articleId: "0123456789abcdef0123456789abcdef",
+			created: 1,
+			dropped: 1,
+		});
+		assert.deepEqual(savedUrls, [ARTICLE_URL]);
 	});
 });

@@ -5,6 +5,7 @@ import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
+import { hasPaidFeatures } from "@packages/subscription-access";
 import type { SaveableUrl, } from "@packages/domain/article";
 import {
 	type EmailLinkOrdinal,
@@ -43,7 +44,7 @@ import { HtmlPage } from "@packages/web-shell";
 import { renderReaderShareUpgradeOob } from "../reader/reader.component";
 import { MAX_POLLS } from "@packages/web-shell";
 import { parsePollParam } from "@packages/web-shell";
-import { renderNextRead } from "../../shared/next-read/next-read.component";
+import { renderLockedNextRead, renderNextRead } from "../../shared/next-read/next-read.component";
 import { renderPastReadsSection } from "../../shared/past-reads/past-reads.component";
 import { safeReturnPath } from "../../shared/safe-return-path";
 import {
@@ -57,14 +58,14 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { initReaderHighlightOptions } from "./reader-highlight-options";
 import { initRequestRelatedPasses } from "./request-related-passes";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, ISSUE_LINK_SAVED_PARAM, ISSUE_LINK_DAILY_LIMIT_PARAM, downloadsOwnerEpub, readerEpubHrefFor } from "./readlist-shared";
+import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, nextReadLocksFor, NO_PAST_READS, isAppPlatform, ISSUE_LINK_SAVED_PARAM, ISSUE_LINK_DAILY_LIMIT_PARAM, downloadsOwnerEpub, readerEpubHrefFor } from "./readlist-shared";
 
 const HTMX_STOP_POLLING_STATUS = 286;
 
 export function initReaderPanelRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requirePaidFeatures" | "claimDailySaves" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot" | "canSaveContent"
+		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requirePaidFeatures" | "claimDailySaves" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot" | "canSaveContent" | "getEffectiveAccess"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -193,6 +194,12 @@ export function initReaderPanelRoutes(
 			return;
 		}
 
+		const access = await deps.getEffectiveAccess(userId);
+		if (!hasPaidFeatures(access)) {
+			res.status(HTMX_STOP_POLLING_STATUS).type("html").send(renderLockedNextRead({ locks: nextReadLocksFor({ req, access }) }));
+			return;
+		}
+
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
 		const html = renderNextRead({
 			related: {
@@ -310,17 +317,20 @@ export function initReaderPanelRoutes(
 			return;
 		}
 
+		const paidFeaturesLocked = !hasPaidFeatures(await deps.getEffectiveAccess(userId));
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
 		const sourceReadlist = requestReadlistContext(req).state.readlist;
-		const { pastReads, budgetBlocked } = pastReadsPresentation({
-			pastReads: await loadPastReads(
-				deps.findPastReads,
-				article,
-				sourceReadlist,
-				deps.logError,
-			),
-			now: deps.now(),
-		});
+		const { pastReads, budgetBlocked } = paidFeaturesLocked
+			? { pastReads: NO_PAST_READS, budgetBlocked: false }
+			: pastReadsPresentation({
+					pastReads: await loadPastReads(
+						deps.findPastReads,
+						article,
+						sourceReadlist,
+						deps.logError,
+					),
+					now: deps.now(),
+				});
 		const pastReadsInput = {
 			pastReads,
 			sourceArticleId: article.id.value,
@@ -346,6 +356,10 @@ export function initReaderPanelRoutes(
 			placement: { kind: "inline", oob: true },
 		});
 		const html = `${railHtml}\n${inlineHtml}`;
+		if (paidFeaturesLocked) {
+			res.status(HTMX_STOP_POLLING_STATUS).type("html").send(html);
+			return;
+		}
 		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));
 	});
 

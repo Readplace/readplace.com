@@ -1,5 +1,5 @@
 import type { AuthenticatedUserId } from "@packages/domain/user";
-import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
+import { type EffectiveAccess, type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 
 /**
  * Whether the MCP surface is open to an authenticated caller.
@@ -14,7 +14,7 @@ import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription
  */
 
 export type ToolAccess =
-	| { readonly state: "ok"; readonly dailyLimited: boolean }
+	| { readonly state: "ok"; readonly dailyLimited: boolean; readonly paidFeatures: boolean }
 	| { readonly state: "unverified" };
 
 export const UNVERIFIED_ACCESS = {
@@ -33,6 +33,16 @@ export const CREATE_HIGHLIGHT_PHRASES = {
 	subject: "This highlight",
 } as const satisfies RefusalPhrases;
 
+export type PaidFeatureRefusals = {
+	readonly paidOnly: string;
+	readonly checkFailed: string;
+};
+
+export const RELATED_ARTICLES_REFUSALS = {
+	paidOnly: "Related articles are only on Readplace's paid plans, and this account is on the free plan. Upgrading to a paid plan in Readplace turns them on.",
+	checkFailed: "Related articles weren't loaded because the subscription check didn't go through. Try again in a moment.",
+} as const satisfies PaidFeatureRefusals;
+
 export function toolRefusalMessage(params: { phrases: RefusalPhrases }): string {
 	return `${params.phrases.subject} wasn't saved because the subscription check didn't go through. Try again in a moment.`;
 }
@@ -43,6 +53,6 @@ export function initResolveToolAccess(deps: {
 }): (userId: AuthenticatedUserId) => Promise<ToolAccess> {
 	return async (userId) => {
 		const access = await deps.getEffectiveAccess(userId);
-		return { state: "ok", dailyLimited: deps.isDailyLimited(access) };
+		return { state: "ok", dailyLimited: deps.isDailyLimited(access), paidFeatures: hasPaidFeatures(access) };
 	};
 }

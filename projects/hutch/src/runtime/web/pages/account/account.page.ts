@@ -100,7 +100,12 @@ import type { BuildBannerState } from "../../banner-state";
 import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/native-app-links";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
-import { type EffectiveAccess, type GetEffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
+import {
+	type EffectiveAccess,
+	type GetEffectiveAccess,
+	hasPaidFeatures,
+	resolveEffectiveAccess,
+} from "@packages/subscription-access";
 import { AccountPage, renderAccountCard } from "./account.component";
 import { buildConnectedAppsSection } from "./account-connected-apps.view-model";
 import { AccountInvoicesPage } from "./account-invoices.component";
@@ -379,7 +384,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		}
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const now = deps.now();
-		const outcome = toPlansPageOutcome({ branch: pickSubscribeBranch(row?.status), row, now });
+		const outcome = toPlansPageOutcome({ branch: pickSubscribeBranch({ row, now }), row, now });
 		if (outcome.kind === "redirect-to-account") {
 			res.redirect(303, buildAccountUrl());
 			return;
@@ -726,7 +731,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		const userId = req.userId;
 		try {
 			const row = await deps.findSubscriptionByUserId(userId);
-			if (row?.status !== "pending_cancellation") {
+			if (row?.status !== "pending_cancellation" || resolveEffectiveAccess(row, deps.now()).tier === "free") {
 				// Defensive noop: covers double-click + race with the deferred
 				// scheduler. The user lands back on /account and sees whatever
 				// state they're actually in.
@@ -991,6 +996,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				return;
 			}
 			const { subscriptionId } = charge;
+			await deps.deleteDeferredCancellationSchedule({ userId });
 			await deps.upsertActiveSubscription({
 				userId,
 				subscriptionId,
@@ -1018,7 +1024,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			return;
 		}
 		const row = await deps.findSubscriptionByUserId(req.userId);
-		const branch = pickSubscribeBranch(row?.status);
+		const branch = pickSubscribeBranch({ row, now: deps.now() });
 		try {
 			await subscribeBranches[branch](req, res, {
 				row,
@@ -1111,8 +1117,9 @@ function buildPlansPageViewedEvent(input: {
 	};
 }
 
-function pickSubscribeBranch(status: string | undefined): SubscribeBranchKey {
-	switch (status) {
+function pickSubscribeBranch(input: { row: SubscriptionRecord | undefined; now: Date }): SubscribeBranchKey {
+	const { row, now } = input;
+	switch (row?.status) {
 		case "trialing":
 			return "trialing";
 		case "cancelled":
@@ -1125,7 +1132,7 @@ function pickSubscribeBranch(status: string | undefined): SubscribeBranchKey {
 		// Reactivation lives on /account/reactivate; treat /subscribe as a
 		// noop here so the form click only re-renders /account.
 		case "pending_cancellation":
-			return "noop";
+			return resolveEffectiveAccess(row, now).tier === "free" ? "cancelled" : "noop";
 		default:
 			return "forbidden";
 	}

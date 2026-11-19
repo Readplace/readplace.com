@@ -26,7 +26,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 }
 
 function build(input: { link?: InboxEmailLinkEntry }) {
-	return toInboxExcludedLinkViewModel({ link: input.link ?? link(), emailId: SK });
+	return toInboxExcludedLinkViewModel({ paidFeaturesLocked: false, link: input.link ?? link(), emailId: SK });
 }
 
 function saveActionOf(vm: ReturnType<typeof build>) {

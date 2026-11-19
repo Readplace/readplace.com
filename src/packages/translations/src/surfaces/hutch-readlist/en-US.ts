@@ -37,6 +37,9 @@ export const enUS = {
 		},
 	},
 	readlistInboxes: {
+		locked: {
+			note: "Readlist inbox emails are part of a paid plan.",
+		},
 		create: {
 			label: "Name a new custom email",
 			placeholder: "e.g. my-newsletter",

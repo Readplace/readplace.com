@@ -60,6 +60,7 @@ const fits: InboxLinkCardReadlistFit[] = [
 function card(): Element {
 	const html = renderInboxArticleCard(
 		toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link,
 			emailId: EMAIL_ID,
 			pollCount: 1,

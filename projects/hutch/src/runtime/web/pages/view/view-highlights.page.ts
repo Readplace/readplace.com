@@ -28,6 +28,7 @@ import { resolveSaveProvenance } from "../../shared/save-provenance";
 import { highlightReaderLocation } from "../readlist/highlight-surface";
 import type { ClaimViewHighlights } from "./claim-view-highlights";
 import { ViewHighlightsClaimPage } from "./view-highlights-claim.component";
+import { ViewDailySaveLimitPage } from "./view-daily-save-limit.component";
 import {
 	VIEW_HIGHLIGHTS_CLAIM_PATH,
 	VIEW_HIGHLIGHTS_CLAIM_ROUTE,
@@ -207,6 +208,11 @@ export function initViewHighlightsRoutes(deps: {
 				provenance: resolveSaveProvenance(req.oauthClientId),
 				pending,
 			});
+			if (claimed.status === "daily-save-limit") {
+				res.set("Retry-After", String(claimed.retryAfterSeconds));
+				sendComponent(req, res, Base(ViewDailySaveLimitPage(), await deps.buildBannerState(req)));
+				return;
+			}
 			await deps.releasePendingViewHighlights(pendingId);
 			pendingViewHighlightsCookie.consume({ req, res });
 			deps.recordAnalyticsEvent(req, {

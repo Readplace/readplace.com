@@ -1,11 +1,11 @@
 ---
 title: "Instapaper vs Readplace in 2026: Which One to Pick"
-description: "Instapaper has run since 2008 with a free tier, native apps and Kobo sync. Readplace is a newer, paid app that writes an AI summary on its own when you save."
-excerpt: "Instapaper has a free tier and Kobo sync, while Readplace is paid and writes a summary on its own."
-tldr: "Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, paid plans and no free tier, iPhone and Android apps (the iPhone one also runs on Mac), and no offline reading. Pick Instapaper for stability and the wider spread of devices. Pick Readplace for AI triage and active development."
+description: "Instapaper has run since 2008 with a free tier, native apps and Kobo sync. Readplace is a newer app with paid plans that writes an AI summary on its own when you save."
+excerpt: "Instapaper has a free tier and Kobo sync, while Readplace writes a summary on its own."
+tldr: "Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, paid plans and a free plan with daily limits, iPhone and Android apps (the iPhone one also runs on Mac), and no offline reading. Pick Instapaper for stability and the wider spread of devices. Pick Readplace for AI triage and active development."
 slug: "readplace-vs-instapaper"
 date: "2026-05-01"
-lastModified: "2026-11-11"
+lastModified: "2026-11-19"
 author: "Fayner Brack"
 keywords: "instapaper alternative, read it later, readplace vs instapaper, pocket replacement, AI summaries"
 ---
@@ -64,7 +64,7 @@ On reading surface it is the narrower of the two. Readplace runs on the web, in 
 
 On data it makes a deliberate choice. Readplace is hosted in Australia, so your account and reading history are stored on Australian infrastructure under Australian privacy law, which matters if you care where your data lives. Readplace sends article text to an AI provider to clean up the text and write the summary.
 
-On pricing it is blunt. Readplace has no free tier, and its current plans are on the [home page](/?utm_source=blog-readplace-vs-instapaper&utm_medium=internal&utm_content=pricing#pricing). It is a paid product from the start.
+On pricing it is blunt. Readplace starts with a 14-day trial, and its current plans are on the [home page](/?utm_source=blog-readplace-vs-instapaper&utm_medium=internal&utm_content=pricing#pricing). Without a subscription the account moves to the free plan: you keep everything you saved and can keep saving within daily limits, while the Inbox, Next read, Past reads, readlist purpose filtering and Gmail need a paid plan.
 
 On development pace it moves fast, and here is where my bias is loudest, since I ship those features. New ones land most weeks, so you can watch the product change in close to real time. That pace is real, and so is the instability that comes with any young product.
 
@@ -78,7 +78,7 @@ The table below is the same 5 axes broken into the concrete features behind them
 | **AI summaries** | Metered (5/mo free, unlimited Premium) | Automatic on save, no request needed |
 | **Mobile apps** | iOS and Android | iPhone and Mac (App Store), Android (Google Play) |
 | **Browser extension** | Yes | Yes (Firefox, Chrome) |
-| **Free tier** | Yes | No |
+| **Free tier** | Yes | Free plan after the trial, within daily limits |
 | **Paid price** | $59.99/yr | [Current plans](/?utm_source=blog-readplace-vs-instapaper&utm_medium=internal&utm_content=pricing#pricing) |
 | **E-reader** | Kobo sync built in, free. Kindle digests need Premium | EPUB download per article, moved to the device by hand |
 | **Pocket import** | Yes | Yes |

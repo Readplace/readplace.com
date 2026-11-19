@@ -758,6 +758,60 @@ describe("save-articles action", () => {
 		).rejects.toThrow("Bulk save failed: 500");
 	});
 
+	it("settles every page of a chunk the daily save limit refused as skipped with the server's message", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveArticlesResponse(),
+				},
+				"POST http://localhost:3000/queue/save-articles": {
+					status: 429,
+					body: JSON.stringify({ class: ["error"], properties: { code: "daily_save_limit", message: "You've reached today's limit for new saves." } }),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
+		const collection = await start();
+		const result = await collection.actions["save-articles"]({
+			manifest: JSON.stringify([{ url: "https://example.com/a" }, { url: "https://example.com/b" }]),
+		});
+		expect(result.bulk).toEqual({
+			saved: 0,
+			queued: 0,
+			skipped: 2,
+			failed: 0,
+			tooBig: [],
+			skippedUrls: [
+				{ url: "https://example.com/a", code: "daily_save_limit", message: "You've reached today's limit for new saves." },
+				{ url: "https://example.com/b", code: "daily_save_limit", message: "You've reached today's limit for new saves." },
+			],
+			results: [
+				{ url: "https://example.com/a", outcome: "skipped", code: "daily_save_limit" },
+				{ url: "https://example.com/b", outcome: "skipped", code: "daily_save_limit" },
+			],
+		});
+	});
+
+	it("throws when the bulk save is refused with a 429 that is not the daily save limit", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveArticlesResponse(),
+				},
+				"POST http://localhost:3000/queue/save-articles": { status: 429, body: "Too many requests from your network." },
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
+		const collection = await start();
+		await expect(
+			collection.actions["save-articles"]({
+				manifest: JSON.stringify([{ url: "https://example.com/a" }]),
+			}),
+		).rejects.toThrow("Bulk save failed: 429");
+	});
+
 	it("throws UnauthorizedError and calls onUnauthorized on 401", async () => {
 		const { fetchFn } = createRoutingFetch(
 			withEntryPoint({

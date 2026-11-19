@@ -47,6 +47,8 @@ describe("GET /terms", () => {
 		expect(response.text).toContain("If your trial ends or your subscription lapses, your account moves to the free plan.");
 		expect(response.text).toContain("you can keep saving, highlighting, importing and uploading within daily limits.");
 		expect(response.text).not.toMatch(/\d+ new saves/);
+		expect(response.text).not.toContain("continued access requires a paid subscription");
+		expect(response.text).toContain("After the trial, the paid features and saving without daily limits require a paid subscription");
 		expect(response.text).toContain(
 			"The Inbox (custom emails and newsletter triage), Next read, Past reads, readlist purpose filtering and Gmail are available only with a paid subscription.",
 		);

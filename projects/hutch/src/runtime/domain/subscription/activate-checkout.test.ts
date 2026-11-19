@@ -45,6 +45,7 @@ async function buildWorld(opts?: { trialEndsAt?: string }) {
 		},
 		deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
 		deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
+		deleteDeferredCancellationSchedule: trialScheduler.deleteDeferredCancellationSchedule,
 		createChargeReminderSchedule: trialScheduler.createChargeReminderSchedule,
 		logError: (message: string) => {
 			errors.push(message);
@@ -96,6 +97,29 @@ describe("initActivateCheckout", () => {
 			firesAt: "2026-11-20T10:00:00.000Z",
 			chargeAt: TRIAL_ENDS_AT,
 		});
+	});
+
+	it("deletes the deferred cancellation armed by a lapsed trial before the row turns active, so its later CancelSubscriptionCommand cannot cancel the new subscription", async () => {
+		const world = await buildWorld();
+		await world.subscriptionProviders.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-11-15T09:00:00.000Z" });
+		await world.subscriptionProviders.markPendingCancellation({
+			userId: USER_ID,
+			cancellationEffectiveAt: "2026-11-15T09:00:00.000Z",
+		});
+		await world.trialScheduler.createDeferredCancellationSchedule({
+			userId: USER_ID,
+			firesAt: "2026-11-15T10:30:00.000Z",
+			reason: "trial_expired_no_card",
+		});
+		const activateCheckout = initActivateCheckout(world.deps);
+
+		const result = await activateCheckout({ ...COMPLETED, activatedBy: "redirect" });
+
+		expect(result.outcome).toBe("activated");
+		expect(world.trialScheduler.getDeferredCancellationSchedule(USER_ID)).toBeUndefined();
+		const row = await world.subscriptionProviders.findByUserId(USER_ID);
+		assert(row, "the reader must have a subscription row");
+		expect(row.status).toBe("active");
 	});
 
 	it("records paid_now:true when Stripe collected a real charge", async () => {

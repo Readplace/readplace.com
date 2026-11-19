@@ -38,6 +38,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 describe("toInboxLinkCardViewModel", () => {
 	it("keeps polling a pending link below the poll budget", () => {
 		const vm = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "pending" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -64,6 +65,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("posts the panel's page size back from every action, so neither loses the reader's place", () => {
 		const vm = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "crawled", title: "T" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -80,6 +82,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("offers no save action for a link the save pipeline would reject", () => {
 		const vm = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ url: "https://localhost/private" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -92,6 +95,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("offers no save action for a private item identity", () => {
 		const vm = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ url: "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -103,6 +107,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("labels the save action with the destination the card shows, not the tracking link", () => {
 		const vm = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({
 				status: "crawled",
 				url: "https://nodeweekly.com/link/187980/4be0b3f821",
@@ -120,6 +125,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("stops polling once a link reaches a terminal state", () => {
 		const crawled = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "crawled", title: "T" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -134,6 +140,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("shows the post-redirect destination instead of the newsletter tracking link once resolved", () => {
 		const crawled = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({
 				status: "crawled",
 				title: "T",
@@ -150,6 +157,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("drops the newsletter's utm tags from a crawled link that never redirected", () => {
 		const crawled = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({
 				status: "crawled",
 				title: "T",
@@ -165,6 +173,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("drops utm tags the redirect destination itself carries", () => {
 		const crawled = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({
 				status: "crawled",
 				title: "T",
@@ -187,6 +196,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("shows a pending wrapper byte-exact, since stripping could break a signed query", () => {
 		const pending = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({
 				status: "pending",
 				url: "https://link.mail.example.com/ss/c/token?utm_source=nl",
@@ -201,6 +211,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("treats a crawled link whose page had no title as a bare row", () => {
 		const crawled = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "crawled", title: undefined }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -213,6 +224,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("treats a skipped link as terminal so its card never polls", () => {
 		const skipped = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "skipped", skipReason: "list-unsubscribe" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -225,6 +237,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("stops polling a still-pending link once the poll budget is spent", () => {
 		const vm = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "pending" }),
 			emailId: EMAIL_ID,
 			pollCount: 301,
@@ -237,6 +250,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("tells the reader a preview is on its way while the card is still polling", () => {
 		const vm = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "pending" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -249,12 +263,14 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("distinguishes a pending link that spent its poll budget from one that finished", () => {
 		const stalled = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "pending" }),
 			emailId: EMAIL_ID,
 			pollCount: 301,
 			maxPolls: 300,
 			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 		const crawled = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "crawled", title: "Done" }),
 			emailId: EMAIL_ID,
 			pollCount: 301,
@@ -270,6 +286,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("marks a failed crawl so a bare URL is not mistaken for one still arriving", () => {
 		const vm = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "failed", failureReason: "timeout" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -282,6 +299,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("says nothing on a crawled card, where the title is the signal", () => {
 		const vm = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "crawled", title: "A real title" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -294,12 +312,14 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("keeps the card and action ids identical across a poll swap so focus can be restored", () => {
 		const pending = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "pending" }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
 			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 		const crawled = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ status: "crawled", title: "Now resolved" }),
 			emailId: EMAIL_ID,
 			pollCount: 2,
@@ -314,12 +334,14 @@ describe("toInboxLinkCardViewModel", () => {
 
 	it("gives each card on the page its own ids so a swap cannot reattach focus to a sibling", () => {
 		const first = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ ordinal: EmailLinkOrdinalSchema.parse("0002") }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
 			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 		const second = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
 			link: link({ ordinal: EmailLinkOrdinalSchema.parse("0003") }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
@@ -336,6 +358,7 @@ describe("toInboxLinkCardViewModel", () => {
 	describe("the save button's saved state", () => {
 		const saveAction = (linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>) => {
 			const vm = toInboxLinkCardViewModel({
+				paidFeaturesLocked: false,
 				link: link(),
 				emailId: EMAIL_ID,
 				pollCount: 1,
@@ -390,6 +413,7 @@ describe("toInboxLinkCardViewModel", () => {
 
 		it("keys save state on the stored url, not the crawled destination", () => {
 			const vm = toInboxLinkCardViewModel({
+				paidFeaturesLocked: false,
 				link: link({ status: "crawled", title: "T", resolvedUrl: "https://destination.test/a" }),
 				emailId: EMAIL_ID,
 				pollCount: 1,
@@ -417,6 +441,7 @@ describe("toInboxLinkCardViewModel", () => {
 			savePollContext: LinkCardSavePollContext;
 		}) =>
 			toInboxLinkCardViewModel({
+				paidFeaturesLocked: false,
 				link: input.link ?? link({ status: "crawled", title: "T" }),
 				emailId: EMAIL_ID,
 				pollCount: 1,
@@ -563,6 +588,7 @@ describe("toInboxLinkCardViewModel", () => {
 			shown?: number;
 		}) =>
 			toInboxLinkCardViewModel({
+				paidFeaturesLocked: false,
 				link: input.link ?? link({ status: "crawled", title: "T" }),
 				emailId: EMAIL_ID,
 				pollCount: 1,

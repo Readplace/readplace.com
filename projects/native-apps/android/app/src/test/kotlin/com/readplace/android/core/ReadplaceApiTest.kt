@@ -969,21 +969,19 @@ class ReadplaceApiTest {
 	}
 
 	@Test
-	fun `saveArticle surfaces a refusal on a payment-required status`() = runTest {
-		// An inactive subscription refuses the save with a 402 carrying a server-authored
-		// message. The share target must render that message (a Refused), not fall
-		// through to the cryptic "Server error 402" — the client reads messages[] on any
-		// non-2xx status, so the fix is purely the server attaching the message body.
-		server.handle {
-			Stub.json(
-				402,
-				Fixtures.messageRefusal(listOf(Triple("warning", "text/html", "Couldn't save — your subscription isn't active."))),
-			)
-		}
+	fun `saveArticle surfaces the daily save limit with the server's message`() = runTest {
+		server.handle { Stub.json(429, Fixtures.sirenError(code = "daily_save_limit", message = "You've reached today's limit for new saves. Links you already saved still open.")) }
 
-		val error = failsWith<ApiError.Refused> { api().saveArticle(saveArticleAction(), url = "https://example.com/x") }
+		val error = failsWith<ApiError.Server> { api().saveArticle(saveArticleAction(), url = "https://example.com/x") }
 
-		assertEquals("Couldn't save — your subscription isn't active.", error.messages.single().content.body)
+		assertTrue(error.isDailySaveLimit)
+		assertEquals("You've reached today's limit for new saves. Links you already saved still open.", error.message)
+	}
+
+	@Test
+	fun `only a 429 with the daily save limit code is the daily save limit`() {
+		assertFalse(ApiError.Server(429, code = "ocr-page-quota", serverMessage = null).isDailySaveLimit)
+		assertFalse(ApiError.Server(422, code = "daily_save_limit", serverMessage = null).isDailySaveLimit)
 	}
 
 	@Test
@@ -998,7 +996,7 @@ class ReadplaceApiTest {
 
 	@Test
 	fun `a refusal whose messages array is present but empty is still a refusal`() = runTest {
-		server.handle { Stub.json(402, """{ "class": ["error"], "properties": { "messages": [] } }""") }
+		server.handle { Stub.json(403, """{ "class": ["error"], "properties": { "messages": [] } }""") }
 
 		val error = failsWith<ApiError.Refused> { api().saveArticle(saveArticleAction(), url = "https://example.com/x") }
 
@@ -1008,12 +1006,12 @@ class ReadplaceApiTest {
 
 	@Test
 	fun `an error body with no messages array is a generic server error`() = runTest {
-		server.handle { Stub.json(402, Fixtures.sirenError(code = "payment_required", message = "Subscription inactive.")) }
+		server.handle { Stub.json(429, Fixtures.sirenError(code = "daily_save_limit", message = "You've reached today's limit for new saves. Links you already saved still open.")) }
 
 		val error = failsWith<ApiError.Server> { api().saveArticle(saveArticleAction(), url = "https://example.com/x") }
 
-		assertEquals(402, error.status)
-		assertEquals("Subscription inactive.", error.serverMessage)
+		assertEquals(429, error.status)
+		assertEquals("You've reached today's limit for new saves. Links you already saved still open.", error.serverMessage)
 	}
 
 	@Test
@@ -1032,6 +1030,7 @@ class ReadplaceApiTest {
 			ApiError.Unauthorized(),
 			ApiError.NoToken(),
 			ApiError.Server(403, code = null, serverMessage = null),
+			ApiError.Server(429, code = "daily_save_limit", serverMessage = null),
 		)) {
 			assertTrue(
 				"$answered is the server's answer to the request itself, not a stale address to re-discover",

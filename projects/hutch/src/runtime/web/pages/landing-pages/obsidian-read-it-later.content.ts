@@ -5,7 +5,7 @@ import { START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const OBSIDIAN_READ_IT_LATER_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-08",
+	lastModified: "2026-11-19",
 	title: "Read It Later in Obsidian — Saved Articles as Markdown | Readplace",
 	description:
 		"Sync the articles you save in Readplace into your Obsidian vault as Markdown notes, with their text and AI summary. Your edits stay yours.",
@@ -82,14 +82,14 @@ export const OBSIDIAN_READ_IT_LATER_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Is the plugin free?",
-			answer: `Yes. Readplace has a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial with no card, then a subscription. An account that stops paying stays readable and can still sync its saved articles into Obsidian.`,
+			answer: `Yes. Readplace has a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial with no card, then a subscription. An account that stops paying moves to the free plan: it keeps every saved article, can keep saving within daily limits, and can still sync its saved articles into Obsidian.`,
 		},
 	],
 	offer: {
 		title: "What it costs",
 		paragraphs: [
 			`The Obsidian plugin is free. Your Readplace account starts with ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
-			"After the trial, upgrading lets you keep saving new articles. If you stop paying, you can still sync the articles already saved in your account.",
+			"After the trial, the account moves to the free plan and you can keep saving within daily limits. A subscription removes the limits and adds the Inbox, Next read, Past reads, readlist purpose filtering and Gmail. If you stop paying, you can still sync the articles already saved in your account.",
 		],
 		note: "Start with Google, Apple or an email address. No card during the trial.",
 	},

@@ -7,6 +7,9 @@ import { base64ToBytes, capturedContentBody } from "./content-body-parsers";
 import {
 	resolveHref,
 	throwIfBlocked,
+	throwIfDailySaveLimitReached,
+	readDailySaveLimitMessage,
+	DAILY_SAVE_LIMIT_CODE,
 	SirenCollectionResponseSchema,
 	extractCollectionWarning,
 	readSirenBody,
@@ -71,6 +74,7 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 				/** A refusal the server expressed as messages (e.g. a locked
 				 * account) surfaces as a SaveBlockedError, not a generic failure. */
 				throwIfBlocked(body);
+				throwIfDailySaveLimitReached(body);
 				const collection = SirenCollectionResponseSchema.safeParse(body);
 				if (collection.success && collection.data.class?.includes("collection")) {
 					throw new NotSaveableError(
@@ -95,6 +99,18 @@ const SaveArticlesManifestSchema = z.array(
 		mediaType: z.string().optional(),
 	}),
 );
+
+function allRefusedForTheDay(input: { manifest: { url: string }[]; message: string }) {
+	return {
+		saved: 0,
+		queued: 0,
+		skipped: input.manifest.length,
+		failed: 0,
+		tooBig: [],
+		skippedUrls: input.manifest.map((entry) => ({ url: entry.url, code: DAILY_SAVE_LIMIT_CODE, message: input.message })),
+		results: input.manifest.map((entry) => ({ url: entry.url, outcome: "skipped" as const, code: DAILY_SAVE_LIMIT_CODE })),
+	};
+}
 
 export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 	const handlers = new Map<string, ActionHandler>();
@@ -128,7 +144,11 @@ export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 					body: formData,
 				},
 			);
-			assert(response.ok, `Bulk save failed: ${response.status}`);
+			if (!response.ok) {
+				const limitMessage = readDailySaveLimitMessage(await response.json().catch(() => null));
+				assert(limitMessage !== undefined, `Bulk save failed: ${response.status}`);
+				return { items: [], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: [], bulk: allRefusedForTheDay({ manifest, message: limitMessage }) };
+			}
 			const body = SaveArticlesResultSchema.parse(await readSirenBody(response));
 			return { items: [], actions: {}, descriptors: {}, pages: [], total: undefined, sorts: [], followPage: followPageWith(context), messages: [], bulk: body.properties };
 		};
@@ -150,6 +170,7 @@ async function followSaveFallback(args: {
 	const { response, context, logger, fallbackFields } = args;
 	const errorJson = await response.json().catch(() => null);
 	throwIfBlocked(errorJson);
+	throwIfDailySaveLimitReached(errorJson);
 	const errorParsed = SirenErrorSchema.safeParse(errorJson);
 	assert(errorParsed.success, `Save failed: ${response.status}`);
 	const errorActions = errorParsed.data.actions;

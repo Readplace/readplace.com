@@ -1885,6 +1885,7 @@ const gmailNewsletterAccountRead = new DynamoDBAccess("hutch-gmail-newsletter-ac
 		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
 		{ arn: storage.gmailDiscoveryTable.arn, includeIndexes: false },
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
+		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
@@ -1898,6 +1899,7 @@ const gmailNewsletterNoticeAccountRead = new DynamoDBAccess("hutch-gmail-newslet
 		{ arn: storage.gmailMappingsTable.arn, includeIndexes: false },
 		{ arn: storage.usersTable.arn, includeIndexes: true },
 		{ arn: storage.userArticlesTable.arn, includeIndexes: false },
+		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:Query"],
 });
@@ -1916,6 +1918,7 @@ const gmailNewsletterNoticeLambda = new Lambda("gmail-newsletter-notice", {
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
@@ -1955,6 +1958,7 @@ const gmailNewsletterMonitorLambda = new Lambda("gmail-newsletter-monitor", {
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
 		DYNAMODB_GMAIL_MAPPINGS_TABLE: storage.gmailMappingsTable.name,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
 		GMAIL_INTEGRATION_CLIENT_SECRET: pulumi.secret(requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET")),

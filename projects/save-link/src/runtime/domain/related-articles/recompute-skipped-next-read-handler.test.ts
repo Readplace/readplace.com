@@ -148,7 +148,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 }
 
 describe("initRecomputeSkippedNextReadHandler", () => {
-	it("replaces a free account's skip with a paid-plan skip without gathering candidates", async () => {
+	it("leaves a free account's skip untouched so it can still be recomputed after an upgrade", async () => {
 		const logger = fakeLogger();
 		const { handler, ready, skipped, published, gathered } = createHandler({ logger, planAccess: "free" });
 
@@ -156,15 +156,8 @@ describe("initRecomputeSkippedNextReadHandler", () => {
 
 		expect(gathered).toEqual([]);
 		expect(ready).toEqual([]);
-		expect(skipped).toEqual([{ userId: USER_ID, url: TARGET_URL, at: NOW }]);
-		expect(published[0]?.outcome).toBe("skipped");
-		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
-			url: TARGET_URL,
-			reason: "paid-plan",
-			receiveCount: 1,
-			crawlStatus: "ready",
-			trigger: "content-changed",
-		});
+		expect(skipped).toEqual([]);
+		expect(published).toEqual([]);
 	});
 
 	it("recomputes a save skipped before its article became readable and stores it through the replace write", async () => {

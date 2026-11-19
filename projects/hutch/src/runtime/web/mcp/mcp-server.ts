@@ -4,7 +4,7 @@ import {
 	UNKNOWN_MCP_TOOL,
 } from "@packages/web-analytics";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
-import { CREATE_HIGHLIGHT_PHRASES, type RefusalPhrases, SAVE_TOOL_PHRASES, type ToolAccess, UNVERIFIED_ACCESS, toolRefusalMessage } from "./tool-access";
+import { CREATE_HIGHLIGHT_PHRASES, type PaidFeatureRefusals, RELATED_ARTICLES_REFUSALS, type RefusalPhrases, SAVE_TOOL_PHRASES, type ToolAccess, UNVERIFIED_ACCESS, toolRefusalMessage } from "./tool-access";
 import {
 	CREATE_HIGHLIGHT_TOOL,
 	CREATE_READLIST_TOOL,
@@ -37,11 +37,15 @@ const GATE_OUTCOMES = {
 	unverified: MCP_TOOL_OUTCOMES.accessCheckFailed,
 } as const satisfies Record<Exclude<ToolAccess["state"], "ok">, McpToolOutcome>;
 
-const PAYWALLED_TOOLS: ReadonlyMap<string, RefusalPhrases> = new Map<string, RefusalPhrases>([
+const WRITES_REFUSED_ON_FAILED_CHECK: ReadonlyMap<string, RefusalPhrases> = new Map<string, RefusalPhrases>([
 	[SAVE_LINK_TOOL.name, SAVE_TOOL_PHRASES],
 	[CREATE_READLIST_TOOL.name, SAVE_TOOL_PHRASES],
 	[ADD_TO_READLIST_TOOL.name, SAVE_TOOL_PHRASES],
 	[CREATE_HIGHLIGHT_TOOL.name, CREATE_HIGHLIGHT_PHRASES],
+]);
+
+const PAID_FEATURE_TOOLS: ReadonlyMap<string, PaidFeatureRefusals> = new Map<string, PaidFeatureRefusals>([
+	[GET_RELATED_ARTICLES_LEGACY_NAME, RELATED_ARTICLES_REFUSALS],
 ]);
 
 export interface McpServer {
@@ -181,7 +185,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			});
 		};
 
-		const refusalPhrases = PAYWALLED_TOOLS.get(parsed.data.name);
+		const refusalPhrases = WRITES_REFUSED_ON_FAILED_CHECK.get(parsed.data.name);
 		if (access.state !== "ok" && refusalPhrases !== undefined) {
 			record(GATE_OUTCOMES[access.state]);
 			return success(id, toolError(toolRefusalMessage({ phrases: refusalPhrases })));
@@ -190,6 +194,18 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		if (!entry) {
 			record(MCP_TOOL_OUTCOMES.unknownTool);
 			return failure(id, -32602, `Unknown tool: ${parsed.data.name}`);
+		}
+
+		const paidFeatureRefusals = PAID_FEATURE_TOOLS.get(parsed.data.name);
+		if (paidFeatureRefusals !== undefined) {
+			if (access.state !== "ok") {
+				record(GATE_OUTCOMES[access.state]);
+				return success(id, toolError(paidFeatureRefusals.checkFailed));
+			}
+			if (!access.paidFeatures) {
+				record(MCP_TOOL_OUTCOMES.paywalled);
+				return success(id, toolError(paidFeatureRefusals.paidOnly));
+			}
 		}
 
 		if (access.state === "ok" && access.dailyLimited) {

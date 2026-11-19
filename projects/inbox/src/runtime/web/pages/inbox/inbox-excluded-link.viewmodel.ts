@@ -36,11 +36,12 @@ export interface ExcludedLinkViewModel {
 export function toInboxExcludedLinkViewModel(input: {
 	link: InboxEmailLinkEntry;
 	emailId: string;
+	paidFeaturesLocked: boolean;
 }): ExcludedLinkViewModel {
 	const { link, emailId } = input;
 	const domId = `inbox-skipped-${link.ordinal}`;
 	const actions: InboxCardSaveAction[] = [];
-	if (validateSaveableInboxLink(link.url).status === "SUCCESS") {
+	if (!input.paidFeaturesLocked && validateSaveableInboxLink(link.url).status === "SUCCESS") {
 		actions.push({
 			key: "save",
 			label: t("excludedLink.save.label"),
