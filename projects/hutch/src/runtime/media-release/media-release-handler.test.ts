@@ -27,6 +27,7 @@ async function buildSubject(overrides: { failRowDelete?: boolean } = {}) {
 		estimatedReadTime: calculateReadTime(3),
 		provenance: { kind: "web" },
 		savedAt: new Date("2026-09-01T00:00:00.000Z"),
+		saveTrigger: "manual",
 	});
 	await store.recordItemOwner({ url: PRIVATE_URL, ownerUserId: OWNER });
 	const calls: string[] = [];

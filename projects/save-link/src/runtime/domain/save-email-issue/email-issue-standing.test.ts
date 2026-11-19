@@ -24,6 +24,7 @@ function harness() {
 		estimatedReadTime: MinutesSchema.parse(1),
 		provenance: { kind: "email", senderEmail: "dan@tldr.tech" } as const,
 		savedAt: new Date(),
+		saveTrigger: "automatic" as const,
 	};
 	return {
 		store,

@@ -72,6 +72,23 @@ describe("initOAuthClientLookup", () => {
 			);
 		});
 
+		it("includes the port in a dynamic client's exact match", async () => {
+			const lookup = initOAuthClientLookup({
+				dynamic: {
+					getClient: async () => ({ ...DYNAMIC, redirectUris: ["http://127.0.0.1:8080/cb"] }),
+					markClientActive: async () => {},
+				},
+			});
+			assert.equal(
+				await lookup.validateRedirectUri({ clientId: "dyn-123", redirectUri: "http://127.0.0.1:8080/cb" }),
+				true,
+			);
+			assert.equal(
+				await lookup.validateRedirectUri({ clientId: "dyn-123", redirectUri: "http://127.0.0.1:9090/cb" }),
+				false,
+			);
+		});
+
 		it("rejects a redirect for an unknown client", async () => {
 			const { lookup } = createLookup();
 			assert.equal(

@@ -90,6 +90,40 @@ export const enUS = {
 			failed: "Your report couldn't be sent. Try again in a moment.",
 		},
 	},
+	view: {
+		highlights: {
+			title: "Highlights",
+			kept: "Kept in this browser only. Up to {limit}.",
+			elsewhere: "On other articles",
+			notFound: "Not found in this version",
+			jump: "Jump",
+			delete: "Delete",
+			addNote: "Add note",
+			editNote: "Edit note",
+			noteLabel: "Note",
+			saveNote: "Save note",
+			popup: {
+				title: "Keep your highlights",
+				body: "This browser keeps up to {limit} highlights. Create a free account to keep them and add as many as you like.",
+				tooLong: "A passage or note longer than {max} characters needs an account.",
+			},
+			actions: {
+				signup: "Create a free account",
+				login: "Log in",
+				notNow: "Not now",
+			},
+		},
+		highlightsClaim: {
+			title: "Keep your highlights",
+			body: "Adding the highlights you made in this browser to your account.",
+			submit: "Keep my highlights",
+		},
+		endCta: {
+			founderLine:
+				"You just read one of my posts in Readplace. I built it so the articles I meant to read would still be there when I had time for them.",
+			founderSignOff: "— Fayner Brack, Founder & CEO",
+		},
+	},
 	reader: {
 		nextRead: {
 			lock: "Find your next read",
@@ -118,13 +152,6 @@ export const enUS = {
 				title: "Sharing is off",
 				body: "This is your private upload, so only you can open it. It has no public link to share.",
 			},
-		},
-	},
-	view: {
-		endCta: {
-			founderLine:
-				"You just read one of my posts in Readplace. I built it so the articles I meant to read would still be there when I had time for them.",
-			founderSignOff: "— Fayner Brack, Founder & CEO",
 		},
 	},
 } as const;

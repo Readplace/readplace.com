@@ -25,6 +25,7 @@ async function seedPrivateUpload() {
 		estimatedReadTime: calculateReadTime(3),
 		provenance: { kind: "web" },
 		savedAt: new Date("2026-09-01T00:00:00.000Z"),
+		saveTrigger: "manual",
 	});
 	await fixture.articleStore.writeContent({ url: PRIVATE_URL, content: PRIVATE_BODY });
 	await fixture.articleCrawl.markCrawlReady({ url: PRIVATE_URL });

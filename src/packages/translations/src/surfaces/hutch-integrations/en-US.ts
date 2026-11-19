@@ -3,6 +3,13 @@ export const enUS = {
 		one: "Saved {count} link. You've reached today's limit for new saves; the rest stay selected here so you can save them tomorrow.",
 		other: "Saved {count} links. You've reached today's limit for new saves; the rest stay selected here so you can save them tomorrow.",
 	},
+	connectors: {
+		api: {
+			before: "Building something of your own? The ",
+			link: "Readplace API",
+			after: " lets your app save, list, read and file articles for you.",
+		},
+	},
 	saveTip: {
 		continue: "Continue here",
 	},

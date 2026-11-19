@@ -108,6 +108,10 @@ function itemMessages(params: { article: SavedArticle; phase: CardPhase; crawl: 
 	return [...stale, ...upload, ...held];
 }
 
+export function articleSelfHref(id: string): string {
+	return `/queue/${id}/card`;
+}
+
 export function toArticleSubEntity(
 	article: SavedArticle,
 	options: {
@@ -123,6 +127,7 @@ export function toArticleSubEntity(
 	const id = article.id.value;
 	const links: SirenLink[] = [
 		{ rel: ["read"], title: "Read", href: `/queue/${id}/view${options.collectionQuery ? buildQueryString({ readlistKey: options.collectionQuery.readlistKey, readlist: options.collectionQuery.readlist }) : ""}` },
+		{ rel: ["self"], href: articleSelfHref(id) },
 	];
 
 	const isRead = article.status === "read";
@@ -174,7 +179,7 @@ export function toArticleSubEntity(
 						label,
 						...(phase.estimate === undefined ? {} : { estimate: phase.estimate }),
 						refresh: {
-							href: `/queue/${id}/card${hrefQuery}${hrefQuery === "" ? "?" : "&"}poll=${phase.pollCursor}`,
+							href: `${articleSelfHref(id)}${hrefQuery}${hrefQuery === "" ? "?" : "&"}poll=${phase.pollCursor}`,
 							afterSeconds: POLL_INTERVAL_SECONDS,
 						},
 					},
@@ -195,7 +200,7 @@ export function toArticleSubEntity(
 				href: `/queue/${id}/status${hrefQuery}`,
 				method: "POST",
 				type: "application/x-www-form-urlencoded",
-				fields: [{ name: "status", type: "text", value: targetStatus }],
+				fields: [{ name: "status", type: "hidden", value: targetStatus }],
 			},
 			...(options.addToReadlist === "withheld"
 				? []

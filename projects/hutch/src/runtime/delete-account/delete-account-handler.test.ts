@@ -428,6 +428,7 @@ async function seedAccount(
 		estimatedReadTime: MinutesSchema.parse(4),
 		provenance: { kind: "web" },
 		savedAt: new Date(),
+		saveTrigger: "manual",
 	});
 
 	const claim = await s.readerReady.claimReaderReadyEmailSlot({
@@ -835,6 +836,7 @@ describe("delete-account handler", () => {
 			estimatedReadTime: MinutesSchema.parse(47),
 			provenance: { kind: "web" },
 			savedAt: new Date(),
+			saveTrigger: "manual",
 		});
 		await s.articleStore.recordItemOwner({ url: audioUrl, ownerUserId: account.userId });
 

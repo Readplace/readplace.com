@@ -357,6 +357,7 @@ describe("a body just under the section-paging threshold (GET /queue/:id/view)",
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: FIXED_NOW,
+			saveTrigger: "manual",
 		});
 		await harness.articleStore.writeContent({ url, content: body });
 		await harness.articleCrawl.markCrawlReady({ url });

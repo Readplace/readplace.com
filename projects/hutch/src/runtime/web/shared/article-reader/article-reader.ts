@@ -126,6 +126,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 							? storedHighlightsRailRows(input.highlights)
 							: highlightsRailRowsFromStates(reader.states),
 					scope: input.highlights.scope,
+					openNote: undefined,
 					oob: true,
 				}).html;
 	const summarySlot = renderSummarySlot({

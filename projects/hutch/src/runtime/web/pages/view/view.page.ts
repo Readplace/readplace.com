@@ -631,6 +631,11 @@ function handleViewArticle(
 					readerNotice: readerNoticeOf(state.readerView),
 					backLink: req.userId === undefined ? undefined : PUBLIC_VIEW_BACK_LINK,
 					endCta,
+					offersLocalHighlights:
+						req.userId === undefined &&
+						state.content !== undefined &&
+						readerNoticeOf(state.readerView) === undefined &&
+						!isPrivateItemUrl(articleUrl),
 					now: deps.now(),
 					signedIn: req.userId !== undefined,
 				}),

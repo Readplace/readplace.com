@@ -36,6 +36,7 @@ async function saveArticle(params: { harness: Harness; userId: string; url: stri
 		estimatedReadTime: MinutesSchema.parse(1),
 		provenance: { kind: "web" },
 		savedAt: new Date("2026-09-30T01:02:03.000Z"),
+		saveTrigger: "manual",
 	});
 	if (params.body === undefined) return;
 	await params.harness.articleStore.writeContent({ url: params.url, content: params.body });

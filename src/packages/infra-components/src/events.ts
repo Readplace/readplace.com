@@ -6,6 +6,7 @@ import {
 	PrivateItemUrlSchema,
 	UploadIdSchema,
 } from "@packages/media-contracts";
+import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
 import { z } from "zod";
 
 type EventDefinition<T extends z.ZodTypeAny> = {
@@ -953,6 +954,19 @@ export const SubscriptionChargeSucceededEvent = defineEvent({
 export type SubscriptionChargeSucceededDetail = z.infer<
 	typeof SubscriptionChargeSucceededEvent.detailSchema
 >;
+
+export const CheckoutCompletedEvent = defineEvent({
+	name: "checkout-completed",
+	source: "hutch.subscriptions",
+	detailType: "CheckoutCompleted",
+	detailSchema: z.object({
+		checkoutSessionId: CheckoutSessionIdSchema,
+		subscriptionId: z.string(),
+		customerId: z.string(),
+		amountTotal: z.number().int().nonnegative(),
+	}),
+});
+export type CheckoutCompletedDetail = z.infer<typeof CheckoutCompletedEvent.detailSchema>;
 
 /** Irreversible fact: a trial-end charge attempt failed. Reasons:
  *   - `no_card_on_file` — the trialing row has no `customerId`, so no card

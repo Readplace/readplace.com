@@ -8,6 +8,7 @@ import {
 	highlightFormUrl,
 	pushesHistory,
 	renderHighlightNoteDialog,
+	renderLocalHighlightNoteDialog,
 } from "./highlight-note-dialog.component";
 
 export { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
@@ -26,8 +27,10 @@ export const HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS: readonly { name: string; value
 
 export function renderHighlightToolbar(input: {
 	scope: HighlightFormScope;
+	rowNoteOpen: boolean;
 }): string {
 	return render(HIGHLIGHT_TOOLBAR_TEMPLATE, {
+		local: false,
 		createUrl: highlightFormUrl({
 			scope: input.scope,
 			path: "/highlights",
@@ -41,6 +44,17 @@ export function renderHighlightToolbar(input: {
 		noteDialogHtml: renderHighlightNoteDialog({
 			scope: input.scope,
 			hiddenFields: HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS,
+			autofocus: !input.rowNoteOpen,
 		}),
+	}).trim();
+}
+
+export function renderLocalHighlightToolbar(input: { openedUrl: string }): string {
+	return render(HIGHLIGHT_TOOLBAR_TEMPLATE, {
+		local: true,
+		openedUrl: input.openedUrl,
+		createFormSelector: "[data-highlight-create-form]",
+		noteFormSelector: `#${HIGHLIGHT_NOTE_DIALOG_ID} form`,
+		noteDialogHtml: renderLocalHighlightNoteDialog({ hiddenFields: HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS }),
 	}).trim();
 }

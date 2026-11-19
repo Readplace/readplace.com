@@ -100,6 +100,20 @@ describe("GET /newsletters", () => {
 		expect(services).toEqual(["gmail", "custom-emails", "ai-assistant"]);
 	});
 
+	it("links to the API documentation", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/newsletters");
+
+		const doc = load(response.text);
+		const link = doc.querySelector("[data-test-integrations-api-link]");
+		expect(link?.getAttribute("href")).toBe("/developers?utm_source=integrations&utm_medium=internal&utm_content=api-docs");
+		expect(doc.querySelector("[data-test-integrations-api]")?.textContent).toBe(
+			"Building something of your own? The Readplace API lets your app save, list, read and file articles for you.",
+		);
+	});
+
 	it("shows Gmail as not set up", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

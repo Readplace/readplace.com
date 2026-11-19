@@ -667,6 +667,16 @@ describe("toArticleCollectionEntity", () => {
 				},
 			]);
 		});
+
+		it("points search at All, not at the named readlist it is advertised on", () => {
+			const entity = toArticleCollectionEntity(
+				empty,
+				{ readlistKey: "readlist", readlist: WORK, status: "unread" },
+				{ tabs, readlists: twoReadlists, addToReadlist: "advertised", now: NOW },
+			);
+
+			expect(entity.actions?.find((action) => action.name === "search")?.href).toBe("/queue");
+		});
 	});
 
 	it("includes search action with filter fields", () => {

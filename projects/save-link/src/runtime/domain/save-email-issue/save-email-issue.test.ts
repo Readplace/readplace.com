@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
+import type { SaveTrigger } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { ArticleCrawl, MeteredLegsMode } from "@packages/provider-contracts/article-crawl";
 import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import { initInMemoryArticleStore, initInMemoryRemovedLinks } from "@packages/test-fixtures/providers/article-store";
 import { initFindEmailIssueStanding } from "./email-issue-standing";
 import { initSaveEmailIssue } from "./save-email-issue";
 
@@ -38,9 +39,13 @@ async function harness(crawl: ArticleCrawl | undefined, opts: { beforeFiling?: (
 	const filedInto: ReadlistSlug[] = [];
 	const failFilingInto = new Set<ReadlistSlug>();
 	const access: { subscription: SubscriptionRecord | undefined } = { subscription: undefined };
+	const saveTriggers: SaveTrigger[] = [];
 	const saveEmailIssue = initSaveEmailIssue({
 		allocateSavedAt: store.allocateSavedAt,
-		saveArticleKeepingPosition: store.saveArticleKeepingPosition,
+		saveArticleKeepingPosition: async (params) => {
+			saveTriggers.push(params.saveTrigger);
+			return store.saveArticleKeepingPosition(params);
+		},
 		setDisplayUrl: async ({ articleUrl, displayUrl }) => {
 			displayUrls.push({ articleUrl, displayUrl });
 			await store.setDisplayUrl({ url: articleUrl, displayUrl });
@@ -91,6 +96,7 @@ async function harness(crawl: ArticleCrawl | undefined, opts: { beforeFiling?: (
 			estimatedReadTime: ESTIMATED_READ_TIME,
 			provenance: PROVENANCE,
 			savedAt: await store.allocateSavedAt({ userId: READER }),
+			saveTrigger: "manual",
 		});
 	const issueId = async () => {
 		const article = await store.findArticleByUrl(ISSUE_URL);
@@ -112,6 +118,7 @@ async function harness(crawl: ArticleCrawl | undefined, opts: { beforeFiling?: (
 		filedInto,
 		failFilingInto,
 		access,
+		saveTriggers,
 		requestedAt,
 		save,
 		seedAllSaveOnly,
@@ -138,6 +145,15 @@ describe("initSaveEmailIssue", () => {
 		assert.deepEqual(h.displayUrls, [{ articleUrl: ISSUE_URL, displayUrl: INBOX_PAGE }]);
 		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all"]);
 		assert.deepEqual(h.crawlPendingMarks, [{ url: ISSUE_URL, measured: false, meteredLegs: "run" }]);
+	});
+
+	it("saves an issue to All as an automatic save, so it never marks the row hand-picked", async () => {
+		const h = await harness(undefined);
+
+		await h.save([]);
+
+		assert.deepEqual(h.saveTriggers, ["automatic"]);
+		assert.equal(h.store.readHandPickedAt({ userId: READER, url: ISSUE_URL }), undefined);
 	});
 
 	it("marks a still-pending issue's crawl unmeasured on a repeat save too", async () => {
@@ -461,5 +477,32 @@ describe("initSaveEmailIssue", () => {
 			assert.deepEqual(outcome, { kind: "removed-by-reader", contentPending: true });
 			assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all"]);
 		});
+	});
+});
+
+describe("an issue saved to All beside the links it carried", () => {
+	it("is never selected for removal while an emailed link is", async () => {
+		const h = await harness(undefined);
+		await h.save([]);
+		await h.store.saveArticle({
+			userId: READER,
+			url: "https://example.com/yahoo",
+			metadata: METADATA,
+			estimatedReadTime: ESTIMATED_READ_TIME,
+			provenance: PROVENANCE,
+			savedAt: await h.store.allocateSavedAt({ userId: READER }),
+			saveTrigger: "automatic",
+		});
+		const removedLinks = initInMemoryRemovedLinks({
+			readNewsletterLinkRows: h.store.readNewsletterLinkRows,
+			readOpenedInReadlists: h.store.readOpenedInReadlists,
+			listAllUserHighlights: async () => [],
+		});
+
+		const summary = await removedLinks.summariseNewsletterLinks({ userId: READER, cutoff: new Date(Date.now() + 60_000) });
+
+		assert.equal(summary.selected, 1);
+		assert.deepEqual(summary.bySender, [{ senderEmail: "dan@tldr.tech", count: 1 }]);
+		assert.equal(await removedLinks.countNewsletterIssues({ userId: READER }), 1);
 	});
 });

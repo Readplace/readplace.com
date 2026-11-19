@@ -41,6 +41,7 @@ function build() {
 			url,
 			provenance: { kind: "web" },
 			savedAt: earliest,
+			saveTrigger: "manual",
 			metadata: { title: "Post", siteName: "example.com", excerpt: "x", wordCount: 1 },
 			estimatedReadTime: MinutesSchema.parse(1),
 		});

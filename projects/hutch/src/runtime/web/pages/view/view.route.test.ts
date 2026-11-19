@@ -2450,6 +2450,7 @@ describe("View routes", () => {
 				metadata: { title: "Held", siteName: "sqlite.org", excerpt: "", wordCount: 0 },
 				estimatedReadTime: calculateReadTime(0),
 				provenance: { kind: "web" },
+				saveTrigger: "manual",
 				savedAt: new Date(),
 			});
 

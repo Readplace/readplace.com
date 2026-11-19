@@ -92,6 +92,7 @@ describe("toArticleSubEntity", () => {
 			},
 			links: [
 				{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
+				{ rel: ["self"], href: `/queue/${ARTICLE_ID}/card` },
 			],
 			actions: [
 				{
@@ -100,7 +101,7 @@ describe("toArticleSubEntity", () => {
 					href: `/queue/${ARTICLE_ID}/status`,
 					method: "POST",
 					type: "application/x-www-form-urlencoded",
-					fields: [{ name: "status", type: "text", value: "read" }],
+					fields: [{ name: "status", type: "hidden", value: "read" }],
 				},
 				{
 					name: "add-to-readlist",
@@ -236,7 +237,7 @@ describe("toArticleSubEntity", () => {
 			href: `/queue/${ARTICLE_ID}/status`,
 			method: "POST",
 			type: "application/x-www-form-urlencoded",
-			fields: [{ name: "status", type: "text", value: "read" }],
+			fields: [{ name: "status", type: "hidden", value: "read" }],
 		});
 	});
 
@@ -252,7 +253,7 @@ describe("toArticleSubEntity", () => {
 			href: `/queue/${ARTICLE_ID}/status`,
 			method: "POST",
 			type: "application/x-www-form-urlencoded",
-			fields: [{ name: "status", type: "text", value: "unread" }],
+			fields: [{ name: "status", type: "hidden", value: "unread" }],
 		});
 	});
 
@@ -375,6 +376,16 @@ describe("toArticleSubEntity", () => {
 
 		expect(subEntity.links).toEqual([
 			{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
+			{ rel: ["self"], href: `/queue/${ARTICLE_ID}/card` },
+		]);
+	});
+
+	it("links itself to its card with no title and no poll or collection query, even inside a collection", () => {
+		const collectionQuery: CollectionQueryParams = { readlistKey: "readlist", readlist: ReadlistSlugSchema.parse("work"), status: "unread", order: "asc" };
+		const subEntity = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", collectionQuery, now: NOW, pollCount: 2 });
+
+		expect(subEntity.links?.filter((link) => link.rel.includes("self"))).toEqual([
+			{ rel: ["self"], href: `/queue/${ARTICLE_ID}/card` },
 		]);
 	});
 
@@ -900,6 +911,20 @@ describe("toSavedArticleEntity", () => {
 			title: "View Readlist",
 			href: "/queue?queue=work",
 		});
+	});
+
+	it("links the saved article to its card beside the onward collection link", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			resurfacedFromRead: false,
+			destination: { filedInto: [ALL], readlists: [ALL] },
+			readlistKey: "readlist",
+			now: NOW,
+		});
+
+		expect(entity.links?.find((link) => link.rel.includes("self"))).toEqual({ rel: ["self"], href: `/queue/${ARTICLE_ID}/card` });
 	});
 
 	it("points the onward collection link at the readlist the save was filed into", () => {

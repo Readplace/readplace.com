@@ -99,6 +99,7 @@ async function save(
 		estimatedReadTime: MinutesSchema.parse(2),
 		provenance: input.provenance ?? { kind: "web" },
 		savedAt: input.savedAt,
+		saveTrigger: "manual",
 	});
 	return saved;
 }

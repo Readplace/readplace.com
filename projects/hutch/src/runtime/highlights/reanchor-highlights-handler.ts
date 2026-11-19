@@ -1,6 +1,12 @@
 import assert from "node:assert";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { reanchorArticleHighlights, viewerFor } from "@packages/domain/article";
+import {
+	type ArticleBody,
+	type CandidateId,
+	reanchorArticleHighlights,
+	storedArticleBody,
+	viewerFor,
+} from "@packages/domain/article";
 import {
 	CanonicalContentChangedEvent,
 	HighlightsReanchoredEvent,
@@ -10,7 +16,7 @@ import {
 	type PublishEvent,
 } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { FindItemOwner, ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type {
 	ListHighlightsOfArticle,
@@ -20,6 +26,7 @@ import {
 	HIGHLIGHTS_REANCHORED_EVENT,
 	type HighlightsReanchoredLine,
 } from "../observability/events";
+import type { ReadCandidateBody } from "../providers/candidate-body/s3-read-candidate-body";
 import { prepareReaderContent } from "../web/shared/article-body/reader-slot/reader-content";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../web/shared/article-body/reader-slot/section-pages";
 
@@ -27,6 +34,8 @@ export function initReanchorHighlightsHandler(deps: {
 	listHighlightsOfArticle: ListHighlightsOfArticle;
 	readCanonicalSnapshot: ReadCanonicalSnapshot;
 	readArticleContent: ReadArticleContent;
+	readCandidateBody: ReadCandidateBody;
+	findItemOwner: FindItemOwner;
 	writeHighlightAnchor: WriteHighlightAnchor;
 	publishEvent: PublishEvent;
 	appOrigin: string;
@@ -49,10 +58,8 @@ export function initReanchorHighlightsHandler(deps: {
 				logger.info("[reanchor-highlights] no canonical snapshot, skipped", { url });
 				return;
 			}
-			const stored = await deps.readArticleContent({
-				url,
-				viewer: viewerFor(rows[0].userId),
-			});
+			const viewer = viewerFor(rows[0].userId);
+			const stored = await deps.readArticleContent({ url, viewer });
 			if (stored.kind === "not-an-article") return;
 			assert(stored.kind === "article", `canonical body missing for url=${url}`);
 			const reread = await deps.readCanonicalSnapshot(url);
@@ -62,22 +69,44 @@ export function initReanchorHighlightsHandler(deps: {
 				`canonical content changed while re-anchoring url=${url}`,
 			);
 
-			const { text } = prepareReaderContent({
-				content: stored.body,
-				appOrigin: deps.appOrigin,
-				url,
-				section: {
-					requested: undefined,
-					readerPath: "",
-					thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES,
-				},
-			});
-			const { writes } = reanchorArticleHighlights({
-				text,
+			const render = (content: ArticleBody) =>
+				prepareReaderContent({
+					content,
+					appOrigin: deps.appOrigin,
+					url,
+					section: {
+						requested: undefined,
+						readerPath: "",
+						thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES,
+					},
+				}).text;
+
+			const anchorCandidateIds = new Set(
+				rows.flatMap(({ highlight }) => {
+					const candidateId = highlight.basisCandidateId ?? highlight.anchoredCandidateId;
+					return candidateId === undefined || candidateId === snapshot.canonicalCandidateId ? [] : [candidateId];
+				}),
+			);
+			const ownerUserId = anchorCandidateIds.size === 0 ? undefined : await deps.findItemOwner(url);
+			const anchorTexts = new Map<CandidateId, string>();
+			for (const candidateId of anchorCandidateIds) {
+				const body = storedArticleBody({
+					url,
+					html: await deps.readCandidateBody({ url, candidateId }),
+					viewer,
+					ownerUserId,
+				});
+				if (body.kind === "article") anchorTexts.set(candidateId, render(body.body));
+			}
+
+			const { writes, counts: placing } = reanchorArticleHighlights({
+				text: render(stored.body),
 				contentHash: snapshot.canonicalContentHash,
 				candidateId: snapshot.canonicalCandidateId,
 				highlights: rows.map((row) => ({ ...row.highlight, userId: row.userId })),
+				anchorTexts,
 			});
+			const { anchored: _anchored, moved: _moved, orphaned: _orphaned, ...placingCounts } = placing;
 
 			const counts = { anchored: 0, moved: 0, orphaned: 0, skipped: 0 };
 			for (const write of writes) {
@@ -96,7 +125,7 @@ export function initReanchorHighlightsHandler(deps: {
 				else counts[write.anchor.anchorState]++;
 			}
 
-			metricLog.info({ event: HIGHLIGHTS_REANCHORED_EVENT, url, ...counts });
+			metricLog.info({ event: HIGHLIGHTS_REANCHORED_EVENT, url, ...counts, ...placingCounts });
 			await deps.publishEvent(HighlightsReanchoredEvent, {
 				url,
 				anchored: counts.anchored,

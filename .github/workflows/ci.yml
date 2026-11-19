@@ -54,6 +54,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile --reporter=append-only --loglevel=warn
 
+      - name: Install WebKit OS libraries
+        if: runner.environment == 'github-hosted'
+        working-directory: projects/hutch
+        run: node_modules/.bin/playwright install-deps webkit
+
       # Self-hosted carries the same browsers in its own image, from this same
       # digest, so it needs nothing here.
       - uses: ./.github/actions/pinned-browsers

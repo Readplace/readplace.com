@@ -14,8 +14,9 @@ import type {
 import type { UserId } from "@packages/domain/user";
 import { appClientOf, } from "../../shared/save-client";
 import { FILED_READLIST_PARAM } from "../../shared/filing-flash";
+import { OPEN_NOTE_PARAM } from "../../shared/open-note-flash";
 import { calculateReadTime, hostStubMetadata, offersEpubDownload, } from "@packages/domain/article";
-import { ABSENT_ENCLOSURE, ReaderArticleHashIdSchema, mayReadItem, ownedEnclosure, viewerFor } from "@packages/domain/article";
+import { ABSENT_ENCLOSURE, HighlightIdSchema, ReaderArticleHashIdSchema, mayReadItem, ownedEnclosure, viewerFor } from "@packages/domain/article";
 import { MediaImageFileSchema, PrivateItemUrlSchema, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
 import { readerContentUnavailable, readerNoticeOf, transcriptNoticeOf } from "../../shared/article-reader/reader-view";
 import type {
@@ -212,10 +213,11 @@ export function initReaderPageRoutes(deps: Pick<
 			listUserSavesForUrl: deps.listUserSavesForUrl,
 		});
 
-	const withoutFiledFlash = (path: string): string => {
+	const withoutOneShotParams = (path: string): string => {
 		const current = new URL(path, deps.appOrigin);
-		if (!current.searchParams.has(FILED_READLIST_PARAM)) return path;
+		if (!current.searchParams.has(FILED_READLIST_PARAM) && !current.searchParams.has(OPEN_NOTE_PARAM)) return path;
 		current.searchParams.delete(FILED_READLIST_PARAM);
+		current.searchParams.delete(OPEN_NOTE_PARAM);
 		return `${current.pathname}${current.search}`;
 	};
 
@@ -548,10 +550,13 @@ export function initReaderPageRoutes(deps: Pick<
 			contentVersion: resolved.contentVersion,
 			highlights: highlightRows,
 		});
-		const highlights: ReaderPageHighlights = await readerHighlightOptions(req, {
-			article: ownedArticle,
-			rows: highlightRows,
-		});
+		const highlights: ReaderPageHighlights = {
+			...(await readerHighlightOptions(req, {
+				article: ownedArticle,
+				rows: highlightRows,
+			})),
+			openNote: HighlightIdSchema.safeParse(req.query[OPEN_NOTE_PARAM]).data,
+		};
 		const settle = (component: Component, cacheControl: string): Component =>
 			options.statusCode === 200
 				? FreshForComponent(component, {
@@ -588,7 +593,7 @@ export function initReaderPageRoutes(deps: Pick<
 		const cspNonce = requireCspNonce(req);
 		const currentPath =
 			options.statusCode === 200
-				? withoutFiledFlash(req.originalUrl)
+				? withoutOneShotParams(req.originalUrl)
 				: highlightActionUrl({
 						path: `${READLIST_PATH}/${ownedArticle.id.value}/view`,
 						...highlightFormScopeFor(req, ownedArticle.id.value),

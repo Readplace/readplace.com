@@ -2,7 +2,7 @@ import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/s
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
-import type { ArticleBody, ArticleStatus, SavedArticle } from "@packages/domain/article";
+import type { ArticleBody, ArticleStatus, HighlightId, SavedArticle } from "@packages/domain/article";
 import { isPrivateItemUrl, nextReadDismissalOf } from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -149,6 +149,7 @@ export function readerMarkStatusConfirm(input: {
 
 export interface ReaderPageHighlights extends ReaderHighlights {
 	scope: HighlightFormScope | undefined;
+	openNote: HighlightId | undefined;
 }
 
 function sharingOffReasonFor(articleUrl: string): SharingOffReason | undefined {
@@ -364,18 +365,22 @@ export function ReaderPage(
 					}),
 	});
 	const highlights = options.highlights;
+	const openNote = highlights.rows.some((row) => row.highlightId === highlights.openNote)
+		? highlights.openNote
+		: undefined;
 	const highlightsRail = renderHighlightsRail({
 		rows:
 			highlightStates.length === 0
 				? storedHighlightsRailRows(highlights)
 				: highlightsRailRowsFromStates(highlightStates),
 		scope: highlights.scope,
+		openNote,
 		oob: false,
 	});
 	const innerContent =
 		highlights.scope === undefined
 			? articleBodyHtml
-			: articleBodyHtml + renderHighlightToolbar({ scope: highlights.scope });
+			: articleBodyHtml + renderHighlightToolbar({ scope: highlights.scope, rowNoteOpen: openNote !== undefined });
 	const railLandmark = railLandmarkFor({
 		hasCard:
 			highlightsRail.hasRows ||

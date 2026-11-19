@@ -8,7 +8,9 @@ import type {
 	ArticleStatus,
 	ItemMedia,
 	Minutes,
+	NewsletterLinkRow,
 	SaveProvenance,
+	SaveTrigger,
 	SavedArticle,
 	ServedBody,
 } from "@packages/domain/article";
@@ -23,6 +25,7 @@ import {
 	discoveryCandidateOf,
 	matchesArticleDiscovery,
 	viewerFor,
+	keepsProvenanceAgainstAutomaticSave,
 } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -161,10 +164,15 @@ interface UserArticle {
 	lastSummaryOpenedAt?: Date;
 	lastSummaryClosedAt?: Date;
 	provenance?: SaveProvenance;
+	handPickedAt?: Date;
 	relatedDismissedAt?: Date;
 	relatedDismissedSuggestionId?: ReaderArticleHashId;
 	ocrPagesHold?: OcrPagesHold;
 	relatedPassesRequestedAt?: Date;
+}
+
+function isProtectedAgainstAutomaticSave(row: UserArticle): boolean {
+	return row.handPickedAt !== undefined || keepsProvenanceAgainstAutomaticSave(row.provenance?.kind);
 }
 
 function servedBodyOf(article: GlobalArticle): ServedBody {
@@ -217,6 +225,9 @@ export function initInMemoryArticleStore(): {
 	saveStarterPack: SaveStarterPack;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
+	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
+	readNewsletterLinkRows: (userId: UserId) => NewsletterLinkRow[];
+	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
@@ -484,7 +495,11 @@ export function initInMemoryArticleStore(): {
 		article.savedAt = params.savedAt;
 	};
 
-	const saveInto = async (readlist: ReadlistSlug | undefined, params: SaveArticleParams) => {
+	const saveInto = async (
+		readlist: ReadlistSlug | undefined,
+		params: Omit<SaveArticleParams, "saveTrigger">,
+		saveTrigger: SaveTrigger | undefined,
+	) => {
 		const globallySavedAt = new Date();
 		const { created } = await saveArticleGlobally({
 			url: params.url,
@@ -498,6 +513,7 @@ export function initInMemoryArticleStore(): {
 		return writeUserRowUnless({
 			readlist,
 			params,
+			saveTrigger,
 			overtakes: (existing) => existing.savedAt.getTime() >= params.savedAt.getTime(),
 		});
 	};
@@ -505,10 +521,12 @@ export function initInMemoryArticleStore(): {
 	const writeUserRowUnless = ({
 		readlist,
 		params,
+		saveTrigger,
 		overtakes,
 	}: {
 		readlist: ReadlistSlug | undefined;
 		params: Pick<SaveArticleParams, "userId" | "url" | "savedAt" | "provenance" | "suggestionAttribution">;
+		saveTrigger: SaveTrigger | undefined;
 		overtakes: (existing: UserArticle) => boolean;
 	}) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -521,8 +539,12 @@ export function initInMemoryArticleStore(): {
 				? {
 					...existing,
 					savedAt: params.savedAt,
-					provenance: params.provenance,
+					provenance:
+						saveTrigger === "automatic" && isProtectedAgainstAutomaticSave(existing)
+							? existing.provenance
+							: params.provenance,
 					suggestionAttribution: existing.suggestionAttribution ?? params.suggestionAttribution,
+					handPickedAt: saveTrigger === "manual" ? existing.handPickedAt ?? params.savedAt : existing.handPickedAt,
 				}
 				: {
 					userId: params.userId,
@@ -532,7 +554,10 @@ export function initInMemoryArticleStore(): {
 					savedAt: params.savedAt,
 					provenance: params.provenance,
 					suggestionAttribution: params.suggestionAttribution,
+					...(saveTrigger === "manual" ? { handPickedAt: params.savedAt } : {}),
 				});
+		} else if (saveTrigger === "manual") {
+			userArticles.set(uaKey, { ...existing, handPickedAt: existing.handPickedAt ?? params.savedAt });
 		}
 
 		const article = articles.get(articleResourceUniqueId.value);
@@ -546,13 +571,14 @@ export function initInMemoryArticleStore(): {
 		};
 	};
 
-	const saveArticle: SaveArticle = (params) => saveInto(undefined, params);
+	const saveArticle: SaveArticle = ({ saveTrigger, ...params }) => saveInto(undefined, params, saveTrigger);
 
-	const saveReadlistArticle: SaveReadlistArticle = ({ readlist, ...params }) => saveInto(readlist, params);
+	const saveReadlistArticle: SaveReadlistArticle = ({ readlist, ...params }) => saveInto(readlist, params, undefined);
 
 	const saveAsRequested = async (
 		readlist: ReadlistSlug | undefined,
-		{ requestedAt, ...params }: SaveArticleParams & { requestedAt: Date },
+		{ requestedAt, ...params }: Omit<SaveArticleParams, "saveTrigger"> & { requestedAt: Date },
+		saveTrigger: SaveTrigger | undefined,
 	) => {
 		const key = ArticleResourceUniqueId.parse(params.url).value;
 		const existingArticle = articles.get(key);
@@ -570,20 +596,50 @@ export function initInMemoryArticleStore(): {
 		return writeUserRowUnless({
 			readlist,
 			params,
+			saveTrigger,
 			overtakes: (existing) =>
 				existing.savedAt >= requestedAt || (existing.readAt !== undefined && existing.readAt >= requestedAt),
 		});
 	};
 
-	const saveArticleAsRequested: SaveArticleAsRequested = (params) => saveAsRequested(undefined, params);
+	const saveArticleAsRequested: SaveArticleAsRequested = ({ saveTrigger, ...params }) =>
+		saveAsRequested(undefined, params, saveTrigger);
 
 	const saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested = ({ readlist, ...params }) =>
-		saveAsRequested(readlist, params);
+		saveAsRequested(readlist, params, undefined);
+
+	const readHandPickedAt = ({ userId, url }: { userId: UserId; url: string }): Date | undefined =>
+		userArticles.get(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value))?.handPickedAt;
+
+	const readNewsletterLinkRows = (userId: UserId): NewsletterLinkRow[] =>
+		[...userArticles.values()]
+			.filter((row) => row.userId === userId && row.readlist === undefined)
+			.map((row) => ({
+				storedKey: row.url,
+				status: row.status,
+				savedAt: row.savedAt,
+				...(row.provenance === undefined ? {} : { provenance: row.provenance }),
+				...(row.handPickedAt === undefined ? {} : { handPickedAt: row.handPickedAt }),
+				...(row.viewedAt === undefined ? {} : { viewedAt: row.viewedAt }),
+			}));
+
+	const readOpenedInReadlists = (userId: UserId): ReadonlySet<string> =>
+		new Set(
+			[...userArticles.values()]
+				.filter((row) => row.userId === userId && row.readlist !== undefined && row.viewedAt !== undefined)
+				.map((row) => row.url),
+		);
 
 	const saveArticleKeepingPosition: SaveArticle = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const existing = userArticles.get(userArticleKey(params.userId, articleResourceUniqueId.value));
 		if (existing === undefined) return saveArticle(params);
+		if (params.saveTrigger === "manual") {
+			userArticles.set(userArticleKey(params.userId, articleResourceUniqueId.value), {
+				...existing,
+				handPickedAt: existing.handPickedAt ?? params.savedAt,
+			});
+		}
 
 		const globallySavedAt = new Date();
 		const { created } = await saveArticleGlobally({
@@ -890,6 +946,7 @@ export function initInMemoryArticleStore(): {
 			const { wroteUserArticle } = writeUserRowUnless({
 				readlist: params.readlist,
 				params,
+				saveTrigger: undefined,
 				overtakes: (existing) => existing.savedAt.getTime() >= params.savedAt.getTime(),
 			});
 			if (!wroteUserArticle) return { outcome: "newer-row-won" };
@@ -1341,6 +1398,7 @@ export function initInMemoryArticleStore(): {
 			status: "unread",
 			savedAt: params.savedAt,
 			provenance: { kind: "upload" },
+			handPickedAt: params.savedAt,
 		});
 		return "saved";
 	};
@@ -1530,6 +1588,9 @@ export function initInMemoryArticleStore(): {
 		saveStarterPack,
 		saveArticle,
 		saveArticleKeepingPosition,
+		readHandPickedAt,
+		readNewsletterLinkRows,
+		readOpenedInReadlists,
 		allocateSavedAt,
 		allocateSavedAtSequence,
 		findSavedUrls,

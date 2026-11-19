@@ -34,7 +34,11 @@ import {
 import { prepareReaderContent } from "../../shared/article-body/reader-slot/reader-content";
 import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/section-pages";
 import { servedContentHash } from "../../shared/article-body/reader-slot/served-content-hash";
-import { highlightActionUrl, highlightReaderLocation } from "./highlight-surface";
+import {
+	highlightActionUrl,
+	highlightNoteLocation,
+	highlightReaderLocation,
+} from "./highlight-surface";
 import { highlightFormScopeFor } from "./reader-highlight-options";
 import type { RenderOwnerReader } from "./reader-page.page";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
@@ -49,6 +53,7 @@ const CreateHighlightBodySchema = z
 		origin: z.enum(["mouse", "tap", "longpress"]),
 		note: HighlightNoteSchema.optional(),
 		answer: z.literal("dialog").optional(),
+		after: z.enum(["", "note"]).optional(),
 	})
 	.refine((body) => body.start <= body.end);
 
@@ -180,6 +185,7 @@ export function initHighlightRoutes(
 									],
 									value: body.data.note ?? "",
 									error: DIALOG_ERRORS[status],
+									autofocus: true,
 									...(NEEDS_NEW_SELECTION[status]
 										? { refusal: "passage" as const }
 										: {}),
@@ -272,6 +278,18 @@ export function initHighlightRoutes(
 						...(pushesHistory(scope) ? {} : { push: false as const }),
 					},
 				});
+				return;
+			}
+			if (body.data.after === "note") {
+				const noteLanding = highlightNoteLocation({
+					...scope,
+					highlightId: landing.highlightId,
+				});
+				if (req.get("HX-Request") === "true") {
+					res.status(200).set("HX-Redirect", noteLanding).type("html").send("");
+					return;
+				}
+				res.redirect(303, noteLanding);
 				return;
 			}
 			res.redirect(

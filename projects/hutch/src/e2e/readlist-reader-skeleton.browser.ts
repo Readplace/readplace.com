@@ -1,5 +1,10 @@
 export function htmxIsLive(): boolean {
-	return "htmx" in window;
+	const [navigation] = performance.getEntriesByType("navigation");
+	return (
+		"htmx" in window &&
+		navigation instanceof PerformanceNavigationTiming &&
+		navigation.domContentLoadedEventEnd > 0
+	);
 }
 
 export function readScrollY(): number {

@@ -132,6 +132,7 @@ describe("Email verification lockout", () => {
 			estimatedReadTime: MinutesSchema.parse(0),
 			provenance: { kind: "web" },
 			savedAt: new Date(),
+			saveTrigger: "manual",
 		});
 
 		const markRead = await agent
@@ -281,6 +282,7 @@ describe("Email verification lockout (Siren API)", () => {
 			estimatedReadTime: MinutesSchema.parse(0),
 			provenance: { kind: "web" },
 			savedAt: new Date(),
+			saveTrigger: "manual",
 		});
 		const token = await mintAccessToken(harness, userId);
 

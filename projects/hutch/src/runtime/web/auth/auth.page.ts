@@ -24,7 +24,7 @@ import type {
 } from "@packages/provider-contracts/email-verification";
 import { VerificationTokenSchema } from "@packages/provider-contracts/email-verification";
 import assert from "node:assert";
-import type { ConsumePendingSignup } from "@packages/provider-contracts/pending-signup";
+import type { ClaimPendingSignup, FindPendingSignup } from "@packages/provider-contracts/pending-signup";
 import type {
 	FindSubscriptionByUserId,
 	UpsertActiveSubscription,
@@ -46,8 +46,8 @@ import type {
 	RateLimitRules,
 } from "@packages/provider-contracts/rate-limit";
 import { createRateLimitMiddleware, sendRateLimited } from "../middleware/rate-limit";
+import { initActivateCheckout } from "../../domain/subscription/activate-checkout";
 import { initClaimSignupAllowance, signupAllowanceSpentMessage } from "./signup-allowance";
-import { chargeReminderFiresAt } from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import type { BuildBannerState } from "../banner-state";
@@ -120,7 +120,8 @@ interface AuthDependencies {
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
-	consumePendingSignup: ConsumePendingSignup;
+	findPendingSignup: FindPendingSignup;
+	claimPendingSignup: ClaimPendingSignup;
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
 		upsertTrialing: UpsertTrialingSubscription;
@@ -545,12 +546,31 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		const { subscriptionId, customerId } = session;
+		const { subscriptionId, customerId, amountTotal } = session;
 		assert(subscriptionId, "Stripe checkout session must carry a subscriptionId for a paid signup");
 		assert(customerId, "Stripe checkout session must carry a customerId for a paid signup");
 
-		const pending = await deps.consumePendingSignup(checkoutSessionId);
-		if (!pending) {
+		const activateCheckout = initActivateCheckout({
+			findPendingSignup: deps.findPendingSignup,
+			findSubscriptionByUserId: deps.findSubscriptionByUserId,
+			claimPendingSignup: deps.claimPendingSignup,
+			upsertActive: deps.subscriptionProviders.upsertActive,
+			recordCheckoutCompleted: (completion) =>
+				deps.recordSubscriptionEvent(req, buildCheckoutCompletedEvent({ now: deps.now }, completion)),
+			deleteTrialEndSchedule: deps.trialScheduler.deleteTrialEndSchedule,
+			deleteTrialReminderSchedule: deps.trialScheduler.deleteTrialReminderSchedule,
+			createChargeReminderSchedule: deps.trialScheduler.createChargeReminderSchedule,
+			logError: deps.logError,
+			now: deps.now,
+		});
+		const activation = await activateCheckout({
+			checkoutSessionId,
+			subscriptionId,
+			customerId,
+			amountTotal,
+			activatedBy: "redirect",
+		});
+		if (activation.outcome === "not-found") {
 			await renderFailure({
 				statusCode: 409,
 				message: "This checkout link has already been used.",
@@ -559,55 +579,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			});
 			return;
 		}
-
-		await deps.subscriptionProviders.upsertActive({
-			userId: pending.userId,
-			subscriptionId,
-			customerId,
-			plan: pending.plan,
-		});
-		deps.recordSubscriptionEvent(
-			req,
-			buildCheckoutCompletedEvent(
-				{ now: deps.now },
-				{
-					userId: pending.userId,
-					subscriptionId,
-					checkoutSessionId,
-					paidNow: session.amountTotal > 0,
-					variant: pending.variant,
-					entrySource: pending.entrySource,
-					offer: pending.offer,
-				},
-			),
-		);
-		try {
-			await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
-			await deps.trialScheduler.deleteTrialReminderSchedule({ userId: pending.userId });
-		} catch (err) {
-			deps.logError(
-				"[checkout/success] Clearing the trial schedules failed — continuing; the user has already paid and is active",
-				err instanceof Error ? err : new Error(String(err)),
-			);
-		}
-		if (pending.trialEndsAt) {
-			try {
-				await deps.trialScheduler.createChargeReminderSchedule({
-					userId: pending.userId,
-					firesAt: chargeReminderFiresAt({
-						chargeAt: pending.trialEndsAt,
-						now: deps.now(),
-					}),
-					chargeAt: pending.trialEndsAt,
-				});
-			} catch (err) {
-				deps.logError(
-					"[checkout/success] Charge-reminder schedule creation failed — continuing without the pre-charge email",
-					err instanceof Error ? err : new Error(String(err)),
-				);
-			}
-		}
-		res.redirect(303, parseReturnUrl({ return: pending.returnUrl }));
+		res.redirect(303, parseReturnUrl({ return: activation.returnUrl }));
 	});
 
 	router.get("/verify-email", async (req: Request, res: Response) => {

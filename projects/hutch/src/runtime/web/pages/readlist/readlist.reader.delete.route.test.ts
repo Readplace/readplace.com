@@ -305,6 +305,7 @@ describe("Deleting an article from the owner reader", () => {
 				estimatedReadTime: MinutesSchema.parse(0),
 				provenance: { kind: "web" },
 				savedAt: new Date(),
+				saveTrigger: "manual",
 			});
 
 			await agent.post(`/queue/${articleId}/delete`).type("form").send({});

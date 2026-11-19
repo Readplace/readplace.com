@@ -24,7 +24,8 @@ export type RateLimitBucket =
 	| "stale-check-account"
 	| "stale-check-ip"
 	| "export"
-	| "signup-created";
+	| "signup-created"
+	| "view-highlights-keep";
 
 /**
  * Atomically count one request against `(bucket, key)` for the rule's current
