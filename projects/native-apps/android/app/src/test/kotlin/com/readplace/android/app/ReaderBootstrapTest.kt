@@ -30,6 +30,32 @@ class ReaderBootstrapTest {
 		)
 	}
 
+	@Test
+	fun `a minted session opens with the protocol cache and no banner`() {
+		val cookie = sessionCookie()
+
+		val ready = ReaderBootstrap.Ready(listOf(cookie))
+
+		assertEquals(ready, ReaderBootstrap.after(ReaderSessionMint.Minted(listOf(cookie))))
+		assertEquals(
+			Triple(listOf(cookie), ReaderCacheMode.PROTOCOL, false),
+			Triple(ready.cookies, ready.cacheMode, ready.showsOfflineBanner),
+		)
+	}
+
+	@Test
+	fun `an offline mint opens the stored copy with the banner and no cookies`() {
+		assertEquals(ReaderBootstrap.Offline, ReaderBootstrap.after(ReaderSessionMint.Offline))
+		assertEquals(
+			Triple(emptyList<Cookie>(), ReaderCacheMode.STORED_COPY_FIRST, true),
+			Triple(
+				ReaderBootstrap.Offline.cookies,
+				ReaderBootstrap.Offline.cacheMode,
+				ReaderBootstrap.Offline.showsOfflineBanner,
+			),
+		)
+	}
+
 	private fun sessionCookie(): Cookie =
 		Cookie.Builder()
 			.name("hutch_sid")

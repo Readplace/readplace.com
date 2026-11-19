@@ -212,6 +212,13 @@ invalidates that copy, so a cached app client would show a stale list on any rea
 forgot to force revalidation. Every list read here goes to the origin in full; only the
 share target's client opts into the discovery cache.
 
+**An unreachable token refresh is not treated as offline.** When the reader session
+cannot be minted because the network is unreachable, both apps open the article's stored
+copy under the offline banner. iOS also does this when the token refresh itself cannot
+reach the server. Android refreshes only after a `401`, so the network would have to drop
+between the `401` and the refresh, and a refresh that cannot connect fails the same way
+as a refused one. That case shows "Couldn't open the reader" instead of the stored copy.
+
 **Compile-time environment via a product flavor.** iOS selects its server with
 `#if STAGING`; here the `production`/`staging` flavors set `BuildConfig.SERVER_BASE_URL`.
 Same property: the server is fixed at build time, there is no runtime override, and

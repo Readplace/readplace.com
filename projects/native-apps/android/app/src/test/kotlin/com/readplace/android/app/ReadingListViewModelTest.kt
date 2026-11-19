@@ -2344,6 +2344,40 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
+	fun `mintReaderSession concludes Offline and leaves the list alone when the server cannot be reached`() = runTest {
+		val readlist = """
+			{
+				"class": ["collection", "articles"],
+				"properties": { "total": 1, "page": 1, "pageSize": 20 },
+				"entities": [${Fixtures.article("a1")}],
+				"links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
+				"actions": [{ "name": "create-session", "href": "/auth/session", "method": "POST" }]
+			}
+		"""
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, readlist)
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
+		viewModel.refresh()
+		val before = viewModel.state.value
+
+		network.down = true
+		val mint = viewModel.mintReaderSession()
+
+		assertEquals("a mint that cannot reach the server opens the stored copy", ReaderSessionMint.Offline, mint)
+		assertEquals(
+			"an unreachable mint leaves the list's own state, including its error text, as it was",
+			before,
+			viewModel.state.value,
+		)
+	}
+
+	@Test
 	fun `mintReaderSession follows the server's create-session action`() = runTest {
 		val readlistWithSession = """
 			{

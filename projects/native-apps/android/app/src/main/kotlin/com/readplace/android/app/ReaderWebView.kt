@@ -16,6 +16,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -61,6 +62,7 @@ import okhttp3.Cookie
 fun ReaderWebView(
 	url: String,
 	cookies: List<Cookie>,
+	cacheMode: ReaderCacheMode,
 	onMarkedRead: () -> Unit,
 	onStatusChanged: () -> Unit,
 	onCaptureBlocked: () -> Deferred<CaptureEnding>,
@@ -102,6 +104,10 @@ fun ReaderWebView(
 				// and wiped on sign-out.
 				settings.domStorageEnabled = true
 				settings.userAgentString = AppConfig.WEB_VIEW_USER_AGENT
+				settings.cacheMode = when (cacheMode) {
+					ReaderCacheMode.PROTOCOL -> WebSettings.LOAD_DEFAULT
+					ReaderCacheMode.STORED_COPY_FIRST -> WebSettings.LOAD_CACHE_ELSE_NETWORK
+				}
 				// Let the sheet's background show through until the page paints, so the
 				// moment the skeleton lifts there is no white flash before the first paint.
 				setBackgroundColor(Color.TRANSPARENT)
