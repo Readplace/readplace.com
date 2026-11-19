@@ -1289,3 +1289,94 @@ describe("re-anchoring, the worst case", () => {
 		);
 	});
 });
+
+describe("re-anchoring, twins of a copy that is the reader's own row", () => {
+	it("TWIN.P3n ends as its twin without the added copy", () => {
+		const basis = [I, M, ME, DT, N, O];
+		const v = versions();
+		const withCopy = step(v, mk(v, basis, BQ), [N, I, M, ME, N, DT, O], "h1");
+		const w = versions();
+		const twin = step(w, mk(w, basis, BQ), [I, M, ME, N, DT, O], "h1");
+		assert.deepEqual(
+			[outcome(withCopy), outcome(twin)],
+			["moved@129", "moved@71"],
+		);
+		assert.equal(view(withCopy), view(twin));
+	});
+
+	const TR = (t: string) =>
+		`The express to the coast departs at ${t} from platform nine and calls at all stations on the line.`;
+	const TT0 =
+		"Departures from the central station on Monday morning are listed below.";
+	const TT2 =
+		"Services may change at short notice, so check the boards on the day.";
+	const QT = "departs at 10:05 from platform nine";
+
+	it("JT9 a row added above and the reader's row deleted is not served on the earlier row at the stored offset", () => {
+		const v = versions();
+		const row = mk(
+			v,
+			[TT0, `${TR("09:05")} ${TR("10:05")} ${TR("11:05")}`, TT2],
+			QT,
+		);
+		const x = step(
+			v,
+			row,
+			[TT0, `${TR("08:05")} ${TR("09:05")} ${TR("11:05")}`, TT2],
+			"h1",
+		);
+		assert.deepEqual([outcome(x), x.served], ["orphaned (gone)", null]);
+	});
+});
+
+describe("re-anchoring, a quote that starts or ends with a space", () => {
+	for (const [id, before, after, quote, state] of [
+		["WSE1", [I, BW, O], [I, BW, O], `${W} `, "anchored"],
+		["WSE2", [I, BW, O], [I, BW, O], ` ${MF}`, "anchored"],
+		["WSE3", [M, I, BW, O], [I, BW, O], ` ${MF}`, "moved"],
+		["WSE4", [M, I, BW, O], [I, BW, O], `${W} `, "moved"],
+	] as const) {
+		it(`${id} keeps the space and is not edited`, () => {
+			const v = versions();
+			const row = mk(v, before, quote);
+			const x = step(v, row, after, "h1");
+			assert.deepEqual(
+				[outcome(x), x.served, x.row.basisQuote],
+				[`${state}@${x.start}`, quote, undefined],
+			);
+			assert.equal(todayIs(row, after), `${state} @${x.start}`);
+		});
+	}
+
+	for (const [id, quote, words] of [
+		["WSE5", ` ${MF}`, MF],
+		["WSE6", `${W} `, W],
+	] as const) {
+		it(`${id} a space that became a paragraph break is kept and is not edited`, () => {
+			const v = versions();
+			const row = mk(v, [I, BW, O], quote);
+			const after = [I, W, MF, O];
+			const x = step(v, row, after, "h1");
+			assert.deepEqual(
+				[outcome(x), x.served?.trim(), x.row.basisQuote],
+				[`anchored@${row.start}`, words, undefined],
+			);
+			assert.equal(todayIs(row, after), `moved @${row.start}`);
+		});
+	}
+
+	for (const [id, quote, words, after, at, todayAt] of [
+		["WSE7", ` ${MF}`, MF, [I, W, `(${MF})`, O], 60, 59],
+		["WSE8", `${W} `, W, [I, `(${W})`, MF, O], 13, 13],
+	] as const) {
+		it(`${id} a space next to a bracket is not taken into the place`, () => {
+			const v = versions();
+			const row = mk(v, [I, BW, O], quote);
+			const x = step(v, row, after, "h1");
+			assert.deepEqual(
+				[outcome(x), x.served, x.row.basisQuote, todayIs(row, after)],
+				[`moved@${at}`, words, undefined, `moved @${todayAt}`],
+			);
+		});
+	}
+});

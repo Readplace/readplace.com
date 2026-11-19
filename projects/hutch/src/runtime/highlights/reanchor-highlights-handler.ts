@@ -16,7 +16,7 @@ import {
 	type PublishEvent,
 } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import type { FindItemOwner, ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type {
 	ListHighlightsOfArticle,
@@ -35,7 +35,6 @@ export function initReanchorHighlightsHandler(deps: {
 	readCanonicalSnapshot: ReadCanonicalSnapshot;
 	readArticleContent: ReadArticleContent;
 	readCandidateBody: ReadCandidateBody;
-	findItemOwner: FindItemOwner;
 	writeHighlightAnchor: WriteHighlightAnchor;
 	publishEvent: PublishEvent;
 	appOrigin: string;
@@ -58,7 +57,8 @@ export function initReanchorHighlightsHandler(deps: {
 				logger.info("[reanchor-highlights] no canonical snapshot, skipped", { url });
 				return;
 			}
-			const viewer = viewerFor(rows[0].userId);
+			const ownerUserId = rows[0].userId;
+			const viewer = viewerFor(ownerUserId);
 			const stored = await deps.readArticleContent({ url, viewer });
 			if (stored.kind === "not-an-article") return;
 			assert(stored.kind === "article", `canonical body missing for url=${url}`);
@@ -87,7 +87,6 @@ export function initReanchorHighlightsHandler(deps: {
 					return candidateId === undefined || candidateId === snapshot.canonicalCandidateId ? [] : [candidateId];
 				}),
 			);
-			const ownerUserId = anchorCandidateIds.size === 0 ? undefined : await deps.findItemOwner(url);
 			const anchorTexts = new Map<CandidateId, string>();
 			for (const candidateId of anchorCandidateIds) {
 				const body = storedArticleBody({

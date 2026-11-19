@@ -50,13 +50,14 @@ function railHtml(): string {
 	return renderHighlightsRail({
 		rows: [{ highlight: row, shown: { state: "anchored", edited: false, quote: row.exact }, marked: true }],
 		scope: { articleId: "abc", readlist: [], surface: [] },
+		openNote: undefined,
 		oob: false,
 	}).html;
 }
 
 function rowNoteFormsHtml(): string {
 	const scope = { articleId: "abc", readlist: [], surface: [] };
-	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", scope })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", scope })}</details>`;
+	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", scope })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", scope, open: false })}</details>`;
 }
 
 function notedBeta(): Highlight {
@@ -89,7 +90,7 @@ function mainHtml(
 		appOrigin: APP_ORIGIN,
 		...(input.noted ? { highlights: { rows: [notedBeta()], canonicalContentHash: "hash" } } : {}),
 	}).html;
-	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${input.toolbar === false ? "" : renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
+	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${input.toolbar === false ? "" : renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
 }
 
 interface Harness {
@@ -492,7 +493,7 @@ describe("initHighlightToolbar", () => {
 	});
 
 	it("hides the bar when the page holds no reader content", () => {
-		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}<p id="outside">Outside</p></main>`);
+		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false })}<p id="outside">Outside</p></main>`);
 		const outside = h.doc.getElementById("outside");
 		assert(outside);
 
@@ -518,6 +519,7 @@ describe("initHighlightToolbar", () => {
 			start: String(start),
 			end: String(start + 4),
 			origin: "mouse",
+			after: "",
 		});
 		expect(h.doc.getSelection()?.rangeCount).toBe(0);
 		expect(toolbarOf(h).hidden).toBe(true);
@@ -645,6 +647,7 @@ describe("initHighlightToolbar", () => {
 			start: "9",
 			end: "13",
 			origin: "tap",
+			after: "",
 		});
 	});
 
@@ -689,7 +692,7 @@ describe("initHighlightToolbar", () => {
 	});
 
 	it("ignores a selection event on a page without reader content", () => {
-		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] } })}<p id="outside">Outside</p></main>`);
+		const h = harness(`<main>${renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false })}<p id="outside">Outside</p></main>`);
 		const outside = h.doc.getElementById("outside");
 		assert(outside);
 		selectWords(h, { from: "Outside", root: outside });
@@ -850,6 +853,7 @@ describe("initHighlightToolbar", () => {
 				value: noteInputOf(form).value,
 				error: input.error,
 				refusal: input.refusal,
+				autofocus: true,
 			});
 		}
 
@@ -864,15 +868,32 @@ describe("initHighlightToolbar", () => {
 			expect(h.submitted).toHaveLength(0);
 		});
 
-		it("does nothing without popover support, leaving the bar open", () => {
+		it("submits the create form with after=note without popover support, opening no dialog and hiding the bar", () => {
 			const h = harness();
 			h.popoverSupported = false;
 
 			addNoteOn(h, "beta");
 
+			const { answer: _answer, ...passage } = passageFields(h, "beta");
+			expect(h.submitted).toEqual([h.doc.querySelector("[data-highlight-create-form]")]);
+			expect(formFields(h.submitted[0])).toEqual({ ...passage, after: "note" });
 			expect(h.shownPopovers).toHaveLength(0);
 			expect(formFields(noteFormOf(h)).exact).toBe("");
-			expect(toolbarOf(h).hidden).toBe(false);
+			expect(toolbarOf(h).hidden).toBe(true);
+		});
+
+		it("clears after on a plain Highlight press after an Add note without popover support", () => {
+			const h = harness();
+			h.popoverSupported = false;
+			addNoteOn(h, "beta");
+
+			selectWords(h, { from: "gamma" });
+			settleSelection(h);
+			click(h, buttonOf(h));
+
+			expect(h.submitted).toHaveLength(2);
+			expect(formFields(h.submitted[1]).after).toBe("");
+			expect(formFields(h.submitted[1]).exact).toBe("gamma");
 		});
 
 		it("opens nothing when the article is gone by the time Add note is pressed", () => {

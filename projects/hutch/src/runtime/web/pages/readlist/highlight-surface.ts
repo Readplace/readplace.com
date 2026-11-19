@@ -1,4 +1,5 @@
 import { ARTICLE_HIGHLIGHT_ID_PREFIX, type HighlightId } from "@packages/domain/article";
+import { OPEN_NOTE_PARAM } from "../../shared/open-note-flash";
 import { type LinkParams, READLIST_PATH } from "./readlist.url";
 
 export type HighlightReaderFragment = { highlightId: HighlightId } | "rail";
@@ -29,4 +30,17 @@ export function highlightReaderLocation(input: {
 		surface: input.surface,
 	});
 	return `${path}#${fragment}`;
+}
+
+export function highlightNoteLocation(input: {
+	articleId: string;
+	readlist: LinkParams;
+	surface: LinkParams;
+	highlightId: HighlightId;
+}): string {
+	return highlightActionUrl({
+		path: `${READLIST_PATH}/${input.articleId}/view`,
+		readlist: input.readlist,
+		surface: [...input.surface, [OPEN_NOTE_PARAM, input.highlightId]],
+	});
 }

@@ -731,4 +731,68 @@ describe("Owner reader Markdown highlights (GET /queue/:id/view with Accept: tex
 			response.text.endsWith("## Highlights\n\n> passage worth keeping (not found in the current version)\n"),
 		).toBe(true);
 	});
+
+	async function editedAndOrphanedRows({ harness, fixture }: ReturnType<typeof buildHarness>) {
+		const agent = await savedReadyArticle(harness);
+		await createHighlight(agent, "Opening line of the body");
+		await createHighlight(agent, "passage worth keeping");
+		await fixture.articleStore.replaceCanonicalContent({
+			url,
+			content: "<p>Opening line of the whole body.</p><p>A rewritten second paragraph.</p>",
+			canonicalContentHash: "rt7-hash",
+			canonicalCandidateId: CandidateIdSchema.parse("rt7-candidate"),
+		});
+		for (const { userId, highlight } of await fixture.highlights.listHighlightsOfArticle(url)) {
+			const edited = highlight.exact === "Opening line of the body";
+			await fixture.highlights.writeHighlightAnchor({
+				userId,
+				url: highlight.highlightOf,
+				highlightId: highlight.highlightId,
+				expectedRevision: highlight.anchorRevision,
+				anchor: edited
+					? {
+							start: 0,
+							end: "Opening line of the whole body".length,
+							anchorState: "moved",
+							anchoredContentHash: "rt7-hash",
+							basisCandidateId: CandidateIdSchema.parse("rt7-basis"),
+							basisQuote: "Opening line of the whole body",
+							orderKey: highlight.orderKey,
+						}
+					: {
+							start: highlight.start,
+							end: highlight.end,
+							anchorState: "orphaned",
+							anchoredContentHash: "rt7-hash",
+							orderKey: highlight.orderKey,
+						},
+			});
+		}
+		return agent;
+	}
+
+	const EDITED_AND_ORPHANED_SECTION =
+		"## Highlights\n\n> Opening line of the whole body (edited in the current version; you highlighted “Opening line of the body”)\n\n> passage worth keeping (not found in the current version)\n";
+
+	it("RT7: lists an edited row under its new words and an orphaned row with its suffix over the body", async () => {
+		const agent = await editedAndOrphanedRows(buildHarness());
+
+		const response = await markdownOf(agent);
+
+		expect(response.status).toBe(200);
+		expect(response.text).toContain("A rewritten second paragraph.");
+		expect(response.text.endsWith(EDITED_AND_ORPHANED_SECTION)).toBe(true);
+	});
+
+	it("RT7: lists the same edited and orphaned rows while a recrawl withholds the body", async () => {
+		const built = buildHarness();
+		const agent = await editedAndOrphanedRows(built);
+		await built.harness.articleCrawl.forceMarkCrawlPending({ url });
+
+		const response = await markdownOf(agent);
+
+		expect(response.status).toBe(200);
+		expect(response.text).not.toContain("A rewritten second paragraph.");
+		expect(response.text.endsWith(EDITED_AND_ORPHANED_SECTION)).toBe(true);
+	});
 });

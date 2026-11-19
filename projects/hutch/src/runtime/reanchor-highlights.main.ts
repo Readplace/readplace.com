@@ -58,7 +58,6 @@ export const handler = initReanchorHighlightsHandler({
 		send: (command) => s3.send(command),
 		bucketName: contentBucketName,
 	}),
-	findItemOwner,
 	writeHighlightAnchor,
 	publishEvent,
 	appOrigin: env.APP_ORIGIN,

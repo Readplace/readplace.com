@@ -97,7 +97,6 @@ function makeHarness(overrides: Overrides = {}) {
 		readCanonicalSnapshot: (overrides.readCanonicalSnapshot ?? ((real) => real))(articleStore.readCanonicalSnapshot),
 		readArticleContent: (overrides.readArticleContent ?? ((real) => real))(readArticleContent),
 		readCandidateBody: (overrides.readCandidateBody ?? ((real) => real))(readCandidateBody),
-		findItemOwner: articleStore.findItemOwner,
 		writeHighlightAnchor: (overrides.writeHighlightAnchor ?? ((real) => real))(highlights.writeHighlightAnchor),
 		publishEvent: (async (event, detail) => {
 			published.push({ event, detail });

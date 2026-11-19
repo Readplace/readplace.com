@@ -29,6 +29,7 @@ const MARK = `${CONTENT} mark.article-highlight`;
 const RAIL_ROW = "[data-test-highlight-row]";
 const RAIL_NOTE = "[data-test-highlight-note]";
 const SCROLL_STAMP = "data-test-scroll-after-swap";
+const HTMX_IN_MOTION = ".htmx-request, .htmx-swapping, .htmx-settling";
 
 const FILLER =
 	"<p>Every filler paragraph of this seeded article repeats one sentence about keeping a long read in view, so the passage worth a note sits well below the fold of the first screen.</p>";
@@ -173,6 +174,9 @@ test.describe("Adding a note to a highlight", () => {
 			EDITED_NOTE,
 			{ timeout: SETTLE_MS },
 		);
+		await expect(page.locator(HTMX_IN_MOTION)).toHaveCount(0, {
+			timeout: SETTLE_MS,
+		});
 
 		await page.evaluate(
 			(stamp) => document.documentElement.removeAttribute(stamp),

@@ -1,11 +1,11 @@
 ---
 title: "Highlights and notes that stay on their passage when the article changes"
 description: "Select text in the reader to highlight it or add a note, on the web and in the iPhone app. A highlight is stored as its quote and the words around it, so a recrawled article moves it only when the passage moved and lists it as not found when the passage is gone. Highlights also appear in the markdown copy, the EPUB download, the account export and 2 MCP tools."
-tldr: "Highlight and Add note, both marked Beta, appear when text is selected in the reader on the web and in the iPhone app. Readplace stores a highlight as its quote with 32 characters of text on each side rather than as a position, so when an article's shared body is fetched again it moves a highlight only when the passage moved, and it lists one it cannot find as \"Not found in this version\" instead of guessing. Highlights show in a rail beside the article, in the markdown copy, in the EPUB download and in the account export, and a connected assistant gets list_highlights and create_highlight."
+tldr: "Highlight and Add note, both marked Beta, appear when text is selected in the reader on the web and in the iPhone app. Readplace stores a highlight as its quote with 32 characters of text on each side rather than as a position, so when an article's shared body is fetched again it compares the new copy with the one the highlight was placed on, follows a passage that moved or was edited, and lists one it cannot find as \"Not found in this version\" instead of guessing. Highlights show in a rail beside the article, in the markdown copy, in the EPUB download and in the account export, and a connected assistant gets list_highlights and create_highlight."
 excerpt: "Highlights and notes in the reader, kept on their passage when the article is fetched again."
 slug: "highlights-and-notes-stay-on-their-passage"
 date: "2026-11-09"
-lastModified: "2026-11-15"
+lastModified: "2026-11-19"
 author: "Fayner Brack"
 keywords: "highlights, notes, annotations, reader, recrawl, re-anchoring, markdown, EPUB, account export, MCP tools"
 tags: ["changelog"]
@@ -38,11 +38,15 @@ An article's body in Readplace is shared by every reader who saves that URL, and
 
 So a highlight is stored as text rather than as a position: the exact words selected, with 32 characters of the surrounding article on each side. That is the shape of the text quote selector in the [W3C Web Annotation model](/view/www.w3.org/TR/annotation-model/?utm_source=blog-highlights-and-notes-stay-on-their-passage&utm_medium=internal&utm_content=read-w3c-annotation-model).
 
-When the body changes, Readplace looks for each highlight of that URL in the new text. It tries the exact words first. When they are gone, it allows differences of up to 20% of the quote's length, to a maximum of 256 characters. It accepts a match only at a similarity of 0.8 or more to the quote and 0.5 or more to the text around it, and only with a margin of 0.05 over the next best candidate.
+Each highlight also remembers the copy of the article it was last placed on. When the body changes, Readplace compares the new copy with that one, sentence by sentence, and carries the highlight to where its words went. A sentence that was reworded still counts as the same sentence when more than half of it carries over.
 
-A highlight that passes is drawn at its new place. A highlight that fails is kept, with its quote and its note, and the rail lists it under "Not found in this version". It is not moved to a weaker match and it is not deleted. The next change to the body tries again.
+A highlight on a reworded sentence follows the new wording. The rail marks it "Edited in this version" and shows the words you highlighted, so the change is never silent.
 
-Measured on 7 November 2026 on staging: 185 highlights over 37 recrawl pairs, 5 per pair, from 18 articles with 2 or more dated versions. 54 (29%) stayed in place. 111 (60%) moved, and 107 of those were the exact quote at a new offset. 20 (11%) were not found, and all 20 came from 1 web.archive.org page whose versions alternate between 2 different pages. Of the other 165, 0 were lost.
+A highlight whose passage is gone is kept, with its quote and its note, and the rail lists it under "Not found in this version". It is not moved to a weaker match and it is not deleted. The next change to the body tries again.
+
+When the older copy can't be read, Readplace falls back to searching the new text for the quote and the words around it.
+
+The first version used only that search. Measured on 7 November 2026 on staging: 185 highlights over 37 recrawl pairs, 5 per pair, from 18 articles with 2 or more dated versions. 54 (29%) stayed in place. 111 (60%) moved, and 107 of those were the exact quote at a new offset. 20 (11%) were not found, and all 20 came from 1 web.archive.org page whose versions alternate between 2 different pages. Of the other 165, 0 were lost.
 
 ## Where highlights show up
 
