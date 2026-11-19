@@ -18,14 +18,15 @@ export function initHandleSubscriptionCancelledHandler(deps: {
 		failure: { message: "[SubscriptionCancelled] record failed" },
 		malformed: { policy: "retry" },
 		handle: async (detail, record) => {
-			const { userId } = detail;
+			const { userId, subscriptionId } = detail;
 			const { time: eventTime } = EventEnvelope.parse(JSON.parse(record.body));
 			try {
-				await deps.markCancelledByEvent({ userId, eventTime });
+				await deps.markCancelledByEvent({ userId, subscriptionId, eventTime });
 			} catch (error) {
 				if (!(error instanceof ConditionalCheckFailedException)) throw error;
-				deps.logger.info("[SubscriptionCancelled] row missing or message predates row status — no-op", {
+				deps.logger.info("[SubscriptionCancelled] row missing, message predates row status, or row holds another subscription — no-op", {
 					userId,
+					subscriptionId,
 					eventTime,
 				});
 				return;

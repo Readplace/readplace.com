@@ -141,7 +141,11 @@ describe("initInMemorySubscriptionProviders", () => {
 			await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
 
 			clock.iso = "2026-05-23T00:00:00.000Z";
-			await subs.markCancelledByEvent({ userId, eventTime: EventInstantSchema.parse("2026-05-22T10:00:00Z") });
+			await subs.markCancelledByEvent({
+				userId,
+				subscriptionId: undefined,
+				eventTime: EventInstantSchema.parse("2026-05-22T10:00:00Z"),
+			});
 
 			const row = await subs.findByUserId(userId);
 			expect(row?.status).toBe("cancelled");
@@ -154,7 +158,39 @@ describe("initInMemorySubscriptionProviders", () => {
 			await subs.upsertActive({ userId, subscriptionId: "sub_new", customerId: "cus_new" });
 
 			await expect(
-				subs.markCancelledByEvent({ userId, eventTime: EventInstantSchema.parse("2026-05-22T09:59:59Z") }),
+				subs.markCancelledByEvent({
+					userId,
+					subscriptionId: "sub_new",
+					eventTime: EventInstantSchema.parse("2026-05-22T09:59:59Z"),
+				}),
+			).rejects.toBeInstanceOf(ConditionalCheckFailedException);
+			expect((await subs.findByUserId(userId))?.status).toBe("active");
+		});
+
+		it("markCancelledByEvent refuses a row that holds another subscription than the event names", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow(statusEntered) });
+			await subs.upsertActive({ userId, subscriptionId: "sub_new", customerId: "cus_new" });
+
+			await expect(
+				subs.markCancelledByEvent({
+					userId,
+					subscriptionId: "sub_old",
+					eventTime: EventInstantSchema.parse("2026-05-22T10:00:00Z"),
+				}),
+			).rejects.toBeInstanceOf(ConditionalCheckFailedException);
+			expect((await subs.findByUserId(userId))?.status).toBe("active");
+		});
+
+		it("markCancelledByEvent for a subscription-less event refuses a row that holds a subscription", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow(statusEntered) });
+			await subs.upsertActive({ userId, subscriptionId: "sub_new", customerId: "cus_new" });
+
+			await expect(
+				subs.markCancelledByEvent({
+					userId,
+					subscriptionId: undefined,
+					eventTime: EventInstantSchema.parse("2026-05-22T10:00:00Z"),
+				}),
 			).rejects.toBeInstanceOf(ConditionalCheckFailedException);
 			expect((await subs.findByUserId(userId))?.status).toBe("active");
 		});
@@ -163,7 +199,7 @@ describe("initInMemorySubscriptionProviders", () => {
 			const subs = initInMemorySubscriptionProviders({ now: fixedNow(statusEntered) });
 
 			await expect(
-				subs.markCancelledByEvent({ userId, eventTime: EventInstantSchema.parse(statusEntered) }),
+				subs.markCancelledByEvent({ userId, subscriptionId: undefined, eventTime: EventInstantSchema.parse(statusEntered) }),
 			).rejects.toBeInstanceOf(ConditionalCheckFailedException);
 		});
 

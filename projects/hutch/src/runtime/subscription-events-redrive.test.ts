@@ -537,4 +537,59 @@ describe("subscription-events redrive", () => {
 		await world.deliverPublished();
 		assert.equal((await world.providers.findByUserId(USER_ID))?.status, "pending_cancellation");
 	});
+
+	it("deferred cancel published in the second a paying reader resubscribes leaves the new subscription active", async () => {
+		const world = buildWorld();
+		await world.providers.upsertActive({ userId: USER_ID, subscriptionId: "sub_old", customerId: "cus_1" });
+		world.tick(5);
+		await world.deliver({
+			detailType: CancelSubscriptionCommand.detailType,
+			detail: { userId: USER_ID },
+			time: world.stampNow(),
+		});
+		await world.deliverPublished();
+		assert.equal((await world.providers.findByUserId(USER_ID))?.status, "pending_cancellation");
+
+		world.tick(3600);
+		await world.deliver({
+			detailType: CancelSubscriptionCommand.detailType,
+			detail: { userId: USER_ID },
+			time: world.stampNow(),
+		});
+		await world.providers.upsertActive({ userId: USER_ID, subscriptionId: "sub_new", customerId: "cus_1" });
+		assert.deepEqual(detailTypes(world.pending), [SubscriptionCancelledEvent.detailType]);
+		await world.deliverPublished();
+
+		const row = await world.providers.findByUserId(USER_ID);
+		assert.equal(row?.status, "active");
+		assert.equal(row?.subscriptionId, "sub_new");
+		assert.equal(world.analytics.filter((line) => line.event === "cancelled").length, 0);
+	});
+
+	it("deferred trial cancel published in the second the reader subscribes leaves the new subscription active", async () => {
+		const world = buildWorld();
+		await world.providers.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-06-05T10:00:00.000Z" });
+		world.tick(5);
+		await world.deliver({
+			detailType: CancelSubscriptionCommand.detailType,
+			detail: { userId: USER_ID },
+			time: world.stampNow(),
+		});
+		await world.deliverPublished();
+		assert.equal((await world.providers.findByUserId(USER_ID))?.status, "pending_cancellation");
+
+		world.tick(3600);
+		await world.deliver({
+			detailType: CancelSubscriptionCommand.detailType,
+			detail: { userId: USER_ID },
+			time: world.stampNow(),
+		});
+		await world.providers.upsertActive({ userId: USER_ID, subscriptionId: "sub_new", customerId: "cus_1" });
+		assert.deepEqual(detailTypes(world.pending), [SubscriptionCancelledEvent.detailType]);
+		await world.deliverPublished();
+
+		const row = await world.providers.findByUserId(USER_ID);
+		assert.equal(row?.status, "active");
+		assert.equal(row?.subscriptionId, "sub_new");
+	});
 });

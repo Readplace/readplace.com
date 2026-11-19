@@ -169,8 +169,12 @@ export function initInMemorySubscriptionProviders(opts: {
 		writePendingCancellation(rowAcceptingEvent({ userId, eventTime }), cancellationEffectiveAt);
 	};
 
-	const markCancelledByEvent: MarkSubscriptionCancelledByEvent = async ({ userId, eventTime }) => {
-		writeCancelled(rowAcceptingEvent({ userId, eventTime }));
+	const markCancelledByEvent: MarkSubscriptionCancelledByEvent = async ({ userId, subscriptionId, eventTime }) => {
+		const existing = rowAcceptingEvent({ userId, eventTime });
+		if (existing.subscriptionId !== subscriptionId) {
+			throw new ConditionalCheckFailedException({ message: "The conditional request failed", $metadata: {} });
+		}
+		writeCancelled(existing);
 	};
 
 	const markActive: MarkSubscriptionActive = async ({ userId }) => {

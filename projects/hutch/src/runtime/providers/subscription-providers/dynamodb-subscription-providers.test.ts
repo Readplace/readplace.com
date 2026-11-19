@@ -400,7 +400,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 				now: NOW,
 			});
 
-			await subs.markCancelledByEvent({ userId: USER_ID, eventTime: EVENT_TIME });
+			await subs.markCancelledByEvent({ userId: USER_ID, subscriptionId: "sub_1", eventTime: EVENT_TIME });
 
 			const command = received as {
 				input: {
@@ -431,7 +431,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			await subs.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-06-05T00:00:00.000Z" });
 			await subs.upsertActive({ userId: USER_ID, subscriptionId: "sub_1", customerId: "cus_1" });
 			await subs.markActive({ userId: USER_ID });
-			await subs.markCancelledByEvent({ userId: USER_ID, eventTime: EVENT_TIME });
+			await subs.markCancelledByEvent({ userId: USER_ID, subscriptionId: "sub_1", eventTime: EVENT_TIME });
 			await subs.markPendingCancellationByEvent({
 				userId: USER_ID,
 				cancellationEffectiveAt: "2026-06-22T00:00:00.000Z",
@@ -449,7 +449,7 @@ describe("initDynamoDbSubscriptionProviders", () => {
 		it("markCancelledByEvent refuses a row whose status is newer than the event", async () => {
 			const { subs, sent } = initCapturingProviders();
 
-			await subs.markCancelledByEvent({ userId: USER_ID, eventTime: EVENT_TIME });
+			await subs.markCancelledByEvent({ userId: USER_ID, subscriptionId: "sub_1", eventTime: EVENT_TIME });
 
 			const command = CapturedFencedCommand.parse(sent[0]);
 			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
@@ -457,6 +457,26 @@ describe("initDynamoDbSubscriptionProviders", () => {
 				"attribute_not_exists(statusEnteredAt) OR statusEnteredAt <= :eventTime",
 			);
 			expect(command.input.ExpressionAttributeValues[":eventTime"]).toBe("2026-05-22T09:00:00Z");
+		});
+
+		it("markCancelledByEvent refuses a row that holds another subscription than the event names", async () => {
+			const { subs, sent } = initCapturingProviders();
+
+			await subs.markCancelledByEvent({ userId: USER_ID, subscriptionId: "sub_1", eventTime: EVENT_TIME });
+
+			const command = CapturedFencedCommand.parse(sent[0]);
+			expect(command.input.ConditionExpression).toContain("AND subscriptionId = :subscriptionId");
+			expect(command.input.ExpressionAttributeValues[":subscriptionId"]).toBe("sub_1");
+		});
+
+		it("markCancelledByEvent for a subscription-less event refuses a row that holds a subscription", async () => {
+			const { subs, sent } = initCapturingProviders();
+
+			await subs.markCancelledByEvent({ userId: USER_ID, subscriptionId: undefined, eventTime: EVENT_TIME });
+
+			const command = CapturedFencedCommand.parse(sent[0]);
+			expect(command.input.ConditionExpression).toContain("AND attribute_not_exists(subscriptionId)");
+			expect(command.input.ExpressionAttributeValues[":subscriptionId"]).toBeUndefined();
 		});
 
 		it("markPendingCancellationByEvent refuses a row whose status is newer than the event", async () => {
