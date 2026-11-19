@@ -6,7 +6,6 @@ import {
 	pickPassageMode,
 	placeByMode,
 	placeClearOfPassage,
-	sideFits,
 	TOOLBAR_GAP_PX,
 } from "./place-clear-of-passage";
 
@@ -261,18 +260,6 @@ describe("pickPassageMode", () => {
 	it("docks when neither side fits", () => {
 		const tall = [rect({ top: 30, left: 20, width: 100, height: 740 })];
 		expect(pickPassageMode({ rects: tall, panel, viewport: unzoomed })).toBe("docked");
-	});
-});
-
-describe("sideFits", () => {
-	const rects = [rect({ top: 20, left: 20, width: 100 })];
-
-	it("says a side fits when the panel stays inside the viewport there", () => {
-		expect(sideFits({ side: "below", rects, panel, viewport: unzoomed })).toBe(true);
-	});
-
-	it("says a side does not fit when the panel would cross the viewport there", () => {
-		expect(sideFits({ side: "above", rects, panel, viewport: unzoomed })).toBe(false);
 	});
 });
 

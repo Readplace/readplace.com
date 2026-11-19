@@ -418,11 +418,11 @@ describe("initHighlightToolbar", () => {
 	it("binds only once when the bundle footer runs again", () => {
 		const h = harness();
 		expect(h.doc.documentElement.hasAttribute("data-highlight-toolbar-owned")).toBe(true);
-		expect(h.listenerCounts()).toEqual({ viewport: 4, scroll: 1 });
+		expect(h.listenerCounts()).toEqual({ viewport: 3, scroll: 1 });
 
 		h.initAgain();
 
-		expect(h.listenerCounts()).toEqual({ viewport: 4, scroll: 1 });
+		expect(h.listenerCounts()).toEqual({ viewport: 3, scroll: 1 });
 		selectWords(h, { from: "beta" });
 		settleSelection(h);
 		click(h, buttonOf(h));

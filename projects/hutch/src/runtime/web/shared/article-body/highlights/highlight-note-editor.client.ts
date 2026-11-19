@@ -1,24 +1,18 @@
 import {
-	type PassageMode,
 	type PassageRect,
 	type PlacementViewport,
 	passageRectsOf,
 	pickPassageMode,
 	placeByMode,
-	sideFits,
 	VIEWPORT_GUTTER_PX,
 } from "./place-clear-of-passage";
 
 const EDITOR_ATTRIBUTE = "data-highlight-note-editor";
 const TOOLBAR_QUOTE_SELECTOR = `[${EDITOR_ATTRIBUTE}=""] [data-highlight-note-quote]`;
 
-interface EditorViewport extends PlacementViewport {
-	addEventListener(type: "resize", listener: () => void): void;
-}
-
 export interface HighlightNoteEditorDeps {
 	document: Document;
-	window: { readonly visualViewport: EditorViewport };
+	window: { readonly visualViewport: PlacementViewport };
 	rectsOf: (range: Range) => readonly PassageRect[];
 	isOpen: (popover: Element) => boolean;
 	schedule: () => void;
@@ -28,11 +22,6 @@ export interface HighlightNoteEditors {
 	reposition(): void;
 	isOpen(): boolean;
 	handOver(input: { range: Range; quote: string }): void;
-}
-
-interface OpenEditor {
-	editor: HTMLElement;
-	mode: PassageMode | undefined;
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -52,11 +41,11 @@ function onScreen(input: { rects: readonly PassageRect[]; viewport: PlacementVie
 
 export function initHighlightNoteEditors(deps: HighlightNoteEditorDeps): HighlightNoteEditors {
 	const { document } = deps;
-	let shown: OpenEditor | undefined;
+	let shown: HTMLElement | undefined;
 	let handed: Range | undefined;
 
 	const forgetClosed = (): void => {
-		if (shown !== undefined && (!shown.editor.isConnected || !deps.isOpen(shown.editor))) shown = undefined;
+		if (shown !== undefined && (!shown.isConnected || !deps.isOpen(shown))) shown = undefined;
 	};
 
 	const passageOf = (editor: HTMLElement): readonly PassageRect[] => {
@@ -65,29 +54,18 @@ export function initHighlightNoteEditors(deps: HighlightNoteEditorDeps): Highlig
 		return handed === undefined ? [] : deps.rectsOf(handed);
 	};
 
-	const place = (open: OpenEditor): void => {
+	const place = (editor: HTMLElement): void => {
 		const { width, height, offsetLeft, offsetTop } = deps.window.visualViewport;
 		const viewport = { width, height, offsetLeft, offsetTop };
-		open.editor.style.maxHeight = `${height - 2 * VIEWPORT_GUTTER_PX}px`;
-		const size = open.editor.getBoundingClientRect();
+		editor.style.maxHeight = `${height - 2 * VIEWPORT_GUTTER_PX}px`;
+		const size = editor.getBoundingClientRect();
 		const panel = { width: size.width, height: size.height };
-		const rects = passageOf(open.editor);
-		const visible = onScreen({ rects, viewport });
-		const mode = open.mode;
-		const stale =
-			mode === undefined ||
-			(mode !== "docked" &&
-				(rects.length === 0 || (visible && !sideFits({ side: mode, rects, panel, viewport }))));
-		const next = stale ? (visible ? pickPassageMode({ rects, panel, viewport }) : "docked") : mode;
-		open.mode = next;
-		const { top, left } = placeByMode({ mode: next, dock: "centred", rects, panel, viewport });
-		open.editor.style.top = `${top}px`;
-		open.editor.style.bottom = "auto";
-		open.editor.style.left = `${left}px`;
-	};
-
-	const repick = (): void => {
-		if (shown !== undefined) shown.mode = undefined;
+		const rects = passageOf(editor);
+		const mode = onScreen({ rects, viewport }) ? pickPassageMode({ rects, panel, viewport }) : "docked";
+		const { top, left } = placeByMode({ mode, dock: "centred", rects, panel, viewport });
+		editor.style.top = `${top}px`;
+		editor.style.bottom = "auto";
+		editor.style.left = `${left}px`;
 	};
 
 	document.addEventListener(
@@ -97,18 +75,13 @@ export function initHighlightNoteEditors(deps: HighlightNoteEditorDeps): Highlig
 				(candidate) => candidate === event.target,
 			);
 			if (editor === undefined || Reflect.get(event, "newState") !== "open") return;
-			shown = { editor, mode: undefined };
+			shown = editor;
 			deps.schedule();
 		},
 		true,
 	);
 
-	document.addEventListener("htmx:afterSettle", () => {
-		repick();
-		deps.schedule();
-	});
-
-	deps.window.visualViewport.addEventListener("resize", repick);
+	document.addEventListener("htmx:afterSettle", () => deps.schedule());
 
 	return {
 		reposition: () => {

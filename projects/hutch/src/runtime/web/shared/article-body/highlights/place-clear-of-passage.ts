@@ -82,11 +82,6 @@ export function pickPassageMode(input: PassagePlacementInput): PassageMode {
 	return chosen.clear ? chosen.side : "docked";
 }
 
-export function sideFits(input: PassagePlacementInput & { side: PassageSide }): boolean {
-	const { side, ...placement } = input;
-	return placeClearOfPassage({ gap: TOOLBAR_GAP_PX, ...placement, order: [side], whenNoneFits: "inside-viewport" }).clear;
-}
-
 export function placeByMode(
 	input: PassagePlacementInput & { mode: PassageMode; dock: "gutter" | "centred" },
 ): { top: number; left: number } {

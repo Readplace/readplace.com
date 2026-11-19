@@ -26,7 +26,6 @@ interface Harness {
 	measured: Range[];
 	open: Set<Element>;
 	scheduled: number;
-	resize(): void;
 	editors: ReturnType<typeof initHighlightNoteEditors>;
 }
 
@@ -36,7 +35,6 @@ function harness(page: string = PAGE): Harness {
 	for (const editor of Array.from(doc.querySelectorAll("[data-highlight-note-editor]"))) {
 		Object.defineProperty(editor, "getBoundingClientRect", { value: () => EDITOR_SIZE, configurable: true });
 	}
-	const resizeListeners: (() => void)[] = [];
 	const h: Harness = {
 		doc,
 		window: dom.window,
@@ -45,9 +43,6 @@ function harness(page: string = PAGE): Harness {
 		measured: [],
 		open: new Set(),
 		scheduled: 0,
-		resize: () => {
-			for (const listener of resizeListeners) listener();
-		},
 		editors: { reposition: () => undefined, isOpen: () => false, handOver: () => undefined },
 	};
 	const viewport = {
@@ -62,9 +57,6 @@ function harness(page: string = PAGE): Harness {
 		},
 		get offsetTop() {
 			return h.viewport.offsetTop;
-		},
-		addEventListener: (_type: "resize", listener: () => void) => {
-			resizeListeners.push(listener);
 		},
 	};
 	h.editors = initHighlightNoteEditors({
@@ -198,7 +190,7 @@ describe("initHighlightNoteEditors", () => {
 		);
 	});
 
-	it("follows the passage on its side as the page scrolls, even off screen", () => {
+	it("follows the passage as the page scrolls, and docks once the passage leaves the screen", () => {
 		const h = harness();
 		const editor = openEditor(h, "note-highlight-h1");
 
@@ -208,21 +200,36 @@ describe("initHighlightNoteEditors", () => {
 
 		h.rects = [{ ...PASSAGE, top: -100, bottom: -80 }];
 		h.editors.reposition();
-		expect(placed(editor)).toEqual({ top: `${-100 - 210}px`, left: ABOVE.left });
+		expect(placed(editor)).toEqual(DOCKED);
 
 		h.rects = [PASSAGE];
 		h.editors.reposition();
 		expect(placed(editor)).toEqual(ABOVE);
 	});
 
-	it("picks a side again when its side stops fitting while the passage is on screen", () => {
+	it("moves below when the passage nears the top, and back above once above fits again", () => {
 		const h = harness();
 		const editor = openEditor(h, "note-highlight-h1");
 
 		h.rects = [{ ...PASSAGE, top: 100, bottom: 120 }];
 		h.editors.reposition();
-
 		expect(placed(editor)).toEqual({ top: `${120 + 10}px`, left: ABOVE.left });
+
+		h.rects = [PASSAGE];
+		h.editors.reposition();
+		expect(placed(editor)).toEqual(ABOVE);
+	});
+
+	it("takes the side the passage allows now, whatever the first placement measured", () => {
+		const h = harness();
+		h.rects = [{ ...PASSAGE, top: 150, bottom: 650 }];
+		const editor = openEditor(h, "note-highlight-h1");
+		h.editors.reposition();
+		expect(placed(editor)).toEqual(DOCKED);
+
+		h.rects = [PASSAGE];
+		h.editors.reposition();
+		expect(placed(editor)).toEqual(ABOVE);
 	});
 
 	it("docks when the highlight's marks are gone", () => {
@@ -235,31 +242,13 @@ describe("initHighlightNoteEditors", () => {
 		expect(placed(editor)).toEqual(DOCKED);
 	});
 
-	it("stays docked on scroll once docked, and picks again on a viewport resize", () => {
+	it("schedules a reposition once a swap settles", () => {
 		const h = harness();
-		h.rects = [{ ...PASSAGE, top: 150, bottom: 650 }];
-		const editor = openEditor(h, "note-highlight-h1");
-
-		h.rects = [PASSAGE];
-		h.editors.reposition();
-		expect(placed(editor)).toEqual(DOCKED);
-
-		h.resize();
-		h.editors.reposition();
-		expect(placed(editor)).toEqual(ABOVE);
-	});
-
-	it("picks again and schedules a reposition once a swap settles", () => {
-		const h = harness();
-		h.rects = [{ ...PASSAGE, top: 150, bottom: 650 }];
-		const editor = openEditor(h, "note-highlight-h1");
-		h.rects = [PASSAGE];
+		openEditor(h, "note-highlight-h1");
 
 		h.doc.dispatchEvent(new h.window.Event("htmx:afterSettle", { bubbles: true }));
-		expect(h.scheduled).toBe(2);
-		h.editors.reposition();
 
-		expect(placed(editor)).toEqual(ABOVE);
+		expect(h.scheduled).toBe(2);
 	});
 
 	it("is open while an editor is open, and forgets one that closed or left the page", () => {
@@ -278,17 +267,15 @@ describe("initHighlightNoteEditors", () => {
 		expect(h.editors.isOpen()).toBe(false);
 	});
 
-	it("ignores a closing editor, other popovers, the document, a resize and a settle with nothing open", () => {
+	it("ignores a closing editor, other popovers and the document", () => {
 		const h = harness();
 
 		toggle(h, { target: editorOf(h, "note-highlight-h1"), newState: "closed" });
 		toggle(h, { target: editorOf(h, "other"), newState: "open" });
 		toggle(h, { target: h.doc, newState: "open" });
-		h.resize();
-		h.doc.dispatchEvent(new h.window.Event("htmx:afterSettle", { bubbles: true }));
 		h.editors.reposition();
 
-		expect(h.scheduled).toBe(1);
+		expect(h.scheduled).toBe(0);
 		expect(h.editors.isOpen()).toBe(false);
 		expect(editorOf(h, "note-highlight-h1").style.top).toBe("");
 		expect(editorOf(h, "note-highlight-h1").style.bottom).toBe("");
