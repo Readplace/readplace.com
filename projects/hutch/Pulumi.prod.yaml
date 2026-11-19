@@ -55,7 +55,7 @@ config:
   hutch:dynamodbGmailMappingsTable: hutch-gmail-mappings-prod
   hutch:dynamodbInboxEmailIdentitiesTable: hutch-inbox-email-identities-prod
   hutch:dynamodbCanaryReportsTable: hutch-canary-reports-prod
-  hutch:rateLimitViewCrawl: 50/3600
+  hutch:rateLimitViewCrawl: 19/86400
   hutch:rateLimitViewCrawlSignedIn: 100/3600
   hutch:rateLimitLogin: 10/900
   hutch:rateLimitLoginAccount: 20/900
