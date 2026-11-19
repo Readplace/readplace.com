@@ -42,6 +42,7 @@ class ArticleRowPixelTest {
 		readHref = "/queue/a1/view",
 		processing = null,
 		notice = null,
+		contentVersion = null,
 	)
 
 	private fun assertUnreadRow(appearance: Appearance) {

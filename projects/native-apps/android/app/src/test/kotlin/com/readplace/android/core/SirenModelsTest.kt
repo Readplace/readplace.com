@@ -81,6 +81,7 @@ class SirenModelsTest {
 					"savedAt": "2026-05-30T10:00:00.000Z",
 					"readAt": null,
 					"isRead": false,
+					"contentVersion": "v1",
 					"messages": [
 						{ "type": "warning", "content": { "type": "text/html", "body": "Still saving." } }
 					]
@@ -120,6 +121,7 @@ class SirenModelsTest {
 		assertEquals("2026-05-30T10:00:00.000Z", properties.savedAt)
 		assertNull("a JSON null readAt reads as absent", properties.readAt)
 		assertEquals(false, properties.isRead)
+		assertEquals("v1", properties.contentVersion)
 		assertEquals(
 			listOf("Still saving."),
 			present(properties.messages, "the entity messages").map { it.content.body },
@@ -199,7 +201,8 @@ class SirenModelsTest {
 					"title": 5,
 					"siteName": { "name": "Example" },
 					"wordCount": { "count": 1200 },
-					"isRead": ["true"]
+					"isRead": ["true"],
+					"contentVersion": 5
 				} }
 				""",
 			).properties,
@@ -211,6 +214,17 @@ class SirenModelsTest {
 		assertNull(properties.siteName)
 		assertNull(properties.wordCount)
 		assertNull(properties.isRead)
+		assertEquals(listOf<String?>("a1", null), listOf(properties.id, properties.contentVersion))
+	}
+
+	@Test
+	fun `an article carries the content version the server sent, and none when it sent none`() {
+		val versioned = decodedArticle(
+			"""{ "properties": { "id": "a1", "url": "https://example.com/a1", "contentVersion": "v1" } }""",
+		)
+		val unversioned = decodedArticle("""{ "properties": { "id": "a2", "url": "https://example.com/a2" } }""")
+
+		assertEquals(listOf<String?>("v1", null), listOf(versioned.contentVersion, unversioned.contentVersion))
 	}
 
 	@Test

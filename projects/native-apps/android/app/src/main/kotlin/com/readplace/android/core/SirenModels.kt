@@ -99,6 +99,7 @@ data class ArticleProperties(
 	val isRead: Boolean?,
 	val messages: List<ServerMessage>?,
 	val processing: ArticleProcessing?,
+	val contentVersion: String?,
 )
 
 data class SirenEntity(
@@ -371,6 +372,7 @@ object SirenDecoding {
 			isRead = boolean(obj["isRead"]),
 			messages = lossyList(obj["messages"], ::serverMessage),
 			processing = runCatching { processing(obj["processing"]) }.getOrNull(),
+			contentVersion = string(obj["contentVersion"]),
 		)
 	}
 
@@ -471,6 +473,7 @@ data class Article(
 	val readHref: String?,
 	val processing: ArticleProcessing?,
 	val notice: String?,
+	val contentVersion: String?,
 ) {
 	/** The item's action controls, one per advertised action the client can invoke
 	 * (an action with a usable href). Built by iterating — not by matching a known
@@ -500,6 +503,7 @@ data class Article(
 				readHref = links.firstOrNull { it.rel.contains("read") }?.href,
 				processing = props.processing,
 				notice = props.messages.orEmpty().firstOrNull { it.isRenderable && it.type in NOTICE_TYPES }?.plainText,
+				contentVersion = props.contentVersion,
 			)
 		}
 	}
