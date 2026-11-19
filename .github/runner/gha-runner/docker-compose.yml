@@ -47,7 +47,7 @@ services:
       NX_WORKSPACE_DATA_DIRECTORY: /nx/workspace-data
       # Runner-scoped bound; developer machines keep nx's defaults (10% of disk,
       # capped at 10 GB, LRU-evicted).
-      NX_MAX_CACHE_SIZE: 5GB
+      NX_MAX_CACHE_SIZE: 20GB
       # Pin the work directory onto the persistent volume (mounted below).
       # Without this the base image derives it from the random ephemeral runner
       # name — a dir nothing ever deletes, leaking

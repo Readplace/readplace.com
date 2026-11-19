@@ -103,7 +103,7 @@ jobs:
           wait "$check_pid"
 
       - name: Upload Playwright reports and screenshot galleries
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-reports-and-galleries-${{ github.sha }}-${{ github.run_attempt }}

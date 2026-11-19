@@ -36,7 +36,7 @@ unset pat
 chown -R runner:runner /opt/hostedtoolcache /home/runner 2>/dev/null || true
 
 # /nx (the nx cache volume) gets the same stat-guard as /persist below, for the
-# same reason: it is bounded at NX_MAX_CACHE_SIZE (5 GB) and already holds tens of
+# same reason: it is bounded at NX_MAX_CACHE_SIZE and already holds tens of
 # thousands of files, so a recursive chown on every ephemeral job start would cost
 # seconds each run. The mount point is only root-owned on a fresh volume.
 [ "$(stat -c %U /nx)" = runner ] || chown -R runner:runner /nx
