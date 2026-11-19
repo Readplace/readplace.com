@@ -22,6 +22,7 @@ import { initRunCrawlFromTier1 } from "./domain/save-link/run-crawl-from-tier1";
 import {
 	initResolveSaveIdentity,
 	initSubmitFreshness,
+	type ResolveWrapperTarget,
 } from "@packages/save-article";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { initDynamoDbIsAccountLive } from "@packages/account-liveness";
@@ -132,15 +133,17 @@ const saveIdentityDeps = {
 	claimAlias: canonicalAliasStore.claimAlias,
 	now,
 };
-const resolveSaveIdentity = initResolveSaveIdentity({
-	...saveIdentityDeps,
-	resolveWrapperTarget: sourceIdentity.resolveWrapperTarget,
-});
-const { refreshArticleIfStale } = initSubmitFreshness({
+const submitFreshnessDeps = {
 	findArticleByUrl: savedArticleStore.findArticleByUrl,
 	findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
-	resolveSaveIdentity,
-	requestStaleCheck: ({ url }) => events.publishEvent(StaleCheckRequestedEvent, { url }),
+	requestStaleCheck: ({ url }: { url: string }) => events.publishEvent(StaleCheckRequestedEvent, { url }),
+};
+const sourceIdentityFor = (resolveWrapperTarget: ResolveWrapperTarget) => ({
+	...sourceIdentity.resolvingWith(resolveWrapperTarget),
+	...initSubmitFreshness({
+		...submitFreshnessDeps,
+		resolveSaveIdentity: initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget }),
+	}),
 });
 
 const crawlDeps = {
@@ -174,7 +177,7 @@ const submitLinkHandler = initSubmitLinkCommandHandler({
 	markCrawlPending: crawlStore.markCrawlPending,
 	markSummaryPending: summaryStore.markSummaryPending,
 	publishUpdateFetchTimestamp: articleCrawl.updateFetchTimestamp,
-	refreshArticleIfStale,
+	sourceIdentityFor,
 	pinContentSource: canonicalAliasStore.pinContentSource,
 });
 

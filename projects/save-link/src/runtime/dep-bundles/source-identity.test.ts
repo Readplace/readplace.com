@@ -42,6 +42,26 @@ describe("worker source identity", () => {
 		expect(await bundle.resolveOriginalUrl(beehiiv)).toBe(beehiiv);
 	});
 
+	it("verifies a tracker source through the resolver it is bound to instead of its own", async () => {
+		const article = "https://publisher.example/article";
+		const tracker = "https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4vf/TOKEN/h101/h001.TOKEN";
+		const bundle = initSourceIdentityDepBundle({
+			findIdentityRow: async (url) => url === article ? { kind: "article", originalUrl: article } : { kind: "absent" },
+			repairWrapperIdentity: async () => { throw new Error("verification must not repair identity"); },
+			crawlFetch: async () => { throw new Error("the bound resolver answers without fetching"); },
+			resolveChallengedTracker: async () => { throw new Error("the bound resolver answers without unlocking"); },
+			logger: noopLogger,
+		});
+		const asked: string[] = [];
+		const { verifyWrapperSource } = bundle.resolvingWith(async (url) => {
+			asked.push(url);
+			return { url: article };
+		});
+
+		expect(await verifyWrapperSource({ articleUrl: article, sourceUrl: tracker })).toEqual({ originalUrl: article, sourceUrl: tracker });
+		expect(asked).toEqual([tracker]);
+	});
+
 	it("keeps an Apple News story unresolved while its shell is unavailable", async () => {
 		await expect(appleBundle(() => new Response(null, { status: 503 })).resolveOriginalUrl(APPLE)).rejects.toThrow("candidate original identity is unresolved");
 	});
