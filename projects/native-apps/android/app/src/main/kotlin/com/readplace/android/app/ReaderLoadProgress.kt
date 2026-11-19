@@ -79,7 +79,23 @@ object ReaderLoad {
 	fun confirmsStoredCopy(phase: ReaderLoadPhase, cacheMode: ReaderCacheMode): Boolean =
 		phase == ReaderLoadPhase.Finished && cacheMode == ReaderCacheMode.PROTOCOL
 
+	fun recovery(errorCode: Int?, cacheMode: ReaderCacheMode): ReaderFailureRecovery =
+		when (cacheMode) {
+			ReaderCacheMode.STORED_COPY_FIRST -> ReaderFailureRecovery.FAIL
+			ReaderCacheMode.PROTOCOL ->
+				when (errorCode) {
+					ERROR_HOST_LOOKUP, ERROR_CONNECT, ERROR_IO, ERROR_TIMEOUT -> ReaderFailureRecovery.REOPEN_FROM_STORED_COPY
+					else -> ReaderFailureRecovery.FAIL
+				}
+		}
+
 	/** `WebViewClient.ERROR_UNKNOWN`, mirrored rather than imported so this decision
 	 * stays a pure core with no framework on its classpath. */
 	private const val ERROR_UNKNOWN = -1
+	private const val ERROR_HOST_LOOKUP = -2
+	private const val ERROR_CONNECT = -6
+	private const val ERROR_IO = -7
+	private const val ERROR_TIMEOUT = -8
 }
+
+enum class ReaderFailureRecovery { REOPEN_FROM_STORED_COPY, FAIL }

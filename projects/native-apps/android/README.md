@@ -227,6 +227,18 @@ shows "Couldn't open the reader" under the offline banner. Anything that stores 
 copy for offline reading must call `OfflineReaderCopy.record(readerUrl)` with the exact
 URL the reader loads, once the copy is stored, or that copy never opens offline.
 
+**The reader falls back to its stored copy in a new WebView.** When the reader page
+cannot reach the network after the session mint got through, iOS reloads in place before
+the page commits and opens a new view after; Android always opens a new WebView in the
+stored-copy mode, because after a main-frame failure Chromium reports its own error page
+as finished and an in-place reload would lift the skeleton too early. The age record
+above still decides whether that copy opens. Android counts four WebView error codes as
+"no network" (host lookup, connect, I/O, timeout) where iOS counts every URL-loading
+error but cancellation, so a TLS, proxy or redirect failure shows the failed view instead
+of the offline banner over a stale copy. There is no 10-second page-load timeout: a
+WebView has no navigation timeout and no stalled open has been measured, so a stalled
+connection waits for Chromium's own.
+
 **Compile-time environment via a product flavor.** iOS selects its server with
 `#if STAGING`; here the `production`/`staging` flavors set `BuildConfig.SERVER_BASE_URL`.
 Same property: the server is fixed at build time, there is no runtime override, and
