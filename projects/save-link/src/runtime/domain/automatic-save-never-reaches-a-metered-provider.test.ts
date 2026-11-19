@@ -2,6 +2,7 @@ import { type SaveAttemptId, SaveAttemptIdSchema, validateSaveableUrl } from "@p
 import type { SaveTrigger } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { noopLogger } from "@packages/logger";
+import { neverResolveWrapperTarget } from "@packages/save-article";
 import {
 	type Article,
 	type Effect,
@@ -161,8 +162,12 @@ function initPipeline(tier1: CrawlAndFinalizeResult) {
 	};
 
 	const submit = initSubmitLinkCommandHandler({
-		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
-		resolveOriginalUrl: async (url) => url,
+		resolveWrapperTarget: neverResolveWrapperTarget,
+		sourceIdentityFor: () => ({
+			verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
+			resolveOriginalUrl: async (url) => url,
+			refreshArticleIfStale: async ({ url }) => ({ action: "new", identity: { status: "resolved", url, originalUrl: url } }),
+		}),
 		validateSaveableUrl,
 		saveArticleAsRequested: userStore.saveArticleAsRequested,
 		allocateSavedAt: userStore.allocateSavedAt,
@@ -175,7 +180,6 @@ function initPipeline(tier1: CrawlAndFinalizeResult) {
 		markCrawlPending: crawl.markCrawlPending,
 		markSummaryPending: async () => {},
 		publishUpdateFetchTimestamp: async () => {},
-		refreshArticleIfStale: async ({ url }) => ({ action: "new", identity: { status: "resolved", url, originalUrl: url } }),
 		pinContentSource: async () => {},
 		delay: async () => {},
 		crawlAndFinalizeArticle: async () => tier1,
