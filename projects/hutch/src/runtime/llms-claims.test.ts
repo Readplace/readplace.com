@@ -72,6 +72,12 @@ describe("llms files", () => {
 		expect(FILES["llms-full.txt"].split(sentence).length - 1).toBe(2);
 	});
 
+	it("llms-full.txt says AWS may keep uploaded audio and video in both privacy passages", () => {
+		const sentence = "Audio and video files you upload are transcribed by AWS, which may keep them to improve its services and may store them outside Sydney.";
+
+		expect(FILES["llms-full.txt"].split(sentence).length - 1).toBe(2);
+	});
+
 	it.each(FILE_NAMES)("%s quotes the newsletter address cap", (name) => {
 		expect(FILES[name]).toContain(`up to ${INBOX_ADDRESS_MAX_PER_USER}`);
 	});
