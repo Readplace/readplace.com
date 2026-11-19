@@ -239,15 +239,24 @@ export function initDynamoDbInboxEmailLink(deps: {
 				});
 				return;
 			}
+			const failedValues: Record<string, unknown> = {
+				":status": "failed",
+				":failureReason": outcome.failureReason,
+			};
+			const failedSets = ["#status = :status", "#failureReason = :failureReason"];
+			const failedRemoves = ["#title", "#excerpt", "#siteName", "#imageUrl", "#skipReason"];
+			if (outcome.resolvedUrl !== undefined) {
+				failedSets.push("#resolvedUrl = :resolvedUrl");
+				failedValues[":resolvedUrl"] = outcome.resolvedUrl;
+			} else {
+				failedRemoves.push("#resolvedUrl");
+			}
 			await table.update({
 				Key,
 				ConditionExpression: "attribute_exists(ordinal)",
-				UpdateExpression: FAILED_UPDATE_EXPRESSION,
+				UpdateExpression: `SET ${failedSets.join(", ")} REMOVE ${failedRemoves.join(", ")}`,
 				ExpressionAttributeNames: FAILED_UPDATE_NAMES,
-				ExpressionAttributeValues: {
-					":status": "failed",
-					":failureReason": outcome.failureReason,
-				},
+				ExpressionAttributeValues: failedValues,
 			});
 		},
 		failPendingLink: async ({

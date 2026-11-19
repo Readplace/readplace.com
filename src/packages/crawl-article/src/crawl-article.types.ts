@@ -58,7 +58,7 @@ export type CrawlArticleResult =
 		}
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
-	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason }
+	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason; finalUrl?: string }
 	| { status: "over-ocr-quota"; pages: number; pagesLeft: number; retryAt: Date }
 	| { status: "pdf-awaiting-saver" };
 

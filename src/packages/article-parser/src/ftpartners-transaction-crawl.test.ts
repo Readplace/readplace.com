@@ -24,7 +24,7 @@ it("defers a registered transaction page's declared PDF to comprehensive extract
 		[download]: () => new Response("%PDF-1.4\nSynthetic profile bytes", { status: 200, headers: { "content-type": "application/pdf" } }),
 	});
 
-	expect(await crawl({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf", finalUrl: download });
 	expect(requested).toEqual([url, download]);
 });
 

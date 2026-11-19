@@ -60,7 +60,7 @@ export type EmailLinkOutcome =
 			imageUrl: string | undefined;
 			resolvedUrl: string | undefined;
 		}
-	| { status: "failed"; failureReason: string };
+	| { status: "failed"; failureReason: string; resolvedUrl: string | undefined };
 
 export interface InboxEmailLinkStore {
 	/** Insert one extracted link as `pending`. Conditional on the sort key so a

@@ -590,7 +590,7 @@ export function initCrawlArticle(deps: {
 		if (effectiveMediaType === undefined) {
 			const suffix = redirectSuffix({ requestedUrl: currentUrl, responseUrl: terminalUrl(response) });
 			logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${currentUrl}${suffix}`);
-			return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
+			return { status: "unsupported", reason: `unsupported content type: ${contentType}`, finalUrl: terminalUrl(response) };
 		}
 		if (buffer.byteLength > HTML_PARSE_BYTE_CAP[effectiveMediaType]) {
 			const suffix = redirectSuffix({ requestedUrl: currentUrl, responseUrl: terminalUrl(response) });
@@ -601,6 +601,7 @@ export function initCrawlArticle(deps: {
 				status: "unsupported",
 				reason: `content body too large: ${buffer.byteLength} bytes (cap ${MAX_HTML_BYTES.bytes} bytes)`,
 				unsupportedReason: { kind: "content-too-large", bytes: buffer.byteLength },
+				finalUrl: terminalUrl(response),
 			};
 		}
 		const result = await dispatchSupportedMedia({
@@ -622,6 +623,7 @@ export function initCrawlArticle(deps: {
 		});
 		/* One dispatch point rather than one per parser, so a 3xx resolves the
 		 * article's identity uniformly across HTML/PDF/text/image. */
+		if (result.status === "unsupported") result.finalUrl = terminalUrl(response);
 		if (result.status === "fetched") {
 			result.finalUrl = terminalUrl(response);
 			if (result.mediaType === "plain-text") result.evaluationHtml = result.plainText;

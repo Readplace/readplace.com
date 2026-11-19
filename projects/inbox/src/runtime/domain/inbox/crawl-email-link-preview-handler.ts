@@ -95,7 +95,11 @@ export function initCrawlEmailLinkPreviewHandler(deps: {
 				userId,
 				receivedAtMessageId,
 				ordinal,
-				outcome: { status: "failed", failureReason },
+				outcome: {
+					status: "failed",
+					failureReason,
+					resolvedUrl: toResolvedUrl({ url, finalUrl: result.status === "not-modified" ? undefined : result.finalUrl }),
+				},
 			});
 			logger.info("[crawl-email-link-preview] preview unavailable", {
 				receivedAtMessageId,

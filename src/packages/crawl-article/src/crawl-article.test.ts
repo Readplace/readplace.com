@@ -431,7 +431,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/doc.pdf" });
 
-		expect(result).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+		expect(result).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf", finalUrl: "https://example.com/doc.pdf" });
 		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for https://example.com/doc.pdf");
 		expect(logError).not.toHaveBeenCalled();
 	});
@@ -445,7 +445,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ chargeOcrPages: undefined, url: "https://example.com/clip.mp4" });
 
-		expect(result).toEqual({ status: "unsupported", reason: "unsupported content type: video/mp4" });
+		expect(result).toEqual({ status: "unsupported", reason: "unsupported content type: video/mp4", finalUrl: "https://example.com/clip.mp4" });
 		expect(extractPdf).not.toHaveBeenCalled();
 		expect(logError).toHaveBeenCalledWith('[CrawlArticle] Unsupported content-type "video/mp4" for https://example.com/clip.mp4');
 	});
@@ -1066,6 +1066,28 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		);
 	});
 
+	it.each<{ name: string; respond: () => Response }>([
+		{
+			name: "an unsupported content type",
+			respond: () => new Response(Buffer.from([0, 1, 2, 3]), { status: 200, headers: { "content-type": "video/mp4" } }),
+		},
+		{
+			name: "a deferred PDF",
+			respond: () => new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/pdf" } }),
+		},
+		{
+			name: "an oversized body",
+			respond: () =>
+				new Response(Buffer.alloc(MAX_HTML_BYTES.bytes + 1, 0x61), { status: 200, headers: { "content-type": "text/html" } }),
+		},
+	])("carries the tracker's destination on $name it refuses as unsupported", async ({ respond }) => {
+		const crawlArticle = initCrawl({ fetch: redirectingOrigin(respond) });
+
+		const result = await crawlArticle({ chargeOcrPages: undefined, url: WRAPPER_URL });
+
+		expect(result).toMatchObject({ status: "unsupported", finalUrl: DESTINATION_URL });
+	});
+
 	it("resolves a relative og:image against the article the tracker redirects to, not against the tracker", async () => {
 		const article = () =>
 			new Response('<html><head><meta property="og:image" content="images/hero.png"></head><body>hi</body></html>', {
@@ -1354,6 +1376,7 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 		expect(result).toEqual({
 			status: "unsupported",
 			reason: "unsupported content type: application/pdf",
+			finalUrl: "https://example.com/report.pdf",
 		});
 	});
 });
@@ -1373,6 +1396,7 @@ describe("initCrawlArticle — oversized HTML body cap", () => {
 			status: "unsupported",
 			reason: `content body too large: ${oversizeBytes} bytes (cap ${MAX_HTML_BYTES.bytes} bytes)`,
 			unsupportedReason: { kind: "content-too-large", bytes: oversizeBytes },
+			finalUrl: "https://example.com/huge-index",
 		});
 		expect(logError).toHaveBeenCalledWith(
 			`[CrawlArticle] Body too large (${oversizeBytes} bytes, cap ${MAX_HTML_BYTES.label}) for https://example.com/huge-index`,
@@ -2479,6 +2503,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 		expect(await crawlArticle({ chargeOcrPages: undefined, url: ALIAS_URL })).toEqual({
 			status: "unsupported",
 			reason: "unsupported content type: application/pdf",
+			finalUrl: "https://blog.example/paper.pdf",
 		});
 		expect(logInfo).toHaveBeenCalledWith(
 			`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${ALIAS_URL} → ${PDF_URL}`,

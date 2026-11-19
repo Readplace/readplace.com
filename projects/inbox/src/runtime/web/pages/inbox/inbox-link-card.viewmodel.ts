@@ -273,7 +273,10 @@ export function toInboxLinkCardUrl(input: { link: InboxEmailLinkEntry; savedDest
 	// A pending link is often an opaque ESP wrapper whose destination lives in a
 	// path token and which may sign its own query, so it is shown byte-exact;
 	// once the crawl is done the URL is a real destination and safe to clean.
-	const destination = link.resolvedUrl ?? input.savedDestination ?? decodeTrackerDestination(link.url) ?? link.url;
+	const destination =
+		(link.status === "failed" ? input.savedDestination ?? link.resolvedUrl : link.resolvedUrl ?? input.savedDestination) ??
+		decodeTrackerDestination(link.url) ??
+		link.url;
 	return link.status !== "pending" || destination !== link.url ? stripUtmParams(destination) : destination;
 }
 

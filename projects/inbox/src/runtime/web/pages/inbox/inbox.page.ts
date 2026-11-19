@@ -260,7 +260,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		const lookups = input.links.filter(
 			(link) =>
 				input.linkSaveStates.get(link.url) === "saved" &&
-				link.resolvedUrl === undefined &&
+				(link.resolvedUrl === undefined || link.status === "failed") &&
 				wrapperFamilyOf(link.url) === "newsletter-tracker",
 		);
 		const found = await Promise.all(

@@ -365,7 +365,7 @@ describe("GitHub PDF viewer simple-to-comprehensive routing", () => {
 		const dispatch = jest.fn(publishEvent);
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
 
-		expect(await simple({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+		expect(await simple({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf", finalUrl: rawUrl });
 		await policy(createSqsEvent({ url, trigger }), buildLambdaContext(), () => {});
 
 		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, trigger, saveAttemptId: "attempt-1" }));
@@ -412,7 +412,7 @@ describe("OJS galley viewer simple-to-comprehensive routing", () => {
 		const dispatch = jest.fn(publishEvent);
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
 
-		expect(await simple({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+		expect(await simple({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf", finalUrl: downloadUrl });
 		await policy(createSqsEvent({ url, trigger }), buildLambdaContext(), () => {});
 
 		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, trigger, saveAttemptId: "attempt-1" }));
@@ -455,7 +455,7 @@ describe("Gallup document simple-to-comprehensive routing", () => {
 		const dispatch = jest.fn(publishEvent);
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
 
-		expect(await simple({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+		expect(await simple({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf", finalUrl: downloadUrl });
 		await policy(createSqsEvent({ url, trigger, unsupportedReason: "non-html-content" }), buildLambdaContext(), () => {});
 
 		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, trigger, saveAttemptId: "attempt-1" }));

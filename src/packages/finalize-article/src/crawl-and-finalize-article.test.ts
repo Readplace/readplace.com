@@ -172,6 +172,25 @@ describe("initCrawlAndFinalizeArticle", () => {
 		});
 	});
 
+	it("carries the post-redirect terminal through the unsupported status for a PDF behind a tracker", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({
+				status: "unsupported",
+				reason: "unsupported content type: application/pdf",
+				finalUrl: "https://dest.example/report.pdf",
+			}),
+			finalizeArticle: okFinalize,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result).toEqual({
+			status: "unsupported",
+			reason: "unsupported content type: application/pdf",
+			finalUrl: "https://dest.example/report.pdf",
+		});
+	});
+
 	it("carries a structured content-too-large reason through the unsupported status", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
 			crawlArticle: async () => ({
