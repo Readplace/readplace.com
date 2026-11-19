@@ -39,6 +39,7 @@ export interface HighlightPreviewDeps {
 	hidePopover: (panel: Element) => void;
 	isFocusVisible: (element: Element) => boolean;
 	panels: HighlightPanels;
+	editorOpen: () => boolean;
 }
 
 interface ShownPreview {
@@ -256,7 +257,7 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 			id,
 			handle: deps.timers.setTimeout(() => {
 				pending = undefined;
-				if (pinned || articleSelectionOpen() || previewOf(id) === null) return;
+				if (pinned || articleSelectionOpen() || previewOf(id) === null || deps.editorOpen()) return;
 				show(id);
 			}, HOVER_SHOW_MS),
 		};
@@ -308,7 +309,7 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 		keyboardFocused = stop;
 		const id = attributeOf({ element: stop, name: "data-highlight-id" });
 		cancelGrace();
-		if (!pinned && previewOf(id) !== null && !deps.panels.quietsPreview()) show(id);
+		if (!pinned && previewOf(id) !== null && !deps.panels.quietsPreview() && !deps.editorOpen()) show(id);
 	});
 
 	document.addEventListener("focusout", (event) => {

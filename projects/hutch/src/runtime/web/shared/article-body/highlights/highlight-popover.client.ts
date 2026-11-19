@@ -1,9 +1,11 @@
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 import {
+	type PassageMode,
 	type PassageRect,
 	type PlacementViewport,
-	placeClearOfPassage,
-	TOOLBAR_GAP_PX,
+	passageRectsOf,
+	pickPassageMode,
+	placeByMode,
 	VIEWPORT_GUTTER_PX,
 } from "./place-clear-of-passage";
 
@@ -37,12 +39,10 @@ export interface HighlightPanels {
 	restoreFocus(): void;
 }
 
-type PanelMode = "above" | "below" | "docked";
-
 interface OpenPanel {
 	id: string;
 	panel: HTMLElement;
-	mode: PanelMode | undefined;
+	mode: PassageMode | undefined;
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -85,35 +85,15 @@ export function initHighlightPanels(deps: HighlightPanelDeps): HighlightPanels {
 		if (shown !== undefined && (!shown.panel.isConnected || !deps.isOpen(shown.panel))) shown = undefined;
 	};
 
-	const passageRects = (id: string): PassageRect[] =>
-		Array.from(document.querySelectorAll(`${MARK_SELECTOR}[data-highlight-id="${id}"]`)).flatMap((segment) => {
-			const range = document.createRange();
-			range.selectNodeContents(segment);
-			return deps.rectsOf(range);
-		});
-
 	const place = (open: OpenPanel): void => {
-		const rects = passageRects(open.id);
+		const rects = passageRectsOf({ document, rectsOf: deps.rectsOf, id: open.id });
 		assert(rects.length > 0, "an open panel's highlight has client rects");
 		const size = open.panel.getBoundingClientRect();
 		const { width, height, offsetLeft, offsetTop } = deps.window.visualViewport;
 		const viewport = { width, height, offsetLeft, offsetTop };
 		const panel = { width: size.width, height: size.height };
-		if (open.mode === undefined) {
-			const chosen = placeClearOfPassage({
-				gap: TOOLBAR_GAP_PX,
-				rects,
-				panel,
-				viewport,
-				order: ["above", "below"],
-				whenNoneFits: "inside-viewport",
-			});
-			open.mode = chosen.clear ? chosen.side : "docked";
-		}
-		const { top, left } =
-			open.mode === "docked"
-				? { top: offsetTop + height - VIEWPORT_GUTTER_PX - size.height, left: offsetLeft + VIEWPORT_GUTTER_PX }
-				: placeClearOfPassage({ gap: TOOLBAR_GAP_PX, rects, panel, viewport, order: [open.mode], whenNoneFits: "last-side" });
+		if (open.mode === undefined) open.mode = pickPassageMode({ rects, panel, viewport });
+		const { top, left } = placeByMode({ mode: open.mode, dock: "gutter", rects, panel, viewport });
 		open.panel.style.top = `${top}px`;
 		open.panel.style.left = `${left}px`;
 		open.panel.style.maxWidth = `${width - 2 * VIEWPORT_GUTTER_PX}px`;

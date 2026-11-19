@@ -8,7 +8,7 @@ An app screen has a canvas and at most two raised layers — never more.
 |---|---|---|---|---|
 | **Canvas** | `--muted` on signed-in app pages and the readers; `--background` on prose pages; marketing pages keep the band rhythm | — | none | page ground, uncarded navigation rails and tab strips |
 | **Resting** | `--card` (`#FFFFFF` / `#222222`) | 1px `var(--border)` | **none** | cards, panels |
-| **Floating** | `--card` (a full-height drawer takes `--background`) | 1px `var(--border)` | dropdown and row menus: `--shadow-menu`; other layers: their shadow token; none for a dialog or the filter drawer | dropdown and row menus, popovers, toasts, dialogs, the mobile nav drawer, the filter drawer, the reader's Top button, the public reader's action bar (a 1px `--border` top edge only, `--shadow-bar`) |
+| **Floating** | `--card` (a full-height drawer takes `--background`) | 1px `var(--border)` | dropdown and row menus, and the note editor beside a highlight: `--shadow-menu`; other layers: their shadow token; none for a dialog or the filter drawer | dropdown and row menus, popovers, toasts, dialogs, the mobile nav drawer, the filter drawer, the reader's Top button, the public reader's action bar (a 1px `--border` top edge only, `--shadow-bar`) |
 
 | Token | Light | Dark | CSS variable | Role |
 |---|---|---|---|---|
@@ -18,7 +18,7 @@ An app screen has a canvas and at most two raised layers — never more.
 | Toast | `0 4px 16px rgba(0,0,0,0.12)` | `0 4px 16px rgba(0,0,0,0.5)` | `--shadow-toast` | the toast and the reader's Top button |
 | Bar | `0 -2px 12px rgba(0,0,0,0.2)` | `0 -2px 12px rgba(0,0,0,0.5)` | `--shadow-bar` | the public reader's sticky action bar |
 
-The menu value matches the measured design halo; the toast and bar values are estimated from their halos (±30%). Floating menus use `--shadow-menu`, and a dialog floats on its scrim alone.
+The menu value matches the measured design halo; the toast and bar values are estimated from their halos (±30%). Floating menus use `--shadow-menu`, and a dialog floats on its scrim alone. The note editor beside a highlight floats with `--shadow-menu` and no scrim, so the passage it quotes stays readable.
 
 - **A shadow means it floats.** A resting card is border-only — the fill step from the canvas is barely visible in either theme, so the hairline does the separating. A floating menu takes `--shadow-menu`; other floating layers take their own shadow tokens. That keeps every screen at two planes.
 - A **toast** is the one tinted floating layer: the opaque success tint, a 1px `--success` edge and `--shadow-toast`.

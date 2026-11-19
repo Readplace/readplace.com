@@ -225,4 +225,33 @@ test.describe("Highlighting a passage on a phone", () => {
 		await expect(page.locator(SHOWN_PANEL)).toHaveCount(0, { timeout: SETTLE_MS });
 		expect(await page.evaluate(selectionIsCollapsed)).toBe(true);
 	});
+
+	test("the note editor quotes the tapped sentence and stays inside the screen, from the bar and from the mark", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(page, `editor-${testInfo.workerIndex}-${Date.now()}`);
+		await tapText(page, TAPPED_SENTENCE);
+		await expect.poll(() => page.evaluate(selectedText), { timeout: SETTLE_MS }).toBe(TAPPED_SENTENCE);
+		await page.locator(ADD_NOTE_BUTTON).tap();
+
+		const added = page.locator(OPEN_NOTE_DIALOG);
+		await expect(added).toHaveCount(1, { timeout: SETTLE_MS });
+		await expect(added.locator("[data-highlight-note-quote]")).toHaveText(TAPPED_SENTENCE);
+		await expect(added).toBeInViewport({ ratio: 1, timeout: SETTLE_MS });
+		await added.locator(NOTE_INPUT).fill(TAPPED_NOTE);
+		await added.locator('[data-test-action="highlight-note-save"]').tap();
+		await expect(page.locator(MARK)).toHaveText(TAPPED_SENTENCE, { timeout: SETTLE_MS });
+		const highlightId = await page.locator(MARK).getAttribute("data-highlight-id");
+		assert(highlightId, "the mark names its highlight");
+
+		await page.evaluate(scrollWindowToTop);
+		await expect.poll(() => page.evaluate(windowScrollY)).toBe(0);
+		await tapText(page, TAPPED_SENTENCE);
+		await page.locator(`${SHOWN_PANEL} [data-test-action="highlight-panel-note"]`).tap();
+
+		const edited = page.locator(`[id="note-highlight-${highlightId}"]:popover-open`);
+		await expect(edited).toHaveCount(1, { timeout: SETTLE_MS });
+		await expect(edited.locator("[data-highlight-note-quote]")).toHaveText(TAPPED_SENTENCE);
+		await expect(edited).toBeInViewport({ ratio: 1, timeout: SETTLE_MS });
+	});
 });

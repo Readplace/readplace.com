@@ -188,6 +188,7 @@ function harness(input: { content?: string; highlights: readonly HighlightSpec[]
 		hidePopover,
 		isFocusVisible: () => h.focusVisible,
 		panels: h.panels,
+		editorOpen: () => false,
 	});
 	return h;
 }

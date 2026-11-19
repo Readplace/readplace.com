@@ -22,7 +22,8 @@ const CONTENT = "[data-test-reader-content]";
 const READY_SLOT = '[data-test-reader-slot][data-reader-status="ready"]';
 const TOOLBAR = "[data-test-highlight-toolbar]";
 const PANEL = '[data-test-confirm-popover="highlight-note"]';
-const PANEL_TITLE = `${PANEL} .confirm-popover__title`;
+const PANEL_TITLE = `${PANEL} .highlight-note-editor__title`;
+const PANEL_QUOTE = `${PANEL} [data-highlight-note-quote]`;
 const PANEL_INPUT = `${PANEL} [data-test-highlight-note-input]`;
 const PANEL_CANCEL = `${PANEL} [data-test-action="highlight-note-cancel"]`;
 const PANEL_SAVE = `${PANEL} [data-test-action="highlight-note-save"]`;
@@ -88,15 +89,20 @@ async function dialogOpen(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function titleThenNoteThenBothChoices(page: Page): Promise<void> {
+async function titleThenQuoteThenNoteThenBothChoices(page: Page): Promise<void> {
 	const panel = await measuredBox(page, PANEL);
 	const title = await measuredBox(page, PANEL_TITLE);
+	const quote = await measuredBox(page, PANEL_QUOTE);
 	const input = await measuredBox(page, PANEL_INPUT);
 	const cancel = await measuredBox(page, PANEL_CANCEL);
 	const save = await measuredBox(page, PANEL_SAVE);
 	assert.ok(
-		input.y >= title.y + title.height,
-		"the note field sits below the title",
+		quote.y >= title.y + title.height,
+		"the quote sits below the title",
+	);
+	assert.ok(
+		input.y >= quote.y + quote.height,
+		"the note field sits below the quote",
 	);
 	assert.ok(
 		save.y >= input.y + input.height,
@@ -109,6 +115,7 @@ async function titleThenNoteThenBothChoices(page: Page): Promise<void> {
 	assert.ok(cancel.x + cancel.width <= save.x, "Cancel sits before Save note");
 	for (const [name, part] of [
 		["title", title],
+		["quote", quote],
 		["note field", input],
 		["Cancel", cancel],
 		["Save note", save],
@@ -128,7 +135,7 @@ function checkpoint(name: string): VisualCheckpoint {
 	return {
 		name,
 		settled: dialogOpen,
-		geometry: titleThenNoteThenBothChoices,
+		geometry: titleThenQuoteThenNoteThenBothChoices,
 		target: PANEL,
 		capture: "element",
 		pinnedText: [],
@@ -141,7 +148,7 @@ const NOTE_DIALOG_DARK = checkpoint("highlight-note-dialog-dark");
 test.describe("The Add a note dialog", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("holds the title, the note field, then both choices (light)", async ({
+	test("holds the title, the quote, the note field, then both choices (light)", async ({
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
@@ -149,7 +156,7 @@ test.describe("The Add a note dialog", () => {
 		await captureCheckpoint(page, NOTE_DIALOG_LIGHT);
 	});
 
-	test("holds the title, the note field, then both choices (dark)", async ({
+	test("holds the title, the quote, the note field, then both choices (dark)", async ({
 		page,
 	}, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });

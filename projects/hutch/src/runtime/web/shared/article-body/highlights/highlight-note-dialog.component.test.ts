@@ -24,6 +24,8 @@ const APP_SCOPE = {
 	surface: [["platform", "ios"]],
 } as const;
 
+const QUOTE = "the words the reader kept";
+
 const NOTE_PATH = `/queue/abc/highlights/${HIGHLIGHT_ID}/note`;
 
 function trackedNoteUrl(search: string): string {
@@ -69,10 +71,30 @@ describe("renderHighlightNoteDialog", () => {
 			"highlight-note",
 		);
 		expect(popover.getAttribute("data-test-confirm-subject")).toBe("selection");
-		expect(popover.querySelector(".confirm-popover__title")?.textContent).toBe(
+		expect(popover.querySelector(".highlight-note-editor__title")?.textContent).toBe(
 			"Add a note",
 		);
-		expect(popover.querySelector(".confirm-popover__close")).toBeNull();
+		expect(popover.querySelector("[data-test-action$=\"-dismiss\"]")).toBeNull();
+	});
+
+	it("is the note editor, labelled by its title and described by an empty quote the script fills", () => {
+		const popover = popoverOf(doc);
+		const quote = popover.querySelector<HTMLElement>("[data-highlight-note-quote]");
+
+		expect(popover.classList.contains("highlight-note-editor")).toBe(true);
+		expect(popover.classList.contains("confirm-popover")).toBe(false);
+		expect(popover.getAttribute("popover")).toBe("auto");
+		expect(popover.getAttribute("role")).toBe("dialog");
+		expect(popover.getAttribute("data-highlight-note-editor")).toBe("");
+		expect(popover.getAttribute("aria-labelledby")).toBe(
+			`${HIGHLIGHT_NOTE_DIALOG_ID}-title`,
+		);
+		expect(popover.getAttribute("aria-describedby")).toBe(
+			`${HIGHLIGHT_NOTE_DIALOG_ID}-quote`,
+		);
+		expect(quote?.id).toBe(`${HIGHLIGHT_NOTE_DIALOG_ID}-quote`);
+		expect(quote?.textContent).toBe("");
+		expect(quote?.closest("form")).toBeNull();
 	});
 
 	it("opens on an empty, focused note field that refuses in place", () => {
@@ -135,6 +157,7 @@ describe("renderHighlightNoteEditDialog", () => {
 		const doc = parse(
 			renderHighlightNoteEditDialog({
 				highlightId: HIGHLIGHT_ID,
+				quote: QUOTE,
 				scope: WEB_SCOPE,
 			}),
 		);
@@ -148,17 +171,46 @@ describe("renderHighlightNoteEditDialog", () => {
 		expect(popover.getAttribute("data-test-confirm-subject")).toBe(
 			HIGHLIGHT_ID,
 		);
-		expect(popover.querySelector(".confirm-popover__title")?.textContent).toBe(
+		expect(popover.querySelector(".highlight-note-editor__title")?.textContent).toBe(
 			"Add a note",
 		);
-		expect(popover.querySelector(".confirm-popover__close")).toBeNull();
+		expect(popover.querySelector("[data-test-action$=\"-dismiss\"]")).toBeNull();
 		expect(textareaOf(doc).value).toBe("");
+	});
+
+	it("is the note editor of that highlight, quoting its passage above the form", () => {
+		const popover = popoverOf(
+			parse(
+				renderHighlightNoteEditDialog({
+					highlightId: HIGHLIGHT_ID,
+					quote: QUOTE,
+					scope: WEB_SCOPE,
+				}),
+			),
+		);
+		const quote = popover.querySelector<HTMLElement>("[data-highlight-note-quote]");
+
+		expect(popover.classList.contains("highlight-note-editor")).toBe(true);
+		expect(popover.classList.contains("confirm-popover")).toBe(false);
+		expect(popover.getAttribute("data-highlight-note-editor")).toBe(HIGHLIGHT_ID);
+		expect(popover.getAttribute("aria-labelledby")).toBe(
+			`note-highlight-${HIGHLIGHT_ID}-title`,
+		);
+		expect(popover.getAttribute("aria-describedby")).toBe(
+			`note-highlight-${HIGHLIGHT_ID}-quote`,
+		);
+		expect(quote?.id).toBe(`note-highlight-${HIGHLIGHT_ID}-quote`);
+		expect(quote?.tagName).toBe("BLOCKQUOTE");
+		expect(quote?.textContent).toBe(QUOTE);
+		expect(quote?.closest("form")).toBeNull();
+		expect(quote?.nextElementSibling?.tagName).toBe("FORM");
 	});
 
 	it("offers Edit note on a highlight with a note, holding it in a focused plain-post field", () => {
 		const doc = parse(
 			renderHighlightNoteEditDialog({
 				highlightId: HIGHLIGHT_ID,
+				quote: QUOTE,
 				note: "my thought",
 				scope: WEB_SCOPE,
 			}),
@@ -166,7 +218,7 @@ describe("renderHighlightNoteEditDialog", () => {
 		const form = doc.querySelector("form");
 
 		expect(
-			popoverOf(doc).querySelector(".confirm-popover__title")?.textContent,
+			popoverOf(doc).querySelector(".highlight-note-editor__title")?.textContent,
 		).toBe("Edit note");
 		expect(textareaOf(doc).value).toBe("my thought");
 		expect(textareaOf(doc).id).toBe(`note-highlight-${HIGHLIGHT_ID}-input`);
@@ -253,6 +305,7 @@ describe("note dialogs in the app surface", () => {
 		for (const html of [
 			renderHighlightNoteEditDialog({
 				highlightId: HIGHLIGHT_ID,
+				quote: QUOTE,
 				scope: APP_SCOPE,
 			}),
 			renderHighlightNoteFallbackForm({
@@ -274,7 +327,7 @@ describe("note dialogs in the app surface", () => {
 
 function buttonRowOf(doc: Document): (string | null)[] {
 	return Array.from(
-		doc.querySelectorAll(".confirm-popover__buttons > button"),
+		doc.querySelectorAll(".highlight-note-form__buttons > button"),
 		(button) => button.getAttribute("data-test-action"),
 	);
 }
@@ -336,6 +389,7 @@ describe("Delete note", () => {
 		const doc = parse(
 			renderHighlightNoteEditDialog({
 				highlightId: HIGHLIGHT_ID,
+				quote: QUOTE,
 				note: "kept",
 				scope: WEB_SCOPE,
 			}),
@@ -351,7 +405,7 @@ describe("Delete note", () => {
 		expect(trigger?.getAttribute("form")).toBe(
 			`delete-note-highlight-${HIGHLIGHT_ID}`,
 		);
-		expect(trigger?.className).toBe("btn btn--destructive");
+		expect(trigger?.className).toBe("btn btn--destructive btn--s");
 		expect(trigger?.textContent).toBe("Delete note");
 		expect(
 			Array.from(doc.querySelectorAll("[autofocus]"), (el) => el.tagName),
@@ -382,6 +436,7 @@ describe("Delete note", () => {
 		const doc = parse(
 			renderHighlightNoteEditDialog({
 				highlightId: HIGHLIGHT_ID,
+				quote: QUOTE,
 				scope: WEB_SCOPE,
 			}),
 		);

@@ -82,6 +82,7 @@ An overflow menu, picker or flyout positioned `absolute` is cut off by any ances
 | The panel is in the top layer (`popover`) or `position: fixed`, placed from its trigger's `getBoundingClientRect()` when it opens | An ancestor's `overflow` clips neither |
 | After placing a fixed panel, measure where it landed and correct the difference | An ancestor with `container-type`, `transform`, `filter` or `contain` is the containing block of its fixed descendants, so the panel lands offset by that ancestor's position |
 | A fixed panel closes when a scroll, a resize or a content swap moves its trigger | It no longer follows the trigger as an absolute one did, and a swap that shifts the layout fires no scroll |
+| A highlight's surfaces — its actions panel, hover preview and note editor — follow their passage on scroll instead of closing, and dock at the bottom of the visual viewport when they cannot sit clear of it | The reader reads the passage while writing about it; a note editor that closed on scroll would throw away what was typed |
 | Before adding `overflow`, `contain` or `container-type` to a container, find the panels that open inside it | The clip ships with the container, not with the menu |
 | A browser test opens the panel in every container and at every width it can open in, including a container holding a single row, and hit-tests each item with `document.elementFromPoint` | A clipped item keeps its box and passes a visibility check; only a hit test shows it is covered |
 

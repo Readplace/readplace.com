@@ -1,6 +1,7 @@
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
+import { type HighlightNoteEditors, initHighlightNoteEditors } from "./highlight-note-editor.client";
 import { initHighlightPanels } from "./highlight-popover.client";
 import { type HighlightPreviews, initHighlightPreviews } from "./highlight-preview.client";
 import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
@@ -97,9 +98,10 @@ function originOf(event: Event): unknown {
 function startToolbar(input: {
 	deps: HighlightToolbarDeps;
 	previews: HighlightPreviews;
+	editors: HighlightNoteEditors;
 	selectionOf: () => Selection;
 }): () => void {
-	const { deps, previews, selectionOf } = input;
+	const { deps, previews, editors, selectionOf } = input;
 	const { document } = deps;
 	let shown: Range | undefined;
 	let pending: unknown;
@@ -189,7 +191,7 @@ function startToolbar(input: {
 		origin: string;
 		formSelector: string;
 		fields: Record<string, string>;
-	}): HTMLFormElement | undefined => {
+	}): { form: HTMLFormElement; passage: SelectedPassage } | undefined => {
 		const content = document.querySelector(CONTENT_SELECTOR);
 		const form = document.querySelector<HTMLFormElement>(input.formSelector);
 		if (content === null || form === null) return undefined;
@@ -207,13 +209,13 @@ function startToolbar(input: {
 			assert(field, `the create form carries its ${name} field`);
 			field.value = value;
 		}
-		return form;
+		return { form, passage };
 	};
 
 	const submit = (input: { range: Range; origin: string; formSelector: string; after: "" | "note" }): void => {
-		const form = fill({ ...input, fields: { after: input.after } });
-		if (form === undefined) return;
-		form.requestSubmit();
+		const filled = fill({ ...input, fields: { after: input.after } });
+		if (filled === undefined) return;
+		filled.form.requestSubmit();
 		selectionOf().removeAllRanges();
 		hide();
 	};
@@ -223,8 +225,9 @@ function startToolbar(input: {
 			submit({ range: input.range, origin: input.origin, formSelector: FORM_SELECTOR, after: "note" });
 			return;
 		}
-		const form = fill({ ...input, fields: {} });
-		if (form === undefined) return;
+		const filled = fill({ ...input, fields: {} });
+		if (filled === undefined) return;
+		const { form, passage } = filled;
 		const note = form.querySelector<HTMLTextAreaElement>(NOTE_INPUT_SELECTOR);
 		const error = form.querySelector(NOTE_ERROR_SELECTOR);
 		const dialog = form.closest("[popover]");
@@ -235,6 +238,7 @@ function startToolbar(input: {
 		note.removeAttribute("aria-invalid");
 		error.textContent = "";
 		previews.hide();
+		editors.handOver({ range: input.range, quote: passage.exact });
 		deps.showPopover(dialog);
 		hide();
 	};
@@ -321,6 +325,14 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		isOpen: deps.isOpen,
 	});
 
+	const editors = initHighlightNoteEditors({
+		document,
+		window: deps.window,
+		rectsOf: deps.rectsOf,
+		isOpen: deps.isOpen,
+		schedule: reposition,
+	});
+
 	const previews = initHighlightPreviews({
 		document,
 		window: deps.window,
@@ -332,11 +344,12 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		hidePopover: deps.hidePopover,
 		isFocusVisible: deps.isFocusVisible,
 		panels,
+		editorOpen: editors.isOpen,
 	});
 
-	const placeToolbar = startToolbar({ deps, previews, selectionOf });
+	const placeToolbar = startToolbar({ deps, previews, editors, selectionOf });
 
-	const reposition = (): void => {
+	function reposition(): void {
 		if (frameRequested) return;
 		frameRequested = true;
 		deps.window.requestAnimationFrame(() => {
@@ -344,8 +357,9 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 			placeToolbar();
 			previews.reposition();
 			panels.reposition();
+			editors.reposition();
 		});
-	};
+	}
 
 	deps.window.visualViewport.addEventListener("scroll", reposition);
 	deps.window.visualViewport.addEventListener("resize", reposition);

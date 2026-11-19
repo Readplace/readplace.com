@@ -49,6 +49,11 @@ describe("renderHighlightToolbar", () => {
 		expect(dialog?.getAttribute("data-test-confirm-popover")).toBe(
 			"highlight-note",
 		);
+		expect(dialog?.classList.contains("highlight-note-editor")).toBe(true);
+		expect(dialog?.getAttribute("data-highlight-note-editor")).toBe("");
+		expect(
+			dialog?.querySelector("[data-highlight-note-quote]")?.textContent,
+		).toBe("");
 		expect(url.pathname).toBe("/queue/abc/highlights");
 		expect(url.searchParams.get("utm_source")).toBe("highlight-toolbar");
 		expect(url.searchParams.get("utm_content")).toBe("save-note");
@@ -189,6 +194,9 @@ describe("renderLocalHighlightToolbar", () => {
 		);
 		assert.equal(form.getAttribute("method"), "dialog");
 		assert.equal(form.hasAttribute("data-highlight-local"), true);
+		const editor = doc().getElementById("note-highlight-dialog");
+		assert.equal(editor?.getAttribute("data-highlight-note-editor"), "");
+		assert.equal(editor?.querySelector("[data-highlight-note-quote]")?.textContent, "");
 		assert.deepEqual(
 			Array.from(form.querySelectorAll("[name]")).map((field) => field.getAttribute("name")),
 			["exact", "start", "end", "origin", "answer", "note"],

@@ -84,7 +84,12 @@ function byOrder(a: HighlightsRailRow, b: HighlightsRailRow): number {
 		: a.highlight.highlightId.localeCompare(b.highlight.highlightId);
 }
 
-function editView(input: { highlight: Highlight; scope: HighlightFormScope; noteOpen: boolean }) {
+function editView(input: {
+	highlight: Highlight;
+	quote: string;
+	scope: HighlightFormScope;
+	noteOpen: boolean;
+}) {
 	const { highlight } = input;
 	const popoverId = deletePopoverId(highlight.highlightId);
 	const deleteUrl = highlightFormUrl({
@@ -108,7 +113,7 @@ function editView(input: { highlight: Highlight; scope: HighlightFormScope; note
 				? t("articleBody.highlightsRail.addNote")
 				: t("articleBody.highlightsRail.editNote"),
 		notePopoverId: highlightNoteEditPopoverId(highlight.highlightId),
-		noteDialogHtml: renderHighlightNoteEditDialog(noteInput),
+		noteDialogHtml: renderHighlightNoteEditDialog({ ...noteInput, quote: input.quote }),
 		noteOpen: input.noteOpen,
 		noteFallbackHtml: renderHighlightNoteFallbackForm({ ...noteInput, open: input.noteOpen }),
 		noteDeleteHtml:
@@ -157,6 +162,7 @@ function rowView(input: {
 				? undefined
 				: editView({
 						highlight,
+						quote: shown.quote,
 						scope: input.scope,
 						noteOpen: highlight.highlightId === input.openNote,
 					}),

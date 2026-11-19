@@ -81,6 +81,7 @@ interface Harness {
 	hover: boolean;
 	focusVisible: boolean;
 	popoverSupported: boolean;
+	editorOpen: boolean;
 	shown: string[];
 	hidden: string[];
 	previews: ReturnType<typeof initHighlightPreviews>;
@@ -112,10 +113,19 @@ function harness(input: { content?: string; highlights: readonly HighlightSpec[]
 		hover: true,
 		focusVisible: true,
 		popoverSupported: input.popover ?? true,
+		editorOpen: false,
 		shown: [],
 		hidden: [],
 		previews: { hide: () => undefined, reposition: () => undefined },
 	};
+	const panels = initHighlightPanels({
+		document: doc,
+		window: { visualViewport: { ...h.viewport, addEventListener: () => undefined } },
+		rectsOf: () => h.rects,
+		showPopover: () => undefined,
+		hidePopover: () => undefined,
+		isOpen: () => false,
+	});
 	h.previews = initHighlightPreviews({
 		document: doc,
 		window: {
@@ -142,14 +152,8 @@ function harness(input: { content?: string; highlights: readonly HighlightSpec[]
 		showPopover: (panel) => h.shown.push(panel.getAttribute("data-highlight-preview") ?? ""),
 		hidePopover: (panel) => h.hidden.push(panel.getAttribute("data-highlight-preview") ?? ""),
 		isFocusVisible: () => h.focusVisible,
-		panels: initHighlightPanels({
-			document: doc,
-			window: { visualViewport: { ...h.viewport, addEventListener: () => undefined } },
-			rectsOf: () => h.rects,
-			showPopover: () => undefined,
-			hidePopover: () => undefined,
-			isOpen: () => false,
-		}),
+		panels,
+		editorOpen: () => h.editorOpen,
 	});
 	return h;
 }
@@ -341,6 +345,16 @@ describe("initHighlightPreviews", () => {
 			expect(h.shown).toEqual([NOTED]);
 			expect(previewOf(h, NOTED).style.top).toBe(`${300 - 10 - 60}px`);
 			expect(previewOf(h, NOTED).style.left).toBe(`${400 + 100 - 100}px`);
+		});
+
+		it("shows nothing when the hover delay ends while a note editor is open", () => {
+			const h = harness({ highlights: NOTED_AND_PLAIN });
+
+			hoverOver(h, firstSegment(h, NOTED));
+			h.editorOpen = true;
+			h.runTimer(HOVER_SHOW_MS);
+
+			expect(h.shown).toEqual([]);
 		});
 
 		it("stays while the pointer moves onto the preview, and hides after the grace once it leaves both", () => {
@@ -581,6 +595,15 @@ describe("initHighlightPreviews", () => {
 			focusOut(h, mark);
 			h.runTimer(HOVER_GRACE_MS);
 			expect(h.hidden).toEqual([NOTED]);
+		});
+
+		it("shows nothing on keyboard focus while a note editor is open", () => {
+			const h = harness({ highlights: NOTED_AND_PLAIN });
+			h.editorOpen = true;
+
+			focusIn(h, firstSegment(h, NOTED));
+
+			expect(h.shown).toEqual([]);
 		});
 
 		it("shows nothing for focus a mouse press gave", () => {

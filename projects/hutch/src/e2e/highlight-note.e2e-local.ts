@@ -4,6 +4,15 @@ import { requireEnv } from "@packages/require-env";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { selectPassage } from "./highlight-a-passage.browser";
+import {
+	backdropOf,
+	boxOfElement,
+	boxOfMarks,
+	boxOfSelection,
+	controlsMissedByAHit,
+	type ScreenBox,
+	visualViewportBox,
+} from "./highlight-note-editor.browser";
 import { previewClearOfMarks } from "./highlight-on-a-phone.browser";
 import { pageOverflowsSideways } from "./page-measurements.browser";
 import { recordScrollAfterSwap } from "./readlist-scroll-stability.browser";
@@ -642,5 +651,216 @@ test.describe("Managing a highlight where it sits in the text", () => {
 
 		await expect(page.locator(`#highlight-${highlightId}`)).toHaveCount(0, { timeout: SETTLE_MS });
 		expect(await page.evaluate(() => window.scrollY)).toBe(before);
+	});
+});
+
+const EDITOR_CONTROLS = "textarea, .highlight-note-form__buttons button";
+const EDITOR_QUOTE = "[data-highlight-note-quote]";
+const DOCK_GAP_PX = 16;
+const PAST_HOVER_DELAY_MS = 700;
+
+function clearOf(editor: ScreenBox, passage: ScreenBox): boolean {
+	return (
+		editor.bottom <= passage.top ||
+		editor.top >= passage.bottom ||
+		editor.right <= passage.left ||
+		editor.left >= passage.right
+	);
+}
+
+function inside(editor: ScreenBox, viewport: ScreenBox): boolean {
+	return (
+		editor.top >= viewport.top &&
+		editor.bottom <= viewport.bottom &&
+		editor.left >= viewport.left &&
+		editor.right <= viewport.right
+	);
+}
+
+function sideOf(editor: ScreenBox, passage: ScreenBox): "above" | "below" | "overlapping" {
+	if (editor.bottom <= passage.top) return "above";
+	if (editor.top >= passage.bottom) return "below";
+	return "overlapping";
+}
+
+test.describe("Writing a note beside its passage", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	const editorSelector = (highlightId: string) => `[id="note-highlight-${highlightId}"]:popover-open`;
+	const marksOf = (highlightId: string) => `mark[data-highlight-id="${highlightId}"]`;
+
+	async function openEditorFromText(page: Page, highlightId: string) {
+		await page.locator(`#highlight-${highlightId}`).click();
+		await page
+			.locator(`#manage-highlight-${highlightId}:popover-open`)
+			.locator('[data-test-action="highlight-panel-note"]')
+			.click();
+		const editor = page.locator(editorSelector(highlightId));
+		await expect(editor).toHaveCount(1, { timeout: SETTLE_MS });
+		await expect(editor.locator(NOTE_INPUT)).toBeFocused();
+		return editor;
+	}
+
+	async function placement(page: Page, highlightId: string) {
+		return {
+			editor: await page.evaluate(boxOfElement, { selector: editorSelector(highlightId) }),
+			passage: await page.evaluate(boxOfMarks, { marks: marksOf(highlightId) }),
+			viewport: await page.evaluate(visualViewportBox),
+		};
+	}
+
+	for (const [width, viewport, markAt] of [
+		["desktop", DESKTOP, "center"],
+		["320px", PHONE_320, "start"],
+	] as const) {
+		test(`Edit note from the text floats clear of the passage with no scrim, quotes it, and every control takes its own click (${width})`, async ({
+			page,
+		}, testInfo) => {
+			await page.setViewportSize(viewport);
+			await openHighlightableReader(page, `editor-place-${width}-${testInfo.workerIndex}-${Date.now()}`);
+			const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+			await page
+				.locator(`#highlight-${highlightId}`)
+				.evaluate((mark, block) => {
+					mark.scrollIntoView({ block, behavior: "instant" });
+					window.scrollBy({ top: -24, behavior: "instant" });
+				}, markAt);
+
+			const editor = await openEditorFromText(page, highlightId);
+
+			await expect(editor.locator(EDITOR_QUOTE)).toHaveText(PASSAGE);
+			await expect
+				.poll(async () => {
+					const placed = await placement(page, highlightId);
+					return clearOf(placed.editor, placed.passage) && inside(placed.editor, placed.viewport);
+				}, { timeout: SETTLE_MS })
+				.toBe(true);
+			expect(await page.evaluate(backdropOf, { selector: editorSelector(highlightId) })).toEqual({
+				background: "rgba(0, 0, 0, 0)",
+				filter: "none",
+			});
+			await expect(editor.locator(DELETE_NOTE)).toHaveCount(1);
+			expect(
+				await page.evaluate(controlsMissedByAHit, { editor: editorSelector(highlightId), controls: EDITOR_CONTROLS }),
+			).toEqual([]);
+		});
+	}
+
+	test("the editor follows its passage through a scroll and changes side once its side no longer fits", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(page, `editor-scroll-${testInfo.workerIndex}-${Date.now()}`);
+		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+		await openEditorFromText(page, highlightId);
+		await expect
+			.poll(async () => {
+				const placed = await placement(page, highlightId);
+				return clearOf(placed.editor, placed.passage);
+			}, { timeout: SETTLE_MS })
+			.toBe(true);
+		const opened = await placement(page, highlightId);
+		const firstSide = sideOf(opened.editor, opened.passage);
+		expect(firstSide).not.toBe("overlapping");
+
+		await page.evaluate(() => window.scrollBy({ top: 60, behavior: "instant" }));
+		await expect
+			.poll(async () => {
+				const placed = await placement(page, highlightId);
+				return (
+					placed.passage.top < opened.passage.top &&
+					sideOf(placed.editor, placed.passage) === firstSide &&
+					clearOf(placed.editor, placed.passage) &&
+					inside(placed.editor, placed.viewport)
+				);
+			}, { timeout: SETTLE_MS })
+			.toBe(true);
+
+		const scrolled = await placement(page, highlightId);
+		const shift =
+			firstSide === "above"
+				? scrolled.passage.top - scrolled.viewport.top - 40
+				: scrolled.passage.bottom - scrolled.viewport.bottom + 40;
+		await page.evaluate((top) => window.scrollBy({ top, behavior: "instant" }), shift);
+		await expect
+			.poll(async () => {
+				const placed = await placement(page, highlightId);
+				return {
+					onScreen: placed.passage.top >= placed.viewport.top && placed.passage.bottom <= placed.viewport.bottom,
+					side: sideOf(placed.editor, placed.passage),
+					inside: inside(placed.editor, placed.viewport),
+				};
+			}, { timeout: SETTLE_MS })
+			.toEqual({ onScreen: true, side: firstSide === "above" ? "below" : "above", inside: true });
+	});
+
+	test("a hover on the passage past the preview delay leaves every editor control clickable", async ({ page }, testInfo) => {
+		await openHighlightableReader(page, `editor-hover-${testInfo.workerIndex}-${Date.now()}`);
+		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+		await openEditorFromText(page, highlightId);
+		await expect
+			.poll(async () => {
+				const placed = await placement(page, highlightId);
+				return clearOf(placed.editor, placed.passage);
+			}, { timeout: SETTLE_MS })
+			.toBe(true);
+
+		await page.locator(`#highlight-${highlightId}`).hover();
+		await page.waitForTimeout(PAST_HOVER_DELAY_MS);
+
+		await expect(page.locator(editorSelector(highlightId))).toHaveCount(1);
+		expect(
+			await page.evaluate(controlsMissedByAHit, { editor: editorSelector(highlightId), controls: EDITOR_CONTROLS }),
+		).toEqual([]);
+	});
+
+	test("Edit note from the Highlights list with the passage off screen docks centred at the bottom", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(page, `editor-dock-${testInfo.workerIndex}-${Date.now()}`);
+		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+		await page
+			.locator(`[data-test-highlight-row="${highlightId}"]`)
+			.evaluate((row) => row.scrollIntoView({ block: "center", behavior: "instant" }));
+		await expect(page.locator(`#highlight-${highlightId}`)).not.toBeInViewport();
+
+		const editor = await rowNoteDialog(page, highlightId);
+
+		await expect(editor.locator(EDITOR_QUOTE)).toHaveText(PASSAGE);
+		await expect(page.locator(`#highlight-${highlightId}`)).not.toBeInViewport();
+		await expect
+			.poll(async () => {
+				const box = await page.evaluate(boxOfElement, { selector: editorSelector(highlightId) });
+				const viewport = await page.evaluate(visualViewportBox);
+				return {
+					centred:
+						Math.abs((box.left + box.right) / 2 - (viewport.left + viewport.right) / 2) <= 2,
+					docked: Math.abs(viewport.bottom - box.bottom - DOCK_GAP_PX) <= 2,
+				};
+			}, { timeout: SETTLE_MS })
+			.toEqual({ centred: true, docked: true });
+	});
+
+	test("Add note from the bar quotes the selected text and sits clear of the selection", async ({ page }, testInfo) => {
+		await openHighlightableReader(page, `editor-toolbar-${testInfo.workerIndex}-${Date.now()}`);
+		await page
+			.locator(CONTENT)
+			.getByText(PASSAGE, { exact: false })
+			.evaluate((paragraph) => paragraph.scrollIntoView({ block: "center", behavior: "instant" }));
+		await page.evaluate(selectPassage, { root: CONTENT, exact: PASSAGE });
+		await expect(page.locator(TOOLBAR)).toBeVisible({ timeout: SETTLE_MS });
+		const selection = await page.evaluate(boxOfSelection);
+
+		await page.locator(ADD_NOTE_BUTTON).click();
+
+		const editor = page.locator(OPEN_NOTE_DIALOG);
+		await expect(editor).toHaveCount(1, { timeout: SETTLE_MS });
+		await expect(editor.locator(EDITOR_QUOTE)).toHaveText(PASSAGE);
+		await expect
+			.poll(async () => {
+				const box = await page.evaluate(boxOfElement, { selector: OPEN_NOTE_DIALOG });
+				const viewport = await page.evaluate(visualViewportBox);
+				return clearOf(box, selection) && inside(box, viewport);
+			}, { timeout: SETTLE_MS })
+			.toBe(true);
 	});
 });

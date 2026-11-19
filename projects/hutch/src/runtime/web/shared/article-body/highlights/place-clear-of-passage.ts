@@ -1,3 +1,5 @@
+import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
+
 export const TOOLBAR_GAP_PX = 10;
 export const VIEWPORT_GUTTER_PX = 16;
 
@@ -60,4 +62,65 @@ export function placeClearOfPassage(input: {
 	const highest = viewport.offsetTop + VIEWPORT_GUTTER_PX;
 	const lowest = viewportBottom - VIEWPORT_GUTTER_PX - panel.height;
 	return { top: Math.max(Math.min(topOf(side), lowest), highest), left: leftOf(side), side, clear: false };
+}
+
+export type PassageMode = PassageSide | "docked";
+
+interface PassagePlacementInput {
+	rects: readonly PassageRect[];
+	panel: { width: number; height: number };
+	viewport: PlacementViewport;
+}
+
+export function pickPassageMode(input: PassagePlacementInput): PassageMode {
+	const chosen = placeClearOfPassage({
+		gap: TOOLBAR_GAP_PX,
+		...input,
+		order: ["above", "below"],
+		whenNoneFits: "inside-viewport",
+	});
+	return chosen.clear ? chosen.side : "docked";
+}
+
+export function sideFits(input: PassagePlacementInput & { side: PassageSide }): boolean {
+	const { side, ...placement } = input;
+	return placeClearOfPassage({ gap: TOOLBAR_GAP_PX, ...placement, order: [side], whenNoneFits: "inside-viewport" }).clear;
+}
+
+export function placeByMode(
+	input: PassagePlacementInput & { mode: PassageMode; dock: "gutter" | "centred" },
+): { top: number; left: number } {
+	const { mode, dock, panel, viewport } = input;
+	if (mode !== "docked") {
+		const { top, left } = placeClearOfPassage({
+			gap: TOOLBAR_GAP_PX,
+			rects: input.rects,
+			panel,
+			viewport,
+			order: [mode],
+			whenNoneFits: "last-side",
+		});
+		return { top, left };
+	}
+	const top = viewport.offsetTop + viewport.height - VIEWPORT_GUTTER_PX - panel.height;
+	const left =
+		dock === "gutter"
+			? viewport.offsetLeft + VIEWPORT_GUTTER_PX
+			: viewport.offsetLeft + (viewport.width - panel.width) / 2;
+	return { top, left };
+}
+
+export function passageRectsOf(input: {
+	document: Document;
+	rectsOf: (range: Range) => readonly PassageRect[];
+	id: string;
+}): PassageRect[] {
+	const { document } = input;
+	return Array.from(
+		document.querySelectorAll(`.${ARTICLE_HIGHLIGHT_CLASS}[data-highlight-id="${input.id}"]`),
+	).flatMap((segment) => {
+		const range = document.createRange();
+		range.selectNodeContents(segment);
+		return input.rectsOf(range);
+	});
 }
