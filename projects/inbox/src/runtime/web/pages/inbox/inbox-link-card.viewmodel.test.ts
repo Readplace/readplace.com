@@ -38,10 +38,11 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 describe("toInboxLinkCardViewModel", () => {
 	describe("the url a card shows", () => {
 		const TRACKER = "https://link.mail.beehiiv.com/ss/c/u001.token-for-the-post/4ab/h1/sig";
-		const urlShown = (input: { resolvedUrl: string | undefined }) =>
+		const SECOND_TRACKER = "https://link.mail.beehiiv.com/ss/c/u001.second-hop/4ab/h1/sig";
+		const urlShown = (input: { status: "crawled" | "failed"; resolvedUrl: string | undefined }) =>
 			toInboxLinkCardViewModel({
 				paidFeaturesLocked: false,
-				link: link({ url: TRACKER, status: "failed", resolvedUrl: input.resolvedUrl }),
+				link: link({ url: TRACKER, status: input.status, resolvedUrl: input.resolvedUrl }),
 				emailId: EMAIL_ID,
 				pollCount: 1,
 				maxPolls: 300,
@@ -54,13 +55,23 @@ describe("toInboxLinkCardViewModel", () => {
 			}).url;
 
 		it("is the destination a save resolved when the preview crawl left the tracker", () => {
-			expect(urlShown({ resolvedUrl: undefined })).toBe("https://example.com/saved-destination");
+			expect(urlShown({ status: "failed", resolvedUrl: undefined })).toBe("https://example.com/saved-destination");
 		});
 
-		it("is the preview crawl's destination when it has one", () => {
-			expect(urlShown({ resolvedUrl: "https://example.com/crawled-destination" })).toBe(
+		it("is the destination a save resolved over wherever a failed preview stopped", () => {
+			expect(urlShown({ status: "failed", resolvedUrl: SECOND_TRACKER })).toBe(
+				"https://example.com/saved-destination",
+			);
+		});
+
+		it("is the preview crawl's destination when the preview succeeded", () => {
+			expect(urlShown({ status: "crawled", resolvedUrl: "https://example.com/crawled-destination" })).toBe(
 				"https://example.com/crawled-destination",
 			);
+		});
+
+		it("is the destination a save resolved when a succeeded preview stored none", () => {
+			expect(urlShown({ status: "crawled", resolvedUrl: undefined })).toBe("https://example.com/saved-destination");
 		});
 	});
 
