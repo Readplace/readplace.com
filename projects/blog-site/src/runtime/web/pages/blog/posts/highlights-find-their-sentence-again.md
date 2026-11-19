@@ -1,10 +1,11 @@
 ---
 title: "Highlights that find their sentence again when the page changes"
 description: "Highlights and notes are in the Readplace reader, on the web and in the iPhone app. Each mark is stored as the quote it covers, so when a page's stored copy changes, Readplace finds the passage again, keeps a lost mark as \"Not found in this version\" instead of guessing, and carries every mark into the markdown, the EPUB and the account export."
-tldr: "Highlights and notes are in the reader for any account that can save, on the web and in the iPhone app. Readplace stores each mark as the exact words it covers plus the text around them, and when a page's stored copy changes, it searches the new text for that quote. A mark it can't place again is kept and labelled \"Not found in this version\" rather than moved to a near miss. The marks travel into the markdown download, the EPUB and the account export, and an AI assistant connected over MCP can list them or make one from a quote."
+tldr: "Highlights and notes are in the reader for any account that can save, on the web and in the iPhone app. Readplace stores each mark as the exact words it covers plus the text around them, and when a page's stored copy changes, it compares the new text with the copy the mark was placed on and carries the mark to where its words went, through a reworded sentence too. A mark it can't place again is kept and labelled \"Not found in this version\" rather than moved to a near miss. The marks travel into the markdown download, the EPUB and the account export, and an AI assistant connected over MCP can list them or make one from a quote."
 excerpt: "Paper holds still under a pencil line. Web pages don't, so a highlight is stored as its quote."
 slug: "highlights-find-their-sentence-again"
 date: "2026-11-09"
+lastModified: "2026-11-19"
 author: "Fayner Brack"
 keywords: "highlight articles online, read it later app with highlights and notes, annotate saved articles, web highlighter that keeps highlights, highlights lost when article changes, export highlights markdown epub, highlight articles on iphone, pocket alternative with highlights, readplace"
 ---
@@ -27,9 +28,9 @@ Each mark is also listed in a Highlights card in the reader's rail, with its quo
 
 A saved article's body isn't frozen. The body is shared by the readers who save the same URL, and a recrawl or a refresh can replace it with a newer copy of the page.
 
-When that happens, Readplace re-anchors each highlight by searching the new text for its quote in context.
+When that happens, Readplace re-anchors each highlight. Each one remembers the copy it was last placed on, and Readplace compares the new copy with that one, sentence by sentence. A mark on a sentence that was reworded follows the new wording, and the rail shows "Edited in this version" with the words you highlighted. When the older copy can't be read, Readplace searches the new text for the quote in context instead.
 
-A staging run on 7 November re-anchored 185 highlights across 37 articles whose pages had been crawled twice. 29% of the marks could stay where they were. 60% had to move, almost all of them the exact quote found at a new position. A highlight stored as a position would have pointed at the wrong text in 6 cases out of 10 after a single recrawl.
+Before the comparison, that search was all there was. A staging run of it on 7 November re-anchored 185 highlights across 37 articles whose pages had been crawled twice. 29% of the marks could stay where they were. 60% had to move, almost all of them the exact quote found at a new position. A highlight stored as a position would have pointed at the wrong text in 6 cases out of 10 after a single recrawl.
 
 The last 11% couldn't be found at all, and each of those came from 1 archived page whose stored versions alternate between 2 different pages.
 
@@ -41,7 +42,7 @@ A highlight whose passage can't be found again is kept, quote and note intact, a
 
 > **A mark that jumps to the wrong sentence costs more than a mark that says it's lost.**
 
-The matching thresholds came out of those real recrawled pairs, and a change to them waits for a new measurement. That is why the Beta badge is there: odd pages will keep turning up, and the archived page that alternates between 2 versions is unlikely to be the strangest one out there. A page that re-anchors a mark somewhere wrong is worth an [email](mailto:readplace@readplace.com).
+Each matching rule was added for a measured case, and a change to one waits for a new measurement. That is why the Beta badge is there: odd pages will keep turning up, and the archived page that alternates between 2 versions is unlikely to be the strangest one out there. A page that re-anchors a mark somewhere wrong is worth an [email](mailto:readplace@readplace.com).
 
 ## The marks go in the downloads
 
