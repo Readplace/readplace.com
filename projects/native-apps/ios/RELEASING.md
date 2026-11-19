@@ -85,13 +85,17 @@ xcodebuild -downloadPlatform iOS
 
 > **⚠️ Upload SDK gate.** App Store Connect rejects any build made with an SDK
 > older than the current minimum (a 409 "SDK version issue" at `upload_to_testflight`).
-> As of this writing that minimum is the **iOS 26 SDK (Xcode 26+)**. Archiving and
+> That minimum is the **iOS 26 SDK** until April 2027, and from April 2027 the
+> **iOS 27 SDK (Xcode 27+)**
+> ([Apple, 2026-09-09](https://developer.apple.com/news/?id=k1mtkt1k)); Apple warns
+> with ITMS-90725 on every upload made with an older SDK. Archiving and
 > signing succeed on older Xcode and produce a valid `.ipa`, but the *upload* will
-> fail unless the active Xcode is current. Xcode 26 needs macOS 15+ (Sequoia/Tahoe).
-> `scripts/fastlane.sh` auto-selects `/Applications/Xcode.app`; make that the new
-> Xcode (or export `DEVELOPER_DIR`) so the build uses the required SDK. Because the
-> cert/profiles live in the match repo, you can also run `./scripts/fastlane.sh beta`
-> unchanged on any other Mac (or CI) that already has Xcode 26.
+> fail unless the active Xcode is current. Xcode 27 needs macOS Tahoe 26.6 or later.
+> `scripts/fastlane.sh` auto-selects the newest of `/Applications/Xcode.app` and
+> `/Applications/Xcode-*.app` (or export `DEVELOPER_DIR`) so the build uses the
+> required SDK. Because the cert/profiles live in the match repo, you can also run
+> `./scripts/fastlane.sh beta` unchanged on any other Mac (or CI) that already has
+> Xcode 27.
 
 ## Steps that MUST be done by a human in the Apple web portals
 
@@ -126,7 +130,7 @@ icon and the build come online together.
 
 ## Distributing a build to a beta tester
 
-Once `./scripts/fastlane.sh beta` has uploaded a build (built with **Xcode 26+** —
+Once `./scripts/fastlane.sh beta` has uploaded a build (built with **Xcode 27+** —
 see the upload SDK gate above) and it has finished **Processing**, hand it to a
 tester. The single build carries both the app and `com.readplace.ShareExtension`.
 
@@ -201,7 +205,7 @@ the workflow still only sets What to Test. The corresponding lane options are
 ## Publishing from CI (GitHub Actions)
 
 `.github/workflows/publish-ios-testflight.yml` runs the same `beta` lane on a
-**macOS runner with Xcode 26**, so you can ship without upgrading your Mac. Like
+**macOS runner with Xcode 27** (GitHub's `xcode-27` image), so you can ship without upgrading your Mac. Like
 the chrome/firefox publish workflows it's a reusable workflow invoked by
 `ci.yml`, and it **only runs when the app's shipping code changed** —
 `ci.yml` sets `ios-affected` from a path diff over
