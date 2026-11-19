@@ -8,6 +8,7 @@ import type { InboxLinkCardReadlistFit } from "./inbox-readlist-fit";
 export function computeInboxLinkCardEtag(input: {
 	link: InboxEmailLinkEntry;
 	saveState: InboxLinkSaveState | undefined;
+	savedDestination: string | undefined;
 	fit: readonly InboxLinkCardReadlistFit[];
 }): string {
 	const { link, saveState } = input;
@@ -24,7 +25,7 @@ export function computeInboxLinkCardEtag(input: {
 			override?.createdAt.toISOString() ?? "",
 		];
 	});
-	for (const part of [link.status, link.title ?? "", link.resolvedUrl ?? "", saveState ?? "none", ...fitParts]) {
+	for (const part of [link.status, link.title ?? "", link.resolvedUrl ?? "", input.savedDestination ?? "", saveState ?? "none", ...fitParts]) {
 		hash.update(part);
 		hash.update("|");
 	}
