@@ -1,6 +1,7 @@
 package com.readplace.android.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,8 +29,10 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
@@ -44,10 +47,11 @@ fun ArticleRow(
 	article: Article,
 	clock: Clock,
 	processingReceivedAt: Instant?,
+	isAvailableOffline: Boolean,
 	onOpen: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
-	val presentation = ArticlePresentation.of(article, clock, isAvailableOffline = false)
+	val presentation = ArticlePresentation.of(article, clock, isAvailableOffline = isAvailableOffline)
 	val brand = LocalBrandColors.current
 
 	Column(
@@ -75,8 +79,11 @@ fun ArticleRow(
 					color = brand.textSecondary,
 					maxLines = 1,
 					overflow = TextOverflow.Ellipsis,
+					modifier = Modifier.weight(1f, fill = false),
 				)
 			}
+
+			presentation.offlineBadgeLabel?.let { OfflineBadge(label = it) }
 		}
 
 		Row(verticalAlignment = Alignment.Top) {
@@ -166,6 +173,34 @@ private fun ReadMarker(isRead: Boolean, statusLabel: String) {
 				.clip(CircleShape)
 				.background(brand.primaryText)
 				.semantics { contentDescription = statusLabel },
+		)
+	}
+}
+
+@Composable
+private fun OfflineBadge(label: String) {
+	val brand = LocalBrandColors.current
+	val shape = RoundedCornerShape(percent = 50)
+	Row(
+		horizontalArrangement = Arrangement.spacedBy(4.dp),
+		verticalAlignment = Alignment.CenterVertically,
+		modifier = Modifier
+			.background(brand.success.copy(alpha = 0.12f), shape)
+			.border(1.dp, brand.success, shape)
+			.padding(horizontal = 8.dp, vertical = 2.dp)
+			.clearAndSetSemantics { contentDescription = label },
+	) {
+		Text(
+			text = label,
+			style = MaterialTheme.typography.labelSmall,
+			fontWeight = FontWeight.SemiBold,
+			color = brand.successText,
+		)
+		Icon(
+			imageVector = CheckmarkGlyph,
+			contentDescription = null,
+			tint = brand.successText,
+			modifier = Modifier.size(10.dp),
 		)
 	}
 }

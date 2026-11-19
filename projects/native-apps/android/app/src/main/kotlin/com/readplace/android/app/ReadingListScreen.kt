@@ -617,6 +617,7 @@ private fun ArticleList(
 				edge = PanelEdge(isFirst = index == 0, isLast = index == state.articles.lastIndex),
 				clock = clock,
 				processingReceivedAt = state.processingReceivedAt[article.id],
+				isAvailableOffline = state.isAvailableOffline(article),
 				onOpen = { onOpen(article) },
 				onActivate = onActivate,
 			)
@@ -652,6 +653,7 @@ private fun ArticleItem(
 	edge: PanelEdge,
 	clock: Clock,
 	processingReceivedAt: Instant?,
+	isAvailableOffline: Boolean,
 	onOpen: () -> Unit,
 	onActivate: (Affordance) -> Unit,
 ) {
@@ -680,6 +682,7 @@ private fun ArticleItem(
 					article = article,
 					clock = clock,
 					processingReceivedAt = processingReceivedAt,
+					isAvailableOffline = isAvailableOffline,
 					onOpen = onOpen,
 				)
 			}
@@ -723,6 +726,7 @@ private fun ArticleItem(
 					article = article,
 					clock = clock,
 					processingReceivedAt = processingReceivedAt,
+					isAvailableOffline = isAvailableOffline,
 					onOpen = onOpen,
 					modifier = Modifier
 						.semantics {

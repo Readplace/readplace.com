@@ -14,6 +14,7 @@ import com.readplace.android.core.InMemoryReaderChoiceStorage
 import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
+import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReading
 import com.readplace.android.core.OfflineReadlistSnapshot
@@ -57,6 +58,7 @@ import org.junit.rules.TemporaryFolder
 import java.io.IOException
 import java.net.URLDecoder
 import java.net.UnknownHostException
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
@@ -147,6 +149,7 @@ class ReadingListViewModelTest {
 		now: () -> Instant = { Instant.EPOCH },
 		reportProcessingRefreshFailure: (String) -> Unit = {},
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
+		manifest: OfflineDownloadManifest = OfflineDownloadManifest(folder.newFolder(), ioDispatcher),
 		network: OfflineSwitch = OfflineSwitch(),
 		snapshot: OfflineReadlistSnapshot = OfflineReadlistSnapshot(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH }, diagnostics = {}),
 		readerCopy: OfflineReaderCopy = OfflineReaderCopy(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH }),
@@ -163,6 +166,7 @@ class ReadingListViewModelTest {
 			reportAutomaticCaptureFailure = reportAutomaticCaptureFailure,
 			drainUploadJobs = drainUploadJobs,
 			downloadUnreadOffline = downloadUnreadOffline,
+			manifest = manifest,
 			onSessionExpired = onSessionExpired,
 			now = now,
 			reportProcessingRefreshFailure = reportProcessingRefreshFailure,
@@ -304,6 +308,72 @@ class ReadingListViewModelTest {
 				else -> Stub.json(404, "{}")
 			}
 		}
+	}
+
+	private fun writeManifest(directory: File, versions: Map<String, String>) {
+		val entries = versions.entries.joinToString(",") { (id, version) -> "\"$id\": \"$version\"" }
+		File(directory, "download-manifest.json").writeText("""{ "versions": { $entries } }""")
+	}
+
+	@Test
+	fun `an article is available offline only at the version the manifest recorded`() = runTest {
+		val directory = folder.newFolder()
+		writeManifest(directory, mapOf("a1" to "v1"))
+		val viewModel = viewModel(manifest = OfflineDownloadManifest(directory, StandardTestDispatcher(testScheduler)))
+		runCurrent()
+
+		assertEquals(
+			listOf(true, false, false, false),
+			listOf(
+				article(readHref = null, id = "a1", contentVersion = "v1"),
+				article(readHref = null, id = "a1", contentVersion = "v2"),
+				article(readHref = null, id = "a2", contentVersion = "v1"),
+				article(readHref = null, id = "a1"),
+			).map { viewModel.state.value.isAvailableOffline(it) },
+		)
+	}
+
+	@Test
+	fun `a version recorded during a download marks the loaded row without reloading the list`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.redirect(to = "/queue")
+				"/queue" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1", contentVersion = "v1"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val manifest = OfflineDownloadManifest(folder.newFolder(), StandardTestDispatcher(testScheduler))
+		val viewModel = viewModel(manifest = manifest)
+		viewModel.loadIfNeeded()
+		runCurrent()
+		val loaded = viewModel.state.value.articles.single()
+		val before = viewModel.state.value.isAvailableOffline(loaded)
+		val readsBefore = server.records("/queue").map { it.request.url.toString() }
+
+		manifest.recordDownloaded(articleId = "a1", contentVersion = "v1")
+		runCurrent()
+
+		assertEquals(
+			listOf(false, true, readsBefore),
+			listOf(before, viewModel.state.value.isAvailableOffline(loaded), server.records("/queue").map { it.request.url.toString() }),
+		)
+	}
+
+	@Test
+	fun `a state holder built after the offline files were deleted marks nothing available offline`() = runTest {
+		val directory = folder.newFolder()
+		val manifest = OfflineDownloadManifest(directory, StandardTestDispatcher(testScheduler))
+		manifest.recordDownloaded(articleId = "a1", contentVersion = "v1")
+		val stored = article(readHref = null, id = "a1", contentVersion = "v1")
+		val first = viewModel(manifest = manifest)
+		runCurrent()
+		val firstAnswer = first.state.value.isAvailableOffline(stored)
+		directory.deleteRecursively()
+
+		val second = viewModel(manifest = manifest)
+		runCurrent()
+
+		assertEquals(listOf(true, false), listOf(firstAnswer, second.state.value.isAvailableOffline(stored)))
 	}
 
 	// region Add-links help (client-side)
@@ -5454,6 +5524,7 @@ class ReadingListViewModelTest {
 			url: String = "https://example.com/post",
 			title: String = "A Title",
 			processingJson: String? = null,
+			contentVersion: String? = null,
 		): String =
 			"""
 				{
@@ -5469,7 +5540,7 @@ class ReadingListViewModelTest {
 						"readTime": { "value": "6", "label": "~6 min read" },
 						"status": "unread",
 						"savedAt": "2026-05-30T10:00:00.000Z",
-						"readAt": null${if (processingJson != null) ", \"processing\": $processingJson" else ""}
+						"readAt": null${if (processingJson != null) ", \"processing\": $processingJson" else ""}${if (contentVersion != null) ", \"contentVersion\": \"$contentVersion\"" else ""}
 					},
 					"links": [{ "rel": ["read"], "href": "/queue/$id/view" }],
 					"actions": [

@@ -1,5 +1,6 @@
 package com.readplace.android.app
 
+import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReaderPrefetching
@@ -18,6 +19,7 @@ class DownloadUnreadOffline(
 	private val api: ReadplaceApi,
 	private val snapshot: OfflineReadlistSnapshot,
 	private val prefetcher: ReaderPrefetching,
+	private val manifest: OfflineDownloadManifest,
 	private val readerCopy: OfflineReaderCopy,
 ) {
 	suspend fun run(request: OfflineDownloadRequest, report: (OfflineDownloadProgress) -> Unit): Unit =
@@ -25,11 +27,12 @@ class DownloadUnreadOffline(
 			val generation = snapshot.generation
 			val tally = Tally(report)
 			val session = Session(api, request.sessionAction)
-			val queue = Channel<String>(Channel.UNLIMITED)
+			val queue = Channel<QueuedArticle>(Channel.UNLIMITED)
+			manifest.load()
 			repeat(CONCURRENT_ARTICLES) {
 				launch {
-					for (url in queue) {
-						if (prefetcher.prefetch(url, session.cookies())) readerCopy.record(url)
+					for (queued in queue) {
+						if (!isStored(queued)) store(queued, session)
 						tally.stored()
 					}
 				}
@@ -41,7 +44,17 @@ class DownloadUnreadOffline(
 			}
 		}
 
-	private suspend fun walk(startHref: String, generation: Long, queue: SendChannel<String>, tally: Tally) {
+	private suspend fun isStored(queued: QueuedArticle): Boolean =
+		manifest.versions.value.isCurrent(articleId = queued.id, contentVersion = queued.contentVersion) &&
+			readerCopy.isShowable(queued.readerUrl)
+
+	private suspend fun store(queued: QueuedArticle, session: Session) {
+		if (!prefetcher.prefetch(queued.readerUrl, session.cookies())) return
+		readerCopy.record(queued.readerUrl)
+		queued.contentVersion?.let { manifest.recordDownloaded(articleId = queued.id, contentVersion = it) }
+	}
+
+	private suspend fun walk(startHref: String, generation: Long, queue: SendChannel<QueuedArticle>, tally: Tally) {
 		var page = api.loadReadlist(startHref)
 		snapshot.keepFirstPage(page, href = startHref, generation = generation)
 		while (true) {
@@ -52,14 +65,20 @@ class DownloadUnreadOffline(
 		}
 	}
 
-	private suspend fun enqueue(page: ReadlistPage, queue: SendChannel<String>, tally: Tally) {
-		val urls = page.articles
+	private suspend fun enqueue(page: ReadlistPage, queue: SendChannel<QueuedArticle>, tally: Tally) {
+		val articles = page.articles
 			.filter { !it.isRead }
-			.mapNotNull { article -> article.readHref?.let { ReaderRequest.url(it, api.baseUrl) } }
-		if (urls.isEmpty()) return
-		tally.queued(urls.size)
-		for (url in urls) queue.send(url)
+			.mapNotNull { article ->
+				article.readHref
+					?.let { ReaderRequest.url(it, api.baseUrl) }
+					?.let { QueuedArticle(id = article.id, contentVersion = article.contentVersion, readerUrl = it) }
+			}
+		if (articles.isEmpty()) return
+		tally.queued(articles.size)
+		for (queued in articles) queue.send(queued)
 	}
+
+	private data class QueuedArticle(val id: String, val contentVersion: String?, val readerUrl: String)
 
 	private class Tally(private val report: (OfflineDownloadProgress) -> Unit) {
 		private val lock = Mutex()

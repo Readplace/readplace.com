@@ -6,9 +6,12 @@ import com.readplace.android.RecordingServer.Record
 import com.readplace.android.RecordingServer.Stub
 import com.readplace.android.core.AccessToken
 import com.readplace.android.core.ApiError
+import com.readplace.android.core.DownloadedVersions
 import com.readplace.android.core.EphemeralCookieJar
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
+import com.readplace.android.core.OfflineCopy
+import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReaderPrefetching
@@ -34,6 +37,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 import java.time.Instant
 
 class DownloadUnreadOfflineTest {
@@ -98,10 +102,19 @@ class DownloadUnreadOfflineTest {
 		snapshot: OfflineReadlistSnapshot = snapshot(),
 		readerCopy: OfflineReaderCopy = readerCopy(),
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
-	): DownloadUnreadOffline = DownloadUnreadOffline(api(ioDispatcher), snapshot, prefetcher, readerCopy)
+		manifest: OfflineDownloadManifest = manifest(),
+	): DownloadUnreadOffline = DownloadUnreadOffline(api(ioDispatcher), snapshot, prefetcher, manifest, readerCopy)
 
-	private fun TestScope.readerCopy(): OfflineReaderCopy =
-		OfflineReaderCopy(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH })
+	private fun TestScope.manifest(directory: File = folder.newFolder()): OfflineDownloadManifest =
+		OfflineDownloadManifest(directory, StandardTestDispatcher(testScheduler))
+
+	private fun writeManifest(directory: File, versions: Map<String, String>) {
+		val entries = versions.entries.joinToString(",") { (id, version) -> "\"$id\": \"$version\"" }
+		File(directory, "download-manifest.json").writeText("""{ "versions": { $entries } }""")
+	}
+
+	private fun TestScope.readerCopy(directory: File = folder.newFolder(), now: Instant = Instant.EPOCH): OfflineReaderCopy =
+		OfflineReaderCopy(directory, StandardTestDispatcher(testScheduler), now = { now })
 
 	private fun readerUrl(id: String): String = "${server.baseUrl}/queue/$id/view?platform=android"
 
@@ -338,19 +351,162 @@ class DownloadUnreadOfflineTest {
 		assertEquals(listOf(readerUrl("a1")), prefetcher.urls)
 	}
 
+	@Test
+	fun `only an article stored with a content version is recorded in the manifest`() = runTest {
+		server.handle(
+			listing(
+				listOf(
+					listOf(
+						Fixtures.article("a1", contentVersion = "v1"),
+						Fixtures.article("a2", contentVersion = "v2"),
+						Fixtures.article("a3"),
+					),
+				),
+			),
+		)
+		val manifest = manifest()
+
+		download(RecordingPrefetcher(answer = { it != readerUrl("a2") }), manifest = manifest).run(START) {}
+
+		assertEquals(DownloadedVersions(mapOf("a1" to "v1")), manifest.versions.value)
+	}
+
+	@Test
+	fun `a current stored copy is counted without being fetched again`() = runTest {
+		val directory = folder.newFolder()
+		writeManifest(directory, mapOf("a1" to "v1", "a2" to "v2-old"))
+		server.handle(
+			listing(
+				listOf(
+					listOf(
+						Fixtures.article("a1", contentVersion = "v1"),
+						Fixtures.article("a2", contentVersion = "v2-new"),
+						Fixtures.article("a3", contentVersion = "v3"),
+					),
+				),
+			),
+		)
+		val manifest = manifest(directory)
+		val readerCopy = readerCopy()
+		readerCopy.record(readerUrl("a1"))
+		val prefetcher = RecordingPrefetcher()
+		val reports = mutableListOf<OfflineDownloadProgress>()
+
+		download(prefetcher, manifest = manifest, readerCopy = readerCopy).run(START) { reports += it }
+
+		assertEquals(
+			listOf(
+				listOf(readerUrl("a2"), readerUrl("a3")),
+				OfflineDownloadProgress(completed = 3, total = 3),
+				DownloadedVersions(mapOf("a1" to "v1", "a2" to "v2-new", "a3" to "v3")),
+			),
+			listOf(prefetcher.urls, reports.last(), manifest.versions.value),
+		)
+	}
+
+	@Test
+	fun `a list whose unread copies are all current mints nothing and fetches nothing`() = runTest {
+		val directory = folder.newFolder()
+		writeManifest(directory, mapOf("a1" to "v1", "a2" to "v2"))
+		server.handle(
+			listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1"), Fixtures.article("a2", contentVersion = "v2")))),
+		)
+		val readerCopy = readerCopy()
+		readerCopy.record(readerUrl("a1"))
+		readerCopy.record(readerUrl("a2"))
+		val prefetcher = RecordingPrefetcher()
+		val reports = mutableListOf<OfflineDownloadProgress>()
+
+		download(prefetcher, manifest = manifest(directory), readerCopy = readerCopy).run(START) { reports += it }
+
+		assertEquals(
+			listOf(
+				emptyList<Record>(),
+				emptyList<String>(),
+				listOf(
+					OfflineDownloadProgress(completed = 0, total = 2),
+					OfflineDownloadProgress(completed = 1, total = 2),
+					OfflineDownloadProgress(completed = 2, total = 2),
+				),
+			),
+			listOf(server.records("/auth/session"), prefetcher.urls, reports),
+		)
+	}
+
+	@Test
+	fun `a current version whose stored copy is too old to show is fetched again`() = runTest {
+		val manifestDirectory = folder.newFolder()
+		writeManifest(manifestDirectory, mapOf("a1" to "v1", "a2" to "v2"))
+		val copies = folder.newFolder()
+		readerCopy(copies).record(readerUrl("a1"))
+		val later = readerCopy(copies, now = Instant.EPOCH.plus(OfflineCopy.MAXIMUM_AGE).plusSeconds(1))
+		later.record(readerUrl("a2"))
+		server.handle(
+			listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1"), Fixtures.article("a2", contentVersion = "v2")))),
+		)
+		val prefetcher = RecordingPrefetcher()
+
+		download(prefetcher, manifest = manifest(manifestDirectory), readerCopy = later).run(START) {}
+
+		assertEquals(listOf(listOf(readerUrl("a1")), true), listOf(prefetcher.urls, later.isShowable(readerUrl("a1"))))
+	}
+
+	@Test
+	fun `a run after the offline files were deleted fetches every article again`() = runTest {
+		val directory = folder.newFolder()
+		server.handle(
+			listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1"), Fixtures.article("a2", contentVersion = "v2")))),
+		)
+		val manifest = manifest(directory)
+		download(RecordingPrefetcher(), manifest = manifest).run(START) {}
+		directory.deleteRecursively()
+		val prefetcher = RecordingPrefetcher()
+
+		download(prefetcher, manifest = manifest).run(START) {}
+
+		assertEquals(listOf(readerUrl("a1"), readerUrl("a2")), prefetcher.urls)
+	}
+
+	@Test
+	fun `a cancelled prefetch records nothing in the manifest`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1", contentVersion = "v1")))))
+		val prefetcher = object : ReaderPrefetching {
+			val urls = mutableListOf<String>()
+
+			override suspend fun prefetch(url: String, cookies: List<Cookie>): Boolean {
+				urls += url
+				awaitCancellation()
+			}
+		}
+		val manifest = manifest()
+
+		val run = launch { download(prefetcher, manifest = manifest).run(START) {} }
+		runCurrent()
+		val started = prefetcher.urls.toList()
+		run.cancel()
+		run.join()
+		runCurrent()
+
+		assertEquals(
+			listOf(listOf(readerUrl("a1")), DownloadedVersions(emptyMap())),
+			listOf(started, manifest.versions.value),
+		)
+	}
+
 	private object Fixtures {
-		fun article(id: String, readLink: Boolean = true, processing: Boolean = false): String {
+		fun article(id: String, readLink: Boolean = true, processing: Boolean = false, contentVersion: String? = null): String {
 			val links = if (readLink) """[{ "rel": ["read"], "href": "/queue/$id/view" }]""" else "[]"
 			val processingProperty = if (processing) {
 				""", "processing": { "label": "Processing", "refresh": { "href": "/queue/$id", "afterSeconds": 3 } }"""
 			} else {
 				""
 			}
+			val versionProperty = if (contentVersion != null) """, "contentVersion": "$contentVersion"""" else ""
 			return """
 				{
 					"class": ["article"],
 					"rel": ["item"],
-					"properties": { "id": "$id", "url": "https://example.com/$id", "title": "$id", "status": "unread"$processingProperty },
+					"properties": { "id": "$id", "url": "https://example.com/$id", "title": "$id", "status": "unread"$processingProperty$versionProperty },
 					"links": $links
 				}
 			"""

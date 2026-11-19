@@ -5,8 +5,10 @@ import com.readplace.android.core.ApiError
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
 import com.readplace.android.core.ArticleProcessing
+import com.readplace.android.core.DownloadedVersions
 import com.readplace.android.core.Href
 import com.readplace.android.core.LastViewedReadlist
+import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReading
 import com.readplace.android.core.OfflineReadlistSnapshot
@@ -80,10 +82,14 @@ data class ReadingListState(
 	 * persisted choice so the menu badges and drop row reflect it without a fetch. */
 	val shareTargetHrefs: Set<String> = emptySet(),
 	val processingReceivedAt: Map<String, Instant> = emptyMap(),
+	val downloadedVersions: DownloadedVersions = DownloadedVersions(emptyMap()),
 	val isOffline: Boolean = false,
 	val offlineDownload: OfflineDownloadProgress? = null,
 ) {
 	val offlineDownloadHref: String? get() = tabs.firstOrNull()?.href
+
+	fun isAvailableOffline(article: Article): Boolean =
+		downloadedVersions.isCurrent(articleId = article.id, contentVersion = article.contentVersion)
 
 	/** A switcher is offered only when the reader has more than one readlist. */
 	val offersReadlistSwitching: Boolean get() = readlists.size > 1
@@ -145,6 +151,7 @@ class ReadingListViewModel(
 	private val reportAutomaticCaptureFailure: (String) -> Unit,
 	private val drainUploadJobs: suspend () -> Unit,
 	private val downloadUnreadOffline: suspend (OfflineDownloadRequest, (OfflineDownloadProgress) -> Unit) -> Unit,
+	private val manifest: OfflineDownloadManifest,
 	private val onSessionExpired: () -> Unit,
 	private val now: () -> Instant,
 	private val reportProcessingRefreshFailure: (String) -> Unit,
@@ -153,6 +160,13 @@ class ReadingListViewModel(
 ) {
 	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP)))
 	val state: StateFlow<ReadingListState> = states.asStateFlow()
+
+	init {
+		scope.launch {
+			manifest.load()
+			manifest.versions.collect { versions -> mutate { it.copy(downloadedVersions = versions) } }
+		}
+	}
 
 	/**
 	 * The "add links via Share" help page the reading list's + control opens in a
