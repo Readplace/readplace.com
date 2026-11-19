@@ -47,7 +47,7 @@ Pressing Create a free account posts the 5 to Readplace, which holds them for 24
 
 The article lands saved on the new account, and each mark is recreated from its quote, the exact words plus the text around them, [the way every highlight here is stored](/blog/highlights-find-their-sentence-again?utm_source=blog-highlight-a-shared-article-without-an-account&utm_medium=internal&utm_content=post-highlights-find-their-sentence-again). The character positions the browser measured are discarded rather than trusted.
 
-The Save button on a shared page, the save form under the article and the Log in link all hand the marks over the same way before the account pages load, so saving the article doesn't cost the marks either. A handover that no sign-up follows expires: after 24 hours the server's copy can no longer be claimed and is deleted, which [the privacy page](/privacy?utm_source=blog-highlight-a-shared-article-without-an-account&utm_medium=internal&utm_content=privacy) spells out.
+The Save button on a shared page, the save form under the article and the Log in link all hand the marks over the same way before the account pages load, so saving the article doesn't cost the marks either. A handover that no sign-up follows expires: after 24 hours the server's copy can no longer be claimed, and it is deleted within a few days after that, as [the privacy page](/privacy?utm_source=blog-highlight-a-shared-article-without-an-account&utm_medium=internal&utm_content=privacy) spells out.
 
 ## Group chats already send the passage
 
