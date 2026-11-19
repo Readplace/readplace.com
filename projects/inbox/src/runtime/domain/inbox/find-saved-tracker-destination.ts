@@ -1,6 +1,7 @@
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { FindIdentityRow } from "@packages/provider-contracts/article-store";
 import { initResolveSaveIdentity, neverResolveWrapperTarget } from "@packages/save-article";
+import { stripUtmParams } from "./strip-utm-params";
 
 export type FindSavedTrackerDestination = (url: string) => Promise<string | undefined>;
 
@@ -16,6 +17,6 @@ export function initFindSavedTrackerDestination(deps: { findIdentityRow: FindIde
 	return async (url) => {
 		const replayed = await replaySaveIdentity(url);
 		if (replayed.status !== "resolved" || replayed.originalUrl === url) return undefined;
-		return replayed.originalUrl;
+		return stripUtmParams(replayed.originalUrl);
 	};
 }

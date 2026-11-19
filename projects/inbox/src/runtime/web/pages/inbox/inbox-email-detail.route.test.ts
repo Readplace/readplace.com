@@ -13,14 +13,13 @@ import {
 	parseEmail,
 	sanitizeEmailHtml,
 } from "@packages/domain/inbox";
-import { validateSaveableUrl } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
-import { initResolveSaveIdentity } from "@packages/save-article";
 import type { UserId } from "@packages/domain/user";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { saveTrackerThroughUnlocker } from "../../../domain/inbox/save-tracker-through-unlocker";
 import { TEST_IMAGES_CDN_BASE_URL, loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -854,14 +853,7 @@ describe("Inbox email detail Skipped tab", () => {
 		await seedLinks(fixture, [
 			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), url: tracker, status: "skipped", skipReason: "llm-ad" },
 		]);
-		const save = initResolveSaveIdentity({
-			validateUrl: validateSaveableUrl,
-			findIdentityRow: fixture.articleStore.findIdentityRow,
-			claimAlias: fixture.articleStore.claimAlias,
-			resolveWrapperTarget: async (url) => (url === tracker ? { url: destination, contentSourceUrl: tracker } : undefined),
-			now: () => new Date("2026-11-18T10:00:00.000Z"),
-		});
-		assert.equal((await save(tracker)).status, "resolved", "the save must resolve the tracker");
+		await saveTrackerThroughUnlocker({ store: fixture.articleStore, tracker, destination });
 		const user = await fixture.auth.findUserByEmail("test@example.com");
 		assert(user, "logged-in user must exist");
 		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({ userId: user.userId, url: tracker });
