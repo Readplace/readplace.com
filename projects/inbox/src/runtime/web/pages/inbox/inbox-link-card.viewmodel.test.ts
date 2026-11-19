@@ -195,7 +195,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savedDestinations: new Map(), savePollContext: { mode: "static" } });
 
 		expect(failed.url).toBe("https://www.telegraph.test/news/the-actual-article");
 		expect(failed.statusState).toBe("failed");
