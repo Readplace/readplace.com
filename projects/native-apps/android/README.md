@@ -252,6 +252,23 @@ ampersand in the same vector, written as an arc starting at cx+r, and the dot ce
 login screen holds for its replay tap target (grep the Kotlin sources for
 `DOT_CENTER_X`); iOS holds the same constants by hand.
 
+**"Download unread for offline reading" differs from iOS in four ways.**
+- Listing pages 3 and later are requested with `Sec-Purpose: prefetch`, so the server
+  resolves the rows of the first two pages only. The iOS walk sends no purpose header
+  on its listing loads yet.
+- The download does not wait for the first two pages' rows to settle, and shows no
+  "open online to get content" banner. A row still processing is stored as served;
+  the reader URL carries no `v=`, so the server answers it `private, no-cache` and the
+  next online open replaces it. Both wait for the iOS step of the same design to run first.
+- A run lives only as long as the main Activity. It keeps going through a trip to
+  another app, but a rotation, closing the app or the process being killed ends it
+  without notice. There is no foreground service or background task behind it.
+- An article counts as stored when its page finished loading within 12 seconds with
+  no main-frame error and no main-frame HTTP error. Android reports no status for a
+  successful load, so this stands in for iOS's "status is 200". WebView cannot await a
+  promise from `evaluateJavascript`, so iOS's single eager-images script is two here:
+  one marks lazy images eager, the other is polled until every image is complete.
+
 ## Version pins that are not "the latest"
 
 Two dependencies are deliberately held back, both for the same reason: their AAR

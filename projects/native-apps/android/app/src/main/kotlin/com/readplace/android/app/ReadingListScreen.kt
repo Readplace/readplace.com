@@ -33,6 +33,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
@@ -228,6 +229,11 @@ fun ReadingListScreen(
 							onSelect = { href -> scope.launch { viewModel.select(href) } },
 						)
 					}
+					if (state.offlineDownloadHref != null) {
+						IconButton(onClick = viewModel::downloadUnreadOffline, enabled = state.offlineDownload == null) {
+							Icon(imageVector = Glyph.DOWNLOAD_CIRCLE, contentDescription = OFFLINE_DOWNLOAD_BUTTON_LABEL)
+						}
+					}
 					for (affordance in state.collectionAffordances) {
 						ToolbarControl(affordance = affordance, onTap = { dispatch(affordance) })
 					}
@@ -259,6 +265,9 @@ fun ReadingListScreen(
 							SharedArticlesDropPresentation.explanation(explained)?.let { dropExplanation = it }
 						},
 					)
+				}
+				state.offlineDownload?.let { progress ->
+					OfflineDownloadRow(progress = progress, onCancel = viewModel::cancelOfflineDownload)
 				}
 				PullToRefreshBox(
 					isRefreshing = isRefreshing,
@@ -449,6 +458,26 @@ private fun SharedArticlesDropRow(
 				tint = titleTint,
 				modifier = Modifier.size(14.dp),
 			)
+		}
+	}
+}
+
+@Composable
+private fun OfflineDownloadRow(progress: OfflineDownloadProgress, onCancel: () -> Unit) {
+	val brand = LocalBrandColors.current
+	Row(
+		modifier = Modifier
+			.padding(horizontal = 16.dp, vertical = 4.dp)
+			.fillMaxWidth(),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(10.dp),
+	) {
+		Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+			LinearProgressIndicator(progress = { progress.fraction }, modifier = Modifier.fillMaxWidth())
+			Text(text = progress.label, style = MaterialTheme.typography.bodySmall, color = brand.textSecondary)
+		}
+		IconButton(onClick = onCancel) {
+			Icon(imageVector = Glyph.CLOSE_CIRCLE, contentDescription = OFFLINE_DOWNLOAD_CANCEL_LABEL, tint = brand.textSecondary)
 		}
 	}
 }
@@ -954,6 +983,10 @@ private object Glyph {
 		name = "CloseCircle",
 		pathData = "M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 " +
 			"17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z",
+	)
+	val DOWNLOAD_CIRCLE: ImageVector = materialGlyph(
+		name = "DownloadCircle",
+		pathData = "M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10 10-4.49 10-10S17.51 2 12 2zm-1 8V6h2v4h3l-4 4-4-4h3zm6 7H7v-2h10v2z",
 	)
 	val LIST: ImageVector = materialGlyph(
 		name = "List",

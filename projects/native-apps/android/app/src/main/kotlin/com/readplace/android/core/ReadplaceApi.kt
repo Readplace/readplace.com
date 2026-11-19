@@ -213,15 +213,19 @@ class ReadplaceApi(
 	 * otherwise it follows a link href the server already handed back (e.g. the
 	 * `next` link). */
 	suspend fun loadReadlist(path: String? = null): ReadlistPage =
-		loadReadlist(path = path, cacheControl = null)
+		loadReadlist(path = path, cacheControl = null, asPrefetch = false)
+
+	suspend fun loadReadlistAsPrefetch(path: String): ReadlistPage =
+		loadReadlist(path = path, cacheControl = null, asPrefetch = true)
 
 	suspend fun rediscoverReadlist(path: String? = null): ReadlistPage =
-		loadReadlist(path = path, cacheControl = CacheControl.FORCE_NETWORK)
+		loadReadlist(path = path, cacheControl = CacheControl.FORCE_NETWORK, asPrefetch = false)
 
-	private suspend fun loadReadlist(path: String?, cacheControl: CacheControl?): ReadlistPage {
+	private suspend fun loadReadlist(path: String?, cacheControl: CacheControl?, asPrefetch: Boolean): ReadlistPage {
 		val url = if (path != null) absoluteUrl(path) else entryPoint("/")
 		val request = Request.Builder().url(url).get()
 		if (cacheControl != null) request.cacheControl(cacheControl)
+		if (asPrefetch) request.header(ReaderPrefetch.PURPOSE_HEADER, ReaderPrefetch.PURPOSE_VALUE)
 		val answer = send(request.build())
 		if (answer.status != 200) throw apiError(answer)
 		val chain = listOf(path ?: "/") + answer.hops.map { hrefOf(it) }
@@ -529,6 +533,7 @@ class ReadplaceApi(
 			.method(if (replays) sent.method else "GET", if (replays) sent.body else null)
 			.headers(headers.toHeaders())
 		first.header("Cache-Control")?.let { followed.header("Cache-Control", it) }
+		first.header(ReaderPrefetch.PURPOSE_HEADER)?.let { followed.header(ReaderPrefetch.PURPOSE_HEADER, it) }
 		return followed.build()
 	}
 
