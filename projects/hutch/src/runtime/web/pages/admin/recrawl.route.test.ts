@@ -383,6 +383,25 @@ describe("Admin recrawl routes", () => {
 			]);
 		});
 
+		it("shows no read time for a YouTube video", async () => {
+			const youtubeUrl = "https://www.youtube.com/watch?v=J3PGI4yqta4";
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: youtubeUrl,
+				metadata: { title: "T", siteName: "youtube.com", excerpt: "", wordCount: 1200 },
+				estimatedReadTime: MinutesSchema.parse(6),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: youtubeUrl });
+
+			const agent = await harness.signInAsAdmin();
+			const response = await agent.get(`/admin/recrawl/${encodeURIComponent(youtubeUrl)}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector('[data-test-reader-fact="read-time"]')?.textContent?.trim()).toBe("");
+		});
+
 		it("renders the Tier 1 badge when contentSourceTier is tier-1 (HTTP crawl)", async () => {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });

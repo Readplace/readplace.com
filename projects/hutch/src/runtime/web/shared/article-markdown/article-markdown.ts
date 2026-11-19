@@ -1,7 +1,6 @@
 import matter from "gray-matter";
 import {
 	type SavedArticle,
-	displayableReadTime,
 	hostStubMetadata,
 	isNonArticleHost,
 	type ArticleBody,
@@ -12,6 +11,7 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
 import { htmlToMarkdown, tldrCallout } from "@packages/web-shell";
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
 import { buildQueryString } from "../../api/collection-query";
+import { displayableArticleReadTime } from "../displayable-time";
 
 const FRONTMATTER_OPTIONS = { language: "yaml", lineWidth: -1 };
 
@@ -77,7 +77,8 @@ export function articleMarkdown(input: ArticleMarkdownInput): string {
 	const { article, readlist, readlists, appOrigin } = input;
 	const parts = documentParts(input);
 	const { metadata, summary } = parts;
-	const readTime = displayableReadTime({
+	const readTime = displayableArticleReadTime({
+		url: article.url,
 		metadata,
 		estimatedReadTime: article.estimatedReadTime,
 	});

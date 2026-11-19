@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import { z } from "zod";
 import { parseYouTubeEmbed } from "@packages/crawl-article";
@@ -80,10 +79,7 @@ export const youtubeSiteRules = {
 		const { videoPrimaryInfoRenderer: primary, videoSecondaryInfoRenderer: secondary } =
 			parsed.data.contents.twoColumnWatchNextResults.results.results.contents;
 
-		const metaDescription = document.querySelector('meta[name="description"]');
-		assert(metaDescription, "a YouTube watch page carries a meta description");
-		const excerpt = metaDescription.getAttribute("content");
-		assert(excerpt !== null, "a YouTube watch page's meta description has content");
+		const excerpt = document.querySelector('meta[name="description"]')?.getAttribute("content");
 
 		const container = document.createElement("div");
 
@@ -108,7 +104,7 @@ export const youtubeSiteRules = {
 
 		return {
 			title: primary.title.runs.map((run) => run.text).join(""),
-			excerpt,
+			...(excerpt ? { excerpt } : {}),
 			bodyHtml: container.innerHTML,
 		};
 	},

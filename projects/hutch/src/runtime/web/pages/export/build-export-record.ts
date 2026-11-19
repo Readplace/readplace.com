@@ -1,10 +1,7 @@
-import {
-	displayableReadTime,
-	type DisplayableReadTime,
-	type SavedArticle,
-} from "@packages/domain/article";
+import type { DisplayableReadTime, SavedArticle } from "@packages/domain/article";
 import type { EngagementState, StarterPack } from "@packages/provider-contracts/engagement-starter";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
+import { displayableArticleReadTime } from "../../shared/displayable-time";
 import type { ExportHighlight } from "./build-export-highlight";
 
 export interface ExportArticle {
@@ -29,7 +26,7 @@ export function toExportArticle(article: SavedArticle): ExportArticle {
 		siteName: article.metadata.siteName,
 		excerpt: article.metadata.excerpt,
 		wordCount: article.metadata.wordCount,
-		readTime: displayableReadTime(article) ?? null,
+		readTime: displayableArticleReadTime(article) ?? null,
 		status: article.status,
 		savedAt: article.savedAt.toISOString(),
 		readAt: article.readAt?.toISOString() ?? null,

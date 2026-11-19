@@ -148,6 +148,14 @@ describe("youtubeSiteRules", () => {
 		assert.match(parseWatchPage(FIXTURE).excerpt, /^What if we had "Rust" for Frontend\?/);
 	});
 
+	it("builds the save from ytInitialData when the page has no meta description", () => {
+		const html = FIXTURE.replace(/<meta name="description"[^>]*>/, "");
+		const article = parseWatchPage(html);
+
+		assert.equal(article.title, "ReactiveScript: Early Findings");
+		assert.doesNotMatch(article.excerpt, /^What if we had "Rust" for Frontend\?/);
+	});
+
 	it("lists chapters as links to their moment in the video", () => {
 		const document = contentDocument(parseWatchPage(FIXTURE).content);
 

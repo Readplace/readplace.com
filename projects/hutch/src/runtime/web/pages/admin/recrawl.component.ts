@@ -15,7 +15,7 @@ import { RegularReader } from "../../shared/article-body/reader-actions/reader-a
 import { TABLE_OF_CONTENTS_SCRIPT } from "../../shared/article-body/table-of-contents/table-of-contents.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { RECRAWL_STYLES } from "./recrawl.styles";
-import { displayableReadTime } from "@packages/domain/article";
+import { displayableArticleReadTime } from "../../shared/displayable-time";
 
 /**
  * The page's own address for an article, and the form tooling should emit.
@@ -105,7 +105,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		now: input.now,
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
-		readTime: displayableReadTime(input),
+		readTime: displayableArticleReadTime({ ...input, url: input.articleUrl }),
 		url: input.destinationUrl,
 		articleId: undefined,
 		saved: undefined,

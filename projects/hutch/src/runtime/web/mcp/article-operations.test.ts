@@ -163,6 +163,11 @@ describe("toMcpArticle", () => {
 		expect(mapped).not.toHaveProperty("readAt");
 	});
 
+	it("omits readTime for a YouTube video", () => {
+		const mcpArticle = toMcpArticle(buildArticle({ url: "https://www.youtube.com/watch?v=J3PGI4yqta4" }), []);
+		expect(Object.hasOwn(mcpArticle, "readTime")).toBe(false);
+	});
+
 	it("omits readTime while the crawl has not landed — an uncrawled stub's minutes are synthetic", () => {
 		const article = buildArticle({
 			metadata: {

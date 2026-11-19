@@ -1,9 +1,6 @@
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import assert from "node:assert";
-import {
-	displayableReadTime,
-	isNonArticleHost,
-} from "@packages/domain/article";
+import { isNonArticleHost } from "@packages/domain/article";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { viewerFor } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
@@ -25,6 +22,7 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import type { ArticleRelatedResult, ArticleStatusResult, ArticleSummaryResult, McpArticle, McpReadlist, McpServerDeps } from "./mcp-ports.types";
 
+import { displayableArticleReadTime } from "../shared/displayable-time";
 import type { ResolveOwnedArticle } from "./article-lookup";
 import type { ResolveReadlistMembership } from "./readlist-membership";
 
@@ -46,7 +44,7 @@ export function toMcpArticle(
 	article: SavedArticle,
 	readlists: readonly McpReadlist[],
 ): McpArticle {
-	const readTime = displayableReadTime(article);
+	const readTime = displayableArticleReadTime(article);
 	return {
 		id: article.id.value,
 		readlists,

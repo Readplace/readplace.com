@@ -104,6 +104,23 @@ describe("articleMarkdown", () => {
 			);
 		});
 
+		it("omits the read time for a YouTube video", () => {
+			const youtubeUrl = "https://www.youtube.com/watch?v=J3PGI4yqta4";
+			const parsed = matter(
+				articleMarkdown({
+					article: makeArticle({ url: youtubeUrl, destinationUrl: destinationUrl(youtubeUrl) }),
+					readlist: DEFAULT_READLIST_SLUG,
+					readlists: [DEFAULT_READLIST],
+					appOrigin: APP_ORIGIN,
+					crawl: { status: "ready" },
+					content: articleBody("<p>Body copy.</p>"),
+					summary: { status: "skipped" },
+				}),
+			);
+
+			expect(parsed.data).not.toHaveProperty("readplace_read_time");
+		});
+
 		it("writes every key in its fixed order and ends the document with one newline", () => {
 			const markdown = articleMarkdown({
 				article: makeArticle({
