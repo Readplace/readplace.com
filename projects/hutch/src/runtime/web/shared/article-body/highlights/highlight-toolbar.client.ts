@@ -1,6 +1,7 @@
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
+import { initHighlightPanels } from "./highlight-popover.client";
 import { type HighlightPreviews, initHighlightPreviews } from "./highlight-preview.client";
 import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
 import { placeClearOfPassage, TOOLBAR_GAP_PX } from "./place-clear-of-passage";
@@ -58,6 +59,7 @@ interface HighlightToolbarDeps {
 	supportsPopover: () => boolean;
 	showPopover: (panel: Element) => void;
 	hidePopover: (panel: Element) => void;
+	isOpen: (popover: Element) => boolean;
 	isFocusVisible: (element: Element) => boolean;
 	sendBeacon: (url: string) => void;
 }
@@ -310,6 +312,15 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		return selection;
 	};
 
+	const panels = initHighlightPanels({
+		document,
+		window: deps.window,
+		rectsOf: deps.rectsOf,
+		showPopover: deps.showPopover,
+		hidePopover: deps.hidePopover,
+		isOpen: deps.isOpen,
+	});
+
 	const previews = initHighlightPreviews({
 		document,
 		window: deps.window,
@@ -320,6 +331,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		showPopover: deps.showPopover,
 		hidePopover: deps.hidePopover,
 		isFocusVisible: deps.isFocusVisible,
+		panels,
 	});
 
 	const placeToolbar = startToolbar({ deps, previews, selectionOf });
@@ -331,6 +343,7 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 			frameRequested = false;
 			placeToolbar();
 			previews.reposition();
+			panels.reposition();
 		});
 	};
 

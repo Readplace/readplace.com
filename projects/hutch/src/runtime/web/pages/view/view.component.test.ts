@@ -576,6 +576,13 @@ describe("ViewPage", () => {
 		expect(doc.querySelector("[data-test-view-cta] > .reading-frame > .view__cta-content")).not.toBeNull();
 	});
 
+	it("renders no highlight panels beside a public view's article, which keeps its highlights in the browser", () => {
+		const doc = render(baseInput);
+
+		expect(doc.querySelector("[data-test-reader-content]")).not.toBeNull();
+		expect(doc.querySelector("#manage-highlights")).toBeNull();
+	});
+
 	it("marks the Save bar as the floor a docked Highlight bar sits above", () => {
 		const doc = render(baseInput);
 

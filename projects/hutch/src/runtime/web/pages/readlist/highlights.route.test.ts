@@ -1095,6 +1095,135 @@ describe("Highlights that carry a note in the reader (GET /queue/:id/view)", () 
 	});
 });
 
+describe("A highlight's actions beside the article (GET /queue/:id/view)", () => {
+	const notePath = (input: { articleId: string; highlightId: string }) =>
+		`/queue/${input.articleId}/highlights/${input.highlightId}/note`;
+
+	function panelsOf(html: string): (string | null)[] {
+		return Array.from(doc(html).querySelectorAll("[data-highlight-popover]"), (panel) =>
+			panel.getAttribute("data-highlight-popover"),
+		);
+	}
+
+	function panelOf(html: string, highlightId: string): Element {
+		const panel = doc(html).querySelector(`[data-highlight-popover="${highlightId}"]`);
+		assert(panel, `the reader renders the panel of ${highlightId}`);
+		return panel;
+	}
+
+	function actionsOf(panel: Element): string[] {
+		return Array.from(panel.querySelectorAll(".highlight-popover__actions button"), (button) =>
+			(button.textContent ?? "").trim(),
+		);
+	}
+
+	it("offers each highlight that has a mark its actions in a panel beside the article", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/highlight-panel-marked";
+		const { agent, articleId } = await saveArticle(harness, url);
+		await createHighlight(agent, { articleId, exact: "readability parser" });
+		const kept = await createHighlight(agent, { articleId, exact: "second paragraph" });
+
+		await fixture.articleStore.writeContent({ url, content: SECOND_PARAGRAPH });
+		const html = (await agent.get(viewPath(articleId))).text;
+		const page = doc(html);
+
+		expect(rowsOf(html)).toHaveLength(2);
+		expect(panelsOf(html)).toEqual([kept]);
+		const panel = page.querySelector(`[data-highlight-popover="${kept}"]`);
+		assert(panel, "the marked highlight's panel renders");
+		expect({
+			inSlot: panel.closest("#article-body-reader-slot") !== null,
+			inBody: panel.closest(".article-body__content") !== null,
+			inRail: panel.closest("#highlights-rail") !== null,
+		}).toEqual({ inSlot: true, inBody: false, inRail: false });
+	});
+
+	it("opens a highlight's panel as a dialog on its first action", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-focus");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const panel = panelOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect({
+			popover: panel.getAttribute("popover"),
+			role: panel.getAttribute("role"),
+			label: panel.ownerDocument.getElementById(panel.getAttribute("aria-labelledby") ?? "")?.textContent,
+			autofocus: Array.from(panel.querySelectorAll("[autofocus]"), (target) => target.getAttribute("popovertarget")),
+		}).toEqual({
+			popover: "auto",
+			role: "dialog",
+			label: "Highlight actions",
+			autofocus: [`note-highlight-${id}`],
+		});
+	});
+
+	it("offers Add note and Delete highlight for a highlight without a note", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-plain");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const panel = panelOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(actionsOf(panel)).toEqual(["Add note", "Delete highlight"]);
+		expect(panel.querySelector(".highlight-popover__note")).toBeNull();
+		expect(panel.hasAttribute("aria-describedby")).toBe(false);
+	});
+
+	it("shows the note and offers Edit note, Delete note and Delete highlight for a highlight with a note", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-noted");
+		const highlightId = await createHighlight(agent, { articleId, exact: "readability parser" });
+		await agent.post(notePath({ articleId, highlightId })).type("form").send({ note: "My thought" });
+
+		const panel = panelOf((await agent.get(viewPath(articleId))).text, highlightId);
+
+		const note = panel.querySelector(".highlight-popover__note");
+		assert(note, "the panel shows the note");
+		expect(note.textContent).toBe("My thought");
+		expect(panel.getAttribute("aria-describedby")).toBe(note.id);
+		expect(actionsOf(panel)).toEqual(["Edit note", "Delete note", "Delete highlight"]);
+	});
+
+	it("points every panel action at a dialog or form the page renders", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-targets");
+		const highlightId = await createHighlight(agent, { articleId, exact: "readability parser" });
+		await agent.post(notePath({ articleId, highlightId })).type("form").send({ note: "My thought" });
+
+		const page = doc((await agent.get(viewPath(articleId))).text);
+		const targets = Array.from(page.querySelectorAll("[data-highlight-popover] button"), (button) => {
+			const dialogId = button.getAttribute("popovertarget");
+			if (dialogId !== null) return { kind: "dialog", role: page.getElementById(dialogId)?.getAttribute("role") };
+			const formId = button.getAttribute("form");
+			assert(formId, "a panel action that opens no dialog submits a form");
+			return { kind: "form", role: page.getElementById(formId)?.tagName };
+		});
+
+		expect(targets).toEqual([
+			{ kind: "dialog", role: "dialog" },
+			{ kind: "form", role: "FORM" },
+			{ kind: "dialog", role: "dialog" },
+		]);
+	});
+
+	it("renders every id on the reader page once", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-ids");
+		const highlightId = await createHighlight(agent, { articleId, exact: "readability parser" });
+		await agent.post(notePath({ articleId, highlightId })).type("form").send({ note: "My thought" });
+		await createHighlight(agent, { articleId, exact: "second paragraph" });
+
+		const html = (await agent.get(viewPath(articleId))).text;
+		const ids = Array.from(doc(html).querySelectorAll("[id]"), (element) => element.id);
+
+		expect(panelsOf(html)).toHaveLength(2);
+		expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
+	});
+});
+
 describe("Highlights on the reader polls", () => {
 	it("polls the summary on the plain reader URL", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -1129,6 +1258,33 @@ describe("Highlights on the reader polls", () => {
 		expect(rail?.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		expect(rowsOf(poll)).toEqual([{ id, state: "anchored" }]);
 		expect(marksOf(poll)).toEqual(["readability parser"]);
+	});
+
+	it("sends the panels with the reader slot on a reader poll", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-poll-panels");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const page = doc((await agent.get(`/queue/${articleId}/reader?poll=1`)).text);
+
+		const containers = page.querySelectorAll("#manage-highlights");
+		expect(containers).toHaveLength(1);
+		expect(containers[0].closest("#article-body-reader-slot")).not.toBeNull();
+		expect(Array.from(containers[0].querySelectorAll("[data-highlight-popover]"), (panel) => panel.getAttribute("data-highlight-popover"))).toEqual([id]);
+	});
+
+	it("leaves the panels alone on a summary poll that leaves the marks alone", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-poll-summary-panels");
+		await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const page = doc((await agent.get(`/queue/${articleId}/summary?poll=1`)).text);
+
+		expect(page.querySelector("[data-test-reader-summary]")).not.toBeNull();
+		expect({
+			marks: page.querySelectorAll("mark.article-highlight").length,
+			panels: page.querySelectorAll("#manage-highlights").length,
+		}).toEqual({ marks: 0, panels: 0 });
 	});
 
 	it("emits pending rows and a rail target on the summary poll while the body is not served", async () => {

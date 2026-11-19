@@ -21,7 +21,8 @@ import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
 import { renderSummarySlot } from "./summary-slot/summary-slot.component";
 import { renderTableOfContents } from "./table-of-contents/table-of-contents.component";
-import type { ReaderHighlightState, ReaderHighlights } from "./reader-slot/mark-highlights";
+import type { ReaderHighlightState } from "./reader-slot/mark-highlights";
+import type { ScopedReaderHighlights } from "./reader-slot/reader-ready.component";
 import type { ReaderSectionInput } from "./reader-slot/section-pages";
 
 const ARTICLE_BODY_TEMPLATE = readFileSync(
@@ -66,7 +67,7 @@ export interface ArticleBodyInput {
 	previouslyReadHtml?: string;
 	report?: ReportArticleDialogInput;
 	readerSection: ReaderSectionInput;
-	highlights?: ReaderHighlights;
+	highlights?: ScopedReaderHighlights;
 }
 
 interface RenderedArticleBody {

@@ -99,6 +99,7 @@ function harness(): Harness {
 		supportsPopover: () => true,
 		showPopover: () => undefined,
 		hidePopover: () => undefined,
+		isOpen: () => false,
 		isFocusVisible: () => false,
 		sendBeacon: () => undefined,
 	});

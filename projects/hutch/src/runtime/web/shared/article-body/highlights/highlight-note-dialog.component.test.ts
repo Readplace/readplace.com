@@ -6,6 +6,7 @@ import {
 	highlightNoteEditPopoverId,
 	renderHighlightNoteCreateForm,
 	renderHighlightNoteDeleteForm,
+	renderHighlightNoteDeleteTrigger,
 	renderHighlightNoteDialog,
 	renderHighlightNoteEditDialog,
 	renderHighlightNoteFallbackForm,
@@ -355,6 +356,26 @@ describe("Delete note", () => {
 		expect(
 			Array.from(doc.querySelectorAll("[autofocus]"), (el) => el.tagName),
 		).toEqual(["TEXTAREA"]);
+	});
+
+	it("renders as a menu row submitting the row's Delete note form when placed in a highlight's panel", () => {
+		const doc = parse(renderHighlightNoteDeleteTrigger({ highlightId: HIGHLIGHT_ID, placement: "panel" }));
+
+		const trigger = doc.querySelector('[data-test-action="highlight-panel-note-delete"]');
+		assert(trigger, "the panel row renders");
+		expect({
+			className: trigger.className,
+			type: trigger.getAttribute("type"),
+			form: trigger.getAttribute("form"),
+			text: trigger.textContent,
+			icons: trigger.querySelectorAll("svg").length,
+		}).toEqual({
+			className: "menu__item",
+			type: "submit",
+			form: `delete-note-highlight-${HIGHLIGHT_ID}`,
+			text: "Delete note",
+			icons: 1,
+		});
 	});
 
 	it("is not offered in the edit dialog of a highlight without a note", () => {

@@ -265,6 +265,27 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		]);
 	});
 
+	it("lands a dialog create on a reader that offers the new highlight's panel with its note", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/note-create-panel");
+
+		const response = await dialogCreate(agent, {
+			articleId,
+			body: {
+				...(await rangeOf(agent, { articleId, exact: "readability parser" })),
+				note: "Typed",
+			},
+		});
+		const landing = doc((await agent.get(JSON.parse(response.headers["hx-location"]).path)).text);
+
+		const [row] = Array.from(landing.querySelectorAll("[data-test-highlight-row]"), (element) =>
+			element.getAttribute("data-test-highlight-row"),
+		);
+		assert(row, "the landing lists the new highlight");
+		const panel = landing.querySelector(`[data-highlight-popover="${row}"]`);
+		expect(panel?.querySelector(".highlight-popover__note")?.textContent).toBe("Typed");
+	});
+
 	it("answers 422 with the note form, the typed note and the passage refusal when exact is not at start", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(

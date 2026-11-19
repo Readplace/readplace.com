@@ -26,7 +26,10 @@ const DELETE_FORM_TEMPLATE = `<form class="highlight-note__delete-form" id="{{id
 	<button class="btn btn--destructive btn--s" type="submit" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>
 </form>`;
 
-const DELETE_TRIGGER_TEMPLATE = `<button class="btn btn--destructive" type="submit" form="{{formId}}" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>`;
+const DELETE_TRIGGER_TEMPLATES = {
+	dialog: `<button class="btn btn--destructive" type="submit" form="{{formId}}" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>`,
+	panel: `<button class="menu__item" type="submit" form="{{formId}}" data-test-action="highlight-panel-note-delete">{{icon "x"}}{{t "articleBody.highlightNote.delete"}}</button>`,
+} as const;
 
 export interface HighlightFormScope {
 	articleId: string;
@@ -83,10 +86,11 @@ export function renderHighlightNoteDeleteForm(input: {
 	});
 }
 
-function renderHighlightNoteDeleteTrigger(input: {
+export function renderHighlightNoteDeleteTrigger(input: {
 	highlightId: HighlightId;
+	placement: keyof typeof DELETE_TRIGGER_TEMPLATES;
 }): string {
-	return render(DELETE_TRIGGER_TEMPLATE, {
+	return render(DELETE_TRIGGER_TEMPLATES[input.placement], {
 		formId: highlightNoteDeleteFormId(input.highlightId),
 	});
 }
@@ -165,7 +169,7 @@ export function renderHighlightNoteEditDialog(input: {
 			deleteTriggerHtml:
 				input.note === undefined
 					? undefined
-					: renderHighlightNoteDeleteTrigger(input),
+					: renderHighlightNoteDeleteTrigger({ highlightId: input.highlightId, placement: "dialog" }),
 		}),
 	});
 }
