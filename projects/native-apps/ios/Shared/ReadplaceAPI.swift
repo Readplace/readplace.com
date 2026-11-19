@@ -47,6 +47,7 @@ extension APIError {
 struct ReadlistPage {
 	let articles: [Article]
 	let nextHref: String?
+	let nextIsOfflinePrefetch: Bool
 	let rootHref: String?
 	/// Every collection-level action and navigable link the server advertised, in
 	/// wire order — the complete set, so the share-sheet save journey can still find
@@ -75,7 +76,9 @@ struct ReadlistPage {
 	init(collection: SirenCollection, sirenBody: Data? = nil, isStoredCopy: Bool = false, redirectChain: [String] = []) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
 		let links = collection.links ?? []
-		nextHref = links.first { $0.rel.contains("next") }?.href
+		let next = links.first { $0.rel.contains("next") }
+		nextHref = next?.href
+		nextIsOfflinePrefetch = next?.classes?.contains("offline-prefetch") == true
 		rootHref = links.first { $0.rel.contains("root") }?.href
 		let actionAffordances = (collection.actions ?? []).compactMap(Affordance.init(action:))
 		let linkAffordances = links.compactMap(Affordance.init(link:))
@@ -174,6 +177,10 @@ final class ReadplaceAPI {
 		try await loadReadlist(path: path, cachePolicy: .reloadRevalidatingCacheData, timeout: Self.listReadTimeout)
 	}
 
+	func prefetchReadlist(path: String) async throws -> ReadlistPage {
+		try await loadReadlist(path: path, cachePolicy: .reloadRevalidatingCacheData, timeout: Self.listReadTimeout, isPrefetch: true)
+	}
+
 	func discoverReadlist() async throws -> ReadlistPage {
 		try await loadReadlist(path: nil, cachePolicy: .useProtocolCachePolicy, timeout: nil)
 	}
@@ -187,7 +194,7 @@ final class ReadplaceAPI {
 	}
 
 	private func loadReadlist(
-		path: String?, cachePolicy: URLRequest.CachePolicy, timeout: TimeInterval?
+		path: String?, cachePolicy: URLRequest.CachePolicy, timeout: TimeInterval?, isPrefetch: Bool = false
 	) async throws -> ReadlistPage {
 		let url: URL
 		if let path {
@@ -200,6 +207,7 @@ final class ReadplaceAPI {
 		request.httpMethod = "GET"
 		request.cachePolicy = cachePolicy
 		if let timeout { request.timeoutInterval = timeout }
+		if isPrefetch { request.setValue("prefetch", forHTTPHeaderField: "Sec-Purpose") }
 		let (data, http, redirectChain) = try await send(request)
 		guard http.statusCode == 200 else { throw apiError(from: data, status: http.statusCode) }
 		return ReadlistPage(

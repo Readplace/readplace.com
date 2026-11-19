@@ -254,6 +254,25 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
+	func testPrefetchReadlistSaysTheListReadIsAPrefetch() async throws {
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.collection(entitiesJSON: [])) }
+
+		_ = try await makeAPI(store: TestSupport.loggedInStore()).prefetchReadlist(path: "/queue?status=unread&page=3")
+
+		XCTAssertEqual(StubURLProtocol.records.map { $0.request.url?.query }, ["status=unread&page=3"])
+		XCTAssertEqual(StubURLProtocol.records.map { $0.request.value(forHTTPHeaderField: "Sec-Purpose") }, ["prefetch"])
+		XCTAssertEqual(StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadRevalidatingCacheData])
+		XCTAssertEqual(StubURLProtocol.records.map { $0.request.timeoutInterval }, [10.0])
+	}
+
+	func testLoadReadlistDoesNotSayTheListReadIsAPrefetch() async throws {
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.collection(entitiesJSON: [])) }
+
+		_ = try await makeAPI(store: TestSupport.loggedInStore()).loadReadlist(path: "/queue?status=unread&page=2")
+
+		XCTAssertEqual(StubURLProtocol.records.map { $0.request.value(forHTTPHeaderField: "Sec-Purpose") }, [nil])
+	}
+
 	func testEveryLegOfAListReadGivesUpAfterTenSilentSeconds() async throws {
 		StubURLProtocol.setHandler { request, _ in
 			if request.url?.path == "/oauth/token" { return .json(200, Fixtures.tokenResponse(access: "fresh", refresh: "fresh-r")) }

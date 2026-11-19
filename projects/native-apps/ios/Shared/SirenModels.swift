@@ -54,6 +54,23 @@ struct SirenLink: Decodable, Hashable {
 	let rel: [String]
 	let href: String?
 	let title: String?
+	let classes: [String]?
+}
+
+extension SirenLink {
+	private enum CodingKeys: String, CodingKey { case rel, href, title, classes = "class" }
+
+	init(rel: [String], href: String?, title: String?) {
+		self.init(rel: rel, href: href, title: title, classes: nil)
+	}
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		rel = try container.decode([String].self, forKey: .rel)
+		href = try container.decodeIfPresent(String.self, forKey: .href)
+		title = try container.decodeIfPresent(String.self, forKey: .title)
+		classes = try container.decodeLossyArrayIfPresent(String.self, forKey: .classes)
+	}
 }
 
 /// One field of an action. `value` is the server's pre-filled default, when

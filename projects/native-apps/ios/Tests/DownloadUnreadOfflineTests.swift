@@ -109,6 +109,37 @@ final class DownloadUnreadOfflineTests: XCTestCase {
 		XCTAssertEqual(reported.last, progress(2, of: 2, failed: 0))
 	}
 
+	func testAPageReachedThroughALinkMarkedAsAnOfflinePrefetchIsReadAsAPrefetch() async throws {
+		let unmarkedNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=2\" }"
+		let markedNext = ",{ \"rel\": [\"next\"], \"href\": \"/queue?status=unread&page=3\", \"class\": [\"offline-prefetch\"] }"
+		StubURLProtocol.setHandler { request, _ in
+			switch (request.url?.path, request.url?.query) {
+			case ("/queue", "status=unread"):
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], extraLinks: unmarkedNext))
+			case ("/queue", "status=unread&page=2"):
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a2")], extraLinks: markedNext, page: 2))
+			case ("/queue", "status=unread&page=3"):
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a3")], page: 3))
+			case ("/auth/session", _):
+				return StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=sess-offline; Path=/; HttpOnly"])
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let prefetcher = FakeReaderPrefetcher()
+
+		let outcome = try await makeDownload(prefetcher: prefetcher).run(from: "/queue?status=unread", expectedTotal: 0) { _ in }
+
+		XCTAssertEqual(outcome, .downloaded)
+		XCTAssertEqual(
+			StubURLProtocol.records(path: "/queue").map {
+				"\($0.request.url?.query ?? "") \($0.request.value(forHTTPHeaderField: "Sec-Purpose") ?? "none")"
+			},
+			["status=unread none", "status=unread&page=2 none", "status=unread&page=3 prefetch"]
+		)
+		XCTAssertEqual(prefetcher.prefetched.map { $0.request.url?.path }, ["/queue/a1/view", "/queue/a2/view", "/queue/a3/view"])
+	}
+
 	func testTheDownloadWaitsForWebKitToStoreTheLastArticleBeforeItFinishes() async throws {
 		serveTwoPages(firstPage: [Fixtures.article(id: "a1")], secondPage: [Fixtures.article(id: "a2")])
 		let prefetcher = FakeReaderPrefetcher()

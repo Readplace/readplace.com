@@ -468,6 +468,46 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(saveLink.link?.href, "/save")
 	}
 
+	func testALinkCarriesTheClassesTheServerMarkedItWith() throws {
+		let json = #"{ "rel": ["next"], "href": "/queue?page=3", "class": ["offline-prefetch"] }"#
+		let link = try JSONDecoder().decode(SirenLink.self, from: Data(json.utf8))
+		XCTAssertEqual(link.classes, ["offline-prefetch"])
+		XCTAssertEqual(link.href, "/queue?page=3")
+	}
+
+	func testALinkWithoutAClassDecodesWithNoClasses() throws {
+		let json = #"{ "rel": ["next"], "href": "/queue?page=2" }"#
+		let link = try JSONDecoder().decode(SirenLink.self, from: Data(json.utf8))
+		XCTAssertEqual(link.classes, nil)
+		XCTAssertEqual(link.href, "/queue?page=2")
+	}
+
+	func testALinkWithAMalformedClassStillDecodes() throws {
+		let json = #"{ "rel": ["next"], "href": "/queue?page=2", "class": "offline-prefetch" }"#
+		let link = try JSONDecoder().decode(SirenLink.self, from: Data(json.utf8))
+		XCTAssertEqual(link.classes, nil)
+		XCTAssertEqual(link.href, "/queue?page=2")
+	}
+
+	func testAPageSaysWhetherItsNextLinkIsMarkedAsAnOfflinePrefetch() throws {
+		let marked = Fixtures.collection(
+			entitiesJSON: [Fixtures.article()],
+			extraLinks: ", { \"rel\": [\"next\"], \"href\": \"/queue?page=2\", \"class\": [\"offline-prefetch\"] }"
+		)
+		let markedPage = ReadlistPage(collection: try decodeCollection(marked))
+		XCTAssertEqual(markedPage.nextHref, "/queue?page=2")
+		XCTAssertEqual(markedPage.nextIsOfflinePrefetch, true)
+
+		let unmarked = Fixtures.collection(
+			entitiesJSON: [Fixtures.article()],
+			extraLinks: ", { \"rel\": [\"next\"], \"href\": \"/queue?page=2\", \"class\": [\"other\"] }"
+		)
+		XCTAssertEqual(ReadlistPage(collection: try decodeCollection(unmarked)).nextIsOfflinePrefetch, false)
+		XCTAssertEqual(
+			ReadlistPage(collection: try decodeCollection(Fixtures.collection(entitiesJSON: []))).nextIsOfflinePrefetch, false
+		)
+	}
+
 	func testPaginationLinks() throws {
 		let withNext = Fixtures.collection(
 			entitiesJSON: [Fixtures.article()],

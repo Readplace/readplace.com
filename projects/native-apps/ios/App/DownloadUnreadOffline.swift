@@ -166,14 +166,18 @@ struct DownloadUnreadOffline {
 	) async throws {
 		defer { queue.close() }
 		var path: String? = href
+		var reachedThroughPrefetchLink = false
 		while let current = path {
-			let page = try await api.loadReadlist(path: current)
+			let page = try await reachedThroughPrefetchLink
+				? api.prefetchReadlist(path: current)
+				: api.loadReadlist(path: current)
 			snapshot.save(page, href: current, savedAt: Date())
 			let unread = unreadArticles(on: page)
 			tally.total += unread.count
 			report()
 			queue.push(unread)
 			path = page.nextHref
+			reachedThroughPrefetchLink = page.nextIsOfflinePrefetch
 		}
 		tally.walking = false
 		report()
