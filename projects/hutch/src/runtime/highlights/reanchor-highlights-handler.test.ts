@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { initReadArticleContentOrThrow } from "@packages/article-store";
 import {
+	type CandidateId,
 	CandidateIdSchema,
 	type Highlight,
 	MinutesSchema,
@@ -26,6 +27,7 @@ import {
 import { initCreateReaderHighlight } from "../web/shared/article-body/highlights/create-reader-highlight";
 import { prepareReaderContent } from "../web/shared/article-body/reader-slot/reader-content";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../web/shared/article-body/reader-slot/section-pages";
+import type { ReadCandidateBody } from "../providers/candidate-body/s3-read-candidate-body";
 import { initReanchorHighlightsHandler } from "./reanchor-highlights-handler";
 
 const APP_ORIGIN = "https://readplace.com";
@@ -36,6 +38,7 @@ const HASH_ONE = "hash-one";
 const HASH_TWO = "hash-two";
 const CANDIDATE_ONE = CandidateIdSchema.parse("candidate-one");
 const CANDIDATE_TWO = CandidateIdSchema.parse("candidate-two");
+const CANDIDATE_BASIS = CandidateIdSchema.parse("candidate-basis");
 
 const HARBOUR = "The harbour opened at dawn and the fishing boats slipped out past the breakwater one by one.";
 const CAPTAINS = "Every captain checked the weather report twice before deciding how far to sail that morning.";
@@ -43,11 +46,23 @@ const CAPTAINS_EDITED = "Every captain checked the weather report thrice before 
 const NETS = "By noon the nets were hauled aboard and the crews turned their bows toward home.";
 const GULLS = "A lighthouse keeper once counted forty seven gulls perched along the old stone pier wall.";
 
+const NOTHING_PLACED = {
+	diffed: 0,
+	edited: 0,
+	gone: 0,
+	notPlaced: 0,
+	placedByFallback: 0,
+	placedElsewhere: 0,
+	basisGranted: 0,
+	basisMissing: 0,
+};
+
 const paragraphs = (...texts: string[]) => texts.map((text) => `<p>${text}</p>`).join("");
 
 interface Overrides {
 	readCanonicalSnapshot?: (real: ReadCanonicalSnapshot) => ReadCanonicalSnapshot;
 	readArticleContent?: (real: ReadArticleContent) => ReadArticleContent;
+	readCandidateBody?: (real: ReadCandidateBody) => ReadCandidateBody;
 	writeHighlightAnchor?: (real: WriteHighlightAnchor) => WriteHighlightAnchor;
 }
 
@@ -65,6 +80,12 @@ function makeHarness(overrides: Overrides = {}) {
 		newHighlightId: randomUUID,
 		now: () => new Date("2026-11-01T00:00:00.000Z"),
 	});
+	const candidateBodies = new Map<CandidateId, string>();
+	const candidateReads: CandidateId[] = [];
+	const readCandidateBody: ReadCandidateBody = async ({ candidateId }) => {
+		candidateReads.push(candidateId);
+		return candidateBodies.get(candidateId);
+	};
 	const published: { event: unknown; detail: unknown }[] = [];
 	const metricLines: HighlightsReanchoredLine[] = [];
 	const infoLines: unknown[][] = [];
@@ -75,6 +96,7 @@ function makeHarness(overrides: Overrides = {}) {
 		listHighlightsOfArticle: highlights.listHighlightsOfArticle,
 		readCanonicalSnapshot: (overrides.readCanonicalSnapshot ?? ((real) => real))(articleStore.readCanonicalSnapshot),
 		readArticleContent: (overrides.readArticleContent ?? ((real) => real))(readArticleContent),
+		readCandidateBody: (overrides.readCandidateBody ?? ((real) => real))(readCandidateBody),
 		writeHighlightAnchor: (overrides.writeHighlightAnchor ?? ((real) => real))(highlights.writeHighlightAnchor),
 		publishEvent: (async (event, detail) => {
 			published.push({ event, detail });
@@ -121,13 +143,21 @@ function makeHarness(overrides: Overrides = {}) {
 		});
 	};
 
-	const highlight = async (params: { url: string; userId: UserId; exact: string; text?: string; hash?: string }): Promise<Highlight> => {
+	const highlight = async (params: {
+		url: string;
+		userId: UserId;
+		exact: string;
+		text?: string;
+		hash?: string;
+		candidateId?: CandidateId;
+	}): Promise<Highlight> => {
 		const text = params.text ?? (await readerText(params.url));
 		const start = text.indexOf(params.exact);
 		assert(start >= 0, `"${params.exact}" is in the seeded text`);
 		const outcome = await createReaderHighlight({
 			text,
 			contentHash: params.hash ?? HASH_ONE,
+			candidateId: params.candidateId,
 			userId: params.userId,
 			url: ArticleResourceUniqueId.parse(params.url).value,
 			exact: params.exact,
@@ -153,7 +183,7 @@ function makeHarness(overrides: Overrides = {}) {
 		return response;
 	};
 
-	return { articleStore, highlights, seedArticle, highlight, readerText, rowsOf, rowOf, run, published, metricLines, infoLines };
+	return { articleStore, highlights, candidateBodies, candidateReads, seedArticle, highlight, readerText, rowsOf, rowOf, run, published, metricLines, infoLines };
 }
 
 describe("initReanchorHighlightsHandler", () => {
@@ -193,7 +223,7 @@ describe("initReanchorHighlightsHandler", () => {
 			{ event: HighlightsReanchoredEvent, detail: { url: URL_A, anchored: 1, moved: 1, orphaned: 1 } },
 		]);
 		assert.deepEqual(h.metricLines, [
-			{ event: HIGHLIGHTS_REANCHORED_EVENT, url: URL_A, anchored: 1, moved: 1, orphaned: 1, skipped: 0 },
+			{ event: HIGHLIGHTS_REANCHORED_EVENT, url: URL_A, anchored: 1, moved: 1, orphaned: 1, skipped: 0, ...NOTHING_PLACED, edited: 1 },
 		]);
 	});
 
@@ -429,7 +459,7 @@ describe("initReanchorHighlightsHandler", () => {
 
 		assert.deepEqual(response.batchItemFailures, []);
 		assert.deepEqual(h.metricLines, [
-			{ event: HIGHLIGHTS_REANCHORED_EVENT, url: URL_A, anchored: 0, moved: 0, orphaned: 0, skipped: 1 },
+			{ event: HIGHLIGHTS_REANCHORED_EVENT, url: URL_A, anchored: 0, moved: 0, orphaned: 0, skipped: 1, ...NOTHING_PLACED },
 		]);
 		assert.deepEqual(h.published, [
 			{ event: HighlightsReanchoredEvent, detail: { url: URL_A, anchored: 0, moved: 0, orphaned: 0 } },
@@ -476,5 +506,159 @@ describe("initReanchorHighlightsHandler", () => {
 		const response = await h.run({ body: JSON.stringify({ detail: {} }) });
 
 		assert.deepEqual(response.batchItemFailures, [{ itemIdentifier: "msg-1" }]);
+	});
+	it("diffs a row with no basis against the body of the candidate it was anchored to, and reads no body once the row is on the canonical", async () => {
+		const h = makeHarness();
+		const original = paragraphs(HARBOUR, CAPTAINS, NETS, GULLS);
+		await h.seedArticle({ url: URL_A, html: original, hash: HASH_ONE, candidateId: CANDIDATE_ONE });
+		h.candidateBodies.set(CANDIDATE_ONE, original);
+		const edited = await h.highlight({
+			url: URL_A,
+			userId: READER_ONE,
+			exact: "checked the weather report twice before deciding how far to sail that",
+			candidateId: CANDIDATE_ONE,
+		});
+		await h.articleStore.replaceCanonicalContent({
+			url: URL_A,
+			content: paragraphs(HARBOUR, CAPTAINS_EDITED, NETS),
+			canonicalContentHash: HASH_TWO,
+			canonicalCandidateId: CANDIDATE_TWO,
+		});
+
+		const response = await h.run();
+		const redelivered = await h.run();
+
+		assert.deepEqual(response.batchItemFailures, []);
+		assert.deepEqual(redelivered.batchItemFailures, []);
+		assert.deepEqual(h.candidateReads, [CANDIDATE_ONE]);
+		const row = await h.rowOf({ url: URL_A, highlightId: edited.highlightId });
+		assert.equal(row.anchorState, "moved");
+		assert.equal(row.basisCandidateId, CANDIDATE_TWO);
+		assert.equal(
+			(await h.readerText(URL_A)).slice(row.start, row.end),
+			"checked the weather report thrice before deciding how far to sail that",
+		);
+		assert.deepEqual(h.metricLines, [
+			{
+				event: HIGHLIGHTS_REANCHORED_EVENT,
+				url: URL_A,
+				anchored: 0,
+				moved: 1,
+				orphaned: 0,
+				skipped: 0,
+				...NOTHING_PLACED,
+				diffed: 1,
+				edited: 1,
+				basisGranted: 1,
+			},
+			{ event: HIGHLIGHTS_REANCHORED_EVENT, url: URL_A, anchored: 0, moved: 0, orphaned: 0, skipped: 0, ...NOTHING_PLACED },
+		]);
+	});
+
+	it("gives a row today's pass when no tier holds the body of the candidate it was anchored to", async () => {
+		const h = makeHarness();
+		await h.seedArticle({ url: URL_A, html: paragraphs(HARBOUR, CAPTAINS, NETS), hash: HASH_ONE, candidateId: CANDIDATE_ONE });
+		const edited = await h.highlight({
+			url: URL_A,
+			userId: READER_ONE,
+			exact: "checked the weather report twice before deciding how far to sail that",
+			candidateId: CANDIDATE_ONE,
+		});
+		await h.articleStore.replaceCanonicalContent({
+			url: URL_A,
+			content: paragraphs(HARBOUR, CAPTAINS_EDITED, NETS),
+			canonicalContentHash: HASH_TWO,
+			canonicalCandidateId: CANDIDATE_TWO,
+		});
+
+		const response = await h.run();
+
+		assert.deepEqual(response.batchItemFailures, []);
+		assert.deepEqual(h.candidateReads, [CANDIDATE_ONE]);
+		const row = await h.rowOf({ url: URL_A, highlightId: edited.highlightId });
+		assert.equal(row.anchorState, "moved");
+		assert.equal(row.basisCandidateId, undefined);
+		assert.deepEqual(h.metricLines, [
+			{ event: HIGHLIGHTS_REANCHORED_EVENT, url: URL_A, anchored: 0, moved: 1, orphaned: 0, skipped: 0, ...NOTHING_PLACED, edited: 1 },
+		]);
+	});
+
+	it("reads a row's basis rather than its anchor, and keeps the basis when the basis body does not place the row", async () => {
+		const h = makeHarness();
+		const original = paragraphs(HARBOUR, CAPTAINS, NETS, GULLS);
+		await h.seedArticle({ url: URL_A, html: original, hash: HASH_ONE, candidateId: CANDIDATE_ONE });
+		h.candidateBodies.set(CANDIDATE_BASIS, original);
+		const deleted = await h.highlight({
+			url: URL_A,
+			userId: READER_ONE,
+			exact: "counted forty seven gulls perched along the old stone pier wall",
+			candidateId: CANDIDATE_ONE,
+		});
+		await h.highlights.writeHighlightAnchor({
+			userId: READER_ONE,
+			url: deleted.highlightOf,
+			highlightId: deleted.highlightId,
+			expectedRevision: deleted.anchorRevision,
+			anchor: {
+				start: deleted.start,
+				end: deleted.end,
+				anchorState: "anchored",
+				anchoredContentHash: HASH_ONE,
+				anchoredCandidateId: CANDIDATE_ONE,
+				basisCandidateId: CANDIDATE_BASIS,
+				orderKey: deleted.orderKey,
+			},
+		});
+		await h.articleStore.replaceCanonicalContent({
+			url: URL_A,
+			content: paragraphs(HARBOUR, CAPTAINS, NETS),
+			canonicalContentHash: HASH_TWO,
+			canonicalCandidateId: CANDIDATE_TWO,
+		});
+
+		const response = await h.run();
+
+		assert.deepEqual(response.batchItemFailures, []);
+		assert.deepEqual(h.candidateReads, [CANDIDATE_BASIS]);
+		const row = await h.rowOf({ url: URL_A, highlightId: deleted.highlightId });
+		assert.equal(row.anchorState, "orphaned");
+		assert.equal(row.basisCandidateId, CANDIDATE_BASIS);
+		assert.equal(row.anchoredCandidateId, CANDIDATE_TWO);
+		assert.deepEqual(h.metricLines, [
+			{
+				event: HIGHLIGHTS_REANCHORED_EVENT,
+				url: URL_A,
+				anchored: 0,
+				moved: 0,
+				orphaned: 1,
+				skipped: 0,
+				...NOTHING_PLACED,
+				diffed: 1,
+				gone: 1,
+			},
+		]);
+	});
+
+	it("fails the record when reading a candidate body rejects", async () => {
+		const h = makeHarness({
+			readCandidateBody: () => async () => {
+				throw new Error("ThrottlingException");
+			},
+		});
+		await h.seedArticle({ url: URL_A, html: paragraphs(HARBOUR, CAPTAINS), hash: HASH_ONE, candidateId: CANDIDATE_ONE });
+		await h.highlight({ url: URL_A, userId: READER_ONE, exact: "the fishing boats slipped out", candidateId: CANDIDATE_ONE });
+		const seeded = await h.rowsOf(URL_A);
+		await h.articleStore.replaceCanonicalContent({
+			url: URL_A,
+			content: paragraphs(GULLS, HARBOUR),
+			canonicalContentHash: HASH_TWO,
+			canonicalCandidateId: CANDIDATE_TWO,
+		});
+
+		const response = await h.run();
+
+		assert.deepEqual(response.batchItemFailures, [{ itemIdentifier: "msg-1" }]);
+		assert.deepEqual(await h.rowsOf(URL_A), seeded);
+		assert.deepEqual(h.published, []);
 	});
 });

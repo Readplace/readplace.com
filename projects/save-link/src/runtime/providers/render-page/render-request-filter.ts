@@ -74,7 +74,7 @@ export function initRenderRequestFilter(deps: { rejectRenderRequest: RejectRende
 				}
 				const requestHost = hostOfRenderUrl(request.url);
 				const { resourceType, isNavigation: navigation } = request;
-				if (proxied && !navigation && counts.continued() >= PROXIED_REQUEST_LIMIT) {
+				if (proxied && counts.continued() >= PROXIED_REQUEST_LIMIT) {
 					counts.reject("budget");
 					hosts.record({ requestHost, resourceType, navigation, route: "aborted-budget" });
 					return ABORT_RENDER_REQUEST;

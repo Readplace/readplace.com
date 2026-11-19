@@ -398,6 +398,53 @@ describe("POST /queue (Siren save article)", () => {
 		]);
 	});
 
+	it("points Location at the saved article's self link, which answers that article to the same bearer", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+		const saved = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/located" });
+		const selfLinks = saved.body.links.filter((link: { rel: string[] }) => link.rel.includes("self"));
+
+		const followed = await request(harness.server)
+			.get(saved.headers.location)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect({
+			status: saved.status,
+			location: saved.headers.location,
+			selfLinks,
+			followed: [followed.status, followed.body.class, followed.body.properties.id],
+		}).toEqual({
+			status: 201,
+			location: `/queue/${saved.body.properties.id}/card`,
+			selfLinks: [{ rel: ["self"], href: saved.headers.location }],
+			followed: [200, ["article"], saved.body.properties.id],
+		});
+	});
+
+	it("points a save-content answer's Location at the saved article's self link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const saved = await request(harness.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://example.com/captured")
+			.field("mediaType", "text/html")
+			.attach("content", Buffer.from("<html><body><p>captured</p></body></html>"), "content");
+
+		expect([saved.status, saved.headers.location]).toEqual([
+			201,
+			saved.body.links.find((link: { rel: string[] }) => link.rel.includes("self")).href,
+		]);
+	});
+
 	it("tells a re-saver of an unread article it was already saved and bumped to the top", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await createAccessToken(harness);
@@ -684,7 +731,7 @@ describe("POST /queue (Siren save article)", () => {
 		expect(updateStatus.href).toContain("/status");
 		expect(updateStatus.type).toBe("application/x-www-form-urlencoded");
 		expect(updateStatus.fields).toEqual([
-			{ name: "status", type: "text", value: "read" },
+			{ name: "status", type: "hidden", value: "read" },
 		]);
 	});
 });
@@ -730,7 +777,7 @@ describe("GET /queue status tabs (Siren)", () => {
 			expect.objectContaining({
 				title: "Mark as unread",
 				href: `/queue/${articleId}/status?status=read`,
-				fields: [{ name: "status", type: "text", value: "unread" }],
+				fields: [{ name: "status", type: "hidden", value: "unread" }],
 			}),
 		);
 	});
@@ -1275,7 +1322,7 @@ describe("Article sub-entity actions", () => {
 		expect(updateStatus.href).toContain("/status");
 		expect(updateStatus.type).toBe("application/x-www-form-urlencoded");
 		expect(updateStatus.fields).toEqual([
-			{ name: "status", type: "text", value: "read" },
+			{ name: "status", type: "hidden", value: "read" },
 		]);
 	});
 

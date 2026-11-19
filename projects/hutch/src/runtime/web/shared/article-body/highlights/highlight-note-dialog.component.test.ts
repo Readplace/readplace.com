@@ -55,6 +55,7 @@ describe("renderHighlightNoteDialog", () => {
 				{ name: "exact", value: "" },
 				{ name: "answer", value: "dialog" },
 			],
+			autofocus: true,
 		}),
 	);
 
@@ -112,6 +113,7 @@ describe("renderHighlightNoteCreateForm", () => {
 				value: "typed note",
 				error: "Select a shorter passage",
 				refusal: "passage",
+				autofocus: true,
 			}),
 		);
 		const form = doc.querySelector("form");
@@ -189,6 +191,7 @@ describe("renderHighlightNoteFallbackForm", () => {
 				highlightId: HIGHLIGHT_ID,
 				note: "kept",
 				scope: WEB_SCOPE,
+				open: false,
 			}),
 		);
 
@@ -212,17 +215,30 @@ describe("renderHighlightNoteFallbackForm", () => {
 			renderHighlightNoteFallbackForm({
 				highlightId: HIGHLIGHT_ID,
 				scope: WEB_SCOPE,
+				open: false,
 			}),
 		);
 
 		expect(textareaOf(doc).value).toBe("");
+	});
+
+	it("focuses its field when the reader landed on it to add the note", () => {
+		const doc = parse(
+			renderHighlightNoteFallbackForm({
+				highlightId: HIGHLIGHT_ID,
+				scope: WEB_SCOPE,
+				open: true,
+			}),
+		);
+
+		expect(textareaOf(doc).hasAttribute("autofocus")).toBe(true);
 	});
 });
 
 describe("note dialogs in the app surface", () => {
 	it("posts the bar's note dialog with the readlist, then the surface, both as action and hx-post", () => {
 		const form = parse(
-			renderHighlightNoteDialog({ scope: APP_SCOPE, hiddenFields: [] }),
+			renderHighlightNoteDialog({ scope: APP_SCOPE, hiddenFields: [], autofocus: true }),
 		).querySelector("form");
 		const expected =
 			"/queue/abc/highlights?queue=work&platform=ios&utm_source=highlight-toolbar&utm_medium=internal&utm_content=save-note";
@@ -241,6 +257,7 @@ describe("note dialogs in the app surface", () => {
 			renderHighlightNoteFallbackForm({
 				highlightId: HIGHLIGHT_ID,
 				scope: APP_SCOPE,
+				open: false,
 			}),
 		]) {
 			const form = parse(html).querySelector("form");
@@ -357,7 +374,7 @@ describe("Delete note", () => {
 	it("is not offered in the bar's Add a note dialog or the no-popover note form", () => {
 		expect(
 			buttonRowOf(
-				parse(renderHighlightNoteDialog({ scope: WEB_SCOPE, hiddenFields: [] })),
+				parse(renderHighlightNoteDialog({ scope: WEB_SCOPE, hiddenFields: [], autofocus: true })),
 			),
 		).toEqual(["highlight-note-cancel", "highlight-note-save"]);
 		expect(
@@ -367,6 +384,7 @@ describe("Delete note", () => {
 						highlightId: HIGHLIGHT_ID,
 						note: "kept",
 						scope: WEB_SCOPE,
+						open: false,
 					}),
 				),
 			),

@@ -101,6 +101,7 @@ export function renderHighlightNoteCreateForm(input: {
 	value: string;
 	error?: string;
 	refusal?: HighlightNoteRefusal;
+	autofocus: boolean;
 }): string {
 	return renderHighlightNoteForm({
 		...input,
@@ -109,7 +110,6 @@ export function renderHighlightNoteCreateForm(input: {
 		inputId: "note-highlight-input",
 		answersInPlace: true,
 		pushesHistory: true,
-		autofocus: true,
 		local: false,
 	});
 }
@@ -117,6 +117,7 @@ export function renderHighlightNoteCreateForm(input: {
 export function renderHighlightNoteDialog(input: {
 	scope: HighlightFormScope;
 	hiddenFields: readonly { name: string; value: string }[];
+	autofocus: boolean;
 }): string {
 	return renderConfirmPopover({
 		id: HIGHLIGHT_NOTE_DIALOG_ID,
@@ -133,6 +134,7 @@ export function renderHighlightNoteDialog(input: {
 			}),
 			hiddenFields: input.hiddenFields,
 			value: "",
+			autofocus: input.autofocus,
 		}),
 	});
 }
@@ -172,6 +174,7 @@ export function renderHighlightNoteFallbackForm(input: {
 	highlightId: HighlightId;
 	note?: string;
 	scope: HighlightFormScope;
+	open: boolean;
 }): string {
 	return renderHighlightNoteForm({
 		key: "highlight-note-fallback",
@@ -181,7 +184,7 @@ export function renderHighlightNoteFallbackForm(input: {
 		hiddenFields: [],
 		answersInPlace: false,
 		pushesHistory: pushesHistory(input.scope),
-		autofocus: false,
+		autofocus: input.open,
 		local: false,
 	});
 }

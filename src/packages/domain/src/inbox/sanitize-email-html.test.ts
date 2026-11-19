@@ -105,4 +105,22 @@ describe("sanitizeEmailHtml", () => {
 		expect(result).not.toContain("<script");
 		expect(result).not.toContain("alert");
 	});
+
+	it("keeps a link inside an unclosed noscript inert", () => {
+		const result = sanitizeEmailHtml({
+			html: '<p><noscript></p><a href="https://evil.test/reset">Reset your password</a></noscript>',
+			rehostedImages: NO_IMAGES,
+		});
+
+		expect(result).toBe("<p></p>");
+	});
+
+	it("keeps a link hidden behind a CDATA section inert", () => {
+		const result = sanitizeEmailHtml({
+			html: '<p>Hi</p><![CDATA[ x > <noscript>]]><a href="https://evil.test/r">Reset your password</a><img src="https://evil.test/b.gif"></noscript>',
+			rehostedImages: NO_IMAGES,
+		});
+
+		expect(result).toBe("<p>Hi</p> ");
+	});
 });

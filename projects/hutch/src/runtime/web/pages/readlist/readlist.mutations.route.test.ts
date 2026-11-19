@@ -9,7 +9,10 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
-const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import { createAccessToken } from "../../test-helpers/oauth-token";
+
+const GOOGLEBOT ="Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 const useApp = useTestServer();
 
@@ -613,6 +616,28 @@ describe("Readlist routes", () => {
 
 				const reads = harness.analytics.events.filter((e) => e.event === "article_read");
 				assert.equal(reads.length, 0, "no article_read when row update did not happen");
+			});
+
+			it("answers a Siren update-status for an article the reader does not hold with the same 303 path as a real one", async () => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const token = await createAccessToken(harness);
+				const siren = (call: request.Test) =>
+					call.set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).redirects(0);
+				await siren(request(harness.server).post("/queue")).type("json").send({ url: "https://example.com/held" });
+				const listing = await siren(request(harness.server).get("/queue"));
+				const update = listing.body.entities[0].actions.find((action: { name: string }) => action.name === "update-status");
+				assert(update, "a listed article must advertise update-status");
+				const goneHref = update.href.replace(/\/queue\/[0-9a-f]{32}\//, "/queue/00000000000000000000000000000000/");
+				assert.notEqual(goneHref, update.href);
+
+				const held = await siren(request(harness.server).post(update.href)).type("form").send({ status: "read" });
+				const gone = await siren(request(harness.server).post(goneHref)).type("form").send({ status: "read" });
+
+				expect(held.status).toBe(303);
+				expect(gone.status).toBe(303);
+				expect(new URL(gone.headers.location, TEST_APP_ORIGIN).pathname).toBe(
+					new URL(held.headers.location, TEST_APP_ORIGIN).pathname,
+				);
 			});
 
 			it("stamps device_class derived from the request User-Agent (raw UA never logged)", async () => {

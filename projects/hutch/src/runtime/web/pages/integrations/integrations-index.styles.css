@@ -31,6 +31,17 @@
   margin-bottom: 28px;
 }
 
+.integrations__api {
+  margin-top: 20px;
+  font-size: var(--text-sm);
+  text-wrap: pretty;
+  color: var(--muted-foreground);
+}
+
+.integrations__api a {
+  color: var(--primary-text);
+}
+
 .integrations__list {
   list-style: none;
   padding: 0;

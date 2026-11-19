@@ -14,6 +14,7 @@ import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
 import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
 import { type UpgradeOffer, type UpgradeStanding, renderedLockFor, standingOf } from "../../shared/upgrade-offer/upgrade-offer";
 import { GMAIL_PATH } from "./gmail.url";
+import { DEVELOPERS_PATH } from "../developers/developers.url";
 
 export interface IntegrationActionViewModel {
 	key: string;
@@ -76,6 +77,7 @@ export interface IntegrationsIndexViewModel {
 	services: IntegrationRowViewModel[];
 	notices: IntegrationsNoticeViewModel[];
 	alerts: IntegrationsAlertViewModel[];
+	apiDocsHref: string;
 }
 
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
@@ -346,5 +348,6 @@ export function toIntegrationsIndexViewModel(input: {
 		],
 		notices,
 		alerts,
+		apiDocsHref: withInternalTracking(DEVELOPERS_PATH, { source: INTEGRATIONS_SOURCE, content: "api-docs" }),
 	};
 }
