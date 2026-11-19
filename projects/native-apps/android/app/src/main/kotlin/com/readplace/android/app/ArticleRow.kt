@@ -47,7 +47,7 @@ fun ArticleRow(
 	onOpen: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
-	val presentation = ArticlePresentation.of(article, clock)
+	val presentation = ArticlePresentation.of(article, clock, isAvailableOffline = false)
 	val brand = LocalBrandColors.current
 
 	Column(

@@ -29,6 +29,7 @@ data class ArticlePresentation(
 	val thumbnailUrl: String?,
 	val processingLabel: String?,
 	val notice: String?,
+	val offlineBadgeLabel: String?,
 	private val estimate: CrawlEstimate?,
 ) {
 	fun estimateText(receivedAt: Instant?, now: Instant): String? {
@@ -45,10 +46,11 @@ data class ArticlePresentation(
 
 	companion object {
 		private const val ALMOST_THERE = "Almost there…"
+		private const val SAVED_OFFLINE = "Saved offline"
 
 		private fun remainingWording(seconds: Long): String = if (seconds > 0) "~$seconds s left" else ALMOST_THERE
 
-		fun of(article: Article, clock: Clock): ArticlePresentation = ArticlePresentation(
+		fun of(article: Article, clock: Clock, isAvailableOffline: Boolean): ArticlePresentation = ArticlePresentation(
 			title = article.title,
 			metaText = if (article.processing != null) null else metaText(article, clock),
 			excerpt = article.excerpt?.takeIf { it.isNotEmpty() },
@@ -57,6 +59,7 @@ data class ArticlePresentation(
 			thumbnailUrl = article.imageUrl?.takeIf { isWebUrl(it) },
 			processingLabel = article.processing?.label,
 			notice = article.notice,
+			offlineBadgeLabel = if (isAvailableOffline) SAVED_OFFLINE else null,
 			estimate = article.processing?.estimate,
 		)
 
