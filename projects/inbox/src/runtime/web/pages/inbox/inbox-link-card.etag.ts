@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { InboxEmailLinkEntry, InboxLinkSaveState } from "@packages/domain/inbox";
+import { toInboxLinkCardUrl } from "./inbox-link-card.viewmodel";
 import type { InboxLinkCardReadlistFit } from "./inbox-readlist-fit";
 
 /** `saveState` is part of the hash because it is part of the rendered card: a
@@ -25,7 +26,7 @@ export function computeInboxLinkCardEtag(input: {
 			override?.createdAt.toISOString() ?? "",
 		];
 	});
-	for (const part of [link.status, link.title ?? "", link.resolvedUrl ?? "", input.savedDestination ?? "", saveState ?? "none", ...fitParts]) {
+	for (const part of [link.status, link.title ?? "", toInboxLinkCardUrl({ link, savedDestination: input.savedDestination }), saveState ?? "none", ...fitParts]) {
 		hash.update(part);
 		hash.update("|");
 	}
