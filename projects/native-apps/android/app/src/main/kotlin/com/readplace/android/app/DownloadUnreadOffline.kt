@@ -1,5 +1,6 @@
 package com.readplace.android.app
 
+import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReaderPrefetching
 import com.readplace.android.core.ReadlistPage
@@ -17,6 +18,7 @@ class DownloadUnreadOffline(
 	private val api: ReadplaceApi,
 	private val snapshot: OfflineReadlistSnapshot,
 	private val prefetcher: ReaderPrefetching,
+	private val readerCopy: OfflineReaderCopy,
 ) {
 	suspend fun run(request: OfflineDownloadRequest, report: (OfflineDownloadProgress) -> Unit): Unit =
 		coroutineScope {
@@ -27,7 +29,7 @@ class DownloadUnreadOffline(
 			repeat(CONCURRENT_ARTICLES) {
 				launch {
 					for (url in queue) {
-						prefetcher.prefetch(url, session.cookies())
+						if (prefetcher.prefetch(url, session.cookies())) readerCopy.record(url)
 						tally.stored()
 					}
 				}

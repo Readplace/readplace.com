@@ -138,7 +138,7 @@ class MainActivity : ComponentActivity() {
 		val heal = HealBlockedArticle(api, captor)
 		val drain = DrainUploadJobs(api, captor, jobs, now = { Instant.now() })
 		val prefetcher = ReaderPrefetcher(this) { findViewById(android.R.id.content) }
-		val download = DownloadUnreadOffline(api, snapshot, prefetcher)
+		val download = DownloadUnreadOffline(api, snapshot, prefetcher, readerCopy)
 		val createReadingList: () -> ReadingListViewModel = {
 			ReadingListViewModel(
 				api = api,

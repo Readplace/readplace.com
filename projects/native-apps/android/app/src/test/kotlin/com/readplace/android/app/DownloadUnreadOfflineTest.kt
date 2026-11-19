@@ -9,6 +9,7 @@ import com.readplace.android.core.ApiError
 import com.readplace.android.core.EphemeralCookieJar
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
+import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReaderPrefetching
 import com.readplace.android.core.ReadplaceApi
@@ -95,8 +96,12 @@ class DownloadUnreadOfflineTest {
 	private fun TestScope.download(
 		prefetcher: ReaderPrefetching,
 		snapshot: OfflineReadlistSnapshot = snapshot(),
+		readerCopy: OfflineReaderCopy = readerCopy(),
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
-	): DownloadUnreadOffline = DownloadUnreadOffline(api(ioDispatcher), snapshot, prefetcher)
+	): DownloadUnreadOffline = DownloadUnreadOffline(api(ioDispatcher), snapshot, prefetcher, readerCopy)
+
+	private fun TestScope.readerCopy(): OfflineReaderCopy =
+		OfflineReaderCopy(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH })
 
 	private fun readerUrl(id: String): String = "${server.baseUrl}/queue/$id/view?platform=android"
 
@@ -204,6 +209,16 @@ class DownloadUnreadOfflineTest {
 		download(RecordingPrefetcher(answer = { it != readerUrl("a1") })).run(START) { reports += it }
 
 		assertEquals(OfflineDownloadProgress(completed = 3, total = 3), reports.last())
+	}
+
+	@Test
+	fun `only an article the prefetcher stored is recorded as a stored copy`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1"), Fixtures.article("a2")))))
+		val readerCopy = readerCopy()
+
+		download(RecordingPrefetcher(answer = { it == readerUrl("a1") }), readerCopy = readerCopy).run(START) {}
+
+		assertEquals(listOf(true, false), listOf(readerCopy.isShowable(readerUrl("a1")), readerCopy.isShowable(readerUrl("a2"))))
 	}
 
 	@Test
