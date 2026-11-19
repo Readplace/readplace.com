@@ -34,11 +34,12 @@ class ReaderBootstrapTest {
 	fun `a minted session opens with the protocol cache and no banner`() {
 		val cookie = sessionCookie()
 
-		val ready = ReaderBootstrap.after(ReaderSessionMint.Minted(listOf(cookie)))
+		val ready = ReaderBootstrap.Ready(listOf(cookie))
 
+		assertEquals(ready, ReaderBootstrap.after(ReaderSessionMint.Minted(listOf(cookie))))
 		assertEquals(
 			Triple(listOf(cookie), ReaderCacheMode.PROTOCOL, false),
-			(ready as? ReaderBootstrap.Opens)?.let { Triple(it.cookies, it.cacheMode, it.showsOfflineBanner) },
+			Triple(ready.cookies, ready.cacheMode, ready.showsOfflineBanner),
 		)
 	}
 

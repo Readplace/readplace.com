@@ -349,14 +349,15 @@ private fun materialGlyph(name: String, pathData: String): ImageVector =
 
 @Composable
 private fun ReaderOfflineBanner() {
+	val colors = LocalBrandColors.current
 	Text(
 		text = OfflineReading.BANNER_TEXT,
 		style = MaterialTheme.typography.bodySmall,
-		color = LocalBrandColors.current.textPrimary,
+		color = BannerTone.OFFLINE.ink(colors),
 		modifier = Modifier
 			.padding(16.dp)
 			.fillMaxWidth()
-			.background(LocalBrandColors.current.secondary, RoundedCornerShape(10.dp))
+			.background(BannerTone.OFFLINE.fill(colors), RoundedCornerShape(10.dp))
 			.padding(12.dp),
 	)
 }

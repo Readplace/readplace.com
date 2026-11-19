@@ -859,12 +859,8 @@ private fun EmptyState(isOffline: Boolean, modifier: Modifier = Modifier) {
 @Composable
 private fun Banner(text: String, tone: BannerTone, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
 	val colors = LocalBrandColors.current
-	val fill = when (tone) {
-		BannerTone.OFFLINE -> colors.secondary
-		BannerTone.ERROR -> colors.error
-		BannerTone.WARNING -> colors.warning
-	}
-	val ink = if (tone == BannerTone.OFFLINE) colors.textPrimary else Color.White
+	val fill = tone.fill(colors)
+	val ink = tone.ink(colors)
 	val backdrop = if (tone == BannerTone.OFFLINE) colors.surface else Color.Transparent
 	Row(
 		modifier = modifier

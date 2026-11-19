@@ -54,7 +54,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.IOException
-import java.net.ServerSocket
 import java.net.URLDecoder
 import java.net.UnknownHostException
 import java.time.Duration
@@ -2346,14 +2345,13 @@ class ReadingListViewModelTest {
 
 	@Test
 	fun `mintReaderSession concludes Offline and leaves the list alone when the server cannot be reached`() = runTest {
-		val unreachable = ServerSocket(0).use { "http://127.0.0.1:${it.localPort}" }
 		val readlist = """
 			{
 				"class": ["collection", "articles"],
 				"properties": { "total": 1, "page": 1, "pageSize": 20 },
 				"entities": [${Fixtures.article("a1")}],
 				"links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
-				"actions": [{ "name": "create-session", "href": "$unreachable/auth/session", "method": "POST" }]
+				"actions": [{ "name": "create-session", "href": "/auth/session", "method": "POST" }]
 			}
 		"""
 		server.handle { record ->
@@ -2363,10 +2361,12 @@ class ReadingListViewModelTest {
 				else -> Stub.json(404, "{}")
 			}
 		}
-		val viewModel = viewModel()
+		val network = OfflineSwitch()
+		val viewModel = viewModel(network = network)
 		viewModel.refresh()
 		val before = viewModel.state.value
 
+		network.down = true
 		val mint = viewModel.mintReaderSession()
 
 		assertEquals("a mint that cannot reach the server opens the stored copy", ReaderSessionMint.Offline, mint)
