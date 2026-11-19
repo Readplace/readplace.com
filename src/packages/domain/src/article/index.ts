@@ -223,3 +223,11 @@ export {
 	locateQuote,
 	type QuoteLocation,
 } from "./highlight/locate-quote";
+export {
+	GENERATED_CONTENT_OUTSIDE_A_REQUEST,
+	SUMMARY_WITHHELD_REASON,
+	generatedContentAccessFor,
+	parseStorefrontCountryCode,
+	type GeneratedContentAccess,
+	type StorefrontCountryCode,
+} from "./generated-content";

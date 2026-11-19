@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { strFromU8, unzipSync } from "fflate";
 import { JSDOM } from "jsdom";
@@ -725,7 +726,7 @@ describe("initSendQueueDigestHandler", () => {
 				async (subject) => {
 					await subject.articleStore.setReaderAvailableAt({ url: NOT_READY_URL, at: hoursBefore(40) });
 				},
-				{ findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: failedSummary })},
+				{ findGeneratedSummary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: failedSummary })},
 			],
 		];
 
@@ -785,6 +786,7 @@ describe("initSendQueueDigestHandler", () => {
 				{
 					surface: "queue-digest",
 					viewer: viewerFor(USER_ID),
+					generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 					viewerCanCapture: false,
 					articles: [{ url: "https://example.com/parked", crawl: FAILED_CRAWL, summary: undefined }],
 				},

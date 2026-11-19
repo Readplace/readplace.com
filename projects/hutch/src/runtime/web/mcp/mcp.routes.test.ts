@@ -1,8 +1,12 @@
+import assert from "node:assert/strict";
+import cookieParser from "cookie-parser";
 import express, { type Express } from "express";
 import request from "supertest";
 import { useLoopbackServer } from "@packages/web-test-harness";
+import { MinutesSchema } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
-import { authenticatedUserIdFrom } from "@packages/domain/user";
+import { UserIdSchema, authenticatedUserIdFrom } from "@packages/domain/user";
+import { TEST_APP_ORIGIN, createDefaultTestAppFixture, createFakeSummaryProvider } from "@packages/test-fixtures";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import type { AnalyticsEvent } from "@packages/web-analytics";
@@ -10,8 +14,11 @@ import { initMcpRoutes } from "./mcp.routes";
 import { initMcpServer } from "./mcp-server";
 import type { McpHandshakeRecord, McpServerDeps } from "./mcp-ports.types";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
+import { useTestServer } from "../../test-app";
+import { createAccessToken } from "../test-helpers/oauth-token";
 
 const serve = useLoopbackServer();
+const useApp = useTestServer();
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 
@@ -54,6 +61,7 @@ function buildObservedApp(overrides: Partial<McpServerDeps> = {}): { app: Expres
 		...overrides,
 	});
 	const app = express();
+	app.use(cookieParser());
 	app.use(createViewerIdentityMiddleware({ edgeSecret: "" }));
 	app.use(
 		"/mcp",
@@ -386,5 +394,71 @@ describe("MCP transport routes", () => {
 			]);
 			expect(JSON.stringify(records)).not.toContain("openai-mcp/1.0.0");
 		});
+	});
+});
+
+describe("MCP article reads for a reader in China mainland", () => {
+	const articleUrl = "https://example.com/withheld";
+	const relatedUrl = "https://example.com/related";
+
+	async function readArticle(headers: Record<string, string>) {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
+		const harness = useApp({ ...fixture, summary });
+		const token = await createAccessToken(harness);
+		const userId = UserIdSchema.parse("test-user-123");
+		for (const url of [relatedUrl, articleUrl]) {
+			await harness.articleStore.saveArticle({
+				userId,
+				url,
+				metadata: { title: url, siteName: "example.com", excerpt: "Parsed blurb.", wordCount: 3 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				provenance: { kind: "web" },
+				savedAt: new Date("2026-09-30T01:02:03.000Z"),
+				saveTrigger: "manual",
+			});
+			await harness.articleStore.writeContent({ url, content: "<p>Body copy.</p>" });
+			await harness.articleCrawl.markCrawlReady({ url });
+		}
+		summary.markSummaryReady({ url: articleUrl, summary: "Model-written summary.", excerpt: "Generated blurb." });
+		await fixture.relatedArticles.markRelatedArticlesReady({
+			userId,
+			url: articleUrl,
+			relatedArticles: [{ url: relatedUrl, reason: "Model-written reason" }],
+			inputTokens: 0,
+			outputTokens: 0,
+			at: new Date("2026-09-30T01:02:03.000Z"),
+		});
+		const article = await harness.articleStore.findArticleByUrl(articleUrl);
+		assert(article, "the saved article must have a row");
+
+		const call = (name: string, id: number) =>
+			request(harness.server)
+				.post("/mcp")
+				.set("Authorization", `Bearer ${token}`)
+				.set("Content-Type", "application/json")
+				.set(headers)
+				.send(JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: { id: article.id.value } } }));
+		const summaryResponse = await call("get_article_summary", 1);
+		const relatedResponse = await call("get_related_articles", 2);
+		expect(summaryResponse.status).toBe(200);
+		expect(relatedResponse.status).toBe(200);
+		return { summary: JSON.stringify(summaryResponse.body), related: JSON.stringify(relatedResponse.body) };
+	}
+
+	it("returns no summary and no related-article reasons for the China storefront header", async () => {
+		const { summary, related } = await readArticle({ "x-readplace-storefront": "CHN" });
+
+		expect(summary).not.toContain("Model-written summary.");
+		expect(summary).not.toContain("Generated blurb.");
+		expect(related).not.toContain("Model-written reason");
+		expect(related).not.toContain(relatedUrl);
+	});
+
+	it("returns the summary and the related-article reasons for another storefront's header", async () => {
+		const { summary, related } = await readArticle({ "x-readplace-storefront": "AUS" });
+
+		expect(summary).toContain("Model-written summary.");
+		expect(related).toContain("Model-written reason");
 	});
 });

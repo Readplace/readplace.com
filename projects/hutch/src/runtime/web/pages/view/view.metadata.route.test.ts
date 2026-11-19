@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -682,7 +683,7 @@ describe("View routes", () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const publishSaveAnonymousLink = jest.fn(async () => {});
 			const publishStaleCheckRequested = jest.fn(async () => {});
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: "Cached summary.",
 			} });
@@ -955,7 +956,7 @@ describe("View routes", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const publishSaveAnonymousLink = jest.fn(async () => {});
 			const publishStaleCheckRequested = jest.fn(async () => {});
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: STORED_SUMMARY,
 				excerpt: "Re: your invoice is attached",

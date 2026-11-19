@@ -1,6 +1,9 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { useTestServer, loginAgent } from "../../../test-app";
+import { useTestServer, loginAgent, TEST_EDGE_SECRET } from "../../../test-app";
+import { EDGE_SECRET_HEADER, VIEWER_COUNTRY_HEADER } from "@packages/viewer-identity";
+import { STOREFRONT_COOKIE_NAME } from "../../generated-content-of";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -83,7 +86,7 @@ describe("Readlist routes", () => {
 		it("should render a ready summary collapsed on /queue/:id/view (internal reader; an expand is a deliberate, measurable act)", async () => {
 			const articleHtml = `<html><head><title>Post</title></head><body><article><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready" as const,
 				summary: "Ready summary.",
 			} });
@@ -148,7 +151,7 @@ describe("Readlist routes", () => {
 		it("GET /queue/:id/summary renders a ready summary collapsed on poll (internal reader)", async () => {
 			const articleHtml = `<html><head><title>Post</title></head><body><article><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready" as const,
 				summary: "Poll ready summary.",
 			} });
@@ -796,5 +799,64 @@ describe("Readlist routes", () => {
 			expect(titleLink?.getAttribute("href")).toContain("/view");
 		});
 
+	});
+});
+
+describe("GET /queue/:id/summary for a reader in China mainland", () => {
+	const ARTICLE_URL = "https://example.com/china-withheld-poll";
+	const SUMMARY_TEXT = "A generated digest the poll must never hand a China mainland reader.";
+
+	async function buildHarness() {
+		const crawlArticle = async () => ({
+			status: "fetched" as const,
+			html: `<html><head><title>Polled Post</title></head><body><article><h1>Polled Post</h1>
+<p>This is archived content that should survive the original site going down. Enough text for readability.</p>
+<p>A second paragraph with more words for the parser to work with properly.</p></article></body></html>`,
+			bodyHash: "a".repeat(64),
+		});
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+		const applyParseResult = createFakeApplyParseResult({
+			articleStore: fixture.articleStore,
+			articleCrawl: fixture.articleCrawl,
+			parseArticle,
+		});
+		const harness = useApp({
+			...fixture,
+			parser: { parseArticle, crawlArticle },
+			events: { ...fixture.events, publishLinkSaved: createFakePublishLinkSaved(applyParseResult) },
+			summary: {
+				...fixture.summary,
+				findGeneratedSummary: async ({ url, viewer, generatedContent }) => shownSummary({ generatedContent, url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: SUMMARY_TEXT } }),
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
+		const article = await fixture.articleStore.findArticleByUrl(ARTICLE_URL);
+		assert(article, "saving the article must create its row");
+		return { agent, articleId: article.id.value };
+	}
+
+	it.each([
+		{ name: "the China storefront cookie", headers: { Cookie: `${STOREFRONT_COOKIE_NAME}=CHN` } },
+		{ name: "a trusted edge stating CN", headers: { [EDGE_SECRET_HEADER]: TEST_EDGE_SECRET, [VIEWER_COUNTRY_HEADER]: "CN" } },
+	])("returns the collapsed slot under $name", async ({ headers }) => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/summary?poll=1`).set(headers);
+
+		expect(response.status).toBe(200);
+		expect(response.text).not.toContain(SUMMARY_TEXT);
+		const slot = new JSDOM(response.text).window.document.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect([slot.getAttribute("data-summary-status"), slot.hasAttribute("hx-get")]).toEqual(["skipped", false]);
+	});
+
+	it("returns the ready summary to an untrusted request that states CN without the edge secret", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/summary?poll=1`).set(VIEWER_COUNTRY_HEADER, "CN");
+
+		expect(response.text).toContain(SUMMARY_TEXT);
 	});
 });

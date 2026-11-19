@@ -163,7 +163,7 @@ export function createFakeSummaryProvider(deps: { findItemOwner: FindItemOwner; 
 	// exercise the polling UI end-to-end without depending on wall-clock time.
 	const state = new Map<string, GeneratedSummary>();
 	const reads = new Map<string, number>();
-	const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => {
+	const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer, generatedContent }) => {
 		const id = ArticleResourceUniqueId.parse(url).value;
 		const current = state.get(id);
 		if (deps.readyAfterReads !== undefined && current?.status === "pending") {
@@ -173,7 +173,7 @@ export function createFakeSummaryProvider(deps: { findItemOwner: FindItemOwner; 
 				state.set(id, { status: "ready", summary: `Fake summary for ${url}.` });
 			}
 		}
-		return shownSummary({ url, summary: state.get(id), viewer, ownerUserId: await deps.findItemOwner(url) });
+		return shownSummary({ url, summary: state.get(id), viewer, ownerUserId: await deps.findItemOwner(url), generatedContent });
 	};
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url).value;

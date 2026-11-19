@@ -8,7 +8,7 @@ import { isReaderViewReady } from "../../article-state/is-reader-view-ready";
 import { renderSummaryFailed } from "./summary-failed.component";
 import { renderSummaryPending } from "./summary-pending.component";
 import { renderSummaryReady } from "./summary-ready.component";
-import { isCrawlVerdictSkip } from "./summary-skip-messages";
+import { isCrawlVerdictSkip, isWithheldSkip } from "./summary-skip-messages";
 import { renderSummarySkipped } from "./summary-skipped.component";
 
 const COLLAPSED_TEMPLATE = readFileSync(
@@ -78,7 +78,7 @@ export function renderSummarySlot(input: SummarySlotInput): string {
 		case "failed":
 			return renderSummaryFailed({ oob });
 		case "skipped":
-			return isCrawlVerdictSkip(summary.reason)
+			return isCrawlVerdictSkip(summary.reason) || isWithheldSkip(summary.reason)
 				? renderCollapsedSlot({ status: "skipped", oob })
 				: renderSummarySkipped({ reason: summary.reason, oob });
 	}

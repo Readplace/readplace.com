@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
@@ -58,7 +59,7 @@ function buildFixture(opts?: { summaryReady?: boolean }): TestAppFixture {
 		summary: opts?.summaryReady
 			? {
 					...base.summary,
-					findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+					findGeneratedSummary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 						status: "ready",
 						summary: "A concise summary.",
 						excerpt: "Lead line.",

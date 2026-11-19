@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -81,7 +82,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			articleCrawl: fixture.articleCrawl,
 			parseArticle,
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "ready",
 			summary: "TLDR.",
 		} });
@@ -119,7 +120,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			articleCrawl: fixture.articleCrawl,
 			parseArticle,
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",
 		} });
 		const harness = useApp({
@@ -216,7 +217,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "ready",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "failed",
 			reason: "model timeout",
 		} });

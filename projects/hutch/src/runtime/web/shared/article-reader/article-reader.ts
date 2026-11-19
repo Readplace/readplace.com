@@ -368,7 +368,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	): Promise<ReaderState> {
 		if (isNonArticleHost(params.article.url)) return GATED_READER_STATE;
 		const crawl = await deps.findArticleCrawlStatus(params.article.url);
-		const summary = await deps.findGeneratedSummary({ url: params.article.url, viewer: params.viewer });
+		const summary = await deps.findGeneratedSummary({ url: params.article.url, viewer: params.viewer, generatedContent: params.generatedContent });
 		return resolveReaderStateFrom(params, { crawl, summary });
 	}
 
@@ -486,7 +486,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		if (isNonArticleHost(articleUrl)) return gatedPollResponse("summary", articleUrl, params.readerSection);
 		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
-			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer }),
+			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer, generatedContent: params.generatedContent }),
 			deps.readArticleContent({ url: articleUrl, viewer: params.viewer }).then(bodyOf),
 			deps.findArticleByUrl(articleUrl, params.viewer),
 		]);
@@ -546,6 +546,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const resolved = await deps.requestResolutionOnView({
 			surface: "reader-capture-gave-up",
 			viewer: params.viewer,
+			generatedContent: params.generatedContent,
 			viewerCanCapture: false,
 			articles: [{ url, ...loaded }],
 		});
@@ -557,7 +558,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		if (isNonArticleHost(articleUrl)) return gatedPollResponse("reader", articleUrl, params.readerSection);
 		const [loadedCrawl, loadedSummary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
-			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer }),
+			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer, generatedContent: params.generatedContent }),
 			deps.readArticleContent({ url: articleUrl, viewer: params.viewer }).then(bodyOf),
 			deps.findArticleByUrl(articleUrl, params.viewer),
 		]);

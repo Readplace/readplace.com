@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { articleDestinationUrl } from "@packages/domain/article";
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST, articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
@@ -1104,7 +1104,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			const { store } = build(() => ({ Item: { userId: USER_ID, url: "example.com/target" } }));
 
 			expect(
-				await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL }),
+				await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL }),
 			).toEqual({ status: "pending" });
 		});
 
@@ -1112,7 +1112,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			const { store } = build(() => ({ Item: undefined }));
 
 			expect(
-				await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL }),
+				await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL }),
 			).toEqual({ status: "pending" });
 		});
 
@@ -1122,7 +1122,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			}));
 
 			expect(
-				await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL }),
+				await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL }),
 			).toEqual({ status: "skipped" });
 		});
 
@@ -1137,7 +1137,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			}));
 
 			expect(
-				await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL }),
+				await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL }),
 			).toEqual({ status: "ready", items: [] });
 			expect(sent).toHaveLength(1);
 		});
@@ -1216,7 +1216,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				};
 			});
 
-			const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(
@@ -1293,7 +1293,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				};
 			});
 
-			const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => ({ title: item.title, siteName: item.siteName }))).toEqual([
@@ -1343,7 +1343,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				};
 			});
 
-			const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(
@@ -1379,7 +1379,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			});
 
 			expect(
-				await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL }),
+				await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL }),
 			).toEqual({ status: "ready", items: [] });
 			expect(sent.map((command) => command.constructorName)).toEqual([
 				"GetCommand",
@@ -1416,7 +1416,7 @@ describe("initDynamoDbRelatedArticles", () => {
 			});
 
 			expect(
-				await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL }),
+				await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL }),
 			).toEqual({ status: "ready", items: [] });
 		});
 
@@ -1476,7 +1476,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				};
 			});
 
-			const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(
@@ -1547,7 +1547,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				};
 			});
 
-			const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => item.title)).toEqual(["Kept"]);
@@ -1609,7 +1609,7 @@ describe("initDynamoDbRelatedArticles", () => {
 				};
 			});
 
-			const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => item.title)).toEqual(["My book"]);
@@ -1696,7 +1696,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					],
 				});
 
-				const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+				const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 				assert(result.status === "ready", "a computed row reports ready");
 				expect(result.items.map((item) => item.title)).toEqual(["Widgets 4.1 release notes"]);
@@ -1734,7 +1734,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					],
 				});
 
-				expect(await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL })).toEqual({
+				expect(await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL })).toEqual({
 					status: "ready",
 					items: [],
 				});
@@ -1780,7 +1780,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					],
 				});
 
-				const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+				const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 				assert(result.status === "ready", "a computed row reports ready");
 				expect(result.items.map((item) => ({ title: item.title, reason: item.reason }))).toEqual([
@@ -1826,7 +1826,7 @@ describe("initDynamoDbRelatedArticles", () => {
 					],
 				});
 
-				const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+				const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 				assert(result.status === "ready", "a computed row reports ready");
 				expect(result.items.map((item) => item.reason)).toEqual(["Live copy"]);

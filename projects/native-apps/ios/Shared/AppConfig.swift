@@ -61,6 +61,9 @@ enum AppConfig {
 	static let clientHeader = "X-Readplace-Client"
 	static let clientIos = "ios"
 
+	static let storefrontHeader = "x-readplace-storefront"
+	static let storefrontCookieName = "readplace_storefront"
+
 	/// The public privacy policy served by the web app, linked from the sign-in
 	/// screen so the policy is reachable in-app (App Store Review Guideline
 	/// 5.1.1(i)). Force-unwrap is safe: both operands are compile-time constants.

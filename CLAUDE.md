@@ -119,6 +119,22 @@ Only the functions that apply the rule can mint the body and summary brands (gre
 - A new renderer types its body input as the branded body. The generic HTML converters (markdown, EPUB XHTML) take plain strings because they also convert other HTML: hand them a body only from a branded value.
 - A surface's own host check drives behaviour only — no crawl, no polling, the not-an-article notice. It is not what keeps a webmail row private.
 
+### China mainland readers get no AI-written text
+
+App Store Connect asks, for China mainland, whether the app distributes AI-generated content. That needs a Security Assessment with a Chinese regulator, which Readplace cannot file, so on 2026-11-20 the owner chose to withhold the model-written text instead and answer "No". The answer stays true only while nothing the model wrote reaches these readers.
+
+| Signal | Where it comes from |
+|---|---|
+| Viewer country `CN` | CloudFront's `cloudfront-viewer-country`, trusted only behind the edge secret |
+| App Store storefront `CHN` | The iOS app's `x-readplace-storefront` header on native requests and `readplace_storefront` cookie in the reader web view |
+
+Either signal withholds. The summary is read as skipped, and Next read and Already read come back empty, because each suggestion carries a model-written reason. The rule lives in the read ports, as the webmail rule does: they take a required, branded access value that only the domain's generated-content module can mint (grep the domain package for `brand<"GeneratedContentAccess">`). Withholding happens when the text is read, never when it is stored, because a row is shared by readers in every country. Reads with no request behind them, such as email digests, pass the module's outside-a-request value.
+
+- Text that ranks or transcribes what a publisher or the reader wrote is out of scope: the content-selection judge, the email-link and readlist filters, and PDF transcription.
+- A new surface that shows model-written text reads it through a port that takes this value.
+- Do not rename the header or cookie: released app builds send them.
+- Do not drop either signal while the App Store Connect answer stands.
+
 ### A highlight moves only when its passage moved
 
 An article's body is shared by everyone who saves its URL and is replaced whenever a recrawl or refresh commits new canonical content. A highlight is therefore stored as its quote with the text around it and the version it was last placed on, and when the canonical body changes the server re-anchors every highlight by comparing the new body with that version, sentence by sentence. A search for the quote alone cannot tell an edited sentence from a copy of it elsewhere, so the quote search is used only when the older version cannot be read.

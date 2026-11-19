@@ -31,7 +31,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: configuration,
+			sessionConfiguration: configuration, readStorefront: { nil },
 			wipeReaderWebStore: {}
 		)
 
@@ -92,7 +92,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration()
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }
 		)
 		XCTAssertFalse(session.isLoggedIn)
 
@@ -126,7 +126,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration()
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }
 		)
 
 		let result = await session.completeSignIn(
@@ -149,7 +149,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: config,
+			sessionConfiguration: config, readStorefront: { nil },
 			wipeReaderWebStore: { readerWipeInvoked = true }
 		)
 
@@ -175,7 +175,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: config,
+			sessionConfiguration: config, readStorefront: { nil },
 			wipeReaderWebStore: { readerWipeInvoked = true }
 		)
 
@@ -198,7 +198,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration(),
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil },
 			wipeReaderWebStore: {},
 			purgeShareArtifacts: { purges += 1 }
 		)
@@ -216,7 +216,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration(),
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil },
 			wipeReaderWebStore: {},
 			purgeShareArtifacts: { purges += 1 }
 		)
@@ -237,7 +237,7 @@ final class LoginFlowTests: XCTestCase {
 			AppSession(
 				store: TestSupport.loggedInStore(),
 				nativeUserAgent: TestSupport.nativeUserAgent,
-				sessionConfiguration: TestSupport.stubbedConfiguration(),
+				sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil },
 				wipeReaderWebStore: {},
 				purgeShareArtifacts: {},
 				forgetReaderChoices: { forgets += 1 }
@@ -269,7 +269,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: TestSupport.loggedInStore(),
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: config,
+			sessionConfiguration: config, readStorefront: { nil },
 			wipeReaderWebStore: {}
 		)
 
@@ -287,7 +287,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration()
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }
 		)
 		XCTAssertTrue(session.isLoggedIn)
 
@@ -335,7 +335,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration()
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }
 		)
 
 		let result = await session.completeSignIn(
@@ -354,7 +354,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration()
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }
 		)
 
 		let result = await session.completeSignIn(
@@ -372,7 +372,7 @@ final class LoginFlowTests: XCTestCase {
 		let session = AppSession(
 			store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration()
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }
 		)
 		StubURLProtocol.setHandler { _, _ in .json(400, "{\"error\":\"invalid_grant\"}") }
 

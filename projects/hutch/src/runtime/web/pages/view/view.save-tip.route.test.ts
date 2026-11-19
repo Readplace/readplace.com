@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -85,7 +86,7 @@ describe("Save tip — the public view", () => {
 	it("leaves the call to action ungated while the reader view is still loading", async () => {
 		const harness = harnessFor({
 			crawl: async () => ({ status: "ready" }),
-			summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } }),
+			summary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "pending" } }),
 		});
 
 		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
@@ -96,7 +97,7 @@ describe("Save tip — the public view", () => {
 	it("leaves the call to action ungated once the reader view has succeeded", async () => {
 		const harness = harnessFor({
 			crawl: async () => ({ status: "ready" }),
-			summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "TLDR." } }),
+			summary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "TLDR." } }),
 		});
 
 		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
@@ -107,7 +108,7 @@ describe("Save tip — the public view", () => {
 	it("gates the call to action when the summary has failed on a ready crawl", async () => {
 		const harness = harnessFor({
 			crawl: async () => ({ status: "ready" }),
-			summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "failed", reason: "model timeout" } }),
+			summary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "failed", reason: "model timeout" } }),
 		});
 
 		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);

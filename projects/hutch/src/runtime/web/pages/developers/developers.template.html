@@ -333,6 +333,7 @@ label=To%20process</code></pre>
                   <li class="developers__item" data-test-copy="vary">A collection, and the <code>303</code> that moves an older collection href to its current form, answer <code>Vary: Accept, Authorization, User-Agent, X-Readplace-Client, X-Readplace-Save-Continuity</code>. Key any copy you keep on the token and the <code>Accept</code> header too, so one reader's collection is never served for another's token.</li>
                   <li class="developers__item">An answer may carry an <code>ETag</code> and answer <code>304</code> to a matching <code>If-None-Match</code>. That isn't promised, so use it when it's there and don't depend on it.</li>
                   <li class="developers__item">Don't send <code>X-Readplace-Client</code>. It marks Readplace's own apps, and their listings are cached differently.</li>
+                  <li class="developers__item" data-test-copy="storefront">A client installed from an app store may send its storefront's three-letter code in an <code>X-Readplace-Storefront</code> header, or in a <code>readplace_storefront</code> cookie from a web view. For China mainland (<code>CHN</code>), responses leave out text a model wrote: summaries, Next read and Already read.</li>
                 </ul>
               </div>
             </div>

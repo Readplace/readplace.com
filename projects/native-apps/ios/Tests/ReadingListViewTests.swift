@@ -17,7 +17,7 @@ final class ReadingListViewTests: XCTestCase {
 		AppSession(
 			store: TestSupport.loggedInStore(),
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration(),
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil },
 			wipeReaderWebStore: {}
 		)
 	}

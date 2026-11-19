@@ -1,15 +1,18 @@
 import { UserIdSchema } from "../user/user.schema";
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST, SUMMARY_WITHHELD_REASON, generatedContentAccessFor } from "./generated-content";
 import { ANONYMOUS_VIEWER, viewerFor } from "./private-item-access";
 import { shownSummary } from "./shown-summary";
 
 const PRIVATE_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
 const OWNER = UserIdSchema.parse("owner-user");
 const READY = { status: "ready", summary: "Chapter summary" } as const;
+const SHOWN = GENERATED_CONTENT_OUTSIDE_A_REQUEST;
+const WITHHELD = generatedContentAccessFor({ viewerCountry: "CN", storefront: undefined });
 
 describe("shownSummary", () => {
 	it("shows the stored summary of an article page", () => {
 		expect(
-			shownSummary({
+			shownSummary({ generatedContent: SHOWN,
 				url: "https://example.com/post", viewer: ANONYMOUS_VIEWER, ownerUserId: undefined,
 				summary: { status: "ready", summary: "A summary", excerpt: "An excerpt" },
 			}),
@@ -17,18 +20,18 @@ describe("shownSummary", () => {
 	});
 
 	it("shows a pending summary of an article page", () => {
-		expect(shownSummary({ url: "https://example.com/post", viewer: ANONYMOUS_VIEWER, ownerUserId: undefined, summary: { status: "pending" } })).toEqual({
+		expect(shownSummary({ generatedContent: SHOWN, url: "https://example.com/post", viewer: ANONYMOUS_VIEWER, ownerUserId: undefined, summary: { status: "pending" } })).toEqual({
 			status: "pending",
 		});
 	});
 
 	it("shows nothing for an article page without a stored summary", () => {
-		expect(shownSummary({ url: "https://example.com/post", viewer: ANONYMOUS_VIEWER, ownerUserId: undefined, summary: undefined })).toBeUndefined();
+		expect(shownSummary({ generatedContent: SHOWN, url: "https://example.com/post", viewer: ANONYMOUS_VIEWER, ownerUserId: undefined, summary: undefined })).toBeUndefined();
 	});
 
 	it("skips the summary of a webmail page, even a ready one", () => {
 		expect(
-			shownSummary({
+			shownSummary({ generatedContent: SHOWN,
 				url: "https://mail.google.com/mail/u/2/", viewer: ANONYMOUS_VIEWER, ownerUserId: undefined,
 				summary: { status: "ready", summary: "Private inbox summary", excerpt: "Private excerpt" },
 			}),
@@ -36,28 +39,64 @@ describe("shownSummary", () => {
 	});
 
 	it("skips the summary of a webmail page that has none stored", () => {
-		expect(shownSummary({ url: "https://mail.google.com/mail/u/2/", viewer: ANONYMOUS_VIEWER, ownerUserId: undefined, summary: undefined })).toEqual({
+		expect(shownSummary({ generatedContent: SHOWN, url: "https://mail.google.com/mail/u/2/", viewer: ANONYMOUS_VIEWER, ownerUserId: undefined, summary: undefined })).toEqual({
 			status: "skipped",
 		});
 	});
 
 	it("shows the summary of a private upload to its owner", () => {
-		expect(shownSummary({ url: PRIVATE_URL, summary: READY, viewer: viewerFor(OWNER), ownerUserId: OWNER })).toEqual(READY);
+		expect(shownSummary({ generatedContent: SHOWN, url: PRIVATE_URL, summary: READY, viewer: viewerFor(OWNER), ownerUserId: OWNER })).toEqual(READY);
 	});
 
 	it("skips the summary of a private upload for a signed-out viewer, even a ready one", () => {
-		expect(shownSummary({ url: PRIVATE_URL, summary: READY, viewer: ANONYMOUS_VIEWER, ownerUserId: OWNER })).toEqual({
+		expect(shownSummary({ generatedContent: SHOWN, url: PRIVATE_URL, summary: READY, viewer: ANONYMOUS_VIEWER, ownerUserId: OWNER })).toEqual({
 			status: "skipped",
 		});
 	});
 
 	it("skips the summary of a private upload for another reader", () => {
 		expect(
-			shownSummary({
+			shownSummary({ generatedContent: SHOWN,
 				url: PRIVATE_URL,
 				summary: READY,
 				viewer: viewerFor(UserIdSchema.parse("other-reader")),
 				ownerUserId: OWNER,
+			}),
+		).toEqual({ status: "skipped" });
+	});
+
+	it("withholds a ready summary from a viewer in mainland China", () => {
+		expect(
+			shownSummary({
+				generatedContent: WITHHELD,
+				url: "https://example.com/post",
+				viewer: ANONYMOUS_VIEWER,
+				ownerUserId: undefined,
+				summary: { status: "ready", summary: "A summary", excerpt: "An excerpt" },
+			}),
+		).toEqual({ status: "skipped", reason: SUMMARY_WITHHELD_REASON });
+	});
+
+	it("withholds an article page without a stored summary instead of leaving it to read as pending", () => {
+		expect(
+			shownSummary({
+				generatedContent: WITHHELD,
+				url: "https://example.com/post",
+				viewer: ANONYMOUS_VIEWER,
+				ownerUserId: undefined,
+				summary: undefined,
+			}),
+		).toEqual({ status: "skipped", reason: SUMMARY_WITHHELD_REASON });
+	});
+
+	it("keeps the reasonless skip of a webmail page for a viewer in mainland China", () => {
+		expect(
+			shownSummary({
+				generatedContent: WITHHELD,
+				url: "https://mail.google.com/mail/u/2/",
+				viewer: ANONYMOUS_VIEWER,
+				ownerUserId: undefined,
+				summary: READY,
 			}),
 		).toEqual({ status: "skipped" });
 	});

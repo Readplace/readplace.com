@@ -42,7 +42,8 @@ final class ShareViewController: UIViewController {
 				baseURL: AppConfig.serverBaseURL,
 				oauth: Self.oauth,
 				nativeUserAgent: processNativeUserAgent(),
-				sessionConfiguration: DiscoveryHTTPCache.configuration(containerURL: appGroup?.url)
+				sessionConfiguration: DiscoveryHTTPCache.configuration(containerURL: appGroup?.url),
+				readStorefront: { nil }
 			),
 			captor: captor,
 			jobs: appGroup.map { UploadJobStore(containerURL: $0.url) },

@@ -1,4 +1,5 @@
 
+import { generatedContentOf } from "../../generated-content-of";
 import assert from "node:assert";
 import {
 	EXTENSION_LIVENESS_TTL_MS,
@@ -280,7 +281,7 @@ export function initReadlistSaveRoutes(
 			});
 			const [crawlByUrl, summaryByUrl] = await Promise.all([
 				loadCrawls(deps.findArticleCrawlStatuses, collection.articles, deps.logError),
-				loadSummaries(deps.findGeneratedSummaries, collection.articles, viewerFor(userId), deps.logError),
+				loadSummaries({ findGeneratedSummaries: deps.findGeneratedSummaries, articles: collection.articles, viewer: viewerFor(userId), generatedContent: generatedContentOf(req), logError: deps.logError }),
 			]);
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(

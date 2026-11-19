@@ -1,4 +1,5 @@
 
+import { generatedContentOf } from "../../generated-content-of";
 import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
@@ -331,6 +332,7 @@ export function initReaderPageRoutes(deps: Pick<
 	): Promise<ResolvedReaderState> => {
 		const params = {
 			viewer: viewerFor(req.userId),
+			generatedContent: generatedContentOf(req),
 			article: {
 				url: ownedArticle.url,
 				metadata: ownedArticle.metadata,
@@ -344,11 +346,12 @@ export function initReaderPageRoutes(deps: Pick<
 		const { url } = ownedArticle;
 		const [crawl, summary] = await Promise.all([
 			deps.findArticleCrawlStatus(url),
-			deps.findGeneratedSummary({ url, viewer: params.viewer }),
+			deps.findGeneratedSummary({ url, viewer: params.viewer, generatedContent: params.generatedContent }),
 		]);
 		const resolved = await deps.requestResolutionOnView({
 			surface: "reader",
 			viewer: params.viewer,
+			generatedContent: params.generatedContent,
 			viewerCanCapture: requestCanCapture(req),
 			articles: [{ url, crawl, summary }],
 		});
@@ -385,8 +388,8 @@ export function initReaderPageRoutes(deps: Pick<
 		}
 
 		const [related, storedPreviouslyRead, state, { readlistFiling, deleteAcknowledged }, provenance] = await Promise.all([
-			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
-			loadPastReads(deps.findPastReads, ownedArticle, readerReadlist, deps.logError),
+			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, generatedContentOf(req), deps.logError),
+			loadPastReads(deps.findPastReads, ownedArticle, readerReadlist, generatedContentOf(req), deps.logError),
 			readerStateOnOpen(req, ownedArticle),
 			readerOwnerControlsFor({
 				userId: ownedArticle.userId,

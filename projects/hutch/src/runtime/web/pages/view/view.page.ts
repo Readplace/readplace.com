@@ -1,4 +1,5 @@
 import { type ReaderSectionRequest, requestedReaderSection } from "../../shared/article-body/reader-slot/section-pages";
+import { generatedContentOf } from "../../generated-content-of";
 import assert from "node:assert";
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
@@ -369,7 +370,7 @@ function handleViewArticle(
 				return;
 			}
 			const title = existing.metadata.title;
-			const summary = await deps.findGeneratedSummary({ url: articleUrl, viewer: viewerFor(req.userId) });
+			const summary = await deps.findGeneratedSummary({ url: articleUrl, viewer: viewerFor(req.userId), generatedContent: generatedContentOf(req) });
 			const build = await buildArticleEpub({
 				articleUrl,
 				title,
@@ -537,6 +538,7 @@ function handleViewArticle(
 		const pollUrlBuilder = pollUrlBuilderFor(articleUrl, utmParams, requestedReaderSection(req.query.section));
 		const state = await reader.resolveReaderState({
 			viewer: viewerFor(req.userId),
+			generatedContent: generatedContentOf(req),
 			article: { url: articleUrl, metadata, estimatedReadTime },
 			pollUrlBuilder,
 		});
@@ -672,6 +674,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
 			viewer: viewerFor(req.userId),
+			generatedContent: generatedContentOf(req),
 			enclosure: ABSENT_ENCLOSURE,
 			articleId: undefined,
 			pollCount,
@@ -716,6 +719,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 		const component = await reader.handleReaderPoll({
 			articleUrl,
 			viewer: viewerFor(req.userId),
+			generatedContent: generatedContentOf(req),
 			enclosure: ABSENT_ENCLOSURE,
 			articleId: undefined,
 			pollCount,

@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { type ArticleBody, type ReaderArticleHashId, type ShownSummary, viewerFor } from "@packages/domain/article";
+import { type ArticleBody, GENERATED_CONTENT_OUTSIDE_A_REQUEST, type ReaderArticleHashId, type ShownSummary, viewerFor } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
 import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/infra-components";
@@ -396,7 +396,7 @@ async function readyItemsOf(params: {
 	);
 	const items = await Promise.all(
 		listable.map(async (candidate): Promise<PageItems> => {
-			const summary = await params.deps.findGeneratedSummary({ url: candidate.article.url, viewer: viewerFor(params.userId) });
+			const summary = await params.deps.findGeneratedSummary({ url: candidate.article.url, viewer: viewerFor(params.userId), generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST });
 			if (candidate.readerAvailableAt === undefined || summary?.status !== "ready") {
 				return { ready: [], parked: [{ candidate, summary }] };
 			}
@@ -423,6 +423,7 @@ async function requestResolutionOf(params: {
 	await params.deps.requestResolutionOnView({
 		surface: "queue-digest",
 		viewer: viewerFor(params.userId),
+		generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 		viewerCanCapture: false,
 		articles,
 	});

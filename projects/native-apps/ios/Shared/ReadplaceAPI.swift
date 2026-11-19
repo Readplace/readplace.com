@@ -126,6 +126,7 @@ final class ReadplaceAPI {
 	private let nativeUserAgent: String
 	private let oauth: OAuthService
 	private let session: URLSession
+	private let readStorefront: ReadStorefrontCountry
 	// Fetches third-party content (e.g. a PDF the user shared) with no delegate
 	// and never via `send()`, so neither the bearer nor the redirect-preserving
 	// re-attachment can leak the Readplace `Authorization` header to that origin.
@@ -154,9 +155,11 @@ final class ReadplaceAPI {
 		oauth: OAuthService,
 		nativeUserAgent: String,
 		sessionConfiguration: URLSessionConfiguration = .ephemeral,
+		readStorefront: @escaping ReadStorefrontCountry,
 		maxExternalContentBytes: Int = ReadplaceAPI.defaultMaxExternalContentBytes
 	) {
 		self.baseURL = baseURL
+		self.readStorefront = readStorefront
 		self.nativeUserAgent = nativeUserAgent
 		self.oauth = oauth
 		// URLSession retains its delegate until invalidated, so the redirect
@@ -304,7 +307,8 @@ final class ReadplaceAPI {
 		let cookies = sessionCookies(from: http, url: url, excluding: priorCookies)
 		guard !cookies.isEmpty else { throw APIError.decoding }
 		await oauth.recordAuthEvent(.sessionBridgeCompleted, outcome: .success, reason: .oauthBridge)
-		return cookies
+		let storefront = await readStorefront()
+		return cookies + [storefront?.cookie(for: url)].compactMap { $0 }
 	}
 
 	private struct BrowserHandoffCode: Decodable {
@@ -481,6 +485,7 @@ final class ReadplaceAPI {
 		// app's cookies, so it can't rely on the extension's cookie signals).
 		authed.setValue(AppConfig.clientIos, forHTTPHeaderField: AppConfig.clientHeader)
 		authed.setValue(AppConfig.saveContinuityBackground, forHTTPHeaderField: AppConfig.saveContinuityHeader)
+		authed.setValue(await readStorefront()?.raw, forHTTPHeaderField: AppConfig.storefrontHeader)
 		authed.setValue(nativeUserAgent, forHTTPHeaderField: "User-Agent")
 		let redirects = RedirectHeaderPreservingDelegate()
 		let (data, response) = try await session.data(for: authed, delegate: redirects)

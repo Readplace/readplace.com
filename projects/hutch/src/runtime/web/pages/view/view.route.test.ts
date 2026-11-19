@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { findUntrackedCtas } from "@packages/web-test-harness";
@@ -9,7 +10,9 @@ import type {
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import { useTestServer, BROWSER_REQUEST_HEADERS, loginAgent } from "../../../test-app";
+import { useTestServer, BROWSER_REQUEST_HEADERS, loginAgent, TEST_EDGE_SECRET } from "../../../test-app";
+import { EDGE_SECRET_HEADER, VIEWER_COUNTRY_HEADER } from "@packages/viewer-identity";
+import { STOREFRONT_COOKIE_NAME } from "../../generated-content-of";
 import {
 	TEST_APP_ORIGIN,
 	type TestAppFixture,
@@ -986,7 +989,7 @@ describe("View routes", () => {
 					...fixture.articleCrawl,
 					findArticleCrawlStatus: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
 				},
-				summary: { ...fixture.summary, findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "skipped" } }) },
+				summary: { ...fixture.summary, findGeneratedSummary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "skipped" } }) },
 			});
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
@@ -1429,7 +1432,7 @@ describe("View routes", () => {
 	describe("TL;DR rendering", () => {
 		it("marks the summary slot visible with the text when status=ready", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: "Key points from the article.",
 			} });
@@ -1487,7 +1490,7 @@ describe("View routes", () => {
 
 		it("shows a loading indicator with a poll attribute when status=pending", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -1540,7 +1543,7 @@ describe("View routes", () => {
 
 		it("shows an inline error when status=failed", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "failed",
 				reason: "deepseek timeout",
 			} });
@@ -1601,7 +1604,7 @@ describe("View routes", () => {
 
 		it("renders a visible info card with the reason copy when status=skipped", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "skipped",
 				reason: "content-too-short",
 			} });
@@ -1663,7 +1666,7 @@ describe("View routes", () => {
 
 		it("hides the summary slot when the crawl has failed (reader-failed card already signals the problem)", async () => {
 			const parseArticle: ParseArticle = async () => ({ ok: false, reason: "blocked" });
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -1716,7 +1719,7 @@ describe("View routes", () => {
 
 	describe("GET /view/summary fragment", () => {
 		it("returns a ready fragment without polling attributes", async () => {
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: "Fragment summary.",
 			} });
@@ -1742,7 +1745,7 @@ describe("View routes", () => {
 		});
 
 		it("increments the poll counter when status=pending under the cap", async () => {
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -1764,7 +1767,7 @@ describe("View routes", () => {
 		});
 
 		it("stops polling at the cap and collapses to an empty deferred slot while the reader view is not ready", async () => {
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -1793,7 +1796,7 @@ describe("View routes", () => {
 		});
 
 		it("swaps in a header with the public facts", async () => {
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: "Fragment summary.",
 			} });
@@ -1862,7 +1865,7 @@ describe("View routes", () => {
 				outcomeRevision: 1,
 				reason: "blocked",
 			});
-			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -2072,7 +2075,7 @@ describe("View routes", () => {
 		it("appends the banner and gated Save CTA to a settled failed reader poll, carrying the page's utm", async () => {
 			const { fixture, harness } = pollHarness({
 				crawl: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
-				summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "skipped" } }),
+				summary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "skipped" } }),
 			});
 			await seedRow(fixture);
 
@@ -2104,7 +2107,7 @@ describe("View routes", () => {
 		it("a settled summary-failed poll still swaps the gated Save CTA, and carries no bar", async () => {
 			const { fixture, harness } = pollHarness({
 				crawl: async () => ({ status: "ready" }),
-				summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "failed", reason: "model timeout" } }),
+				summary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "failed", reason: "model timeout" } }),
 			});
 			await seedRow(fixture, { content: "<p>body</p>" });
 
@@ -2129,7 +2132,7 @@ describe("View routes", () => {
 		it("marks the swapped-in Save CTA as already seen for a warned session", async () => {
 			const { fixture, harness } = pollHarness({
 				crawl: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
-				summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "skipped" } }),
+				summary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "skipped" } }),
 			});
 			await seedRow(fixture);
 
@@ -2145,7 +2148,7 @@ describe("View routes", () => {
 		it("emits no banner or CTA fragment while the reader view is still loading", async () => {
 			const { fixture, harness } = pollHarness({
 				crawl: async () => ({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }),
-				summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } }),
+				summary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "pending" } }),
 			});
 			await seedRow(fixture);
 
@@ -3276,5 +3279,88 @@ describe("Public reader sections (GET /view/<url>?section=N)", () => {
 		const next = new URL(String(reader.nextHref), TEST_APP_ORIGIN);
 		expect(next.pathname).toBe(`/view/${CANONICAL_PATH}`);
 		expect(next.searchParams.get("section")).toBe("3");
+	});
+});
+
+describe("GET /view for a reader in China mainland", () => {
+	const SUMMARY_TEXT = "A generated digest that must never reach a China mainland visitor.";
+	const SUMMARY_EXCERPT = "A generated lead sentence for the view meta description.";
+	const CHINA_SIGNALS: { name: string; headers: Record<string, string> }[] = [
+		{ name: "the China storefront cookie", headers: { Cookie: `${STOREFRONT_COOKIE_NAME}=CHN` } },
+		{ name: "a trusted edge stating CN", headers: { [EDGE_SECRET_HEADER]: TEST_EDGE_SECRET, [VIEWER_COUNTRY_HEADER]: "CN" } },
+	];
+
+	function withSummary(summary: "ready" | "pending") {
+		const storedSummary = summary === "ready"
+			? { status: "ready" as const, summary: SUMMARY_TEXT, excerpt: SUMMARY_EXCERPT }
+			: { status: "pending" as const };
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer, generatedContent }) =>
+			shownSummary({ generatedContent, url, viewer, ownerUserId: undefined, summary: storedSummary });
+		return buildReaderHarness(useApp, (fixture) => {
+			fixture.summary = { ...fixture.summary, findGeneratedSummary };
+		});
+	}
+
+	async function viewThroughUrlParam(harness: ReturnType<typeof withSummary>, headers: Record<string, string>) {
+		const redirect = await request(harness.server).get(`/view?url=${ENCODED}`).set(headers);
+		expect([redirect.status, redirect.headers.location]).toEqual([302, `/view/${CANONICAL_PATH}`]);
+		return request(harness.server).get(redirect.headers.location).set(headers);
+	}
+
+	it.each(CHINA_SIGNALS)("shows no summary and no summary poll under $name", async ({ headers }) => {
+		const harness = withSummary("ready");
+
+		const response = await viewThroughUrlParam(harness, headers);
+
+		expect(response.status).toBe(200);
+		expect(response.text).not.toContain(SUMMARY_TEXT);
+		expect(response.text).not.toContain(SUMMARY_EXCERPT);
+		const doc = new JSDOM(response.text).window.document;
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect([slot.getAttribute("data-summary-status"), slot.hasAttribute("hx-get")]).toEqual(["skipped", false]);
+		expect(doc.querySelector('meta[name="description"]')?.getAttribute("content")).toBe("A lovely article.");
+		expect(doc.querySelectorAll("[data-test-related-item]")).toHaveLength(0);
+	});
+
+	it("still shows the summary to a visitor without a China signal", async () => {
+		const harness = withSummary("ready");
+
+		const response = await viewThroughUrlParam(harness, {});
+
+		expect(new JSDOM(response.text).window.document.querySelector("[data-test-reader-summary]")?.getAttribute("data-summary-status")).toBe("ready");
+		expect(response.text).toContain(SUMMARY_TEXT);
+	});
+
+	it("shows the summary to an untrusted request that states CN without the edge secret", async () => {
+		const harness = withSummary("ready");
+
+		const response = await viewThroughUrlParam(harness, { [VIEWER_COUNTRY_HEADER]: "CN" });
+
+		expect(response.text).toContain(SUMMARY_TEXT);
+	});
+
+	it.each(CHINA_SIGNALS)("shows no pending summary indicator under $name", async ({ headers }) => {
+		const harness = withSummary("pending");
+
+		const response = await viewThroughUrlParam(harness, headers);
+
+		const doc = new JSDOM(response.text).window.document;
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect([slot.getAttribute("data-summary-status"), slot.hasAttribute("hx-get")]).toEqual(["skipped", false]);
+		expect(doc.querySelector("[data-test-summary-pending-title]")).toBeNull();
+	});
+
+	it.each(CHINA_SIGNALS)("returns the collapsed slot from /view/summary under $name", async ({ headers }) => {
+		const harness = withSummary("ready");
+
+		const response = await request(harness.server).get(`/view/summary?url=${ENCODED}&poll=1`).set(headers);
+
+		expect(response.status).toBe(200);
+		expect(response.text).not.toContain(SUMMARY_TEXT);
+		const slot = new JSDOM(response.text).window.document.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect([slot.getAttribute("data-summary-status"), slot.hasAttribute("hx-get")]).toEqual(["skipped", false]);
 	});
 });

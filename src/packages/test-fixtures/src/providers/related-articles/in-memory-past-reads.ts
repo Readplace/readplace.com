@@ -37,7 +37,8 @@ export function initInMemoryPastReads(deps: {
 	const computations = new Map<string, { fingerprint: string; computedAt: Date }>();
 	const blocked = new Map<string, Date>();
 
-	const findPastReads: FindPastReads = async ({ userId, url }) => {
+	const findPastReads: FindPastReads = async ({ userId, url, generatedContent }) => {
+		if (generatedContent === "withheld") return { status: "ready", items: [] };
 		const links = settled.get(keyOf(userId, url));
 		const blockedUntil = blocked.get(keyOf(userId, url));
 		if (links === undefined) {

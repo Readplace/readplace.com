@@ -41,7 +41,8 @@ export function initInMemoryRelatedArticles(deps: {
 } {
 	const states = new Map<string, SettledRelatedArticles>();
 
-	const findRelatedArticles: FindRelatedArticles = async ({ userId, url }) => {
+	const findRelatedArticles: FindRelatedArticles = async ({ userId, url, generatedContent }) => {
+		if (generatedContent === "withheld") return { status: "skipped" };
 		const settled = states.get(keyOf(userId, url));
 		if (!settled) return { status: "pending" };
 		if (settled.status === "skipped") return { status: "skipped" };
