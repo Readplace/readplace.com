@@ -34,6 +34,10 @@ export interface ExcludedLinkViewModel {
 	actions: InboxCardSaveAction[];
 }
 
+export function toInboxExcludedLinkUrl(link: InboxEmailLinkEntry): string {
+	return decodeTrackerDestination(link.url) ?? link.url;
+}
+
 export function toInboxExcludedLinkViewModel(input: {
 	link: InboxEmailLinkEntry;
 	emailId: string;
@@ -41,7 +45,7 @@ export function toInboxExcludedLinkViewModel(input: {
 	paidFeaturesLocked: boolean;
 }): ExcludedLinkViewModel {
 	const { link, emailId } = input;
-	const url = input.savedDestinations.get(link.url) ?? decodeTrackerDestination(link.url) ?? link.url;
+	const url = input.savedDestinations.get(link.url) ?? toInboxExcludedLinkUrl(link);
 	const domId = `inbox-skipped-${link.ordinal}`;
 	const actions: InboxCardSaveAction[] = [];
 	if (!input.paidFeaturesLocked && validateSaveableInboxLink(link.url).status === "SUCCESS") {

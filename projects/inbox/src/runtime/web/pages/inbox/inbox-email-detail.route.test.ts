@@ -928,9 +928,14 @@ describe("Inbox email detail Skipped tab", () => {
 		const action = saveForm.getAttribute("action");
 		assert(action, "the save form must post somewhere");
 
-		await agent.post(action);
+		const moved = parseDoc((await agent.post(action).set("HX-Request", "true")).text);
 
 		expect(harness.submittedLinks.map((link) => link.url)).toEqual([tracker]);
+		expect(moved.querySelector("[data-test-inbox-excluded-moved] [data-test-inbox-excluded-url]")?.textContent).toBe(
+			"https://destination.test/post",
+		);
+		expect(moved.querySelector("[data-test-inbox-live-status]")?.textContent).toContain("https://destination.test/post");
+		expect(moved.querySelector("[data-test-inbox-live-status]")?.textContent).not.toContain("click.tracker.test");
 	});
 
 	it("offers a skipped link to save as an article", async () => {
