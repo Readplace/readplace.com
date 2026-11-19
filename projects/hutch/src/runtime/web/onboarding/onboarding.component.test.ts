@@ -23,6 +23,7 @@ function contextWith(
 		platform: "chrome",
 		inboxArticleQueued: false,
 		emailStepMarkedDone: false,
+		paidFeatures: true,
 		...overrides,
 	};
 }
@@ -105,6 +106,12 @@ function assertUtmTagged(form: Element): void {
 }
 
 describe("OnboardingChecklist", () => {
+	it("leaves the email and Next Read steps off a free-plan checklist", () => {
+		const doc = parse(checklist(contextWith({ savedCount: 1, paidFeatures: false })));
+		expect(stepIds(doc)).toEqual(["install-extension", "save-first-article-via-extension"]);
+		expect(hasOutstandingStep(contextWith({ installed: true, savedArticle: true, savedCount: 1, paidFeatures: false }))).toBe(false);
+	});
+
 	describe("Gmail", () => {
 		it("orders Gmail after email and before Next Read, with progress across five applicable tasks", () => {
 			const ctx = contextWith({ installed: true, savedArticle: true, emailStepMarkedDone: true, gmail: { connected: false, dismissed: false } });

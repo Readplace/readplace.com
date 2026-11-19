@@ -93,6 +93,27 @@ describe("Readlist onboarding — Next Read milestone", () => {
 		);
 	});
 
+	it("leaves the Next Read and email steps off a free-plan account's checklist", async () => {
+		const harness = useApp(countingFixture(12).fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "the logged-in user must exist");
+		await harness.subscriptionProviders.upsertActive({ userId: user.userId, subscriptionId: "sub_free", customerId: "cus_free" });
+		await harness.subscriptionProviders.markPendingCancellation({
+			userId: user.userId,
+			cancellationEffectiveAt: new Date(Date.now() - 86_400_000).toISOString(),
+		});
+
+		const response = await agent
+			.get("/queue")
+			.set("User-Agent", CHROME_UA)
+			.set("Cookie", EXTENSION_COOKIES);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector(NEXT_READ_STEP)).toBeNull();
+		expect(doc.querySelector('[data-test-onboarding-step="receive-articles-by-email"]')).toBeNull();
+	});
+
 	it("counts the account's real saves into the step chip", async () => {
 		const harness = useApp(countingFixture(12).fixture);
 		const agent = await loginAgent(harness.server, harness.auth);

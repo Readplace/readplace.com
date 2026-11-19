@@ -126,6 +126,7 @@ function installableClient(
 		platform: "chrome",
 		inboxArticleQueued: false,
 		emailStepMarkedDone: false,
+		paidFeatures: true,
 		...overrides,
 	};
 }

@@ -106,7 +106,7 @@ import type {
 	NativeAppPlatform,
 } from "@packages/provider-contracts/onboarding-signals";
 import type { InstallableClientOnboarding, OnboardingContext, Platform } from "../../onboarding/onboarding.types";
-import type { EffectiveAccess, } from "@packages/subscription-access";
+import { type EffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 import type { ArticleDiscoveryQuery, ReadlistFilter, SavedArticle, ShownSummary, Viewer } from "@packages/domain/article";
 import { ownedEnclosuresByUrl, viewerFor } from "@packages/domain/article";
 import type { ResolveOnViewSurface } from "@packages/provider-contracts/events";
@@ -559,6 +559,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			savedCount,
 			inboxArticleQueued: signals.firstInboxArticleQueuedAt !== undefined,
 			emailStepMarkedDone: signals.emailStepMarkedDoneAt !== undefined,
+			paidFeatures: hasPaidFeatures(access),
 		};
 		const version = onboardingVersion(context);
 		const seenUnderThisVersion = signals.onboardingOutstandingVersion === version;

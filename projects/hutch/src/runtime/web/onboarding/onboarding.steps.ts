@@ -172,7 +172,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 	},
 	{
 		id: "receive-articles-by-email",
-		isApplicable: (ctx) => ctx.hasInstallableClient,
+		isApplicable: (ctx) => ctx.hasInstallableClient && ctx.paidFeatures,
 		title: () => EMAIL_STEP_TITLE,
 		description: () => EMAIL_STEP_DESCRIPTION,
 		isComplete: (ctx) => ctx.hasInstallableClient && (ctx.inboxArticleQueued || ctx.emailStepMarkedDone),
@@ -194,7 +194,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 	},
 	{
 		id: "save-enough-for-next-read",
-		isApplicable: (ctx) => ctx.hasInstallableClient,
+		isApplicable: (ctx) => ctx.hasInstallableClient && ctx.paidFeatures,
 		title: () => NEXT_READ_TITLE,
 		description: (ctx) => ctx.hasInstallableClient ? nextReadDescription(ctx.savedCount) : "",
 		isComplete: (ctx) => ctx.hasInstallableClient && hasEnoughSavesForNextRead(ctx.savedCount),

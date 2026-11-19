@@ -29,6 +29,7 @@ export interface InstallableClientOnboarding extends GmailOnboardingContext {
 	platform: AdvertisedClientNameInCategory<"contentCapture"> | "other";
 	inboxArticleQueued: boolean;
 	emailStepMarkedDone: boolean;
+	paidFeatures: boolean;
 }
 
 /** Onboarding for a device with no installable first-party client (desktop
