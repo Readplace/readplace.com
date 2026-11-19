@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { strToU8, zipSync, type Zippable } from "fflate";
+import { parseHTML } from "linkedom";
 import { escapeXmlAttribute, escapeXmlText } from "./epub-xhtml";
 
 const IMAGE_MEDIA_TYPES: Record<string, string> = {
@@ -39,6 +40,10 @@ export interface EpubImage {
 	body: Uint8Array;
 }
 
+function mathmlPropertyOf(chapter: EpubChapter): string {
+	return parseHTML(chapter.xhtml).document.querySelector("math") !== null ? ' properties="mathml"' : "";
+}
+
 function contentOpf(params: {
 	title: string;
 	language: string;
@@ -49,7 +54,7 @@ function contentOpf(params: {
 }): string {
 	const chapterItems = params.chapters.map(
 		(chapter) =>
-			`<item id="${escapeXmlAttribute(chapter.id)}" href="${escapeXmlAttribute(chapter.href)}" media-type="application/xhtml+xml"/>`,
+			`<item id="${escapeXmlAttribute(chapter.id)}" href="${escapeXmlAttribute(chapter.href)}" media-type="application/xhtml+xml"${mathmlPropertyOf(chapter)}/>`,
 	);
 	const imageItems = params.images.map(
 		(image, index) =>

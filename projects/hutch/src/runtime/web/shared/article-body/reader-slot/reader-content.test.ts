@@ -122,6 +122,30 @@ describe("prepareReaderContent highlights", () => {
 		]);
 	});
 
+	it("serves a formula through section anchoring, highlight marking and the second sanitiser pass", () => {
+		const content =
+			'<p>Solve <math display="block"><mfrac><mi>a</mi><mi>b</mi></mfrac></math> first.</p>';
+
+		const prepared = prepare({ content });
+
+		expect(prepared.html).toBe(content);
+	});
+
+	it("marks a quote that ends inside a formula", () => {
+		const content =
+			'<p>Solve <math display="block"><mfrac><mi>a</mi><mi>b</mi></mfrac></math> first.</p>';
+		const highlight = highlightOn({
+			text: browserTextOf(prepare({ content }).html),
+			exact: "Solve a",
+		});
+
+		const prepared = prepare({ content, highlights: [highlight] });
+
+		expect(prepared.html).toBe(
+			`<p><mark class="article-highlight" id="highlight-${READER_ID}" data-highlight-id="${READER_ID}">Solve </mark><math display="block"><mfrac><mi><mark class="article-highlight" data-highlight-id="${READER_ID}">a</mark></mi><mi>b</mi></mfrac></math> first.</p>`,
+		);
+	});
+
 	it("keeps an encoded javascript: href dead after marking", () => {
 		const content =
 			'<p><a href="&#106;avascript:alert(1)">bad link</a> then words</p>';

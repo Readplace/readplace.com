@@ -50,6 +50,18 @@ The one function that both the article body and the table of contents read runs 
 
 Both prefixes are exported beside the sanitiser, and each minting step builds its ids from one of them (grep the workspace packages' non-test sources for the quoted `"section-"` or `"highlight-"` literal; the single hit for each is it). The highlight step strips any id a publisher's own `<mark>` carries before it wraps the reader's passages, so a captured `highlight-` id cannot shadow a minted one. Nothing else adds ids to article content.
 
+### MathML inside a saved article
+
+The sanitiser keeps presentation MathML so the reader and the EPUB draw a formula instead of dropping it. Its allow-list sits beside the HTML one (grep the domain package's non-test sources for `"mprescripts"`):
+
+| Kept | What |
+|---|---|
+| Elements | `math`, `mrow`, `mi`, `mn`, `mo`, `mtext`, `mspace`, `ms`, `mfrac`, `msqrt`, `mroot`, `msub`, `msup`, `msubsup`, `munder`, `mover`, `munderover`, `mmultiscripts`, `mprescripts`, `mtable`, `mtr`, `mtd`, `mstyle`, `mpadded`, `mphantom`, `semantics` |
+| Attributes, on any of them | `display` (`block` or `inline`), `mathvariant` (`normal`), `displaystyle` (`true` or `false`); any other value drops the attribute |
+| Dropped with their content | `annotation` and `annotation-xml` (a formula's TeX source or alternate markup), and `svg`, which stays dropped |
+
+The sanitiser does not know namespaces and the page has no CSP, so a browser can parse its output differently from how the sanitiser saw it (mutation XSS). Adding `svg`, `style`, `title`, `textarea`, `xmp` or `annotation-xml`, or any URL, event or style attribute, in or beside `math` reopens that hole. The EPUB writer adds the MathML namespace to each `math` element itself, and marks a chapter that holds one with the `mathml` manifest property, so the sanitiser never needs to keep `xmlns`.
+
 ## Reserving image boxes in the reader
 
 The reader's image rule keeps `width: auto` for publisher markup that declares `width="0"`. Under it Chromium lays out an image that has not loaded as 0x0, so the text jumps when the bytes arrive and a selection the reader has started moves under them. The reservation must not change how any image looks once it has loaded, for stored and future articles alike.

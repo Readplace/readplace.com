@@ -108,6 +108,34 @@ describe("packageEpub", () => {
 		);
 	});
 
+	it("marks a chapter that holds MathML with the mathml property", () => {
+		const files = unzipSync(
+			packageEpub({
+				...book,
+				chapters: [
+					{
+						id: "chapter-01",
+						href: "chapter-01.xhtml",
+						title: "Formula",
+						xhtml: '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>',
+					},
+					{ id: "chapter-02", href: "chapter-02.xhtml", title: "Plain", xhtml: "<p>Plain</p>" },
+					{
+						id: "chapter-03",
+						href: "chapter-03.xhtml",
+						title: "Custom element",
+						xhtml: "<p><math-renderer>x</math-renderer></p>",
+					},
+				],
+			}),
+		);
+		const opf = strFromU8(files["OEBPS/content.opf"]);
+
+		expect(opf).toContain(
+			'<item id="chapter-01" href="chapter-01.xhtml" media-type="application/xhtml+xml" properties="mathml"/>\n<item id="chapter-02" href="chapter-02.xhtml" media-type="application/xhtml+xml"/>\n<item id="chapter-03" href="chapter-03.xhtml" media-type="application/xhtml+xml"/>',
+		);
+	});
+
 	it("produces the same bytes for the same book, whenever it is built", () => {
 		expect(packageEpub(book)).toEqual(packageEpub(book));
 	});
