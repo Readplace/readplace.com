@@ -3,7 +3,7 @@ import type { initViewRoutes } from "./view.page";
 
 export function viewDependenciesFrom(
 	deps: Pick<AppDependencies, "validateSaveableUrl" | "findArticleByUrl" | "findItemOwner" | "findArticleFreshness" | "findArticleCrawlVersions" | "readArticleContent" | "readArticleImage" | "logError" | "findGeneratedSummary" | "markSummaryPending" | "findArticleCrawlStatus" | "markCrawlPending" | "saveArticleGlobally" | "resolveCanonicalIdentity" | "findIdentityRow" | "resolveFirstVisitIdentity" | "pinContentSource" | "findContentSourceUrl" | "publishSaveAnonymousLink" | "requestStaleCheck" | "consumeRateLimit" | "isDailyLimited" | "rateLimitRules" | "now" | "salt" | "readerSectionThresholdBytes">,
-	built: Pick<Parameters<typeof initViewRoutes>[0], "appOrigin" | "ownHost" | "secureCookies" | "buildBannerState" | "recordAnalyticsEvent" | "getEffectiveAccess" | "claimDailySaves">,
+	built: Pick<Parameters<typeof initViewRoutes>[0], "appOrigin" | "ownHost" | "secureCookies" | "buildBannerState" | "recordAnalyticsEvent" | "recordUngatedAnalyticsEvent" | "getEffectiveAccess" | "claimDailySaves">,
 ): Parameters<typeof initViewRoutes>[0] {
 	const {
 		appOrigin,
@@ -11,6 +11,7 @@ export function viewDependenciesFrom(
 		secureCookies,
 		buildBannerState,
 		recordAnalyticsEvent,
+		recordUngatedAnalyticsEvent,
 		getEffectiveAccess,
 		claimDailySaves,
 	} = built;
@@ -48,6 +49,7 @@ export function viewDependenciesFrom(
 		now: deps.now,
 		buildBannerState,
 		recordAnalyticsEvent,
+		recordUngatedAnalyticsEvent,
 		salt: deps.salt,
 	};
 }

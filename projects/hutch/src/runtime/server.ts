@@ -1754,6 +1754,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			keepRateLimitRule: deps.rateLimitRules.signup,
 			buildBannerState,
 			recordAnalyticsEvent,
+			recordUngatedAnalyticsEvent,
 			salt: deps.salt,
 			now: deps.now,
 		}),
@@ -1765,6 +1766,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		secureCookies,
 		buildBannerState,
 		recordAnalyticsEvent,
+		recordUngatedAnalyticsEvent,
 		getEffectiveAccess,
 		claimDailySaves,
 	}));
