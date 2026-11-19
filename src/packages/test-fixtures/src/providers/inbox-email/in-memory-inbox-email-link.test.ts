@@ -252,7 +252,7 @@ describe("initInMemoryInboxEmailLink", () => {
 			userId: owner,
 			receivedAtMessageId: RAM,
 			ordinal: EmailLinkOrdinalSchema.parse("0000"),
-			outcome: { status: "failed", failureReason: "crawl-failed" },
+			outcome: { status: "failed", failureReason: "crawl-failed", resolvedUrl: undefined },
 		});
 
 		const found = await store.getLink({
@@ -265,6 +265,31 @@ describe("initInMemoryInboxEmailLink", () => {
 		expect(found.failureReason).toBe("crawl-failed");
 		expect(found.title).toBeUndefined();
 		expect(found.resolvedUrl).toBeUndefined();
+	});
+
+	it("keeps the destination a failed preview reached after a tracker redirect", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await store.putLink(makeLink({ status: "pending" }));
+
+		await store.setLinkOutcome({
+			userId: owner,
+			receivedAtMessageId: RAM,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+			outcome: {
+				status: "failed",
+				failureReason: "blocked",
+				resolvedUrl: "https://www.telegraph.test/news/the-actual-article",
+			},
+		});
+
+		const found = await store.getLink({
+			userId: owner,
+			receivedAtMessageId: RAM,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+		});
+		assert(found);
+		expect(found.status).toBe("failed");
+		expect(found.resolvedUrl).toBe("https://www.telegraph.test/news/the-actual-article");
 	});
 
 	describe("deleteLinksByEmail", () => {

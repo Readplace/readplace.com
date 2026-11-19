@@ -1326,7 +1326,7 @@ describe("initExtractEmailLinksHandler", () => {
 					userId: USER,
 					receivedAtMessageId: RAM,
 					ordinal: EmailLinkOrdinalSchema.parse(ordinal),
-					outcome: { status: "failed", failureReason: "timeout" },
+					outcome: { status: "failed", failureReason: "timeout", resolvedUrl: undefined },
 				});
 			}
 
@@ -1849,7 +1849,7 @@ it("preserves a Gmail article's first eligibility when custom publication retrie
 	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), failCustomPublish: true, triageEmailLinks: async ({ links }) => ({ status: "triaged", categories: new Map(links.map(({ ordinal }) => [ordinal, category])) }) });
 	const body = eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } });
 	expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
-	await harness.linkStore.setLinkOutcome({ userId: USER, receivedAtMessageId: RAM, ordinal: EmailLinkOrdinalSchema.parse("0000"), outcome: { status: "failed", failureReason: "Preview unavailable" } });
+	await harness.linkStore.setLinkOutcome({ userId: USER, receivedAtMessageId: RAM, ordinal: EmailLinkOrdinalSchema.parse("0000"), outcome: { status: "failed", failureReason: "Preview unavailable", resolvedUrl: undefined } });
 	category = "noise";
 	expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
 	expect(harness.triaged.map(({ links }) => links.map(({ ordinal }) => ordinal))).toEqual([["0000"], ["0000"]]);

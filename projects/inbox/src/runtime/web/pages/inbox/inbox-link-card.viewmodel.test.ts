@@ -155,6 +155,24 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(crawled.url).toBe("https://destination.test/the-actual-article");
 	});
 
+	it("shows the destination a failed preview reached instead of the newsletter tracking link", () => {
+		const failed = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
+			link: link({
+				status: "failed",
+				failureReason: "blocked",
+				url: "https://click.convertkit-mail.test/abc123",
+				resolvedUrl: "https://www.telegraph.test/news/the-actual-article?utm_source=newsletter",
+			}),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+
+		expect(failed.url).toBe("https://www.telegraph.test/news/the-actual-article");
+		expect(failed.statusState).toBe("failed");
+	});
+
 	it("drops the newsletter's utm tags from a crawled link that never redirected", () => {
 		const crawled = toInboxLinkCardViewModel({
 			paidFeaturesLocked: false,

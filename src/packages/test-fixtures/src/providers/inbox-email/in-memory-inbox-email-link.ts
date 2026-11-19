@@ -65,7 +65,7 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 							excerpt: undefined,
 							siteName: undefined,
 							imageUrl: undefined,
-							resolvedUrl: undefined,
+							resolvedUrl: outcome.resolvedUrl,
 							skipReason: undefined,
 						},
 			);

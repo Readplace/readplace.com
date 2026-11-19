@@ -93,6 +93,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 				status: "unsupported",
 				reason: crawlResult.reason,
 				unsupportedReason: crawlResult.unsupportedReason,
+				finalUrl: crawlResult.finalUrl,
 			};
 		}
 		if (crawlResult.status === "not-found") {

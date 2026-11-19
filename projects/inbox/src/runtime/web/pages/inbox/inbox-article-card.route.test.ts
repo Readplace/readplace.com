@@ -255,6 +255,30 @@ describe("Inbox link card route", () => {
 		expectBareUrlRow(card);
 	});
 
+	it("returns a failed tracker card as the destination its preview reached", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, {
+			status: "failed",
+			failureReason: "blocked",
+			url: "https://click.convertkit-mail.test/abc123",
+			resolvedUrl: "https://www.telegraph.test/news/the-actual-article",
+		});
+
+		const response = await agent.get(cardPath);
+
+		expect(response.status).toBe(200);
+		const card = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-article-card]",
+		);
+		assert(card, "the card fragment must render");
+		const bare = card.querySelector("[data-test-inbox-article-url]");
+		assert(bare, "the bare URL anchor must render");
+		expect(bare.getAttribute("href")).toBe("https://www.telegraph.test/news/the-actual-article");
+		expect(bare.textContent).toBe("https://www.telegraph.test/news/the-actual-article");
+	});
+
 	it("renders no Save button for a link the save pipeline would reject", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

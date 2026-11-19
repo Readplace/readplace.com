@@ -245,6 +245,65 @@ describe("initCrawlEmailLinkPreviewHandler", () => {
 		expect(link.failureReason).toBe("blocked");
 	});
 
+	it.each<{ name: string; result: CrawlAndFinalizeResult }>([
+		{
+			name: "a blocked preview",
+			result: { status: "blocked", httpStatus: 403, finalUrl: "https://www.telegraph.test/news/the-actual-article" },
+		},
+		{
+			name: "a not-found preview",
+			result: { status: "not-found", httpStatus: 404, finalUrl: "https://www.telegraph.test/news/the-actual-article" },
+		},
+		{
+			name: "an unsupported (PDF) preview",
+			result: {
+				status: "unsupported",
+				reason: "unsupported content type: application/pdf",
+				finalUrl: "https://www.telegraph.test/news/the-actual-article",
+			},
+		},
+		{
+			name: "a failed preview",
+			result: {
+				status: "failed",
+				reason: "crawl-failed",
+				decision: undefined,
+				finalUrl: "https://www.telegraph.test/news/the-actual-article",
+			},
+		},
+	])("$name that redirected off the tracker stores the final URL", async ({ result }) => {
+		const store = initInMemoryInboxEmailLink();
+		const trackerUrl = "https://click.convertkit-mail.test/abc123";
+		await seedPending(store, { url: trackerUrl });
+		const run = makeHandler({ crawlAndFinalize: async () => result, setLinkOutcome: store.setLinkOutcome });
+
+		await run(commandBody({ url: trackerUrl }));
+
+		const link = await getLink(store);
+		expect(link.status).toBe("failed");
+		expect(link.url).toBe(trackerUrl);
+		expect(link.resolvedUrl).toBe("https://www.telegraph.test/news/the-actual-article");
+	});
+
+	it.each<{ name: string; finalUrl: string | undefined }>([
+		{ name: "no final URL", finalUrl: undefined },
+		{ name: "a final URL equal to the submitted URL", finalUrl: "https://example.com/post" },
+	])("a failed preview with $name stores no resolved URL", async ({ finalUrl }) => {
+		const store = initInMemoryInboxEmailLink();
+		await seedPending(store);
+		const run = makeHandler({
+			crawlAndFinalize: async () => ({ status: "blocked", httpStatus: 403, finalUrl }),
+			setLinkOutcome: store.setLinkOutcome,
+		});
+
+		await run(commandBody());
+
+		const link = await getLink(store);
+		expect(link.status).toBe("failed");
+		expect(link.failureReason).toBe("blocked");
+		expect(link.resolvedUrl).toBeUndefined();
+	});
+
 	it("fails the record for a malformed command envelope", async () => {
 		const store = initInMemoryInboxEmailLink();
 		const run = makeHandler({
@@ -422,7 +481,7 @@ describe("initCrawlEmailLinkPreviewHandler", () => {
 			name: "crawled",
 			outcome: { status: "crawled", title: "t", excerpt: "e", siteName: "s", imageUrl: undefined, resolvedUrl: undefined },
 		},
-		{ name: "failed", outcome: { status: "failed", failureReason: "crawl-failed" } },
+		{ name: "failed", outcome: { status: "failed", failureReason: "crawl-failed", resolvedUrl: undefined } },
 	])("makes no crawl request on a redelivery when the link is already $name", async ({ outcome }) => {
 		const store = initInMemoryInboxEmailLink();
 		await seedPending(store);
