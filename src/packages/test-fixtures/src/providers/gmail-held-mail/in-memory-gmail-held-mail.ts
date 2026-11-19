@@ -17,6 +17,8 @@ export function initInMemoryGmailHeldMail(): GmailHeldMailStore {
 					right.receivedAtMessageId.localeCompare(left.receivedAtMessageId),
 				)
 				.slice(0, limit),
+		listHeldMailByUserId: async (userId) =>
+			[...rows.values()].filter((row) => row.userId === userId),
 		deleteAllHeldMailByUserId: async (userId) => {
 			for (const [key, row] of rows) {
 				if (row.userId === userId) rows.delete(key);

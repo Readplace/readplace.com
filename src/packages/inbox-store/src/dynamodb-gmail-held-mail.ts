@@ -68,6 +68,13 @@ export function initDynamoDbGmailHeldMail(deps: {
 			});
 			return items.map(toEntry);
 		},
+		listHeldMailByUserId: async (userId) => {
+			const held: GmailHeldMailEntry[] = [];
+			await forEachQueryPage(table, byUser(userId), async (rows) => {
+				held.push(...rows.map(toEntry));
+			});
+			return held;
+		},
 		deleteAllHeldMailByUserId: async (userId) => {
 			await forEachQueryPage(table, byUser(userId), async (rows) => {
 				await Promise.all(

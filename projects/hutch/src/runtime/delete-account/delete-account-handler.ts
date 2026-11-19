@@ -40,7 +40,11 @@ import type {
 	DeleteTrialFeedbackEmailSchedule,
 	DeleteTrialReminderSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
-import type { GmailHistoryImportStore, GmailMappingStore } from "@packages/domain/gmail";
+import type {
+	GmailHeldMailStore,
+	GmailHistoryImportStore,
+	GmailMappingStore,
+} from "@packages/domain/gmail";
 import type { GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import type {
 	EmailIdentityStore,
@@ -74,6 +78,8 @@ export interface DeleteAccountHandlerDependencies {
 	deleteAllGmailHistoryImports: GmailHistoryImportStore["deleteAllByUserId"];
 	deleteAllGmailMonitoring: GmailMonitoringStore["deleteAllByUserId"];
 	deleteAllGmailMappings: GmailMappingStore["deleteAllByUserId"];
+	listGmailHeldMail: GmailHeldMailStore["listHeldMailByUserId"];
+	deleteAllGmailHeldMail: GmailHeldMailStore["deleteAllHeldMailByUserId"];
 	deleteAllEmailIdentities: EmailIdentityStore["deleteAllByUserId"];
 	disconnectGmail: DisconnectGmail;
 	deleteRawEmailObjects: (keys: string[]) => Promise<void>;
@@ -157,6 +163,9 @@ async function processCommand(
 	await deps.deleteEmailImageObjects(emailImageS3KeyPrefixes);
 	await deps.deleteAllInboxLinks(userId, receivedAtMessageIds);
 	await deps.deleteAllInboxEmails(userId);
+	const heldMail = await deps.listGmailHeldMail(userId);
+	await deps.deleteRawEmailObjects(heldMail.map((held) => held.rawEmailS3Key));
+	await deps.deleteAllGmailHeldMail(userId);
 	await deps.deleteRawEmailObjectsByPrefix([`gmail-import/${userId}`]);
 	await deps.deleteParsedPdfObjects([`pdf-extract/account/${userId}/`]);
 	await deps.deleteAllGmailHistoryImports(userId);

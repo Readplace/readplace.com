@@ -19,5 +19,6 @@ export interface GmailHeldMailStore {
 		senderEmail: ForwardableSender;
 		limit: number;
 	}) => Promise<GmailHeldMailEntry[]>;
+	listHeldMailByUserId: (userId: UserId) => Promise<GmailHeldMailEntry[]>;
 	deleteAllHeldMailByUserId: (userId: UserId) => Promise<void>;
 }

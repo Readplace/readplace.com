@@ -88,6 +88,23 @@ describe("initInMemoryGmailHeldMail", () => {
 		);
 	});
 
+	it("lists every held message one reader owns across senders", async () => {
+		const store = initInMemoryGmailHeldMail();
+		await store.holdMail(heldMail());
+		await store.holdMail(
+			heldMail({ senderEmail: brew, receivedAt: "2026-08-27T03:00:00.000Z" }),
+		);
+		await store.holdMail(heldMail({ userId: otherUser }));
+
+		const held = await store.listHeldMailByUserId(owner);
+
+		assert.deepEqual(
+			held.map((entry) => entry.senderEmail).sort(),
+			[brew, tldr].sort(),
+		);
+		assert.ok(held.every((entry) => entry.userId === owner));
+	});
+
 	it("deletes every held message a reader owns while leaving other readers alone", async () => {
 		const store = initInMemoryGmailHeldMail();
 		await store.holdMail(heldMail());
