@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchIntegrations } from "@packages/translations/hutch-integrations";
 import { withInternalTracking } from "@packages/web-shell";
 import type { IconName } from "@packages/ui-icons";
 import type { OAuthClientId } from "@packages/domain/oauth";
@@ -33,6 +35,8 @@ export const GMAIL_CONNECT_DISCLAIMER_ID = "gmail-connect-disclaimer";
 
 const INTEGRATIONS_SOURCE = "integrations";
 
+const { t } = translator(hutchIntegrations, DEFAULT_LOCALE);
+
 function trackedAction(
 	action: Omit<IntegrationActionViewModel, "trackSource" | "trackContent">,
 ): IntegrationActionViewModel {
@@ -56,7 +60,7 @@ export interface IntegrationRowViewModel {
 	iconName: IconName;
 	beta: boolean;
 	accountEmail: string | undefined;
-	statusKey: GmailConnectionState | SetupState;
+	statusKey: GmailConnectionState | SetupState | "none";
 	statusLabel: string;
 	statusModifier: string;
 	actions: IntegrationActionViewModel[];
@@ -77,7 +81,6 @@ export interface IntegrationsIndexViewModel {
 	services: IntegrationRowViewModel[];
 	notices: IntegrationsNoticeViewModel[];
 	alerts: IntegrationsAlertViewModel[];
-	apiDocsHref: string;
 }
 
 const STATUS_LABELS: Record<GmailConnectionState, string> = {
@@ -329,6 +332,30 @@ function aiAssistantRow(connectedClientIds: readonly OAuthClientId[]): Integrati
 	};
 }
 
+function apiRow(): IntegrationRowViewModel {
+	return {
+		key: "api",
+		name: t("connectors.api.name"),
+		description: t("connectors.api.description"),
+		iconName: "plug",
+		beta: false,
+		accountEmail: undefined,
+		statusKey: "none",
+		statusLabel: "",
+		statusModifier: "",
+		locks: [],
+		actions: [trackedAction({
+			key: "api-docs",
+			method: "GET",
+			href: DEVELOPERS_PATH,
+			label: t("connectors.api.action"),
+			variant: "neutral",
+			fields: [],
+			boost: false,
+		})],
+	};
+}
+
 export function toIntegrationsIndexViewModel(input: {
 	offer: UpgradeOffer | undefined;
 	connection: GmailConnection | undefined;
@@ -345,9 +372,9 @@ export function toIntegrationsIndexViewModel(input: {
 			input.canConnectGmail ? gmailRow(input.connection) : gmailUpgradeRow({ connection: input.connection, offer: input.offer }),
 			customEmailsRow(input.activeCustomEmailCount),
 			aiAssistantRow(input.connectedClientIds),
+			apiRow(),
 		],
 		notices,
 		alerts,
-		apiDocsHref: withInternalTracking(DEVELOPERS_PATH, { source: INTEGRATIONS_SOURCE, content: "api-docs" }),
 	};
 }

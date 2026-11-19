@@ -25,11 +25,15 @@ import {
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { HighlightCreatedEvent } from "@packages/web-analytics";
+import { strFromU8, unzipSync } from "fflate";
 import { JSDOM } from "jsdom";
+import { DOMParser } from "linkedom";
 import request from "supertest";
 import { initReanchorHighlightsHandler } from "../../../highlights/reanchor-highlights-handler";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
+import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
+import { toExportHighlights } from "../export/build-export-highlight";
 
 const useApp = useTestServer();
 
@@ -1092,6 +1096,135 @@ describe("Highlights that carry a note in the reader (GET /queue/:id/view)", () 
 	});
 });
 
+describe("A highlight's actions beside the article (GET /queue/:id/view)", () => {
+	const notePath = (input: { articleId: string; highlightId: string }) =>
+		`/queue/${input.articleId}/highlights/${input.highlightId}/note`;
+
+	function panelsOf(html: string): (string | null)[] {
+		return Array.from(doc(html).querySelectorAll("[data-highlight-popover]"), (panel) =>
+			panel.getAttribute("data-highlight-popover"),
+		);
+	}
+
+	function panelOf(html: string, highlightId: string): Element {
+		const panel = doc(html).querySelector(`[data-highlight-popover="${highlightId}"]`);
+		assert(panel, `the reader renders the panel of ${highlightId}`);
+		return panel;
+	}
+
+	function actionsOf(panel: Element): string[] {
+		return Array.from(panel.querySelectorAll(".highlight-popover__actions button"), (button) =>
+			(button.textContent ?? "").trim(),
+		);
+	}
+
+	it("offers each highlight that has a mark its actions in a panel beside the article", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/highlight-panel-marked";
+		const { agent, articleId } = await saveArticle(harness, url);
+		await createHighlight(agent, { articleId, exact: "readability parser" });
+		const kept = await createHighlight(agent, { articleId, exact: "second paragraph" });
+
+		await fixture.articleStore.writeContent({ url, content: SECOND_PARAGRAPH });
+		const html = (await agent.get(viewPath(articleId))).text;
+		const page = doc(html);
+
+		expect(rowsOf(html)).toHaveLength(2);
+		expect(panelsOf(html)).toEqual([kept]);
+		const panel = page.querySelector(`[data-highlight-popover="${kept}"]`);
+		assert(panel, "the marked highlight's panel renders");
+		expect({
+			inSlot: panel.closest("#article-body-reader-slot") !== null,
+			inBody: panel.closest(".article-body__content") !== null,
+			inRail: panel.closest("#highlights-rail") !== null,
+		}).toEqual({ inSlot: true, inBody: false, inRail: false });
+	});
+
+	it("opens a highlight's panel as a dialog on its first action", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-focus");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const panel = panelOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect({
+			popover: panel.getAttribute("popover"),
+			role: panel.getAttribute("role"),
+			label: panel.ownerDocument.getElementById(panel.getAttribute("aria-labelledby") ?? "")?.textContent,
+			autofocus: Array.from(panel.querySelectorAll("[autofocus]"), (target) => target.getAttribute("popovertarget")),
+		}).toEqual({
+			popover: "auto",
+			role: "dialog",
+			label: "Highlight actions",
+			autofocus: [`note-highlight-${id}`],
+		});
+	});
+
+	it("offers Add note and Delete highlight for a highlight without a note", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-plain");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const panel = panelOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(actionsOf(panel)).toEqual(["Add note", "Delete highlight"]);
+		expect(panel.querySelector(".highlight-popover__note")).toBeNull();
+		expect(panel.hasAttribute("aria-describedby")).toBe(false);
+	});
+
+	it("shows the note and offers Edit note, Delete note and Delete highlight for a highlight with a note", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-noted");
+		const highlightId = await createHighlight(agent, { articleId, exact: "readability parser" });
+		await agent.post(notePath({ articleId, highlightId })).type("form").send({ note: "My thought" });
+
+		const panel = panelOf((await agent.get(viewPath(articleId))).text, highlightId);
+
+		const note = panel.querySelector(".highlight-popover__note");
+		assert(note, "the panel shows the note");
+		expect(note.textContent).toBe("My thought");
+		expect(panel.getAttribute("aria-describedby")).toBe(note.id);
+		expect(actionsOf(panel)).toEqual(["Edit note", "Delete note", "Delete highlight"]);
+	});
+
+	it("points every panel action at a dialog or form the page renders", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-targets");
+		const highlightId = await createHighlight(agent, { articleId, exact: "readability parser" });
+		await agent.post(notePath({ articleId, highlightId })).type("form").send({ note: "My thought" });
+
+		const page = doc((await agent.get(viewPath(articleId))).text);
+		const targets = Array.from(page.querySelectorAll("[data-highlight-popover] button"), (button) => {
+			const dialogId = button.getAttribute("popovertarget");
+			if (dialogId !== null) return { kind: "dialog", role: page.getElementById(dialogId)?.getAttribute("role") };
+			const formId = button.getAttribute("form");
+			assert(formId, "a panel action that opens no dialog submits a form");
+			return { kind: "form", role: page.getElementById(formId)?.tagName };
+		});
+
+		expect(targets).toEqual([
+			{ kind: "dialog", role: "dialog" },
+			{ kind: "form", role: "FORM" },
+			{ kind: "dialog", role: "dialog" },
+		]);
+	});
+
+	it("renders every id on the reader page once", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-panel-ids");
+		const highlightId = await createHighlight(agent, { articleId, exact: "readability parser" });
+		await agent.post(notePath({ articleId, highlightId })).type("form").send({ note: "My thought" });
+		await createHighlight(agent, { articleId, exact: "second paragraph" });
+
+		const html = (await agent.get(viewPath(articleId))).text;
+		const ids = Array.from(doc(html).querySelectorAll("[id]"), (element) => element.id);
+
+		expect(panelsOf(html)).toHaveLength(2);
+		expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
+	});
+});
+
 describe("Highlights on the reader polls", () => {
 	it("polls the summary on the plain reader URL", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -1126,6 +1259,33 @@ describe("Highlights on the reader polls", () => {
 		expect(rail?.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		expect(rowsOf(poll)).toEqual([{ id, state: "anchored" }]);
 		expect(marksOf(poll)).toEqual(["readability parser"]);
+	});
+
+	it("sends the panels with the reader slot on a reader poll", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-poll-panels");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const page = doc((await agent.get(`/queue/${articleId}/reader?poll=1`)).text);
+
+		const containers = page.querySelectorAll("#manage-highlights");
+		expect(containers).toHaveLength(1);
+		expect(containers[0].closest("#article-body-reader-slot")).not.toBeNull();
+		expect(Array.from(containers[0].querySelectorAll("[data-highlight-popover]"), (panel) => panel.getAttribute("data-highlight-popover"))).toEqual([id]);
+	});
+
+	it("leaves the panels alone on a summary poll that leaves the marks alone", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/highlight-poll-summary-panels");
+		await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const page = doc((await agent.get(`/queue/${articleId}/summary?poll=1`)).text);
+
+		expect(page.querySelector("[data-test-reader-summary]")).not.toBeNull();
+		expect({
+			marks: page.querySelectorAll("mark.article-highlight").length,
+			panels: page.querySelectorAll("#manage-highlights").length,
+		}).toEqual({ marks: 0, panels: 0 });
 	});
 
 	it("emits pending rows and a rail target on the summary poll while the body is not served", async () => {
@@ -1297,14 +1457,14 @@ const SECOND_PARAGRAPH_EDITED =
 async function runReanchorHandler(
 	fixture: TestAppFixture,
 	url: string,
+	candidateBodies: ReadonlyMap<string, string> = new Map(),
 ): Promise<void> {
 	const publishEvent: PublishEvent = async () => {};
 	const handler = initReanchorHighlightsHandler({
 		listHighlightsOfArticle: fixture.highlights.listHighlightsOfArticle,
 		readCanonicalSnapshot: fixture.articleStore.readCanonicalSnapshot,
 		readArticleContent: fixture.articleStore.readArticleContent,
-		readCandidateBody: async () => undefined,
-		findItemOwner: fixture.articleStore.findItemOwner,
+		readCandidateBody: async ({ candidateId }) => candidateBodies.get(candidateId),
 		writeHighlightAnchor: fixture.highlights.writeHighlightAnchor,
 		publishEvent,
 		appOrigin: TEST_APP_ORIGIN,
@@ -1826,5 +1986,251 @@ describe("Add note without the Popover API (POST /queue/:id/highlights with afte
 		);
 		expect(urls.filter((url) => url.includes(`note=${id}`))).toEqual([]);
 		expect(fallbackOf(page, id).open).toBe(true);
+	});
+});
+
+function jumpTargetsOf(html: string): string[] {
+	return Array.from(
+		doc(html).querySelectorAll('[data-test-action="highlight-jump"]'),
+		(jump) => jump.getAttribute("data-highlight-jump") ?? "",
+	);
+}
+
+function markedIdsOf(html: string): string[] {
+	return [
+		...new Set(
+			Array.from(
+				doc(html).querySelectorAll("mark[data-highlight-id]"),
+				(mark) => mark.getAttribute("data-highlight-id") ?? "",
+			),
+		),
+	];
+}
+
+function paragraphs(texts: readonly string[]): string {
+	return texts.map((text) => `<p>${text}</p>`).join("");
+}
+
+function railOf(html: string, id: string) {
+	const row = doc(html).querySelector(`[data-test-highlight-row="${id}"]`);
+	assert(row, "the rail must list the highlight");
+	return {
+		state: row.getAttribute("data-test-highlight-state"),
+		chip: (row.textContent ?? "").includes("Not found in this version"),
+		marks: marksOf(html),
+		jumps: jumpTargetsOf(html),
+		marked: markedIdsOf(html),
+	};
+}
+
+const INTRO = "Intro here.";
+const OUTRO = "Outro here.";
+const CAPTION = "Table 1 stacked caption";
+const CLOSING = "A closing line.";
+const BRIDGE_BEFORE =
+	"Built in 1900, it is the most admired structure in the city. Tourists come from far away to see it.";
+const BRIDGE_EDITED =
+	"Built in 1900, it is the most admired structure in the whole city. It draws crowds.";
+const BRIDGE_ECHO =
+	"Built in 1900, it is the most admired structure in the whole city. Tourists come from far away to see it.";
+
+async function seedCanonical(
+	fixture: TestAppFixture,
+	input: { url: string; texts: readonly string[]; hash: string; candidate: string },
+): Promise<string> {
+	const content = paragraphs(input.texts);
+	await fixture.articleStore.replaceCanonicalContent({
+		url: input.url,
+		content,
+		canonicalContentHash: input.hash,
+		canonicalCandidateId: CandidateIdSchema.parse(input.candidate),
+	});
+	return content;
+}
+
+async function basisRow(url: string) {
+	const fixture = parsedFixture();
+	const harness = useApp(fixture);
+	const { agent, articleId } = await saveArticle(harness, url);
+	const v0 = await seedCanonical(fixture, {
+		url,
+		texts: [INTRO, BRIDGE_BEFORE, OUTRO],
+		hash: "h0",
+		candidate: "candidate-v0",
+	});
+	const id = await createHighlight(agent, {
+		articleId,
+		exact: "most admired structure in the city",
+	});
+	await seedCanonical(fixture, {
+		url,
+		texts: [INTRO, BRIDGE_EDITED, OUTRO, BRIDGE_ECHO],
+		hash: "h1",
+		candidate: "candidate-v1",
+	});
+	await runReanchorHandler(fixture, url, new Map([["candidate-v0", v0]]));
+	const [{ highlight }] = await fixture.highlights.listHighlightsOfArticle(url);
+	assert(highlight.basisCandidateId !== undefined, "the diff must record a basis");
+	return { fixture, harness, agent, articleId, id };
+}
+
+describe("Highlights in the rail and the body agree on what is marked", () => {
+	it("RT1: lists an orphaned row at its own hash with the chip, no mark and no Jump", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/highlight-rt1-orphaned";
+		const { agent, articleId } = await saveArticle(harness, url);
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+		await fixture.articleStore.replaceCanonicalContent({
+			url,
+			content: SECOND_PARAGRAPH,
+			canonicalContentHash: "rt1-hash",
+			canonicalCandidateId: CandidateIdSchema.parse("rt1-candidate"),
+		});
+		await runReanchorHandler(fixture, url);
+
+		const rail = railOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(rail).toEqual({ state: "orphaned", chip: true, marks: [], jumps: [], marked: [] });
+	});
+
+	it("RT2: marks and links a basis row at a newer hash whose passage is untouched, with no chip", async () => {
+		const url = "https://example.com/highlight-rt2-basis-untouched";
+		const { fixture, agent, articleId, id } = await basisRow(url);
+		await seedCanonical(fixture, {
+			url,
+			texts: [INTRO, BRIDGE_EDITED, OUTRO, BRIDGE_ECHO, CLOSING],
+			hash: "h2",
+			candidate: "candidate-v2",
+		});
+
+		const rail = railOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(rail.chip).toBe(false);
+		expect(rail.marks).toEqual(["most admired structure in the whole city"]);
+		expect(rail.marked).toEqual([id]);
+		expect(rail.jumps).toEqual(rail.marked);
+	});
+
+	it("RT3: neither marks, links nor chips a basis row at a newer hash whose passage was deleted", async () => {
+		const url = "https://example.com/highlight-rt3-basis-deleted";
+		const { fixture, agent, articleId, id } = await basisRow(url);
+		await seedCanonical(fixture, {
+			url,
+			texts: [INTRO, OUTRO, BRIDGE_ECHO, CLOSING],
+			hash: "h2",
+			candidate: "candidate-v2",
+		});
+
+		const rail = railOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(rail).toMatchObject({ chip: false, marks: [], jumps: [], marked: [] });
+	});
+
+	it("RT4 (RC1.2): neither marks nor links a basis row once its own hash renders a caption above the passage", async () => {
+		const url = "https://example.com/highlight-rt4-rc1-2";
+		const { fixture, agent, articleId, id } = await basisRow(url);
+		await fixture.articleStore.writeContent({
+			url,
+			content: paragraphs([INTRO, CAPTION, BRIDGE_EDITED, OUTRO, BRIDGE_ECHO]),
+		});
+
+		const rail = railOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(rail).toMatchObject({ marks: [], jumps: [], marked: [] });
+	});
+
+	it("RT6: shows an edited row's one state in the rail, Markdown, EPUB, MCP and the export", async () => {
+		const url = "https://example.com/highlight-rt6-one-state";
+		const { fixture, harness, agent, articleId, id } = await basisRow(url);
+		const expected = {
+			state: "moved",
+			quote: "most admired structure in the whole city",
+			highlighted: "most admired structure in the city",
+		};
+		const line = `${expected.quote} (edited in the current version; you highlighted “${expected.highlighted}”)`;
+
+		const page = (await agent.get(viewPath(articleId))).text;
+		const row = doc(page).querySelector(`[data-test-highlight-row="${id}"]`);
+		const markdown = (await agent.get(viewPath(articleId)).set("Accept", "text/markdown")).text;
+		const epub = await agent.get(`${viewPath(articleId)}?format=epub`).responseType("blob");
+		const chapter = new DOMParser().parseFromString(
+			strFromU8(unzipSync(new Uint8Array(epub.body))["OEBPS/content.xhtml"]),
+			"text/html",
+		);
+		const owner = await harness.auth.findUserByEmail("test@example.com");
+		assert(owner, "the logged-in user must exist");
+		const mcp = await request(harness.server)
+			.post("/mcp")
+			.set("Authorization", `Bearer ${await saveAccessTokenForUser(harness, owner.userId)}`)
+			.set("Content-Type", "application/json")
+			.send(
+				JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "tools/call",
+					params: { name: "list_highlights", arguments: { id: articleId } },
+				}),
+			);
+		const snapshot = await fixture.articleStore.readCanonicalSnapshot(url);
+		const [{ highlight }] = await fixture.highlights.listHighlightsOfArticle(url);
+		const [exported] = toExportHighlights({
+			highlights: [highlight],
+			contentHash: snapshot?.canonicalContentHash,
+		});
+
+		expect({
+			state: row?.getAttribute("data-test-highlight-state"),
+			quote: row?.querySelector(".highlights-rail__excerpt")?.textContent,
+			edited: row?.querySelector("[data-test-highlight-edited]")?.textContent,
+		}).toEqual({
+			state: expected.state,
+			quote: expected.quote,
+			edited: `Edited in this version. You highlighted: “${expected.highlighted}”`,
+		});
+		expect(markedIdsOf(page)).toEqual([id]);
+		expect(jumpTargetsOf(page)).toEqual(markedIdsOf(page));
+		expect(markdown.endsWith(`## Highlights\n\n> ${line}\n`)).toBe(true);
+		expect(chapter.querySelector(`mark[data-highlight-id="${id}"]`)?.textContent).toBe(expected.quote);
+		expect(Array.from(chapter.querySelectorAll("blockquote"), (quote) => quote.textContent).at(-1)).toBe(line);
+		expect(mcp.body.result.structuredContent.highlights).toEqual([expect.objectContaining({ id, ...expected })]);
+		expect(exported).toMatchObject(expected);
+	});
+
+	it("RT5 (H2a): moves a row with no basis onto the edited sentence's whole words and links it", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/highlight-rt5-h2a";
+		const { agent, articleId } = await saveArticle(harness, url);
+		await seedCanonical(fixture, {
+			url,
+			texts: ["Yesterday the quick brown fox jumps over the lazy dog near the old river bank."],
+			hash: "h0",
+			candidate: "candidate-v0",
+		});
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "quick brown fox jumps over the lazy dog",
+		});
+		await seedCanonical(fixture, {
+			url,
+			texts: ["Yesterday the quick brown fox leaps over the lazy dog near the old river bank."],
+			hash: "h1",
+			candidate: "candidate-v1",
+		});
+		await runReanchorHandler(fixture, url);
+
+		const rail = railOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(rail).toEqual({
+			state: "moved",
+			chip: false,
+			marks: ["quick brown fox leaps over the lazy dog"],
+			jumps: [id],
+			marked: [id],
+		});
 	});
 });

@@ -93,7 +93,16 @@ function snapPlace(params: {
 	exact: string;
 }): TextRange | null {
 	const { text, place, exact } = params;
-	return place === null ? null : snapToWords({ text, range: place, exact });
+	if (place === null) return null;
+	const { start, end } = snapToWords({ text, range: place, exact });
+	const lead = exact.slice(0, exact.length - exact.trimStart().length);
+	const trail = exact.slice(exact.trimEnd().length);
+	const before = text.slice(Math.max(0, start - lead.length), start);
+	const after = text.slice(end, end + trail.length);
+	return {
+		start: before.trim() === "" ? start - before.length : start,
+		end: after.trim() === "" ? end + after.length : end,
+	};
 }
 
 function placeAsToday(params: {

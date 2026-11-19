@@ -264,6 +264,33 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		expect(page.querySelectorAll("main form").length).toBeGreaterThan(0);
 	});
 
+	it("offers an account that can save each highlight's actions in a panel", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-panel`);
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
+
+		expect(
+			Array.from(page.querySelectorAll("#manage-highlights [data-highlight-popover]"), (panel) =>
+				panel.getAttribute("data-highlight-popover"),
+			),
+		).toEqual([id]);
+	});
+
+	it("shows a locked account its highlights without a panel", async () => {
+		const { fixture: lockable, lock } = lockedFixture();
+		const harness = useApp(lockable);
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-read-only-panel`);
+		await createHighlight(agent, { articleId, exact: "readability parser" });
+		lock();
+
+		const html = (await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text;
+
+		expect(marksOf(html)).toEqual(["readability parser"]);
+		expect(doc(html).querySelector("#manage-highlights")).toBeNull();
+	});
+
 	it("renders a locked account's note previews on the page and the reader poll", async () => {
 		const { fixture: lockable, lock } = lockedFixture();
 		const harness = useApp(lockable);
@@ -378,6 +405,21 @@ describe("Highlights in the browser reader for a free-plan account", () => {
 		const page = doc((await agent.get(`/queue/${articleId}/view`)).text);
 
 		expect(page.querySelector("[data-test-highlight-toolbar]")).not.toBeNull();
+	});
+
+	it("gives a free-plan account the panel, as it keeps the toolbar", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/browser-read-only-panel");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
+		await makeFree(harness);
+
+		const page = doc((await agent.get(`/queue/${articleId}/view`)).text);
+
+		expect(
+			Array.from(page.querySelectorAll("#manage-highlights [data-highlight-popover]"), (panel) =>
+				panel.getAttribute("data-highlight-popover"),
+			),
+		).toEqual([id]);
 	});
 });
 

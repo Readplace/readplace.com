@@ -22,6 +22,7 @@ class ArticlePresentationTest {
 				savedAt = Instant.parse("2026-08-25T07:00:00Z"),
 			),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		assertEquals("~5 min read · 3h ago", row.metaText)
 	}
@@ -35,6 +36,7 @@ class ArticlePresentationTest {
 				savedAt = Instant.parse("2026-08-25T07:00:00Z"),
 			),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		assertEquals("~5 min read · 3h ago", row.metaText)
 	}
@@ -44,6 +46,7 @@ class ArticlePresentationTest {
 		val row = ArticlePresentation.of(
 			article(siteName = "example.com", readTimeLabel = null, savedAt = null),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		assertNull(row.metaText)
 	}
@@ -53,6 +56,7 @@ class ArticlePresentationTest {
 		val row = ArticlePresentation.of(
 			article(readTimeLabel = null, savedAt = null),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		assertNull(row.metaText)
 	}
@@ -62,6 +66,7 @@ class ArticlePresentationTest {
 		val row = ArticlePresentation.of(
 			article(readTimeLabel = "~5 min read", savedAt = null),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		assertEquals("~5 min read", row.metaText)
 	}
@@ -71,10 +76,12 @@ class ArticlePresentationTest {
 		val missing = ArticlePresentation.of(
 			article(readTimeLabel = null, savedAt = Instant.parse("2026-08-24T10:00:00Z")),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		val blank = ArticlePresentation.of(
 			article(readTimeLabel = "   ", savedAt = Instant.parse("2026-08-24T10:00:00Z")),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		assertEquals("1d ago", missing.metaText)
 		assertEquals("1d ago", blank.metaText)
@@ -83,39 +90,49 @@ class ArticlePresentationTest {
 	@Test
 	fun `title, read state and status label pass through`() {
 		val clock = clockAt("2026-08-25T10:00:00Z")
-		val read = ArticlePresentation.of(article(title = "A read article", isRead = true), clock)
+		val read = ArticlePresentation.of(article(title = "A read article", isRead = true), clock, isAvailableOffline = false)
 		assertEquals("A read article", read.title)
 		assertTrue(read.isRead)
 		assertEquals("Read", read.statusLabel)
-		val unread = ArticlePresentation.of(article(title = "An unread article", isRead = false), clock)
+		val unread = ArticlePresentation.of(article(title = "An unread article", isRead = false), clock, isAvailableOffline = false)
 		assertEquals("An unread article", unread.title)
 		assertFalse(unread.isRead)
 		assertEquals("Unread", unread.statusLabel)
 	}
 
 	@Test
+	fun `a row saved offline carries the badge label, and one that is not carries none`() {
+		val clock = clockAt("2026-08-25T10:00:00Z")
+
+		assertEquals(
+			listOf("Saved offline", null),
+			listOf(true, false).map { ArticlePresentation.of(article(), clock, isAvailableOffline = it).offlineBadgeLabel },
+		)
+	}
+
+	@Test
 	fun `excerpt is shown only when the server sent a non-empty one`() {
 		val clock = clockAt("2026-08-25T10:00:00Z")
-		assertNull(ArticlePresentation.of(article(excerpt = null), clock).excerpt)
-		assertNull(ArticlePresentation.of(article(excerpt = ""), clock).excerpt)
-		assertEquals("A summary.", ArticlePresentation.of(article(excerpt = "A summary."), clock).excerpt)
+		assertNull(ArticlePresentation.of(article(excerpt = null), clock, isAvailableOffline = false).excerpt)
+		assertNull(ArticlePresentation.of(article(excerpt = ""), clock, isAvailableOffline = false).excerpt)
+		assertEquals("A summary.", ArticlePresentation.of(article(excerpt = "A summary."), clock, isAvailableOffline = false).excerpt)
 	}
 
 	@Test
 	fun `thumbnail url is the image url only when it is a loadable url`() {
 		val clock = clockAt("2026-08-25T10:00:00Z")
-		assertNull(ArticlePresentation.of(article(imageUrl = null), clock).thumbnailUrl)
-		assertNull(ArticlePresentation.of(article(imageUrl = ""), clock).thumbnailUrl)
-		assertNull(ArticlePresentation.of(article(imageUrl = "file:///sdcard/a.jpg"), clock).thumbnailUrl)
+		assertNull(ArticlePresentation.of(article(imageUrl = null), clock, isAvailableOffline = false).thumbnailUrl)
+		assertNull(ArticlePresentation.of(article(imageUrl = ""), clock, isAvailableOffline = false).thumbnailUrl)
+		assertNull(ArticlePresentation.of(article(imageUrl = "file:///sdcard/a.jpg"), clock, isAvailableOffline = false).thumbnailUrl)
 		assertEquals(
 			"an odd-but-reachable URL is handed to the loader as sent, as Foundation's URL " +
 				"percent-encodes it on iOS, rather than being refused",
 			"https://cdn.example.com/a b.jpg",
-			ArticlePresentation.of(article(imageUrl = "https://cdn.example.com/a b.jpg"), clock).thumbnailUrl,
+			ArticlePresentation.of(article(imageUrl = "https://cdn.example.com/a b.jpg"), clock, isAvailableOffline = false).thumbnailUrl,
 		)
 		assertEquals(
 			"https://cdn.example.com/a.jpg",
-			ArticlePresentation.of(article(imageUrl = "https://cdn.example.com/a.jpg"), clock).thumbnailUrl,
+			ArticlePresentation.of(article(imageUrl = "https://cdn.example.com/a.jpg"), clock, isAvailableOffline = false).thumbnailUrl,
 		)
 	}
 
@@ -192,7 +209,7 @@ class ArticlePresentationTest {
 	// endregion
 
 	private fun savedAtWording(savedAt: String, now: String, zone: ZoneId = ZoneOffset.UTC): String? =
-		ArticlePresentation.of(article(savedAt = Instant.parse(savedAt)), clockAt(now, zone)).metaText
+		ArticlePresentation.of(article(savedAt = Instant.parse(savedAt)), clockAt(now, zone), isAvailableOffline = false).metaText
 
 	private fun clockAt(iso: String, zone: ZoneId = ZoneOffset.UTC): Clock = Clock.fixed(Instant.parse(iso), zone)
 
@@ -206,6 +223,7 @@ class ArticlePresentationTest {
 		savedAt: Instant? = null,
 		processing: ArticleProcessing? = null,
 		notice: String? = null,
+		contentVersion: String? = null,
 	): Article = Article(
 		id = "a1",
 		url = "https://example.com/a",
@@ -221,6 +239,7 @@ class ArticlePresentationTest {
 		readHref = null,
 		processing = processing,
 		notice = notice,
+		contentVersion = contentVersion,
 	)
 
 	private fun processing(estimate: CrawlEstimate?, label: String = "Processing"): ArticleProcessing =
@@ -229,7 +248,7 @@ class ArticlePresentationTest {
 	private val receivedAt = Instant.parse("2026-08-25T10:00:00Z")
 
 	private fun estimateText(estimate: CrawlEstimate?, elapsedSeconds: Long): String? =
-		ArticlePresentation.of(article(processing = processing(estimate)), clockAt("2026-08-25T10:00:00Z"))
+		ArticlePresentation.of(article(processing = processing(estimate)), clockAt("2026-08-25T10:00:00Z"), isAvailableOffline = false)
 			.estimateText(receivedAt, receivedAt.plusSeconds(elapsedSeconds))
 
 	@Test
@@ -241,13 +260,14 @@ class ArticlePresentationTest {
 				processing = processing(estimate = null),
 			),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		assertNull(row.metaText)
 	}
 
 	@Test
 	fun `a row with no processing has no processing label`() {
-		val row = ArticlePresentation.of(article(), clockAt("2026-08-25T10:00:00Z"))
+		val row = ArticlePresentation.of(article(), clockAt("2026-08-25T10:00:00Z"), isAvailableOffline = false)
 		assertNull(row.processingLabel)
 		assertNull(row.estimateText(receivedAt, receivedAt))
 	}
@@ -257,6 +277,7 @@ class ArticlePresentationTest {
 		val row = ArticlePresentation.of(
 			article(processing = processing(estimate = null, label = "Preparing your book…")),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		assertEquals("Preparing your book…", row.processingLabel)
 	}
@@ -279,6 +300,7 @@ class ArticlePresentationTest {
 		val row = ArticlePresentation.of(
 			article(processing = processing(CrawlEstimate.Counting(seconds = 10))),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		assertEquals("~9 s left", row.estimateText(receivedAt, receivedAt.plusMillis(1_999)))
 		assertEquals("~10 s left", row.estimateText(receivedAt, receivedAt.minusSeconds(30)))
@@ -305,14 +327,15 @@ class ArticlePresentationTest {
 		val row = ArticlePresentation.of(
 			article(processing = processing(CrawlEstimate.Counting(seconds = 10))),
 			clockAt("2026-08-25T10:00:00Z"),
+			isAvailableOffline = false,
 		)
 		assertNull(row.estimateText(receivedAt = null, now = receivedAt))
 	}
 
 	@Test
 	fun `the notice is the article's notice text`() {
-		val row = ArticlePresentation.of(article(notice = "Taking a while."), clockAt("2026-08-25T10:00:00Z"))
+		val row = ArticlePresentation.of(article(notice = "Taking a while."), clockAt("2026-08-25T10:00:00Z"), isAvailableOffline = false)
 		assertEquals("Taking a while.", row.notice)
-		assertNull(ArticlePresentation.of(article(), clockAt("2026-08-25T10:00:00Z")).notice)
+		assertNull(ArticlePresentation.of(article(), clockAt("2026-08-25T10:00:00Z"), isAvailableOffline = false).notice)
 	}
 }

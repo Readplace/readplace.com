@@ -181,10 +181,12 @@ test.describe("Highlighting a passage in the reader", () => {
 			timeout: SETTLE_MS,
 		});
 
+		const firstId = await firstRow.getAttribute("data-test-highlight-row");
+		const secondId = await secondRow.getAttribute("data-test-highlight-row");
 		await secondRow.locator('[data-test-action="highlight-delete"]').click();
-		const secondPopover = secondRow.locator("[popover]:popover-open");
+		const secondPopover = page.locator(`[id="delete-highlight-${secondId}"]:popover-open`);
 		await expect(secondPopover).toHaveCount(1, { timeout: SETTLE_MS });
-		await expect(firstRow.locator("[popover]:popover-open")).toHaveCount(0);
+		await expect(page.locator(`[id="delete-highlight-${firstId}"]:popover-open`)).toHaveCount(0);
 		await secondPopover
 			.locator('[data-test-action="highlight-delete-confirm"]')
 			.click();

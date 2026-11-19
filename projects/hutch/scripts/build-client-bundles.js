@@ -148,6 +148,7 @@ const BUNDLES = [
       "  supportsPopover: function () { return typeof HTMLElement.prototype.showPopover === 'function'; },",
       "  showPopover: function (panel) { panel.showPopover(); },",
       "  hidePopover: function (panel) { panel.hidePopover(); },",
+      "  isOpen: function (popover) { try { return popover.matches(':popover-open'); } catch (e) { return false; } },",
       "  isFocusVisible: function (element) { return element.matches(':focus-visible'); },",
       "  sendBeacon: function (url) { window.navigator.sendBeacon(url); }",
       "});",
@@ -473,7 +474,7 @@ const BUNDLES = [
     ),
     outfile: path.join(OUT_DIR, "readlist.client.js"),
     globalName: "Readlist",
-    footer: "Readlist.initReadlist({ document: window.document });",
+    footer: "Readlist.initReadlist({ document: window.document, isOpen: function (popover) { try { return popover.matches(':popover-open'); } catch (e) { return false; } } });",
   },
   {
     entry: path.join(

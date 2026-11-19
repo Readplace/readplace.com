@@ -33,7 +33,7 @@ const HOME_C_CAPABILITY_ITEMS: readonly HomeCapability[] = [
 const HOME_C_HERO: HomeHero = {
 	...HOME_CONTENT.hero,
 	title: "One place to keep the articles you want to come back to.",
-	subhead: `Save from your browser or your iPhone. Read when you have time. ${STRIPE_TRIAL_PERIOD_DAYS} days free, no card; then ${PRICING_PLANS.yearly.totalDisplay} a year or ${PRICING_PLANS.monthly.totalDisplay} a month.`,
+	subhead: `Save from your browser or your iPhone. Read when you have time. ${STRIPE_TRIAL_PERIOD_DAYS} days free, no card; then ${PRICING_PLANS.yearly.periodDisplay} or ${PRICING_PLANS.monthly.periodDisplay}.`,
 };
 
 export const HOME_C_CONTENT = {

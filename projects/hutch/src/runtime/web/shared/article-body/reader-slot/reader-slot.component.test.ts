@@ -935,7 +935,7 @@ describe("renderReaderSlot highlight states", () => {
 		noticeOob: false,
 		now: NOW,
 		readerSection: TEST_READER_SECTION,
-		highlights: { rows: [highlight], canonicalContentHash: "hash" },
+		highlights: { rows: [highlight], canonicalContentHash: "hash", scope: undefined },
 	};
 
 	it("returns the marked body's states when the reader is ready", () => {

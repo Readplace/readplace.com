@@ -1,0 +1,41 @@
+.highlight-popover {
+  display: none;
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  min-width: 120px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+  color: var(--card-foreground);
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+}
+
+@supports selector(:popover-open) {
+  .highlight-popover:popover-open {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+}
+
+.highlight-popover__note {
+  flex: 0 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 12px;
+  overflow-y: auto;
+  background: var(--card);
+}
+
+.highlight-popover__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+}

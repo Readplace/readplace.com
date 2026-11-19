@@ -62,7 +62,7 @@ import { assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PA
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
 import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
 import { ADMIN_TOTP_SECRETS_PARAMETER_NAME, adminTotpSecretsParameterValue } from "../runtime/web/pages/admin/admin-totp-secrets";
-import type { DynamoTables } from "../runtime/providers/dynamodb-tables";
+import { type DynamoTables, formatDynamoTables } from "../runtime/providers/dynamodb-tables";
 import { formatEnvMap } from "../runtime/providers/env-map";
 import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
 import { DomainRegistration } from "./domain-registration";
@@ -216,6 +216,7 @@ const rateLimitRules = {
 	loginAccount: config.require("rateLimitLoginAccount"),
 	signup: config.require("rateLimitSignup"),
 	forgotPassword: config.require("rateLimitForgotPassword"),
+	forgotPasswordAccount: config.require("rateLimitForgotPasswordAccount"),
 	oauthRegister: config.require("rateLimitOauthRegister"),
 	oauthToken: config.require("rateLimitOauthToken"),
 	browserHandoff: config.require("rateLimitBrowserHandoff"),
@@ -537,7 +538,9 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 			gmailMappings: storage.gmailMappingsTable.name,
 			gmailHistoryImports: storage.gmailHistoryImportsTable.name,
 			canaryReports: storage.canaryReportsTable.name,
-		} satisfies Record<keyof DynamoTables, pulumi.Input<string>>).apply(formatEnvMap),
+		} satisfies Record<keyof DynamoTables, pulumi.Input<string>>).apply((tables) =>
+			formatDynamoTables({ tables, namePattern: `hutch-*-${pulumi.getStack()}` }),
+		),
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		RATE_LIMITS: formatEnvMap(rateLimitRules),
 		OAUTH_REFRESH_ENROLLMENT_ENABLED: String(config.requireBoolean("oauthRefreshEnrollmentEnabled")),

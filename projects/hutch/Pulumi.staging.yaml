@@ -54,6 +54,7 @@ config:
   hutch:rateLimitSignup: 5000/3600
   hutch:rateLimitSignupCreated: 5000/86400
   hutch:rateLimitForgotPassword: 5000/3600
+  hutch:rateLimitForgotPasswordAccount: 5000/86400
   hutch:rateLimitOauthRegister: 5000/3600
   hutch:rateLimitOauthToken: 5000/3600
   hutch:rateLimitBrowserHandoff: 5000/3600

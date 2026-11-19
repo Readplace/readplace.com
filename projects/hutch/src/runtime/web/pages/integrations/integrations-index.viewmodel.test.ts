@@ -57,12 +57,12 @@ function gmailRow(input: GmailIndexInput) {
 }
 
 describe("toIntegrationsIndexViewModel", () => {
-	it("lists Newsletters from Gmail, then Custom Emails, then the AI assistant", () => {
+	it("lists Newsletters from Gmail, then Custom Emails, then the AI assistant, then the API", () => {
 		const vm = indexViewModel({ connection: undefined });
 
 		assert.deepEqual(
 			vm.services.map((s) => [s.key, s.name]),
-			[["gmail", "Newsletters from Gmail"], ["custom-emails", "My Custom Emails"], ["ai-assistant", "AI assistant"]],
+			[["gmail", "Newsletters from Gmail"], ["custom-emails", "My Custom Emails"], ["ai-assistant", "AI assistant"], ["api", "Readplace API"]],
 		);
 	});
 
@@ -176,7 +176,7 @@ describe("toIntegrationsIndexViewModel", () => {
 
 		assert.deepEqual(
 			vm.services.map((s) => [s.key, s.beta]),
-			[["gmail", true], ["custom-emails", false], ["ai-assistant", false]],
+			[["gmail", true], ["custom-emails", false], ["ai-assistant", false], ["api", false]],
 		);
 	});
 
@@ -242,7 +242,7 @@ describe("toIntegrationsIndexViewModel", () => {
 			offer: { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" },
 		});
 
-		assert.deepEqual(vm.services.map((service) => service.locks), [[], [], []]);
+		assert.deepEqual(vm.services.map((service) => service.locks), [[], [], [], []]);
 	});
 
 	it("sends an unconfirmed connection to step 2 as the pressing action", () => {

@@ -1,0 +1,17 @@
+<div id="manage-highlights">{{#if panels.length}}
+  <p id="manage-highlight-hint" hidden>{{t "articleBody.highlightPopover.hint"}}</p>
+  {{#each panels}}
+  <div class="highlight-popover" id="manage-highlight-{{highlightId}}" popover="auto" role="dialog" tabindex="-1"
+    aria-labelledby="manage-highlight-{{highlightId}}-title"{{#if note}}
+    aria-describedby="manage-highlight-{{highlightId}}-note"{{/if}}
+    data-highlight-popover="{{highlightId}}" data-test-confirm-popover="highlight-manage" data-test-confirm-subject="{{highlightId}}">
+    <h2 class="sr-only" id="manage-highlight-{{highlightId}}-title">{{t "articleBody.highlightPopover.title"}}</h2>
+    {{#if note}}<p class="highlight-note highlight-popover__note" id="manage-highlight-{{highlightId}}-note" data-test-highlight-popover-note>{{note}}</p>{{/if}}
+    <div class="highlight-popover__actions">
+      <button class="menu__item" type="button" popovertarget="{{notePopoverId}}" aria-haspopup="dialog" autofocus data-test-action="highlight-panel-note">{{icon "pencil"}}{{noteLabel}}</button>
+      {{{noteDeleteTriggerHtml}}}
+      <button class="menu__item" type="button" popovertarget="{{deletePopoverId}}" aria-haspopup="dialog" data-test-action="highlight-panel-delete">{{icon "trash"}}{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
+    </div>
+  </div>
+  {{/each}}{{/if}}
+</div>

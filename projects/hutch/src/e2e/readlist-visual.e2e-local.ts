@@ -18,8 +18,7 @@ import {
 	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
 import { requireEnv } from "@packages/require-env";
-import { PRICING_PLANS } from "@packages/web-shell";
-import { KEEP_OFFER_FIRST_YEAR_PRICE } from "../runtime/domain/engagement/keep-offer";
+import { PLAN_OFFERS, PRICING_PLANS, offerPrice } from "@packages/web-shell";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import {
@@ -1325,7 +1324,7 @@ async function keepOfferSettled(page: Page): Promise<void> {
 		"You've kept 2 articles this week.",
 	);
 	await expect(page.locator("[data-test-keep-offer-body]")).toContainText(
-		`${KEEP_OFFER_FIRST_YEAR_PRICE} for your first year`,
+		`${offerPrice(PLAN_OFFERS.firstYear49).firstCharge} for your first year`,
 	);
 	await page.mouse.move(0, 0);
 }
@@ -1335,7 +1334,7 @@ async function subscriptionTrialStatusSettled(page: Page): Promise<void> {
 	await neutralise(page);
 	await expect(page.locator(SUBSCRIPTION_BANNER)).toHaveClass(/readlist-subscription--trial-status/);
 	await expect(page.locator(TRIAL_STATUS)).toHaveText(
-		`Trial · 10 days left · then ${PRICING_PLANS.yearly.totalDisplay} a year or ${PRICING_PLANS.monthly.totalDisplay} a month`,
+		`Trial · 10 days left · then ${PRICING_PLANS.yearly.periodDisplay} or ${PRICING_PLANS.monthly.periodDisplay}`,
 	);
 	await expect(page.locator(`${SUBSCRIPTION_BANNER} [data-test-action="subscribe-plans-open"]`)).toHaveCount(0);
 	await page.mouse.move(0, 0);

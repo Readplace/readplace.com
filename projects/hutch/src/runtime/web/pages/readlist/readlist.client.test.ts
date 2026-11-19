@@ -93,13 +93,13 @@ const CREATE_LANDING = JSON.stringify({
 	swap: "outerHTML show:none scroll:html:top",
 });
 
-function init(bodyHtml: string) {
+function init(bodyHtml: string, openPopovers: readonly string[] = []) {
 	const virtualConsole = new VirtualConsole();
 	const listenerErrors: string[] = [];
 	virtualConsole.on("jsdomError", (error) => listenerErrors.push(error.message));
 	const dom = new JSDOM(`<!DOCTYPE html><html><body>${bodyHtml}</body></html>`, { virtualConsole });
 	const document = dom.window.document;
-	initReadlist({ document });
+	initReadlist({ document, isOpen: (popover) => openPopovers.includes(popover.id) });
 
 	function element<T extends Element = Element>(selector: string, description: string): T {
 		const el = document.querySelector<T>(selector);
@@ -507,6 +507,42 @@ describe("initReadlist", () => {
 		app.collapseNavMenu();
 
 		expect(app.activeElement()).toBe(app.document.body);
+	});
+
+	describe("a highlight's panel", () => {
+		const PANEL_MARKUP = `<p><mark class="article-highlight" data-highlight-id="a" tabindex="0" aria-controls="manage-highlight-a" data-test-mark>passage</mark></p>
+<div id="manage-highlight-a" popover="auto" role="dialog" data-test-dialog="panel"><button type="button" popovertarget="note-highlight-a" data-test-panel-action>Edit note</button></div>
+<div id="note-highlight-a" popover="auto" role="dialog" data-test-dialog="note"></div>`;
+
+		it("returns focus to the element that controls a popover opened by script", () => {
+			const app = init(PANEL_MARKUP);
+
+			app.closeDialog("panel");
+
+			expect(app.activeElement()).toBe(app.document.querySelector("[data-test-mark]"));
+		});
+
+		it("returns focus past a closed popover to the element that controls it", () => {
+			const app = init(PANEL_MARKUP);
+			const action = app.document.querySelector<HTMLElement>("[data-test-panel-action]");
+			assert(action, "the panel's action must render");
+
+			action.click();
+			app.closeDialog("note");
+
+			expect(app.activeElement()).toBe(app.document.querySelector("[data-test-mark]"));
+		});
+
+		it("returns focus to a trigger inside a popover that is still open", () => {
+			const app = init(PANEL_MARKUP, ["manage-highlight-a"]);
+			const action = app.document.querySelector<HTMLElement>("[data-test-panel-action]");
+			assert(action, "the panel's action must render");
+
+			action.click();
+			app.closeDialog("note");
+
+			expect(app.activeElement()).toBe(action);
+		});
 	});
 
 	it("ignores a toggle that names no element", () => {

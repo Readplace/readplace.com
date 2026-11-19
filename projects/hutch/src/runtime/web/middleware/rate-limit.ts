@@ -43,11 +43,19 @@ export function sendDailySaveLimit(res: Response, input: { retryAfterSeconds: nu
 		.json(sirenError({ code: SAVE_REFUSAL_CODES.dailySaveLimit, message: DAILY_SAVE_LIMIT_MESSAGE }));
 }
 
+export type OnRateLimited = (params: { req: Request; res: Response; retryAfterSeconds: number }) => void;
+
+const sendPlainRateLimited: OnRateLimited = ({ res, retryAfterSeconds }) => {
+	sendRateLimited(res, retryAfterSeconds);
+};
+
 export function createRateLimitMiddleware(deps: {
 	consumeRateLimit: ConsumeRateLimit;
 	bucket: RateLimitBucket;
 	rule: RateLimitRule;
+	onLimited?: OnRateLimited;
 }): RequestHandler {
+	const onLimited = deps.onLimited ?? sendPlainRateLimited;
 	return (req, res, next) => {
 		deps
 			.consumeRateLimit({
@@ -57,7 +65,7 @@ export function createRateLimitMiddleware(deps: {
 			})
 			.then((decision) => {
 				if (!decision.allowed) {
-					sendRateLimited(res, decision.retryAfterSeconds);
+					onLimited({ req, res, retryAfterSeconds: decision.retryAfterSeconds });
 					return;
 				}
 				next();

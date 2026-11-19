@@ -132,6 +132,7 @@ function harness(input: {
 			supportsPopover: () => true,
 			showPopover: (panel) => h.shownPopovers.push(panel),
 			hidePopover: (panel) => h.hiddenPopovers.push(panel),
+			isOpen: () => false,
 			isFocusVisible: () => false,
 			sendBeacon: (url) => h.beacons.push(url),
 		});

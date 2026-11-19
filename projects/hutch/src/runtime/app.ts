@@ -3,10 +3,10 @@ import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import assert from "node:assert";
 import { randomInt } from "node:crypto";
 import type { Express } from "express";
-import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
 import type { WebLogger } from "./domain/logger";
 import { hashPassword } from "@packages/domain/user";
 import { validateSaveableUrl } from "@packages/domain/article";
+import { PLAN_OFFERS } from "@packages/web-shell";
 import { createApp } from "./server";
 import { isDailyLimited } from "@packages/subscription-access";
 import { initProdProviders } from "./providers/prod-providers";
@@ -15,6 +15,7 @@ import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-p
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./web/shared/article-body/reader-slot/section-pages";
 import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-preprocessors";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
+import type { PasswordResetRefusedEvent } from "./web/auth/request-password-reset";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
 import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
@@ -43,6 +44,7 @@ type AssemblyProvidedKeys =
 	| "now"
 	| "drawRandomByte"
 	| "botDefenseLogger"
+	| "passwordResetLogger"
 	| "conversionLogger"
 	| "subscriptionLogger"
 	| "funnelLogger"
@@ -88,7 +90,7 @@ export function assembleReadplaceApp(input: {
 
 	const app = createApp({
 		keepOfferCouponId,
-		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
+		keepOfferEndsAt: PLAN_OFFERS.firstYear49.endsAt,
 		isDailyLimited,
 		guestUploadKinds: GUEST_UPLOAD_KINDS,
 		validateSaveableUrl: withUnwrapPreprocessing(
@@ -115,6 +117,7 @@ export function assembleReadplaceApp(input: {
 		now: () => new Date(),
 		drawRandomByte: () => randomInt(256),
 		botDefenseLogger: Logger.fromJSON<BotDefenseEvent>(),
+		passwordResetLogger: Logger.fromJSON<PasswordResetRefusedEvent>(),
 		conversionLogger: Logger.fromJSON<ConversionEvent>(),
 		subscriptionLogger: Logger.fromJSON<SubscriptionLogEvent>(),
 		funnelLogger: Logger.fromJSON<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>(),

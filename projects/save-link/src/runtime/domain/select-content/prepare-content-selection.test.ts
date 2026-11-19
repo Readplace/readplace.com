@@ -924,6 +924,25 @@ describe("initPrepareContentSelection", () => {
 });
 
 describe("initLogContentSelection", () => {
+	it("reports the near-identical-refresh rule with no audit", async () => {
+		const facts = (count: number) => Array.from({ length: count }, (_, index) => `<p>Fact ${index + 1} holds.</p>`).join("");
+		const canonical = source("tier-1", "canonical", { html: facts(200) });
+		canonical.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+		const fresh = source("tier-1", "fresh", { html: `${facts(199)}<p>Fact 200 holds today.</p>` });
+		const { prepare } = setup({
+			loadArticle: async () => article({ contentSelection: { revision: 1, candidateId: canonical.metadata.id, tier: "tier-1" }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(canonical.html) } }),
+			listAvailableTierSources: async () => [canonical, fresh],
+		});
+		const info = jest.fn();
+
+		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection: await prepare({ url: URL, mode: "refresh", refresh: { contentFetchedAt: NOW }, candidates: [{ id: cid("fresh"), tier: "tier-1" }] }) });
+
+		const logged = JSON.parse(String(info.mock.calls[0]?.[0]).split("comparison completed ")[1]);
+		expect(logged).toMatchObject({ selectedCandidateId: "fresh", outcome: "selected", selectionRule: "near-identical-refresh", judgedBodies: 0 });
+		expect(logged.audit).toBeUndefined();
+		expect(logged.candidates).toMatchObject([{ id: "canonical", readable: true }, { id: "fresh", readable: true }]);
+	});
+
 	it("reports the lone-body rule with no audit", async () => {
 		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-1", "live")] });
 		const info = jest.fn();
@@ -1167,6 +1186,110 @@ describe("initLogContentSelection", () => {
 			expect(result).toMatchObject({ outcome: "retained", selectionRule: "unchanged-content" });
 			expect(result.selected?.metadata.id).toBe("canonical");
 		});
+	});
+
+	describe("a refresh whose fresh body is near-identical to the canonical", () => {
+		const facts = (count: number) => Array.from({ length: count }, (_, index) => `<p>Fact ${index + 1} holds.</p>`).join("");
+		const storedBody = facts(200);
+		const editedBody = `${facts(199)}<p>Fact 200 holds today.</p>`;
+		const judgeFake = () => jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+		const storedCanonical = (tier: VerifiedTierSource["tier"] = "tier-1") => {
+			const canonical = source(tier, "canonical", { html: storedBody });
+			canonical.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+			return canonical;
+		};
+		const rowFor = (canonical: VerifiedTierSource) => article({ contentSelection: { revision: 1, candidateId: canonical.metadata.id, tier: canonical.tier }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(canonical.html) } });
+		const refreshOf = (candidate: string) => ({ url: URL, mode: "refresh" as const, refresh: { contentFetchedAt: NOW }, candidates: [{ id: cid(candidate), tier: "tier-1" as const }] });
+
+		it("takes the fresh body without asking the judge", async () => {
+			const canonical = storedCanonical();
+			const select = judgeFake();
+			const { prepare } = setup({ loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, source("tier-1", "fresh", { html: editedBody })], selectMostCompleteContent: select });
+
+			const result = await prepare(refreshOf("fresh"));
+
+			expect(select).not.toHaveBeenCalled();
+			expect(result).toMatchObject({ outcome: "selected", selectionRule: "near-identical-refresh", reason: "the refreshed body is near-identical to the canonical", judgedBodies: 0, audit: undefined });
+			expect(result.selected?.metadata.id).toBe("fresh");
+			expect(result.readableIds).toEqual(new Set([cid("canonical"), cid("fresh")]));
+		});
+
+		it.each(["save", "recrawl"] as const)("asks the judge for the same pair on a %s", async (mode) => {
+			const canonical = storedCanonical();
+			const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("fresh"), reason: "Judged" });
+			const { prepare } = setup({ loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, source("tier-1", "fresh", { html: editedBody })], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL, mode, candidates: [{ id: cid("fresh"), tier: "tier-1" }] });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result.selectionRule).toBe("judge");
+		});
+
+		it.each([
+			{ beside: "a tapped capture", third: () => source("tier-0", "capture") },
+			{ beside: "an automatic capture", third: automaticCapture },
+			{ beside: "an archive copy", third: () => source("tier-2", "archive") },
+		])("asks the judge when $beside is beside the pair", async ({ third }) => {
+			const canonical = storedCanonical();
+			const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("fresh"), reason: "Judged" });
+			const { prepare } = setup({ loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, source("tier-1", "fresh", { html: editedBody }), third()], selectMostCompleteContent: select });
+
+			const result = await prepare(refreshOf("fresh"));
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result.selectionRule).toBe("judge");
+		});
+
+		it.each([
+			{ when: "the canonical is a capture", arrange: () => { const canonical = storedCanonical("tier-0"); return { canonical, sources: [canonical, source("tier-1", "fresh", { html: editedBody })], candidate: "fresh" }; } },
+			{ when: "the only source beside the canonical is a capture", arrange: () => { const canonical = storedCanonical(); return { canonical, sources: [canonical, source("tier-0", "capture", { html: editedBody })], candidate: "canonical" }; } },
+		])("asks the judge when $when", async ({ arrange }) => {
+			const { canonical, sources, candidate } = arrange();
+			const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("canonical"), reason: "Judged" });
+			const { prepare } = setup({ loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => sources, selectMostCompleteContent: select });
+
+			const result = await prepare(refreshOf(candidate));
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result.selectionRule).toBe("judge");
+		});
+
+		it.each(["canonical", "fresh"] as const)("asks the judge when the %s body is of a wrapper host", async (wrapped) => {
+			const canonical = storedCanonical();
+			const fresh = source("tier-1", "fresh", { html: editedBody });
+			(wrapped === "canonical" ? canonical : fresh).metadata.sourceUrl = ARCHIVE;
+			const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("fresh"), reason: "Judged" });
+			const { prepare } = setup({ loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, fresh], selectMostCompleteContent: select });
+
+			const result = await prepare(refreshOf("fresh"));
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result.selectionRule).toBe("judge");
+		});
+
+		it("asks the judge when the fresh body has no readable words", async () => {
+			const canonical = storedCanonical();
+			const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("canonical"), reason: "Judged" });
+			const { prepare } = setup({ loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, withWordCount(source("tier-1", "fresh", { html: editedBody }), 0)], selectMostCompleteContent: select });
+
+			const result = await prepare(refreshOf("fresh"));
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result.selectionRule).toBe("judge");
+		});
+
+		it("asks the judge when fewer than 0.99 of the sentences are shared", async () => {
+			const canonical = storedCanonical();
+			const rewritten = `${facts(196)}<p>Fact 197 holds today.</p><p>Fact 198 holds today.</p><p>Fact 199 holds today.</p><p>Fact 200 holds today.</p>`;
+			const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("fresh"), reason: "Judged" });
+			const { prepare } = setup({ loadArticle: async () => rowFor(canonical), listAvailableTierSources: async () => [canonical, source("tier-1", "fresh", { html: rewritten })], selectMostCompleteContent: select });
+
+			const result = await prepare(refreshOf("fresh"));
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result.selectionRule).toBe("judge");
+		});
+
 	});
 
 	it("asks the judge when any candidate's prose differs from the stored canonical", async () => {

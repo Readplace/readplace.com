@@ -507,5 +507,6 @@ class AffordancePresentationTest {
 		readHref = links.firstOrNull { it.rel.contains("read") }?.href,
 		processing = null,
 		notice = null,
+		contentVersion = null,
 	)
 }

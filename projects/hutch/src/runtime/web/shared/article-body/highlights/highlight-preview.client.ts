@@ -1,4 +1,5 @@
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
+import { type HighlightPanels, highlightTabStop, PANEL_ATTRIBUTE, PANEL_HINT_ID } from "./highlight-popover.client";
 import {
 	type PassageRect,
 	type PlacementViewport,
@@ -37,6 +38,7 @@ export interface HighlightPreviewDeps {
 	showPopover: (panel: Element) => void;
 	hidePopover: (panel: Element) => void;
 	isFocusVisible: (element: Element) => boolean;
+	panels: HighlightPanels;
 }
 
 interface ShownPreview {
@@ -94,6 +96,11 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 			.filter((element) => element.matches(MARK_SELECTOR))
 			.find((element) => previewOf(attributeOf({ element, name: "data-highlight-id" })) !== null);
 		return mark?.getAttribute("data-highlight-id") ?? undefined;
+	};
+
+	const innermostMarkId = (path: readonly EventTarget[]): string | undefined => {
+		const mark = elementsOn(path).find((element) => element.matches(MARK_SELECTOR));
+		return mark === undefined ? undefined : attributeOf({ element: mark, name: "data-highlight-id" });
 	};
 
 	const interactiveOnPath = (path: readonly EventTarget[]): boolean =>
@@ -192,19 +199,30 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 		}, HOVER_GRACE_MS);
 	};
 
-	const tabStopOf = (id: string): HTMLElement | undefined =>
-		segmentsOf(id).find((segment) => segment.closest(INTERACTIVE_SELECTOR) === null);
+	const tabStopOf = (id: string): HTMLElement | undefined => highlightTabStop({ document, id });
+
+	const stoppedIds = (): Set<string> =>
+		new Set(
+			Array.from(document.querySelectorAll(`[${PREVIEW_ATTRIBUTE}], [${PANEL_ATTRIBUTE}]`), (surface) =>
+				attributeOf({
+					element: surface,
+					name: surface.hasAttribute(PREVIEW_ATTRIBUTE) ? PREVIEW_ATTRIBUTE : PANEL_ATTRIBUTE,
+				}),
+			),
+		);
+
+	const hasStop = (id: string): boolean => previewOf(id) !== null || deps.panels.has(id);
 
 	const tabStops = (): HTMLElement[] =>
-		Array.from(document.querySelectorAll(`[${PREVIEW_ATTRIBUTE}]`)).flatMap((preview) => {
-			const stop = tabStopOf(attributeOf({ element: preview, name: PREVIEW_ATTRIBUTE }));
+		Array.from(stoppedIds()).flatMap((id) => {
+			const stop = tabStopOf(id);
 			return stop === undefined ? [] : [stop];
 		});
 
 	const tabStopAt = (target: EventTarget | null): HTMLElement | undefined => {
 		if (!isElement(target)) return undefined;
 		const id = target.getAttribute("data-highlight-id");
-		if (id === null || previewOf(id) === null) return undefined;
+		if (id === null || !hasStop(id)) return undefined;
 		const stop = tabStopOf(id);
 		return stop === target ? stop : undefined;
 	};
@@ -220,8 +238,14 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 	const applyTabStops = (): void => {
 		for (const stop of tabStops()) {
 			const id = attributeOf({ element: stop, name: "data-highlight-id" });
+			const panel = deps.panels.has(id);
+			const described = [
+				...(previewOf(id) === null ? [] : [`${PREVIEW_ID_PREFIX}${id}`]),
+				...(panel ? [PANEL_HINT_ID] : []),
+			];
 			stop.setAttribute("tabindex", "0");
-			stop.setAttribute("aria-describedby", `${PREVIEW_ID_PREFIX}${id}`);
+			stop.setAttribute("aria-describedby", described.join(" "));
+			if (panel) stop.setAttribute("aria-controls", `manage-highlight-${id}`);
 		}
 	};
 
@@ -284,7 +308,7 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 		keyboardFocused = stop;
 		const id = attributeOf({ element: stop, name: "data-highlight-id" });
 		cancelGrace();
-		if (!pinned) show(id);
+		if (!pinned && previewOf(id) !== null && !deps.panels.quietsPreview()) show(id);
 	});
 
 	document.addEventListener("focusout", (event) => {
@@ -296,7 +320,16 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 	document.addEventListener("click", (event) => {
 		if (articleSelectionOpen()) return;
 		const path = event.composedPath();
-		const id = interactiveOnPath(path) ? undefined : notedIdOnPath(path);
+		if (interactiveOnPath(path)) {
+			hide();
+			return;
+		}
+		const managed = innermostMarkId(path);
+		if (managed !== undefined && deps.panels.open(managed)) {
+			hide();
+			return;
+		}
+		const id = notedIdOnPath(path);
 		if (id === undefined) hide();
 		else pin(id);
 	});
@@ -316,6 +349,7 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 		cancelPending();
 		forgetRemoved();
 		applyTabStops();
+		deps.panels.restoreFocus();
 	});
 
 	applyTabStops();

@@ -22,8 +22,7 @@ import {
 } from "./reader-failed.component";
 import { type OcrPagesHold, shownOcrPagesHold } from "../../ocr-pages-hold";
 import { READER_PENDING_DESCRIPTION, renderReaderPending } from "./reader-pending.component";
-import type { ReaderHighlights } from "./mark-highlights";
-import { renderReaderReady } from "./reader-ready.component";
+import { renderReaderReady, type ScopedReaderHighlights } from "./reader-ready.component";
 import type { ReaderSectionInput } from "./section-pages";
 import type { CapturePollUrls } from "../../article-reader/article-reader.types";
 
@@ -55,7 +54,7 @@ export interface ReaderSlotInput {
 	noticeOob: boolean;
 	now: Date;
 	readerSection: ReaderSectionInput;
-	highlights?: ReaderHighlights;
+	highlights?: ScopedReaderHighlights;
 }
 
 const EMPTY_NOTICE_TEMPLATE = readFileSync(

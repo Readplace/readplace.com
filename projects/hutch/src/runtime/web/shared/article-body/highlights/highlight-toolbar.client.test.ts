@@ -88,7 +88,7 @@ function mainHtml(
 		url: READER_URL,
 		content: articleBody(content),
 		appOrigin: APP_ORIGIN,
-		...(input.noted ? { highlights: { rows: [notedBeta()], canonicalContentHash: "hash" } } : {}),
+		...(input.noted ? { highlights: { rows: [notedBeta()], canonicalContentHash: "hash", scope: undefined } } : {}),
 	}).html;
 	return `<main>${input.rowNoteForms ? rowNoteFormsHtml() : ""}${input.toolbar === false ? "" : renderHighlightToolbar({ scope: { articleId: "abc", readlist: [], surface: [] }, rowNoteOpen: false })}${reader}${input.marks ? railHtml() : ""}<p id="outside">Outside the article</p></main>`;
 }
@@ -207,6 +207,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		supportsPopover: () => h.popoverSupported,
 		showPopover: (panel) => h.shownPopovers.push(panel),
 		hidePopover: (panel) => h.hiddenPopovers.push(panel),
+		isOpen: () => false,
 		isFocusVisible: () => true,
 		sendBeacon: (url) => h.beacons.push(url),
 	};
@@ -415,11 +416,11 @@ describe("initHighlightToolbar", () => {
 	it("binds only once when the bundle footer runs again", () => {
 		const h = harness();
 		expect(h.doc.documentElement.hasAttribute("data-highlight-toolbar-owned")).toBe(true);
-		expect(h.listenerCounts()).toEqual({ viewport: 2, scroll: 1 });
+		expect(h.listenerCounts()).toEqual({ viewport: 3, scroll: 1 });
 
 		h.initAgain();
 
-		expect(h.listenerCounts()).toEqual({ viewport: 2, scroll: 1 });
+		expect(h.listenerCounts()).toEqual({ viewport: 3, scroll: 1 });
 		selectWords(h, { from: "beta" });
 		settleSelection(h);
 		click(h, buttonOf(h));

@@ -239,7 +239,9 @@ describe("every popup opens on its first decision", () => {
 		expect(readerKeys).toContain("delete");
 		expect(highlightedPreviews.marks).toHaveLength(1);
 		expect(highlightedPreviews.previews).toEqual(highlightedPreviews.marks);
-		expect(highlightedKeys).toEqual(expect.arrayContaining(["highlight-delete", "highlight-note", "highlight-note-edit"]));
+		expect(highlightedKeys).toEqual(
+			expect.arrayContaining(["highlight-delete", "highlight-manage", "highlight-note", "highlight-note-edit"]),
+		);
 		expect([...keys].sort()).toEqual([
 			"account-profile",
 			"add-link",
@@ -250,6 +252,7 @@ describe("every popup opens on its first decision", () => {
 			"download-guide",
 			"exit-confirm",
 			"highlight-delete",
+			"highlight-manage",
 			"highlight-note",
 			"highlight-note-edit",
 			"mark-status",

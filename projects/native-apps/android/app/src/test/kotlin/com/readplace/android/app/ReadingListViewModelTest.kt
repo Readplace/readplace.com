@@ -193,11 +193,12 @@ class ReadingListViewModelTest {
 	private fun advertisedAction(article: Article, token: String): SirenAction =
 		checkNotNull(article.affordances.first { it.token == token }.action)
 
-	private fun article(readHref: String?, id: String = "a1"): Article =
+	private fun article(readHref: String?, id: String = "a1", contentVersion: String? = null): Article =
 		Article(
 			id = id, url = "https://example.com/x", title = "X", siteName = null, excerpt = null,
 			imageUrl = null, readTimeLabel = null, isRead = false, savedAt = null,
 			actions = emptyList(), links = emptyList(), readHref = readHref, processing = null, notice = null,
+			contentVersion = contentVersion,
 		)
 
 	private val purgeAction = SirenAction(

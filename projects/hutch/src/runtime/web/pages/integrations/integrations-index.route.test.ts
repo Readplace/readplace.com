@@ -97,21 +97,27 @@ describe("GET /newsletters", () => {
 		const services = Array.from(doc.querySelectorAll("[data-test-integration]")).map((el) =>
 			el.getAttribute("data-test-integration"),
 		);
-		expect(services).toEqual(["gmail", "custom-emails", "ai-assistant"]);
+		expect(services).toEqual(["gmail", "custom-emails", "ai-assistant", "api"]);
 	});
 
-	it("links to the API documentation", async () => {
+	it("offers the API as a connector that opens its documentation", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const response = await agent.get("/newsletters");
 
 		const doc = load(response.text);
-		const link = doc.querySelector("[data-test-integrations-api-link]");
-		expect(link?.getAttribute("href")).toBe("/developers?utm_source=integrations&utm_medium=internal&utm_content=api-docs");
-		expect(doc.querySelector("[data-test-integrations-api]")?.textContent).toBe(
-			"Building something of your own? The Readplace API lets your app save, list, read and file articles for you.",
+		const row = doc.querySelector('[data-test-integration="api"]');
+		expect(row?.querySelector(".integrations__name")?.textContent).toBe("Readplace API");
+		expect(row?.querySelector(".integrations__description")?.textContent).toBe(
+			"Build your own app or script that saves, lists, reads and files articles for you.",
 		);
+		expect(row?.querySelector("[data-test-integration-status]")).toBeNull();
+		const action = row?.querySelector('[data-test-integration-action="api-docs"]');
+		expect(action?.textContent).toBe("Read the docs");
+		const form = action?.closest("form");
+		expect(form?.getAttribute("method")).toBe("GET");
+		expect(form?.getAttribute("action")).toBe("/developers?utm_source=integrations&utm_medium=internal&utm_content=api-docs");
 	});
 
 	it("shows Gmail as not set up", async () => {
@@ -476,7 +482,7 @@ describe("GET /newsletters", () => {
 			row.getAttribute("data-test-integration"),
 			row.querySelector("[data-test-integration-account]")?.getAttribute("data-integration-account-state"),
 		]);
-		expect(states).toEqual([["gmail", "hidden"], ["custom-emails", "hidden"], ["ai-assistant", "hidden"]]);
+		expect(states).toEqual([["gmail", "hidden"], ["custom-emails", "hidden"], ["ai-assistant", "hidden"], ["api", "hidden"]]);
 	});
 
 	it("boosts the action form and loads the clipboard bundle so a boosted hop keeps copy working", async () => {

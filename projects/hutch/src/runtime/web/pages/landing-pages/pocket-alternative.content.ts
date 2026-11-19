@@ -106,7 +106,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		title: "What it costs once the links are across",
 		paragraphs: [
 			`Uploading and reviewing costs nothing and needs no account. Saving the selection does, and that account is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
-			`${PRICING_PLANS.yearly.totalDisplay} a year is the whole business. No ad path, no data resale, and no investor whose timeline outlives yours — which is the failure mode you are on this page because of. <a href="${withInternalTracking("/blog/free-read-it-later-apps-2026", { source: "lp-pocket-alternative-body", content: "post-free-read-it-later-apps-2026" })}">The free read-it-later apps</a> are compared on the same thing: who pays the bill when you don't.`,
+			`${PRICING_PLANS.yearly.periodDisplay} is the whole business. No ad path, no data resale, and no investor whose timeline outlives yours — which is the failure mode you are on this page because of. <a href="${withInternalTracking("/blog/free-read-it-later-apps-2026", { source: "lp-pocket-alternative-body", content: "post-free-read-it-later-apps-2026" })}">The free read-it-later apps</a> are compared on the same thing: who pays the bill when you don't.`,
 			FREE_PLAN_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",

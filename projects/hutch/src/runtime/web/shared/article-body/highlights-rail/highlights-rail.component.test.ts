@@ -74,6 +74,12 @@ function rowOf(doc: Document, highlightId: string): Element {
 	return row;
 }
 
+function rowAndConfirmOf(doc: Document, highlightId: string): Element[] {
+	const confirm = doc.getElementById(`delete-highlight-${highlightId}`);
+	assert(confirm, `the rail must render the Delete confirm of ${highlightId}`);
+	return [rowOf(doc, highlightId), confirm];
+}
+
 describe("renderHighlightsRail without a form scope", () => {
 	const row = aRow({ ...highlight({ highlightId: FIRST_ID, exact: "first", orderKey: 1 }), note: "kept" }, "anchored");
 
@@ -102,6 +108,17 @@ describe("renderHighlightsRail", () => {
 		orderKey: 20,
 	});
 
+	it("renders each row's dialogs after the collapsible card, so they open while it is collapsed", () => {
+		const doc = railOf([aRow(first, "anchored")]);
+
+		const dialogs = Array.from(doc.querySelectorAll("[popover]"));
+		expect(dialogs.map((dialog) => dialog.id)).toEqual([`delete-highlight-${FIRST_ID}`, `note-highlight-${FIRST_ID}`]);
+		for (const dialog of dialogs) {
+			expect(dialog.closest("details")).toBeNull();
+			expect(dialog.closest("#highlights-rail")).not.toBeNull();
+		}
+	});
+
 	it("gives each row its own popover, and each Delete names its own highlight", () => {
 		const doc = railOf([
 			aRow(first, "anchored"),
@@ -114,8 +131,8 @@ describe("renderHighlightsRail", () => {
 		);
 		expect(popoverIds).toEqual([
 			`delete-highlight-${FIRST_ID}`,
-			`delete-highlight-${SECOND_ID}`,
 			`note-highlight-${FIRST_ID}`,
+			`delete-highlight-${SECOND_ID}`,
 			`note-highlight-${SECOND_ID}`,
 		]);
 		for (const highlightId of [FIRST_ID, SECOND_ID]) {
@@ -125,9 +142,8 @@ describe("renderHighlightsRail", () => {
 					.querySelector('[data-test-action="highlight-delete"]')
 					?.getAttribute("popovertarget"),
 			).toBe(`delete-highlight-${highlightId}`);
-			const forms = Array.from(
-				row.querySelectorAll("form:not([data-test-form])"),
-				(form) => form.getAttribute("action"),
+			const forms = rowAndConfirmOf(doc, highlightId).flatMap((scope) =>
+				Array.from(scope.querySelectorAll("form:not([data-test-form])"), (form) => form.getAttribute("action")),
 			);
 			expect(forms).toHaveLength(2);
 			for (const action of forms) {
@@ -527,9 +543,10 @@ describe("renderHighlightsRail", () => {
 				"highlight-delete-confirm",
 			]) {
 				expect(
-					rowOf(doc, FIRST_ID).querySelector(`[data-test-action="${action}"]`)
-						?.textContent,
-				).toBe("Delete highlight");
+					rowAndConfirmOf(doc, FIRST_ID)
+						.map((scope) => scope.querySelector(`[data-test-action="${action}"]`)?.textContent)
+						.filter((text) => text !== undefined),
+				).toEqual(["Delete highlight"]);
 			}
 		});
 
@@ -598,11 +615,11 @@ describe("renderHighlightsRail", () => {
 		});
 
 		it("posts every form with the readlist, then the surface", () => {
-			const actions = Array.from(
-				rowOf(doc, FIRST_ID).querySelectorAll("form"),
-				(form) =>
-					new URL(form.getAttribute("action") ?? "", "https://readplace.com")
-						.search,
+			const actions = rowAndConfirmOf(doc, FIRST_ID).flatMap((scope) =>
+				Array.from(
+					scope.querySelectorAll("form"),
+					(form) => new URL(form.getAttribute("action") ?? "", "https://readplace.com").search,
+				),
 			);
 
 			expect(actions).toHaveLength(3);

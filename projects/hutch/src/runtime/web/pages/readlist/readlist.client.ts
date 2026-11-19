@@ -3,6 +3,7 @@ import { initReadlistMore } from "./readlist-more.client";
 
 export interface ReadlistDeps {
 	document: Document;
+	isOpen: (popover: Element) => boolean;
 }
 
 const MENU_SELECTOR = ".readlist-nav__menu, .readlist-article__menu";
@@ -79,6 +80,15 @@ export function initReadlist(deps: ReadlistDeps): void {
 	initReadlistMore({ document: deps.document });
 	const openers = new Map<string, HTMLElement>();
 
+	const invokerOf = (popoverId: string): HTMLElement | null => {
+		const opener = openers.get(popoverId);
+		if (opener?.isConnected) return opener;
+		return (
+			deps.document.querySelector<HTMLElement>(`[popovertarget="${popoverId}"]`) ??
+			deps.document.querySelector<HTMLElement>(`[aria-controls~="${popoverId}"]`)
+		);
+	};
+
 	deps.document.addEventListener("click", (event) => {
 		const target = event.target;
 		const within = isElement(target) ? target.closest(MENU_SELECTOR) : null;
@@ -106,10 +116,9 @@ export function initReadlist(deps: ReadlistDeps): void {
 				hostField.focus({ preventScroll: true });
 				return;
 			}
-			const opener = openers.get(dialog.id);
-			const invoker = opener?.isConnected
-				? opener
-				: deps.document.querySelector<HTMLElement>(`[popovertarget="${dialog.id}"]`);
+			const direct = invokerOf(dialog.id);
+			const host = direct === null ? null : direct.closest("[popover]");
+			const invoker = host === null || deps.isOpen(host) ? direct : invokerOf(host.id);
 			if (invoker === null) return;
 			const menu = invoker.closest(MENU_SELECTOR);
 			if (menu === null) {

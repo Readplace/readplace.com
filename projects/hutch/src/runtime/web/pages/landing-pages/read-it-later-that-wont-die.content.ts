@@ -103,7 +103,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 		},
 	],
 	offer: {
-		title: `${PRICING_PLANS.yearly.totalDisplay} a year, and that's the whole business.`,
+		title: `${PRICING_PLANS.yearly.periodDisplay}, and that's the whole business.`,
 		paragraphs: [
 			`Pick how often you pay — ${PLAN_CHOICES} — and both buy the same whole product. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it. <a href="${track("/blog/best-read-it-later-apps-2026", "post-best-read-it-later-apps-2026")}">The comparison of 7 read-it-later apps</a> reads each app's price as a funding model, and <a href="${track("/blog/free-read-it-later-apps-2026", "post-free-read-it-later-apps-2026")}">the guide to free ones</a> asks who pays the bill when you don't.`,
 			`${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { formatEnvMap } from "./env-map";
-import { type DynamoTables, parseDynamoTables } from "./dynamodb-tables";
+import { type DynamoTables, formatDynamoTables, parseDynamoTables } from "./dynamodb-tables";
 
 const TABLES: DynamoTables = {
 	articles: "hutch-articles",
@@ -50,5 +50,48 @@ describe("parseDynamoTables", () => {
 
 	it("rejects an empty table name", () => {
 		assert.throws(() => parseDynamoTables(formatEnvMap({ ...TABLES, users: "" })), /users/);
+	});
+});
+
+describe("formatDynamoTables", () => {
+	const STACK_TABLES: DynamoTables = {
+		...TABLES,
+		articles: "hutch-articles-staging",
+		readerReadyNotifications: "hutch-reader-ready-notifications-staging",
+	};
+
+	it("writes the pattern and only the names that differ from it", () => {
+		assert.equal(
+			formatDynamoTables({
+				tables: { articles: "hutch-articles-staging", users: "hutch-users" },
+				namePattern: "hutch-*-staging",
+			}),
+			"*=hutch-*-staging,users=hutch-users",
+		);
+	});
+
+	it("names a camel-cased table by its kebab-cased key", () => {
+		assert.equal(
+			formatDynamoTables({
+				tables: { readerReadyNotifications: "hutch-reader-ready-notifications-staging" },
+				namePattern: "hutch-*-staging",
+			}),
+			"*=hutch-*-staging",
+		);
+	});
+
+	it("reads back every name it wrote, whether it follows the pattern or not", () => {
+		assert.deepEqual(
+			parseDynamoTables(formatDynamoTables({ tables: STACK_TABLES, namePattern: "hutch-*-staging" })),
+			STACK_TABLES,
+		);
+	});
+
+	it("still rejects a table the app does not read", () => {
+		assert.throws(() => parseDynamoTables("*=hutch-*-staging,staleTable=hutch-stale"), /staleTable/);
+	});
+
+	it("still rejects an empty table name", () => {
+		assert.throws(() => parseDynamoTables("*=hutch-*-staging,users="), /users/);
 	});
 });

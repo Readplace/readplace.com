@@ -143,6 +143,7 @@ function rowView(input: {
 		highlightId: highlight.highlightId,
 		quote: shown.quote,
 		state: shown.state,
+		marked,
 		edited: shown.edited
 			? t("articleBody.highlightsRail.edited", { quote: highlight.exact })
 			: undefined,
@@ -162,12 +163,22 @@ function rowView(input: {
 	};
 }
 
+export type HighlightsRailRowView = ReturnType<typeof rowView>;
+
+export function highlightsRailRowViews(input: {
+	rows: readonly HighlightsRailRow[];
+	scope: HighlightFormScope | undefined;
+	openNote: HighlightId | undefined;
+}): HighlightsRailRowView[] {
+	return [...input.rows]
+		.sort(byOrder)
+		.map((row) => rowView({ row, scope: input.scope, openNote: input.openNote }));
+}
+
 export function renderHighlightsRail(
 	input: HighlightsRailInput,
 ): RenderedHighlightsRail {
-	const rows = [...input.rows]
-		.sort(byOrder)
-		.map((row) => rowView({ row, scope: input.scope, openNote: input.openNote }));
+	const rows = highlightsRailRowViews(input);
 	return {
 		html: render(HIGHLIGHTS_RAIL_TEMPLATE, { rows, oob: input.oob }).trim(),
 		hasRows: rows.length > 0,
