@@ -5,6 +5,7 @@ import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -13,6 +14,8 @@ import android.webkit.WebViewClient
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.CapturedPage
 import com.readplace.android.core.HtmlCapturing
+import com.readplace.android.core.ReaderPrefetch
+import com.readplace.android.core.ReaderPrefetching
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +23,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.Cookie
 import org.json.JSONArray
 import kotlin.coroutines.resume
 
@@ -125,50 +129,6 @@ class HtmlCaptor(
 		}
 	}
 
-	/** Parents the WebView behind everything visible (index 0) at the host's own
-	 * measured pixel bounds, so it lays out at a real phone viewport without any
-	 * density arithmetic and follows the host through a resize. Transparent, and
-	 * non-interactive to both touch and focus so a stray tap during capture never
-	 * reaches the page (mirroring the iOS captor's `isUserInteractionEnabled =
-	 * false`), and hidden from accessibility so it is not read out. */
-	@SuppressLint("ClickableViewAccessibility")
-	private fun hostOffScreen(host: ViewGroup, webView: WebView) {
-		webView.layoutParams = ViewGroup.LayoutParams(
-			ViewGroup.LayoutParams.MATCH_PARENT,
-			ViewGroup.LayoutParams.MATCH_PARENT,
-		)
-		webView.alpha = 0f
-		webView.isFocusable = false
-		webView.isFocusableInTouchMode = false
-		webView.setOnTouchListener { _, _ -> true }
-		webView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-		host.addView(webView, 0)
-	}
-
-	/** Suspends until the view has a nonzero measured layout, so a load never
-	 * starts against a 0×0 viewport. Resolves at once when the view is already
-	 * laid out; otherwise waits for the first layout pass, removing its listener on
-	 * both completion and cancellation so a timed-out wait leaves nothing attached. */
-	private suspend fun awaitNonZeroLayout(view: View) {
-		if (view.width > 0 && view.height > 0) return
-		suspendCancellableCoroutine<Unit> { continuation ->
-			val listener = object : ViewTreeObserver.OnGlobalLayoutListener {
-				override fun onGlobalLayout() {
-					if (view.width > 0 && view.height > 0) {
-						removeLayoutListener(view, this)
-						if (continuation.isActive) continuation.resume(Unit)
-					}
-				}
-			}
-			view.viewTreeObserver.addOnGlobalLayoutListener(listener)
-			continuation.invokeOnCancellation { removeLayoutListener(view, listener) }
-		}
-	}
-
-	private fun removeLayoutListener(view: View, listener: ViewTreeObserver.OnGlobalLayoutListener) {
-		if (view.viewTreeObserver.isAlive) view.viewTreeObserver.removeOnGlobalLayoutListener(listener)
-	}
-
 	private suspend fun extract(webView: WebView, mainFrameHttpError: Int?): CapturedPage {
 		val html = evaluate(webView, "document.documentElement.outerHTML")
 		if (html.isNullOrEmpty()) return CapturedPage.Empty
@@ -184,5 +144,136 @@ class HtmlCaptor(
 		val raw = withTimeoutOrNull(CaptureDecision.SETTLE_DELAY * 5) { answer.await() } ?: return null
 		if (raw == "null") return null
 		return runCatching { JSONArray("[$raw]").getString(0) }.getOrNull()
+	}
+}
+
+/** Parents the WebView behind everything visible (index 0) at the host's own
+ * measured pixel bounds, so it lays out at a real phone viewport without any
+ * density arithmetic and follows the host through a resize. Transparent, and
+ * non-interactive to both touch and focus so a stray tap during capture never
+ * reaches the page (mirroring the iOS captor's `isUserInteractionEnabled =
+ * false`), and hidden from accessibility so it is not read out. */
+@SuppressLint("ClickableViewAccessibility")
+private fun hostOffScreen(host: ViewGroup, webView: WebView) {
+	webView.layoutParams = ViewGroup.LayoutParams(
+		ViewGroup.LayoutParams.MATCH_PARENT,
+		ViewGroup.LayoutParams.MATCH_PARENT,
+	)
+	webView.alpha = 0f
+	webView.isFocusable = false
+	webView.isFocusableInTouchMode = false
+	webView.setOnTouchListener { _, _ -> true }
+	webView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+	host.addView(webView, 0)
+}
+
+/** Suspends until the view has a nonzero measured layout, so a load never
+ * starts against a 0×0 viewport. Resolves at once when the view is already
+ * laid out; otherwise waits for the first layout pass, removing its listener on
+ * both completion and cancellation so a timed-out wait leaves nothing attached. */
+private suspend fun awaitNonZeroLayout(view: View) {
+	if (view.width > 0 && view.height > 0) return
+	suspendCancellableCoroutine<Unit> { continuation ->
+		val listener = object : ViewTreeObserver.OnGlobalLayoutListener {
+			override fun onGlobalLayout() {
+				if (view.width > 0 && view.height > 0) {
+					removeLayoutListener(view, this)
+					if (continuation.isActive) continuation.resume(Unit)
+				}
+			}
+		}
+		view.viewTreeObserver.addOnGlobalLayoutListener(listener)
+		continuation.invokeOnCancellation { removeLayoutListener(view, listener) }
+	}
+}
+
+private fun removeLayoutListener(view: View, listener: ViewTreeObserver.OnGlobalLayoutListener) {
+	if (view.viewTreeObserver.isAlive) view.viewTreeObserver.removeOnGlobalLayoutListener(listener)
+}
+
+class ReaderPrefetcher(
+	private val context: Context,
+	private val captureHost: () -> ViewGroup,
+) : ReaderPrefetching {
+	@SuppressLint("SetJavaScriptEnabled")
+	override suspend fun prefetch(url: String, cookies: List<Cookie>): Boolean = withContext(Dispatchers.Main) {
+		val finished = CompletableDeferred<Unit>()
+		var mainFrameFailed = false
+		var mainFrameHttpError: Int? = null
+		var webView: WebView? = null
+		var host: ViewGroup? = null
+		try {
+			val view = WebView(context).apply {
+				settings.javaScriptEnabled = true
+				settings.domStorageEnabled = true
+				settings.userAgentString = AppConfig.WEB_VIEW_USER_AGENT
+				settings.loadWithOverviewMode = true
+				webViewClient = object : WebViewClient() {
+					override fun onPageFinished(view: WebView, url: String?) {
+						finished.complete(Unit)
+					}
+
+					override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+						if (request.isForMainFrame) {
+							mainFrameFailed = true
+							finished.complete(Unit)
+						}
+					}
+
+					override fun onReceivedHttpError(
+						view: WebView,
+						request: WebResourceRequest,
+						errorResponse: WebResourceResponse,
+					) {
+						if (request.isForMainFrame) mainFrameHttpError = errorResponse.statusCode
+					}
+				}
+			}
+			webView = view
+			val resolvedHost = captureHost()
+			host = resolvedHost
+			hostOffScreen(resolvedHost, view)
+			val documentFinished = withTimeoutOrNull(ReaderPrefetch.PAGE_TIMEOUT) {
+				awaitNonZeroLayout(view)
+				val store = CookieManager.getInstance()
+				for (cookie in cookies) store.setCookie(url, cookie.toString())
+				store.flush()
+				view.loadUrl(url, mapOf(ReaderPrefetch.PURPOSE_HEADER to ReaderPrefetch.PURPOSE_VALUE))
+				finished.await()
+			} != null
+			val stored = ReaderPrefetch.wasStored(
+				documentFinished = documentFinished,
+				mainFrameFailed = mainFrameFailed,
+				mainFrameHttpError = mainFrameHttpError,
+			)
+			if (stored) awaitImages(view)
+			stored
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			false
+		} finally {
+			val view = webView
+			if (view != null) {
+				view.stopLoading()
+				host?.removeView(view)
+				view.destroy()
+			}
+		}
+	}
+
+	private suspend fun awaitImages(view: WebView) {
+		view.evaluateJavascript(ReaderPrefetch.EAGER_IMAGES_SCRIPT, null)
+		withTimeoutOrNull(ReaderPrefetch.IMAGE_TIMEOUT) {
+			while (!ReaderPrefetch.imagesSettled(answerOf(view, ReaderPrefetch.IMAGES_SETTLED_SCRIPT))) {
+				delay(ReaderPrefetch.IMAGE_POLL)
+			}
+		}
+	}
+
+	private suspend fun answerOf(view: WebView, script: String): String? {
+		val answer = CompletableDeferred<String?>()
+		view.evaluateJavascript(script) { result -> answer.complete(result) }
+		return answer.await()
 	}
 }

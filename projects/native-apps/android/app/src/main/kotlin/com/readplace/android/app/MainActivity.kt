@@ -134,6 +134,8 @@ class MainActivity : ComponentActivity() {
 		val captor = HtmlCaptor(this) { findViewById(android.R.id.content) }
 		val heal = HealBlockedArticle(api, captor)
 		val drain = DrainUploadJobs(api, captor, jobs, now = { Instant.now() })
+		val prefetcher = ReaderPrefetcher(this) { findViewById(android.R.id.content) }
+		val download = DownloadUnreadOffline(api, snapshot, prefetcher)
 		val createReadingList: () -> ReadingListViewModel = {
 			ReadingListViewModel(
 				api = api,
@@ -146,6 +148,7 @@ class MainActivity : ComponentActivity() {
 				automaticCaptureAttempts = AutomaticCaptureAttempts(flags),
 				reportAutomaticCaptureFailure = { failure -> Log.i("Capture", "automatic capture failed: $failure") },
 				drainUploadJobs = { drain.run() },
+				downloadUnreadOffline = { request, report -> download.run(request, report) },
 				onSessionExpired = { session.forceLogout() },
 				now = { Instant.now() },
 				reportProcessingRefreshFailure = { failure -> Log.i("ProcessingRefresh", "row refresh failed: $failure") },
@@ -351,11 +354,22 @@ private fun Root(
 						viewModel = listViewModel,
 						now = Instant.now(),
 						isForeground = isForeground,
-						onSignOut = { scope.launch { session.logout(); intro.replay() } },
+						onSignOut = {
+							scope.launch {
+								listViewModel.stopOfflineDownload()
+								session.logout()
+								intro.replay()
+							}
+						},
 						// The account-deletion bridge: the account is already gone, so drop
 						// local credentials without a server revoke — and, unlike a deliberate
 						// sign-out, keep the reader's readlist/share choices.
-						onForcedLogout = { session.forceLogout() },
+						onForcedLogout = {
+							scope.launch {
+								listViewModel.stopOfflineDownload()
+								session.forceLogout()
+							}
+						},
 						onOpenExternally = onOpenExternally,
 					)
 				}

@@ -289,6 +289,35 @@ class ReadplaceApiTest {
 	}
 
 	@Test
+	fun `a prefetch listing load says it is a prefetch and an ordinary load does not`() = runTest {
+		server.handle { Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")))) }
+		val api = api()
+
+		api.loadReadlist(path = "/queue?page=2")
+		api.loadReadlistAsPrefetch(path = "/queue?page=3")
+
+		assertEquals(
+			listOf("2" to null, "3" to "prefetch"),
+			server.records("/queue").map { it.request.url.queryParameter("page") to it.header("Sec-Purpose") },
+		)
+	}
+
+	@Test
+	fun `a prefetch listing load keeps saying so across a redirect`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/queue" -> Stub.redirect(to = "/queue/moved?page=3")
+				"/queue/moved" -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1"))))
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		api().loadReadlistAsPrefetch(path = "/queue?page=3")
+
+		assertEquals(listOf("prefetch", "prefetch"), server.records.map { it.header("Sec-Purpose") })
+	}
+
+	@Test
 	fun `rediscoverReadlist bypasses the discovery cache an ordinary load reuses`() = runTest {
 		val cache = Cache(folder.newFolder(), 10L * 1024 * 1024)
 		val entryGets = AtomicInteger()

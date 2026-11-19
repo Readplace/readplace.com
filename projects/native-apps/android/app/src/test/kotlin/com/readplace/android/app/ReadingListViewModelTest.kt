@@ -139,6 +139,9 @@ class ReadingListViewModelTest {
 		automaticCaptureAttempts: AutomaticCaptureAttempts = AutomaticCaptureAttempts(EphemeralFlags()),
 		reportAutomaticCaptureFailure: (String) -> Unit = {},
 		drainUploadJobs: suspend () -> Unit = { throw AssertionError("no drain expected") },
+		downloadUnreadOffline: suspend (OfflineDownloadRequest, (OfflineDownloadProgress) -> Unit) -> Unit = { _, _ ->
+			throw AssertionError("no offline download expected")
+		},
 		onSessionExpired: () -> Unit = {},
 		now: () -> Instant = { Instant.EPOCH },
 		reportProcessingRefreshFailure: (String) -> Unit = {},
@@ -157,6 +160,7 @@ class ReadingListViewModelTest {
 			automaticCaptureAttempts = automaticCaptureAttempts,
 			reportAutomaticCaptureFailure = reportAutomaticCaptureFailure,
 			drainUploadJobs = drainUploadJobs,
+			downloadUnreadOffline = downloadUnreadOffline,
 			onSessionExpired = onSessionExpired,
 			now = now,
 			reportProcessingRefreshFailure = reportProcessingRefreshFailure,
@@ -5200,6 +5204,199 @@ class ReadingListViewModelTest {
 		assertEquals(listOf("/"), network.refused)
 	}
 
+	private class ScriptedDownload(
+		private val failure: Exception? = null,
+		val finish: CompletableDeferred<Unit> = CompletableDeferred(),
+		private val events: MutableList<String> = mutableListOf(),
+	) {
+		val requests = mutableListOf<OfflineDownloadRequest>()
+		var report: (OfflineDownloadProgress) -> Unit = {}
+
+		suspend fun run(request: OfflineDownloadRequest, report: (OfflineDownloadProgress) -> Unit) {
+			requests += request
+			this.report = report
+			try {
+				finish.await()
+				if (failure != null) throw failure
+			} finally {
+				events += "download ended"
+			}
+		}
+	}
+
+	private fun offlineDownloadHandler(accountDeleted: AtomicBoolean = AtomicBoolean(false)): (Record) -> Stub = { record ->
+		when {
+			accountDeleted.get() -> if (record.path == "/oauth/token") Stub.json(400, """{"error":"invalid_grant"}""") else Stub.json(401, "{}")
+			record.path == "/" -> Stub.redirect(to = "/queue")
+			record.path == "/queue" ->
+				Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), actionsJson = CREATE_SESSION, tabsJson = Fixtures.tabs()))
+			else -> Stub.json(404, "{}")
+		}
+	}
+
+	@Test
+	fun `the offline download starts from the first advertised tab once a page has applied`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val viewModel = viewModel()
+		val before = viewModel.state.value.offlineDownloadHref
+
+		viewModel.loadIfNeeded()
+
+		assertEquals(listOf(null, "/queue"), listOf(before, viewModel.state.value.offlineDownloadHref))
+	}
+
+	@Test
+	fun `starting the offline download asks for the first tab with the advertised session action and shows each report`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val download = ScriptedDownload()
+		val viewModel = viewModel(downloadUnreadOffline = download::run)
+		viewModel.loadIfNeeded()
+
+		viewModel.downloadUnreadOffline()
+		val starting = viewModel.state.value.offlineDownload
+		runCurrent()
+		download.report(OfflineDownloadProgress(completed = 1, total = 4))
+
+		assertEquals(
+			listOf(
+				OfflineDownloadProgress(completed = 0, total = 0),
+				listOf(
+					OfflineDownloadRequest(
+						startHref = "/queue",
+						sessionAction = SirenAction(name = "create-session", href = "/custom/session", method = "POST", title = null, type = null, fields = null),
+					),
+				),
+				OfflineDownloadProgress(completed = 1, total = 4),
+			),
+			listOf(starting, download.requests, viewModel.state.value.offlineDownload),
+		)
+	}
+
+	@Test
+	fun `a second start during a run starts nothing`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val download = ScriptedDownload()
+		val viewModel = viewModel(downloadUnreadOffline = download::run)
+		viewModel.loadIfNeeded()
+
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		assertEquals(1, download.requests.size)
+	}
+
+	@Test
+	fun `a finished run clears its progress and a new start runs again`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val download = ScriptedDownload(finish = CompletableDeferred(Unit))
+		val viewModel = viewModel(downloadUnreadOffline = download::run)
+		viewModel.loadIfNeeded()
+
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+		val afterFirst = viewModel.state.value.offlineDownload
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		assertEquals(listOf(null, 2), listOf(afterFirst, download.requests.size))
+	}
+
+	@Test
+	fun `cancelling the offline download ends it and clears the row without an error`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val events = mutableListOf<String>()
+		val download = ScriptedDownload(events = events)
+		val viewModel = viewModel(downloadUnreadOffline = download::run)
+		viewModel.loadIfNeeded()
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		viewModel.cancelOfflineDownload()
+		runCurrent()
+
+		assertEquals(
+			listOf(listOf("download ended"), null, null),
+			listOf(events, viewModel.state.value.offlineDownload, viewModel.state.value.errorText),
+		)
+	}
+
+	@Test
+	fun `stopping the offline download returns once the run has ended`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val events = mutableListOf<String>()
+		val download = ScriptedDownload(events = events)
+		val viewModel = viewModel(downloadUnreadOffline = download::run)
+		viewModel.loadIfNeeded()
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		viewModel.stopOfflineDownload()
+		events += "stopped"
+
+		assertEquals(listOf("download ended", "stopped"), events)
+	}
+
+	@Test
+	fun `stopping with no offline download running starts nothing`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val viewModel = viewModel()
+		viewModel.loadIfNeeded()
+
+		viewModel.stopOfflineDownload()
+
+		assertEquals(null, viewModel.state.value.offlineDownload)
+	}
+
+	@Test
+	fun `an offline download that loses the network shows the offline sentence and clears the row`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val download = ScriptedDownload(failure = UnknownHostException("offline"), finish = CompletableDeferred(Unit))
+		val viewModel = viewModel(downloadUnreadOffline = download::run)
+		viewModel.loadIfNeeded()
+
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		assertEquals(
+			listOf(OfflineReading.BANNER_TEXT, null),
+			listOf(viewModel.state.value.errorText, viewModel.state.value.offlineDownload),
+		)
+	}
+
+	@Test
+	fun `an offline download refused for an expired session signs out once the run has ended`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val events = mutableListOf<String>()
+		val download = ScriptedDownload(failure = ApiError.Unauthorized(), finish = CompletableDeferred(Unit), events = events)
+		val viewModel = viewModel(downloadUnreadOffline = download::run, onSessionExpired = { events += "expired" })
+		viewModel.loadIfNeeded()
+
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		assertEquals(listOf("download ended", "expired"), events)
+	}
+
+	@Test
+	fun `a list read that finds the session expired ends a running download before signing out`() = runTest {
+		val accountDeleted = AtomicBoolean(false)
+		server.handle(offlineDownloadHandler(accountDeleted))
+		val events = mutableListOf<String>()
+		val download = ScriptedDownload(events = events)
+		val viewModel = viewModel(downloadUnreadOffline = download::run, onSessionExpired = { events += "expired" })
+		viewModel.loadIfNeeded()
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		accountDeleted.set(true)
+		viewModel.refresh()
+		runCurrent()
+
+		assertEquals(listOf("download ended", "expired"), events)
+	}
+
 	private object Fixtures {
 		const val LOCKED_MESSAGE = "Your account is locked because your email was never verified. " +
 			"Email <a href='mailto:readplace+verification@readplace.com'>readplace+verification@readplace.com</a> to restore access."
@@ -5334,6 +5531,7 @@ class ReadingListViewModelTest {
 	}
 
 	private companion object {
+		const val CREATE_SESSION = """{ "name": "create-session", "href": "/custom/session", "method": "POST" }"""
 		const val NEXT_LINK = """, { "rel": ["next"], "href": "/queue?page=2" }"""
 		const val PAGE_3_LINK = """, { "rel": ["next"], "href": "/queue?page=3" }"""
 		const val UNREAD_NEXT = """, { "rel": ["next"], "href": "/queue?status=unread&page=2" }"""
