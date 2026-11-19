@@ -59,7 +59,8 @@ import type {
 	RetrieveCheckoutSession,
 } from "@packages/provider-contracts/hosted-checkout";
 import type {
-	ConsumePendingSignup,
+	ClaimPendingSignup,
+	FindPendingSignup,
 	StorePendingSignup,
 } from "@packages/provider-contracts/pending-signup";
 import type {
@@ -312,6 +313,15 @@ import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.erro
 import { initSaveRoutes } from "./web/pages/save/save.page";
 import { type ValidateSaveableUrl, withNewSavePreparation, withPrivateItemRefusal } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
+import { initViewHighlightsRoutes } from "./web/pages/view/view-highlights.page";
+import { VIEW_HIGHLIGHTS_MOUNT } from "./web/pages/view/view-highlights-paths";
+import { initClaimViewHighlights } from "./web/pages/view/claim-view-highlights";
+import { initCreateHighlightByQuote } from "./web/shared/article-body/highlights/create-highlight-by-quote";
+import type {
+	FindPendingViewHighlights,
+	ReleasePendingViewHighlights,
+	StorePendingViewHighlights,
+} from "./providers/pending-view-highlights/pending-view-highlights.types";
 import { initAdminRoutes } from "./web/pages/admin/admin.routes";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initQueueDigestUnsubscribeRoutes } from "./web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page";
@@ -619,6 +629,9 @@ export interface AppDependencies {
 	chargeTranscriptQuota: ChargeTranscriptQuota;
 	refundUnstartedCharge: RefundUnstartedCharge;
 	createMediaUploadSession: CreateMediaUploadSession;
+	storePendingViewHighlights: StorePendingViewHighlights;
+	findPendingViewHighlights: FindPendingViewHighlights;
+	releasePendingViewHighlights: ReleasePendingViewHighlights;
 	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
@@ -644,7 +657,8 @@ export interface AppDependencies {
 	drawRandomByte: () => number;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
-	consumePendingSignup: ConsumePendingSignup;
+	findPendingSignup: FindPendingSignup;
+	claimPendingSignup: ClaimPendingSignup;
 	storePendingSignup: StorePendingSignup;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
@@ -1423,7 +1437,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		createVerificationToken: deps.createVerificationToken,
 		verifyEmailToken: deps.verifyEmailToken,
 		retrieveCheckoutSession: deps.retrieveCheckoutSession,
-		consumePendingSignup: deps.consumePendingSignup,
+		findPendingSignup: deps.findPendingSignup,
+		claimPendingSignup: deps.claimPendingSignup,
 		subscriptionProviders: {
 			upsertActive: deps.subscriptionProviders.upsertActive,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
@@ -1686,6 +1701,37 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const saveRouter = initSaveRoutes({ buildBannerState, recordAnalyticsEvent, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID, ownHost });
 	app.use("/save", saveRouter);
+
+	app.use(
+		VIEW_HIGHLIGHTS_MOUNT,
+		initViewHighlightsRoutes({
+			appOrigin,
+			validateSaveableUrl: deps.validateSaveableUrl,
+			storePendingViewHighlights: deps.storePendingViewHighlights,
+			findPendingViewHighlights: deps.findPendingViewHighlights,
+			releasePendingViewHighlights: deps.releasePendingViewHighlights,
+			claimViewHighlights: initClaimViewHighlights({
+				validateNewSaveUrl,
+				refreshArticleIfStale: deps.refreshArticleIfStale,
+				saveArticleAtReadlistTop,
+				createHighlightByQuote: initCreateHighlightByQuote({
+					readArticleContent: deps.readArticleContent,
+					readCanonicalSnapshot: deps.readCanonicalSnapshot,
+					createHighlight: createReaderHighlight,
+					appOrigin,
+				}),
+			}),
+			generatePendingId: randomUUID,
+			secureCookies,
+			consumeRateLimit: deps.consumeRateLimit,
+			keepRateLimitRule: deps.rateLimitRules.signup,
+			requireWriteAccess,
+			buildBannerState,
+			recordAnalyticsEvent,
+			salt: deps.salt,
+			now: deps.now,
+		}),
+	);
 
 	const viewRouter = initViewRoutes(viewDependenciesFrom(deps, {
 		appOrigin,

@@ -103,7 +103,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 13 November 2026");
+		expect(response.text).toContain("Last updated: 17 November 2026");
 	});
 
 	it("lists a file uploaded before signing up among the data Readplace collects", async () => {
@@ -113,6 +113,15 @@ describe("GET /privacy", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const items = Array.from(doc.querySelectorAll("li"), (item) => item.textContent);
 		expect(items).toContain("Files uploaded before signing up: the file, its name and size, and what Readplace reads from it: a book's title, authors and chapter titles, or an audio file's length.");
+	});
+
+	it("lists highlights kept before signing up among the data Readplace collects", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const items = Array.from(doc.querySelectorAll("li"), (item) => item.textContent);
+		expect(items).toContain("Highlights kept before signing up: the passages you highlight on a shared article, your notes on them, and the address of each article. They stay in your browser until you choose to create an account or log in, and are then sent to Readplace to add to that account.");
 	});
 
 	it("says what records the Gmail import and mark-as-read options keep, and how long the original copies stay", async () => {
@@ -150,6 +159,20 @@ describe("GET /privacy", () => {
 		const response = await request(server).get("/privacy");
 
 		expect(response.text).toContain("A file you upload before signing up, with its name and what was read from it, is deleted within 2 days. Until you save it no account holds them, so you can't delete them sooner. Once you save it to your library, the file stays with your saved articles until you remove it; an audio or video file's transcript stays with it, and the transcription service's own copy of that transcript is deleted after 14 days.");
+	});
+
+	it("says how long highlights sent before signing up are kept", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Highlights you send to Readplace before signing up, with their notes, are added to your account when you finish signing up or logging in, and are deleted then. If that doesn't happen within 24 hours, they can no longer be added, and they are deleted within a few days after that.");
+	});
+
+	it("names the cookie that holds highlights waiting for a new account", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("functional cookies for sign-in state, pending saves, highlights waiting to be added to your new account (24 hours), imports, extension detection, and banners you have dismissed.");
 	});
 
 	it("lists the optional display name among the account information Readplace keeps", async () => {

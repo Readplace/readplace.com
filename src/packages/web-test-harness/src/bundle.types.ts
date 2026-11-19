@@ -19,7 +19,7 @@ import type {
 	SavePrivateItem,
 } from "@packages/provider-contracts/article-store";
 import type { CrawlArticle } from "@packages/crawl-article";
-import type { CandidateId } from "@packages/domain/article";
+import type { CandidateId, NewsletterLinkRow } from "@packages/domain/article";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
@@ -113,7 +113,8 @@ import type {
 	BumpArticleSavedAt,
 	CheckoutPaymentStatus,
 	CheckoutSessionId,
-	ConsumePendingSignup,
+	ClaimPendingSignup,
+	FindPendingSignup,
 	ConsumeRateLimit,
 	ContentProvider,
 	ConversionEvent,
@@ -379,7 +380,8 @@ export interface HostedCheckoutBundle {
 
 export interface PendingSignupBundle {
 	storePendingSignup: StorePendingSignup;
-	consumePendingSignup: ConsumePendingSignup;
+	findPendingSignup: FindPendingSignup;
+	claimPendingSignup: ClaimPendingSignup;
 }
 
 export interface SubscriptionProvidersBundle {
@@ -481,6 +483,9 @@ export interface ArticleStoreBundle {
 	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
+	readHandPickedAt: (params: { userId: UserId; url: string }) => Date | undefined;
+	readNewsletterLinkRows: (userId: UserId) => NewsletterLinkRow[];
+	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
 	saveArticleAsRequested: SaveArticleAsRequested;
 	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
 	hasSaveLandedSince: HasSaveLandedSince;

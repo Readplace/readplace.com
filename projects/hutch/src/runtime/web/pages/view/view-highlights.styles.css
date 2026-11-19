@@ -1,0 +1,77 @@
+.view-highlights[hidden] {
+  display: none;
+}
+
+.view-highlights__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.view-highlights__kept {
+  margin: 0;
+  padding: 14px 16px 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.view-highlights__elsewhere[hidden] {
+  display: none;
+}
+
+.view-highlights__elsewhere-title {
+  margin: 0;
+  padding: 0 16px;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.view-highlights__source {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.view-highlights__keep-trigger {
+  display: none;
+  align-self: flex-start;
+  margin: 0 16px;
+}
+
+.view-highlights__keep-form--inline {
+  margin: 0 16px;
+}
+
+.view-highlights__too-long {
+  margin: 0 0 16px;
+  font-size: var(--text-sm);
+  line-height: 22px;
+  color: var(--muted-foreground);
+}
+
+@supports selector(:popover-open) {
+  .view-highlights__keep-trigger {
+    display: inline-flex;
+  }
+
+  .view-highlights__keep-form--inline {
+    display: none;
+  }
+}
+
+.view-highlights__note-edit > summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.view-highlights__note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.view-highlights__note-form .btn {
+  align-self: flex-start;
+}

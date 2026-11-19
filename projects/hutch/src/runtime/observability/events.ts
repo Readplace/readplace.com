@@ -115,6 +115,14 @@ export interface HighlightsReanchoredLine {
 	moved: number;
 	orphaned: number;
 	skipped: number;
+	diffed: number;
+	edited: number;
+	gone: number;
+	notPlaced: number;
+	placedByFallback: number;
+	placedElsewhere: number;
+	basisGranted: number;
+	basisMissing: number;
 }
 
 export const GMAIL_CONNECTIONS_COUNT_EVENT = "gmail_connections_counted";

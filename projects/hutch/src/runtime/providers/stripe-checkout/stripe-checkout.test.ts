@@ -44,12 +44,13 @@ describe("initStripeCheckout", () => {
 			assert.equal(headers?.Authorization, "Bearer sk_test_abc");
 			assert.equal(headers?.["Stripe-Version"], "2026-04-22.dahlia");
 			assert.equal(headers?.["Content-Type"], "application/x-www-form-urlencoded");
-			const body = String(receivedInit?.body ?? "");
-			assert.ok(body.includes("mode=subscription"));
-			assert.ok(body.includes("line_items%5B0%5D%5Bprice%5D=price_test_yearly"));
-			assert.ok(body.includes("customer_email=buyer%40example.com"));
-			assert.ok(body.includes("allow_promotion_codes=true"));
-			assert.ok(!body.includes("subscription_data"), "no trial_end without trialEndsAt");
+			const sent = new URLSearchParams(String(receivedInit?.body ?? ""));
+			assert.equal(sent.get("mode"), "subscription");
+			assert.equal(sent.get("line_items[0][price]"), "price_test_yearly");
+			assert.equal(sent.get("customer_email"), "buyer@example.com");
+			assert.equal(sent.get("allow_promotion_codes"), "true");
+			assert.equal(sent.get("automatic_tax[enabled]"), "true");
+			assert.ok(![...sent.keys()].some((key) => key.startsWith("subscription_data")), "no trial_end without trialEndsAt");
 		});
 
 		it.each<[string, string | null, { coupon: string | null; promotionCodes: string | null }]>([

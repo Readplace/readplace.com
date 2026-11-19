@@ -38,6 +38,7 @@ async function saveFor(input: { harness: Harness; userId: UserId; url: string; r
 		estimatedReadTime: MinutesSchema.parse(1),
 		provenance: { kind: "web" as const },
 		savedAt: new Date("2026-09-30T01:02:03.000Z"),
+		saveTrigger: "manual" as const,
 	};
 	await input.harness.articleStore.saveArticle(article);
 	if (input.readlist === undefined) return;

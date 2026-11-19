@@ -42,7 +42,7 @@ module.exports = {
       type: 'playwright',
       name: 'Running E2E tests',
       config: 'playwright.config.local-dev.ts',
-      browsers: ['chromium'],
+      browsers: ['chromium', 'webkit'],
       env: { HEADLESS: 'true', E2E_PORT: port },
       e2e: true,
       renderer,

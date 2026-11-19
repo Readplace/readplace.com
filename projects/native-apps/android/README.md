@@ -39,8 +39,9 @@ for the one-time SDK setup and the emulator troubleshooting.
 
 CI's `android-play-publish` job uploads every change to the app's shipping code to Play's
 internal testing track (see `.github/workflows/publish-android-play.yml`). Production is a
-promotion of a tested internal release in Play Console, the counterpart of submitting a
-TestFlight build for App Store review.
+promotion of a tested internal release, made by a person dispatching
+`.github/workflows/publish-android-play-production.yml` with the version code they tested; the
+counterpart of dispatching the iOS submit workflow.
 
 - **Version code.** Each upload takes the next `android-readplace@v<N>` tag and pushes the
   tag before uploading, the same scheme as iOS. Play refuses a version code it has seen, so a
@@ -61,6 +62,17 @@ TestFlight build for App Store review.
 - **A local signed bundle.** `make bundle VERSION_CODE=<n>` with `READPLACE_UPLOAD_KEYSTORE`
   and `READPLACE_UPLOAD_KEYSTORE_PASSWORD` set. Without them the build fails at
   `validateSigningProductionRelease` rather than producing an unsigned bundle Play rejects.
+- **Promotion.** `check` asks Play whether it would accept the promotion and releases nothing;
+  `promote` releases to every user once Play's review passes, and the run ends when Play
+  accepts the release, not when it is live. Only the release the internal track holds now can
+  be promoted; once a later upload replaces it, the run fails with
+  `Track 'internal' doesn't have any releases`. The service account in the `prod`
+  environment's `PLAY_SERVICE_ACCOUNT_JSON` needs Play Console's release-to-production
+  permission for the app. Play Console's Promote button still works. When Play answers that
+  `changesNotSentForReview` must be set to true, or must not be set, the run fails with Play's
+  message and nothing was promoted: promote the release with Play Console's Promote button. A
+  promotion carries the "What's new" text its internal upload sent (see **What's new text**),
+  so land the text before the upload you promote.
 - **Store listing.** The Play listing's text and images live under
   `fastlane/metadata/android/<locale>/` in fastlane supply's own layout, and the manual
   **Publish Android Play listing** workflow pushes them. Play's limits as of 2026-11-12:

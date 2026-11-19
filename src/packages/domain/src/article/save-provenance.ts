@@ -32,3 +32,23 @@ export const SuggestionAttributionSchema = z.object({
 export type SuggestionAttribution = z.infer<typeof SuggestionAttributionSchema>;
 
 export type SaveProvenance = z.infer<typeof SaveProvenanceSchema>;
+
+type SaveProvenanceKind = SaveProvenance["kind"];
+
+const KEPT_AGAINST_AUTOMATIC_SAVE: Record<SaveProvenanceKind, boolean> = {
+	web: true,
+	client: true,
+	email: false,
+	import: true,
+	upload: true,
+	mcp: true,
+	"founder-seed": false,
+	"hn-suggestion": false,
+};
+
+export const PROVENANCE_KINDS_KEPT_AGAINST_AUTOMATIC_SAVE: readonly SaveProvenanceKind[] = SaveProvenanceSchema.options
+	.map((option) => option.shape.kind.value)
+	.filter((kind) => KEPT_AGAINST_AUTOMATIC_SAVE[kind]);
+
+export const keepsProvenanceAgainstAutomaticSave = (kind: SaveProvenanceKind | undefined): boolean =>
+	kind === undefined || KEPT_AGAINST_AUTOMATIC_SAVE[kind];

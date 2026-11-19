@@ -62,6 +62,7 @@ async function seedLegacyTwitterSave(testApp: TestAppHarness) {
 		estimatedReadTime: MinutesSchema.parse(1),
 		provenance: { kind: "web" },
 		savedAt: new Date("2026-01-01T00:00:00.000Z"),
+		saveTrigger: "manual",
 	});
 	return saved;
 }

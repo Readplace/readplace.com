@@ -62,9 +62,10 @@ function railOf(
 	rows: readonly HighlightsRailRow[],
 	oob = false,
 	scope: HighlightsRailInput["scope"] = WEB_SCOPE,
+	openNote: HighlightsRailInput["openNote"] = undefined,
 ): Document {
-	return new JSDOM(renderHighlightsRail({ rows, scope, oob }).html).window
-		.document;
+	return new JSDOM(renderHighlightsRail({ rows, scope, openNote, oob }).html)
+		.window.document;
 }
 
 function rowOf(doc: Document, highlightId: string): Element {
@@ -77,7 +78,7 @@ describe("renderHighlightsRail without a form scope", () => {
 	const row = aRow({ ...highlight({ highlightId: FIRST_ID, exact: "first", orderKey: 1 }), note: "kept" }, "anchored");
 
 	it("lists the row, its note and its Jump link with no forms, popovers or note controls", () => {
-		const doc = new JSDOM(renderHighlightsRail({ rows: [row], scope: undefined, oob: false }).html).window.document;
+		const doc = new JSDOM(renderHighlightsRail({ rows: [row], scope: undefined, openNote: undefined, oob: false }).html).window.document;
 
 		const listed = rowOf(doc, FIRST_ID);
 		expect(listed.querySelector("[data-test-highlight-note]")?.textContent).toBe("kept");
@@ -278,6 +279,7 @@ describe("renderHighlightsRail", () => {
 		const rendered = renderHighlightsRail({
 			rows: [],
 			scope: WEB_SCOPE,
+			openNote: undefined,
 			oob: false,
 		});
 		const wrapper = new JSDOM(rendered.html).window.document.querySelector(
@@ -295,6 +297,7 @@ describe("renderHighlightsRail", () => {
 		const rendered = renderHighlightsRail({
 			rows: [aRow(first, "anchored")],
 			scope: WEB_SCOPE,
+			openNote: undefined,
 			oob: true,
 		});
 		const wrapper = new JSDOM(rendered.html).window.document.getElementById(
@@ -402,6 +405,32 @@ describe("renderHighlightsRail", () => {
 			);
 			expect(form.querySelectorAll("[autofocus]")).toHaveLength(0);
 			expect(form.querySelectorAll("[popovertarget]")).toHaveLength(0);
+		});
+
+		it("opens and focuses only the named row's fallback form", () => {
+			const doc = railOf(
+				[
+					aRow(noted, "anchored"),
+					aRow(second, "pending"),
+				],
+				false,
+				WEB_SCOPE,
+				SECOND_ID,
+			);
+
+			const fallbackOf = (id: string): HTMLDetailsElement => {
+				const fallback = rowOf(doc, id).querySelector<HTMLDetailsElement>(
+					"details.highlight-note__fallback",
+				);
+				assert(fallback);
+				return fallback;
+			};
+			expect(fallbackOf(SECOND_ID).open).toBe(true);
+			expect(
+				fallbackOf(SECOND_ID).querySelector("textarea")?.hasAttribute("autofocus"),
+			).toBe(true);
+			expect(fallbackOf(FIRST_ID).open).toBe(false);
+			expect(doc.querySelectorAll("details.highlight-note__fallback [autofocus]")).toHaveLength(1);
 		});
 
 		it("repeats no id across two rows, and each form's label and description resolve inside that form", () => {

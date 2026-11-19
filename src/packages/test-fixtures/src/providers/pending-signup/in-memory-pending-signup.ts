@@ -1,8 +1,10 @@
+import assert from "node:assert";
 import { normalizeEmail } from "@packages/domain/user";
 import type { CheckoutSessionId } from "@packages/provider-contracts/hosted-checkout";
 import type {
-	ConsumePendingSignup,
+	ClaimPendingSignup,
 	DeletePendingSignupsByUser,
+	FindPendingSignup,
 	PendingSignup,
 	StorePendingSignup,
 } from "@packages/provider-contracts/pending-signup";
@@ -10,24 +12,40 @@ import type {
 interface StoredEntry {
 	signup: PendingSignup;
 	createdAt?: number;
+	claimed: boolean;
 }
 
 export function initInMemoryPendingSignup(): {
 	storePendingSignup: StorePendingSignup;
-	consumePendingSignup: ConsumePendingSignup;
+	findPendingSignup: FindPendingSignup;
+	claimPendingSignup: ClaimPendingSignup;
 	deleteByUser: DeletePendingSignupsByUser;
 } {
 	const store = new Map<CheckoutSessionId, StoredEntry>();
 
 	const storePendingSignup: StorePendingSignup = async ({ checkoutSessionId, signup, createdAt }) => {
-		store.set(checkoutSessionId, { signup, createdAt });
+		store.set(checkoutSessionId, { signup, createdAt, claimed: false });
 	};
 
-	const consumePendingSignup: ConsumePendingSignup = async (checkoutSessionId) => {
+	const findPendingSignup: FindPendingSignup = async (checkoutSessionId) => {
 		const entry = store.get(checkoutSessionId);
-		if (!entry) return null;
-		store.delete(checkoutSessionId);
-		return entry.signup;
+		if (!entry) return { outcome: "not-found" };
+		if (entry.claimed) {
+			return {
+				outcome: "already-activated",
+				...(entry.signup.returnUrl ? { returnUrl: entry.signup.returnUrl } : {}),
+			};
+		}
+		return { outcome: "pending", signup: entry.signup };
+	};
+
+	const claimPendingSignup: ClaimPendingSignup = async ({ checkoutSessionId }) => {
+		const lookup = await findPendingSignup(checkoutSessionId);
+		if (lookup.outcome !== "pending") return lookup;
+		const entry = store.get(checkoutSessionId);
+		assert(entry, "a pending lookup implies a stored entry");
+		entry.claimed = true;
+		return { outcome: "claimed", signup: lookup.signup };
 	};
 
 	const deleteByUser: DeletePendingSignupsByUser = async ({ userId, email }) => {
@@ -42,7 +60,8 @@ export function initInMemoryPendingSignup(): {
 
 	return {
 		storePendingSignup,
-		consumePendingSignup,
+		findPendingSignup,
+		claimPendingSignup,
 		deleteByUser,
 	};
 }

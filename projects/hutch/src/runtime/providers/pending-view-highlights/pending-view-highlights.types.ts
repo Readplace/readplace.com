@@ -1,0 +1,20 @@
+export interface PendingViewHighlight {
+	url: string;
+	exact: string;
+	prefix: string;
+	suffix: string;
+	note?: string;
+}
+
+export interface PendingViewHighlights {
+	articleUrl: string;
+	items: readonly PendingViewHighlight[];
+	returnTo: string | undefined;
+}
+
+export const PENDING_VIEW_HIGHLIGHTS_TTL_SECONDS = 24 * 60 * 60;
+
+export type StorePendingViewHighlights = (input: { pendingId: string } & PendingViewHighlights) => Promise<void>;
+
+export type FindPendingViewHighlights = (pendingId: string) => Promise<PendingViewHighlights | undefined>;
+export type ReleasePendingViewHighlights = (pendingId: string) => Promise<void>;

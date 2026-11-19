@@ -425,6 +425,22 @@ describe("OAuth routes", () => {
 			expect(response.body.error).toBe("invalid_request");
 		});
 
+		it("refuses code_challenge_method=plain, since /developers documents PKCE with S256 only", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get("/oauth/authorize").query({
+				client_id: TEST_CLIENT_ID,
+				redirect_uri: TEST_REDIRECT_URI,
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "plain",
+			});
+
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_request");
+			expect(response.body.error_description).toContain("code_challenge_method");
+		});
+
 		it("names the offending parameter for an unsupported screen_hint value", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
@@ -725,6 +741,44 @@ describe("OAuth routes", () => {
 			});
 			expect(stillAuthed.status).toBe(200);
 			expect(stillAuthed.text).toContain("Use a different account");
+		});
+
+		it("returns 400 for switch with code_challenge_method=plain and keeps the session", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const response = await agent
+				.post("/oauth/authorize")
+				.type("form")
+				.send({
+					client_id: TEST_CLIENT_ID,
+					redirect_uri: TEST_REDIRECT_URI,
+					response_type: "code",
+					code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+					code_challenge_method: "plain",
+					action: "switch",
+				});
+
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_request");
+
+			const stillAuthed = await agent.get("/oauth/authorize").query({
+				client_id: TEST_CLIENT_ID,
+				redirect_uri: TEST_REDIRECT_URI,
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+			});
+			expect(stillAuthed.status).toBe(200);
 		});
 
 		it("returns 400 for switch with missing required fields", async () => {
@@ -1260,6 +1314,64 @@ describe("OAuth routes", () => {
 			expect(ipv6.status).toBe(201);
 		});
 
+		it("rejects an http://localhost redirect URI as invalid_redirect_uri, as /developers documents", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["http://localhost:8080/cb"] });
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_redirect_uri");
+		});
+
+		it("rejects a custom-scheme redirect URI as invalid_redirect_uri, as /developers documents", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["com.example.app:/cb"] });
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_redirect_uri");
+		});
+
+		it("accepts an https://localhost redirect URI, as /developers documents", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["https://localhost:8443/cb"] });
+			expect(response.status).toBe(201);
+		});
+
+		it("names the client after the first redirect URI's host without its port when client_name is omitted", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["http://127.0.0.1:8765/callback"] });
+			expect(response.status).toBe(201);
+			expect(response.body.client_name).toBe("127.0.0.1");
+		});
+
+		it("accepts exactly 32 redirect_uris, a 2,048-character URI and a 120-character client_name", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const prefix = "https://app.example/cb?x=";
+			const longestUri = `${prefix}${"a".repeat(2048 - prefix.length)}`;
+			assert.equal(longestUri.length, 2048);
+
+			const maxUris = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: Array.from({ length: 32 }, (_, i) => `https://app.example/cb${i}`) });
+			const maxUriLength = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [longestUri] });
+			const maxName = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [CLAUDE_CALLBACK], client_name: "n".repeat(120) });
+
+			expect(maxUris.status).toBe(201);
+			expect(maxUris.body.redirect_uris).toHaveLength(32);
+			expect(maxUriLength.status).toBe(201);
+			expect(maxName.status).toBe(201);
+			expect(maxName.body.client_name).toBe("n".repeat(120));
+		});
+
 		it("rejects a body with no redirect_uris as invalid_client_metadata", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).post("/oauth/register").send({});
@@ -1429,6 +1541,25 @@ describe("OAuth routes", () => {
 			expect(response.status).toBe(400);
 			expect(response.body.error).toBe("invalid_request");
 		});
+
+		it("refuses a dynamic client's loopback redirect_uri on a port it did not register", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const registration = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["http://127.0.0.1:8080/cb"] });
+			expect(registration.status).toBe(201);
+
+			const response = await request(harness.server).get("/oauth/authorize").query({
+				client_id: registration.body.client_id,
+				redirect_uri: "http://127.0.0.1:9090/cb",
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+			});
+
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_request");
+		});
 	});
 
 	describe("built-in client on a dynamic loopback port", () => {
@@ -1579,6 +1710,7 @@ describe("consent seed save on approve", () => {
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date(),
+			saveTrigger: "manual",
 		});
 
 		await approve(agent, clientId, CLAUDE_CALLBACK);

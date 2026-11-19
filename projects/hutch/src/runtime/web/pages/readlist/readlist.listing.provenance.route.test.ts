@@ -120,6 +120,7 @@ async function readlistWithEmailedSaves(records: readonly NewsletterCatalogRecor
 			estimatedReadTime: MinutesSchema.parse(0),
 			provenance: save.provenance,
 			savedAt: new Date(),
+			saveTrigger: "manual",
 		});
 		ids.set(save.url, saved.id.value);
 	}
