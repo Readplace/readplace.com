@@ -334,6 +334,8 @@ fun ReadingListScreen(
 			ReaderSheet(
 				readerUrl = presentation.readerUrl,
 				mintSession = viewModel::mintReaderSession,
+				isStoredCopyShowable = { viewModel.isStoredCopyShowable(presentation.readerUrl) },
+				onLoadChanged = { phase, cacheMode -> viewModel.readerLoadChanged(presentation.readerUrl, phase, cacheMode) },
 				reduceMotion = reduceMotion,
 				onMarkedRead = {
 					scope.launch { viewModel.readerStatusChanged() }

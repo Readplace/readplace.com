@@ -56,6 +56,48 @@ class ReaderBootstrapTest {
 		)
 	}
 
+	@Test
+	fun `an offline open with no showable copy is offline unavailable`() {
+		assertEquals(
+			"a stored copy older than 30 days, or of unknown age, is not opened",
+			ReaderBootstrap.OfflineUnavailable,
+			ReaderBootstrap.shown(ReaderBootstrap.Offline, storedCopyShowable = false),
+		)
+	}
+
+	@Test
+	fun `an offline open with a showable copy opens it`() {
+		assertEquals(
+			ReaderBootstrap.Offline,
+			ReaderBootstrap.shown(ReaderBootstrap.Offline, storedCopyShowable = true),
+		)
+	}
+
+	@Test
+	fun `an online open never depends on a record`() {
+		val ready = ReaderBootstrap.Ready(listOf(sessionCookie()))
+
+		assertEquals(
+			"an online open never depends on a record",
+			listOf(ready, ready),
+			listOf(
+				ReaderBootstrap.shown(ready, storedCopyShowable = false),
+				ReaderBootstrap.shown(ready, storedCopyShowable = true),
+			),
+		)
+	}
+
+	@Test
+	fun `a value that opens nothing is shown unchanged`() {
+		val unopened = listOf(ReaderBootstrap.Loading, ReaderBootstrap.Unavailable, ReaderBootstrap.OfflineUnavailable)
+
+		assertEquals(
+			unopened + unopened,
+			unopened.map { ReaderBootstrap.shown(it, storedCopyShowable = false) } +
+				unopened.map { ReaderBootstrap.shown(it, storedCopyShowable = true) },
+		)
+	}
+
 	private fun sessionCookie(): Cookie =
 		Cookie.Builder()
 			.name("hutch_sid")

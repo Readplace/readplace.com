@@ -14,6 +14,7 @@ import com.readplace.android.core.InMemoryReaderChoiceStorage
 import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
+import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReading
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReadplaceApi
@@ -148,6 +149,7 @@ class ReadingListViewModelTest {
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 		network: OfflineSwitch = OfflineSwitch(),
 		snapshot: OfflineReadlistSnapshot = OfflineReadlistSnapshot(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH }, diagnostics = {}),
+		readerCopy: OfflineReaderCopy = OfflineReaderCopy(folder.newFolder(), StandardTestDispatcher(testScheduler), now = { Instant.EPOCH }),
 	): ReadingListViewModel =
 		ReadingListViewModel(
 			api = api(store, ioDispatcher, network),
@@ -164,6 +166,7 @@ class ReadingListViewModelTest {
 			onSessionExpired = onSessionExpired,
 			now = now,
 			reportProcessingRefreshFailure = reportProcessingRefreshFailure,
+			readerCopy = readerCopy,
 			scope = backgroundScope,
 		)
 
@@ -1606,6 +1609,44 @@ class ReadingListViewModelTest {
 		viewModel.closeReader()
 
 		assertNull(viewModel.state.value.readerPresentation)
+	}
+
+	@Test
+	fun `a finished online load makes its stored copy showable`() = runTest {
+		val viewModel = viewModel()
+
+		viewModel.readerLoadChanged(READER_A, ReaderLoadPhase.Finished, ReaderCacheMode.PROTOCOL)
+		runCurrent()
+
+		assertEquals(true, viewModel.isStoredCopyShowable(READER_A))
+	}
+
+	@Test
+	fun `a finished load of a stored copy does not refresh its age`() = runTest {
+		val viewModel = viewModel()
+
+		viewModel.readerLoadChanged(READER_A, ReaderLoadPhase.Finished, ReaderCacheMode.STORED_COPY_FIRST)
+		viewModel.readerLoadChanged(READER_B, ReaderLoadPhase.Finished, ReaderCacheMode.PROTOCOL)
+		runCurrent()
+
+		assertEquals(
+			listOf(false, true),
+			listOf(viewModel.isStoredCopyShowable(READER_A), viewModel.isStoredCopyShowable(READER_B)),
+		)
+	}
+
+	@Test
+	fun `a failed online load does not record a copy`() = runTest {
+		val viewModel = viewModel()
+
+		viewModel.readerLoadChanged(READER_A, ReaderLoadPhase.Failed, ReaderCacheMode.PROTOCOL)
+		viewModel.readerLoadChanged(READER_B, ReaderLoadPhase.Finished, ReaderCacheMode.PROTOCOL)
+		runCurrent()
+
+		assertEquals(
+			listOf(false, true),
+			listOf(viewModel.isStoredCopyShowable(READER_A), viewModel.isStoredCopyShowable(READER_B)),
+		)
 	}
 
 	@Test
@@ -5536,5 +5577,7 @@ class ReadingListViewModelTest {
 		const val PAGE_3_LINK = """, { "rel": ["next"], "href": "/queue?page=3" }"""
 		const val UNREAD_NEXT = """, { "rel": ["next"], "href": "/queue?status=unread&page=2" }"""
 		const val READ_NEXT = """, { "rel": ["next"], "href": "/queue?status=read&page=2" }"""
+		const val READER_A = "https://readplace.com/read/a?platform=android"
+		const val READER_B = "https://readplace.com/read/b?platform=android"
 	}
 }

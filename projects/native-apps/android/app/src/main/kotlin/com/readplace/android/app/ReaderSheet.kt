@@ -70,6 +70,8 @@ import okhttp3.Cookie
 fun ReaderSheet(
 	readerUrl: String,
 	mintSession: suspend () -> ReaderSessionMint,
+	isStoredCopyShowable: suspend () -> Boolean,
+	onLoadChanged: (ReaderLoadPhase, ReaderCacheMode) -> Unit,
 	reduceMotion: Boolean,
 	onMarkedRead: () -> Unit,
 	onStatusChanged: () -> Unit,
@@ -82,6 +84,7 @@ fun ReaderSheet(
 ) {
 	var bootstrap by remember { mutableStateOf<ReaderBootstrap>(ReaderBootstrap.Loading) }
 	var loadPhase by remember { mutableStateOf<ReaderLoadPhase>(ReaderLoadPhase.Loading) }
+	var storedCopyShowable by remember { mutableStateOf(false) }
 	val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 	val scope = rememberCoroutineScope()
 
@@ -90,6 +93,7 @@ fun ReaderSheet(
 	}
 
 	LaunchedEffect(Unit) {
+		storedCopyShowable = isStoredCopyShowable()
 		bootstrap = ReaderBootstrap.after(mintSession())
 	}
 
@@ -99,7 +103,7 @@ fun ReaderSheet(
 		containerColor = MaterialTheme.colorScheme.surface,
 	) {
 		Box(modifier = Modifier.fillMaxSize()) {
-			when (val current = bootstrap) {
+			when (val current = ReaderBootstrap.shown(bootstrap, storedCopyShowable = storedCopyShowable)) {
 				is ReaderBootstrap.Opens -> Column(modifier = Modifier.fillMaxSize()) {
 					if (current.showsOfflineBanner) ReaderOfflineBanner()
 					Reader(
@@ -108,7 +112,10 @@ fun ReaderSheet(
 						cacheMode = current.cacheMode,
 						loadPhase = loadPhase,
 						reduceMotion = reduceMotion,
-						onLoadPhaseChange = { loadPhase = it },
+						onLoadPhaseChange = {
+							loadPhase = it
+							onLoadChanged(it, current.cacheMode)
+						},
 						onMarkedRead = leaving(onMarkedRead),
 						onStatusChanged = onStatusChanged,
 						onCaptureBlocked = onCaptureBlocked,
@@ -121,6 +128,10 @@ fun ReaderSheet(
 					)
 				}
 				ReaderBootstrap.Unavailable -> ReaderUnavailable(onClose = leaving(onClose))
+				ReaderBootstrap.OfflineUnavailable -> Column(modifier = Modifier.fillMaxSize()) {
+					ReaderOfflineBanner()
+					ReaderUnavailable(onClose = leaving(onClose))
+				}
 				ReaderBootstrap.Loading -> ReaderSkeleton(reduceMotion = reduceMotion)
 			}
 		}

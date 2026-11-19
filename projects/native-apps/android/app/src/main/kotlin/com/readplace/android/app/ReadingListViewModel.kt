@@ -7,6 +7,7 @@ import com.readplace.android.core.Article
 import com.readplace.android.core.ArticleProcessing
 import com.readplace.android.core.Href
 import com.readplace.android.core.LastViewedReadlist
+import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReading
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.Readlist
@@ -147,6 +148,7 @@ class ReadingListViewModel(
 	private val onSessionExpired: () -> Unit,
 	private val now: () -> Instant,
 	private val reportProcessingRefreshFailure: (String) -> Unit,
+	private val readerCopy: OfflineReaderCopy,
 	private val scope: CoroutineScope,
 ) {
 	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP)))
@@ -841,6 +843,12 @@ class ReadingListViewModel(
 				}
 			}
 		}
+
+	suspend fun isStoredCopyShowable(readerUrl: String): Boolean = readerCopy.isShowable(readerUrl)
+
+	fun readerLoadChanged(readerUrl: String, phase: ReaderLoadPhase, cacheMode: ReaderCacheMode) {
+		if (ReaderLoad.confirmsStoredCopy(phase = phase, cacheMode = cacheMode)) scope.launch { readerCopy.record(readerUrl) }
+	}
 
 	/**
 	 * Applies a loaded page to the list. A replacing load (first page, refresh, or
