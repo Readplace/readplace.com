@@ -217,7 +217,10 @@ export function occurrencesOf(params: { text: string; exact: string }): number[]
 }
 
 export function sameWords(params: { place: string; quote: string }): boolean {
-	return params.place.replace(/\s+/g, " ") === params.quote.replace(/\s+/g, " ");
+	return (
+		params.place.replace(/\s+/g, " ").trim() ===
+		params.quote.replace(/\s+/g, " ").trim()
+	);
 }
 
 const SOLID = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/u;

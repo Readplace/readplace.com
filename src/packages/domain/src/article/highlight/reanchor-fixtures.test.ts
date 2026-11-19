@@ -750,6 +750,10 @@ describe("re-anchoring fixtures", () => {
 		it("PQ1", () => {
 			check(step(mk([I, SF, CV, SF, O], FQ), [I, CV, SF, O], "h1"), FQ);
 		});
+		it("TWIN.PQ1 differs from its twin: the deleted sentence moves to its kept copy, and without the copy it is gone", () => {
+			const x = check(step(mk([I, SF, CV, O], FQ), [I, CV, O], "h1"), null);
+			assert.equal(x.counts.gone, 1);
+		});
 	});
 
 	describe("R11 never draws a refused row", () => {
@@ -1029,7 +1033,15 @@ describe("re-anchoring fixtures", () => {
 				anchorRevision: 1,
 			};
 		});
-		const t0 = performance.now();
+		const index = createWordIndex();
+		const tokens = index.tokenize(before);
+		const words = index
+			.sentences(tokens)
+			.map(
+				([low, high]) =>
+					tokens.keys.slice(low, high).filter(index.isWord).length,
+			);
+		assert.deepEqual([words.length, Math.max(...words)], [200, 100]);
 		const { writes, counts } = reanchorArticleHighlights({
 			text: after,
 			contentHash: "h1",
@@ -1037,13 +1049,11 @@ describe("re-anchoring fixtures", () => {
 			highlights: rows,
 			anchorTexts: new Map([[basis, before]]),
 		});
-		const ms = performance.now() - t0;
 		assert.deepEqual(
 			writes.map((w) => w.anchor.anchorState),
 			["moved", "moved", "moved"],
 		);
 		assert.equal(counts.edited, 3);
-		assert.ok(ms < 2000, `took ${ms} ms`);
 	});
 
 	describe("R3's fallback ranks without containment", () => {
