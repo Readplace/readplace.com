@@ -254,6 +254,13 @@ describe("GET /privacy", () => {
 		expect(section.textContent).toContain("your Gmail connection and its stored data, held mail included,");
 	});
 
+	it("says in the Gmail section what imported and forwarded mail sends to an AI provider", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("handled like forwarded newsletters. That includes the processing described above: an imported or forwarded message's subject, sender, link addresses and link text are sent to an AI provider to tell articles from ads and menus and to choose which fit a readlist you described, and when you choose to save a sender's issues themselves, each issue's text is sent to an AI provider to write its summary.");
+	});
+
 	it("says what the Gmail read and modify permissions are used for", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
