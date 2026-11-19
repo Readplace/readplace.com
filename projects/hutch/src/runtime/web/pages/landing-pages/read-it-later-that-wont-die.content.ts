@@ -9,7 +9,7 @@ function track(path: string, content: string): string {
 }
 
 export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-09",
+	lastModified: "2026-11-19",
 	title: "A Read-It-Later App That Doesn't Go Dark When You Cancel | Readplace",
 	description:
 		"Cancel and your Readplace account moves to the free plan. You keep every article you saved, you can keep saving within daily limits, and the export route carries no subscription gate.",
@@ -36,11 +36,11 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	steps: [
 		{
 			heading: "Reading and saving keep working",
-			body: "A cancelled account resolves to the free plan. Your readlist, your articles, your highlights and the reader view all keep working. You can keep saving, importing and uploading within daily limits: 28 new saves, 98 PDF pages and 9 books a day.",
+			body: "A cancelled account resolves to the free plan. Your readlist, your articles, your highlights and the reader view all keep working. You can keep saving, importing and uploading within daily limits.",
 		},
 		{
 			heading: "Export keeps working",
-			body: "A free account can still request an export, up to 3 a day. It lives on the account page, which the header's subscription notice still links to, and it carries no subscription gate.",
+			body: "A free account can still request an export, within a daily limit. It lives on the account page, which the header's subscription notice still links to, and it carries no subscription gate.",
 		},
 		{
 			heading: "The export is a JSON file",

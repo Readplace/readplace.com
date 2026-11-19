@@ -53,9 +53,9 @@ export const enUS = {
 				noSpeech: "No speech was found in this file, so there's no transcript.",
 				transcriptFailed: "Readplace couldn't transcribe this file. You can upload it again.",
 				ocrPagesHeld: {
-					beforeRetryAt: "This file has {pages} pages and your free account has {pagesLeft} pages left today, so Readplace has not read it yet. Try again after",
-					afterRetryAt: ", or start a trial for no daily limit.",
-					overDailyLimit: "This file has {pages} pages, more than a free account can read in a day. Start a trial for no daily limit.",
+					beforeRetryAt: "This file has {pages} pages, more than your free account has left today, so Readplace has not read it yet. Try again after",
+					afterRetryAt: ", or upgrade for no daily limit.",
+					overDailyLimit: "This file has {pages} pages, more than a free account can read in a day. Upgrade for no daily limit.",
 				},
 			},
 			cta: {

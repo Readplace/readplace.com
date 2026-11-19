@@ -8,7 +8,7 @@ import type { PageBody } from "@packages/web-shell";
 import { EXPORT_DOWNLOAD_TTL_DAYS } from "./export-ttl";
 import { EXPORT_STYLES } from "./export.styles";
 
-const { tPlural } = translator(hutchIntegrations, DEFAULT_LOCALE);
+const { t, tPlural } = translator(hutchIntegrations, DEFAULT_LOCALE);
 
 const EXPORT_TEMPLATE = readFileSync(join(__dirname, "export.template.html"), "utf-8");
 const EXPORT_PREPARING_TEMPLATE = readFileSync(
@@ -24,7 +24,7 @@ const ONE_HOUR_SECONDS = 3600;
 
 type ExportPageParams =
 	| { status: "idle" | "preparing" }
-	| { status: "limit-reached"; limit: number; retryAfterSeconds: number };
+	| { status: "limit-reached"; retryAfterSeconds: number };
 
 function contentOf(params: ExportPageParams): Pick<PageBody, "content" | "statusCode"> {
 	const ttlDays = String(EXPORT_DOWNLOAD_TTL_DAYS);
@@ -38,7 +38,7 @@ function contentOf(params: ExportPageParams): Pick<PageBody, "content" | "status
 				content: {
 					html: render(EXPORT_LIMIT_REACHED_TEMPLATE, {
 						ttlDays,
-						limitLine: tPlural("exportLimitReached.limit", { count: params.limit }),
+						limitLine: t("exportLimitReached.limit"),
 						retryLine: tPlural("exportLimitReached.retry", {
 							count: Math.max(1, Math.ceil(params.retryAfterSeconds / ONE_HOUR_SECONDS)),
 						}),

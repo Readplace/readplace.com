@@ -173,8 +173,9 @@ function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number
 export function toSubscriptionBannerState(
 	access: EffectiveAccess,
 	now: Date,
-	upgradeOffer: UpgradeOffer | undefined,
+	options: { upgradeOffer: UpgradeOffer | undefined; freePlanBannerDismissed: boolean },
 ): SubscriptionBannerState {
+	const { upgradeOffer } = options;
 	switch (access.banner) {
 		case "none":
 			return { state: "none" };
@@ -197,7 +198,7 @@ export function toSubscriptionBannerState(
 				cancellationEffectiveAt: toAbsoluteDate({ iso: access.cancellationEffectiveAt }),
 			};
 		case "free":
-			return { state: "free", upgradeOffer };
+			return options.freePlanBannerDismissed ? { state: "none" } : { state: "free", upgradeOffer };
 	}
 }
 
@@ -419,6 +420,7 @@ export function toReadlistViewModel(
 		readerProvenanceByUrl?: ReadonlyMap<string, ReaderProvenance | undefined>;
 		effectiveAccess?: EffectiveAccess;
 		upgradeOffer?: UpgradeOffer;
+		freePlanBannerDismissed?: boolean;
 		confirmReadlistsByUrl?: ReadonlyMap<string, readonly ReadlistRef[]>;
 		deleteAcknowledged?: boolean;
 		readlists?: readonly ReadlistRef[];
@@ -487,7 +489,10 @@ export function toReadlistViewModel(
 			}
 			: undefined,
 		moveFlash: options.moveFlash ? moveToastFor(options.moveFlash, returnQuery) : undefined,
-		subscriptionBanner: toSubscriptionBannerState(access, now, options.upgradeOffer),
+		subscriptionBanner: toSubscriptionBannerState(access, now, {
+			upgradeOffer: options.upgradeOffer,
+			freePlanBannerDismissed: options.freePlanBannerDismissed === true,
+		}),
 		paidFeaturesLocked: !hasPaidFeatures(access),
 	};
 }

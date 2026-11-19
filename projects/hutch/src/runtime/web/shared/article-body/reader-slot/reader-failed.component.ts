@@ -209,7 +209,7 @@ function ocrPagesHeldExplanation(hold: OcrPagesHold) {
 		return { explanation: t("articleBody.readerFailed.explanation.ocrPagesHeld.overDailyLimit", { pages: hold.pages }), retryAt: undefined, afterRetryAt: undefined };
 	}
 	return {
-		explanation: t("articleBody.readerFailed.explanation.ocrPagesHeld.beforeRetryAt", { pages: hold.pages, pagesLeft: hold.pagesLeft }),
+		explanation: t("articleBody.readerFailed.explanation.ocrPagesHeld.beforeRetryAt", { pages: hold.pages }),
 		retryAt: toAbsoluteDateTime({ iso: hold.retryAt.toISOString() }),
 		afterRetryAt: t("articleBody.readerFailed.explanation.ocrPagesHeld.afterRetryAt"),
 	};

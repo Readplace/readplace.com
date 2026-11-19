@@ -650,7 +650,7 @@ describe("properties.processing", () => {
 
 		expect(properties?.messages).toContainEqual({
 			type: "warning",
-			content: { type: "text/html", body: "This PDF has 40 pages and 12 pages are left in today&#x27;s allowance." },
+			content: { type: "text/html", body: "This PDF has 40 pages, more than are left in today&#x27;s allowance." },
 		});
 	});
 

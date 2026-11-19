@@ -170,7 +170,8 @@ describe("Export routes", () => {
 			const main = doc.querySelector("[data-test-export-limit-reached]");
 			assert(main, "the limit page must render");
 			expect(doc.querySelector("h1")?.textContent).toBe("Export limit reached");
-			expect(main.textContent).toContain("You can request up to 3 exports a day.");
+			expect(main.textContent).toContain("You've reached today's limit for exports.");
+			expect(main.textContent).not.toMatch(/up to \d+ exports?/);
 			expect(main.textContent).toContain("You can request another export in about 3 hours.");
 			expect(main.textContent).toContain("The download link in your latest export email stays valid for 7 days.");
 			expect(doc.querySelector("[data-test-export-start]")).toBeNull();
@@ -230,7 +231,7 @@ describe("Export routes", () => {
 			expect(published).toEqual([a.userId, a.userId, a.userId, b.userId]);
 		});
 
-		it("names a limit of one export and a retry under an hour in the singular", async () => {
+		it("names a retry under an hour in the singular", async () => {
 			const { fixture } = meteredExportFixture({ now: "2026-11-13T23:30:00.000Z", limit: 1 });
 			const harness = useApp(fixture);
 			const { agent, userId } = await signedInReader(harness, "export-singular@example.com");
@@ -242,7 +243,6 @@ describe("Export routes", () => {
 			expect(refused.headers["retry-after"]).toBe("1800");
 			const main = new JSDOM(refused.text).window.document.querySelector("[data-test-export-limit-reached]");
 			assert(main, "the limit page must render");
-			expect(main.textContent).toContain("You can request up to 1 export a day.");
 			expect(main.textContent).toContain("You can request another export in about 1 hour.");
 		});
 	});

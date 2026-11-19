@@ -49,10 +49,7 @@ export const enUS = {
 	},
 	exportLimitReached: {
 		title: "Export limit reached",
-		limit: {
-			one: "You can request up to {count} export a day.",
-			other: "You can request up to {count} exports a day.",
-		},
+		limit: "You've reached today's limit for exports.",
 		retry: {
 			one: "You can request another export in about {count} hour.",
 			other: "You can request another export in about {count} hours.",

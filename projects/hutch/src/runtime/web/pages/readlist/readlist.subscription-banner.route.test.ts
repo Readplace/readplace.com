@@ -288,6 +288,54 @@ describe("Readlist page banner state", () => {
 	);
 });
 
+describe("Dismissing the free-plan banner", () => {
+	async function freeReader(harness: ReturnType<ReturnType<typeof useTestServer>>, email: string) {
+		const reader = await loginUser(harness, email);
+		await harness.subscriptionProviders.upsertTrialing({
+			userId: reader.userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+		return reader;
+	}
+
+	function bannerOf(html: string): Element {
+		const banner = new JSDOM(html).window.document.querySelector("[data-test-subscription-banner]");
+		assert(banner, "readlist banner aside must always be rendered");
+		return banner;
+	}
+
+	it("offers a close button that posts to the dismiss route", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await freeReader(harness, "free-dismiss-offer@example.com");
+
+		const banner = bannerOf((await agent.get("/queue")).text);
+
+		const button = banner.querySelector('[data-test-action="dismiss-free-plan-banner"]');
+		assert(button, "the free-plan banner must offer a close button");
+		expect(button.getAttribute("aria-label")).toBe("Dismiss the free plan banner");
+		expect(button.closest("form")?.getAttribute("action")).toContain("/queue/free-plan-banner/dismiss");
+	});
+
+	it("hides the banner on the readlist and on a readlist's Preferences tab once dismissed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await freeReader(harness, "free-dismiss@example.com");
+		const created = await agent.post("/queue/queues").type("form").send({ label: "Work" });
+		const slug = new URL(created.headers.location, TEST_APP_ORIGIN).searchParams.get("queue");
+		assert(slug, "creating a readlist must land the reader on it");
+
+		const dismissed = await agent.post("/queue/free-plan-banner/dismiss");
+
+		expect(dismissed.status).toBe(303);
+		expect(dismissed.headers.location).toBe("/queue");
+		expect(String(dismissed.headers["set-cookie"])).toContain("hutch_free_plan_banner_dismissed=1");
+		const listing = bannerOf((await agent.get("/queue")).text);
+		expect(listing.classList.contains("readlist-subscription--none")).toBe(true);
+		expect(listing.querySelector('[data-test-subscription-chip="free"]')).toBeNull();
+		const preferences = bannerOf((await agent.get(`/queue/queues/${slug}/preferences`)).text);
+		expect(preferences.classList.contains("readlist-subscription--none")).toBe(true);
+	});
+});
+
 describe("POST /queue/save on the free plan", () => {
 	it("saves for a cancelled subscriber, since saving is core on the free plan", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

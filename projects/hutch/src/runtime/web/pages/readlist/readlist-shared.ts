@@ -3,6 +3,7 @@ import {
 	requestedReaderSection,
 } from "../../shared/article-body/reader-slot/section-pages";
 import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
+import { isFreePlanBannerDismissed } from "./free-plan-banner-dismiss";
 
 import {
 	DISMISS_COOKIE_NAME,
@@ -737,6 +738,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			readerProvenanceByUrl,
 			effectiveAccess,
 			upgradeOffer,
+			freePlanBannerDismissed: isFreePlanBannerDismissed(req),
 			now: deps.now(),
 			confirmReadlistsByUrl,
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,

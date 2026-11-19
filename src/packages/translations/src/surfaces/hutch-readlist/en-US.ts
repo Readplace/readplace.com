@@ -87,6 +87,7 @@ export const enUS = {
 			chip: "Free plan",
 			title: "You're on the free plan",
 			body: "Your saved articles are all here, and you can keep saving new links within a daily limit. Upgrade for the Inbox, Next read, Past reads, Gmail and no daily limits.",
+			dismiss: "Dismiss the free plan banner",
 		},
 	},
 	readlistKeepOffer: {

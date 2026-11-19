@@ -550,8 +550,8 @@ describe("renderReaderFailed", () => {
 			assert.equal(notice.querySelector(".article-body__reader-notice-title")?.textContent?.trim(), "This PDF is waiting for today's page allowance");
 			const text = notice.querySelector(".article-body__reader-notice-text");
 			assert(text, "the explanation must be rendered");
-			expect(text.textContent).toContain("This file has 40 pages and your free account has 12 pages left today, so Readplace has not read it yet. Try again after");
-			expect(text.textContent).toContain(", or start a trial for no daily limit.");
+			expect(text.textContent).toContain("This file has 40 pages, more than your free account has left today, so Readplace has not read it yet. Try again after");
+			expect(text.textContent).toContain(", or upgrade for no daily limit.");
 			const time = text.querySelector("time[data-local-time]");
 			assert.equal(time?.getAttribute("datetime"), RETRY_AT.toISOString());
 		});
@@ -561,7 +561,7 @@ describe("renderReaderFailed", () => {
 
 			assert.equal(
 				notice.querySelector(".article-body__reader-notice-text")?.textContent?.trim(),
-				"This file has 150 pages, more than a free account can read in a day. Start a trial for no daily limit.",
+				"This file has 150 pages, more than a free account can read in a day. Upgrade for no daily limit.",
 			);
 			assert.equal(notice.querySelector("time"), null);
 		});

@@ -9,7 +9,7 @@ import { loginAgent, useTestServer, type TestAppHarness } from "../../../test-ap
 const useApp = useTestServer();
 const useMeteredApp = useTestServer({ isDailyLimited: () => true });
 
-const OCR_QUOTA_MESSAGE = "You've used today's PDF page allowance. Try again tomorrow, or start a trial for no daily limit.";
+const OCR_QUOTA_MESSAGE = "You've used today's PDF page allowance. Try again tomorrow, or upgrade for no daily limit.";
 const VALID_HTML = Buffer.from("<html><body>Hello world</body></html>");
 const VALID_PDF = Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(64, 0x20)]);
 const UPLOAD_ATTEMPT = "a5d68419-dc83-4f6c-84a9-67e6808acb57";
@@ -226,7 +226,7 @@ describe("daily OCR page allowance on the save routes", () => {
 			const notice = new JSDOM(response.text).window.document.querySelector("[data-test-reader-notice]");
 			assert(notice, "the reader renders a notice");
 			assert.equal(notice.getAttribute("data-reader-status"), "ocr-pages-held");
-			expect(notice.textContent).toContain("This file has 40 pages and your free account has 5 pages left today");
+			expect(notice.textContent).toContain("This file has 40 pages, more than your free account has left today");
 		});
 	});
 });

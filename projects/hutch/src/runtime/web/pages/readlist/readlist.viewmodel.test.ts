@@ -59,7 +59,7 @@ describe("toSubscriptionBannerState — trial lead", () => {
 				trialEndsAt: new Date(NOW.getTime() + remainingMs).toISOString(),
 			},
 			NOW,
-			undefined,
+			{ upgradeOffer: undefined, freePlanBannerDismissed: false },
 		);
 	}
 

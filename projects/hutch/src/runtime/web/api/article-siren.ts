@@ -101,7 +101,7 @@ function itemMessages(params: { article: SavedArticle; phase: CardPhase; crawl: 
 						type: "warning",
 						content: {
 							type: "text/html",
-							body: Handlebars.Utils.escapeExpression(t("ocrPagesHeld.warning", { pages: hold.pages, pagesLeft: hold.pagesLeft })),
+							body: Handlebars.Utils.escapeExpression(t("ocrPagesHeld.warning", { pages: hold.pages })),
 						},
 					},
 				];

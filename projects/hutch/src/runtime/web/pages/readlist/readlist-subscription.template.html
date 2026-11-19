@@ -27,6 +27,9 @@
   <a class="btn btn--primary btn--m readlist-subscription__cta" href="{{track '/account' source='queue-banner' content='reactivate'}}" data-test-action="reactivate">Reactivate subscription</a>
   {{/if}}
   {{#if isFree}}
+  <form method="POST" action="{{track '/queue/free-plan-banner/dismiss' source='queue-banner' content='dismiss-free-plan'}}" class="readlist-subscription__dismiss-form">
+    <button type="submit" class="readlist-subscription__dismiss" aria-label="{{t "readlistSubscription.free.dismiss"}}" data-test-action="dismiss-free-plan-banner">{{icon "x"}}</button>
+  </form>
   <span class="chip chip--status chip--error" data-test-subscription-chip="free">{{t "readlistSubscription.free.chip"}}</span>
   <h2 class="readlist-subscription__title">{{t "readlistSubscription.free.title"}}</h2>
   <p class="readlist-subscription__body" data-test-banner-message>{{t "readlistSubscription.free.body"}}</p>

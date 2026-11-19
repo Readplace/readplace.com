@@ -39,7 +39,6 @@ export function initExportRoutes(deps: ExportDependencies): Router {
 					Base(
 						ExportPage({
 							status: "limit-reached",
-							limit: deps.exportRule.limit,
 							retryAfterSeconds: decision.retryAfterSeconds,
 						}),
 						await deps.buildBannerState(req),

@@ -12,6 +12,7 @@ import {
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
 import { articlesSavedAt } from "./articles-saved-at";
+import { FREE_PLAN_BANNER_DISMISS_COOKIE_NAME } from "./free-plan-banner-dismiss";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, } from "../../api/siren";
@@ -248,6 +249,11 @@ export function initReadlistListingRoutes(deps: Pick<
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true, secure: deps.secureCookies });
 		const context = requestReadlistContext(req);
 		res.redirect(303, buildReadlistUrl(context.state));
+	});
+
+	router.post("/free-plan-banner/dismiss", (req: Request, res: Response) => {
+		res.cookie(FREE_PLAN_BANNER_DISMISS_COOKIE_NAME, "1", { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true, secure: deps.secureCookies });
+		res.redirect(303, buildReadlistUrl(requestReadlistContext(req).state));
 	});
 
 	router.post("/keep-offer/dismiss", async (req: Request, res: Response) => {

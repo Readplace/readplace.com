@@ -57,6 +57,7 @@ import { READLIST_ERROR_UNKNOWN_READLIST, READLIST_PURPOSE_INVALID_MESSAGE } fro
 import { PURPOSE_ORIGINS, buildReadlistUrl, readlistPreferencesPath, readlistPurposeLandingPath } from "./readlist.url";
 import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { toSubscriptionBannerState } from "./readlist.viewmodel";
+import { isFreePlanBannerDismissed } from "./free-plan-banner-dismiss";
 
 const PREFERENCES_ERROR_CODES = [
 	"invalid-purpose",
@@ -215,7 +216,10 @@ export function initReadlistPreferencesRoutes(deps: {
 					gmailSenders,
 					choices,
 					paidFeaturesLocked,
-					subscriptionBanner: toSubscriptionBannerState(access, deps.now(), offer),
+					subscriptionBanner: toSubscriptionBannerState(access, deps.now(), {
+						upgradeOffer: offer,
+						freePlanBannerDismissed: isFreePlanBannerDismissed(req),
+					}),
 					onboarding,
 					query: req.query,
 					purposeError: error.purposeError,
