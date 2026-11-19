@@ -46,7 +46,7 @@ export function initPdfPageHtmlConvertHandler(deps: {
 
 		if (input.pageText.trim().length === 0) {
 			logger.info(`[pdf-page-html-convert] empty input page=${input.pageIndex} — emitting empty fragment`);
-			return { pageIndex: input.pageIndex, semanticHtml: "", applied: false };
+			return { pageIndex: input.pageIndex, semanticHtml: "", applied: false, providerFailed: false };
 		}
 
 		let result: Awaited<ReturnType<ConvertPageToHtmlWithLlm>>;
@@ -67,7 +67,7 @@ export function initPdfPageHtmlConvertHandler(deps: {
 					ids: { pageIndex: input.pageIndex },
 				}));
 			}
-			return paragraphFallback(input);
+			return { ...paragraphFallback(input), providerFailed: true };
 		}
 
 		const stripped = stripModelFences(result.text);
@@ -77,6 +77,7 @@ export function initPdfPageHtmlConvertHandler(deps: {
 			logger.warn(`[pdf-page-html-convert] guardrail rejected page=${input.pageIndex} reason=${rejection} inputLen=${input.pageText.length} outputLen=${sanitised.length} dt=${Date.now() - t0}ms — falling back to <p> wrap`);
 			return {
 				...paragraphFallback(input),
+				providerFailed: false,
 				tokens: { input: result.tokens.input, output: result.tokens.output },
 			};
 		}
@@ -86,6 +87,7 @@ export function initPdfPageHtmlConvertHandler(deps: {
 			pageIndex: input.pageIndex,
 			semanticHtml: sanitised,
 			applied: true,
+			providerFailed: false,
 			tokens: { input: result.tokens.input, output: result.tokens.output },
 		};
 	};
@@ -107,7 +109,7 @@ function stripModelFences(text: string): string {
  * the reader still sees the cleaned OCR text, just without semantic
  * structure. The class matches what `rewrapAsTesseractHtml` would have
  * produced before Stage 3 existed, so downstream CSS keeps working. */
-function paragraphFallback(input: PdfPageHtmlConvertInput): PdfPageHtmlConvertOutput {
+function paragraphFallback(input: PdfPageHtmlConvertInput): Omit<PdfPageHtmlConvertOutput, "providerFailed"> {
 	const html = input.pageText
 		.split(/\n\s*\n/)
 		.map((paragraph) => paragraph.trim())

@@ -22,7 +22,7 @@ export const TIER_CAN_UPGRADE = {
 	founding: false,
 	paid: false,
 	trial: true,
-	inactive: true,
+	free: true,
 } satisfies Record<EffectiveAccess["tier"], boolean>;
 
 export function upgradeOfferFor(input: {

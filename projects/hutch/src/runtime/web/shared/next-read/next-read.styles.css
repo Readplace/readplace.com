@@ -56,6 +56,10 @@
   height: 1.5rem;
 }
 
+.next-read__lock {
+  margin-top: 16px;
+}
+
 .next-read__title {
   margin: 16px 0 0;
   font-family: var(--font-sans);

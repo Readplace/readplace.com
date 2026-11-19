@@ -6,7 +6,7 @@ import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { MarkFirstInboxEmailNoticeSent } from "@packages/provider-contracts/onboarding-signals";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
-import { resolveWriteAccess } from "@packages/subscription-access";
+import { hasPaidFeatures, resolveEffectiveAccess } from "@packages/subscription-access";
 import { buildInboxHighlightUrl } from "@packages/domain/inbox";
 import {
 	InboxFirstArrivalEmail,
@@ -49,9 +49,9 @@ export function initSendFirstInboxEmailNoticeHandler(
 			const { userId } = detail;
 
 			const row = await deps.findSubscriptionByUserId(userId);
-			if (resolveWriteAccess(row, deps.now()) !== "full") {
+			if (!hasPaidFeatures(resolveEffectiveAccess(row, deps.now()))) {
 				deps.logger.info(
-					"[send-first-inbox-email-notice] reader cannot save — the held notice speaks instead — noop",
+					"[send-first-inbox-email-notice] free account — the held notice speaks instead — noop",
 					{ userId, status: row?.status },
 				);
 				return;

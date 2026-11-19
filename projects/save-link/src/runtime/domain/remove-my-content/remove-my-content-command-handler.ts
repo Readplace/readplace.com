@@ -116,7 +116,7 @@ export function initRemoveMyContentCommandHandler(deps: {
 				 * included, since a version delete leaves their queue row — still
 				 * holds this URL, so re-crawl the public page rather than purging it
 				 * out from under them. */
-				await publishEvent(RecrawlLinkInitiatedEvent, { url: detail.url, saveAttemptId: newSaveAttemptId() });
+				await publishEvent(RecrawlLinkInitiatedEvent, { url: detail.url, saveAttemptId: newSaveAttemptId(), requester: { kind: "reader", userId: detail.userId } });
 				logger.info("[RemoveMyContent] re-crawling for remaining savers", {
 					url: detail.url,
 					savers,

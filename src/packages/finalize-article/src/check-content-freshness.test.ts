@@ -1,6 +1,8 @@
 import { initRefreshArticleIfStale } from "./check-content-freshness";
 import type { FinalizeArticle } from "./finalize-article";
 
+const requester = { ip: "203.0.113.1" };
+
 type FreshnessDependencies = Parameters<typeof initRefreshArticleIfStale>[0];
 
 const finalizeArticle: FinalizeArticle = async () => ({
@@ -37,7 +39,7 @@ describe("refreshArticleIfStale", () => {
 		const deps = createDeps();
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("new");
 	});
@@ -53,7 +55,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		await refreshArticleIfStale({ url: "https://example.com/terminal" });
+		await refreshArticleIfStale({ url: "https://example.com/terminal", requester });
 
 		expect(checkedUrls).toEqual(["https://example.com/canonical"]);
 	});
@@ -67,7 +69,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("skip");
 	});
@@ -84,7 +86,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("skip");
 	});
@@ -106,9 +108,35 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("skip");
+		expect(publishCalled).toEqual([]);
+	});
+
+	it.each([
+		{ status: "pdf-awaiting-saver" as const },
+		{ status: "over-ocr-quota" as const, pages: 40, pagesLeft: 2, retryAt: new Date("2026-11-16T00:00:00Z") },
+	])("skips a stale PDF held by the OCR page allowance ($status) without charging anyone", async (crawlResult) => {
+		const publishCalled: string[] = [];
+		const crawled: unknown[] = [];
+		const deps = createDeps({
+			findArticleFreshness: async () => ({ contentFetchedAt: "2026-03-19T00:00:00Z" }),
+			findArticleCrawlStatus: async () => ({ status: "ready" as const }),
+			crawlArticle: async (params) => {
+				crawled.push(params.chargeOcrPages);
+				return crawlResult;
+			},
+			publishRefreshArticleContent: async () => {
+				publishCalled.push("refresh");
+			},
+		});
+		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
+
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
+
+		expect(result.action).toBe("skip");
+		expect(crawled).toEqual([undefined]);
 		expect(publishCalled).toEqual([]);
 	});
 
@@ -122,7 +150,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("skip");
 	});
@@ -141,7 +169,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("unchanged");
 		expect(published).toStrictEqual([
@@ -166,7 +194,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		await refreshArticleIfStale({ url: "https://example.com/article" });
+		await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(capturedParams[0]).toEqual({
 			url: "https://example.com/article",
@@ -196,7 +224,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("refreshed");
 		expect(publishCalled).toContain("refresh");
@@ -217,7 +245,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("refreshed");
 	});
@@ -232,7 +260,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("skip");
 	});
@@ -254,7 +282,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result).toEqual({ action: "skip" });
 		expect(publishCalled).toEqual([]);
@@ -277,7 +305,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("skip");
 		expect(publishCalled).toEqual([]);
@@ -303,7 +331,7 @@ describe("refreshArticleIfStale", () => {
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
-		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+		const result = await refreshArticleIfStale({ url: "https://example.com/article", requester });
 
 		expect(result.action).toBe("skip");
 		expect(published).toEqual([]);
@@ -346,7 +374,7 @@ describe("refreshArticleIfStale", () => {
 			publishRefreshArticleContent: async (event) => { published.push(event); },
 		}));
 
-		const result = await refreshArticleIfStale({ url });
+		const result = await refreshArticleIfStale({ url, requester });
 
 		expect(finalize).toHaveBeenCalledWith({
 			url,
@@ -400,7 +428,7 @@ it("fetches an adopted original and preserves actual source and evaluation prove
 	const crawlArticle = jest.fn(async () => ({ status: "fetched" as const, html: "<p>Article</p>", evaluationHtml, finalUrl: sourceUrl, bodyHash: "a".repeat(64) }));
 	const publishRefreshArticleContent = jest.fn();
 	const { refreshArticleIfStale } = initRefreshArticleIfStale(createDeps({ findArticleFreshness: async () => ({ contentFetchedAt: "2025-01-01T00:00:00.000Z" }), resolveCanonicalIdentity: async () => ({ url: storedUrl, originalUrl }), crawlArticle, publishRefreshArticleContent }));
-	await expect(refreshArticleIfStale({ url: storedUrl })).resolves.toMatchObject({ action: "refreshed" });
+	await expect(refreshArticleIfStale({ url: storedUrl, requester })).resolves.toMatchObject({ action: "refreshed" });
 	expect(crawlArticle).toHaveBeenCalledWith(expect.objectContaining({ url: originalUrl }));
 	expect(publishRefreshArticleContent).toHaveBeenCalledWith(expect.objectContaining({ url: storedUrl, sourceOriginalUrl: originalUrl, sourceUrl, evaluationHtml }));
 });

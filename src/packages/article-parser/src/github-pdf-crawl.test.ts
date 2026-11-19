@@ -24,7 +24,7 @@ it.each([
 		logThumbnailNotDelivered: () => {},
 	});
 
-	expect(await crawl({ url })).toMatchObject({ status: "fetched", html });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toMatchObject({ status: "fetched", html });
 	expect(requested).toEqual([url]);
 });
 
@@ -45,7 +45,7 @@ it("fails the registered viewer crawl when GitHub only serves its PDF loading sh
 		logThumbnailNotDelivered: () => {},
 	});
 
-	expect(await crawl({ url })).toEqual({ status: "failed" });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toEqual({ status: "failed" });
 	expect(requested).toEqual([url]);
 });
 
@@ -67,6 +67,6 @@ it.each(["1", "true"])("preserves GitHub raw=%s PDF downloads through normal med
 		logThumbnailNotDelivered: () => {},
 	});
 
-	expect(await crawl({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
 	expect(requested).toEqual([url]);
 });

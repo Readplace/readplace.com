@@ -102,7 +102,7 @@ const UPGRADE = { popoverId: "subscribe-plans", plansPath: "/account/plans" };
 
 describe("buildNavGroups", () => {
 	it("groups full-access items into Library (queue, install, inbox, integrations) and Account (account, blog, privacy, terms, sign out)", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false });
+		const groups = buildNavGroups({ paidFeaturesLocked: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
@@ -111,15 +111,15 @@ describe("buildNavGroups", () => {
 		expect(account?.items.map((i) => i.key)).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 	});
 
-	it("keeps Install for a read-only user, since installing writes nothing, but omits Inbox, since minting an address is a write; Account stays, the only path to /account now the header has no trial chip", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: true });
+	it("keeps Install for a free-plan user but omits Inbox, a paid feature; Account stays, the only path to /account now the header has no trial chip", () => {
+		const groups = buildNavGroups({ paidFeaturesLocked: true });
 		const [library, account] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "install", "integrations"]);
 		expect(account?.items.map((i) => i.key)).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 	});
 
-	it("offers Inbox as a lock on the plan chooser to a read-only user who can be offered an upgrade", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: true, upgrade: UPGRADE });
+	it("offers Inbox as a lock on the plan chooser to a free-plan user who can be offered an upgrade", () => {
+		const groups = buildNavGroups({ paidFeaturesLocked: true, upgrade: UPGRADE });
 		const [library] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "install", "inbox", "integrations"]);
 		const inbox = library?.items.find((i) => i.key === "inbox");
@@ -130,7 +130,7 @@ describe("buildNavGroups", () => {
 	});
 
 	it("leaves Inbox a plain link for a full-access user even when an upgrade could be offered", () => {
-		const inbox = buildNavGroups({ accessIsReadOnly: false, upgrade: UPGRADE })
+		const inbox = buildNavGroups({ paidFeaturesLocked: false, upgrade: UPGRADE })
 			.flatMap((g) => g.items)
 			.find((i) => i.key === "inbox");
 		assert(inbox, "library nav must include an inbox item");
@@ -139,7 +139,7 @@ describe("buildNavGroups", () => {
 	});
 
 	it("links the signed-in Blog item to the blog from the account menu", () => {
-		const blog = buildNavGroups({ accessIsReadOnly: false })
+		const blog = buildNavGroups({ paidFeaturesLocked: false })
 			.flatMap((group) => group.items)
 			.find((item) => item.key === "blog");
 		assert(blog, "the account menu must include Blog");
@@ -148,7 +148,7 @@ describe("buildNavGroups", () => {
 	});
 
 	it("tags the Privacy and Terms entries as header-nav clicks, since signed-in pages render no footer to reach them", () => {
-		const hrefs = buildNavGroups({ accessIsReadOnly: false })
+		const hrefs = buildNavGroups({ paidFeaturesLocked: false })
 			.flatMap((g) => g.items)
 			.filter((i) => i.key === "privacy" || i.key === "terms")
 			.map((i) => [i.key, i.method, i.href]);
@@ -159,34 +159,34 @@ describe("buildNavGroups", () => {
 	});
 
 	it("styles every signed-in item as a plain nav link", () => {
-		const classes = buildNavGroups({ accessIsReadOnly: false })
+		const classes = buildNavGroups({ paidFeaturesLocked: false })
 			.flatMap((g) => g.items)
 			.map((i) => i.linkClass);
 		expect(new Set(classes)).toEqual(new Set(["nav__link"]));
 	});
 
 	it("keeps the Inbox entry in Library for every full-access user", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false });
+		const groups = buildNavGroups({ paidFeaturesLocked: false });
 		const [library] = groups;
 		expect(library?.items.map((i) => i.key)).toContain("inbox");
 	});
 
 	it("points the Inbox entry at the inbox page", () => {
-		const inbox = buildNavGroups({ accessIsReadOnly: false })
+		const inbox = buildNavGroups({ paidFeaturesLocked: false })
 			.flatMap((g) => g.items)
 			.find((i) => i.key === "inbox");
 		assert(inbox, "library nav must include an inbox item");
 		expect(inbox.href).toBe("/inbox?utm_source=header-nav&utm_medium=internal&utm_content=inbox");
 	});
 
-	it("shows the Integrations entry to a read-only user so they can stop forwarding", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: true });
+	it("shows the Integrations entry to a free-plan user so they can stop forwarding", () => {
+		const groups = buildNavGroups({ paidFeaturesLocked: true });
 		const [library] = groups;
 		expect(library?.items.map((i) => i.key)).toContain("integrations");
 	});
 
 	it("tags the Integrations href for internal-click tracking", () => {
-		const integrations = buildNavGroups({ accessIsReadOnly: false })
+		const integrations = buildNavGroups({ paidFeaturesLocked: false })
 			.flatMap((g) => g.items)
 			.find((i) => i.key === "integrations");
 		assert(integrations, "library nav must include an integrations item");
@@ -198,7 +198,7 @@ describe("buildNavGroups", () => {
 });
 
 describe("header nav internal-click tagging across every access level", () => {
-	const flagMatrix = [false, true].map((accessIsReadOnly) => ({ accessIsReadOnly }));
+	const flagMatrix = [false, true].map((paidFeaturesLocked) => ({ paidFeaturesLocked }));
 	const navs = flagMatrix.flatMap((flags) => [
 		{ name: `guest ${JSON.stringify(flags)}`, groups: buildGuestNavGroups() },
 		{ name: `authenticated ${JSON.stringify(flags)}`, groups: buildNavGroups(flags) },

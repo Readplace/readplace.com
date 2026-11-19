@@ -14,6 +14,7 @@ const OutputSchema = z.object({
 		finalText: z.string(),
 	})),
 	applied: z.boolean(),
+	providerFailed: z.boolean(),
 	tokens: z.object({ input: z.number(), output: z.number() }).optional(),
 });
 
@@ -56,6 +57,7 @@ export function initInvokePdfDocumentDiffReview(deps: {
 				ok: true,
 				pages: parsed.pages,
 				applied: parsed.applied,
+				providerFailed: parsed.providerFailed,
 				tokens: parsed.tokens,
 			};
 		} catch (error) {

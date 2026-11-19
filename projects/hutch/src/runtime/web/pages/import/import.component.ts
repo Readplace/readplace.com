@@ -11,6 +11,8 @@ import {
 	UPLOAD_DROPZONE_SCRIPT,
 	UPLOAD_DROPZONE_STYLES,
 } from "../../shared/upload-dropzone/upload-dropzone.component";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchIntegrations } from "@packages/translations/hutch-integrations";
 import { IMPORT_LIMITS } from "./import.limits";
 import { IMPORT_STYLES } from "./import.styles";
 import type {
@@ -35,6 +37,8 @@ function renderTab(tab: ImportTabViewModel): RenderedTab {
 		ariaCurrent: tab.isActive ? "page" : "false",
 	};
 }
+
+const { tPlural } = translator(hutchIntegrations, DEFAULT_LOCALE);
 
 const IMPORT_TEMPLATE = readFileSync(join(__dirname, "import.template.html"), "utf-8");
 const IMPORT_ACQUIRE_TEMPLATE = readFileSync(join(__dirname, "import.acquire.template.html"), "utf-8");
@@ -70,9 +74,19 @@ const fromUrlAutoSubmitScript = (cspNonce: CspNonce) => `
 </script>
 `;
 
-export function ImportPage(vm: ImportViewModel): PageBody {
+export function ImportPage(vm: ImportViewModel, notice: { dailyLimitSavedCount: number | undefined }): PageBody {
 	const content = render(IMPORT_TEMPLATE, {
 		...vm,
+		dailyLimitAlertHtml:
+			notice.dailyLimitSavedCount === undefined
+				? ""
+				: renderAlert({
+						key: "import-daily-limit",
+						content: {
+							variant: "warning",
+							message: { text: tPlural("importReviewDailyLimit", { count: notice.dailyLimitSavedCount }) },
+						},
+					}),
 		truncatedAlertHtml: vm.truncated
 			? renderAlert({
 					key: "import-truncated",
@@ -161,7 +175,6 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel, options: { cspNonc
 			importAction: vm.uploadAction,
 			bookFallbackHref: vm.bookFallbackHref,
 			signInHref: vm.signInHref,
-			disabled: false,
 			idPrefix: "import",
 			formId: "import-upload-form",
 			showSubmit: true,

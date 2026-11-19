@@ -1,4 +1,6 @@
 
+import { tagSaveRefusal } from "../../shared/save-refusal";
+import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
@@ -55,14 +57,14 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { initReaderHighlightOptions } from "./reader-highlight-options";
 import { initRequestRelatedPasses } from "./request-related-passes";
 import type { ReadlistDependencies } from "./readlist-dependencies.types";
-import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, ISSUE_LINK_SAVED_PARAM, downloadsOwnerEpub, readerEpubHrefFor } from "./readlist-shared";
+import { type ReadlistShared, relatedPollUrlFor, loadRelatedArticles, pastReadsPollUrlFor, loadPastReads, pastReadsPresentation, isAppPlatform, ISSUE_LINK_SAVED_PARAM, ISSUE_LINK_DAILY_LIMIT_PARAM, downloadsOwnerEpub, readerEpubHrefFor } from "./readlist-shared";
 
 const HTMX_STOP_POLLING_STATUS = 286;
 
 export function initReaderPanelRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requireWriteAccess" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot" | "canSaveContent"
+		"findArticleById" | "markArticleViewed" | "now" | "resolveReaderProvenance" | "findRelatedArticles" | "logError" | "markRelatedDismissed" | "findIssueLink" | "validateNewSaveUrl" | "requirePaidFeatures" | "claimDailySaves" | "refreshArticleIfStale" | "publishSubmitLink" | "appOrigin" | "findPastReads" | "publishComputeRelatedPastReads" | "publishComputeRelatedPasses" | "readRelatedPassRequestState" | "markRelatedPassesRequested" | "recordEngagementActivity" | "markSummaryToggled" | "recordAnalyticsEvent" | "salt" | "listArticleHighlights" | "readCanonicalSnapshot" | "canSaveContent"
 	>,
 	shared: ReadlistShared,
 ): Router {
@@ -126,6 +128,7 @@ export function initReaderPanelRoutes(
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
 			readerNotice: transcriptNoticeOf(article.media),
+			ocrPagesHold: article.ocrPagesHold,
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
@@ -165,6 +168,7 @@ export function initReaderPanelRoutes(
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
 			readerNotice: transcriptNoticeOf(article.media),
+			ocrPagesHold: article.ocrPagesHold,
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
@@ -254,7 +258,7 @@ export function initReaderPanelRoutes(
 		return validation.status === "SUCCESS" ? { article, ordinal: ordinal.data, url: validation.url } : undefined;
 	};
 
-	router.post("/:id/issue-links", requireNotLocked, deps.requireWriteAccess, async (req: Request<{ id: string }>, res: Response) => {
+	router.post("/:id/issue-links", requireNotLocked, async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const target = await resolveIssueLinkSave(req, userId);
@@ -263,7 +267,15 @@ export function initReaderPanelRoutes(
 			return;
 		}
 		assert(target.article.provenance, "an issue is saved with its newsletter's provenance");
-		const freshness = await deps.refreshArticleIfStale({ url: target.url });
+		const returnTo = new URL(safeReturnPath(req.body.returnTo), deps.appOrigin);
+		const allowance = await deps.claimDailySaves({ userId, urls: [target.url] });
+		if (allowance.granted.length === 0) {
+			tagSaveRefusal(res, SAVE_REFUSAL_CODES.dailySaveLimit);
+			returnTo.searchParams.set(ISSUE_LINK_DAILY_LIMIT_PARAM, target.ordinal);
+			res.redirect(303, `${returnTo.pathname}${returnTo.search}#issue-links`);
+			return;
+		}
+		const freshness = await deps.refreshArticleIfStale({ url: target.url, requester: { account: userId } });
 		const saveAttemptId = newSaveAttemptId();
 		if (freshness.action === "unresolved") {
 			await deps.publishSubmitLink({ url: target.url, userId, provenance: target.article.provenance, readlist: DEFAULT_READLIST_SLUG, saveTrigger: "manual", saveAttemptId });
@@ -277,7 +289,6 @@ export function initReaderPanelRoutes(
 				saveAttemptId,
 			});
 		}
-		const returnTo = new URL(safeReturnPath(req.body.returnTo), deps.appOrigin);
 		returnTo.searchParams.set(ISSUE_LINK_SAVED_PARAM, target.ordinal);
 		res.redirect(303, `${returnTo.pathname}${returnTo.search}#issue-links`);
 	});
@@ -341,7 +352,7 @@ export function initReaderPanelRoutes(
 	// The worker fingerprint-guards, so re-firing on every visit is cheap when
 	// nothing changed. htmx fires it on load and ignores the reply (204); the
 	// no-JS fallback form lands back on the reader (303).
-	router.post("/:id/topic-reads", requireNotLocked, deps.requireWriteAccess, async (req: Request<{ id: string }>, res: Response) => {
+	router.post("/:id/topic-reads", requireNotLocked, deps.requirePaidFeatures, async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 

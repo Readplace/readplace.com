@@ -1,1 +1,5 @@
-export const enUS = {} as const;
+export const enUS = {
+	billing: {
+		freeChip: "Free plan",
+	},
+} as const;

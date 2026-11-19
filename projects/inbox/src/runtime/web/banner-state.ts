@@ -1,9 +1,10 @@
 import { UserIdSchema } from "@packages/domain/user";
 import { FETCH_CHANGELOG_BANNER_IN_BROWSER, bannerStateFromRequest } from "@packages/web-shell";
 import type { BannerState, BannerStateSource } from "@packages/web-shell";
-import type {
-	EffectiveAccess,
-	GetEffectiveAccess,
+import {
+	type EffectiveAccess,
+	type GetEffectiveAccess,
+	hasPaidFeatures,
 } from "@packages/subscription-access";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 
@@ -29,7 +30,7 @@ export function initBuildBannerState(deps: {
 		]);
 		return {
 			...withBanner,
-			accessIsReadOnly: access.access === "read-only",
+			paidFeaturesLocked: !hasPaidFeatures(access),
 			appearance: user?.appearance,
 			...(user ? { signedInUser: { email: user.email, displayName: user.displayName } } : {}),
 		};

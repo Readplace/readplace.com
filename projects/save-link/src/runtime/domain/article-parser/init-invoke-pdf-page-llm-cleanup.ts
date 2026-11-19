@@ -12,6 +12,7 @@ const OutputSchema = z.object({
 	pageIndex: z.number().int().min(0),
 	cleanedText: z.string(),
 	applied: z.boolean(),
+	providerFailed: z.boolean(),
 	tokens: z.object({ input: z.number(), output: z.number() }).optional(),
 });
 
@@ -53,6 +54,7 @@ export function initInvokePdfPageLlmCleanup(deps: {
 				ok: true,
 				cleanedText: parsed.cleanedText,
 				applied: parsed.applied,
+				providerFailed: parsed.providerFailed,
 				tokens: parsed.tokens,
 			};
 		} catch (error) {

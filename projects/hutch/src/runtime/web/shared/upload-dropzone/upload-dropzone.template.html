@@ -11,7 +11,7 @@
   {{/each}}
   <div class="upload-dropzone__idle">
     <label class="upload-dropzone" data-upload-dropzone-zone>
-      <input type="file" name="file" required class="upload-dropzone__file-input" id="{{idPrefix}}-file" data-test-import-file-input{{#if disabled}} disabled{{/if}}>
+      <input type="file" name="file" required class="upload-dropzone__file-input" id="{{idPrefix}}-file" data-test-import-file-input>
       <span class="upload-dropzone__icon" aria-hidden="true">{{icon "upload"}}</span>
       <span class="upload-dropzone__text">
         <span class="upload-dropzone__primary" data-upload-dropzone-primary>Choose a file or drag it here</span>
@@ -20,7 +20,7 @@
     </label>
     <p class="upload-dropzone__error" role="alert" data-upload-dropzone-error hidden></p>
     {{#if showSubmit}}
-    <button class="btn btn--primary upload-dropzone__submit" type="submit" data-test-action="upload-file"{{#if disabled}} disabled{{/if}}>Upload</button>
+    <button class="btn btn--primary upload-dropzone__submit" type="submit" data-test-action="upload-file">Upload</button>
     {{/if}}
   </div>
   <div class="upload-dropzone__uploading" data-upload-dropzone-uploading aria-live="polite">

@@ -39,7 +39,7 @@ export function initPdfPageLlmCleanupHandler(deps: {
 		// no-op rather than an unfair "rejected by guardrails" log entry.
 		if (input.ocrText.trim().length === 0) {
 			logger.info(`[pdf-page-llm-cleanup] empty input page=${input.pageIndex} — passing through`);
-			return { pageIndex: input.pageIndex, cleanedText: input.ocrText, applied: false };
+			return { pageIndex: input.pageIndex, cleanedText: input.ocrText, applied: false, providerFailed: false };
 		}
 
 		let result: Awaited<ReturnType<CleanupPageWithLlm>>;
@@ -60,7 +60,7 @@ export function initPdfPageLlmCleanupHandler(deps: {
 					ids: { pageIndex: input.pageIndex },
 				}));
 			}
-			return { pageIndex: input.pageIndex, cleanedText: input.ocrText, applied: false };
+			return { pageIndex: input.pageIndex, cleanedText: input.ocrText, applied: false, providerFailed: true };
 		}
 
 		const rejection = evaluateGuardrails({ before: input.ocrText, after: result.text });
@@ -70,6 +70,7 @@ export function initPdfPageLlmCleanupHandler(deps: {
 				pageIndex: input.pageIndex,
 				cleanedText: input.ocrText,
 				applied: false,
+				providerFailed: false,
 				tokens: { input: result.tokens.input, output: result.tokens.output },
 			};
 		}
@@ -79,6 +80,7 @@ export function initPdfPageLlmCleanupHandler(deps: {
 			pageIndex: input.pageIndex,
 			cleanedText: result.text,
 			applied: true,
+			providerFailed: false,
 			tokens: { input: result.tokens.input, output: result.tokens.output },
 		};
 	};

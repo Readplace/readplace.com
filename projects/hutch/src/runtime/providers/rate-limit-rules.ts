@@ -19,6 +19,11 @@ const RateLimitRulesSchema = z.strictObject({
 	import: Rule,
 	importFromUrl: Rule,
 	uploadStage: Rule,
+	dailySaves: Rule,
+	mcpCall: Rule,
+	bookUpload: Rule,
+	staleCheck: Rule,
+	export: Rule,
 	signupCreated: Rule,
 } satisfies Record<keyof RateLimitRules, typeof Rule>);
 

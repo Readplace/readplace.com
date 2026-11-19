@@ -34,7 +34,6 @@ import { initArticleStatusTools } from "./tools/article-status.tools";
 import { initHighlightTools } from "./tools/highlight.tools";
 
 const GATE_OUTCOMES = {
-	inactive: MCP_TOOL_OUTCOMES.paywalled,
 	unverified: MCP_TOOL_OUTCOMES.accessCheckFailed,
 } as const satisfies Record<Exclude<ToolAccess["state"], "ok">, McpToolOutcome>;
 
@@ -185,15 +184,23 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		const refusalPhrases = PAYWALLED_TOOLS.get(parsed.data.name);
 		if (access.state !== "ok" && refusalPhrases !== undefined) {
 			record(GATE_OUTCOMES[access.state]);
-			if (access.state === "inactive" && parsed.data.name === "save_link") context.recordSaveRefused();
-			return success(id, toolError(toolRefusalMessage({ state: access.state, phrases: refusalPhrases, appOrigin: deps.appOrigin })));
+			return success(id, toolError(toolRefusalMessage({ phrases: refusalPhrases })));
 		}
 
-		const result = await entry?.run(rawArgs, context);
-		if (!result) {
+		if (!entry) {
 			record(MCP_TOOL_OUTCOMES.unknownTool);
 			return failure(id, -32602, `Unknown tool: ${parsed.data.name}`);
 		}
+
+		if (access.state === "ok" && access.dailyLimited) {
+			const allowance = await deps.consumeRateLimit({ bucket: "mcp-call", key: context.userId, rule: deps.mcpCallRule });
+			if (!allowance.allowed) {
+				record(MCP_TOOL_OUTCOMES.dailyLimit);
+				return success(id, toolError("You've reached today's limit of tool calls. Try again tomorrow."));
+			}
+		}
+
+		const result = await entry.run(rawArgs, context);
 
 		record(result.isError ? MCP_TOOL_OUTCOMES.error : MCP_TOOL_OUTCOMES.ok);
 		return success(id, result);

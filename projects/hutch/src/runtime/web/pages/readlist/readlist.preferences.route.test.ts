@@ -119,7 +119,7 @@ function field(doc: Document, surface: "popover" | "inline"): Element {
 	return textarea;
 }
 
-async function makeReadOnly(harness: TestHarness): Promise<void> {
+async function makeFreePlan(harness: TestHarness): Promise<void> {
 	const user = await harness.auth.findUserByEmail("test@example.com");
 	assert(user, "the logged-in test user must exist");
 	await harness.subscriptionProviders.upsertActive({
@@ -221,7 +221,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "Attribution");
-		await makeReadOnly(harness);
+		await makeFreePlan(harness);
 
 		const response = await agent.get(preferencesPath(slug));
 		const form = parse(response.text).querySelector('#subscribe-plans [data-test-form="subscribe-plans"]');
@@ -432,17 +432,17 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		expect(response.headers.location).toContain("/login");
 	});
 
-	it("still renders for a read-only reader, who can read what they wrote", async () => {
+	it("still renders for a free-plan reader, who can read what they wrote", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
-		await makeReadOnly(harness);
+		await makeFreePlan(harness);
 
 		const doc = parse((await agent.get(`${preferencesPath(slug)}?platform=ios`)).text);
 
 		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
-		expect(panel(doc).classList.contains("readlist-preferences--read-only")).toBe(true);
+		expect(panel(doc).classList.contains("readlist-preferences--paid-locked")).toBe(true);
 		expect(
 			doc.querySelectorAll(
 				'[data-test-action="readlist-preferences-setup"], [data-test-action="readlist-purpose-edit"], [data-test-wizard]',
@@ -450,25 +450,25 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		).toHaveLength(0);
 	});
 
-	it("shows a read-only reader the unset card with nothing to set it up with", async () => {
+	it("shows a free-plan reader the unset card with nothing to set it up with", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
-		await makeReadOnly(harness);
+		await makeFreePlan(harness);
 
 		const doc = parse((await agent.get(`${preferencesPath(slug)}?platform=ios`)).text);
 
 		const empty = panel(doc).querySelector("[data-test-preferences-empty]");
-		assert(empty, "a read-only reader still sees the unset card");
+		assert(empty, "a free-plan reader still sees the unset card");
 		expect(empty.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
 		expect(empty.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(0);
 	});
 
-	it("locks Set up readlist for a read-only reader on the web, opening the page's one plan chooser", async () => {
+	it("locks Set up readlist for a free-plan reader on the web, opening the page's one plan chooser", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
-		await makeReadOnly(harness);
+		await makeFreePlan(harness);
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
@@ -483,12 +483,12 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		expect(doc.querySelectorAll('[data-test-action="readlist-preferences-setup"], [data-test-wizard]')).toHaveLength(0);
 	});
 
-	it("locks the set purpose's edit for a read-only reader on the web", async () => {
+	it("locks the set purpose's edit for a free-plan reader on the web", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
-		await makeReadOnly(harness);
+		await makeFreePlan(harness);
 
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
@@ -701,16 +701,16 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
 	});
 
-	it("turns a read-only reader away from writing", async () => {
+	it("sends a free-plan reader to the plans page rather than setting a purpose", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
-		await makeReadOnly(harness);
+		await makeFreePlan(harness);
 
 		const response = await savePurpose(agent, slug, PURPOSE);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/account/plans");
 	});
 
 	it("asks a signed-out visitor to log in rather than writing", async () => {
@@ -975,17 +975,17 @@ describe("POST /queue/queues/:slug/preferences with the purpose emptied", () => 
 		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
 	});
 
-	it("turns a read-only reader away, keeping the purpose", async () => {
+	it("sends a free-plan reader to the plans page, keeping the purpose", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
-		await makeReadOnly(harness);
+		await makeFreePlan(harness);
 
 		const response = await savePurpose(agent, slug, "");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/account/plans");
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe(PURPOSE);
 	});
@@ -1186,18 +1186,18 @@ describe("POST /queue/queues/:slug/preferences/overrides/:id/delete", () => {
 		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
 	});
 
-	it("turns a read-only reader away, keeping the choice", async () => {
+	it("lets a free-plan reader remove a remembered choice, since overrides are core", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 		const id = await recordChoice(harness, { readlist: slug, minute: 1 });
-		await makeReadOnly(harness);
+		await makeFreePlan(harness);
 
 		const response = await agent.post(choiceRemovePath(slug, id));
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
-		expect(await rememberedChoices(harness, slug)).toEqual([id]);
+		expect(response.headers.location).toBe(preferencesPath(slug));
+		expect(await rememberedChoices(harness, slug)).toEqual([]);
 	});
 
 	it("shows a locked account the locked page, keeping the choice", async () => {
@@ -1538,18 +1538,18 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
 	});
 
-	it("turns a read-only reader away from routing", async () => {
+	it("sends a free-plan reader to the plans page rather than routing", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
-		await makeReadOnly(harness);
+		await makeFreePlan(harness);
 
 		const response = await routeInbox(agent, slug, { address, send_here: "1" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/account/plans");
 		expect(await routingOf(fixture, address)).toBeUndefined();
 	});
 
@@ -1737,18 +1737,18 @@ describe("POST /queue/queues/:slug/preferences/inboxes/create", () => {
 		expect(await liveInboxes(fixture, await readerId(harness))).toEqual(before);
 	});
 
-	it("turns a read-only reader away, creating nothing", async () => {
+	it("sends a free-plan reader to the plans page, creating nothing", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 		const before = await liveInboxes(fixture, await readerId(harness));
-		await makeReadOnly(harness);
+		await makeFreePlan(harness);
 
 		const response = await createInbox(agent, slug, { name: "news" });
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(response.headers.location).toBe("/account/plans");
 		expect(await liveInboxes(fixture, await readerId(harness))).toEqual(before);
 	});
 

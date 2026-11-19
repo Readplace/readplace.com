@@ -267,27 +267,23 @@ describe("renderSubscribePlansForm", () => {
 describe("planChargedWithoutChoice", () => {
 	const trialing: EffectiveAccess = {
 		tier: "trial",
-		access: "full",
 		banner: "trial-countdown",
 		trialEndsAt: "2026-10-20T00:00:00.000Z",
 	};
 	const trialExpired: EffectiveAccess = {
-		tier: "inactive",
-		access: "read-only",
-		banner: "inactive",
+		tier: "free",
+		banner: "free",
 		reason: "trial-expired",
 	};
 	const returningFromMonthly: EffectiveAccess = {
-		tier: "inactive",
-		access: "read-only",
-		banner: "inactive",
+		tier: "free",
+		banner: "free",
 		reason: "subscription-cancelled",
 		plan: "monthly",
 	};
 	const returningWithNoPlanOnRecord: EffectiveAccess = {
-		tier: "inactive",
-		access: "read-only",
-		banner: "inactive",
+		tier: "free",
+		banner: "free",
 		reason: "subscription-cancelled",
 		plan: undefined,
 	};

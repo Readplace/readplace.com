@@ -17,7 +17,7 @@ import { initialsFor } from "./user-initials";
 export interface NavProps {
 	variant: "default" | "transparent";
 	isAuthenticated: boolean;
-	accessIsReadOnly: boolean;
+	paidFeaturesLocked: boolean;
 	upgrade?: UpgradeTarget;
 	currentPath?: string;
 	clickSurface?: ClickSurface;
@@ -138,7 +138,7 @@ function displayItem(
 
 export function GlobalNav(props: NavProps): string {
 	const groups = props.isAuthenticated
-		? buildNavGroups({ accessIsReadOnly: props.accessIsReadOnly, upgrade: props.upgrade })
+		? buildNavGroups({ paidFeaturesLocked: props.paidFeaturesLocked, upgrade: props.upgrade })
 		: buildGuestNavGroups();
 	const context = { surface: props.clickSurface, currentKey: currentNavKey(props.currentPath) };
 	return render(NAV_TEMPLATE, {

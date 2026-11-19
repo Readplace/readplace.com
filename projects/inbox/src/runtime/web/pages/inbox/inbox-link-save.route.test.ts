@@ -819,6 +819,25 @@ describe("Inbox link save route under the save gates", () => {
 		expect(response.status).toBe(403);
 		expect(hxHeaderNames(response.headers)).toEqual([]);
 	});
+
+	it("refuses a free account's save from an issue page, since the Inbox is a paid feature", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture);
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_cancelled",
+			customerId: "cus_cancelled",
+		});
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.post(savePath);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account/plans");
+		expect(harness.submittedLinks).toEqual([]);
+	});
 });
 
 describe("Inbox link save route with a relayed publisher", () => {

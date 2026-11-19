@@ -12,7 +12,7 @@ import type {
 	SaveArticle,
 } from "@packages/provider-contracts/article-store";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
-import { resolveWriteAccess } from "@packages/subscription-access";
+import { resolvePlanAccess } from "@packages/subscription-access";
 import type { FindEmailIssueStanding } from "./email-issue-standing";
 
 export type EmailIssueFiling = { readlist: ReadlistSlug; outcome: "already-filed" | FileIntoLiveReadlistOutcome };
@@ -20,7 +20,7 @@ export type EmailIssueFiling = { readlist: ReadlistSlug; outcome: "already-filed
 export type SaveEmailIssueOutcome =
 	| { kind: "saved"; contentPending: boolean; filings: EmailIssueFiling[] }
 	| { kind: "removed-by-reader"; contentPending: boolean }
-	| { kind: "write-access-lapsed" };
+	| { kind: "paid-plan-required" };
 
 export type SaveEmailIssue = (params: {
 	userId: UserId;
@@ -61,9 +61,9 @@ export function initSaveEmailIssue(deps: {
 		if (
 			!standing.savedToAll &&
 			!standing.removedByReader &&
-			resolveWriteAccess(await deps.findSubscriptionByUserId(userId), deps.now()) === "read-only"
+			resolvePlanAccess(await deps.findSubscriptionByUserId(userId), deps.now()) === "free"
 		) {
-			return { kind: "write-access-lapsed" };
+			return { kind: "paid-plan-required" };
 		}
 		const contentPending = (await deps.findArticleCrawlStatus(url))?.status !== "ready";
 		const markContentPending = async () => {

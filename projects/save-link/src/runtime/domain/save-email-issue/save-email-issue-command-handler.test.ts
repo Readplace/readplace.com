@@ -35,7 +35,7 @@ const COMMAND = {
 function makeHarness(opts: {
 	body?: string;
 	contentPending?: boolean;
-	kind?: "saved" | "removed-by-reader" | "write-access-lapsed";
+	kind?: "saved" | "removed-by-reader" | "paid-plan-required";
 	filings?: EmailIssueFiling[];
 	readEmailBodyFails?: boolean;
 	recordInboxArticleQueued?: () => Promise<void>;
@@ -62,7 +62,7 @@ function makeHarness(opts: {
 			requests.push(requestedAt);
 			const kind = opts.kind ?? "saved";
 			const contentPending = opts.contentPending ?? true;
-			if (kind === "write-access-lapsed") return { kind };
+			if (kind === "paid-plan-required") return { kind };
 			await onSavedToAll();
 			if (kind === "removed-by-reader") return { kind, contentPending };
 			return { kind, contentPending, filings: opts.filings ?? [] };
@@ -290,7 +290,7 @@ describe("initSaveEmailIssueCommandHandler", () => {
 	});
 
 	it("records a refused save and confirms nothing when the reader's write access has lapsed", async () => {
-		const harness = makeHarness({ kind: "write-access-lapsed" });
+		const harness = makeHarness({ kind: "paid-plan-required" });
 
 		const result = await harness.run({ ...COMMAND, emailOutput: EMAIL_OUTPUT });
 
@@ -300,7 +300,7 @@ describe("initSaveEmailIssueCommandHandler", () => {
 		assert.deepEqual(harness.published, [
 			{
 				detailType: EmailIssueSaveSkippedEvent.detailType,
-				detail: { userId: READER, receivedAtMessageId: RECEIVED_AT_MESSAGE_ID, reason: "write-access-lapsed" },
+				detail: { userId: READER, receivedAtMessageId: RECEIVED_AT_MESSAGE_ID, reason: "paid-plan-required" },
 			},
 		]);
 		assert.deepEqual(
@@ -313,7 +313,7 @@ describe("initSaveEmailIssueCommandHandler", () => {
 						userId: READER,
 						receivedAtMessageId: RECEIVED_AT_MESSAGE_ID,
 						messageId: "rec-1",
-						reason: "write-access-lapsed",
+						reason: "paid-plan-required",
 					},
 				},
 			],

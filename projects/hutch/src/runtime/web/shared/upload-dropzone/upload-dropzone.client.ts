@@ -327,7 +327,7 @@ export function initUploadDropzone(deps: UploadDropzoneDeps): void {
 	}
 
 	function handle(widget: Widget, file: File | undefined): void {
-		if (widget.input.disabled || !file) return;
+		if (!file) return;
 		widget.meta.textContent = file.name;
 		clearError(widget);
 		const offered = Array.from(widget.form.querySelectorAll("[data-upload-kind]"), offeredKindOf);
@@ -361,7 +361,7 @@ export function initUploadDropzone(deps: UploadDropzoneDeps): void {
 	}
 
 	function keep(widget: Widget, file: File | undefined): void {
-		if (widget.input.disabled || !file) return;
+		if (!file) return;
 		widget.primary.textContent = file.name;
 		clearError(widget);
 	}
@@ -379,7 +379,7 @@ export function initUploadDropzone(deps: UploadDropzoneDeps): void {
 	for (const type of ["dragenter", "dragover"]) {
 		doc.addEventListener(type, (event) => {
 			const widget = widgetOf(view, event.target);
-			if (!widget || widget.input.disabled) return;
+			if (!widget) return;
 			event.preventDefault();
 			widget.zone.classList.add("upload-dropzone--dragover");
 		});

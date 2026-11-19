@@ -454,7 +454,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		expect(pages.flatMap(([path, html]) => untrackedOn(path, html))).toEqual([]);
 	});
 
-	it("holds across every lock's fallback link and the plans page they lead a read-only reader to", async () => {
+	it("holds across every lock's fallback link and the plans page they lead a free-plan reader to", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const reader = await harness.auth.findUserByEmail("test@example.com");
@@ -495,17 +495,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		}
 
 		expect(untracked).toEqual([]);
-		expect([...lockKeys].sort()).toEqual([
-			"add-link",
-			"connect-gmail",
-			"create-readlist",
-			"delete-readlist",
-			"import",
-			"inbox",
-			"move-article",
-			"rename-readlist",
-			"set-up-readlist",
-		]);
+		expect([...lockKeys].sort()).toEqual(["connect-gmail", "inbox", "next-read", "set-up-readlist"]);
 	});
 
 	it("holds across homepage arm B, including its comparison signup link", async () => {

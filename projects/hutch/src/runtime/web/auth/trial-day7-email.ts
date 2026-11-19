@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchEmails } from "@packages/translations/hutch-emails";
 import { render, toAbsoluteDate } from "@packages/web-shell";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { EMAIL_POSTAL_ADDRESS } from "../email-copy";
@@ -11,6 +13,8 @@ import {
 	type TrialNudgeEmail,
 	type TrialNudgeEmailItem,
 } from "./trial-nudge-email";
+
+const { t } = translator(hutchEmails, DEFAULT_LOCALE);
 
 const TEMPLATE = readFileSync(join(__dirname, "trial-day7-email.template.html"), "utf-8");
 
@@ -33,7 +37,7 @@ export function TrialDay7Email(params: {
 	const intro = `In your first week you saved ${savedPhrase}${readPhrase}.`;
 	const signupDate = toAbsoluteDate({ iso: params.registeredAt }).label;
 	const trialEnd = toAbsoluteDate({ iso: params.trialEndsAt }).label;
-	const pricing = `Your trial ends on ${trialEnd}. Choose during your trial: ${RENEWAL_PRICES} Add a card now and nothing is charged until ${trialEnd}; you'll get a reminder before the charge. Your saves stay readable and exportable either way.`;
+	const pricing = `Your trial ends on ${trialEnd}. Choose during your trial: ${RENEWAL_PRICES} Add a card now and nothing is charged until ${trialEnd}; you'll get a reminder before the charge. ${t("trialNudgeEmail.withoutCard")}`;
 	const footerReason = `You're getting this because you started a Readplace trial on ${signupDate}.`;
 	const links = trialNudgeLinks({
 		source: "day7-email",

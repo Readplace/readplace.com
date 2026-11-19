@@ -22,7 +22,7 @@ async function seedSubscriptionState(
 	page: Page,
 	params: {
 		userId: string;
-		state: "trialing" | "active" | "cancellation-scheduled" | "inactive";
+		state: "trialing" | "active" | "cancellation-scheduled" | "free";
 		plan?: "monthly" | "yearly" | "triennial";
 		cards?: "primary" | "primary-and-backup";
 	},
@@ -46,7 +46,7 @@ test.describe("Subscription state seed fixture", () => {
 
 	test("the subscription-state seed endpoint rejects a body with no userId", async ({ page }) => {
 		const response = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
-			data: { state: "inactive" },
+			data: { state: "free" },
 		});
 		assert.equal(response.status(), 400, "a body without a userId must be rejected");
 	});
@@ -54,13 +54,13 @@ test.describe("Subscription state seed fixture", () => {
 	test("a seeded inactive subscription shows the inactive banner on /queue", async ({ page }, testInfo) => {
 		const email = `seed-subscription-inactive-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createVerifiedUser(page, email);
-		await seedSubscriptionState(page, { userId, state: "inactive" });
+		await seedSubscriptionState(page, { userId, state: "free" });
 
 		await loginAs(page, email);
 		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector("body.page-readlist");
 
-		await expect(page.locator(BANNER)).toHaveClass(/readlist-subscription--inactive/);
+		await expect(page.locator(BANNER)).toHaveClass(/readlist-subscription--free/);
 	});
 
 	test("a seeded cancellation-scheduled subscription shows the cancellation-scheduled banner on /queue", async ({

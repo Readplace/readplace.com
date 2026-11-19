@@ -185,7 +185,7 @@ describe("Auth routes", () => {
 	describe("POST /login", () => {
 		it("returns 429 past the per-account login limit (distributed credential-stuffing defense)", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, loginAccount: { limit: 1, windowSeconds: 900 } },
 			};
@@ -1223,7 +1223,7 @@ describe("Auth routes", () => {
 
 		it("draws a signup password check from the same per-account window a failed login already spent", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, loginAccount: { limit: 1, windowSeconds: 900 } },
 			};
@@ -1248,7 +1248,7 @@ describe("Auth routes", () => {
 
 		it("draws a login from the same per-account window a failed signup password check already spent", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, loginAccount: { limit: 1, windowSeconds: 900 } },
 			};
@@ -2859,6 +2859,7 @@ describe("Auth routes", () => {
 		function fixtureAllowingThree() {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			fixture.rateLimit = {
+				...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, signupCreated: THREE_A_DAY },
 			};

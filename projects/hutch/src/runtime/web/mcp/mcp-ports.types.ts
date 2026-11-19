@@ -17,6 +17,8 @@ import type {
 	SortOrder,
 } from "@packages/provider-contracts/article-store";
 import type { ToolAccess, } from "./tool-access";
+import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type { LogError } from "@packages/logger";
 
 export interface McpReadlist {
@@ -32,7 +34,8 @@ type SaveLinkResult =
 			readonly title: string;
 			readonly filedInto: readonly McpReadlist[];
 		}
-	| { readonly ok: false; readonly message: string };
+	| { readonly ok: false; readonly message: string }
+	| { readonly ok: false; readonly refused: "daily-save-limit"; readonly message: string };
 
 /** One saved article as the article tools expose it: metadata only (the reader
  * HTML is fetched separately by `get_article_content`). Dates are ISO strings
@@ -249,6 +252,8 @@ export interface McpServerDeps {
 		textBefore?: string;
 	}) => Promise<CreateHighlightResult>;
 	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
+	consumeRateLimit: ConsumeRateLimit;
+	mcpCallRule: RateLimitRule;
 	recordToolCall: RecordMcpToolCall;
 	recordHandshake: RecordMcpHandshake;
 	logError: LogError;

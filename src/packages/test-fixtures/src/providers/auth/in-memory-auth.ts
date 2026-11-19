@@ -130,6 +130,7 @@ export function initInMemoryAuth(opts: {
 	markActivationThresholdReached: MarkActivationThresholdReached;
 	setKeepOfferDismissed: SetKeepOfferDismissed;
 	deleteUser: (email: string) => Promise<void>;
+	backdateRegistration: (params: { userId: UserId; registeredAt: string }) => Promise<void>;
 	/** Test-only accessor for the attribution persisted at signup, so signup
 	 * tests can assert the raw utm/referrer/landing fields reached the row. */
 	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
@@ -551,6 +552,12 @@ export function initInMemoryAuth(opts: {
 		}
 	};
 
+	const backdateRegistration = async (params: { userId: UserId; registeredAt: string }): Promise<void> => {
+		const user = [...users.values()].find((stored) => stored.id === params.userId);
+		assert(user, `Cannot backdate registration: no user found for ${params.userId}`);
+		user.registeredAt = params.registeredAt;
+	};
+
 	return {
 		createUser,
 		createUserWithPasswordHash,
@@ -592,5 +599,6 @@ export function initInMemoryAuth(opts: {
 		setKeepOfferDismissed,
 		getAcquisitionAttribution,
 		deleteUser,
+		backdateRegistration,
 	};
 }

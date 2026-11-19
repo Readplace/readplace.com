@@ -30,10 +30,9 @@ describe("initBuildBannerState", () => {
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
 	});
 
-	it("hands a trialing user's header no trial countdown: the state carries only the shell fields and access", async () => {
+	it("hands a trialing user's header no trial countdown: the state carries only the shell fields and the paid-feature lock", async () => {
 		const access: EffectiveAccess = {
 			tier: "trial",
-			access: "full",
 			banner: "trial-countdown",
 			trialEndsAt: "2026-01-04T00:00:00.000Z",
 		};
@@ -49,21 +48,19 @@ describe("initBuildBannerState", () => {
 			emailVerified: undefined,
 			changelogBanner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
 			cspNonce: CSP_NONCE,
-			accessIsReadOnly: false,
+			paidFeaturesLocked: false,
 		});
 	});
 
-	it("marks both trial-expired and subscription-cancelled inactive users read-only", async () => {
+	it("locks paid features for both trial-expired and subscription-cancelled free accounts", async () => {
 		const trialExpired: EffectiveAccess = {
-			tier: "inactive",
-			access: "read-only",
-			banner: "inactive",
+			tier: "free",
+			banner: "free",
 			reason: "trial-expired",
 		};
 		const cancelled: EffectiveAccess = {
-			tier: "inactive",
-			access: "read-only",
-			banner: "inactive",
+			tier: "free",
+			banner: "free",
 			reason: "subscription-cancelled",
 			plan: undefined,
 		};
@@ -77,24 +74,21 @@ describe("initBuildBannerState", () => {
 			findUserById: noUser,
 		});
 
-		expect((await buildExpired({ userId: USER_ID, cspNonce: CSP_NONCE })).accessIsReadOnly).toBe(true);
-		expect((await buildCancelled({ userId: USER_ID, cspNonce: CSP_NONCE })).accessIsReadOnly).toBe(true);
+		expect((await buildExpired({ userId: USER_ID, cspNonce: CSP_NONCE })).paidFeaturesLocked).toBe(true);
+		expect((await buildCancelled({ userId: USER_ID, cspNonce: CSP_NONCE })).paidFeaturesLocked).toBe(true);
 	});
 
-	it("keeps full access for founding members, paid users, and a user inside the cancellation window", async () => {
+	it("keeps paid features open for founding members, paid users, and a user inside the cancellation window", async () => {
 		const founding: EffectiveAccess = {
 			tier: "founding",
-			access: "full",
 			banner: "none",
 		};
 		const paid: EffectiveAccess = {
 			tier: "paid",
-			access: "full",
 			banner: "none",
 		};
 		const cancellationScheduled: EffectiveAccess = {
 			tier: "paid",
-			access: "full",
 			banner: "cancellation-scheduled",
 			cancellationEffectiveAt: "2026-01-06T00:00:00.000Z",
 		};
@@ -104,15 +98,14 @@ describe("initBuildBannerState", () => {
 				getEffectiveAccess: async () => access,
 				findUserById: noUser,
 			});
-			expect((await build({ userId: USER_ID, cspNonce: CSP_NONCE })).accessIsReadOnly).toBe(false);
+			expect((await build({ userId: USER_ID, cspNonce: CSP_NONCE })).paidFeaturesLocked).toBe(false);
 		}
 	});
 
 	it("honors a preFetchedAccess without re-invoking getEffectiveAccess (queue page already fetched it)", async () => {
 		const preFetchedAccess: EffectiveAccess = {
-			tier: "inactive",
-			access: "read-only",
-			banner: "inactive",
+			tier: "free",
+			banner: "free",
 			reason: "trial-expired",
 		};
 		const getEffectiveAccess = jest.fn();
@@ -126,12 +119,12 @@ describe("initBuildBannerState", () => {
 			{ preFetchedAccess },
 		);
 
-		expect(result.accessIsReadOnly).toBe(true);
+		expect(result.paidFeaturesLocked).toBe(true);
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
 	});
 
 	it("leaves the changelog banner for the browser to fetch for an authenticated user", async () => {
-		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
+		const access: EffectiveAccess = { tier: "founding", banner: "none" };
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
 			findUserById: noUser,
@@ -156,7 +149,7 @@ describe("initBuildBannerState", () => {
 
 describe("initBuildBannerState (signed-in user)", () => {
 	it("carries the signed-in user's email and display name onto the banner state so the header can name the account", async () => {
-		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
+		const access: EffectiveAccess = { tier: "founding", banner: "none" };
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
 			findUserById: async () => ({
@@ -179,7 +172,7 @@ describe("initBuildBannerState (signed-in user)", () => {
 
 describe("initBuildBannerState (signed-in appearance)", () => {
 	it("carries the signed-in user's appearance onto the banner state so the page renders in their chosen theme", async () => {
-		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
+		const access: EffectiveAccess = { tier: "founding", banner: "none" };
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
 			findUserById: async () => ({

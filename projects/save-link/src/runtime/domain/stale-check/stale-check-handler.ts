@@ -225,7 +225,7 @@ export function initStaleCheckHandler(deps: {
 			const action = await checkAndRefresh(detail.url);
 
 			if (action === "new") {
-				await publishSaveAnonymousLink({ url: detail.url, saveAttemptId: newSaveAttemptId() });
+				await publishSaveAnonymousLink({ url: detail.url, saveAttemptId: newSaveAttemptId(), userId: undefined });
 				logger.info(`${logPrefix} re-published SaveAnonymousLinkCommand`, {
 					url: detail.url,
 					action,

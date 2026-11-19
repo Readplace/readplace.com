@@ -9,17 +9,9 @@ import {
 import type { IconName } from "@packages/ui-icons";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReadlist } from "@packages/translations/hutch-readlist";
-import {
-	render,
-	renderNeedsUpgrade,
-	withInternalTracking,
-} from "@packages/web-shell";
+import { render, withInternalTracking } from "@packages/web-shell";
 
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
-import {
-	type UpgradeOffer,
-	lockFor,
-} from "../../shared/upgrade-offer/upgrade-offer";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
 import type { Readlist } from "./readlist.nav";
 import { composeReadlistNav } from "./readlist-nav-layout";
@@ -126,12 +118,6 @@ interface ReadlistNavMenu {
 	renameMaxLength?: number;
 }
 
-interface ReadlistLockedMenu {
-	name: string;
-	title: string;
-	menuLocks: readonly string[];
-}
-
 export interface ReadlistNavItem {
 	menuHtml: string;
 	autofocus: boolean;
@@ -159,42 +145,7 @@ export interface ReadlistNavDisplayModel {
 	moreCount: number;
 	current: { title: string; iconName: IconName };
 	createForms: readonly ReadlistCreateForm[];
-	createLocks: readonly string[];
 	limitForms: readonly ReadlistLimitForm[];
-}
-
-function renderedNavLock(input: {
-	offer: UpgradeOffer | undefined;
-	gated: boolean;
-	key: string;
-	label: string;
-	controlClass: string;
-}): string[] {
-	const lock = lockFor({ ...input, source: NAV_SOURCE });
-	return lock === undefined ? [] : [renderNeedsUpgrade(lock)];
-}
-
-function lockedMenusOf(input: {
-	slug: ReadlistSlug;
-	title: string;
-	gated: boolean;
-	offer: UpgradeOffer | undefined;
-}): ReadlistLockedMenu[] {
-	const gated = input.gated && input.slug !== DEFAULT_READLIST_SLUG;
-	const menuLocks = [
-		{ key: "rename-readlist", label: "Edit" },
-		{ key: "delete-readlist", label: "Delete" },
-	].flatMap((control) =>
-		renderedNavLock({
-			...control,
-			offer: input.offer,
-			gated,
-			controlClass: "menu__item",
-		}),
-	);
-	return menuLocks.length === 0
-		? []
-		: [{ name: input.slug, title: input.title, menuLocks }];
 }
 
 function pinFormsOf(input: {
@@ -236,11 +187,10 @@ function pinFormsOf(input: {
 function navMenu(input: {
 	slug: ReadlistSlug;
 	viewedSlug: ReadlistSlug;
-	canEdit: boolean;
 	pinState: ReadlistPinState;
 	inputSuffix: string;
 }): ReadlistNavMenu {
-	const isDeletable = input.canEdit && input.slug !== DEFAULT_READLIST_SLUG;
+	const isDeletable = input.slug !== DEFAULT_READLIST_SLUG;
 	if (!isDeletable) return { isDeletable: false };
 	return {
 		isDeletable: true,
@@ -260,11 +210,10 @@ function navMenu(input: {
 }
 
 function limitFormsOf(input: {
-	canEdit: boolean;
 	canCreate: boolean;
 	limitAlertHref: string;
 }): ReadlistLimitForm[] {
-	if (!input.canEdit || input.canCreate) return [];
+	if (input.canCreate) return [];
 	const tracked = new URL(
 		withInternalTracking(input.limitAlertHref, {
 			source: NAV_SOURCE,
@@ -289,9 +238,7 @@ interface ReadlistNavInput {
 	activeSlug: ReadlistSlug;
 	newReadlistAction: string;
 	limitAlertHref: string;
-	canEdit: boolean;
 	canCreate: boolean;
-	offer: UpgradeOffer | undefined;
 }
 
 function navItem(input: {
@@ -308,15 +255,8 @@ function navItem(input: {
 	const menu = navMenu({
 		slug: readlist.slug,
 		viewedSlug: nav.activeSlug,
-		canEdit: nav.canEdit,
 		pinState: input.pinState,
 		inputSuffix: classes.inputSuffix,
-	});
-	const lockedMenus = lockedMenusOf({
-		slug: readlist.slug,
-		title: readlist.label,
-		gated: !nav.canEdit,
-		offer: nav.offer,
 	});
 	return {
 		href: withInternalTracking(buildReadlistUrl({ readlist: readlist.slug }), {
@@ -332,7 +272,6 @@ function navItem(input: {
 		autofocus: input.autofocus,
 		menuHtml: render(MENU_TEMPLATE, {
 			...menu,
-			lockedMenus,
 			name: readlist.slug,
 			title: readlist.label,
 		}),
@@ -420,13 +359,6 @@ export function buildReadlistNav(
 					},
 				]
 			: [],
-		createLocks: renderedNavLock({
-			offer: input.offer,
-			gated: !input.canEdit,
-			key: "create-readlist",
-			label: "Create a readlist",
-			controlClass: "readlist-row__main readlist-nav__new",
-		}),
 		limitForms: limitFormsOf(input),
 	};
 }

@@ -22,7 +22,6 @@ const RAIL: ReadlistRailViewModel = {
 	activeReadlist: DEFAULT_READLIST,
 	newReadlistAction: READLIST_CREATE_PATH,
 	limitAlertHref: "/queue?queue_error=limit",
-	canEdit: true,
 	canCreate: true,
 	offer: undefined,
 	nonEmptyReadlists: [],
@@ -42,7 +41,6 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 	saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 	actions: [],
 	deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
-	moveLocks: [],
 	markStatusConfirm: {
 		articleId: "abc123",
 		popoverId: markStatusConfirmPopoverId("abc123"),
@@ -72,7 +70,6 @@ const PLAIN_ARTICLE: ReadlistArticleViewModel = {
 	saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 	actions: [],
 	deletion: buildArticleDeletion({ articleId: "def456", query: "", acknowledged: true }),
-	moveLocks: [],
 	contentState: "available",
 	readerHref: "/queue/def456/view",
 	isStalePending: false,
@@ -92,7 +89,7 @@ function baseViewModel(overrides: Partial<ReadlistViewModel> = {}): ReadlistView
 		countsUrl: "/queue/counts",
 		paginationUrls: {},
 		subscriptionBanner: { state: "none" },
-		accessIsReadOnly: false,
+		paidFeaturesLocked: false,
 		...overrides,
 	};
 }
@@ -274,9 +271,9 @@ describe("ReadlistPage", () => {
 		expect(doc.querySelectorAll("[data-test-readlist-purpose], #readlist-preferences-wizard")).toHaveLength(0);
 	});
 
-	it("shows a read-only reader the full purpose, with no edit dialog", () => {
+	it("shows a free-plan reader the full purpose, with no edit dialog", () => {
 		const doc = pageDoc(
-			{ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug }, accessIsReadOnly: true },
+			{ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug }, paidFeaturesLocked: true },
 			{ purpose: "Papers for the team offsite" },
 		);
 
@@ -333,14 +330,8 @@ describe("ReadlistPage", () => {
 		expect(sort.textContent?.trim()).toBe("Oldest first");
 	});
 
-	it("disables the save input for a reader without write access", () => {
-		const doc = pageDoc({ accessIsReadOnly: true });
-
-		expect(saveInput(doc).disabled).toBe(true);
-	});
-
-	it("leaves the save input enabled for a reader with write access", () => {
-		const doc = pageDoc({ accessIsReadOnly: false });
+	it("leaves the save input enabled for a free-plan reader, since saving is a core write", () => {
+		const doc = pageDoc({ paidFeaturesLocked: true });
 
 		expect(saveInput(doc).disabled).toBe(false);
 	});
@@ -891,12 +882,6 @@ describe("ReadlistPage", () => {
 		assert(popover, "the create dialog must render for a reader who can create");
 		expect(popover.getAttribute("id")).toBe("readlist-create");
 		expect(popover.closest("main")?.tagName).toBe("MAIN");
-	});
-
-	it("withholds every rename, create and readlist-delete popover from a reader who cannot write", () => {
-		const doc = pageDoc({}, { rail: { ...RAIL, canEdit: false, canCreate: false } });
-
-		expect(readlistPopovers(doc)).toEqual([]);
 	});
 
 	it("keeps the rename and delete popovers but not the create dialog once the reader is at the cap", () => {

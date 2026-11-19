@@ -56,6 +56,7 @@ function multipartBody(filename: string, content: Buffer): { body: Buffer; conte
 }
 
 const useApp = useTestServer();
+const useMeteredApp = useTestServer({ isDailyLimited: () => true });
 const ONE_DAY_MS = 86_400_000;
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
@@ -909,6 +910,86 @@ describe("Import routes", () => {
 			});
 		});
 
+		describe("daily new-save limit", () => {
+			const DAY_RULE = { limit: 28, windowSeconds: 86_400 };
+			const FIVE_NEW = Array.from({ length: 5 }, (_, index) => `https://example.com/daily-${index}`);
+
+			async function commitAfterSpending(input: { spent: number; urls: string[] }) {
+				const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+				fixture.rateLimit = { ...fixture.rateLimit, rules: { ...fixture.rateLimit.rules, dailySaves: DAY_RULE } };
+				const harness = useMeteredApp(fixture);
+				const agent = await loginAgent(harness.server, harness.auth);
+				const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+				assert(userId, "user must exist");
+				await fixture.rateLimit.claimRateLimitUnits({ bucket: "daily-saves", key: userId, requested: input.spent, rule: DAY_RULE });
+				const { body, contentType } = multipartBody("urls.txt", Buffer.from(input.urls.join(" ")));
+				const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
+				const id = sessionIdFromLocation(create.headers.location);
+				const commit = await agent.post(`${create.headers.location}/commit`);
+				return { harness, fixture, agent, userId, id, commit };
+			}
+
+			it("saves what the day allows, keeps the session and leaves the rest selected", async () => {
+				const { harness, fixture, userId, id, commit } = await commitAfterSpending({ spent: 26, urls: FIVE_NEW });
+
+				expect(commit.status).toBe(303);
+				expect(commit.headers.location).toBe(`/import/${id}?import_imported=2&import_daily_limit=1`);
+				const saved = await harness.articleStore.findArticlesByUser({ userId });
+				expect(saved.articles.map((article) => article.url).sort()).toEqual(FIVE_NEW.slice(0, 2));
+				const session = await fixture.importSession.importSessionStore.findImportSession({ id, userId });
+				assert(session, "the session is kept for the links the day did not allow");
+				expect([...session.deselected].sort()).toEqual([0, 1]);
+				const committed = harness.analytics.events.filter(
+					(e): e is ImportCommittedEvent => e.event === "import_committed",
+				);
+				assert.equal(committed[0].imported_count, 2);
+			});
+
+			it("shows the saved count and the daily limit on the review page it returns to, with the rest still selected", async () => {
+				const { agent, commit } = await commitAfterSpending({ spent: 27, urls: FIVE_NEW });
+
+				const review = await agent.get(commit.headers.location);
+
+				expect(review.status).toBe(200);
+				const document = new JSDOM(review.text).window.document;
+				const banner = document.querySelector("[data-test-import-daily-limit]");
+				assert(banner, "the review page must show the daily-limit banner");
+				expect(banner.textContent).toContain(
+					"Saved 1 link. You've reached today's limit for new saves; the rest stay selected here so you can save them tomorrow.",
+				);
+				expect(document.querySelectorAll("[data-test-import-checkbox]:checked")).toHaveLength(4);
+			});
+
+			it("uses the plural noun in the review banner when several links were saved", async () => {
+				const { agent, commit } = await commitAfterSpending({ spent: 26, urls: FIVE_NEW });
+
+				const review = await agent.get(commit.headers.location);
+
+				const banner = new JSDOM(review.text).window.document.querySelector("[data-test-import-daily-limit]");
+				assert(banner, "the review page must show the daily-limit banner");
+				expect(banner.textContent).toContain(
+					"Saved 2 links. You've reached today's limit for new saves; the rest stay selected here so you can save them tomorrow.",
+				);
+			});
+
+			it("shows no daily-limit banner on a review page opened without the flag", async () => {
+				const { agent, id } = await commitAfterSpending({ spent: 26, urls: FIVE_NEW });
+
+				const review = await agent.get(`/import/${id}`);
+
+				const document = new JSDOM(review.text).window.document;
+				expect(document.querySelector("[data-test-import-row]")).not.toBeNull();
+				expect(document.querySelector("[data-test-import-daily-limit]")).toBeNull();
+			});
+
+			it("commits as before when the day allows every link", async () => {
+				const { fixture, userId, id, commit } = await commitAfterSpending({ spent: 0, urls: FIVE_NEW });
+
+				expect(commit.headers.location).toBe("/queue?import_imported=5&import_total=5&import_skipped=0");
+				assert.equal(await fixture.importSession.importSessionStore.findImportSession({ id, userId }), undefined);
+			});
+		});
+
 		describe("engagement activity", () => {
 			async function commitRecordingActivity(fixture: ReturnType<typeof createDefaultTestAppFixture>, urls: string[]) {
 				const activity: Parameters<RecordEngagementActivity>[0][] = [];
@@ -1353,15 +1434,12 @@ describe("Import routes", () => {
 		});
 	});
 
-	describe("POST /import/:id/commit write-access gating", () => {
-		it("keeps the upload+review public but redirects the commit to /queue?inactive=1 for a trial-expired account", async () => {
+	describe("POST /import/:id/commit on the free plan", () => {
+		it("commits for a free-plan account, since importing is core", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 			assert(userId, "seeded login user must exist");
-			// A trial past its window leaves the account read-only: the commit
-			// (the bulk save) is gated by the write-access check while the upload
-			// and review pages stay public.
 			await harness.subscriptionProviders.upsertTrialing({
 				userId,
 				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
@@ -1382,15 +1460,8 @@ describe("Import routes", () => {
 
 			const commit = await agent.post(`${reviewPath}/commit`).set("Accept", "text/html");
 			expect(commit.status).toBe(303);
-			expect(commit.headers.location).toBe("/queue?inactive=1");
-			expect(harness.analytics.events.filter((e) => e.event === "save_refused")).toEqual([
-				expect.objectContaining({
-					path: "/import/:id/commit",
-					status: 303,
-					code: "no_write_access",
-					user_id: userId,
-				}),
-			]);
+			expect(commit.headers.location).toContain("import_imported=");
+			expect(harness.analytics.events.filter((e) => e.event === "save_refused")).toEqual([]);
 		});
 
 		it("records no refusal when the anonymous commit is sent to sign up", async () => {
@@ -1687,7 +1758,7 @@ describe("Import routes", () => {
 	describe("rate limiting", () => {
 		it("returns 429 past the per-IP import upload limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, import: { limit: 1, windowSeconds: 3600 } },
 			};

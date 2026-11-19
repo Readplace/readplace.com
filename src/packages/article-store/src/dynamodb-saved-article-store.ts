@@ -75,6 +75,7 @@ import type {
 	MarkArticleViewed,
 	MarkReadlistArticleViewed,
 	MarkReaderReadyEmailSent,
+	MarkOcrPagesHeld,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
@@ -90,7 +91,6 @@ import {
 	ArticlePurgedAfterRequest,
 	DigestPageCursorSchema,
 	type ContentProvider,
-	type HasSaveLandedSince,
 	type SaveArticleAsRequested,
 	type SaveReadlistArticleAsRequested,
 } from "@packages/provider-contracts/article-store";
@@ -180,6 +180,7 @@ const UserArticleRow = z.object({
 	suggestionAttribution: dynamoField(SuggestionAttributionSchema),
 	relatedDismissedAt: dynamoField(z.string()),
 	relatedDismissedSuggestionId: dynamoField(ReaderArticleHashIdSchema),
+	ocrPagesHold: dynamoField(z.object({ pages: z.number(), pagesLeft: z.number(), retryAt: z.string() })),
 });
 
 function digestIndexKeyOfLast(rows: z.infer<typeof UserArticleRow>[]): Record<string, unknown> {
@@ -250,6 +251,7 @@ function toSavedArticle(
 		processingNotice: article.processingNotice,
 		ownerUserId: article.ownerUserId,
 		enclosure: article.enclosure,
+		ocrPagesHold: userArticle.ocrPagesHold && { ...userArticle.ocrPagesHold, retryAt: new Date(userArticle.ocrPagesHold.retryAt) },
 	};
 }
 
@@ -283,6 +285,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
+	markOcrPagesHeld: MarkOcrPagesHeld;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
@@ -290,7 +293,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 	saveReadlistArticle: SaveReadlistArticle;
 	saveArticleAsRequested: SaveArticleAsRequested;
 	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
-	hasSaveLandedSince: HasSaveLandedSince;
 	findReadlistArticles: FindReadlistArticles;
 	countReadlistArticles: CountReadlistArticles;
 	findReadlistArticleById: FindReadlistArticleById;
@@ -688,14 +690,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 	const saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested = ({ readlist, ...params }) =>
 		writeSaveAsRequested(readlistPartitionValue({ userId: params.userId, readlist }), params, undefined);
 
-
-	const hasSaveLandedSince: HasSaveLandedSince = async ({ userId, url, requestedAt }) => {
-		const row = await userArticles.get(
-			{ userId, url: ArticleResourceUniqueId.parse(url).value },
-			{ consistentRead: true },
-		);
-		return row !== undefined && new Date(row.savedAt) >= requestedAt;
-	};
 
 	const findInPartition = async (
 		partition: string,
@@ -1517,6 +1511,15 @@ export function initDynamoDbSavedArticleStore(deps: {
 		});
 	};
 
+	const markOcrPagesHeld: MarkOcrPagesHeld = async ({ userId, url, hold }) => {
+		await stampUserArticleIfStillSaved({
+			partition: userId,
+			url,
+			set: { ocrPagesHold: { pages: hold.pages, pagesLeft: hold.pagesLeft, retryAt: hold.retryAt.toISOString() } },
+			remove: [],
+		});
+	};
+
 	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const rows: z.infer<typeof UserArticleRow>[] = [];
@@ -1780,6 +1783,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		markArticleViewed,
 		markSummaryToggled,
 		markRelatedDismissed,
+		markOcrPagesHeld,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUnreadSavesForDigest,
@@ -1787,7 +1791,6 @@ export function initDynamoDbSavedArticleStore(deps: {
 		saveReadlistArticle,
 		saveArticleAsRequested,
 		saveReadlistArticleAsRequested,
-		hasSaveLandedSince,
 		findReadlistArticles,
 		countReadlistArticles,
 		findReadlistArticleById,

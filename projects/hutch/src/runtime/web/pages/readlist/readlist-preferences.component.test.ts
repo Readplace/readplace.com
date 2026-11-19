@@ -35,9 +35,8 @@ function page(overrides: {
 	inboxes?: readonly InboxAddressEntry[];
 	choices?: readonly ReadlistFitOverride[];
 	alert?: AlertContent;
-	canEdit?: boolean;
 	canCreate?: boolean;
-	accessIsReadOnly?: boolean;
+	paidFeaturesLocked?: boolean;
 	offer?: UpgradeOffer;
 	subscriptionBanner?: SubscriptionBannerState;
 	query?: Record<string, unknown>;
@@ -49,7 +48,6 @@ function page(overrides: {
 			activeReadlist: { slug: WORK, label: "Work Reading" },
 			newReadlistAction: "/queue/queues",
 			limitAlertHref: `/queue?queue=${WORK}&queue_error=limit`,
-			canEdit: overrides.canEdit ?? true,
 			canCreate: overrides.canCreate ?? true,
 			offer: overrides.offer,
 			nonEmptyReadlists: [],
@@ -65,7 +63,7 @@ function page(overrides: {
 		inboxCreate: { submittedName: undefined, error: undefined },
 		inboxCreated: undefined,
 		gmailSenders: undefined,
-		accessIsReadOnly: overrides.accessIsReadOnly ?? false,
+		paidFeaturesLocked: overrides.paidFeaturesLocked ?? false,
 		subscriptionBanner: overrides.subscriptionBanner ?? { state: "none" },
 		onboarding: {
 			context: { hasInstallableClient: false },
@@ -220,12 +218,6 @@ describe("ReadlistPreferencesPage", () => {
 		]);
 	});
 
-	it("drops the delete confirmations when the reader cannot change their readlists", () => {
-		const doc = documentOf(page({ canEdit: false, canCreate: false }).content.html);
-
-		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-delete"]').length).toBe(0);
-	});
-
 	it("keeps the delete confirmations and sends the create row to this readlist's cap alert at the cap", () => {
 		const doc = documentOf(page({ canCreate: false }).content.html);
 
@@ -366,11 +358,11 @@ describe("ReadlistPreferencesPage", () => {
 		expect(side.querySelectorAll("[data-test-onboarding]")).toHaveLength(1);
 	});
 
-	it("shows a read-only reader what they wrote, with nothing to change it with", () => {
+	it("shows a free-plan reader what they wrote, with nothing to change it with", () => {
 		const doc = documentOf(
 			page({
 				purpose: "Shipping essays.",
-				accessIsReadOnly: true,
+				paidFeaturesLocked: true,
 				wizardOpen: true,
 				purposeError: "Say what this readlist is for, in up to 10,000 characters.",
 			}).content.html,
@@ -378,7 +370,7 @@ describe("ReadlistPreferencesPage", () => {
 		const panel = purposePanel(doc);
 
 		expect(panel.className).toBe(
-			"readlist-listing readlist-preferences readlist-preferences--set readlist-preferences--read-only",
+			"readlist-listing readlist-preferences readlist-preferences--set readlist-preferences--paid-locked",
 		);
 		expect(doc.querySelector("[data-test-readlist-purpose-text]")?.textContent).toBe("Shipping essays.");
 		expect(
@@ -388,22 +380,22 @@ describe("ReadlistPreferencesPage", () => {
 		).toHaveLength(0);
 	});
 
-	it("shows a read-only reader the unset card, with no way to set it up", () => {
-		const panel = purposePanel(documentOf(page({ accessIsReadOnly: true }).content.html));
+	it("shows a free-plan reader the unset card, with no way to set it up", () => {
+		const panel = purposePanel(documentOf(page({ paidFeaturesLocked: true }).content.html));
 
 		expect(panel.className).toBe(
-			"readlist-listing readlist-preferences readlist-preferences--unset readlist-preferences--read-only",
+			"readlist-listing readlist-preferences readlist-preferences--unset readlist-preferences--paid-locked",
 		);
 		expect(panel.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
 		expect(panel.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(0);
 	});
 
-	it("locks Set up readlist for a read-only reader who can upgrade, with no wizard behind it", () => {
-		const doc = documentOf(page({ accessIsReadOnly: true, offer: OFFER }).content.html);
+	it("locks Set up readlist for a free-plan reader who can upgrade, with no wizard behind it", () => {
+		const doc = documentOf(page({ paidFeaturesLocked: true, offer: OFFER }).content.html);
 		const panel = purposePanel(doc);
 
 		expect(panel.className).toBe(
-			"readlist-listing readlist-preferences readlist-preferences--unset readlist-preferences--read-only",
+			"readlist-listing readlist-preferences readlist-preferences--unset readlist-preferences--paid-locked",
 		);
 		const lock = panel.querySelector('.readlist-preferences__unset [data-test-action="upgrade-open"]');
 		assert(lock, "the unset card must carry the lock");
@@ -422,8 +414,8 @@ describe("ReadlistPreferencesPage", () => {
 		).toHaveLength(0);
 	});
 
-	it("locks the set purpose's edit for a read-only reader who can upgrade, with no wizard behind it", () => {
-		const doc = documentOf(page({ purpose: "Shipping essays.", accessIsReadOnly: true, offer: OFFER }).content.html);
+	it("locks the set purpose's edit for a free-plan reader who can upgrade, with no wizard behind it", () => {
+		const doc = documentOf(page({ purpose: "Shipping essays.", paidFeaturesLocked: true, offer: OFFER }).content.html);
 		const panel = doc.querySelector("[data-test-readlist-purpose]");
 		assert(panel, "the set purpose must render its card");
 

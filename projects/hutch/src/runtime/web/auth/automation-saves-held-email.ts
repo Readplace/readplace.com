@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { EMAIL_REPLY_INVITATION } from "../email-copy";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchEmails } from "@packages/translations/hutch-emails";
 import { render } from "@packages/web-shell";
 
 const TEMPLATE = readFileSync(
@@ -26,10 +28,11 @@ interface AutomationSavesHeldEmailComponent {
 	to: (mediaType: "text/html" | "text/plain") => string;
 }
 
+const { t } = translator(hutchEmails, DEFAULT_LOCALE);
+
 const CTA_LABEL = "See the articles waiting";
 
-const OPENING_AFTER =
-	" just arrived in your Readplace Inbox, but the articles weren't saved to All — your subscription is read-only, so saving is paused.";
+const OPENING_AFTER = t("automationSavesHeldEmail.openingAfter");
 
 function openingFragments(inboxAddress: string | undefined): {
 	before: string;
@@ -49,7 +52,7 @@ function openingFragments(inboxAddress: string | undefined): {
 const REASSURANCE_PREFIX =
 	"Don't worry, you didn't lose anything. The email and the extracted articles stay in your Inbox. You can save them yourself, and new emails go back to saving automatically, once ";
 
-const REASSURANCE_LINK_TEXT = "your subscription is active again";
+const REASSURANCE_LINK_TEXT = t("automationSavesHeldEmail.reassuranceLink");
 
 function bodyParagraphs(input: {
 	reactivateUrl: string;

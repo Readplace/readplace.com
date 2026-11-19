@@ -24,7 +24,7 @@ it("defers a registered transaction page's declared PDF to comprehensive extract
 		[download]: () => new Response("%PDF-1.4\nSynthetic profile bytes", { status: 200, headers: { "content-type": "application/pdf" } }),
 	});
 
-	expect(await crawl({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
 	expect(requested).toEqual([url, download]);
 });
 
@@ -32,6 +32,6 @@ it("crawls a page outside the transactions path as an ordinary page", async () =
 	const url = "https://ftpartners.com/about";
 	const { crawl, requested } = crawlWith({ [url]: html("<article><p>About the firm.</p></article>") });
 
-	expect(await crawl({ url })).toMatchObject({ status: "fetched" });
+	expect(await crawl({ chargeOcrPages: undefined, url })).toMatchObject({ status: "fetched" });
 	expect(requested).toEqual([url]);
 });

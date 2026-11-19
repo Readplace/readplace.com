@@ -193,11 +193,11 @@ describe("recordEmailLinksFilteredHandler", () => {
 		]);
 	});
 
-	it("a failed fact with reason write-access-lapsed on an absent row stores failed", async () => {
+	it("a failed fact with reason paid-plan-required on an absent row stores failed", async () => {
 		const { store, run, read } = createHandler();
 		await snapshotDestinations(store);
 
-		expect(await run([filterFailedBody("write-access-lapsed")])).toEqual({ batchItemFailures: [] });
+		expect(await run([filterFailedBody("paid-plan-required")])).toEqual({ batchItemFailures: [] });
 		expect((await read()).meta?.readlistOutcomes).toEqual([
 			{ readlist: WORK, readlistLabel: "Work", decision: "failed", fit: [] },
 		]);

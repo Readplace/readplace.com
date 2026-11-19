@@ -28,9 +28,10 @@ import type {
 } from "@packages/provider-contracts/article-summary";
 import type {
 	PublishSaveAnonymousLink,
-	PublishStaleCheckRequested,
+	RequestStaleCheck,
 } from "@packages/provider-contracts/events";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { articleHostFrom, buildViewEndCtaShownEvent, classifyOsFamily, hashIp, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
@@ -67,6 +68,8 @@ import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
 import { ViewCrawlLimitPage } from "./view-crawl-limit.component";
+import { ViewDailySaveLimitPage } from "./view-daily-save-limit.component";
+import type { ClaimDailySaves } from "../readlist/daily-save-allowance";
 import { parseViewPath, viewPathFor } from "./view-path";
 import {
 	type BuildArticleEpub,
@@ -75,6 +78,7 @@ import {
 } from "../../shared/epub/article-epub";
 import { EPUB_GUIDE_CONTENT, epubDownloadGuideFor, KINDLE_GUIDE_PATH, type EpubDownloadGuide } from "../../shared/epub/epub-download-guide";
 import { initResolveStoredArticle } from "../../shared/resolve-stored-article";
+import { staleCheckRequesterOf } from "../../shared/stale-check-requester";
 import { initStartAnonymousCrawl, type ResolveSaveIdentity } from "@packages/save-article";
 import {
 	ViewPage,
@@ -115,8 +119,11 @@ interface ViewDependencies {
 	pinContentSource: PinContentSource;
 	findContentSourceUrl: (url: string) => Promise<string | undefined>;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
-	publishStaleCheckRequested: PublishStaleCheckRequested;
+	requestStaleCheck: RequestStaleCheck;
 	consumeRateLimit: ConsumeRateLimit;
+	getEffectiveAccess: GetEffectiveAccess;
+	isDailyLimited: (access: EffectiveAccess) => boolean;
+	claimDailySaves: ClaimDailySaves;
 	viewCrawlRateLimit: RateLimitRule;
 	viewCrawlSignedInRateLimit: RateLimitRule;
 	now: () => Date;
@@ -427,16 +434,20 @@ function handleViewArticle(
 				}
 			}
 			if (!existing || offersCapture) {
-				const decision = await deps.consumeRateLimit(
-					req.userId === undefined
-						? { bucket: "view-crawl", key: rateLimitKeyFromRequest(req), rule: deps.viewCrawlRateLimit }
-						: { bucket: "view-crawl-signed-in", key: rateLimitKeyFromRequest(req), rule: deps.viewCrawlSignedInRateLimit },
-				);
-				if (!decision.allowed && !existing && req.userId !== undefined) {
+				const meteredUserId =
+					req.userId !== undefined && deps.isDailyLimited(await deps.getEffectiveAccess(req.userId)) ? req.userId : undefined;
+				const decision = meteredUserId !== undefined
+					? undefined
+					: await deps.consumeRateLimit(
+							req.userId === undefined
+								? { bucket: "view-crawl", key: rateLimitKeyFromRequest(req), rule: deps.viewCrawlRateLimit }
+								: { bucket: "view-crawl-signed-in", key: rateLimitKeyFromRequest(req), rule: deps.viewCrawlSignedInRateLimit },
+						);
+				if (decision !== undefined && !decision.allowed && !existing && req.userId !== undefined) {
 					sendRateLimited(res, decision.retryAfterSeconds);
 					return;
 				}
-				if (!decision.allowed && !existing) {
+				if (decision !== undefined && !decision.allowed && !existing) {
 					if (isCountableBrowserRequest({ req, ownHost: deps.ownHost })) {
 						assert(req.visitorId, "visitor-id middleware must run before the /view router");
 						deps.recordAnalyticsEvent(req, {
@@ -455,7 +466,7 @@ function handleViewArticle(
 					sendComponent(req, res, Base(ViewCrawlLimitPage({ retryAfterSeconds: decision.retryAfterSeconds }), await deps.buildBannerState(req)));
 					return;
 				}
-				const identity = decision.allowed ? await deps.resolveSaveIdentity(validation.url) : undefined;
+				const identity = decision === undefined || decision.allowed ? await deps.resolveSaveIdentity(validation.url) : undefined;
 				if (identity?.status === "unresolved" && !existing) {
 					await renderError(deps, req, res, { title: "The original article could not be resolved", statusCode: 422 });
 					return;
@@ -469,18 +480,27 @@ function handleViewArticle(
 						sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
 						return;
 					}
+					if (meteredUserId !== undefined && (!existing || identity.contentSourceUrl !== undefined)) {
+						const claim = await deps.claimDailySaves({ userId: meteredUserId, urls: [articleUrl] });
+						if (claim.refused.length > 0) {
+							assert(claim.retryAfterSeconds !== undefined, "a refused daily-save claim carries Retry-After");
+							res.set("Retry-After", String(claim.retryAfterSeconds));
+							sendComponent(req, res, Base(ViewDailySaveLimitPage(), await deps.buildBannerState(req)));
+							return;
+						}
+					}
 					wrapperCandidatesQueued = identity.contentSourceUrl !== undefined;
 					if (!existing) {
-						await startAnonymousCrawl({ ...identity, url: articleUrl });
+						await startAnonymousCrawl({ identity: { ...identity, url: articleUrl }, userId: req.userId });
 					} else if (identity.contentSourceUrl !== undefined) {
 						if (isArchiveHost(identity.contentSourceUrl)) {
 							await deps.pinContentSource({ articleUrl, contentSourceUrl: identity.contentSourceUrl, sourceOriginalUrl: identity.sourceOriginalUrl });
 						}
-						await deps.publishSaveAnonymousLink({ url: articleUrl, captureUrl: identity.contentSourceUrl, sourceOriginalUrl: identity.sourceOriginalUrl, saveAttemptId: newSaveAttemptId() });
+						await deps.publishSaveAnonymousLink({ url: articleUrl, captureUrl: identity.contentSourceUrl, sourceOriginalUrl: identity.sourceOriginalUrl, saveAttemptId: newSaveAttemptId(), userId: req.userId });
 					}
 				}
 			}
-			if (existing !== null && !wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.publishStaleCheckRequested({ url: articleUrl });
+			if (existing !== null && !wrapperCandidatesQueued && !isPrefetchOrBot(req)) await deps.requestStaleCheck({ url: articleUrl, requester: staleCheckRequesterOf(req) });
 		}
 		const fallbackDestination = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const renderStub: SavedArticle["metadata"] = { ...hostStubMetadata(fallbackDestination), wordCount: 0 };
@@ -654,6 +674,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readerNotice: undefined,
+			ocrPagesHold: undefined,
 			saved: undefined,
 			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
 			renderDownloadsOob: offersEpubDownload(existing ?? {})
@@ -697,6 +718,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readerNotice: undefined,
+			ocrPagesHold: undefined,
 			saved: undefined,
 			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
 			renderDownloadsOob: offersEpubDownload(existing ?? {})

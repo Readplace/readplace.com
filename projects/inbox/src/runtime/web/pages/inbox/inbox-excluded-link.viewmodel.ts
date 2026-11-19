@@ -1,7 +1,7 @@
-import { withInternalTracking } from "@packages/web-shell";
-import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { inbox } from "@packages/translations/inbox";
+import { withInternalTracking } from "@packages/web-shell";
+import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
 import type { EmailLinkSkipReason, InboxEmailLinkEntry } from "@packages/domain/inbox";
 import type { InboxCardSaveAction } from "./inbox-link-card.viewmodel";
 import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
@@ -16,6 +16,7 @@ const SKIP_REASON_LABELS: Record<EmailLinkSkipReason, string> = {
 	"llm-menu": "Site navigation",
 	"llm-subscription": "Subscription management",
 	"social-host": "Social link — not saved automatically",
+	"paid-plan": t("excludedLink.reason.paidPlan"),
 };
 
 const GENERIC_EXCLUDED_LABEL = "Not an article";

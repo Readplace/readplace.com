@@ -335,7 +335,6 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 	renames: string;
 	create: string;
 } {
-	if (!rail.canEdit) return { deleteConfirms: "", renames: "", create: "" };
 	const owned = rail.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST.slug);
 	const returnQuery = readlistReturnQuery({ readlist: rail.activeReadlist.slug });
 	return {
@@ -460,7 +459,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 
 	const purpose = renderReadlistPurpose({
 		readlist: { slug: filters.readlist, purpose: options.purpose },
-		standing: standingOf({ gated: vm.accessIsReadOnly, offer: options.rail.offer }),
+		standing: standingOf({ gated: vm.paidFeaturesLocked, offer: options.rail.offer }),
 		offer: options.rail.offer,
 		from: filters.tab,
 	});
@@ -468,8 +467,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 	const addLink = isDefaultReadlist
 		? renderReadlistAddLink({
 				filters,
-				accessIsReadOnly: vm.accessIsReadOnly,
-				offer: options.rail.offer,
 				saveTip: options.saveTip,
 				saveUrl: options.saveUrl,
 			})
@@ -483,9 +480,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				activeSlug: options.rail.activeReadlist.slug,
 				newReadlistAction: options.rail.newReadlistAction,
 				limitAlertHref: options.rail.limitAlertHref,
-				canEdit: options.rail.canEdit,
 				canCreate: options.rail.canCreate,
-				offer: options.rail.offer,
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: alert }),
@@ -533,7 +528,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		sortIconName: sort.iconName,
 		offlineDownload: offlineDownloadControl({ filters, isEmpty: vm.isEmpty }),
 		saveSkeletonHtml: renderReadlistSaveSkeleton(
-			toReadlistSaveSkeletonDisplayModel({ filters, accessIsReadOnly: vm.accessIsReadOnly }),
+			toReadlistSaveSkeletonDisplayModel({ filters }),
 		),
 		isEmpty: vm.isEmpty,
 		emptyIllustrationHtml: renderIllustration("book-lightbulb"),

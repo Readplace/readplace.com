@@ -889,6 +889,18 @@ describe("initSendQueueDigestHandler", () => {
 			]);
 		});
 
+		it("records a cancelled reader's skip under the free tier", async () => {
+			const subject = createSubject({ contact: { ...VERIFIED_CONTACT, emailVerified: false } });
+			await subject.subscriptions.upsertActive({ userId: USER_ID, subscriptionId: "sub_1", customerId: "cus_1" });
+			await subject.subscriptions.markCancelledByUserId({ userId: USER_ID });
+
+			await subject.run();
+
+			expect(subject.events).toEqual([
+				expect.objectContaining({ event: "queue_digest_skipped", tier: "free", reason: "no-verified-email" }),
+			]);
+		});
+
 		it("skips a reader who unsubscribed from this digest", async () => {
 			const subject = createSubject({
 				contact: { ...VERIFIED_CONTACT, queueDigestOptOutAt: "2026-06-01T00:00:00.000Z" },

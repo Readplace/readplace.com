@@ -10,6 +10,7 @@ import type {
 	RelatedTargetArticle,
 	RelatedTargetLookup,
 } from "@packages/provider-contracts/related-articles";
+import type { FindPlanAccess } from "./find-plan-access.types";
 import { MetadataNotReadyError, initNextReadComputation } from "./next-read-computation";
 import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
 import type { SelectRelatedArticles } from "./related-articles-selector";
@@ -42,6 +43,7 @@ function recomputeTargetOf(lookup: RelatedTargetLookup): RecomputeTarget {
 export function initRecomputeSkippedNextReadHandler(deps: {
 	findRelatedTargetArticle: FindRelatedTargetArticle;
 	findSkippedNextReadSaves: FindSkippedNextReadSaves;
+	findPlanAccess: FindPlanAccess;
 	gatherRelatedCandidatePools: GatherRelatedCandidatePools;
 	selectRelatedArticles: SelectRelatedArticles;
 	replaceSkippedRelatedArticlesWithReady: MarkRelatedArticlesReady;
@@ -52,6 +54,7 @@ export function initRecomputeSkippedNextReadHandler(deps: {
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { findRelatedTargetArticle, findSkippedNextReadSaves, logger } = deps;
 	const { computeNextRead } = initNextReadComputation({
+		findPlanAccess: deps.findPlanAccess,
 		gatherRelatedCandidatePools: deps.gatherRelatedCandidatePools,
 		selectRelatedArticles: deps.selectRelatedArticles,
 		markRelatedArticlesReady: deps.replaceSkippedRelatedArticlesWithReady,

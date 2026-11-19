@@ -314,7 +314,7 @@ describe("GET /account/plans (trialing, the trial can still be kept)", () => {
 describe("GET /account/plans (the first charge is today)", () => {
 	it.each([
 		["a trialing reader inside the checkout lead", "trialing-late", { status: "trialing", trialDays: 1 }, "trial"],
-		["a trialing reader whose trial has ended", "trialing-expired", { status: "trialing", trialDays: -1 }, "inactive"],
+		["a trialing reader whose trial has ended", "trialing-expired", { status: "trialing", trialDays: -1 }, "free"],
 	] as const)("tells %s that choosing a plan charges today", async (_name, local, row, tier) => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, userId } = await signedInReader(harness, `${local}@example.com`);
@@ -352,7 +352,7 @@ describe("GET /account/plans (the first charge is today)", () => {
 		expect(termsOf(doc).textContent).toBe("Choosing a plan charges your card on file today.");
 		expect(planKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
 		expect(plansPageViews(harness)).toEqual([
-			expect.objectContaining({ user_id: userId, tier: "inactive", terms: "charge_today" }),
+			expect.objectContaining({ user_id: userId, tier: "free", terms: "charge_today" }),
 		]);
 	});
 

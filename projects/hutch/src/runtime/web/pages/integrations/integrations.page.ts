@@ -23,7 +23,7 @@ interface IntegrationsDependencies {
 	buildBannerState: BuildBannerState;
 	requireAuth: RequestHandler;
 	requireNotLocked: RequestHandler;
-	requireWriteAccess: RequestHandler;
+	requirePaidFeatures: RequestHandler;
 	getEffectiveAccess: GetEffectiveAccess;
 	appOrigin: string;
 	secureCookies: boolean;
@@ -55,7 +55,7 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 			now: deps.now,
 			requireAuth: deps.requireAuth,
 			requireNotLocked: deps.requireNotLocked,
-			requireWriteAccess: deps.requireWriteAccess,
+			requirePaidFeatures: deps.requirePaidFeatures,
 			getEffectiveAccess: deps.getEffectiveAccess,
 			consent,
 		};
@@ -64,7 +64,7 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 			buildBannerState: deps.buildBannerState,
 			requireAuth: deps.requireAuth,
 			requireNotLocked: deps.requireNotLocked,
-			requireWriteAccess: deps.requireWriteAccess,
+			requirePaidFeatures: deps.requirePaidFeatures,
 			getEffectiveAccess: deps.getEffectiveAccess,
 			now: deps.now,
 			consent,

@@ -57,7 +57,7 @@ import { renderDownloadGuideDialog } from "../../shared/download-guide/download-
 import type { EpubDownloadGuide } from "../../shared/epub/epub-download-guide";
 import { railLandmarkFor } from "../../shared/reading-layout/rail-landmark";
 import { READER_OPEN_SCRIPT } from "../../shared/reader-open/reader-open-script";
-import { renderNextRead } from "../../shared/next-read/next-read.component";
+import { renderLockedNextRead, renderNextRead } from "../../shared/next-read/next-read.component";
 import {
 	type PastReadsSectionInput,
 	hasVisiblePastReads,
@@ -246,6 +246,7 @@ export function ReaderPage(
 		previouslyRead?: PastReads;
 		previouslyReadPollUrl?: string;
 		previouslyReadComputeUrl?: string;
+		nextReadLocks?: readonly string[];
 		readerPathForReadlist?: (
 			articleId: string,
 			readlist?: ReadlistSlug,
@@ -338,6 +339,7 @@ export function ReaderPage(
 		readlistTags: options.readlistFiling.tags,
 		content: options.content,
 		crawl: options.crawl,
+		ocrPagesHold: article.ocrPagesHold,
 		readerPollUrl: options.readerPollUrl,
 		capturePollUrls: options.capturePollUrls,
 		summary: options.summary,
@@ -428,7 +430,7 @@ export function ReaderPage(
 	const filingToast = options.readlistFiling.toast;
 	const statusToastHtml =
 		options.statusToast ?? (filingToast === undefined ? "" : renderFilingToast(filingToast));
-	const nextRead = renderNextRead({
+	const nextRead = options.nextReadLocks !== undefined ? renderLockedNextRead({ locks: options.nextReadLocks }) : renderNextRead({
 		related: options.related
 			? {
 					articles: options.related,

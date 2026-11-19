@@ -54,7 +54,7 @@ async function openIntegrations(page: Page, { stamp, path }: { stamp: string; pa
 async function openAccount(
 	page: Page,
 	stamp: string,
-	input: { error: string; state: "inactive" | "cancellation-scheduled" },
+	input: { error: string; state: "free" | "cancellation-scheduled" },
 ): Promise<void> {
 	const email = `alert-account-${stamp}@example.com`;
 	const userId = await createUser(page, email);
@@ -170,7 +170,7 @@ const SCENARIOS: readonly Scenario[] = [
 		name: "account-subscription-error",
 		key: "account-subscription",
 		variant: "error",
-		open: (page, stamp) => openAccount(page, stamp, { error: "payment_method", state: "inactive" }),
+		open: (page, stamp) => openAccount(page, stamp, { error: "payment_method", state: "free" }),
 		pinnedText: [],
 	},
 	{

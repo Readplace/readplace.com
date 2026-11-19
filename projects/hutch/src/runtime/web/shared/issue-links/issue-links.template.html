@@ -2,6 +2,9 @@
   {{#if visible}}
   <h2 class="issue-links__title">Links in this issue</h2>
   <p class="issue-links__lede" data-test-issue-links-lede>{{lede}}</p>
+  {{#if dailyLimitReached}}
+  <p class="issue-links__lede" role="status" data-test-issue-links-daily-limit>{{t "readlistSaveLimit.formError"}}</p>
+  {{/if}}
   {{#if rows.length}}
   <ul class="issue-links__list">
     {{#each rows}}

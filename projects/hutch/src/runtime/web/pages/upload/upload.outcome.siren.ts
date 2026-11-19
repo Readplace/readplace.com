@@ -3,7 +3,7 @@ import type { UploadId } from "@packages/media-contracts";
 import { SIREN_MEDIA_TYPE, type SirenEntity, sirenError } from "../../api/siren";
 import { UPLOAD_ERROR_STATUS, UPLOAD_FAILED_MESSAGE, type UploadErrorCode, uploadErrorMessageOf } from "./upload.error";
 import type { UploadOutcomeWriters, UploadWriteContext } from "./upload.outcome";
-import { type UploadRefusalReason, uploadRefusalCopyOf } from "./upload.refusal";
+import { type TranscriptRefusalReason, bookQuotaMessageOf, uploadRefusalCopyOf } from "./upload.refusal";
 import type { UploadProtocol } from "./upload.page";
 
 function sendSiren(res: Response, status: number, entity: SirenEntity): void {
@@ -25,7 +25,7 @@ function errorWriter(code: UploadErrorCode): (res: Response, _outcome: unknown, 
 }
 
 function refusalWriter(
-	reason: UploadRefusalReason,
+	reason: TranscriptRefusalReason,
 ): (res: Response, _outcome: unknown, context: UploadWriteContext) => void {
 	return (res, _outcome, context) => {
 		sendSiren(
@@ -75,6 +75,10 @@ const UPLOAD_OUTCOME_SIREN: UploadOutcomeWriters = {
 	"transcript-too-long": refusalWriter("transcript-too-long"),
 	"unreadable-audio": refusalWriter("unreadable-audio"),
 	"no-audio-track": refusalWriter("no-audio-track"),
+	"book-quota": (res, outcome) => {
+		const error = sirenError({ code: "book-quota", message: bookQuotaMessageOf(outcome.retryAt) });
+		sendSiren(res, 422, { ...error, properties: { ...error.properties, retryAt: outcome.retryAt.toISOString() } });
+	},
 };
 
 export const UPLOAD_PROTOCOL_SIREN: UploadProtocol = {

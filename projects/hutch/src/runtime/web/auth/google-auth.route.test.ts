@@ -1011,6 +1011,7 @@ describe("Google signup allowance per network per day", () => {
 					clientSecret: TEST_CLIENT_SECRET,
 				},
 			rateLimit: {
+				...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, signupCreated: { limit: 0, windowSeconds: 86400 } },
 			},

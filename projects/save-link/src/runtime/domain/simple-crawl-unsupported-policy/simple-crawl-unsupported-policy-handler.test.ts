@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { initCrawlArticle, rejectDocumentLandingPage, type CrawlArticleResult, type CrawlFetch, type ExtractPdf } from "@packages/crawl-article";
+import { initCrawlArticle, rejectDocumentLandingPage, type ChargeOcrPages, type CrawlArticleResult, type CrawlFetch, type ExtractPdf } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import { initArticleSiteRules } from "@packages/article-parser";
 import { noopLogger } from "@packages/logger";
@@ -9,6 +9,8 @@ import { initSimpleCrawlUnsupportedPolicyHandler } from "./simple-crawl-unsuppor
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
+
+const allowOcrPages: ChargeOcrPages = async () => ({ allowed: true });
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -358,16 +360,16 @@ describe("GitHub PDF viewer simple-to-comprehensive routing", () => {
 		const extracted: CrawlArticleResult[] = [];
 		const publishEvent: PublishEvent = async (_event, detail) => {
 			const command = ComprehensiveCrawlCommand.detailSchema.parse(detail);
-			extracted.push(await comprehensive({ url: command.url }));
+			extracted.push(await comprehensive({ chargeOcrPages: allowOcrPages, url: command.url }));
 		};
 		const dispatch = jest.fn(publishEvent);
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
 
-		expect(await simple({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+		expect(await simple({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
 		await policy(createSqsEvent({ url, trigger }), buildLambdaContext(), () => {});
 
 		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, trigger, saveAttemptId: "attempt-1" }));
-		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: rawUrl, onProgress: undefined });
+		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: rawUrl, scope: { kind: "none" }, chargeOcrPages: allowOcrPages, onProgress: undefined });
 		const [result] = extracted;
 		assert(result?.status === "fetched");
 		expect(result.html).toBe(html);
@@ -405,16 +407,16 @@ describe("OJS galley viewer simple-to-comprehensive routing", () => {
 		const extracted: CrawlArticleResult[] = [];
 		const publishEvent: PublishEvent = async (_event, detail) => {
 			const command = ComprehensiveCrawlCommand.detailSchema.parse(detail);
-			extracted.push(await comprehensive({ url: command.url }));
+			extracted.push(await comprehensive({ chargeOcrPages: allowOcrPages, url: command.url }));
 		};
 		const dispatch = jest.fn(publishEvent);
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
 
-		expect(await simple({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+		expect(await simple({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
 		await policy(createSqsEvent({ url, trigger }), buildLambdaContext(), () => {});
 
 		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, trigger, saveAttemptId: "attempt-1" }));
-		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: downloadUrl, onProgress: undefined });
+		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: downloadUrl, scope: { kind: "none" }, chargeOcrPages: allowOcrPages, onProgress: undefined });
 		const [result] = extracted;
 		assert(result?.status === "fetched");
 		expect(result.html).toBe(html);
@@ -448,16 +450,16 @@ describe("Gallup document simple-to-comprehensive routing", () => {
 		const extracted: CrawlArticleResult[] = [];
 		const publishEvent: PublishEvent = async (_event, detail) => {
 			const command = ComprehensiveCrawlCommand.detailSchema.parse(detail);
-			extracted.push(await comprehensive({ url: command.url }));
+			extracted.push(await comprehensive({ chargeOcrPages: allowOcrPages, url: command.url }));
 		};
 		const dispatch = jest.fn(publishEvent);
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
 
-		expect(await simple({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+		expect(await simple({ chargeOcrPages: undefined, url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
 		await policy(createSqsEvent({ url, trigger, unsupportedReason: "non-html-content" }), buildLambdaContext(), () => {});
 
 		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, trigger, saveAttemptId: "attempt-1" }));
-		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: downloadUrl, onProgress: undefined });
+		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: downloadUrl, scope: { kind: "none" }, chargeOcrPages: allowOcrPages, onProgress: undefined });
 		const [result] = extracted;
 		assert(result?.status === "fetched");
 		expect(result.html).toBe(html);

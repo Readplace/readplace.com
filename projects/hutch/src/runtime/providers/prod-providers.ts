@@ -54,6 +54,7 @@ import { initDynamoDbPasswordReset } from "./password-reset/dynamodb-password-re
 import { initDynamoDbBrowserHandoff } from "./browser-handoff/dynamodb-browser-handoff";
 import { parseRateLimitRules } from "./rate-limit-rules";
 import { initDynamoDbRateLimit } from "./rate-limit/dynamodb-rate-limit";
+import { initDynamoDbOcrPagesLeft } from "./ocr-pages-left/dynamodb-ocr-pages-left";
 import {
 	initDynamoDbGeneratedSummary,
 	initDynamoDbPastReads,
@@ -76,6 +77,7 @@ import { initEventBridgeQueueEntryCreated } from "./events/eventbridge-queue-ent
 import { initEventBridgeComputeRelatedPasses } from "./events/eventbridge-compute-related-passes";
 import { initEventBridgeResolveArticleOnView } from "./events/eventbridge-resolve-article-on-view";
 import { initRequestResolutionOnView } from "../domain/resolve-on-view/request-resolution-on-view";
+import { initRequestStaleCheck } from "../domain/stale-check/request-stale-check";
 import { initEventBridgeComputeRelatedPastReads } from "./events/eventbridge-compute-related-past-reads";
 import { initEventBridgeLinkQueued } from "./events/eventbridge-link-queued";
 import { initEventBridgeLinkSaved } from "./events/eventbridge-link-saved";
@@ -150,7 +152,7 @@ import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
 import { deriveStateSigningSecret } from "./apple-auth/apple-state-secret";
 import { initStripeCheckout } from "./stripe-checkout/stripe-checkout";
 import { initDynamoDbPendingSignup } from "./pending-signup/dynamodb-pending-signup";
-import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
+import { initDynamoDbSubscriptionRead, initGetEffectiveAccess } from "@packages/subscription-access";
 import { initDynamoDbSubscriptionWrites } from "./subscription-providers/dynamodb-subscription-writes";
 import { Logger, consoleLogger } from "@packages/logger";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
@@ -359,18 +361,6 @@ export function initProdProviders(input: { appOrigin: string }) {
 		now: () => new Date(),
 	});
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
-	const { refreshArticleIfStale } = initSubmitFreshness({
-		findArticleByUrl: articleStore.findArticleByUrl,
-		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
-		resolveSaveIdentity,
-		publishStaleCheckRequested,
-	});
-	const { refreshArticleIfStale: refreshArticleIfStaleStored } = initSubmitFreshness({
-		findArticleByUrl: articleStore.findArticleByUrl,
-		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
-		resolveSaveIdentity: resolveStoredSaveIdentity,
-		publishStaleCheckRequested,
-	});
 	const googleAuth = {
 		exchangeGoogleCode: initExchangeGoogleCode({
 			clientId: googleClientId,
@@ -583,7 +573,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		newGmailHistoryImportGeneration: randomUUID,
 		diagnosticsLogger: logger,
 	};
-	const { consumeRateLimit } = initDynamoDbRateLimit({
+	const { consumeRateLimit, claimRateLimitUnits } = initDynamoDbRateLimit({
 		client,
 		tableName: rateLimitsTable,
 		now: () => new Date(),
@@ -592,6 +582,25 @@ export function initProdProviders(input: { appOrigin: string }) {
 	// instead of silently running unthrottled. Values come from the Pulumi
 	// stack config via the Lambda environment.
 	const rateLimitRules = parseRateLimitRules(requireEnv("RATE_LIMITS"));
+	const { requestStaleCheck } = initRequestStaleCheck({
+		consumeRateLimit,
+		rule: rateLimitRules.staleCheck,
+		publishStaleCheckRequested,
+		getEffectiveAccess: initGetEffectiveAccess({ findSubscriptionByUserId: subscriptionProviders.findByUserId, now: () => new Date() }),
+		logger,
+	});
+	const { refreshArticleIfStale } = initSubmitFreshness({
+		findArticleByUrl: articleStore.findArticleByUrl,
+		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+		resolveSaveIdentity,
+		requestStaleCheck,
+	});
+	const { refreshArticleIfStale: refreshArticleIfStaleStored } = initSubmitFreshness({
+		findArticleByUrl: articleStore.findArticleByUrl,
+		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+		resolveSaveIdentity: resolveStoredSaveIdentity,
+		requestStaleCheck,
+	});
 
 	return {
 		recordEngagementActivity: initRecordEngagementActivity({
@@ -722,7 +731,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,
 		publishSubmitLink,
-		publishStaleCheckRequested,
+		requestStaleCheck,
 		publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand,
 		publishUpdateFetchTimestamp,
@@ -765,6 +774,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 			onboardingSignals.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: onboardingSignals.recordDeleteArticleAcknowledged,
 		consumeRateLimit,
+		claimRateLimitUnits,
+		readOcrPagesLeft: initDynamoDbOcrPagesLeft({ client, tableName: rateLimitsTable, now: () => new Date() }).readOcrPagesLeft,
 		rateLimitRules,
 	};
 }

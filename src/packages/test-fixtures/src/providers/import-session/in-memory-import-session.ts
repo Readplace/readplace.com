@@ -88,6 +88,11 @@ export function initInMemoryImportSession(deps: {
 				for (let i = 0; i < row.session.totalUrls; i++) row.deselected.add(i);
 			}
 		},
+		deselectImportIndices: async ({ id, userId, indices }) => {
+			const row = load(id, userId);
+			if (!row) return;
+			for (const index of indices) row.deselected.add(index);
+		},
 		deleteImportSession: async ({ id, userId }) => {
 			const row = load(id, userId);
 			if (row) sessions.delete(id);

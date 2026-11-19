@@ -62,14 +62,14 @@ export function initSaveEmailIssueCommandHandler(deps: {
 					await deps.publishEvent(EmailOutputSavedToAllEvent, { userId, ...detail.emailOutput });
 				},
 			});
-			if (outcome.kind === "write-access-lapsed") {
+			if (outcome.kind === "paid-plan-required") {
 				logger.warn("[save-email-issue] save refused", {
 					userId,
 					receivedAtMessageId,
 					messageId: record.messageId,
-					reason: "write-access-lapsed",
+					reason: "paid-plan-required",
 				});
-				await deps.publishEvent(EmailIssueSaveSkippedEvent, { userId, receivedAtMessageId, reason: "write-access-lapsed" });
+				await deps.publishEvent(EmailIssueSaveSkippedEvent, { userId, receivedAtMessageId, reason: "paid-plan-required" });
 				return;
 			}
 			if (outcome.kind === "saved") {

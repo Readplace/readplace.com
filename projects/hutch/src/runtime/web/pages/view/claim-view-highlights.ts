@@ -44,7 +44,7 @@ export function initClaimViewHighlights(deps: {
 	}): Promise<{ id: string; url: string } | undefined> => {
 		const validation = deps.validateNewSaveUrl(input.url);
 		if (validation.status === "ERROR") return undefined;
-		const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+		const freshness = await deps.refreshArticleIfStale({ url: validation.url, requester: { account: input.userId } });
 		if (freshness.action === "unresolved") return undefined;
 		const { saved } = await deps.saveArticleAtReadlistTop({
 			userId: input.userId,

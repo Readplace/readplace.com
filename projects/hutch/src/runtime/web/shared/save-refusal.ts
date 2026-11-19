@@ -17,7 +17,7 @@ export function tagSaveRefusal(res: Response, code: SaveRefusalCode): void {
 function refusalCodeOf(input: { status: number; tagged: SaveRefusalCode | undefined }): SaveRefusalCode {
 	if (input.tagged !== undefined) return input.tagged;
 	if (input.status === 401) return SAVE_REFUSAL_CODES.unauthenticated;
-	if (input.status === 402) return SAVE_REFUSAL_CODES.noWriteAccess;
+	if (input.status === 402) return SAVE_REFUSAL_CODES.paidFeatureRefused;
 	if (input.status === 403) return SAVE_REFUSAL_CODES.locked;
 	if (input.status === 429) return SAVE_REFUSAL_CODES.rateLimited;
 	return SAVE_REFUSAL_CODES.other;

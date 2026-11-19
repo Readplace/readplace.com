@@ -34,6 +34,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		expect(result).toEqual({
 			pages: [{ pageIndex: 0, finalText: "same" }],
 			applied: false,
+			providerFailed: false,
 		});
 	});
 
@@ -51,6 +52,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		});
 
 		expect(result.applied).toBe(true);
+		expect(result.providerFailed).toBe(false);
 		expect(result.pages[0].finalText).toBe("the Repository here");
 	});
 
@@ -139,10 +141,11 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		});
 
 		expect(result.applied).toBe(false);
+		expect(result.providerFailed).toBe(false);
 		expect(result.pages[0].finalText).toBe("alpha Charlie");
 	});
 
-	it("falls back to cleanedText when the LLM call throws (no rethrow)", async () => {
+	it("falls back to cleanedText and reports providerFailed when the LLM call throws an error classified unknown (no rethrow)", async () => {
 		const { logger, messages } = capturingLogger();
 		const deepseekCallFailed = jest.fn();
 		const handler = initPdfDocumentDiffReviewHandler({
@@ -156,6 +159,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		});
 
 		expect(result.applied).toBe(false);
+		expect(result.providerFailed).toBe(true);
 		expect(result.pages[0].finalText).toBe("beta");
 		expect(messages.some((m) => m.includes("LLM call failed") && m.includes("DeepSeek 5xx"))).toBe(true);
 		expect(deepseekCallFailed).not.toHaveBeenCalled();
@@ -175,6 +179,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		});
 
 		expect(result.applied).toBe(false);
+		expect(result.providerFailed).toBe(true);
 		expect(result.pages[0].finalText).toBe("beta");
 		expect(messages.some((m) => m.includes("LLM call failed") && m.includes("503 Service Unavailable"))).toBe(true);
 		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
@@ -251,6 +256,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		});
 
 		expect(result.applied).toBe(false);
+		expect(result.providerFailed).toBe(false);
 		expect(result.pages[0].finalText).toBe("");
 		expect(messages.some((m) => m.includes("document-level guardrail rejected"))).toBe(true);
 	});

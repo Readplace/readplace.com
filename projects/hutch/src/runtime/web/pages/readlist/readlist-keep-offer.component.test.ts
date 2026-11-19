@@ -65,7 +65,7 @@ describe("renderReadlistKeepOffer", () => {
 		expect(trialEnd.getAttribute("datetime")).toBe(TRIAL_ENDS_AT);
 		expect(trialEnd.hasAttribute("data-local-time")).toBe(true);
 		expect(body.textContent).toBe(
-			`Choose during your trial: $49 for your first year, then $60 a year. Add a card now and nothing is charged until ${trialEnd.textContent}. A reminder email arrives a week before. Your saves stay readable and exportable either way.`,
+			`Choose during your trial: $49 for your first year, then $60 a year. Add a card now and nothing is charged until ${trialEnd.textContent}. A reminder email arrives a week before. Without a card, your account moves to the free plan when the trial ends and keeps everything you saved.`,
 		);
 	});
 

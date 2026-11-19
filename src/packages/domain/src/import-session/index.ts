@@ -7,6 +7,7 @@ export type {
 	LoadImportSessionPage,
 	LoadAllImportSessionUrls,
 	ToggleImportSelection,
+	DeselectImportIndices,
 	ToggleAllImportSelection,
 	DeleteImportSession,
 	ImportSessionStore,

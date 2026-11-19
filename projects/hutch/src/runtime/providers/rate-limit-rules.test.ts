@@ -16,6 +16,11 @@ const RULES = {
 	import: "10/3600",
 	importFromUrl: "5/3600",
 	uploadStage: "20/3600",
+	dailySaves: "28/86400",
+	mcpCall: "269/86400",
+	bookUpload: "9/86400",
+	staleCheck: "158/86400",
+	export: "3/86400",
 	signupCreated: "3/86400",
 };
 
@@ -27,6 +32,11 @@ describe("parseRateLimitRules", () => {
 		assert.deepEqual(rules.loginAccount, { limit: 5, windowSeconds: 900 });
 		assert.deepEqual(rules.forgotPasswordAccount, { limit: 5, windowSeconds: 86400 });
 		assert.deepEqual(rules.uploadStage, { limit: 20, windowSeconds: 3600 });
+		assert.deepEqual(rules.dailySaves, { limit: 28, windowSeconds: 86400 });
+		assert.deepEqual(rules.mcpCall, { limit: 269, windowSeconds: 86400 });
+		assert.deepEqual(rules.bookUpload, { limit: 9, windowSeconds: 86400 });
+		assert.deepEqual(rules.staleCheck, { limit: 158, windowSeconds: 86400 });
+		assert.deepEqual(rules.export, { limit: 3, windowSeconds: 86400 });
 		assert.deepEqual(rules.signupCreated, { limit: 3, windowSeconds: 86400 });
 		assert.deepEqual(Object.keys(rules).sort(), Object.keys(RULES).sort());
 	});

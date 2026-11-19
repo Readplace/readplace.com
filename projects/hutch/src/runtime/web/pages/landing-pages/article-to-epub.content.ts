@@ -3,7 +3,7 @@ import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	PASTE_A_LINK,
 	READER_SHOT,
-	READ_ONLY_CLOSE,
+	FREE_PLAN_CLOSE,
 	START_TRIAL,
 	founderLine,
 } from "./landing-pages.copy";
@@ -104,14 +104,14 @@ export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
 		{
 			question: "What happens if I stop paying?",
 			answer:
-				"The account goes read-only, and every saved article can still be read, exported and downloaded as an EPUB.",
+				"The account moves to the free plan, and every saved article can still be read, exported and downloaded as an EPUB. Saving keeps working within daily limits.",
 		},
 	],
 	offer: {
 		title: "What it costs to keep a library",
 		paragraphs: [
 			`Downloading an EPUB from a link you paste here costs nothing. Saving articles to a readlist is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
-			READ_ONLY_CLOSE,
+			FREE_PLAN_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},

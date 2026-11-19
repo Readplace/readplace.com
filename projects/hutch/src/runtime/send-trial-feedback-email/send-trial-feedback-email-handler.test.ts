@@ -211,7 +211,7 @@ describe("automation-saves-held notice", () => {
 			() => {},
 		);
 
-	it("sends the notice and claims the marker for a read-only reader", async () => {
+	it("sends the notice and claims the marker for a free account", async () => {
 		const subject = buildSubject();
 		await seedCancelledTrial(subject.providers);
 
@@ -772,7 +772,7 @@ describe("send-trial-feedback-email handler", () => {
 			assert.equal(row.trialReminderEmailSentAt, undefined);
 		});
 
-		it("omits the saved-articles clause when the user saved zero", async () => {
+		it("says only what the free plan keeps when the user saved zero", async () => {
 			const subject = buildSubject({ articlesTotal: 0 });
 			await seedFutureTrial(subject.providers);
 
@@ -784,7 +784,7 @@ describe("send-trial-feedback-email handler", () => {
 
 			const sent = subject.email.getSentEmails()[0];
 			assert.ok(sent.text);
-			assert.ok(!sent.text.includes("stay readable either way"));
+			assert.ok(sent.text.includes("your account moves to the free plan, and you can keep saving within daily limits."));
 		});
 
 		it("a body WITHOUT kind still runs the feedback path (backward compatible)", async () => {

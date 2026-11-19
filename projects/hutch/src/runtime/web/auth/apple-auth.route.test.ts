@@ -1043,6 +1043,7 @@ describe("Apple signup allowance per network per day", () => {
 			...fixture,
 				apple: appleWith(stubExchange({ email })),
 			rateLimit: {
+				...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, signupCreated: { limit: 0, windowSeconds: 86400 } },
 			},

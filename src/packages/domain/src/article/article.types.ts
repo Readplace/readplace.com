@@ -50,4 +50,5 @@ export interface SavedArticle {
 	processingNotice?: string;
 	ownerUserId?: UserId;
 	enclosure?: Enclosure;
+	ocrPagesHold?: { pages: number; pagesLeft: number; retryAt: Date };
 }

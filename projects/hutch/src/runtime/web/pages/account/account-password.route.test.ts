@@ -683,7 +683,7 @@ describe("POST /account/password — a refused change", () => {
 
 	it("refuses once the login budget for the account is spent, in place and without a 429", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.rateLimit = {
+		fixture.rateLimit = { ...fixture.rateLimit,
 			consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 			rules: { ...fixture.rateLimit.rules, loginAccount: { limit: 2, windowSeconds: 900 } },
 		};

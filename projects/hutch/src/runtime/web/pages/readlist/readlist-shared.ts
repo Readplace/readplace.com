@@ -3,6 +3,7 @@ import {
 	requestedReaderSection,
 } from "../../shared/article-body/reader-slot/section-pages";
 import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
+import { isFreePlanBannerDismissed } from "./free-plan-banner-dismiss";
 
 import {
 	DISMISS_COOKIE_NAME,
@@ -307,6 +308,8 @@ const NATIVE_APP_SIGNAL_PLATFORM = {
 } as const satisfies Record<Platform, NativeAppPlatform | undefined>;
 
 export const ISSUE_LINK_SAVED_PARAM = "issue_link_saved";
+
+export const ISSUE_LINK_DAILY_LIMIT_PARAM = "issue_link_daily_limit";
 
 export function initReadlistShared(deps: ReadlistDependencies) {
 	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
@@ -735,6 +738,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 			readerProvenanceByUrl,
 			effectiveAccess,
 			upgradeOffer,
+			freePlanBannerDismissed: isFreePlanBannerDismissed(req),
 			now: deps.now(),
 			confirmReadlistsByUrl,
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
@@ -744,7 +748,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		});
 		const onboarding = signals.onboarding;
 		const cspNonce = requireCspNonce(req);
-		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ context: input.context, accessIsReadOnly: vm.accessIsReadOnly, offer: upgradeOffer, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }), purpose: input.context.activePurpose };
+		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ context: input.context, offer: upgradeOffer, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }), purpose: input.context.activePurpose };
 		const page = ReadlistPage(vm, { ...pageOptions, keepOffer, query: req.query });
 		if (keepOffer.shown) {
 			deps.recordAnalyticsEvent(

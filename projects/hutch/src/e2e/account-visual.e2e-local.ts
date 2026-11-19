@@ -73,7 +73,7 @@ const VOLATILE_CHROME = [
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
 interface SubscriptionSeed {
-	state: "trialing" | "active" | "cancellation-scheduled" | "inactive";
+	state: "trialing" | "active" | "cancellation-scheduled" | "free";
 	plan?: "monthly" | "yearly" | "triennial";
 	cards?: "primary" | "primary-and-backup";
 	nextChargeAt?: string;
@@ -469,7 +469,7 @@ test.describe("Account page at the design width", () => {
 
 	test("places the inactive plan and its billing history in one card under one heading", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
-		await signIn(page, { stamp: `inactive-${testInfo.workerIndex}-${Date.now()}`, seed: { state: "inactive" } });
+		await signIn(page, { stamp: `inactive-${testInfo.workerIndex}-${Date.now()}`, seed: { state: "free" } });
 		await openAccount(page);
 		await captureCheckpoint(
 			page,
@@ -615,9 +615,9 @@ test.describe("Account billing card", () => {
 		);
 	});
 
-	test("marks a lapsed subscription Inactive, keeping its billing history", async ({ page }, testInfo) => {
+	test("puts a lapsed subscription on the free plan, keeping its billing history", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
-		await signIn(page, { stamp: `billing-inactive-${testInfo.workerIndex}-${Date.now()}`, seed: { state: "inactive" } });
+		await signIn(page, { stamp: `billing-inactive-${testInfo.workerIndex}-${Date.now()}`, seed: { state: "free" } });
 		await openAccount(page);
 		await captureCheckpoint(
 			page,

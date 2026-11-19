@@ -312,21 +312,20 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		expect(subscribe.postData()).toBe("plan=monthly");
 	});
 
-	test("a read-only reader's locks are links to the plans page, tracked per control", async ({ page }, testInfo) => {
+	test("a free-plan reader's Inbox lock is a link to the plans page, tracked per control", async ({ page }, testInfo) => {
 		const email = `readlist-no-js-${testInfo.workerIndex}-${Date.now()}-locks@example.com`;
 		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 			data: { email, password: PASSWORD, verified: true },
 		});
 		assert.equal(created.status(), 201, "the e2e user fixture must create the reader");
 		const { userId } = CreatedUser.parse(await created.json());
-		const inactive = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
-			data: { userId, state: "inactive" },
+		const free = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+			data: { userId, state: "free" },
 		});
-		assert.equal(inactive.status(), 201, "the subscription-state seed endpoint must answer 201");
+		assert.equal(free.status(), 201, "the subscription-state seed endpoint must answer 201");
 		await loginAs(page, email);
 
 		for (const { key, search } of [
-			{ key: "create-readlist", search: "?utm_source=queue-nav&utm_medium=internal&utm_content=upgrade-create-readlist" },
 			{ key: "inbox", search: "?utm_source=header-nav&utm_medium=internal&utm_content=upgrade-inbox" },
 		]) {
 			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });

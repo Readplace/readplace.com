@@ -25,6 +25,7 @@ export interface PdfDocumentDiffReviewOutput {
 		readonly finalText: string;
 	}>;
 	readonly applied: boolean;
+	readonly providerFailed: boolean;
 	readonly tokens?: { readonly input: number; readonly output: number };
 }
 

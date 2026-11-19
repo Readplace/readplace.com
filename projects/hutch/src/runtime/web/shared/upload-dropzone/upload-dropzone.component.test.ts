@@ -11,7 +11,6 @@ import {
 const BASE_INPUT: UploadDropzoneInput = {
 	importAction: "/import?utm_source=test",
 	bookFallbackHref: "/upload?utm_source=test",
-	disabled: false,
 	idPrefix: "test",
 	formId: "test-upload-form",
 	showSubmit: true,
@@ -95,14 +94,7 @@ describe("renderUploadDropzone", () => {
 		expect(form.getAttribute("data-message-failed")).toBe("The upload didn't go through. Try again.");
 	});
 
-	it("disables the input and the submit for a read-only reader", () => {
-		const { form } = renderForm({ disabled: true });
-
-		expect(form.querySelector('input[type="file"]')?.hasAttribute("disabled")).toBe(true);
-		expect(form.querySelector('[data-test-action="upload-file"]')?.hasAttribute("disabled")).toBe(true);
-	});
-
-	it("leaves the input and the submit enabled otherwise", () => {
+	it("leaves the input and the submit enabled", () => {
 		const { form } = renderForm();
 
 		expect(form.querySelector('input[type="file"]')?.hasAttribute("disabled")).toBe(false);

@@ -506,7 +506,7 @@ describe("trial day-3 email", () => {
 					"You've saved 2 articles since Nov 6, 2026. Here they are:",
 					`- Title phone — example.com\n${articleHref(phoneSave.id)}`,
 					`- Title browser — example.com\n${articleHref(browserSave.id)}`,
-					`Choose during your trial: ${RENEWAL_PRICES} Add a card now and nothing is charged until Nov 20, 2026; you'll get an email a week before. Your saves stay readable and exportable either way.`,
+					`Choose during your trial: ${RENEWAL_PRICES} Add a card now and nothing is charged until Nov 20, 2026; you'll get an email a week before. Without a card, your account moves to the free plan when the trial ends and keeps everything you saved.`,
 					`Keep Readplace: ${APP_ORIGIN}/account/plans?${TRACKING}&utm_content=keep`,
 					"If something didn't save the way you expected, reply to this email — it comes straight to me.",
 					"— Fayner Brack, Founder & CEO",

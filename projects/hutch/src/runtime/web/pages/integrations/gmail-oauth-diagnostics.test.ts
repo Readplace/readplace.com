@@ -390,7 +390,7 @@ describe("initGmailOAuthTrace", () => {
 		["an error that is not a code", "/newsletters?error=Reader%40example.com", "integrations", undefined],
 		["an overlong notice", `/newsletters/gmail?notice=${"a".repeat(65)}`, "gmail", undefined],
 		["an empty notice", "/newsletters/gmail?notice=", "gmail", undefined],
-		["another page of ours", "/queue?inactive=1", "other", undefined],
+		["another page of ours", "/account/plans", "other", undefined],
 		["another page of ours with a notice", "/newsletters/gmail/senders?notice=import_started", "other", "import_started"],
 	])("classifies a Location sending the reader to %s", async (_label, target, redirect, outcome) => {
 		const { trace, events } = recordingTrace(() => new Date(NOW_MS));

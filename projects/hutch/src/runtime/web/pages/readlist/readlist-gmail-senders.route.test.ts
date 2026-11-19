@@ -399,11 +399,11 @@ describe("Saving Gmail newsletters to a readlist", () => {
 		expect(gmail.rewriteRequests).toEqual([]);
 	});
 
-	it("bounces a read-only reader's save and discovery to the inactive queue", async () => {
+	it("sends a free-plan reader's save and discovery to the plans page", async () => {
 		const { agent, gmail, harness, userId } = await readerAgent();
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString() });
 		for (const path of [SAVE, DISCOVERY]) {
-			expect((await agent.post(path).set("Accept", "text/html").type("form").send({ gmail_selection: "1", sender: MORNING })).headers.location).toBe("/queue?inactive=1");
+			expect((await agent.post(path).set("Accept", "text/html").type("form").send({ gmail_selection: "1", sender: MORNING })).headers.location).toBe("/account/plans");
 		}
 		expect([gmail.rewriteRequests, gmail.discoveryRequests]).toEqual([[], []]);
 	});

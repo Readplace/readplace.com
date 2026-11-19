@@ -94,7 +94,6 @@ export function initViewHighlightsRoutes(deps: {
 	secureCookies: boolean;
 	consumeRateLimit: ConsumeRateLimit;
 	keepRateLimitRule: RateLimitRule;
-	requireWriteAccess: RequestHandler;
 	buildBannerState: BuildBannerState;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
@@ -193,7 +192,6 @@ export function initViewHighlightsRoutes(deps: {
 		VIEW_HIGHLIGHTS_CLAIM_ROUTE,
 		requireSessionForClaim,
 		requireNotLocked,
-		deps.requireWriteAccess,
 		async (req: Request, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireSessionForClaim");
 			const pendingId = pendingViewHighlightsCookie.read(req);

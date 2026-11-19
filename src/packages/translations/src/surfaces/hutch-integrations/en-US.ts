@@ -1,4 +1,8 @@
 export const enUS = {
+	importReviewDailyLimit: {
+		one: "Saved {count} link. You've reached today's limit for new saves; the rest stay selected here so you can save them tomorrow.",
+		other: "Saved {count} links. You've reached today's limit for new saves; the rest stay selected here so you can save them tomorrow.",
+	},
 	connectors: {
 		api: {
 			name: "Readplace API",
@@ -36,5 +40,21 @@ export const enUS = {
 				description: "Video: MP4, up to {ceiling}.",
 			},
 		},
+		refusal: {
+			bookQuota: {
+				before: "You've reached today's limit for book uploads. You can upload another book after",
+				after: ".",
+			},
+		},
+	},
+	exportLimitReached: {
+		title: "Export limit reached",
+		limit: "You've reached today's limit for exports.",
+		retry: {
+			one: "You can request another export in about {count} hour.",
+			other: "You can request another export in about {count} hours.",
+		},
+		linkStillWorks: "The download link in your latest export email stays valid for {ttlDays} days.",
+		backToReadlist: "Back to Readlist",
 	},
 } as const;

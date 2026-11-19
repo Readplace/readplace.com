@@ -244,7 +244,7 @@ describe("initRemoveMyContentCommandHandler", () => {
 			selectionExpected: { snapshot: { tier: "tier-0" } },
 		});
 		expect(published).toHaveLength(2);
-		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String) } });
+		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String), requester: { kind: "reader", userId: "user-1" } } });
 		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
 	});
 
@@ -257,7 +257,7 @@ describe("initRemoveMyContentCommandHandler", () => {
 		await handler(removalOf(), buildLambdaContext(), () => {});
 
 		expect(deps.countSaversByUrl).toHaveBeenCalledWith(URL);
-		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String) } });
+		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String), requester: { kind: "reader", userId: "user-1" } } });
 		expect(deps.purgeArticleContent).not.toHaveBeenCalled();
 		expect(deps.tombstoneArticle).not.toHaveBeenCalled();
 	});
@@ -347,7 +347,7 @@ describe("immutable authored candidate removal", () => {
 		});
 		await handler(removalOf(), buildLambdaContext(), () => {});
 		expect(published).toHaveLength(1);
-		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String) } });
+		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String), requester: { kind: "reader", userId: "user-1" } } });
 	});
 	it("re-crawls rather than re-selecting when only a failed live response survives the revoked canonical candidate", async () => {
 		const failedLive = tierSource("tier-1", cid("live-403"));
@@ -358,7 +358,7 @@ describe("immutable authored candidate removal", () => {
 		});
 		await handler(removalOf(), buildLambdaContext(), () => {});
 		expect(published).toHaveLength(1);
-		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String) } });
+		expect(published).toContainEqual({ detailType: RecrawlLinkInitiatedEvent.detailType, detail: { url: URL, saveAttemptId: expect.any(String), requester: { kind: "reader", userId: "user-1" } } });
 		expect(published).not.toContainEqual(expect.objectContaining({ detailType: ReselectAfterRemovalEvent.detailType }));
 	});
 	it("re-selects when a successful live response survives the revoked canonical candidate", async () => {

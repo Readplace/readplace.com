@@ -6,10 +6,16 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { LambdaClient } from "@aws-sdk/client-lambda";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
-import { consoleLogger } from "@packages/logger";
+import { consoleLogger, Logger } from "@packages/logger";
+import { initDynamoDbSavedArticleStore } from "@packages/article-store";
+import { initDynamoDbSubscriptionRead, initGetEffectiveAccess } from "@packages/subscription-access";
+import { initDynamoDbOcrPageQuota } from "./providers/ocr-page-quota/dynamodb-ocr-page-quota";
+import { initChargeOcrPagesForAccount } from "./providers/ocr-page-quota/select-ocr-charger";
+
 import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { extractPdfMetadata } from "@packages/crawl-article";
+import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { readEnv } from "@packages/require-env";
 import { COMPREHENSIVE_CRAWL_COMMAND_ENV } from "./comprehensive-crawl-command.env";
@@ -20,6 +26,7 @@ import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-i
 import { initDynamoDbPaidCrawlBudget } from "./providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
 import { initStagePdfToS3 } from "./domain/article-parser/init-stage-pdf-to-s3";
+import type { FindParsedPdf, KeepParsedPdf } from "./domain/article-parser/parsed-pdf.types";
 import { initInvokePdfPageOcr } from "./domain/article-parser/init-invoke-pdf-page-ocr";
 import { initInvokePdfPageLlmCleanup } from "./domain/article-parser/init-invoke-pdf-page-llm-cleanup";
 import { initInvokePdfDocumentDiffReview } from "./domain/article-parser/init-invoke-pdf-document-diff-review";
@@ -72,6 +79,9 @@ const { invokePageLlmCleanup } = initInvokePdfPageLlmCleanup({ client: lambdaCli
 const { invokeDocumentDiffReview } = initInvokePdfDocumentDiffReview({ client: lambdaClient, functionName: pdfDocumentDiffReviewFunctionName, logger: consoleLogger });
 const { invokePageHtmlConvert } = initInvokePdfPageHtmlConvert({ client: lambdaClient, functionName: pdfPageHtmlConvertFunctionName, logger: consoleLogger });
 
+const findNoParsedPdf: FindParsedPdf = async () => undefined;
+const keepNoParsedPdf: KeepParsedPdf = async () => {};
+
 const extractPdf = initSaveLinkPdfExtract({
 	extractPdfMetadata,
 	stagePdf,
@@ -79,6 +89,8 @@ const extractPdf = initSaveLinkPdfExtract({
 	invokePageLlmCleanup,
 	invokeDocumentDiffReview,
 	invokePageHtmlConvert,
+	findParsedPdf: findNoParsedPdf,
+	keepParsedPdf: keepNoParsedPdf,
 	logger: consoleLogger,
 });
 
@@ -126,6 +138,25 @@ const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlB
 	now,
 	delay: (milliseconds) => sleep(milliseconds),
 });
+const ocrPageQuota = initDynamoDbOcrPageQuota({
+	client: dynamoClient,
+	tableName: rateLimitsTable,
+	rule: OCR_PAGE_QUOTA_RULE,
+	now,
+	delay: (milliseconds) => sleep(milliseconds),
+});
+const subscriptionRead = initDynamoDbSubscriptionRead({ client: dynamoClient, tableName: env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE });
+const chargeOcrPagesFor = initChargeOcrPagesForAccount({
+	getEffectiveAccess: initGetEffectiveAccess({ findSubscriptionByUserId: subscriptionRead.findByUserId, now }),
+	quota: ocrPageQuota.chargeOcrPagesFor,
+});
+const { markOcrPagesHeld } = initDynamoDbSavedArticleStore({
+	client: dynamoClient,
+	tableName: env.DYNAMODB_ARTICLES_TABLE,
+	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
+	logger: Logger.from(consoleLogger),
+	now,
+});
 const runMeteredLeg = initRunMeteredLeg({
 	...initDynamoDbMeteredLegLedger({ client: dynamoClient, tableName: articlesTable, now }),
 	logger: consoleLogger,
@@ -142,6 +173,8 @@ const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 export const handler = initComprehensiveCrawlHandler({
 	...sourceIdentity,
 	crawlArticleWithPermit: ({ permit: _permit, ...params }) => parser.crawlArticle(params),
+	chargeOcrPagesFor,
+	markOcrPagesHeld,
 	runMeteredLeg,
 	finalizeArticle: crawlAndFinalize.finalizeArticle,
 	...articleStore,

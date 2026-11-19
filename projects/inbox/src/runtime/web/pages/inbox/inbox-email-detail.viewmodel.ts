@@ -46,11 +46,14 @@ import {
 	type ReadlistFitOverridesByReadlist,
 } from "./inbox-readlist-fit";
 import { buildMailTabs, type MailTab } from "./mail-tabs";
-import { DEFAULT_LOCALE } from "@packages/translations/locale";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { inbox } from "@packages/translations/inbox";
 
 /** Initial poll count for a card on first page render: the first htmx tick then
  * requests `?poll=1` and the poll route increments from there. */
 const INITIAL_POLL_COUNT = 1;
+
+const { t } = translator(inbox, DEFAULT_LOCALE);
 
 export interface AlertCopy {
 	title: string;
@@ -124,7 +127,7 @@ function readlistSaveNotices(input: {
 		if (input.savesHeld) {
 			notices.push({
 				key: "decided",
-				text: `No articles were saved to ${label} because this account is read-only.`,
+				text: t("emailDetail.savesHeld.readlist", { label }),
 				iconName: undefined,
 			});
 			continue;
@@ -346,7 +349,7 @@ function issueSaveNotice(
 	return {
 		key: "decided",
 		text: issueSave.held
-			? "This issue wasn't saved because this account is read-only."
+			? t("emailDetail.savesHeld.issue")
 			: `Saved this issue to ${ISSUE_DESTINATIONS.format([
 					DEFAULT_READLIST_LABEL,
 					...issueSave.readlists.map(({ label }) => label),

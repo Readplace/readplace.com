@@ -1,5 +1,6 @@
 import { extname } from "node:path";
 import { type MediaKindManifest, type MediaKindName, displayMinutes } from "@packages/media-contracts";
+import type { UploadRefusal } from "./upload.refusal";
 import { transcriptAllowanceCopyOf, uploadDescriptionsOf, uploadHeadingOf } from "./upload-copy";
 
 export interface UploadStartViewModel {
@@ -8,7 +9,7 @@ export interface UploadStartViewModel {
 	readonly viewer: "guest" | "member";
 	readonly showsGuestNotice: boolean;
 	readonly startPath: string;
-	readonly refusalMessage?: string;
+	readonly refusal?: UploadRefusal;
 	readonly transcriptAllowance?: string;
 }
 

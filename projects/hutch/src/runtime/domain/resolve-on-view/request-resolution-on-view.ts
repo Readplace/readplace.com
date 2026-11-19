@@ -44,11 +44,12 @@ export function initRequestResolutionOnView(deps: {
 	logger: Logger;
 	now: () => Date;
 }): RequestResolutionOnView {
-	const publish = async (params: { url: string; axes: ResolutionAxes; surface: ResolveOnViewSurface }) => {
+	const publish = async (params: { url: string; axes: ResolutionAxes; surface: ResolveOnViewSurface; viewer: Viewer }) => {
+		const { viewer, ...command } = params;
 		try {
-			await deps.publishResolveArticleOnView({ ...params, saveAttemptId: newSaveAttemptId() });
+			await deps.publishResolveArticleOnView({ ...command, saveAttemptId: newSaveAttemptId(), userId: viewer.kind === "reader" ? viewer.userId : undefined });
 		} catch (error) {
-			deps.logger.error("[ResolveOnView] publish failed", { url: params.url, axes: params.axes, surface: params.surface, error });
+			deps.logger.error("[ResolveOnView] publish failed", { url: command.url, axes: command.axes, surface: command.surface, error });
 		}
 	};
 
@@ -63,7 +64,7 @@ export function initRequestResolutionOnView(deps: {
 			eligible.map(async ({ url, axes }) => {
 				const claim = await deps.claimResolutionOnView({ url, axes, viewer });
 				if (claim.kind === "claimed") {
-					await publish({ url, axes, surface });
+					await publish({ url, axes, surface, viewer });
 					return { url, claimed: true, state: { crawl: claim.crawl, summary: claim.summary } };
 				}
 				const [crawl, summary] = await Promise.all([deps.findArticleCrawlStatus(url), deps.findGeneratedSummary({ url, viewer })]);

@@ -1,28 +1,18 @@
-import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SaveableUrlErrorCode } from "@packages/domain/article";
 import { AUDIO, BOOK, VIDEO } from "@packages/media-contracts";
-import { DEFAULT_LOCALE, translator } from "@packages/translations";
-import { hutchReadlist } from "@packages/translations/hutch-readlist";
 import {
 	type AlertContent,
 	render,
 	renderAlert,
 	renderConfirmPopover,
-	renderNeedsUpgrade,
 	withInternalTracking,
 } from "@packages/web-shell";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import type { SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { ComponentError } from "../../shared/component-error.types";
 import { renderUploadDropzone } from "../../shared/upload-dropzone/upload-dropzone.component";
-import {
-	type UpgradeOffer,
-	type UpgradeStanding,
-	lockFor,
-	standingOf,
-} from "../../shared/upgrade-offer/upgrade-offer";
 import { DEFAULT_READLIST } from "./readlist.nav";
 import { READLIST_SAVE_PATH, readlistReturnQuery, type ReadlistUrlState } from "./readlist.url";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
@@ -43,8 +33,6 @@ const ADD_ARTICLE_MODES = [
 ];
 
 const ADD_LINK_TITLE = "Add article";
-
-const { t } = translator(hutchReadlist, DEFAULT_LOCALE);
 
 const ADD_LINK_FAILURE = "Couldn't save the link.";
 
@@ -79,7 +67,6 @@ export function renderAddLinkForm(input: {
 	value: string;
 	error?: AddLinkFormError;
 	saveTipState: SaveTipState;
-	accessIsReadOnly: boolean;
 	autoSubmit: boolean;
 	autofocus: boolean;
 }): string {
@@ -101,8 +88,6 @@ export const NO_ADD_LINK: ReadlistAddLink = { controlHtml: "", dialogHtml: "", p
 
 export function renderReadlistAddLink(input: {
 	filters: ReadlistUrlState;
-	accessIsReadOnly: boolean;
-	offer: UpgradeOffer | undefined;
 	saveTip: SaveTip;
 	saveUrl?: string;
 }): ReadlistAddLink {
@@ -111,7 +96,6 @@ export function renderReadlistAddLink(input: {
 		renderAddLinkForm({
 			action,
 			saveTipState: input.saveTip.state,
-			accessIsReadOnly: input.accessIsReadOnly,
 			...surface,
 		});
 	if (input.saveUrl !== undefined) {
@@ -120,15 +104,13 @@ export function renderReadlistAddLink(input: {
 			dialogHtml: "",
 			pendingHtml: render(PENDING_TEMPLATE, {
 				title: ADD_LINK_TITLE,
-				accessIsReadOnly: input.accessIsReadOnly,
 				formHtml: form({ value: input.saveUrl, autoSubmit: true, autofocus: false }),
 			}),
 		};
 	}
-	const formControl = (): ReadlistAddLink => ({
+	return {
 		controlHtml: render(CONTROL_TEMPLATE, {
-			locks: [],
-			forms: [{ action, accessIsReadOnly: input.accessIsReadOnly, bookFallbackHref: UPLOAD_ENTRY_HREFS.addArticleFallback }],
+			forms: [{ action, bookFallbackHref: UPLOAD_ENTRY_HREFS.addArticleFallback }],
 		}),
 		dialogHtml: renderConfirmPopover({
 			id: ADD_LINK_POPOVER_ID,
@@ -138,12 +120,10 @@ export function renderReadlistAddLink(input: {
 			actionsHtml: [
 				render(TABS_TEMPLATE, {
 					modes: ADD_ARTICLE_MODES,
-					accessIsReadOnly: input.accessIsReadOnly,
 					linkFormHtml: form({ value: "", autoSubmit: false, autofocus: false }),
 					dropzoneHtml: renderUploadDropzone({
 						importAction: ADD_ARTICLE_IMPORT_ACTION,
 						bookFallbackHref: UPLOAD_ENTRY_HREFS.addArticleFallback,
-						disabled: input.accessIsReadOnly,
 						idPrefix: "add-article",
 						formId: "add-article-upload-form",
 						showSubmit: false,
@@ -155,28 +135,7 @@ export function renderReadlistAddLink(input: {
 			].join("\n"),
 		}),
 		pendingHtml: "",
-	});
-	const controlByStanding: Record<UpgradeStanding, () => ReadlistAddLink> = {
-		open: formControl,
-		withheld: formControl,
-		"needs-upgrade": () => {
-			const lock = lockFor({
-				offer: input.offer,
-				gated: input.accessIsReadOnly,
-				key: "add-link",
-				label: t("readlistAddArticle.trigger"),
-				controlClass: "btn btn--neutral btn--s",
-				source: "queue-add-link",
-			});
-			assert(lock, "a reader who needs an upgrade must be offered the Upload lock");
-			return {
-				controlHtml: render(CONTROL_TEMPLATE, { locks: [renderNeedsUpgrade(lock)], forms: [] }),
-				dialogHtml: "",
-				pendingHtml: "",
-			};
-		},
 	};
-	return controlByStanding[standingOf({ gated: input.accessIsReadOnly, offer: input.offer })]();
 }
 
 interface FeedbackItem {

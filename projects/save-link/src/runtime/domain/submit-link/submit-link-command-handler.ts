@@ -8,7 +8,6 @@ import {
 	type AllocateSavedAt,
 	ArticlePurgedAfterRequest,
 	type AssignSavedArticleToReadlist,
-	type HasSaveLandedSince,
 	type SaveArticleAsRequested,
 	type SaveReadlistArticleAsRequested,
 	type UpdateArticleStatusAcrossReadlists,
@@ -34,7 +33,6 @@ import {
 	initFileArticleIntoReadlist,
 	initSaveArticleAtReadlistTop,
 	initSaveArticleFromUrl,
-	type ResolveSaveIdentity,
 	type SaveArticleFromUrlDependencies,
 } from "@packages/save-article";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
@@ -58,9 +56,7 @@ export function initSubmitLinkCommandHandler(deps: {
 	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
 	updateArticleStatusAcrossReadlists: UpdateArticleStatusAcrossReadlists;
 	assignSavedArticleToReadlist: AssignSavedArticleToReadlist;
-	hasSaveLandedSince: HasSaveLandedSince;
 	resolveSubmitterStanding: ResolveSubmitterStanding;
-	resolveSaveIdentity: ResolveSaveIdentity;
 	updateArticleStatus: SaveArticleFromUrlDependencies["updateArticleStatus"];
 	markCrawlPending: SaveArticleFromUrlDependencies["markCrawlPending"];
 	markSummaryPending: SaveArticleFromUrlDependencies["markSummaryPending"];
@@ -193,7 +189,7 @@ export function initSubmitLinkCommandHandler(deps: {
 				saveAttemptId,
 				userId,
 			};
-			const refuse = async (reason: "read-only" | "purged-after-request") => {
+			const refuse = async (reason: "purged-after-request") => {
 				logger.warn(`${logPrefix} save refused`, { ...refusal, reason, url: detail.url });
 				await publishEvent(LinkQueueFailedEvent, { url: detail.url, userId, reason, receiveCount });
 			};
@@ -203,18 +199,6 @@ export function initSubmitLinkCommandHandler(deps: {
 				assert(receiveCount >= SUBMIT_LINK_MAX_RECEIVE_COUNT, "The submitter's account is not live");
 				logger.warn(`${logPrefix} save refused`, { ...refusal, reason: standing });
 				return;
-			}
-			if (standing === "read-only") {
-				const identity = await deps.resolveSaveIdentity(url);
-				if (identity.status === "unresolved") {
-					assert(receiveCount >= SUBMIT_LINK_MAX_RECEIVE_COUNT, "The wrapper original could not be resolved");
-					await refuse(standing);
-					return;
-				}
-				if (!(await deps.hasSaveLandedSince({ userId, url: identity.url, requestedAt }))) {
-					await refuse(standing);
-					return;
-				}
 			}
 
 			const enrichment: Parameters<PublishLinkSaved>[0][] = [];
@@ -242,7 +226,7 @@ export function initSubmitLinkCommandHandler(deps: {
 				saveReadlistArticle: (params) => deps.saveReadlistArticleAsRequested({ ...params, requestedAt }),
 				updateArticleStatusAcrossReadlists: deps.updateArticleStatusAcrossReadlists,
 			});
-			const freshness = await deps.refreshArticleIfStale({ url });
+			const freshness = await deps.refreshArticleIfStale({ url, requester: { account: userId } });
 			if (freshness.action === "unresolved") {
 				assert(receiveCount >= SUBMIT_LINK_MAX_RECEIVE_COUNT, "The wrapper original could not be resolved");
 				logger.warn(`${logPrefix} wrapper original unresolved on the final receive — giving up the save`, { url });

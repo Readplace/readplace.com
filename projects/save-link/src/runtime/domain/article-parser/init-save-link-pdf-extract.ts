@@ -5,6 +5,7 @@ import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.type
 import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
 import type { InvokePdfDocumentDiffReview } from "./pdf-document-diff-review-invoker.types";
 import type { InvokePdfPageHtmlConvert } from "./pdf-page-html-convert-invoker.types";
+import type { FindParsedPdf, KeepParsedPdf } from "./parsed-pdf.types";
 
 /**
  * Composition helper for the comprehensive-crawl Lambda. The OCR pipeline is
@@ -25,6 +26,8 @@ export function initSaveLinkPdfExtract(deps: {
 	invokePageLlmCleanup: InvokePdfPageLlmCleanup;
 	invokeDocumentDiffReview: InvokePdfDocumentDiffReview;
 	invokePageHtmlConvert: InvokePdfPageHtmlConvert;
+	findParsedPdf: FindParsedPdf;
+	keepParsedPdf: KeepParsedPdf;
 	logger: Logger;
 }): ExtractPdf {
 	return initOcrPdf({
@@ -34,6 +37,8 @@ export function initSaveLinkPdfExtract(deps: {
 		invokePageLlmCleanup: deps.invokePageLlmCleanup,
 		invokeDocumentDiffReview: deps.invokeDocumentDiffReview,
 		invokePageHtmlConvert: deps.invokePageHtmlConvert,
+		findParsedPdf: deps.findParsedPdf,
+		keepParsedPdf: deps.keepParsedPdf,
 		logger: deps.logger,
 	});
 }

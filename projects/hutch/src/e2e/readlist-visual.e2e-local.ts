@@ -70,9 +70,6 @@ const READLIST_RENAME_CANCEL = '[data-test-action="readlist-rename-cancel"]';
 const READLIST_DELETE_CONFIRM = '[data-test-action="readlist-delete-confirm"]';
 const READLIST_DELETE_CANCEL = '[data-test-action="readlist-delete-cancel"]';
 const OPEN_READLIST_DELETE_POPOVER = `${READLIST_DELETE_POPOVER}:popover-open`;
-const LOCKED_READLIST_MENU = '[data-test-menu-standing="locked"]';
-const PLANS_POPOVER = '[data-test-confirm-popover="subscribe-plans"]';
-const PLANS_SUBMIT = '[data-test-action="subscribe-plans-submit"]';
 const READLIST_CREATE_POPOVER = '[data-test-confirm-popover="readlist-create"]';
 const READLIST_CREATE_CANCEL = '[data-test-action="readlist-create-cancel"]';
 const READLIST_CREATE_SAVE = '[data-test-action="readlist-create-save"]';
@@ -144,10 +141,6 @@ const VOLATILE_CHROME = [
 	"[data-test-changelog-banner]",
 	".crawl-estimate",
 ];
-
-function upgradeLock(key: string): string {
-	return `[data-test-action="upgrade-open"][data-test-needs-upgrade="${key}"]`;
-}
 
 function trialTile(unit: "days" | "hours" | "minutes"): string {
 	return `[data-test-trial-tile="${unit}"]`;
@@ -229,7 +222,7 @@ async function seedInboxArticleQueued(page: Page, userId: string): Promise<void>
 
 async function seedSubscriptionState(
 	page: Page,
-	params: { userId: string; state: "trialing" | "cancellation-scheduled" | "inactive"; at?: string },
+	params: { userId: string; state: "trialing" | "cancellation-scheduled" | "free"; at?: string },
 ): Promise<void> {
 	const response = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
 		data: params,
@@ -288,19 +281,6 @@ async function openCustomReadlist(
 	await gotoReadlistQueue(page, "");
 	await input.openRail(page);
 	await clickAndWaitForCounts(page, await nameNewReadlist(page, "New Readlist"));
-}
-
-async function openReadOnlyReadlist(
-	page: Page,
-	input: { email: string; seedArticles?: (page: Page, userId: string, stamp: string) => Promise<void> },
-): Promise<void> {
-	const userId = await createVerifiedUser(page, input.email);
-	await input.seedArticles?.(page, userId, input.email);
-	await loginAs(page, input.email);
-	await gotoReadlistQueue(page, "");
-	await clickAndWaitForCounts(page, await nameNewReadlist(page, "New Readlist"));
-	await seedSubscriptionState(page, { userId, state: "inactive" });
-	await gotoReadlistQueue(page, "");
 }
 
 async function markFirstArticleRead(page: Page): Promise<void> {
@@ -946,7 +926,7 @@ async function subscriptionCancellationGeometry(page: Page): Promise<void> {
 async function subscriptionInactiveGeometry(page: Page): Promise<void> {
 	const card = await measuredBox(page, SUBSCRIPTION_BANNER);
 	const guide = await measuredBox(page, SETUP_GUIDE);
-	assertSubscriptionMeasurement({ description: "the inactive card height", actual: card.height, expected: 314 });
+	assertSubscriptionMeasurement({ description: "the inactive card height", actual: card.height, expected: 356 });
 	assertSubscriptionMeasurement({
 		description: "the subscription-to-setup-guide gap",
 		actual: guide.y - (card.y + card.height),
@@ -1088,26 +1068,6 @@ async function railMenuOpenSettled(page: Page): Promise<void> {
 	await page.mouse.move(0, 0);
 }
 
-async function lockedRailMenuSettled(page: Page): Promise<void> {
-	await waitForBrandFonts(page, ["Inter"]);
-	await neutralise(page);
-	await page.click(READLIST_MENU_SUMMARY);
-	await expect(page.locator(LOCKED_READLIST_MENU)).toHaveAttribute("open", "");
-	await expect(page.locator(upgradeLock("rename-readlist"))).toBeVisible();
-	await expect(page.locator(upgradeLock("delete-readlist"))).toBeVisible();
-	await page.evaluate(growRailToFitOpenFlyout, { rail: RAIL, flyout: READLIST_MENU_FLYOUT });
-	await page.mouse.move(0, 0);
-}
-
-async function lockedCardMenuSettled(page: Page): Promise<void> {
-	await waitForBrandFonts(page, ["Inter"]);
-	await neutralise(page);
-	await page.click(`${FIRST_CARD} ${CARD_MENU_SUMMARY}`);
-	await expect(page.locator(`${FIRST_CARD} ${CARD_MENU_PANEL}`)).toHaveAttribute("open", "");
-	await expect(page.locator(`${FIRST_CARD} ${upgradeLock("move-article")}`)).toBeVisible();
-	await page.mouse.move(0, 0);
-}
-
 async function renameDialogSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
@@ -1148,13 +1108,6 @@ async function createDialogPhoneSettled(page: Page): Promise<void> {
 async function railPhoneOpenSettled(page: Page): Promise<void> {
 	await customReadlistPageSettled(page);
 	await openReadlistSwitcher(page);
-	await page.mouse.move(0, 0);
-}
-
-async function readOnlyRailSettled(page: Page): Promise<void> {
-	await waitForBrandFonts(page, ["Inter"]);
-	await neutralise(page);
-	await expect(page.locator(`${RAIL} [data-test-readlist]`)).toHaveCount(3);
 	await page.mouse.move(0, 0);
 }
 
@@ -1398,8 +1351,8 @@ async function subscriptionCancellationSettled(page: Page): Promise<void> {
 async function subscriptionInactiveSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
-	await expect(page.locator(SUBSCRIPTION_BANNER)).toHaveClass(/readlist-subscription--inactive/);
-	await expect(page.locator(upgradeLock("add-link"))).toBeVisible();
+	await expect(page.locator(SUBSCRIPTION_BANNER)).toHaveClass(/readlist-subscription--free/);
+	await expect(page.locator('[data-test-add-link] [data-test-action="add-link"]')).toBeVisible();
 	await expect(page.locator(LISTING_COUNT)).toHaveText("0 Saved Articles");
 	await listingHeaderHidden(page);
 	await settledSetupGuide(page);
@@ -1864,37 +1817,6 @@ const RAIL_PHONE_OPEN: VisualCheckpoint = {
 	pinnedText: [],
 };
 
-const RAIL_MENU_LOCKED: VisualCheckpoint = {
-	name: "readlist-rail-menu-locked",
-	settled: lockedRailMenuSettled,
-	geometry: (page) =>
-		openMenuGeometry(page, { panel: READLIST_MENU_FLYOUT, toggle: READLIST_MENU_SUMMARY, rows: 2 }),
-	target: RAIL,
-	capture: "element",
-	pinnedText: [],
-};
-
-const CARD_MENU_LOCKED: VisualCheckpoint = {
-	...CARD_MENU_OPEN,
-	name: "readlist-article-menu-locked",
-	settled: lockedCardMenuSettled,
-	geometry: (page) =>
-		openMenuGeometry(page, {
-			panel: `${FIRST_CARD} .menu__panel`,
-			toggle: `${FIRST_CARD} ${CARD_MENU_SUMMARY}`,
-			rows: 2,
-		}),
-};
-
-const RAIL_READ_ONLY: VisualCheckpoint = {
-	name: "readlist-rail-read-only",
-	settled: readOnlyRailSettled,
-	geometry: railBesideMainBesideSide,
-	target: RAIL,
-	capture: "element",
-	pinnedText: [],
-};
-
 async function statusToastSettled(page: Page): Promise<void> {
 	await expect(page.locator(TOAST)).toBeVisible();
 	await expect(page.locator(`${TOAST} [data-test-toast-message]`)).toHaveText("Marked as read");
@@ -2043,11 +1965,11 @@ test.describe("Readlist page (subscription inactive)", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
 
 	for (const theme of THEMES) {
-		test(`shows the inactive banner with the locked Upload (${theme})`, async ({ page }, testInfo) => {
+		test(`shows the free-plan banner with the open Upload (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-subscription-inactive-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createVerifiedUser(page, email);
-			await seedSubscriptionState(page, { userId, state: "inactive" });
+			await seedSubscriptionState(page, { userId, state: "free" });
 			await loginAs(page, email);
 			await gotoReadlistQueue(page, "");
 
@@ -2655,10 +2577,10 @@ test.describe("Readlist subscription banner on the 300px track", () => {
 		assertSubscriptionMeasurement({ description: "the narrow cancellation body height", actual: body.height, expected: 42 });
 	});
 
-	test("wraps the inactive body on three lines", async ({ page }, testInfo) => {
+	test("wraps the inactive body on five lines", async ({ page }, testInfo) => {
 		const email = `readlist-subscription-inactive-narrow-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createVerifiedUser(page, email);
-		await seedSubscriptionState(page, { userId, state: "inactive" });
+		await seedSubscriptionState(page, { userId, state: "free" });
 		await loginAs(page, email);
 		await gotoReadlistQueue(page, "");
 		await subscriptionInactiveSettled(page);
@@ -2666,8 +2588,8 @@ test.describe("Readlist subscription banner on the 300px track", () => {
 		const card = await measuredBox(page, SUBSCRIPTION_BANNER);
 		const body = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-banner-message]`);
 		assertSubscriptionMeasurement({ description: "the narrow inactive card width", actual: card.width, expected: 300 });
-		assertSubscriptionMeasurement({ description: "the narrow inactive card height", actual: card.height, expected: 335 });
-		assertSubscriptionMeasurement({ description: "the narrow inactive body height", actual: body.height, expected: 63 });
+		assertSubscriptionMeasurement({ description: "the narrow inactive card height", actual: card.height, expected: 377 });
+		assertSubscriptionMeasurement({ description: "the narrow inactive body height", actual: body.height, expected: 105 });
 	});
 });
 
@@ -2863,75 +2785,6 @@ test.describe("Readlist rail on a phone", () => {
 	});
 });
 
-test.describe("Readlist rail for a read-only account", () => {
-	test.use({ timezoneId: "UTC", viewport: DESKTOP });
-
-	for (const theme of THEMES) {
-		test(`locks each readlist's menu and the create row (${theme})`, async ({ page }, testInfo) => {
-			await page.emulateMedia({ colorScheme: theme });
-			const email = `readlist-rail-read-only-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
-			const userId = await createVerifiedUser(page, email);
-			await loginAs(page, email);
-			await gotoReadlistQueue(page, "");
-			await clickAndWaitForCounts(page, await nameNewReadlist(page, "New Readlist"));
-			await clickAndWaitForCounts(page, await nameNewReadlist(page, "New Readlist 2"));
-			await seedSubscriptionState(page, { userId, state: "inactive" });
-			await gotoReadlistQueue(page, "");
-
-			await expect(page.locator(`${RAIL} ${LOCKED_READLIST_MENU}`)).toHaveCount(2);
-			await expect(page.locator(`${RAIL} ${NEW_READLIST_BUTTON}`)).toHaveCount(0);
-			await expect(page.locator(`${RAIL} ${upgradeLock("create-readlist")}`)).toBeVisible();
-			await captureCheckpoint(page, withTheme(RAIL_READ_ONLY, theme));
-		});
-
-		test(`opens a custom readlist's locked menu (${theme})`, async ({ page }, testInfo) => {
-			await page.emulateMedia({ colorScheme: theme });
-			const email = `readlist-rail-menu-locked-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
-			await openReadOnlyReadlist(page, { email });
-
-			await captureCheckpoint(page, withTheme(RAIL_MENU_LOCKED, theme));
-		});
-
-		test(`opens the card menu with Add locked (${theme})`, async ({ page }, testInfo) => {
-			await page.emulateMedia({ colorScheme: theme });
-			const email = `readlist-article-menu-locked-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
-			await openReadOnlyReadlist(page, { email, seedArticles: seedTwoArticles });
-
-			await captureCheckpoint(page, withTheme(CARD_MENU_LOCKED, theme));
-		});
-	}
-
-	test("the locked create row opens the plan chooser on Upgrade now", async ({ page }, testInfo) => {
-		const email = `readlist-create-locked-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openReadOnlyReadlist(page, { email });
-
-		await page.locator(`${RAIL} ${upgradeLock("create-readlist")}`).click();
-
-		await expect(page.locator(`${PLANS_POPOVER}:popover-open`)).toHaveCount(1);
-		await expect(page.locator(`${PLANS_POPOVER} ${PLANS_SUBMIT}`)).toBeFocused();
-	});
-
-	test("a locked rail menu item opens the plan chooser", async ({ page }, testInfo) => {
-		const email = `readlist-rail-lock-click-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openReadOnlyReadlist(page, { email });
-
-		await page.click(READLIST_MENU_SUMMARY);
-		await page.locator(upgradeLock("rename-readlist")).click();
-
-		await expect(page.locator(`${PLANS_POPOVER} ${PLANS_SUBMIT}`)).toBeFocused();
-	});
-
-	test("the locked Add item in a card menu opens the plan chooser", async ({ page }, testInfo) => {
-		const email = `readlist-card-lock-click-${testInfo.workerIndex}-${Date.now()}@example.com`;
-		await openReadOnlyReadlist(page, { email, seedArticles: seedTwoArticles });
-
-		await page.click(`${FIRST_CARD} ${CARD_MENU_SUMMARY}`);
-		await page.locator(`${FIRST_CARD} ${upgradeLock("move-article")}`).click();
-
-		await expect(page.locator(`${PLANS_POPOVER} ${PLANS_SUBMIT}`)).toBeFocused();
-	});
-});
-
 test.describe("Readlist grid tracks", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
@@ -3055,7 +2908,7 @@ test.describe("Readlist move-or-delete dialog at the reflow minimum", () => {
 test.describe("Readlist subscription chip at the reflow minimum", () => {
 	test.use({ timezoneId: "UTC", viewport: WCAG_REFLOW_MINIMUM });
 
-	for (const state of ["cancellation-scheduled", "inactive"] as const) {
+	for (const state of ["cancellation-scheduled", "free"] as const) {
 		test(`keeps the ${state} chip on one line inside its card at 320px`, async ({ page }, testInfo) => {
 			const email = `readlist-subscription-chip-${state}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createVerifiedUser(page, email);

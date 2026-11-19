@@ -2,7 +2,10 @@ import {
 	fixedWindowRetryAfterSeconds,
 	fixedWindowStartSeconds,
 } from "@packages/domain/rate-limit";
-import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import type {
+	ClaimRateLimitUnits,
+	ConsumeRateLimit,
+} from "@packages/provider-contracts/rate-limit";
 
 /**
  * Fixed-window counter held in process memory. Same decision semantics as the
@@ -11,10 +14,11 @@ import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
  */
 export function initInMemoryRateLimit(deps: { now: () => Date }): {
 	consumeRateLimit: ConsumeRateLimit;
+	claimRateLimitUnits: ClaimRateLimitUnits;
 } {
 	const windows = new Map<string, { windowStartSeconds: number; count: number }>();
 
-	const consumeRateLimit: ConsumeRateLimit = async ({ bucket, key, rule }) => {
+	const claimRateLimitUnits: ClaimRateLimitUnits = async ({ bucket, key, requested, rule }) => {
 		const nowMs = deps.now().getTime();
 		const windowStartSeconds = fixedWindowStartSeconds({
 			nowMs,
@@ -26,18 +30,24 @@ export function initInMemoryRateLimit(deps: { now: () => Date }): {
 			existing && existing.windowStartSeconds === windowStartSeconds
 				? existing.count
 				: 0;
-		if (count >= rule.limit) {
-			return {
-				allowed: false,
-				retryAfterSeconds: fixedWindowRetryAfterSeconds({
-					nowMs,
-					windowSeconds: rule.windowSeconds,
-				}),
-			};
+		const granted = Math.max(0, Math.min(requested, rule.limit - count));
+		windows.set(counterKey, { windowStartSeconds, count: count + granted });
+		return {
+			granted,
+			retryAfterSeconds:
+				granted < requested
+					? fixedWindowRetryAfterSeconds({ nowMs, windowSeconds: rule.windowSeconds })
+					: undefined,
+		};
+	};
+
+	const consumeRateLimit: ConsumeRateLimit = async ({ bucket, key, rule }) => {
+		const claim = await claimRateLimitUnits({ bucket, key, requested: 1, rule });
+		if (claim.retryAfterSeconds !== undefined) {
+			return { allowed: false, retryAfterSeconds: claim.retryAfterSeconds };
 		}
-		windows.set(counterKey, { windowStartSeconds, count: count + 1 });
 		return { allowed: true };
 	};
 
-	return { consumeRateLimit };
+	return { consumeRateLimit, claimRateLimitUnits };
 }

@@ -72,6 +72,7 @@ export function initPdfDocumentDiffReviewHandler(deps: {
 			return {
 				pages: input.pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })),
 				applied: false,
+				providerFailed: false,
 			};
 		}
 
@@ -94,7 +95,7 @@ export function initPdfDocumentDiffReviewHandler(deps: {
 				const parsed = parseDecisions(result.text);
 				if (parsed === null) {
 					logger.warn(`[pdf-document-diff-review] malformed model response — falling back to cleanedText`);
-					return fallbackToCleanedText(input);
+					return fallbackToCleanedText({ input, providerFailed: false });
 				}
 				allDecisions.push(...parsed);
 				totalInputTokens += result.tokens.input;
@@ -112,7 +113,7 @@ export function initPdfDocumentDiffReviewHandler(deps: {
 						ids: {},
 					}));
 				}
-				return fallbackToCleanedText(input);
+				return fallbackToCleanedText({ input, providerFailed: true });
 			}
 		}
 
@@ -136,13 +137,14 @@ export function initPdfDocumentDiffReviewHandler(deps: {
 		});
 		if (rejection !== null) {
 			logger.warn(`[pdf-document-diff-review] document-level guardrail rejected reason=${rejection} — falling back to cleanedText`);
-			return fallbackToCleanedText(input);
+			return fallbackToCleanedText({ input, providerFailed: false });
 		}
 
 		logger.info(`[pdf-document-diff-review] applied=${log.applied} modified=${log.modified} rejected=${log.rejected} newApplied=${log.newApplied} skipped=${log.skippedReasons.length} inputTokens=${totalInputTokens} outputTokens=${totalOutputTokens} cacheHitInputTokens=${totalCacheHitInputTokens ?? "unknown"} cacheMissInputTokens=${totalCacheMissInputTokens ?? "unknown"} dt=${Date.now() - t0}ms`);
 		return {
 			pages: finalPages,
 			applied: true,
+			providerFailed: false,
 			tokens: { input: totalInputTokens, output: totalOutputTokens },
 		};
 	};
@@ -154,10 +156,14 @@ function sumTokens(total: number | undefined, value: number | undefined): number
 	return total + value;
 }
 
-function fallbackToCleanedText(input: PdfDocumentDiffReviewInput): PdfDocumentDiffReviewOutput {
+function fallbackToCleanedText(params: {
+	input: PdfDocumentDiffReviewInput;
+	providerFailed: boolean;
+}): PdfDocumentDiffReviewOutput {
 	return {
-		pages: input.pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })),
+		pages: params.input.pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })),
 		applied: false,
+		providerFailed: params.providerFailed,
 	};
 }
 

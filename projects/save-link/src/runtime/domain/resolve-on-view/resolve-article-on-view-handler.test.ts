@@ -29,10 +29,10 @@ function article(axes: { crawl: Article["crawl"]; summary: Article["summary"] })
 const PENDING = { kind: "pending", pendingSince: "2026-11-05T09:00:00.000Z" } as const;
 const SKIPPED = { kind: "skipped", reason: "awaiting-reader" } as const;
 
-function commandBody(axes: "crawl-and-summary" | "summary"): string {
+function commandBody(axes: "crawl-and-summary" | "summary", viewer: { userId?: string } = {}): string {
 	return JSON.stringify({
 		"detail-type": "ResolveArticleOnViewCommand",
-		detail: { url: URL, saveAttemptId: ATTEMPT, axes, surface: "reader" },
+		detail: { url: URL, saveAttemptId: ATTEMPT, axes, surface: "reader", ...viewer },
 	});
 }
 
@@ -117,11 +117,20 @@ describe("initResolveArticleOnViewHandler", () => {
 		const result = await run([commandBody("crawl-and-summary")]);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(crawls).toEqual([{ url: URL, saveAttemptId: ATTEMPT, recrawl: false, sourceOriginalUrl: undefined }]);
+		expect(crawls).toEqual([{ url: URL, saveAttemptId: ATTEMPT, recrawl: false, sourceOriginalUrl: undefined, userId: undefined }]);
 		expect(published).toEqual([{
 			detailType: TierContentExtractedEvent.detailType,
 			detail: { url: URL, saveAttemptId: ATTEMPT, candidates: [], liveAttempt: { outcome: "body" }, extractedAt: NOW.toISOString() },
 		}]);
+	});
+
+	it("crawls on behalf of the signed-in viewer the command carries", async () => {
+		const { run, crawls } = createHandler({ stored: article({ crawl: PENDING, summary: PENDING }) });
+
+		const result = await run([commandBody("crawl-and-summary", { userId: "viewer-1" })]);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(crawls).toEqual([expect.objectContaining({ url: URL, userId: "viewer-1" })]);
 	});
 
 	it("publishes nothing when the crawl deferred to the unsupported policy", async () => {

@@ -156,7 +156,19 @@ function marksOf(html: string): string[] {
 	);
 }
 
-async function makeReadOnly(harness: Harness): Promise<void> {
+function lockedFixture(): { fixture: TestAppFixture; lock: () => void } {
+	const fixture = parsedFixture();
+	let offsetMs = 0;
+	fixture.shared.now = () => new Date(Date.now() + offsetMs);
+	return {
+		fixture,
+		lock: () => {
+			offsetMs = 8 * 24 * 60 * 60 * 1000;
+		},
+	};
+}
+
+async function makeFree(harness: Harness): Promise<void> {
 	const user = await harness.auth.findUserByEmail("test@example.com");
 	assert(user);
 	await harness.subscriptionProviders.upsertTrialing({
@@ -234,11 +246,12 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		expect(deleteNoteForm?.getAttribute("hx-push-url")).toBe("false");
 	});
 
-	it("shows a read-only account its marks and rail with no toolbar or highlight forms", async () => {
-		const harness = useApp(parsedFixture());
+	it("shows a locked account its marks and rail with no toolbar or highlight forms", async () => {
+		const { fixture: lockable, lock } = lockedFixture();
+		const harness = useApp(lockable);
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-read-only`);
 		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Kept" });
-		await makeReadOnly(harness);
+		lock();
 
 		const html = (await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text;
 
@@ -265,11 +278,12 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		).toEqual([id]);
 	});
 
-	it("shows a read-only account its highlights without a panel", async () => {
-		const harness = useApp(parsedFixture());
+	it("shows a locked account its highlights without a panel", async () => {
+		const { fixture: lockable, lock } = lockedFixture();
+		const harness = useApp(lockable);
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-read-only-panel`);
 		await createHighlight(agent, { articleId, exact: "readability parser" });
-		await makeReadOnly(harness);
+		lock();
 
 		const html = (await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text;
 
@@ -277,11 +291,12 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		expect(doc(html).querySelector("#manage-highlights")).toBeNull();
 	});
 
-	it("renders a read-only account's note previews on the page and the reader poll", async () => {
-		const harness = useApp(parsedFixture());
+	it("renders a locked account's note previews on the page and the reader poll", async () => {
+		const { fixture: lockable, lock } = lockedFixture();
+		const harness = useApp(lockable);
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-read-only-preview`);
 		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Read-only note" });
-		await makeReadOnly(harness);
+		lock();
 
 		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
 		const poll = doc((await agent.get(`/queue/${articleId}/reader?poll=1&platform=${platform}`)).text);
@@ -297,13 +312,14 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		}
 	});
 
-	it("loads the highlight script for a read-only account's noted highlight, and not for highlights without a note", async () => {
-		const harness = useApp(parsedFixture());
+	it("loads the highlight script for a locked account's noted highlight, and not for highlights without a note", async () => {
+		const { fixture: lockable, lock } = lockedFixture();
+		const harness = useApp(lockable);
 		const noted = await saveArticle(harness, `https://example.com/app-${platform}-read-only-script`);
 		await createHighlight(noted.agent, { articleId: noted.articleId, exact: "readability parser", note: "Script note" });
 		const bare = await saveArticle(harness, `https://example.com/app-${platform}-read-only-bare`);
 		await createHighlight(bare.agent, { articleId: bare.articleId, exact: "readability parser" });
-		await makeReadOnly(harness);
+		lock();
 
 		const scriptsOf = async (input: { agent: Agent; articleId: string }) =>
 			Array.from(
@@ -350,11 +366,12 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		expect(deleteForm?.getAttribute("hx-push-url")).toBe("false");
 	});
 
-	it("matches the read-only render on the reader poll for a read-only account", async () => {
-		const harness = useApp(parsedFixture());
+	it("matches the read-only render on the reader poll for a locked account", async () => {
+		const { fixture: lockable, lock } = lockedFixture();
+		const harness = useApp(lockable);
 		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-poll-read-only`);
 		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
-		await makeReadOnly(harness);
+		lock();
 
 		const poll = (await agent.get(`/queue/${articleId}/reader?poll=1&platform=${platform}`)).text;
 
@@ -362,13 +379,13 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		expect(formActionsIn(doc(poll).querySelector("[data-test-highlights-rail]"))).toEqual([]);
 	});
 
-	it("emits a form-free rail on the summary poll for a read-only account while the body is not served", async () => {
-		const fixture = parsedFixture();
+	it("emits a form-free rail on the summary poll for a locked account while the body is not served", async () => {
+		const { fixture, lock } = lockedFixture();
 		const harness = useApp(fixture);
 		const url = `https://example.com/app-${platform}-summary-read-only`;
 		const { agent, articleId } = await saveArticle(harness, url);
 		await createHighlight(agent, { articleId, exact: "readability parser" });
-		await makeReadOnly(harness);
+		lock();
 		await fixture.articleCrawl.forceMarkCrawlPending({ url });
 
 		const poll = (await agent.get(`/queue/${articleId}/summary?poll=1&platform=${platform}`)).text;
@@ -379,22 +396,22 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 	});
 });
 
-describe("Highlights in the browser reader for a read-only account", () => {
-	it("keeps the toolbar so a refused post gets the gate's answer", async () => {
+describe("Highlights in the browser reader for a free-plan account", () => {
+	it("keeps the toolbar, since highlights are core", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(harness, "https://example.com/browser-read-only");
-		await makeReadOnly(harness);
+		await makeFree(harness);
 
 		const page = doc((await agent.get(`/queue/${articleId}/view`)).text);
 
 		expect(page.querySelector("[data-test-highlight-toolbar]")).not.toBeNull();
 	});
 
-	it("gives a read-only account the panel, as it keeps the toolbar", async () => {
+	it("gives a free-plan account the panel, as it keeps the toolbar", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(harness, "https://example.com/browser-read-only-panel");
 		const id = await createHighlight(agent, { articleId, exact: "readability parser" });
-		await makeReadOnly(harness);
+		await makeFree(harness);
 
 		const page = doc((await agent.get(`/queue/${articleId}/view`)).text);
 

@@ -40,7 +40,7 @@ function bodyOf(html: string) {
 }
 
 const UNSUBSCRIBE_URL = `${APP_ORIGIN}/email/queue-digest/unsubscribe?t=${encodeURIComponent(TOKEN)}&kind=trial-day3`;
-const PRICE_PARAGRAPH = `Choose during your trial: ${RENEWAL_PRICES} Add a card now and nothing is charged until Nov 20, 2026; you'll get an email a week before. Your saves stay readable and exportable either way.`;
+const PRICE_PARAGRAPH = `Choose during your trial: ${RENEWAL_PRICES} Add a card now and nothing is charged until Nov 20, 2026; you'll get an email a week before. Without a card, your account moves to the free plan when the trial ends and keeps everything you saved.`;
 const KEEP_LINE = `${KEEP_READPLACE_LABEL}: ${APP_ORIGIN}/account/plans?${TRACKING}&utm_content=keep`;
 const REPLY_LINE = "If something didn't save the way you expected, reply to this email — it comes straight to me.";
 const SIGNOFF = "— Fayner Brack, Founder & CEO";

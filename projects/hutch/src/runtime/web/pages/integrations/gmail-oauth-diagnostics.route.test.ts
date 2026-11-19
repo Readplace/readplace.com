@@ -399,7 +399,7 @@ describe("Gmail OAuth diagnostics", () => {
 			});
 		});
 
-		it("records a reader whose write access lapsed after the Gmail access check as stopped by requireWriteAccess", async () => {
+		it("records a reader who moved to the free plan after the Gmail access check as stopped by requirePaidFeatures", async () => {
 			const { fixture, gmail } = fixtureWithGmail();
 			const findSubscription = fixture.subscriptionProviders.findByUserId;
 			let passGmailAccessCheck = false;
@@ -419,9 +419,9 @@ describe("Gmail OAuth diagnostics", () => {
 			const { response, lines } = await traced(gmail, () => agent.post(CONNECT).set("Accept", "text/html").send());
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?inactive=1");
+			expect(response.headers.location).toBe("/account/plans");
 			expect(stateCookieWrites(response)).toEqual([]);
-			expect(only(lines, COMPLETED)).toMatchObject({ status: 303, stage: "requireWriteAccess", redirect: "other" });
+			expect(only(lines, COMPLETED)).toMatchObject({ status: 303, stage: "requirePaidFeatures", redirect: "other" });
 		});
 	});
 

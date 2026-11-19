@@ -18,11 +18,9 @@ export interface ReadlistSaveSkeletonDisplayModel {
 
 export function toReadlistSaveSkeletonDisplayModel(input: {
 	filters: ReadlistUrlState;
-	accessIsReadOnly: boolean;
 }): ReadlistSaveSkeletonDisplayModel {
 	const listingIsWhereTheSaveLands = buildReadlistUrl(input.filters) === READLIST_PATH;
-	const state: SaveSkeletonState =
-		listingIsWhereTheSaveLands && !input.accessIsReadOnly ? "armed" : "inert";
+	const state: SaveSkeletonState = listingIsWhereTheSaveLands ? "armed" : "inert";
 	return { stateClass: STATE_CLASSES[state] };
 }
 

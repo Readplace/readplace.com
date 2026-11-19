@@ -71,16 +71,15 @@ describe("Upload routes", () => {
 		expect(documentOf(response.text).querySelector("[data-test-upload-s3-form]")).not.toBeNull();
 	});
 
-	it("refuses an upload from a read-only account", async () => {
+	it("stages an upload for a free-plan account, since uploads are core", async () => {
 		const { harness, agent, userId } = await signedIn();
 		await harness.subscriptionProviders.upsertTrialing({
 			userId,
 			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
 		});
 		const response = await agent.post("/upload").type("form").send({});
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
-		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([]);
+		expect(response.status).toBe(200);
+		expect(documentOf(response.text).querySelector("[data-test-upload-s3-form]")).not.toBeNull();
 	});
 
 	it("renders the start form for a member with no kind to choose and no file input", async () => {

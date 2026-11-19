@@ -33,7 +33,7 @@ const CANCELLATION_BANNER: SubscriptionBannerState = {
 	state: "cancellation-scheduled",
 	cancellationEffectiveAt: CANCELLATION_EFFECTIVE_AT,
 };
-const INACTIVE_BANNER: SubscriptionBannerState = { state: "inactive", upgradeOffer: OFFER };
+const FREE_BANNER: SubscriptionBannerState = { state: "free", upgradeOffer: OFFER };
 const NONE_BANNER: SubscriptionBannerState = { state: "none" };
 
 function display(banner: SubscriptionBannerState): Document {
@@ -118,7 +118,7 @@ describe("toReadlistSubscriptionDisplayModel / renderReadlistSubscription", () =
 
 	it.each([
 		{ state: "trial countdown", noOffer: { ...TRIAL_BANNER, upgradeOffer: undefined } },
-		{ state: "inactive", noOffer: { ...INACTIVE_BANNER, upgradeOffer: undefined } },
+		{ state: "free", noOffer: { ...FREE_BANNER, upgradeOffer: undefined } },
 	])("renders no plan-chooser action on the $state banner where no offer may be shown", ({ noOffer }) => {
 		const doc = display(noOffer);
 
@@ -138,17 +138,20 @@ describe("toReadlistSubscriptionDisplayModel / renderReadlistSubscription", () =
 		expect(message.textContent).toBe(CANCELLATION_EFFECTIVE_AT.label);
 	});
 
-	it("classes the banner inactive and shows an inactive chip with a resubscribe trigger and fallback", () => {
-		const doc = display(INACTIVE_BANNER);
+	it("classes the banner free and shows a free-plan chip with a resubscribe trigger and fallback", () => {
+		const doc = display(FREE_BANNER);
 
-		expect(banner(doc).classList.contains("readlist-subscription--inactive")).toBe(true);
-		const chip = doc.querySelector('[data-test-subscription-chip="inactive"]');
-		assert(chip, "the inactive chip must render");
-		expect(chip.textContent).toBe("Subscription inactive");
+		expect(banner(doc).classList.contains("readlist-subscription--free")).toBe(true);
+		const chip = doc.querySelector('[data-test-subscription-chip="free"]');
+		assert(chip, "the free-plan chip must render");
+		expect(chip.textContent).toBe("Free plan");
+		const title = doc.querySelector(".readlist-subscription__title");
+		assert(title, "the free-plan title must render");
+		expect(title.textContent).toBe("You're on the free plan");
 		const trigger = doc.querySelector('[data-test-action="subscribe-plans-open"]');
 		const fallback = doc.querySelector('[data-test-action="resubscribe"]');
-		assert(trigger, "the subscribe-plans trigger must render while inactive");
-		assert(fallback, "the plain-link resubscribe fallback must render while inactive");
+		assert(trigger, "the subscribe-plans trigger must render on the free plan");
+		assert(fallback, "the plain-link resubscribe fallback must render on the free plan");
 		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
 	});
 
@@ -159,8 +162,8 @@ describe("toReadlistSubscriptionDisplayModel / renderReadlistSubscription", () =
 		});
 	});
 
-	it("states the renewal prices without the trial clause once the subscription is inactive", () => {
-		expect(pricingLines(display(INACTIVE_BANNER))).toEqual({
+	it("states the renewal prices without the trial clause once the account is on the free plan", () => {
+		expect(pricingLines(display(FREE_BANNER))).toEqual({
 			price: [RENEWAL_PRICES],
 			savesStay: [SAVES_STAY_STATEMENT],
 		});

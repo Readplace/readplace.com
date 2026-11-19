@@ -13,7 +13,6 @@ const CROSSED_AT = new Date("2026-12-08T10:00:00.000Z");
 const TRIAL_ENDS_AT = "2026-12-28T10:00:00.000Z";
 const TRIAL: EffectiveAccess = {
 	tier: "trial",
-	access: "full",
 	banner: "trial-countdown",
 	trialEndsAt: TRIAL_ENDS_AT,
 };
@@ -66,20 +65,19 @@ describe("initKeepOffer", () => {
 	});
 
 	it.each<[string, EffectiveAccess]>([
-		["a founding member", { tier: "founding", access: "full", banner: "none" }],
-		["a paying reader", { tier: "paid", access: "full", banner: "none" }],
+		["a founding member", { tier: "founding", banner: "none" }],
+		["a paying reader", { tier: "paid", banner: "none" }],
 		[
 			"a trial reader whose cancellation is scheduled",
 			{
 				tier: "trial",
-				access: "full",
 				banner: "cancellation-scheduled",
 				cancellationEffectiveAt: TRIAL_ENDS_AT,
 			},
 		],
 		[
 			"a reader whose trial expired",
-			{ tier: "inactive", access: "read-only", banner: "inactive", reason: "trial-expired" },
+			{ tier: "free", banner: "free", reason: "trial-expired" },
 		],
 	])("hides the offer from %s", async (_reader, access) => {
 		const { eligibilityAt } = await crossedReader(access);

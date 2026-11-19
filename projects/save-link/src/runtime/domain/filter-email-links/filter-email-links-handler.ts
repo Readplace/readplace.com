@@ -297,12 +297,12 @@ export function initFilterEmailLinksHandler(deps: {
 				});
 				return;
 			}
-			if (admission.kind === "write-access-lapsed") {
+			if (admission.kind === "paid-plan-required") {
 				await publishEvent(EmailLinksFilterFailedEvent, {
 					userId,
 					receivedAtMessageId: detail.receivedAtMessageId,
 					readlist,
-					reason: "write-access-lapsed",
+					reason: "paid-plan-required",
 					receiveCount: record.receiveCount,
 				});
 				return;

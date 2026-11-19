@@ -57,6 +57,10 @@
       "types": "./dist/rate-limit/index.d.ts",
       "default": "./dist/rate-limit/index.js"
     },
+    "./ocr-page-allowance": {
+      "types": "./dist/ocr-page-allowance/index.d.ts",
+      "default": "./dist/ocr-page-allowance/index.js"
+    },
     "./crawler-policy": {
       "types": "./dist/crawler-policy/index.d.ts",
       "default": "./dist/crawler-policy/index.js"
@@ -84,6 +88,7 @@
       "gmail": ["./dist/gmail/index.d.ts"],
       "readlist": ["./dist/readlist/index.d.ts"],
       "rate-limit": ["./dist/rate-limit/index.d.ts"],
+      "ocr-page-allowance": ["./dist/ocr-page-allowance/index.d.ts"],
       "crawler-policy": ["./dist/crawler-policy/index.d.ts"],
       "mcp": ["./dist/mcp/index.d.ts"],
       "newsletter-catalog": ["./dist/newsletter-catalog/index.d.ts"]

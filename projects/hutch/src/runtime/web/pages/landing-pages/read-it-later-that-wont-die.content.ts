@@ -1,7 +1,7 @@
 import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { founderLine, PLAN_CHOICES, READ_ONLY_CLOSE } from "./landing-pages.copy";
+import { founderLine, PLAN_CHOICES, FREE_PLAN_CLOSE } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 function track(path: string, content: string): string {
@@ -9,20 +9,20 @@ function track(path: string, content: string): string {
 }
 
 export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-09",
-	title: "A Read-It-Later App That Goes Read-Only, Not Dark | Readplace",
+	lastModified: "2026-11-19",
+	title: "A Read-It-Later App That Doesn't Go Dark When You Cancel | Readplace",
 	description:
-		"Cancel and your Readplace account keeps working for reading. You keep every article you saved, and the export route carries no subscription gate.",
+		"Cancel and your Readplace account moves to the free plan. You keep every article you saved, you can keep saving within daily limits, and the export route carries no subscription gate.",
 	keywords:
-		"read it later app, pocket shut down, omnivore shut down, export reading list, read only account, data portability, article archive, cancel subscription keep data, source available reading app",
-	headline: "Cancel and it goes read-only, not dark",
+		"read it later app, pocket shut down, omnivore shut down, export reading list, free plan, data portability, article archive, cancel subscription keep data, source available reading app",
+	headline: "Cancel and it moves to the free plan instead of going dark",
 	eyebrow: "For readers who have already lost a readlist once",
-	titleLead: "Stop paying and it goes read-only, not ",
+	titleLead: "Stop paying and it moves to the free plan instead of going ",
 	titleHighlight: "dark",
 	titleTail: ".",
-	lede: `Pocket shut down. Omnivore shut down. I cannot promise Readplace outlives them, so instead the cancelled state is written into the code: you keep reading everything you saved. It costs ${RENEWAL_PRICES.replace(/\.$/, "")}, and that subscription is the whole business — no ad path, no data resale, no investor whose timeline outlives yours.`,
+	lede: `Pocket shut down. Omnivore shut down. I cannot promise Readplace outlives them, so instead the cancelled state is written into the code: you keep everything you saved, and you can keep saving. It costs ${RENEWAL_PRICES.replace(/\.$/, "")}, and that subscription is the whole business — no ad path, no data resale, no investor whose timeline outlives yours.`,
 	ogImageAlt:
-		"Readplace — a read-it-later app whose cancelled accounts go read-only instead of dark.",
+		"Readplace — a read-it-later app whose cancelled accounts move to a free plan instead of going dark.",
 	primaryAction: {
 		key: "signup",
 		label: `Start your ${STRIPE_TRIAL_PERIOD_DAYS}-day free trial`,
@@ -32,15 +32,15 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	reassurance:
 		"No credit card. Google, Apple, or an email address — about twenty seconds. Export keeps working whether or not you are paying.",
 	stepsTitle: "What happens when you stop paying",
-	stepsLede: "The account changes what you can add, not what you can read.",
+	stepsLede: "The account changes how much you can add each day, not what you can read.",
 	steps: [
 		{
-			heading: "Reading keeps working",
-			body: "A cancelled account resolves to read-only. Your readlist, your articles and the reader view all keep working, and you can still mark things read or delete them. Saving new links and running imports stop.",
+			heading: "Reading and saving keep working",
+			body: "A cancelled account resolves to the free plan. Your readlist, your articles, your highlights and the reader view all keep working. You can keep saving, importing and uploading within daily limits.",
 		},
 		{
 			heading: "Export keeps working",
-			body: "A read-only account can still request an export. It lives on the account page, which the header's subscription notice still links to, and it carries no subscription gate.",
+			body: "A free account can still request an export, within a daily limit. It lives on the account page, which the header's subscription notice still links to, and it carries no subscription gate.",
 		},
 		{
 			heading: "The export is a JSON file",
@@ -54,7 +54,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	mechanismTitle: "Why this is in the code rather than on a promise page",
 	mechanismLede: "A sentence about always letting you export does not survive an acquisition.",
 	mechanismParagraphs: [
-		"What survives is the branch that resolves a cancelled subscription to read-only instead of denied, and the export route that carries no write gate. Those are the two things that decide what happens to your account, and they are both a few lines long.",
+		"What survives is the branch that resolves a cancelled subscription to the free plan instead of denied, and the export route that carries no write gate. Those are the two things that decide what happens to your account, and they are both a few lines long.",
 		'Readplace is source-available on <a href="https://github.com/Readplace/readplace.com">GitHub</a>, so those lines are something you can go and read rather than something you take my word for.',
 		"I would rather tell you exactly what the export contains than imply it is more than it is. It carries your URLs and how you read them. It is not a copy of the articles.",
 	],
@@ -63,7 +63,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	limits: [
 		"The export lists what you saved — URL, title, excerpt and read history — with each article's highlights and notes. It does not contain the full article text.",
 		"The export runs in the background and arrives as an emailed download link. The link works for 7 days; after that, request another.",
-		"A read-only account loses Import and Inbox. The readlist, the account page and the export stay.",
+		"A free account loses the Inbox, Next read, Past reads, readlist purpose filtering and Gmail, and saving has daily limits. The readlist, highlights, import, the account page and the export stay.",
 		"Source-available is not open source. The code is on GitHub to read, but no licence grants you rights to reuse it.",
 		"None of this promises Readplace outlives Pocket. It describes what happens to your account if you stop paying.",
 	],
@@ -71,12 +71,12 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 		{
 			question: "What happens if I cancel?",
 			answer:
-				"Your account goes read-only. You keep reading every article you saved and can still mark things read or delete them. Saving new links and importing stop.",
+				"Your account moves to the free plan. You keep every article you saved, and you can keep saving, highlighting and importing within daily limits. The Inbox, Next read, Past reads, readlist purpose filtering and Gmail need a paid plan.",
 		},
 		{
 			question: "Can I still export after I cancel?",
 			answer:
-				"Yes. The export route carries no subscription gate, so a read-only account can still request one from the account page.",
+				"Yes. The export route carries no subscription gate, so a free account can still request one from the account page.",
 		},
 		{
 			question: "What is in the export?",
@@ -95,7 +95,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Do I need a credit card to start?",
-			answer: `No. ${STRIPE_TRIAL_PERIOD_DAYS} days with the full product and no card. If you never subscribe, nothing is charged and the account goes read-only.`,
+			answer: `No. ${STRIPE_TRIAL_PERIOD_DAYS} days with the full product and no card. If you never subscribe, nothing is charged and the account moves to the free plan.`,
 		},
 		{
 			question: "What does it cost after the trial?",
@@ -107,7 +107,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 		paragraphs: [
 			`Pick how often you pay — ${PLAN_CHOICES} — and both buy the same whole product. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it. <a href="${track("/blog/best-read-it-later-apps-2026", "post-best-read-it-later-apps-2026")}">The comparison of 7 read-it-later apps</a> reads each app's price as a funding model, and <a href="${track("/blog/free-read-it-later-apps-2026", "post-free-read-it-later-apps-2026")}">the guide to free ones</a> asks who pays the bill when you don't.`,
 			`${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
-			READ_ONLY_CLOSE,
+			FREE_PLAN_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
 	},

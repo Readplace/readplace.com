@@ -55,8 +55,7 @@ export function resolveTrialExtension(params: {
 		};
 	}
 
-	/* A window that closes in the past is read-only the instant it is written
-	 * (trialing + elapsed trialEndsAt === read-only) and would arm an EventBridge
+	/* A window that closes in the past would arm an EventBridge
 	 * schedule at an instant it rejects. The rule lives here so "a trial must end
 	 * in the future" has exactly one home. */
 	if (Date.parse(trialEndsAt) <= now.getTime()) {

@@ -19,6 +19,7 @@ import type {
 	SelectRelatedArticlesParams,
 } from "./related-articles-selector";
 import { initRecomputeSkippedNextReadHandler } from "./recompute-skipped-next-read-handler";
+import type { PlanAccess } from "@packages/subscription-access";
 
 const USER_ID = UserIdSchema.parse("00000000000000000000000000000001");
 const OTHER_USER_ID = UserIdSchema.parse("00000000000000000000000000000002");
@@ -88,6 +89,7 @@ interface HandlerOverrides {
 	selectRelatedArticles?: SelectRelatedArticles;
 	markOutcome?: MarkRelatedArticlesOutcome;
 	logger?: Logger;
+	planAccess?: PlanAccess;
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {
@@ -97,6 +99,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 	const skipped: Array<{ userId: string; url: string; at: Date }> = [];
 	const published: RelatedArticlesComputedDetail[] = [];
 	const selected: SelectRelatedArticlesParams[] = [];
+	const gathered: string[] = [];
 	const publishEvent: PublishEvent = async (_event, detail) => {
 		published.push(RelatedArticlesComputedEvent.detailSchema.parse(detail));
 	};
@@ -110,8 +113,11 @@ function createHandler(overrides: HandlerOverrides = {}) {
 			listed.push(url);
 			return overrides.skippedSaves ?? [{ userId: USER_ID, skippedAt: BEFORE_READABLE }];
 		},
-		gatherRelatedCandidatePools: async () =>
-			overrides.pools ?? { unreadCandidates: candidates(150), readCandidates: [], awaitingCrawl: 0 },
+		findPlanAccess: async () => overrides.planAccess ?? "paid",
+		gatherRelatedCandidatePools: async ({ userId }) => {
+			gathered.push(userId);
+			return overrides.pools ?? { unreadCandidates: candidates(150), readCandidates: [], awaitingCrawl: 0 };
+		},
 		selectRelatedArticles: async (params) => {
 			selected.push(params);
 			return overrides.selectRelatedArticles
@@ -138,10 +144,29 @@ function createHandler(overrides: HandlerOverrides = {}) {
 		logger: overrides.logger ?? noopLogger,
 	});
 
-	return { handler, lookups, listed, ready, skipped, published, selected };
+	return { handler, lookups, listed, ready, skipped, published, selected, gathered };
 }
 
 describe("initRecomputeSkippedNextReadHandler", () => {
+	it("replaces a free account's skip with a paid-plan skip without gathering candidates", async () => {
+		const logger = fakeLogger();
+		const { handler, ready, skipped, published, gathered } = createHandler({ logger, planAccess: "free" });
+
+		expect(await handler(contentChangedEvent, buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
+
+		expect(gathered).toEqual([]);
+		expect(ready).toEqual([]);
+		expect(skipped).toEqual([{ userId: USER_ID, url: TARGET_URL, at: NOW }]);
+		expect(published[0]?.outcome).toBe("skipped");
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			url: TARGET_URL,
+			reason: "paid-plan",
+			receiveCount: 1,
+			crawlStatus: "ready",
+			trigger: "content-changed",
+		});
+	});
+
 	it("recomputes a save skipped before its article became readable and stores it through the replace write", async () => {
 		const logger = fakeLogger();
 		const { handler, ready, skipped, published } = createHandler({ logger });

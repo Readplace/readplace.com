@@ -80,7 +80,7 @@ async function loginAs(page: Page, email: string): Promise<void> {
 
 async function signInWithGmail(
 	page: Page,
-	input: { stamp: string; seed: object | undefined; subscription?: "trialing" | "inactive" },
+	input: { stamp: string; seed: object | undefined; subscription?: "trialing" | "free" },
 ): Promise<void> {
 	await seedApprovedNewsletters(page, `gmail-connection-${input.stamp}`);
 	const email = `gmail-connection-${input.stamp}@example.com`;
@@ -188,7 +188,7 @@ const SCENARIOS: readonly Scenario[] = [
 		state: "inactive-connected-upgrade",
 		target: INTEGRATIONS_MAIN,
 		open: async (page, stamp) => {
-			await signInWithGmail(page, { stamp, seed: CONNECTED_SEED, subscription: "inactive" });
+			await signInWithGmail(page, { stamp, seed: CONNECTED_SEED, subscription: "free" });
 			await openIntegrations(page);
 		},
 		settled: async (page) => {
@@ -203,7 +203,7 @@ const SCENARIOS: readonly Scenario[] = [
 		state: "inactive-revoked-upgrade",
 		target: GMAIL_MAIN,
 		open: async (page, stamp) => {
-			await signInWithGmail(page, { stamp, seed: { ...CONNECTED_SEED, connection: "revoked" }, subscription: "inactive" });
+			await signInWithGmail(page, { stamp, seed: { ...CONNECTED_SEED, connection: "revoked" }, subscription: "free" });
 			await openGmailPage(page, "/newsletters/gmail?discovery=started");
 		},
 		settled: async (page) => {
@@ -474,7 +474,7 @@ test.describe("Gmail upgrades without JavaScript", () => {
 		await signInWithGmail(page, {
 			stamp: `upgrade-index-${testInfo.workerIndex}-${Date.now()}`,
 			seed: CONNECTED_SEED,
-			subscription: "inactive",
+			subscription: "free",
 		});
 		await openIntegrations(page);
 		await expect(page.locator('[data-test-integration="gmail"] [data-test-integration-action]')).toHaveText(["Manage"]);

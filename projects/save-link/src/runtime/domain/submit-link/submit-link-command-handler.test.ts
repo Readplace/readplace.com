@@ -161,9 +161,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		saveReadlistArticleAsRequested: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
 		updateArticleStatusAcrossReadlists: jest.fn().mockResolvedValue(true),
 		assignSavedArticleToReadlist: jest.fn().mockResolvedValue(undefined),
-		hasSaveLandedSince: jest.fn().mockResolvedValue(false),
 		resolveSubmitterStanding: async () => "may-save",
-		resolveSaveIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
 		recordInboxArticleQueued: jest.fn().mockResolvedValue(undefined),
 		updateArticleStatus: jest.fn().mockResolvedValue(true),
 		markCrawlPending: jest.fn().mockResolvedValue({ kind: "marked" }),
@@ -258,7 +256,7 @@ describe("initSubmitLinkCommandHandler", () => {
 			}),
 			findArticleByUrl: async (url) => { recordArticle(url); return store.findArticleByUrl(url); },
 			findArticleCrawlStatus: async (url) => { recordArticle(url); return { status: "ready" }; },
-			publishStaleCheckRequested: async ({ url }) => { recordArticle(url); },
+			requestStaleCheck: async ({ url }) => { recordArticle(url); },
 		});
 		const { publishEvent, published } = initRecordingPublishEvent();
 		const handler = createHandler({
@@ -1141,7 +1139,7 @@ describe("initSubmitLinkCommandHandler — a twitter.com link from an email", ()
 		const response = await run(handler, createSqsEvent([{ url: TWEET_ON_TWITTER, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" }]));
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(refreshArticleIfStale).toHaveBeenCalledWith({ url: TWEET_ON_X });
+		expect(refreshArticleIfStale).toHaveBeenCalledWith({ url: TWEET_ON_X, requester: { account: userId } });
 		expect(saveArticle).toHaveBeenCalledWith(expect.objectContaining({ url: TWEET_ON_X }));
 		expect(crawled).toEqual([TWEET_ON_X]);
 		expect(published).toEqual([
@@ -1178,7 +1176,7 @@ describe("initSubmitLinkCommandHandler — an Amazon title link from an email", 
 		const response = await run(handler, createSqsEvent([{ url: TITLE, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" }]));
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(refreshArticleIfStale).toHaveBeenCalledWith({ url: BARE });
+		expect(refreshArticleIfStale).toHaveBeenCalledWith({ url: BARE, requester: { account: userId } });
 		expect(saveArticle).toHaveBeenCalledWith(expect.objectContaining({ url: BARE }));
 		expect(crawled).toEqual([BARE]);
 		expect(published).toEqual([
@@ -1231,7 +1229,6 @@ describe("initSubmitLinkCommandHandler — the per-save log line", () => {
 });
 
 describe("a redelivered save", () => {
-	const requestedAt = "2026-06-02T00:00:00Z";
 	const finalReceive = (event: SQSEvent): SQSEvent => {
 		event.Records[0].attributes = { ...stubAttributes, ApproximateReceiveCount: String(SUBMIT_LINK_MAX_RECEIVE_COUNT) };
 		return event;
@@ -1277,71 +1274,6 @@ describe("a redelivered save", () => {
 
 		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
 		expect(published).toEqual([]);
-	});
-
-	it("refuses a save for a read-only reader whose save has not landed since the request", async () => {
-		const { warnings, logger } = collectWarnings();
-		const { publishEvent, published } = initRecordingPublishEvent();
-		const saveArticleAsRequested = jest.fn();
-		const refreshArticleIfStale = jest.fn();
-		const hasSaveLandedSince = jest.fn().mockResolvedValue(false);
-		const handler = createHandler({
-			resolveSubmitterStanding: async () => "read-only",
-			hasSaveLandedSince,
-			publishEvent,
-			saveArticleAsRequested,
-			refreshArticleIfStale,
-			logger,
-		});
-
-		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
-
-		expect(response.batchItemFailures).toEqual([]);
-		expect(hasSaveLandedSince).toHaveBeenCalledWith({ userId, url: exampleUrl, requestedAt: new Date(requestedAt) });
-		expect(saveArticleAsRequested).not.toHaveBeenCalled();
-		expect(refreshArticleIfStale).not.toHaveBeenCalled();
-		expect(published).toEqual([
-			{ detailType: LinkQueueFailedEvent.detailType, detail: { url: exampleUrl, userId, reason: "read-only", receiveCount: 1 } },
-		]);
-		expect(warnings).toEqual([["[SubmitLinkCommand] save refused", { ...refusalContext("read-only", 1), url: exampleUrl }]]);
-	});
-
-	it("finishes a read-only reader's save that landed before access lapsed and acknowledges its Gmail output", async () => {
-		const { warnings, logger } = collectWarnings();
-		const { publishEvent, published } = initRecordingPublishEvent();
-		const emailOutput = { receivedAtMessageId: "2026-10-27T00:00:00.000Z#<m@x>", outputKey: "link#0000" };
-		const handler = createHandler({
-			resolveSubmitterStanding: async () => "read-only",
-			hasSaveLandedSince: jest.fn().mockResolvedValue(true),
-			publishEvent,
-			logger,
-		});
-
-		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId, emailOutput }]));
-
-		expect(response.batchItemFailures).toEqual([]);
-		expect(publishedDetailTypes(published)).not.toContain("LinkQueueFailed");
-		expect(published).toContainEqual({ detailType: EmailOutputSavedToAllEvent.detailType, detail: { userId, ...emailOutput } });
-		expect(warnings.filter(([message]) => message === "[SubmitLinkCommand] save refused")).toEqual([]);
-	});
-
-	it("retries a read-only save whose identity is unresolved until the final receive", async () => {
-		const { publishEvent, published } = initRecordingPublishEvent();
-		const handler = createHandler({
-			resolveSubmitterStanding: async () => "read-only",
-			resolveSaveIdentity: async () => ({ status: "unresolved" }),
-			publishEvent,
-		});
-
-		const early = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
-		expect(early.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
-		expect(published).toEqual([]);
-
-		const final = await run(handler, finalReceive(createSqsEvent([{ url: exampleUrl, userId }])));
-		expect(final.batchItemFailures).toEqual([]);
-		expect(published).toEqual([
-			{ detailType: LinkQueueFailedEvent.detailType, detail: { url: exampleUrl, userId, reason: "read-only", receiveCount: SUBMIT_LINK_MAX_RECEIVE_COUNT } },
-		]);
 	});
 
 	it("refuses a save requested before the purge and does not crawl", async () => {
@@ -1453,7 +1385,6 @@ describe("a redelivered save against the stored rows", () => {
 			saveReadlistArticleAsRequested: store.saveReadlistArticleAsRequested,
 			updateArticleStatusAcrossReadlists: store.updateArticleStatusAcrossReadlists,
 			assignSavedArticleToReadlist: store.assignSavedArticleToReadlist,
-			hasSaveLandedSince: store.hasSaveLandedSince,
 			...overrides,
 		});
 	}
@@ -1626,101 +1557,16 @@ describe("a redelivered save against the stored rows", () => {
 		expect(kept?.savedAt).toEqual(beforeRequest);
 	});
 
-	it("refuses a read-only reader whose row is older than the request", async () => {
-		const store = initInMemoryArticleStore();
-		await store.saveArticle({ ...seed, savedAt: beforeRequest });
-		const before = await allRow(store);
-		const { publishEvent, published } = initRecordingPublishEvent();
-
-		await run(
-			storeHandler(store, { resolveSubmitterStanding: async () => "read-only", publishEvent }),
-			createSqsEvent([{ url: exampleUrl, userId }]),
-		);
-
-		expect(await allRow(store)).toEqual(before);
-		expect(published).toEqual([
-			{ detailType: LinkQueueFailedEvent.detailType, detail: { url: exampleUrl, userId, reason: "read-only", receiveCount: 1 } },
-		]);
-	});
-
-	it("looks for the landed row under the resolved URL", async () => {
-		const store = initInMemoryArticleStore();
-		const wrapperUrl = "https://wrapper.example/redirect?to=post";
-		await store.saveArticle({ ...seed, savedAt: afterRequest });
-		const { publishEvent, published } = initRecordingPublishEvent();
-		const handler = storeHandler(store, {
-			resolveSubmitterStanding: async () => "read-only",
-			resolveSaveIdentity: async () => ({ status: "resolved", url: exampleUrl, originalUrl: exampleUrl }),
-			publishEvent,
-		});
-
-		const response = await run(handler, createSqsEvent([{ url: wrapperUrl, userId }]));
-
-		expect(response.batchItemFailures).toEqual([]);
-		expect(publishedDetailTypes(published)).not.toContain("LinkQueueFailed");
-	});
-
-	it("acknowledges a Gmail output whose save landed before access lapsed", async () => {
-		const store = initInMemoryArticleStore();
-		await store.saveArticle({ ...seed, savedAt: afterRequest });
-		const { publishEvent, published } = initRecordingPublishEvent();
-		const emailOutput = { receivedAtMessageId: "2026-10-27T00:00:00.000Z#<m@x>", outputKey: "link#0000" };
-
-		await run(
-			storeHandler(store, { resolveSubmitterStanding: async () => "read-only", publishEvent }),
-			createSqsEvent([{ url: exampleUrl, userId, emailOutput }]),
-		);
-
-		expect(published).toContainEqual({ detailType: EmailOutputSavedToAllEvent.detailType, detail: { userId, ...emailOutput } });
-	});
-
 	it("leaves a refused Gmail output unacknowledged", async () => {
 		const emailOutput = { receivedAtMessageId: "2026-10-27T00:00:00.000Z#<m@x>", outputKey: "link#0000" };
-		const { publishEvent: readOnlyEvents, published: readOnlyPublished } = initRecordingPublishEvent();
+		const { publishEvent, published } = initRecordingPublishEvent();
 		await run(
-			storeHandler(initInMemoryArticleStore(), { resolveSubmitterStanding: async () => "read-only", publishEvent: readOnlyEvents }),
-			createSqsEvent([{ url: exampleUrl, userId, emailOutput }]),
-		);
-		const { publishEvent: purgedEvents, published: purgedPublished } = initRecordingPublishEvent();
-		await run(
-			storeHandler(await seedPurged(new Date("2026-06-02T00:00:01.000Z")), { publishEvent: purgedEvents }),
+			storeHandler(await seedPurged(new Date("2026-06-02T00:00:01.000Z")), { publishEvent }),
 			createSqsEvent([{ url: exampleUrl, userId, emailOutput }]),
 		);
 
-		expect(readOnlyPublished).toEqual([
-			{ detailType: LinkQueueFailedEvent.detailType, detail: { url: exampleUrl, userId, reason: "read-only", receiveCount: 1 } },
-		]);
-		expect(purgedPublished).toEqual([
+		expect(published).toEqual([
 			{ detailType: LinkQueueFailedEvent.detailType, detail: { url: exampleUrl, userId, reason: "purged-after-request", receiveCount: 1 } },
 		]);
-	});
-
-	it("finishes a save that landed before access lapsed across two receives", async () => {
-		const store = initInMemoryArticleStore();
-		const { publishEvent, published } = initRecordingPublishEvent();
-		const standings: Array<"may-save" | "read-only"> = ["may-save", "read-only"];
-		const crawlAndFinalizeArticle = jest
-			.fn<ReturnType<CrawlAndFinalizeArticle>, Parameters<CrawlAndFinalizeArticle>>()
-			.mockRejectedValueOnce(new Error("crawl timed out"))
-			.mockResolvedValue(fetchedResult);
-		const handler = storeHandler(store, {
-			resolveSubmitterStanding: async () => {
-				const standing = standings.shift();
-				assert(standing, "only two receives");
-				return standing;
-			},
-			crawlAndFinalizeArticle,
-			publishEvent,
-		});
-		const event = createSqsEvent([{ url: exampleUrl, userId }]);
-
-		expect((await run(handler, event)).batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
-		const landed = await allRow(store);
-		const second = await run(handler, event);
-
-		expect(second.batchItemFailures).toEqual([]);
-		expect(crawlAndFinalizeArticle).toHaveBeenCalledTimes(2);
-		expect((await allRow(store))?.savedAt).toEqual(landed?.savedAt);
-		expect(publishedDetailTypes(published)).not.toContain("LinkQueueFailed");
 	});
 });

@@ -3,13 +3,13 @@ import type { EmailLinkOrdinal, InboxEmailLinkStore, InboxReadlistOutcome } from
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
-import { resolveWriteAccess } from "@packages/subscription-access";
+import { resolvePlanAccess } from "@packages/subscription-access";
 
 type TriagedMessageAdmission =
 	| { kind: "proceed" }
-	| { kind: "skip"; reason: "already-decided" | "no-longer-selected" | "decision-failed" | "write-access-lapsed" }
+	| { kind: "skip"; reason: "already-decided" | "no-longer-selected" | "decision-failed" | "paid-plan-required" }
 	| { kind: "wait" }
-	| { kind: "write-access-lapsed" };
+	| { kind: "paid-plan-required" };
 
 type TriagedTarget = { scope: "email" } | { scope: "link"; ordinal: EmailLinkOrdinal };
 
@@ -24,9 +24,9 @@ const ADMIT_BY_SCOPE = {
 	},
 };
 
-const LAPSED_BY_SCOPE: Record<TriagedTarget["scope"], TriagedMessageAdmission> = {
-	email: { kind: "write-access-lapsed" },
-	link: { kind: "skip", reason: "write-access-lapsed" },
+const PAID_PLAN_REQUIRED_BY_SCOPE: Record<TriagedTarget["scope"], TriagedMessageAdmission> = {
+	email: { kind: "paid-plan-required" },
+	link: { kind: "skip", reason: "paid-plan-required" },
 };
 
 export function initAdmitTriagedMessage(deps: {
@@ -50,8 +50,8 @@ export function initAdmitTriagedMessage(deps: {
 		const settled =
 			target.scope === "email" ? ADMIT_BY_SCOPE.email(outcome) : ADMIT_BY_SCOPE.link(outcome, target.ordinal);
 		if (settled !== undefined) return settled;
-		if (resolveWriteAccess(await deps.findSubscriptionByUserId(userId), deps.now()) === "read-only") {
-			return LAPSED_BY_SCOPE[target.scope];
+		if (resolvePlanAccess(await deps.findSubscriptionByUserId(userId), deps.now()) === "free") {
+			return PAID_PLAN_REQUIRED_BY_SCOPE[target.scope];
 		}
 		return { kind: "proceed" };
 	};

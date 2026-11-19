@@ -17,8 +17,10 @@ import { type FailedCrawlNotice, failedCrawlNotice, privateItemFailedNotice } fr
 import {
 	type ReaderFailedVariant,
 	type ReaderRegions,
+	renderOcrPagesHeld,
 	renderReaderFailed,
 } from "./reader-failed.component";
+import { type OcrPagesHold, shownOcrPagesHold } from "../../ocr-pages-hold";
 import { READER_PENDING_DESCRIPTION, renderReaderPending } from "./reader-pending.component";
 import { renderReaderReady, type ScopedReaderHighlights } from "./reader-ready.component";
 import type { ReaderSectionInput } from "./section-pages";
@@ -43,6 +45,7 @@ export interface ReaderSlotInput {
 	capturePollUrls?: CapturePollUrls;
 	capture?: ReaderSlotCapture;
 	notice?: ReaderFailedVariant;
+	ocrPagesHold?: OcrPagesHold;
 	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
 	 * splices it into a sibling poll response and replaces the live slot. The
 	 * stable `id="article-body-reader-slot"` on every variant gives HTMX a
@@ -183,6 +186,10 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 			oob,
 			noticeOob: input.noticeOob,
 		});
+	}
+	const hold = shownOcrPagesHold({ hold: input.ocrPagesHold, crawl: input.crawl });
+	if (hold !== undefined) {
+		return renderOcrPagesHeld({ url: input.url, hold, oob, noticeOob: input.noticeOob });
 	}
 	if (input.crawl === undefined) {
 		if (input.content) return ready(input, input.content, oob);

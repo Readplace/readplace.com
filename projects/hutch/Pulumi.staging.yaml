@@ -61,6 +61,11 @@ config:
   hutch:rateLimitImport: 5000/3600
   hutch:rateLimitImportFromUrl: 5000/3600
   hutch:rateLimitUploadStage: 20/3600
+  hutch:rateLimitDailySaves: 28/86400
+  hutch:rateLimitMcpCall: 269/86400
+  hutch:rateLimitBookUpload: 5000/86400
+  hutch:rateLimitStaleCheck: 10000/86400
+  hutch:rateLimitExport: 5000/86400
   hutch:mediaTableName: hutch-media-staging
   hutch:transcriptDailyBudgetMilliCents: 50000
   hutch:transcribeMilliCentsPerSecond: 40

@@ -1,11 +1,13 @@
 import { noopLogger } from "@packages/logger";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/article-state-types";
 import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult } from "@packages/finalize-article";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import { initRunCrawlFromTier1, type RunCrawlFromTier1Deps } from "./run-crawl-from-tier1";
 
 const URL = "https://example.com/article";
 const ATTEMPT = SaveAttemptIdSchema.parse("attempt-1");
+const VIEWER = UserIdSchema.parse("viewer-1");
 
 const fetchedResult: CrawlAndFinalizeResult = {
 	status: "fetched",
@@ -49,7 +51,7 @@ describe("initRunCrawlFromTier1", () => {
 	it("returns the live tier-1 candidate when the article has no content source", async () => {
 		const { run } = createRun();
 
-		const result = await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: false, sourceOriginalUrl: undefined });
+		const result = await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: false, sourceOriginalUrl: undefined, userId: undefined });
 
 		expect(result).toEqual({ candidates: [{ id: expect.any(String), tier: "tier-1" }], liveAttempt: { outcome: "body" } });
 	});
@@ -58,7 +60,7 @@ describe("initRunCrawlFromTier1", () => {
 		const blocked: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403 });
 		const { run, unsupported } = createRun({ crawlAndFinalizeArticle: blocked });
 
-		const result = await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: false, sourceOriginalUrl: undefined });
+		const result = await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: false, sourceOriginalUrl: undefined, userId: undefined });
 
 		expect(result).toBeUndefined();
 		expect(unsupported).toEqual([expect.objectContaining({ url: URL, trigger: "save", saveAttemptId: ATTEMPT })]);
@@ -67,7 +69,7 @@ describe("initRunCrawlFromTier1", () => {
 	it("crawls the content source alongside the live page when the article has one", async () => {
 		const { run } = createRun({ findContentSourceUrl: async () => "https://archive.example/capture" });
 
-		const result = await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: true, sourceOriginalUrl: URL });
+		const result = await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: true, sourceOriginalUrl: URL, userId: undefined });
 
 		expect(result).toEqual(expect.objectContaining({ liveAttempt: { outcome: "body" } }));
 	});
@@ -76,9 +78,27 @@ describe("initRunCrawlFromTier1", () => {
 		const blocked: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403 });
 		const { run, unsupported } = createRun({ crawlAndFinalizeArticle: blocked, findContentSourceUrl: async () => "https://archive.example/capture" });
 
-		const result = await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: true, sourceOriginalUrl: URL });
+		const result = await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: true, sourceOriginalUrl: URL, userId: undefined });
 
 		expect(result).toBeUndefined();
 		expect(unsupported).toEqual([expect.objectContaining({ url: URL, trigger: "recrawl" })]);
+	});
+
+	it("carries the viewer to the deferred live crawl so its comprehensive leg can charge them", async () => {
+		const blocked: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403 });
+		const { run, unsupported } = createRun({ crawlAndFinalizeArticle: blocked });
+
+		await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: false, sourceOriginalUrl: undefined, userId: VIEWER });
+
+		expect(unsupported).toEqual([expect.objectContaining({ url: URL, userId: VIEWER })]);
+	});
+
+	it("carries the viewer to the deferred capture pass", async () => {
+		const blocked: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403 });
+		const { run, unsupported } = createRun({ crawlAndFinalizeArticle: blocked, findContentSourceUrl: async () => "https://archive.example/capture" });
+
+		await run({ url: URL, saveAttemptId: ATTEMPT, recrawl: false, sourceOriginalUrl: URL, userId: VIEWER });
+
+		expect(unsupported).toEqual([expect.objectContaining({ url: URL, userId: VIEWER })]);
 	});
 });

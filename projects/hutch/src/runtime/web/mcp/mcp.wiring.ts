@@ -7,7 +7,7 @@ import type { initMcpReadlistOperations } from "./readlist-operations";
 import type { initMcpHighlightOperations } from "./highlight-operations";
 
 export function mcpServerDependenciesFrom(
-	deps: Pick<AppDependencies, "now" | "logError" | "findReadlistArticles" | "findArticlesByUser" | "findArticlesAcrossReadlists" | "readArticleContent" | "findGeneratedSummary" | "findRelatedArticles" | "updateArticleStatusAcrossReadlists" | "recordEngagementActivity" | "refreshArticleIfStale" | "publishSubmitLink" | "baseUrl">,
+	deps: Pick<AppDependencies, "now" | "logError" | "findReadlistArticles" | "findArticlesByUser" | "findArticlesAcrossReadlists" | "readArticleContent" | "findGeneratedSummary" | "findRelatedArticles" | "updateArticleStatusAcrossReadlists" | "recordEngagementActivity" | "refreshArticleIfStale" | "publishSubmitLink" | "baseUrl" | "consumeRateLimit" | "rateLimitRules">,
 	built: {
 		appOrigin: McpServerDeps["appOrigin"];
 		resolveToolAccess: McpServerDeps["resolveToolAccess"];
@@ -17,7 +17,7 @@ export function mcpServerDependenciesFrom(
 		resolveOwnedArticle: Parameters<typeof initMcpArticleOperations>[0]["resolveOwnedArticle"];
 	} & Pick<
 		Parameters<typeof initMcpSaveLink>[0],
-		"resolveSaveAccess" | "validateNewSaveUrl" | "resolveMcpSaveProvenance" | "saveArticleAtReadlistTop" | "fileArticleIntoReadlist" | "resolveReadlistMembership"
+		"resolveSaveAccess" | "claimDailySaves" | "validateNewSaveUrl" | "resolveMcpSaveProvenance" | "saveArticleAtReadlistTop" | "fileArticleIntoReadlist" | "resolveReadlistMembership"
 	>,
 ): McpServerDeps {
 	const {
@@ -26,6 +26,7 @@ export function mcpServerDependenciesFrom(
 		readlistOperations,
 		highlightOperations,
 		resolveSaveAccess,
+		claimDailySaves,
 		recordUngatedAnalyticsEvent,
 		validateNewSaveUrl,
 		resolveMcpSaveProvenance,
@@ -37,6 +38,8 @@ export function mcpServerDependenciesFrom(
 	return {
 		appOrigin,
 		resolveToolAccess,
+		consumeRateLimit: deps.consumeRateLimit,
+		mcpCallRule: deps.rateLimitRules.mcpCall,
 		listReadlists: readlistOperations.listReadlists,
 		createReadlist: async (params) => {
 			const access = await resolveSaveAccess(params.userId);
@@ -65,6 +68,7 @@ export function mcpServerDependenciesFrom(
 		},
 		saveLink: initMcpSaveLink({
 			resolveSaveAccess,
+			claimDailySaves,
 			validateNewSaveUrl,
 			refreshArticleIfStale: deps.refreshArticleIfStale,
 			resolveMcpSaveProvenance,

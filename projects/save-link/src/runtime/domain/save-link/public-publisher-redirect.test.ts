@@ -79,7 +79,7 @@ describe("public publisher notices through actual save and recrawl ingress", () 
 	it.each(["recrawl", "resolve-on-view"] as const)("commits a public answer through %s and preserves source/canonical provenance", async ingress => {
 		const test = setup(FAQ);
 		const detail = { url: SOURCE, saveAttemptId: "synthetic-current-attempt" };
-		const response = ingress === "recrawl" ? await test.recrawl(event(detail), context(), () => {}) : await test.onView(event({ ...detail, axes: "crawl-and-summary", surface: "reader" }), context(), () => {});
+		const response = ingress === "recrawl" ? await test.recrawl(event({ ...detail, requester: { kind: "operator" } }), context(), () => {}) : await test.onView(event({ ...detail, axes: "crawl-and-summary", surface: "reader" }), context(), () => {});
 		expect(response).toEqual({ batchItemFailures: [] });
 		const type = ingress === "recrawl" ? RecrawlContentExtractedEvent.detailType : TierContentExtractedEvent.detailType;
 		const emitted = test.published.find(record => record.detailType === type); assert(emitted);
@@ -100,7 +100,7 @@ describe("public publisher notices through actual save and recrawl ingress", () 
 		} else {
 			expect(test.adoptDestination).toHaveBeenCalledWith({ articleUrl: SOURCE, destinationUrl: FAQ, now: NOW });
 			test.changeNotice("https://account.example.test/mutable-action");
-			expect(await test.recrawl(event({ ...detail, saveAttemptId: "synthetic-later-attempt" }), context(), () => {})).toEqual({ batchItemFailures: [] });
+			expect(await test.recrawl(event({ ...detail, saveAttemptId: "synthetic-later-attempt", requester: { kind: "operator" } }), context(), () => {})).toEqual({ batchItemFailures: [] });
 			expect(test.requested).toEqual([SOURCE, FAQ, FAQ]);
 			expect(test.adoptDestination).toHaveBeenCalledTimes(1);
 		}

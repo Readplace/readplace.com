@@ -87,12 +87,6 @@ export type SaveArticleAsRequested = (
 	params: SaveArticleParams & { requestedAt: Date },
 ) => ReturnType<SaveArticle>;
 
-export type HasSaveLandedSince = (params: {
-	userId: UserId;
-	url: string;
-	requestedAt: Date;
-}) => Promise<boolean>;
-
 export type AllocateSavedAt = (params: { userId: UserId }) => Promise<Date>;
 
 export type AllocateSavedAtSequence = (params: {
@@ -229,6 +223,18 @@ export type MarkSummaryToggled = (params: {
 	url: string;
 	state: "open" | "closed";
 	at: Date;
+}) => Promise<void>;
+
+export type OcrPagesHold = {
+	pages: number;
+	pagesLeft: number;
+	retryAt: Date;
+};
+
+export type MarkOcrPagesHeld = (params: {
+	userId: UserId;
+	url: string;
+	hold: OcrPagesHold;
 }) => Promise<void>;
 
 export type MarkRelatedDismissed = (params: {

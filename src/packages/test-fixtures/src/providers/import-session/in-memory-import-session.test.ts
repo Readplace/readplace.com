@@ -309,4 +309,30 @@ describe("initInMemoryImportSession", () => {
 		const stillThere = await store.findImportSession({ id: session.id, userId: owner });
 		expect(stillThere).toBeDefined();
 	});
+
+	describe("deselectImportIndices", () => {
+		const threeUrls = ["https://example.com/a", "https://example.com/b", "https://example.com/c"];
+
+		it("deselects the named indices and keeps the rest selected", async () => {
+			const store = initInMemoryImportSession({ now: () => new Date() });
+			const session = await store.createImportSession({ userId: owner, urls: threeUrls, truncated: false, totalFound: 3 });
+
+			await store.deselectImportIndices({ id: session.id, userId: owner, indices: [0, 2] });
+
+			const after = await store.findImportSession({ id: session.id, userId: owner });
+			assert(after, "the session must still exist");
+			assert.deepEqual([...after.deselected].sort(), [0, 2]);
+		});
+
+		it("leaves an owned session untouched for another user", async () => {
+			const store = initInMemoryImportSession({ now: () => new Date() });
+			const session = await store.createImportSession({ userId: owner, urls: threeUrls, truncated: false, totalFound: 3 });
+
+			await store.deselectImportIndices({ id: session.id, userId: otherUser, indices: [0] });
+
+			const after = await store.findImportSession({ id: session.id, userId: owner });
+			assert(after, "the session must still exist");
+			assert.equal(after.deselected.size, 0);
+		});
+	});
 });

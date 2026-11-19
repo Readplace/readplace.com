@@ -45,7 +45,7 @@ function sirenGet(harness: Harness, params: { path: string; token: string }) {
 		.set("Authorization", `Bearer ${params.token}`);
 }
 
-describe("Read-only account with an obsidian-plugin bearer", () => {
+describe("Free-plan account with an obsidian-plugin bearer", () => {
 	it("answers the entry point with the listing", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await readOnlyBearer(harness);
@@ -93,7 +93,7 @@ describe("Read-only account with an obsidian-plugin bearer", () => {
 		expect(response.text).toContain(`readplace_id: ${ReaderArticleHashId.from(ARTICLE_URL).value}`);
 	});
 
-	it("refuses a save with 402, which is what makes the account read-only", async () => {
+	it("saves a new link, since saving is core on the free plan", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await readOnlyBearer(harness);
 		const listing = await sirenGet(harness, { path: "/queue", token });
@@ -105,14 +105,14 @@ describe("Read-only account with an obsidian-plugin bearer", () => {
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token}`)
 			.type("json")
-			.send({ url: "https://example.com/refused" });
+			.send({ url: "https://example.com/saved-on-free" });
 
-		expect(response.status).toBe(402);
+		expect(response.status).toBe(201);
 		expect(response.headers["content-type"]).toMatch(/^application\/vnd\.siren\+json/);
 	});
 });
 
-describe("Read-only account's Siren writes", () => {
+describe("Free-plan account's Siren writes", () => {
 	type SirenAction = { name: string; href: string; fields?: { name: string; value?: string }[] };
 	type SirenEntity = { actions: SirenAction[] };
 
@@ -153,7 +153,7 @@ describe("Read-only account's Siren writes", () => {
 			.redirects(0);
 	}
 
-	it("refuses add-to-readlist with a 402 Siren answer", async () => {
+	it("adds an article to a readlist with a 303, since readlists are core on the free plan", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { token, readlistHref } = await readOnlyBearerWithReadlist(harness);
 		const listing = await sirenGet(harness, { path: "/queue", token });
@@ -161,20 +161,20 @@ describe("Read-only account's Siren writes", () => {
 
 		const response = await sirenPost(harness, { href: add.href, token }).type("json").send({ readlists: [readlistHref] });
 
-		expect(response.status).toBe(402);
-		expect(response.headers["content-type"]).toMatch(/^application\/vnd\.siren\+json/);
+		expect(response.status).toBe(303);
 	});
 
-	it("refuses create-readlist with a 402 Siren answer", async () => {
+	it("creates a readlist with a 303, since readlists are core on the free plan", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { token } = await readOnlyBearerWithReadlist(harness);
 		const listing = await sirenGet(harness, { path: "/queue", token });
 		const create = actionOf(listing.body, "create-readlist");
 
 		const response = await sirenPost(harness, { href: create.href, token }).type("form").send({ label: "Later" });
+		const after = await sirenGet(harness, { path: "/queue", token });
 
-		expect(response.status).toBe(402);
-		expect(response.headers["content-type"]).toMatch(/^application\/vnd\.siren\+json/);
+		expect(response.status).toBe(303);
+		expect(after.body.properties.readlists).toContainEqual(expect.objectContaining({ label: "Later" }));
 	});
 
 	it("still marks an article as read with a 303", async () => {

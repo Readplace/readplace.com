@@ -1262,7 +1262,7 @@ describe("Inbox email detail for a Gmail newsletter kept as an issue", () => {
 		).toEqual(["unsaved", "unsaved"]);
 	});
 
-	it("says the issue was held for a read-only reader", async () => {
+	it("says the issue was held for a free account", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -1274,7 +1274,7 @@ describe("Inbox email detail for a Gmail newsletter kept as an issue", () => {
 
 		expect(panelNotices(doc)).toEqual(["decided"]);
 		expect(doc.querySelector('[data-test-panel-notice="decided"]')?.textContent).toBe(
-			"This issue wasn't saved because this account is read-only.",
+			"This issue wasn't saved: saving from the Inbox is part of a paid plan.",
 		);
 	});
 });

@@ -1,12 +1,11 @@
 import type { AuthenticatedUserId } from "@packages/domain/user";
-import type { GetEffectiveAccess } from "@packages/subscription-access";
+import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 
 /**
  * Whether the MCP surface is open to an authenticated caller.
  *
  * The decision is not re-derived here — it reuses `getEffectiveAccess` (the same
- * resolver the web banner reads), so "lapsed" means exactly what it means on the
- * web.
+ * resolver the web banner reads).
  *
  * Nothing is ever attached to a *successful* result. The ChatGPT app developer
  * guidelines forbid promoting an upgrade from a tool response, and the Anthropic
@@ -15,8 +14,7 @@ import type { GetEffectiveAccess } from "@packages/subscription-access";
  */
 
 export type ToolAccess =
-	| { readonly state: "ok" }
-	| { readonly state: "inactive" }
+	| { readonly state: "ok"; readonly dailyLimited: boolean }
 	| { readonly state: "unverified" };
 
 export const UNVERIFIED_ACCESS = {
@@ -24,42 +22,27 @@ export const UNVERIFIED_ACCESS = {
 } as const satisfies ToolAccess;
 
 export type RefusalPhrases = {
-	readonly action: string;
 	readonly subject: string;
 };
 
 export const SAVE_TOOL_PHRASES = {
-	action: "Saving new links",
 	subject: "This link",
 } as const satisfies RefusalPhrases;
 
 export const CREATE_HIGHLIGHT_PHRASES = {
-	action: "Creating highlights",
 	subject: "This highlight",
 } as const satisfies RefusalPhrases;
 
-export function toolRefusalMessage(params: {
-	state: Exclude<ToolAccess["state"], "ok">;
-	phrases: RefusalPhrases;
-	appOrigin: string;
-}): string {
-	if (params.state === "unverified") {
-		return `${params.phrases.subject} wasn't saved because the subscription check didn't go through. Try again in a moment.`;
-	}
-	return (
-		`${params.phrases.action} is paused because this Readplace subscription isn't active. ` +
-		`Everything already saved stays readable and exportable, and the subscription can be reactivated at ${new URL("/account", params.appOrigin).toString()}.`
-	);
+export function toolRefusalMessage(params: { phrases: RefusalPhrases }): string {
+	return `${params.phrases.subject} wasn't saved because the subscription check didn't go through. Try again in a moment.`;
 }
 
 export function initResolveToolAccess(deps: {
 	getEffectiveAccess: GetEffectiveAccess;
+	isDailyLimited: (access: EffectiveAccess) => boolean;
 }): (userId: AuthenticatedUserId) => Promise<ToolAccess> {
 	return async (userId) => {
 		const access = await deps.getEffectiveAccess(userId);
-		if (access.access === "read-only") {
-			return { state: "inactive" };
-		}
-		return { state: "ok" };
+		return { state: "ok", dailyLimited: deps.isDailyLimited(access) };
 	};
 }

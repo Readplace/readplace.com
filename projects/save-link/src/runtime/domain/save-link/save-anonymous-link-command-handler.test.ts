@@ -20,7 +20,7 @@ const stubAttributes: SQSRecordAttributes = {
 	ApproximateFirstReceiveTimestamp: "1620000000001",
 };
 
-function createSqsEvent(detail: { url: string; captureUrl?: string }): SQSEvent {
+function createSqsEvent(detail: { url: string; captureUrl?: string; userId?: string }): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
@@ -252,6 +252,23 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(published).toEqual([]);
 	});
 
+	it("carries the signed-in viewer to the deferred crawl so its comprehensive leg can charge them", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<
+			ReturnType<EmitSimpleCrawlUnsupported>,
+			Parameters<EmitSimpleCrawlUnsupported>
+		>().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "unsupported",
+			reason: "non-html content type: application/pdf",
+		});
+		const handler = createHandler({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported });
+
+		const result = await handler(createSqsEvent({ url: "https://example.com/blob", userId: "viewer-1" }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/blob", userId: "viewer-1" }));
+	});
+
 	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
 		const handler = createHandler();
 
@@ -339,6 +356,19 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 				candidates: [{ id: expect.any(String), tier: "tier-2" }],
 			})]]);
 			expect(published).toEqual([]);
+		});
+
+		it("carries the signed-in viewer to the deferred crawl of a capture", async () => {
+			const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async (params) => params.fetchUrl === capture ? fetchedResult : { status: "blocked", httpStatus: 403 },
+				emitSimpleCrawlUnsupported,
+			});
+
+			const result = await handler(createSqsEvent({ url: "https://example.com/article", captureUrl: capture, userId: "viewer-1" }), buildLambdaContext(), () => {});
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/article", userId: "viewer-1" }));
 		});
 
 		it("announces a completed no-body attempt when neither source serves a body", async () => {

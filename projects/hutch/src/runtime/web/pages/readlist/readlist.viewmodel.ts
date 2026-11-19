@@ -31,8 +31,8 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { ComponentError } from "../../shared/component-error.types";
 import { TRIAL_COUNTDOWN_LEAD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { type UpgradeOffer, lockFor } from "../../shared/upgrade-offer/upgrade-offer";
-import { MAX_POLLS, type NeedsUpgradeControl } from "@packages/web-shell";
+import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
+import { MAX_POLLS } from "@packages/web-shell";
 import { buildCardPollUrl } from "./readlist-card/readlist-card-poll-url";
 import {
 	type ArticleDeletion,
@@ -46,7 +46,6 @@ import {
 	type ArticleMoveViewModel,
 	moveCreatePopoverId,
 	moveDialogPopoverId,
-	moveItemLabel,
 } from "./readlist-card/move-dialog.component";
 import { cardProcessingOf } from "./readlist-card/card-processing";
 import type { ContentState } from "./readlist-card/content-state";
@@ -61,7 +60,7 @@ import { READLIST_PATH, buildReadlistCountsUrl, buildReadlistUrl, readlistReturn
 import { computeArticleContentVersion } from "../../shared/article-content-version";
 import type { MoveFlash, StatusFlash } from "./readlist.error";
 import type { MoveUndoFields } from "./readlist-mutation-fragments";
-import type { EffectiveAccess } from "@packages/subscription-access";
+import { type EffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
 
 export type SubscriptionBannerState =
 	| { state: "none" }
@@ -74,7 +73,7 @@ export type SubscriptionBannerState =
 			upgradeOffer: UpgradeOffer | undefined;
 		}
 	| { state: "cancellation-scheduled"; cancellationEffectiveAt: LocalTime }
-	| { state: "inactive"; upgradeOffer: UpgradeOffer | undefined };
+	| { state: "free"; upgradeOffer: UpgradeOffer | undefined };
 
 export interface ArticleActionField {
 	name: string;
@@ -107,7 +106,6 @@ export interface ReadlistArticleViewModel {
 	deletion: ArticleDeletion;
 	markStatusConfirm?: MarkStatusConfirmViewModel;
 	move?: ArticleMoveViewModel;
-	moveLocks: readonly NeedsUpgradeControl[];
 	/**
 	 * Set when the row's crawl/summary state machines are still in flight.
 	 * The card renders an htmx poll against this URL every 3s; once both
@@ -163,7 +161,7 @@ export interface ReadlistViewModel {
 		undoFields: MoveUndoFields;
 	};
 	subscriptionBanner: SubscriptionBannerState;
-	accessIsReadOnly: boolean;
+	paidFeaturesLocked: boolean;
 }
 
 function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number; daysLeftWord: "day" | "days" } {
@@ -175,8 +173,9 @@ function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number
 export function toSubscriptionBannerState(
 	access: EffectiveAccess,
 	now: Date,
-	upgradeOffer: UpgradeOffer | undefined,
+	options: { upgradeOffer: UpgradeOffer | undefined; freePlanBannerDismissed: boolean },
 ): SubscriptionBannerState {
+	const { upgradeOffer } = options;
 	switch (access.banner) {
 		case "none":
 			return { state: "none" };
@@ -198,8 +197,8 @@ export function toSubscriptionBannerState(
 				state: "cancellation-scheduled",
 				cancellationEffectiveAt: toAbsoluteDate({ iso: access.cancellationEffectiveAt }),
 			};
-		case "inactive":
-			return { state: "inactive", upgradeOffer };
+		case "free":
+			return options.freePlanBannerDismissed ? { state: "none" } : { state: "free", upgradeOffer };
 	}
 }
 
@@ -249,8 +248,6 @@ function toStatusActions(
 interface ArticleFiling {
 	readlists: readonly ReadlistRef[];
 	saves: readonly { readlist?: ReadlistSlug }[] | undefined;
-	accessIsReadOnly: boolean;
-	offer: UpgradeOffer | undefined;
 }
 
 function articleMoveOf(input: {
@@ -295,23 +292,8 @@ interface ArticleMoveInput {
 
 function toArticleMove(input: ArticleMoveInput): ArticleMoveViewModel | undefined {
 	const { filing } = input;
-	if (filing === undefined || filing.accessIsReadOnly) return undefined;
+	if (filing === undefined) return undefined;
 	return articleMoveOf({ ...input, filing });
-}
-
-function toArticleMoveLock(input: ArticleMoveInput): NeedsUpgradeControl | undefined {
-	const { filing } = input;
-	if (filing === undefined || !filing.accessIsReadOnly) return undefined;
-	const move = articleMoveOf({ ...input, filing });
-	if (move === undefined) return undefined;
-	return lockFor({
-		offer: filing.offer,
-		gated: true,
-		key: "move-article",
-		label: moveItemLabel(move.mode),
-		controlClass: "menu__item",
-		source: "queue-card",
-	});
 }
 
 function versionedReaderHref(input: {
@@ -348,7 +330,6 @@ export function toReadlistArticleViewModel(params: {
 	const { phase } = processing;
 	const isProcessing = phase.kind === "processing";
 	const moveInput = { articleId: id, from: filters.readlist, returnQuery, filing: params.filing };
-	const moveLock = toArticleMoveLock(moveInput);
 	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const cardKind = cardKindOf(article);
@@ -382,7 +363,6 @@ export function toReadlistArticleViewModel(params: {
 		deletion,
 		markStatusConfirm,
 		move: toArticleMove(moveInput),
-		moveLocks: moveLock === undefined ? [] : [moveLock],
 		cardPollUrl: isProcessing ? buildCardPollUrl({ articleId: id, pollCount: phase.pollCursor, filters }) : undefined,
 		contentState: processing.contentState,
 		readerHref: versionedReaderHref({
@@ -440,6 +420,7 @@ export function toReadlistViewModel(
 		readerProvenanceByUrl?: ReadonlyMap<string, ReaderProvenance | undefined>;
 		effectiveAccess?: EffectiveAccess;
 		upgradeOffer?: UpgradeOffer;
+		freePlanBannerDismissed?: boolean;
 		confirmReadlistsByUrl?: ReadonlyMap<string, readonly ReadlistRef[]>;
 		deleteAcknowledged?: boolean;
 		readlists?: readonly ReadlistRef[];
@@ -457,7 +438,6 @@ export function toReadlistViewModel(
 	 * authenticated GET /queue handler always passes effectiveAccess. */
 	const access: EffectiveAccess = options.effectiveAccess ?? {
 		tier: "founding",
-		access: "full",
 		banner: "none",
 	};
 
@@ -481,8 +461,6 @@ export function toReadlistViewModel(
 						: {
 								readlists: options.readlists,
 								saves: options.savesByUrl?.get(a.url),
-								accessIsReadOnly: access.access === "read-only",
-								offer: options.upgradeOffer,
 							},
 			}),
 		),
@@ -511,7 +489,10 @@ export function toReadlistViewModel(
 			}
 			: undefined,
 		moveFlash: options.moveFlash ? moveToastFor(options.moveFlash, returnQuery) : undefined,
-		subscriptionBanner: toSubscriptionBannerState(access, now, options.upgradeOffer),
-		accessIsReadOnly: access.access === "read-only",
+		subscriptionBanner: toSubscriptionBannerState(access, now, {
+			upgradeOffer: options.upgradeOffer,
+			freePlanBannerDismissed: options.freePlanBannerDismissed === true,
+		}),
+		paidFeaturesLocked: !hasPaidFeatures(access),
 	};
 }

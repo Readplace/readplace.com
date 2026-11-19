@@ -96,7 +96,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		{
 			question: "What happens to the connection if I stop paying?",
 			answer:
-				"It stays connected and goes read-only, the same as the account does in a browser. Your assistant can still list your readlist, pull an article, its reader view or its summary, and mark things read or unread as you work through them. Saving and readlist changes (creating a readlist, filing an article into one) stop, and each comes back with a note that the change is paused rather than an error.",
+				"It stays connected, and the account moves to the free plan, the same as it does in a browser. Your assistant can keep saving links, list your readlist, pull an article, its reader view or its summary, create highlights, and mark things read or unread as you work through them, all within the free plan's daily limits.",
 		},
 	],
 	offer: {

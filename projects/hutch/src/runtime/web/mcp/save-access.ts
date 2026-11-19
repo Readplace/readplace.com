@@ -11,11 +11,6 @@ import { computeVerificationStatus } from "@packages/domain/user";
  * identical write rather than a back door around the lockout. A locked account
  * can still co-occur with a full subscription, and listing stays open while
  * locked, so this gates only `save_link`.
- *
- * The subscription paywall (`requireWriteAccess`) is NOT re-decided here: the
- * tool-access gate refuses a new save for a read-only subscription before
- * `save_link` ever runs, so the single subscription decision lives there. This
- * resolver owns only the lockout.
  */
 type SaveAccess =
 	| { readonly allowed: true }

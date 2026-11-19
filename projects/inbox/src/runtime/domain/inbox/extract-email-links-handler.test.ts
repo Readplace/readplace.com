@@ -45,7 +45,7 @@ const DIGEST_PROVENANCE = { kind: "email", senderEmail: "news@example.com" };
 const RAW_KEY = "inbound/ses-msg-1";
 const NOW = "2026-06-24T10:00:00.000Z";
 const WORK = ReadlistSlugSchema.parse("a1b2c3d4");
-const READ_ONLY_SUBSCRIPTION = {
+const FREE_SUBSCRIPTION = {
 	userId: USER,
 	provider: "stripe" as const,
 	status: "cancelled" as const,
@@ -377,7 +377,7 @@ describe("initExtractEmailLinksHandler", () => {
 		]);
 	});
 
-	it("holds every save for a read-only reader while still extracting, storing and crawling the links", async () => {
+	it("asks no triage and crawls no preview for a free account, recording each candidate skipped for a paid plan and holding its saves", async () => {
 		const harness = makeHarness({
 			derivedHtml: "https://a.test/x https://b.test/y",
 			subscription: {
@@ -394,13 +394,11 @@ describe("initExtractEmailLinksHandler", () => {
 
 		assert(result);
 		expect(result.batchItemFailures).toHaveLength(0);
+		expect(harness.triageCalls).toEqual([]);
+		expect(harness.published).toEqual([]);
 		expect(harness.submitted).toEqual([]);
-		expect(harness.published.map((p) => p.url)).toEqual([
-			"https://a.test/x",
-			"https://b.test/y",
-		]);
 		expect(harness.countsWrites).toEqual([
-			{ kept: 2, skipped: 0, truncated: false },
+			{ kept: 0, skipped: 2, truncated: false },
 		]);
 		expect(harness.heldNotices).toEqual([
 			{
@@ -414,7 +412,10 @@ describe("initExtractEmailLinksHandler", () => {
 			userId: USER,
 			receivedAtMessageId: RAM,
 		});
-		expect(links.map((link) => link.status)).toEqual(["pending", "pending"]);
+		expect(links.map((link) => [link.status, link.skipReason])).toEqual([
+			["skipped", "paid-plan"],
+			["skipped", "paid-plan"],
+		]);
 	});
 
 	it("tells the reader once even when a single email holds many links", async () => {
@@ -440,7 +441,7 @@ describe("initExtractEmailLinksHandler", () => {
 		]);
 	});
 
-	it("raises the notice before the first held link is crawled, so a later crash cannot swallow it", async () => {
+	it("raises the held notice for a free account and publishes no preview", async () => {
 		const harness = makeHarness({
 			derivedHtml: "https://a.test/x https://b.test/y",
 			subscription: {
@@ -454,7 +455,7 @@ describe("initExtractEmailLinksHandler", () => {
 
 		await harness.run(eventBody());
 
-		expect(harness.publishOrder).toEqual(["notice", "preview", "preview"]);
+		expect(harness.publishOrder).toEqual(["notice"]);
 	});
 
 	it("stays silent for a reader who can save", async () => {
@@ -480,6 +481,8 @@ describe("initExtractEmailLinksHandler", () => {
 
 		await harness.run(eventBody());
 
+		expect(harness.triageCalls).toHaveLength(1);
+		expect(harness.published.map((p) => p.url)).toEqual(["https://a.test/x"]);
 		expect(harness.submitted).toEqual([
 			{
 				userId: USER,
@@ -1370,11 +1373,11 @@ describe("initExtractEmailLinksHandler", () => {
 			).toEqual([["0000"], ["0000"]]);
 		});
 
-		it("holds every save for a read-only reader and names the readlist it would have filled", async () => {
+		it("holds every save for a free account and names the readlist it would have filled", async () => {
 			const harness = makeHarness({
 				derivedHtml: "https://a.test/x",
 				inboxAddress: routedInbox,
-				subscription: READ_ONLY_SUBSCRIPTION,
+				subscription: FREE_SUBSCRIPTION,
 			});
 
 			await harness.run(eventBody());
@@ -1390,7 +1393,7 @@ describe("initExtractEmailLinksHandler", () => {
 				truncated: false,
 				extractionFailed: false,
 				selectedReadlists: [{ readlist: WORK, label: "Work" }],
-				eligibleArticleCount: 1,
+				eligibleArticleCount: 0,
 				savesHeld: true,
 				readlistOutcomes: [],
 			});
@@ -1606,11 +1609,11 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 		});
 	});
 
-	it("records that the issue was held for a read-only reader", async () => {
+	it("records that the issue was held for a free account", async () => {
 		const harness = makeHarness({
 			derivedHtml: "https://a.test/x",
 			inboxAddress: makeInboxAddress({ readlist: WORK }),
-			subscription: READ_ONLY_SUBSCRIPTION,
+			subscription: FREE_SUBSCRIPTION,
 		});
 
 		await harness.run(eventBody({ routing: issueRouting("issue") }));
@@ -1637,10 +1640,10 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 		expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual(meta);
 	});
 
-	it("holds the issue for a read-only reader and tells them once", async () => {
+	it("holds the issue for a free account and tells them once", async () => {
 		const harness = makeHarness({
 			derivedHtml: "https://a.test/x https://b.test/y",
-			subscription: READ_ONLY_SUBSCRIPTION,
+			subscription: FREE_SUBSCRIPTION,
 		});
 
 		await harness.run(eventBody({ routing: issueRouting("both") }));
@@ -1744,10 +1747,10 @@ describe("Gmail destination snapshots", () => {
 		]);
 	});
 
-	it("keeps Gmail All saves held and publishes no custom filters for a read-only reader", async () => {
+	it("keeps Gmail All saves held and publishes no custom filters for a free account", async () => {
 		const harness = makeHarness({
 			derivedHtml: "https://example.com/article",
-			subscription: READ_ONLY_SUBSCRIPTION,
+			subscription: FREE_SUBSCRIPTION,
 		});
 		await harness.run(
 			eventBody({
@@ -1806,12 +1809,12 @@ it("snapshots every Gmail selection and settles empty custom inputs without send
 	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual(meta);
 });
 
-it("captures Gmail custom selections for a read-only reader while holding both All and custom saves", async () => {
-	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), subscription: READ_ONLY_SUBSCRIPTION });
+it("captures Gmail custom selections for a free account while holding both All and custom saves", async () => {
+	const harness = makeHarness({ derivedHtml: "https://example.com/article", inboxAddress: makeInboxAddress({ readlist: WORK }), subscription: FREE_SUBSCRIPTION });
 	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } }));
 	expect(harness.triaged).toEqual([]);
 	expect(harness.submitted).toEqual([]);
-	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 1, savesHeld: true, readlistOutcomes: [] });
+	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: true, readlistOutcomes: [] });
 });
 
 it("counts eligible articles for Gmail All-only mappings without custom filtering", async () => {
@@ -1916,8 +1919,8 @@ describe("frozen All selection for Gmail-mapped mail", () => {
 		expect(harness.selectionWrites.map(({ truncated }) => truncated)).toEqual([true]);
 	});
 
-	it("tracks nothing while a read-only reader's saves are held", async () => {
-		const harness = makeHarness({ derivedHtml: "https://a.test/x", subscription: READ_ONLY_SUBSCRIPTION, inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
+	it("tracks nothing while a free account's saves are held", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x", subscription: FREE_SUBSCRIPTION, inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
 
 		await harness.run(eventBody({ routing: gmailLinks }));
 
@@ -2010,16 +2013,21 @@ describe("direct social links in forwarded mail", () => {
 		expect(harness.published.map((p) => p.url)).toEqual([ARTICLE, WRAPPED_HEADLINE]);
 	});
 
-	it("skips them for a read-only reader whose other saves are held", async () => {
+	it("skips them for a free account, whose other links go unchecked and unsaved", async () => {
 		const harness = makeHarness({
 			derivedHtml: NEWSLETTER,
-			subscription: READ_ONLY_SUBSCRIPTION,
+			subscription: FREE_SUBSCRIPTION,
 		});
 
 		await harness.run(eventBody());
 
-		expect(await storedRows(harness)).toEqual(SOCIAL_SKIPPED_ROWS);
-		expect(harness.published.map((p) => p.url)).toEqual([ARTICLE, WRAPPED_HEADLINE]);
+		expect(await storedRows(harness)).toEqual([
+			["0000", LINKEDIN_FEED, "skipped", "social-host"],
+			["0001", ARTICLE, "skipped", "paid-plan"],
+			["0002", X_POST, "skipped", "social-host"],
+			["0003", WRAPPED_HEADLINE, "skipped", "paid-plan"],
+		]);
+		expect(harness.published).toEqual([]);
 		expect(harness.submitted).toEqual([]);
 	});
 
@@ -2299,8 +2307,8 @@ describe("an inbox-routed redrive after some links reached All", () => {
 		expect(harness.submitted).toHaveLength(1);
 	});
 
-	it("reads no completion for a read-only reader", async () => {
-		const harness = makeHarness({ derivedHtml: ONE_LINK, subscription: READ_ONLY_SUBSCRIPTION });
+	it("reads no completion for a free account", async () => {
+		const harness = makeHarness({ derivedHtml: ONE_LINK, subscription: FREE_SUBSCRIPTION });
 
 		await harness.run(eventBody());
 

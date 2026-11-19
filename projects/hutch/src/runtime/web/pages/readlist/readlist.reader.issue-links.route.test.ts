@@ -8,6 +8,7 @@ import request from "supertest";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
+const useMeteredApp = useTestServer({ isDailyLimited: () => true });
 
 const RECEIVED_AT_MESSAGE_ID = "2026-06-24T09:00:00.000Z#<issue-42@tldr.tech>";
 const ENCODED_ID = encodeURIComponent(RECEIVED_AT_MESSAGE_ID);
@@ -21,9 +22,16 @@ function parse(html: string) {
 	return new JSDOM(html).window.document;
 }
 
-async function buildHarness(options: { extraction?: "finished" | "failed" | "pending" } = {}) {
+async function buildHarness(options: { extraction?: "finished" | "failed" | "pending"; dailySaveLimit?: number } = {}) {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const harness = useApp(fixture);
+	const { dailySaveLimit } = options;
+	if (dailySaveLimit !== undefined) {
+		fixture.rateLimit = {
+			...fixture.rateLimit,
+			rules: { ...fixture.rateLimit.rules, dailySaves: { limit: dailySaveLimit, windowSeconds: 86_400 } },
+		};
+	}
+	const harness = dailySaveLimit === undefined ? useApp(fixture) : useMeteredApp(fixture);
 	const agent = await loginAgent(harness.server, harness.auth);
 	const signedInUser = await fixture.auth.findUserByEmail("test@example.com");
 	assert(signedInUser, "loginAgent creates the user it signs in as");
@@ -242,6 +250,48 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 });
 
 describe("Saving a link from an issue (POST /queue/:id/issue-links)", () => {
+	it("returns to the issue with a daily-limit flag and saves nothing once a metered account's new saves are spent", async () => {
+		const { agent, fixture, harness, issueId } = await buildHarness({ dailySaveLimit: 0 });
+
+		const response = await agent
+			.post(`/queue/${issueId}/issue-links`)
+			.type("form")
+			.send({ ordinal: "0001", returnTo: `/queue/${issueId}/view` });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`/queue/${issueId}/view?issue_link_daily_limit=0001#issue-links`);
+		assert.equal(await fixture.articleStore.findArticleByUrl("https://b.test/second"), null);
+		expect(harness.analytics.events).toContainEqual(
+			expect.objectContaining({ event: "save_refused", code: "daily_save_limit", path: "/queue/:id/issue-links" }),
+		);
+	});
+
+	it("tells the reader the day's new saves are spent when the refused save returns to the issue", async () => {
+		const { agent, issueId } = await buildHarness({ dailySaveLimit: 0 });
+		const refused = await agent
+			.post(`/queue/${issueId}/issue-links`)
+			.type("form")
+			.send({ ordinal: "0001", returnTo: `/queue/${issueId}/view` });
+
+		const page = await agent.get(refused.headers.location);
+
+		const notice = new JSDOM(page.text).window.document.querySelector("[data-test-issue-links-daily-limit]");
+		assert(notice, "the issue-links panel must show the daily-limit notice");
+		expect(notice.textContent).toBe("You've reached today's limit for new saves.");
+	});
+
+	it("saves a metered account's issue link while the day's allowance lasts", async () => {
+		const { agent, fixture, issueId } = await buildHarness({ dailySaveLimit: 1 });
+
+		const response = await agent
+			.post(`/queue/${issueId}/issue-links`)
+			.type("form")
+			.send({ ordinal: "0001", returnTo: `/queue/${issueId}/view` });
+
+		expect(response.headers.location).toBe(`/queue/${issueId}/view?issue_link_saved=0001#issue-links`);
+		assert(await fixture.articleStore.findArticleByUrl("https://b.test/second"), "the link is saved");
+	});
+
 	it("saves the link into All with the newsletter as where it came from, and returns to the issue with the link marked saved", async () => {
 		const { agent, fixture, userId, issueId } = await buildHarness();
 

@@ -86,7 +86,7 @@ async function createReadlist(agent: TestAgent, label: string): Promise<string> 
 	return slug;
 }
 
-async function makeReadOnly(harness: TestHarness): Promise<void> {
+async function makeFreePlan(harness: TestHarness): Promise<void> {
 	const userId = await readerId(harness);
 	await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_discovery", customerId: "cus_discovery" });
 	await harness.subscriptionProviders.markCancelledByUserId({ userId });
@@ -734,11 +734,11 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 			expect(closes).toEqual(["popover"]);
 		});
 
-		it("still offers the search row and the drawer to a read-only reader", async () => {
+		it("still offers the search row and the drawer to a free-plan reader", async () => {
 			const harness = useApp(pinnedFixture());
 			const agent = await loginAgent(harness.server, harness.auth);
 			await seed(harness, { url: "https://example.com/focus", title: "Focus" });
-			await makeReadOnly(harness);
+			await makeFreePlan(harness);
 
 			const doc = await page(agent, "/queue?q=focus");
 

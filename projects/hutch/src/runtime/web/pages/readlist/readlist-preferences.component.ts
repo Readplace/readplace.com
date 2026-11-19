@@ -66,7 +66,7 @@ const PANEL_CLASS: Record<PurposeState, string> = {
 
 const WIZARD_OPEN_CLASS = "readlist-preferences--wizard-open";
 
-const READ_ONLY_CLASS = "readlist-preferences--read-only";
+const PAID_LOCKED_CLASS = "readlist-preferences--paid-locked";
 
 interface PopoverControl {
 	popoverId: string;
@@ -116,14 +116,14 @@ const PANEL_CONTROLS: Record<PurposeState | "needs-upgrade" | "withheld", (input
 		setupLocks: [],
 	}),
 	"needs-upgrade": (input) => ({
-		modifierClasses: [READ_ONLY_CLASS],
+		modifierClasses: [PAID_LOCKED_CLASS],
 		setupActions: [],
 		inlineWizards: [],
 		wizardPopoverHtml: "",
 		setupLocks: SETUP_LOCKS[input.state](input.offer),
 	}),
 	withheld: () => ({
-		modifierClasses: [READ_ONLY_CLASS],
+		modifierClasses: [PAID_LOCKED_CLASS],
 		setupActions: [],
 		inlineWizards: [],
 		wizardPopoverHtml: "",
@@ -144,7 +144,7 @@ export interface ReadlistPreferencesViewModel {
 	alert?: AlertContent;
 	saved: boolean;
 	gmailSenders: ReadlistGmailSendersViewModel | undefined;
-	accessIsReadOnly: boolean;
+	paidFeaturesLocked: boolean;
 	subscriptionBanner: SubscriptionBannerState;
 	onboarding: ReadlistOnboarding;
 	query: Record<string, unknown>;
@@ -165,7 +165,7 @@ function statusToastHtml(vm: Pick<ReadlistPreferencesViewModel, "saved" | "inbox
 
 export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageBody {
 	const state = purposeStateOf(vm.readlist);
-	const standing = standingOf({ gated: vm.accessIsReadOnly, offer: vm.rail.offer });
+	const standing = standingOf({ gated: vm.paidFeaturesLocked, offer: vm.rail.offer });
 	const controls = PANEL_CONTROLS[standing === "open" ? state : standing]({
 		state,
 		offer: vm.rail.offer,
@@ -192,9 +192,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				activeSlug: vm.rail.activeReadlist.slug,
 				newReadlistAction: vm.rail.newReadlistAction,
 				limitAlertHref: vm.rail.limitAlertHref,
-				canEdit: vm.rail.canEdit,
 				canCreate: vm.rail.canCreate,
-				offer: vm.rail.offer,
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: vm.alert ?? readlistAlertFor(vm.query) }),

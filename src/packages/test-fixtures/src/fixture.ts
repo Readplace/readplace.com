@@ -18,6 +18,8 @@ import { initInMemoryEmailVerification } from "./providers/email-verification/in
 import { initInMemoryPasswordReset } from "./providers/password-reset/in-memory-password-reset";
 import { initInMemoryBrowserHandoff } from "./providers/browser-handoff/in-memory-browser-handoff";
 import { initInMemoryRateLimit } from "./providers/rate-limit/in-memory-rate-limit";
+import { initInMemoryOcrPagesLeft } from "./providers/rate-limit/in-memory-ocr-pages-left";
+import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
 import { initInMemoryWrapperTarget } from "./providers/wrapper-target/in-memory-wrapper-target";
 import { initInMemoryEngagementStarter } from "./providers/onboarding-signals/in-memory-engagement-starter";
 import { initInMemoryOnboardingSignals } from "./providers/onboarding-signals/in-memory-onboarding-signals";
@@ -108,6 +110,7 @@ import type {
  * re-introducing a dependency cycle, so both copies must be kept consistent. */
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
 	save_failed: "Couldn't save this article. Try again.",
+	daily_save_limit: "You've reached today's limit for new saves.",
 	import_too_large:
 		"That file is too large. The limit is 4.5 MB — split the export into smaller files and import them one at a time.",
 	import_no_urls: "We couldn't find any links in that file.",
@@ -317,8 +320,11 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	/* Generous enough that no unrelated suite ever trips a limiter; tests that
 	* exercise 429 behaviour override the bundle with tight rules. */
 	const unlimitedRule = { limit: 10_000, windowSeconds: 3600 };
+	const { consumeRateLimit, claimRateLimitUnits } = initInMemoryRateLimit({ now: () => new Date() });
 	const rateLimit = {
-		consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+		consumeRateLimit,
+		claimRateLimitUnits,
+		readOcrPagesLeft: initInMemoryOcrPagesLeft({ pagesLeft: OCR_PAGE_QUOTA_RULE.limit }).readOcrPagesLeft,
 		rules: {
 			viewCrawl: unlimitedRule,
 			viewCrawlSignedIn: unlimitedRule,
@@ -333,6 +339,11 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			import: unlimitedRule,
 			importFromUrl: unlimitedRule,
 			uploadStage: unlimitedRule,
+			dailySaves: unlimitedRule,
+			mcpCall: unlimitedRule,
+			bookUpload: unlimitedRule,
+			staleCheck: unlimitedRule,
+			export: unlimitedRule,
 			signupCreated: unlimitedRule,
 		},
 	};
@@ -416,7 +427,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			readOpenedInReadlists: articleStoreMemory.readOpenedInReadlists,
 			saveArticleAsRequested: articleStoreMemory.saveArticleAsRequested,
 			saveReadlistArticleAsRequested: articleStoreMemory.saveReadlistArticleAsRequested,
-			hasSaveLandedSince: articleStoreMemory.hasSaveLandedSince,
 			deleteAllUserArticles: articleStoreMemory.deleteAllUserArticles,
 			listUserArticleUrls: articleStoreMemory.listUserArticleUrls,
 			findArticleById: articleStoreMemory.findArticleById,
@@ -439,6 +449,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			markArticleViewed: articleStoreMemory.markArticleViewed,
 			markSummaryToggled: articleStoreMemory.markSummaryToggled,
 			markRelatedDismissed: articleStoreMemory.markRelatedDismissed,
+			markOcrPagesHeld: articleStoreMemory.markOcrPagesHeld,
 			findUserArticlesByUrl: articleStoreMemory.findUserArticlesByUrl,
 			markReaderReadyEmailSent: articleStoreMemory.markReaderReadyEmailSent,
 			findUnreadSavesForDigest: articleStoreMemory.findUnreadSavesForDigest,

@@ -215,7 +215,7 @@ describe("createDefaultTestAppFixture", () => {
 describe("createNoopRefreshArticleIfStale", () => {
 	it("returns { action: 'new' } regardless of input", async () => {
 		const refresh = createNoopRefreshArticleIfStale();
-		expect(await refresh({ url: "https://example.com/x" })).toEqual({ action: "new" });
+		expect(await refresh({ url: "https://example.com/x", requester: { ip: "203.0.113.1" } })).toEqual({ action: "new" });
 	});
 });
 
@@ -241,7 +241,7 @@ describe("createNoopLogError", () => {
 
 describe("stubCrawlArticle", () => {
 	it("returns synthetic HTML with the URL's hostname", async () => {
-		const result = await stubCrawlArticle({
+		const result = await stubCrawlArticle({ chargeOcrPages: undefined,
 			url: "https://example.com/article",
 		});
 
@@ -379,7 +379,7 @@ describe("createFakePublishSaveAnonymousLink", () => {
 		};
 		const publish = createFakePublishSaveAnonymousLink(apply);
 
-		await publish({ url: "https://example.com/x", saveAttemptId: SaveAttemptIdSchema.parse("attempt-1") });
+		await publish({ url: "https://example.com/x", saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"), userId: undefined });
 
 		expect(calls).toEqual(["https://example.com/x"]);
 	});
@@ -393,7 +393,7 @@ describe("createFakePublishRecrawlLinkInitiated", () => {
 		};
 		const publish = createFakePublishRecrawlLinkInitiated(apply);
 
-		await publish({ url: "https://example.com/x", saveAttemptId: SaveAttemptIdSchema.parse("attempt-1") });
+		await publish({ url: "https://example.com/x", saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"), requester: { kind: "operator" } });
 
 		expect(calls).toEqual(["https://example.com/x"]);
 	});

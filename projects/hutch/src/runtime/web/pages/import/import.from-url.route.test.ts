@@ -524,7 +524,7 @@ describe("POST /import/from-url routes", () => {
 				fetches += 1;
 				return baseExtractor(url);
 			};
-			fixture.rateLimit = {
+			fixture.rateLimit = { ...fixture.rateLimit,
 				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 				rules: { ...fixture.rateLimit.rules, importFromUrl: { limit: 1, windowSeconds: 3600 } },
 			};

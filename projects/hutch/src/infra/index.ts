@@ -223,6 +223,11 @@ const rateLimitRules = {
 	import: config.require("rateLimitImport"),
 	importFromUrl: config.require("rateLimitImportFromUrl"),
 	uploadStage: config.require("rateLimitUploadStage"),
+	dailySaves: config.require("rateLimitDailySaves"),
+	mcpCall: config.require("rateLimitMcpCall"),
+	bookUpload: config.require("rateLimitBookUpload"),
+	staleCheck: config.require("rateLimitStaleCheck"),
+	export: config.require("rateLimitExport"),
 	signupCreated: config.require("rateLimitSignupCreated"),
 } satisfies Record<keyof RateLimitRules, string>;
 

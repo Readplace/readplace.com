@@ -297,6 +297,43 @@ describe("initDynamoDbImportSession", () => {
 		});
 	});
 
+	describe("deselectImportIndices", () => {
+		it("adds the indices to what is already deselected, guarded by the owner-or-anon condition", async () => {
+			const { client, commands } = createFakeClient({ ...storedRow(OWNER), totalUrls: 4, deselected: [1] });
+
+			await initStore(client).deselectImportIndices({ id: SESSION_ID, userId: OWNER, indices: [0, 3] });
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			assert.equal(update?.input.ConditionExpression, OWNED_CONDITION);
+			assert.equal(update?.input.ExpressionAttributeValues?.[":uid"], OWNER);
+			assert.deepEqual(update?.input.ExpressionAttributeValues?.[":d"], [1, 0, 3]);
+			assert.equal(update?.input.ExpressionAttributeValues?.[":a"], true);
+		});
+
+		it("guards an anonymous session by attribute_not_exists(userId) with no :uid value", async () => {
+			const { client, commands } = createFakeClient(storedRow());
+
+			await initStore(client).deselectImportIndices({ id: SESSION_ID, userId: undefined, indices: [0] });
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			assert.equal(update?.input.ConditionExpression, ANON_CONDITION);
+			const values = update?.input.ExpressionAttributeValues;
+			assert(values, "deselect must bind update values");
+			assert.equal(":uid" in values, false);
+		});
+
+		it("issues no write when the caller cannot reach the row", async () => {
+			const { client, commands } = createFakeClient(null);
+
+			await initStore(client).deselectImportIndices({ id: SESSION_ID, userId: OWNER, indices: [0] });
+
+			assert.equal(
+				commands.some((c) => c.name === "UpdateCommand"),
+				false,
+			);
+		});
+	});
+
 	describe("toggleAllImportSelection access", () => {
 		it("issues no write when the caller cannot reach the row", async () => {
 			const { client, commands } = createFakeClient(null);

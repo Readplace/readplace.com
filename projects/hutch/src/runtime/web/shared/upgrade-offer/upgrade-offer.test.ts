@@ -4,30 +4,26 @@ import type { Request } from "express";
 import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
 import { type UpgradeOffer, lockFor, renderedLockFor, standingOf, upgradeOfferFor } from "./upgrade-offer";
 
-const FOUNDING: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
-const PAID: EffectiveAccess = { tier: "paid", access: "full", banner: "none" };
+const FOUNDING: EffectiveAccess = { tier: "founding", banner: "none" };
+const PAID: EffectiveAccess = { tier: "paid", banner: "none" };
 const PAID_ENDING: EffectiveAccess = {
 	tier: "paid",
-	access: "full",
 	banner: "cancellation-scheduled",
 	cancellationEffectiveAt: "2026-01-06T00:00:00.000Z",
 };
 const TRIAL: EffectiveAccess = {
 	tier: "trial",
-	access: "full",
 	banner: "trial-countdown",
 	trialEndsAt: "2026-01-04T00:00:00.000Z",
 };
 const TRIAL_EXPIRED: EffectiveAccess = {
-	tier: "inactive",
-	access: "read-only",
-	banner: "inactive",
+	tier: "free",
+	banner: "free",
 	reason: "trial-expired",
 };
 const CANCELLED_TRIENNIAL: EffectiveAccess = {
-	tier: "inactive",
-	access: "read-only",
-	banner: "inactive",
+	tier: "free",
+	banner: "free",
 	reason: "subscription-cancelled",
 	plan: "triennial",
 };
@@ -56,8 +52,8 @@ const OFFER: UpgradeOffer = {
 describe("upgradeOfferFor", () => {
 	it.each([
 		{ tier: "trial", access: TRIAL, checkedPlan: "yearly" },
-		{ tier: "inactive after a trial", access: TRIAL_EXPIRED, checkedPlan: "yearly" },
-		{ tier: "inactive after a cancelled subscription", access: CANCELLED_TRIENNIAL, checkedPlan: "triennial" },
+		{ tier: "free after a trial", access: TRIAL_EXPIRED, checkedPlan: "yearly" },
+		{ tier: "free after a cancelled subscription", access: CANCELLED_TRIENNIAL, checkedPlan: "triennial" },
 	])("offers an upgrade on the web to a reader on $tier, starting on the plan they would be charged", ({ access, checkedPlan }) => {
 		expect(upgradeOfferFor({ req: WEB, access })).toEqual({
 			popoverId: "subscribe-plans",
@@ -79,7 +75,7 @@ describe("upgradeOfferFor", () => {
 			{ tier: "founding", access: FOUNDING },
 			{ tier: "paid", access: PAID },
 			{ tier: "trial", access: TRIAL },
-			{ tier: "inactive", access: TRIAL_EXPIRED },
+			{ tier: "free", access: TRIAL_EXPIRED },
 		])("offers nothing to a reader on $tier", ({ access }) => {
 			expect(upgradeOfferFor({ req, access })).toBeUndefined();
 		});

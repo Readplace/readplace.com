@@ -4,8 +4,9 @@ import type { ResolvedSaveIdentity } from "@packages/provider-contracts/article-
 import type { PinContentSource, SaveArticleGlobally } from "@packages/provider-contracts/article-store";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
 import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
+import type { UserId } from "@packages/domain/user";
 
-export type StartAnonymousCrawl = (identity: ResolvedSaveIdentity) => Promise<void>;
+export type StartAnonymousCrawl = (params: { identity: ResolvedSaveIdentity; userId: UserId | undefined }) => Promise<void>;
 
 export interface StartAnonymousCrawlDependencies {
 	saveArticleGlobally: SaveArticleGlobally;
@@ -17,7 +18,7 @@ export interface StartAnonymousCrawlDependencies {
 }
 
 export function initStartAnonymousCrawl(deps: StartAnonymousCrawlDependencies): StartAnonymousCrawl {
-	return async (identity) => {
+	return async ({ identity, userId }) => {
 		const { url } = identity;
 		const host = new URL(url).hostname;
 		await deps.saveArticleGlobally({
@@ -36,6 +37,7 @@ export function initStartAnonymousCrawl(deps: StartAnonymousCrawlDependencies): 
 			captureUrl: identity.contentSourceUrl,
 			sourceOriginalUrl: identity.sourceOriginalUrl,
 			saveAttemptId: newSaveAttemptId(),
+			userId,
 		});
 	};
 }

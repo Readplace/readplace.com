@@ -1,10 +1,16 @@
 import { type Logger, noopLogger } from "@packages/logger";
-import { escapeHtmlText, type ExtractPdfMetadata } from "@packages/crawl-article";
+import { type ChargeOcrPages, escapeHtmlText, type ExtractPdfMetadata } from "@packages/crawl-article";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
 import type { InvokePdfDocumentDiffReview } from "./pdf-document-diff-review-invoker.types";
 import type { InvokePdfPageHtmlConvert } from "./pdf-page-html-convert-invoker.types";
+import type { FindParsedPdf, KeepParsedPdf } from "./parsed-pdf.types";
 import { initOcrPdf } from "./ocr-pdf";
+import { UserIdSchema } from "@packages/article-state-types";
+
+const NO_SCOPE = { kind: "none" } as const;
+
+const allowOcrPages: ChargeOcrPages = async () => ({ allowed: true });
 
 function stubMetadata(meta: { numPages: number; title?: string }): ExtractPdfMetadata {
 	return async () => ({ numPages: meta.numPages, title: meta.title });
@@ -31,13 +37,13 @@ function stubInvokePageOcr(text: (pageIndex: number) => string): InvokePdfPageOc
 
 /** Cleanup pass-through: returns the original Tesseract text unchanged so
  * tests that don't care about cleanup behaviour observe just the Tesseract
- * fan-out + diff-review pipeline. `applied: false` keeps the input/output
+ * fan-out + diff-review pipeline. `applied: false, providerFailed: false` keeps the input/output
  * symmetric (the handler reports this when guardrails reject; here it just
  * means the model produced no corrections). */
 const stubCleanupPassthrough: InvokePdfPageLlmCleanup = async ({ ocrText }) => ({
 	ok: true,
 	cleanedText: ocrText,
-	applied: false,
+	applied: false, providerFailed: false,
 	tokens: { input: 0, output: 0 },
 });
 
@@ -47,7 +53,7 @@ const stubCleanupPassthrough: InvokePdfPageLlmCleanup = async ({ ocrText }) => (
 const stubDiffReviewPassthrough: InvokePdfDocumentDiffReview = async ({ pages }) => ({
 	ok: true,
 	pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })),
-	applied: false,
+	applied: false, providerFailed: false,
 });
 
 /** HTML-convert pass-through: wraps each paragraph of the page text in a
@@ -62,7 +68,7 @@ const stubHtmlConvertPassthrough: InvokePdfPageHtmlConvert = async ({ pageIndex,
 		.filter((paragraph) => paragraph.length > 0)
 		.map((paragraph) => `<p class="ocr-tesseract">${escapeHtmlText(paragraph)}</p>`)
 		.join("");
-	return { ok: true, semanticHtml, applied: false, pageIndex };
+	return { ok: true, semanticHtml, applied: false, providerFailed: false, pageIndex };
 };
 
 function makeOcr(overrides: Partial<Parameters<typeof initOcrPdf>[0]> = {}) {
@@ -74,6 +80,8 @@ function makeOcr(overrides: Partial<Parameters<typeof initOcrPdf>[0]> = {}) {
 		invokePageLlmCleanup: stubCleanupPassthrough,
 		invokeDocumentDiffReview: stubDiffReviewPassthrough,
 		invokePageHtmlConvert: stubHtmlConvertPassthrough,
+		findParsedPdf: async () => undefined,
+		keepParsedPdf: async () => {},
 		...overrides,
 	});
 }
@@ -85,7 +93,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			invokePageOcr: stubInvokePageOcr((i) => `page-${i + 1}`),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF-1.4"), url: "https://example.com/scan.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF-1.4"), url: "https://example.com/scan.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -109,7 +117,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			batchSize: 3,
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(captured).toEqual([
 			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [0, 1, 2], dpi: 300 },
@@ -128,7 +136,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			dpi: 200,
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(captured).toEqual([200]);
 	});
@@ -144,7 +152,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			batchSize: 1,
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -172,7 +180,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			batchSize: 1,
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(observedPeak).toBeLessThanOrEqual(3);
 		expect(observedPeak).toBeGreaterThan(0);
@@ -183,7 +191,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			invokePageOcr: stubInvokePageOcr(() => "body text"),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/files/sample_doc.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/files/sample_doc.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -196,7 +204,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			invokePageOcr: stubInvokePageOcr(() => "safe body"),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -209,7 +217,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			maxPages: 10,
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/huge.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/huge.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result).toEqual({ kind: "failed", reason: "11 pages exceeds the 10-page cap" });
 	});
@@ -225,7 +233,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		};
 		const ocr = makeOcr({ logger: capturingLogger, extractPdfMetadata: stubMetadata({ numPages: 11 }), maxPages: 10 });
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/huge.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/huge.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(errors).toEqual([]);
 		expect(infos).toContain("[ocr-pdf] pages=11 exceeds maxPages=10 — skipping");
@@ -234,7 +242,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	it("returns 'unsupported-large-file' when the PDF buffer exceeds maxPdfBytes", async () => {
 		const ocr = makeOcr({ maxPdfBytes: 10 });
 
-		const result = await ocr({ buffer: Buffer.alloc(11), url: "https://example.com/huge.pdf" });
+		const result = await ocr({ buffer: Buffer.alloc(11), url: "https://example.com/huge.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result).toEqual({ kind: "failed", reason: "unsupported-large-file" });
 	});
@@ -245,7 +253,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			invokePageOcr: async () => ({ ok: true, html: "" }),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/blank.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/blank.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result).toEqual({ kind: "failed", reason: "OCR returned no text across all batches" });
 	});
@@ -255,7 +263,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			extractPdfMetadata: async () => { throw new Error("invalid pdf"); },
 		});
 
-		const result = await ocr({ buffer: Buffer.from("not a pdf"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("not a pdf"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: invalid pdf" });
 	});
@@ -265,7 +273,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			extractPdfMetadata: async () => { throw "opaque thrown"; },
 		});
 
-		const result = await ocr({ buffer: Buffer.from("nope"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("nope"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: opaque thrown" });
 	});
@@ -275,7 +283,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			stagePdf: async () => { throw new Error("S3 PutObject denied"); },
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: S3 PutObject denied" });
 	});
@@ -294,7 +302,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			batchSize: 1,
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		// 2 successes out of 3 chunks = 67%, below the default 80% threshold.
 		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 2 of 3 chunks — below 80% threshold" });
@@ -315,7 +323,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			batchSize: 1,
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(seen).toEqual([0, 1, 2, 3, 4]);
 	});
@@ -326,7 +334,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			stagePdf: stubStagePdf({ onCleanup: () => { cleanupCalls += 1; } }),
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(cleanupCalls).toBe(1);
 	});
@@ -339,7 +347,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			invokePageOcr: async () => ({ ok: false, error: new Error("invoke failure") }),
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(cleanupCalls).toBe(1);
 	});
@@ -358,6 +366,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		await ocr({
 			buffer: Buffer.from("%PDF"),
 			url: "https://example.com/x.pdf",
+			scope: NO_SCOPE, chargeOcrPages: allowOcrPages,
 			onProgress: (params) => { progress.push(params); },
 		});
 
@@ -389,6 +398,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		await ocr({
 			buffer: Buffer.from("%PDF"),
 			url: "https://example.com/x.pdf",
+			scope: NO_SCOPE, chargeOcrPages: allowOcrPages,
 			onProgress: (params) => { progress.push(params); },
 		});
 
@@ -402,7 +412,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			extractPdfMetadata: stubMetadata({ numPages: 0 }),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result).toEqual({ kind: "failed", reason: "OCR returned no text across all batches" });
 	});
@@ -420,7 +430,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			invokePageOcr: async () => ({ ok: false, error: new Error("nope") }),
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(warnings.filter((w) => w.includes("retrying"))).toEqual([]);
 	});
@@ -435,7 +445,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			batchSize: 1,
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -457,7 +467,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			batchSize: 1,
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 7 of 10 chunks — below 80% threshold" });
 	});
@@ -473,7 +483,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			partialSuccessThreshold: 0.5,
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -501,7 +511,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			batchSize: 1,
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		const partialWarn = warnings.find((w) => w.includes("accepting partial result"));
 		expect(partialWarn).toBeDefined();
@@ -514,7 +524,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			invokePageOcr: async () => { throw new Error("kaboom"); },
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: kaboom" });
 	});
@@ -530,7 +540,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			partialSuccessThreshold: 1.0,
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 3 of 4 chunks — below 100% threshold" });
 	});
@@ -544,11 +554,11 @@ describe("initOcrPdf — stage 1 LLM cleanup", () => {
 			invokePageOcr: stubInvokePageOcr((i) => `page-${i} text`),
 			invokePageLlmCleanup: async (input) => {
 				cleanupCalls.push({ pageIndex: input.pageIndex, ocrText: input.ocrText });
-				return { ok: true, cleanedText: input.ocrText, applied: false };
+				return { ok: true, cleanedText: input.ocrText, applied: false, providerFailed: false };
 			},
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(cleanupCalls.sort((a, b) => a.pageIndex - b.pageIndex)).toEqual([
 			{ pageIndex: 0, ocrText: "page-0 text" },
@@ -562,12 +572,12 @@ describe("initOcrPdf — stage 1 LLM cleanup", () => {
 			invokePageLlmCleanup: async ({ pageIndex }) => ({
 				ok: true,
 				cleanedText: "Repository of records",
-				applied: true,
+				applied: true, providerFailed: false,
 				pageIndex,
 			}),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -589,7 +599,7 @@ describe("initOcrPdf — stage 1 LLM cleanup", () => {
 			invokePageLlmCleanup: async () => ({ ok: false, error: new Error("DeepSeek 5xx") }),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -610,7 +620,7 @@ describe("initOcrPdf — stage 1 LLM cleanup", () => {
 			partialSuccessThreshold: 0.8,
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -631,13 +641,13 @@ describe("initOcrPdf — stage 1 LLM cleanup", () => {
 				observedPeak = Math.max(observedPeak, inFlight);
 				await new Promise((resolve) => setTimeout(resolve, 5));
 				inFlight -= 1;
-				return { ok: true, pageIndex, cleanedText: ocrText, applied: false };
+				return { ok: true, pageIndex, cleanedText: ocrText, applied: false, providerFailed: false };
 			},
 			cleanupConcurrency: 2,
 			batchSize: 1,
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(observedPeak).toBeLessThanOrEqual(2);
 		expect(observedPeak).toBeGreaterThan(0);
@@ -654,19 +664,19 @@ describe("initOcrPdf — stage 2 document diff review", () => {
 				ok: true,
 				pageIndex,
 				cleanedText: ocrText.replace("original", "cleaned"),
-				applied: true,
+				applied: true, providerFailed: false,
 			}),
 			invokeDocumentDiffReview: async ({ pages }) => {
 				captured.push(...pages);
 				return {
 					ok: true,
-					applied: true,
+					applied: true, providerFailed: false,
 					pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })),
 				};
 			},
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(captured.sort((a, b) => a.pageIndex - b.pageIndex)).toEqual([
 			{ pageIndex: 0, originalText: "original-0", cleanedText: "cleaned-0" },
@@ -680,12 +690,12 @@ describe("initOcrPdf — stage 2 document diff review", () => {
 			invokePageOcr: stubInvokePageOcr((i) => `staged-${i}`),
 			invokeDocumentDiffReview: async ({ pages }) => ({
 				ok: true,
-				applied: true,
+				applied: true, providerFailed: false,
 				pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: `final-${p.pageIndex}` })),
 			}),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -708,12 +718,12 @@ describe("initOcrPdf — stage 2 document diff review", () => {
 				ok: true,
 				pageIndex,
 				cleanedText: "cleaned-by-stage-1",
-				applied: true,
+				applied: true, providerFailed: false,
 			}),
 			invokeDocumentDiffReview: async () => ({ ok: false, error: new Error("Lambda timed out") }),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -728,12 +738,12 @@ describe("initOcrPdf — stage 2 document diff review", () => {
 			invokePageOcr: async () => ({ ok: false, error: new Error("all failed") }),
 			invokeDocumentDiffReview: async () => {
 				reviewCalls += 1;
-				return { ok: true, applied: false, pages: [] };
+				return { ok: true, applied: false, providerFailed: false, pages: [] };
 			},
 			partialSuccessThreshold: 0.0,
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(reviewCalls).toBe(0);
 	});
@@ -749,20 +759,20 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 				ok: true,
 				pageIndex,
 				cleanedText: `cleaned-${pageIndex}-from-${ocrText}`,
-				applied: true,
+				applied: true, providerFailed: false,
 			}),
 			invokeDocumentDiffReview: async ({ pages }) => ({
 				ok: true,
-				applied: true,
+				applied: true, providerFailed: false,
 				pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: `final-${p.pageIndex}` })),
 			}),
 			invokePageHtmlConvert: async ({ pageIndex, pageText }) => {
 				captured.push({ pageIndex, pageText });
-				return { ok: true, pageIndex, semanticHtml: `<p>${pageText}</p>`, applied: true };
+				return { ok: true, pageIndex, semanticHtml: `<p>${pageText}</p>`, applied: true, providerFailed: false };
 			},
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(captured.sort((a, b) => a.pageIndex - b.pageIndex)).toEqual([
 			{ pageIndex: 0, pageText: "final-0" },
@@ -778,11 +788,11 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 				ok: true,
 				pageIndex,
 				semanticHtml: `<h2>Page ${pageIndex}</h2><p>Body of page ${pageIndex}.</p>`,
-				applied: true,
+				applied: true, providerFailed: false,
 			}),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -805,13 +815,13 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 			invokePageOcr: stubInvokePageOcr(() => "tesseract page text"),
 			invokeDocumentDiffReview: async ({ pages }) => ({
 				ok: true,
-				applied: true,
+				applied: true, providerFailed: false,
 				pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: "post-stage-2 text" })),
 			}),
 			invokePageHtmlConvert: async () => ({ ok: false, error: new Error("Lambda timed out") }),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -831,11 +841,11 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 				ok: true,
 				pageIndex,
 				semanticHtml: '<h2>safe</h2><script>alert(1)</script>',
-				applied: true,
+				applied: true, providerFailed: false,
 			}),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -851,12 +861,12 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 				ok: true,
 				pageIndex,
 				semanticHtml: `<p>page-${pageIndex}</p>`,
-				applied: true,
+				applied: true, providerFailed: false,
 			}),
 			batchSize: 1,
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -877,11 +887,11 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 				ok: true,
 				pageIndex,
 				semanticHtml: "<p>only page</p>",
-				applied: true,
+				applied: true, providerFailed: false,
 			}),
 		});
 
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
@@ -899,15 +909,272 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 				observedPeak = Math.max(observedPeak, inFlight);
 				await new Promise((resolve) => setTimeout(resolve, 5));
 				inFlight -= 1;
-				return { ok: true, pageIndex, semanticHtml: `<p>${pageIndex}</p>`, applied: true };
+				return { ok: true, pageIndex, semanticHtml: `<p>${pageIndex}</p>`, applied: true, providerFailed: false };
 			},
 			htmlConvertConcurrency: 2,
 			batchSize: 1,
 		});
 
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf", scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
 
 		expect(observedPeak).toBeLessThanOrEqual(2);
 		expect(observedPeak).toBeGreaterThan(0);
+	});
+});
+
+describe("initOcrPdf — reusing a reader's complete parse", () => {
+	const fileHash = "cd".repeat(32);
+	const accountScope = { kind: "account", userId: UserIdSchema.parse("reader-1"), fileHash } as const;
+	const pdf = Buffer.from("%PDF-1.4");
+	const url = "https://example.com/upload.pdf";
+
+	function recordingKeep(): { keepParsedPdf: KeepParsedPdf; kept: Parameters<KeepParsedPdf>[0][] } {
+		const kept: Parameters<KeepParsedPdf>[0][] = [];
+		return { keepParsedPdf: async (parse) => { kept.push(parse); }, kept };
+	}
+
+	function capturingLogger(): { logger: Logger; messages: string[] } {
+		const messages: string[] = [];
+		const record = (msg: unknown) => { messages.push(String(msg)); };
+		return { logger: { info: record, warn: record, error: record, debug: record }, messages };
+	}
+
+	it("returns the stored parse without reading the PDF again", async () => {
+		const { logger, messages } = capturingLogger();
+		const extractPdfMetadata = jest.fn(stubMetadata({ numPages: 1 }));
+		const stagePdf = jest.fn(stubStagePdf());
+		const findParsedPdf = jest.fn<ReturnType<FindParsedPdf>, Parameters<FindParsedPdf>>(async () => ({ html: "<p>stored</p>", title: "Stored" }));
+		const ocr = makeOcr({ logger, extractPdfMetadata, stagePdf, findParsedPdf });
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages: allowOcrPages });
+
+		expect(result).toEqual({ kind: "fetched", html: "<p>stored</p>", title: "Stored" });
+		expect(findParsedPdf).toHaveBeenCalledWith({ userId: "reader-1", fileHash });
+		expect(extractPdfMetadata).not.toHaveBeenCalled();
+		expect(stagePdf).not.toHaveBeenCalled();
+		const reused = messages.find((m) => m.includes("[ocr-pdf] reused stored parse"));
+		expect(reused).toContain(`fileHash=${fileHash}`);
+		expect(reused).not.toContain("reader-1");
+	});
+
+	it("never looks up or keeps a parse for a crawled PDF", async () => {
+		const findParsedPdf = jest.fn<ReturnType<FindParsedPdf>, Parameters<FindParsedPdf>>(async () => ({ html: "<p>stored</p>", title: "Stored" }));
+		const { keepParsedPdf, kept } = recordingKeep();
+		const ocr = makeOcr({ findParsedPdf, keepParsedPdf });
+
+		const result = await ocr({ buffer: pdf, url, scope: NO_SCOPE, chargeOcrPages: allowOcrPages });
+
+		expect(result.kind).toBe("fetched");
+		expect(findParsedPdf).not.toHaveBeenCalled();
+		expect(kept).toEqual([]);
+	});
+
+	it("keeps a complete parse once, under the reader and file", async () => {
+		const { logger, messages } = capturingLogger();
+		const { keepParsedPdf, kept } = recordingKeep();
+		const ocr = makeOcr({ logger, keepParsedPdf, extractPdfMetadata: stubMetadata({ numPages: 1, title: "Complete" }) });
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages: allowOcrPages });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(kept).toEqual([{ userId: "reader-1", fileHash, html: result.html, title: "Complete" }]);
+		const keptLine = messages.find((m) => m.includes("[ocr-pdf] kept parse"));
+		expect(keptLine).toContain(`fileHash=${fileHash}`);
+		expect(keptLine).not.toContain("reader-1");
+	});
+
+	it("does not keep a parse missing a page below the OCR threshold", async () => {
+		const { logger, messages } = capturingLogger();
+		const { keepParsedPdf, kept } = recordingKeep();
+		const ocr = makeOcr({
+			logger,
+			keepParsedPdf,
+			extractPdfMetadata: stubMetadata({ numPages: 5 }),
+			invokePageOcr: async ({ pageIndices }) => pageIndices[0] === 2
+				? { ok: false, error: new Error("tesseract failed") }
+				: { ok: true, html: tesseractParagraph(`page-${pageIndices[0]}`) },
+		});
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages: allowOcrPages });
+
+		expect(result.kind).toBe("fetched");
+		expect(kept).toEqual([]);
+		expect(messages.find((m) => m.includes("[ocr-pdf] not kept: degraded"))).toContain("reasons=partial");
+	});
+
+	it.each([
+		["cleanup", "cleanup-provider-failed", { invokePageLlmCleanup: (async ({ ocrText }) => ({ ok: true, cleanedText: ocrText, applied: false, providerFailed: true })) satisfies InvokePdfPageLlmCleanup }],
+		["diff-review", "diff-review-provider-failed", { invokeDocumentDiffReview: (async ({ pages }) => ({ ok: true, pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })), applied: false, providerFailed: true })) satisfies InvokePdfDocumentDiffReview }],
+		["html-convert", "html-convert-provider-failed", { invokePageHtmlConvert: (async ({ pageText }) => ({ ok: true, semanticHtml: `<p>${pageText}</p>`, applied: false, providerFailed: true })) satisfies InvokePdfPageHtmlConvert }],
+	])("does not keep a parse whose %s stage could not reach its provider", async (_stage, reason, override) => {
+		const { logger, messages } = capturingLogger();
+		const { keepParsedPdf, kept } = recordingKeep();
+		const ocr = makeOcr({ logger, keepParsedPdf, ...override });
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages: allowOcrPages });
+
+		expect(result.kind).toBe("fetched");
+		expect(kept).toEqual([]);
+		expect(messages.find((m) => m.includes("[ocr-pdf] not kept: degraded"))).toContain(`reasons=${reason}`);
+	});
+
+	it.each([
+		["cleanup", "cleanup-invoke-failed", { invokePageLlmCleanup: (async () => ({ ok: false, error: new Error("invoke failed") })) satisfies InvokePdfPageLlmCleanup }],
+		["diff-review", "diff-review-invoke-failed", { invokeDocumentDiffReview: (async () => ({ ok: false, error: new Error("invoke failed") })) satisfies InvokePdfDocumentDiffReview }],
+		["html-convert", "html-convert-invoke-failed", { invokePageHtmlConvert: (async () => ({ ok: false, error: new Error("invoke failed") })) satisfies InvokePdfPageHtmlConvert }],
+	])("does not keep a parse whose %s invoke failed", async (_stage, reason, override) => {
+		const { logger, messages } = capturingLogger();
+		const { keepParsedPdf, kept } = recordingKeep();
+		const ocr = makeOcr({ logger, keepParsedPdf, ...override });
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages: allowOcrPages });
+
+		expect(result.kind).toBe("fetched");
+		expect(kept).toEqual([]);
+		expect(messages.find((m) => m.includes("[ocr-pdf] not kept: degraded"))).toContain(`reasons=${reason}`);
+	});
+
+	it("runs the full pipeline when the lookup throws", async () => {
+		const { logger, messages } = capturingLogger();
+		const extractPdfMetadata = jest.fn(stubMetadata({ numPages: 1 }));
+		const ocr = makeOcr({
+			logger,
+			extractPdfMetadata,
+			findParsedPdf: async () => { throw new TypeError("storage offline"); },
+		});
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages: allowOcrPages });
+
+		expect(result.kind).toBe("fetched");
+		expect(extractPdfMetadata).toHaveBeenCalledTimes(1);
+		const failed = messages.find((m) => m.includes("[ocr-pdf] parse lookup failed"));
+		expect(failed).toContain("error=TypeError");
+		expect(failed).not.toContain("reader-1");
+	});
+
+	it("still returns the parse when keeping it throws", async () => {
+		const { logger, messages } = capturingLogger();
+		const ocr = makeOcr({
+			logger,
+			keepParsedPdf: async () => { throw new RangeError("storage offline"); },
+		});
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages: allowOcrPages });
+
+		expect(result.kind).toBe("fetched");
+		const failed = messages.find((m) => m.includes("[ocr-pdf] keep failed"));
+		expect(failed).toContain("error=RangeError");
+		expect(failed).not.toContain("reader-1");
+	});
+
+	it("still applies the byte cap when no parse is stored", async () => {
+		const ocr = makeOcr({ maxPdfBytes: 4 });
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages: allowOcrPages });
+
+		expect(result).toEqual({ kind: "failed", reason: "unsupported-large-file" });
+	});
+});
+
+describe("initOcrPdf — charging the reader's OCR page allowance", () => {
+	const fileHash = "ef".repeat(32);
+	const accountScope = { kind: "account", userId: UserIdSchema.parse("reader-2"), fileHash } as const;
+	const pdf = Buffer.from("%PDF-1.4");
+	const url = "https://example.com/allowance.pdf";
+	const retryAt = new Date("2026-11-16T03:00:00.000Z");
+
+	function recordingCharge(charge: Awaited<ReturnType<ChargeOcrPages>>): { chargeOcrPages: ChargeOcrPages; charged: number[] } {
+		const charged: number[] = [];
+		return {
+			chargeOcrPages: async ({ pages }) => {
+				charged.push(pages);
+				return charge;
+			},
+			charged,
+		};
+	}
+
+	it("charges the document's page count once before reading it", async () => {
+		const { chargeOcrPages, charged } = recordingCharge({ allowed: true });
+		const ocr = makeOcr({ extractPdfMetadata: stubMetadata({ numPages: 4 }) });
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages });
+
+		expect(result.kind).toBe("fetched");
+		expect(charged).toEqual([4]);
+	});
+
+	it("returns over-ocr-quota without staging or reading the PDF when the charge is refused", async () => {
+		const messages: string[] = [];
+		const record = (msg: unknown) => { messages.push(String(msg)); };
+		const stagePdf = jest.fn(stubStagePdf());
+		const invokePageOcr = jest.fn(stubInvokePageOcr(() => "never"));
+		const { chargeOcrPages } = recordingCharge({ allowed: false, pagesLeft: 12, retryAt });
+		const ocr = makeOcr({
+			logger: { info: record, warn: record, error: record, debug: record },
+			extractPdfMetadata: stubMetadata({ numPages: 40 }),
+			stagePdf,
+			invokePageOcr,
+		});
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages });
+
+		expect(result).toEqual({ kind: "over-ocr-quota", pages: 40, pagesLeft: 12, retryAt });
+		expect(stagePdf).not.toHaveBeenCalled();
+		expect(invokePageOcr).not.toHaveBeenCalled();
+		expect(messages).toContain(
+			"[ocr-pdf] ocr_page_quota_refused pages=40 pagesLeft=12 retryAt=2026-11-16T03:00:00.000Z",
+		);
+	});
+
+	it("does not charge a PDF over the byte cap", async () => {
+		const { chargeOcrPages, charged } = recordingCharge({ allowed: true });
+		const ocr = makeOcr({ maxPdfBytes: 4 });
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages });
+
+		expect(result).toEqual({ kind: "failed", reason: "unsupported-large-file" });
+		expect(charged).toEqual([]);
+	});
+
+	it("does not charge a PDF over the page cap", async () => {
+		const { chargeOcrPages, charged } = recordingCharge({ allowed: true });
+		const ocr = makeOcr({ extractPdfMetadata: stubMetadata({ numPages: 11 }), maxPages: 10 });
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages });
+
+		expect(result).toEqual({ kind: "failed", reason: "11 pages exceeds the 10-page cap" });
+		expect(charged).toEqual([]);
+	});
+
+	it("does not charge a PDF with no pages", async () => {
+		const { chargeOcrPages, charged } = recordingCharge({ allowed: true });
+		const ocr = makeOcr({ extractPdfMetadata: stubMetadata({ numPages: 0 }) });
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages });
+
+		expect(result.kind).toBe("failed");
+		expect(charged).toEqual([]);
+	});
+
+	it("does not charge a re-upload whose parse is stored", async () => {
+		const { chargeOcrPages, charged } = recordingCharge({ allowed: true });
+		const ocr = makeOcr({ findParsedPdf: async () => ({ html: "<p>stored</p>", title: "Stored" }) });
+
+		const result = await ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages });
+
+		expect(result).toEqual({ kind: "fetched", html: "<p>stored</p>", title: "Stored" });
+		expect(charged).toEqual([]);
+	});
+
+	it("rethrows when the charge itself fails", async () => {
+		const stagePdf = jest.fn(stubStagePdf());
+		const ocr = makeOcr({ stagePdf });
+
+		await expect(
+			ocr({ buffer: pdf, url, scope: accountScope, chargeOcrPages: async () => { throw new Error("rate-limits table down"); } }),
+		).rejects.toThrow("rate-limits table down");
+		expect(stagePdf).not.toHaveBeenCalled();
 	});
 });

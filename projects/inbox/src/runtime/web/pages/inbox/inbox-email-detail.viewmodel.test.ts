@@ -1462,12 +1462,12 @@ it("claims no save to All when the stored count says no Gmail article was eligib
 
 it("shows held Gmail selections without claiming saves or waiting for custom outcomes", () => {
 	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 1, savesHeld: true } });
-	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["No articles were saved to Work because this account is read-only."]);
+	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["No articles were saved to Work: saving from the Inbox is part of a paid plan."]);
 	expect(vm.articles.readlistLines).toEqual([]);
 	expect(vm.articles.panelPollUrl).toBeUndefined();
 });
 
-it("keeps the read-only line, with no readlist line or filter, when a held email carries an outcome", () => {
+it("keeps the free-plan held line, with no readlist line or filter, when a held email carries an outcome", () => {
 	const vm = build({
 		links: [link({ status: "crawled" }), link({ ordinal: EmailLinkOrdinalSchema.parse("0001"), status: "crawled" })],
 		linksMeta: {
@@ -1487,7 +1487,7 @@ it("keeps the read-only line, with no readlist line or filter, when a held email
 		},
 		filter: { readlist: WORK, show: "fit" },
 	});
-	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["No articles were saved to Work because this account is read-only."]);
+	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["No articles were saved to Work: saving from the Inbox is part of a paid plan."]);
 	expect(vm.articles.readlistLines).toEqual([]);
 	expect(vm.articles.cards).toHaveLength(2);
 });
@@ -1519,12 +1519,12 @@ describe("a Gmail newsletter kept as an issue", () => {
 		expect(vm.articles.readlistLines).toEqual([]);
 	});
 
-	it("says the issue was held for a read-only reader", () => {
+	it("says the issue was held for a free account", () => {
 		const vm = build({
 			links: [link({ status: "crawled" })],
 			linksMeta: { truncated: false, extractionFailed: false, issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: true } },
 		});
-		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["This issue wasn't saved because this account is read-only."]);
+		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["This issue wasn't saved: saving from the Inbox is part of a paid plan."]);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
 	});
 

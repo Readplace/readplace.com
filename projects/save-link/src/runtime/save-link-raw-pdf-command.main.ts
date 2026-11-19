@@ -5,7 +5,13 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { LambdaClient } from "@aws-sdk/client-lambda";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
-import { consoleLogger } from "@packages/logger";
+import { consoleLogger, Logger } from "@packages/logger";
+import { setTimeout as sleep } from "node:timers/promises";
+import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
+import { initDynamoDbSavedArticleStore } from "@packages/article-store";
+import { initDynamoDbSubscriptionRead, initGetEffectiveAccess } from "@packages/subscription-access";
+import { initDynamoDbOcrPageQuota } from "./providers/ocr-page-quota/dynamodb-ocr-page-quota";
+import { initChargeOcrPagesForAccount } from "./providers/ocr-page-quota/select-ocr-charger";
 import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { extractPdfMetadata } from "@packages/crawl-article";
@@ -15,6 +21,7 @@ import { initReadPendingPdf } from "./providers/article-store/read-pending-pdf";
 import { initSaveLinkRawPdfCommandHandler } from "./domain/save-link-raw-pdf/save-link-raw-pdf-command-handler";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
 import { initStagePdfToS3 } from "./domain/article-parser/init-stage-pdf-to-s3";
+import { initS3ParsedPdf } from "./providers/article-store/s3-parsed-pdf";
 import { initInvokePdfPageOcr } from "./domain/article-parser/init-invoke-pdf-page-ocr";
 import { initInvokePdfPageLlmCleanup } from "./domain/article-parser/init-invoke-pdf-page-llm-cleanup";
 import { initInvokePdfDocumentDiffReview } from "./domain/article-parser/init-invoke-pdf-document-diff-review";
@@ -57,6 +64,8 @@ const { invokePageLlmCleanup } = initInvokePdfPageLlmCleanup({ client: lambdaCli
 const { invokeDocumentDiffReview } = initInvokePdfDocumentDiffReview({ client: lambdaClient, functionName: pdfDocumentDiffReviewFunctionName, logger: consoleLogger });
 const { invokePageHtmlConvert } = initInvokePdfPageHtmlConvert({ client: lambdaClient, functionName: pdfPageHtmlConvertFunctionName, logger: consoleLogger });
 
+const { findParsedPdf, keepParsedPdf } = initS3ParsedPdf({ client: s3Client, bucketName: contentBucketName });
+
 const extractPdf = initSaveLinkPdfExtract({
 	extractPdfMetadata,
 	stagePdf,
@@ -64,6 +73,8 @@ const extractPdf = initSaveLinkPdfExtract({
 	invokePageLlmCleanup,
 	invokeDocumentDiffReview,
 	invokePageHtmlConvert,
+	findParsedPdf,
+	keepParsedPdf,
 	logger: consoleLogger,
 });
 
@@ -97,10 +108,31 @@ const articleAggregate = initArticleAggregateDepBundle({
 
 const { readPendingPdf } = initReadPendingPdf({ client: s3Client, bucketName: pendingPdfBucketName });
 
+const ocrPageQuota = initDynamoDbOcrPageQuota({
+	client: dynamoClient,
+	tableName: env.DYNAMODB_RATE_LIMITS_TABLE,
+	rule: OCR_PAGE_QUOTA_RULE,
+	now,
+	delay: (milliseconds) => sleep(milliseconds),
+});
+const subscriptionRead = initDynamoDbSubscriptionRead({ client: dynamoClient, tableName: env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE });
+const chargeOcrPagesFor = initChargeOcrPagesForAccount({
+	getEffectiveAccess: initGetEffectiveAccess({ findSubscriptionByUserId: subscriptionRead.findByUserId, now }),
+	quota: ocrPageQuota.chargeOcrPagesFor,
+});
+const { markOcrPagesHeld } = initDynamoDbSavedArticleStore({
+	client: dynamoClient,
+	tableName: env.DYNAMODB_ARTICLES_TABLE,
+	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
+	logger: Logger.from(consoleLogger),
+	now,
+});
 export const handler = initSaveLinkRawPdfCommandHandler({
 	...sourceIdentity,
 	readPendingPdf,
 	extractPdf,
+	chargeOcrPagesFor,
+	markOcrPagesHeld,
 	parseHtml: parser.parseHtml,
 	downloadMedia: media.downloadMedia,
 	processContent: media.processContent,

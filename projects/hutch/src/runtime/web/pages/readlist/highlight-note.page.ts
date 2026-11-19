@@ -33,7 +33,6 @@ function noteActionOf(change: {
 export function initHighlightNoteRoutes(
 	deps: Pick<
 		ReadlistDependencies,
-		| "requireWriteAccess"
 		| "updateHighlightNote"
 		| "recordAnalyticsEvent"
 		| "salt"
@@ -51,7 +50,6 @@ export function initHighlightNoteRoutes(
 	router.post(
 		"/:id/highlights/:highlightId/note",
 		requireNotLocked,
-		deps.requireWriteAccess,
 		express.urlencoded({ extended: false }),
 		async (
 			req: Request<{ id: string; highlightId: string }>,

@@ -32,6 +32,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 			pageIndex: 3,
 			cleanedText: "Repository of the Reading Room.",
 			applied: true,
+			providerFailed: false,
 			tokens: { input: 100, output: 50 },
 		});
 	});
@@ -80,6 +81,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 		const result = await handler({ pageIndex: 1, ocrText: original });
 
 		expect(result.applied).toBe(false);
+		expect(result.providerFailed).toBe(false);
 		expect(result.cleanedText).toBe(original);
 		// Token usage is still surfaced when guardrails reject (the call did happen).
 		expect(result.tokens).toEqual({ input: 100, output: 50 });
@@ -127,7 +129,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 		expect(rejection).toContain("page=7");
 	});
 
-	it("returns the original text with applied=false when the LLM call throws (no rethrow)", async () => {
+	it("reports providerFailed when the LLM call throws an error classified unknown (no rethrow)", async () => {
 		const deepseekCallFailed = jest.fn();
 		const handler = initPdfPageLlmCleanupHandler({
 			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
@@ -137,7 +139,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 
 		const result = await handler({ pageIndex: 4, ocrText: "the original page text" });
 
-		expect(result).toEqual({ pageIndex: 4, cleanedText: "the original page text", applied: false });
+		expect(result).toEqual({ pageIndex: 4, cleanedText: "the original page text", applied: false, providerFailed: true });
 		expect(deepseekCallFailed).not.toHaveBeenCalled();
 	});
 
@@ -152,7 +154,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 
 		const result = await handler({ pageIndex: 4, ocrText: "the original page text" });
 
-		expect(result).toEqual({ pageIndex: 4, cleanedText: "the original page text", applied: false });
+		expect(result).toEqual({ pageIndex: 4, cleanedText: "the original page text", applied: false, providerFailed: true });
 		expect(messages.some((m) => m.includes("LLM call failed") && m.includes("503 Service Unavailable"))).toBe(true);
 		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
 		const line = deepseekCallFailed.mock.calls[0][0];
@@ -174,6 +176,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 		const result = await handler({ pageIndex: 2, ocrText: "hi" });
 
 		expect(result.applied).toBe(false);
+		expect(result.providerFailed).toBe(true);
 		expect(messages.some((m) => m.includes("LLM call failed") && m.includes("raw string"))).toBe(true);
 	});
 
@@ -187,7 +190,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 
 		const result = await handler({ pageIndex: 0, ocrText: "" });
 
-		expect(result).toEqual({ pageIndex: 0, cleanedText: "", applied: false });
+		expect(result).toEqual({ pageIndex: 0, cleanedText: "", applied: false, providerFailed: false });
 		expect(calls).toBe(0);
 	});
 

@@ -33,7 +33,7 @@ import { initGetEffectiveAccess } from "@packages/subscription-access";
 import { initBuildBannerState } from "./web/banner-state";
 import { requireAuth } from "./web/middleware/require-auth";
 import { initRequireNotLocked } from "./web/middleware/require-not-locked.middleware";
-import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
+import { initRequirePaidFeatures } from "./web/middleware/require-paid-features.middleware";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { initCustomEmailsRoutes } from "./web/pages/inbox/custom-emails.page";
 import { type InboxReadlistFitDependencies, initInboxRoutes } from "./web/pages/inbox/inbox.page";
@@ -144,10 +144,7 @@ export function createInboxApp(
 		findSubscriptionByUserId: deps.findSubscriptionByUserId,
 		now: deps.now,
 	});
-	const requireWriteAccess = initRequireWriteAccess({
-		findSubscriptionByUserId: deps.findSubscriptionByUserId,
-		now: deps.now,
-	});
+	const requirePaidFeatures = initRequirePaidFeatures({ getEffectiveAccess });
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
 		findUserById: deps.findUserById,
@@ -174,7 +171,7 @@ export function createInboxApp(
 		logError: deps.logError,
 		buildBannerState,
 		requireNotLocked,
-		requireWriteAccess,
+		requirePaidFeatures,
 		now: deps.now,
 		findSavedArticleForLink: deps.findSavedArticleForLink,
 		listReadlistFitOverrides: deps.listReadlistFitOverrides,
@@ -191,7 +188,7 @@ export function createInboxApp(
 		logError: deps.logError,
 		buildBannerState,
 		requireNotLocked,
-		requireWriteAccess,
+		requirePaidFeatures,
 	});
 	app.use(CUSTOM_EMAILS_PATH, requireAuth, customEmailsRouter);
 

@@ -61,6 +61,12 @@ describe("toInboxExcludedLinkViewModel", () => {
 		expect(saveActionOf(vm).method).toBe("POST");
 	});
 
+	it("says a free account's link went unchecked because email triage is part of a paid plan", () => {
+		expect(build({ link: link({ skipReason: "paid-plan" }) }).reasonLabel).toBe(
+			"Not checked: email triage is part of a paid plan.",
+		);
+	});
+
 	it("labels a row with no recorded reason generically", () => {
 		expect(build({ link: link({ skipReason: undefined }) }).reasonLabel).toBe("Not an article");
 	});

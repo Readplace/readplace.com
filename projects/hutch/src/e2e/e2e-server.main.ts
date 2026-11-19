@@ -13,7 +13,7 @@ import {
 	validateSaveableUrl,
 	type ValidateSaveableUrl,
 } from '@packages/domain/article'
-import { type UserId, UserIdSchema } from '@packages/domain/user'
+import { type UserId, UserIdSchema, VERIFICATION_WINDOW_MS } from '@packages/domain/user'
 import { MediaFailureReasonSchema, MediaInspectionFactsSchema, PrivateItemUrlSchema, UploadIdSchema } from '@packages/media-contracts'
 import {
 	ForwardableSenderSchema,
@@ -60,6 +60,8 @@ import {
 import { initUpsertReadlist } from '@packages/save-article'
 import { readNewsletterCatalogSeed } from '../runtime/domain/newsletter-catalog/newsletter-catalog-seed'
 import { createTestApp } from '../runtime/test-app'
+import { initRequestStaleCheck } from '../runtime/domain/stale-check/request-stale-check'
+import { initGetEffectiveAccess } from '@packages/subscription-access'
 import { initMultipartUpload } from '../runtime/web/pages/import/multipart-upload'
 import { GMAIL_SENDERS_PATH } from '../runtime/web/pages/integrations/gmail.url'
 import { initInMemoryArticleImages } from '../runtime/providers/in-memory-article-images'
@@ -75,7 +77,7 @@ import { getEnv, requireEnv } from "@packages/require-env"
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe"
 import { initFinalizeArticle, initRefreshArticleIfStale } from '@packages/finalize-article'
 import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget } from '@packages/save-article'
-import type { ExtractPdf, IsBlockedAddress, ThumbnailNotDeliveredEvent } from '@packages/crawl-article'
+import type { ChargeOcrPages, CrawlArticle, ExtractPdf, IsBlockedAddress, ThumbnailNotDeliveredEvent } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, rejectDocumentLandingPage, initCrawlFetch, initFetchThumbnailImage } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
 import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from '@packages/article-parser'
@@ -142,7 +144,9 @@ const extractPdf: ExtractPdf = async () => ({
 })
 const { siteRules } = initArticleSiteRules({ crawlFetch, logError })
 const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().warn
-const crawlArticle = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
+const crawlWithoutSaver = initCrawlArticle({ rejectDocumentLandingPage, crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
+const chargeSaverOcrPages: ChargeOcrPages = async () => ({ allowed: true })
+const crawlArticle: CrawlArticle = (params) => crawlWithoutSaver({ ...params, chargeOcrPages: chargeSaverOcrPages })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, readabilityAdditions, logError })
 const images = initInMemoryArticleImages()
 const finalizeArticle = initFinalizeArticle({
@@ -381,7 +385,13 @@ const SAVE_PIPELINES = {
 			findArticleByUrl: fixture.articleStore.findArticleByUrl,
 			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 			resolveSaveIdentity,
-			publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+			requestStaleCheck: initRequestStaleCheck({
+				consumeRateLimit: fixture.rateLimit.consumeRateLimit,
+				rule: fixture.rateLimit.rules.staleCheck,
+				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+				getEffectiveAccess: initGetEffectiveAccess({ findSubscriptionByUserId: fixture.subscriptionProviders.findByUserId, now: () => new Date() }),
+				logger: noopLogger,
+			}).requestStaleCheck,
 		}).refreshArticleIfStale,
 		publishLinkSaved: initInMemoryLinkSaved({ logger: eventLogger }).publishLinkSaved,
 	}),
@@ -516,6 +526,15 @@ server.post('/e2e/users', async (req, res) => {
 	const created = await auth.createUser(credentials)
 	if (verified && created.ok) await auth.markEmailVerified(credentials.email)
 	res.status(201).json(created)
+})
+
+const LockAccountBody = z.object({ userId: UserIdSchema })
+
+server.post('/e2e/lock-account', async (req, res) => {
+	const { userId } = LockAccountBody.parse(req.body)
+	const pastWindow = new Date(Date.now() - VERIFICATION_WINDOW_MS - 24 * 60 * 60 * 1000)
+	await fixture.auth.backdateRegistration({ userId, registeredAt: pastWindow.toISOString() })
+	res.status(204).end()
 })
 
 const ExpireAccessTokensBody = z.object({
@@ -1305,7 +1324,7 @@ function e2eInvoices(count: number): InvoiceSummary[] {
 }
 
 const SubscriptionStateSeed = z.object({
-	state: z.enum(['trialing', 'active', 'cancellation-scheduled', 'inactive']),
+	state: z.enum(['trialing', 'active', 'cancellation-scheduled', 'free']),
 	at: z.string().optional(),
 	plan: z.enum(BILLING_PLANS).optional(),
 	cards: z.enum(['primary', 'primary-and-backup']).optional(),
@@ -1335,7 +1354,7 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 	if (state === 'active') {
 		await fixture.subscriptionProviders.upsertActive({ userId, subscriptionId, customerId, plan: plan ?? 'monthly' })
 	}
-	if (state === 'cancellation-scheduled' || state === 'inactive') {
+	if (state === 'cancellation-scheduled' || state === 'free') {
 		await fixture.subscriptionProviders.upsertActive({
 			userId,
 			subscriptionId,
@@ -1347,7 +1366,7 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 		const cancellationEffectiveAt = at ?? new Date(fixture.shared.now().getTime() + SUBSCRIPTION_CANCELLATION_DEFAULT_OFFSET_MS).toISOString()
 		await fixture.subscriptionProviders.markPendingCancellation({ userId, cancellationEffectiveAt })
 	}
-	if (state === 'inactive') {
+	if (state === 'free') {
 		await fixture.subscriptionProviders.markCancelledByUserId({ userId })
 	}
 	if (cards !== undefined) {

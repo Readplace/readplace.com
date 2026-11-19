@@ -1,3 +1,5 @@
+import type { ClaimDailySaves } from "./daily-save-allowance";
+import type { HasNoOcrPagesLeft } from "./ocr-page-allowance";
 import type { CanSaveContent } from "../../middleware/can-save-content";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type { PresignEnclosure, PresignMediaImage } from "@packages/domain";
@@ -264,13 +266,12 @@ export interface ReadlistDependencies {
 	 * (extension/iOS) requests — which carry no session cookie and so are
 	 * invisible to the global resolve step — are locked too. */
 	resolveVerificationStatus: RequestHandler;
-	/** 402-gates the save endpoints when a user's subscription is inactive
-	 * (cancelled or trial-expired). Mounted only on save routes — list, view,
-	 * mark-as-read, and delete remain reachable for read-only users. */
-	requireWriteAccess: RequestHandler;
+	requirePaidFeatures: RequestHandler;
 	canSaveContent: CanSaveContent;
 	secureCookies: boolean;
 	getEffectiveAccess: GetEffectiveAccess;
+	claimDailySaves: ClaimDailySaves;
+	hasNoOcrPagesLeft: HasNoOcrPagesLeft;
 	findUserById: FindUserById;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;

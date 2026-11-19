@@ -7,7 +7,6 @@ import type {
 	ClaimCanonicalAlias,
 	FindIdentityRow,
 	FindQueueRowKeys,
-	HasSaveLandedSince,
 	PinContentSource,
 	QueueRowKey,
 	RecordPrivateItemFailure,
@@ -115,6 +114,8 @@ import type {
 	CheckoutSessionId,
 	ClaimPendingSignup,
 	FindPendingSignup,
+	ClaimRateLimitUnits,
+	ReadOcrPagesLeft,
 	ConsumeRateLimit,
 	ContentProvider,
 	ConversionEvent,
@@ -216,6 +217,7 @@ import type {
 	MarkCrawlPending,
 	MarkEmailVerified,
 	MarkReaderReadyEmailSent,
+	MarkOcrPagesHeld,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	MarkSessionEmailVerified,
@@ -359,6 +361,7 @@ export interface AuthBundle {
 	setQueueDigestOptOut: SetQueueDigestOptOut;
 	setUserDisplayName: SetUserDisplayName;
 	deleteUser: (email: string) => Promise<void>;
+	backdateRegistration: (params: { userId: UserId; registeredAt: string }) => Promise<void>;
 	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
 }
 
@@ -488,7 +491,6 @@ export interface ArticleStoreBundle {
 	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
 	saveArticleAsRequested: SaveArticleAsRequested;
 	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
-	hasSaveLandedSince: HasSaveLandedSince;
 	allocateSavedAt: AllocateSavedAt;
 	allocateSavedAtSequence: AllocateSavedAtSequence;
 	findSavedUrls: FindSavedUrls;
@@ -510,6 +512,7 @@ export interface ArticleStoreBundle {
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
+	markOcrPagesHeld: MarkOcrPagesHeld;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
@@ -713,6 +716,8 @@ export interface PasswordResetBundle {
 
 export interface RateLimitBundle {
 	consumeRateLimit: ConsumeRateLimit;
+	claimRateLimitUnits: ClaimRateLimitUnits;
+	readOcrPagesLeft: ReadOcrPagesLeft;
 	rules: RateLimitRules;
 }
 

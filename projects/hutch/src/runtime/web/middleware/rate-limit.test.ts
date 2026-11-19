@@ -9,7 +9,9 @@ import {
 	EDGE_SECRET_HEADER,
 	VIEWER_IP_HEADER,
 } from "@packages/viewer-identity";
-import { createRateLimitMiddleware, rateLimitKeyFromRequest } from "./rate-limit";
+import type { AnalyticsEvent } from "@packages/web-analytics";
+import { initObserveSaveRefusal } from "../shared/save-refusal";
+import { createRateLimitMiddleware, rateLimitKeyFromRequest, sendDailySaveLimit } from "./rate-limit";
 
 const serve = useLoopbackServer();
 
@@ -101,5 +103,53 @@ describe("createRateLimitMiddleware", () => {
 
 		assert.equal(response.status, 500);
 		assert.equal(response.text, "handled: store unavailable");
+	});
+});
+
+describe("sendDailySaveLimit", () => {
+	function dailyLimitProbe() {
+		const recorded: AnalyticsEvent[] = [];
+		const app = express();
+		app.use(resolveViewerIdentity);
+		app.post(
+			"/probe",
+			initObserveSaveRefusal({
+				recordUngatedAnalyticsEvent: (event) => {
+					recorded.push(event);
+				},
+				now: () => new Date(0),
+				salt: "probe-salt",
+				path: "/probe",
+			}),
+			(_req, res) => {
+				sendDailySaveLimit(res, { retryAfterSeconds: 3600 });
+			},
+		);
+		return { app, recorded };
+	}
+
+	it("answers 429 with Retry-After and a Siren error coded daily_save_limit", async () => {
+		const { app } = dailyLimitProbe();
+
+		const res = await request(serve(app)).post("/probe");
+
+		assert.equal(res.status, 429);
+		assert.equal(res.headers["retry-after"], "3600");
+		expect(res.headers["content-type"]).toContain("application/vnd.siren+json");
+		const body = JSON.parse(res.text);
+		assert.deepEqual(body.class, ["error"]);
+		assert.equal(body.properties.code, "daily_save_limit");
+		assert.equal(
+			body.properties.message,
+			"You've reached today's limit for new saves. Links you already saved still open.",
+		);
+	});
+
+	it("tags the save refusal with the daily_save_limit code", async () => {
+		const { app, recorded } = dailyLimitProbe();
+
+		await request(serve(app)).post("/probe");
+
+		expect(recorded).toEqual([expect.objectContaining({ code: "daily_save_limit", status: 429 })]);
 	});
 });

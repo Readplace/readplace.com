@@ -32,6 +32,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		});
 
 		expect(result.applied).toBe(true);
+		expect(result.providerFailed).toBe(false);
 		expect(result.semanticHtml).toBe("<h2>Section</h2><p>Body prose here that is long enough to retain content.</p>");
 		expect(result.tokens).toEqual({ input: 100, output: 50 });
 	});
@@ -110,7 +111,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		expect(result.semanticHtml).toBe("<p>Body prose here that is long enough to retain content.</p>");
 	});
 
-	it("falls back to <p class=\"ocr-tesseract\"> wrap when the LLM call throws", async () => {
+	it("falls back to <p class=\"ocr-tesseract\"> wrap and reports providerFailed when the LLM call throws an error classified unknown", async () => {
 		const { logger, messages } = capturingLogger();
 		const deepseekCallFailed = jest.fn();
 		const handler = initPdfPageHtmlConvertHandler({
@@ -125,6 +126,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		});
 
 		expect(result.applied).toBe(false);
+		expect(result.providerFailed).toBe(true);
 		expect(result.semanticHtml).toBe(
 			'<p class="ocr-tesseract">first paragraph here</p>'
 			+ '<p class="ocr-tesseract">second paragraph here</p>',
@@ -144,6 +146,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		const result = await handler({ pageIndex: 7, pageText: "some text" });
 
 		expect(result.applied).toBe(false);
+		expect(result.providerFailed).toBe(true);
 		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
 		const line = deepseekCallFailed.mock.calls[0][0];
 		expect(line).toMatchObject({ event: "deepseek-call-failed", feature: "pdf-page-html-convert", status: 503, kind: "http", pageIndex: 7 });
@@ -165,6 +168,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		const result = await handler({ pageIndex: 2, pageText: "some text" });
 
 		expect(result.applied).toBe(false);
+		expect(result.providerFailed).toBe(true);
 		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
 		expect(deepseekCallFailed.mock.calls[0][0]).toMatchObject({ feature: "pdf-page-html-convert", status: 429, pageIndex: 2 });
 	});
@@ -223,6 +227,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 		const result = await handler({ pageIndex: 1, pageText: longInput });
 
 		expect(result.applied).toBe(false);
+		expect(result.providerFailed).toBe(false);
 		expect(result.tokens).toEqual({ input: 80, output: 5 });
 	});
 
@@ -236,7 +241,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 
 		const result = await handler({ pageIndex: 0, pageText: "" });
 
-		expect(result).toEqual({ pageIndex: 0, semanticHtml: "", applied: false });
+		expect(result).toEqual({ pageIndex: 0, semanticHtml: "", applied: false, providerFailed: false });
 		expect(calls).toBe(0);
 	});
 

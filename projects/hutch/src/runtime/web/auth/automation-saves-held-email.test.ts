@@ -6,7 +6,7 @@ const REACTIVATE_URL = "https://readplace.com/account?utm_content=reactivate";
 const MANAGE_URL = "https://readplace.com/newsletters/custom-emails?utm_content=manage-addresses";
 
 const AFTER_THE_OPENING = [
-	`Don't worry, you didn't lose anything. The email and the extracted articles stay in your Inbox. You can save them yourself, and new emails go back to saving automatically, once your subscription is active again: ${REACTIVATE_URL}`,
+	`Don't worry, you didn't lose anything. The email and the extracted articles stay in your Inbox. You can save them yourself, and new emails go back to saving automatically, once you upgrade: ${REACTIVATE_URL}`,
 	`See the articles waiting: ${INBOX_URL}`,
 	"If you have any questions, please reply to this email",
 	`If you'd rather not continue, disable your custom emails and nothing more will be forwarded and you will stop receiving these emails: ${MANAGE_URL}`,
@@ -23,16 +23,16 @@ const heldNotice = (inboxAddress: string | undefined) =>
 	});
 
 describe("AutomationSavesHeldEmail", () => {
-	it("names the address the held email was sent to and says what an active subscription brings back", () => {
+	it("names the address the held email was sent to and says what an upgrade brings back", () => {
 		expect(heldNotice("news-3f9a2c@read.place").to("text/plain")).toBe([
-			"An email to news-3f9a2c@read.place just arrived in your Readplace Inbox, but the articles weren't saved to All — your subscription is read-only, so saving is paused.",
+			"An email to news-3f9a2c@read.place just arrived in your Readplace Inbox, but the articles weren't saved to All — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
 			...AFTER_THE_OPENING,
 		].join("\n\n"));
 	});
 
 	it("opens without an address when the notice carries none", () => {
 		expect(heldNotice(undefined).to("text/plain")).toBe([
-			"An email just arrived in your Readplace Inbox, but the articles weren't saved to All — your subscription is read-only, so saving is paused.",
+			"An email just arrived in your Readplace Inbox, but the articles weren't saved to All — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
 			...AFTER_THE_OPENING,
 		].join("\n\n"));
 	});
@@ -42,10 +42,10 @@ describe("AutomationSavesHeldEmail", () => {
 
 		expect(document.title).toBe("Links sent to your Readplace Inbox are waiting");
 		expect(document.querySelector("p")?.textContent).toBe(
-			"An email to news-3f9a2c@read.place just arrived in your Readplace Inbox, but the articles weren't saved to All — your subscription is read-only, so saving is paused.",
+			"An email to news-3f9a2c@read.place just arrived in your Readplace Inbox, but the articles weren't saved to All — your account is on the free plan, and the Inbox saves automatically only on a paid plan.",
 		);
 		expect([...document.querySelectorAll("a")].map((anchor) => [anchor.textContent, anchor.getAttribute("href")])).toEqual([
-			["your subscription is active again", REACTIVATE_URL],
+			["you upgrade", REACTIVATE_URL],
 			["See the articles waiting", INBOX_URL],
 			["disable your custom emails", MANAGE_URL],
 		]);

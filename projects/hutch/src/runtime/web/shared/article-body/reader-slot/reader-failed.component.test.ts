@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import { destinationUrl } from "../../../test-helpers/article-fixtures";
 import {
 	type ReaderFailedVariant,
+	renderOcrPagesHeld,
 	renderReaderFailed,
 } from "./reader-failed.component";
 
@@ -523,6 +524,75 @@ describe("renderReaderFailed", () => {
 			const primary = noticeFor({ variant: "slow" }).querySelector("[data-test-reader-failed-primary]");
 
 			assert.equal(primary?.getAttribute("href"), "https://example.com/some-article");
+		});
+	});
+
+	describe("a PDF held for the daily OCR page allowance", () => {
+		const RETRY_AT = new Date("2026-11-16T03:00:00.000Z");
+
+		function heldNoticeFor(input: { url: string; pages: number; pagesLeft: number }): Element {
+			const doc = parse(
+				renderOcrPagesHeld({
+					url: destinationUrl(input.url),
+					hold: { pages: input.pages, pagesLeft: input.pagesLeft, retryAt: RETRY_AT },
+					noticeOob: false,
+				}).notice,
+			);
+			const notice = doc.querySelector("[data-test-reader-notice]");
+			assert(notice, "the held notice must be rendered");
+			return notice;
+		}
+
+		it("explains the pages and when to try again, with the time rendered for the reader's clock", () => {
+			const notice = heldNoticeFor({ url: "https://example.com/paper.pdf", pages: 40, pagesLeft: 12 });
+
+			assert.equal(notice.getAttribute("data-reader-status"), "ocr-pages-held");
+			assert.equal(notice.querySelector(".article-body__reader-notice-title")?.textContent?.trim(), "This PDF is waiting for today's page allowance");
+			const text = notice.querySelector(".article-body__reader-notice-text");
+			assert(text, "the explanation must be rendered");
+			expect(text.textContent).toContain("This file has 40 pages, more than your free account has left today, so Readplace has not read it yet. Try again after");
+			expect(text.textContent).toContain(", or upgrade for no daily limit.");
+			const time = text.querySelector("time[data-local-time]");
+			assert.equal(time?.getAttribute("datetime"), RETRY_AT.toISOString());
+		});
+
+		it("tells a file over the whole daily allowance to start a trial instead of naming a retry time", () => {
+			const notice = heldNoticeFor({ url: "https://example.com/book.pdf", pages: 150, pagesLeft: 98 });
+
+			assert.equal(
+				notice.querySelector(".article-body__reader-notice-text")?.textContent?.trim(),
+				"This file has 150 pages, more than a free account can read in a day. Upgrade for no daily limit.",
+			);
+			assert.equal(notice.querySelector("time"), null);
+		});
+
+		it("offers a PDF link the original and no capture pitch", () => {
+			const notice = heldNoticeFor({ url: "https://example.com/paper.pdf", pages: 40, pagesLeft: 12 });
+
+			const primary = notice.querySelector("[data-test-reader-failed-primary]");
+			assert.equal(primary?.textContent?.trim(), "Read original article");
+			assert.equal(primary?.getAttribute("href"), "https://example.com/paper.pdf");
+			assert.equal(notice.querySelector(".article-body__reader-notice-pitch")?.className, PITCH_HIDDEN_CLASS);
+		});
+
+		it("offers a private upload Upload again", () => {
+			const notice = heldNoticeFor({ url: "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef", pages: 40, pagesLeft: 12 });
+
+			const primary = notice.querySelector("[data-test-reader-failed-primary]");
+			assert.equal(primary?.textContent?.trim(), "Upload again");
+			assert.equal(primary?.getAttribute("href"), "/upload?utm_source=reader-failed&utm_medium=internal&utm_content=upload-again");
+		});
+
+		it("marks the reader slot with the held status and swaps the notice out of band when asked", () => {
+			const regions = renderOcrPagesHeld({
+				url: destinationUrl("https://example.com/paper.pdf"),
+				hold: { pages: 40, pagesLeft: 12, retryAt: RETRY_AT },
+				oob: true,
+				noticeOob: true,
+			});
+
+			expect(regions.slot).toContain("ocr-pages-held");
+			expect(regions.notice).toContain('hx-swap-oob="outerHTML"');
 		});
 	});
 });

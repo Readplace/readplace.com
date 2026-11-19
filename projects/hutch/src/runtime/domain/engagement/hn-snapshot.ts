@@ -157,7 +157,7 @@ export function initHnSnapshot(deps: {
 							: deps.readArticleContent({ url, viewer: ANONYMOUS_VIEWER }),
 					]);
 					if (article === null && crawl === undefined) {
-						await deps.startAnonymousCrawl(identity);
+						await deps.startAnonymousCrawl({ identity, userId: undefined });
 						return { ...item, status: "pending" };
 					}
 					if (article?.readerAvailableAt !== undefined && content?.kind === "article" && summary?.status === "ready") {

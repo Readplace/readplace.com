@@ -31,7 +31,7 @@ describe("PaymentFailedEmail", () => {
 			expect(text).toContain("Add a new card on your account page");
 			expect(text).toContain("“Make primary”");
 			expect(text).toContain("only the primary card is charged");
-			expect(text).toContain("If every retry fails, the subscription cancels");
+			expect(text).toContain("If every retry fails, the subscription cancels and your account moves to the free plan.");
 		});
 
 		it("carries no HTML markup — the same paragraphs render into the plain-text body", () => {

@@ -13,6 +13,7 @@ import {
 } from "@packages/domain/article";
 import { displayableTime } from "../displayable-time";
 import { type CrawlStatus, type ReaderFailedVariant, type SummaryStatus, deriveReaderViewStatus } from "@packages/article-state-types";
+import type { OcrPagesHold } from "../ocr-pages-hold";
 import type { ReaderView } from "./reader-view";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -90,6 +91,7 @@ interface PollResponseBodyInput {
 	shareOob: string;
 	appOrigin: string;
 	readerNotice: ReaderFailedVariant | undefined;
+	ocrPagesHold: OcrPagesHold | undefined;
 	title: string | undefined;
 	now: Date;
 	readerSection: ReaderSectionInput;
@@ -107,6 +109,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		capture: input.capture,
 		extensionInstallUrl: input.extensionInstallUrl,
 		notice: input.readerNotice,
+		ocrPagesHold: input.ocrPagesHold,
 		oob: input.primary !== "reader",
 		noticeOob: true,
 		appOrigin: input.appOrigin,
@@ -440,6 +443,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				shareOob: "",
 				appOrigin: deps.appOrigin,
 				readerNotice: NOT_AN_ARTICLE,
+				ocrPagesHold: undefined,
 				title: undefined,
 			}),
 		);
@@ -524,6 +528,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			}),
 			appOrigin: deps.appOrigin,
 			readerNotice: params.readerNotice,
+			ocrPagesHold: params.ocrPagesHold,
 			title: article?.metadata.title,
 			highlights: params.highlights,
 		}));
@@ -595,6 +600,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			}),
 			appOrigin: deps.appOrigin,
 			readerNotice: params.readerNotice,
+			ocrPagesHold: params.ocrPagesHold,
 			title: article?.metadata.title,
 			highlights: params.highlights,
 		}));

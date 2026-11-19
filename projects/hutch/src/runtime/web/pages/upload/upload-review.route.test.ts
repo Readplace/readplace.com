@@ -124,7 +124,7 @@ describe("Guest upload routes", () => {
 
 	it("keeps a signed-in upload on the member path without spending the guest allowance", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.rateLimit = {
+		fixture.rateLimit = { ...fixture.rateLimit,
 			consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 			rules: { ...fixture.rateLimit.rules, uploadStage: { limit: 1, windowSeconds: 3600 } },
 		};
@@ -373,7 +373,7 @@ describe("Guest upload routes", () => {
 		expect(documentOf(response.text).querySelector("h1")?.textContent).toBe("Your account is locked");
 	});
 
-	it("refuses a commit from a read-only account", async () => {
+	it("lets a free-plan account through to the commit, since uploads are core", async () => {
 		const harness = guestApp();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
@@ -381,7 +381,9 @@ describe("Guest upload routes", () => {
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString() });
 		const response = await agent.post("/upload/0123456789abcdef0123456789abcdef/commit");
 
-		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(documentOf(response.text).querySelector("[data-test-upload-error]")?.getAttribute("data-test-upload-error")).toBe(
+			"upload_session_not_found",
+		);
 	});
 
 	it("answers upload_session_not_found for a commit of an id that is not there", async () => {
@@ -449,7 +451,7 @@ describe("Guest upload routes", () => {
 
 	it("limits one IP to ten guest uploads an hour", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.rateLimit = {
+		fixture.rateLimit = { ...fixture.rateLimit,
 			consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 			rules: { ...fixture.rateLimit.rules, uploadStage: { limit: 20, windowSeconds: 3600 } },
 		};

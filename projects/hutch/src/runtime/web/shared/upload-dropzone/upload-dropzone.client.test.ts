@@ -9,13 +9,11 @@ const SIREN = "application/vnd.siren+json";
 
 interface MarkupInput {
 	signInHref?: string;
-	disabled?: boolean;
 	uploadOnChoose?: boolean;
 }
 
 function formMarkup(input: MarkupInput = {}): string {
 	const signIn = input.signInHref ? ` data-sign-in-href="${input.signInHref}"` : "";
-	const disabled = input.disabled ? " disabled" : "";
 	const uploadOnChoose = input.uploadOnChoose ?? true;
 	return `<form id="form" method="POST" action="/import?utm_source=test" enctype="multipart/form-data"
 	data-upload-dropzone data-upload-state="idle" data-test-form="upload-file"
@@ -26,7 +24,7 @@ function formMarkup(input: MarkupInput = {}): string {
 	<span hidden data-upload-kind="book" data-accept="${BOOK_ACCEPT}" data-max-bytes="1000" data-message-too-large="Book too large"></span>
 	<div class="upload-dropzone__idle">
 		<label id="zone" data-upload-dropzone-zone>
-			<input id="input" type="file" name="file"${disabled}>
+			<input id="input" type="file" name="file">
 			<span id="primary" data-upload-dropzone-primary>Choose a file</span>
 			<span id="meta" data-upload-dropzone-meta>HTML, JSON</span>
 		</label>
@@ -215,19 +213,6 @@ describe("initUploadDropzone", () => {
 		expect(enter.defaultPrevented).toBe(false);
 		expect(drop.defaultPrevented).toBe(false);
 		expect(requests).toEqual([]);
-	});
-
-	it("ignores drags and files on a disabled input", () => {
-		const { dom, byId, choose, file, requests } = setup({ disabled: true });
-		const zone = byId("zone");
-		const enter = new dom.window.Event("dragenter", { bubbles: true, cancelable: true });
-		zone.dispatchEvent(enter);
-		choose(file(["https://a.example"], "links.txt", "text/plain"));
-
-		expect(enter.defaultPrevented).toBe(false);
-		expect(zone.classList.contains("upload-dropzone--dragover")).toBe(false);
-		expect(requests).toEqual([]);
-		expect(byId("meta").textContent).toBe("HTML, JSON");
 	});
 
 	it("hands a dropped file to the input and uploads it", () => {
@@ -607,11 +592,9 @@ describe("initUploadDropzone when choosing a file waits for Send", () => {
 		expect(requests).toEqual([]);
 	});
 
-	it("leaves the dropzone alone when the picker closes without a file or the input is disabled", () => {
-		const { dom, byId, input, requests } = setup({ uploadOnChoose: false, disabled: true });
+	it("leaves the dropzone alone when the picker closes without a file", () => {
+		const { dom, byId, input, requests } = setup({ uploadOnChoose: false });
 		Object.defineProperty(input, "files", { configurable: true, value: [] });
-		input.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-		Object.defineProperty(input, "files", { configurable: true, value: [new dom.window.File(["x"], "a.txt")] });
 		input.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
 		expect(byId("primary").textContent).toBe("Choose a file");

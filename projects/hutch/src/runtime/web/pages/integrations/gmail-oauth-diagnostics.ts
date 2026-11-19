@@ -19,7 +19,7 @@ type GmailOAuthGuardStage =
 	| "requireAuth"
 	| "requireNotLocked"
 	| "requireGmailConnectionAccess"
-	| "requireWriteAccess";
+	| "requirePaidFeatures";
 
 type GmailOAuthHandlerStage =
 	| "handler"

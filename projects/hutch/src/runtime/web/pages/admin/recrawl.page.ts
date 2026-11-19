@@ -285,7 +285,7 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies, resolveStoredArtic
 		// publishes CanonicalContentChanged, whose subscriber re-primes and
 		// regenerates the summary, so wiping it here would be redundant.
 		await deps.forceMarkCrawlPending({ url: articleUrl });
-		await deps.publishRecrawlLinkInitiated({ url: articleUrl, saveAttemptId: newSaveAttemptId() });
+		await deps.publishRecrawlLinkInitiated({ url: articleUrl, saveAttemptId: newSaveAttemptId(), requester: { kind: "operator" } });
 
 		res.redirect(303, `${recrawlPathFor(articleUrl)}&started=1`);
 	};
@@ -317,6 +317,7 @@ function handleSummaryPoll(
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readerNotice: undefined,
+			ocrPagesHold: undefined,
 			saved: undefined,
 			readerViewFailedOob: NO_READER_VIEW_FAILED_OOB,
 			renderDownloadsOob: undefined,
@@ -353,6 +354,7 @@ function handleReaderPoll(
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			readerNotice: undefined,
+			ocrPagesHold: undefined,
 			saved: undefined,
 			readerViewFailedOob: NO_READER_VIEW_FAILED_OOB,
 			renderDownloadsOob: undefined,

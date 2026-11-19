@@ -2723,11 +2723,11 @@ describe("Mark imported emails as read", () => {
 		expect((await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "nope", mark: "1", add: "1" })).headers.location).toBe(`${GMAIL}?error=readlist_invalid&sender=dan%40tldr.tech&readlist=nope&mark=1&add=1&discovery=started`);
 	});
 
-	it("lets a read-only reader stop marking but not start it or apply it to earlier emails", async () => {
+	it("lets a free-plan reader stop marking but sends starting it or applying it to earlier emails to the plans page", async () => {
 		const { agent, gmail, userId, harness, ref } = await markedAgent();
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString() });
 		for (const path of [MARK_START, MARK_BACKFILL]) {
-			expect((await agent.post(path).set("Accept", "text/html").type("form").send({ sender: TLDR, option: "on" })).headers.location).toBe("/queue?inactive=1");
+			expect((await agent.post(path).set("Accept", "text/html").type("form").send({ sender: TLDR, option: "on" })).headers.location).toBe("/account/plans");
 		}
 		expect(gmail.markBackfillStartRequests).toEqual([]);
 		expect((await agent.post(MARK_STOP).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=mark_off&discovery=started`);
@@ -2735,7 +2735,7 @@ describe("Mark imported emails as read", () => {
 	});
 });
 
-describe("Read-only and locked readers", () => {
+describe("Free-plan and locked readers", () => {
 	it.each([1, -1])("offers a tracked upgrade for a revoked connection when the trial ends in %s days", async (trialDays) => {
 		const { agent, gmail, userId, harness } = await connectedAgent();
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + trialDays * ONE_DAY_MS).toISOString() });
@@ -2894,13 +2894,13 @@ describe("Read-only and locked readers", () => {
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
 	});
 
-	it("still bounces a read-only reader's saves, readlist creation, discovery and imports to the inactive queue", async () => {
+	it("sends a free-plan reader's saves, readlist creation, discovery and imports to the plans page, since Gmail is paid-only", async () => {
 		const { agent, gmail, userId, harness, articleStore, mapSender } = await connectedAgent({ scope: READONLY_SCOPES });
 		await mapSender(MORNING, "default");
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString() });
 		for (const path of [ADD, DISCOVER, CREATE_READLIST, IMPORT_START, IMPORT_RETRY]) {
 			const response = await agent.post(path).set("Accept", "text/html").type("form").send({ sender: TLDR, readlist: "default", readlist_name: "Science" });
-			expect(response.headers.location).toBe("/queue?inactive=1");
+			expect(response.headers.location).toBe("/account/plans");
 		}
 		expect((await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId)).map((entry) => entry.senderEmail)).toEqual([MORNING]);
 		expect(await articleStore.listReadlistDefinitions(userId)).toEqual([]);

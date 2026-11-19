@@ -27,7 +27,7 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import { sendTrialDay3Email } from "./send-trial-day3-email";
 import { sendTrialDay7Email } from "./send-trial-day7-email";
-import { resolveWriteAccess } from "@packages/subscription-access";
+import { hasPaidFeatures, resolveEffectiveAccess } from "@packages/subscription-access";
 import {
 	CUSTOM_EMAILS_PATH,
 	buildInboxHighlightUrl,
@@ -236,9 +236,9 @@ async function processAutomationSavesHeld(
 	deps: SendTrialFeedbackEmailDeps,
 ): Promise<void> {
 	const row = await deps.findSubscriptionByUserId(userId);
-	if (resolveWriteAccess(row, deps.now()) === "full") {
+	if (hasPaidFeatures(resolveEffectiveAccess(row, deps.now()))) {
 		deps.logger.info(
-			"[send-trial-feedback-email] automation-saves-held: reader can save again — noop",
+			"[send-trial-feedback-email] automation-saves-held: reader has paid features again — noop",
 			{ userId, status: row?.status },
 		);
 		return;

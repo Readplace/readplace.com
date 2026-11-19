@@ -10,6 +10,7 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import { ComputeRelatedPassesCommand } from "./index";
 import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
+import type { FindPlanAccess } from "./find-plan-access.types";
 import { MetadataNotReadyError, initNextReadComputation } from "./next-read-computation";
 import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
 import type { RecommendationTrigger, SelectRelatedArticles } from "./related-articles-selector";
@@ -17,6 +18,7 @@ import type { RecommendationTrigger, SelectRelatedArticles } from "./related-art
 interface ComputeRelatedArticlesHandlerDeps {
 	findRelatedArticles: FindRelatedArticles;
 	findRelatedTargetArticle: FindRelatedTargetArticle;
+	findPlanAccess: FindPlanAccess;
 	gatherRelatedCandidatePools: GatherRelatedCandidatePools;
 	selectRelatedArticles: SelectRelatedArticles;
 	markRelatedArticlesReady: MarkRelatedArticlesReady;
@@ -36,6 +38,7 @@ export function initComputeRelatedArticlesHandler(
 	const {
 		findRelatedArticles,
 		findRelatedTargetArticle,
+		findPlanAccess,
 		gatherRelatedCandidatePools,
 		selectRelatedArticles,
 		markRelatedArticlesReady,
@@ -46,6 +49,7 @@ export function initComputeRelatedArticlesHandler(
 		deepseekCallFailedLog,
 	} = deps;
 	const { skipNextRead, computeNextRead } = initNextReadComputation({
+		findPlanAccess,
 		gatherRelatedCandidatePools,
 		selectRelatedArticles,
 		markRelatedArticlesReady,

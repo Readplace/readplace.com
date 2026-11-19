@@ -53,7 +53,7 @@ const READ_ONLY_STATE: BannerState = {
 	cspNonce: CSP_NONCE,
 	isAuthenticated: true,
 	emailVerified: true,
-	accessIsReadOnly: true,
+	paidFeaturesLocked: true,
 };
 
 const READER_PAGE_URL = "https://readplace.com/queue/abc123/view?v=token";
@@ -521,7 +521,7 @@ describe("Base component", () => {
 			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
-			accessIsReadOnly: false,
+			paidFeaturesLocked: false,
 		}).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
@@ -547,13 +547,13 @@ describe("Base component", () => {
 		expect(menu.querySelector("[data-test-nav-user-name]")?.textContent).toBe("ana_lu@example.com");
 	});
 
-	it("keeps Install, Integrations and Account for a read-only user (trial-expired / subscription-cancelled), since installing writes nothing and they can still stop forwarding and reach /account, but hides Inbox, since minting an address is a write", () => {
+	it("keeps Install, Integrations and Account for a free-plan user (trial-expired / subscription-cancelled), but hides Inbox, a paid feature", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			cspNonce: CSP_NONCE,
 			isAuthenticated: true,
 			emailVerified: true,
-			accessIsReadOnly: true,
+			paidFeaturesLocked: true,
 		}).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
@@ -1722,7 +1722,7 @@ describe("initBase config", () => {
 			GlobalEmptyNav({
 				variant: "default",
 				isAuthenticated: false,
-				accessIsReadOnly: false,
+				paidFeaturesLocked: false,
 			}),
 		).toBe("");
 	});

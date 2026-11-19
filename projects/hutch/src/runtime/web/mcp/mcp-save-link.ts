@@ -3,6 +3,7 @@ import { newSaveAttemptId, type withNewSavePreparation } from "@packages/domain/
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { initFileArticleIntoReadlist, initSaveArticleAtReadlistTop } from "@packages/save-article";
 import type { AppDependencies } from "../../server";
+import type { ClaimDailySaves } from "../pages/readlist/daily-save-allowance";
 import type { initResolveMcpSaveProvenance } from "../shared/save-provenance";
 import type { McpServerDeps } from "./mcp-ports.types";
 import type { initResolveReadlistMembership } from "./readlist-membership";
@@ -11,6 +12,7 @@ import type { initResolveSaveAccess } from "./save-access";
 export function initMcpSaveLink(
 	deps: Pick<AppDependencies, "refreshArticleIfStale" | "publishSubmitLink" | "logError" | "baseUrl"> & {
 		resolveSaveAccess: ReturnType<typeof initResolveSaveAccess>;
+		claimDailySaves: ClaimDailySaves;
 		validateNewSaveUrl: ReturnType<typeof withNewSavePreparation>;
 		resolveMcpSaveProvenance: ReturnType<typeof initResolveMcpSaveProvenance>;
 		saveArticleAtReadlistTop: ReturnType<typeof initSaveArticleAtReadlistTop>;
@@ -20,6 +22,7 @@ export function initMcpSaveLink(
 ): McpServerDeps["saveLink"] {
 	const {
 		resolveSaveAccess,
+		claimDailySaves,
 		validateNewSaveUrl,
 		resolveMcpSaveProvenance,
 		saveArticleAtReadlistTop,
@@ -35,8 +38,12 @@ export function initMcpSaveLink(
 		if (validation.status === "ERROR") {
 			return { ok: false, message: validation.error.message };
 		}
+		const claim = await claimDailySaves({ userId, urls: [validation.url] });
+		if (claim.refused.length > 0) {
+			return { ok: false, refused: "daily-save-limit", message: "You've reached today's limit for new saves. Links you already saved are still in your readlist." };
+		}
 		try {
-			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+			const freshness = await deps.refreshArticleIfStale({ url: validation.url, requester: { account: userId } });
 			const provenance = await resolveMcpSaveProvenance(oauthClientId);
 			const saveAttemptId = newSaveAttemptId();
 			if (freshness.action === "unresolved") {

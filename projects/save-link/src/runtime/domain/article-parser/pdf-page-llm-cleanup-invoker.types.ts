@@ -22,7 +22,7 @@ export interface InvokePdfPageLlmCleanupInput {
  * cleanup landed.
  */
 export type InvokePdfPageLlmCleanupResult =
-	| { readonly ok: true; readonly cleanedText: string; readonly applied: boolean; readonly tokens?: { readonly input: number; readonly output: number } }
+	| { readonly ok: true; readonly cleanedText: string; readonly applied: boolean; readonly providerFailed: boolean; readonly tokens?: { readonly input: number; readonly output: number } }
 	| { readonly ok: false; readonly error: Error };
 
 export type InvokePdfPageLlmCleanup = (

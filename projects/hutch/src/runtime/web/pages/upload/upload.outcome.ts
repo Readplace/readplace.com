@@ -14,7 +14,8 @@ type UploadOutcomePayloads = {
 	continue: { uploadId: UploadId };
 	failed: { uploadId: UploadId };
 	"staged-for-review": { uploadId: UploadId };
-} & { [C in UploadErrorCode | UploadRefusalReason]: Record<never, never> };
+	"book-quota": { retryAt: Date };
+} & { [C in UploadErrorCode | Exclude<UploadRefusalReason, "book-quota">]: Record<never, never> };
 
 export type UploadOutcomeKey = keyof UploadOutcomePayloads;
 

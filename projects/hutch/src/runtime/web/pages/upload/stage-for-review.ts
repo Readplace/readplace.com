@@ -13,7 +13,7 @@ import type { MediaKindManifest, Meter, TimedFactsRefusal } from "@packages/medi
 import { refusalOfLowerBound } from "./charge-transcript";
 import { defaultFileNameOf, type SettleAnyReceivedUpload, type SettleReceivedUpload } from "./commit-received-upload";
 import type { UploadOutcome } from "./upload.outcome";
-import { type UploadRefusalReason, uploadRefusalCopyOf } from "./upload.refusal";
+import { type TranscriptRefusalReason, uploadRefusalCopyOf } from "./upload.refusal";
 
 export type StageForReview = (params: {
 	session: AnonymousMediaUploadSession;
@@ -22,7 +22,7 @@ export type StageForReview = (params: {
 	size: number;
 }) => Promise<UploadOutcome<"staged-for-review">>;
 
-function rejectedAs(params: { refusal: UploadRefusalReason; allowanceSeconds: number }): MediaInspectionVerdict {
+function rejectedAs(params: { refusal: TranscriptRefusalReason; allowanceSeconds: number }): MediaInspectionVerdict {
 	return { verdict: "rejected", reason: "unreadable", notice: uploadRefusalCopyOf(params.allowanceSeconds)[params.refusal] };
 }
 

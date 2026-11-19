@@ -478,7 +478,7 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 		expect(response.status).toBe(404);
 	});
 
-	it("refuses a read-only reader", async () => {
+	it("lets a free-plan reader highlight, since highlights are core", async () => {
 		const harness = useApp(parsedFixture());
 		const { agent, articleId } = await saveArticle(
 			harness,
@@ -501,8 +501,9 @@ describe("Highlights (POST /queue/:id/highlights)", () => {
 			.send(body);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue?inactive=1");
-		expect(rowsOf((await agent.get(viewPath(articleId))).text)).toEqual([]);
+		expect(rowsOf((await agent.get(viewPath(articleId))).text)).toEqual([
+			{ id: expect.any(String), state: "anchored" },
+		]);
 	});
 
 	it("records highlight_created with exactly its keys", async () => {

@@ -165,7 +165,7 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 								req,
 								path: "/mcp",
 								status: 200,
-								code: SAVE_REFUSAL_CODES.noWriteAccess,
+								code: SAVE_REFUSAL_CODES.dailySaveLimit,
 								client: SAVE_CLIENTS.mcp,
 							},
 						),

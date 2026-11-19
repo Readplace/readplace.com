@@ -8,6 +8,7 @@ import { hashPassword } from "@packages/domain/user";
 import { validateSaveableUrl } from "@packages/domain/article";
 import { PLAN_OFFERS } from "@packages/web-shell";
 import { createApp } from "./server";
+import { isDailyLimited } from "@packages/subscription-access";
 import { initProdProviders } from "./providers/prod-providers";
 import { initFetchFirefoxDownloadUrl } from "./web/pages/install";
 import { readplaceUnwrapPreprocessor } from "./web/pages/view/readplace-unwrap-preprocessor";
@@ -53,6 +54,7 @@ type AssemblyProvidedKeys =
 	| "salt"
 	| "keepOfferCouponId"
 	| "keepOfferEndsAt"
+	| "isDailyLimited"
 	| "guestUploadKinds"
 	| "foundingAllocation"
 	| "newsletterCatalogSeed";
@@ -89,6 +91,7 @@ export function assembleReadplaceApp(input: {
 	const app = createApp({
 		keepOfferCouponId,
 		keepOfferEndsAt: PLAN_OFFERS.firstYear49.endsAt,
+		isDailyLimited,
 		guestUploadKinds: GUEST_UPLOAD_KINDS,
 		validateSaveableUrl: withUnwrapPreprocessing(
 			validateSaveableUrl,

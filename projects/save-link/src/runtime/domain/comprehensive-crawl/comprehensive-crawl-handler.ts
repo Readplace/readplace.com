@@ -11,7 +11,8 @@ import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
-import type { CrawlArticle } from "@packages/crawl-article";
+import type { ChargeOcrPages, CrawlArticle } from "@packages/crawl-article";
+import type { MarkOcrPagesHeld } from "@packages/provider-contracts";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
@@ -40,7 +41,15 @@ type CrawlArticleWithPermit = (
 	params: Parameters<CrawlArticle>[0] & { permit: PaidLegPermit },
 ) => ReturnType<CrawlArticle>;
 
+const REFUNDED_CRAWL_STATUSES: ReadonlySet<Awaited<ReturnType<CrawlArticle>>["status"]> = new Set([
+	"not-modified",
+	"pdf-awaiting-saver",
+	"over-ocr-quota",
+]);
+
 const RecordedComprehensiveCandidate = z.object({ id: CandidateIdSchema, tier: z.literal("tier-1") });
+
+const chargeNoAccountForAnOperatorRecrawl: ChargeOcrPages = async () => ({ allowed: true });
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComprehensiveCrawlHandler(deps: {
@@ -48,6 +57,8 @@ export function initComprehensiveCrawlHandler(deps: {
 	prepareArticleIdentity: PrepareArticleIdentity;
 	verifyWrapperSource: VerifyWrapperSource;
 	crawlArticleWithPermit: CrawlArticleWithPermit;
+	chargeOcrPagesFor: (params: { userId: UserId; claimId: string }) => ChargeOcrPages;
+	markOcrPagesHeld: MarkOcrPagesHeld;
 	runMeteredLeg: RunMeteredLeg;
 	finalizeArticle: FinalizeArticle;
 	putTierSource: PutTierSource;
@@ -68,6 +79,8 @@ export function initComprehensiveCrawlHandler(deps: {
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		crawlArticleWithPermit,
+		chargeOcrPagesFor,
+		markOcrPagesHeld,
 		runMeteredLeg,
 		finalizeArticle,
 		putTierSource,
@@ -137,8 +150,35 @@ export function initComprehensiveCrawlHandler(deps: {
 		},
 	): Promise<CrawlTermination | { via: "deferred-to-event"; candidate: CandidateReference }> => {
 		const { url, previousBodyHash } = ctx;
+		const compareCandidates = (candidates: CandidateReference[]) =>
+			publishArchiveComparison({ ...ctx, recrawl: ctx.trigger === "recrawl", candidates });
+		if (crawlResult.status === "over-ocr-quota") {
+			assert(ctx.userId, `${logPrefix} an OCR page charge needs a saver`);
+			const hold = { pages: crawlResult.pages, pagesLeft: crawlResult.pagesLeft, retryAt: crawlResult.retryAt };
+			await markOcrPagesHeld({ userId: ctx.userId, url, hold });
+			logger.info(`${logPrefix} ocr_page_quota_held`, {
+				url,
+				saveAttemptId: ctx.saveAttemptId,
+				pages: hold.pages,
+				pagesLeft: hold.pagesLeft,
+				retryAt: hold.retryAt.toISOString(),
+			});
+			if (ctx.candidates !== undefined) return compareCandidates(ctx.candidates);
+			if (ctx.trigger !== "refresh") {
+				await transitionAndPersist(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
+			}
+			return { via: "committed-in-process" };
+		}
+		if (crawlResult.status === "pdf-awaiting-saver") {
+			if (ctx.candidates !== undefined) return compareCandidates(ctx.candidates);
+			if (ctx.trigger !== "refresh") {
+				await transitionAndPersist(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
+			}
+			logger.info(`${logPrefix} PDF awaits a saver before OCR`, { url });
+			return { via: "committed-in-process" };
+		}
 		if (ctx.candidates !== undefined && crawlResult.status !== "fetched") {
-			return publishArchiveComparison({ ...ctx, recrawl: ctx.trigger === "recrawl", candidates: ctx.candidates });
+			return compareCandidates(ctx.candidates);
 		}
 		switch (crawlResult.status) {
 			case "unsupported": {
@@ -285,6 +325,9 @@ export function initComprehensiveCrawlHandler(deps: {
 						permit,
 						url: identity.originalUrl,
 						previousBodyHash,
+						chargeOcrPages: userId !== undefined
+							? chargeOcrPagesFor({ userId, claimId: record.messageId })
+							: trigger === "recrawl" ? chargeNoAccountForAnOperatorRecrawl : undefined,
 						...(runCandidates !== undefined ? { retainResponseBody: true } : {}),
 						onProgress: ({ partIndex, partCount, stage }) => {
 							const effectiveStage = stage ?? "comprehensive-extracting";
@@ -309,7 +352,7 @@ export function initComprehensiveCrawlHandler(deps: {
 					 * whose slot was already accounted on the first receive; best-effort,
 					 * since a failed refund merely leaves the window slightly over-counted,
 					 * which fails safe toward under-spending. */
-					if (budget.consumed && crawlResult.status === "not-modified") {
+					if (budget.consumed && REFUNDED_CRAWL_STATUSES.has(crawlResult.status)) {
 						await refundPaidCrawlBudget().catch((error: unknown) => {
 							logger.warn(`${logPrefix} paid-crawl budget refund failed`, {
 								url,

@@ -35,7 +35,7 @@ const ARTICLE_URL = `${APP_ORIGIN}/queue/${FIRST_ID.value}/view?from=day7-email&
 const READLIST_URL = `${APP_ORIGIN}/queue?${TRACKING}&utm_content=readlist`;
 const KEEP_URL = `${APP_ORIGIN}/account/plans?${TRACKING}&utm_content=keep`;
 const UNSUBSCRIBE_URL = `${APP_ORIGIN}/email/queue-digest/unsubscribe?t=${encodeURIComponent(TOKEN)}&kind=trial-day7`;
-const PRICE_PARAGRAPH = `Your trial ends on Nov 20, 2026. Choose during your trial: ${RENEWAL_PRICES} Add a card now and nothing is charged until Nov 20, 2026; you'll get a reminder before the charge. Your saves stay readable and exportable either way.`;
+const PRICE_PARAGRAPH = `Your trial ends on Nov 20, 2026. Choose during your trial: ${RENEWAL_PRICES} Add a card now and nothing is charged until Nov 20, 2026; you'll get a reminder before the charge. Without a card, your account moves to the free plan when the trial ends and keeps everything you saved.`;
 const SIGNOFF = "— Fayner Brack, Founder & CEO";
 
 describe("TrialDay7Email", () => {

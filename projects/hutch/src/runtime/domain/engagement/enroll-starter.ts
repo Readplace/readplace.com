@@ -72,7 +72,7 @@ export function initEnrollStarter(deps: {
 			return;
 		}
 		if (reservedDomainOf(contact.email) !== undefined) return;
-		if (access.access !== "full" || (access.tier !== "trial" && access.tier !== "paid")) return;
+		if (access.tier !== "trial" && access.tier !== "paid") return;
 		if (!(await deps.resolveSaveAccess(userId)).allowed) return;
 		let state = await deps.state.findEngagement(userId);
 		if (state.assignment?.arm === "comparison") return;

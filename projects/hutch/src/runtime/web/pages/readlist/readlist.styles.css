@@ -340,10 +340,6 @@
   white-space: nowrap;
 }
 
-.readlist-more__create {
-  flex: 0 0 auto;
-}
-
 .readlist-more__head .readlist-nav__new {
   width: auto;
   min-width: 44px;
@@ -458,7 +454,6 @@
     display: block;
   }
 
-  .readlist-more--sheet .readlist-more__create,
   .readlist-more--sheet .readlist-more__close {
     display: none;
   }
@@ -1198,6 +1193,7 @@
 }
 
 .readlist-subscription {
+  position: relative;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
@@ -1214,7 +1210,7 @@
 
 .readlist-subscription--trial-countdown,
 .readlist-subscription--cancellation-scheduled,
-.readlist-subscription--inactive {
+.readlist-subscription--free {
   display: flex;
 }
 
@@ -1225,6 +1221,37 @@
   border: 0;
 }
 /* purgecss-ignore-end */
+
+.readlist-subscription__dismiss-form {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.readlist-subscription__dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--button-padding-xs);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.readlist-subscription__dismiss:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.readlist-subscription__dismiss svg {
+  width: 1rem;
+  height: 1rem;
+}
 
 .readlist-subscription__status {
   margin: 0;

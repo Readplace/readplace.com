@@ -90,6 +90,8 @@ import type {
 	MarkArticleViewed,
 	MarkReadlistArticleViewed,
 	MarkReaderReadyEmailSent,
+	MarkOcrPagesHeld,
+	OcrPagesHold,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	ContentProvider,
@@ -114,7 +116,6 @@ import type {
 import {
 	ArticlePurgedAfterRequest,
 	DigestPageCursorSchema,
-	type HasSaveLandedSince,
 	type SaveArticleAsRequested,
 	type SaveReadlistArticleAsRequested,
 } from "@packages/provider-contracts/article-store";
@@ -166,6 +167,7 @@ interface UserArticle {
 	handPickedAt?: Date;
 	relatedDismissedAt?: Date;
 	relatedDismissedSuggestionId?: ReaderArticleHashId;
+	ocrPagesHold?: OcrPagesHold;
 	relatedPassesRequestedAt?: Date;
 }
 
@@ -214,6 +216,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		processingNotice: article.processingNotice,
 		ownerUserId: article.ownerUserId,
 		enclosure: article.enclosure,
+		ocrPagesHold: userArticle.ocrPagesHold,
 	};
 }
 
@@ -255,13 +258,13 @@ export function initInMemoryArticleStore(): {
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
+	markOcrPagesHeld: MarkOcrPagesHeld;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	saveReadlistArticle: SaveReadlistArticle;
 	saveArticleAsRequested: SaveArticleAsRequested;
 	saveReadlistArticleAsRequested: SaveReadlistArticleAsRequested;
-	hasSaveLandedSince: HasSaveLandedSince;
 	findReadlistArticles: FindReadlistArticles;
 	countReadlistArticles: CountReadlistArticles;
 	findReadlistArticleById: FindReadlistArticleById;
@@ -626,11 +629,6 @@ export function initInMemoryArticleStore(): {
 				.filter((row) => row.userId === userId && row.readlist !== undefined && row.viewedAt !== undefined)
 				.map((row) => row.url),
 		);
-
-	const hasSaveLandedSince: HasSaveLandedSince = async ({ userId, url, requestedAt }) => {
-		const row = userArticles.get(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value));
-		return row !== undefined && row.savedAt >= requestedAt;
-	};
 
 	const saveArticleKeepingPosition: SaveArticle = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -1262,6 +1260,13 @@ export function initInMemoryArticleStore(): {
 		ua.relatedDismissedSuggestionId = suggestionId;
 	};
 
+	const markOcrPagesHeld: MarkOcrPagesHeld = async ({ userId, url, hold }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		if (!ua) return;
+		ua.ocrPagesHold = hold;
+	};
+
 	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const result: { userId: UserId; viewedAt?: Date }[] = [];
@@ -1611,13 +1616,13 @@ export function initInMemoryArticleStore(): {
 		markArticleViewed,
 		markSummaryToggled,
 		markRelatedDismissed,
+		markOcrPagesHeld,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,
 		findUnreadSavesForDigest,
 		saveReadlistArticle,
 		saveArticleAsRequested,
 		saveReadlistArticleAsRequested,
-		hasSaveLandedSince,
 		findReadlistArticles,
 		countReadlistArticles,
 		findReadlistArticleById,
