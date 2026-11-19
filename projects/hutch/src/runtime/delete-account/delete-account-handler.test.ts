@@ -49,6 +49,7 @@ import { initRevokeGmailGrant } from "../providers/gmail-api/gmail-revoke";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { GmailAccountEmailSchema, ForwardableSenderSchema, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
+import { initInMemoryGmailHeldMail } from "@packages/test-fixtures/providers/gmail-held-mail";
 import {
 	initInMemoryTranscriptCharge,
 	initInMemoryTranscriptLedger,
@@ -93,6 +94,7 @@ function buildSubject(
 	const inboxAddress = initInMemoryInboxAddress({ now: () => SEED_NOW });
 	const gmail = initInMemoryGmailIntegration({ grant: { ok: false, reason: "exchange-failed", status: 400, error: undefined, errorDescription: undefined }, addresses: initInMemoryInboxAddress({ now: () => new Date() }) });
 	const identities = initInMemoryEmailIdentity();
+	const gmailHeldMail = initInMemoryGmailHeldMail();
 	const transcriptQuotaRows = initInMemoryTranscriptQuotaRows();
 
 	const deleteCustomerCalls: Array<{ customerId: string }> = [];
@@ -181,6 +183,7 @@ function buildSubject(
 	// (self-clearing), so the record fails on the first delivery and its redrive
 	// then runs clean — the interleavings that exercise idempotency on retry.
 	const injectedFailures = { deleteSubscriptionOnce: false, deleteRawEmailOnce: false, purgeContentOnce: false };
+	let failRawEmailDeleteForKeyOnce: string | undefined;
 
 	const handler = initDeleteAccountHandler({
 		findEmailByUserId: auth.findEmailByUserId,
@@ -235,6 +238,11 @@ function buildSubject(
 		},
 		deleteAllGmailMonitoring: gmail.bundle.gmailMonitoringStore.deleteAllByUserId,
 		deleteAllGmailMappings: gmail.bundle.gmailMappingStore.deleteAllByUserId,
+		listGmailHeldMail: gmailHeldMail.listHeldMailByUserId,
+		deleteAllGmailHeldMail: async (userId: UserId) => {
+			teardownOrder.push("held-mail");
+			await gmailHeldMail.deleteAllHeldMailByUserId(userId);
+		},
 		deleteAllEmailIdentities: async (userId: UserId) => {
 			teardownOrder.push("identities");
 			await identities.deleteAllByUserId(userId);
@@ -245,6 +253,11 @@ function buildSubject(
 				injectedFailures.deleteRawEmailOnce = false;
 				throw new Error("simulated deleteRawEmailObjects failure");
 			}
+			if (failRawEmailDeleteForKeyOnce !== undefined && keys.includes(failRawEmailDeleteForKeyOnce)) {
+				failRawEmailDeleteForKeyOnce = undefined;
+				throw new Error("simulated held-mail deleteRawEmailObjects failure");
+			}
+			teardownOrder.push("raw-email");
 			rawEmailDeleteArgs.push(keys);
 		},
 		deleteRawEmailObjectsByPrefix: async (prefixes: string[]) => {
@@ -332,6 +345,7 @@ function buildSubject(
 		inboxAddress,
 		gmail,
 		identities,
+		gmailHeldMail,
 		transcriptQuotaRows,
 		deleteCustomerCalls,
 		deleteSubscriptionCalls,
@@ -377,6 +391,9 @@ function buildSubject(
 		},
 		failRawEmailDeleteOnce: (): void => {
 			injectedFailures.deleteRawEmailOnce = true;
+		},
+		failRawEmailDeleteOnceFor: (key: string): void => {
+			failRawEmailDeleteForKeyOnce = key;
 		},
 		failPurgeContentOnce: (): void => {
 			injectedFailures.purgeContentOnce = true;
@@ -581,6 +598,26 @@ async function seedGmailImport(s: Subject, account: SeededAccount) {
 	return { identityKey };
 }
 
+async function seedHeldMail(
+	s: Subject,
+	{ userId, label }: { userId: UserId; label: string },
+): Promise<string[]> {
+	const keys = [`inbound/${label}-held-a`, `inbound/${label}-held-b`];
+	for (const [index, rawEmailS3Key] of keys.entries()) {
+		const receivedAt = `2026-07-0${index + 1}T00:00:00.000Z`;
+		await s.gmailHeldMail.holdMail({
+			userId,
+			receivedAtMessageId: `${receivedAt}#<${label}-${index}@sender.example>`,
+			senderEmail: ForwardableSenderSchema.parse(`news-${index}@sender.example`),
+			subject: `Issue ${index}`,
+			receivedAt,
+			rawEmailS3Key,
+			recipientAddress: InboxAddressSchema.parse("gmail-a7b2c9@read.place"),
+		});
+	}
+	return keys;
+}
+
 async function run(s: Subject, records: Array<{ messageId: string; body: string }>) {
 	const result = await s.handler(buildSqsEvent(records), buildLambdaContext(), () => {});
 	assert(result, "handler must return an SQSBatchResponse");
@@ -661,8 +698,9 @@ describe("delete-account handler", () => {
 		assert.equal(await s.auth.findEmailByUserId(victim.userId), null);
 
 		// S3 object deletes received exactly the seeded raw + body keys.
-		assert.equal(s.rawEmailDeleteArgs.length, 1);
+		assert.equal(s.rawEmailDeleteArgs.length, 2);
 		assert.deepEqual(sorted(s.rawEmailDeleteArgs[0]), sorted(victim.rawKeys));
+		assert.deepEqual(s.rawEmailDeleteArgs[1], []);
 		assert.equal(s.bodyEmailDeleteArgs.length, 1);
 		assert.deepEqual(sorted(s.bodyEmailDeleteArgs[0]), sorted(victim.bodyKeys));
 		// Rehosted-image prefixes are recomputed from the rows (bodied or not) and
@@ -1168,8 +1206,9 @@ describe("delete-account handler", () => {
 		// The redrive re-read the surviving rows and re-derived the raw keys, so the
 		// .eml objects are deleted rather than left orphaned in S3, and only then
 		// were the rows removed.
-		assert.equal(s.rawEmailDeleteArgs.length, 1);
+		assert.equal(s.rawEmailDeleteArgs.length, 2);
 		assert.deepEqual(sorted(s.rawEmailDeleteArgs[0]), sorted(account.rawKeys));
+		assert.deepEqual(s.rawEmailDeleteArgs[1], []);
 		assert.equal(
 			(
 				await s.inboxEmail.listEmailsByUserId({
@@ -1188,6 +1227,39 @@ describe("delete-account handler", () => {
 		// reminder schedule live at AWS after a redrive.
 		assert.deepEqual(s.trialReminderCalls, [account.userId, account.userId]);
 		assert.deepEqual(s.chargeReminderCalls, [account.userId, account.userId]);
+	});
+
+	it("erases the account's held mail and its raw objects, and leaves another account's", async () => {
+		const s = buildSubject();
+		const victim = await seedAccount(s, { label: "held-1", email: "held-1@example.com", subscription: "none" });
+		const bystander = await seedAccount(s, { label: "held-2", email: "held-2@example.com", subscription: "none" });
+		const victimKeys = await seedHeldMail(s, { userId: victim.userId, label: "held-1" });
+		await seedHeldMail(s, { userId: bystander.userId, label: "held-2" });
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(victim.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.deepEqual(sorted(s.rawEmailDeleteArgs[1]), sorted(victimKeys));
+		assert.deepEqual(await s.gmailHeldMail.listHeldMailByUserId(victim.userId), []);
+		assert.equal((await s.gmailHeldMail.listHeldMailByUserId(bystander.userId)).length, 2);
+		assert.ok(s.teardownOrder.lastIndexOf("raw-email") < s.teardownOrder.indexOf("held-mail"));
+	});
+
+	it("redrive after a failed held-mail raw delete re-derives the keys from the surviving held-mail rows", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, { label: "held-orphan", email: "held-orphan@example.com", subscription: "none" });
+		const heldKeys = await seedHeldMail(s, { userId: account.userId, label: "held-orphan" });
+
+		s.failRawEmailDeleteOnceFor(heldKeys[0]);
+		const first = await run(s, [{ messageId: "msg-1", body: bodyFor(account.userId) }]);
+		assert.deepEqual(first.batchItemFailures, [{ itemIdentifier: "msg-1" }]);
+		assert.equal((await s.gmailHeldMail.listHeldMailByUserId(account.userId)).length, 2);
+
+		const second = await run(s, [{ messageId: "msg-2", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(second.batchItemFailures, []);
+		assert.deepEqual(sorted(s.rawEmailDeleteArgs[s.rawEmailDeleteArgs.length - 1]), sorted(heldKeys));
+		assert.deepEqual(await s.gmailHeldMail.listHeldMailByUserId(account.userId), []);
 	});
 
 	it("erases the PDF parses kept under the account and no other account's", async () => {
@@ -1297,7 +1369,7 @@ describe("delete-account handler", () => {
 		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
 
 		assert.deepEqual(result.batchItemFailures, []);
-		assert.deepEqual(s.teardownOrder, ["imported-raw-email", "imports", "identities", "rewrite", "readlist-claims", "tombstone", "user-articles", "saved-links"]);
+		assert.deepEqual(s.teardownOrder, ["raw-email", "raw-email", "held-mail", "imported-raw-email", "imports", "identities", "rewrite", "readlist-claims", "tombstone", "user-articles", "saved-links"]);
 	});
 
 	it("sweeps saved links after deleting the user's articles", async () => {

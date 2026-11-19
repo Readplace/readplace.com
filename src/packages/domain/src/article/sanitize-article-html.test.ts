@@ -237,6 +237,119 @@ describe("sanitizeArticleHtml on a highlight mark", () => {
 	});
 });
 
+describe("sanitizeArticleHtml on MathML", () => {
+	const X = "__x()";
+
+	it("keeps a formula's presentation elements so the reader draws it", () => {
+		const formula = "<math display=\"block\"><mfrac><mi>a</mi><mi>b</mi></mfrac><msqrt><mi>x</mi></msqrt></math>";
+
+		expect(sanitizeArticleHtml(formula)).toBe(formula);
+	});
+
+	it("drops an annotation and its TeX so hidden source never enters the highlight text", () => {
+		expect(
+			sanitizeArticleHtml(
+				'<p>Area <math><semantics><mrow><mi>x</mi></mrow><annotation encoding="application/x-tex">x^2</annotation></semantics></math> grows.</p>',
+			),
+		).toBe("<p>Area <math><semantics><mrow><mi>x</mi></mrow></semantics></math> grows.</p>");
+	});
+
+	it("drops an annotation-xml subtree and the markup it carries", () => {
+		expect(
+			sanitizeArticleHtml(
+				`<math><semantics><mi>a</mi><annotation-xml encoding="text/html"><img src=x onerror=${X}></annotation-xml></semantics></math>`,
+			),
+		).toBe("<math><semantics><mi>a</mi></semantics></math>");
+	});
+
+	it("drops an annotation that carries HTML", () => {
+		expect(
+			sanitizeArticleHtml(
+				`<math><semantics><mi>x</mi><annotation encoding="text/html"><img src=x onerror=${X}></annotation></semantics></math>`,
+			),
+		).toBe("<math><semantics><mi>x</mi></semantics></math>");
+	});
+
+	it("drops href, xlink:href, style, event, id and class attributes on a MathML element", () => {
+		expect(
+			sanitizeArticleHtml(
+				`<math><mi href="javascript:${X}" xlink:href="https://evil.test/" style="color:red" onclick="${X}" id="queue-form" class="reader-toolbar">click</mi></math>`,
+			),
+		).toBe("<math><mi>click</mi></math>");
+	});
+
+	it("keeps only the listed values of display, mathvariant and displaystyle", () => {
+		expect(
+			sanitizeArticleHtml(
+				'<math display="block"><mi mathvariant="bold">x</mi><mi mathvariant="normal">d</mi><mstyle displaystyle="true"><mn>1</mn></mstyle></math>',
+			),
+		).toBe(
+			'<math display="block"><mi mathvariant>x</mi><mi mathvariant="normal">d</mi><mstyle displaystyle="true"><mn>1</mn></mstyle></math>',
+		);
+	});
+
+	it("leaves a display value that tries to break out of its quotes as a bare attribute", () => {
+		expect(sanitizeArticleHtml(`<math display='block" onmouseover="${X}'><mi>x</mi></math>`)).toBe(
+			"<math display><mi>x</mi></math>",
+		);
+	});
+
+	it("unwraps maction and malignmark and keeps what they hold", () => {
+		expect([
+			sanitizeArticleHtml(
+				`<math><maction actiontype="statusline#http://x" onclick=${X}><mi>a</mi><mtext>b</mtext></maction></math>`,
+			),
+			sanitizeArticleHtml("<math><mtext><malignmark><mi>y</mi></malignmark></mtext></math>"),
+		]).toEqual(["<math><mi>a</mi><mtext>b</mtext></math>", "<math><mtext><mi>y</mi></mtext></math>"]);
+	});
+
+	it("drops the stylesheet an mglyph tries to open inside a formula", () => {
+		expect(sanitizeArticleHtml(`<math><mtext><table><mglyph><style><img src=x onerror=${X}>`)).toBe(
+			"<math><mtext><table></table></mtext></math>",
+		);
+	});
+
+	it("keeps only the src of an image a raw-text element tried to hide inside a formula", () => {
+		expect(sanitizeArticleHtml(`<math><mi><table><xmp></xmp><img src=x onerror=${X}></table></mi></math>`)).toBe(
+			'<math><mi><table><img src="x" /></table></mi></math>',
+		);
+	});
+
+	it("drops a size or colour attribute that could overlay the page", () => {
+		expect(
+			sanitizeArticleHtml(
+				'<math><mpadded width="100000px" height="100000px" lspace="-5000px"><mstyle mathbackground="red" mathsize="2000px" mathcolor="red"><mspace width="9000px"></mspace><mi>x</mi></mstyle></mpadded></math>',
+			),
+		).toBe("<math><mpadded><mstyle><mspace></mspace><mi>x</mi></mstyle></mpadded></math>");
+	});
+
+	it("drops an id, class or name on a formula so it cannot clobber the page around it", () => {
+		expect(
+			sanitizeArticleHtml('<math id="__x" class="reader-toolbar" name="cookie"><mi id="queue-form">x</mi></math>'),
+		).toBe("<math><mi>x</mi></math>");
+	});
+
+	it("demotes a link inside a formula whose scheme it dropped", () => {
+		expect(sanitizeArticleHtml(`<math><a href="javascript:${X}"><mi>x</mi></a></math>`)).toBe(
+			"<math><span><mi>x</mi></span></math>",
+		);
+	});
+
+	it("removes an svg subtree inside a formula", () => {
+		expect(
+			sanitizeArticleHtml('<math><mi>x</mi><svg><a href="https://evil.test/">s</a></svg><mn>2</mn></math>'),
+		).toBe("<math><mi>x</mi><mn>2</mn></math>");
+	});
+
+	it("serves only allow-listed markup when a paragraph closes inside an annotation", () => {
+		expect(
+			sanitizeArticleHtml(
+				`<p><math><semantics><mi>a</mi><annotation-xml encoding="text/html"></p><a href="https://evil.test/x">leak</a><img src=x onerror=${X}></annotation-xml></semantics></math>`,
+			),
+		).toBe('<p><math><semantics><mi>a</mi></semantics></math></p><a href="https://evil.test/x">leak</a><img src="x" />');
+	});
+});
+
 describe("chapterSectionId", () => {
 	it("names a book chapter's heading id from its 1-based position", () => {
 		expect(chapterSectionId(3)).toBe("section-ch-3");

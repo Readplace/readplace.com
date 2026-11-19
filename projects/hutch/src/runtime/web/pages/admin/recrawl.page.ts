@@ -1,4 +1,5 @@
 import { type ReaderSectionRequest, requestedReaderSection } from "../../shared/article-body/reader-slot/section-pages";
+import { generatedContentOf } from "../../generated-content-of";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { NextFunction, Request, Response, Router } from "express";
@@ -208,6 +209,7 @@ async function renderRecrawlPage(
 
 	const state = await reader.resolveReaderState({
 		viewer: ANONYMOUS_VIEWER,
+		generatedContent: generatedContentOf(req),
 		article: {
 			url: articleUrl,
 			metadata: existing.metadata,
@@ -307,6 +309,7 @@ function handleSummaryPoll(
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
 			viewer: ANONYMOUS_VIEWER,
+			generatedContent: generatedContentOf(req),
 			enclosure: ABSENT_ENCLOSURE,
 			articleId: undefined,
 			pollCount,
@@ -344,6 +347,7 @@ function handleReaderPoll(
 		const component = await reader.handleReaderPoll({
 			articleUrl,
 			viewer: ANONYMOUS_VIEWER,
+			generatedContent: generatedContentOf(req),
 			enclosure: ABSENT_ENCLOSURE,
 			articleId: undefined,
 			pollCount,

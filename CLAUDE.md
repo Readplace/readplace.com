@@ -86,6 +86,7 @@ The privacy page's "Connected Gmail accounts" section states how long each kind 
 | Raw copies of imported mail under `gmail-import/` in the raw-email bucket | A 29-day S3 lifecycle rule, published as "within 31 days": S3 expires an object at the first midnight UTC after the rule's age and removes it some time later, so the page states the rule's days plus two | The inbox stack's raw bucket, the rule whose id starts `raw-expiry` |
 | Import and mark-as-read records (`hutch-gmail-history-imports`) | A disconnect deletes the reader's whole partition. Both kinds share it, so pending marks and backfill progress go with the import records on purpose | The disconnect step that runs after the stored credentials are deleted, in the domain function that cancels imports with reason `disconnected` |
 | Forwarding mappings | Kept after a disconnect on purpose, so reconnecting the same mailbox brings them back; deleted with the account | The route test about a mapping kept across disconnect and reconnect |
+| Held mail (`hutch-inbox-gmail-held-mail` rows and their raw `inbound/` objects) | Kept after a disconnect on purpose; deleted with the account | The account-deletion handler's test |
 
 Do not add a sentence to the page that the code does not do, and do not lengthen the lifecycle rule without changing the page's number.
 
@@ -117,6 +118,22 @@ Only the functions that apply the rule can mint the body and summary brands (gre
 - Read an article row's body, summary or display metadata only through those ports, and never mint either brand another way.
 - A new renderer types its body input as the branded body. The generic HTML converters (markdown, EPUB XHTML) take plain strings because they also convert other HTML: hand them a body only from a branded value.
 - A surface's own host check drives behaviour only — no crawl, no polling, the not-an-article notice. It is not what keeps a webmail row private.
+
+### China mainland readers get no AI-written text
+
+App Store Connect asks, for China mainland, whether the app distributes AI-generated content. That needs a Security Assessment with a Chinese regulator, which Readplace cannot file, so on 2026-11-20 the owner chose to withhold the model-written text instead and answer "No". The answer stays true only while nothing the model wrote reaches these readers.
+
+| Signal | Where it comes from |
+|---|---|
+| Viewer country `CN` | CloudFront's `cloudfront-viewer-country`, trusted only behind the edge secret |
+| App Store storefront `CHN` | The iOS app's `x-readplace-storefront` header on native requests and `readplace_storefront` cookie in the reader web view |
+
+Either signal withholds. The summary is read as skipped, and Next read and Already read come back empty, because each suggestion carries a model-written reason. The rule lives in the read ports, as the webmail rule does: they take a required, branded access value that only the domain's generated-content module can mint (grep the domain package for `brand<"GeneratedContentAccess">`). Withholding happens when the text is read, never when it is stored, because a row is shared by readers in every country. Reads with no request behind them, such as email digests, pass the module's outside-a-request value.
+
+- Text that ranks or transcribes what a publisher or the reader wrote is out of scope: the content-selection judge, the email-link and readlist filters, and PDF transcription.
+- A new surface that shows model-written text reads it through a port that takes this value.
+- Do not rename the header or cookie: released app builds send them.
+- Do not drop either signal while the App Store Connect answer stands.
 
 ### A highlight moves only when its passage moved
 

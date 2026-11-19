@@ -1,4 +1,4 @@
-import { ANONYMOUS_VIEWER } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import { initInMemoryGeneratedSummary } from "./in-memory-generated-summary";
 
 const URL = "https://example.com/article";
@@ -7,7 +7,7 @@ describe("initInMemoryGeneratedSummary", () => {
 	describe("findGeneratedSummary", () => {
 		it("returns undefined when no row exists", async () => {
 			const store = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
-			expect(await store.findGeneratedSummary({ url: URL, viewer: ANONYMOUS_VIEWER })).toBeUndefined();
+			expect(await store.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, viewer: ANONYMOUS_VIEWER })).toBeUndefined();
 		});
 	});
 
@@ -16,7 +16,7 @@ describe("initInMemoryGeneratedSummary", () => {
 			const store = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
 			await store.markSummaryPending({ url: URL });
 
-			expect(await store.findGeneratedSummary({ url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
+			expect(await store.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
 		});
 
 		it("does not regress a row that has already gone ready", async () => {
@@ -24,7 +24,7 @@ describe("initInMemoryGeneratedSummary", () => {
 			await store.markSummaryReady({ url: URL, summary: "S" });
 			await store.markSummaryPending({ url: URL });
 
-			expect(await store.findGeneratedSummary({ url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({
+			expect(await store.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({
 				status: "ready",
 				summary: "S",
 			});
@@ -35,7 +35,7 @@ describe("initInMemoryGeneratedSummary", () => {
 			await store.markSummarySkipped({ url: URL, reason: "too-short" });
 			await store.markSummaryPending({ url: URL });
 
-			expect(await store.findGeneratedSummary({ url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({
+			expect(await store.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({
 				status: "skipped",
 				reason: "too-short",
 			});
@@ -51,7 +51,7 @@ describe("initInMemoryGeneratedSummary", () => {
 				excerpt: "Lead.",
 			});
 
-			expect(await store.findGeneratedSummary({ url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({
+			expect(await store.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({
 				status: "ready",
 				summary: "Long summary text",
 				excerpt: "Lead.",
@@ -62,7 +62,7 @@ describe("initInMemoryGeneratedSummary", () => {
 			const store = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
 			await store.markSummaryReady({ url: URL, summary: "Only summary" });
 
-			expect(await store.findGeneratedSummary({ url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({
+			expect(await store.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({
 				status: "ready",
 				summary: "Only summary",
 			});
@@ -74,7 +74,7 @@ describe("initInMemoryGeneratedSummary", () => {
 			const store = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
 			await store.markSummarySkipped({ url: URL, reason: "too-short" });
 
-			expect(await store.findGeneratedSummary({ url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({
+			expect(await store.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({
 				status: "skipped",
 				reason: "too-short",
 			});
@@ -84,7 +84,7 @@ describe("initInMemoryGeneratedSummary", () => {
 			const store = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
 			await store.markSummarySkipped({ url: URL });
 
-			expect(await store.findGeneratedSummary({ url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "skipped" });
+			expect(await store.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "skipped" });
 		});
 	});
 });

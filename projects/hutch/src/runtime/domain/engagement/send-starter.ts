@@ -19,7 +19,7 @@ import type {
 	ListUserSavesForUrl,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
-import { type ArticleBody, ReaderArticleHashId, type Viewer, viewerFor } from "@packages/domain/article";
+import { type ArticleBody, GENERATED_CONTENT_OUTSIDE_A_REQUEST, ReaderArticleHashId, type Viewer, viewerFor } from "@packages/domain/article";
 import type { FindGeneratedSummary, GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { FindReaderReadyEmailState } from "@packages/provider-contracts/reader-ready-state";
 import type { EmailAttachment, SendEmail } from "@packages/provider-contracts/email";
@@ -114,7 +114,7 @@ export function initSendStarter(deps: {
 			urls.map(async (url) => {
 				const [article, summary, stored] = await Promise.all([
 					deps.findArticleByUrl(url),
-					deps.findGeneratedSummary({ url, viewer }),
+					deps.findGeneratedSummary({ url, viewer, generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST }),
 					deps.readArticleContent({ url, viewer }),
 				]);
 				assert(article, `a claimed starter pick is a stored article: ${url}`);
@@ -200,7 +200,7 @@ export function initSendStarter(deps: {
 			for (const pick of pack.picks) {
 				const [article, summary, memberships, stored] = await Promise.all([
 					deps.findArticleByUrl(pick.url),
-					deps.findGeneratedSummary({ url: pick.url, viewer: viewerFor(userId) }),
+					deps.findGeneratedSummary({ url: pick.url, viewer: viewerFor(userId), generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST }),
 					deps.listUserSavesForUrl({ userId, url: pick.url }),
 					deps.readArticleContent({ url: pick.url, viewer: viewerFor(userId) }),
 				]);

@@ -49,7 +49,7 @@ export function initDynamoDbClaimResolutionOnView(deps: {
 		schema: ResolutionOnViewRow,
 	});
 
-	return async ({ url, axes, viewer }) => {
+	return async ({ url, axes, viewer, generatedContent }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const claim = CLAIM_BY_AXES[axes];
 		const now = deps.now();
@@ -75,7 +75,7 @@ export function initDynamoDbClaimResolutionOnView(deps: {
 		return {
 			kind: "claimed",
 			crawl,
-			summary: shownSummary({ url, summary: rowToGeneratedSummary(row), viewer, ownerUserId: row.ownerUserId }),
+			summary: shownSummary({ url, summary: rowToGeneratedSummary(row), viewer, ownerUserId: row.ownerUserId, generatedContent }),
 		};
 	};
 }

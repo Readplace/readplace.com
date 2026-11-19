@@ -139,6 +139,7 @@ export function createInboxTestApp(
 			generateVisitorId: () => "00000000-0000-4000-8000-000000000000",
 			secureCookies: false,
 			ownHost: new URL(fixture.shared.appOrigin).hostname,
+			appOrigin: fixture.shared.appOrigin,
 			edgeSecret: "test-edge-secret",
 		},
 	);

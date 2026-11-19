@@ -12,7 +12,8 @@ struct ReadplaceApp: App {
 		let recovery = NativeRefreshRecovery(endpoints: AppConfig.serverEndpoints, records: store.authRecords,
 			configuration: configuration, surface: .app, version: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown")
 		Task { await recovery.record(.contextStarted); await recovery.flush() }
-		return AppSession(store: store, nativeUserAgent: processNativeUserAgent(), sessionConfiguration: configuration, recovery: recovery)
+		return AppSession(store: store, nativeUserAgent: processNativeUserAgent(), sessionConfiguration: configuration,
+			readStorefront: StorefrontCountryCode.current, recovery: recovery)
 	}
 
 	var body: some Scene {

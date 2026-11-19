@@ -66,6 +66,24 @@ describe("articleEpubXhtml", () => {
 		expect(parseXml(xhtml).documentElement.localName).toBe("html");
 	});
 
+	it("puts a formula in the MathML namespace so an EPUB reader draws it", () => {
+		const bare = articleEpubXhtml({
+			contentHtml: "<p><math><mi>x</mi></math></p>",
+			title: "t",
+			articleUrl: ARTICLE_URL,
+			embeddedFilenames: [],
+		});
+		const namespaced = articleEpubXhtml({
+			contentHtml: '<p><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math></p>',
+			title: "t",
+			articleUrl: ARTICLE_URL,
+			embeddedFilenames: [],
+		});
+
+		expect(bare).toContain('<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>');
+		expect(namespaced).toContain('<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>');
+	});
+
 	it("declares the epub namespace on the chapter root so a note reference's epub:type is bound", () => {
 		const xhtml = articleEpubXhtml({
 			contentHtml: "<p>one</p>",

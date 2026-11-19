@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -65,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -135,6 +137,7 @@ fun ReadingListScreen(
 	}
 
 	LaunchedEffect(Unit) {
+		viewModel.offerInterruptedDownload()
 		viewModel.loadIfNeeded()
 		viewModel.drainStagedUploads()
 	}
@@ -266,8 +269,12 @@ fun ReadingListScreen(
 						},
 					)
 				}
-				state.offlineDownload?.let { progress ->
-					OfflineDownloadRow(progress = progress, onCancel = viewModel::cancelOfflineDownload)
+				state.offlineDownloadStatus?.let { status ->
+					OfflineDownloadRow(
+						status = status,
+						onDismiss = viewModel::closeOfflineDownload,
+						onContinue = viewModel::downloadUnreadOffline,
+					)
 				}
 				PullToRefreshBox(
 					isRefreshing = isRefreshing,
@@ -465,7 +472,7 @@ private fun SharedArticlesDropRow(
 }
 
 @Composable
-private fun OfflineDownloadRow(progress: OfflineDownloadProgress, onCancel: () -> Unit) {
+private fun OfflineDownloadRow(status: OfflineDownloadStatus, onDismiss: () -> Unit, onContinue: () -> Unit) {
 	val brand = LocalBrandColors.current
 	Row(
 		modifier = Modifier
@@ -475,11 +482,26 @@ private fun OfflineDownloadRow(progress: OfflineDownloadProgress, onCancel: () -
 		horizontalArrangement = Arrangement.spacedBy(10.dp),
 	) {
 		Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-			LinearProgressIndicator(progress = { progress.fraction }, modifier = Modifier.fillMaxWidth())
-			Text(text = progress.label, style = MaterialTheme.typography.bodySmall, color = brand.textSecondary)
+			LinearProgressIndicator(
+				progress = { status.fraction },
+				modifier = Modifier
+					.fillMaxWidth()
+					.height(6.dp),
+				color = brand.success,
+				trackColor = brand.border,
+				strokeCap = StrokeCap.Round,
+				gapSize = 0.dp,
+				drawStopIndicator = {},
+			)
+			Text(text = status.label, style = MaterialTheme.typography.bodySmall, color = brand.textSecondary)
 		}
-		IconButton(onClick = onCancel) {
-			Icon(imageVector = Glyph.CLOSE_CIRCLE, contentDescription = OFFLINE_DOWNLOAD_CANCEL_LABEL, tint = brand.textSecondary)
+		if (status.offersContinue) {
+			TextButton(onClick = onContinue, modifier = Modifier.heightIn(min = 48.dp), colors = brandTextButtonColors()) {
+				Text(OFFLINE_DOWNLOAD_CONTINUE_LABEL)
+			}
+		}
+		IconButton(onClick = onDismiss) {
+			Icon(imageVector = Glyph.CLOSE_CIRCLE, contentDescription = status.dismissLabel, tint = brand.textSecondary)
 		}
 	}
 }
@@ -617,6 +639,7 @@ private fun ArticleList(
 				edge = PanelEdge(isFirst = index == 0, isLast = index == state.articles.lastIndex),
 				clock = clock,
 				processingReceivedAt = state.processingReceivedAt[article.id],
+				isAvailableOffline = state.isAvailableOffline(article),
 				onOpen = { onOpen(article) },
 				onActivate = onActivate,
 			)
@@ -652,6 +675,7 @@ private fun ArticleItem(
 	edge: PanelEdge,
 	clock: Clock,
 	processingReceivedAt: Instant?,
+	isAvailableOffline: Boolean,
 	onOpen: () -> Unit,
 	onActivate: (Affordance) -> Unit,
 ) {
@@ -680,6 +704,7 @@ private fun ArticleItem(
 					article = article,
 					clock = clock,
 					processingReceivedAt = processingReceivedAt,
+					isAvailableOffline = isAvailableOffline,
 					onOpen = onOpen,
 				)
 			}
@@ -723,6 +748,7 @@ private fun ArticleItem(
 					article = article,
 					clock = clock,
 					processingReceivedAt = processingReceivedAt,
+					isAvailableOffline = isAvailableOffline,
 					onOpen = onOpen,
 					modifier = Modifier
 						.semantics {

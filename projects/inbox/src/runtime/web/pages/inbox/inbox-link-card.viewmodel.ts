@@ -7,6 +7,7 @@ import {
 	type ReadlistSlug,
 	readlistFitChoiceLabel,
 } from "@packages/domain/readlist";
+import { decodeTrackerDestination } from "../../../domain/inbox/decode-tracker-destination";
 import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
 import { type InboxEmailFilter, writeInboxEmailFilter } from "./inbox-email-filter";
 import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
@@ -267,6 +268,18 @@ function buildCardActions(input: {
 	};
 }
 
+export function toInboxLinkCardUrl(input: { link: InboxEmailLinkEntry; savedDestination: string | undefined }): string {
+	const { link } = input;
+	// A pending link is often an opaque ESP wrapper whose destination lives in a
+	// path token and which may sign its own query, so it is shown byte-exact;
+	// once the crawl is done the URL is a real destination and safe to clean.
+	const destination =
+		(link.status === "failed" ? input.savedDestination ?? link.resolvedUrl : link.resolvedUrl ?? input.savedDestination) ??
+		decodeTrackerDestination(link.url) ??
+		link.url;
+	return link.status !== "pending" || destination !== link.url ? stripUtmParams(destination) : destination;
+}
+
 export function toInboxLinkCardViewModel(input: {
 	link: InboxEmailLinkEntry;
 	emailId: string;
@@ -298,14 +311,7 @@ export function toInboxLinkCardViewModel(input: {
 			? undefined
 			: buildInboxLinkPollUrl({ emailId, ordinal: link.ordinal, pollCount, shown, filter }));
 	const title = link.title ?? "";
-	// A pending link is often an opaque ESP wrapper whose destination lives in a
-	// path token and which may sign its own query, so it is shown byte-exact;
-	// once the crawl is done the URL is a real destination and safe to clean.
-	const savedDestination = input.savedDestinations.get(link.url);
-	const destination =
-		(link.status === "failed" ? savedDestination ?? link.resolvedUrl : link.resolvedUrl ?? savedDestination) ??
-		link.url;
-	const url = reachedTerminal ? stripUtmParams(destination) : destination;
+	const url = toInboxLinkCardUrl({ link, savedDestination: input.savedDestinations.get(link.url) });
 	const statusState = cardStatusState({
 		status: link.status,
 		isPolling: cardPollUrl !== undefined,

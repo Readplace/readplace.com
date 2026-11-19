@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
@@ -16,7 +17,7 @@ import { articleBody } from "@packages/test-fixtures";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
-const context = { userId, oauthClientId: "dyn-registered-mcp-client", uaClient: MCP_UA_CLIENTS.other, recordSaveRefused: () => {} };
+const context = { userId, oauthClientId: "dyn-registered-mcp-client", uaClient: MCP_UA_CLIENTS.other, generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, recordSaveRefused: () => {} };
 
 function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 	return {

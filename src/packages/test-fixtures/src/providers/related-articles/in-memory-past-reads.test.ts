@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { MinutesSchema } from "@packages/domain/article";
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST, MinutesSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryArticleStore } from "../article-store/in-memory-article-store";
@@ -42,7 +42,7 @@ describe("initInMemoryPastReads", () => {
 	it("reports pending until a computation is settled", async () => {
 		const { store } = build();
 
-		expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "pending",
 		});
 	});
@@ -71,7 +71,7 @@ describe("initInMemoryPastReads", () => {
 		});
 
 		expect(outcome).toBe("stored");
-		expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "ready",
 			items: [
 				{
@@ -107,7 +107,7 @@ describe("initInMemoryPastReads", () => {
 			at: AT,
 		});
 
-		expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "ready",
 			items: [],
 		});
@@ -133,7 +133,7 @@ describe("initInMemoryPastReads", () => {
 			at: AT,
 		});
 
-		const result = await store.findPastReads({ userId: USER_ID, url: URL });
+		const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL });
 
 		assert(result.status === "ready", "a settled computation reports ready");
 		expect(result.items.map((item) => item.id)).toEqual([kept.id]);
@@ -161,7 +161,7 @@ describe("initInMemoryPastReads", () => {
 			at: AT,
 		});
 
-		const result = await store.findPastReads({ userId: USER_ID, url: URL });
+		const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL });
 
 		assert(result.status === "ready", "a settled computation reports ready");
 		expect(result.items.map((item) => item.id)).toEqual([own.id]);
@@ -180,7 +180,7 @@ describe("initInMemoryPastReads", () => {
 			at: AT,
 		});
 
-		expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "ready",
 			items: [],
 		});
@@ -202,7 +202,7 @@ describe("initInMemoryPastReads", () => {
 		});
 		await articleStore.deleteArticle(past.id, USER_ID);
 
-		expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "ready",
 			items: [],
 		});
@@ -233,7 +233,7 @@ describe("initInMemoryPastReads", () => {
 			at: AT,
 		});
 
-		const result = await store.findPastReads({ userId: USER_ID, url: URL });
+		const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL });
 
 		assert(result.status === "ready", "the computation is settled");
 		expect(result.items.map((item) => item.reason)).toEqual(["The open article, read before", "First read copy"]);
@@ -272,7 +272,7 @@ describe("initInMemoryPastReads", () => {
 			});
 
 			expect(outcome).toBe("stored");
-			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 				status: "budget-limited",
 				until: UNTIL,
 			});
@@ -294,7 +294,7 @@ describe("initInMemoryPastReads", () => {
 			});
 
 			expect(outcome).toBe("stored");
-			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 				status: "ready",
 				items: [],
 				budgetBlockedUntil: UNTIL,
@@ -319,7 +319,7 @@ describe("initInMemoryPastReads", () => {
 			});
 
 			expect(outcome).toBe("superseded");
-			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 				status: "ready",
 				items: [],
 			});
@@ -336,7 +336,7 @@ describe("initInMemoryPastReads", () => {
 
 			await settle(store);
 
-			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 				status: "ready",
 				items: [],
 				budgetBlockedUntil: UNTIL,
@@ -354,7 +354,7 @@ describe("initInMemoryPastReads", () => {
 
 			store.forgetRow({ userId: USER_ID, url: URL });
 
-			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({ status: "pending" });
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({ status: "pending" });
 			expect(await store.readPastReadsState({ userId: USER_ID, url: URL })).toEqual({ savedAt: SAVED_AT });
 		});
 
@@ -369,7 +369,7 @@ describe("initInMemoryPastReads", () => {
 			});
 
 			expect(outcome).toBe("superseded");
-			expect(await store.findPastReads({ userId: USER_ID, url: URL })).toEqual({ status: "pending" });
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({ status: "pending" });
 		});
 
 		it("reports a block on a link the reader has not saved as superseded", async () => {

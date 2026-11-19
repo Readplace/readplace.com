@@ -102,13 +102,13 @@ export function initDynamoDbGeneratedSummary(deps: {
 		schema: ArticleSummaryRow,
 	});
 
-	const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => {
+	const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer, generatedContent }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await table.get({ url: articleResourceUniqueId.value }, { consistentRead: true });
-		return shownSummary({ url, summary: rowToGeneratedSummary(row), viewer, ownerUserId: row?.ownerUserId });
+		return shownSummary({ url, summary: rowToGeneratedSummary(row), viewer, ownerUserId: row?.ownerUserId, generatedContent });
 	};
 
-	const findGeneratedSummaries: FindGeneratedSummaries = async ({ urls, viewer }) => {
+	const findGeneratedSummaries: FindGeneratedSummaries = async ({ urls, viewer, generatedContent }) => {
 		const result = new Map<string, ShownSummary | undefined>();
 		const keyToUrls = new Map<string, string[]>();
 		for (const url of urls) {
@@ -152,7 +152,13 @@ export function initDynamoDbGeneratedSummary(deps: {
 			for (const url of groupUrls)
 				result.set(
 					url,
-					shownSummary({ url, summary: stored?.summary, viewer, ownerUserId: stored?.ownerUserId }),
+					shownSummary({
+						url,
+						summary: stored?.summary,
+						viewer,
+						ownerUserId: stored?.ownerUserId,
+						generatedContent,
+					}),
 				);
 		}
 		return result;

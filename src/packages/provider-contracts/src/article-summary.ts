@@ -1,8 +1,12 @@
-import type { ShownSummary, Viewer } from "@packages/domain/article";
+import type { GeneratedContentAccess, ShownSummary, Viewer } from "@packages/domain/article";
 
 export type { GeneratedSummary } from "@packages/domain/article";
 
-export type FindGeneratedSummary = (read: { url: string; viewer: Viewer }) => Promise<ShownSummary | undefined>;
+export type FindGeneratedSummary = (read: {
+	url: string;
+	viewer: Viewer;
+	generatedContent: GeneratedContentAccess;
+}) => Promise<ShownSummary | undefined>;
 
 /** Batched form of {@link FindGeneratedSummary}. Every input url has an entry in
  * the returned map (value possibly `undefined`), keyed by the url as given. A
@@ -10,6 +14,7 @@ export type FindGeneratedSummary = (read: { url: string; viewer: Viewer }) => Pr
 export type FindGeneratedSummaries = (read: {
 	urls: readonly string[];
 	viewer: Viewer;
+	generatedContent: GeneratedContentAccess;
 }) => Promise<ReadonlyMap<string, ShownSummary | undefined>>;
 
 export type MarkSummaryPending = (params: { url: string }) => Promise<void>;

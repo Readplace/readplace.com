@@ -45,6 +45,7 @@ import com.readplace.android.core.CaptureTrigger
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.NativeCleartextPolicy
+import com.readplace.android.core.OfflineDownloadManifest
 import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReadingDiagnostics
 import com.readplace.android.core.OfflineReadlistSnapshot
@@ -96,6 +97,7 @@ class MainActivity : ComponentActivity() {
 		val discoveryCache = DiscoveryHttpCache(cacheDir)
 		val offlineFiles = File(filesDir, "offline-reading")
 		val readerCopy = OfflineReaderCopy(offlineFiles, Dispatchers.IO, now = { Instant.now() })
+		val manifest = OfflineDownloadManifest(offlineFiles, Dispatchers.IO)
 		val snapshot = OfflineReadlistSnapshot(
 			offlineFiles,
 			Dispatchers.IO,
@@ -138,7 +140,7 @@ class MainActivity : ComponentActivity() {
 		val heal = HealBlockedArticle(api, captor)
 		val drain = DrainUploadJobs(api, captor, jobs, now = { Instant.now() })
 		val prefetcher = ReaderPrefetcher(this) { findViewById(android.R.id.content) }
-		val download = DownloadUnreadOffline(api, snapshot, prefetcher, readerCopy)
+		val download = DownloadUnreadOffline(api, snapshot, prefetcher, manifest, readerCopy)
 		val createReadingList: () -> ReadingListViewModel = {
 			ReadingListViewModel(
 				api = api,
@@ -152,6 +154,7 @@ class MainActivity : ComponentActivity() {
 				reportAutomaticCaptureFailure = { failure -> Log.i("Capture", "automatic capture failed: $failure") },
 				drainUploadJobs = { drain.run() },
 				downloadUnreadOffline = { request, report -> download.run(request, report) },
+				manifest = manifest,
 				onSessionExpired = { session.forceLogout() },
 				now = { Instant.now() },
 				reportProcessingRefreshFailure = { failure -> Log.i("ProcessingRefresh", "row refresh failed: $failure") },

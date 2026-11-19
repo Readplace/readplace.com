@@ -60,6 +60,7 @@ import {
 	buildSavedAsArticleAnnouncement,
 	renderInboxExcludedLinkMoved,
 } from "./inbox-excluded-link-moved.component";
+import { toInboxExcludedLinkUrl } from "./inbox-excluded-link.viewmodel";
 import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
 import {
 	InboxEmailDetailPage,
@@ -346,6 +347,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			receivedAtMessageId: input.receivedAtMessageId,
 		});
 		const excluded = links.filter(isExcludedLink).length;
+		const url = toInboxExcludedLinkUrl(input.link);
 		const tabs = buildMailTabs({
 			emailId: input.receivedAtMessageId,
 			active: "excluded",
@@ -357,10 +359,10 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			.send(
 				`${renderInboxExcludedLinkMoved({
 					ordinal: input.link.ordinal,
-					url: input.link.url,
+					url,
 					articlesHref: input.articlesHref,
 				})}${renderInboxMailTabs({ tabs, oob: true })}${renderInboxLiveStatus({
-					message: buildSavedAsArticleAnnouncement({ url: input.link.url }),
+					message: buildSavedAsArticleAnnouncement({ url }),
 					oob: true,
 				})}`,
 			);

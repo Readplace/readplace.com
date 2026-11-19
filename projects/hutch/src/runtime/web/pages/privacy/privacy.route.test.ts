@@ -236,6 +236,31 @@ describe("GET /privacy", () => {
 		expect(response.text).toContain("remove it yourself under Forwarding and POP/IMAP");
 	});
 
+	it("says what held mail Readplace stores, and that it outlives a disconnect but not the account", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Mail that Gmail forwards from a sender you have not mapped to a readlist is held: Readplace stores its sender, subject, arrival time, the Readplace address it was sent to and the original message, and does not show it in your inbox. Held mail stays stored after you disconnect Gmail and is deleted when you delete your account.");
+		expect(response.text).toContain("Readplace stores the discovered sender names and email addresses (with, for a sender whose mail is forwarded to Readplace, the subject of that sender's latest message), your chosen forwarding mappings,");
+	});
+
+	it("says account deletion erases held mail with the Gmail data", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const section = doc.getElementById("delete-account");
+		assert(section, "the deletion section must carry the delete-account anchor");
+		expect(section.textContent).toContain("your Gmail connection and its stored data, held mail included,");
+	});
+
+	it("says in the Gmail section what imported and forwarded mail sends to an AI provider", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("handled like forwarded newsletters. That includes the processing described above: an imported or forwarded message's subject, sender, link addresses and link text are sent to an AI provider to tell articles from ads and menus and to choose which fit a readlist you described, and when you choose to save a sender's issues themselves, each issue's text is sent to an AI provider to write its summary.");
+	});
+
 	it("says what the Gmail read and modify permissions are used for", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");

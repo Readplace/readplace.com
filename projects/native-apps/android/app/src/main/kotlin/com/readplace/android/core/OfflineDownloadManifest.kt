@@ -10,11 +10,15 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+
+@Serializable
+data class OfflineDownloadRun(val total: Int, val completed: Int) {
+	val isIncomplete: Boolean get() = completed < total
+}
 
 data class DownloadedVersions(val byArticleId: Map<String, String>) {
 	fun isCurrent(articleId: String, contentVersion: String?): Boolean =
@@ -41,6 +45,19 @@ class OfflineDownloadManifest(private val directory: File, private val io: Corou
 				stored.copy(versions = stored.versions + (articleId to contentVersion)).also(::write)
 			}
 			published.value = DownloadedVersions(next.versions)
+		}
+	}
+
+	suspend fun incompleteRun(): OfflineDownloadRun? =
+		lock.withLock { withContext(io) { read() }.run?.takeIf { it.isIncomplete } }
+
+	suspend fun recordRun(run: OfflineDownloadRun) = replaceRun(run)
+
+	suspend fun forgetRun() = replaceRun(null)
+
+	private suspend fun replaceRun(run: OfflineDownloadRun?) {
+		lock.withLock {
+			withContext(io) { write(read().copy(run = run)) }
 		}
 	}
 
@@ -71,7 +88,7 @@ class OfflineDownloadManifest(private val directory: File, private val io: Corou
 	@Serializable
 	private data class Stored(
 		val versions: Map<String, String> = emptyMap(),
-		val run: JsonElement? = null,
+		val run: OfflineDownloadRun? = null,
 	)
 
 	private companion object {

@@ -24,6 +24,7 @@ const VOID_ELEMENTS = new Set([
 ]);
 
 const DROP_ELEMENTS = ["script", "style", "iframe"];
+const MATHML_NAMESPACE = "http://www.w3.org/1998/Math/MathML";
 const DROP_IMAGE_ATTRIBUTES = ["srcset", "sizes", "loading", "decoding", READER_IMAGE_SIZE_ATTRIBUTE];
 
 export function collectArticleImages(params: {
@@ -72,6 +73,7 @@ export function chapterEpubXhtml(params: {
 	assert(root, "epub content root must parse");
 
 	for (const dropped of root.querySelectorAll(DROP_ELEMENTS.join(","))) dropped.remove();
+	for (const math of root.querySelectorAll("math")) math.setAttribute("xmlns", MATHML_NAMESPACE);
 	for (const picture of root.querySelectorAll("picture")) {
 		const img = picture.querySelector("img");
 		if (img) picture.replaceWith(img);

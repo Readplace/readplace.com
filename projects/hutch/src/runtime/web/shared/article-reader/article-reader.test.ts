@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { Minutes } from "@packages/domain/article";
@@ -105,7 +106,7 @@ function initFakeDeps(initial: {
 		findArticleCrawlStatus: async () => state.crawl,
 		findGeneratedSummary: async ({ url, viewer }) => {
 			reads.push({ port: "findGeneratedSummary", viewer });
-			return shownSummary({ url, viewer, ownerUserId: initial.owner, summary: state.summary });
+			return shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: initial.owner, summary: state.summary });
 		},
 		readArticleContent: async ({ url, viewer }) => {
 			reads.push({ port: "readArticleContent", viewer });
@@ -164,6 +165,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -190,6 +192,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -225,6 +228,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -255,6 +259,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -277,6 +282,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -294,6 +300,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -313,6 +320,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -331,6 +339,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -349,6 +358,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -372,6 +382,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -391,6 +402,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -408,6 +420,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -426,6 +439,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -443,6 +457,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -459,6 +474,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -476,6 +492,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -489,6 +506,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -506,6 +524,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -522,6 +541,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const result = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -539,7 +559,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -571,7 +591,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -604,7 +624,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -638,7 +658,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -674,7 +694,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -707,7 +727,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -740,6 +760,7 @@ describe("initArticleReader", () => {
 		function pollParams(viewer: Viewer, articleUrl: string) {
 			return {
 				viewer,
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				enclosure: ABSENT_ENCLOSURE,
 				articleUrl,
 				articleId: undefined,
@@ -818,7 +839,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -853,7 +874,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -884,7 +905,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -920,7 +941,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -954,7 +975,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -986,7 +1007,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1018,7 +1039,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1050,7 +1071,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1080,7 +1101,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1120,7 +1141,7 @@ describe("initArticleReader", () => {
 			};
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1165,7 +1186,7 @@ describe("initArticleReader", () => {
 			};
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1202,7 +1223,7 @@ describe("initArticleReader", () => {
 			};
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1237,7 +1258,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1272,7 +1293,7 @@ describe("initArticleReader", () => {
 			state.article = { ...article, metadata: { ...article.metadata, publishedOn: "2025-10-08" } };
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1305,7 +1326,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1343,7 +1364,7 @@ describe("initArticleReader", () => {
 			};
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1377,7 +1398,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1425,7 +1446,7 @@ describe("initArticleReader", () => {
 			};
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1463,7 +1484,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1499,7 +1520,7 @@ describe("initArticleReader", () => {
 			};
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1542,7 +1563,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1577,7 +1598,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1615,7 +1636,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1650,7 +1671,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1685,7 +1706,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1731,7 +1752,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1773,7 +1794,7 @@ describe("initArticleReader", () => {
 			pollCount: number;
 		}): Promise<Document> {
 			const { deps } = initFakeDeps({ crawl: params.crawl, content: undefined });
-			const component = await initArticleReader(deps).handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await initArticleReader(deps).handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -1972,7 +1993,7 @@ describe("initArticleReader", () => {
 
 			const states = await Promise.all(
 				[failed, pending].map(({ deps }) =>
-					initArticleReader(deps).resolveReaderState({ viewer: ANONYMOUS_VIEWER, article: makeSnapshot(), pollUrlBuilder: makePollUrlBuilder() }),
+					initArticleReader(deps).resolveReaderState({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, viewer: ANONYMOUS_VIEWER, article: makeSnapshot(), pollUrlBuilder: makePollUrlBuilder() }),
 				),
 			);
 
@@ -1994,7 +2015,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -2042,7 +2063,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -2078,6 +2099,7 @@ describe("initArticleReader", () => {
 		function pollParams() {
 			return {
 				viewer: ANONYMOUS_VIEWER,
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				enclosure: ABSENT_ENCLOSURE,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -2285,7 +2307,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -2320,7 +2342,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -2357,7 +2379,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -2386,7 +2408,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -2415,7 +2437,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -2445,7 +2467,7 @@ describe("initArticleReader", () => {
 			});
 			const reader = initArticleReader(deps);
 
-			const component = await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+			const component = await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
@@ -2495,6 +2517,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const state = await reader.resolveReaderState({
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewer: ANONYMOUS_VIEWER,
 				article: gatedSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
@@ -2522,7 +2545,7 @@ describe("initArticleReader", () => {
 
 			const doc = parse(
 				toHtml(
-					await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+					await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 						readerSection: TEST_READER_SECTION,
 						viewer: ANONYMOUS_VIEWER,
 						articleUrl: GATED_URL,
@@ -2572,7 +2595,7 @@ describe("initArticleReader", () => {
 
 			const doc = parse(
 				toHtml(
-					await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+					await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 						readerSection: TEST_READER_SECTION,
 						viewer: ANONYMOUS_VIEWER,
 						articleUrl: GATED_URL,
@@ -2607,7 +2630,7 @@ describe("initArticleReader", () => {
 
 			const doc = parse(
 				toHtml(
-					await reader.handleSummaryPoll({ enclosure: ABSENT_ENCLOSURE,
+					await reader.handleSummaryPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 						readerSection: TEST_READER_SECTION,
 						viewer: ANONYMOUS_VIEWER,
 						articleUrl: GATED_URL,
@@ -2643,7 +2666,7 @@ describe("initArticleReader", () => {
 
 			const doc = parse(
 				toHtml(
-					await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+					await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 						readerSection: TEST_READER_SECTION,
 						viewer: ANONYMOUS_VIEWER,
 						articleUrl: GATED_URL,
@@ -2686,7 +2709,7 @@ describe("initArticleReader", () => {
 
 			const doc = parse(
 				toHtml(
-					await reader.handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+					await reader.handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 						readerSection: TEST_READER_SECTION,
 						viewer: ANONYMOUS_VIEWER,
 						articleUrl: GATED_URL,
@@ -2724,10 +2747,10 @@ describe("resolveReaderStateFrom", () => {
 		const { deps } = initFakeDeps({ crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" }, content: undefined });
 
 		const state = await initArticleReader(deps).resolveReaderStateFrom(
-			{ viewer: ANONYMOUS_VIEWER, article: makeSnapshot(), pollUrlBuilder: makePollUrlBuilder() },
+			{ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, viewer: ANONYMOUS_VIEWER, article: makeSnapshot(), pollUrlBuilder: makePollUrlBuilder() },
 			{
 				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
-				summary: shownSummary({ url: makeSnapshot().url, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined, summary: { status: "pending" } }),
+				summary: shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: makeSnapshot().url, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined, summary: { status: "pending" } }),
 			},
 		);
 
@@ -2743,7 +2766,7 @@ describe("resolveReaderStateFrom", () => {
 		const { deps } = initFakeDeps();
 
 		const state = await initArticleReader(deps).resolveReaderStateFrom(
-			{ viewer: ANONYMOUS_VIEWER, article: { ...makeSnapshot(), url: "https://mail.google.com/mail/u/0/" }, pollUrlBuilder: makePollUrlBuilder() },
+			{ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, viewer: ANONYMOUS_VIEWER, article: { ...makeSnapshot(), url: "https://mail.google.com/mail/u/0/" }, pollUrlBuilder: makePollUrlBuilder() },
 			{ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, summary: undefined },
 		);
 
@@ -2769,7 +2792,7 @@ describe("the reader's gave-up poll", () => {
 		new Map(
 			call.articles.map(({ url }) => [
 				url,
-				{ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } as const, summary: shownSummary({ url, viewer: call.viewer, ownerUserId: undefined, summary: { status: "pending" } }) },
+				{ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } as const, summary: shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer: call.viewer, ownerUserId: undefined, summary: { status: "pending" } }) },
 			]),
 		);
 
@@ -2779,7 +2802,7 @@ describe("the reader's gave-up poll", () => {
 		requestResolutionOnView: RequestResolutionOnView;
 	}): Promise<Document> {
 		const { deps } = initFakeDeps({ crawl: params.crawl, content: undefined, requestResolutionOnView: params.requestResolutionOnView });
-		const component = await initArticleReader(deps).handleReaderPoll({ enclosure: ABSENT_ENCLOSURE,
+		const component = await initArticleReader(deps).handleReaderPoll({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, enclosure: ABSENT_ENCLOSURE,
 			readerSection: TEST_READER_SECTION,
 			viewer: ANONYMOUS_VIEWER,
 			articleUrl: ARTICLE_URL,
@@ -2813,6 +2836,7 @@ describe("the reader's gave-up poll", () => {
 			{
 				surface: "reader-capture-gave-up",
 				viewer: ANONYMOUS_VIEWER,
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				viewerCanCapture: false,
 				articles: [{ url: ARTICLE_URL, crawl: { status: "failed", reason: EDGE_BLOCK, outcomeRevision: 2 }, summary: undefined }],
 			},

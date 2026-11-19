@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { MinutesSchema } from "@packages/domain/article";
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST, MinutesSchema } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryArticleStore } from "../article-store/in-memory-article-store";
@@ -46,7 +46,7 @@ describe("initInMemoryRelatedArticles", () => {
 	it("reports pending until something is written", async () => {
 		const { store } = build();
 
-		expect(await store.findRelatedArticles({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "pending",
 		});
 	});
@@ -64,7 +64,7 @@ describe("initInMemoryRelatedArticles", () => {
 			at: AT,
 		});
 
-		expect(await store.findRelatedArticles({ userId: OTHER_USER_ID, url: URL })).toEqual({
+		expect(await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: OTHER_USER_ID, url: URL })).toEqual({
 			status: "pending",
 		});
 	});
@@ -86,7 +86,7 @@ describe("initInMemoryRelatedArticles", () => {
 			at: AT,
 		});
 
-		expect(await store.findRelatedArticles({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "ready",
 			items: [
 				{
@@ -119,10 +119,10 @@ describe("initInMemoryRelatedArticles", () => {
 		});
 
 		await articleStore.updateArticleStatus(related.id, USER_ID, "read");
-		const afterRead = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+		const afterRead = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL });
 
 		await articleStore.updateArticleStatus(related.id, USER_ID, "unread");
-		const afterUnread = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+		const afterUnread = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL });
 
 		assert(afterRead.status === "ready", "the relation list is still computed");
 		const readItem = afterRead.items[0];
@@ -156,7 +156,7 @@ describe("initInMemoryRelatedArticles", () => {
 
 		await articleStore.deleteArticle(related.id, USER_ID);
 
-		expect(await store.findRelatedArticles({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "ready",
 			items: [],
 		});
@@ -174,7 +174,7 @@ describe("initInMemoryRelatedArticles", () => {
 			at: AT,
 		});
 
-		expect(await store.findRelatedArticles({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "ready",
 			items: [],
 		});
@@ -197,7 +197,7 @@ describe("initInMemoryRelatedArticles", () => {
 			at: AT,
 		});
 
-		const result = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+		const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL });
 
 		assert(result.status === "ready", "a written relation reports ready");
 		expect(result.items.map((item) => item.id)).toEqual([kept.id]);
@@ -222,7 +222,7 @@ describe("initInMemoryRelatedArticles", () => {
 			at: AT,
 		});
 
-		const result = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+		const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL });
 
 		assert(result.status === "ready", "a written relation reports ready");
 		expect(result.items.map((item) => item.id)).toEqual([own.id]);
@@ -239,7 +239,7 @@ describe("initInMemoryRelatedArticles", () => {
 			at: AT,
 		});
 
-		expect(await store.findRelatedArticles({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "ready",
 			items: [],
 		});
@@ -254,7 +254,7 @@ describe("initInMemoryRelatedArticles", () => {
 			at: AT,
 		});
 
-		expect(await store.findRelatedArticles({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "skipped",
 		});
 		expect(outcome).toBe("stored");
@@ -274,7 +274,7 @@ describe("initInMemoryRelatedArticles", () => {
 		});
 
 		expect(outcome).toBe("superseded");
-		expect(await store.findRelatedArticles({ userId: USER_ID, url: URL })).toEqual({
+		expect(await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL })).toEqual({
 			status: "skipped",
 		});
 	});
@@ -284,7 +284,7 @@ describe("initInMemoryRelatedArticles", () => {
 		await store.markRelatedArticlesSkipped({ userId: USER_ID, url: URL, at: AT });
 
 		expect(
-			await store.findRelatedArticles({ userId: USER_ID, url: `${URL}?utm_source=news` }),
+			await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: `${URL}?utm_source=news` }),
 		).toEqual({ status: "skipped" });
 	});
 
@@ -311,7 +311,7 @@ describe("initInMemoryRelatedArticles", () => {
 			at: AT,
 		});
 
-		const result = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+		const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL });
 
 		assert(result.status === "ready", "the relation list is computed");
 		expect(result.items.map((item) => item.reason)).toEqual(["First copy", "Next version"]);
@@ -333,7 +333,7 @@ describe("initInMemoryRelatedArticles", () => {
 			at: AT,
 		});
 
-		const result = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+		const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL });
 
 		assert(result.status === "ready", "the relation list is computed");
 		expect(result.items.map((item) => item.reason)).toEqual(["First copy"]);
@@ -357,7 +357,7 @@ describe("initInMemoryRelatedArticles", () => {
 		});
 		await articleStore.deleteArticle(deleted.id, USER_ID);
 
-		const result = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+		const result = await store.findRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: URL });
 
 		assert(result.status === "ready", "the relation list is computed");
 		expect(result.items.map((item) => item.reason)).toEqual(["Live copy"]);

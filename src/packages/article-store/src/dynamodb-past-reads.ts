@@ -288,11 +288,16 @@ export function initDynamoDbPastReads(deps: {
 	const markPastReadsReady: MarkPastReadsReady = (params) =>
 		outcomeOf(userArticles.update(readyUpdate(params)));
 
+	const findPastReads: FindPastReads = (params) =>
+		params.generatedContent === "withheld"
+			? Promise.resolve({ status: "ready", items: [] })
+			: findStoredPastReads(params);
+
 	const markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked = (params) =>
 		/* c8 ignore next -- V8 block-coverage phantom on the arrow whose awaited write rejects, see bcoe/c8#319 */
 		outcomeOf(userArticles.update(budgetBlockedUpdate(params)));
 
-	const findPastReads: FindPastReads = async (params) => {
+	const findStoredPastReads: FindPastReads = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const row = await userArticles.get({
 			userId: params.userId,

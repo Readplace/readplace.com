@@ -4,7 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 } from "@packages/storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ANONYMOUS_VIEWER, viewerFor } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, GENERATED_CONTENT_OUTSIDE_A_REQUEST, viewerFor } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
 
@@ -43,7 +43,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toBeUndefined();
 	});
@@ -60,7 +60,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toBeUndefined();
 	});
@@ -76,7 +76,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({ status: "ready", summary: "Legacy summary" });
 	});
@@ -93,7 +93,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({ status: "ready", summary: "Fresh summary" });
 	});
@@ -108,7 +108,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-		expect(await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).toBeUndefined();
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).toBeUndefined();
 	});
 
 	it("allows a rebuilt summary while retaining the legacy wrapper identity", async () => {
@@ -128,7 +128,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-		expect(await findGeneratedSummary({ url: archiveUrl, viewer: ANONYMOUS_VIEWER })).toEqual({
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: archiveUrl, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "ready",
 			summary: "Verified article summary",
 			excerpt: "Verified article excerpt",
@@ -156,7 +156,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		await expect(findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).rejects.toThrow(
+		await expect(findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).rejects.toThrow(
 			"\"summary\"",
 		);
 	});
@@ -174,7 +174,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({
 			status: "ready",
@@ -194,7 +194,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({ status: "pending" });
 	});
@@ -211,7 +211,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({ status: "pending", stage: "summary-generating" });
 	});
@@ -228,7 +228,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({ status: "failed", reason: "deepseek timeout" });
 	});
@@ -244,7 +244,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		await expect(findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).rejects.toThrow(
+		await expect(findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).rejects.toThrow(
 			"summaryFailureReason",
 		);
 	});
@@ -260,7 +260,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({ status: "skipped" });
 	});
@@ -277,7 +277,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({ status: "skipped", reason: "content-too-short" });
 	});
@@ -295,7 +295,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			now,
 		});
 
-		const result = await findGeneratedSummary({ url: "https://mail.google.com/mail/u/2/", viewer: ANONYMOUS_VIEWER });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://mail.google.com/mail/u/2/", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({ status: "skipped" });
 	});
@@ -303,7 +303,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 	it("shows a private upload's summary to its owner", async () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client: createFakeClient(privateRow), tableName: "test-table", now });
 
-		const result = await findGeneratedSummary({ url: PRIVATE_URL, viewer: viewerFor(OWNER) });
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: PRIVATE_URL, viewer: viewerFor(OWNER) });
 
 		expect(result).toEqual({ status: "ready", summary: "Private chapter summary" });
 	});
@@ -311,7 +311,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 	it("skips a private upload's summary for another reader", async () => {
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client: createFakeClient(privateRow), tableName: "test-table", now });
 
-		const result = await findGeneratedSummary({
+		const result = await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			url: PRIVATE_URL,
 			viewer: viewerFor(UserIdSchema.parse("other-reader")),
 		});
@@ -356,7 +356,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			);
 			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-			const map = await findGeneratedSummaries({ urls: [
+			const map = await findGeneratedSummaries({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, urls: [
 				"https://example.com/a",
 				"https://example.com/a#heading", // strips to the same table key
 			], viewer: ANONYMOUS_VIEWER });
@@ -393,7 +393,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			], captured);
 			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-			const result = await findGeneratedSummaries({ urls: [
+			const result = await findGeneratedSummaries({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, urls: [
 				"https://example.com/unverified", "https://archive.ph/verified", "https://example.com/direct",
 			], viewer: ANONYMOUS_VIEWER });
 
@@ -410,7 +410,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			);
 			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-			const map = await findGeneratedSummaries({ urls: [
+			const map = await findGeneratedSummaries({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, urls: [
 				"https://example.com/present",
 				"https://example.com/absent",
 			], viewer: ANONYMOUS_VIEWER });
@@ -431,7 +431,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			);
 			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-			const map = await findGeneratedSummaries({ urls: [
+			const map = await findGeneratedSummaries({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, urls: [
 				"https://mail.google.com/mail/u/2/",
 				"https://example.com/present",
 			], viewer: ANONYMOUS_VIEWER });
@@ -444,8 +444,8 @@ describe("initDynamoDbGeneratedSummary", () => {
 			const client = batchClient([privateRow], { commands: [] });
 			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-			const owned = await findGeneratedSummaries({ urls: [PRIVATE_URL], viewer: viewerFor(OWNER) });
-			const anonymous = await findGeneratedSummaries({ urls: [PRIVATE_URL], viewer: ANONYMOUS_VIEWER });
+			const owned = await findGeneratedSummaries({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, urls: [PRIVATE_URL], viewer: viewerFor(OWNER) });
+			const anonymous = await findGeneratedSummaries({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, urls: [PRIVATE_URL], viewer: ANONYMOUS_VIEWER });
 
 			expect(owned.get(PRIVATE_URL)).toEqual({ status: "ready", summary: "Private chapter summary" });
 			expect(anonymous.get(PRIVATE_URL)).toEqual({ status: "skipped" });
@@ -462,7 +462,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			);
 			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-			const map = await findGeneratedSummaries({ urls: [
+			const map = await findGeneratedSummaries({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, urls: [
 				"https://example.com/good",
 				"https://example.com/poison",
 			], viewer: ANONYMOUS_VIEWER });
@@ -482,7 +482,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			);
 			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-			const map = await findGeneratedSummaries({ urls: [
+			const map = await findGeneratedSummaries({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, urls: [
 				"https://example.com/ok",
 				"https://example.com/broken",
 			], viewer: ANONYMOUS_VIEWER });
@@ -499,7 +499,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			);
 			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-			const map = await findGeneratedSummaries({ urls: ["https://example.com/valid", "not a url"], viewer: ANONYMOUS_VIEWER });
+			const map = await findGeneratedSummaries({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, urls: ["https://example.com/valid", "not a url"], viewer: ANONYMOUS_VIEWER });
 
 			expect(map.has("not a url")).toBe(true);
 			expect(map.get("not a url")).toBeUndefined();
@@ -512,7 +512,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			const client = batchClient([], captured);
 			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
 
-			const map = await findGeneratedSummaries({ urls: [], viewer: ANONYMOUS_VIEWER });
+			const map = await findGeneratedSummaries({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, urls: [], viewer: ANONYMOUS_VIEWER });
 
 			expect(map.size).toBe(0);
 			expect(captured.commands).toHaveLength(0);
@@ -597,13 +597,13 @@ describe("initDynamoDbGeneratedSummary", () => {
 	])("withholds a summary that no longer belongs to readable canonical content: %j", async (state) => {
 		const client = createFakeClient({ url: "https://example.com/article", originalUrl: "https://example.com/article", canonicalOriginalUrl: "https://example.com/article", summaryStatus: "ready", summary: "Private erased text", ...state });
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
-		expect(await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).toBeUndefined();
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).toBeUndefined();
 	});
 
 	it("serves a ready summary stamped with a source hash on a legacy row that has no canonical hash and no candidate", async () => {
 		const client = createFakeClient({ url: "https://example.com/article", originalUrl: "https://example.com/article", summaryStatus: "ready", summary: "Legacy summary", summarySourceContentHash: "legacy-hash" });
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
-		expect(await findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).toEqual({ status: "ready", summary: "Legacy summary" });
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).toEqual({ status: "ready", summary: "Legacy summary" });
 	});
 
 });

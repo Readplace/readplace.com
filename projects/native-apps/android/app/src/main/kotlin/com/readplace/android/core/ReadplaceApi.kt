@@ -69,6 +69,7 @@ sealed class ApiError(message: String) : Exception(message) {
 class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sirenBody: ByteArray?, val isStoredCopy: Boolean) {
 	val articles: List<Article>
 	val nextHref: String?
+	val nextIsOfflinePrefetch: Boolean
 
 	/** The href of the collection's structural `root` link — the mainline readlist
 	 * every save also drops into. Null when the server advertised no root, in which
@@ -103,7 +104,9 @@ class ReadlistPage(collection: SirenCollection, val chain: List<String>, val sir
 	init {
 		articles = collection.entities.orEmpty().mapNotNull { Article.of(it) }
 		val links = collection.links.orEmpty()
-		nextHref = links.firstOrNull { it.rel.contains("next") }?.href
+		val next = links.firstOrNull { it.rel.contains("next") }
+		nextHref = next?.href
+		nextIsOfflinePrefetch = next?.classes.orEmpty().contains("offline-prefetch")
 		rootHref = links.firstOrNull { it.rel.contains("root") }?.href
 		val actionAffordances = collection.actions.orEmpty().mapNotNull { Affordance.of(it) }
 		val linkAffordances = links.mapNotNull { Affordance.of(it) }

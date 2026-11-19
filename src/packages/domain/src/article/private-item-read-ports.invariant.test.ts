@@ -1,6 +1,7 @@
 import { UserIdSchema } from "../user/user.schema";
 import { storedArticleBody } from "./article-body";
 import { articleDisplayMetadata, articleDestinationUrl, articleLinkedDisplay } from "./article-site";
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "./generated-content";
 import { ANONYMOUS_VIEWER, type Viewer, viewerFor } from "./private-item-access";
 import { shownSummary } from "./shown-summary";
 
@@ -41,6 +42,7 @@ const PRIVATE_ITEM_READ_PORTS: ReadonlyArray<{ name: string; read: (viewer: View
 				summary: { status: "ready", summary: STORED_SUMMARY_SENTINEL, excerpt: STORED_SUMMARY_SENTINEL },
 				viewer,
 				ownerUserId: OWNER,
+				generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			}),
 		sentinel: STORED_SUMMARY_SENTINEL,
 	},

@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type request from "supertest";
@@ -33,7 +34,7 @@ describe("Readlist routes", () => {
 		function createTerminalPipelineFixture() {
 			const articleHtml = `<html><head><title>Terminal Post</title></head><body><article><h1>Terminal Post</h1><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready" as const,
 				summary: "Ready summary.",
 			} });
@@ -300,6 +301,36 @@ describe("Readlist routes", () => {
 			const readyExcerpt = new JSDOM(ready.text).window.document.querySelector("[data-test-article-excerpt]");
 			assert(readyExcerpt, "the ready card must render the generated excerpt");
 			expect(readyExcerpt.textContent).toBe("Protect your focus.");
+		});
+
+		describe("a card for a reader in China mainland", () => {
+			async function readyCardExcerpt(cookie: string | undefined): Promise<string | null | undefined> {
+				const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
+				const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary });
+				const agent = await loginAgent(harness.server, harness.auth);
+				await agent.post("/queue/save").type("form").send({ url: "https://example.com/card-withheld" });
+				const articleId = await getFirstArticleId(agent);
+				summary.markSummaryReady({
+					url: "https://example.com/card-withheld",
+					summary: "Deep work protects the hours that matter.",
+					excerpt: "Protect your focus.",
+				});
+
+				const cardRequest = agent.get(`/queue/${articleId}/card`);
+				const response = await (cookie === undefined ? cardRequest : cardRequest.set("Cookie", cookie));
+
+				expect(response.status).toBe(200);
+				expect(response.text).not.toContain("Deep work protects the hours that matter.");
+				return new JSDOM(response.text).window.document.querySelector("[data-test-article-excerpt]")?.textContent;
+			}
+
+			it("shows the parsed excerpt, not the summary's, when the China storefront cookie is sent", async () => {
+				expect(await readyCardExcerpt("readplace_storefront=CHN")).toBe("Content saved from example.com.");
+			});
+
+			it("shows the summary's excerpt with another storefront's cookie", async () => {
+				expect(await readyCardExcerpt("readplace_storefront=AUS")).toBe("Protect your focus.");
+			});
 		});
 
 		it("GET /queue/:id/card preserves filter context (tab/order/page) on the next-poll URL", async () => {

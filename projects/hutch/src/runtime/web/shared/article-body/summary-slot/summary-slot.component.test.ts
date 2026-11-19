@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { SUMMARY_WITHHELD_REASON } from "@packages/domain/article";
 import { JSDOM } from "jsdom";
 import { renderSummarySlot } from "./summary-slot.component";
 
@@ -243,6 +244,31 @@ describe("renderSummarySlot", () => {
 			);
 			expect(slot.hasAttribute("hx-get")).toBe(false);
 			expect(slot.children.length).toBe(0);
+		},
+	);
+
+	it.each([false, true])(
+		"collapses a summary withheld from this viewer on a readable article, with no card, copy or poll (oob %s)",
+		(oob) => {
+			const doc = parse(
+				renderSummarySlot({
+					crawl: { status: "ready" },
+					content: "<p>x</p>",
+					summary: { status: "skipped", reason: SUMMARY_WITHHELD_REASON },
+					summaryPollUrl: "/queue/abc/summary?poll=1",
+					oob,
+				}),
+			);
+
+			const slot = doc.querySelector("[data-test-reader-summary]");
+			assert(slot, "summary slot must be rendered");
+			expect(slot.getAttribute("data-summary-status")).toBe("skipped");
+			expect(slot.classList.contains("article-body__summary-slot--hidden")).toBe(
+				true,
+			);
+			expect(slot.hasAttribute("hx-get")).toBe(false);
+			expect(slot.children.length).toBe(0);
+			expect(slot.textContent?.trim()).toBe("");
 		},
 	);
 

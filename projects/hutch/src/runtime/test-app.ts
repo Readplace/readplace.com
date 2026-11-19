@@ -346,8 +346,8 @@ function flattenFixtureToAppDependencies(
 		markRelatedPassesRequested: fixture.relatedArticles.markRelatedPassesRequested,
 		findPastReads: fixture.pastReads.findPastReads,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
-		findGeneratedSummaries: ({ urls, viewer }) =>
-			batchFromSingular((url: string) => fixture.summary.findGeneratedSummary({ url, viewer }))(urls),
+		findGeneratedSummaries: ({ urls, viewer, generatedContent }) =>
+			batchFromSingular((url: string) => fixture.summary.findGeneratedSummary({ url, viewer, generatedContent }))(urls),
 		markSummaryPending: fixture.summary.markSummaryPending,
 		refreshArticleIfStale: refreshWithIdentity(resolveNetworkSaveIdentity),
 		refreshArticleIfStaleStored: refreshWithIdentity(resolveSaveIdentity),

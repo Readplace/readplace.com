@@ -29,6 +29,7 @@ final class AppSession: ObservableObject {
 	private let store: TokenStore
 	private let nativeUserAgent: String
 	private let sessionConfiguration: URLSessionConfiguration
+	private let readStorefront: ReadStorefrontCountry
 	private let wipeReaderWebStore: () async -> Void
 	private let purgeShareArtifacts: () -> Void
 	private let forgetReaderChoices: () -> Void
@@ -40,6 +41,7 @@ final class AppSession: ObservableObject {
 		store: TokenStore,
 		nativeUserAgent: String,
 		sessionConfiguration: URLSessionConfiguration,
+		readStorefront: @escaping ReadStorefrontCountry,
 		recovery: NativeRefreshRecovery? = nil,
 		wipeReaderWebStore: @escaping () async -> Void = AppSession.removeReaderWebStoreData,
 		purgeShareArtifacts: @escaping () -> Void = AppSession.removeShareArtifacts,
@@ -51,6 +53,7 @@ final class AppSession: ObservableObject {
 		self.store = store
 		self.nativeUserAgent = nativeUserAgent
 		self.sessionConfiguration = sessionConfiguration
+		self.readStorefront = readStorefront
 		self.wipeReaderWebStore = wipeReaderWebStore
 		self.purgeShareArtifacts = purgeShareArtifacts
 		self.forgetReaderChoices = forgetReaderChoices
@@ -173,7 +176,8 @@ final class AppSession: ObservableObject {
 			baseURL: AppConfig.serverBaseURL,
 			oauth: oauth,
 			nativeUserAgent: nativeUserAgent,
-			sessionConfiguration: sessionConfiguration
+			sessionConfiguration: sessionConfiguration,
+			readStorefront: readStorefront
 		)
 	}
 

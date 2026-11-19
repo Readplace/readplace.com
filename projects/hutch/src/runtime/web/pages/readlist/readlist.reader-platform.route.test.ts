@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { useTestServer, loginAgent } from "../../../test-app";
@@ -35,7 +36,7 @@ const ARTICLE_HTML = `
  * chromeless reader must keep. */
 function buildHarness(useServer: typeof useApp = useApp): ReturnType<typeof useApp> {
 	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
-	const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+	const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 		status: "ready" as const,
 		summary: "Key points distilled into a brief summary.",
 	} });
@@ -678,7 +679,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 			reason: "blocked",
 			outcomeRevision: 1,
 		});
-		const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "skipped" as const } });
+		const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "skipped" as const } });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,
@@ -738,7 +739,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 			reason: "blocked",
 			outcomeRevision: 1,
 		});
-		const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "skipped" as const } });
+		const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "skipped" as const } });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,

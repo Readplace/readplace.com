@@ -1,4 +1,10 @@
-import type { ArticleDestinationUrl, ArticleStatus, ReaderArticleHashId, SiteLabel } from "@packages/domain/article";
+import type {
+	ArticleDestinationUrl,
+	ArticleStatus,
+	GeneratedContentAccess,
+	ReaderArticleHashId,
+	SiteLabel,
+} from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 
@@ -42,6 +48,7 @@ export type RelatedArticles =
 export type FindRelatedArticles = (params: {
 	userId: UserId;
 	url: string;
+	generatedContent: GeneratedContentAccess;
 }) => Promise<RelatedArticles>;
 
 export interface RelatedCandidate {
@@ -187,6 +194,7 @@ export type FindPastReads = (params: {
 	userId: UserId;
 	url: string;
 	sourceReadlist?: ReadlistSlug;
+	generatedContent: GeneratedContentAccess;
 }) => Promise<PastReads>;
 
 export type RelatedPassRequestState =

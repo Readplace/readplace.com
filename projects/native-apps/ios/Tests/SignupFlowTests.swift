@@ -44,7 +44,7 @@ final class SignupFlowTests: XCTestCase {
 		let session = AppSession(
 			store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration()
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }
 		)
 		let request = makeService(store: TestSupport.loggedInStore()).makeSignupAuthorizationRequest()
 		XCTAssertFalse(session.isLoggedIn)

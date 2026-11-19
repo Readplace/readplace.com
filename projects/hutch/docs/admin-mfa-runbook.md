@@ -1,6 +1,6 @@
 # Admin MFA runbook
 
-Every `/admin` page asks an admin for an authenticator code. A session reaches an admin page only when its user is listed in `ADMIN_EMAILS` and that session entered a valid time-based code at `/admin/mfa` within the last 12 hours. The code is checked against a secret held for that admin in `ADMIN_TOTP_SECRETS`. The recrawl service token (`x-service-token`) is unaffected: it still reaches the routes it reached before, with no code.
+Every `/admin` page asks an admin for an authenticator code. A session reaches an admin page only when its user is listed in `ADMIN_EMAILS` and that session entered a valid time-based code at `/admin/mfa` within the last 12 hours. The code is checked against a secret held for that admin in `ADMIN_TOTP_SECRETS`. The recrawl service token (`x-service-token`) reaches `/admin/recrawl` only, with no code; every other admin page needs a signed-in admin.
 
 ## The `ADMIN_TOTP_SECRETS` value
 

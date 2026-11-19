@@ -1,3 +1,4 @@
+import { generatedContentOf } from "../generated-content-of";
 import assert from "node:assert";
 import express, {
 	type NextFunction,
@@ -157,6 +158,7 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 				userId: req.userId,
 				oauthClientId,
 				uaClient: mcpUaClientOf(req.get("user-agent")),
+				generatedContent: generatedContentOf(req),
 				recordSaveRefused: () => {
 					deps.recordUngatedAnalyticsEvent(
 						buildSaveRefusedEvent(

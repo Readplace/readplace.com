@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { BROWSER_REQUEST_HEADERS, useTestServer, loginAgent } from "../../../test-app";
@@ -60,7 +61,7 @@ describe("GET /queue — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending", startedAt: "2026-11-05T10:00:00.000Z",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -97,7 +98,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending", startedAt: "2026-11-05T10:00:00.000Z",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -121,7 +122,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			outcomeRevision: 1,
 			reason: "blocked",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "skipped",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -146,7 +147,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			html: articleHtml,
 			bodyHash: "a".repeat(64),
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "ready",
 			summary: "TLDR.",
 		} });
@@ -195,7 +196,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			html: articleHtml,
 			bodyHash: "a".repeat(64),
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "failed",
 			reason: "model timeout",
 		} });
@@ -272,7 +273,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			outcomeRevision: 1,
 			reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }),
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "skipped",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -309,7 +310,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			outcomeRevision: 1,
 			reason: "blocked",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "skipped",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -338,7 +339,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			outcomeRevision: 1,
 			reason: "blocked",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "skipped",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -365,7 +366,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending", startedAt: "2026-11-05T10:00:00.000Z",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

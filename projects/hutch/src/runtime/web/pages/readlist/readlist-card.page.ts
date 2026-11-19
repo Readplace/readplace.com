@@ -1,3 +1,4 @@
+import { generatedContentOf } from "../../generated-content-of";
 import { toArticleSubEntity } from "../../api/article-siren";
 import { addToReadlistOfferForClient } from "./add-to-readlist-offer";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
@@ -219,7 +220,7 @@ export function initReadlistCardRoutes(
 		if (wantsSiren(req)) {
 			const [crawl, summary, context] = await Promise.all([
 				deps.findArticleCrawlStatus(article.url),
-				deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId) }),
+				deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId), generatedContent: generatedContentOf(req) }),
 				resolveReadlistContext(req, userId),
 			]);
 			const { state } = context;
@@ -244,7 +245,7 @@ export function initReadlistCardRoutes(
 
 		const [crawl, summary, readerProvenance] = await Promise.all([
 			deps.findArticleCrawlStatus(article.url),
-			deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId) }),
+			deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId), generatedContent: generatedContentOf(req) }),
 			deps.resolveReaderProvenance(article.provenance),
 		]);
 

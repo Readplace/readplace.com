@@ -1,4 +1,5 @@
 import { SummarySkipReasonSchema } from "@packages/article-state-types";
+import { SUMMARY_WITHHELD_REASON } from "@packages/domain/article";
 import type { z } from "zod";
 
 const CRAWL_VERDICT_REASONS = ["crawl-unsupported", "crawl-failed"] as const;
@@ -24,4 +25,8 @@ export function messageForSkip(reason: string | undefined): string {
 
 export function isCrawlVerdictSkip(reason: string | undefined): boolean {
 	return CrawlVerdictSkipReasonSchema.safeParse(reason).success;
+}
+
+export function isWithheldSkip(reason: string | undefined): boolean {
+	return reason === SUMMARY_WITHHELD_REASON;
 }

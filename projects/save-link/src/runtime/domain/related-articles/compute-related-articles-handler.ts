@@ -8,6 +8,7 @@ import type {
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
 } from "@packages/provider-contracts/related-articles";
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain";
 import { ComputeRelatedPassesCommand } from "./index";
 import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type { FindPlanAccess } from "./find-plan-access.types";
@@ -97,7 +98,7 @@ export function initComputeRelatedArticlesHandler(
 			const { userId } = entry;
 			const { receiveCount } = record;
 
-			const existing = await findRelatedArticles({ userId, url: entry.url });
+			const existing = await findRelatedArticles({ userId, url: entry.url, generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST });
 			if (existing.status !== "pending") {
 				logger.info("[ComputeRelatedArticles] cache hit", {
 					url: entry.url,

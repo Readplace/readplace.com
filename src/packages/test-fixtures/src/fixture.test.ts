@@ -1,4 +1,4 @@
-import { ANONYMOUS_VIEWER, SaveAttemptIdSchema, calculateReadTime } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, GENERATED_CONTENT_OUTSIDE_A_REQUEST, SaveAttemptIdSchema, calculateReadTime } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	createFakeSummaryProvider,
@@ -33,9 +33,9 @@ describe("createFakeSummaryProvider", () => {
 		const url = "https://example.com/article";
 
 		await markSummaryPending({ url });
-		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
-		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
-		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
 	});
 
 	it("transitions a pending summary to ready once readyAfterReads reads have happened", async () => {
@@ -43,9 +43,9 @@ describe("createFakeSummaryProvider", () => {
 		const url = "https://example.com/article";
 
 		await markSummaryPending({ url });
-		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
-		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
-		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "ready",
 			summary: `Fake summary for ${url}.`,
 		});
@@ -56,10 +56,10 @@ describe("createFakeSummaryProvider", () => {
 		const url = "https://example.com/article";
 
 		await markSummaryPending({ url });
-		await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER });
+		await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER });
 		await markSummaryPending({ url });
 
-		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "ready",
 			summary: `Fake summary for ${url}.`,
 		});
@@ -68,7 +68,7 @@ describe("createFakeSummaryProvider", () => {
 	it("returns undefined for a URL that has never been marked pending", async () => {
 		const { findGeneratedSummary } = createFakeSummaryProvider({ findItemOwner: async () => undefined, readyAfterReads: 1 });
 
-		expect(await findGeneratedSummary({ url: "https://example.com/never-saved", viewer: ANONYMOUS_VIEWER })).toBeUndefined();
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://example.com/never-saved", viewer: ANONYMOUS_VIEWER })).toBeUndefined();
 	});
 
 	it("markSummaryReady writes the supplied summary and excerpt", async () => {
@@ -77,7 +77,7 @@ describe("createFakeSummaryProvider", () => {
 
 		markSummaryReady({ url, summary: "Manual summary", excerpt: "Lead." });
 
-		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "ready",
 			summary: "Manual summary",
 			excerpt: "Lead.",
@@ -90,7 +90,7 @@ describe("createFakeSummaryProvider", () => {
 
 		markSummaryFailed({ url, reason: "deepseek timeout" });
 
-		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "failed",
 			reason: "deepseek timeout",
 		});
@@ -102,7 +102,7 @@ describe("createFakeSummaryProvider", () => {
 
 		markSummarySkipped({ url, reason: "content-too-short" });
 
-		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
+		expect(await findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "skipped",
 			reason: "content-too-short",
 		});
