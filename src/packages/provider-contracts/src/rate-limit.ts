@@ -9,6 +9,7 @@ export type RateLimitBucket =
 	| "login-account"
 	| "signup"
 	| "forgot-password"
+	| "forgot-password-account"
 	| "oauth-register"
 	| "oauth-token"
 	| "auth-diagnostics"
@@ -42,6 +43,7 @@ export interface RateLimitRules {
 	loginAccount: RateLimitRule;
 	signup: RateLimitRule;
 	forgotPassword: RateLimitRule;
+	forgotPasswordAccount: RateLimitRule;
 	oauthRegister: RateLimitRule;
 	/** PKCE token exchange (`POST /oauth/token`). Public and client-auth-disabled,
 	 * so without a per-IP ceiling it is open to unbounded hammering. */

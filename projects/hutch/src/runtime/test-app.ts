@@ -63,6 +63,7 @@ import type {
 } from "./observability/subscription-events";
 import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
+import type { PasswordResetRefusedEvent } from "./web/auth/request-password-reset";
 
 export type {
 	AdminBundle,
@@ -143,6 +144,11 @@ export interface FunnelEventsBundle {
 	events: (ActivationThresholdReachedEvent | LifecycleEmailSentEvent)[];
 }
 
+export interface PasswordResetRefusalsBundle {
+	logger: Logger.Typed<PasswordResetRefusedEvent>;
+	events: PasswordResetRefusedEvent[];
+}
+
 export interface TestAppResult {
 	app: Express;
 	auth: AuthBundle;
@@ -169,6 +175,7 @@ export interface TestAppResult {
 	analytics: AnalyticsBundle;
 	subscriptionEvents: SubscriptionEventsBundle;
 	funnelEvents: FunnelEventsBundle;
+	passwordResetRefusals: PasswordResetRefusalsBundle;
 }
 
 function flattenFixtureToAppDependencies(
@@ -176,6 +183,7 @@ function flattenFixtureToAppDependencies(
 	analyticsBundle: AnalyticsBundle,
 	subscriptionBundle: SubscriptionEventsBundle,
 	funnelBundle: FunnelEventsBundle,
+	passwordResetRefusalsBundle: PasswordResetRefusalsBundle,
 ): Parameters<typeof createApp>[0] {
 	const transcriptQuotaRows = initInMemoryTranscriptQuotaRows();
 	const saveIdentityDeps = {
@@ -464,6 +472,7 @@ function flattenFixtureToAppDependencies(
 		conversionLogger: fixture.conversions.logger,
 		subscriptionLogger: subscriptionBundle.logger,
 		funnelLogger: funnelBundle.logger,
+		passwordResetLogger: passwordResetRefusalsBundle.logger,
 		analytics: analyticsBundle.logger,
 		authDiagnosticsLogger: noopLogger,
 		signupLogger: noopLogger,
@@ -514,6 +523,17 @@ export function createTestApp(
 		logger: { info: captureFunnel, error: captureFunnel, warn: captureFunnel, debug: captureFunnel },
 		events: funnelLogEvents,
 	};
+	const passwordResetRefusalEvents: PasswordResetRefusedEvent[] = [];
+	const capturePasswordResetRefusal = (data: PasswordResetRefusedEvent) => { passwordResetRefusalEvents.push(data); };
+	const passwordResetRefusalsBundle: PasswordResetRefusalsBundle = {
+		logger: {
+			info: capturePasswordResetRefusal,
+			error: capturePasswordResetRefusal,
+			warn: capturePasswordResetRefusal,
+			debug: capturePasswordResetRefusal,
+		},
+		events: passwordResetRefusalEvents,
+	};
 	const app = express()
 		.disable("x-powered-by")
 		.use(createViewerIdentityMiddleware({ edgeSecret: TEST_EDGE_SECRET }))
@@ -524,7 +544,7 @@ export function createTestApp(
 			isStaticAssetPath: isStaticAssetRequestPath,
 			ownHost: new URL(fixture.shared.appOrigin).hostname,
 		}))
-		.use(createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle, subscriptionBundle, funnelBundle), ...overrides }));
+		.use(createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle, subscriptionBundle, funnelBundle, passwordResetRefusalsBundle), ...overrides }));
 	return {
 		app,
 		auth: fixture.auth,
@@ -551,6 +571,7 @@ export function createTestApp(
 		analytics: analyticsBundle,
 		subscriptionEvents: subscriptionBundle,
 		funnelEvents: funnelBundle,
+		passwordResetRefusals: passwordResetRefusalsBundle,
 	};
 }
 

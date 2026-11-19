@@ -14,6 +14,9 @@ import type {
 import { PasswordResetTokenSchema } from "@packages/provider-contracts/password-reset";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
+import type { Logger, LogError } from "@packages/logger";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchAuth } from "@packages/translations/hutch-auth";
 import { z } from "zod";
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { Base } from "../base.component";
@@ -21,14 +24,13 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { ForgotPasswordSchema, ResetPasswordSchema } from "./auth.schema";
 import { ForgotPasswordPage, ResetPasswordPage } from "./auth.component";
-import { buildPasswordResetEmailHtml } from "./password-reset-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
+import { initRequestPasswordReset, type PasswordResetRefusedEvent } from "./request-password-reset";
 import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
-import type { LogError } from "@packages/logger";
 
 const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
 
-const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
+const { t, tPlural } = translator(hutchAuth, DEFAULT_LOCALE);
 
 interface ForgotPasswordDependencies {
 	sendEmail: SendEmail;
@@ -43,7 +45,15 @@ interface ForgotPasswordDependencies {
 	logError: LogError;
 	consumeRateLimit: ConsumeRateLimit;
 	rateLimitRule: RateLimitRule;
+	accountRateLimitRule: RateLimitRule;
+	passwordResetLogger: Logger.Typed<PasswordResetRefusedEvent>;
 	now: () => Date;
+}
+
+function ipPausedNotice(retryAfterSeconds: number): string {
+	return retryAfterSeconds < 3600
+		? t("forgotPassword.ipPausedUnderAnHour")
+		: tPlural("forgotPassword.ipPaused", { count: Math.ceil(retryAfterSeconds / 3600) });
 }
 
 export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Router {
@@ -57,6 +67,27 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 		consumeRateLimit: deps.consumeRateLimit,
 		bucket: "forgot-password",
 		rule: deps.rateLimitRule,
+		onLimited: ({ req, res, retryAfterSeconds }) => {
+			deps.passwordResetLogger.info({ event: "password_reset_refused", key: "ip", retryAfterSeconds });
+			res.set("Retry-After", String(retryAfterSeconds));
+			sendComponent(
+				req, res,
+				Base(ForgotPasswordPage(
+					{ email: req.body?.email, errors: [{ message: ipPausedNotice(retryAfterSeconds) }] },
+					{ statusCode: 429 },
+				), bannerStateFromRequest(req)),
+			);
+		},
+	});
+	const requestPasswordReset = initRequestPasswordReset({
+		consumeRateLimit: deps.consumeRateLimit,
+		accountRule: deps.accountRateLimitRule,
+		userExistsByEmail: deps.userExistsByEmail,
+		createPasswordResetToken: deps.createPasswordResetToken,
+		sendEmail: deps.sendEmail,
+		baseUrl: deps.baseUrl,
+		logger: deps.passwordResetLogger,
+		logError: deps.logError,
 	});
 	router.post("/forgot-password", forgotPasswordRateLimit, async (req: Request, res: Response) => {
 		const parsed = ForgotPasswordSchema.safeParse(req.body);
@@ -75,26 +106,9 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 			return;
 		}
 
-		const { email } = parsed.data;
+		await requestPasswordReset({ email: parsed.data.email });
 
-		await deps.userExistsByEmail(email)
-			.then(async (exists) => {
-				if (!exists) return;
-				const token = await deps.createPasswordResetToken({ email });
-				const resetUrl = `${deps.baseUrl}/reset-password?token=${token}`;
-				const html = buildPasswordResetEmailHtml(resetUrl);
-				return deps.sendEmail({
-					from: EMAIL_FROM,
-					to: email,
-					subject: "Reset your password — Readplace",
-					html,
-				});
-			})
-			.catch((err) => {
-				deps.logError("[Email] Password reset email failed", err instanceof Error ? err : new Error(String(err)));
-			});
-
-		sendComponent(req, res, Base(ForgotPasswordPage({ sent: true }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(ForgotPasswordPage({ sent: { addressLimit: deps.accountRateLimitRule.limit } }), bannerStateFromRequest(req)));
 	});
 
 	router.get("/reset-password", (req: Request, res: Response) => {
