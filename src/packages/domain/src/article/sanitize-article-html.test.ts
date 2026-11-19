@@ -178,6 +178,33 @@ describe("sanitizeArticleHtml", () => {
 
 		expect(sanitizeArticleHtml(elsewhere)).toBe("<h4>Footnotes</h4><p>Body copy.</p>");
 	});
+
+	it("keeps an image inside an unclosed noscript out of the body when the element around it closes first", () => {
+		const hidden = '<div><noscript></div><img src="http://evil.test/t.gif"></noscript>';
+
+		expect(sanitizeArticleHtml(hidden)).toBe("<div></div>");
+	});
+
+	it("does not turn a link inside an unclosed noscript into a live link", () => {
+		const hidden = '<p><noscript></p><a href="https://evil.test/reset">Reset your password</a></noscript>';
+
+		expect(sanitizeArticleHtml(hidden)).toBe("<p></p>");
+	});
+
+	it("ends a CDATA section at its first > so a noscript after it stays inert", () => {
+		const hidden =
+			'<p>Hi</p><![CDATA[ x > <noscript>]]><a href="https://evil.test/r">Reset your password</a><img src="https://evil.test/b.gif"></noscript>';
+
+		expect(sanitizeArticleHtml(hidden)).toBe("<p>Hi</p> ");
+	});
+
+	it("keeps a data: candidate in an image's srcset, as it keeps one in src", () => {
+		const responsive = '<img src="https://a.test/x.png" srcset="data:image/png;base64,AAAA 1x, https://a.test/y.png 2x">';
+
+		expect(sanitizeArticleHtml(responsive)).toBe(
+			'<img src="https://a.test/x.png" srcset="data:image/png;base64,AAAA 1x, https://a.test/y.png 2x" />',
+		);
+	});
 });
 
 describe("sanitizeArticleHtml on a highlight mark", () => {
