@@ -166,7 +166,7 @@ describe("daily new-save limit on the save routes", () => {
 	});
 
 	describe("POST /queue/save-content", () => {
-		it("refuses inline content from a metered account whose new saves are spent", async () => {
+		it("refuses inline content from a metered account whose new saves are spent with a 429 and a Retry-After", async () => {
 			const harness = useMeteredApp(fixtureWithDailyLimit(0));
 			const { accessToken, userId } = await signedInReader(harness);
 
@@ -175,7 +175,8 @@ describe("daily new-save limit on the save routes", () => {
 				.field("mediaType", "text/html")
 				.attach("content", VALID_HTML, { filename: "page.html", contentType: "text/html" });
 
-			expect(response.status).toBe(422);
+			expect(response.status).toBe(429);
+			expect(Number(response.headers["retry-after"])).toBeGreaterThan(0);
 			assert.equal(response.body.properties.code, "daily_save_limit");
 			assert.equal(response.body.properties.message, DAILY_LIMIT_MESSAGE);
 			assert.equal(await isSaved(harness, { userId, url: "https://example.com/captured" }), false);
@@ -184,7 +185,7 @@ describe("daily new-save limit on the save routes", () => {
 			);
 		});
 
-		it("refuses an upload slot to a metered account whose new saves are spent", async () => {
+		it("refuses an upload slot to a metered account whose new saves are spent with a 429 and a Retry-After", async () => {
 			const harness = useMeteredApp(fixtureWithDailyLimit(0));
 			const { accessToken } = await signedInReader(harness);
 
@@ -193,7 +194,8 @@ describe("daily new-save limit on the save routes", () => {
 				.field("mediaType", "application/pdf")
 				.field("size", "1000");
 
-			expect(response.status).toBe(422);
+			expect(response.status).toBe(429);
+			expect(Number(response.headers["retry-after"])).toBeGreaterThan(0);
 			assert.equal(response.body.properties.code, "daily_save_limit");
 		});
 

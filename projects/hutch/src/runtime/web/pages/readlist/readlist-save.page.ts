@@ -684,8 +684,10 @@ export function initReadlistSaveRoutes(
 			const claimOneDailySave = async (url: string): Promise<boolean> => {
 				const allowance = await deps.claimDailySaves({ userId, urls: [url] });
 				if (allowance.granted.length > 0) return true;
+				assert(allowance.retryAfterSeconds !== undefined, "a refused daily save carries the seconds until the window resets");
 				tagSaveRefusal(res, SAVE_REFUSAL_CODES.dailySaveLimit);
-				refuse(DAILY_SAVE_LIMIT_MESSAGE, SAVE_REFUSAL_CODES.dailySaveLimit);
+				res.set("Retry-After", String(allowance.retryAfterSeconds));
+				refuse(DAILY_SAVE_LIMIT_MESSAGE, SAVE_REFUSAL_CODES.dailySaveLimit, { status: 429 });
 				return false;
 			};
 

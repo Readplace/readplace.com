@@ -12,6 +12,7 @@ import type { UserId } from "@packages/domain/user";
 import { MAX_PDF_BYTES, parsePdfFromBuffer } from "@packages/crawl-article";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import {
+	markCrawlAwaitingReader,
 	markCrawlFailed,
 	markCrawlUnsupported,
 	type TransitionAndPersist,
@@ -105,6 +106,13 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					pagesLeft: hold.pagesLeft,
 					retryAt: hold.retryAt.toISOString(),
 				});
+				const snapshot = await readTierSnapshot({ url: detail.url });
+				if (snapshot.pickedTier === "none") {
+					await transitionAndPersist(markCrawlAwaitingReader, {
+						url: detail.url,
+						input: { deferredLeg: "comprehensive" },
+					});
+				}
 				return;
 			}
 

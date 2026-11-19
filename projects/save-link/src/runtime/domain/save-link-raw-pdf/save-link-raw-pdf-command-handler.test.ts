@@ -5,7 +5,7 @@ import { candidateProvenance } from "@packages/tier-source";
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/logger";
-import { markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import { markCrawlAwaitingReader, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/infra-components";
 import { initSaveLinkRawPdfCommandHandler } from "./save-link-raw-pdf-command-handler";
 import { initProcessContentWithLocalMedia } from "../save-link/process-content-with-local-media";
@@ -311,7 +311,7 @@ describe("initSaveLinkRawPdfCommandHandler — OCR page allowance", () => {
 		expect(charges).toEqual([{ userId: "user-1", claimId: "attempt-1" }]);
 	});
 
-	it("holds an over-quota upload on the uploader's row and never marks the crawl unsupported", async () => {
+	it("holds an over-quota upload on the uploader's row and leaves a row that holds committed content alone", async () => {
 		const markOcrPagesHeld = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const putTierSource = jest.fn().mockResolvedValue(undefined);
@@ -323,6 +323,7 @@ describe("initSaveLinkRawPdfCommandHandler — OCR page allowance", () => {
 			transitionAndPersist,
 			putTierSource,
 			logger,
+			readTierSnapshot: jest.fn().mockResolvedValue({ tier0Status: "not_attempted", tier1Status: "success", pickedTier: "tier-1" }),
 		});
 
 		const result = await handler(createSqsEvent({ url, userId: "user-1" }), buildLambdaContext(), () => {});
@@ -336,6 +337,25 @@ describe("initSaveLinkRawPdfCommandHandler — OCR page allowance", () => {
 			message: "[SaveLinkRawPdfCommand] ocr_page_quota_held",
 			context: { url, saveAttemptId: "attempt-1", pages: 40, pagesLeft: 12, retryAt: "2026-04-19T09:00:00.000Z" },
 		});
+	});
+
+	it("ends an over-quota upload awaiting a reader when the article holds no committed content, so the row never sits pending", async () => {
+		const markOcrPagesHeld = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const { handler, published } = createHandler({
+			extractPdf: async () => ({ kind: "over-ocr-quota", pages: 40, pagesLeft: 12, retryAt }),
+			markOcrPagesHeld,
+			transitionAndPersist,
+			readTierSnapshot: jest.fn().mockResolvedValue({ tier0Status: "not_attempted", tier1Status: "not_attempted", pickedTier: "none" }),
+		});
+
+		const result = await handler(createSqsEvent({ url, userId: "user-1" }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(markOcrPagesHeld).toHaveBeenCalledWith({ userId: "user-1", url, hold: { pages: 40, pagesLeft: 12, retryAt } });
+		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
+		expect(published).toEqual([]);
 	});
 
 	it("retries the record when the charge itself fails", async () => {
