@@ -1,17 +1,39 @@
 ---
 name: merge-github-prs
-description: 'Get open, non-draft pull requests green and squash-merged into main, or handed to the owner when only they can unblock one. Use when asked to "merge all PRs", "merge the ready PRs", "land the open PRs", "make sure all PRs are merged", "babysit the PRs", "get PR #N in", or "why is PR #N blocked"; when a PR shows `mergeStateStatus` `DIRTY`, a failing or flaky check, or a missing, stale or failed Visual Review; and when a CI run on main fails after a PR merge.'
+description: 'Get open, non-draft pull requests green and squash-merged into main, or handed to the owner when only they can unblock one, in a loop that keeps watching for new PRs even when none are open. Use when asked to "merge all PRs", "merge the ready PRs", "land the open PRs", "make sure all PRs are merged", "babysit the PRs", "keep watching the PRs", "get PR #N in", or "why is PR #N blocked"; when a PR shows `mergeStateStatus` `DIRTY`, a failing or flaky check, or a missing, stale or failed Visual Review; and when a CI run on main fails after a PR merge.'
 ---
 
 # Merging GitHub PRs
 
-When asked about every PR, each open non-draft PR must end in one of two states:
+When asked about every PR, each open non-draft PR must end in one of two states, including PRs opened while you work:
 - merged into `main` as one squash commit with a clean message;
 - [handed over](#hand-over), with the exact action the owner must take.
 
 When asked about one PR, apply the same rules to that PR only. Merge only when the request asks for it. "Why is PR #N blocked" means diagnose it and report back; do not merge.
 
 `main` has no required checks or reviews, so `gh pr merge` will land a red PR. The readiness rules below are the only gate.
+
+## The loop
+
+Work in passes inside a loop. A pass lists the candidates, takes each one as far as it can go now, reports, and schedules the next pass. A PR's CI outlasts a turn, and new PRs keep arriving, so one pass is rarely the end.
+
+| Request | Loop |
+|---|---|
+| Every PR | Never end the loop yourself. A pass that finds no candidate is a normal pass: schedule the next one. The loop ends only when the owner asks, or when this session closes. |
+| One PR, to merge it | Loop until that PR is merged, closed or handed over. |
+| One PR, to diagnose it | One pass. Do not start a loop. |
+
+Start the loop by invoking the `loop` skill with `/merge-github-prs` as its argument, plus the PR number for a one-PR request, and no interval, so that it paces itself. It runs the first pass straight away. Start it only when this session is not already looping this skill: a wakeup that fires `/merge-github-prs` is the loop's next pass, not a request for a new loop.
+
+For a request about every PR, the table above overrides the loop skill's reasons to stop. An empty listing, or one that holds only drafts, stacked PRs and handed-over PRs, is neither a finished task nor a loop that cannot make progress: the next pass can find a PR opened in the meantime.
+
+End each pass by calling `ScheduleWakeup` with the loop's prompt. Pick its delay by what the soonest merge waits on:
+
+| The soonest merge waits on | Next pass in | Why |
+|---|---|---|
+| Visual Review or the bot review, after CI has finished | About 5 minutes | Both start when CI completes. Visual Review finished within 5 minutes in 9 runs out of 10 (149 runs, 2026-11-17 to 2026-11-19). The bot's verdict came within 3 minutes of its request in 9 reviews out of 10 (111 reviews on 38 PRs, 2026-11-11 to 2026-11-19). |
+| A running check: a PR's CI, a re-run, or `main`'s run | About 20 minutes | Half of PR CI runs took more than 71 minutes, and only 1 in 10 finished within 24 minutes (108 runs, 2026-11-15 to 2026-11-19). |
+| Nothing running: no candidate, or only drafts, stacked PRs and handed-over PRs | About 30 minutes | A PR opened just after a pass cannot be ready before its CI finishes, and 9 PR CI runs in 10 took 24 minutes or more. |
 
 ## Scope
 
@@ -57,7 +79,7 @@ gh pr view "$N" --repo "$R" --json mergeStateStatus,headRefOid,reviewDecision,st
 | The "Claude Code Review" bot has reviewed `headRefOid` with no high-priority finding. Check with the [review query](#bot-review) below. | The bot reviews each head after CI succeeds. A high-priority finding starts auto-apply, which pushes fix commits to the branch. |
 | Save `headRefOid` from this read as `SHA`. | The merge passes it to `--match-head-commit`. A push after this read then refuses the merge instead of landing unchecked code. |
 
-From push to verdict, about 40 to 90 minutes is normal, and `web-tests` has no timeout. Re-check periodically. If a PR has made no progress for about 2 hours, report it as still running.
+From push to verdict, about 40 to 90 minutes is normal, and `web-tests` has no timeout, so the [loop](#the-loop)'s next pass re-checks the PR. If a PR has made no progress for about 2 hours, report it once as still running, and keep watching it.
 
 ### Bot review
 
@@ -118,7 +140,7 @@ When a hook fails, follow the git-commit skill's diagnostics, with one exception
 ## Conflicts
 
 Run `git fetch origin`, then `git merge --no-commit --no-ff origin/main` in the PR's worktree.
-- Never merge local `main`, or an `origin/main` fetched before this batch's merges: both are stale.
+- Never merge local `main`, or an `origin/main` fetched before the latest merge into `main`: both are stale.
 - Never rebase a pushed branch.
 - `--no-commit` makes even a clean merge go through the pre-commit hook.
 - Conclude the merge with `git commit --no-edit`.
@@ -230,9 +252,9 @@ gh run list --repo "$R" --workflow ci.yml --branch main --event push --limit 30 
   --jq '[.[] | select(.status == "completed" and .conclusion != "cancelled")][0]'
 ```
 
-`main` is red when that run's conclusion is `failure` and the failing job is `web-tests`, `perf-tests` or a `deploy-*` job. Stop merging while `main` is red. A failure only in a store-publish job (TestFlight, Play, the extensions) is reported, but it does not stop the batch.
+`main` is red when that run's conclusion is `failure` and the failing job is `web-tests`, `perf-tests` or a `deploy-*` job. Stop merging while `main` is red. A failure only in a store-publish job (TestFlight, Play, the extensions) is reported, but it does not stop merging.
 
-`main`'s CI keeps one running run and one pending run. After a burst of merges, the runs in between end `cancelled`. That is expected, and the surviving run deploys all the merged changes together. Watch the newest run through to prod; the git-commit skill covers the watch. If the run you are watching ends `cancelled`, list the runs again and watch the newest.
+`main`'s CI keeps one running run and one pending run. After a burst of merges, the runs in between end `cancelled`. That is expected, and the surviving run deploys all the merged changes together. Follow the newest run through to prod from pass to pass, and do not block a pass on it, because a blocked pass leaves every other PR waiting. The git-commit skill's post-push watch says what to check. If the run you are following ends `cancelled`, list the runs again and follow the newest.
 
 ### When main fails
 
@@ -246,7 +268,7 @@ This applies to a failure in `web-tests`, in a deploy, or in a publish job.
      | cut -c1-300 | head -40
    ```
    Read every match. The last error is usually just the exit code. Pulumi prints a wrapper line first and the real exception in its Diagnostics block. nx names the failed task under `Failed tasks:`.
-3. The candidates are every commit since the last green run, not just your batch.
+3. The candidates are every commit since the last green run, not just the PRs you merged.
    - Run `git fetch origin main`.
    - The `detect-projects` job log prints its base and head: `gh run view --job <detect-projects job id> --repo "$R" --log | grep --extended-regexp --only-matching ' (Base|Head) [0-9a-f]{40}.*'`.
    - Narrow the commits with `git log --first-parent <base>..<head> -- <the failing project's directory>`.
@@ -281,15 +303,17 @@ To hand over:
 | Comments and labels state counts only, never IPs, emails or reader data | PR text is public. |
 | Remove the label and re-enter the flow when the owner says the blocker is resolved, or when the action is visibly done | The label means "waiting on the owner", not "never merge". |
 
-## Done
+## End of a pass
 
-The work is done when the [candidate listing](#scope) shows no open non-draft PR into `main` that is neither merged nor handed over. Stacked PRs left for their base, and runs still going after the wait limit, count only when they are reported.
+A pass ends when every PR in the [candidate listing](#scope) is merged, handed over, left as a draft or a stacked PR, or waiting on something still running. Then report, and schedule the next pass as [the loop](#the-loop) says.
 
-Report:
+Report what changed since the previous pass. The first pass also names each PR it is waiting on, and what for.
 - each merged PR's squash SHA, its trailer check, anything you pushed to it, and why;
 - each handed-over PR's blocker, the owner's action, and the comment link;
-- each PR left as stacked or still running, and why;
-- the newest `main` run's outcome: deployed, still running, red (with the failing job), or held for approval.
+- each PR newly left as stacked, or newly reported as still running, and why;
+- the newest `main` run's outcome when it changes: deployed, still running, red (with the failing job), or held for approval.
+
+A pass that changed nothing reports nothing beyond its wakeup's reason, and marks the wakeup a no-op, so a long quiet watch stays short in the owner's terminal.
 
 ## Boundaries
 
