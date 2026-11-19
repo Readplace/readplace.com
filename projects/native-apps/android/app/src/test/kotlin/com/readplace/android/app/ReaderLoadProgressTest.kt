@@ -109,6 +109,28 @@ class ReaderLoadProgressTest {
 
 	// endregion
 
+	@Test
+	fun `only a finished online load confirms a stored copy`() {
+		val phases = listOf(
+			ReaderLoadPhase.Loading,
+			ReaderLoadPhase.Rendering(progress = 0.5),
+			ReaderLoadPhase.Finished,
+			ReaderLoadPhase.Failed,
+		)
+
+		val answers = phases.flatMap { phase ->
+			listOf(ReaderCacheMode.PROTOCOL, ReaderCacheMode.STORED_COPY_FIRST).map { cacheMode ->
+				ReaderLoad.confirmsStoredCopy(phase = phase, cacheMode = cacheMode)
+			}
+		}
+
+		assertEquals(
+			"a stored copy read back offline is not the server's answer, so reading it never makes it younger",
+			listOf(false, false, false, false, true, false, false, false),
+			answers,
+		)
+	}
+
 	private companion object {
 		const val ERROR_UNKNOWN = -1
 		const val ERROR_HOST_LOOKUP = -2

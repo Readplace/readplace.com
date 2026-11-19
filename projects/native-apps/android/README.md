@@ -219,6 +219,14 @@ reach the server. Android refreshes only after a `401`, so the network would hav
 between the `401` and the refresh, and a refresh that cannot connect fails the same way
 as a refused one. That case shows "Couldn't open the reader" instead of the stored copy.
 
+**A stored article copy carries its own age record.** iOS dates a stored reader page by
+the cached response's `Date` header. Android's WebView exposes no response headers for a
+page it serves, so the app records the time each reader URL last finished loading online,
+and a copy with no record, or one older than 30 days, does not open offline: the reader
+shows "Couldn't open the reader" under the offline banner. Anything that stores a reader
+copy for offline reading must call `OfflineReaderCopy.record(readerUrl)` with the exact
+URL the reader loads, once the copy is stored, or that copy never opens offline.
+
 **Compile-time environment via a product flavor.** iOS selects its server with
 `#if STAGING`; here the `production`/`staging` flavors set `BuildConfig.SERVER_BASE_URL`.
 Same property: the server is fixed at build time, there is no runtime override, and
