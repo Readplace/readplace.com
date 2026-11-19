@@ -6,6 +6,7 @@ import {
 	type HighlightsRailInput,
 	type HighlightsRailRow,
 	highlightsRailRowsFromStates,
+	renderHighlightDeleteConfirm,
 	renderHighlightsRail,
 	storedHighlightsRailRows,
 } from "./highlights-rail.component";
@@ -671,5 +672,48 @@ describe("renderHighlightsRail", () => {
 				.querySelector('[data-test-action="highlight-jump"]')
 				?.getAttribute("href"),
 		).toBe(`#highlight-${FIRST_ID}`);
+	});
+});
+
+describe("renderHighlightDeleteConfirm", () => {
+	function confirmOf(html: string): Element {
+		const panel = new JSDOM(html).window.document.getElementById(`delete-highlight-${FIRST_ID}`);
+		assert(panel);
+		return panel;
+	}
+
+	it("posts the delete to the server for a server target, naming the note when there is one", () => {
+		const panel = confirmOf(
+			renderHighlightDeleteConfirm({
+				highlightId: FIRST_ID,
+				note: "A note",
+				target: { kind: "server", scope: WEB_SCOPE },
+			}),
+		);
+		const form = panel.querySelector("form");
+
+		assert.equal(panel.getAttribute("data-test-confirm-popover"), "highlight-delete");
+		assert.equal(panel.getAttribute("data-test-confirm-subject"), FIRST_ID);
+		assert.equal(form?.getAttribute("method"), "POST");
+		assert.equal(form?.getAttribute("action"), deleteUrlFor(FIRST_ID));
+		assert.equal(form?.hasAttribute("data-highlight-local"), false);
+		assert.match(panel.textContent ?? "", /note/i);
+	});
+
+	it("deletes in the browser for a local target, through a dialog form naming the highlight", () => {
+		const panel = confirmOf(
+			renderHighlightDeleteConfirm({ highlightId: FIRST_ID, note: undefined, target: { kind: "local" } }),
+		);
+		const form = panel.querySelector("form");
+		assert(form);
+
+		assert.equal(form.getAttribute("method"), "dialog");
+		assert.equal(form.getAttribute("data-highlight-local"), "delete");
+		assert.equal(form.getAttribute("data-highlight-local-id"), FIRST_ID);
+		assert.equal(form.hasAttribute("action"), false);
+		assert.equal(form.hasAttribute("hx-boost"), false);
+		const button = form.querySelector('[data-test-action="highlight-delete-confirm"]');
+		assert.equal(button?.textContent, "Delete highlight");
+		assert.equal(button?.hasAttribute("autofocus"), true);
 	});
 });

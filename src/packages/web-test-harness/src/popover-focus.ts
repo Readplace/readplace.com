@@ -32,9 +32,18 @@ function nameOf(popover: Element): string {
 	return popover.getAttribute("id") ?? popover.tagName.toLowerCase();
 }
 
+function popoversIn(root: ParentNode): Element[] {
+	return [
+		...Array.from(root.querySelectorAll("[popover]")),
+		...Array.from(root.querySelectorAll<HTMLTemplateElement>("template")).flatMap((template) =>
+			popoversIn(template.content),
+		),
+	];
+}
+
 export function findPopoverFocusGaps(html: string): PopoverFocusGap[] {
 	const { document } = parseHTML(html);
-	return Array.from(document.querySelectorAll("[popover]")).flatMap((popover) => {
+	return popoversIn(document).flatMap((popover) => {
 		const targets = Array.from(popover.querySelectorAll("[autofocus]")).filter(
 			(target) => target.closest("[popover]") === popover,
 		);

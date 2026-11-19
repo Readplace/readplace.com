@@ -1,5 +1,6 @@
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
 import { type HighlightPanels, highlightTabStop, PANEL_ATTRIBUTE, PANEL_HINT_ID } from "./highlight-popover.client";
+import { HIGHLIGHTS_RENDERED_EVENT } from "./highlights-rendered-event";
 import {
 	type PassageRect,
 	type PlacementViewport,
@@ -346,12 +347,14 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 		if (!event.repeat) keyboardFocused.click();
 	});
 
-	document.addEventListener("htmx:afterSettle", () => {
+	const settle = () => {
 		cancelPending();
 		forgetRemoved();
 		applyTabStops();
 		deps.panels.restoreFocus();
-	});
+	};
+	document.addEventListener("htmx:afterSettle", settle);
+	document.addEventListener(HIGHLIGHTS_RENDERED_EVENT, settle);
 
 	applyTabStops();
 	return { hide, reposition: place };

@@ -167,6 +167,7 @@ const BUNDLES = [
       "  try { storage = window.localStorage; } catch (e) { storage = { getItem: function () { return null; }, setItem: function () { throw e; }, removeItem: function () {} }; }",
       "  ViewHighlights.initViewHighlights({",
       "    document: window.document,",
+      "    window: window,",
       "    storage: storage,",
       "    now: function () { return new Date(); },",
       "    newId: function () { return window.crypto.randomUUID(); },",

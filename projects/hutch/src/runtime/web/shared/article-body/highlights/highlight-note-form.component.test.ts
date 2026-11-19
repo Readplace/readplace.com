@@ -22,7 +22,7 @@ function noteForm(
 			answersInPlace: true,
 			pushesHistory: true,
 			autofocus: true,
-			local: false,
+			local: undefined,
 			...overrides,
 		})}</div>`,
 	).window.document;

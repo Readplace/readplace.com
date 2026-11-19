@@ -5,7 +5,8 @@ import { articleBody } from "@packages/test-fixtures";
 import { generateCspNonce } from "@packages/web-shell";
 import { type DOMWindow, JSDOM } from "jsdom";
 import { Base } from "../../base.component";
-import { initHighlightToolbar } from "../../shared/article-body/highlights/highlight-toolbar.client";
+import { HIGHLIGHTS_RENDERED_EVENT } from "../../shared/article-body/highlights/highlights-rendered-event";
+import { initHighlightToolbar, type ToolbarRect } from "../../shared/article-body/highlights/highlight-toolbar.client";
 import type { LocalHighlightStorage } from "../../shared/article-body/highlights/local-highlights";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
@@ -85,6 +86,7 @@ function harness(input: {
 	storage: LocalHighlightStorage;
 	supportsPopover?: boolean;
 	withToolbarScript?: boolean;
+	rectsOf?: () => readonly ToolbarRect[];
 	pageHtml?: string;
 }): Harness {
 	const dom = new JSDOM(input.pageHtml ?? PAGE_HTML, { url: PAGE_URL });
@@ -100,6 +102,7 @@ function harness(input: {
 	let counter = 0;
 	initViewHighlights({
 		document: h.doc,
+		window: { Event: dom.window.Event },
 		storage: input.storage,
 		now: () => new Date(Date.parse("2026-11-14T10:00:00.000Z") + counter * 1000),
 		newId: () => `local-${++counter}`,
@@ -127,7 +130,7 @@ function harness(input: {
 				addEventListener: () => undefined,
 			},
 			timers: { setTimeout: () => undefined, clearTimeout: () => undefined },
-			rectsOf: () => [],
+			rectsOf: input.rectsOf ?? (() => []),
 			isPopoverOpen: () => false,
 			supportsPopover: () => true,
 			showPopover: (panel) => h.shownPopovers.push(panel),
@@ -514,6 +517,7 @@ describe("initViewHighlights", () => {
 
 		initViewHighlights({
 			document: dom.window.document,
+			window: { Event: dom.window.Event },
 			storage: mapStorage(),
 			now: () => new Date(0),
 			newId: () => "local-1",
@@ -537,6 +541,7 @@ describe("initViewHighlights", () => {
 			() =>
 				initViewHighlights({
 					document: dom.window.document,
+					window: { Event: dom.window.Event },
 					storage: mapStorage(),
 					now: () => new Date(0),
 					newId: () => "local-1",
@@ -577,7 +582,11 @@ describe("initViewHighlights", () => {
 	});
 
 	it("sends the opened beacon of a click on a kept mark to the public event route", () => {
-		const h = harness({ storage: mapStorage(), withToolbarScript: true });
+		const h = harness({
+			storage: mapStorage(),
+			withToolbarScript: true,
+			rectsOf: () => [{ top: 100, bottom: 120, left: 100, width: 200 }],
+		});
 		highlight({ h, quote: "A second sentence" });
 		const mark = contentOf(h).querySelector<HTMLElement>("mark[data-highlight-id]");
 		assert(mark, "the kept passage is marked");
@@ -694,6 +703,285 @@ describe("initViewHighlights", () => {
 			true,
 		]);
 		assert.deepEqual(h.submitted, []);
+		assert.deepEqual(rowsOf(h), ["A second sentence"]);
+	});
+});
+
+describe("initViewHighlights — the actions on a kept passage", () => {
+	const PASSAGE_RECTS: readonly ToolbarRect[] = [{ top: 100, bottom: 120, left: 100, width: 200 }];
+
+	function textHarness(storage = mapStorage()): Harness {
+		return harness({ storage, withToolbarScript: true, rectsOf: () => PASSAGE_RECTS });
+	}
+
+	function byId(input: { h: Harness; id: string }): HTMLElement {
+		const element = input.h.doc.getElementById(input.id);
+		assert(element, `the page renders #${input.id}`);
+		return element;
+	}
+
+	function part<E extends Element>(input: { root: ParentNode; selector: string }): E {
+		const element = input.root.querySelector<E>(input.selector);
+		assert(element, `the markup carries ${input.selector}`);
+		return element;
+	}
+
+	function markOf(input: { h: Harness; id: string }): HTMLElement {
+		return part<HTMLElement>({ root: contentOf(input.h), selector: `mark[data-highlight-id="${input.id}"]` });
+	}
+
+	function openPanel(input: { h: Harness; id: string }): HTMLElement {
+		markOf(input).click();
+		return byId({ h: input.h, id: `manage-highlight-${input.id}` });
+	}
+
+	function noteOf(input: { h: Harness; id: string }): string | undefined {
+		const note = part<HTMLElement>({
+			root: cardOf(input.h),
+			selector: `[data-view-highlight-row="${input.id}"] [data-view-highlight-note]`,
+		});
+		return note.hidden ? undefined : (note.textContent ?? "");
+	}
+
+	function rowNote(input: { h: Harness; quote: string; note: string }): void {
+		highlight(input);
+		const forms = cardOf(input.h).querySelectorAll("[data-view-highlight-note-form]");
+		const form = forms[forms.length - 1];
+		assert(form, "the new row renders its note form");
+		fill({ form, values: { note: input.note } });
+		submit({ h: input.h, form });
+	}
+
+	function focusedId(h: Harness): string | null {
+		return h.doc.activeElement?.getAttribute("data-highlight-id") ?? null;
+	}
+
+	it("gives each kept passage its preview, actions panel, note editor and delete confirm", () => {
+		const h = textHarness();
+		highlight({ h, quote: "The first" });
+		rowNote({ h, quote: "A second sentence", note: "Kept <b>note</b>" });
+
+		assert.equal(h.doc.getElementById("preview-highlight-local-1"), null);
+		assert.equal(byId({ h, id: "preview-highlight-local-2" }).textContent?.trim(), "Kept <b>note</b>");
+		const panel = byId({ h, id: "manage-highlight-local-2" });
+		assert.equal(part({ root: panel, selector: "[data-highlight-note-text]" }).textContent, "Kept <b>note</b>");
+		assert.equal(panel.querySelector("[data-highlight-note-text]") !== null, true);
+		assert.equal(byId({ h, id: "manage-highlight-local-1" }).querySelector("[data-highlight-note-text]"), null);
+		const editor = byId({ h, id: "note-highlight-local-2" });
+		assert.equal(part({ root: editor, selector: "[data-highlight-note-quote]" }).textContent, "A second sentence");
+		assert.equal(part<HTMLTextAreaElement>({ root: editor, selector: "textarea" }).value, "Kept <b>note</b>");
+		assert.equal(part<HTMLTextAreaElement>({ root: byId({ h, id: "note-highlight-local-1" }), selector: "textarea" }).value, "");
+		assert.ok(byId({ h, id: "delete-highlight-local-1" }));
+		assert.ok(byId({ h, id: "delete-highlight-local-2" }));
+		assert.equal(cardOf(h).querySelector("[data-view-highlights-surfaces]")?.innerHTML.includes("00000000-0000-4000-8000-000000000000"), false);
+		assert.equal(byId({ h, id: "manage-highlight-hint" }).hidden, true);
+	});
+
+	it("makes every kept passage a tab stop described by its note and the actions hint", () => {
+		const h = textHarness();
+		highlight({ h, quote: "The first" });
+		rowNote({ h, quote: "A second sentence", note: "Worth it" });
+
+		assert.deepEqual(
+			["local-1", "local-2"].map((id) => {
+				const mark = markOf({ h, id });
+				return [mark.getAttribute("tabindex"), mark.getAttribute("aria-describedby"), mark.getAttribute("aria-controls")];
+			}),
+			[
+				["0", "manage-highlight-hint", "manage-highlight-local-1"],
+				["0", "preview-highlight-local-2 manage-highlight-hint", "manage-highlight-local-2"],
+			],
+		);
+	});
+
+	it("opens a passage's actions panel on a click, focusing the passage", () => {
+		const h = textHarness();
+		highlight({ h, quote: "A second sentence" });
+
+		const panel = openPanel({ h, id: "local-1" });
+
+		assert.equal(h.shownPopovers.at(-1), panel);
+		assert.equal(focusedId(h), "local-1");
+	});
+
+	it("adds a note from the panel's editor and returns focus to the passage", () => {
+		const h = textHarness();
+		highlight({ h, quote: "A second sentence" });
+		const panel = openPanel({ h, id: "local-1" });
+		part<HTMLElement>({ root: panel, selector: '[data-test-action="highlight-panel-note"]' }).click();
+		const editor = byId({ h, id: "note-highlight-local-1" });
+		const form = part({ root: editor, selector: 'form[data-highlight-local="note"]' });
+		fill({ form, values: { note: "Added in the text" } });
+
+		const allowed = submit({ h, form });
+
+		assert.equal(allowed, false);
+		assert.equal(noteOf({ h, id: "local-1" }), "Added in the text");
+		assert.equal(byId({ h, id: "preview-highlight-local-1" }).textContent?.trim(), "Added in the text");
+		assert.ok(h.hiddenPopovers.includes(editor));
+		assert.equal(focusedId(h), "local-1");
+		assert.equal(h.doc.activeElement, markOf({ h, id: "local-1" }));
+	});
+
+	it("edits a note from the editor, which opens holding the note", () => {
+		const h = textHarness();
+		rowNote({ h, quote: "A second sentence", note: "First thought" });
+		const form = part<HTMLFormElement>({ root: byId({ h, id: "note-highlight-local-1" }), selector: "form" });
+		assert.equal(part<HTMLTextAreaElement>({ root: form, selector: "textarea" }).value, "First thought");
+
+		fill({ form, values: { note: "Second thought" } });
+		submit({ h, form });
+
+		assert.equal(noteOf({ h, id: "local-1" }), "Second thought");
+	});
+
+	it("deletes a note from the panel and returns focus to the passage", () => {
+		const h = textHarness();
+		rowNote({ h, quote: "A second sentence", note: "Short-lived" });
+		const panel = openPanel({ h, id: "local-1" });
+
+		part<HTMLElement>({ root: panel, selector: '[data-test-action="highlight-panel-note-delete"]' }).click();
+
+		assert.equal(noteOf({ h, id: "local-1" }), undefined);
+		assert.equal(h.doc.getElementById("preview-highlight-local-1"), null);
+		assert.equal(focusedId(h), "local-1");
+	});
+
+	it("deletes a note from the editor's Delete note button", () => {
+		const h = textHarness();
+		rowNote({ h, quote: "A second sentence", note: "Short-lived" });
+		const editor = byId({ h, id: "note-highlight-local-1" });
+
+		part<HTMLElement>({ root: editor, selector: '[data-test-action="highlight-note-delete"]' }).click();
+
+		assert.equal(noteOf({ h, id: "local-1" }), undefined);
+	});
+
+	it("deletes a note from its row, whose Delete note shows only while there is a note", () => {
+		const h = textHarness();
+		rowNote({ h, quote: "A second sentence", note: "Short-lived" });
+		const form = part<HTMLFormElement>({ root: cardOf(h), selector: 'form[data-highlight-local="delete-note"]' });
+		assert.equal(form.hidden, false);
+
+		const allowed = submit({ h, form });
+
+		assert.equal(allowed, false);
+		assert.equal(noteOf({ h, id: "local-1" }), undefined);
+		assert.equal(part<HTMLFormElement>({ root: cardOf(h), selector: 'form[data-highlight-local="delete-note"]' }).hidden, true);
+	});
+
+	it("deletes a passage through its confirm and moves focus to the next passage", () => {
+		const h = textHarness();
+		highlight({ h, quote: "The first" });
+		highlight({ h, quote: "A second sentence" });
+		const panel = openPanel({ h, id: "local-1" });
+		part<HTMLElement>({ root: panel, selector: '[data-test-action="highlight-panel-delete"]' }).click();
+		const confirm = byId({ h, id: "delete-highlight-local-1" });
+
+		const allowed = submit({ h, form: part({ root: confirm, selector: 'form[data-highlight-local="delete"]' }) });
+
+		assert.equal(allowed, false);
+		assert.deepEqual(markedText(h), ["A second sentence"]);
+		assert.deepEqual(rowsOf(h), ["A second sentence"]);
+		assert.ok(h.hiddenPopovers.includes(confirm));
+		assert.equal(h.doc.getElementById("delete-highlight-local-1"), null);
+		assert.equal(focusedId(h), "local-2");
+	});
+
+	it("asks before deleting from the list, on this article and on other articles", () => {
+		const storage = mapStorage();
+		highlight({ h: harness({ storage, pageHtml: OTHER_PAGE_HTML }), quote: "The first" });
+		storage.setItem("readplace.view-highlights", (storage.getItem("readplace.view-highlights") ?? "").replace("local-1", "elsewhere-1"));
+		const h = textHarness(storage);
+		highlight({ h, quote: "A second sentence" });
+
+		const triggers = Array.from(
+			cardOf(h).querySelectorAll('[data-test-action="view-highlight-delete-confirm"]'),
+			(trigger) => trigger.getAttribute("popovertarget"),
+		);
+
+		assert.deepEqual(triggers, ["delete-highlight-local-1", "delete-highlight-elsewhere-1"]);
+		assert.equal(h.doc.getElementById("manage-highlight-elsewhere-1"), null);
+		submit({ h, form: part({ root: byId({ h, id: "delete-highlight-elsewhere-1" }), selector: "form" }) });
+		assert.deepEqual(elsewhereRowsOf(h), []);
+		assert.deepEqual(rowsOf(h), ["A second sentence"]);
+	});
+
+	it("gives a passage not found in this version only its delete confirm", () => {
+		const storage = mapStorage();
+		highlight({ h: harness({ storage }), quote: "A second sentence" });
+		const kept = storage.getItem("readplace.view-highlights");
+		assert(kept, "the highlight is kept");
+		storage.setItem("readplace.view-highlights", kept.replace('"exact":"A second sentence"', '"exact":"A passage edited out"'));
+
+		const h = textHarness(storage);
+
+		assert.equal(h.doc.getElementById("manage-highlight-local-1"), null);
+		assert.equal(h.doc.getElementById("note-highlight-local-1"), null);
+		assert.ok(byId({ h, id: "delete-highlight-local-1" }));
+	});
+
+	it("opens the popup for an editor note longer than the browser may keep and still restores focus", () => {
+		const h = textHarness();
+		highlight({ h, quote: "A second sentence" });
+		let rendered = 0;
+		h.doc.addEventListener(HIGHLIGHTS_RENDERED_EVENT, () => {
+			rendered += 1;
+		});
+		const form = part({ root: byId({ h, id: "note-highlight-local-1" }), selector: "form" });
+		fill({ form, values: { note: "n".repeat(1001) } });
+
+		submit({ h, form });
+
+		assert.equal(noteOf({ h, id: "local-1" }), undefined);
+		assert.equal(h.shownPopovers.at(-1)?.id, "view-highlights-keep");
+		assert.deepEqual(tooLongShown(h), [true, true]);
+		assert.equal(rendered, 1);
+	});
+
+	it("keeps text typed into a row's note form through a poll that changed nothing", () => {
+		const h = textHarness();
+		highlight({ h, quote: "A second sentence" });
+		const input = part<HTMLTextAreaElement>({ root: cardOf(h), selector: "[data-view-highlight-note-input]" });
+		input.value = "Half-typed";
+
+		h.doc.dispatchEvent(new h.window.Event("htmx:afterSettle"));
+
+		assert.equal(part<HTMLTextAreaElement>({ root: cardOf(h), selector: "[data-view-highlight-note-input]" }), input);
+		assert.equal(input.value, "Half-typed");
+	});
+
+	it("marks the passages again after a settle that dropped the marks from the same text", () => {
+		const h = textHarness();
+		highlight({ h, quote: "A second sentence" });
+		const content = contentOf(h);
+		content.innerHTML = content.innerHTML.replace(/<mark[^>]*>|<\/mark>/g, "");
+		assert.deepEqual(markedText(h), []);
+
+		h.doc.dispatchEvent(new h.window.Event("htmx:afterSettle"));
+
+		assert.deepEqual(markedText(h), ["A second sentence"]);
+	});
+
+	it("redraws after a settle when another tab changed the kept highlights", () => {
+		const storage = mapStorage();
+		const h = textHarness(storage);
+		highlight({ h, quote: "A second sentence" });
+		highlight({ h: harness({ storage }), quote: "The first" });
+
+		h.doc.dispatchEvent(new h.window.Event("htmx:afterSettle"));
+
+		assert.deepEqual(rowsOf(h), ["The first", "A second sentence"]);
+	});
+
+	it("ignores a form that names an action the page does not run", () => {
+		const h = textHarness();
+		highlight({ h, quote: "A second sentence" });
+		const form = h.doc.createElement("form");
+		form.setAttribute("data-highlight-local", "share");
+		h.doc.body.append(form);
+
+		assert.equal(submit({ h, form }), true);
 		assert.deepEqual(rowsOf(h), ["A second sentence"]);
 	});
 });

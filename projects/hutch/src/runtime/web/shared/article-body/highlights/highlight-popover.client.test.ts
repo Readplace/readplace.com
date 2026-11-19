@@ -587,6 +587,22 @@ describe("initHighlightPanels", () => {
 			expect(h.doc.activeElement).toBe(stopOf(h, SECOND));
 		});
 
+		it("returns focus to the highlight after Delete note from its note editor", () => {
+			const h = harness({ highlights: THREE });
+			click(h, stopOf(h, SECOND));
+			click(h, actionOf(h, { id: SECOND, action: "highlight-panel-note" }));
+			const deleteNote = h.doc.querySelector<HTMLElement>(
+				`#note-highlight-${SECOND} [data-test-action="highlight-note-delete"]`,
+			);
+			assert(deleteNote, "the note editor of a noted highlight carries Delete note");
+			deleteNote.focus();
+
+			submit(h, { form: formIn(h, `#delete-note-highlight-${SECOND}`), submitter: deleteNote });
+			h.swap({ highlights: THREE });
+
+			expect(h.doc.activeElement).toBe(stopOf(h, SECOND));
+		});
+
 		it("moves focus to the next highlight after a highlight is deleted, or to the previous one when it was the last", () => {
 			const h = harness({ highlights: THREE });
 			click(h, stopOf(h, SECOND));

@@ -95,6 +95,89 @@ describe("/view — highlights kept in a logged-out visitor's browser", () => {
 		assert.deepEqual(markup.scripts, ["/client-dist/view-highlights.client.js", "/client-dist/highlight-toolbar.client.js"]);
 	});
 
+	it("holds the in-text surfaces and the delete confirm for a placeholder highlight, with the hint beside the card", async () => {
+		const harness = await harnessWith({ urls: [ARTICLE_URL] });
+
+		const response = await request(harness.server).get(VIEW_PATH).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		const card = doc.querySelector("[data-test-view-highlights]");
+		assert(card, "the highlights card renders");
+		const templates = Array.from(card.querySelectorAll<HTMLTemplateElement>("template[data-view-highlights-surface]"));
+		const placeholder = templates[0]?.getAttribute("data-highlight-placeholder") ?? "";
+		assert.match(placeholder, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+		assert.deepEqual(
+			templates.map((template) => [
+				template.getAttribute("data-view-highlights-surface"),
+				template.getAttribute("data-highlight-placeholder"),
+				Array.from(template.content.children, (child) => child.id),
+			]),
+			[
+				["text-note", placeholder, [`preview-highlight-${placeholder}`, `manage-highlight-${placeholder}`, `note-highlight-${placeholder}`]],
+				["text", placeholder, [`manage-highlight-${placeholder}`, `note-highlight-${placeholder}`]],
+				["confirm-note", placeholder, [`delete-highlight-${placeholder}`]],
+				["confirm", placeholder, [`delete-highlight-${placeholder}`]],
+			],
+		);
+		const hint = doc.getElementById("manage-highlight-hint");
+		assert(hint, "the actions hint renders once");
+		assert.equal(hint.closest("details"), null);
+		assert.equal(hint.closest("[data-test-view-highlights]"), card);
+		const surfaces = card.querySelector("[data-view-highlights-surfaces]");
+		assert(surfaces, "the card holds a container for the surfaces");
+		assert.equal(surfaces.closest("details"), null);
+		assert.equal(surfaces.children.length, 0);
+	});
+
+	it("runs every note and delete form of the surfaces and rows in the browser, naming its highlight", async () => {
+		const harness = await harnessWith({ urls: [ARTICLE_URL] });
+
+		const response = await request(harness.server).get(VIEW_PATH).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		const card = doc.querySelector("[data-test-view-highlights]");
+		assert(card, "the highlights card renders");
+		const placeholder = card.querySelector("template[data-view-highlights-surface]")?.getAttribute("data-highlight-placeholder");
+		const forms = Array.from(card.querySelectorAll<HTMLTemplateElement>("template")).flatMap((template) =>
+			Array.from(template.content.querySelectorAll("form[data-highlight-local]")),
+		);
+		assert.deepEqual(
+			forms.map((form) => [
+				form.getAttribute("data-highlight-local"),
+				form.getAttribute("method"),
+				form.getAttribute("data-highlight-local-id"),
+				form.hasAttribute("action"),
+				form.getAttributeNames().filter((name) => name.startsWith("hx-")),
+			]),
+			[
+				["note", "dialog", placeholder, false, []],
+				["note", "dialog", placeholder, false, []],
+				["delete", "dialog", placeholder, false, []],
+				["delete", "dialog", placeholder, false, []],
+				["delete-note", "dialog", placeholder, false, []],
+			],
+		);
+		const row = card.querySelector<HTMLTemplateElement>("template[data-view-highlights-row]")?.content;
+		assert(row, "the card holds its row template");
+		assert.deepEqual(
+			Array.from(row.querySelectorAll(".highlights-rail__actions button"), (button) => [
+				button.className,
+				button.getAttribute("popovertarget"),
+				button.textContent?.trim(),
+			]),
+			[
+				["btn btn--neutral btn--s highlights-rail__delete-form--fallback", null, "Delete highlight"],
+				["btn btn--neutral btn--s highlights-rail__delete-trigger", `delete-highlight-${placeholder}`, "Delete highlight"],
+				["btn btn--destructive btn--s", null, "Delete note"],
+			],
+		);
+		const elsewhereRow = card.querySelector<HTMLTemplateElement>("template[data-view-highlights-elsewhere-row]")?.content;
+		assert.deepEqual(
+			Array.from(elsewhereRow?.querySelectorAll("button[popovertarget]") ?? [], (button) => button.getAttribute("popovertarget")),
+			[`delete-highlight-${placeholder}`],
+		);
+	});
+
 	it("posts both keep forms to the keep route with this article, tracked as the view highlights CTA", async () => {
 		const harness = await harnessWith({ urls: [ARTICLE_URL] });
 

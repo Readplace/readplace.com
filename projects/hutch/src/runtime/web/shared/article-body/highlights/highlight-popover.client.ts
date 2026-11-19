@@ -182,7 +182,10 @@ export function initHighlightPanels(deps: HighlightPanelDeps): HighlightPanels {
 			const submitter = Reflect.get(event, "submitter");
 			const fromChain =
 				inside({ target: event.target, selector: `#note-highlight-${chain}, #delete-highlight-${chain}` }) ||
-				inside({ target: isElement(submitter) ? submitter : null, selector: `#${PANEL_ID_PREFIX}${chain}` });
+				inside({
+					target: isElement(submitter) ? submitter : null,
+					selector: `#${PANEL_ID_PREFIX}${chain}, #note-highlight-${chain}`,
+				});
 			if (fromChain) remembered = [chain, ...neighboursOf(chain)];
 		},
 		true,

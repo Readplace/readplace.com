@@ -5,12 +5,14 @@ import {
 	type LocalHighlightState,
 	type LocalHighlightStorage,
 } from "../../shared/article-body/highlights/local-highlights";
+import { HIGHLIGHTS_RENDERED_EVENT } from "../../shared/article-body/highlights/highlights-rendered-event";
 import { wrapHighlightMarks } from "../../shared/article-body/highlights/wrap-highlight-marks";
 
 export type ViewHighlightBeacon = "kept" | "limit-reached";
 
 export interface ViewHighlightsDeps {
 	document: Document;
+	window: { readonly Event: typeof Event };
 	storage: LocalHighlightStorage;
 	now: () => Date;
 	newId: () => string;
@@ -25,7 +27,7 @@ export interface ViewHighlightsDeps {
 const CONTENT_SELECTOR = ".article-body__content";
 const CARD_SELECTOR = "[data-view-highlights]";
 const TOOLBAR_SELECTOR = "[data-highlight-toolbar]";
-const LOCAL_FORM_SELECTOR = "form[data-highlight-local]";
+const LOCAL_FORM_SELECTOR = 'form[data-highlight-local="create"]';
 const NOTE_FORM_SELECTOR = "form[data-view-highlight-note-form]";
 const ROW_SELECTOR = "[data-view-highlight-row]";
 const DELETE_SELECTOR = "[data-view-highlight-delete]";
@@ -35,6 +37,18 @@ const GET_FORM_SELECTOR = 'form[method="GET" i][action]';
 const RETURN_FIELD_SELECTOR = "[data-view-highlights-return]";
 const TOO_LONG_SELECTOR = "[data-view-highlights-too-long]";
 const KEEP_TRIGGER_SELECTOR = "[data-view-highlights-keep-trigger]";
+const LOCAL_ACTION_ATTRIBUTE = "data-highlight-local";
+const LOCAL_ACTIONS = ["note", "delete-note", "delete"] as const;
+const NOTE_TEXT_SELECTOR = "[data-highlight-note-text]";
+const NOTE_QUOTE_SELECTOR = "[data-highlight-note-quote]";
+
+type LocalAction = (typeof LOCAL_ACTIONS)[number];
+
+interface Drawn {
+	text: string | null;
+	marks: readonly Element[];
+	kept: string;
+}
 
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
@@ -59,6 +73,28 @@ function isElement(target: EventTarget | null): target is Element {
 function fieldValue(input: { form: Element; name: string }): string {
 	const field = input.form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${input.name}"]`);
 	return field === null ? "" : field.value;
+}
+
+function localActionOf(form: Element): LocalAction | undefined {
+	const value = form.getAttribute(LOCAL_ACTION_ATTRIBUTE);
+	return LOCAL_ACTIONS.find((action) => action === value);
+}
+
+function cloneFor(input: { template: HTMLTemplateElement; id: string }): Element[] {
+	const placeholder = attributeOf({ element: input.template, name: "data-highlight-placeholder" });
+	const clones = Array.from(input.template.content.children, (child) => child.cloneNode(true)).filter(isElement);
+	for (const element of clones.flatMap((clone) => [clone, ...Array.from(clone.querySelectorAll("*"))])) {
+		for (const attribute of Array.from(element.attributes)) {
+			if (attribute.value.includes(placeholder)) attribute.value = attribute.value.replaceAll(placeholder, input.id);
+		}
+	}
+	return clones;
+}
+
+function fillText(input: { roots: readonly Element[]; selector: string; text: string }): void {
+	for (const root of input.roots) {
+		for (const hook of Array.from(root.querySelectorAll(input.selector))) hook.textContent = input.text;
+	}
 }
 
 function unmark(content: Element): void {
@@ -104,6 +140,12 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 		root: card,
 		selector: "template[data-view-highlights-elsewhere-row]",
 	});
+	const surfaces = partOf({ root: card, selector: "[data-view-highlights-surfaces]" });
+	const surfaceTemplate = (name: string): HTMLTemplateElement =>
+		partOf<HTMLTemplateElement>({ root: card, selector: `template[data-view-highlights-surface="${name}"]` });
+	const textTemplates = { note: surfaceTemplate("text-note"), bare: surfaceTemplate("text") };
+	const confirmTemplates = { note: surfaceTemplate("confirm-note"), bare: surfaceTemplate("confirm") };
+	let drawn: Drawn = { text: "", marks: [], kept: "" };
 
 	const beacon = (action: ViewHighlightBeacon): void => {
 		deps.sendBeacon(`${eventUrl}?${new URLSearchParams({ action })}`);
@@ -120,10 +162,12 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 
 	const rowOf = (state: LocalHighlightState): Element => {
 		const { highlight, anchor } = state;
-		const row = partOf({ root: rowTemplate.content, selector: ROW_SELECTOR }).cloneNode(true);
-		assert(isElement(row), "a highlight row clones to an element");
+		const [row] = cloneFor({ template: rowTemplate, id: highlight.id });
+		assert(row, "a highlight row clones to an element");
 		row.setAttribute("data-view-highlight-row", highlight.id);
 		partOf({ root: row, selector: "[data-view-highlight-exact]" }).textContent = highlight.exact;
+		partOf<HTMLElement>({ root: row, selector: `[${LOCAL_ACTION_ATTRIBUTE}="delete-note"]` }).hidden =
+			highlight.note === undefined;
 		const note = partOf<HTMLElement>({ root: row, selector: "[data-view-highlight-note]" });
 		note.textContent = highlight.note ?? "";
 		note.hidden = highlight.note === undefined;
@@ -145,17 +189,40 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 	};
 
 	const elsewhereRowOf = (highlight: LocalHighlight): Element => {
-		const row = partOf({ root: elsewhereRowTemplate.content, selector: ROW_SELECTOR }).cloneNode(true);
-		assert(isElement(row), "a highlight row clones to an element");
+		const [row] = cloneFor({ template: elsewhereRowTemplate, id: highlight.id });
+		assert(row, "a highlight row clones to an element");
 		row.setAttribute("data-view-highlight-row", highlight.id);
 		partOf({ root: row, selector: "[data-view-highlight-exact]" }).textContent = highlight.exact;
 		partOf({ root: row, selector: "[data-view-highlight-source]" }).textContent = new URL(highlight.url).hostname;
 		return row;
 	};
 
-	const render = (): void => {
+	const surfacesOf = (input: { highlight: LocalHighlight; inText: boolean }): Element[] => {
+		const { highlight } = input;
+		const variant = highlight.note === undefined ? "bare" : "note";
+		const roots = [
+			...(input.inText ? cloneFor({ template: textTemplates[variant], id: highlight.id }) : []),
+			...cloneFor({ template: confirmTemplates[variant], id: highlight.id }),
+		];
+		fillText({ roots, selector: NOTE_TEXT_SELECTOR, text: highlight.note ?? "" });
+		fillText({ roots, selector: NOTE_QUOTE_SELECTOR, text: highlight.exact });
+		return roots;
+	};
+
+	const announceRendered = (): void => {
+		document.dispatchEvent(new deps.window.Event(HIGHLIGHTS_RENDERED_EVENT));
+	};
+
+	const contentOf = (): Element => {
 		const content = document.querySelector(CONTENT_SELECTOR);
 		assert(content, "a page offering local highlights renders the article");
+		return content;
+	};
+
+	const keptNow = (): string => JSON.stringify(store.all());
+
+	const render = (): void => {
+		const content = contentOf();
 		unmark(content);
 		const chunks = collectTextChunks<ChildNode>(content);
 		const { text, spans } = normaliseText(chunks);
@@ -172,12 +239,30 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 			})),
 			idPrefix,
 		});
-		list.replaceChildren(...[...states].sort(byPosition).map(rowOf));
+		const ordered = [...states].sort(byPosition);
+		list.replaceChildren(...ordered.map(rowOf));
 		const keptElsewhere = store.all().filter((highlight) => highlight.url !== url);
 		elsewhereList.replaceChildren(...keptElsewhere.map(elsewhereRowOf));
+		surfaces.replaceChildren(
+			...ordered.flatMap(({ highlight, anchor }) =>
+				surfacesOf({ highlight, inText: anchor.anchorState !== "orphaned" }),
+			),
+			...keptElsewhere.flatMap((highlight) => surfacesOf({ highlight, inText: false })),
+		);
 		elsewhere.hidden = keptElsewhere.length === 0;
 		card.hidden = states.length === 0 && keptElsewhere.length === 0;
 		fillKeepFields();
+		drawn = { text: content.textContent, marks: Array.from(content.querySelectorAll(MARK_SELECTOR)), kept: keptNow() };
+		announceRendered();
+	};
+
+	const unchanged = (): boolean => {
+		const content = contentOf();
+		return (
+			content.textContent === drawn.text &&
+			drawn.marks.every((mark) => content.contains(mark)) &&
+			keptNow() === drawn.kept
+		);
 	};
 
 	const explainTooLong = (shown: boolean): void => {
@@ -200,9 +285,7 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 	};
 
 	const keepSelection = (form: Element): void => {
-		const content = document.querySelector(CONTENT_SELECTOR);
-		assert(content, "a page offering local highlights renders the article");
-		const { text } = normaliseText(collectTextChunks<Node>(content));
+		const { text } = normaliseText(collectTextChunks<Node>(contentOf()));
 		const start = Number(fieldValue({ form, name: "start" }));
 		const end = Number(fieldValue({ form, name: "end" }));
 		closeDialogOf(form);
@@ -228,18 +311,31 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 		}
 	};
 
-	const saveNote = (form: Element): void => {
-		const row = form.closest(ROW_SELECTOR);
-		assert(row, "a note form sits in its highlight's row");
-		const outcome = store.setNote({
-			id: attributeOf({ element: row, name: "data-view-highlight-row" }),
-			note: fieldValue({ form, name: "note" }),
-		});
-		if (outcome.status === "too-long") {
+	const setNote = (input: { id: string; note: string }): void => {
+		if (store.setNote(input).status === "too-long") {
 			openKeep("too-long");
+			announceRendered();
 			return;
 		}
 		render();
+	};
+
+	const saveNote = (form: Element): void => {
+		const row = form.closest(ROW_SELECTOR);
+		assert(row, "a note form sits in its highlight's row");
+		setNote({ id: attributeOf({ element: row, name: "data-view-highlight-row" }), note: fieldValue({ form, name: "note" }) });
+	};
+
+	const runLocal = (input: { form: Element; action: LocalAction }): void => {
+		const { form, action } = input;
+		closeDialogOf(form);
+		const id = attributeOf({ element: form, name: "data-highlight-local-id" });
+		if (action === "delete") {
+			store.remove(id);
+			render();
+			return;
+		}
+		setNote({ id, note: action === "note" ? fieldValue({ form, name: "note" }) : "" });
 	};
 
 	const handOver = (target: URL): boolean => {
@@ -281,6 +377,15 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 		{ capture: true },
 	);
 
+	document.addEventListener("submit", (event) => {
+		const form = event.target;
+		if (!isElement(form)) return;
+		const action = localActionOf(form);
+		if (action === undefined) return;
+		event.preventDefault();
+		runLocal({ form, action });
+	});
+
 	document.addEventListener(
 		"click",
 		(event) => {
@@ -303,7 +408,9 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 		render();
 	});
 
-	document.addEventListener("htmx:afterSettle", render);
+	document.addEventListener("htmx:afterSettle", () => {
+		if (!unchanged()) render();
+	});
 
 	render();
 }

@@ -8,6 +8,7 @@ import { renderReaderReady } from "../reader-slot/reader-ready.component";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../reader-slot/section-pages";
 import { initHighlightPanels } from "./highlight-popover.client";
 import { HOVER_GRACE_MS, HOVER_SHOW_MS, initHighlightPreviews } from "./highlight-preview.client";
+import { HIGHLIGHTS_RENDERED_EVENT } from "./highlights-rendered-event";
 import type { PassageRect } from "./place-clear-of-passage";
 
 const READER_SECTION = { requested: undefined, readerPath: "/queue/abc/view", thresholdBytes: READER_SECTION_PAGE_THRESHOLD_BYTES };
@@ -309,6 +310,20 @@ describe("initHighlightPreviews", () => {
 			h.doc.dispatchEvent(new h.window.Event("htmx:afterSettle", { bubbles: true }));
 
 			expect(tabStopIds(h)).toEqual([OTHER]);
+		});
+
+		it("applies the tab stops and returns focus once highlights are rendered in the browser", () => {
+			const h = harness({ highlights: NOTED_AND_PLAIN });
+			firstSegment(h, NOTED).focus();
+			h.doc.dispatchEvent(new h.window.Event("htmx:beforeSwap", { bubbles: true }));
+			const main = h.doc.querySelector("main");
+			assert(main);
+			main.innerHTML = readerHtml({ highlights: NOTED_AND_PLAIN });
+
+			h.doc.dispatchEvent(new h.window.Event(HIGHLIGHTS_RENDERED_EVENT));
+
+			expect(firstSegment(h, NOTED).getAttribute("aria-describedby")).toBe(`preview-highlight-${NOTED}`);
+			expect(h.doc.activeElement).toBe(firstSegment(h, NOTED));
 		});
 
 		it("skips the segments inside a link and gives the tab stop to the first one outside it", () => {

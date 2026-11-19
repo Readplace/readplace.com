@@ -181,7 +181,7 @@ describe("renderLocalHighlightToolbar", () => {
 			[],
 		);
 		assert.equal(form.getAttribute("method"), "dialog");
-		assert.equal(form.hasAttribute("data-highlight-local"), true);
+		assert.equal(form.getAttribute("data-highlight-local"), "create");
 	});
 
 	it("keeps the note form in the browser too, still carrying the passage fields and the note", () => {
@@ -193,7 +193,7 @@ describe("renderLocalHighlightToolbar", () => {
 			[],
 		);
 		assert.equal(form.getAttribute("method"), "dialog");
-		assert.equal(form.hasAttribute("data-highlight-local"), true);
+		assert.equal(form.getAttribute("data-highlight-local"), "create");
 		const editor = doc().getElementById("note-highlight-dialog");
 		assert.equal(editor?.getAttribute("data-highlight-note-editor"), "");
 		assert.equal(editor?.querySelector("[data-highlight-note-quote]")?.textContent, "");

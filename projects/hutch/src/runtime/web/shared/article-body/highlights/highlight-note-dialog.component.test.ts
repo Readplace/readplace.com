@@ -10,6 +10,7 @@ import {
 	renderHighlightNoteDialog,
 	renderHighlightNoteEditDialog,
 	renderHighlightNoteFallbackForm,
+	renderLocalHighlightNoteDialog,
 } from "./highlight-note-dialog.component";
 
 const HIGHLIGHT_ID = HighlightIdSchema.parse(
@@ -158,7 +159,7 @@ describe("renderHighlightNoteEditDialog", () => {
 			renderHighlightNoteEditDialog({
 				highlightId: HIGHLIGHT_ID,
 				quote: QUOTE,
-				scope: WEB_SCOPE,
+				target: { kind: "server", scope: WEB_SCOPE },
 			}),
 		);
 		const popover = popoverOf(doc);
@@ -184,7 +185,7 @@ describe("renderHighlightNoteEditDialog", () => {
 				renderHighlightNoteEditDialog({
 					highlightId: HIGHLIGHT_ID,
 					quote: QUOTE,
-					scope: WEB_SCOPE,
+					target: { kind: "server", scope: WEB_SCOPE },
 				}),
 			),
 		);
@@ -212,7 +213,7 @@ describe("renderHighlightNoteEditDialog", () => {
 				highlightId: HIGHLIGHT_ID,
 				quote: QUOTE,
 				note: "my thought",
-				scope: WEB_SCOPE,
+				target: { kind: "server", scope: WEB_SCOPE },
 			}),
 		);
 		const form = doc.querySelector("form");
@@ -306,7 +307,7 @@ describe("note dialogs in the app surface", () => {
 			renderHighlightNoteEditDialog({
 				highlightId: HIGHLIGHT_ID,
 				quote: QUOTE,
-				scope: APP_SCOPE,
+				target: { kind: "server", scope: APP_SCOPE },
 			}),
 			renderHighlightNoteFallbackForm({
 				highlightId: HIGHLIGHT_ID,
@@ -337,7 +338,7 @@ describe("Delete note", () => {
 		const doc = parse(
 			renderHighlightNoteDeleteForm({
 				highlightId: HIGHLIGHT_ID,
-				scope: WEB_SCOPE,
+				target: { kind: "server", scope: WEB_SCOPE },
 			}),
 		);
 
@@ -375,7 +376,7 @@ describe("Delete note", () => {
 		const form = parse(
 			renderHighlightNoteDeleteForm({
 				highlightId: HIGHLIGHT_ID,
-				scope: APP_SCOPE,
+				target: { kind: "server", scope: APP_SCOPE },
 			}),
 		).querySelector("form");
 
@@ -391,7 +392,7 @@ describe("Delete note", () => {
 				highlightId: HIGHLIGHT_ID,
 				quote: QUOTE,
 				note: "kept",
-				scope: WEB_SCOPE,
+				target: { kind: "server", scope: WEB_SCOPE },
 			}),
 		);
 
@@ -437,7 +438,7 @@ describe("Delete note", () => {
 			renderHighlightNoteEditDialog({
 				highlightId: HIGHLIGHT_ID,
 				quote: QUOTE,
-				scope: WEB_SCOPE,
+				target: { kind: "server", scope: WEB_SCOPE },
 			}),
 		);
 
@@ -465,5 +466,54 @@ describe("Delete note", () => {
 				),
 			),
 		).toEqual(["highlight-note-fallback-save"]);
+	});
+});
+
+describe("Local forms", () => {
+	it("deletes a note in the browser through a dialog form naming the highlight, keeping the row's form id", () => {
+		const form = parse(
+			renderHighlightNoteDeleteForm({ highlightId: HIGHLIGHT_ID, target: { kind: "local" } }),
+		).querySelector("form");
+		assert(form);
+
+		expect(form.id).toBe(`delete-note-highlight-${HIGHLIGHT_ID}`);
+		expect(form.getAttribute("method")).toBe("dialog");
+		expect(form.getAttribute("data-highlight-local")).toBe("delete-note");
+		expect(form.getAttribute("data-highlight-local-id")).toBe(HIGHLIGHT_ID);
+		expect(form.hasAttribute("action")).toBe(false);
+		expect(form.hasAttribute("hx-boost")).toBe(false);
+		expect(form.querySelector('[data-test-action="highlight-note-delete"]')?.textContent).toBe("Delete note");
+	});
+
+	it("edits a highlight's note in the browser through a dialog form naming the highlight", () => {
+		const doc = parse(
+			renderHighlightNoteEditDialog({
+				highlightId: HIGHLIGHT_ID,
+				note: "Kept note",
+				quote: "the passage",
+				target: { kind: "local" },
+			}),
+		);
+		const editor = doc.getElementById(highlightNoteEditPopoverId(HIGHLIGHT_ID));
+		const form = editor?.querySelector("form");
+		assert(form);
+
+		expect(form.getAttribute("method")).toBe("dialog");
+		expect(form.getAttribute("data-highlight-local")).toBe("note");
+		expect(form.getAttribute("data-highlight-local-id")).toBe(HIGHLIGHT_ID);
+		expect(form.hasAttribute("action")).toBe(false);
+		expect(form.hasAttribute("hx-boost")).toBe(false);
+		expect(form.querySelector("[data-highlight-note-text]")?.textContent).toBe("Kept note");
+		expect(editor?.querySelector("[data-highlight-note-quote]")?.textContent).toBe("the passage");
+		expect(
+			form.querySelector('[data-test-action="highlight-note-delete"]')?.getAttribute("form"),
+		).toBe(`delete-note-highlight-${HIGHLIGHT_ID}`);
+	});
+
+	it("names the selection's create form as a create without a highlight id", () => {
+		const form = parse(renderLocalHighlightNoteDialog({ hiddenFields: [] })).querySelector("form");
+
+		expect(form?.getAttribute("data-highlight-local")).toBe("create");
+		expect(form?.hasAttribute("data-highlight-local-id")).toBe(false);
 	});
 });

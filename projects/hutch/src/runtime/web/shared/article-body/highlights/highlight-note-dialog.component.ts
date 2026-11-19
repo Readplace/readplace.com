@@ -9,6 +9,7 @@ import {
 } from "../../../pages/readlist/readlist.url";
 import {
 	HIGHLIGHT_NOTE_FIELD,
+	type HighlightNoteFormLocal,
 	type HighlightNoteRefusal,
 	renderHighlightNoteForm,
 } from "./highlight-note-form.component";
@@ -29,6 +30,10 @@ const DELETE_FORM_TEMPLATE = `<form class="highlight-note__delete-form" id="{{id
 	<button class="btn btn--destructive btn--s" type="submit" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>
 </form>`;
 
+const LOCAL_DELETE_FORM_TEMPLATE = `<form class="highlight-note__delete-form" id="{{id}}" method="dialog" data-highlight-local="delete-note" data-highlight-local-id="{{highlightId}}">
+	<button class="btn btn--destructive btn--s" type="submit" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>
+</form>`;
+
 const DELETE_TRIGGER_TEMPLATES = {
 	dialog: `<button class="btn btn--destructive btn--s" type="submit" form="{{formId}}" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>`,
 	panel: `<button class="menu__item" type="submit" form="{{formId}}" data-test-action="highlight-panel-note-delete">{{icon "x"}}{{t "articleBody.highlightNote.delete"}}</button>`,
@@ -39,6 +44,8 @@ export interface HighlightFormScope {
 	readlist: LinkParams;
 	surface: LinkParams;
 }
+
+export type HighlightFormTarget = { kind: "server"; scope: HighlightFormScope } | { kind: "local" };
 
 export function highlightFormUrl(input: {
 	scope: HighlightFormScope;
@@ -91,12 +98,15 @@ function highlightNoteDeleteFormId(highlightId: HighlightId): string {
 
 export function renderHighlightNoteDeleteForm(input: {
 	highlightId: HighlightId;
-	scope: HighlightFormScope;
+	target: HighlightFormTarget;
 }): string {
+	const { highlightId, target } = input;
+	const id = highlightNoteDeleteFormId(highlightId);
+	if (target.kind === "local") return render(LOCAL_DELETE_FORM_TEMPLATE, { id, highlightId });
 	return render(DELETE_FORM_TEMPLATE, {
-		id: highlightNoteDeleteFormId(input.highlightId),
-		action: highlightNoteUrl({ ...input, content: "delete-note" }),
-		pushesHistory: pushesHistory(input.scope),
+		id,
+		action: highlightNoteUrl({ highlightId, scope: target.scope, content: "delete-note" }),
+		pushesHistory: pushesHistory(target.scope),
 		field: HIGHLIGHT_NOTE_FIELD,
 	});
 }
@@ -129,7 +139,7 @@ export function renderHighlightNoteCreateForm(input: {
 		inputId: "note-highlight-input",
 		answersInPlace: true,
 		pushesHistory: true,
-		local: false,
+		local: undefined,
 	});
 }
 
@@ -159,11 +169,27 @@ export function renderHighlightNoteDialog(input: {
 	});
 }
 
+function editFormTarget(input: { highlightId: HighlightId; target: HighlightFormTarget }): {
+	action: string;
+	pushesHistory: boolean;
+	local: HighlightNoteFormLocal | undefined;
+} {
+	const { highlightId, target } = input;
+	if (target.kind === "local") {
+		return { action: "", pushesHistory: false, local: { action: "note", highlightId } };
+	}
+	return {
+		action: highlightNoteUrl({ highlightId, scope: target.scope, content: "edit-note" }),
+		pushesHistory: pushesHistory(target.scope),
+		local: undefined,
+	};
+}
+
 export function renderHighlightNoteEditDialog(input: {
 	highlightId: HighlightId;
 	note?: string;
 	quote: string;
-	scope: HighlightFormScope;
+	target: HighlightFormTarget;
 }): string {
 	const popoverId = highlightNoteEditPopoverId(input.highlightId);
 	return renderHighlightNoteEditor({
@@ -177,13 +203,11 @@ export function renderHighlightNoteEditDialog(input: {
 			popoverId,
 			key: "highlight-note-edit",
 			inputId: `${popoverId}-input`,
-			action: highlightNoteUrl({ ...input, content: "edit-note" }),
+			...editFormTarget(input),
 			value: input.note ?? "",
 			hiddenFields: [],
 			answersInPlace: false,
-			pushesHistory: pushesHistory(input.scope),
 			autofocus: true,
-			local: false,
 			deleteTriggerHtml:
 				input.note === undefined
 					? undefined
@@ -207,7 +231,7 @@ export function renderHighlightNoteFallbackForm(input: {
 		answersInPlace: false,
 		pushesHistory: pushesHistory(input.scope),
 		autofocus: input.open,
-		local: false,
+		local: undefined,
 	});
 }
 
@@ -231,7 +255,7 @@ export function renderLocalHighlightNoteDialog(input: {
 			answersInPlace: false,
 			pushesHistory: false,
 			autofocus: true,
-			local: true,
+			local: { action: "create" },
 		}),
 	});
 }

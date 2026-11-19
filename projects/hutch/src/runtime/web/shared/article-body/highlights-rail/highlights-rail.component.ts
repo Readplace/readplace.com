@@ -12,6 +12,7 @@ import { hutchReader } from "@packages/translations/hutch-reader";
 import { render, renderConfirmPopover } from "@packages/web-shell";
 import {
 	type HighlightFormScope,
+	type HighlightFormTarget,
 	highlightFormUrl,
 	highlightNoteEditPopoverId,
 	pushesHistory,
@@ -29,6 +30,10 @@ const HIGHLIGHTS_RAIL_TEMPLATE = readFileSync(
 );
 
 const DELETE_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="POST" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="find button">
+	<button class="btn btn--primary" type="submit" data-test-action="highlight-delete-confirm" autofocus>{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
+</form>`;
+
+const LOCAL_DELETE_ACTIONS_TEMPLATE = `<form class="confirm-popover__actions confirm-popover__buttons" method="dialog" data-highlight-local="delete" data-highlight-local-id="{{highlightId}}">
 	<button class="btn btn--primary" type="submit" data-test-action="highlight-delete-confirm" autofocus>{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
 </form>`;
 
@@ -73,7 +78,7 @@ export function storedHighlightsRailRows(
 	}));
 }
 
-function deletePopoverId(highlightId: HighlightId): string {
+export function highlightDeletePopoverId(highlightId: HighlightId): string {
 	return `delete-highlight-${highlightId}`;
 }
 
@@ -84,6 +89,43 @@ function byOrder(a: HighlightsRailRow, b: HighlightsRailRow): number {
 		: a.highlight.highlightId.localeCompare(b.highlight.highlightId);
 }
 
+function highlightDeleteUrl(input: { highlightId: HighlightId; scope: HighlightFormScope }): string {
+	return highlightFormUrl({
+		scope: input.scope,
+		path: `/highlights/${input.highlightId}/delete`,
+		source: "highlights-rail",
+		content: "delete-highlight",
+	});
+}
+
+function deleteConfirmActions(input: { highlightId: HighlightId; target: HighlightFormTarget }): string {
+	const { highlightId, target } = input;
+	if (target.kind === "local") return render(LOCAL_DELETE_ACTIONS_TEMPLATE, { highlightId });
+	return render(DELETE_ACTIONS_TEMPLATE, {
+		url: highlightDeleteUrl({ highlightId, scope: target.scope }),
+		pushesHistory: pushesHistory(target.scope),
+	});
+}
+
+export function renderHighlightDeleteConfirm(input: {
+	highlightId: HighlightId;
+	note: string | undefined;
+	target: HighlightFormTarget;
+}): string {
+	return renderConfirmPopover({
+		id: highlightDeletePopoverId(input.highlightId),
+		key: "highlight-delete",
+		subject: input.highlightId,
+		close: {},
+		title: t("articleBody.highlightsRail.deleteConfirm.title"),
+		body:
+			input.note === undefined
+				? t("articleBody.highlightsRail.deleteConfirm.body")
+				: t("articleBody.highlightsRail.deleteConfirm.bodyWithNote"),
+		actionsHtml: deleteConfirmActions(input),
+	});
+}
+
 function editView(input: {
 	highlight: Highlight;
 	quote: string;
@@ -91,50 +133,28 @@ function editView(input: {
 	noteOpen: boolean;
 }) {
 	const { highlight } = input;
-	const popoverId = deletePopoverId(highlight.highlightId);
-	const deleteUrl = highlightFormUrl({
-		scope: input.scope,
-		path: `/highlights/${highlight.highlightId}/delete`,
-		source: "highlights-rail",
-		content: "delete-highlight",
-	});
-	const pushes = pushesHistory(input.scope);
+	const target: HighlightFormTarget = { kind: "server", scope: input.scope };
 	const noteInput = {
 		highlightId: highlight.highlightId,
 		note: highlight.note,
-		scope: input.scope,
 	};
 	return {
-		deleteUrl,
-		pushesHistory: pushes,
-		popoverId,
+		deleteUrl: highlightDeleteUrl({ highlightId: highlight.highlightId, scope: input.scope }),
+		pushesHistory: pushesHistory(input.scope),
+		popoverId: highlightDeletePopoverId(highlight.highlightId),
 		noteLabel:
 			highlight.note === undefined
 				? t("articleBody.highlightsRail.addNote")
 				: t("articleBody.highlightsRail.editNote"),
 		notePopoverId: highlightNoteEditPopoverId(highlight.highlightId),
-		noteDialogHtml: renderHighlightNoteEditDialog({ ...noteInput, quote: input.quote }),
+		noteDialogHtml: renderHighlightNoteEditDialog({ ...noteInput, quote: input.quote, target }),
 		noteOpen: input.noteOpen,
-		noteFallbackHtml: renderHighlightNoteFallbackForm({ ...noteInput, open: input.noteOpen }),
+		noteFallbackHtml: renderHighlightNoteFallbackForm({ ...noteInput, scope: input.scope, open: input.noteOpen }),
 		noteDeleteHtml:
 			highlight.note === undefined
 				? undefined
-				: renderHighlightNoteDeleteForm(noteInput),
-		popoverHtml: renderConfirmPopover({
-			id: popoverId,
-			key: "highlight-delete",
-			subject: highlight.highlightId,
-			close: {},
-			title: t("articleBody.highlightsRail.deleteConfirm.title"),
-			body:
-				highlight.note === undefined
-					? t("articleBody.highlightsRail.deleteConfirm.body")
-					: t("articleBody.highlightsRail.deleteConfirm.bodyWithNote"),
-			actionsHtml: render(DELETE_ACTIONS_TEMPLATE, {
-				url: deleteUrl,
-				pushesHistory: pushes,
-			}),
-		}),
+				: renderHighlightNoteDeleteForm({ highlightId: highlight.highlightId, target }),
+		popoverHtml: renderHighlightDeleteConfirm({ ...noteInput, target }),
 	};
 }
 
