@@ -25,11 +25,15 @@ import {
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { HighlightCreatedEvent } from "@packages/web-analytics";
+import { strFromU8, unzipSync } from "fflate";
 import { JSDOM } from "jsdom";
+import { DOMParser } from "linkedom";
 import request from "supertest";
 import { initReanchorHighlightsHandler } from "../../../highlights/reanchor-highlights-handler";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
+import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
+import { toExportHighlights } from "../export/build-export-highlight";
 
 const useApp = useTestServer();
 
@@ -1296,14 +1300,14 @@ const SECOND_PARAGRAPH_EDITED =
 async function runReanchorHandler(
 	fixture: TestAppFixture,
 	url: string,
+	candidateBodies: ReadonlyMap<string, string> = new Map(),
 ): Promise<void> {
 	const publishEvent: PublishEvent = async () => {};
 	const handler = initReanchorHighlightsHandler({
 		listHighlightsOfArticle: fixture.highlights.listHighlightsOfArticle,
 		readCanonicalSnapshot: fixture.articleStore.readCanonicalSnapshot,
 		readArticleContent: fixture.articleStore.readArticleContent,
-		readCandidateBody: async () => undefined,
-		findItemOwner: fixture.articleStore.findItemOwner,
+		readCandidateBody: async ({ candidateId }) => candidateBodies.get(candidateId),
 		writeHighlightAnchor: fixture.highlights.writeHighlightAnchor,
 		publishEvent,
 		appOrigin: TEST_APP_ORIGIN,
@@ -1825,5 +1829,251 @@ describe("Add note without the Popover API (POST /queue/:id/highlights with afte
 		);
 		expect(urls.filter((url) => url.includes(`note=${id}`))).toEqual([]);
 		expect(fallbackOf(page, id).open).toBe(true);
+	});
+});
+
+function jumpTargetsOf(html: string): string[] {
+	return Array.from(
+		doc(html).querySelectorAll('[data-test-action="highlight-jump"]'),
+		(jump) => jump.getAttribute("data-highlight-jump") ?? "",
+	);
+}
+
+function markedIdsOf(html: string): string[] {
+	return [
+		...new Set(
+			Array.from(
+				doc(html).querySelectorAll("mark[data-highlight-id]"),
+				(mark) => mark.getAttribute("data-highlight-id") ?? "",
+			),
+		),
+	];
+}
+
+function paragraphs(texts: readonly string[]): string {
+	return texts.map((text) => `<p>${text}</p>`).join("");
+}
+
+function railOf(html: string, id: string) {
+	const row = doc(html).querySelector(`[data-test-highlight-row="${id}"]`);
+	assert(row, "the rail must list the highlight");
+	return {
+		state: row.getAttribute("data-test-highlight-state"),
+		chip: (row.textContent ?? "").includes("Not found in this version"),
+		marks: marksOf(html),
+		jumps: jumpTargetsOf(html),
+		marked: markedIdsOf(html),
+	};
+}
+
+const INTRO = "Intro here.";
+const OUTRO = "Outro here.";
+const CAPTION = "Table 1 stacked caption";
+const CLOSING = "A closing line.";
+const BRIDGE_BEFORE =
+	"Built in 1900, it is the most admired structure in the city. Tourists come from far away to see it.";
+const BRIDGE_EDITED =
+	"Built in 1900, it is the most admired structure in the whole city. It draws crowds.";
+const BRIDGE_ECHO =
+	"Built in 1900, it is the most admired structure in the whole city. Tourists come from far away to see it.";
+
+async function seedCanonical(
+	fixture: TestAppFixture,
+	input: { url: string; texts: readonly string[]; hash: string; candidate: string },
+): Promise<string> {
+	const content = paragraphs(input.texts);
+	await fixture.articleStore.replaceCanonicalContent({
+		url: input.url,
+		content,
+		canonicalContentHash: input.hash,
+		canonicalCandidateId: CandidateIdSchema.parse(input.candidate),
+	});
+	return content;
+}
+
+async function basisRow(url: string) {
+	const fixture = parsedFixture();
+	const harness = useApp(fixture);
+	const { agent, articleId } = await saveArticle(harness, url);
+	const v0 = await seedCanonical(fixture, {
+		url,
+		texts: [INTRO, BRIDGE_BEFORE, OUTRO],
+		hash: "h0",
+		candidate: "candidate-v0",
+	});
+	const id = await createHighlight(agent, {
+		articleId,
+		exact: "most admired structure in the city",
+	});
+	await seedCanonical(fixture, {
+		url,
+		texts: [INTRO, BRIDGE_EDITED, OUTRO, BRIDGE_ECHO],
+		hash: "h1",
+		candidate: "candidate-v1",
+	});
+	await runReanchorHandler(fixture, url, new Map([["candidate-v0", v0]]));
+	const [{ highlight }] = await fixture.highlights.listHighlightsOfArticle(url);
+	assert(highlight.basisCandidateId !== undefined, "the diff must record a basis");
+	return { fixture, harness, agent, articleId, id };
+}
+
+describe("Highlights in the rail and the body agree on what is marked", () => {
+	it("RT1: lists an orphaned row at its own hash with the chip, no mark and no Jump", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/highlight-rt1-orphaned";
+		const { agent, articleId } = await saveArticle(harness, url);
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "readability parser",
+		});
+		await fixture.articleStore.replaceCanonicalContent({
+			url,
+			content: SECOND_PARAGRAPH,
+			canonicalContentHash: "rt1-hash",
+			canonicalCandidateId: CandidateIdSchema.parse("rt1-candidate"),
+		});
+		await runReanchorHandler(fixture, url);
+
+		const rail = railOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(rail).toEqual({ state: "orphaned", chip: true, marks: [], jumps: [], marked: [] });
+	});
+
+	it("RT2: marks and links a basis row at a newer hash whose passage is untouched, with no chip", async () => {
+		const url = "https://example.com/highlight-rt2-basis-untouched";
+		const { fixture, agent, articleId, id } = await basisRow(url);
+		await seedCanonical(fixture, {
+			url,
+			texts: [INTRO, BRIDGE_EDITED, OUTRO, BRIDGE_ECHO, CLOSING],
+			hash: "h2",
+			candidate: "candidate-v2",
+		});
+
+		const rail = railOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(rail.chip).toBe(false);
+		expect(rail.marks).toEqual(["most admired structure in the whole city"]);
+		expect(rail.marked).toEqual([id]);
+		expect(rail.jumps).toEqual(rail.marked);
+	});
+
+	it("RT3: neither marks, links nor chips a basis row at a newer hash whose passage was deleted", async () => {
+		const url = "https://example.com/highlight-rt3-basis-deleted";
+		const { fixture, agent, articleId, id } = await basisRow(url);
+		await seedCanonical(fixture, {
+			url,
+			texts: [INTRO, OUTRO, BRIDGE_ECHO, CLOSING],
+			hash: "h2",
+			candidate: "candidate-v2",
+		});
+
+		const rail = railOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(rail).toMatchObject({ chip: false, marks: [], jumps: [], marked: [] });
+	});
+
+	it("RT4 (RC1.2): neither marks nor links a basis row once its own hash renders a caption above the passage", async () => {
+		const url = "https://example.com/highlight-rt4-rc1-2";
+		const { fixture, agent, articleId, id } = await basisRow(url);
+		await fixture.articleStore.writeContent({
+			url,
+			content: paragraphs([INTRO, CAPTION, BRIDGE_EDITED, OUTRO, BRIDGE_ECHO]),
+		});
+
+		const rail = railOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(rail).toMatchObject({ marks: [], jumps: [], marked: [] });
+	});
+
+	it("RT6: shows an edited row's one state in the rail, Markdown, EPUB, MCP and the export", async () => {
+		const url = "https://example.com/highlight-rt6-one-state";
+		const { fixture, harness, agent, articleId, id } = await basisRow(url);
+		const expected = {
+			state: "moved",
+			quote: "most admired structure in the whole city",
+			highlighted: "most admired structure in the city",
+		};
+		const line = `${expected.quote} (edited in the current version; you highlighted “${expected.highlighted}”)`;
+
+		const page = (await agent.get(viewPath(articleId))).text;
+		const row = doc(page).querySelector(`[data-test-highlight-row="${id}"]`);
+		const markdown = (await agent.get(viewPath(articleId)).set("Accept", "text/markdown")).text;
+		const epub = await agent.get(`${viewPath(articleId)}?format=epub`).responseType("blob");
+		const chapter = new DOMParser().parseFromString(
+			strFromU8(unzipSync(new Uint8Array(epub.body))["OEBPS/content.xhtml"]),
+			"text/html",
+		);
+		const owner = await harness.auth.findUserByEmail("test@example.com");
+		assert(owner, "the logged-in user must exist");
+		const mcp = await request(harness.server)
+			.post("/mcp")
+			.set("Authorization", `Bearer ${await saveAccessTokenForUser(harness, owner.userId)}`)
+			.set("Content-Type", "application/json")
+			.send(
+				JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "tools/call",
+					params: { name: "list_highlights", arguments: { id: articleId } },
+				}),
+			);
+		const snapshot = await fixture.articleStore.readCanonicalSnapshot(url);
+		const [{ highlight }] = await fixture.highlights.listHighlightsOfArticle(url);
+		const [exported] = toExportHighlights({
+			highlights: [highlight],
+			contentHash: snapshot?.canonicalContentHash,
+		});
+
+		expect({
+			state: row?.getAttribute("data-test-highlight-state"),
+			quote: row?.querySelector(".highlights-rail__excerpt")?.textContent,
+			edited: row?.querySelector("[data-test-highlight-edited]")?.textContent,
+		}).toEqual({
+			state: expected.state,
+			quote: expected.quote,
+			edited: `Edited in this version. You highlighted: “${expected.highlighted}”`,
+		});
+		expect(markedIdsOf(page)).toEqual([id]);
+		expect(jumpTargetsOf(page)).toEqual(markedIdsOf(page));
+		expect(markdown.endsWith(`## Highlights\n\n> ${line}\n`)).toBe(true);
+		expect(chapter.querySelector(`mark[data-highlight-id="${id}"]`)?.textContent).toBe(expected.quote);
+		expect(Array.from(chapter.querySelectorAll("blockquote"), (quote) => quote.textContent).at(-1)).toBe(line);
+		expect(mcp.body.result.structuredContent.highlights).toEqual([expect.objectContaining({ id, ...expected })]);
+		expect(exported).toMatchObject(expected);
+	});
+
+	it("RT5 (H2a): moves a row with no basis onto the edited sentence's whole words and links it", async () => {
+		const fixture = parsedFixture();
+		const harness = useApp(fixture);
+		const url = "https://example.com/highlight-rt5-h2a";
+		const { agent, articleId } = await saveArticle(harness, url);
+		await seedCanonical(fixture, {
+			url,
+			texts: ["Yesterday the quick brown fox jumps over the lazy dog near the old river bank."],
+			hash: "h0",
+			candidate: "candidate-v0",
+		});
+		const id = await createHighlight(agent, {
+			articleId,
+			exact: "quick brown fox jumps over the lazy dog",
+		});
+		await seedCanonical(fixture, {
+			url,
+			texts: ["Yesterday the quick brown fox leaps over the lazy dog near the old river bank."],
+			hash: "h1",
+			candidate: "candidate-v1",
+		});
+		await runReanchorHandler(fixture, url);
+
+		const rail = railOf((await agent.get(viewPath(articleId))).text, id);
+
+		expect(rail).toEqual({
+			state: "moved",
+			chip: false,
+			marks: ["quick brown fox leaps over the lazy dog"],
+			jumps: [id],
+			marked: [id],
+		});
 	});
 });
