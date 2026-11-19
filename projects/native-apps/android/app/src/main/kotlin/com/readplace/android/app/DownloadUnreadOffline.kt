@@ -1,6 +1,7 @@
 package com.readplace.android.app
 
 import com.readplace.android.core.OfflineDownloadManifest
+import com.readplace.android.core.OfflineDownloadRun
 import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReaderPrefetching
@@ -22,18 +23,17 @@ class DownloadUnreadOffline(
 	private val manifest: OfflineDownloadManifest,
 	private val readerCopy: OfflineReaderCopy,
 ) {
-	suspend fun run(request: OfflineDownloadRequest, report: (OfflineDownloadProgress) -> Unit): Unit =
+	suspend fun run(request: OfflineDownloadRequest, report: (OfflineDownloadProgress) -> Unit): OfflineDownloadOutcome {
+		val tally = Tally(report, manifest)
 		coroutineScope {
 			val generation = snapshot.generation
-			val tally = Tally(report)
 			val session = Session(api, request.sessionAction)
 			val queue = Channel<QueuedArticle>(Channel.UNLIMITED)
 			manifest.load()
 			repeat(CONCURRENT_ARTICLES) {
 				launch {
 					for (queued in queue) {
-						if (!isStored(queued)) store(queued, session)
-						tally.stored()
+						if (isStored(queued) || store(queued, session)) tally.stored() else tally.refused()
 					}
 				}
 			}
@@ -43,15 +43,19 @@ class DownloadUnreadOffline(
 				queue.close()
 			}
 		}
+		manifest.forgetRun()
+		return tally.outcome()
+	}
 
 	private suspend fun isStored(queued: QueuedArticle): Boolean =
 		manifest.versions.value.isCurrent(articleId = queued.id, contentVersion = queued.contentVersion) &&
 			readerCopy.isShowable(queued.readerUrl)
 
-	private suspend fun store(queued: QueuedArticle, session: Session) {
-		if (!prefetcher.prefetch(queued.readerUrl, session.cookies())) return
+	private suspend fun store(queued: QueuedArticle, session: Session): Boolean {
+		if (!prefetcher.prefetch(queued.readerUrl, session.cookies())) return false
 		readerCopy.record(queued.readerUrl)
 		queued.contentVersion?.let { manifest.recordDownloaded(articleId = queued.id, contentVersion = it) }
+		return true
 	}
 
 	private suspend fun walk(startHref: String, generation: Long, queue: SendChannel<QueuedArticle>, tally: Tally) {
@@ -80,21 +84,32 @@ class DownloadUnreadOffline(
 
 	private data class QueuedArticle(val id: String, val contentVersion: String?, val readerUrl: String)
 
-	private class Tally(private val report: (OfflineDownloadProgress) -> Unit) {
+	private class Tally(
+		private val report: (OfflineDownloadProgress) -> Unit,
+		private val manifest: OfflineDownloadManifest,
+	) {
 		private val lock = Mutex()
 		private var completed = 0
 		private var total = 0
+		private var failed = 0
 
-		suspend fun queued(count: Int) =
-			lock.withLock {
-				total += count
-				report(OfflineDownloadProgress(completed = completed, total = total))
+		suspend fun queued(count: Int) = change { total += count }
+
+		suspend fun stored() = change { completed += 1 }
+
+		suspend fun refused() =
+			change {
+				completed += 1
+				failed += 1
 			}
 
-		suspend fun stored() =
+		fun outcome(): OfflineDownloadOutcome = OfflineDownloadOutcome.of(failed = failed, total = total)
+
+		private suspend fun change(update: () -> Unit) =
 			lock.withLock {
-				completed += 1
+				update()
 				report(OfflineDownloadProgress(completed = completed, total = total))
+				manifest.recordRun(OfflineDownloadRun(total = total, completed = completed))
 			}
 	}
 

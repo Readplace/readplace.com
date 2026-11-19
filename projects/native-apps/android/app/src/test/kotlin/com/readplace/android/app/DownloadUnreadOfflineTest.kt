@@ -12,6 +12,7 @@ import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.OfflineCopy
 import com.readplace.android.core.OfflineDownloadManifest
+import com.readplace.android.core.OfflineDownloadRun
 import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ReaderPrefetching
@@ -31,6 +32,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import okhttp3.Cookie
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
@@ -490,6 +492,94 @@ class DownloadUnreadOfflineTest {
 		assertEquals(
 			listOf(listOf(readerUrl("a1")), DownloadedVersions(emptyMap())),
 			listOf(started, manifest.versions.value),
+		)
+	}
+
+	@Test
+	fun `a run whose prefetch was refused counts it as not stored`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1"), Fixtures.article("a2")))))
+		val reports = mutableListOf<OfflineDownloadProgress>()
+
+		val outcome = download(RecordingPrefetcher(answer = { it != readerUrl("a2") })).run(START) { reports += it }
+
+		assertEquals(
+			listOf(OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 2), OfflineDownloadProgress(completed = 2, total = 2)),
+			listOf(outcome, reports.last()),
+		)
+	}
+
+	@Test
+	fun `a run that stores every article forgets its record`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1"), Fixtures.article("a2")))))
+		val directory = folder.newFolder()
+
+		val outcome = download(RecordingPrefetcher(), manifest = manifest(directory)).run(START) {}
+
+		assertEquals(
+			listOf(OfflineDownloadOutcome.Downloaded, Json.parseToJsonElement("""{"versions":{},"run":null}""")),
+			listOf(outcome, Json.parseToJsonElement(File(directory, "download-manifest.json").readText())),
+		)
+	}
+
+	@Test
+	fun `a run with nothing unread clears an older interrupted record`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.readArticle("r1")))))
+		val directory = folder.newFolder()
+		manifest(directory).recordRun(OfflineDownloadRun(total = 1296, completed = 312))
+		val before = manifest(directory).incompleteRun()
+
+		val outcome = download(RecordingPrefetcher(), manifest = manifest(directory)).run(START) {}
+
+		assertEquals(
+			listOf(OfflineDownloadRun(total = 1296, completed = 312), OfflineDownloadOutcome.Downloaded, null),
+			listOf(before, outcome, manifest(directory).incompleteRun()),
+		)
+	}
+
+	@Test
+	fun `a cancelled run keeps the record of how far it got`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1"), Fixtures.article("a2")))))
+		val directory = folder.newFolder()
+		val prefetcher = object : ReaderPrefetching {
+			override suspend fun prefetch(url: String, cookies: List<Cookie>): Boolean {
+				if (url == readerUrl("a2")) awaitCancellation()
+				return true
+			}
+		}
+
+		val run = launch { download(prefetcher, manifest = manifest(directory)).run(START) {} }
+		runCurrent()
+		run.cancel()
+		run.join()
+		runCurrent()
+
+		assertEquals(
+			listOf(true, OfflineDownloadRun(total = 2, completed = 1)),
+			listOf(run.isCancelled, manifest(directory).incompleteRun()),
+		)
+	}
+
+	@Test
+	fun `a run that fails keeps the record of the last progress it reported`() = runTest {
+		server.handle { record ->
+			val number = record.request.url.queryParameter("page")?.toInt() ?: 1
+			when {
+				record.path == "/auth/session" -> MINTED
+				record.path == "/queue" && number == 1 -> Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1")), next = "/queue?page=2"))
+				else -> Stub.json(500, "{}")
+			}
+		}
+		val directory = folder.newFolder()
+		val prefetcher = object : ReaderPrefetching {
+			override suspend fun prefetch(url: String, cookies: List<Cookie>): Boolean = awaitCancellation()
+		}
+		val reports = mutableListOf<OfflineDownloadProgress>()
+
+		val failure = runCatching { download(prefetcher, manifest = manifest(directory)).run(START) { reports += it } }.exceptionOrNull()
+
+		assertEquals(
+			listOf(500, OfflineDownloadProgress(completed = 0, total = 1), OfflineDownloadRun(total = 1, completed = 0)),
+			listOf(failure.let { if (it is ApiError.Server) it.status else null }, reports.last(), manifest(directory).incompleteRun()),
 		)
 	}
 

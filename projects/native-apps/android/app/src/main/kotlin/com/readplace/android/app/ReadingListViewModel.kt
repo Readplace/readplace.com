@@ -9,6 +9,7 @@ import com.readplace.android.core.DownloadedVersions
 import com.readplace.android.core.Href
 import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.OfflineDownloadManifest
+import com.readplace.android.core.OfflineDownloadRun
 import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReading
 import com.readplace.android.core.OfflineReadlistSnapshot
@@ -85,8 +86,16 @@ data class ReadingListState(
 	val downloadedVersions: DownloadedVersions = DownloadedVersions(emptyMap()),
 	val isOffline: Boolean = false,
 	val offlineDownload: OfflineDownloadProgress? = null,
+	val interruptedOfflineDownload: OfflineDownloadRun? = null,
 ) {
 	val offlineDownloadHref: String? get() = tabs.firstOrNull()?.href
+
+	val offlineDownloadStatus: OfflineDownloadStatus?
+		get() = when {
+			offlineDownload != null -> OfflineDownloadStatus.Running(offlineDownload)
+			offlineDownloadHref == null -> null
+			else -> interruptedOfflineDownload?.let { OfflineDownloadStatus.Resumable(it) }
+		}
 
 	fun isAvailableOffline(article: Article): Boolean =
 		downloadedVersions.isCurrent(articleId = article.id, contentVersion = article.contentVersion)
@@ -150,7 +159,7 @@ class ReadingListViewModel(
 	private val automaticCaptureAttempts: AutomaticCaptureAttempts,
 	private val reportAutomaticCaptureFailure: (String) -> Unit,
 	private val drainUploadJobs: suspend () -> Unit,
-	private val downloadUnreadOffline: suspend (OfflineDownloadRequest, (OfflineDownloadProgress) -> Unit) -> Unit,
+	private val downloadUnreadOffline: suspend (OfflineDownloadRequest, (OfflineDownloadProgress) -> Unit) -> OfflineDownloadOutcome,
 	private val manifest: OfflineDownloadManifest,
 	private val onSessionExpired: () -> Unit,
 	private val now: () -> Instant,
@@ -820,25 +829,54 @@ class ReadingListViewModel(
 	fun downloadUnreadOffline() {
 		if (offlineDownloadRun != null) return
 		val href = states.value.offlineDownloadHref ?: return
-		mutate { it.copy(offlineDownload = OfflineDownloadProgress(completed = 0, total = 0)) }
+		mutate {
+			it.copy(offlineDownload = OfflineDownloadProgress(completed = 0, total = 0), interruptedOfflineDownload = null)
+		}
 		val run = scope.launch(start = CoroutineStart.LAZY) {
 			try {
-				downloadUnreadOffline(OfflineDownloadRequest(startHref = href, sessionAction = sessionAction)) { progress ->
+				val outcome = downloadUnreadOffline(OfflineDownloadRequest(startHref = href, sessionAction = sessionAction)) { progress ->
 					mutate { it.copy(offlineDownload = progress) }
 				}
+				outcome.failureText?.let { text -> mutate { it.copy(errorText = text) } }
 			} catch (error: Exception) {
 				if (currentCoroutineContext().isActive) handle(error)
 			} finally {
 				offlineDownloadRun = null
 				mutate { it.copy(offlineDownload = null) }
 			}
+			currentCoroutineContext().ensureActive()
+			offerInterruptedDownload()
 		}
 		offlineDownloadRun = run
 		run.start()
 	}
 
-	fun cancelOfflineDownload() {
-		offlineDownloadRun?.cancel()
+	fun closeOfflineDownload() {
+		when (states.value.offlineDownloadStatus) {
+			is OfflineDownloadStatus.Running -> cancelOfflineDownload()
+			is OfflineDownloadStatus.Resumable -> dismissOfflineDownloadResume()
+			null -> Unit
+		}
+	}
+
+	private fun cancelOfflineDownload() {
+		val run = offlineDownloadRun ?: return
+		run.cancel()
+		scope.launch {
+			run.join()
+			offerInterruptedDownload()
+		}
+	}
+
+	suspend fun offerInterruptedDownload() {
+		val run = manifest.incompleteRun()
+		if (offlineDownloadRun != null) return
+		mutate { it.copy(interruptedOfflineDownload = run) }
+	}
+
+	private fun dismissOfflineDownloadResume() {
+		mutate { it.copy(interruptedOfflineDownload = null) }
+		scope.launch { manifest.forgetRun() }
 	}
 
 	suspend fun stopOfflineDownload(): Unit = offlineDownloadRun?.cancelAndJoin() ?: Unit

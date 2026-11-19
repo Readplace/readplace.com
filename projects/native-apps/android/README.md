@@ -266,8 +266,13 @@ login screen holds for its replay tap target (grep the Kotlin sources for
   the reader URL carries no `v=`, so the server answers it `private, no-cache` and the
   next online open replaces it. Both wait for the iOS step of the same design to run first.
 - A run lives only as long as the main Activity. It keeps going through a trip to
-  another app, but a rotation, closing the app or the process being killed ends it
-  without notice. There is no foreground service or background task behind it.
+  another app, but a rotation, closing the app or the process being killed ends it.
+  There is no foreground service or background task behind it. The run's progress is
+  kept on disk, so whenever a run ends before every article is counted (those endings,
+  a cancel, or an error such as losing the network), the list offers to continue it
+  once its first page has loaded. Continue starts a new run that counts from 0 rather
+  than showing the last run's total; like every run, it skips articles whose stored
+  copy is still current.
 - An article counts as stored when its page finished loading within 12 seconds with
   no main-frame error and no main-frame HTTP error. Android reports no status for a
   successful load, so this stands in for iOS's "status is 200". WebView cannot await a

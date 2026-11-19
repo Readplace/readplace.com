@@ -13,6 +13,7 @@ import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthError
 import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.OfflineDownloadManifest
+import com.readplace.android.core.OfflineDownloadRun
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.Pkce
 import com.readplace.android.core.PurgeableUploadQueue
@@ -560,6 +561,22 @@ class AppSessionTest {
 		assertEquals(
 			listOf(DownloadedVersions(mapOf("a1" to "v1")), DownloadedVersions(emptyMap())),
 			listOf(beforeLogout, manifest.versions.value),
+		)
+	}
+
+	@Test
+	fun `forceLogout leaves no interrupted download to continue`() = runTest {
+		val offlineFiles = folder.newFolder()
+		val manifest = OfflineDownloadManifest(offlineFiles, StandardTestDispatcher(testScheduler))
+		manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1))
+		val session = session(store = loggedInStore(), offlineFiles = offlineFiles)
+		val beforeSignOut = manifest.incompleteRun()
+
+		session.forceLogout().join()
+
+		assertEquals(
+			listOf(OfflineDownloadRun(total = 2, completed = 1), null),
+			listOf(beforeSignOut, manifest.incompleteRun()),
 		)
 	}
 

@@ -15,6 +15,7 @@ import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.OfflineDownloadManifest
+import com.readplace.android.core.OfflineDownloadRun
 import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReading
 import com.readplace.android.core.OfflineReadlistSnapshot
@@ -142,7 +143,7 @@ class ReadingListViewModelTest {
 		automaticCaptureAttempts: AutomaticCaptureAttempts = AutomaticCaptureAttempts(EphemeralFlags()),
 		reportAutomaticCaptureFailure: (String) -> Unit = {},
 		drainUploadJobs: suspend () -> Unit = { throw AssertionError("no drain expected") },
-		downloadUnreadOffline: suspend (OfflineDownloadRequest, (OfflineDownloadProgress) -> Unit) -> Unit = { _, _ ->
+		downloadUnreadOffline: suspend (OfflineDownloadRequest, (OfflineDownloadProgress) -> Unit) -> OfflineDownloadOutcome = { _, _ ->
 			throw AssertionError("no offline download expected")
 		},
 		onSessionExpired: () -> Unit = {},
@@ -5319,16 +5320,20 @@ class ReadingListViewModelTest {
 		private val failure: Exception? = null,
 		val finish: CompletableDeferred<Unit> = CompletableDeferred(),
 		private val events: MutableList<String> = mutableListOf(),
+		private val outcome: OfflineDownloadOutcome = OfflineDownloadOutcome.Downloaded,
+		private val record: suspend () -> Unit = {},
 	) {
 		val requests = mutableListOf<OfflineDownloadRequest>()
 		var report: (OfflineDownloadProgress) -> Unit = {}
 
-		suspend fun run(request: OfflineDownloadRequest, report: (OfflineDownloadProgress) -> Unit) {
+		suspend fun run(request: OfflineDownloadRequest, report: (OfflineDownloadProgress) -> Unit): OfflineDownloadOutcome {
 			requests += request
 			this.report = report
 			try {
+				record()
 				finish.await()
 				if (failure != null) throw failure
+				return outcome
 			} finally {
 				events += "download ended"
 			}
@@ -5424,7 +5429,7 @@ class ReadingListViewModelTest {
 		viewModel.downloadUnreadOffline()
 		runCurrent()
 
-		viewModel.cancelOfflineDownload()
+		viewModel.closeOfflineDownload()
 		runCurrent()
 
 		assertEquals(
@@ -5506,6 +5511,198 @@ class ReadingListViewModelTest {
 		runCurrent()
 
 		assertEquals(listOf("download ended", "expired"), events)
+	}
+
+	private fun TestScope.manifestOn(directory: File): OfflineDownloadManifest =
+		OfflineDownloadManifest(directory, StandardTestDispatcher(testScheduler))
+
+	@Test
+	fun `an interrupted run on disk is offered and a finished one is not`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val manifest = manifestOn(folder.newFolder())
+		manifest.recordRun(OfflineDownloadRun(total = 1296, completed = 312))
+		val viewModel = viewModel(manifest = manifest)
+		viewModel.loadIfNeeded()
+
+		viewModel.offerInterruptedDownload()
+		val interrupted = viewModel.state.value.offlineDownloadStatus
+		manifest.recordRun(OfflineDownloadRun(total = 2, completed = 2))
+		viewModel.offerInterruptedDownload()
+
+		assertEquals(
+			listOf(OfflineDownloadStatus.Resumable(OfflineDownloadRun(total = 1296, completed = 312)), null),
+			listOf(interrupted, viewModel.state.value.offlineDownloadStatus),
+		)
+	}
+
+	@Test
+	fun `an interrupted run is offered only once a page has applied`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val manifest = manifestOn(folder.newFolder())
+		manifest.recordRun(OfflineDownloadRun(total = 1296, completed = 312))
+		val viewModel = viewModel(manifest = manifest)
+
+		viewModel.offerInterruptedDownload()
+		val beforePage = viewModel.state.value.offlineDownloadStatus
+		viewModel.loadIfNeeded()
+
+		assertEquals(
+			listOf(null, OfflineDownloadStatus.Resumable(OfflineDownloadRun(total = 1296, completed = 312))),
+			listOf(beforePage, viewModel.state.value.offlineDownloadStatus),
+		)
+	}
+
+	@Test
+	fun `continuing an interrupted run starts the download from the first tab and hides the offer`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val manifest = manifestOn(folder.newFolder())
+		manifest.recordRun(OfflineDownloadRun(total = 1296, completed = 312))
+		val download = ScriptedDownload()
+		val viewModel = viewModel(downloadUnreadOffline = download::run, manifest = manifest)
+		viewModel.loadIfNeeded()
+		viewModel.offerInterruptedDownload()
+		val offered = viewModel.state.value.offlineDownloadStatus
+
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		val state = viewModel.state.value
+		assertEquals(
+			listOf(
+				OfflineDownloadStatus.Resumable(OfflineDownloadRun(total = 1296, completed = 312)),
+				listOf("/queue"),
+				OfflineDownloadProgress(completed = 0, total = 0),
+				null,
+				OfflineDownloadStatus.Running(OfflineDownloadProgress(completed = 0, total = 0)),
+			),
+			listOf(offered, download.requests.map { it.startHref }, state.offlineDownload, state.interruptedOfflineDownload, state.offlineDownloadStatus),
+		)
+	}
+
+	@Test
+	fun `an offer read that lands after a run has started holds no interrupted run`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val manifest = manifestOn(folder.newFolder())
+		manifest.recordRun(OfflineDownloadRun(total = 3, completed = 1))
+		val viewModel = viewModel(downloadUnreadOffline = ScriptedDownload()::run, manifest = manifest)
+		viewModel.loadIfNeeded()
+		launch { viewModel.offerInterruptedDownload() }
+
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		val state = viewModel.state.value
+		assertEquals(
+			listOf(OfflineDownloadProgress(completed = 0, total = 0), null),
+			listOf(state.offlineDownload, state.interruptedOfflineDownload),
+		)
+	}
+
+	@Test
+	fun `a run with failures says how many articles it could not store and a clean run says nothing`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val partial = ScriptedDownload(
+			finish = CompletableDeferred(Unit),
+			outcome = OfflineDownloadOutcome.PartiallyDownloaded(failed = 1, total = 2),
+		)
+		val clean = ScriptedDownload(finish = CompletableDeferred(Unit))
+		val partialList = viewModel(downloadUnreadOffline = partial::run)
+		val cleanList = viewModel(downloadUnreadOffline = clean::run)
+		partialList.loadIfNeeded()
+		cleanList.loadIfNeeded()
+
+		partialList.downloadUnreadOffline()
+		cleanList.downloadUnreadOffline()
+		runCurrent()
+
+		assertEquals(
+			listOf(
+				listOf("1 of 2 articles couldn't be downloaded for offline reading", null, null),
+				listOf(null, null, null),
+			),
+			listOf(partialList, cleanList).map { list ->
+				list.state.value.let { listOf(it.errorText, it.offlineDownload, it.offlineDownloadStatus) }
+			},
+		)
+	}
+
+	@Test
+	fun `a cancelled run is offered to continue from where it stopped`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val manifest = manifestOn(folder.newFolder())
+		val download = ScriptedDownload(record = { manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1)) })
+		val viewModel = viewModel(downloadUnreadOffline = download::run, manifest = manifest)
+		viewModel.loadIfNeeded()
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		viewModel.closeOfflineDownload()
+		runCurrent()
+
+		val state = viewModel.state.value
+		assertEquals(
+			listOf(null, OfflineDownloadStatus.Resumable(OfflineDownloadRun(total = 2, completed = 1)), null),
+			listOf(state.offlineDownload, state.offlineDownloadStatus, state.errorText),
+		)
+	}
+
+	@Test
+	fun `a run that loses the network shows the offline sentence and offers to continue`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val manifest = manifestOn(folder.newFolder())
+		val download = ScriptedDownload(
+			failure = UnknownHostException("offline"),
+			finish = CompletableDeferred(Unit),
+			record = { manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1)) },
+		)
+		val viewModel = viewModel(downloadUnreadOffline = download::run, manifest = manifest)
+		viewModel.loadIfNeeded()
+
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		assertEquals(
+			listOf(OfflineReading.BANNER_TEXT, OfflineDownloadStatus.Resumable(OfflineDownloadRun(total = 2, completed = 1))),
+			listOf(viewModel.state.value.errorText, viewModel.state.value.offlineDownloadStatus),
+		)
+	}
+
+	@Test
+	fun `closing with no download row leaves the run on disk`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val directory = folder.newFolder()
+		val manifest = manifestOn(directory)
+		manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1))
+		val viewModel = viewModel(manifest = manifest)
+
+		viewModel.closeOfflineDownload()
+		runCurrent()
+
+		assertEquals(
+			listOf(null, OfflineDownloadRun(total = 2, completed = 1)),
+			listOf(viewModel.state.value.offlineDownloadStatus, manifestOn(directory).incompleteRun()),
+		)
+	}
+
+	@Test
+	fun `dismissing the offer hides it at once and forgets the run on disk`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val directory = folder.newFolder()
+		val manifest = manifestOn(directory)
+		manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1))
+		val viewModel = viewModel(manifest = manifest)
+		viewModel.loadIfNeeded()
+		viewModel.offerInterruptedDownload()
+		val offered = viewModel.state.value.offlineDownloadStatus
+
+		viewModel.closeOfflineDownload()
+		val hidden = viewModel.state.value.offlineDownloadStatus
+		runCurrent()
+
+		assertEquals(
+			listOf(OfflineDownloadStatus.Resumable(OfflineDownloadRun(total = 2, completed = 1)), null, null),
+			listOf(offered, hidden, manifestOn(directory).incompleteRun()),
+		)
 	}
 
 	private object Fixtures {
