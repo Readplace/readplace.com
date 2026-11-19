@@ -365,6 +365,7 @@ import { Base } from "./web/base.component";
 import { initBuildBannerState } from "./web/banner-state";
 import { initChangelogDismissRoute } from "./web/pages/banner/changelog-dismiss.route";
 import {
+	createCrossSiteRequestMiddleware,
 	createCspNonceMiddleware,
 	generateCspNonce,
 	requireCspNonce,
@@ -373,7 +374,6 @@ import {
 	wantsMarkdown,
 } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
-import { createCrossSiteRequestMiddleware } from "./web/cross-site-request.middleware";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { createListingGenerationMiddleware } from "./web/listing-generation.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";

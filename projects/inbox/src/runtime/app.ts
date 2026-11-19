@@ -1,6 +1,11 @@
 import { CUSTOM_EMAILS_PATH, INBOX_PATH } from "@packages/domain/inbox";
 import { resolve } from "node:path";
-import { createCspNonceMiddleware, generateCspNonce, sendContentSecurityPolicy } from "@packages/web-shell";
+import {
+	createCrossSiteRequestMiddleware,
+	createCspNonceMiddleware,
+	generateCspNonce,
+	sendContentSecurityPolicy,
+} from "@packages/web-shell";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cookieParser from "cookie-parser";
 import type {
@@ -82,6 +87,7 @@ export function createInboxApp(
 		generateVisitorId: () => string;
 		secureCookies: boolean;
 		ownHost: string;
+		appOrigin: string;
 		edgeSecret: string;
 	} & InboxReadlistFitDependencies,
 ): Express {
@@ -97,6 +103,7 @@ export function createInboxApp(
 	app.use(utmValidationMiddleware);
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
+	app.use(createCrossSiteRequestMiddleware({ appOrigin: deps.appOrigin }));
 	app.use(
 		createVisitorIdMiddleware({
 			generateVisitorId: deps.generateVisitorId,
