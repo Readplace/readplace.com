@@ -22,10 +22,9 @@
                 {{#with edit}}<details class="highlight-note__fallback"{{#if noteOpen}} open{{/if}} data-test-highlight-note-fallback>
                   <summary>{{noteLabel}}</summary>
                   {{{noteFallbackHtml}}}
-                </details>
-                {{{popoverHtml}}}{{/with}}
+                </details>{{/with}}
               </li>
               {{/each}}
             </ol>
-            {{#each rows}}{{#with edit}}{{{noteDialogHtml}}}{{/with}}{{/each}}
-          </details>{{/if}}</section>
+          </details>
+          {{#each rows}}{{#with edit}}{{{popoverHtml}}}{{{noteDialogHtml}}}{{/with}}{{/each}}{{/if}}</section>

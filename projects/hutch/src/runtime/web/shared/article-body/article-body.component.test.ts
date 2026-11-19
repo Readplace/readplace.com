@@ -625,7 +625,7 @@ describe("renderArticleBody highlight states", () => {
 			...baseInput,
 			crawl: { status: "ready" },
 			content: articleBody("<p>Body</p>"),
-			highlights: { rows: [highlight], canonicalContentHash: "hash" },
+			highlights: { rows: [highlight], canonicalContentHash: "hash", scope: undefined },
 		});
 
 		expect(rendered.states).toEqual([

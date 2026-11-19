@@ -6,6 +6,7 @@ import { type DOMWindow, JSDOM } from "jsdom";
 import { parseHTML } from "linkedom";
 import { renderReaderReady } from "../reader-slot/reader-ready.component";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../reader-slot/section-pages";
+import { initHighlightPanels } from "./highlight-popover.client";
 import { HOVER_GRACE_MS, HOVER_SHOW_MS, initHighlightPreviews } from "./highlight-preview.client";
 import type { PassageRect } from "./place-clear-of-passage";
 
@@ -65,6 +66,7 @@ function readerHtml(input: { content?: string; highlights: readonly HighlightSpe
 		highlights: {
 			rows: input.highlights.map((spec, orderKey) => highlightOf({ spec, text, orderKey })),
 			canonicalContentHash: "hash",
+			scope: undefined,
 		},
 	}).html;
 }
@@ -140,6 +142,14 @@ function harness(input: { content?: string; highlights: readonly HighlightSpec[]
 		showPopover: (panel) => h.shown.push(panel.getAttribute("data-highlight-preview") ?? ""),
 		hidePopover: (panel) => h.hidden.push(panel.getAttribute("data-highlight-preview") ?? ""),
 		isFocusVisible: () => h.focusVisible,
+		panels: initHighlightPanels({
+			document: doc,
+			window: { visualViewport: { ...h.viewport, addEventListener: () => undefined } },
+			rectsOf: () => h.rects,
+			showPopover: () => undefined,
+			hidePopover: () => undefined,
+			isOpen: () => false,
+		}),
 	});
 	return h;
 }

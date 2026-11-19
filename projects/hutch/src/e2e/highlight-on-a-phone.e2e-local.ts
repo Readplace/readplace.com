@@ -34,7 +34,7 @@ const RAIL_ROW = "[data-test-highlight-row]";
 const ADD_NOTE_BUTTON = '[data-test-action="add-note"]';
 const OPEN_NOTE_DIALOG = "#note-highlight-dialog:popover-open";
 const NOTE_INPUT = "[data-test-highlight-note-input]";
-const SHOWN_PREVIEW = "[data-test-highlight-preview]:popover-open";
+const SHOWN_PANEL = "[data-highlight-popover]:popover-open";
 const TAPPED_NOTE = "Why this sentence matters.";
 const FRAGMENT = "later-notes";
 const FRAGMENT_LINK = `${CONTENT} a[href="#${FRAGMENT}"]`;
@@ -129,7 +129,7 @@ test.describe("Highlighting a passage on a phone", () => {
 		await expect(page.locator(RAIL_ROW)).toHaveAttribute("data-test-highlight-state", "anchored");
 	});
 
-	test("a link tap follows the link, a drawn selection shows the bar, a mark tap keeps the page in place, and a tap elsewhere hides the bar", async ({
+	test("a link tap follows the link, a drawn selection shows the bar, a mark tap opens its actions inside the gutters without moving the page, and a tap elsewhere hides the bar", async ({
 		page,
 	}, testInfo) => {
 		await openHighlightableReader(page, `taps-${testInfo.workerIndex}-${Date.now()}`);
@@ -177,9 +177,20 @@ test.describe("Highlighting a passage on a phone", () => {
 		expect(await page.evaluate(windowScrollY)).toBe(0);
 		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
 		await expect(page.locator(HIDDEN_TOOLBAR)).toHaveCount(1);
+		const panel = page.locator(SHOWN_PANEL);
+		await expect(panel).toHaveCount(1, { timeout: SETTLE_MS });
+		const box = await panel.boundingBox();
+		assert(box, "the open panel has a box");
+		const viewportWidth = await page.evaluate(() => window.innerWidth);
+		expect(box.x).toBeGreaterThanOrEqual(16);
+		expect(box.x + box.width).toBeLessThanOrEqual(viewportWidth - 16);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+		const rowHeights = await panel.locator(".menu__item").evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+		expect(rowHeights.length).toBeGreaterThan(0);
+		for (const height of rowHeights) expect(height).toBeGreaterThanOrEqual(44);
 	});
 
-	test("a tap on a noted highlight shows its note in place, and a tap elsewhere only dismisses it", async ({
+	test("a tap on a noted highlight shows its note and actions in place, and a tap elsewhere only dismisses them", async ({
 		page,
 	}, testInfo) => {
 		await openHighlightableReader(page, `note-${testInfo.workerIndex}-${Date.now()}`);
@@ -198,18 +209,20 @@ test.describe("Highlighting a passage on a phone", () => {
 		await expect.poll(() => page.evaluate(windowScrollY)).toBe(0);
 		await tapText(page, TAPPED_SENTENCE);
 
-		await expect(page.locator(SHOWN_PREVIEW)).toHaveJSProperty("textContent", TAPPED_NOTE, { timeout: SETTLE_MS });
+		await expect(page.locator(`${SHOWN_PANEL} .highlight-popover__note`)).toHaveJSProperty("textContent", TAPPED_NOTE, {
+			timeout: SETTLE_MS,
+		});
 		expect(await page.evaluate(windowScrollY)).toBe(0);
 		await expect(page.locator(RAIL_ROW)).not.toBeInViewport();
 		expect(
 			await page.evaluate(previewClearOfMarks, {
-				preview: SHOWN_PREVIEW,
+				preview: SHOWN_PANEL,
 				marks: `mark[data-highlight-id="${highlightId}"]`,
 			}),
 		).toBe(true);
 
 		await tapText(page, FIRST_OF_PAIR);
-		await expect(page.locator(SHOWN_PREVIEW)).toHaveCount(0, { timeout: SETTLE_MS });
+		await expect(page.locator(SHOWN_PANEL)).toHaveCount(0, { timeout: SETTLE_MS });
 		expect(await page.evaluate(selectionIsCollapsed)).toBe(true);
 	});
 });

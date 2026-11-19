@@ -11,6 +11,10 @@ export const enUS = {
 		highlightNote: {
 			delete: "Delete note",
 		},
+		highlightPopover: {
+			title: "Highlight actions",
+			hint: "Opens this highlight's actions",
+		},
 		highlightsRail: {
 			title: "Highlights",
 			notFound: "Not found in this version",

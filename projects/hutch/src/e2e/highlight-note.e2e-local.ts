@@ -381,12 +381,13 @@ test.describe("Reading a note beside its highlight", () => {
 		await expect(page.locator(SHOWN_PREVIEW)).toBeInViewport({ ratio: 1, timeout: SETTLE_MS });
 	});
 
-	test("Tab reaches the highlight, shows its note with a ring, and Enter and Space pin it in place", async ({
+	test("Tab reaches the highlight, shows its note with a ring, and Enter and Space open its actions in place", async ({
 		page,
 	}, testInfo) => {
 		await openHighlightableReader(page, `keys-${testInfo.workerIndex}-${Date.now()}`);
 		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
 		const mark = page.locator(`#highlight-${highlightId}`);
+		const panel = page.locator(`#manage-highlight-${highlightId}:popover-open`);
 		await page.locator(CONTENT).evaluate((content) => {
 			content.setAttribute("tabindex", "-1");
 			content.focus();
@@ -399,32 +400,45 @@ test.describe("Reading a note beside its highlight", () => {
 
 		await expect(mark).toBeFocused();
 		await expect(page.locator(SHOWN_PREVIEW)).toHaveCount(1, { timeout: SETTLE_MS });
-		await expect(mark).toHaveAttribute("aria-describedby", `preview-highlight-${highlightId}`);
+		await expect(mark).toHaveAttribute("aria-describedby", `preview-highlight-${highlightId} manage-highlight-hint`);
 		await expect(mark).toHaveCSS("outline-width", "2px");
 		await expect(mark).toHaveCSS("outline-style", "solid");
 
 		const before = await page.evaluate(() => window.scrollY);
 		await page.keyboard.press("Enter");
-		await expect(page.locator(`${SHOWN_PREVIEW}.highlight-preview--pinned`)).toHaveCount(1);
+		await expect(panel).toHaveCount(1);
+		await expect(page.locator(SHOWN_PREVIEW)).toHaveCount(0);
+		await expect(panel.locator('[data-test-action="highlight-panel-note"]')).toBeFocused();
+		await page.keyboard.press("Escape");
+		await expect(panel).toHaveCount(0);
+		await expect(mark).toBeFocused();
 		await page.keyboard.press("Space");
+		await expect(panel).toHaveCount(1);
+		await expect(page.locator(`[id="note-highlight-${highlightId}"]:popover-open`)).toHaveCount(0);
 		expect(await page.evaluate(() => window.scrollY)).toBe(before);
 	});
 
-	test("a click pins the note without scrolling, and Space still pages down after it", async ({ page }, testInfo) => {
+	test("a click opens the highlight's actions without scrolling, and Space pages down once a click outside closes them", async ({
+		page,
+	}, testInfo) => {
 		await openHighlightableReader(page, `click-${testInfo.workerIndex}-${Date.now()}`);
 		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
 		const before = await page.evaluate(() => window.scrollY);
+		const panel = page.locator(`#manage-highlight-${highlightId}:popover-open`);
 
 		await page.locator(`#highlight-${highlightId}`).click();
 
-		await expect(page.locator(`${SHOWN_PREVIEW}.highlight-preview--pinned`)).toHaveCount(1, { timeout: SETTLE_MS });
+		await expect(panel).toHaveCount(1, { timeout: SETTLE_MS });
+		await expect(page.locator(SHOWN_PREVIEW)).toHaveCount(0);
 		expect(await page.evaluate(() => window.scrollY)).toBe(before);
+		await page.locator(CONTENT).getByText(BARE_PASSAGE).click();
+		await expect(panel).toHaveCount(0);
 		await page.mouse.move(5, 5);
 		await page.keyboard.press("Space");
 		await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: SETTLE_MS }).toBeGreaterThan(before);
 	});
 
-	test("a long note shows eight lines on hover and the whole note, scrolling, once pinned", async ({
+	test("a long note shows eight lines on hover and the whole note, scrolling above the actions, once clicked", async ({
 		page,
 	}, testInfo) => {
 		await openHighlightableReader(page, `long-${testInfo.workerIndex}-${Date.now()}`);
@@ -441,10 +455,12 @@ test.describe("Reading a note beside its highlight", () => {
 		expect(clamped).toBe(8);
 
 		await mark.click();
-		const pinned = page.locator(`${SHOWN_PREVIEW}.highlight-preview--pinned`);
-		await expect(pinned).toHaveCount(1);
-		expect(await pinned.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
-		await expect(note).toHaveJSProperty("textContent", LONG_NOTE);
+		const panel = page.locator(`#manage-highlight-${highlightId}:popover-open`);
+		const panelNote = panel.locator(".highlight-popover__note");
+		await expect(panel).toHaveCount(1);
+		await expect(panelNote).toHaveJSProperty("textContent", LONG_NOTE);
+		expect(await panelNote.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+		await expect(panel.locator('[data-test-action="highlight-panel-delete"]')).toBeInViewport({ ratio: 1 });
 	});
 
 	test("a mouse Jump brings the mark into view and focus without its preview, and a note save leaves none open", async ({ page }, testInfo) => {
@@ -494,5 +510,136 @@ test.describe("Reading a note beside its highlight", () => {
 			timeout: SETTLE_MS,
 		});
 		expect(opened).toEqual([]);
+	});
+});
+
+test.describe("Managing a highlight where it sits in the text", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	function panelOf(page: Page, highlightId: string) {
+		return page.locator(`#manage-highlight-${highlightId}:popover-open`);
+	}
+
+	function editorOf(page: Page, highlightId: string) {
+		return page.locator(`[id="note-highlight-${highlightId}"]:popover-open`);
+	}
+
+	test("a click opens the actions beside the passage, and Edit note saves in place with focus back on the highlight", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(page, `manage-edit-${testInfo.workerIndex}-${Date.now()}`);
+		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+		const mark = page.locator(`#highlight-${highlightId}`);
+		const before = await page.evaluate(() => window.scrollY);
+
+		await mark.click();
+		const panel = panelOf(page, highlightId);
+		await expect(panel).toHaveCount(1, { timeout: SETTLE_MS });
+		expect(
+			await page.evaluate(previewClearOfMarks, {
+				preview: `#manage-highlight-${highlightId}:popover-open`,
+				marks: `mark[data-highlight-id="${highlightId}"]`,
+			}),
+		).toBe(true);
+		await expect(panel.locator('[data-test-action="highlight-panel-note"]')).toBeFocused();
+
+		await panel.locator('[data-test-action="highlight-panel-note"]').click();
+		const editor = editorOf(page, highlightId);
+		await expect(editor).toHaveCount(1);
+		await expect(panel).toHaveCount(0);
+		await expect(editor.locator(NOTE_INPUT)).toBeFocused();
+		await expect(page.locator(SHOWN_PREVIEW)).toHaveCount(0);
+		await editor.locator(NOTE_INPUT).fill(EDITED_NOTE);
+		await editor.locator('[data-test-action="highlight-note-edit-save"]').click();
+
+		await expect(page.locator(`[data-test-highlight-row="${highlightId}"] ${RAIL_NOTE}`)).toHaveText(EDITED_NOTE, {
+			timeout: SETTLE_MS,
+		});
+		await expect(page.locator(HTMX_IN_MOTION)).toHaveCount(0);
+		await expect(page.locator(`#highlight-${highlightId}`)).toBeFocused();
+		expect(await page.evaluate(() => window.scrollY)).toBe(before);
+	});
+
+	test("Escape and Cancel bring focus back to the highlight, and a held Enter presses no action", async ({ page }, testInfo) => {
+		await openHighlightableReader(page, `manage-keys-${testInfo.workerIndex}-${Date.now()}`);
+		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+		const mark = page.locator(`#highlight-${highlightId}`);
+		await page.locator(CONTENT).evaluate((content) => {
+			content.setAttribute("tabindex", "-1");
+			content.focus();
+		});
+		for (let presses = 0; presses < 40; presses++) {
+			if (await mark.evaluate((element) => element === document.activeElement)) break;
+			await page.keyboard.press("Tab");
+		}
+		await expect(mark).toBeFocused();
+
+		await page.keyboard.down("Enter");
+		await page.keyboard.down("Enter");
+		await page.keyboard.up("Enter");
+		await expect(panelOf(page, highlightId)).toHaveCount(1);
+		await expect(editorOf(page, highlightId)).toHaveCount(0);
+
+		await page.keyboard.press("Escape");
+		await expect(mark).toBeFocused();
+
+		await page.keyboard.press("Enter");
+		await page.keyboard.press("Enter");
+		await expect(editorOf(page, highlightId)).toHaveCount(1);
+		await expect(page.locator(SHOWN_PREVIEW)).toHaveCount(0);
+		await editorOf(page, highlightId).locator('[data-test-action="highlight-note-edit-cancel"]').click();
+		await expect(editorOf(page, highlightId)).toHaveCount(0);
+		await expect(mark).toBeFocused();
+	});
+
+	test("a click outside the note editor opened from a highlight brings focus back to the highlight", async ({ page }, testInfo) => {
+		await openHighlightableReader(page, `manage-dismiss-${testInfo.workerIndex}-${Date.now()}`);
+		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+		const mark = page.locator(`#highlight-${highlightId}`);
+
+		await mark.click();
+		await panelOf(page, highlightId).locator('[data-test-action="highlight-panel-note"]').click();
+		await expect(editorOf(page, highlightId)).toHaveCount(1);
+		await page.mouse.click(5, 5);
+
+		await expect(editorOf(page, highlightId)).toHaveCount(0);
+		await expect(mark).toBeFocused();
+	});
+
+	test("Delete note from the actions removes the note and keeps the place and the highlight's focus", async ({ page }, testInfo) => {
+		await openHighlightableReader(page, `manage-delete-note-${testInfo.workerIndex}-${Date.now()}`);
+		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+		const before = await page.evaluate(() => window.scrollY);
+
+		await page.locator(`#highlight-${highlightId}`).click();
+		await panelOf(page, highlightId).locator('[data-test-action="highlight-panel-note-delete"]').click();
+
+		await expect(page.locator(`[data-test-highlight-row="${highlightId}"] ${RAIL_NOTE}`)).toHaveCount(0, {
+			timeout: SETTLE_MS,
+		});
+		await expect(page.locator(HTMX_IN_MOTION)).toHaveCount(0);
+		await expect(page.locator(`#highlight-${highlightId}`)).toBeFocused();
+		expect(await page.evaluate(() => window.scrollY)).toBe(before);
+	});
+
+	test("Delete highlight opens the rail's confirm from the actions even with the Highlights card collapsed", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(page, `manage-delete-${testInfo.workerIndex}-${Date.now()}`);
+		const highlightId = await addNotedHighlight(page, FIRST_NOTE);
+		await page.locator("[data-test-highlights-card]").evaluate((card) => {
+			if (card instanceof HTMLDetailsElement) card.open = false;
+		});
+		const before = await page.evaluate(() => window.scrollY);
+
+		await page.locator(`#highlight-${highlightId}`).click();
+		await panelOf(page, highlightId).locator('[data-test-action="highlight-panel-delete"]').click();
+		const confirm = page.locator(`[id="delete-highlight-${highlightId}"]:popover-open`);
+		await expect(confirm).toHaveCount(1);
+		await expect(confirm.locator('[data-test-action="highlight-delete-confirm"]')).toBeVisible();
+		await confirm.locator('[data-test-action="highlight-delete-confirm"]').click();
+
+		await expect(page.locator(`#highlight-${highlightId}`)).toHaveCount(0, { timeout: SETTLE_MS });
+		expect(await page.evaluate(() => window.scrollY)).toBe(before);
 	});
 });
