@@ -433,6 +433,38 @@ describe("toArticleCollectionEntity", () => {
 		expect(nextLink?.href).toContain("page=2");
 	});
 
+	it("leaves the next link unmarked when the page it leads to is still resolved during an offline download", () => {
+		const result: FindArticlesResult = {
+			articles: Array.from({ length: 20 }, (_, i) => makeArticle(`${i}`)),
+			total: 60,
+			hasMore: true,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist" }, { tabs, readlists, addToReadlist: "advertised", now: NOW });
+
+		expect(entity.links?.find((l) => l.rel.includes("next"))).toEqual({ rel: ["next"], href: "/queue?page=2" });
+	});
+
+	it("marks the next link offline-prefetch when the page it leads to is past the offline download's resolving pages", () => {
+		const result: FindArticlesResult = {
+			articles: Array.from({ length: 20 }, (_, i) => makeArticle(`${i}`)),
+			total: 60,
+			hasMore: true,
+			page: 2,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, { readlistKey: "readlist", page: 2 }, { tabs, readlists, addToReadlist: "advertised", now: NOW });
+
+		expect(entity.links?.find((l) => l.rel.includes("next"))).toEqual({
+			rel: ["next"],
+			class: ["offline-prefetch"],
+			href: "/queue?page=3",
+		});
+	});
+
 	it("includes prev link when not on first page", () => {
 		const result: FindArticlesResult = {
 			articles: Array.from({ length: 20 }, (_, i) => makeArticle(`${i}`)),

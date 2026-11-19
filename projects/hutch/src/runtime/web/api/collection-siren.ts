@@ -18,6 +18,7 @@ import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import { toArticleSubEntity } from "./article-siren";
 import { saveInProgressNotice } from "./save-notice-siren";
+import { isOfflinePrefetchPage } from "../shared/offline-prefetch";
 
 interface CollectionWarning {
 	readonly code: string;
@@ -102,6 +103,7 @@ export function toArticleCollectionEntity(
 	if (page < totalPages) {
 		links.push({
 			rel: ["next"],
+			...(isOfflinePrefetchPage(page + 1) ? { class: ["offline-prefetch"] } : {}),
 			href: `/queue${buildQueryString({ ...queryParams, page: page + 1 })}`,
 		});
 	}

@@ -18,6 +18,7 @@ interface SirenAction {
 
 export interface SirenLink {
 	rel: string[];
+	class?: string[];
 	href: string;
 	title?: string;
 }

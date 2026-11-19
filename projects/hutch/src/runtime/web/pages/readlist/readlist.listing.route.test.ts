@@ -389,6 +389,32 @@ describe("Readlist routes", () => {
 			).toContain("Previous");
 		});
 
+		it("marks the next link for an offline download's prefetch only when the page it leads to is past the resolving pages", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			for (let i = 0; i < 41; i++) {
+				await agent
+					.post("/queue/save")
+					.type("form")
+					.send({ url: `https://example.com/offline-${i}` });
+			}
+
+			const nextLink = async (path: string) => {
+				const response = await agent.get(path);
+				const doc = new JSDOM(response.text).window.document;
+				return doc.querySelector("main nav.pagination a[rel='next']");
+			};
+			const fromPageOne = await nextLink("/queue");
+			const fromPageTwo = await nextLink("/queue?page=2");
+
+			assert(fromPageOne, "page 1 of 3 must render a next link");
+			assert(fromPageTwo, "page 2 of 3 must render a next link");
+			expect(fromPageOne.getAttribute("data-offline-prefetch")).toBe("false");
+			expect(fromPageTwo.getAttribute("data-offline-prefetch")).toBe("true");
+		});
+
 		it("redirects an out-of-bounds page (stale bookmark / manual URL) to the last valid page", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;

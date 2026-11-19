@@ -77,15 +77,20 @@ const CARD_META = ".readlist-article__meta";
 const OFFLINE_TAG_ATTR = "data-offline-tag";
 const KNOWN_TAB_TOTAL = "#readlist-count .readlist__count-value--known";
 const NEXT_PAGE = "main nav.pagination a[rel='next'][href]";
+const OFFLINE_PREFETCH_ATTR = "data-offline-prefetch";
 const ARTICLE_IMAGES = "[data-article-body] img, [data-article-body] picture source";
 const STILL_GENERATING = "#article-body-reader-slot[hx-get], #article-body-summary-slot[hx-get]";
 const LISTING_UNAVAILABLE = "Couldn't load your unread articles";
 const PREPARING = "Preparing download…";
 const ARTICLES_IN_FLIGHT = 6;
-const RESOLVING_LISTING_PAGES = 2;
 const SETTLE_WAIT_CAP_MS = 15 * 60 * 1000;
 const CARD = ".readlist-article";
 const CARD_POLL_INTERVAL = /\bevery\s+(\d+(?:\.\d+)?)s\b/;
+
+interface NextListingPage {
+	page: URL;
+	offlinePrefetch: boolean;
+}
 
 interface ListedArticle {
 	article: URL;
@@ -335,9 +340,14 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 		return deps.parseHtml(await response.text());
 	}
 
-	function nextListingPage(listingPage: Document, page: URL): URL | undefined {
+	function nextListingPage(listingPage: Document, page: URL): NextListingPage | undefined {
 		const next = listingPage.querySelector(NEXT_PAGE);
-		return next ? withoutCampaignParams(new URL(attribute(next, "href"), page)) : undefined;
+		return next
+			? {
+					page: withoutCampaignParams(new URL(attribute(next, "href"), page)),
+					offlinePrefetch: next.getAttribute(OFFLINE_PREFETCH_ATTR) === "true",
+				}
+			: undefined;
 	}
 
 	function isAnotherListingPage(input: { listing: URL; page: URL; target: string }): boolean {
@@ -420,8 +430,9 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 	}): Promise<void> {
 		const held = new Map<string, HeldCard>();
 		const resolvingPages: URL[] = [];
-		let page: URL | undefined = input.listing;
-		while (page && resolvingPages.length < RESOLVING_LISTING_PAGES && !input.stopped()) {
+		let next: NextListingPage | undefined = { page: input.listing, offlinePrefetch: false };
+		while (next && !next.offlinePrefetch && !input.stopped()) {
+			const { page } = next;
 			const listingPage = await loadListing({ cache: input.cache, page, request: LISTING_REQUEST });
 			resolvingPages.push(page);
 			for (const card of listedCards(listingPage, page)) {
@@ -431,17 +442,17 @@ export function initOfflineDownload(deps: OfflineDownloadDeps): void {
 					input.found(card);
 				}
 			}
-			page = nextListingPage(listingPage, page);
+			next = nextListingPage(listingPage, page);
 		}
 		const prefetchRest = async (from: URL | undefined) => {
 			let rest = from;
 			while (rest && !input.stopped()) {
 				const listingPage = await loadListing({ cache: input.cache, page: rest, request: PREFETCH_LISTING_REQUEST });
 				for (const card of listedCards(listingPage, rest)) input.found(card);
-				rest = nextListingPage(listingPage, rest);
+				rest = nextListingPage(listingPage, rest)?.page;
 			}
 		};
-		await Promise.all([waitForHeldCards({ ...input, held, pages: resolvingPages }), prefetchRest(page)]);
+		await Promise.all([waitForHeldCards({ ...input, held, pages: resolvingPages }), prefetchRest(next?.page)]);
 	}
 
 	async function keepImage(cache: DownloadCache, input: { source: string; article: URL }): Promise<void> {

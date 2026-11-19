@@ -97,7 +97,7 @@ interface CardSpec {
 	pollEverySeconds?: number;
 }
 
-function listingPage(input: { cards: Array<string | CardSpec>; next?: string; prev?: string }): string {
+function listingPage(input: { cards: Array<string | CardSpec>; next?: string; nextOfflinePrefetch?: boolean; prev?: string }): string {
 	const cards = input.cards
 		.map((card) => (typeof card === "string" ? { href: card } : card))
 		.map(
@@ -107,7 +107,7 @@ function listingPage(input: { cards: Array<string | CardSpec>; next?: string; pr
 		.join("");
 	const prev = input.prev ? `<a class="pagination__link" href="${input.prev}" rel="prev">Previous</a>` : "";
 	const next = input.next
-		? `<a class="pagination__link" href="${input.next}" rel="next">Next</a>`
+		? `<a class="pagination__link" href="${input.next}" rel="next" data-offline-prefetch="${input.nextOfflinePrefetch === true}">Next</a>`
 		: `<span class="pagination__link" aria-disabled="true">Next</span>`;
 	return `<!DOCTYPE html><html><body><nav class="pagination"><a href="/queue?page=9" rel="next">Header next</a></nav><main><div class="readlist-list">${cards}</div><nav class="pagination">${prev}${next}</nav></main></body></html>`;
 }
@@ -407,6 +407,7 @@ describe("initOfflineDownload", () => {
 						cards: [],
 						prev: "/queue?utm_source=queue-pagination&utm_medium=internal&utm_content=prev",
 						next: "/queue?page=3&utm_source=queue-pagination&utm_medium=internal&utm_content=next",
+						nextOfflinePrefetch: true,
 					}),
 				},
 				[`${ORIGIN}/queue?page=3`]: { body: listingPage({ cards: [] }) },
@@ -425,6 +426,41 @@ describe("initOfflineDownload", () => {
 			[`${ORIGIN}/queue?page=3`]: `${ORIGIN}/queue?page=3`,
 		});
 		expect(page.status()).toBe("0 available offline");
+	});
+
+	describe("following the server's offline-prefetch mark on each next link", () => {
+		function markedListing(input: { pages: number; markedFrom: number }) {
+			const routes: Record<string, { body: string }> = {};
+			for (let number = 1; number <= input.pages; number++) {
+				const url = number === 1 ? `${ORIGIN}${TRACKED_LISTING}` : `${ORIGIN}/queue?page=${number}`;
+				const next = number < input.pages ? `/queue?page=${number + 1}&utm_source=queue-pagination` : undefined;
+				routes[url] = { body: listingPage({ cards: [], next, nextOfflinePrefetch: number + 1 >= input.markedFrom }) };
+			}
+			return routes;
+		}
+
+		it("resolves two listing pages when the next links are marked from page 3", async () => {
+			const page = startDownload({ routes: markedListing({ pages: 6, markedFrom: 3 }) });
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(LISTING_REQUEST)).toEqual([`${ORIGIN}${TRACKED_LISTING}`, `${ORIGIN}/queue?page=2`]);
+			expect(page.sentTo(PREFETCH_LISTING_REQUEST)).toEqual([3, 4, 5, 6].map((number) => `${ORIGIN}/queue?page=${number}`));
+		});
+
+		it("resolves four listing pages when the next links are marked from page 5", async () => {
+			const page = startDownload({ routes: markedListing({ pages: 6, markedFrom: 5 }) });
+
+			page.press();
+			await flush();
+
+			expect(page.sentTo(LISTING_REQUEST)).toEqual([
+				`${ORIGIN}${TRACKED_LISTING}`,
+				...[2, 3, 4].map((number) => `${ORIGIN}/queue?page=${number}`),
+			]);
+			expect(page.sentTo(PREFETCH_LISTING_REQUEST)).toEqual([5, 6].map((number) => `${ORIGIN}/queue?page=${number}`));
+		});
 	});
 
 	describe("waiting for the first two pages' articles to settle", () => {
@@ -505,7 +541,7 @@ describe("initOfflineDownload", () => {
 			const page = startDownload({
 				routes: {
 					[PAGE_1]: { body: listingPage({ cards: [], next: TO_PAGE_2 }) },
-					[PAGE_2]: { body: listingPage({ cards: [], next: TO_PAGE_3 }) },
+					[PAGE_2]: { body: listingPage({ cards: [], next: TO_PAGE_3, nextOfflinePrefetch: true }) },
 					[PAGE_3]: { body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }] }) },
 					[HELD_URL]: { body: readerPage("<p>One</p>") },
 				},
@@ -524,7 +560,7 @@ describe("initOfflineDownload", () => {
 			const page = startDownload({
 				routes: {
 					[PAGE_1]: { body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 300 }], next: TO_PAGE_2 }) },
-					[PAGE_2]: { body: listingPage({ cards: [], next: TO_PAGE_3 }) },
+					[PAGE_2]: { body: listingPage({ cards: [], next: TO_PAGE_3, nextOfflinePrefetch: true }) },
 					[PAGE_3]: { body: listingPage({ cards: ["/queue/c3/view?v=three"] }) },
 					[HELD_URL]: { body: readerPage(STILL_READING) },
 					[LATER]: { body: readerPage("<p>Three</p>") },
@@ -628,7 +664,7 @@ describe("initOfflineDownload", () => {
 					[PAGE_1]: { body: listingPage({ cards: [], next: TO_PAGE_2 }) },
 					[PAGE_2]: {
 						answers: [
-							{ body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }], next: TO_PAGE_3 }) },
+							{ body: listingPage({ cards: [{ href: HELD, pollEverySeconds: 3 }], next: TO_PAGE_3, nextOfflinePrefetch: true }) },
 							{ redirected: true, url: `${ORIGIN}/queue`, body: listingPage({ cards: [] }) },
 						],
 					},

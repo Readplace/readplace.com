@@ -50,6 +50,7 @@ The entry point answers rather than redirects because some HTTP stacks drop `Aut
 | Markdown media type (`text/markdown`) and the frontmatter keys it reads, for a client that uses an article's Markdown | Where that Markdown lives: the article's `read` link `href` |
 | The article's `processing` property and its keys, for a client that shows background work | Whether an item is in flight, its label and estimate, and where and when to fetch its next representation |
 | The article's `contentState` property and its three values (`available`, `processing`, `unavailable`), for a client that keeps articles offline | Whether an item has readable content, from the same classification that decides `processing`; the HTML card and reader page carry it as `data-content-state` |
+| The `next` link's class `offline-prefetch`, for a client that downloads a readlist for offline reading | Which listing pages that download loads as a prefetch, and so how many it lets resolve; the HTML pagination link carries it as `data-offline-prefetch` |
 
 Anything in the right column that the client hard-codes is a future breaking change waiting to happen.
 

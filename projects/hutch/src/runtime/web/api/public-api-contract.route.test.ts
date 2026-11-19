@@ -4,6 +4,7 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { useTestServer } from "../../test-app";
 import { createAccessToken } from "../test-helpers/oauth-token";
 import { SIREN_MEDIA_TYPE } from "./siren";
+import { EXTENSION_READLIST_PAGE_SIZE } from "../pages/readlist/readlist-page-size";
 
 const useApp = useTestServer();
 
@@ -174,6 +175,26 @@ describe("the public API's documented contract", () => {
 		expect(filtered.body.properties.total).toEqual({ label: "1 Saved Article" });
 		expect(filtered.body.properties.pages.map((entry: { label: string }) => entry.label)).toEqual(["1"]);
 		expect(relsOf(filtered.body)).not.toContain("next");
+	});
+
+	it("marks only the next link that leads past the pages an offline download resolves with the offline-prefetch class", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+		for (let index = 0; index <= 2 * EXTENSION_READLIST_PAGE_SIZE; index++) {
+			await save(harness, { token, url: `https://example.com/offline-${index}` });
+		}
+		const nextOf = (body: { links: { rel: string[]; href: string; class?: string[] }[] }) => {
+			const next = body.links.find((link) => link.rel.includes("next"));
+			assert(next, "the collection page must advertise a next link");
+			return next;
+		};
+
+		const pageOne = await sirenGet(harness, { path: "/queue", token });
+		const pageTwo = await sirenGet(harness, { path: nextOf(pageOne.body).href, token });
+
+		expect(pageOne.body.properties.pages.map((entry: { label: string }) => entry.label)).toEqual(["1", "2", "3"]);
+		expect(nextOf(pageOne.body)).not.toHaveProperty("class");
+		expect(nextOf(pageTwo.body).class).toEqual(["offline-prefetch"]);
 	});
 
 	it("answers a page past the last with 200, no articles, a prev link and no next link", async () => {

@@ -75,6 +75,18 @@ This is a **published interface**: `pages`, `label`, `rel`, and `href` are the c
 - **`href` is opaque and server-built**, resolved through the client's one href resolver like any other. A client that builds `?page=` itself has reintroduced the coupling this removes.
 - **Which entries to display is client presentation.** The server sends the full list; windowing it (a few around the current page, plus the first and last) is the client's own layout decision, and `rel` is never used as a CSS class.
 
+### How Many Pages an Offline Download Resolves Is Server-Owned
+
+A listing load starts crawl and summary work for the articles on that page unless the request says it is a prefetch (`Sec-Purpose: prefetch`, or `Purpose: prefetch` from a browser). A download that walks a whole readlist would start that work for every article the reader ever saved, so the server marks the `next` link of each page past its allowance: the Siren link carries the class `offline-prefetch`, and the HTML pagination link carries `data-offline-prefetch="true"`.
+
+| A downloading client | Why |
+|---|---|
+| Sends the prefetch header when the link it follows is marked, and loads an unmarked link as an ordinary request | The allowance is one server constant — the server's one non-test TypeScript hit for `"offline-prefetch"` calls the function that reads it — so it changes without a client release |
+| Holds no page count of its own | A client constant is a second copy of the allowance, and a shipped build keeps it until every reader updates |
+| Ignores the mark outside a download | Ordinary paging and infinite scroll are the reader's own requests, and they resolve |
+
+An article fetched by a download is always a prefetch and carries no mark: opening it as an ordinary request would record that the reader viewed it.
+
 ## Infinite Scroll Is Stitched Pages — Re-read and Adopt After a Mutation
 
 A list that grew by following `next` is the client's own concatenation of several responses; the server never emitted it and cannot update it. After **any** mutation the client learns of — one it invoked, or one another surface reports (an in-app reader's bridge, a share-sheet save) — the stitched list is stale and only the server's post-mutation collection is the truth.

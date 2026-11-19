@@ -491,6 +491,8 @@ describe("/developers copy", () => {
 			classes:
 				"An entity's class says what it is: collection and articles on a collection, article on an article, error on a refusal and on a 409, save-articles-result on a save-articles answer, and upload-slot on an upload slot.",
 			"past-last": "A page past the last answers 200 with no entities, a prev link and no next link.",
+			"offline-prefetch":
+				"A next link can carry a class of offline-prefetch. It tells Readplace's own apps how to load that page while they download a readlist for offline reading, so ignore it.",
 			rels: "Links use the IANA rel where one exists, such as self, next and prev. read, root, account and add-links-help are Readplace's own.",
 			"article-self":
 				"Each article entity also carries a self link with no title: the article's own address. Fetch it to get that article alone.",

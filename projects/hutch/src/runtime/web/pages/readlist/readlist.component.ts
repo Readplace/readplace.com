@@ -91,6 +91,7 @@ import { READLIST_PURPOSE_CARD_STYLES, renderReadlistPurpose } from "./readlist-
 import { standingOf } from "../../shared/upgrade-offer/upgrade-offer";
 import { WIZARD_STYLES } from "../../shared/wizard/wizard.component";
 import { autoSubmitScript } from "../../shared/auto-submit-script";
+import { isOfflinePrefetchPage } from "../../shared/offline-prefetch";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist.template.html"), "utf-8");
 
@@ -562,6 +563,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 					content: "next",
 				})
 			: undefined,
+		nextOfflinePrefetch: isOfflinePrefetchPage(vm.currentPage + 1),
 		currentPage: vm.currentPage,
 		keepOfferHtml: renderReadlistKeepOffer(toReadlistKeepOfferDisplayModel(options.keepOffer)),
 		subscriptionHtml: side.subscriptionHtml,
