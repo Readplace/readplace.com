@@ -12,7 +12,7 @@ import {
 } from "@packages/test-fixtures/providers/transcript-quota";
 import { GUEST_UPLOAD_KINDS } from "./web/pages/upload/upload-review.page";
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
-import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
+import { PLAN_OFFERS } from "@packages/web-shell";
 import express, { type Express } from "express";
 import { type Logger, noopLogger } from "@packages/logger";
 import { initRefreshWithSaveIdentity, initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget, type ResolveSaveIdentity } from "@packages/save-article";
@@ -478,7 +478,7 @@ function flattenFixtureToAppDependencies(
 		signupLogger: noopLogger,
 		salt: "test-analytics-salt",
 		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
-		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
+		keepOfferEndsAt: PLAN_OFFERS.firstYear49.endsAt,
 		guestUploadKinds: GUEST_UPLOAD_KINDS,
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
