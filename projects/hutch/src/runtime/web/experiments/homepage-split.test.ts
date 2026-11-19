@@ -23,8 +23,8 @@ describe("HOMEPAGE_SPLIT", () => {
 
 describe("campaignTag", () => {
 	it("folds the epoch into the campaign so a re-bucket scopes the measurement window", () => {
-		expect(campaignTag(HOMEPAGE_SPLIT)).toBe("homepage-ai-cost-e2");
-		expect(campaignTag({ ...HOMEPAGE_SPLIT, epoch: 3 })).toBe("homepage-ai-cost-e3");
+		expect(campaignTag(HOMEPAGE_SPLIT)).toBe("homepage-ai-cost-e3");
+		expect(campaignTag({ ...HOMEPAGE_SPLIT, epoch: 4 })).toBe("homepage-ai-cost-e4");
 	});
 });
 

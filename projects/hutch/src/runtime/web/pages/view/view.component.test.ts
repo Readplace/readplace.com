@@ -14,7 +14,7 @@ import {
 	type ViewEndCta,
 	type ViewPageInput,
 } from "./view.component";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FIRST_DAYS_STATEMENT, FREE_PLAN_STATEMENT } from "../../price-statement";
 import { articleBody } from "@packages/test-fixtures";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 
@@ -57,12 +57,12 @@ const baseInput: ViewPageInput = {
 const endCta: ViewEndCta = {
 	heading: "Keep this one",
 	signedByFounder: false,
-	lines: [PRICE_STATEMENT, SAVES_STAY_STATEMENT],
+	lines: [FREE_PLAN_STATEMENT, FIRST_DAYS_STATEMENT],
 	actions: [
 		{
 			kind: "form",
 			key: "save",
-			label: "Save it and start my trial",
+			label: t("view.endCta.saveLabel"),
 			href: "/save",
 			variant: "primary",
 			hidden: [
@@ -755,13 +755,13 @@ describe("ViewPage Keep this one block", () => {
 		return section;
 	}
 
-	it("renders the heading, the price and saves-stay lines in order, and the save and EPUB actions", () => {
+	it("renders the heading, the free-plan and first-days lines in order, and the save and EPUB actions", () => {
 		const section = endCtaSection(render({ ...baseInput, endCta }));
 
 		expect(section.querySelector("h2")?.textContent).toBe("Keep this one");
 		expect(Array.from(section.querySelectorAll(".view__end-cta-line"), (line) => line.textContent)).toEqual([
-			PRICE_STATEMENT,
-			SAVES_STAY_STATEMENT,
+			FREE_PLAN_STATEMENT,
+			FIRST_DAYS_STATEMENT,
 		]);
 		expect(
 			Array.from(section.querySelectorAll("[data-test-view-end-cta-action]"), (action) =>
@@ -779,7 +779,7 @@ describe("ViewPage Keep this one block", () => {
 
 		expect(form.getAttribute("method")).toBe("GET");
 		expect(form.getAttribute("action")).toBe("/save");
-		expect(button.textContent).toBe("Save it and start my trial");
+		expect(button.textContent).toBe("Save it to my free account");
 		expect(
 			Array.from(form.querySelectorAll('input[type="hidden"]'), (input) => [input.getAttribute("name"), input.getAttribute("value")]),
 		).toEqual([

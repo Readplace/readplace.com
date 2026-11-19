@@ -186,6 +186,14 @@ Readplace serves en-US today and will add en-AU and other languages. A literal s
 
 Not translated by design: the home, landing, help, support, terms and privacy prose pages and the import FAQ; store and manifest metadata; admin pages and operator dashboards; MCP and WebMCP text; agent documents (`llms.txt`, `llms-full.txt`, `auth.md`, skills); blog posts; log lines; protocol text such as HTTP reason phrases and JSON-RPC bodies.
 
+### Readplace is advertised as free
+
+The home title, both llms files and the free landing page advertise Readplace as "the #1 free read-it-later app" (owner decision, 2026-11-19). The claim is true only while an account that never pays keeps saving and reading. When the free plan shipped that day, the home title, meta description, structured data, signup and both llms files went on describing a 14-day trial of a paid product.
+
+- A change to what the free plan can do changes the public sentences in the same commit: the free-plan sentences (grep the translations package for "Free to use, with no card"), the free landing page, both llms files and the terms page.
+- The wording rules for "free" and "#1" are in [Voice & Copy](./brand-guidelines/voice-and-copy.md).
+- "#1" stays out of structured data and store listings.
+
 ## Architecture Guidelines
 
 ### Brand & Design Guidelines

@@ -1,7 +1,6 @@
 import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { READLIST_SHOT, founderLine, PLAN_CHOICES, START_TRIAL } from "./landing-pages.copy";
+import { FIRST_DAYS_STATEMENT, FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { READLIST_SHOT, founderLine, PLAN_CHOICES, CREATE_FREE_ACCOUNT } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const AI_READING_LIST_CONTENT: LandingPageContent = {
@@ -91,7 +90,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Do I need a credit card to start?",
-			answer: `No. Making the account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card at any point in it. After that you pick how often you pay: ${PLAN_CHOICES}. Both are the same whole product.`,
+			answer: `No. An account is free and no card is asked for. ${FIRST_DAYS_STATEMENT} After that it stays free, within daily limits, unless you upgrade: ${PLAN_CHOICES}.`,
 		},
 		{
 			question: "What happens to the connection if I stop paying?",
@@ -102,14 +101,14 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs",
 		paragraphs: [
-			`Connecting costs nothing. The readlist behind the connection is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			`Connecting costs nothing. The readlist behind the connection takes an account. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			`${PRICING_PLANS.yearly.periodDisplay} is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
 			"If the subscription lapses, the account moves to the free plan. Your assistant can keep saving links, list your readlist, pull an article's text or summary, and mark things read as you work through them, all within daily limits.",
 		],
-		note: "Google, Apple, or an email address. No card at any point in the trial.",
+		note: "Google, Apple, or an email address. No card unless you upgrade.",
 	},
 	closeTitle: "Connect it in about a minute",
-	closeSecondaryAction: START_TRIAL,
+	closeSecondaryAction: CREATE_FREE_ACCOUNT,
 	closeNote:
 		`The <a href="${withInternalTracking("/mcp", { source: "lp-ai-reading-list-close", content: "mcp-guide" })}">setup guide</a> has the steps for Claude, ChatGPT and Gemini.`,
 };

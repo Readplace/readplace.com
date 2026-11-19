@@ -1,6 +1,6 @@
 import { PRICING_PLANS } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FIRST_DAYS_STATEMENT, FREE_PLAN_STATEMENT } from "../../price-statement";
 
 const AI_PLAN_MONTHLY_USD = 200;
 const MONTHS_PER_YEAR = 12;
@@ -45,5 +45,5 @@ export const HOME_COMPARE_CONTENT = {
 	},
 	note: `Readplace prices show the yearly plan. Claude and ChatGPT bill these plans monthly only, as of ${CHECKED_ON}.`,
 	ctaLabel: `Try Readplace free for ${STRIPE_TRIAL_PERIOD_DAYS} days`,
-	ctaReassurance: `${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+	ctaReassurance: `${FREE_PLAN_STATEMENT} ${FIRST_DAYS_STATEMENT}`,
 } as const;

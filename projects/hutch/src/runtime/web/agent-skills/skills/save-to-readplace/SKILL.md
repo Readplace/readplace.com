@@ -5,7 +5,8 @@ description: Save articles and web pages to a Readplace reading list, read them 
 
 # Save to Readplace
 
-Readplace is a privacy-first read-it-later app and browser extension. Use this
+Readplace is a free, privacy-first read-it-later app and browser extension; an
+account needs no card, and new saves have daily limits on the free plan. Use this
 skill to help a person save links to their Readplace reading list, read saved
 articles back as clean text, organise them into readlists, and mark one read
 once they have finished it.

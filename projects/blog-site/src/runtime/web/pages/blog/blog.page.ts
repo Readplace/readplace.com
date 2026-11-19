@@ -76,6 +76,7 @@ const BLOG_POST_PRIORITY: Record<string, string> = {
 	"how-ai-tldr-actually-works": "0.8",
 	"free-read-it-later-apps-2026": "0.8",
 	"readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later": "0.8",
+	"readplace-free-plan": "0.8",
 };
 
 function renderSitemap(blogPosts: BlogPosts): string {

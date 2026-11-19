@@ -1,17 +1,16 @@
 import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { READLIST_SHOT, EARLY_USER_QUOTE, FREE_PLAN_CLOSE, START_TRIAL } from "./landing-pages.copy";
+import { FIRST_DAYS_STATEMENT, FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { READLIST_SHOT, EARLY_USER_QUOTE, FREE_PLAN_CLOSE, CREATE_FREE_ACCOUNT } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 import { IMPORT_LIMITS } from "../import/import.limits";
 
 export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-04",
-	title: "Pocket Alternative — Recover Your Saved Links | Readplace",
+	lastModified: "2026-11-19",
+	title: "Free Pocket Alternative — Recover Your Saved Links | Readplace",
 	description:
-		"Readplace is a read-it-later app. Upload the export file Pocket gave you, pick the links you still want, and review them before you make an account.",
+		"Readplace is a free read-it-later app. Upload the export file Pocket gave you, pick the links you still want, and review them before you make an account.",
 	keywords:
-		"pocket alternative, pocket replacement, pocket shut down, import pocket export, move pocket links, read it later app, pocket export html, reading readlist, save articles for later, pocket migration",
+		"pocket alternative, free Pocket alternative, pocket replacement, pocket shut down, import pocket export, move pocket links, read it later app, pocket export html, reading readlist, save articles for later, pocket migration",
 	headline: "Move your Pocket links without signing up first",
 	eyebrow: "For readers whose read-it-later app shut down",
 	titleLead: "Your Pocket links, ",
@@ -94,7 +93,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Do I need a credit card to start?",
-			answer: `No. Making the account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product, and no card is asked for at any point in it. If you don't subscribe, nothing is charged.`,
+			answer: `No. An account is free, within daily limits on new saves, and no card is asked for. ${FIRST_DAYS_STATEMENT} If you never upgrade, nothing is charged.`,
 		},
 		{
 			question: "What happens to my links if I stop paying?",
@@ -105,14 +104,14 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs once the links are across",
 		paragraphs: [
-			`Uploading and reviewing costs nothing and needs no account. Saving the selection does, and that account is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			`Uploading and reviewing costs nothing and needs no account. Saving the selection takes an account. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			`${PRICING_PLANS.yearly.periodDisplay} is the whole business. No ad path, no data resale, and no investor whose timeline outlives yours — which is the failure mode you are on this page because of. <a href="${withInternalTracking("/blog/free-read-it-later-apps-2026", { source: "lp-pocket-alternative-body", content: "post-free-read-it-later-apps-2026" })}">The free read-it-later apps</a> are compared on the same thing: who pays the bill when you don't.`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card at any point in the trial.",
+		note: "Google, Apple, or an email address. No card unless you upgrade.",
 	},
 	closeTitle: "Start with the file Pocket gave you",
-	closeSecondaryAction: START_TRIAL,
+	closeSecondaryAction: CREATE_FREE_ACCOUNT,
 	closeNote:
 		`No account needed to see what comes across. <a href="${withInternalTracking("/blog/pocket-migration", { source: "lp-pocket-alternative-close", content: "pocket-guide" })}">The recovery guide</a> covers getting the export out of Pocket, and <a href="${withInternalTracking("/blog/best-read-it-later-apps-2026", { source: "lp-pocket-alternative-close", content: "post-best-read-it-later-apps-2026" })}">the comparison of 7 read-it-later apps</a> lists the other apps that take it.`,
 };

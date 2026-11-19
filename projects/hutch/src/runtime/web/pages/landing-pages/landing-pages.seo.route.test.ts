@@ -15,10 +15,16 @@ function laterOf({ page, shared }: { page: string; shared: string }): string {
 	return page > shared ? page : shared;
 }
 
-async function loadPage(slug: LandingPageSlug) {
+function pageLoader() {
 	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-	const response = await request(harness.server).get(`/${slug}`);
-	return new JSDOM(response.text).window.document;
+	return async (slug: LandingPageSlug) => {
+		const response = await request(harness.server).get(`/${slug}`);
+		return new JSDOM(response.text).window.document;
+	};
+}
+
+function loadPage(slug: LandingPageSlug) {
+	return pageLoader()(slug);
 }
 
 describe("landing page SEO", () => {
@@ -109,8 +115,9 @@ describe("landing page SEO", () => {
 		const titles: string[] = [];
 		const descriptions: string[] = [];
 
+		const loadEachPage = pageLoader();
 		for (const slug of SLUGS) {
-			const doc = await loadPage(slug);
+			const doc = await loadEachPage(slug);
 			const description = doc
 				.querySelector('meta[name="description"]')
 				?.getAttribute("content");

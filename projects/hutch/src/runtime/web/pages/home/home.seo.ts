@@ -11,7 +11,7 @@ import {
 	BROWSER_EXTENSIONS_AND,
 	BROWSER_EXTENSIONS_OR,
 } from "../../shared/client-enumerations";
-import { PRICE_STATEMENT } from "../../price-statement";
+import { FREE_PLAN_STATEMENT, UPGRADE_STATEMENT } from "../../price-statement";
 import { CANONICAL_SLOGAN } from "../../slogans";
 import type { HomeFaqEntry } from "./home.content";
 
@@ -75,8 +75,16 @@ const PLAN_OFFERS = STATED_PRICING_PANELS.map(({ key }) => ({
 			unitCode,
 		},
 	},
-	description: `Full access including TL;DR summaries. ${PRICE_STATEMENT}`,
+	description: UPGRADE_STATEMENT,
 }));
+
+const FREE_OFFER = {
+	"@type": "Offer",
+	name: "Free",
+	price: "0",
+	priceCurrency: "USD",
+	description: FREE_PLAN_STATEMENT,
+};
 
 export function buildHomeSeo(input: {
 	staticBaseUrl: string;
@@ -85,9 +93,9 @@ export function buildHomeSeo(input: {
 	const { staticBaseUrl, faq } = input;
 
 	return {
-		title: "Readplace — Save Articles to Read Later",
+		title: "Readplace — The #1 Free Read-It-Later App",
 		description:
-			"Readplace is a read-it-later app: save any article, newsletter, or PDF in one click and read it later in a clean reader view with an AI TL;DR. 14-day free trial, no credit card.",
+			"Readplace is the #1 free read-it-later app. Save any article, newsletter or PDF in one click and read it on a clean page with an AI TL;DR. No card, with daily limits on new saves.",
 		canonicalUrl: "https://readplace.com",
 		ogType: "website",
 		robots: "index, follow",
@@ -97,7 +105,7 @@ export function buildHomeSeo(input: {
 		twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 		author: "Fayner Brack",
 		appleItunesApp: APPLE_ITUNES_APP_META,
-		keywords: `read it later, read-it-later app, online reader, online reading app, personal reading list, web reader, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries, ${AI_ASSISTANT_SAVE_KEYWORDS}, MCP server, ${Object.values(NATIVE_APP_SEO)
+		keywords: `free read it later app, free read-it-later app, read it later free, free Pocket alternative, read it later, read-it-later app, online reader, online reading app, personal reading list, web reader, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, ${BROWSER_EXTENSION_KEYWORDS}, article reader, distraction free reading, AI summaries, ${AI_ASSISTANT_SAVE_KEYWORDS}, MCP server, ${Object.values(NATIVE_APP_SEO)
 			.map((app) => app.keywords)
 			.join(", ")}, import bookmarks, import Pocket export, newsletter to read later`,
 		structuredData: [
@@ -109,7 +117,7 @@ export function buildHomeSeo(input: {
 				name: "Readplace",
 				alternateName: ["Readplace Read-It-Later App", "Readplace App"],
 				url: "https://readplace.com",
-				description: `A privacy-first read-it-later app and Pocket alternative. Save from your browser, ${Object.values(
+				description: `A free, privacy-first read-it-later app and Pocket alternative. Save from your browser, ${Object.values(
 					NATIVE_APP_SEO,
 				)
 					.map((app) => app.deviceMention)
@@ -121,8 +129,8 @@ export function buildHomeSeo(input: {
 				softwareVersion: "1.0",
 				datePublished: "2026-03-01",
 				inLanguage: "en",
-				isAccessibleForFree: false,
-				offers: PLAN_OFFERS,
+				isAccessibleForFree: true,
+				offers: [FREE_OFFER, ...PLAN_OFFERS],
 				author: {
 					"@type": "Person",
 					"@id": "https://readplace.com/#founder",
@@ -193,7 +201,7 @@ export function buildHomeSeo(input: {
 					award: "Creator of js-cookie — 22 billion+ annual downloads on jsDelivr CDN",
 				},
 				description:
-					"Readplace is a privacy-first read-it-later app and Pocket alternative. Read what you saved, with an AI TL;DR summary on every article to help you choose.",
+					"Readplace is a free, privacy-first read-it-later app and Pocket alternative. Read what you saved, with an AI TL;DR summary on every article to help you choose.",
 				foundingDate: "2025",
 				areaServed: "Worldwide",
 				address: {
@@ -206,10 +214,10 @@ export function buildHomeSeo(input: {
 			{
 				"@context": "https://schema.org",
 				"@type": "WebSite",
-				name: "Readplace — Read-It-Later App",
+				name: "Readplace — Free Read-It-Later App",
 				alternateName: "Readplace App",
 				url: "https://readplace.com",
-				description: `Read what you saved, with an AI TL;DR summary on every article to help you choose. ${PRICE_STATEMENT}`,
+				description: `Read what you saved, with an AI TL;DR summary on every article to help you choose. ${FREE_PLAN_STATEMENT}`,
 				slogan: CANONICAL_SLOGAN,
 			},
 		],

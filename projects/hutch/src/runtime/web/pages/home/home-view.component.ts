@@ -128,7 +128,23 @@ const HOMEPAGE_WAYS: readonly HomeWayRow[] = [
 	...HOME_WAYS_WITHOUT_A_CLIENT,
 ];
 
-const HOMEPAGE_PRICING_PANELS = STATED_PRICING_PANELS.map((panel) => ({
+const HOMEPAGE_FREE_PRICING_PANEL = {
+	tierId: "free",
+	name: pricing.freePanel.name,
+	monthlyDisplay: pricing.freePanel.monthlyDisplay,
+	billedNote: pricing.freePanel.billedNote,
+	badge: undefined,
+	panelClass: "home-pricing__plan",
+	cta: renderAction({
+		key: "plan-free",
+		label: pricing.freePanel.ctaLabel,
+		href: "/signup",
+		content: "plan-free",
+		cssClass: "btn--primary home-pricing__plan-button",
+	}),
+};
+
+const HOMEPAGE_PAID_PRICING_PANELS = STATED_PRICING_PANELS.map((panel) => ({
 	tierId: panel.key,
 	name: panel.name,
 	monthlyDisplay: panel.monthlyDisplay,
@@ -145,6 +161,8 @@ const HOMEPAGE_PRICING_PANELS = STATED_PRICING_PANELS.map((panel) => ({
 		cssClass: "btn--primary home-pricing__plan-button",
 	}),
 }));
+
+const HOMEPAGE_PRICING_PANELS = [HOMEPAGE_FREE_PRICING_PANEL, ...HOMEPAGE_PAID_PRICING_PANELS];
 function buildPasteAction(input: { hero: HomeHero; primary: boolean; saveTipState: SaveTipState }): RenderedAction {
 	const { hero } = input;
 	return renderAction({
@@ -216,7 +234,7 @@ export function buildHomeView(params: {
 	return {
 		saveTipHtml: saveTip.html,
 		pageDepthBeacon: renderPageDepthBeacon(),
-		heroEyebrow: lastViewUrl === undefined ? undefined : hero.arrivalEyebrow,
+		heroEyebrow: lastViewUrl === undefined ? hero.positioningEyebrow : hero.arrivalEyebrow,
 		heroTitle: hero.title,
 		heroSubhead: hero.subhead,
 		heroActions: buildHeroActions({ hero, lastViewUrl, saveTipState: saveTip.state }),
@@ -276,6 +294,12 @@ export function buildHomeView(params: {
 		pricingSavesStay: pricing.savesStay,
 		pricingPanels: HOMEPAGE_PRICING_PANELS,
 		pricingNote: pricing.ctaNote,
+		pricingFreePlanLink: trackedLink({
+			label: pricing.freePlanLink.label,
+			href: pricing.freePlanLink.href,
+			content: "free-read-it-later-app",
+			source: "home-pricing",
+		}),
 		pricingAssurances: pricing.assurances,
 		pricingSourceLead: pricing.sourceLead,
 		pricingSourceLink: pricing.sourceLink,

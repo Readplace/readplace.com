@@ -1,7 +1,6 @@
 import { OCR_SCRIPT_PACKS, type OcrScriptPack } from "@packages/crawl-article";
 import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import type {
 	IsoDay,
 	LandingPageAction,
@@ -59,15 +58,15 @@ export const PLAN_CHOICES = `${PRICING_PLANS.monthly.billedNote} or ${PRICING_PL
  * it, because for a reader who has already lost one readlist it answers the
  * objection that a price tag raises. */
 export const FREE_PLAN_CLOSE =
-	"If you never subscribe, nothing is charged and the account moves to the free plan instead of going dark — you keep every article you saved, you can keep saving within daily limits, and you can still export.";
+	"If you never upgrade, nothing is charged and the account stays on the free plan instead of going dark — you keep every article you saved, you can keep saving within daily limits, and you can still export.";
 
-export const START_TRIAL: LandingPageAction = {
+export const CREATE_FREE_ACCOUNT: LandingPageAction = {
 	key: "signup",
-	label: `Start your ${STRIPE_TRIAL_PERIOD_DAYS}-day free trial`,
+	label: "Create a free account",
 	href: "/signup",
 };
 
-export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-11-15";
+export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-11-19";
 
 export function landingPageLastModified(page: Pick<LandingPageContent, "lastModified">): IsoDay {
 	return page.lastModified > SHARED_LANDING_COPY_LAST_MODIFIED

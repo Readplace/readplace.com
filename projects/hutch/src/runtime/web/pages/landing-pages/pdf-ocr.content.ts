@@ -1,7 +1,6 @@
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { withInternalTracking } from "@packages/web-shell";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FIRST_DAYS_STATEMENT, FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	OCR_LANGUAGES_ANSWER,
 	OCR_TESTED_LANGUAGES,
@@ -10,12 +9,12 @@ import {
 	founderLine,
 	PLAN_CHOICES,
 	FREE_PLAN_CLOSE,
-	START_TRIAL,
+	CREATE_FREE_ACCOUNT,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const PDF_OCR_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-04",
+	lastModified: "2026-11-19",
 	title: "Read-It-Later for PDFs, Scans Read by OCR | Readplace",
 	description:
 		"Save PDFs from a link, the browser extension or the iPhone share sheet, and read them as text. Scanned pages are read by OCR from their pixels, and a cleanup pass that changes a number is thrown away.",
@@ -116,7 +115,7 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "What does it cost to keep using it?",
-			answer: `Making an account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card asked for. After that you pick how often you pay: ${PLAN_CHOICES}. Both are the same whole product.`,
+			answer: `An account is free and no card is asked for. ${FIRST_DAYS_STATEMENT} After that it stays free, within daily limits, unless you upgrade: ${PLAN_CHOICES}.`,
 		},
 		{
 			question: "What happens to PDFs I already saved if I stop paying?",
@@ -127,12 +126,12 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs after the first one",
 		paragraphs: [
-			`Reading a link you paste here costs nothing. Keeping a library of them is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			`Reading a link you paste here costs nothing. Keeping a library of them takes an account. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card at any point in the trial.",
+		note: "Google, Apple, or an email address. No card unless you upgrade.",
 	},
 	closeTitle: "Try it on a PDF you already have",
-	closeSecondaryAction: START_TRIAL,
+	closeSecondaryAction: CREATE_FREE_ACCOUNT,
 	closeNote: `Paste a link and read the extraction. No account required. <a href="${withInternalTracking("/pdf-reflow", { source: "lp-pdf-ocr-close", content: "pdf-reflow" })}">Reading a PDF on a phone</a> and <a href="${withInternalTracking("/article-to-epub", { source: "lp-pdf-ocr-close", content: "article-to-epub" })}">turning one into an EPUB</a> have their own pages.`,
 };

@@ -11,7 +11,9 @@
 
 Use this exact form on brand and user-facing surfaces — *Web* and *Slop* capitalised (the two nouns being contrasted), *the* and *not* lowercase, ending in a full stop. It is deliberate noun emphasis: not title case (*not* stays lowercase) and not sentence case (*Web* and *Slop* stay capitalised). Two intentional exceptions: the homepage SEO **keywords** meta uses the comma-free, all-lowercase `read the web not the slop` for keyword matching; and when the phrase runs **mid-sentence as prose** it follows that sentence's case (e.g. "…a place where you read the web, not the slop."). A standalone line or sign-off uses the canonical form above.
 
-**What Readplace is:** A read-it-later app that saves articles, blog posts, and web pages for later reading. Born from a personal reading system refined over 10 years.
+**Positioning line:** The #1 free read-it-later app. Where it may appear is in Voice & Copy.
+
+**What Readplace is:** A free read-it-later app that saves articles, blog posts, and web pages for later reading. Born from a personal reading system refined over 10 years.
 
 **What Readplace feels like:** A well-made tool shaped by daily use. A private reading nook in a home library — warm wood, good lighting, no distractions. Not a co-working space. Not a productivity dashboard. A quiet place that's yours.
 
@@ -96,4 +98,4 @@ Every section below is its own file. Read only the one the work needs.
 
 ---
 
-*Last updated: September 2026*
+*Last updated: November 2026*

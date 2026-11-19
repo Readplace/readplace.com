@@ -15,7 +15,7 @@ export interface HomepageSplitConfig {
 export const HOMEPAGE_SPLIT: HomepageSplitConfig = {
 	active: true,
 	campaign: "homepage-ai-cost",
-	epoch: 2,
+	epoch: 3,
 	variants: [
 		{ slug: "variant-e", marker: "b" },
 		{ slug: "variant-f", marker: "c" },

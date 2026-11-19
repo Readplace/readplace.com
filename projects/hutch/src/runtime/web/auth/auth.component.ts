@@ -10,7 +10,7 @@ import {
 } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../price-statement";
+import { FIRST_DAYS_STATEMENT, FREE_PLAN_STATEMENT, UPGRADE_STATEMENT } from "../price-statement";
 import { renderFoundingProgress } from "../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import type { ComponentError } from "../shared/component-error.types";
@@ -83,8 +83,9 @@ function globalErrorHtml(errors: ComponentError[] | undefined): string {
 function authHints({ show }: { show: boolean }): { key: string; text: string }[] {
 	return show
 		? [
-				{ key: "trial-hint", text: PRICE_STATEMENT },
-				{ key: "saves-stay", text: SAVES_STAY_STATEMENT },
+				{ key: "free-plan", text: FREE_PLAN_STATEMENT },
+				{ key: "first-days", text: FIRST_DAYS_STATEMENT },
+				{ key: "upgrade", text: UPGRADE_STATEMENT },
 			]
 		: [];
 }

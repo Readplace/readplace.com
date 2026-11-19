@@ -5,7 +5,7 @@ import type { IconName } from "@packages/ui-icons";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { AI_ASSISTANTS_OR } from "../../shared/client-enumerations";
-import { RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FREE_PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { CANONICAL_SLOGAN } from "../../slogans";
 
 export interface HomeWayLink {
@@ -147,7 +147,7 @@ export const HOME_WAYS_WITHOUT_A_CLIENT: readonly HomeWayRow[] = [
 	},
 	{
 		name: "Your newsletters to your readlist",
-		bodyLead: "Every account gets its own address at read.place, shaped like",
+		bodyLead: "On the paid plan, every account gets its own address at read.place, shaped like",
 		examples: ["my-tech-newsletter@read.place", "my-other-newsletter@read.place"],
 		bodyTail:
 			"Subscribe with your Readplace email, or forward an issue to it, and it automatically saves the article links out of the email.",
@@ -187,9 +187,10 @@ const HOME_MOBILE_APP_FAQ_BY_CLIENT = {
 export const HOME_CONTENT = {
 	hero: {
 		arrivalEyebrow: "You just read that in Readplace.",
+		positioningEyebrow: "The #1 free read-it-later app",
 		title: "Save anything to read later. Read only what's worth it.",
 		subhead:
-			"Readplace is a read-it-later app. Save any article, newsletter, or PDF in one click — from your browser, your phone, or an AI chat — and it opens on a clean page with the reading time and an AI TL;DR at the top, so forty saved links become the four worth reading tonight. Your copy stays readable even if the original goes down.",
+			"Readplace is a free read-it-later app. Save any article, newsletter, or PDF in one click — from your browser, your phone, or an AI chat — and it opens on a clean page with the reading time and an AI TL;DR at the top, so forty saved links become the four worth reading tonight. Your copy stays readable even if the original goes down.",
 		pasteLabel: "Article URL",
 		pastePlaceholder: "https://example.com/article",
 		pasteCtaLabel: "Open in reader view",
@@ -245,12 +246,19 @@ export const HOME_CONTENT = {
 		signature: "— Fayner Brack, Founder & CEO",
 	},
 	pricing: {
-		titleBefore: `${TRIAL_DAYS} days free, no card. Then`,
+		titleBefore: "Free, with no card. Or upgrade for",
 		priceAmount: PRICING_PLANS.yearly.periodDisplay,
 		titleAfter: `(${PRICING_PLANS.yearly.monthlyDisplay} a month, billed yearly) or ${PRICING_PLANS.monthly.periodDisplay}.`,
 		savesStay: SAVES_STAY_STATEMENT,
 		panelCtaLabel: `Try Readplace free for ${TRIAL_DAYS} days`,
-		ctaNote: `Google, Apple, or an email address — about twenty seconds. No card at any point in the ${TRIAL_DAYS} days.`,
+		ctaNote: "Google, Apple, or an email address — about twenty seconds. No card unless you upgrade.",
+		freePanel: {
+			name: "Free",
+			monthlyDisplay: "$0",
+			billedNote: "No card. New saves within daily limits.",
+			ctaLabel: "Create a free account",
+		},
+		freePlanLink: { label: "What the free plan includes", href: "/free-read-it-later-app" },
 		assurances: [
 			"Export a list of every article you saved, as JSON, anytime — even after you cancel.",
 			"Stop paying and the account moves to the free plan instead of going dark — every saved article stays readable, and saving keeps working within daily limits.",
@@ -270,11 +278,15 @@ export const HOME_CONTENT = {
 		items: [
 			{
 				question: "What is Readplace?",
-				answer: `A read-it-later app built from a ten-year personal reading system. Save an article from a browser extension, ${Object.values(HOME_SHARE_SHEET_BY_CLIENT).join(", ")}, an AI assistant like ${AI_ASSISTANTS_OR}, a bulk import of an old export file, or by pasting the link on this page — then read it in a clean reader view, with an AI TL;DR on every article to help you choose what is worth your time.`,
+				answer: `A free read-it-later app built from a ten-year personal reading system. Save an article from a browser extension, ${Object.values(HOME_SHARE_SHEET_BY_CLIENT).join(", ")}, an AI assistant like ${AI_ASSISTANTS_OR}, a bulk import of an old export file, or by pasting the link on this page — then read it in a clean reader view, with an AI TL;DR on every article to help you choose what is worth your time.`,
+			},
+			{
+				question: "Is Readplace free?",
+				answer: `Yes. ${FREE_PRICE_STATEMENT}`,
 			},
 			{
 				question: "Do I need a credit card to start?",
-				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that it's ${RENEWAL_PRICES.replace(/\.$/, "")}, and both plans are the same full product. If you don't subscribe, nothing is charged and the account moves to the free plan.`,
+				answer: `No. An account is free, within daily limits on new saves, and no card is asked for, in the first ${TRIAL_DAYS} days or after them. A card is asked for only when you upgrade: ${RENEWAL_PRICES}`,
 			},
 			{
 				question: "What happens to my articles if I stop paying?",
@@ -313,7 +325,7 @@ export const HOME_CONTENT = {
 		] as const satisfies readonly HomeFaqEntry[],
 	},
 	close: {
-		title: `${TRIAL_DAYS} days of your own reading answers this better than this page can.`,
+		title: "Your own reading answers this better than this page can.",
 		installLabel: "Every way to save",
 		installHref: "/install",
 		importLabel: "Import your links",
