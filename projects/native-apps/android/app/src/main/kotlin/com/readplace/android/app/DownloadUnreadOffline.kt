@@ -27,8 +27,7 @@ class DownloadUnreadOffline(
 			repeat(CONCURRENT_ARTICLES) {
 				launch {
 					for (url in queue) {
-						prefetcher.prefetch(url, session.cookies())
-						tally.stored()
+						tally.settled(stored = prefetcher.prefetch(url, session.cookies()))
 					}
 				}
 			}
@@ -43,8 +42,9 @@ class DownloadUnreadOffline(
 		var page = api.loadReadlist(startHref)
 		snapshot.keepFirstPage(page, href = startHref, generation = generation)
 		var walked = 1
+		val queued = mutableSetOf<String>()
 		while (true) {
-			enqueue(page, queue, tally)
+			enqueue(page, queued, queue, tally)
 			val next = page.nextHref ?: return
 			walked += 1
 			page = if (walked <= RESOLVING_LISTING_PAGES) api.loadReadlist(next) else api.loadReadlistAsPrefetch(next)
@@ -52,10 +52,11 @@ class DownloadUnreadOffline(
 		}
 	}
 
-	private suspend fun enqueue(page: ReadlistPage, queue: SendChannel<String>, tally: Tally) {
+	private suspend fun enqueue(page: ReadlistPage, queued: MutableSet<String>, queue: SendChannel<String>, tally: Tally) {
 		val urls = page.articles
 			.filter { !it.isRead }
 			.mapNotNull { article -> article.readHref?.let { ReaderRequest.url(it, api.baseUrl) } }
+			.filter { queued.add(it) }
 		if (urls.isEmpty()) return
 		tally.queued(urls.size)
 		for (url in urls) queue.send(url)
@@ -65,17 +66,19 @@ class DownloadUnreadOffline(
 		private val lock = Mutex()
 		private var completed = 0
 		private var total = 0
+		private var failed = 0
 
 		suspend fun queued(count: Int) =
 			lock.withLock {
 				total += count
-				report(OfflineDownloadProgress(completed = completed, total = total))
+				report(OfflineDownloadProgress(completed = completed, total = total, failed = failed))
 			}
 
-		suspend fun stored() =
+		suspend fun settled(stored: Boolean) =
 			lock.withLock {
 				completed += 1
-				report(OfflineDownloadProgress(completed = completed, total = total))
+				if (!stored) failed += 1
+				report(OfflineDownloadProgress(completed = completed, total = total, failed = failed))
 			}
 	}
 

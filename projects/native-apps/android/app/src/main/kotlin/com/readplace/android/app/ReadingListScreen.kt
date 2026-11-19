@@ -230,7 +230,7 @@ fun ReadingListScreen(
 						)
 					}
 					if (state.offlineDownloadHref != null) {
-						IconButton(onClick = viewModel::downloadUnreadOffline, enabled = state.offlineDownload == null) {
+						IconButton(onClick = viewModel::downloadUnreadOffline, enabled = state.canStartOfflineDownload) {
 							Icon(imageVector = Glyph.DOWNLOAD_CIRCLE, contentDescription = OFFLINE_DOWNLOAD_BUTTON_LABEL)
 						}
 					}

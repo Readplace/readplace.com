@@ -17,4 +17,16 @@ class OfflineDownloadTest {
 
 		assertEquals("Downloading 3 of 20 for offline reading" to 0.15f, progress.label to progress.fraction)
 	}
+
+	@Test
+	fun `a run where every article was stored has no failure to report`() {
+		assertEquals(null, OfflineDownloadProgress(completed = 4, total = 4).failureText)
+	}
+
+	@Test
+	fun `a run with articles that were not stored says how many of the total failed`() {
+		val progress = OfflineDownloadProgress(completed = 4, total = 4, failed = 2)
+
+		assertEquals("2 of 4 articles couldn't be downloaded for offline reading", progress.failureText)
+	}
 }

@@ -5304,6 +5304,40 @@ class ReadingListViewModelTest {
 	}
 
 	@Test
+	fun `a finished run with articles that were not stored says how many failed`() = runTest {
+		server.handle(offlineDownloadHandler())
+		val download = ScriptedDownload()
+		val viewModel = viewModel(downloadUnreadOffline = download::run)
+		viewModel.loadIfNeeded()
+		viewModel.downloadUnreadOffline()
+		runCurrent()
+
+		download.report(OfflineDownloadProgress(completed = 3, total = 3, failed = 1))
+		download.finish.complete(Unit)
+		runCurrent()
+
+		assertEquals(
+			null to "1 of 3 articles couldn't be downloaded for offline reading",
+			viewModel.state.value.offlineDownload to viewModel.state.value.errorText,
+		)
+	}
+
+	@Test
+	fun `the offline download cannot start while offline or during a run`() {
+		assertEquals(
+			listOf(true, false, false),
+			listOf(
+				ReadingListState(collectionAffordances = emptyList()).canStartOfflineDownload,
+				ReadingListState(collectionAffordances = emptyList(), isOffline = true).canStartOfflineDownload,
+				ReadingListState(
+					collectionAffordances = emptyList(),
+					offlineDownload = OfflineDownloadProgress(completed = 0, total = 0),
+				).canStartOfflineDownload,
+			),
+		)
+	}
+
+	@Test
 	fun `cancelling the offline download ends it and clears the row without an error`() = runTest {
 		server.handle(offlineDownloadHandler())
 		val events = mutableListOf<String>()

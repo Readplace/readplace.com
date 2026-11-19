@@ -203,7 +203,21 @@ class DownloadUnreadOfflineTest {
 
 		download(RecordingPrefetcher(answer = { it != readerUrl("a1") })).run(START) { reports += it }
 
-		assertEquals(OfflineDownloadProgress(completed = 3, total = 3), reports.last())
+		assertEquals(OfflineDownloadProgress(completed = 3, total = 3, failed = 1), reports.last())
+	}
+
+	@Test
+	fun `an article listed on two pages is stored and counted once`() = runTest {
+		server.handle(listing(listOf(listOf(Fixtures.article("a1")), listOf(Fixtures.article("a1"), Fixtures.article("a2")))))
+		val prefetcher = RecordingPrefetcher()
+		val reports = mutableListOf<OfflineDownloadProgress>()
+
+		download(prefetcher).run(START) { reports += it }
+
+		assertEquals(
+			listOf(readerUrl("a1"), readerUrl("a2")) to OfflineDownloadProgress(completed = 2, total = 2),
+			prefetcher.urls to reports.last(),
+		)
 	}
 
 	@Test

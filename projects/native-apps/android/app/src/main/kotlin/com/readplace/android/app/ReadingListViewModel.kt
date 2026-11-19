@@ -84,6 +84,8 @@ data class ReadingListState(
 ) {
 	val offlineDownloadHref: String? get() = tabs.firstOrNull()?.href
 
+	val canStartOfflineDownload: Boolean get() = offlineDownload == null && !isOffline
+
 	/** A switcher is offered only when the reader has more than one readlist. */
 	val offersReadlistSwitching: Boolean get() = readlists.size > 1
 
@@ -807,9 +809,12 @@ class ReadingListViewModel(
 		mutate { it.copy(offlineDownload = OfflineDownloadProgress(completed = 0, total = 0)) }
 		val run = scope.launch(start = CoroutineStart.LAZY) {
 			try {
+				var last: OfflineDownloadProgress? = null
 				downloadUnreadOffline(OfflineDownloadRequest(startHref = href, sessionAction = sessionAction)) { progress ->
+					last = progress
 					mutate { it.copy(offlineDownload = progress) }
 				}
+				last?.failureText?.let { text -> mutate { it.copy(errorText = text) } }
 			} catch (error: Exception) {
 				if (currentCoroutineContext().isActive) handle(error)
 			} finally {
