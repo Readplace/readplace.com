@@ -12,6 +12,7 @@
  * plain HTML body the downstream parser adapts (Readability today). */
 export type SiteArticleContent = {
 	title?: string;
+	excerpt?: string;
 	bodyHtml: string;
 };
 
