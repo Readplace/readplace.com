@@ -198,7 +198,8 @@ function buildSyntheticHtml(extracted: SiteArticleContent): string {
 	const escapedTitle = escapeHtmlText(extracted.title ?? "");
 	const titleTag = extracted.title ? `<title>${escapedTitle}</title>` : "";
 	const h1 = extracted.title ? `<h1>${escapedTitle}</h1>` : "";
-	return `<!DOCTYPE html><html><head>${titleTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
+	const descriptionTag = extracted.excerpt ? `<meta name="description" content="${escapeHtmlText(extracted.excerpt)}">` : "";
+	return `<!DOCTYPE html><html><head>${titleTag}${descriptionTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
 }
 
 function escapeHtmlText(text: string): string {

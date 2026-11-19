@@ -52,7 +52,8 @@ import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.co
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { VIEW_STYLES } from "./view.styles";
 import { renderLocalViewHighlights, VIEW_HIGHLIGHTS_SCRIPTS } from "./view-highlights.component";
-import { displayableReadTime, isPrivateItemUrl } from "@packages/domain/article";
+import { isPrivateItemUrl } from "@packages/domain/article";
+import { displayableArticleReadTime } from "../../shared/displayable-time";
 import {
 	REPORT_ARTICLE_SCRIPT,
 	type ReportArticleDialogInput,
@@ -299,7 +300,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		now: input.now,
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
-		readTime: displayableReadTime(input),
+		readTime: displayableArticleReadTime({ ...input, url: input.articleUrl }),
 		// Header only; the share path, save action and SEO
 		// keep `articleUrl` (the identity).
 		url: input.destinationUrl,

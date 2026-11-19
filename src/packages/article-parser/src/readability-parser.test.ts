@@ -763,6 +763,31 @@ describe("initReadabilityParser", () => {
 			}
 		});
 
+		it("writes a site rule's excerpt into the synthetic page", () => {
+			const { parseHtml } = initParser({
+				siteRules: [
+					{
+						matches: () => true,
+						extract: () => ({
+							excerpt: 'The site\'s own "summary" & teaser',
+							bodyHtml:
+								"<p>Content injected by the matching pre-parser, long enough for readability to score it as the article body.</p>",
+						}),
+					},
+				],
+			});
+
+			const result = parseHtml({
+				url: "https://matching.example.com/article",
+				documentUrl: "https://matching.example.com/article",
+				html: "<html><body><p>Original body that should be replaced.</p></body></html>",
+				thumbnailUrl: null,
+			});
+
+			assert(result.ok);
+			expect(result.article.excerpt).toBe('The site\'s own "summary" & teaser');
+		});
+
 		it("falls through to the next pre-parser when extract returns undefined", () => {
 			const calls: string[] = [];
 			const firstSite: TestSite = {
