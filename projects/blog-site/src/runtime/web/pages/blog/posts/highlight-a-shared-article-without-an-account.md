@@ -27,7 +27,7 @@ The marks live in the browser's own storage. The server holds no copy, and clear
 
 Readplace learns they exist only when their owner decides they're worth an account.
 
-The budget is 5 across all articles, not 5 per article. A single passage or note runs to 1,000 characters, which covers most quotes worth keeping and most thoughts about them.
+The budget is 5 across all articles, not 5 per article. A single passage or note runs to 1,000 characters.
 
 ## What the 6th mark opens
 
@@ -37,7 +37,7 @@ Not now means that. The popup closes, the 5 stay marked, and nothing nags on a t
 
 ## Sign-up wipes the browser, so the marks leave first
 
-The part worth explaining is how 5 marks survive the sign-up. Finishing a sign-up or a log-in makes Readplace send `Clear-Site-Data: "storage"`, a header that tells the browser to clear what the site stored there, and that guard predates this feature.
+The part worth explaining is how 5 marks survive the sign-up. Finishing a sign-up or a log-in makes Readplace send `Clear-Site-Data: "storage"`, a header that tells the browser to clear what the site stored there. That guard predates this feature.
 
 Marks that waited in the browser would not live through their own rescue.
 
@@ -51,6 +51,6 @@ The Save button on a shared page, the save form under the article and the Log in
 
 ## Group chats already send the passage
 
-A link that arrives in a group chat tends to have one passage doing the arguing. Open the link, find that passage, and the toolbar is already there.
+Open a link a friend shared, select the passage worth keeping, and the toolbar is already there.
 
 The 6th mark is when the account is worth making, and a new one at [readplace.com](/?utm_source=blog-highlight-a-shared-article-without-an-account&utm_medium=internal&utm_content=home) arrives with the first 5 already in it.
