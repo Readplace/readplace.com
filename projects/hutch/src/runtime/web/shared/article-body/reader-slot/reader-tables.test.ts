@@ -397,6 +397,49 @@ describe("describeReaderTables", () => {
 		assert.equal(table.hasAttribute("data-reader-fits"), true);
 	});
 
+	it("flows a layout table whose other cells hold only spaces and a non-breaking space, and drops those cells", () => {
+		const out = described(
+			`<table><tr><td> &nbsp; </td><td><table><tr><td><a href="https://example.com/"><img src="https://example.com/sponsor.png" alt="" width="590"></a></td></tr><tr><td><p>Thanks CKEditor for supporting today's article!</p></td></tr></table></td><td> &nbsp; </td></tr></table>`,
+		);
+		const table = firstTable(out);
+		assert.equal(table.hasAttribute("data-reader-flow"), true);
+		assert.equal(table.hasAttribute("data-reader-fits"), false);
+		const row = table.querySelector("tr");
+		assert(row, "the layout table must keep its row");
+		const cells = Array.from(row.children);
+		assert.equal(cells.length, 1);
+		assert.equal(cells[0].querySelector("img")?.getAttribute("src"), "https://example.com/sponsor.png");
+		assert.equal(cells[0].querySelector("p")?.textContent, "Thanks CKEditor for supporting today's article!");
+		assert.equal(out.querySelectorAll("[data-label], [data-reader-header]").length, 0);
+	});
+
+	it("keeps a cell holding a zero-width non-joiner a cell, so its table stays a table", () => {
+		const html = "<table><tr><td>&zwnj;</td><td>a</td></tr></table>";
+		assert.equal(fits(html), true);
+		assert.equal(firstTable(described(html)).hasAttribute("data-reader-flow"), false);
+	});
+
+	it("keeps a comparison table with a blank corner heading a table, its labels and its corner cell", () => {
+		const html =
+			"<table><thead><tr><th>&nbsp;</th><th>Free</th><th>Pro</th></tr></thead><tbody><tr><th>Seats</th><td>1</td><td>10</td></tr></tbody></table>";
+		const table = firstTable(described(html));
+		assert.equal(table.hasAttribute("data-reader-flow"), false);
+		assert.deepEqual(labels(html), ["Free", "Pro"]);
+		assert.equal(table.querySelectorAll("th").length, 4);
+	});
+
+	it("keeps a row of an empty cell and a filled cell a table", () => {
+		const html = "<table><tr><td></td><td>x</td></tr></table>";
+		assert.equal(fits(html), true);
+		assert.equal(firstTable(described(html)).hasAttribute("data-reader-flow"), false);
+	});
+
+	it("counts a cell holding any element as content, even an empty span", () => {
+		const html = '<table><tr><td><span></span></td><td><a href="https://example.com/">Unsubscribe</a></td></tr></table>';
+		assert.equal(fits(html), true);
+		assert.equal(firstTable(described(html)).hasAttribute("data-reader-flow"), false);
+	});
+
 	it("removes a captured flow mark", () => {
 		const table = firstTable(described('<table data-reader-flow=""><tr><td>a</td><td>b</td></tr></table>'));
 		assert.equal(table.hasAttribute("data-reader-flow"), false);
