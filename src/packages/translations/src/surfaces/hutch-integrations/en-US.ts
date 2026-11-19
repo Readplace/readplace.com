@@ -1,9 +1,9 @@
 export const enUS = {
 	connectors: {
 		api: {
-			before: "Building something of your own? The ",
-			link: "Readplace API",
-			after: " lets your app save, list, read and file articles for you.",
+			name: "Readplace API",
+			description: "Build your own app or script that saves, lists, reads and files articles for you.",
+			action: "Read the docs",
 		},
 	},
 	saveTip: {

@@ -15,7 +15,9 @@
               <span class="integrations__description">{{description}}</span>
               <span class="{{accountClass}}" data-test-integration-account data-integration-account-state="{{accountState}}">{{accountEmail}}</span>
             </span>
+            {{#if statusLabel}}
             <span class="integrations__status {{statusModifier}}" data-test-integration-status="{{statusKey}}">{{statusLabel}}</span>
+            {{/if}}
             {{#each locks}}
             {{{this}}}
             {{/each}}
@@ -38,7 +40,6 @@
           {{/each}}
         </ul>
 
-        <p class="integrations__api" data-test-integrations-api>{{t "connectors.api.before"}}<a href="{{apiDocsHref}}" data-test-integrations-api-link>{{t "connectors.api.link"}}</a>{{t "connectors.api.after"}}</p>
       </div>
       {{{disclaimersHtml}}}
     </main>
