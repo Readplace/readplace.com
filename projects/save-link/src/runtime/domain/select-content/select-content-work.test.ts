@@ -238,6 +238,35 @@ describe("initSelectContentWork", () => {
 		expect(dispatched).not.toContainEqual({ kind: "generate-summary", url: URL });
 	});
 
+	it("commits a near-identical refresh without the judge and publishes canonical-content-changed", async () => {
+		const facts = (count: number) => Array.from({ length: count }, (_, index) => `<p>Fact ${index + 1} holds.</p>`).join("");
+		const storedBody = facts(200);
+		const editedBody = `${facts(199)}<p>Fact 200 holds today.</p>`;
+		const tierOne = (params: { id: string; html: string; attempt: string }): VerifiedTierSource => ({ tier: "tier-1", html: params.html, metadata: { ...candidateProvenance({
+			metadata, html: params.html, evaluationHtml: params.html, attemptId: SaveAttemptIdSchema.parse(params.attempt), originalUrl: URL, sourceUrl: URL, kind: "live", fetchedAt: NOW,
+		}), id: cid(params.id) } });
+		const canonical = tierOne({ id: "canonical", html: storedBody, attempt: "attempt" });
+		const fresh = tierOne({ id: "fresh", html: editedBody, attempt: "later-attempt" });
+		const rows = new Map<string, Article>([[URL, article({
+			freshness: { contentFetchedAt: "2026-10-04T00:00:00.000Z", canonicalContentHash: computeCanonicalContentHash(storedBody) },
+			contentSelection: { candidateId: canonical.metadata.id, tier: "tier-1", revision: 3 },
+		})]]);
+		const dispatched: unknown[] = [];
+		const { transitionAndPersist } = initTransitionAndPersist({
+			store: { load: async (url) => rows.get(url), save: async ({ article: next }) => { rows.set(next.url, next); } },
+			dispatchEffect: async (effect) => { dispatched.push(effect); },
+			logCrawlSettled: () => {},
+		});
+		const selectMostCompleteContent = jest.fn<ReturnType<TestDependencies["selectMostCompleteContent"]>, Parameters<TestDependencies["selectMostCompleteContent"]>>();
+		const { work } = setup({ loadArticle: async (url) => rows.get(url), listAvailableTierSources: async () => [canonical, fresh], selectMostCompleteContent, transitionAndPersist });
+
+		await work({ ...laterRequest, mode: "refresh", refresh: { bodyHash: "raw-body-hash", contentFetchedAt: NOW }, candidates: [{ id: cid("fresh"), tier: "tier-1" }] });
+
+		expect(selectMostCompleteContent).not.toHaveBeenCalled();
+		expect(rows.get(URL)?.freshness.canonicalContentHash).toBe(computeCanonicalContentHash(editedBody));
+		expect(dispatched).toContainEqual({ kind: "publish-canonical-content-changed", url: URL });
+	});
+
 	it("keeps the stored canonical through the recrawl tie transition when the judge ties it with a fresh identical copy", async () => {
 		const existing = article({ contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 4 } });
 		const { work, deps, commit } = setup({
