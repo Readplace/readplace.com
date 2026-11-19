@@ -36,6 +36,7 @@ export {
 	type ResolveChallengedTracker,
 	type ResolveWrapperTarget,
 } from "./resolve-wrapper-target";
+export { initResolveWrapperTargetOnce } from "./resolve-wrapper-target-once";
 export {
 	initStartAnonymousCrawl,
 	type StartAnonymousCrawl,

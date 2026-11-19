@@ -6,6 +6,8 @@ import {
 } from "@packages/domain/inbox";
 import { ReadlistPurposeVersionSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
+import { validateSaveableUrl } from "@packages/domain/article";
+import { initResolveSaveIdentity } from "@packages/save-article";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { loginAgent, useTestServer } from "../../../test-app";
 
@@ -38,6 +40,28 @@ async function seed(
 	const user = await fixture.auth.findUserByEmail("test@example.com");
 	assert(user, "logged-in user must exist before seeding");
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink(link(user.userId, overrides));
+}
+
+const BEEHIIV_TRACKER = "https://link.mail.beehiiv.com/ss/c/u001.token-for-the-post/4ab/h1/sig";
+const TRACKER_DESTINATION = "https://example.com/the-tracked-post";
+
+async function saveTrackerThroughUnlocker(fixture: ReturnType<typeof createDefaultTestAppFixture>): Promise<void> {
+	const save = initResolveSaveIdentity({
+		validateUrl: validateSaveableUrl,
+		findIdentityRow: fixture.articleStore.findIdentityRow,
+		claimAlias: fixture.articleStore.claimAlias,
+		resolveWrapperTarget: async (url) =>
+			url === BEEHIIV_TRACKER ? { url: TRACKER_DESTINATION, contentSourceUrl: BEEHIIV_TRACKER } : undefined,
+		now: () => new Date("2026-11-18T10:00:00.000Z"),
+	});
+	const identity = await save(BEEHIIV_TRACKER);
+	assert.equal(identity.status, "resolved", "the save must resolve the tracker");
+}
+
+async function markSaved(fixture: ReturnType<typeof createDefaultTestAppFixture>, url: string): Promise<void> {
+	const user = await fixture.auth.findUserByEmail("test@example.com");
+	assert(user, "logged-in user must exist");
+	await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({ userId: user.userId, url });
 }
 
 const cardPath = `/inbox/${encodeURIComponent(SK)}/links/0000/card`;
@@ -380,6 +404,70 @@ describe("Inbox link card route", () => {
 			"inbox-card-0000-save",
 		]);
 	});
+	describe("a newsletter tracker the reader saved", () => {
+		function shownUrl(html: string): string | null | undefined {
+			return new JSDOM(html).window.document.querySelector("[data-test-inbox-article-url]")?.textContent;
+		}
+
+		it("shows the destination its save resolved once the preview crawl failed on the tracker", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { url: BEEHIIV_TRACKER, status: "failed", failureReason: "blocked" });
+			await saveTrackerThroughUnlocker(fixture);
+			await markSaved(fixture, BEEHIIV_TRACKER);
+
+			const response = await agent.get(cardPath);
+
+			expect(response.status).toBe(200);
+			expect(shownUrl(response.text)).toBe(TRACKER_DESTINATION);
+			expect(harness.savedDestinationLookups).toEqual([BEEHIIV_TRACKER]);
+		});
+
+		it("keeps showing the tracker while the reader has not saved it", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { url: BEEHIIV_TRACKER, status: "failed", failureReason: "blocked" });
+			await saveTrackerThroughUnlocker(fixture);
+
+			const response = await agent.get(cardPath);
+
+			expect(shownUrl(response.text)).toBe(BEEHIIV_TRACKER);
+			expect(harness.savedDestinationLookups).toEqual([]);
+		});
+
+		it("looks up no saved destination for a saved link that is not a tracker", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { status: "failed", failureReason: "crawl-failed" });
+			await markSaved(fixture, "https://example.com/post");
+
+			const response = await agent.get(cardPath);
+
+			expect(shownUrl(response.text)).toBe("https://example.com/post");
+			expect(harness.savedDestinationLookups).toEqual([]);
+		});
+
+		it("serves a fresh card rather than a 304 once the saved destination can be read", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, { url: BEEHIIV_TRACKER, status: "failed", failureReason: "blocked" });
+			await markSaved(fixture, BEEHIIV_TRACKER);
+			const before = await agent.get(cardPath);
+			const etag = before.headers.etag;
+			assert(etag, "the card must carry an ETag");
+
+			await saveTrackerThroughUnlocker(fixture);
+			const after = await agent.get(cardPath).set("If-None-Match", etag);
+
+			expect(after.status).toBe(200);
+			expect(shownUrl(after.text)).toBe(TRACKER_DESTINATION);
+		});
+	});
+
 	describe("the saved-to-queue button state", () => {
 		const saveButton = (html: string) => {
 			const card = new JSDOM(html).window.document.querySelector(

@@ -416,6 +416,22 @@ describe("/view/highlights/claim", () => {
 		expect(harness.analytics.events.filter((event) => event.event === "view_highlights_claimed")).toEqual([]);
 	});
 
+	it("records one save_refused coded daily_save_limit when the claim is refused by the day's allowance", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.rateLimit = {
+			...fixture.rateLimit,
+			rules: { ...fixture.rateLimit.rules, dailySaves: { limit: 0, windowSeconds: 86_400 } },
+		};
+		const harness = await harnessWithArticle(fixture, useMeteredApp);
+
+		const { claim } = await keepThenSignUpAndClaim({ harness, items: [SECOND_SENTENCE] });
+
+		expect(claim.status).toBe(429);
+		expect(harness.analytics.events.filter((event) => event.event === "save_refused")).toEqual([
+			expect.objectContaining({ path: CLAIM_PATH, status: 429, code: "daily_save_limit", client: "web" }),
+		]);
+	});
+
 	it("refuses a locked account and keeps nothing", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.shared.now = () => new Date(Date.now() + 8 * DAY_MS);

@@ -26,51 +26,57 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 
 describe("computeInboxLinkCardEtag", () => {
 	it("is a weak tag carrying the ordinal", () => {
-		expect(computeInboxLinkCardEtag({ link: link(), saveState: undefined, fit: [] })).toMatch(/^W\/"0000:[0-9a-f]{16}"$/);
+		expect(computeInboxLinkCardEtag({ link: link(), saveState: undefined, savedDestination: undefined, fit: [] })).toMatch(/^W\/"0000:[0-9a-f]{16}"$/);
 	});
 
 	it("changes when the link transitions from pending to crawled", () => {
-		const pending = computeInboxLinkCardEtag({ link: link({ status: "pending" }), saveState: undefined, fit: [] });
-		const crawled = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T", excerpt: "E", siteName: "S", imageUrl: "i" }), saveState: undefined, fit: [] });
+		const pending = computeInboxLinkCardEtag({ link: link({ status: "pending" }), saveState: undefined, savedDestination: undefined, fit: [] });
+		const crawled = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T", excerpt: "E", siteName: "S", imageUrl: "i" }), saveState: undefined, savedDestination: undefined, fit: [] });
 
 		expect(pending).not.toBe(crawled);
 	});
 
 	it("is stable for an unchanged link", () => {
-		expect(computeInboxLinkCardEtag({ link: link(), saveState: undefined, fit: [] })).toBe(computeInboxLinkCardEtag({ link: link(), saveState: undefined, fit: [] }));
+		expect(computeInboxLinkCardEtag({ link: link(), saveState: undefined, savedDestination: undefined, fit: [] })).toBe(computeInboxLinkCardEtag({ link: link(), saveState: undefined, savedDestination: undefined, fit: [] }));
 	});
 
 	it("ignores stored fields the row no longer renders", () => {
-		const withPreview = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T", excerpt: "E", siteName: "S", imageUrl: "i" }), saveState: undefined, fit: [] });
-		const bare = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T" }), saveState: undefined, fit: [] });
+		const withPreview = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T", excerpt: "E", siteName: "S", imageUrl: "i" }), saveState: undefined, savedDestination: undefined, fit: [] });
+		const bare = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T" }), saveState: undefined, savedDestination: undefined, fit: [] });
 		expect(withPreview).toBe(bare);
 
-		const failedA = computeInboxLinkCardEtag({ link: link({ status: "failed", failureReason: "crawl-failed" }), saveState: undefined, fit: [] });
-		const failedB = computeInboxLinkCardEtag({ link: link({ status: "failed", failureReason: "blocked" }), saveState: undefined, fit: [] });
+		const failedA = computeInboxLinkCardEtag({ link: link({ status: "failed", failureReason: "crawl-failed" }), saveState: undefined, savedDestination: undefined, fit: [] });
+		const failedB = computeInboxLinkCardEtag({ link: link({ status: "failed", failureReason: "blocked" }), saveState: undefined, savedDestination: undefined, fit: [] });
 		expect(failedA).toBe(failedB);
 	});
 
 	it("changes when the title changes", () => {
-		const t = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T" }), saveState: undefined, fit: [] });
-		const u = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "U" }), saveState: undefined, fit: [] });
+		const t = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T" }), saveState: undefined, savedDestination: undefined, fit: [] });
+		const u = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "U" }), saveState: undefined, savedDestination: undefined, fit: [] });
 		expect(t).not.toBe(u);
 	});
 
 	it("changes when the resolved destination changes", () => {
-		const unresolved = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T" }), saveState: undefined, fit: [] });
-		const resolved = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T", resolvedUrl: "https://destination.test/a" }), saveState: undefined, fit: [] });
+		const unresolved = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T" }), saveState: undefined, savedDestination: undefined, fit: [] });
+		const resolved = computeInboxLinkCardEtag({ link: link({ status: "crawled", title: "T", resolvedUrl: "https://destination.test/a" }), saveState: undefined, savedDestination: undefined, fit: [] });
 		expect(unresolved).not.toBe(resolved);
 	});
 
+	it("changes when a save resolves the destination of the card's tracker", () => {
+		const tracker = computeInboxLinkCardEtag({ link: link({ status: "failed" }), saveState: "saved", savedDestination: undefined, fit: [] });
+		const destination = computeInboxLinkCardEtag({ link: link({ status: "failed" }), saveState: "saved", savedDestination: "https://destination.test/a", fit: [] });
+		expect(tracker).not.toBe(destination);
+	});
+
 	it("changes when only the save state changes", () => {
-		const unsaved = computeInboxLinkCardEtag({ link: link(), saveState: undefined, fit: [] });
-		const saved = computeInboxLinkCardEtag({ link: link(), saveState: "saved", fit: [] });
+		const unsaved = computeInboxLinkCardEtag({ link: link(), saveState: undefined, savedDestination: undefined, fit: [] });
+		const saved = computeInboxLinkCardEtag({ link: link(), saveState: "saved", savedDestination: undefined, fit: [] });
 		expect(unsaved).not.toBe(saved);
 	});
 
 	it("separates a failed save from an unsaved link", () => {
-		const unsaved = computeInboxLinkCardEtag({ link: link(), saveState: undefined, fit: [] });
-		const failed = computeInboxLinkCardEtag({ link: link(), saveState: "failed", fit: [] });
+		const unsaved = computeInboxLinkCardEtag({ link: link(), saveState: undefined, savedDestination: undefined, fit: [] });
+		const failed = computeInboxLinkCardEtag({ link: link(), saveState: "failed", savedDestination: undefined, fit: [] });
 		expect(unsaved).not.toBe(failed);
 	});
 
@@ -107,10 +113,10 @@ describe("computeInboxLinkCardEtag", () => {
 		});
 
 		const etag = (entry: InboxLinkCardReadlistFit) =>
-			computeInboxLinkCardEtag({ link: link(), saveState: undefined, fit: [entry] });
+			computeInboxLinkCardEtag({ link: link(), saveState: undefined, savedDestination: undefined, fit: [entry] });
 
 		it("changes when a routed readlist's outcome arrives", () => {
-			expect(computeInboxLinkCardEtag({ link: link(), saveState: undefined, fit: [] })).not.toBe(etag(readlistFit()));
+			expect(computeInboxLinkCardEtag({ link: link(), saveState: undefined, savedDestination: undefined, fit: [] })).not.toBe(etag(readlistFit()));
 		});
 
 		it("changes with the outcome's decision", () => {

@@ -536,6 +536,7 @@ function buildArticleCardsPage(input: {
 	to: number;
 	maxPolls: number;
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	savedDestinations: ReadonlyMap<string, string>;
 	filter: InboxEmailFilter | undefined;
 	meta: InboxEmailLinksMeta | undefined;
 	fitOverrides: ReadlistFitOverridesByReadlist;
@@ -556,6 +557,7 @@ function buildArticleCardsPage(input: {
 				ordinal: link.ordinal,
 			}),
 			linkSaveStates: input.linkSaveStates,
+			savedDestinations: input.savedDestinations,
 			savePollContext: { mode: "static" },
 			paidFeaturesLocked: input.paidFeaturesLocked,
 		}),
@@ -620,6 +622,7 @@ export function toInboxArticlesMoreViewModel(input: {
 	shown: number;
 	maxPolls: number;
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	savedDestinations: ReadonlyMap<string, string>;
 	fitOverrides: ReadlistFitOverridesByReadlist;
 	filter: InboxEmailFilter | undefined;
 	paidFeaturesLocked: boolean;
@@ -641,6 +644,7 @@ export function toInboxArticlesMoreViewModel(input: {
 		to: input.shown,
 		maxPolls: input.maxPolls,
 		linkSaveStates: input.linkSaveStates,
+		savedDestinations: input.savedDestinations,
 		meta: input.meta,
 		fitOverrides: input.fitOverrides,
 		paidFeaturesLocked: input.paidFeaturesLocked,
@@ -657,6 +661,7 @@ export function toInboxLinkFitViewModel(input: {
 	filter: InboxEmailFilter | undefined;
 	maxPolls: number;
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	savedDestinations: ReadonlyMap<string, string>;
 	fitOverrides: ReadlistFitOverridesByReadlist;
 }): { card: InboxLinkCardViewModel | undefined; line: ReadlistLineViewModel } {
 	const context = readlistFitContext({
@@ -687,6 +692,7 @@ export function toInboxLinkFitViewModel(input: {
 				ordinal: input.link.ordinal,
 			}),
 			linkSaveStates: input.linkSaveStates,
+			savedDestinations: input.savedDestinations,
 			savePollContext: { mode: "static" },
 			paidFeaturesLocked: false,
 		}),
@@ -714,6 +720,7 @@ export function toInboxEmailDetailViewModel(input: {
 	linkData: InboxEmailLinkData;
 	/** Empty for the View tab, which fetches no link rows to look up. */
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	savedDestinations: ReadonlyMap<string, string>;
 	maxPolls: number;
 	shown?: number;
 	/** The page-level poll tick: the full render starts at the initial count; the
@@ -752,6 +759,7 @@ export function toInboxEmailDetailViewModel(input: {
 		to: input.shown ?? ARTICLES_PAGE_SIZE,
 		maxPolls: input.maxPolls,
 		linkSaveStates: input.linkSaveStates,
+		savedDestinations: input.savedDestinations,
 		meta: linksMeta,
 		fitOverrides: input.fitOverrides,
 		paidFeaturesLocked: input.paidFeaturesLocked,
@@ -761,6 +769,7 @@ export function toInboxEmailDetailViewModel(input: {
 		toInboxExcludedLinkViewModel({
 			link,
 			emailId,
+			savedDestinations: input.savedDestinations,
 			paidFeaturesLocked: input.paidFeaturesLocked,
 		}),
 	);

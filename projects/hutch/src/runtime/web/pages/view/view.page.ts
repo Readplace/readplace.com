@@ -33,7 +33,8 @@ import type {
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import { articleHostFrom, buildViewEndCtaShownEvent, classifyOsFamily, hashIp, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
+import { articleHostFrom, buildSaveRefusedEvent, buildViewEndCtaShownEvent, classifyOsFamily, hashIp, isCountableBrowserRequest, SAVE_REFUSAL_CODES, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
+import { saveClientOf } from "../../shared/save-client";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
@@ -129,6 +130,7 @@ interface ViewDependencies {
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	salt: string;
 }
 
@@ -485,6 +487,12 @@ function handleViewArticle(
 						if (claim.refused.length > 0) {
 							assert(claim.retryAfterSeconds !== undefined, "a refused daily-save claim carries Retry-After");
 							res.set("Retry-After", String(claim.retryAfterSeconds));
+							deps.recordUngatedAnalyticsEvent(
+								buildSaveRefusedEvent(
+									{ now: deps.now, salt: deps.salt },
+									{ req, path: originalPath, status: 429, code: SAVE_REFUSAL_CODES.dailySaveLimit, client: saveClientOf(req) },
+								),
+							);
 							sendComponent(req, res, Base(ViewDailySaveLimitPage(), await deps.buildBannerState(req)));
 							return;
 						}

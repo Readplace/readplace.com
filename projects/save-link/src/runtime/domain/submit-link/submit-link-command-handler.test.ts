@@ -31,12 +31,18 @@ import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
 import type { DecideReadlistFit } from "@packages/readlist-fit";
 import {
+	WRAPPER_RESOLVE_BUDGETS,
 	initFileRequestedArticleIntoReadlist,
+	initPrepareArticleIdentity,
 	initResolveCanonicalIdentity,
 	initResolveSaveIdentity,
+	initResolveWrapperTarget,
 	initSubmitFreshness,
+	initVerifyWrapperSource,
+	neverResolveWrapperTarget,
+	type ResolveWrapperTarget,
 } from "@packages/save-article";
-import { ArticlePurgedAfterRequest } from "@packages/provider-contracts/article-store";
+import { ArticlePurgedAfterRequest, type IdentityRow } from "@packages/provider-contracts/article-store";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initRecordingPublishEvent } from "@packages/test-fixtures/providers/events";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -49,7 +55,7 @@ import type {
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import { initSubmitLinkCommandHandler } from "./submit-link-command-handler";
+import { initSubmitLinkCommandHandler, type SubmitSourceIdentity } from "./submit-link-command-handler";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { initFileArticleIntoReadlistCommandHandler } from "../file-article-into-readlist/file-article-into-readlist-command-handler";
 import { initAdmitTriagedMessage } from "../filter-email-links/triaged-message-admission";
@@ -151,10 +157,16 @@ function refreshAs(
 const fixedNow = () => new Date("2026-06-01T12:00:00.000Z");
 const allocatedSavedAt = new Date("2026-06-01T12:00:00.777Z");
 
-function createHandler(overrides: Partial<HandlerDeps> = {}) {
+function createHandler(overrides: Partial<HandlerDeps> & Partial<SubmitSourceIdentity> = {}) {
+	const {
+		refreshArticleIfStale = refreshAs("new"),
+		resolveOriginalUrl = async (url: string) => url,
+		verifyWrapperSource = async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
+		...handlerOverrides
+	}: Partial<HandlerDeps> & Partial<SubmitSourceIdentity> = overrides;
 	return initSubmitLinkCommandHandler({
-		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
-		resolveOriginalUrl: async (url) => url,
+		resolveWrapperTarget: neverResolveWrapperTarget,
+		sourceIdentityFor: () => ({ refreshArticleIfStale, resolveOriginalUrl, verifyWrapperSource }),
 		validateSaveableUrl,
 		saveArticleAsRequested: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true }),
 		allocateSavedAt: jest.fn().mockResolvedValue(allocatedSavedAt),
@@ -167,7 +179,6 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		markCrawlPending: jest.fn().mockResolvedValue({ kind: "marked" }),
 		markSummaryPending: jest.fn().mockResolvedValue(undefined),
 		publishUpdateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
-		refreshArticleIfStale: refreshAs("new"),
 		pinContentSource: jest.fn().mockResolvedValue(undefined),
 		delay: async () => {},
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
@@ -188,7 +199,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 			tier1Status: "not_attempted",
 			pickedTier: "none",
 		}),
-		...overrides,
+		...handlerOverrides,
 	});
 }
 
@@ -1568,5 +1579,74 @@ describe("a redelivered save against the stored rows", () => {
 		expect(published).toEqual([
 			{ detailType: LinkQueueFailedEvent.detailType, detail: { url: exampleUrl, userId, reason: "purged-after-request", receiveCount: 1 } },
 		]);
+	});
+});
+
+describe("initSubmitLinkCommandHandler — a newsletter tracker behind a Cloudflare challenge", () => {
+	const tracker = "https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4vf/TOKEN/h101/h001.TOKEN";
+	const destination = "https://publisher.example/article";
+
+	function challengedTracker() {
+		const unlocked: string[] = [];
+		const resolveWrapperTarget = initResolveWrapperTarget({
+			fetchRedirectHop: async () => { throw new Error("a tracker must not take a plain redirect hop"); },
+			fetchTrackerHop: async () => ({ response: new Response(null, { status: 403, headers: { "cf-mitigated": "challenge" } }), pageTarget: undefined }),
+			resolveChallengedTracker: async (url) => {
+				unlocked.push(url);
+				return { kind: "navigated", url: destination, status: 200 };
+			},
+			resolveAppleNewsStoryUrl: async () => { throw new Error("a tracker must not read an Apple News shell"); },
+			headers: {},
+			...WRAPPER_RESOLVE_BUDGETS,
+			logger: noopLogger,
+		});
+		return { resolveWrapperTarget, unlocked };
+	}
+
+	const findIdentityRow = async (url: string): Promise<IdentityRow> => url === destination ? { kind: "article", originalUrl: destination } : { kind: "absent" };
+
+	function sourceIdentityFor(resolveWrapperTarget: ResolveWrapperTarget) {
+		const prepareArticleIdentity = initPrepareArticleIdentity({
+			findIdentityRow,
+			resolveWrapperTarget,
+			repairWrapperIdentity: async () => { throw new Error("a direct destination must not repair identity"); },
+		});
+		const { refreshArticleIfStale } = initSubmitFreshness({
+			resolveSaveIdentity: initResolveSaveIdentity({ validateUrl: validateSaveableUrl, findIdentityRow, claimAlias: async () => {}, resolveWrapperTarget, now: fixedNow }),
+			findArticleByUrl: async () => null,
+			findArticleCrawlStatus: async () => undefined,
+			requestStaleCheck: async () => {},
+		});
+		return {
+			refreshArticleIfStale,
+			verifyWrapperSource: initVerifyWrapperSource({ findIdentityRow, resolveWrapperTarget }),
+			resolveOriginalUrl: async (url: string) => {
+				const identity = await prepareArticleIdentity(url);
+				assert(identity.status === "resolved", "the destination resolves to itself");
+				return identity.originalUrl;
+			},
+		};
+	}
+
+	it("pays the Web Unlocker once for the save identity and the source verification together", async () => {
+		const { resolveWrapperTarget, unlocked } = challengedTracker();
+		const { publishEvent, published } = initRecordingPublishEvent();
+		const handler = createHandler({ resolveWrapperTarget, sourceIdentityFor, publishEvent });
+
+		const response = await run(handler, createSqsEvent([{ url: tracker, userId, provenance: { kind: "email", senderEmail: "letter@example.com" }, saveTrigger: "automatic" }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(published.find(({ detailType }) => detailType === TierContentExtractedEvent.detailType)?.detail).toMatchObject({ url: destination, candidates: [{ tier: "tier-1" }, { tier: "tier-2" }] });
+		expect(unlocked).toEqual([tracker]);
+	});
+
+	it("pays once for each save of the same tracker, since a resolution answers only the save that made it", async () => {
+		const { resolveWrapperTarget, unlocked } = challengedTracker();
+		const handler = createHandler({ resolveWrapperTarget, sourceIdentityFor });
+		const save = { url: tracker, userId, provenance: { kind: "email", senderEmail: "letter@example.com" }, saveTrigger: "automatic" };
+
+		expect((await run(handler, createSqsEvent([save, save]))).batchItemFailures).toEqual([]);
+
+		expect(unlocked).toEqual([tracker, tracker]);
 	});
 });

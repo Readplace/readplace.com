@@ -36,16 +36,18 @@ export interface ExcludedLinkViewModel {
 export function toInboxExcludedLinkViewModel(input: {
 	link: InboxEmailLinkEntry;
 	emailId: string;
+	savedDestinations: ReadonlyMap<string, string>;
 	paidFeaturesLocked: boolean;
 }): ExcludedLinkViewModel {
 	const { link, emailId } = input;
+	const url = input.savedDestinations.get(link.url) ?? link.url;
 	const domId = `inbox-skipped-${link.ordinal}`;
 	const actions: InboxCardSaveAction[] = [];
 	if (!input.paidFeaturesLocked && validateSaveableInboxLink(link.url).status === "SUCCESS") {
 		actions.push({
 			key: "save",
 			label: t("excludedLink.save.label"),
-			ariaLabel: t("excludedLink.save.ariaLabel", { url: link.url }),
+			ariaLabel: t("excludedLink.save.ariaLabel", { url }),
 			saveState: "unsaved",
 			iconName: undefined,
 			buttonId: `${domId}-save`,
@@ -59,7 +61,7 @@ export function toInboxExcludedLinkViewModel(input: {
 	}
 	return {
 		ordinal: link.ordinal,
-		url: link.url,
+		url,
 		reasonLabel: reasonLabelFor(link),
 		domId,
 		actions,

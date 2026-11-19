@@ -8,7 +8,8 @@ import {
 } from "@packages/domain/article/highlight";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import { viewerOf } from "@packages/viewer-identity";
-import { type AnalyticsEvent, defineCookie, hashIp, type RecordAudienceEvent } from "@packages/web-analytics";
+import { type AnalyticsEvent, buildSaveRefusedEvent, defineCookie, hashIp, type RecordAudienceEvent, type RecordUngatedEvent, SAVE_REFUSAL_CODES } from "@packages/web-analytics";
+import { saveClientOf } from "../../shared/save-client";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import express, { type Request, type RequestHandler, type Response, type Router } from "express";
 import { z } from "zod";
@@ -97,6 +98,7 @@ export function initViewHighlightsRoutes(deps: {
 	keepRateLimitRule: RateLimitRule;
 	buildBannerState: BuildBannerState;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
 }): Router {
@@ -210,6 +212,12 @@ export function initViewHighlightsRoutes(deps: {
 			});
 			if (claimed.status === "daily-save-limit") {
 				res.set("Retry-After", String(claimed.retryAfterSeconds));
+				deps.recordUngatedAnalyticsEvent(
+					buildSaveRefusedEvent(
+						{ now: deps.now, salt: deps.salt },
+						{ req, path: VIEW_HIGHLIGHTS_CLAIM_PATH, status: 429, code: SAVE_REFUSAL_CODES.dailySaveLimit, client: saveClientOf(req) },
+					),
+				);
 				sendComponent(req, res, Base(ViewDailySaveLimitPage(), await deps.buildBannerState(req)));
 				return;
 			}

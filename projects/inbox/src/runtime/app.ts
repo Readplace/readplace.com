@@ -36,6 +36,7 @@ import { initRequireNotLocked } from "./web/middleware/require-not-locked.middle
 import { initRequirePaidFeatures } from "./web/middleware/require-paid-features.middleware";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { initCustomEmailsRoutes } from "./web/pages/inbox/custom-emails.page";
+import type { FindSavedTrackerDestination } from "./domain/inbox/find-saved-tracker-destination";
 import { type InboxReadlistFitDependencies, initInboxRoutes } from "./web/pages/inbox/inbox.page";
 import "./web/session.types";
 
@@ -62,6 +63,7 @@ export function createInboxApp(
 		inboxEmailLinkStore: InboxEmailLinkStore;
 		inboxSavedLinkStore: InboxSavedLinkStore;
 		readEmailContent: ContentProvider;
+		findSavedTrackerDestination: FindSavedTrackerDestination;
 		publishSubmitLink: (input: {
 			userId: UserId;
 			url: string;
@@ -163,6 +165,7 @@ export function createInboxApp(
 		inboxEmailLinkStore: deps.inboxEmailLinkStore,
 		inboxSavedLinkStore: deps.inboxSavedLinkStore,
 		readEmailContent: deps.readEmailContent,
+		findSavedTrackerDestination: deps.findSavedTrackerDestination,
 		publishSubmitLink: deps.publishSubmitLink,
 		publishCrawlPreview: deps.publishCrawlPreview,
 		publishSavedLinkTriaged: deps.publishSavedLinkTriaged,

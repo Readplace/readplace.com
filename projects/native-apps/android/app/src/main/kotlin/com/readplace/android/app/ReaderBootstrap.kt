@@ -36,6 +36,8 @@ sealed interface ReaderBootstrap {
 
 	data object Unavailable : ReaderBootstrap
 
+	data object OfflineUnavailable : ReaderBootstrap
+
 	companion object {
 		fun after(mint: ReaderSessionMint): ReaderBootstrap =
 			when (mint) {
@@ -43,6 +45,15 @@ sealed interface ReaderBootstrap {
 				ReaderSessionMint.Offline -> Offline
 				ReaderSessionMint.Failed -> Unavailable
 				ReaderSessionMint.Superseded -> Loading
+			}
+
+		fun shown(bootstrap: ReaderBootstrap, storedCopyShowable: Boolean): ReaderBootstrap =
+			when (bootstrap) {
+				is Opens -> when (bootstrap.cacheMode) {
+					ReaderCacheMode.PROTOCOL -> bootstrap
+					ReaderCacheMode.STORED_COPY_FIRST -> if (storedCopyShowable) bootstrap else OfflineUnavailable
+				}
+				Loading, Unavailable, OfflineUnavailable -> bootstrap
 			}
 	}
 }

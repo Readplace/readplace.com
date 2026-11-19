@@ -8,15 +8,15 @@ SAVING ARTICLES
 - In any app (e.g. Safari) open a page, tap Share, choose Readplace; it appears in the reading list (pull to refresh).
 - On the first share, choose any extra readlists and tap "Done". Shares always go to the main readlist; each readlist's "Shared articles drop here" checkbox sets the extra destinations.
 
-CHANGES IN 1.0.151
-- Sign-in renewal: when the server no longer recognises the app's saved sign-in, the app signs out and returns to the sign-in screen instead of failing on every launch. Other renewal errors still keep the user signed in.
-- Added on the server since 1.0.150, so it needs no new binary: at readplace.com/upload, an MP3 or M4A file, or an MP4 video of up to 2 GB, uploaded from any signed-in account (e.g. the demo account) becomes a readlist item; opened in the app's reader it plays with a timestamped transcript. Uploads share 20 transcript minutes a day.
-- In the reader, a private upload's share button explains it has no public link; audio and video uploads offer no EPUB download; very long books now open instead of timing out.
+CHANGES IN 1.0.159
+- Free plan: an account whose trial or subscription ends is no longer read-only. It keeps every article and can save 28 new articles a day. A save over the limit answers HTTP 429; the share extension then shows a "daily save limit" message with a lock icon, and queued uploads retry later. The demo account is subscribed, so it does not hit the limit.
+- Download unread: the app loads the later pages of an offline download with Sec-Purpose: prefetch when the server's next link asks for it, and the server sets how many pages resolve.
+- Added on the server since 1.0.151, so no new binary is needed. In the in-app reader: tap a highlight to manage it in place, with its note beside it and a button to delete the note; the Highlight bar docks to the bottom on touch screens; highlights follow edits to their passage or are listed as "Not found in this version". Also: add an article to several readlists at once (up to 15 readlists), share the original link from the reader, report an article through a form, and image space is kept while images load.
 
 NOTES FOR REVIEW
 - API traffic goes only to https://readplace.com. The reader and page-capture web views also load saved pages from their sites; NSAllowsArbitraryLoadsInWebContent is only for them, as some are http-only.
 - The reader, account and help screens are in-app web views of readplace.com, so they change between submissions; changes since the last reviewed build are above.
-- Readplace is a web-purchased subscription, not IAP; the app works fully during the free trial and sells no digital content in-app.
+- Readplace is a web-purchased subscription, not IAP; the app works fully during the free trial, keeps working on the free plan afterwards within daily limits, and sells no digital content in-app.
 - TRACKING: the app does not track. No third-party SDK, no AppTrackingTransparency, IDFA or AdSupport reference, and no data shared with third parties or brokers. Its privacy manifest sets NSPrivacyTracking = false with empty NSPrivacyTrackingDomains; the email, user ID and reading history it collects only run the user's own reading list on our server.
 - ACCOUNT DELETION: in the Reading List tap "Account" (person icon, top-right); the account page opens in-app. Under "Danger zone" tap "Delete account". A dialog asks for the exact phrase
       delete my account permanently

@@ -219,6 +219,14 @@ reach the server. Android refreshes only after a `401`, so the network would hav
 between the `401` and the refresh, and a refresh that cannot connect fails the same way
 as a refused one. That case shows "Couldn't open the reader" instead of the stored copy.
 
+**A stored article copy carries its own age record.** iOS dates a stored reader page by
+the cached response's `Date` header. Android's WebView exposes no response headers for a
+page it serves, so the app records the time each reader URL last finished loading online,
+and a copy with no record, or one older than 30 days, does not open offline: the reader
+shows "Couldn't open the reader" under the offline banner. Anything that stores a reader
+copy for offline reading must call `OfflineReaderCopy.record(readerUrl)` with the exact
+URL the reader loads, once the copy is stored, or that copy never opens offline.
+
 **Compile-time environment via a product flavor.** iOS selects its server with
 `#if STAGING`; here the `production`/`staging` flavors set `BuildConfig.SERVER_BASE_URL`.
 Same property: the server is fixed at build time, there is no runtime override, and
@@ -251,6 +259,23 @@ launcher foreground vector (grep the resource tree for the old path's opening,
 ampersand in the same vector, written as an arc starting at cx+r, and the dot centre the
 login screen holds for its replay tap target (grep the Kotlin sources for
 `DOT_CENTER_X`); iOS holds the same constants by hand.
+
+**"Download unread for offline reading" differs from iOS in four ways.**
+- Listing pages 3 and later are requested with `Sec-Purpose: prefetch`, so the server
+  resolves the rows of the first two pages only. The iOS walk sends no purpose header
+  on its listing loads yet.
+- The download does not wait for the first two pages' rows to settle, and shows no
+  "open online to get content" banner. A row still processing is stored as served;
+  the reader URL carries no `v=`, so the server answers it `private, no-cache` and the
+  next online open replaces it. Both wait for the iOS step of the same design to run first.
+- A run lives only as long as the main Activity. It keeps going through a trip to
+  another app, but a rotation, closing the app or the process being killed ends it
+  without notice. There is no foreground service or background task behind it.
+- An article counts as stored when its page finished loading within 12 seconds with
+  no main-frame error and no main-frame HTTP error. Android reports no status for a
+  successful load, so this stands in for iOS's "status is 200". WebView cannot await a
+  promise from `evaluateJavascript`, so iOS's single eager-images script is two here:
+  one marks lazy images eager, the other is polled until every image is complete.
 
 ## Version pins that are not "the latest"
 

@@ -11,7 +11,7 @@ import {
 	isExcludedLink,
 	parseInboxHighlight,
 } from "@packages/domain/inbox";
-import { newSaveAttemptId } from "@packages/domain/article";
+import { newSaveAttemptId, wrapperFamilyOf } from "@packages/domain/article";
 import type { SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -44,6 +44,7 @@ import type { Logger, LogError } from "@packages/logger";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
 import { TRIAGED_ANCHOR_TEXT_MAX_CHARS } from "../../../domain/inbox/extract-email-links-handler";
+import type { FindSavedTrackerDestination } from "../../../domain/inbox/find-saved-tracker-destination";
 import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
 import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
 import { Base } from "../../base.component";
@@ -120,6 +121,7 @@ interface InboxDependencies extends InboxReadlistFitDependencies {
 	inboxEmailLinkStore: InboxEmailLinkStore;
 	inboxSavedLinkStore: InboxSavedLinkStore;
 	readEmailContent: ContentProvider;
+	findSavedTrackerDestination: FindSavedTrackerDestination;
 	imagesCdnBaseUrl: string;
 	logError: LogError;
 	buildBannerState: BuildBannerState;
@@ -249,6 +251,36 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			userId: input.userId,
 			urls: input.links.map((link) => link.url),
 		});
+
+	const findSavedDestinations = async (input: {
+		links: readonly InboxEmailLinkEntry[];
+		linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	}): Promise<ReadonlyMap<string, string>> => {
+		const lookups = input.links.filter(
+			(link) =>
+				input.linkSaveStates.get(link.url) === "saved" &&
+				link.resolvedUrl === undefined &&
+				wrapperFamilyOf(link.url) === "newsletter-tracker",
+		);
+		const found = await Promise.all(
+			lookups.map(async (link) => {
+				const destination = await deps.findSavedTrackerDestination(link.url);
+				return destination === undefined ? [] : [[link.url, destination] as const];
+			}),
+		);
+		return new Map(found.flat());
+	};
+
+	const findLinkSaves = async (input: {
+		userId: UserId;
+		links: readonly InboxEmailLinkEntry[];
+	}): Promise<{
+		linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+		savedDestinations: ReadonlyMap<string, string>;
+	}> => {
+		const linkSaveStates = await findLinkSaveStates(input);
+		return { linkSaveStates, savedDestinations: await findSavedDestinations({ links: input.links, linkSaveStates }) };
+	};
 
 	const readFitOverrides = async (input: {
 		userId: UserId;
@@ -399,10 +431,10 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			bodyHtml,
 			imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 			linkData,
-			linkSaveStates: await findLinkSaveStates({
+			...(await findLinkSaves({
 				userId: req.userId,
 				links: linkData.source === "rows" ? linkData.links : [],
-			}),
+			})),
 			maxPolls: MAX_POLLS,
 			shown: parseArticlesShown(req.query),
 			feedbackConfirmed: req.query.feedback === "sent",
@@ -445,7 +477,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				bodyHtml: undefined,
 				imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 				linkData: { source: "rows", links, meta },
-				linkSaveStates: await findLinkSaveStates({ userId, links }),
+				...(await findLinkSaves({ userId, links })),
 				maxPolls: MAX_POLLS,
 				panelPollCount: requestedPoll + 1,
 				fitOverrides: await readFitOverrides({ userId, meta }),
@@ -487,7 +519,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			emailId: receivedAtMessageId,
 			shown: parseArticlesShown(req.query),
 			maxPolls: MAX_POLLS,
-			linkSaveStates: await findLinkSaveStates({ userId, links }),
+			...(await findLinkSaves({ userId, links })),
 			fitOverrides: await readFitOverrides({ userId, meta }),
 			filter: parseInboxEmailFilter(req.query),
 			paidFeaturesLocked: (await deps.buildBannerState(req)).paidFeaturesLocked === true,
@@ -528,10 +560,11 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// Read before the ETag so the save state is part of what the ETag covers;
 			// computing it after would let a card that just became saved answer 304
 			// with its pre-save validator.
-			const linkSaveStates = await findLinkSaveStates({ userId, links: [link] });
+			const { linkSaveStates, savedDestinations } = await findLinkSaves({ userId, links: [link] });
 			const etag = computeInboxLinkCardEtag({
 				link,
 				saveState: linkSaveStates.get(link.url),
+				savedDestination: savedDestinations.get(link.url),
 				fit,
 			});
 			res.set("Cache-Control", "private, no-cache");
@@ -555,6 +588,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				filter: parseInboxEmailFilter(req.query),
 				fit,
 				linkSaveStates,
+				savedDestinations,
 				savePollContext: awaitSave
 					? {
 							mode: "save-poll",
@@ -691,7 +725,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				return;
 			}
 			if (isNonBoostedHtmxRequest(req)) {
-				const linkSaveStates = await findLinkSaveStates({ userId, links: [link] });
+				const { linkSaveStates, savedDestinations } = await findLinkSaves({ userId, links: [link] });
 				const { meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
 					userId,
 					receivedAtMessageId,
@@ -710,6 +744,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						ordinal: link.ordinal,
 					}),
 					linkSaveStates,
+					savedDestinations,
 					savePollContext: {
 						mode: "save-poll",
 						pollCount: INITIAL_SAVE_POLL_COUNT,
@@ -878,7 +913,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 					shown: parseArticlesShown(req.query),
 					filter: pageState.filter,
 					maxPolls: MAX_POLLS,
-					linkSaveStates: await findLinkSaveStates({ userId, links: [link] }),
+					...(await findLinkSaves({ userId, links: [link] })),
 					fitOverrides: await readFitOverrides({ userId, meta }),
 				});
 				const cardHtml = fitView.card === undefined ? "" : renderInboxArticleCard(fitView.card);

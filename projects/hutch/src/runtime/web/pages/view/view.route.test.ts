@@ -2504,6 +2504,19 @@ describe("View routes", () => {
 			expect(await harness.articleStore.findArticleByUrl("https://example.com/second")).toBeNull();
 		});
 
+		it("records one save_refused coded daily_save_limit when today's new saves are spent", async () => {
+			const { harness } = buildMeteredHarness();
+			const { agent } = await signIn(harness, { metered: true });
+
+			await agent.get("/view/example.com/first");
+			const refused = await agent.get("/view/example.com/second");
+
+			expect(refused.status).toBe(429);
+			expect(harness.analytics.events.filter((event) => event.event === "save_refused")).toEqual([
+				expect.objectContaining({ path: "/view/example.com/second", status: 429, code: "daily_save_limit", client: "web" }),
+			]);
+		});
+
 		it("does not charge a wrapper link that re-points to a link the reader already holds", async () => {
 			const { harness, publishedUrls } = buildMeteredHarness();
 			const { agent, userId } = await signIn(harness, { metered: true });

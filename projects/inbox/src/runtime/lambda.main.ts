@@ -36,6 +36,7 @@ import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { createInboxApp, PORT } from "./app";
+import { initFindSavedTrackerDestination } from "./domain/inbox/find-saved-tracker-destination";
 import { initDynamoDbUserStanding } from "./providers/user-standing/dynamodb-user-standing";
 
 const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
@@ -84,10 +85,9 @@ const savedArticleStore = initDynamoDbSavedArticleStore({
 	logger,
 	now: () => new Date(),
 });
+const { findIdentityRow } = initCanonicalAliasStore({ client, tableName: articlesTableName });
 const findSavedArticleForLink = initFindSavedArticleForLink({
-	resolveCanonicalIdentity: initResolveCanonicalIdentity({
-		findIdentityRow: initCanonicalAliasStore({ client, tableName: articlesTableName }).findIdentityRow,
-	}),
+	resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow }),
 	findArticleById: savedArticleStore.findArticleById,
 });
 
@@ -136,6 +136,7 @@ const application = express()
 					now: () => new Date(),
 				}),
 				readEmailContent,
+				findSavedTrackerDestination: initFindSavedTrackerDestination({ findIdentityRow }),
 				publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
 				publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
 				publishSavedLinkTriaged: (input) => publishEvent(EmailLinksTriagedEvent, input),

@@ -69,6 +69,7 @@ function card(): Element {
 			filter: undefined,
 			fit: fits,
 			linkSaveStates: new Map(),
+			savedDestinations: new Map(),
 			savePollContext: { mode: "static" },
 		}),
 	);

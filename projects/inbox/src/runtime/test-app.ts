@@ -17,6 +17,7 @@ import type {
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { initResolveLogin, SESSION_COOKIE_NAME } from "@packages/web-session";
 import { createInboxApp } from "./app";
+import { initFindSavedTrackerDestination } from "./domain/inbox/find-saved-tracker-destination";
 
 export interface AnalyticsBundle {
 	logger: Logger.Typed<AnalyticsEvent>;
@@ -33,6 +34,7 @@ export interface TestAppResult {
 	fitChoiceLines: ReadlistFitOverriddenLogLine[];
 	crawlPreviews: Parameters<Parameters<typeof createInboxApp>[1]["publishCrawlPreview"]>[0][];
 	savedLinkTriages: Parameters<Parameters<typeof createInboxApp>[1]["publishSavedLinkTriaged"]>[0][];
+	savedDestinationLookups: string[];
 }
 
 /** Fixed CDN origin the test app pins into the email iframe's CSP, exported so
@@ -59,6 +61,10 @@ export function createInboxTestApp(
 	const fitChoiceLines: ReadlistFitOverriddenLogLine[] = [];
 	const crawlPreviews: TestAppResult["crawlPreviews"] = [];
 	const savedLinkTriages: TestAppResult["savedLinkTriages"] = [];
+	const savedDestinationLookups: string[] = [];
+	const findSavedTrackerDestination = initFindSavedTrackerDestination({
+		findIdentityRow: fixture.articleStore.findIdentityRow,
+	});
 	const captureFitChoice = (line: ReadlistFitOverriddenLogLine) => {
 		fitChoiceLines.push(line);
 	};
@@ -105,6 +111,10 @@ export function createInboxTestApp(
 			publishSavedLinkTriaged: async (input) => {
 				savedLinkTriages.push(input);
 			},
+			findSavedTrackerDestination: async (url) => {
+				savedDestinationLookups.push(url);
+				return findSavedTrackerDestination(url);
+			},
 			findSavedArticleForLink: initFindSavedArticleForLink({
 				resolveCanonicalIdentity: initResolveCanonicalIdentity({
 					findIdentityRow: fixture.articleStore.findIdentityRow,
@@ -142,6 +152,7 @@ export function createInboxTestApp(
 		fitChoiceLines,
 		crawlPreviews,
 		savedLinkTriages,
+		savedDestinationLookups,
 	};
 }
 

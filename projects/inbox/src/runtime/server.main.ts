@@ -22,6 +22,7 @@ import { MAX_PORT_ATTEMPTS, findAvailablePort } from "@packages/find-available-p
 import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import { requireEnv } from "@packages/require-env";
 import { createInboxApp, PORT } from "./app";
+import { initFindSavedTrackerDestination } from "./domain/inbox/find-saved-tracker-destination";
 
 const logger = Logger.from(consoleLogger);
 
@@ -217,6 +218,9 @@ async function main(): Promise<void> {
 			publishSavedLinkTriaged: async (input) => {
 				logger.info("[dev] email-links-triaged", input);
 			},
+			findSavedTrackerDestination: initFindSavedTrackerDestination({
+				findIdentityRow: fixture.articleStore.findIdentityRow,
+			}),
 			findSavedArticleForLink: initFindSavedArticleForLink({
 				resolveCanonicalIdentity: initResolveCanonicalIdentity({
 					findIdentityRow: fixture.articleStore.findIdentityRow,

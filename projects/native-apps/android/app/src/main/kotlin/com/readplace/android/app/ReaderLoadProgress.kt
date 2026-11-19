@@ -76,6 +76,9 @@ object ReaderLoad {
 			else -> true
 		}
 
+	fun confirmsStoredCopy(phase: ReaderLoadPhase, cacheMode: ReaderCacheMode): Boolean =
+		phase == ReaderLoadPhase.Finished && cacheMode == ReaderCacheMode.PROTOCOL
+
 	/** `WebViewClient.ERROR_UNKNOWN`, mirrored rather than imported so this decision
 	 * stays a pure core with no framework on its classpath. */
 	private const val ERROR_UNKNOWN = -1

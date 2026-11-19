@@ -45,6 +45,7 @@ import com.readplace.android.core.CaptureTrigger
 import com.readplace.android.core.DiscoveryHttpCache
 import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.NativeCleartextPolicy
+import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReadingDiagnostics
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.ShareArtifacts
@@ -93,8 +94,10 @@ class MainActivity : ComponentActivity() {
 		val jobs = UploadJobStore(filesDir, Dispatchers.IO)
 		val unseenSave = UnseenSave(filesDir)
 		val discoveryCache = DiscoveryHttpCache(cacheDir)
+		val offlineFiles = File(filesDir, "offline-reading")
+		val readerCopy = OfflineReaderCopy(offlineFiles, Dispatchers.IO, now = { Instant.now() })
 		val snapshot = OfflineReadlistSnapshot(
-			File(filesDir, "offline-reading"),
+			offlineFiles,
 			Dispatchers.IO,
 			now = { Instant.now() },
 			diagnostics = OfflineReadingDiagnostics { failure -> Log.w("OfflineReading", "offline copy failed: $failure") },
@@ -134,6 +137,8 @@ class MainActivity : ComponentActivity() {
 		val captor = HtmlCaptor(this) { findViewById(android.R.id.content) }
 		val heal = HealBlockedArticle(api, captor)
 		val drain = DrainUploadJobs(api, captor, jobs, now = { Instant.now() })
+		val prefetcher = ReaderPrefetcher(this) { findViewById(android.R.id.content) }
+		val download = DownloadUnreadOffline(api, snapshot, prefetcher, readerCopy)
 		val createReadingList: () -> ReadingListViewModel = {
 			ReadingListViewModel(
 				api = api,
@@ -146,9 +151,11 @@ class MainActivity : ComponentActivity() {
 				automaticCaptureAttempts = AutomaticCaptureAttempts(flags),
 				reportAutomaticCaptureFailure = { failure -> Log.i("Capture", "automatic capture failed: $failure") },
 				drainUploadJobs = { drain.run() },
+				downloadUnreadOffline = { request, report -> download.run(request, report) },
 				onSessionExpired = { session.forceLogout() },
 				now = { Instant.now() },
 				reportProcessingRefreshFailure = { failure -> Log.i("ProcessingRefresh", "row refresh failed: $failure") },
+				readerCopy = readerCopy,
 				scope = lifecycleScope,
 			)
 		}
@@ -351,11 +358,22 @@ private fun Root(
 						viewModel = listViewModel,
 						now = Instant.now(),
 						isForeground = isForeground,
-						onSignOut = { scope.launch { session.logout(); intro.replay() } },
+						onSignOut = {
+							scope.launch {
+								listViewModel.stopOfflineDownload()
+								session.logout()
+								intro.replay()
+							}
+						},
 						// The account-deletion bridge: the account is already gone, so drop
 						// local credentials without a server revoke — and, unlike a deliberate
 						// sign-out, keep the reader's readlist/share choices.
-						onForcedLogout = { session.forceLogout() },
+						onForcedLogout = {
+							scope.launch {
+								listViewModel.stopOfflineDownload()
+								session.forceLogout()
+							}
+						},
 						onOpenExternally = onOpenExternally,
 					)
 				}

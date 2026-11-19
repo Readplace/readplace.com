@@ -137,7 +137,7 @@ describe("toIntegrationsIndexViewModel", () => {
 				"GET",
 				`${CUSTOM_EMAILS_PATH}?utm_source=integrations&utm_medium=internal&utm_content=custom-emails`,
 				"Manage",
-				true,
+				false,
 			]],
 		);
 	});

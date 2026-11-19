@@ -278,6 +278,7 @@ export function toInboxLinkCardViewModel(input: {
 	filter: InboxEmailFilter | undefined;
 	fit: readonly InboxLinkCardReadlistFit[];
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	savedDestinations: ReadonlyMap<string, string>;
 	savePollContext: LinkCardSavePollContext;
 	paidFeaturesLocked: boolean;
 }): InboxLinkCardViewModel {
@@ -300,7 +301,7 @@ export function toInboxLinkCardViewModel(input: {
 	// A pending link is often an opaque ESP wrapper whose destination lives in a
 	// path token and which may sign its own query, so it is shown byte-exact;
 	// once the crawl is done the URL is a real destination and safe to clean.
-	const destination = link.resolvedUrl ?? link.url;
+	const destination = link.resolvedUrl ?? input.savedDestinations.get(link.url) ?? link.url;
 	const url = reachedTerminal ? stripUtmParams(destination) : destination;
 	const statusState = cardStatusState({
 		status: link.status,

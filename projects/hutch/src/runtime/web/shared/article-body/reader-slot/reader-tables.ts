@@ -75,6 +75,12 @@ function cellsOf(row: Element): Element[] {
 	return Array.from(row.children).filter((cell) => cell.tagName === "TD" || cell.tagName === "TH");
 }
 
+function isBlankCell(cell: Element): boolean {
+	if (cell.children.length > 0) return false;
+	const text = String(cell.textContent);
+	return text !== "" && text.trim() === "";
+}
+
 function spanOf(input: { cell: Element; attribute: "colspan" | "rowspan" }): number {
 	const span = Number.parseInt(input.cell.getAttribute(input.attribute) ?? "1", 10);
 	return span >= 1 ? Math.min(span, MAX_SPAN) : 1;
@@ -263,7 +269,11 @@ function estimatedWidthPx(input: { placed: readonly PlacedCell[]; caption: CellC
 
 function describeTable(input: { table: Element; budget: Budget }): void {
 	const rows = ownRows(input.table);
-	if (rows.every(({ row }) => cellsOf(row).length <= 1)) {
+	if (rows.every(({ row }) => cellsOf(row).filter((cell) => !isBlankCell(cell)).length <= 1)) {
+		for (const { row } of rows) {
+			const cells = cellsOf(row);
+			if (cells.length > 1) for (const cell of cells.filter(isBlankCell)) cell.remove();
+		}
 		input.table.setAttribute(READER_TABLE_FLOW_ATTRIBUTE, "");
 		return;
 	}

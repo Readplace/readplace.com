@@ -45,10 +45,16 @@ import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-h
 import { ClassifiedCrawlError, initSaveLinkWork, logRecordFailure } from "../save-link/save-link-work";
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
 import { withRefusedConnectionRetry } from "../save-link/retry-refused-connection";
-import type { VerifyWrapperSource } from "@packages/save-article";
+import { initResolveWrapperTargetOnce, type ResolveWrapperTarget, type VerifyWrapperSource } from "@packages/save-article";
 import { initCrawlSaveCandidates } from "../save-link/crawl-save-candidates";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type { ResolveSubmitterStanding } from "./resolve-submitter-standing";
+
+export type SubmitSourceIdentity = {
+	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
+	resolveOriginalUrl: (url: string) => Promise<string>;
+	verifyWrapperSource: VerifyWrapperSource;
+};
 
 export function initSubmitLinkCommandHandler(deps: {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -61,7 +67,8 @@ export function initSubmitLinkCommandHandler(deps: {
 	markCrawlPending: SaveArticleFromUrlDependencies["markCrawlPending"];
 	markSummaryPending: SaveArticleFromUrlDependencies["markSummaryPending"];
 	publishUpdateFetchTimestamp: SaveArticleFromUrlDependencies["publishUpdateFetchTimestamp"];
-	refreshArticleIfStale: RefreshIdentifiedArticleIfStale;
+	resolveWrapperTarget: ResolveWrapperTarget;
+	sourceIdentityFor: (resolveWrapperTarget: ResolveWrapperTarget) => SubmitSourceIdentity;
 	allocateSavedAt: AllocateSavedAt;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	pinContentSource: SaveArticleFromUrlDependencies["pinContentSource"];
@@ -80,82 +87,84 @@ export function initSubmitLinkCommandHandler(deps: {
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
-	resolveOriginalUrl: (url: string) => Promise<string>;
-	verifyWrapperSource: VerifyWrapperSource;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, logger } = deps;
 	const logPrefix = "[SubmitLinkCommand]";
 
-	const { saveLinkWork } = initSaveLinkWork({
-		crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
-		emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported,
-		putTierSource: deps.putTierSource,
-		publishEvent,
-		updateFetchTimestamp: deps.updateFetchTimestamp,
-		transitionAndPersist: deps.transitionAndPersist,
-		markCrawlStage: deps.markCrawlStage,
-		adoptCanonicalIdentity: deps.adoptCanonicalIdentity,
-		isSiteRuleUrl: deps.isSiteRuleUrl,
-		now: deps.now,
-		logger,
-		logParseError: deps.logParseError,
-		logCrawlOutcome: deps.logCrawlOutcome,
-		readTierSnapshot: deps.readTierSnapshot,
-		logPrefix,
-		resolveOriginalUrl: deps.resolveOriginalUrl,
-	});
-
-	const crawlArchiveCapture = initCrawlArchiveCapture({
-		crawlAndFinalizeArticle: withRefusedConnectionRetry({ crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle, delay: deps.delay, logger }),
-		putTierSource: deps.putTierSource,
-		readTierSnapshot: deps.readTierSnapshot,
-		logCrawlOutcome: deps.logCrawlOutcome,
-		publishEvent,
-		logger,
-		now: deps.now,
-		verifyWrapperSource: deps.verifyWrapperSource,
-	});
-
-	const crawlSaveCandidates = initCrawlSaveCandidates({ crawlArchiveCapture, saveLinkWork, emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported });
-
-	async function crawlCapture(link: { url: string; userId: UserId; captureUrl: string; sourceOriginalUrl?: string; saveAttemptId: SaveAttemptId }): Promise<void> {
-		const result = await crawlSaveCandidates(link);
-		if ("deferredTo" in result) {
-			logger.info(`${logPrefix} tier-1 deferred to comprehensive Lambda`, { url: link.url, carriedCandidates: result.carriedCandidates });
-			return;
-		}
-		await publishEvent(TierContentExtractedEvent, {
-			url: link.url,
-			userId: link.userId,
-			saveAttemptId: link.saveAttemptId,
-			...result,
-			extractedAt: deps.now().toISOString(),
+	function initRecordCrawls(identity: SubmitSourceIdentity) {
+		const { saveLinkWork } = initSaveLinkWork({
+			crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
+			emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported,
+			putTierSource: deps.putTierSource,
+			publishEvent,
+			updateFetchTimestamp: deps.updateFetchTimestamp,
+			transitionAndPersist: deps.transitionAndPersist,
+			markCrawlStage: deps.markCrawlStage,
+			adoptCanonicalIdentity: deps.adoptCanonicalIdentity,
+			isSiteRuleUrl: deps.isSiteRuleUrl,
+			now: deps.now,
+			logger,
+			logParseError: deps.logParseError,
+			logCrawlOutcome: deps.logCrawlOutcome,
+			readTierSnapshot: deps.readTierSnapshot,
+			logPrefix,
+			resolveOriginalUrl: identity.resolveOriginalUrl,
 		});
-	}
 
-	async function crawlTier1(link: { url: string; userId: UserId; saveAttemptId: SaveAttemptId }): Promise<void> {
-		const result = await saveLinkWork(link.url, { userId: link.userId, saveAttemptId: link.saveAttemptId });
-		if (typeof result === "object" && "deferred" in result) {
-			logger.info(`${logPrefix} tier-1 deferred to comprehensive Lambda`, { url: link.url, unsupportedReason: result.deferred });
-			return;
-		}
-		if (result === "tier-1-terminal") {
-			logger.info(`${logPrefix} tier-1 terminal — origin no longer serves the page`, {
+		const crawlArchiveCapture = initCrawlArchiveCapture({
+			crawlAndFinalizeArticle: withRefusedConnectionRetry({ crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle, delay: deps.delay, logger }),
+			putTierSource: deps.putTierSource,
+			readTierSnapshot: deps.readTierSnapshot,
+			logCrawlOutcome: deps.logCrawlOutcome,
+			publishEvent,
+			logger,
+			now: deps.now,
+			verifyWrapperSource: identity.verifyWrapperSource,
+		});
+
+		const crawlSaveCandidates = initCrawlSaveCandidates({ crawlArchiveCapture, saveLinkWork, emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported });
+
+		async function crawlCapture(link: { url: string; userId: UserId; captureUrl: string; sourceOriginalUrl?: string; saveAttemptId: SaveAttemptId }): Promise<void> {
+			const result = await crawlSaveCandidates(link);
+			if ("deferredTo" in result) {
+				logger.info(`${logPrefix} tier-1 deferred to comprehensive Lambda`, { url: link.url, carriedCandidates: result.carriedCandidates });
+				return;
+			}
+			await publishEvent(TierContentExtractedEvent, {
 				url: link.url,
+				userId: link.userId,
+				saveAttemptId: link.saveAttemptId,
+				...result,
+				extractedAt: deps.now().toISOString(),
 			});
-			return;
 		}
-		await publishEvent(TierContentExtractedEvent, {
-			url: link.url,
-			userId: link.userId,
-			saveAttemptId: link.saveAttemptId,
-			candidates: [result.candidate],
-			extractedAt: deps.now().toISOString(),
-		});
-		logger.info(`${logPrefix} emitted TierContentExtractedEvent`, {
-			url: link.url,
-			tier: "tier-1",
-		});
+
+		async function crawlTier1(link: { url: string; userId: UserId; saveAttemptId: SaveAttemptId }): Promise<void> {
+			const result = await saveLinkWork(link.url, { userId: link.userId, saveAttemptId: link.saveAttemptId });
+			if (typeof result === "object" && "deferred" in result) {
+				logger.info(`${logPrefix} tier-1 deferred to comprehensive Lambda`, { url: link.url, unsupportedReason: result.deferred });
+				return;
+			}
+			if (result === "tier-1-terminal") {
+				logger.info(`${logPrefix} tier-1 terminal — origin no longer serves the page`, {
+					url: link.url,
+				});
+				return;
+			}
+			await publishEvent(TierContentExtractedEvent, {
+				url: link.url,
+				userId: link.userId,
+				saveAttemptId: link.saveAttemptId,
+				candidates: [result.candidate],
+				extractedAt: deps.now().toISOString(),
+			});
+			logger.info(`${logPrefix} emitted TierContentExtractedEvent`, {
+				url: link.url,
+				tier: "tier-1",
+			});
+		}
+
+		return { crawlCapture, crawlTier1 };
 	}
 
 	return initSqsRecordHandler({
@@ -172,6 +181,8 @@ export function initSubmitLinkCommandHandler(deps: {
 			);
 			assert("userId" in detail, `${logPrefix} anonymous submissions have no handler yet`);
 			const { userId } = detail;
+			const identity = deps.sourceIdentityFor(initResolveWrapperTargetOnce(deps.resolveWrapperTarget));
+			const { crawlCapture, crawlTier1 } = initRecordCrawls(identity);
 			const provenance = SaveProvenanceSchema.parse(detail.provenance);
 			const readlist = ReadlistSlugSchema.parse(detail.readlist);
 
@@ -226,7 +237,7 @@ export function initSubmitLinkCommandHandler(deps: {
 				saveReadlistArticle: (params) => deps.saveReadlistArticleAsRequested({ ...params, requestedAt }),
 				updateArticleStatusAcrossReadlists: deps.updateArticleStatusAcrossReadlists,
 			});
-			const freshness = await deps.refreshArticleIfStale({ url, requester: { account: userId } });
+			const freshness = await identity.refreshArticleIfStale({ url, requester: { account: userId } });
 			if (freshness.action === "unresolved") {
 				assert(receiveCount >= SUBMIT_LINK_MAX_RECEIVE_COUNT, "The wrapper original could not be resolved");
 				logger.warn(`${logPrefix} wrapper original unresolved on the final receive — giving up the save`, { url });

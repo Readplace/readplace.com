@@ -99,11 +99,18 @@ describe("GET /privacy", () => {
 		expect(items.some((text) => text?.endsWith("For newsletters, each issue's subject, sender, link addresses and link text are sent to an AI provider to tell articles from ads and menus, and, for a readlist you described, what you wrote and the articles you kept in it or took out of it are sent with them to choose which fit."))).toBe(true);
 	});
 
+	it("says AWS's transcription service may keep uploaded audio and video and store it outside Sydney", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Audio and video files you upload are transcribed by AWS's transcription service, which may keep them and their transcripts to improve its services, and may store that copy in an AWS region outside Sydney.");
+	});
+
 	it("carries the date of its latest change", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 17 November 2026");
+		expect(response.text).toContain("Last updated: 20 November 2026");
 	});
 
 	it("lists a file uploaded before signing up among the data Readplace collects", async () => {
@@ -158,7 +165,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("A file you upload before signing up, with its name and what was read from it, is deleted within 2 days. Until you save it no account holds them, so you can't delete them sooner. Once you save it to your library, the file stays with your saved articles until you remove it; an audio or video file's transcript stays with it, and the transcription service's own copy of that transcript is deleted after 14 days.");
+		expect(response.text).toContain("A file you upload before signing up, with its name and what was read from it, is deleted within 2 days. Until you save it no account holds them, so you can't delete them sooner. Once you save it to your library, the file stays with your saved articles until you remove it; an audio or video file's transcript stays with it, and the transcription service's own copy of that transcript is deleted after 14 days, apart from the copy AWS may keep to improve its services, described under Where your data is stored.");
 	});
 
 	it("says the text read from an uploaded PDF is kept to avoid reading the same file twice, and when it is deleted", async () => {

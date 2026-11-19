@@ -7,6 +7,7 @@ import com.readplace.android.core.Article
 import com.readplace.android.core.ArticleProcessing
 import com.readplace.android.core.Href
 import com.readplace.android.core.LastViewedReadlist
+import com.readplace.android.core.OfflineReaderCopy
 import com.readplace.android.core.OfflineReading
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.Readlist
@@ -21,9 +22,11 @@ import com.readplace.android.core.SirenLink
 import com.readplace.android.core.UnseenSave
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -78,7 +81,10 @@ data class ReadingListState(
 	val shareTargetHrefs: Set<String> = emptySet(),
 	val processingReceivedAt: Map<String, Instant> = emptyMap(),
 	val isOffline: Boolean = false,
+	val offlineDownload: OfflineDownloadProgress? = null,
 ) {
+	val offlineDownloadHref: String? get() = tabs.firstOrNull()?.href
+
 	/** A switcher is offered only when the reader has more than one readlist. */
 	val offersReadlistSwitching: Boolean get() = readlists.size > 1
 
@@ -138,9 +144,11 @@ class ReadingListViewModel(
 	private val automaticCaptureAttempts: AutomaticCaptureAttempts,
 	private val reportAutomaticCaptureFailure: (String) -> Unit,
 	private val drainUploadJobs: suspend () -> Unit,
+	private val downloadUnreadOffline: suspend (OfflineDownloadRequest, (OfflineDownloadProgress) -> Unit) -> Unit,
 	private val onSessionExpired: () -> Unit,
 	private val now: () -> Instant,
 	private val reportProcessingRefreshFailure: (String) -> Unit,
+	private val readerCopy: OfflineReaderCopy,
 	private val scope: CoroutineScope,
 ) {
 	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP)))
@@ -209,6 +217,8 @@ class ReadingListViewModel(
 
 	var processingRefresh: Job? = null
 		private set
+
+	private var offlineDownloadRun: Job? = null
 
 	private var isInForeground = true
 
@@ -694,8 +704,7 @@ class ReadingListViewModel(
 	 */
 	fun openReader(article: Article) {
 		val href = article.readHref ?: return
-		val url = Href.resolve(href, api.baseUrl) ?: return
-		val readerUrl = Href.appending(url, AppConfig.PLATFORM_QUERY_NAME, AppConfig.PLATFORM_QUERY_VALUE)
+		val readerUrl = ReaderRequest.url(href, api.baseUrl) ?: return
 		mutate { it.copy(readerPresentation = ReaderPresentation(readerUrl, article.id)) }
 	}
 
@@ -794,6 +803,32 @@ class ReadingListViewModel(
 		}
 	}
 
+	fun downloadUnreadOffline() {
+		if (offlineDownloadRun != null) return
+		val href = states.value.offlineDownloadHref ?: return
+		mutate { it.copy(offlineDownload = OfflineDownloadProgress(completed = 0, total = 0)) }
+		val run = scope.launch(start = CoroutineStart.LAZY) {
+			try {
+				downloadUnreadOffline(OfflineDownloadRequest(startHref = href, sessionAction = sessionAction)) { progress ->
+					mutate { it.copy(offlineDownload = progress) }
+				}
+			} catch (error: Exception) {
+				if (currentCoroutineContext().isActive) handle(error)
+			} finally {
+				offlineDownloadRun = null
+				mutate { it.copy(offlineDownload = null) }
+			}
+		}
+		offlineDownloadRun = run
+		run.start()
+	}
+
+	fun cancelOfflineDownload() {
+		offlineDownloadRun?.cancel()
+	}
+
+	suspend fun stopOfflineDownload(): Unit = offlineDownloadRun?.cancelAndJoin() ?: Unit
+
 	/** Mints the cookie session the reader webview needs from the current bearer. */
 	suspend fun mintReaderSession(): ReaderSessionMint =
 		try {
@@ -808,6 +843,12 @@ class ReadingListViewModel(
 				}
 			}
 		}
+
+	suspend fun isStoredCopyShowable(readerUrl: String): Boolean = readerCopy.isShowable(readerUrl)
+
+	fun readerLoadChanged(readerUrl: String, phase: ReaderLoadPhase, cacheMode: ReaderCacheMode) {
+		if (ReaderLoad.confirmsStoredCopy(phase = phase, cacheMode = cacheMode)) scope.launch { readerCopy.record(readerUrl) }
+	}
 
 	/**
 	 * Applies a loaded page to the list. A replacing load (first page, refresh, or
@@ -915,7 +956,17 @@ class ReadingListViewModel(
 
 	private fun handle(error: Exception) {
 		when (error) {
-			is ApiError.Unauthorized, is ApiError.NoToken -> onSessionExpired()
+			is ApiError.Unauthorized, is ApiError.NoToken -> {
+				val run = offlineDownloadRun
+				if (run != null) {
+					scope.launch {
+						run.cancelAndJoin()
+						onSessionExpired()
+					}
+				} else {
+					onSessionExpired()
+				}
+			}
 			is ApiError.Refused ->
 				if (error.messages.isEmpty()) {
 					mutate { it.copy(errorText = error.message) }

@@ -1,7 +1,7 @@
 import { ABSENT_ENCLOSURE, type EnclosureRead, MinutesSchema } from "@packages/domain/article";
 import { displayableTime } from "./displayable-time";
 
-const ARTICLE = { metadata: { wordCount: 1200 }, estimatedReadTime: MinutesSchema.parse(6) };
+const ARTICLE = { url: "https://example.com/post", metadata: { wordCount: 1200 }, estimatedReadTime: MinutesSchema.parse(6) };
 
 function ownedFor(durationSeconds: number): EnclosureRead {
 	return {
@@ -18,5 +18,17 @@ describe("displayableTime", () => {
 
 	it("labels the read time without an owned enclosure", () => {
 		expect(displayableTime({ article: ARTICLE, enclosure: ABSENT_ENCLOSURE })).toEqual({ value: "6", label: "6 min read" });
+	});
+
+	it("omits the read time for a YouTube video save", () => {
+		const video = { ...ARTICLE, url: "https://www.youtube.com/watch?v=J3PGI4yqta4" };
+
+		expect(displayableTime({ article: video, enclosure: ABSENT_ENCLOSURE })).toBeUndefined();
+	});
+
+	it("labels an owned enclosure on a YouTube save with its listen time", () => {
+		const video = { ...ARTICLE, url: "https://www.youtube.com/watch?v=J3PGI4yqta4" };
+
+		expect(displayableTime({ article: video, enclosure: ownedFor(2820) })).toEqual({ value: "47", label: "47 min listen" });
 	});
 });

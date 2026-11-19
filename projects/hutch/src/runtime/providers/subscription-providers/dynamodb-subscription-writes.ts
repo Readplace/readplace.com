@@ -131,16 +131,20 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		});
 	};
 
-	const markCancelledByEvent: MarkSubscriptionCancelledByEvent = async ({ userId, eventTime }) => {
+	const markCancelledByEvent: MarkSubscriptionCancelledByEvent = async ({ userId, subscriptionId, eventTime }) => {
 		await table.update({
 			Key: { userId },
 			UpdateExpression:
 				"SET #status = :cancelled, statusEnteredAt = :statusEnteredAt, updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt, nextCharge",
-			ConditionExpression: STATUS_NOT_NEWER_THAN_EVENT,
+			ConditionExpression:
+				subscriptionId === undefined
+					? `${STATUS_NOT_NEWER_THAN_EVENT} AND attribute_not_exists(subscriptionId)`
+					: `${STATUS_NOT_NEWER_THAN_EVENT} AND subscriptionId = :subscriptionId`,
 			ExpressionAttributeNames: { "#status": "status" },
 			ExpressionAttributeValues: {
 				":cancelled": "cancelled",
 				":eventTime": eventTime,
+				...(subscriptionId === undefined ? {} : { ":subscriptionId": subscriptionId }),
 				":statusEnteredAt": toEventInstant(deps.now()),
 				":now": deps.now().toISOString(),
 			},

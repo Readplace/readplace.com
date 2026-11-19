@@ -86,6 +86,7 @@ export type MarkSubscriptionCancelledByUserId = (input: {
 
 export type MarkSubscriptionCancelledByEvent = (input: {
 	userId: UserId;
+	subscriptionId: string | undefined;
 	eventTime: EventInstant;
 }) => Promise<void>;
 

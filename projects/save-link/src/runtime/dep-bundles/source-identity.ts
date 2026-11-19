@@ -15,6 +15,7 @@ import {
 	initVerifyWrapperSource,
 	initPrepareArticleIdentity,
 	type ResolveChallengedTracker,
+	type ResolveWrapperTarget,
 	type VerifyWrapperSource,
 } from "@packages/save-article";
 import type { Logger } from "@packages/logger";
@@ -36,17 +37,19 @@ export function initSourceIdentityDepBundle(deps: {
 		...WRAPPER_RESOLVE_BUDGETS,
 		logger: deps.logger,
 	});
-	const prepareArticleIdentity = initPrepareArticleIdentity({ findIdentityRow: deps.findIdentityRow, resolveWrapperTarget, repairWrapperIdentity: deps.repairWrapperIdentity });
-	return {
-		resolveWrapperTarget,
-		verifyWrapperSource: initVerifyWrapperSource({ findIdentityRow: deps.findIdentityRow, resolveWrapperTarget }),
-		prepareArticleIdentity,
-		resolveOriginalUrl: async (url: string) => {
-			const identity = await prepareArticleIdentity(url);
-			assert(identity.status === "resolved", "candidate original identity is unresolved");
-			return identity.originalUrl;
-		},
+	const resolvingWith = (resolveWrapperTarget: ResolveWrapperTarget) => {
+		const prepareArticleIdentity = initPrepareArticleIdentity({ findIdentityRow: deps.findIdentityRow, resolveWrapperTarget, repairWrapperIdentity: deps.repairWrapperIdentity });
+		return {
+			verifyWrapperSource: initVerifyWrapperSource({ findIdentityRow: deps.findIdentityRow, resolveWrapperTarget }),
+			prepareArticleIdentity,
+			resolveOriginalUrl: async (url: string) => {
+				const identity = await prepareArticleIdentity(url);
+				assert(identity.status === "resolved", "candidate original identity is unresolved");
+				return identity.originalUrl;
+			},
+		};
 	};
+	return { resolveWrapperTarget, ...resolvingWith(resolveWrapperTarget), resolvingWith };
 }
 
 export function initSelectionSourceIdentity(deps: {
