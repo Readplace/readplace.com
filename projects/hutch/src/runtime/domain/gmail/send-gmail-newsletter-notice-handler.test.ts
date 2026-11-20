@@ -180,6 +180,15 @@ describe("approved Gmail newsletter notices", () => {
 		assert.equal(h.sent[0].subject, "Choose readlists for 2 newsletters");
 		assert.deepEqual(h.published, [sentEvent(SECOND), sentEvent(SENDER)]);
 	});
+	it("keeps holding every notice while the reader's only readlist besides All holds the reader's own saves", async () => {
+		const h = await harness();
+		await h.observe(SECOND);
+		h.deps.listReadlistDefinitions = async () => [{ ...WORK, ownSavesSince: new Date(NOW) }];
+		assert.deepEqual(await h.run(), { batchItemFailures: [] });
+		assert.equal(h.sent.length, 0);
+		assert.deepEqual([await h.status(SENDER), await h.status(SECOND)], ["pending", "pending"]);
+		assert.deepEqual(h.published, []);
+	});
 	it("leaves out a newsletter that no longer qualifies and announces the rest", async () => {
 		const h = await harness();
 		await h.observe(SECOND);

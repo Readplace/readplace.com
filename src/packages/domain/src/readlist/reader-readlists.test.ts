@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "./readlist-name.schema";
 import {
 	DEFAULT_READLIST,
+	ownSavesReadlist,
 	type ReadlistRef,
 	readerReadlists,
 	readlistsHoldingArticle,
+	routableReadlists,
 } from "./reader-readlists";
 
 const WORK: ReadlistRef = { slug: ReadlistSlugSchema.parse("work"), label: "Work" };
@@ -74,5 +76,28 @@ describe("readlistsHoldingArticle", () => {
 
 	it("uses the built-in slug constant for the default mapping", () => {
 		assert.equal(DEFAULT_READLIST.slug, DEFAULT_READLIST_SLUG);
+	});
+});
+
+describe("routableReadlists", () => {
+	const ownSaves = { ...RUST, ownSavesSince: new Date("2026-11-20T00:00:00.000Z") };
+
+	it("leaves out the readlist that holds the reader's own saves", () => {
+		assert.deepEqual(routableReadlists([WORK, ownSaves]), [WORK]);
+	});
+
+	it("is every readlist when none holds the reader's own saves", () => {
+		assert.deepEqual(routableReadlists([WORK, RUST]), [WORK, RUST]);
+	});
+});
+
+describe("ownSavesReadlist", () => {
+	it("names the readlist that holds the reader's own saves", () => {
+		const ownSaves = { ...RUST, ownSavesSince: new Date("2026-11-20T00:00:00.000Z") };
+		assert.deepEqual(ownSavesReadlist([WORK, ownSaves]), ownSaves);
+	});
+
+	it("is undefined when no readlist holds the reader's own saves", () => {
+		assert.equal(ownSavesReadlist([WORK, RUST]), undefined);
 	});
 });

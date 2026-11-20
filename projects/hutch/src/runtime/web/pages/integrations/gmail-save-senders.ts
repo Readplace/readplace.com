@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ForwardableSenderSchema, gmailSenderPool, pickerDeliveryMode } from "@packages/domain/gmail";
 import type { DiscoveredGmailSender, ForwardableSender, GmailConnection, GmailDiscovery, GmailMapping } from "@packages/domain/gmail";
 import type { InboxAddress } from "@packages/domain/inbox";
-import { DEFAULT_READLIST_SLUG, readerReadlists } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, readerReadlists, routableReadlists } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { MapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-mapping";
 import type { GmailImportActions } from "./gmail-import-actions";
@@ -71,10 +71,11 @@ export function initSaveGmailSenders(deps: {
 		if (!senders.every((sender) => known.has(sender))) return invalid("sender_unknown");
 		assert(accountEmail, "a sender this connection knows implies its Gmail account is recorded");
 		const choices = [...new Set(gmailSelectedReadlists(state))];
-		const readlists = readerReadlists(definitions);
+		const routable = routableReadlists(definitions);
+		const readlists = readerReadlists(routable);
 		if (choices.some((slug) => !readlists.some((entry) => entry.slug === slug))) return invalid("readlist_invalid");
 		const choiceFor = senders.find((sender) => sender === state.readlist_choice_for);
-		if (choiceFor !== undefined && existingFor(choiceFor)?.mappedAddresses === undefined && definitions.length > 0) {
+		if (choiceFor !== undefined && existingFor(choiceFor)?.mappedAddresses === undefined && routable.length > 0) {
 			return invalid("readlist_choice_required");
 		}
 		const selected = readlists.filter((entry) => entry.slug !== DEFAULT_READLIST_SLUG && choices.includes(entry.slug)).map((entry) => entry.slug);

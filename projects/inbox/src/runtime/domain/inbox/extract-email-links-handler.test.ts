@@ -1200,6 +1200,34 @@ describe("initExtractEmailLinksHandler", () => {
 			expect(harness.triaged).toEqual([]);
 		});
 
+		it("leaves the readlist that holds the reader's own saves out, saving every link to All only", async () => {
+			const harness = makeHarness({
+				derivedHtml: '<a href="https://a.test/x">Ship small PRs</a>',
+				inboxAddress: routedInbox,
+				readlistDefinitions: [
+					{ slug: WORK, label: "Work", createdAt: new Date(NOW), ownSavesSince: new Date(NOW) },
+				],
+			});
+
+			await harness.run(eventBody());
+
+			expect(harness.submitted).toEqual([
+				{
+					userId: USER,
+					url: "https://a.test/x",
+					provenance: DIGEST_PROVENANCE,
+					saveTrigger: "automatic",
+					readlist: DEFAULT_READLIST_SLUG,
+				},
+			]);
+			expect(harness.triaged).toEqual([]);
+			const { meta } = await harness.linkStore.listLinksByEmail({
+				userId: USER,
+				receivedAtMessageId: RAM,
+			});
+			expect(meta?.selectedReadlists).toEqual([]);
+		});
+
 		it("labels a routed readlist that was since deleted", async () => {
 			const harness = makeHarness({
 				derivedHtml: "https://a.test/x",

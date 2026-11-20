@@ -2950,6 +2950,21 @@ describe("Gmail multiple readlists and notification confirmation", () => {
 		expect(load((await agent.get(confirmation.headers.location)).text).querySelector("[data-test-gmail-save]")?.hasAttribute("disabled")).toBe(false);
 	});
 
+	it("never offers or routes into the readlist that holds the reader's own saves, and asks for no choice when it is the only one", async () => {
+		const { agent, gmail, userId, articleStore, createReadlist } = await connectedAgent();
+		await createReadlist({ slug: "tech", label: "Tech" });
+		assert.deepEqual(await articleStore.setReadlistOwnSaves({ userId, slug: ReadlistSlugSchema.parse("tech"), since: new Date(AT) }), { outcome: "set" });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: TLDR });
+		const doc = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&notification=1`)).text);
+		const selection = doc.querySelector("#gmail-readlist-selection");
+		assert(selection, "the Add popup must render the mapping form");
+		expect(selection.querySelector('input[value="tech"]')).toBeNull();
+		const refused = await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "tech", readlist_choice_for: TLDR, add: "1" });
+		expect(locationParams(refused.headers.location).error).toBe("readlist_invalid");
+		const saved = await agent.post(ADD).type("form").send({ sender: TLDR, readlist_choice_for: TLDR, add: "1" });
+		expect(locationParams(saved.headers.location).notice).toBe("sender_remapped");
+	});
+
 	it("opens a destination-bearing partial mapping with its complete saved selection enabled", async () => {
 		const { agent, gmail, userId, createReadlist } = await connectedAgent();
 		await createReadlist({ slug: "tech", label: "Tech" });

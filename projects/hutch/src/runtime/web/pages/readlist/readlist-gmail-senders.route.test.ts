@@ -404,6 +404,15 @@ describe("Saving Gmail newsletters to a readlist", () => {
 		expect(gmail.rewriteRequests).toEqual([]);
 	});
 
+	it("refuses to route a sender into the readlist that holds the reader's own saves", async () => {
+		const { agent, gmail, articleStore, userId } = await readerAgent();
+		assert.deepEqual(await articleStore.setReadlistOwnSaves({ userId, slug: TECH, since: new Date(AT) }), { outcome: "set" });
+		const response = await agent.post(SAVE).type("form").send({ gmail_selection: "1", sender: MORNING });
+		expect(response.headers.location).toBe(UNKNOWN_READLIST);
+		expect(await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: MORNING })).toBeUndefined();
+		expect(gmail.rewriteRequests).toEqual([]);
+	});
+
 	it("shows a locked account the locked page", async () => {
 		const { agent, gmail } = await readerAgent({ appNow: () => new Date(Date.now() + 8 * ONE_DAY_MS) });
 		const response = await agent.post(SAVE).set("Accept", "text/html").type("form").send({ gmail_selection: "1", sender: MORNING });

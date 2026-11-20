@@ -11,7 +11,7 @@ import {
 	type ForwardableSender,
 } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
-import { type ReadlistSlug, readerReadlists } from "@packages/domain/readlist";
+import { type ReadlistSlug, readerReadlists, routableReadlists } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import { GMAIL_METADATA_SCOPE } from "@packages/provider-contracts/gmail-oauth";
@@ -137,7 +137,7 @@ export function initSaveReadlistGmailSenders(deps: {
 		});
 		const decision = decideGmailReadlistSelection({
 			slug,
-			readlists,
+			readlists: readerReadlists(routableReadlists(definitions)),
 			ticked: tickedSenders(parsed.data),
 			routed: parsed.data.routed,
 			known: sources.pool.known,

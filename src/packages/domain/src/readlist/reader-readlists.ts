@@ -35,3 +35,15 @@ export function readlistsHoldingArticle(input: {
 	);
 	return input.readlists.filter((readlist) => held.has(readlist.slug));
 }
+
+export function routableReadlists<T extends { slug: ReadlistSlug; ownSavesSince?: Date }>(
+	readlists: readonly T[],
+): readonly T[] {
+	return readlists.filter((readlist) => readlist.ownSavesSince === undefined);
+}
+
+export function ownSavesReadlist<T extends { slug: ReadlistSlug; ownSavesSince?: Date }>(
+	readlists: readonly T[],
+): T | undefined {
+	return readlists.find((readlist) => readlist.ownSavesSince !== undefined);
+}
