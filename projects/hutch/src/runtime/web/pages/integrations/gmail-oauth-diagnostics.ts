@@ -65,7 +65,6 @@ interface GmailOAuthStatePayload {
 
 type GmailOAuthStateReading =
 	| { kind: "absent" }
-	| { kind: "verification-threw"; fingerprint: string }
 	| { kind: "invalid-signature"; fingerprint: string }
 	| { kind: "malformed-json"; fingerprint: string }
 	| { kind: "schema-rejected"; fingerprint: string }
@@ -111,14 +110,6 @@ export function fingerprintGmailOAuthState(signed: string): string {
 	return createHash("sha256").update(signed).digest("hex");
 }
 
-function verifyWithoutThrowing(input: { signed: string; secret: string }): { threw: true } | { threw: false; payload: string | null } {
-	try {
-		return { threw: false, payload: verifyState(input) };
-	} catch {
-		return { threw: true };
-	}
-}
-
 function parseJsonWithoutThrowing(text: string): { parsed: true; value: unknown } | { parsed: false } {
 	try {
 		return { parsed: true, value: JSON.parse(text) };
@@ -134,10 +125,9 @@ export function initReadGmailOAuthState(deps: {
 	return ({ value, checkedAtMs }) => {
 		if (typeof value !== "string" || value === "") return { kind: "absent" };
 		const fingerprint = fingerprintGmailOAuthState(value);
-		const verification = verifyWithoutThrowing({ signed: value, secret: deps.secret });
-		if (verification.threw) return { kind: "verification-threw", fingerprint };
-		if (verification.payload === null) return { kind: "invalid-signature", fingerprint };
-		const json = parseJsonWithoutThrowing(verification.payload);
+		const verified = verifyState({ signed: value, secret: deps.secret });
+		if (verified === null) return { kind: "invalid-signature", fingerprint };
+		const json = parseJsonWithoutThrowing(verified);
 		if (!json.parsed) return { kind: "malformed-json", fingerprint };
 		const payload = deps.parsePayload(json.value);
 		if (payload === undefined) return { kind: "schema-rejected", fingerprint };
@@ -155,7 +145,6 @@ export function toGmailOAuthStateInspection(reading: GmailOAuthStateReading): Gm
 	switch (reading.kind) {
 		case "absent":
 			return { present: false, fingerprint: undefined, signatureValid: undefined, payload: undefined, ...UNVERIFIED };
-		case "verification-threw":
 		case "invalid-signature":
 			return { present: true, fingerprint: reading.fingerprint, signatureValid: false, payload: undefined, ...UNVERIFIED };
 		case "malformed-json":
@@ -186,7 +175,6 @@ function decideCallback(input: {
 	statesEqual: boolean;
 	ttlMs: number;
 }): GmailOAuthCallbackDecision {
-	if (input.cookie.kind === "verification-threw") return "invalid-signature";
 	if (input.cookie.kind === "malformed-json") return "invalid-payload";
 	if (input.providerError) return "provider-error";
 	if (input.queryShape === "malformed") return "malformed-query";

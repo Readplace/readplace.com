@@ -10,8 +10,8 @@ export const verifyState = ({ signed, secret }: { signed: string; secret: string
 	if (dotIndex === -1) return null;
 	const payload = signed.slice(0, dotIndex);
 	const expected = signState({ payload, secret });
-	if (signed.length !== expected.length) return null;
-	const isValid = timingSafeEqual(Buffer.from(signed), Buffer.from(expected));
-	if (!isValid) return null;
+	const actualBytes = Buffer.from(signed);
+	const expectedBytes = Buffer.from(expected);
+	if (actualBytes.length !== expectedBytes.length || !timingSafeEqual(actualBytes, expectedBytes)) return null;
 	return payload;
 };
