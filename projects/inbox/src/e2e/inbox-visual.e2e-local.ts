@@ -733,7 +733,7 @@ test.describe("Inbox visual checkpoints", () => {
 						]);
 						await expect(settling.locator("[data-test-readlist-line] span")).toHaveText([
 							"1 of 2 also fit Work.",
-							"Couldn't choose articles for Science. Everything stays in All. Use Keep in Science on any article you want there.",
+							"Couldn't choose articles for Science. Its links were saved to All. Use Keep in Science on any article you want there.",
 						]);
 						await expect(settling.locator("[data-test-inbox-article-card]")).toHaveCount(2);
 					},

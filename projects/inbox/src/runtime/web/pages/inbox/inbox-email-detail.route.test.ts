@@ -1525,7 +1525,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		expect(panelAlerts(doc)).toEqual([]);
 		expect(noticeTexts(doc)).toEqual(["Saved to All."]);
 		expect(readlistLineTexts(doc)).toEqual([
-			"Couldn't choose articles for Work. Everything stays in All. Use Keep in Work on any article you want there.",
+			"Couldn't choose articles for Work. Its links were saved to All. Use Keep in Work on any article you want there.",
 		]);
 	});
 });

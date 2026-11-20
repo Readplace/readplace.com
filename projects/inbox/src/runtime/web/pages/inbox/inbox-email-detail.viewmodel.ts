@@ -307,7 +307,7 @@ function readlistLines(input: {
 		if (outcome?.decision === "failed") {
 			lines.push({
 				...line,
-				text: `Couldn't choose articles for ${label}. Everything stays in All. Use Keep in ${label} on any article you want there.`,
+				text: t("emailDetail.readlistLine.failed", { label }),
 				filters: [],
 			});
 		} else if (outcome?.decision === "filtered") {

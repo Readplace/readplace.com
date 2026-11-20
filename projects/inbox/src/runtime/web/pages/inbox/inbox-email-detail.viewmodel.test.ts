@@ -1018,7 +1018,7 @@ describe("toInboxArticlesMoreViewModel", () => {
 describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => {
 	const SAVED_TO_ALL = { key: "decided", text: "Saved to All.", iconName: undefined };
 	const FAILED_WORK_LINE =
-		"Couldn't choose articles for Work. Everything stays in All. Use Keep in Work on any article you want there.";
+		"Couldn't choose articles for Work. Its links were saved to All. Use Keep in Work on any article you want there.";
 
 	function kept(ordinal: string): InboxEmailLinkEntry {
 		return link({
@@ -1226,7 +1226,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		});
 
 		expect(lineTexts(vm)).toEqual([
-			"Couldn't choose articles for Day job. Everything stays in All. Use Keep in Day job on any article you want there.",
+			"Couldn't choose articles for Day job. Its links were saved to All. Use Keep in Day job on any article you want there.",
 		]);
 	});
 
@@ -1458,7 +1458,7 @@ describe("Gmail filtering results", () => {
 		]);
 		expect(vm.articles.readlistLines.map(({ text }) => text)).toEqual([
 			"Nothing in this issue fit Work.",
-			"Couldn't choose articles for Science. Everything stays in All. Use Keep in Science on any article you want there.",
+			"Couldn't choose articles for Science. Its links were saved to All. Use Keep in Science on any article you want there.",
 		]);
 		expect(vm.articles.panelPollUrl).toContain("poll=1");
 		expect(vm.tabs.map(({ label }) => label)).toEqual([

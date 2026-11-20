@@ -6,6 +6,9 @@ export const enUS = {
 			links: "No links from this email were saved: saving from the Inbox is part of a paid plan.",
 		},
 		paidPlanLocked: "Saving links from the Inbox is part of a paid plan.",
+		readlistLine: {
+			failed: "Couldn't choose articles for {label}. Its links were saved to All. Use Keep in {label} on any article you want there.",
+		},
 	},
 	excludedLink: {
 		reason: {
