@@ -77,6 +77,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.readplace.android.core.Affordance
@@ -210,18 +211,7 @@ fun ReadingListScreen(
 	Scaffold(
 		topBar = {
 			TopAppBar(
-				title = {
-					Column {
-						Text(text = "Reading List")
-						state.currentReadlistLabel?.let { label ->
-							Text(
-								text = label,
-								style = MaterialTheme.typography.labelMedium,
-								color = LocalBrandColors.current.textSecondary,
-							)
-						}
-					}
-				},
+				title = { ReadingListTitle(currentReadlistLabel = state.currentReadlistLabel) },
 				navigationIcon = {
 					TextButton(onClick = onSignOut, colors = brandTextButtonColors()) { Text(text = "Sign out") }
 				},
@@ -563,6 +553,22 @@ private fun AddLinkInstructionsSheet(onDismiss: () -> Unit) {
 				onDismiss = {
 					scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
 				},
+			)
+		}
+	}
+}
+
+@Composable
+internal fun ReadingListTitle(currentReadlistLabel: String?) {
+	Column {
+		Text(text = "Reading List", maxLines = 1, overflow = TextOverflow.Ellipsis)
+		currentReadlistLabel?.let { label ->
+			Text(
+				text = label,
+				style = MaterialTheme.typography.labelMedium,
+				color = LocalBrandColors.current.textSecondary,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
 			)
 		}
 	}
