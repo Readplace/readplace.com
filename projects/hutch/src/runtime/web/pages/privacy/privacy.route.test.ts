@@ -96,7 +96,15 @@ describe("GET /privacy", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		const items = Array.from(doc.querySelectorAll(".legal-page__item-text"), (item) => item.textContent);
-		expect(items.some((text) => text?.endsWith("For newsletters, each issue's subject, sender, link addresses and link text are sent to an AI provider to tell articles from ads and menus, and, for a readlist you described, what you wrote and the articles you kept in it or took out of it are sent with them to choose which fit."))).toBe(true);
+		expect(items.some((text) => text?.includes("For newsletters, each issue's subject, sender, link addresses and link text are sent to an AI provider to tell articles from ads and menus, and, for a readlist you described, what you wrote and the articles you kept in it or took out of it are sent with them to choose which fit."))).toBe(true);
+	});
+
+	it("says what Next read and Already read send to an AI provider", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("To suggest what to read next and what you have already read on the same subject, the title, site and description of an article you save and of your earlier saves, read and unread, are sent to an AI provider to choose which relate and say why.");
 	});
 
 	it("says AWS's transcription service may keep uploaded audio and video and store it outside Sydney", async () => {

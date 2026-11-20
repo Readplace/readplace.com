@@ -72,6 +72,12 @@ describe("llms files", () => {
 		expect(FILES["llms-full.txt"].split(sentence).length - 1).toBe(2);
 	});
 
+	it("llms-full.txt says what Next read and Already read send to an AI provider in both privacy passages", () => {
+		const sentence = "To suggest what to read next and what you have already read on the same subject, the title, site and description of an article you save and of your earlier saves, read and unread, are sent to an AI provider to choose which relate and say why.";
+
+		expect(FILES["llms-full.txt"].split(sentence).length - 1).toBe(2);
+	});
+
 	it("llms-full.txt says AWS may keep uploaded audio and video in both privacy passages", () => {
 		const sentence = "Audio and video files you upload are transcribed by AWS, which may keep them to improve its services and may store them outside Sydney.";
 
