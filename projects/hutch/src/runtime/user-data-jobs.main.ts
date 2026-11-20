@@ -46,6 +46,7 @@ import { initGmailFilters } from "./providers/gmail-api/gmail-filters";
 import { initRevokeGmailGrant } from "./providers/gmail-api/gmail-revoke";
 import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
 import { initRemoveSavedLinks } from "./saved-links-job/remove-saved-links";
+import { initCountSavedLinks } from "./saved-links-job/count-saved-links";
 import { initRestoreSavedLinks } from "./saved-links-job/restore-saved-links";
 import { initSavedLinksJobHandler } from "./saved-links-job/saved-links-job-handler";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
@@ -432,6 +433,11 @@ export const handler = initHandleByDetailType({
 						findOriginalUrls: removedLinks.findOriginalUrls,
 						publishEvent,
 						now,
+					}),
+					count: initCountSavedLinks({
+						summariseNewsletterLinks: removedLinks.summariseNewsletterLinks,
+						countNewsletterIssues: removedLinks.countNewsletterIssues,
+						recordCountedNewsletterLinks: savedLinksJob.recordCountedNewsletterLinks,
 					}),
 				},
 				publishEvent,

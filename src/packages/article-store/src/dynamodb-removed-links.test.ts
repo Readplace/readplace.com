@@ -77,6 +77,7 @@ describe("hasNewsletterLink", () => {
 		assert.equal(sent[0].TableName, TABLE);
 		assert.equal(sent[0].KeyConditionExpression, "userId = :userId");
 		assert.equal(sent[0].FilterExpression, undefined);
+		assert.equal(sent[0].Limit, 300);
 		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt");
 		assert.deepEqual(sent[1].ExclusiveStartKey, { userId: READER, url: "a.com/1" });
 	});

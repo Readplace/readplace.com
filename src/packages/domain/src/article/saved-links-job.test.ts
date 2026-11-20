@@ -11,6 +11,9 @@ import {
 	selectRemovalPage,
 	heldLinkExpiresAt,
 	isHeldLinkLive,
+	newsletterLinkCountOf,
+	newsletterLinksLineOf,
+	type SavedLinksJob,
 } from "./saved-links-job";
 
 const READER = UserIdSchema.parse("reader-1");
@@ -291,5 +294,106 @@ describe("selectHeldLinksToRestore", () => {
 			}).map((link) => link.heldKey),
 			["chosen"],
 		);
+	});
+});
+
+function job(overrides: Partial<SavedLinksJob> = {}): SavedLinksJob {
+	return {
+		jobId: SavedLinksJobIdSchema.parse("job-1"),
+		action: "remove",
+		state: "requested",
+		requestedAt: CUTOFF,
+		counts: {},
+		...overrides,
+	};
+}
+
+const COUNTED = {
+	cutoff: CUTOFF,
+	issues: 3,
+	summary: {
+		selected: 12,
+		bySender: [{ senderEmail: "dan@tldr.tech", count: 12 }],
+		skipped: { read: 1, opened: 0, highlighted: 0, changed: 0, unreadable: 0 },
+		earliestEmailSave: undefined,
+		savedBeforeMarker: 0,
+	},
+};
+
+describe("newsletterLinkCountOf", () => {
+	it("is none without a job", () => {
+		assert.deepEqual(newsletterLinkCountOf(undefined), { kind: "none" });
+	});
+
+	it("is busy while a removal or restore runs", () => {
+		assert.deepEqual(newsletterLinkCountOf(job({ state: "requested" })), { kind: "busy" });
+		assert.deepEqual(newsletterLinkCountOf(job({ action: "restore", state: "running" })), { kind: "busy" });
+	});
+
+	it("is none once a removal or restore has ended", () => {
+		assert.deepEqual(newsletterLinkCountOf(job({ state: "completed" })), { kind: "none" });
+		assert.deepEqual(newsletterLinkCountOf(job({ action: "restore", state: "failed" })), { kind: "none" });
+	});
+
+	it("is counting while a count runs", () => {
+		assert.deepEqual(newsletterLinkCountOf(job({ action: "count", state: "requested" })), { kind: "counting" });
+		assert.deepEqual(newsletterLinkCountOf(job({ action: "count", state: "running" })), { kind: "counting" });
+	});
+
+	it("is failed when the count failed", () => {
+		assert.deepEqual(newsletterLinkCountOf(job({ action: "count", state: "failed" })), { kind: "failed" });
+	});
+
+	it("gives the counted numbers of a completed count", () => {
+		assert.deepEqual(newsletterLinkCountOf(job({ action: "count", state: "completed", counted: COUNTED })), {
+			kind: "counted",
+			jobId: "job-1",
+			counted: COUNTED,
+		});
+	});
+
+	it("refuses a completed count without numbers", () => {
+		assert.throws(() => newsletterLinkCountOf(job({ action: "count", state: "completed" })));
+	});
+});
+
+describe("newsletterLinksLineOf", () => {
+	it("is hidden without a job or a newsletter link", () => {
+		assert.deepEqual(newsletterLinksLineOf({ job: undefined, hasNewsletterLink: false }), { kind: "hidden" });
+	});
+
+	it("offers the removal when All holds a newsletter link", () => {
+		assert.deepEqual(newsletterLinksLineOf({ job: undefined, hasNewsletterLink: true }), { kind: "offer" });
+	});
+
+	it("treats a count as no job", () => {
+		const counting = job({ action: "count", state: "running" });
+		assert.deepEqual(newsletterLinksLineOf({ job: counting, hasNewsletterLink: true }), { kind: "offer" });
+		assert.deepEqual(newsletterLinksLineOf({ job: counting, hasNewsletterLink: false }), { kind: "hidden" });
+	});
+
+	it("is working while a removal runs", () => {
+		assert.deepEqual(newsletterLinksLineOf({ job: job({ state: "running" }), hasNewsletterLink: true }), {
+			kind: "working",
+			action: "remove",
+		});
+	});
+
+	it("gives the result of a finished removal, with the offer when links remain", () => {
+		const done = job({ state: "completed", counts: { held: 4, read: 1 } });
+		assert.deepEqual(newsletterLinksLineOf({ job: done, hasNewsletterLink: false }), {
+			kind: "result",
+			action: "remove",
+			counts: { held: 4, read: 1 },
+			offer: false,
+		});
+	});
+
+	it("is failed when the removal failed", () => {
+		assert.deepEqual(newsletterLinksLineOf({ job: job({ state: "failed" }), hasNewsletterLink: true }), {
+			kind: "failed",
+			action: "remove",
+			offer: true,
+		});
 	});
 });

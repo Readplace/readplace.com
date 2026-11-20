@@ -1,4 +1,5 @@
 import {
+	type CountedNewsletterLinks,
 	type SavedLinksJob,
 	SavedLinksJobActionSchema,
 	SavedLinksJobCountsSchema,
@@ -9,6 +10,7 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	FindSavedLinksJob,
 	FinishSavedLinksJob,
+	RecordCountedNewsletterLinks,
 	RecordSavedLinksJobProgress,
 	RequestSavedLinksJob,
 	WithdrawSavedLinksJob,
@@ -17,6 +19,42 @@ import { type DynamoDBDocumentClient, defineDynamoTable, dynamoField, writeIfCon
 import { z } from "zod";
 import { savedLinksJobKey } from "./user-readlist-partition";
 
+const CountedItem = z.object({
+	cutoff: z.string(),
+	issues: z.number().int().nonnegative(),
+	summary: z.object({
+		selected: z.number().int().nonnegative(),
+		bySender: z.array(z.object({ senderEmail: z.string(), count: z.number().int().nonnegative() })),
+		skipped: z.object({
+			read: z.number().int().nonnegative(),
+			opened: z.number().int().nonnegative(),
+			highlighted: z.number().int().nonnegative(),
+			changed: z.number().int().nonnegative(),
+			unreadable: z.number().int().nonnegative(),
+		}),
+		savedBeforeMarker: z.number().int().nonnegative(),
+		earliestEmailSave: dynamoField(z.string()),
+	}),
+});
+
+function toCounted(item: z.infer<typeof CountedItem>): CountedNewsletterLinks {
+	const { earliestEmailSave, ...summary } = item.summary;
+	return {
+		cutoff: new Date(item.cutoff),
+		issues: item.issues,
+		summary: { ...summary, earliestEmailSave: earliestEmailSave === undefined ? undefined : new Date(earliestEmailSave) },
+	};
+}
+
+function toCountedItem(counted: CountedNewsletterLinks) {
+	const { earliestEmailSave, ...summary } = counted.summary;
+	return {
+		cutoff: counted.cutoff.toISOString(),
+		issues: counted.issues,
+		summary: { ...summary, ...(earliestEmailSave === undefined ? {} : { earliestEmailSave: earliestEmailSave.toISOString() }) },
+	};
+}
+
 const SavedLinksJobItem = z.object({
 	jobId: SavedLinksJobIdSchema,
 	action: SavedLinksJobActionSchema,
@@ -24,6 +62,7 @@ const SavedLinksJobItem = z.object({
 	requestedAt: z.string(),
 	counts: SavedLinksJobCountsSchema,
 	finishedAt: dynamoField(z.string()),
+	counted: dynamoField(CountedItem),
 });
 
 function toSavedLinksJob(item: z.infer<typeof SavedLinksJobItem>): SavedLinksJob {
@@ -34,12 +73,14 @@ function toSavedLinksJob(item: z.infer<typeof SavedLinksJobItem>): SavedLinksJob
 		requestedAt: new Date(item.requestedAt),
 		counts: item.counts,
 		...(item.finishedAt === undefined ? {} : { finishedAt: new Date(item.finishedAt) }),
+		...(item.counted === undefined ? {} : { counted: toCounted(item.counted) }),
 	};
 }
 
 export function initDynamoDbSavedLinksJob(deps: { client: DynamoDBDocumentClient; userArticlesTableName: string }): {
 	requestSavedLinksJob: RequestSavedLinksJob;
 	recordSavedLinksJobProgress: RecordSavedLinksJobProgress;
+	recordCountedNewsletterLinks: RecordCountedNewsletterLinks;
 	finishSavedLinksJob: FinishSavedLinksJob;
 	findSavedLinksJob: FindSavedLinksJob;
 	withdrawSavedLinksJob: WithdrawSavedLinksJob;
@@ -61,9 +102,9 @@ export function initDynamoDbSavedLinksJob(deps: { client: DynamoDBDocumentClient
 		const outcome = await writeIfCondition(() =>
 			jobs.put({
 				Item: { ...keyOf(userId), jobId, action, state: "requested", requestedAt: requestedAt.toISOString(), counts: {} },
-				ConditionExpression: "attribute_not_exists(#url) OR #state IN (:completed, :failed)",
-				ExpressionAttributeNames: { "#url": "url", "#state": "state" },
-				ExpressionAttributeValues: { ":completed": "completed", ":failed": "failed" },
+				ConditionExpression: "attribute_not_exists(#url) OR #state IN (:completed, :failed) OR #action = :count",
+				ExpressionAttributeNames: { "#url": "url", "#state": "state", "#action": "action" },
+				ExpressionAttributeValues: { ":completed": "completed", ":failed": "failed", ":count": "count" },
 			}),
 		);
 		if (outcome.kind === "written") return { outcome: "claimed" };
@@ -79,6 +120,19 @@ export function initDynamoDbSavedLinksJob(deps: { client: DynamoDBDocumentClient
 				ConditionExpression: "jobId = :jobId AND #state <> :completed",
 				ExpressionAttributeNames: { "#state": "state" },
 				ExpressionAttributeValues: { ":running": "running", ":completed": "completed", ":counts": counts, ":jobId": jobId },
+			}),
+		);
+		return outcome.kind === "written" ? { outcome: "recorded" } : { outcome: "stale" };
+	};
+
+	const recordCountedNewsletterLinks: RecordCountedNewsletterLinks = async ({ userId, jobId, counted }) => {
+		const outcome = await writeIfCondition(() =>
+			jobs.update({
+				Key: keyOf(userId),
+				UpdateExpression: "SET #counted = :counted",
+				ConditionExpression: "jobId = :jobId AND #state <> :completed",
+				ExpressionAttributeNames: { "#state": "state", "#counted": "counted" },
+				ExpressionAttributeValues: { ":completed": "completed", ":counted": toCountedItem(counted), ":jobId": jobId },
 			}),
 		);
 		return outcome.kind === "written" ? { outcome: "recorded" } : { outcome: "stale" };
@@ -115,5 +169,12 @@ export function initDynamoDbSavedLinksJob(deps: { client: DynamoDBDocumentClient
 		return outcome.kind === "written" ? { outcome: "withdrawn" } : { outcome: "stale" };
 	};
 
-	return { requestSavedLinksJob, recordSavedLinksJobProgress, finishSavedLinksJob, findSavedLinksJob, withdrawSavedLinksJob };
+	return {
+		requestSavedLinksJob,
+		recordSavedLinksJobProgress,
+		recordCountedNewsletterLinks,
+		finishSavedLinksJob,
+		findSavedLinksJob,
+		withdrawSavedLinksJob,
+	};
 }

@@ -3166,6 +3166,39 @@ describe("initInMemoryArticleStore held newsletter links", () => {
 		expect(await store.findSavedLinksJob({ userId: USER_A })).toBeUndefined();
 	});
 
+	it("lets any saved-links job replace an open count, and keeps a count out while a removal runs", async () => {
+		const store = initInMemoryArticleStore();
+		const count = SavedLinksJobIdSchema.parse("job-count");
+		const counted = {
+			cutoff: NOW,
+			issues: 1,
+			summary: {
+				selected: 2,
+				bySender: [{ senderEmail: "dan@tldr.tech", count: 2 }],
+				skipped: { read: 0, opened: 0, highlighted: 0, changed: 0, unreadable: 0 },
+				earliestEmailSave: undefined,
+				savedBeforeMarker: 0,
+			},
+		};
+		expect(await store.requestSavedLinksJob({ userId: USER_A, jobId: count, action: "count", requestedAt: NOW })).toEqual({
+			outcome: "claimed",
+		});
+		expect(await store.recordCountedNewsletterLinks({ userId: USER_A, jobId: count, counted })).toEqual({ outcome: "recorded" });
+		expect((await store.findSavedLinksJob({ userId: USER_A }))?.counted).toEqual(counted);
+
+		expect(await store.requestSavedLinksJob({ userId: USER_A, jobId: JOB, action: "remove", requestedAt: NOW })).toEqual({
+			outcome: "claimed",
+		});
+		expect((await store.findSavedLinksJob({ userId: USER_A }))?.counted).toBeUndefined();
+		expect(await store.recordCountedNewsletterLinks({ userId: USER_A, jobId: count, counted })).toEqual({ outcome: "stale" });
+		expect(await store.requestSavedLinksJob({ userId: USER_A, jobId: count, action: "count", requestedAt: NOW })).toMatchObject({
+			outcome: "busy",
+		});
+
+		await store.finishSavedLinksJob({ userId: USER_A, jobId: JOB, state: "completed", counts: {}, finishedAt: NOW });
+		expect(await store.recordCountedNewsletterLinks({ userId: USER_A, jobId: JOB, counted })).toEqual({ outcome: "stale" });
+	});
+
 	it("resumes a failed saved-links job that still holds the row", async () => {
 		const store = initInMemoryArticleStore();
 		await store.requestSavedLinksJob({ userId: USER_A, jobId: JOB, action: "remove", requestedAt: NOW });

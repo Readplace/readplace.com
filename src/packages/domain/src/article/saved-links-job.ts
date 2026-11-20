@@ -5,6 +5,7 @@ import {
 	classifyForRemoval,
 	type NewsletterLinkCandidate,
 	type NewsletterLinkRow,
+	type NewsletterLinkSummary,
 	REMOVAL_SKIP_REASONS,
 	type RemovalSkipReason,
 } from "./newsletter-link";
@@ -19,7 +20,7 @@ export const SavedLinksJobIdSchema = z
 	.brand<"SavedLinksJobId">();
 export type SavedLinksJobId = z.infer<typeof SavedLinksJobIdSchema>;
 
-export const SavedLinksJobActionSchema = z.enum(["remove", "restore"]);
+export const SavedLinksJobActionSchema = z.enum(["remove", "restore", "count"]);
 export type SavedLinksJobAction = z.infer<typeof SavedLinksJobActionSchema>;
 
 export const SavedLinksJobStateSchema = z.enum([
@@ -54,6 +55,50 @@ export interface SavedLinksJob {
 	requestedAt: Date;
 	counts: SavedLinksJobCounts;
 	finishedAt?: Date;
+	counted?: CountedNewsletterLinks;
+}
+
+export interface CountedNewsletterLinks {
+	cutoff: Date;
+	summary: NewsletterLinkSummary;
+	issues: number;
+}
+
+export type NewsletterLinkCount =
+	| { kind: "none" }
+	| { kind: "busy" }
+	| { kind: "counting" }
+	| { kind: "counted"; jobId: SavedLinksJobId; counted: CountedNewsletterLinks }
+	| { kind: "failed" };
+
+export function newsletterLinkCountOf(job: SavedLinksJob | undefined): NewsletterLinkCount {
+	if (job === undefined) return { kind: "none" };
+	const open = job.state === "requested" || job.state === "running";
+	if (job.action !== "count") return open ? { kind: "busy" } : { kind: "none" };
+	if (open) return { kind: "counting" };
+	if (job.state === "failed") return { kind: "failed" };
+	assert(job.counted, "A completed count carries its counted numbers");
+	return { kind: "counted", jobId: job.jobId, counted: job.counted };
+}
+
+export type SavedLinksJobBulkAction = Exclude<SavedLinksJobAction, "count">;
+
+export type NewsletterLinksLine =
+	| { kind: "hidden" }
+	| { kind: "offer" }
+	| { kind: "working"; action: SavedLinksJobBulkAction }
+	| { kind: "result"; action: SavedLinksJobBulkAction; counts: SavedLinksJobCounts; offer: boolean }
+	| { kind: "failed"; action: SavedLinksJobBulkAction; offer: boolean };
+
+export function newsletterLinksLineOf(params: {
+	job: SavedLinksJob | undefined;
+	hasNewsletterLink: boolean;
+}): NewsletterLinksLine {
+	const { job, hasNewsletterLink } = params;
+	if (job === undefined || job.action === "count") return hasNewsletterLink ? { kind: "offer" } : { kind: "hidden" };
+	if (job.state === "requested" || job.state === "running") return { kind: "working", action: job.action };
+	if (job.state === "failed") return { kind: "failed", action: job.action, offer: hasNewsletterLink };
+	return { kind: "result", action: job.action, counts: job.counts, offer: hasNewsletterLink };
 }
 
 export type RemovalSenders =

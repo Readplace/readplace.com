@@ -182,3 +182,62 @@ test.describe("A readlist call is reversible without client JavaScript", () => {
 		await expect(page.locator("[data-test-toast]")).toHaveCount(0);
 	});
 });
+test.describe("Removing newsletter links", () => {
+	test("the count and the removal each reach their outcome through their own 3s poll", async ({
+		page,
+	}) => {
+		await page.request.post("/e2e/session");
+		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
+		const seeded = await page.request.post("/e2e/seed-email", {
+			data: {
+				messageId: "<newsletter-links@e2e>",
+				receivedAt: RECEIVED_AT,
+				senderEmail: "news@example.com",
+				subject: "Issue",
+			},
+		});
+		assert.equal(seeded.status(), 200, await seeded.text());
+		await page.request.post("/e2e/seed-newsletter-link", {
+			data: {
+				url: "https://example.com/newsletter-link",
+				senderEmail: "news@example.com",
+			},
+		});
+		const finishJob = {
+			data: { selected: 3, senderEmail: "news@example.com" },
+		};
+
+		await page.goto("/inbox");
+		const line = page.locator("#newsletter-links-line");
+		await expect(line).toHaveAttribute("data-newsletter-links-state", "offer");
+		await line.locator("[data-test-newsletter-links-remove]").click();
+
+		const count = page.locator("#newsletter-links-count");
+		await expect(count).toHaveAttribute(
+			"data-newsletter-links-count",
+			"counting",
+		);
+		await page.request.post("/e2e/finish-saved-links-job", finishJob);
+		await expect(count).toHaveAttribute(
+			"data-newsletter-links-count",
+			"counted",
+			{ timeout: 15000 },
+		);
+		await expect(page.locator("[data-test-newsletter-links-total]")).toHaveText(
+			"3 unread newsletter links in All will be removed.",
+		);
+		await page.locator("[data-test-newsletter-links-submit]").click();
+
+		await expect(line).toHaveAttribute(
+			"data-newsletter-links-state",
+			"working",
+		);
+		await page.request.post("/e2e/finish-saved-links-job", finishJob);
+		await expect(line).toHaveAttribute(
+			"data-newsletter-links-state",
+			"result",
+			{ timeout: 15000 },
+		);
+		await expect(line).toContainText("Removed 3 newsletter links from All.");
+	});
+});

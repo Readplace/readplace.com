@@ -74,6 +74,8 @@ const SharedArticleItem = z.object({ purgedAt: dynamoField(z.string()) });
 
 const OriginalUrlItem = z.object({ url: z.string(), originalUrl: z.string() });
 
+const NEWSLETTER_LINK_PAGE_ROWS = 300;
+
 const HELD_LINK_ATTRIBUTES = ["url", "removedUrl", "removedByJobId", "removedAt", "expiresAt", "provenance"];
 
 const HOLD_ATTRIBUTES = ["removedUrl", "removedByJobId", "removedAt", "expiresAt"] as const;
@@ -209,7 +211,7 @@ export function initDynamoDbRemovedLinks(deps: {
 		const input = allPartitionQuery({ userId, attributes: LINK_ATTRIBUTES });
 		let exclusiveStartKey: Record<string, unknown> | undefined;
 		do {
-			const page = await userArticles.query({ ...input, ExclusiveStartKey: exclusiveStartKey });
+			const page = await userArticles.query({ ...input, Limit: NEWSLETTER_LINK_PAGE_ROWS, ExclusiveStartKey: exclusiveStartKey });
 			const found = page.items.some((item) => {
 				const parsed = NewsletterLinkItem.safeParse(item);
 				return parsed.success && isNewsletterLink({ row: toNewsletterLinkRow(parsed.data), userId });

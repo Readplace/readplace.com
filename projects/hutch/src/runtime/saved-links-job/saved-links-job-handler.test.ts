@@ -9,12 +9,14 @@ import type {
 	FindSavedLinksJob,
 	FinishSavedLinksJob,
 	MoveNewsletterLinkToHold,
+	RecordCountedNewsletterLinks,
 	RecordSavedLinksJobProgress,
 	RestoreHeldLink,
 } from "@packages/provider-contracts/article-store";
 import { initInMemoryArticleStore, initInMemoryRemovedLinks } from "@packages/test-fixtures/providers/article-store";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import { initCountSavedLinks } from "./count-saved-links";
 import { initRemoveSavedLinks } from "./remove-saved-links";
 import { initRestoreSavedLinks } from "./restore-saved-links";
 import { initSavedLinksJobHandler } from "./saved-links-job-handler";
@@ -66,7 +68,7 @@ function removeDetail(overrides: Partial<RunSavedLinksJobDetail> = {}): RunSaved
 	};
 }
 
-function restoreDetail(senders: RunSavedLinksJobDetail["job"]["senders"] = { kind: "all" }): RunSavedLinksJobDetail {
+function restoreDetail(senders: Extract<RunSavedLinksJobDetail["job"], { action: "restore" }>["senders"] = { kind: "all" }): RunSavedLinksJobDetail {
 	return { userId: READER, jobId: JOB, requestedAt: NOW.toISOString(), job: { action: "restore", senders } };
 }
 
@@ -88,6 +90,7 @@ function setup(overrides: {
 	restoreHeldLink?: (restore: RestoreHeldLink) => RestoreHeldLink;
 	recordSavedLinksJobProgress?: (record: RecordSavedLinksJobProgress) => RecordSavedLinksJobProgress;
 	finishSavedLinksJob?: (finish: FinishSavedLinksJob) => FinishSavedLinksJob;
+	recordCountedNewsletterLinks?: (record: RecordCountedNewsletterLinks) => RecordCountedNewsletterLinks;
 	pages?: number;
 } = {}) {
 	const store = initInMemoryArticleStore();
@@ -135,6 +138,13 @@ function setup(overrides: {
 				publishEvent,
 				now,
 			}),
+			count: initCountSavedLinks({
+				summariseNewsletterLinks: removedLinks.summariseNewsletterLinks,
+				countNewsletterIssues: removedLinks.countNewsletterIssues,
+				recordCountedNewsletterLinks: (overrides.recordCountedNewsletterLinks ?? ((record) => record))(
+					store.recordCountedNewsletterLinks,
+				),
+			}),
 		},
 		publishEvent,
 		logger: Logger.from(noopLogger),
@@ -145,7 +155,7 @@ function setup(overrides: {
 		assert(result, "the batch handler answers");
 		return result.batchItemFailures.length;
 	};
-	const claim = (action: "remove" | "restore") =>
+	const claim = (action: "remove" | "restore" | "count") =>
 		store.requestSavedLinksJob({ userId: READER, jobId: JOB, action, requestedAt: NOW });
 	return { store, published, run, claim };
 }
@@ -486,5 +496,63 @@ describe("saved-links job: restore", () => {
 
 		assert.equal(published.some((event) => event.detailType === "SavedLinksJobCompleted"), false);
 		assert.deepEqual((await store.findSavedLinksJob({ userId: READER }))?.counts, { restored: 2 });
+	});
+});
+
+function countDetail(): RunSavedLinksJobDetail {
+	return { userId: READER, jobId: JOB, requestedAt: CUTOFF.toISOString(), job: { action: "count" } };
+}
+
+describe("saved-links job: count", () => {
+	it("writes the newsletter links counted at the request time, completes, and moves no link", async () => {
+		const { store, published, run, claim } = setup();
+		await store.saveArticle(emailSave({ url: "https://a.com/one" }));
+		await store.saveArticle(emailSave({ url: "https://a.com/two", senderEmail: "news@example.com" }));
+		await store.saveArticle(emailSave({ url: "https://a.com/later", savedAt: new Date("2026-12-01T12:00:00.000Z") }));
+		await claim("count");
+
+		assert.equal(await run({ detail: countDetail() }), 0);
+
+		const job = await store.findSavedLinksJob({ userId: READER });
+		assert.equal(job?.state, "completed");
+		assert.deepEqual(job?.counts, {});
+		assert.equal(job?.counted?.cutoff.toISOString(), CUTOFF.toISOString());
+		assert.equal(job?.counted?.summary.selected, 2);
+		assert.equal(job?.counted?.summary.skipped.changed, 1);
+		assert.equal(job?.counted?.issues, 0);
+		assert.equal(dequeued(published).length, 0);
+		assert.deepEqual(
+			published.map((event) => event.detailType),
+			["SavedLinksJobCompleted"],
+		);
+	});
+
+	it("stops without finishing when another job replaced the count while it ran", async () => {
+		const { store, published, run, claim } = setup({
+			recordCountedNewsletterLinks: () => async () => ({ outcome: "stale" }),
+		});
+		await claim("count");
+
+		assert.equal(await run({ detail: countDetail() }), 0);
+
+		assert.equal((await store.findSavedLinksJob({ userId: READER }))?.state, "running");
+		assert.deepEqual(published, []);
+	});
+
+	it("marks the count failed on receive 12", async () => {
+		const { store, published, run, claim } = setup({
+			recordCountedNewsletterLinks: () => async () => {
+				throw new Error("throttled");
+			},
+		});
+		await claim("count");
+
+		assert.equal(await run({ detail: countDetail(), receiveCount: 12 }), 1);
+
+		assert.equal((await store.findSavedLinksJob({ userId: READER }))?.state, "failed");
+		assert.deepEqual(
+			published.map((event) => event.detailType),
+			["SavedLinksJobFailed"],
+		);
 	});
 });

@@ -20,6 +20,7 @@ import { requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { createInboxTestApp } from "../runtime/test-app";
+import { MinutesSchema } from "@packages/domain/article";
 
 const PORT = Number(requireEnv("E2E_PORT"));
 const origin = `http://127.0.0.1:${PORT}`;
@@ -231,6 +232,76 @@ server.post("/e2e/resolve-link", async (req, res) => {
 			imageUrl: undefined,
 			resolvedUrl: undefined,
 		},
+	});
+	res.json({ ok: true });
+});
+
+const RECEIVED_LINK_SAVED_AT = "2026-01-05T10:00:00.000Z";
+
+const seedNewsletterLinkSchema = z.object({
+	url: z.string().min(1),
+	senderEmail: z.string().min(1),
+});
+
+server.post("/e2e/seed-newsletter-link", async (req, res) => {
+	const input = seedNewsletterLinkSchema.parse(req.body);
+	const userId = UserIdSchema.parse(await userIdFromSession(req));
+	await fixture.articleStore.saveArticle({
+		userId,
+		url: input.url,
+		metadata: {
+			title: "Newsletter link",
+			siteName: "example.com",
+			excerpt: "",
+			wordCount: 100,
+		},
+		estimatedReadTime: MinutesSchema.parse(1),
+		provenance: { kind: "email", senderEmail: input.senderEmail },
+		savedAt: new Date(RECEIVED_LINK_SAVED_AT),
+		saveTrigger: "automatic",
+	});
+	res.json({ ok: true });
+});
+
+const finishSavedLinksJobSchema = z.object({
+	selected: z.number().int().nonnegative(),
+	senderEmail: z.string().min(1),
+});
+
+server.post("/e2e/finish-saved-links-job", async (req, res) => {
+	const input = finishSavedLinksJobSchema.parse(req.body);
+	const userId = UserIdSchema.parse(await userIdFromSession(req));
+	const job = await fixture.articleStore.findSavedLinksJob({ userId });
+	assert(job, "a saved-links job must be open before the harness finishes it");
+	if (job.action === "count") {
+		await fixture.articleStore.recordCountedNewsletterLinks({
+			userId,
+			jobId: job.jobId,
+			counted: {
+				cutoff: job.requestedAt,
+				issues: 0,
+				summary: {
+					selected: input.selected,
+					bySender: [{ senderEmail: input.senderEmail, count: input.selected }],
+					skipped: {
+						read: 0,
+						opened: 0,
+						highlighted: 0,
+						changed: 0,
+						unreadable: 0,
+					},
+					earliestEmailSave: new Date(RECEIVED_LINK_SAVED_AT),
+					savedBeforeMarker: 0,
+				},
+			},
+		});
+	}
+	await fixture.articleStore.finishSavedLinksJob({
+		userId,
+		jobId: job.jobId,
+		state: "completed",
+		counts: job.action === "count" ? {} : { held: input.selected },
+		finishedAt: new Date(),
 	});
 	res.json({ ok: true });
 });

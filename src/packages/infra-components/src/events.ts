@@ -793,6 +793,7 @@ export const RunSavedLinksJobCommand = defineEvent({
 		job: z.discriminatedUnion("action", [
 			z.object({ action: z.literal("remove"), cutoff: z.string(), senders: SavedLinksJobSendersSchema }),
 			z.object({ action: z.literal("restore"), senders: SavedLinksJobSendersSchema }),
+			z.object({ action: z.literal("count") }),
 		]),
 	}),
 });
@@ -805,7 +806,7 @@ export const SavedLinksJobCompletedEvent = defineEvent({
 	detailSchema: z.object({
 		userId: UserIdSchema,
 		jobId: z.string().min(1),
-		action: z.enum(["remove", "restore"]),
+		action: z.enum(["remove", "restore", "count"]),
 		counts: z.record(z.string(), z.number().int().nonnegative()),
 		completedAt: z.string(),
 	}),
@@ -819,7 +820,7 @@ export const SavedLinksJobFailedEvent = defineEvent({
 	detailSchema: z.object({
 		userId: UserIdSchema,
 		jobId: z.string().min(1),
-		action: z.enum(["remove", "restore"]),
+		action: z.enum(["remove", "restore", "count"]),
 		failedAt: z.string(),
 	}),
 });

@@ -433,6 +433,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			findHeldLink: articleStoreMemory.findHeldLink,
 			requestSavedLinksJob: articleStoreMemory.requestSavedLinksJob,
 			recordSavedLinksJobProgress: articleStoreMemory.recordSavedLinksJobProgress,
+			recordCountedNewsletterLinks: articleStoreMemory.recordCountedNewsletterLinks,
 			finishSavedLinksJob: articleStoreMemory.finishSavedLinksJob,
 			findSavedLinksJob: articleStoreMemory.findSavedLinksJob,
 			withdrawSavedLinksJob: articleStoreMemory.withdrawSavedLinksJob,

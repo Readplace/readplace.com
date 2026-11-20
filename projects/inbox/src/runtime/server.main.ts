@@ -23,6 +23,7 @@ import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import { requireEnv } from "@packages/require-env";
 import { createInboxApp, PORT } from "./app";
 import { initFindSavedTrackerDestination } from "./domain/inbox/find-saved-tracker-destination";
+import { initInMemoryRemovedLinks } from "@packages/test-fixtures/providers/article-store";
 
 const logger = Logger.from(consoleLogger);
 
@@ -247,6 +248,19 @@ async function main(): Promise<void> {
 			ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
 			appOrigin: requireEnv("APP_ORIGIN"),
 			edgeSecret: requireEnv("SSR_EDGE_SECRET"),
+		hasNewsletterLink: initInMemoryRemovedLinks({
+				readNewsletterLinkRows: fixture.articleStore.readNewsletterLinkRows,
+				readOpenedInReadlists: fixture.articleStore.readOpenedInReadlists,
+				listAllUserHighlights: async () => [],
+			}).hasNewsletterLink,
+			findSavedLinksJob: fixture.articleStore.findSavedLinksJob,
+			requestSavedLinksJob: fixture.articleStore.requestSavedLinksJob,
+			withdrawSavedLinksJob: fixture.articleStore.withdrawSavedLinksJob,
+			publishRunSavedLinksJob: async (detail) => {
+				logger.info(
+					`[inbox-dev] RunSavedLinksJobCommand ${detail.job.action} ${detail.jobId}`,
+				);
+			},
 		},
 	);
 

@@ -60,7 +60,11 @@ describe("requestSavedLinksJob", () => {
 			requestedAt: REQUESTED_AT.toISOString(),
 			counts: {},
 		});
-		assert.equal(sent[0].input.ConditionExpression, "attribute_not_exists(#url) OR #state IN (:completed, :failed)");
+		assert.equal(
+			sent[0].input.ConditionExpression,
+			"attribute_not_exists(#url) OR #state IN (:completed, :failed) OR #action = :count",
+		);
+		assert.equal(Object(sent[0].input.ExpressionAttributeValues)[":count"], "count");
 	});
 
 	it("is busy with the open job when one is requested or running", async () => {
@@ -134,5 +138,72 @@ describe("saved-links job progress", () => {
 		assert.deepEqual(await jobs.withdrawSavedLinksJob({ userId: READER, jobId: JOB }), { outcome: "withdrawn" });
 		assert.deepEqual(await jobs.withdrawSavedLinksJob({ userId: READER, jobId: JOB }), { outcome: "stale" });
 		assert.equal(sent[0].input.ConditionExpression, "jobId = :jobId AND #state = :requested");
+	});
+});
+
+describe("counted newsletter links", () => {
+	const cutoff = new Date("2026-11-20T09:00:00.000Z");
+	const summary = {
+		selected: 7,
+		bySender: [{ senderEmail: "dan@tldr.tech", count: 7 }],
+		skipped: { read: 1, opened: 2, highlighted: 0, changed: 0, unreadable: 0 },
+		savedBeforeMarker: 3,
+	};
+
+	it("records the counted numbers only for the job that holds the row and has not completed", async () => {
+		const { jobs, sent } = createScriptedClient({ UpdateCommand: [written, refused] });
+		const counted = { cutoff, issues: 2, summary: { ...summary, earliestEmailSave: new Date("2026-11-01T00:00:00.000Z") } };
+
+		assert.deepEqual(await jobs.recordCountedNewsletterLinks({ userId: READER, jobId: JOB, counted }), { outcome: "recorded" });
+		assert.deepEqual(await jobs.recordCountedNewsletterLinks({ userId: READER, jobId: JOB, counted }), { outcome: "stale" });
+		assert.equal(sent[0].input.UpdateExpression, "SET #counted = :counted");
+		assert.equal(sent[0].input.ConditionExpression, "jobId = :jobId AND #state <> :completed");
+		assert.deepEqual(Object(sent[0].input.ExpressionAttributeValues)[":counted"], {
+			cutoff: cutoff.toISOString(),
+			issues: 2,
+			summary: { ...summary, earliestEmailSave: "2026-11-01T00:00:00.000Z" },
+		});
+	});
+
+	it("writes no earliest email save when none was counted", async () => {
+		const { jobs, sent } = createScriptedClient({ UpdateCommand: [written] });
+
+		await jobs.recordCountedNewsletterLinks({
+			userId: READER,
+			jobId: JOB,
+			counted: { cutoff, issues: 0, summary: { ...summary, earliestEmailSave: undefined } },
+		});
+		assert.deepEqual(Object(sent[0].input.ExpressionAttributeValues)[":counted"], {
+			cutoff: cutoff.toISOString(),
+			issues: 0,
+			summary,
+		});
+	});
+
+	it("reads a completed count back with its numbers", async () => {
+		const { jobs } = createScriptedClient({
+			GetCommand: [
+				found(
+					jobRow({
+						action: "count",
+						state: "completed",
+						counts: {},
+						counted: { cutoff: cutoff.toISOString(), issues: 2, summary: { ...summary, earliestEmailSave: "2026-11-01T00:00:00.000Z" } },
+					}),
+				),
+				found(jobRow({ action: "count", state: "completed", counts: {}, counted: { cutoff: cutoff.toISOString(), issues: 0, summary } })),
+			],
+		});
+
+		assert.deepEqual((await jobs.findSavedLinksJob({ userId: READER }))?.counted, {
+			cutoff,
+			issues: 2,
+			summary: { ...summary, earliestEmailSave: new Date("2026-11-01T00:00:00.000Z") },
+		});
+		assert.deepEqual((await jobs.findSavedLinksJob({ userId: READER }))?.counted, {
+			cutoff,
+			issues: 0,
+			summary: { ...summary, earliestEmailSave: undefined },
+		});
 	});
 });

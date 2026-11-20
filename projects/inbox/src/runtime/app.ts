@@ -14,7 +14,7 @@ import type {
 	InboxEmailStore,
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
-import type { ContentProvider } from "@packages/provider-contracts/article-store";
+import type { ContentProvider, HasNewsletterLink } from "@packages/provider-contracts/article-store";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type {
 	FindUserById,
@@ -44,6 +44,9 @@ import { initCustomEmailsRoutes } from "./web/pages/inbox/custom-emails.page";
 import type { FindSavedTrackerDestination } from "./domain/inbox/find-saved-tracker-destination";
 import { type InboxReadlistFitDependencies, initInboxRoutes } from "./web/pages/inbox/inbox.page";
 import "./web/session.types";
+import type { NewsletterLinksDependencies } from "./web/pages/newsletter-links/newsletter-links.page";
+import { initNewsletterLinksRoutes } from "./web/pages/newsletter-links/newsletter-links.page";
+import { NEWSLETTER_LINKS_PATH } from "./web/pages/newsletter-links/newsletter-links.url";
 
 /** Where local dev prefers to listen. The dev server steps to the next free
  * port when something already holds this one, so two checkouts can both run. */
@@ -89,7 +92,15 @@ export function createInboxApp(
 		ownHost: string;
 		appOrigin: string;
 		edgeSecret: string;
-	} & InboxReadlistFitDependencies,
+		hasNewsletterLink: HasNewsletterLink;
+	} & InboxReadlistFitDependencies &
+		Pick<
+			NewsletterLinksDependencies,
+			| "findSavedLinksJob"
+			| "requestSavedLinksJob"
+			| "withdrawSavedLinksJob"
+			| "publishRunSavedLinksJob"
+		>,
 ): Express {
 	const app: Express = express();
 	app.disable("x-powered-by");
@@ -191,8 +202,24 @@ export function createInboxApp(
 		listUserSavesForUrl: deps.listUserSavesForUrl,
 		publishLinkDequeued: deps.publishLinkDequeued,
 		publishFileArticleIntoReadlist: deps.publishFileArticleIntoReadlist,
+		hasNewsletterLink: deps.hasNewsletterLink,
+		findSavedLinksJob: deps.findSavedLinksJob,
 		fitChoiceLog: deps.fitChoiceLog,
 	});
+	app.use(
+		NEWSLETTER_LINKS_PATH,
+		requireAuth,
+		initNewsletterLinksRoutes({
+			findSavedLinksJob: deps.findSavedLinksJob,
+			requestSavedLinksJob: deps.requestSavedLinksJob,
+			withdrawSavedLinksJob: deps.withdrawSavedLinksJob,
+			publishRunSavedLinksJob: deps.publishRunSavedLinksJob,
+			buildBannerState,
+			requireNotLocked,
+			requirePaidFeatures,
+			now: deps.now,
+		}),
+	);
 	app.use(INBOX_PATH, requireAuth, inboxRouter);
 	const customEmailsRouter = initCustomEmailsRoutes({
 		inboxAddressStore: deps.inboxAddressStore,

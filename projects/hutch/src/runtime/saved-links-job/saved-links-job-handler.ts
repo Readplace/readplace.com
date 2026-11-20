@@ -1,5 +1,10 @@
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { type SavedLinksJobAction, type SavedLinksJobCounts, SavedLinksJobIdSchema } from "@packages/domain/article";
+import {
+	type SavedLinksJobAction,
+	type SavedLinksJobCountCode,
+	type SavedLinksJobCounts,
+	SavedLinksJobIdSchema,
+} from "@packages/domain/article";
 import { RunSavedLinksJobCommand, SavedLinksJobCompletedEvent, SavedLinksJobFailedEvent } from "@packages/infra-components";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
@@ -11,11 +16,17 @@ import type {
 import { USER_DATA_JOBS_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type { RunSavedLinksJobAction } from "./saved-links-job.types";
 
+const KEPT_ON_RESUME: Record<SavedLinksJobAction, SavedLinksJobCountCode | undefined> = {
+	remove: "held",
+	restore: "restored",
+	count: undefined,
+};
+
 export function initSavedLinksJobHandler(deps: {
 	findSavedLinksJob: FindSavedLinksJob;
 	recordSavedLinksJobProgress: RecordSavedLinksJobProgress;
 	finishSavedLinksJob: FinishSavedLinksJob;
-	runners: { remove: RunSavedLinksJobAction; restore: RunSavedLinksJobAction };
+	runners: Record<SavedLinksJobAction, RunSavedLinksJobAction>;
 	publishEvent: PublishEvent;
 	logger: Logger;
 	now: () => Date;
@@ -40,8 +51,9 @@ export function initSavedLinksJobHandler(deps: {
 					deps.logger.info("[saved-links-job] stale job", { jobId, state: job?.state });
 					return;
 				}
-				const kept = action === "remove" ? "held" : "restored";
-				const started = await recordProgress(job.counts[kept] === undefined ? {} : { [kept]: job.counts[kept] });
+				const kept = KEPT_ON_RESUME[action];
+				const prior = kept === undefined ? undefined : job.counts[kept];
+				const started = await recordProgress(kept === undefined || prior === undefined ? {} : { [kept]: prior });
 				const resumed = job.state !== "requested";
 				const run =
 					started.outcome === "stale"

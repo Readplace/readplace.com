@@ -11,7 +11,7 @@ import {
 	isExcludedLink,
 	parseInboxHighlight,
 } from "@packages/domain/inbox";
-import { newSaveAttemptId, wrapperFamilyOf } from "@packages/domain/article";
+import { newSaveAttemptId, wrapperFamilyOf, newsletterLinksLineOf } from "@packages/domain/article";
 import type { SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -39,6 +39,8 @@ import type {
 	ListReadlistFitOverrides,
 	ListUserSavesForUrl,
 	RecordReadlistFitOverride,
+	FindSavedLinksJob,
+	HasNewsletterLink,
 } from "@packages/provider-contracts/article-store";
 import type { PublishLinkDequeued } from "@packages/provider-contracts/events";
 import type { FileArticleIntoReadlistDetail } from "@packages/infra-components";
@@ -130,6 +132,8 @@ interface InboxDependencies extends InboxReadlistFitDependencies {
 	imagesCdnBaseUrl: string;
 	logError: LogError;
 	buildBannerState: BuildBannerState;
+	hasNewsletterLink: HasNewsletterLink;
+	findSavedLinksJob: FindSavedLinksJob;
 	publishSubmitLink: (input: {
 		userId: UserId;
 		url: string;
@@ -396,14 +400,24 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						.filter((entry) => isLiveAddress(entry) && isCappedAddress(entry))
 						.map((entry) => ({ name: entry.name, address: entry.address }))
 				: [];
-		const bannerState = await deps.buildBannerState(req);
+		const [bannerState , newsletterLinksLine] = await Promise.all([
+			deps.buildBannerState(req),
+			cursor === undefined && result.emails.length > 0
+				? Promise.all([
+						deps.findSavedLinksJob({ userId }),
+						deps.hasNewsletterLink({ userId }),
+					]).then(([job, hasNewsletterLink]) =>
+						newsletterLinksLineOf({ job, hasNewsletterLink }),
+					)
+				: Promise.resolve({ kind: "hidden" as const }),
+		]);
 		const vm = toInboxEmailsViewModel(result, {
 			now: deps.now(),
 			activeAddresses,
 			paidFeaturesLocked: bannerState.paidFeaturesLocked === true,
 			highlight: parseInboxHighlight(req.query),
 		});
-		sendComponent(req, res, Base(InboxEmailsPage(vm), bannerState));
+		sendComponent(req, res, Base(InboxEmailsPage(vm, newsletterLinksLine), bannerState));
 	});
 
 	// `id` is the URL-encoded `receivedAtMessageId`.

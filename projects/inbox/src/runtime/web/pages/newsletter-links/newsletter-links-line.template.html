@@ -1,0 +1,10 @@
+<section class="newsletter-links-line" id="newsletter-links-line" aria-live="polite" data-newsletter-links-state="{{state}}" data-test-newsletter-links-line="{{state}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML" hx-select="#newsletter-links-line"{{/if}}>
+  {{#each sentences}}
+  <p class="newsletter-links-line__text" data-test-newsletter-links-sentence>{{this}}</p>
+  {{/each}}
+  {{#if countAction}}
+  <form class="newsletter-links-line__form" method="POST" action="{{countAction}}">
+    <button class="btn btn--neutral" type="submit" data-test-newsletter-links-remove>{{t "newsletterLinks.line.removeButton"}}</button>
+  </form>
+  {{/if}}
+</section>

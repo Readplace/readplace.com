@@ -30,6 +30,7 @@ import type {
 	ForEachHeldLinkPage,
 	HasHeldLinks,
 	MoveNewsletterLinkToHold,
+	RecordCountedNewsletterLinks,
 	RecordSavedLinksJobProgress,
 	RequestSavedLinksJob,
 	RestoreHeldLink,
@@ -250,6 +251,7 @@ export function initInMemoryArticleStore(): {
 	findHeldLink: FindHeldLink;
 	requestSavedLinksJob: RequestSavedLinksJob;
 	recordSavedLinksJobProgress: RecordSavedLinksJobProgress;
+	recordCountedNewsletterLinks: RecordCountedNewsletterLinks;
 	finishSavedLinksJob: FinishSavedLinksJob;
 	findSavedLinksJob: FindSavedLinksJob;
 	withdrawSavedLinksJob: WithdrawSavedLinksJob;
@@ -1088,7 +1090,7 @@ export function initInMemoryArticleStore(): {
 
 	const requestSavedLinksJob: RequestSavedLinksJob = async ({ userId, jobId, action, requestedAt }) => {
 		const open = savedLinksJobs.get(userId);
-		if (open !== undefined && isOpenJob(open)) return { outcome: "busy", job: open };
+		if (open !== undefined && isOpenJob(open) && open.action !== "count") return { outcome: "busy", job: open };
 		savedLinksJobs.set(userId, { jobId, action, state: "requested", requestedAt, counts: {} });
 		return { outcome: "claimed" };
 	};
@@ -1103,6 +1105,13 @@ export function initInMemoryArticleStore(): {
 		if (job === undefined || job.state === "completed") return { outcome: "stale" };
 		const { finishedAt: _finishedAt, ...resumed } = job;
 		savedLinksJobs.set(userId, { ...resumed, state: "running", counts });
+		return { outcome: "recorded" };
+	};
+
+	const recordCountedNewsletterLinks: RecordCountedNewsletterLinks = async ({ userId, jobId, counted }) => {
+		const job = jobHeldBy({ userId, jobId });
+		if (job === undefined || job.state === "completed") return { outcome: "stale" };
+		savedLinksJobs.set(userId, { ...job, counted });
 		return { outcome: "recorded" };
 	};
 
@@ -1761,6 +1770,7 @@ export function initInMemoryArticleStore(): {
 		findHeldLink,
 		requestSavedLinksJob,
 		recordSavedLinksJobProgress,
+		recordCountedNewsletterLinks,
 		finishSavedLinksJob,
 		findSavedLinksJob,
 		withdrawSavedLinksJob,

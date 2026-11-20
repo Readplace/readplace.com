@@ -13,6 +13,9 @@ import type {
 	InboxEmailsViewModel,
 	InboxEmptyAddressViewModel,
 } from "./inbox-emails.viewmodel";
+import { renderNewsletterLinksLine } from "../newsletter-links/newsletter-links-line.component";
+import { NEWSLETTER_LINKS_STYLES } from "../newsletter-links/newsletter-links.styles";
+import type { NewsletterLinksLine } from "@packages/domain/article";
 
 const INBOX_EMAILS_TEMPLATE = readFileSync(
 	join(__dirname, "inbox-emails.template.html"),
@@ -70,7 +73,10 @@ function toDisplayModel(vm: InboxEmailsViewModel): InboxEmailsDisplayModel {
 	};
 }
 
-export function InboxEmailsPage(vm: InboxEmailsViewModel): PageBody {
+export function InboxEmailsPage(
+	vm: InboxEmailsViewModel,
+	newsletterLinksLine: NewsletterLinksLine,
+): PageBody {
 	return {
 		seo: {
 			title: "Inbox — Readplace",
@@ -79,9 +85,14 @@ export function InboxEmailsPage(vm: InboxEmailsViewModel): PageBody {
 			// Personal data: never index a user's received mail.
 			robots: "noindex, nofollow",
 		},
-		styles: `${INBOX_EMAILS_STYLES}\n${INBOX_COPYABLE_ADDRESS_STYLES}`,
+		styles: `${INBOX_EMAILS_STYLES}\n${INBOX_COPYABLE_ADDRESS_STYLES}\n${NEWSLETTER_LINKS_STYLES}`,
 		bodyClass: "page-inbox",
-		content: { html: render(INBOX_EMAILS_TEMPLATE, toDisplayModel(vm)) },
+		content: {
+			html: render(INBOX_EMAILS_TEMPLATE, {
+				...toDisplayModel(vm),
+				newsletterLinksLineHtml: renderNewsletterLinksLine(newsletterLinksLine),
+			}),
+		},
 		scripts: INBOX_SCRIPT,
 	};
 }

@@ -6,7 +6,7 @@ import type { UserId } from "@packages/domain/user";
 import { Logger, noopLogger } from "@packages/logger";
 import { initFindSavedArticleForLink } from "@packages/article-store";
 import type { ReadlistFitOverriddenLogLine } from "@packages/domain/readlist";
-import type { FileArticleIntoReadlistDetail } from "@packages/infra-components";
+import type { FileArticleIntoReadlistDetail, RunSavedLinksJobDetail } from "@packages/infra-components";
 import { initResolveCanonicalIdentity } from "@packages/save-article";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import type {
@@ -19,6 +19,7 @@ import { useTestServer as useServerForFixture } from "@packages/web-test-harness
 import { initResolveLogin, SESSION_COOKIE_NAME } from "@packages/web-session";
 import { createInboxApp } from "./app";
 import { initFindSavedTrackerDestination } from "./domain/inbox/find-saved-tracker-destination";
+import { initInMemoryRemovedLinks } from "@packages/test-fixtures/providers/article-store";
 
 export interface AnalyticsBundle {
 	logger: Logger.Typed<AnalyticsEvent>;
@@ -37,6 +38,7 @@ export interface TestAppResult {
 	crawlPreviews: Parameters<Parameters<typeof createInboxApp>[1]["publishCrawlPreview"]>[0][];
 	savedLinkTriages: Parameters<Parameters<typeof createInboxApp>[1]["publishSavedLinkTriaged"]>[0][];
 	savedDestinationLookups: string[];
+	savedLinksJobCommands: RunSavedLinksJobDetail[];
 }
 
 /** Fixed CDN origin the test app pins into the email iframe's CSP, exported so
@@ -49,6 +51,7 @@ export function createInboxTestApp(
 	fixture: TestAppFixture,
 	overrides?: {
 		publishSubmitLink?: (input: { userId: string; url: string }) => Promise<void>;
+		publishRunSavedLinksJob?: (detail: RunSavedLinksJobDetail) => Promise<void>;
 	},
 ): TestAppResult {
 	const resolveLogin = initResolveLogin({
@@ -84,6 +87,12 @@ export function createInboxTestApp(
 		},
 		events: analyticsEvents,
 	};
+	const savedLinksJobCommands: RunSavedLinksJobDetail[] = [];
+	const { hasNewsletterLink } = initInMemoryRemovedLinks({
+		readNewsletterLinkRows: fixture.articleStore.readNewsletterLinkRows,
+		readOpenedInReadlists: fixture.articleStore.readOpenedInReadlists,
+		listAllUserHighlights: fixture.highlights.listAllUserHighlights,
+	});
 	const app = createInboxApp(
 		{
 			inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain,
@@ -148,6 +157,15 @@ export function createInboxTestApp(
 			ownHost: new URL(fixture.shared.appOrigin).hostname,
 			appOrigin: fixture.shared.appOrigin,
 			edgeSecret: "test-edge-secret",
+			hasNewsletterLink,
+			findSavedLinksJob: fixture.articleStore.findSavedLinksJob,
+			requestSavedLinksJob: fixture.articleStore.requestSavedLinksJob,
+			withdrawSavedLinksJob: fixture.articleStore.withdrawSavedLinksJob,
+			publishRunSavedLinksJob:
+				overrides?.publishRunSavedLinksJob ??
+				(async (detail) => {
+					savedLinksJobCommands.push(detail);
+				}),
 		},
 	);
 	return {
@@ -162,6 +180,7 @@ export function createInboxTestApp(
 		crawlPreviews,
 		savedLinkTriages,
 		savedDestinationLookups,
+		savedLinksJobCommands,
 	};
 }
 
@@ -169,6 +188,7 @@ export interface TestAppHarness extends TestAppResult, RunningServer {}
 
 export function useTestServer(overrides?: {
 	publishSubmitLink?: (input: { userId: string; url: string }) => Promise<void>;
+	publishRunSavedLinksJob?: (detail: RunSavedLinksJobDetail) => Promise<void>;
 }): (fixture: TestAppFixture) => TestAppHarness {
 	return useServerForFixture((fixture) => createInboxTestApp(fixture, overrides));
 }

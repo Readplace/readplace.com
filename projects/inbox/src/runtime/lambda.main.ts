@@ -22,6 +22,8 @@ import {
 	initDynamoDbSavedArticleStore,
 	initFindSavedArticleForLink,
 	initS3ReadContent,
+	initDynamoDbRemovedLinks,
+	initDynamoDbSavedLinksJob,
 } from "@packages/article-store";
 import {
 	CrawlEmailLinkPreview,
@@ -29,6 +31,7 @@ import {
 	FileArticleIntoReadlistCommand,
 	LinkDequeuedEvent,
 	SubmitLinkCommand,
+	RunSavedLinksJobCommand,
 } from "@packages/infra-components";
 import type { ReadlistFitOverriddenLogLine } from "@packages/domain/readlist";
 import { initResolveCanonicalIdentity } from "@packages/save-article";
@@ -87,6 +90,15 @@ const savedArticleStore = initDynamoDbSavedArticleStore({
 	now: () => new Date(),
 });
 const { findIdentityRow } = initCanonicalAliasStore({ client, tableName: articlesTableName });
+const savedLinksJob = initDynamoDbSavedLinksJob({
+	client,
+	userArticlesTableName,
+});
+const removedLinks = initDynamoDbRemovedLinks({
+	client,
+	userArticlesTableName,
+	articlesTableName,
+});
 const findSavedArticleForLink = initFindSavedArticleForLink({
 	resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow }),
 	findArticleById: savedArticleStore.findArticleById,
@@ -164,6 +176,12 @@ const application = express()
 				ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
 				appOrigin: requireEnv("APP_ORIGIN"),
 				edgeSecret: requireEnv("SSR_EDGE_SECRET"),
+				hasNewsletterLink: removedLinks.hasNewsletterLink,
+				findSavedLinksJob: savedLinksJob.findSavedLinksJob,
+				requestSavedLinksJob: savedLinksJob.requestSavedLinksJob,
+				withdrawSavedLinksJob: savedLinksJob.withdrawSavedLinksJob,
+				publishRunSavedLinksJob: (detail) =>
+					publishEvent(RunSavedLinksJobCommand, detail),
 			},
 		),
 	);

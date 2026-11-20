@@ -23,6 +23,7 @@ import type {
 	HasHeldLinks,
 	FindHeldLink,
 	RequestSavedLinksJob,
+	RecordCountedNewsletterLinks,
 	RecordSavedLinksJobProgress,
 	FinishSavedLinksJob,
 	FindSavedLinksJob,
@@ -71,6 +72,7 @@ import type {
 	DeleteAllUserHighlights,
 	DeleteArticleHighlights,
 	DeleteHighlight,
+	ListAllUserHighlights,
 	ListArticleHighlights,
 	ListHighlightsOfArticle,
 	UpdateHighlightNote,
@@ -508,6 +510,7 @@ export interface ArticleStoreBundle {
 	findHeldLink: FindHeldLink;
 	requestSavedLinksJob: RequestSavedLinksJob;
 	recordSavedLinksJobProgress: RecordSavedLinksJobProgress;
+	recordCountedNewsletterLinks: RecordCountedNewsletterLinks;
 	finishSavedLinksJob: FinishSavedLinksJob;
 	findSavedLinksJob: FindSavedLinksJob;
 	withdrawSavedLinksJob: WithdrawSavedLinksJob;
@@ -684,6 +687,7 @@ export interface HighlightsBundle {
 	deleteHighlight: DeleteHighlight;
 	deleteArticleHighlights: DeleteArticleHighlights;
 	deleteAllUserHighlights: DeleteAllUserHighlights;
+	listAllUserHighlights: ListAllUserHighlights;
 	listHighlightsOfArticle: ListHighlightsOfArticle;
 	writeHighlightAnchor: WriteHighlightAnchor;
 	updateHighlightNote: UpdateHighlightNote;

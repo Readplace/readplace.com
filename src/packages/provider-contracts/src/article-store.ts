@@ -15,6 +15,7 @@ import type {
 	ItemMedia,
 	NewsletterLinkCandidate,
 	NewsletterLinkSummary,
+	CountedNewsletterLinks,
 	RemovalSenders,
 	RestoreOutcome,
 	SavedLinksJob,
@@ -632,6 +633,12 @@ export type RecordSavedLinksJobProgress = (params: {
 	userId: UserId;
 	jobId: SavedLinksJobId;
 	counts: SavedLinksJobCounts;
+}) => Promise<{ outcome: "recorded" } | { outcome: "stale" }>;
+
+export type RecordCountedNewsletterLinks = (params: {
+	userId: UserId;
+	jobId: SavedLinksJobId;
+	counted: CountedNewsletterLinks;
 }) => Promise<{ outcome: "recorded" } | { outcome: "stale" }>;
 
 export type FinishSavedLinksJob = (params: {
