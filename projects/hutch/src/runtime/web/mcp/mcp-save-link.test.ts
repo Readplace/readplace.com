@@ -23,6 +23,7 @@ const destination = articleDestinationUrl({ url: exampleUrl, displayUrl: undefin
 const work = { id: ReadlistSlugSchema.parse("work"), name: "Work" };
 const all = { id: DEFAULT_READLIST_SLUG, name: "All" };
 const provenance = { kind: "mcp" as const, registeredName: "Example client" };
+const mine = { slug: ReadlistSlugSchema.parse("mine"), label: "Mine", createdAt: new Date("2026-11-01T00:00:00.000Z"), ownSavesSince: new Date("2026-11-20T00:00:00.000Z") };
 
 const saved: SavedArticle = {
 	id: ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef"),
@@ -51,6 +52,7 @@ function fakeDeps(overrides: Partial<SaveLinkDeps> = {}): SaveLinkDeps {
 		resolveReadlistMembership: async () => new Map([[exampleUrl, [all, work]]]),
 		logError: () => {},
 		baseUrl: "https://readplace.test",
+		listReadlistDefinitions: async () => [],
 		...overrides,
 	};
 }
@@ -144,6 +146,32 @@ describe("initMcpSaveLink", () => {
 
 		assert.deepEqual(result, { ok: true, id: saved.id.value, title: "Post", filedInto: [all, work] });
 		expect(fileArticleIntoReadlist.mock.calls).toEqual([[{ userId, readlist: work.id, article: saved, provenance }]]);
+	});
+
+	it("also queues the save for the readlist that holds the reader's own saves when the URL is unresolved", async () => {
+		const publishSubmitLink = jest.fn<ReturnType<PublishSubmitLink>, Parameters<PublishSubmitLink>>(async () => {});
+		const saveLink = initMcpSaveLink(fakeDeps({
+			refreshArticleIfStale: async () => ({ action: "unresolved", identity: { status: "unresolved" } }),
+			publishSubmitLink,
+			listReadlistDefinitions: async () => [mine],
+		}));
+
+		await saveLink({ ...request, readlists: [work.id] });
+
+		const commands = publishSubmitLink.mock.calls.map(([params]) => params);
+		expect(commands.map((params) => params.readlist)).toEqual([DEFAULT_READLIST_SLUG, work.id, mine.slug]);
+		expect(new Set(commands.map((params) => params.saveAttemptId)).size).toBe(1);
+	});
+
+	it("files the save once into the readlist that holds the reader's own saves, even when the assistant names it", async () => {
+		const fileArticleIntoReadlist = jest.fn<ReturnType<SaveLinkDeps["fileArticleIntoReadlist"]>, Parameters<SaveLinkDeps["fileArticleIntoReadlist"]>>(
+			async () => ({ createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false }),
+		);
+		const saveLink = initMcpSaveLink(fakeDeps({ fileArticleIntoReadlist, listReadlistDefinitions: async () => [mine] }));
+
+		await saveLink({ ...request, readlists: [mine.slug, work.id] });
+
+		expect(fileArticleIntoReadlist.mock.calls.map(([params]) => params.readlist)).toEqual([mine.slug, work.id]);
 	});
 
 	it("logs a failure on Readplace's side and points the reader at their readlist", async () => {

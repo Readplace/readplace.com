@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { AUDIO, BOOK, mintPrivateItemUrl, UploadIdSchema } from "@packages/media-contracts";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
@@ -27,6 +28,8 @@ describe("initCommitReceivedUpload", () => {
 		});
 		const settle = initCommitReceivedUpload({
 			savePrivateItem: articleStore.savePrivateItem,
+			listReadlistDefinitions: articleStore.listReadlistDefinitions,
+			fileOwnSaveIntoReadlist: articleStore.fileOwnSaveIntoReadlist,
 			publishMediaUploadCommitted: committed.publishMediaUploadCommitted,
 			markMediaUploadCommitted: sessions.markMediaUploadCommitted,
 			now: () => new Date("2026-11-05T00:00:00.000Z"),
@@ -53,6 +56,8 @@ describe("initCommitReceivedUpload", () => {
 		});
 		const settle = initCommitReceivedUpload({
 			savePrivateItem: articleStore.savePrivateItem,
+			listReadlistDefinitions: articleStore.listReadlistDefinitions,
+			fileOwnSaveIntoReadlist: articleStore.fileOwnSaveIntoReadlist,
 			publishMediaUploadCommitted: committed.publishMediaUploadCommitted,
 			markMediaUploadCommitted: sessions.markMediaUploadCommitted,
 			now: () => new Date("2026-11-05T00:00:00.000Z"),
@@ -67,5 +72,28 @@ describe("initCommitReceivedUpload", () => {
 		assert.equal(saved?.metadata.title, "Audio upload");
 		assert.equal(saved?.metadata.siteName, "Audio");
 		assert.equal(committed.publishedMediaUploadCommitted[0]?.kind, "audio");
+	});
+
+	it("files the upload into the uploader's own-saves readlist", async () => {
+		const sessions = initInMemoryMediaUploadSessions();
+		const committed = initInMemoryMediaUploadCommitted();
+		const articleStore = initInMemoryArticleStore();
+		const mine = ReadlistSlugSchema.parse("mine");
+		await articleStore.createReadlistDefinition({ userId, slug: mine, label: "Mine", createdAt: new Date() });
+		await articleStore.setReadlistOwnSaves({ userId, slug: mine, since: new Date() });
+		const session = await sessions.createMediaUploadSession({ uploadId, userId, kind: "book", saveAttemptId });
+		const settle = initCommitReceivedUpload({
+			savePrivateItem: articleStore.savePrivateItem,
+			listReadlistDefinitions: articleStore.listReadlistDefinitions,
+			fileOwnSaveIntoReadlist: articleStore.fileOwnSaveIntoReadlist,
+			publishMediaUploadCommitted: committed.publishMediaUploadCommitted,
+			markMediaUploadCommitted: sessions.markMediaUploadCommitted,
+			now: () => new Date("2026-11-05T00:00:00.000Z"),
+		});
+
+		await settle({ session, kind: BOOK, etag: '"e1"', size: 10 });
+
+		const saves = await articleStore.listUserSavesForUrl({ userId, url: mintPrivateItemUrl(uploadId) });
+		assert.ok(saves.some((save) => save.readlist === mine), "the upload is filed into the own-saves readlist");
 	});
 });

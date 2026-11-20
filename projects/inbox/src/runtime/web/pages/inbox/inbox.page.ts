@@ -19,6 +19,7 @@ import {
 	type ReadlistSlug,
 	ReadlistSlugSchema,
 	readlistFitOverrideHost,
+	ownSavesFiling,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type {
@@ -42,6 +43,7 @@ import type {
 	FindSavedLinksJob,
 	HasHeldLinks,
 	HasNewsletterLink,
+	ListReadlistDefinitions,
 } from "@packages/provider-contracts/article-store";
 import type { PublishLinkDequeued } from "@packages/provider-contracts/events";
 import type { FileArticleIntoReadlistDetail } from "@packages/infra-components";
@@ -114,6 +116,7 @@ import { renderInboxReadlistLine } from "./inbox-readlist-line.component";
 export interface InboxReadlistFitDependencies {
 	findSavedArticleForLink: FindSavedArticleForLink;
 	listReadlistFitOverrides: ListReadlistFitOverrides;
+	listReadlistDefinitions: ListReadlistDefinitions;
 	recordReadlistFitOverride: RecordReadlistFitOverride;
 	deleteReadlistFitOverride: DeleteReadlistFitOverride;
 	deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl;
@@ -717,14 +720,23 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// so the validated URL cannot grow back past its length cap.
 			const email = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
 			assert(email, "the email a saved link belongs to must still exist");
-			await deps.publishSubmitLink({
-				userId,
-				url: submittedLinkUrl(link),
-				provenance: { kind: "email", senderEmail: email.senderEmail },
-				readlist: DEFAULT_READLIST_SLUG,
-				saveTrigger: "manual",
-				saveAttemptId: newSaveAttemptId(),
+			const provenance = { kind: "email" as const, senderEmail: email.senderEmail };
+			const ownSaves = ownSavesFiling({
+				readlists: await deps.listReadlistDefinitions(userId),
+				provenance,
+				trigger: "manual",
 			});
+			const saveAttemptId = newSaveAttemptId();
+			for (const readlist of [DEFAULT_READLIST_SLUG, ...(ownSaves === undefined ? [] : [ownSaves.slug])]) {
+				await deps.publishSubmitLink({
+					userId,
+					url: submittedLinkUrl(link),
+					provenance,
+					readlist,
+					saveTrigger: "manual",
+					saveAttemptId,
+				});
+			}
 			await deps.recordEngagementActivity({ userId, kind: "personal-save", at: deps.now() });
 			// Saving a skipped link is itself the reader's verdict that the classifier
 			// was wrong to skip it, so it emits the same classifier-audit line the
@@ -896,6 +908,20 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						purposeVersion: outcome.decision === "filtered" ? outcome.purposeVersion : undefined,
 						source: { kind: "reader" },
 					});
+					const ownSaves = ownSavesFiling({
+						readlists: await deps.listReadlistDefinitions(userId),
+						provenance,
+						trigger: "manual",
+					});
+					if (ownSaves !== undefined) {
+						await deps.publishFileArticleIntoReadlist({
+							userId,
+							url: link.url,
+							readlist: ownSaves.slug,
+							provenance,
+							fit: { verdict: "keep", source: { kind: "reader" } },
+						});
+					}
 				} else {
 					await removeFromReadlist();
 				}

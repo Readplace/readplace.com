@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
 import { EmailLinkOrdinalSchema, type InboxEmailLinkEntry } from "@packages/domain/inbox";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
@@ -8,6 +9,7 @@ import request from "supertest";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
+const MINE = ReadlistSlugSchema.parse("mine");
 const useMeteredApp = useTestServer({ isDailyLimited: () => true });
 
 const RECEIVED_AT_MESSAGE_ID = "2026-06-24T09:00:00.000Z#<issue-42@tldr.tech>";
@@ -384,4 +386,20 @@ describe("Saving a link from an issue (POST /queue/:id/issue-links)", () => {
 
 		expect(response.status).toBe(404);
 	});
+
+	it("files a link the reader saves from an issue into the own-saves readlist, and queues an unresolved one for it", async () => {
+		const { agent, fixture, userId, putLink, issueId } = await buildHarness();
+		await fixture.articleStore.createReadlistDefinition({ userId, slug: MINE, label: "Mine", createdAt: new Date() });
+		await fixture.articleStore.setReadlistOwnSaves({ userId, slug: MINE, since: new Date() });
+		const tracker = "https://javascriptweekly.com/link/100000/rss";
+		await putLink({ ordinal: "0003", url: tracker });
+
+		await agent.post(`/queue/${issueId}/issue-links`).type("form").send({ ordinal: "0001" });
+		await agent.post(`/queue/${issueId}/issue-links`).type("form").send({ ordinal: "0003" });
+
+		const saves = await fixture.articleStore.listUserSavesForUrl({ userId, url: "https://b.test/second" });
+		expect(saves.map((save) => save.readlist)).toContain(MINE);
+		expect(fixture.submitLink.submitLinks.map((link) => link.readlist)).toEqual(["default", MINE]);
+	});
 });
+

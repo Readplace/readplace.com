@@ -18,6 +18,7 @@ import {
 import {
 	initCanonicalAliasStore,
 	initDynamoDbEngagementActivity,
+	initDynamoDbReadlistDefinitions,
 	initDynamoDbReadlistFitOverrides,
 	initDynamoDbSavedArticleStore,
 	initFindSavedArticleForLink,
@@ -156,6 +157,7 @@ const application = express()
 				publishFileArticleIntoReadlist: (detail) => publishEvent(FileArticleIntoReadlistCommand, detail),
 				findSavedArticleForLink,
 				listReadlistFitOverrides: readlistFitOverrides.listReadlistFitOverrides,
+				listReadlistDefinitions: initDynamoDbReadlistDefinitions({ client, userArticlesTableName }).listReadlistDefinitions,
 				recordReadlistFitOverride: readlistFitOverrides.recordReadlistFitOverride,
 				deleteReadlistFitOverride: readlistFitOverrides.deleteReadlistFitOverride,
 				deleteReadlistArticleByUrl: readlistFitOverrides.deleteReadlistArticleByUrl,

@@ -120,6 +120,20 @@ describe("Inbox link save route", () => {
 		expect(errors).toHaveLength(0);
 	});
 
+	it("also submits the save into the reader's own-saves readlist", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture);
+		const mine = ReadlistSlugSchema.parse("mine");
+		await fixture.articleStore.createReadlistDefinition({ userId, slug: mine, label: "Mine", createdAt: new Date() });
+		await fixture.articleStore.setReadlistOwnSaves({ userId, slug: mine, since: new Date() });
+
+		await agent.post(savePath);
+
+		expect(harness.submittedLinks.map(({ readlist }) => readlist)).toEqual([DEFAULT_READLIST_SLUG, mine]);
+	});
+
 	it("counts the reader's save as engagement activity that activates a recent assignment", async () => {
 		const now = new Date("2026-06-24T10:00:00.000Z");
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

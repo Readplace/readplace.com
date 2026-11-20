@@ -406,6 +406,7 @@ function flattenFixtureToAppDependencies(
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		importSessionStore: fixture.importSession.importSessionStore,
 		savePrivateItem: fixture.articleStore.savePrivateItem,
+		fileOwnSaveIntoReadlist: fixture.articleStore.fileOwnSaveIntoReadlist,
 		...initInMemoryPendingViewHighlights({ now: fixture.shared.now }),
 		...fixture.mediaUpload,
 		mediaKinds: MEDIA_KINDS,

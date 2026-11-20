@@ -52,7 +52,9 @@ import {
 import { DEFAULT_READLIST } from "./readlist.nav";
 import {
 	DEFAULT_READLIST_SLUG,
+	ownSavesFiling,
 	type ReadlistSlug,
+	withOwnSaves,
 } from "@packages/domain/readlist";
 import { READLIST_TAB_STATUSES, } from "./readlist.tabs";
 import { readlistPageSizeForClient } from "./readlist-page-size";
@@ -324,6 +326,9 @@ export function initReadlistSaveRoutes(
 						readlist.slug !== DEFAULT_READLIST_SLUG && readlist.slug !== addressedFiling,
 				),
 			];
+			const provenance = resolveSaveProvenance(req.oauthClientId);
+			const ownSaves = ownSavesFiling({ readlists: context.readlists, provenance, trigger: "manual" });
+			const filedDestinations = withOwnSaves({ destinations, ownSaves });
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url, requester: { account: userId } });
 			const saveAttemptId = newSaveAttemptId();
 			if (freshness.action === "unresolved") {
@@ -332,7 +337,7 @@ export function initReadlistSaveRoutes(
 					res,
 					userId,
 					url: validation.url,
-					readlists: new Set([DEFAULT_READLIST_SLUG, ...destinations.map((destination) => destination.slug)]),
+					readlists: new Set([DEFAULT_READLIST_SLUG, ...filedDestinations.map((destination) => destination.slug)]),
 					saveTrigger: "manual",
 					saveAttemptId,
 					path: SAVE_INTENT_PATH.saveArticle,
@@ -343,18 +348,18 @@ export function initReadlistSaveRoutes(
 				userId,
 				url: validation.url,
 				freshness,
-				provenance: resolveSaveProvenance(req.oauthClientId),
+				provenance,
 				saveTrigger: "manual",
 				saveAttemptId,
 			});
 
 			const filings: { createdUserArticle: boolean; wroteUserArticle: boolean; resurfacedFromRead: boolean }[] = [result];
-			for (const destination of destinations) {
+			for (const destination of filedDestinations) {
 				filings.push(await deps.fileArticleIntoReadlist({
 					userId,
 					readlist: destination.slug,
 					article: result.saved,
-					provenance: resolveSaveProvenance(req.oauthClientId),
+					provenance,
 				}));
 			}
 			await recordSaveSignal(req, res, userId);
@@ -366,7 +371,7 @@ export function initReadlistSaveRoutes(
 					wroteUserArticle: filings.some((filing) => filing.wroteUserArticle),
 					resurfacedFromRead: filings.some((filing) => filing.resurfacedFromRead),
 					destination: {
-						filedInto: destinations.length > 0 ? destinations : [context.activeReadlist],
+						filedInto: withOwnSaves({ destinations: destinations.length > 0 ? destinations : [context.activeReadlist], ownSaves }),
 						readlists: context.readlists,
 					},
 					readlistKey: readlistQueryKeyOf(req),
@@ -501,19 +506,24 @@ export function initReadlistSaveRoutes(
 
 		type PreparedPage = { job: PageJob; freshness: ResolvedFreshnessResult; saveAttemptId: SaveAttemptId };
 
+		const bulkProvenance = resolveSaveProvenance(req.oauthClientId);
+		const bulkOwnSaves = ownSavesFiling({ readlists: (await resolveReadlistContext(req, userId)).readlists, provenance: bulkProvenance, trigger: "manual" });
+
 		const prepareOnePage = async (job: PageJob): Promise<PreparedPage | PageOutcome> => {
 			try {
 				const freshness = await deps.refreshArticleIfStaleStored({ url: job.url, requester: { account: userId } });
 				const saveAttemptId = newSaveAttemptId();
 				if (freshness.action === "unresolved") {
-					await deps.publishSubmitLink({
-						url: job.url,
-						userId,
-						provenance: resolveSaveProvenance(req.oauthClientId),
-						readlist: DEFAULT_READLIST_SLUG,
-						saveTrigger: "manual",
-						saveAttemptId,
-					});
+					for (const readlist of withOwnSaves({ destinations: [DEFAULT_READLIST], ownSaves: bulkOwnSaves })) {
+						await deps.publishSubmitLink({
+							url: job.url,
+							userId,
+							provenance: bulkProvenance,
+							readlist: readlist.slug,
+							saveTrigger: "manual",
+							saveAttemptId,
+						});
+					}
 					emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 					return { index: job.index, outcome: "created", code: "queued" };
 				}
@@ -534,15 +544,18 @@ export function initReadlistSaveRoutes(
 					const media = mediaFor({ mediaType: job.mediaType, url: freshness.identity.url });
 					if (media) staged = await media.stageInlineBytes({ url: freshness.identity.url, bytes: job.bytes, title: job.title, userId, saveAttemptId: page.saveAttemptId, sourceUrl: job.url, sourceOriginalUrl: freshness.identity.originalUrl, captureTrigger: "manual" });
 				}
-				const { createdUserArticle } = await saveArticleFromUrlWithoutActivity({
+				const { saved, createdUserArticle } = await saveArticleFromUrlWithoutActivity({
 					userId,
 					url: job.url,
 					freshness,
-					provenance: resolveSaveProvenance(req.oauthClientId),
+					provenance: bulkProvenance,
 					saveTrigger: "manual",
 					savedAt,
 					saveAttemptId: page.saveAttemptId,
 				});
+				if (bulkOwnSaves !== undefined) {
+					await deps.fileArticleIntoReadlist({ userId, readlist: bulkOwnSaves.slug, article: saved, provenance: bulkProvenance });
+				}
 				if (staged?.ok) await staged.dispatch();
 				emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				return { index: job.index, outcome: createdUserArticle ? "created" : "merged" };
@@ -726,17 +739,22 @@ export function initReadlistSaveRoutes(
 
 
 			const finishSave = async (articleUrl: SaveableUrl, freshness: ResolvedFreshnessResult, dispatch?: () => Promise<void>): Promise<void> => {
+				const provenance = resolveSaveProvenance(req.oauthClientId);
 				const result = await attachArticleContent({
 					userId,
 					url: articleUrl,
 					freshness,
-					provenance: resolveSaveProvenance(req.oauthClientId),
+					provenance,
 					saveTrigger: captureTrigger.data,
 					savedAt: await deps.allocateSavedAt({ userId }),
 					saveAttemptId,
 				});
 				if (dispatch !== undefined) await dispatch();
 				const context = await resolveReadlistContext(req, userId);
+				const ownSaves = ownSavesFiling({ readlists: context.readlists, provenance, trigger: captureTrigger.data });
+				if (ownSaves !== undefined) {
+					await deps.fileArticleIntoReadlist({ userId, readlist: ownSaves.slug, article: result.saved, provenance });
+				}
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				res.status(201).location(articleSelfHref(result.saved.id.value)).type(SIREN_MEDIA_TYPE).json(
@@ -745,7 +763,7 @@ export function initReadlistSaveRoutes(
 						createdUserArticle: result.createdUserArticle,
 						wroteUserArticle: result.wroteUserArticle,
 						resurfacedFromRead: result.resurfacedFromRead,
-						destination: { filedInto: [DEFAULT_READLIST], readlists: context.readlists },
+						destination: { filedInto: withOwnSaves({ destinations: [DEFAULT_READLIST], ownSaves }), readlists: context.readlists },
 						readlistKey: readlistQueryKeyOf(req),
 						now: deps.now(),
 					}),
@@ -772,7 +790,10 @@ export function initReadlistSaveRoutes(
 							res,
 							userId,
 							url: validation.url,
-							readlists: [DEFAULT_READLIST_SLUG],
+							readlists: withOwnSaves({
+								destinations: [DEFAULT_READLIST],
+								ownSaves: ownSavesFiling({ readlists: (await resolveReadlistContext(req, userId)).readlists, provenance: resolveSaveProvenance(req.oauthClientId), trigger: captureTrigger.data }),
+							}).map((readlist) => readlist.slug),
 							saveTrigger: captureTrigger.data,
 							saveAttemptId,
 							path: SAVE_INTENT_PATH.saveContent,
@@ -927,22 +948,29 @@ export function initReadlistSaveRoutes(
 			}
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url, requester: { account: userId } });
 			const saveAttemptId = newSaveAttemptId();
+			const provenance = resolveSaveProvenance(req.oauthClientId);
+			const ownSaves = ownSavesFiling({ readlists: (await resolveReadlistContext(req, userId)).readlists, provenance, trigger: "manual" });
 			if (freshness.action === "unresolved") {
-				await deps.publishSubmitLink({ url: validation.url, userId, provenance: resolveSaveProvenance(req.oauthClientId), readlist: DEFAULT_READLIST_SLUG, saveTrigger: "manual", saveAttemptId });
+				for (const readlist of withOwnSaves({ destinations: [DEFAULT_READLIST], ownSaves })) {
+					await deps.publishSubmitLink({ url: validation.url, userId, provenance, readlist: readlist.slug, saveTrigger: "manual", saveAttemptId });
+				}
 				await rememberReadlistFilter(req, NO_READLIST_FILTER);
 				emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
 				res.set(SAVE_ATTEMPT_ID_HEADER, saveAttemptId);
 				land(buildReadlistUrl(saveState, [["queue_error", READLIST_NOTICE_SAVE_QUEUED]]), "top");
 				return;
 			}
-			await saveArticleAtReadlistTop({
+			const { saved } = await saveArticleAtReadlistTop({
 				userId,
 				url: validation.url,
 				freshness,
-				provenance: resolveSaveProvenance(req.oauthClientId),
+				provenance,
 				saveTrigger: "manual",
 				saveAttemptId,
 			});
+			if (ownSaves !== undefined) {
+				await deps.fileArticleIntoReadlist({ userId, readlist: ownSaves.slug, article: saved, provenance });
+			}
 			await rememberReadlistFilter(req, NO_READLIST_FILTER);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
 			res.set(SAVE_ATTEMPT_ID_HEADER, saveAttemptId);

@@ -197,6 +197,7 @@ export function createInboxApp(
 		now: deps.now,
 		findSavedArticleForLink: deps.findSavedArticleForLink,
 		listReadlistFitOverrides: deps.listReadlistFitOverrides,
+		listReadlistDefinitions: deps.listReadlistDefinitions,
 		recordReadlistFitOverride: deps.recordReadlistFitOverride,
 		deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
 		deleteReadlistArticleByUrl: deps.deleteReadlistArticleByUrl,

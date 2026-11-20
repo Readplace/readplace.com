@@ -12,7 +12,9 @@ import {
 	validateSaveableUrl,
 	withPrivateItemRefusal,
 } from "@packages/domain/article";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
+import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import type { CreateHighlightByQuoteOutcome } from "../../shared/article-body/highlights/create-highlight-by-quote";
 import { initClaimViewHighlights } from "./claim-view-highlights";
@@ -58,6 +60,12 @@ function claimWith(input: { unresolved: boolean }) {
 		saveArticleAtReadlistTop: async () => {
 			throw new Error("an unsaveable link is never saved");
 		},
+		listReadlistDefinitions: async () => {
+			throw new Error("an unsaveable link is never filed");
+		},
+		fileArticleIntoReadlist: async () => {
+			throw new Error("an unsaveable link is never filed");
+		},
 		createHighlightByQuote: async () => {
 			throw new Error("no highlight is created on an unsaved article");
 		},
@@ -68,6 +76,7 @@ function claimWith(input: { unresolved: boolean }) {
 function claimAnswering(
 	outcome: CreateHighlightByQuoteOutcome,
 	allowance: { claimDailySaves: ClaimDailySaves; savedUrls: string[] } = { claimDailySaves: grantAll, savedUrls: [] },
+	ownSaves: { readlists: ReadlistDefinitionData[]; filed: string[] } = { readlists: [], filed: [] },
 ) {
 	const url = SaveableUrlSchema.parse(ARTICLE_URL);
 	const destinationUrl = articleDestinationUrl({ url, displayUrl: undefined });
@@ -111,6 +120,11 @@ function claimAnswering(
 			meteredLegs: "run",
 			crawlPending: { kind: "not-attempted" },
 			};
+		},
+		listReadlistDefinitions: async () => ownSaves.readlists,
+		fileArticleIntoReadlist: async ({ readlist, article }) => {
+			ownSaves.filed.push(`${readlist} ${article.url}`);
+			return { createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false };
 		},
 		createHighlightByQuote: async () => outcome,
 	});
@@ -172,6 +186,37 @@ describe("initClaimViewHighlights", () => {
 			created: 1,
 			dropped: 0,
 		});
+	});
+
+	it("files the claimed article into the readlist that takes the reader's own saves", async () => {
+		const ownSaves = {
+			readlists: [
+				{
+					slug: ReadlistSlugSchema.parse("mine"),
+					label: "Mine",
+					createdAt: new Date("2026-11-01T00:00:00.000Z"),
+					ownSavesSince: new Date("2026-11-02T00:00:00.000Z"),
+				},
+			],
+			filed: [],
+		};
+		const claim = claimAnswering(
+			{ status: "unchanged", highlight: EXISTING },
+			{ claimDailySaves: grantAll, savedUrls: [] },
+			ownSaves,
+		);
+
+		await claim({
+			userId: READER,
+			provenance: { kind: "web" },
+			pending: {
+				articleUrl: ARTICLE_URL,
+				returnTo: undefined,
+				items: [{ url: ARTICLE_URL, exact: "the quote", note: undefined, prefix: "", suffix: "" }],
+			},
+		});
+
+		assert.deepEqual(ownSaves.filed, [`mine ${ARTICLE_URL}`]);
 	});
 
 	it("drops the highlights of a link a reader may not save", async () => {

@@ -209,6 +209,21 @@ describe("Inbox link fit route", () => {
 		]);
 	});
 
+	it("files a reader's keep into the own-saves readlist too, and an undo leaves that copy", async () => {
+		const { fixture, harness, userId, choose } = await setUp();
+		const mine = ReadlistSlugSchema.parse("mine");
+		await fixture.articleStore.createReadlistDefinition({ userId, slug: mine, label: "Mine", createdAt: new Date() });
+		await fixture.articleStore.setReadlistOwnSaves({ userId, slug: mine, since: new Date() });
+
+		await choose("0001", "keep");
+		await choose("0001", "undo");
+
+		expect(harness.filedArticles.map(({ readlist, fit }) => ({ readlist, fit }))).toEqual([
+			{ readlist: WORK, fit: { verdict: "keep", purposeVersion: PURPOSE_VERSION, source: { kind: "reader" } } },
+			{ readlist: mine, fit: { verdict: "keep", source: { kind: "reader" } } },
+		]);
+	});
+
 	it("logs the reader's choice without the link's URL", async () => {
 		const { harness, userId, choose } = await setUp();
 

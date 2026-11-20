@@ -271,6 +271,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				claimDailySaves: deps.claimDailySaves,
 				refreshArticleIfStale: deps.refreshArticleIfStale,
 				publishSubmitLink: deps.publishSubmitLink,
+				fileArticleIntoReadlist: deps.fileArticleIntoReadlist,
 				appOrigin: deps.appOrigin,
 				findPastReads: deps.findPastReads,
 				publishComputeRelatedPastReads: deps.publishComputeRelatedPastReads,
