@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { HIGHLIGHT_NOTE_MAX_LENGTH } from "@packages/domain/article";
+import { HIGHLIGHT_NOTE_MAX_LENGTH, type HighlightId } from "@packages/domain/article";
 import { render, renderInFlightDots } from "@packages/web-shell";
 
 const TEMPLATE = readFileSync(
@@ -15,6 +15,8 @@ export const HIGHLIGHT_NOTE_LABEL = "Note";
 export const HIGHLIGHT_NOTE_FAILURE = "Couldn't save the note. Try again.";
 
 export type HighlightNoteRefusal = "passage";
+
+export type HighlightNoteFormLocal = { action: "create" } | { action: "note"; highlightId: HighlightId };
 
 const LOADER_HTML = renderInFlightDots(
 	"readlist-name-form__loader in-flight-dots",
@@ -32,7 +34,7 @@ export function renderHighlightNoteForm(input: {
 	answersInPlace: boolean;
 	pushesHistory: boolean;
 	autofocus: boolean;
-	local: boolean;
+	local: HighlightNoteFormLocal | undefined;
 	noteEditor: boolean;
 	deleteTriggerHtml?: string;
 }): string {

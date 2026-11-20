@@ -4,6 +4,7 @@ import { placeNoteEditor } from "./place-note-editor";
 
 const SHEET_SPACE_PROPERTY = "--confirm-popover-sheet-space";
 const EDITOR_SELECTOR = "[data-highlight-note-editor]";
+const EDIT_EDITOR_ID_PREFIX = "note-highlight-";
 const RAIL_SELECTOR = ".highlights-rail";
 const ROW_SELECTOR = "[data-highlight-row]";
 const QUOTE_SELECTOR = "blockquote";
@@ -148,14 +149,14 @@ export function initNoteEditors(deps: NoteEditorDeps): NoteEditors {
 		editor.height = viewport.height;
 	};
 
+	const marksOf = (id: string | null): NodeListOf<Element> =>
+		document.querySelectorAll(
+			`.${ARTICLE_HIGHLIGHT_CLASS}[data-highlight-id="${id}"]`,
+		);
+
 	const editPassage = (row: Element): (() => PassageRect[]) => {
 		const id = row.getAttribute("data-highlight-row");
-		const marks = (): PassageRect[] =>
-			rectsOfContents(
-				document.querySelectorAll(
-					`.${ARTICLE_HIGHLIGHT_CLASS}[data-highlight-id="${id}"]`,
-				),
-			);
+		const marks = (): PassageRect[] => rectsOfContents(marksOf(id));
 		const quote = (): PassageRect[] =>
 			rectsOfContents(row.querySelectorAll(QUOTE_SELECTOR));
 		const marksShown = onScreen(marks());
@@ -185,15 +186,21 @@ export function initNoteEditors(deps: NoteEditorDeps): NoteEditors {
 			if (Reflect.get(event, "newState") !== "open" || !isElement(target))
 				return;
 			const panel = document.getElementById(target.id);
+			if (!panel || panel.querySelector(EDITOR_SELECTOR) === null) return;
 			const row = document
 				.querySelector(`${RAIL_SELECTOR} [popovertarget="${target.id}"]`)
 				?.closest(ROW_SELECTOR);
-			if (!panel || !row || panel.querySelector(EDITOR_SELECTOR) === null)
-				return;
+			const highlightId = target.id.slice(EDIT_EDITOR_ID_PREFIX.length);
+			const passage = row
+				? editPassage(row)
+				: marksOf(highlightId).length > 0
+					? () => rectsOfContents(marksOf(highlightId))
+					: undefined;
+			if (passage === undefined) return;
 			take({
 				panel,
 				drafted: false,
-				passage: editPassage(row),
+				passage,
 				height: 0,
 				next: { reason: "open" },
 			});

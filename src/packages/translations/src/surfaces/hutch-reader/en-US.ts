@@ -112,7 +112,6 @@ export const enUS = {
 			elsewhere: "On other articles",
 			notFound: "Not found in this version",
 			jump: "Jump",
-			delete: "Delete",
 			addNote: "Add note",
 			editNote: "Edit note",
 			noteLabel: "Note",

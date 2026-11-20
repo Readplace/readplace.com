@@ -57,7 +57,7 @@ function railHtml(): string {
 
 function rowNoteFormsHtml(): string {
 	const scope = { articleId: "abc", readlist: [], surface: [] };
-	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", scope })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", scope, open: false })}</details>`;
+	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", target: { kind: "server", scope } })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", scope, open: false })}</details>`;
 }
 
 function notedBeta(): Highlight {

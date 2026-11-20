@@ -15,14 +15,22 @@
       {{{inlineKeepFormHtml}}}
     </div>
   </details>
-  <template data-view-highlights-row>
+  {{{hintHtml}}}
+  <div data-view-highlights-surfaces></div>
+  <template data-view-highlights-surface="text-note" data-highlight-placeholder="{{placeholderId}}">{{{textWithNoteHtml}}}</template>
+  <template data-view-highlights-surface="text" data-highlight-placeholder="{{placeholderId}}">{{{textHtml}}}</template>
+  <template data-view-highlights-surface="confirm-note" data-highlight-placeholder="{{placeholderId}}">{{{confirmWithNoteHtml}}}</template>
+  <template data-view-highlights-surface="confirm" data-highlight-placeholder="{{placeholderId}}">{{{confirmHtml}}}</template>
+  <template data-view-highlights-row data-highlight-placeholder="{{placeholderId}}">
     <li class="highlights-rail__row" data-view-highlight-row data-test-view-highlight-row>
       <blockquote class="highlights-rail__excerpt" data-view-highlight-exact></blockquote>
       <p class="highlight-note" data-view-highlight-note hidden></p>
       <p class="highlights-rail__chip" data-view-highlight-orphan hidden data-test-highlight-orphan>{{t "view.highlights.notFound"}}</p>
       <div class="highlights-rail__actions">
         <a class="btn btn--neutral btn--s highlights-rail__jump" href="#view-highlights" data-view-highlight-jump data-test-action="view-highlight-jump">{{t "view.highlights.jump"}}</a>
-        <button class="btn btn--neutral btn--s" type="button" data-view-highlight-delete data-test-action="view-highlight-delete">{{t "view.highlights.delete"}}</button>
+        <button class="btn btn--neutral btn--s highlights-rail__delete-form--fallback" type="button" data-view-highlight-delete data-test-action="view-highlight-delete">{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
+        <button class="btn btn--neutral btn--s highlights-rail__delete-trigger" type="button" popovertarget="{{deletePopoverId}}" aria-haspopup="dialog" data-test-action="view-highlight-delete-confirm">{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
+        {{{noteDeleteFormHtml}}}
       </div>
       <details class="view-highlights__note-edit">
         <summary><span data-view-highlight-note-label="add">{{t "view.highlights.addNote"}}</span><span data-view-highlight-note-label="edit" hidden>{{t "view.highlights.editNote"}}</span></summary>
@@ -34,12 +42,13 @@
       </details>
     </li>
   </template>
-  <template data-view-highlights-elsewhere-row>
+  <template data-view-highlights-elsewhere-row data-highlight-placeholder="{{placeholderId}}">
     <li class="highlights-rail__row" data-view-highlight-row data-test-view-highlight-elsewhere-row>
       <blockquote class="highlights-rail__excerpt" data-view-highlight-exact></blockquote>
       <p class="view-highlights__source" data-view-highlight-source></p>
       <div class="highlights-rail__actions">
-        <button class="btn btn--neutral btn--s" type="button" data-view-highlight-delete data-test-action="view-highlight-delete">{{t "view.highlights.delete"}}</button>
+        <button class="btn btn--neutral btn--s highlights-rail__delete-form--fallback" type="button" data-view-highlight-delete data-test-action="view-highlight-delete">{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
+        <button class="btn btn--neutral btn--s highlights-rail__delete-trigger" type="button" popovertarget="{{deletePopoverId}}" aria-haspopup="dialog" data-test-action="view-highlight-delete-confirm">{{t "articleBody.highlightsRail.deleteHighlight"}}</button>
       </div>
     </li>
   </template>

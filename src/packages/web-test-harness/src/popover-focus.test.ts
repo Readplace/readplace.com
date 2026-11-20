@@ -45,6 +45,14 @@ describe("findPopoverFocusGaps", () => {
 		expect(found).toEqual([]);
 	});
 
+	it("reads the dialogs a template holds for the page's script to clone, nested templates included", () => {
+		const found = findPopoverFocusGaps(
+			'<template><div id="confirm" popover="auto" role="dialog"><button type="submit">Delete</button></div><template><div id="editor" popover="auto" role="dialog"><textarea autofocus></textarea></div></template></template>',
+		);
+
+		expect(found).toEqual([{ popover: "confirm", problem: "no-target" }]);
+	});
+
 	it("accepts a tooltip that takes no focus", () => {
 		const found = findPopoverFocusGaps('<span id="tip" popover="manual" role="tooltip">Saved from your inbox</span>');
 

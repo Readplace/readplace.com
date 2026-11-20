@@ -1,7 +1,7 @@
 import { type Highlight, HighlightIdSchema } from "@packages/domain/article";
 import { JSDOM } from "jsdom";
 import type { HighlightsRailRow } from "../highlights-rail/highlights-rail.component";
-import { renderHighlightPreviews } from "./highlight-preview.component";
+import { renderHighlightPreview, renderHighlightPreviews } from "./highlight-preview.component";
 
 function railRow(input: { highlight: Highlight; state: HighlightsRailRow["shown"]["state"]; marked: boolean }): HighlightsRailRow {
 	return { highlight: input.highlight, shown: { state: input.state, edited: false, quote: input.highlight.exact }, marked: input.marked };
@@ -59,5 +59,16 @@ describe("renderHighlightPreviews", () => {
 
 	it("renders nothing without a noted highlight", () => {
 		expect(renderHighlightPreviews([railRow({ highlight: highlight({ id: IDS.plain }), state: "anchored", marked: true })])).toBe("");
+	});
+});
+
+describe("renderHighlightPreview", () => {
+	it("renders one highlight's preview with its note as text behind the note hook", () => {
+		const html = renderHighlightPreview({ highlightId: HighlightIdSchema.parse(IDS.plain), note: "One <i>note</i>" });
+		const { document } = new JSDOM(html).window;
+
+		const preview = document.querySelector(`#preview-highlight-${IDS.plain}`);
+		expect(preview?.getAttribute("data-highlight-preview")).toBe(IDS.plain);
+		expect(preview?.querySelector("[data-highlight-note-text]")?.textContent).toBe("One <i>note</i>");
 	});
 });

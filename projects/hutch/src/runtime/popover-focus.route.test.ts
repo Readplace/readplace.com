@@ -144,6 +144,29 @@ describe("every popup opens on its first decision", () => {
 		expect(keys.has("view-highlights-keep")).toBe(true);
 	});
 
+	it("holds on the highlight surfaces /view clones from its templates, one autofocus per dialog", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).get("/view/example.com/article").set(BROWSER_REQUEST_HEADERS);
+
+		const templates = Array.from(parse(response.text).querySelectorAll<HTMLTemplateElement>("template[data-view-highlights-surface]"));
+		const dialogs = templates.flatMap((template) =>
+			Array.from(template.content.querySelectorAll('[popover][role="dialog"]'), (dialog) => [
+				dialog.getAttribute("data-test-confirm-popover"),
+				autofocusCount(dialog),
+			]),
+		);
+		expect(dialogs).toEqual([
+			["highlight-manage", 1],
+			["highlight-note-edit", 1],
+			["highlight-manage", 1],
+			["highlight-note-edit", 1],
+			["highlight-delete", 1],
+			["highlight-delete", 1],
+		]);
+		expect(gapsOn({ path: "/view/example.com/article", html: response.text })).toEqual([]);
+	});
+
 	it("holds across the signed-in surfaces, including the reader and its article history", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

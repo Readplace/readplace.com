@@ -351,6 +351,21 @@ describe("initNoteEditors", () => {
 			}).toEqual({ frames: 0, open: false, log: [] });
 		});
 
+		it("ignores a panel that holds no editor", () => {
+			const h = harness();
+
+			toggle(h, {
+				panel: element(h, `#manage-highlight-${FIRST}`),
+				type: "beforetoggle",
+				newState: "open",
+			});
+
+			expect({ frames: h.frames, open: h.editors.isOpen() }).toEqual({
+				frames: 0,
+				open: false,
+			});
+		});
+
 		it("ignores a panel closing before it opens", () => {
 			const h = harness();
 
@@ -398,6 +413,31 @@ describe("initNoteEditors", () => {
 			);
 
 			expect(h.log).toEqual([]);
+		});
+
+		it("hides an editor its passage opens with no rail row", () => {
+			const h = harness();
+			element(h, ".highlights-rail").remove();
+			toggle(h, {
+				panel: panelOf(h, FIRST),
+				type: "beforetoggle",
+				newState: "open",
+			});
+			h.rects.set(markOf(h, FIRST), [ON_SCREEN_MARK]);
+			h.editors.reposition();
+			h.log.length = 0;
+
+			pressEscape(h);
+
+			expect({
+				open: h.editors.isOpen(),
+				placed: placed(panelOf(h, FIRST)).top !== "",
+				log: h.log,
+			}).toEqual({
+				open: true,
+				placed: true,
+				log: [`hide note-highlight-${FIRST}`],
+			});
 		});
 
 		it("does nothing with no editor open", () => {

@@ -3,7 +3,7 @@
   <button class="btn btn--secondary btn--s highlight-toolbar__button{{#if local}} highlight-note__trigger{{/if}}" type="button" data-highlight-toolbar-button data-highlight-form="{{noteFormSelector}}" data-highlight-commit="dialog" data-test-action="add-note">Add note</button>
   <span class="chip chip--badge chip--accent" data-test-highlight-toolbar-beta>{{t "articleBody.highlightToolbar.beta"}}</span>
 </div>
-<form class="highlight-toolbar__form"{{#if local}} method="dialog" data-highlight-local{{else}} method="POST" action="{{createUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="[data-highlight-toolbar-button]"{{/if}} hidden data-highlight-create-form data-test-highlight-create-form>
+<form class="highlight-toolbar__form"{{#if local}} method="dialog" data-highlight-local="create"{{else}} method="POST" action="{{createUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="[data-highlight-toolbar-button]"{{/if}} hidden data-highlight-create-form data-test-highlight-create-form>
   <input type="hidden" name="exact" value="">
   <input type="hidden" name="start" value="">
   <input type="hidden" name="end" value="">

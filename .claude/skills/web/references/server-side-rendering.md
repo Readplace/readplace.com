@@ -76,6 +76,18 @@ Find it from the route: grep for `HX-Replace-Url` in the readlist page module.
 
 The popup body's `outerHTML` swap needs the same scroll-anchoring reset as `<main>` (see the next section), or the panel jumps to its bottom. Its sticky footer applies only while the popup is open, or in flow it covers the page.
 
+**Sanctioned deviation — highlights kept in a logged-out visitor's browser.** On `/view` a visitor without an account keeps highlights and notes in the browser's storage, and the server never sees them until the visitor signs up and they are handed over. The server therefore cannot render their marks, rows or popups, so a page script draws them. It still adds no markup of its own: the server renders the reader's own preview, actions panel, note editor and delete confirm, once each, for a placeholder highlight inside `<template>`s, and the script clones them per highlight and fills them in. This is already decided — follow it for another surface that holds state only the browser has, instead of re-asking.
+
+| Piece | Behaviour | Why |
+|---|---|---|
+| Templates | Each names its placeholder highlight id in a data attribute; the placeholder is a valid highlight id | The shared renderers only accept a real id, and the script swaps the placeholder in every attribute without knowing which attributes hold it |
+| Text | Notes reach the clones through a neutral data hook, set as text, never as markup | A note is visitor input, and the shared markup gains only those hooks |
+| Forms | Every note, delete-note and delete form is `method="dialog"`, naming its action and highlight in data attributes, with no `action` | Nothing is sent; the script runs the form in the bubble phase, after the actions panel's capture-phase listener has recorded where focus returns |
+| Redraws | The script redraws after a settle only when the article's text, its drawn marks or the kept highlights changed, and announces each redraw with the event the preview and panel scripts already listen for | A pending summary polls every few seconds, and an unconditional redraw would wipe half-typed notes and close an open popup |
+| No popover support | The list keeps an immediate delete beside the confirm trigger, flipped by the list's own classes | The same fallback the reader's list uses |
+
+Find it from the page: grep the `/view` page's templates for `data-highlight-placeholder`.
+
 ### Every Swap Declares Where the Page Ends Up
 
 Every swap has one intended scroll outcome, and the swap spec states it:
