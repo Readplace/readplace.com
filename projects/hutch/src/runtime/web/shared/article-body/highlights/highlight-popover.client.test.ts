@@ -128,7 +128,7 @@ function harness(input: { content?: string; highlights: readonly HighlightSpec[]
 		shown: [],
 		hidden: [],
 		focusAtShow: [],
-		panels: { has: () => false, open: () => false, quietsPreview: () => false, reposition: () => undefined, restoreFocus: () => undefined },
+		panels: { has: () => false, open: () => false, quietsPreview: () => false, reposition: () => undefined, restoreFocus: () => undefined, hide: () => undefined },
 		swap: (next) => {
 			doc.dispatchEvent(new dom.window.Event("htmx:beforeSwap", { bubbles: true }));
 			const main = doc.querySelector("main");
@@ -178,6 +178,7 @@ function harness(input: { content?: string; highlights: readonly HighlightSpec[]
 		window: { visualViewport: viewport, matchMedia: () => ({ matches: true }) },
 		timers: { setTimeout: () => undefined, clearTimeout: () => undefined },
 		rectsOf: () => h.rects,
+		editorOpen: () => false,
 		selectionOf: () => {
 			const selection = doc.getSelection();
 			assert(selection);
@@ -188,7 +189,6 @@ function harness(input: { content?: string; highlights: readonly HighlightSpec[]
 		hidePopover,
 		isFocusVisible: () => h.focusVisible,
 		panels: h.panels,
-		editorOpen: () => false,
 	});
 	return h;
 }
@@ -538,6 +538,23 @@ describe("initHighlightPanels", () => {
 	});
 
 	describe("handing over to a dialog", () => {
+		it("hides the open actions when a note editor opens, and quiets nothing after", () => {
+			const h = harness({ highlights: THREE });
+			click(h, stopOf(h, FIRST));
+
+			h.panels.hide();
+
+			expect({ hidden: h.hidden, quiets: h.panels.quietsPreview() }).toEqual({ hidden: [FIRST], quiets: false });
+		});
+
+		it("hides nothing when a note editor opens with no actions open", () => {
+			const h = harness({ highlights: THREE });
+
+			h.panels.hide();
+
+			expect(h.hidden).toEqual([]);
+		});
+
 		it("closes the actions while the click on one is dispatched, so its dialog opens on its own", () => {
 			const h = harness({ highlights: THREE });
 			click(h, stopOf(h, FIRST));

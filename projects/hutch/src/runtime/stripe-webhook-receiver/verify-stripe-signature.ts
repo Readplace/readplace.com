@@ -36,8 +36,9 @@ function parseSignatureHeader(header: string): { timestamp: string; v1: string[]
 function signaturesMatch(expected: string, candidates: readonly string[]): boolean {
 	const expectedBuffer = Buffer.from(expected, "utf-8");
 	for (const candidate of candidates) {
-		if (candidate.length !== expected.length) continue;
-		if (timingSafeEqual(expectedBuffer, Buffer.from(candidate, "utf-8"))) return true;
+		const candidateBuffer = Buffer.from(candidate, "utf-8");
+		if (candidateBuffer.length !== expectedBuffer.length) continue;
+		if (timingSafeEqual(expectedBuffer, candidateBuffer)) return true;
 	}
 	return false;
 }

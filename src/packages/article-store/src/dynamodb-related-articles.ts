@@ -231,6 +231,7 @@ export function initDynamoDbRelatedArticles(deps: {
 	};
 
 	const findRelatedArticles: FindRelatedArticles = async (params) => {
+		if (params.generatedContent === "withheld") return { status: "skipped" };
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const row = await userArticles.get({
 			userId: params.userId,

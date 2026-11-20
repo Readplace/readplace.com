@@ -365,6 +365,7 @@ import { Base } from "./web/base.component";
 import { initBuildBannerState } from "./web/banner-state";
 import { initChangelogDismissRoute } from "./web/pages/banner/changelog-dismiss.route";
 import {
+	createCrossSiteRequestMiddleware,
 	createCspNonceMiddleware,
 	generateCspNonce,
 	requireCspNonce,
@@ -373,7 +374,6 @@ import {
 	wantsMarkdown,
 } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
-import { createCrossSiteRequestMiddleware } from "./web/cross-site-request.middleware";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { createListingGenerationMiddleware } from "./web/listing-generation.middleware";
 import { buildRobotsTxt } from "./web/robots-txt";
@@ -1032,7 +1032,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		/** Blog URLs live in the blog's own sitemap at /blog/sitemap.xml
 		 * (advertised in robots.txt), since the blog is a separate deployable. */
 		const pages: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [
-			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-10-01" },
+			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-11-19" },
 			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-09-11" },
 			{ loc: "/import", priority: "0.8", changefreq: "monthly", lastmod: "2026-10-13" },
 			{ loc: "/mcp", priority: "0.8", changefreq: "monthly", lastmod: "2026-09-12" },
@@ -1044,8 +1044,8 @@ export function createApp(dependencies: AppDependencies): Express {
 			})),
 			{ loc: "/embed/", priority: "0.5", changefreq: "monthly", lastmod: "2026-09-24" },
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
-			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-10-01" },
-			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-10-01" },
+			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-11-19" },
+			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-11-19" },
 			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-08-05" },
 		];
 
@@ -1754,6 +1754,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			keepRateLimitRule: deps.rateLimitRules.signup,
 			buildBannerState,
 			recordAnalyticsEvent,
+			recordUngatedAnalyticsEvent,
 			salt: deps.salt,
 			now: deps.now,
 		}),
@@ -1765,6 +1766,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		secureCookies,
 		buildBannerState,
 		recordAnalyticsEvent,
+		recordUngatedAnalyticsEvent,
 		getEffectiveAccess,
 		claimDailySaves,
 	}));

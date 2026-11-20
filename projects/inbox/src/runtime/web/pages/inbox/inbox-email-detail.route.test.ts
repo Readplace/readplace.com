@@ -763,6 +763,41 @@ describe("Inbox email detail Articles tab", () => {
 			{ title: "No links found in this email", body: undefined },
 		]);
 	});
+	it("shows the destination a save resolved for a failed tracker whose preview stopped on another tracker", async () => {
+		const tracker = "https://link.mail.beehiiv.com/ss/c/u001.token-for-the-post/4ab/h1/sig";
+		const secondTracker = "https://link.mail.beehiiv.com/ss/c/u001.second-hop/4ab/h1/sig";
+		const destination = "https://example.com/the-tracked-post";
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0000"),
+				url: tracker,
+				status: "failed",
+				failureReason: "blocked",
+				resolvedUrl: secondTracker,
+			},
+		]);
+		const save = initResolveSaveIdentity({
+			validateUrl: validateSaveableUrl,
+			findIdentityRow: fixture.articleStore.findIdentityRow,
+			claimAlias: fixture.articleStore.claimAlias,
+			resolveWrapperTarget: async (url) => (url === tracker ? { url: destination, contentSourceUrl: tracker } : undefined),
+			now: () => new Date("2026-11-18T10:00:00.000Z"),
+		});
+		assert.equal((await save(tracker)).status, "resolved", "the save must resolve the tracker");
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist");
+		await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved({ userId: user.userId, url: tracker });
+
+		const doc = parseDoc((await agent.get(articlesTabPath)).text);
+
+		const card = doc.querySelector('[data-test-inbox-article-card="0000"]');
+		assert(card, "the failed tracker card must render");
+		expect(card.querySelector("[data-test-inbox-article-url]")?.textContent).toBe(destination);
+	});
 });
 
 describe("Inbox email detail Skipped tab", () => {
@@ -906,6 +941,36 @@ describe("Inbox email detail Skipped tab", () => {
 		const saveButton = row.querySelector("[data-test-inbox-excluded-save]");
 		assert(saveButton, "the social link must offer its Save action");
 		expect(saveButton.getAttribute("data-test-save-state")).toBe("unsaved");
+	});
+
+	it("shows the destination a skipped tracker link carries, while its save still submits the stored tracker", async () => {
+		const tracker = "https://click.tracker.test/c?id=42&url=https%3A%2F%2Fdestination.test%2Fpost";
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), url: tracker, status: "skipped", skipReason: "llm-ad" },
+		]);
+
+		const doc = parseDoc((await agent.get(excludedTabPath)).text);
+
+		const row = doc.querySelector('[data-test-inbox-excluded-link="0000"]');
+		assert(row, "the skipped tracker must be listed");
+		expect(row.querySelector("[data-test-inbox-excluded-url]")?.textContent).toBe("https://destination.test/post");
+		const saveForm = row.querySelector("[data-test-inbox-excluded-save]")?.closest("form");
+		assert(saveForm, "the skipped tracker must offer its save form");
+		const action = saveForm.getAttribute("action");
+		assert(action, "the save form must post somewhere");
+
+		const moved = parseDoc((await agent.post(action).set("HX-Request", "true")).text);
+
+		expect(harness.submittedLinks.map((link) => link.url)).toEqual([tracker]);
+		expect(moved.querySelector("[data-test-inbox-excluded-moved] [data-test-inbox-excluded-url]")?.textContent).toBe(
+			"https://destination.test/post",
+		);
+		expect(moved.querySelector("[data-test-inbox-live-status]")?.textContent).toContain("https://destination.test/post");
+		expect(moved.querySelector("[data-test-inbox-live-status]")?.textContent).not.toContain("click.tracker.test");
 	});
 
 	it("offers a skipped link to save as an article", async () => {

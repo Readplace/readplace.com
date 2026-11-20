@@ -1,3 +1,4 @@
+import { generatedContentOf } from "../../generated-content-of";
 import type { NextFunction, Request, Response } from "express";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { type ArticleBody, type Highlight, storedHighlightState, viewerFor } from "@packages/domain/article";
@@ -97,7 +98,7 @@ export function initOwnerArticleMarkdown(deps: OwnerArticleMarkdownDeps) {
 		const { article, readlist } = owned;
 		const [crawl, summary, stored, definitions, saves, highlightRows, snapshot] = await Promise.all([
 			deps.findArticleCrawlStatus(article.url),
-			deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId) }),
+			deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId), generatedContent: generatedContentOf(req) }),
 			deps.readArticleContent({ url: article.url, viewer: viewerFor(userId) }),
 			deps.listReadlistDefinitions(userId),
 			deps.listUserSavesForUrl({ userId, url: article.url }),

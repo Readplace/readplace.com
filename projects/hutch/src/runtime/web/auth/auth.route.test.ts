@@ -17,7 +17,7 @@ import { signupAllowanceSpentMessage } from "./signup-allowance";
 import { completeCheckoutSignup } from "./test-helpers/complete-checkout-signup";
 import { createAccessToken, saveAccessTokenForClient, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../price-statement";
+import { FIRST_DAYS_STATEMENT, FREE_PLAN_STATEMENT, UPGRADE_STATEMENT } from "../price-statement";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 import { SIGNUP_MIN_SUBMIT_MS } from "./validate-signup";
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session";
@@ -28,9 +28,10 @@ import { UserIdSchema } from "@packages/domain/user";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
-const BOTH_HINTS = [
-	{ key: "trial-hint", text: PRICE_STATEMENT },
-	{ key: "saves-stay", text: SAVES_STAY_STATEMENT },
+const FREE_PLAN_HINTS = [
+	{ key: "free-plan", text: FREE_PLAN_STATEMENT },
+	{ key: "first-days", text: FIRST_DAYS_STATEMENT },
+	{ key: "upgrade", text: UPGRADE_STATEMENT },
 ];
 const CONNECTOR_RETURN = encodeURIComponent("/oauth/authorize?client_id=ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm&response_type=code");
 const IOS_RETURN = encodeURIComponent("/oauth/authorize?client_id=ios-app&response_type=code");
@@ -608,7 +609,7 @@ describe("Auth routes", () => {
 			}
 
 			const before = Date.now();
-			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A2%3Avariant-f").type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A3%3Avariant-f").type("form").send({
 				email: "trial@example.com",
 				password: "password123",
 				loadedAt: freshLoadedAt(),
@@ -764,7 +765,7 @@ describe("Auth routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { conversions } = harness;
 
-			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A2%3Avariant-e").type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A3%3Avariant-e").type("form").send({
 				email: "convert-free@example.com",
 				password: "password123",
 				loadedAt: freshLoadedAt(),
@@ -2689,10 +2690,10 @@ describe("Auth routes", () => {
 		}
 
 		it.each([
-			["a plain /signup", "/signup", BOTH_HINTS],
-			["a connector's consent-step /signup", `/signup?return=${CONNECTOR_RETURN}`, BOTH_HINTS],
+			["a plain /signup", "/signup", FREE_PLAN_HINTS],
+			["a connector's consent-step /signup", `/signup?return=${CONNECTOR_RETURN}`, FREE_PLAN_HINTS],
 			["a native app's /signup, which opens inside the app", `/signup?return=${IOS_RETURN}`, []],
-			["a connector's consent-step /login", `/login?return=${CONNECTOR_RETURN}`, BOTH_HINTS],
+			["a connector's consent-step /login", `/login?return=${CONNECTOR_RETURN}`, FREE_PLAN_HINTS],
 			["a native app's /login, which opens inside the app", `/login?return=${IOS_RETURN}`, []],
 			["a plain /login", "/login", []],
 		])("shows the right price hints on %s when the founding allocation is exhausted", async (_name, path, hints) => {
@@ -2712,7 +2713,7 @@ describe("Auth routes", () => {
 				.send({ email: "user0@test.com", password: "wrongpassword" });
 
 			expect(response.status).toBe(422);
-			expect(authHintsOf(response.text)).toEqual(BOTH_HINTS);
+			expect(authHintsOf(response.text)).toEqual(FREE_PLAN_HINTS);
 		}, 30000);
 
 		it("keeps the price hints when a connector's login form is invalid", async () => {
@@ -2724,7 +2725,7 @@ describe("Auth routes", () => {
 				.send({ email: "", password: "" });
 
 			expect(response.status).toBe(422);
-			expect(authHintsOf(response.text)).toEqual(BOTH_HINTS);
+			expect(authHintsOf(response.text)).toEqual(FREE_PLAN_HINTS);
 		}, 30000);
 
 		it("renders 'Join Readplace' submit button on /signup when the founding allocation is exhausted", async () => {

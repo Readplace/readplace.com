@@ -19,7 +19,7 @@ import {
 	HOME_WAY_LINK_BY_CLIENT,
 	HOME_WAYS_WITHOUT_A_CLIENT,
 } from "./home.content";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FREE_PLAN_STATEMENT, SAVES_STAY_STATEMENT, UPGRADE_STATEMENT } from "../../price-statement";
 import { CANONICAL_SLOGAN } from "../../slogans";
 import { campaignTag, HOMEPAGE_SPLIT } from "../../experiments/homepage-split";
 
@@ -168,9 +168,11 @@ describe("GET / hero", () => {
 		expect(form?.getAttribute("data-save-tip")).toBe("due");
 	});
 
-	it("should carry no eyebrow when the visitor did not arrive from the reader", async () => {
+	it("should carry the positioning line as the eyebrow when the visitor did not arrive from the reader", async () => {
 		const { doc } = await loadHomepage();
-		expect(doc.querySelector("[data-test-hero-eyebrow]")).toBeNull();
+		const eyebrow = doc.querySelector("[data-test-hero-eyebrow]");
+		assert(eyebrow, "the hero must carry an eyebrow");
+		expect(eyebrow.textContent).toBe(HOME_CONTENT.hero.positioningEyebrow);
 	});
 
 	it("should redirect a paste-link submission to the canonical reader URL", async () => {
@@ -458,7 +460,14 @@ describe("GET / principle", () => {
 	});
 });
 
-const EXPECTED_PLAN_ORDER = ["monthly", "yearly"] as const;
+const EXPECTED_PLAN_ORDER = ["free", "monthly", "yearly"] as const;
+
+const FREE_PLAN_PANEL_LABEL = "Create a free account";
+
+const PAID_PLAN_ORDER = ["monthly", "yearly"] as const;
+
+const PRICING_HEADLINE =
+	"Free within daily limits, with no card. Or upgrade for $60 a year ($5 a month, billed yearly) or $10 a month.";
 
 describe("GET / pricing", () => {
 	it("should headline the price statement, with the yearly total highlighted", async () => {
@@ -467,12 +476,23 @@ describe("GET / pricing", () => {
 		const headlinePrice = doc.querySelector("[data-test-price]");
 		assert(headlinePrice, "the pricing headline must name a price");
 		expect(headlinePrice.textContent).toBe("$60 a year");
-		expect(headlinePrice.closest("h2")?.textContent).toBe(PRICE_STATEMENT);
+		expect(headlinePrice.closest("h2")?.textContent).toBe(PRICING_HEADLINE);
 	});
 
-	it("should build the headline parts into exactly the price statement, so the two cannot drift", () => {
+	it("should build the headline parts into exactly the free-first headline, so the two cannot drift", () => {
 		const { titleBefore, priceAmount, titleAfter } = HOME_CONTENT.pricing;
-		expect([titleBefore, priceAmount, titleAfter].join(" ")).toBe(PRICE_STATEMENT);
+		expect([titleBefore, priceAmount, titleAfter].join(" ")).toBe(PRICING_HEADLINE);
+	});
+
+	it("should link the pricing note to the page that says what the free plan includes", async () => {
+		const { doc } = await loadHomepage();
+
+		const link = doc.querySelector('.home-pricing [data-test-cta="free-plan"]');
+		assert(link, "the pricing section must link to the free plan page");
+		expect(link.textContent).toBe("What the free plan includes");
+		expect(link.getAttribute("href")).toBe(
+			"/free-read-it-later-app?utm_source=home-pricing&utm_medium=internal&utm_content=free-read-it-later-app",
+		);
 	});
 
 	it("should say the saves stay directly under the pricing headline", async () => {
@@ -490,13 +510,17 @@ describe("GET / pricing", () => {
 		expect(response.text).not.toContain(PRICING_PLANS.triennial.monthlyDisplay);
 	});
 
-	it("should label every panel's signup button with the free trial", async () => {
+	it("should label the free panel's button with the free account and each paid panel's with the free trial", async () => {
 		const { doc } = await loadHomepage();
 
 		const labels = Array.from(doc.querySelectorAll("[data-test-plan] form button")).map((button) =>
 			button.textContent?.trim(),
 		);
-		expect(labels).toEqual(["Try Readplace free for 14 days", "Try Readplace free for 14 days"]);
+		expect(labels).toEqual([
+			FREE_PLAN_PANEL_LABEL,
+			"Try Readplace free for 14 days",
+			"Try Readplace free for 14 days",
+		]);
 	});
 
 	it("should answer the credit card question with the plans the statement names", async () => {
@@ -510,11 +534,11 @@ describe("GET / pricing", () => {
 			(item: { name: string }) => item.name === "Do I need a credit card to start?",
 		);
 		expect(entry.acceptedAnswer.text).toBe(
-			"No. 14 days with the full product, no card. After that it's $60 a year ($5 a month, billed yearly) or $10 a month, and both plans are the same full product. If you don't subscribe, nothing is charged and the account moves to the free plan.",
+			"No. An account is free, within daily limits on new saves, and no card is asked for, in the first 14 days or after them. A card is asked for only when you upgrade: $60 a year ($5 a month, billed yearly) or $10 a month.",
 		);
 	});
 
-	it("should offer the two stated plans, with only the yearly one badged and featured", async () => {
+	it("should offer the free plan first, then the two stated plans, with only the yearly one badged and featured", async () => {
 		const { doc } = await loadHomepage();
 
 		const grid = doc.querySelector("[data-test-plans]");
@@ -526,6 +550,7 @@ describe("GET / pricing", () => {
 			badge: panel.querySelector("[data-test-plan-badge]")?.textContent?.trim() ?? "",
 		}));
 		expect(panels).toEqual([
+			{ tier: "free", featured: false, badge: "" },
 			{ tier: "monthly", featured: false, badge: "" },
 			{ tier: "yearly", featured: true, badge: PRICING_PANELS.find((panel) => panel.featured)?.badge },
 		]);
@@ -540,14 +565,20 @@ describe("GET / pricing", () => {
 			price: panel.querySelector("[data-test-plan-price]")?.textContent?.trim(),
 			billing: panel.querySelector("[data-test-plan-billing]")?.textContent?.trim(),
 		}));
-		expect(priced).toEqual(
-			EXPECTED_PLAN_ORDER.map((key) => ({
+		expect(priced).toEqual([
+			{
+				tier: "free",
+				name: "Free",
+				price: "$0",
+				billing: "No card. New saves within daily limits.",
+			},
+			...PAID_PLAN_ORDER.map((key) => ({
 				tier: key,
 				name: PRICING_PLANS[key].name,
 				price: PRICING_PLANS[key].monthlyDisplay,
 				billing: PRICING_PLANS[key].billedNote,
 			})),
-		);
+		]);
 	});
 
 	it("should send every panel to /signup carrying the plan that sold the click", async () => {
@@ -566,7 +597,7 @@ describe("GET / pricing", () => {
 		}));
 		expect(forms).toEqual(
 			EXPECTED_PLAN_ORDER.map((key) => ({
-				label: HOME_CONTENT.pricing.panelCtaLabel,
+				label: key === "free" ? FREE_PLAN_PANEL_LABEL : HOME_CONTENT.pricing.panelCtaLabel,
 				method: "get",
 				action: "/signup",
 				hidden: {
@@ -632,14 +663,15 @@ describe("GET / metadata", () => {
 	it("should set SEO metadata within the length search engines render", async () => {
 		const { doc } = await loadHomepage();
 
-		expect(doc.title).toBe("Readplace — Save Articles to Read Later");
+		expect(doc.title).toBe("Readplace — The #1 Free Read-It-Later App");
 		expect(doc.title.length).toBeLessThanOrEqual(60);
 
 		const description = doc.querySelector('meta[name="description"]');
-		expect(description?.getAttribute("content")).toContain("read-it-later app");
-		expect(description?.getAttribute("content")).toContain("no credit card");
+		expect(description?.getAttribute("content")).toContain("#1 free read-it-later app");
+		expect(description?.getAttribute("content")).toContain("daily limits");
 
 		const keywords = doc.querySelector('meta[name="keywords"]');
+		expect(keywords?.getAttribute("content")).toContain("free read it later app");
 		expect(keywords?.getAttribute("content")).toContain("personal reading list");
 		expect(keywords?.getAttribute("content")).toContain("no LLM hallucination");
 		expect(keywords?.getAttribute("content")).toContain("Pocket alternative");
@@ -712,7 +744,7 @@ describe("GET / metadata", () => {
 		);
 	});
 
-	it("should advertise the two stated billing terms, now that the homepage no longer offers a free tier", async () => {
+	it("should advertise the free plan first, then the two stated billing terms, now that the homepage offers a free plan", async () => {
 		const { doc } = await loadHomepage();
 
 		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
@@ -720,9 +752,16 @@ describe("GET / metadata", () => {
 		);
 		const app = schemas.find((schema: { "@type": string }) => schema["@type"] === "WebApplication");
 
-		expect(app.isAccessibleForFree).toBe(false);
+		expect(app.isAccessibleForFree).toBe(true);
+		expect(app.offers[0]).toEqual({
+			"@type": "Offer",
+			name: "Free",
+			price: "0",
+			priceCurrency: "USD",
+			description: FREE_PLAN_STATEMENT,
+		});
 		expect(
-			app.offers.map((offer: StructuredOffer) => ({
+			app.offers.slice(1).map((offer: StructuredOffer) => ({
 				name: offer.name,
 				price: offer.price,
 				priceCurrency: offer.priceCurrency,
@@ -745,9 +784,9 @@ describe("GET / metadata", () => {
 				unitValue: 1,
 			},
 		]);
-		expect(app.offers.map((offer: StructuredOffer) => offer.description)).toEqual([
-			`Full access including TL;DR summaries. ${PRICE_STATEMENT}`,
-			`Full access including TL;DR summaries. ${PRICE_STATEMENT}`,
+		expect(app.offers.slice(1).map((offer: StructuredOffer) => offer.description)).toEqual([
+			UPGRADE_STATEMENT,
+			UPGRADE_STATEMENT,
 		]);
 	});
 
@@ -760,13 +799,14 @@ describe("GET / metadata", () => {
 		const byType = (type: string) => schemas.find((schema: { "@type": string }) => schema["@type"] === type);
 
 		expect(byType("WebSite").description).toBe(
-			`Read what you saved, with an AI TL;DR summary on every article to help you choose. ${PRICE_STATEMENT}`,
+			`Read what you saved, with an AI TL;DR summary on every article to help you choose. ${FREE_PLAN_STATEMENT}`,
 		);
 		expect(byType("WebSite").slogan).toBe(CANONICAL_SLOGAN);
 		expect(byType("Organization").description).toBe(
-			"Readplace is a privacy-first read-it-later app and Pocket alternative. Read what you saved, with an AI TL;DR summary on every article to help you choose.",
+			"Readplace is a free, privacy-first read-it-later app and Pocket alternative. Read what you saved, with an AI TL;DR summary on every article to help you choose.",
 		);
-		expect(byType("WebApplication").description.startsWith("A privacy-first read-it-later app and Pocket alternative.")).toBe(true);
+		expect(byType("WebApplication").description.startsWith("A free, privacy-first read-it-later app and Pocket alternative.")).toBe(true);
+		expect(JSON.stringify(schemas)).not.toContain("#1");
 	});
 
 	it("should include the reader review nested in the WebApplication structured data", async () => {

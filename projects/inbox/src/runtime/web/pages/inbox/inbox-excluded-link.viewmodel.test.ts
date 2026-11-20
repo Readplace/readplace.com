@@ -86,6 +86,15 @@ describe("toInboxExcludedLinkViewModel", () => {
 		expect(build({ link: link({ skipReason: undefined }) }).reasonLabel).toBe("Not an article");
 	});
 
+	it("shows the destination a tracker link carries, on the row and its save button", () => {
+		const vm = build({
+			link: link({ url: "https://click.tracker.test/c?id=42&url=https%3A%2F%2Fdestination.test%2Fpost" }),
+		});
+
+		expect(vm.url).toBe("https://destination.test/post");
+		expect(saveActionOf(vm).ariaLabel).toBe("Save as article: https://destination.test/post");
+	});
+
 	it("offers the save action for a saveable url", () => {
 		const action = saveActionOf(build({}));
 		expect(action.href).toBe(

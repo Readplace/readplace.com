@@ -37,3 +37,15 @@ export function scrollTextAboveCta(input: { root: string; exact: string; cta: st
 	throw new Error(`scrollTextAboveCta found no text node holding "${input.exact}"`);
 }
 
+export function controlsMissedByAHit(input: { editor: string; controls: string }): string[] {
+	const editor = document.querySelector(input.editor);
+	if (!editor) throw new Error(`controlsMissedByAHit needs ${input.editor}`);
+	const controls = Array.from(editor.querySelectorAll(input.controls));
+	if (controls.length === 0) throw new Error(`controlsMissedByAHit needs ${input.controls}`);
+	return controls.flatMap((control) => {
+		const rect = control.getBoundingClientRect();
+		const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+		const name = control.getAttribute("data-test-action") ?? control.tagName.toLowerCase();
+		return hit !== null && control.contains(hit) ? [] : [`${name} hit ${hit === null ? "nothing" : hit.outerHTML.slice(0, 80)}`];
+	});
+}

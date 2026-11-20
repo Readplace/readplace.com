@@ -241,6 +241,7 @@ async function main(): Promise<void> {
 			generateVisitorId: randomUUID,
 			secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),
 			ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
+			appOrigin: requireEnv("APP_ORIGIN"),
 			edgeSecret: requireEnv("SSR_EDGE_SECRET"),
 		},
 	);

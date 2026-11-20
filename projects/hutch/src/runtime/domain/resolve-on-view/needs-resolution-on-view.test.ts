@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import { ANONYMOUS_VIEWER, type GeneratedSummary, type ShownSummary, shownSummary } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { needsResolutionOnView } from "./needs-resolution-on-view";
@@ -5,7 +6,7 @@ import { needsResolutionOnView } from "./needs-resolution-on-view";
 const URL = "https://example.com/post";
 
 function shown(summary: GeneratedSummary): ShownSummary | undefined {
-	return shownSummary({ url: URL, summary, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined });
+	return shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, summary, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined });
 }
 
 function failed(reason: unknown): ArticleCrawl {

@@ -114,9 +114,21 @@ const keepOnlyMeasuredImageBox: sanitizeHtml.Transformer = (tagName, attribs) =>
 	};
 };
 
+const MATHML_TAGS = [
+	"math", "mrow", "mi", "mn", "mo", "mtext", "mspace", "ms", "mfrac", "msqrt", "mroot",
+	"msub", "msup", "msubsup", "munder", "mover", "munderover", "mmultiscripts", "mprescripts",
+	"mtable", "mtr", "mtd", "mstyle", "mpadded", "mphantom", "semantics",
+];
+const MATHML_ATTRIBUTES: sanitizeHtml.AllowedAttribute[] = [
+	{ name: "display", values: ["block", "inline"] },
+	{ name: "mathvariant", values: ["normal"] },
+	{ name: "displaystyle", values: ["true", "false"] },
+];
+
 const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
-	allowedTags: ALLOWED_TAGS,
+	allowedTags: [...ALLOWED_TAGS, ...MATHML_TAGS],
 	allowedAttributes: {
+		...Object.fromEntries(MATHML_TAGS.map((tag) => [tag, MATHML_ATTRIBUTES])),
 		a: ["href", "target", "rel", "title"],
 		img: ["src", "srcset", "sizes", "alt", "width", "height", "loading", READER_IMAGE_SIZE_ATTRIBUTE, "style"],
 		td: ["colspan", "rowspan", READER_CELL_LABEL_ATTRIBUTE],
@@ -147,7 +159,7 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 	allowedSchemes: ["http", "https", "mailto"],
 	allowedSchemesByTag: { img: ["http", "https", "data"] },
 	disallowedTagsMode: "discard",
-	nonTextTags: ["style", "script", "iframe", "noscript", "xmp", "svg", "math"],
+	nonTextTags: ["style", "script", "iframe", "noscript", "xmp", "svg", "annotation", "annotation-xml"],
 	transformTags: {
 		a: (tagName, attribs) =>
 			"href" in attribs

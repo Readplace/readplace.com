@@ -46,7 +46,7 @@ import { initGmailFilters } from "./providers/gmail-api/gmail-filters";
 import { initRevokeGmailGrant } from "./providers/gmail-api/gmail-revoke";
 import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
-import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailSender, initDynamoDbEmailIdentity } from "@packages/inbox-store";
+import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailSender, initDynamoDbGmailHeldMail, initDynamoDbEmailIdentity } from "@packages/inbox-store";
 import {
 	initCountOtherSaversByUrl,
 	initDeleteArticleRow,
@@ -282,6 +282,7 @@ const revokeExternalIdpTokens = initRevokeExternalIdpTokens({
 const gmailConnections = initDynamoDbGmailConnection({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_CONNECTIONS_TABLE, now });
 const gmailCredentials = initDynamoDbGmailCredentials({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_CREDENTIALS_TABLE, now });
 const gmailSenders = initDynamoDbGmailSender({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_SENDERS_TABLE, now });
+const gmailHeldMail = initDynamoDbGmailHeldMail({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_HELD_MAIL_TABLE });
 const gmailDiscovery = initDynamoDbGmailDiscovery({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_DISCOVERY_TABLE, now });
 const gmailHistoryImports = initDynamoDbGmailHistoryImport({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE });
 const gmailMappings = initDynamoDbGmailMapping({ client: dynamoClient, tableName: env.DYNAMODB_GMAIL_MAPPINGS_TABLE, now });
@@ -342,6 +343,8 @@ export const handler = initHandleByDetailType({
 				deleteAllGmailHistoryImports: gmailHistoryImports.deleteAllByUserId,
 				deleteAllGmailMonitoring: gmailMonitoring.deleteAllByUserId,
 				deleteAllGmailMappings: gmailMappings.deleteAllByUserId,
+				listGmailHeldMail: gmailHeldMail.listHeldMailByUserId,
+				deleteAllGmailHeldMail: gmailHeldMail.deleteAllHeldMailByUserId,
 				deleteAllEmailIdentities: emailIdentities.deleteAllByUserId,
 				disconnectGmail,
 				deleteRawEmailObjects,

@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -116,6 +117,10 @@ fun ReaderSheet(
 							loadPhase = it
 							onLoadChanged(it, current.cacheMode)
 						},
+						onReopenFromStoredCopy = {
+							bootstrap = ReaderBootstrap.Offline
+							loadPhase = ReaderLoadPhase.Loading
+						},
 						onMarkedRead = leaving(onMarkedRead),
 						onStatusChanged = onStatusChanged,
 						onCaptureBlocked = onCaptureBlocked,
@@ -152,6 +157,7 @@ private fun Reader(
 	loadPhase: ReaderLoadPhase,
 	reduceMotion: Boolean,
 	onLoadPhaseChange: (ReaderLoadPhase) -> Unit,
+	onReopenFromStoredCopy: () -> Unit,
 	onMarkedRead: () -> Unit,
 	onStatusChanged: () -> Unit,
 	onCaptureBlocked: () -> Deferred<CaptureEnding>,
@@ -164,21 +170,24 @@ private fun Reader(
 ) {
 	val overlay = ReaderLoad.overlay(loadPhase)
 	Box(modifier = modifier) {
-		ReaderWebView(
-			url = url,
-			cookies = cookies,
-			cacheMode = cacheMode,
-			onMarkedRead = onMarkedRead,
-			onStatusChanged = onStatusChanged,
-			onCaptureBlocked = onCaptureBlocked,
-			claimAutomaticCapture = claimAutomaticCapture,
-			onCaptureAvailable = onCaptureAvailable,
-			onClose = onClose,
-			onLogout = onLogout,
-			onOpenExternally = onOpenExternally,
-			onLoadPhaseChange = onLoadPhaseChange,
-			modifier = Modifier.fillMaxSize(),
-		)
+		key(cacheMode) {
+			ReaderWebView(
+				url = url,
+				cookies = cookies,
+				cacheMode = cacheMode,
+				onMarkedRead = onMarkedRead,
+				onStatusChanged = onStatusChanged,
+				onCaptureBlocked = onCaptureBlocked,
+				claimAutomaticCapture = claimAutomaticCapture,
+				onCaptureAvailable = onCaptureAvailable,
+				onClose = onClose,
+				onLogout = onLogout,
+				onOpenExternally = onOpenExternally,
+				onLoadPhaseChange = onLoadPhaseChange,
+				onReopenFromStoredCopy = onReopenFromStoredCopy,
+				modifier = Modifier.fillMaxSize(),
+			)
+		}
 
 		AnimatedVisibility(
 			visible = loadPhase == ReaderLoadPhase.Failed,

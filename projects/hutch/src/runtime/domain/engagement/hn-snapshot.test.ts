@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import { NoSuchKey } from "@aws-sdk/client-s3";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ANONYMOUS_VIEWER, MinutesSchema, validateSaveableUrl, shownSummary, storedArticleBody } from "@packages/domain/article";
@@ -121,7 +122,7 @@ describe("shared HN preparation", () => {
 			status: "pending",
 			startedAt: NOW.toISOString(),
 		});
-		expect(await app.summaries.findGeneratedSummary({ url: "https://publisher.com/30", viewer: ANONYMOUS_VIEWER })).toEqual({
+		expect(await app.summaries.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://publisher.com/30", viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "pending",
 		});
 		expect(await app.findReadySnapshot()).toEqual([]);

@@ -1,71 +1,14 @@
-.highlight-note-editor {
-  display: none;
-  position: fixed;
-  inset: auto;
-  top: auto;
-  bottom: 16px;
-  left: max(16px, calc(50vw - 13rem));
-  margin: 0;
-  padding: 16px;
-  width: min(26rem, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  color: var(--foreground);
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-menu);
-}
-
-@supports selector(:popover-open) {
-  .highlight-note-editor:popover-open {
-    display: block;
-  }
-}
-
-.highlight-note-editor__title {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
-  font-weight: 600;
-  line-height: 1.5;
-  color: var(--foreground);
-}
-
-.highlight-note-editor__quote {
-  display: -webkit-box;
-  margin: 8px 0 0;
-  padding-left: 12px;
-  border-left: 3px solid var(--color-highlight);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  color: var(--muted-foreground);
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-}
-
-.highlight-note-editor__quote:empty {
-  display: none;
-}
-
-.highlight-note-form {
-  display: flex;
+.confirm-popover__actions.highlight-note-form {
   flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  width: 100%;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 18px;
 }
 
-.highlight-note-form__buttons {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap-reverse;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
+.highlight-note-form .confirm-popover__buttons {
+  margin-top: 16px;
 }
 
 .htmx-request.highlight-note-form,
@@ -97,5 +40,15 @@
 
   .highlight-note__fallback {
     display: none;
+  }
+}
+
+@media (scripting: none) {
+  .highlight-note__trigger {
+    display: none;
+  }
+
+  .highlight-note__fallback {
+    display: block;
   }
 }

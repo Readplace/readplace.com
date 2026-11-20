@@ -1,6 +1,9 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { useTestServer, loginAgent } from "../../../test-app";
+import { useTestServer, loginAgent, TEST_EDGE_SECRET } from "../../../test-app";
+import { EDGE_SECRET_HEADER, VIEWER_COUNTRY_HEADER } from "@packages/viewer-identity";
+import { STOREFRONT_COOKIE_NAME } from "../../generated-content-of";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -941,7 +944,7 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready" as const,
 				summary: "Key points from the article distilled into a brief summary.",
 			} });
@@ -1174,7 +1177,7 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "failed" as const,
 				reason: "deepseek timeout",
 			} });
@@ -1252,7 +1255,7 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "skipped" as const,
 				reason: "content-too-short",
 			} });
@@ -1450,7 +1453,7 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready" as const,
 				summary: "Fragment ready summary.",
 			} });
@@ -2363,7 +2366,7 @@ describe("Readlist routes", () => {
 				...fixture,
 				summary: {
 					...fixture.summary,
-					findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: STORED_SUMMARY } }),
+					findGeneratedSummary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: STORED_SUMMARY } }),
 				},
 			});
 			const agent = await loginAgent(harness.server, harness.auth);
@@ -2448,5 +2451,118 @@ describe("Readlist routes", () => {
 			assert(card, "the gated save must still appear in the readlist listing");
 			expect(card.hasAttribute("hx-get")).toBe(false);
 		});
+	});
+});
+
+describe("GET /queue/:id/view for a reader in China mainland", () => {
+	const ARTICLE_URL = "https://example.com/china-withheld-post";
+	const RELATED_URL = "https://example.com/china-withheld-earlier";
+	const SUMMARY_TEXT = "A generated digest that must never reach a China mainland reader.";
+	const SUMMARY_EXCERPT = "A generated lead sentence for the meta description.";
+
+	const CHINA_SIGNALS: { name: string; headers: Record<string, string> }[] = [
+		{ name: "the China storefront cookie", headers: { Cookie: `${STOREFRONT_COOKIE_NAME}=CHN` } },
+		{ name: "a trusted edge stating CN", headers: { [EDGE_SECRET_HEADER]: TEST_EDGE_SECRET, [VIEWER_COUNTRY_HEADER]: "CN" } },
+	];
+
+	function articleHtml(title: string): string {
+		return `<html><head><title>${title}</title></head>
+<body><article>
+	<h1>${title}</h1>
+	<p>This is archived content that should survive the original site going down. Enough text for readability.</p>
+	<p>A second paragraph with more words for the parser to work with properly.</p>
+</article></body></html>`;
+	}
+
+	async function buildHarness(summary: "ready" | "pending") {
+		const crawlArticle = async ({ url }: { url: string }) => ({
+			status: "fetched" as const,
+			html: articleHtml(url === ARTICLE_URL ? "Withheld Post" : "Earlier read"),
+			bodyHash: "a".repeat(64),
+		});
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+		const applyParseResult = createFakeApplyParseResult({
+			articleStore: fixture.articleStore,
+			articleCrawl: fixture.articleCrawl,
+			parseArticle,
+		});
+		const storedSummary = summary === "ready"
+			? { status: "ready" as const, summary: SUMMARY_TEXT, excerpt: SUMMARY_EXCERPT }
+			: { status: "pending" as const };
+		const harness = useApp({
+			...fixture,
+			parser: { parseArticle, crawlArticle },
+			events: { ...fixture.events, publishLinkSaved: createFakePublishLinkSaved(applyParseResult) },
+			summary: {
+				...fixture.summary,
+				findGeneratedSummary: async ({ url, viewer, generatedContent }) => shownSummary({ generatedContent, url, viewer, ownerUserId: undefined, summary: url === ARTICLE_URL ? storedSummary : undefined }),
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const signedInUser = await fixture.auth.findUserByEmail("test@example.com");
+		assert(signedInUser, "loginAgent creates the user it signs in as");
+
+		await agent.post("/queue/save").type("form").send({ url: RELATED_URL });
+		await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
+		const article = await fixture.articleStore.findArticleByUrl(ARTICLE_URL);
+		assert(article, "saving the article must create its row");
+		await fixture.relatedArticles.markRelatedArticlesReady({
+			userId: signedInUser.userId,
+			url: ARTICLE_URL,
+			relatedArticles: [{ url: RELATED_URL, reason: "Same argument" }],
+			inputTokens: 0,
+			outputTokens: 0,
+			at: new Date("2026-06-05T12:00:00.000Z"),
+		});
+		return { agent, articleId: article.id.value, parsedExcerpt: article.metadata.excerpt };
+	}
+
+	it.each(CHINA_SIGNALS)("shows no summary, no summary poll and no Next read under $name", async ({ headers }) => {
+		const { agent, articleId, parsedExcerpt } = await buildHarness("ready");
+
+		const response = await agent.get(`/queue/${articleId}/view`).set(headers);
+
+		expect(response.status).toBe(200);
+		expect(response.text).not.toContain(SUMMARY_TEXT);
+		expect(response.text).not.toContain(SUMMARY_EXCERPT);
+		const doc = new JSDOM(response.text).window.document;
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect([slot.getAttribute("data-summary-status"), slot.hasAttribute("hx-get")]).toEqual(["skipped", false]);
+		expect(doc.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(parsedExcerpt);
+		expect(doc.querySelectorAll("[data-test-related-item]")).toHaveLength(0);
+		expect(doc.querySelector("[data-test-reader-related]")?.hasAttribute("hx-get")).toBe(false);
+	});
+
+	it("still shows the summary and Next read to a reader without a China signal", async () => {
+		const { agent, articleId } = await buildHarness("ready");
+
+		const response = await agent.get(`/queue/${articleId}/view`);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-reader-summary]")?.getAttribute("data-summary-status")).toBe("ready");
+		expect(response.text).toContain(SUMMARY_TEXT);
+		expect(doc.querySelectorAll("[data-test-related-item]").length).toBeGreaterThan(0);
+	});
+
+	it("shows the summary to an untrusted request that states CN without the edge secret", async () => {
+		const { agent, articleId } = await buildHarness("ready");
+
+		const response = await agent.get(`/queue/${articleId}/view`).set(VIEWER_COUNTRY_HEADER, "CN");
+
+		expect(response.text).toContain(SUMMARY_TEXT);
+	});
+
+	it.each(CHINA_SIGNALS)("shows no pending summary indicator under $name", async ({ headers }) => {
+		const { agent, articleId } = await buildHarness("pending");
+
+		const response = await agent.get(`/queue/${articleId}/view`).set(headers);
+
+		const doc = new JSDOM(response.text).window.document;
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect([slot.getAttribute("data-summary-status"), slot.hasAttribute("hx-get")]).toEqual(["skipped", false]);
+		expect(doc.querySelector("[data-test-summary-pending-title]")).toBeNull();
 	});
 });

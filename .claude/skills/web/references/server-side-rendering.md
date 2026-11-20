@@ -81,7 +81,7 @@ The popup body's `outerHTML` swap needs the same scroll-anchoring reset as `<mai
 | Piece | Behaviour | Why |
 |---|---|---|
 | Templates | Each names its placeholder highlight id in a data attribute; the placeholder is a valid highlight id | The shared renderers only accept a real id, and the script swaps the placeholder in every attribute without knowing which attributes hold it |
-| Text | Notes and quotes reach the clones through neutral data hooks, set as text, never as markup | A note is visitor input, and the shared markup gains only those hooks |
+| Text | Notes reach the clones through a neutral data hook, set as text, never as markup | A note is visitor input, and the shared markup gains only those hooks |
 | Forms | Every note, delete-note and delete form is `method="dialog"`, naming its action and highlight in data attributes, with no `action` | Nothing is sent; the script runs the form in the bubble phase, after the actions panel's capture-phase listener has recorded where focus returns |
 | Redraws | The script redraws after a settle only when the article's text, its drawn marks or the kept highlights changed, and announces each redraw with the event the preview and panel scripts already listen for | A pending summary polls every few seconds, and an unconditional redraw would wipe half-typed notes and close an open popup |
 | No popover support | The list keeps an immediate delete beside the confirm trigger, flipped by the list's own classes | The same fallback the reader's list uses |

@@ -7,17 +7,17 @@ import { renderHighlightsRail } from "../highlights-rail/highlights-rail.compone
 import { renderReaderReady } from "../reader-slot/reader-ready.component";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../reader-slot/section-pages";
 import {
+	renderHighlightNoteCreateForm,
+	renderHighlightNoteEditDialog,
+	renderHighlightNoteFallbackForm,
+} from "./highlight-note-dialog.component";
+import {
 	HIGHLIGHT_SELECTION_EVENT,
 	initHighlightToolbar,
 	POINTER_SETTLE_MS,
 	SELECTION_DEBOUNCE_MS,
 	type ToolbarRect,
 } from "./highlight-toolbar.client";
-import {
-	renderHighlightNoteCreateForm,
-	renderHighlightNoteEditDialog,
-	renderHighlightNoteFallbackForm,
-} from "./highlight-note-dialog.component";
 import {
 	ARTICLE_HIGHLIGHT_CLASS,
 	HIGHLIGHT_NOTE_CREATE_HIDDEN_FIELDS,
@@ -57,7 +57,7 @@ function railHtml(): string {
 
 function rowNoteFormsHtml(): string {
 	const scope = { articleId: "abc", readlist: [], surface: [] };
-	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", quote: "beta", target: { kind: "server", scope } })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", scope, open: false })}</details>`;
+	return `${renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "Row note", target: { kind: "server", scope } })}<details class="highlight-note__fallback">${renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "Row note", scope, open: false })}</details>`;
 }
 
 function notedBeta(): Highlight {
@@ -94,7 +94,6 @@ function mainHtml(
 }
 
 interface Harness {
-	isOpenEditor: boolean;
 	doc: Document;
 	window: DOMWindow;
 	runTimer(delayMs: number): void;
@@ -116,6 +115,7 @@ interface Harness {
 	shownPopovers: Element[];
 	hiddenPopovers: Element[];
 	beacons: string[];
+	order: string[];
 	initAgain(): void;
 	listenerCounts(): { viewport: number; scroll: number };
 }
@@ -133,7 +133,6 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		submitted.push(this);
 	};
 	const h: Harness = {
-		isOpenEditor: false,
 		doc,
 		window: dom.window,
 		runTimer(delayMs) {
@@ -163,6 +162,7 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		shownPopovers: [],
 		hiddenPopovers: [],
 		beacons: [],
+		order: [],
 		coarse: false,
 		scrollWindow() {
 			for (const entry of scrollListeners) if (entry.passive) entry.listener();
@@ -192,7 +192,9 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 			matchMedia: (query) => ({
 				matches: query === "(pointer: coarse)" ? h.coarse : query === "(hover: hover)" && !h.coarse,
 			}),
-			addEventListener: (_type, listener, options) => scrollListeners.push({ listener, passive: options.passive }),
+			addEventListener: (_type, listener, options) =>
+				scrollListeners.push({ listener, passive: options.passive }),
+			scrollBy: () => undefined,
 		},
 		timers: {
 			setTimeout: (callback, delayMs) => {
@@ -207,11 +209,18 @@ function harness(bodyHtml: string = mainHtml()): Harness {
 		rectsOf: () => h.rects,
 		isPopoverOpen: () => false,
 		supportsPopover: () => h.popoverSupported,
-		showPopover: (panel) => h.shownPopovers.push(panel),
+		showPopover: (panel) => {
+			h.order.push("show");
+			h.shownPopovers.push(panel);
+		},
 		hidePopover: (panel) => h.hiddenPopovers.push(panel),
-		isOpen: (popover) => h.isOpenEditor && popover.hasAttribute("data-highlight-note-editor"),
+		isOpen: () => false,
 		isFocusVisible: () => true,
 		sendBeacon: (url) => h.beacons.push(url),
+		isAutoPopoverOpen: () => false,
+		paintDraft: () => h.order.push("paint"),
+		clearDraft: () => h.order.push("clear"),
+		chromeBottom: () => 0,
 	};
 	initHighlightToolbar(deps);
 	const toolbar = doc.querySelector("[data-test-highlight-toolbar]");
@@ -417,12 +426,14 @@ describe("initHighlightToolbar", () => {
 
 	it("binds only once when the bundle footer runs again", () => {
 		const h = harness();
-		expect(h.doc.documentElement.hasAttribute("data-highlight-toolbar-owned")).toBe(true);
-		expect(h.listenerCounts()).toEqual({ viewport: 3, scroll: 1 });
+		expect(
+			h.doc.documentElement.hasAttribute("data-highlight-toolbar-owned"),
+		).toBe(true);
+		expect(h.listenerCounts()).toEqual({ viewport: 4, scroll: 1 });
 
 		h.initAgain();
 
-		expect(h.listenerCounts()).toEqual({ viewport: 3, scroll: 1 });
+		expect(h.listenerCounts()).toEqual({ viewport: 4, scroll: 1 });
 		selectWords(h, { from: "beta" });
 		settleSelection(h);
 		click(h, buttonOf(h));
@@ -842,6 +853,9 @@ describe("initHighlightToolbar", () => {
 		}
 
 		function addNoteOn(h: Harness, word: string): void {
+			noteDialogOf(h).dispatchEvent(
+				Object.assign(new h.window.Event("toggle"), { newState: "closed" }),
+			);
 			selectWords(h, { from: word });
 			settleSelection(h);
 			click(h, addNoteOf(h));
@@ -871,38 +885,41 @@ describe("initHighlightToolbar", () => {
 			expect(h.submitted).toHaveLength(0);
 		});
 
-		it("quotes the selected passage in the note editor and places the editor by the selection", () => {
+		it("tints the passage before it opens the dialog, and places the dialog before Add note returns", () => {
 			const h = harness();
-			h.rects = [{ top: 100, bottom: 120, left: 400, width: 200 }];
-			const dialog = noteDialogOf(h);
-			Object.defineProperty(dialog, "getBoundingClientRect", { value: () => ({ width: 400, height: 200 }), configurable: true });
 
 			addNoteOn(h, "beta");
-			dialog.dispatchEvent(Object.assign(new h.window.Event("beforetoggle"), { newState: "open" }));
-			h.isOpenEditor = true;
-			h.runFrames();
 
-			const quote = dialog.querySelector("[data-highlight-note-quote]");
+			const dialog = noteDialogOf(h);
 			assert(dialog instanceof h.window.HTMLElement);
-			expect(quote?.textContent).toBe("beta");
-			expect({ top: dialog.style.top, left: dialog.style.left }).toEqual({ top: "130px", left: "300px" });
+			expect({
+				order: h.order,
+				bottom: dialog.style.bottom,
+				right: dialog.style.right,
+			}).toEqual({
+				order: ["paint", "show"],
+				bottom: "auto",
+				right: "auto",
+			});
 		});
 
-		it("keeps the note previews quiet while a note editor is open", () => {
-			const h = harness(mainHtml({ noted: true }));
-			const mark = h.doc.querySelector(`mark#highlight-${HIGHLIGHT_ID}`);
-			const preview = h.doc.querySelector(`#preview-highlight-${HIGHLIGHT_ID}`);
-			assert(mark && preview);
-			addNoteOn(h, "Delta");
-			noteDialogOf(h).dispatchEvent(Object.assign(new h.window.Event("beforetoggle"), { newState: "open" }));
-			h.isOpenEditor = true;
+		it("shows no bar for a new selection while the note editor is open", () => {
+			const h = harness();
+			addNoteOn(h, "beta");
 
-			mark.dispatchEvent(new h.window.FocusEvent("focusin", { bubbles: true }));
-			expect(h.shownPopovers).not.toContain(preview);
+			selectWords(h, { from: "zeta" });
+			settleSelection(h);
 
-			h.isOpenEditor = false;
-			mark.dispatchEvent(new h.window.FocusEvent("focusin", { bubbles: true }));
-			expect(h.shownPopovers).toContain(preview);
+			expect(toolbarOf(h).hidden).toBe(true);
+		});
+
+		it("sends no opened beacon for a mark clicked while the note editor is open", () => {
+			const h = harness(mainHtml({ marks: true }));
+			addNoteOn(h, "zeta");
+
+			click(h, markWord(h, "beta"));
+
+			expect(h.beacons).toEqual([]);
 		});
 
 		it("submits the create form with after=note without popover support, opening no dialog and hiding the bar", () => {

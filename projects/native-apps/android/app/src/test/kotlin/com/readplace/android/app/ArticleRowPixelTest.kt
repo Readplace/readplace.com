@@ -51,6 +51,7 @@ class ArticleRowPixelTest {
 				article = unread,
 				clock = Clock.fixed(Instant.parse("2026-11-12T00:00:00Z"), ZoneOffset.UTC),
 				processingReceivedAt = null,
+				isAvailableOffline = false,
 				onOpen = {},
 			)
 		}

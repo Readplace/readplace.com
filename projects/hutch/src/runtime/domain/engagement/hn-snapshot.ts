@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ANONYMOUS_VIEWER, isNonArticleHost, type ValidateSaveableUrl } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, GENERATED_CONTENT_OUTSIDE_A_REQUEST, isNonArticleHost, type ValidateSaveableUrl } from "@packages/domain/article";
 import type { FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
 import type { FindArticleByUrl, ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -151,7 +151,7 @@ export function initHnSnapshot(deps: {
 				try {
 					const [crawl, summary, content] = await Promise.all([
 						deps.findArticleCrawlStatus(url),
-						deps.findGeneratedSummary({ url, viewer: ANONYMOUS_VIEWER }),
+						deps.findGeneratedSummary({ url, viewer: ANONYMOUS_VIEWER, generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST }),
 						article?.readerAvailableAt === undefined
 							? Promise.resolve(undefined)
 							: deps.readArticleContent({ url, viewer: ANONYMOUS_VIEWER }),

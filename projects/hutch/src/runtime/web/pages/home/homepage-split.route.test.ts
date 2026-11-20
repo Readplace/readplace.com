@@ -3,7 +3,7 @@ import { parseHTML } from "linkedom";
 import request from "supertest";
 import { createDefaultTestAppFixture, TEST_APP_ORIGIN } from "@packages/test-fixtures";
 import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../../test-app";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FIRST_DAYS_STATEMENT, FREE_PLAN_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 
 const useArmB = useTestServer({ drawRandomByte: () => 0 });
 const useArmC = useTestServer({ drawRandomByte: () => 255 });
@@ -27,11 +27,11 @@ describe("homepage split assignment", () => {
 		const cookies = cookiesFrom(response);
 		const assignment = cookies.find((cookie) => cookie.startsWith("hutch_exp="));
 		assert(assignment);
-		expect(assignment.split(";")[0]).toBe("hutch_exp=homepage-ai-cost%3A2%3Avariant-f");
+		expect(assignment.split(";")[0]).toBe("hutch_exp=homepage-ai-cost%3A3%3Avariant-f");
 		expect(harness.analytics.events).toContainEqual(expect.objectContaining({
 			event: "pageview",
 			path: "/",
-			experiment: "homepage-ai-cost-e2",
+			experiment: "homepage-ai-cost-e3",
 			experiment_variant: "variant-f",
 		}));
 	});
@@ -42,23 +42,25 @@ describe("homepage split assignment", () => {
 		const { document } = parseHTML(response.text);
 
 		expect(document.querySelector(".home-compare__reassurance")?.textContent).toBe(
-			`${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			`${FREE_PLAN_STATEMENT} ${FIRST_DAYS_STATEMENT}`,
 		);
 		expect(document.querySelector('[data-test-section="compare"] h2')?.textContent).toBe(
 			"Your reading list for $5 a month, billed yearly — not $200 a month.",
 		);
 		expect(Array.from(document.querySelectorAll("[data-test-plan]"), (plan) => plan.getAttribute("data-test-plan")))
-			.toEqual(["monthly", "yearly"]);
+			.toEqual(["free", "monthly", "yearly"]);
 		const saves = document.querySelector('[data-test-section="pricing"] [data-test-saves-stay]');
 		assert(saves, "arm B's pricing section must say what happens to saves");
 		expect(saves.textContent).toBe(SAVES_STAY_STATEMENT);
-		expect(saves.previousElementSibling?.textContent).toBe(PRICE_STATEMENT);
+		expect(saves.previousElementSibling?.textContent).toBe(
+			"Free within daily limits, with no card. Or upgrade for $60 a year ($5 a month, billed yearly) or $10 a month.",
+		);
 	});
 
 	it("keeps a returning visitor in arm C when a fresh draw would select arm B", async () => {
 		const harness = useArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS)
-			.set("Cookie", "hutch_exp=homepage-ai-cost%3A2%3Avariant-f");
+			.set("Cookie", "hutch_exp=homepage-ai-cost%3A3%3Avariant-f");
 		const { document } = parseHTML(response.text);
 
 		expect(response.status).toBe(200);
@@ -69,7 +71,7 @@ describe("homepage split assignment", () => {
 		}));
 	});
 
-	it.each(["homepage-split:3:variant-b", "homepage-ai-cost:0:variant-c", "homepage-ai-cost:1:variant-c", "homepage-ai-cost:1:variant-d"])(
+	it.each(["homepage-split:3:variant-b", "homepage-ai-cost:0:variant-c", "homepage-ai-cost:1:variant-c", "homepage-ai-cost:1:variant-d", "homepage-ai-cost:2:variant-f"])(
 		"reassigns a visitor carrying the retired assignment %s", async (previousAssignment) => {
 			const harness = useArmC(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS)
@@ -80,7 +82,7 @@ describe("homepage split assignment", () => {
 			expect(Array.from(document.body.classList).filter((name) => name === "page-home" || name.startsWith("variant-")))
 				.toEqual(["page-home", "variant-c"]);
 			expect(harness.analytics.events).toContainEqual(expect.objectContaining({
-				experiment: "homepage-ai-cost-e2",
+				experiment: "homepage-ai-cost-e3",
 				experiment_variant: "variant-f",
 			}));
 		},
@@ -90,7 +92,7 @@ describe("homepage split assignment", () => {
 		const harness = useArmC(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS)
 			.set("User-Agent", "Googlebot/2.1 (+http://www.google.com/bot.html)")
-			.set("Cookie", "hutch_exp=homepage-ai-cost%3A2%3Avariant-f");
+			.set("Cookie", "hutch_exp=homepage-ai-cost%3A3%3Avariant-f");
 		const { document } = parseHTML(response.text);
 
 		expect(response.status).toBe(200);
@@ -105,7 +107,7 @@ describe("homepage split assignment", () => {
 		const harness = useArmC(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS)
 			.set("Accept", "text/markdown")
-			.set("Cookie", "hutch_exp=homepage-ai-cost%3A2%3Avariant-f");
+			.set("Cookie", "hutch_exp=homepage-ai-cost%3A3%3Avariant-f");
 
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toContain("text/markdown");

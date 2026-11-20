@@ -9,6 +9,7 @@ import {
 	createFakePublishLinkSaved,
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
+	createFakeSummaryProvider,
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
@@ -16,7 +17,7 @@ import { initReadabilityParser, readabilityAdditions } from "@packages/article-p
 import { MinutesSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { createAccessToken } from "../../test-helpers/oauth-token";
+import { createAccessToken, saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 import { EXTENSION_READLIST_PAGE_SIZE } from "./readlist-page-size";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type { FindArticlesQuery } from "@packages/provider-contracts/article-store";
@@ -652,4 +653,68 @@ describe("Readlist routes", () => {
 		});
 	});
 
+});
+
+describe("GET /queue for a reader in China mainland", () => {
+	async function listedWithReadySummary() {
+		const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
+		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary });
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "the logged-in user must exist");
+		const url = "https://example.com/listing-withheld";
+		await harness.articleStore.saveArticle({
+			userId: user.userId,
+			url,
+			metadata: { title: "Withheld", siteName: "example.com", excerpt: "Parsed blurb.", wordCount: 3 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
+		});
+		await harness.articleStore.writeContent({ url, content: "<p>Body copy.</p>" });
+		await harness.articleCrawl.markCrawlReady({ url });
+		summary.markSummaryReady({ url, summary: "Deep work protects the hours that matter.", excerpt: "Generated blurb." });
+		return { harness, agent, userId: user.userId };
+	}
+
+	async function cardExcerpts(storefrontCookie: string): Promise<(string | null)[]> {
+		const { agent } = await listedWithReadySummary();
+
+		const response = await agent.get("/queue").set("Cookie", `readplace_storefront=${storefrontCookie}`);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		return Array.from(doc.querySelectorAll("[data-test-article-excerpt]"), (excerpt) => excerpt.textContent);
+	}
+
+	it("shows the parsed excerpt, not the summary's, for the China storefront cookie", async () => {
+		expect(await cardExcerpts("CHN")).toEqual(["Parsed blurb."]);
+	});
+
+	it("shows the summary's excerpt for another storefront's cookie", async () => {
+		expect(await cardExcerpts("AUS")).toEqual(["Generated blurb."]);
+	});
+
+	it("gives a Siren article another contentVersion for the China storefront header", async () => {
+		const { harness, userId } = await listedWithReadySummary();
+		const token = await saveAccessTokenForUser(harness, userId);
+		const sirenList = (headers: Record<string, string>) =>
+			request(harness.server)
+				.get("/queue")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.set(headers);
+
+		const shown = await sirenList({});
+		const withheld = await sirenList({ "x-readplace-storefront": "CHN" });
+
+		expect(shown.status).toBe(200);
+		expect(withheld.status).toBe(200);
+		const [shownArticle] = shown.body.entities;
+		const [withheldArticle] = withheld.body.entities;
+		expect(withheldArticle.properties.id).toBe(shownArticle.properties.id);
+		expect(withheldArticle.properties.contentVersion).toMatch(/^[0-9a-f]{16}$/);
+		expect(withheldArticle.properties.contentVersion).not.toBe(shownArticle.properties.contentVersion);
+	});
 });

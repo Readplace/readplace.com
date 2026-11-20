@@ -68,6 +68,19 @@ describe("computeInboxLinkCardEtag", () => {
 		expect(tracker).not.toBe(destination);
 	});
 
+	it("changes when the card moves from the destination a tracker carries to where the crawl landed", () => {
+		const url = "https://click.tracker.test/c?url=https%3A%2F%2Fdestination.test%2Fa";
+		const decoded = computeInboxLinkCardEtag({ link: link({ status: "failed", url }), saveState: undefined, savedDestination: undefined, fit: [] });
+		const resolved = computeInboxLinkCardEtag({ link: link({ status: "failed", url, resolvedUrl: "https://landed.test/a" }), saveState: undefined, savedDestination: undefined, fit: [] });
+		expect(decoded).not.toBe(resolved);
+	});
+
+	it("changes when a tracker's decoded destination changes", () => {
+		const a = computeInboxLinkCardEtag({ link: link({ url: "https://click.tracker.test/c?url=https%3A%2F%2Fdestination.test%2Fa" }), saveState: undefined, savedDestination: undefined, fit: [] });
+		const b = computeInboxLinkCardEtag({ link: link({ url: "https://click.tracker.test/c?url=https%3A%2F%2Fdestination.test%2Fb" }), saveState: undefined, savedDestination: undefined, fit: [] });
+		expect(a).not.toBe(b);
+	});
+
 	it("changes when only the save state changes", () => {
 		const unsaved = computeInboxLinkCardEtag({ link: link(), saveState: undefined, savedDestination: undefined, fit: [] });
 		const saved = computeInboxLinkCardEtag({ link: link(), saveState: "saved", savedDestination: undefined, fit: [] });

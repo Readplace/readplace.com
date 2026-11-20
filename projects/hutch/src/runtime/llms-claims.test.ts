@@ -6,7 +6,7 @@ import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
 import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { BOOK, VIDEO } from "@packages/media-contracts";
 import { LANDING_PAGE_CONTENT } from "./web/pages/landing-pages";
-import { PRICE_STATEMENT } from "./web/price-statement";
+import { FREE_PRICE_STATEMENT } from "./web/price-statement";
 
 const FILES = {
 	"llms.txt": readFileSync(join(__dirname, "llms.txt"), "utf-8"),
@@ -20,7 +20,7 @@ const AMOUNTS_BY_FILE: Record<keyof typeof FILES, readonly string[]> = {
 
 describe("llms files", () => {
 	it.each(FILE_NAMES)("%s states the price and quotes only its known dollar amounts", (name) => {
-		expect(FILES[name]).toContain(PRICE_STATEMENT);
+		expect(FILES[name]).toContain(FREE_PRICE_STATEMENT);
 		expect([...new Set(FILES[name].match(/\$\d+(?:\.\d+)?/g))].sort()).toEqual(AMOUNTS_BY_FILE[name]);
 	});
 
@@ -68,6 +68,18 @@ describe("llms files", () => {
 
 	it("llms-full.txt says what newsletters send to an AI provider in both privacy passages", () => {
 		const sentence = "For newsletters, each issue's subject, sender, link addresses and link text are sent to an AI provider to tell articles from ads and menus, and, for a readlist you described, what you wrote and the articles you kept in it or took out of it are sent with them to choose which fit.";
+
+		expect(FILES["llms-full.txt"].split(sentence).length - 1).toBe(2);
+	});
+
+	it("llms-full.txt says what Next read and Already read send to an AI provider in both privacy passages", () => {
+		const sentence = "To suggest what to read next and what you have already read on the same subject, the title, site and description of an article you save and of your earlier saves, read and unread, are sent to an AI provider to choose which relate and say why.";
+
+		expect(FILES["llms-full.txt"].split(sentence).length - 1).toBe(2);
+	});
+
+	it("llms-full.txt says AWS may keep uploaded audio and video in both privacy passages", () => {
+		const sentence = "Audio and video files you upload are transcribed by AWS, which may keep them to improve its services and may store them outside Sydney.";
 
 		expect(FILES["llms-full.txt"].split(sentence).length - 1).toBe(2);
 	});

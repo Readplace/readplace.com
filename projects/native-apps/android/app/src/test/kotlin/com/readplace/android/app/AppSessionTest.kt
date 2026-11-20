@@ -8,9 +8,12 @@ import com.readplace.android.core.AppConfig
 import com.readplace.android.core.AuthFlowError
 import com.readplace.android.core.AuthorizationRequest
 import com.readplace.android.core.DiscoveryHttpCache
+import com.readplace.android.core.DownloadedVersions
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthError
 import com.readplace.android.core.OAuthTokens
+import com.readplace.android.core.OfflineDownloadManifest
+import com.readplace.android.core.OfflineDownloadRun
 import com.readplace.android.core.OfflineReadlistSnapshot
 import com.readplace.android.core.Pkce
 import com.readplace.android.core.PurgeableUploadQueue
@@ -541,6 +544,40 @@ class AppSessionTest {
 		session.logout()
 
 		assertEquals(listOf(true, false), listOf(existedBefore, offlineFiles.exists()))
+	}
+
+	@Test
+	fun `after logout the download manifest on the offline reading files loads empty`() = runTest {
+		serveSignOut()
+		val offlineFiles = folder.newFolder()
+		val manifest = OfflineDownloadManifest(offlineFiles, StandardTestDispatcher(testScheduler))
+		manifest.recordDownloaded(articleId = "a1", contentVersion = "v1")
+		val session = session(store = loggedInStore(), offlineFiles = offlineFiles)
+		val beforeLogout = manifest.versions.value
+
+		session.logout()
+		manifest.load()
+
+		assertEquals(
+			listOf(DownloadedVersions(mapOf("a1" to "v1")), DownloadedVersions(emptyMap())),
+			listOf(beforeLogout, manifest.versions.value),
+		)
+	}
+
+	@Test
+	fun `forceLogout leaves no interrupted download to continue`() = runTest {
+		val offlineFiles = folder.newFolder()
+		val manifest = OfflineDownloadManifest(offlineFiles, StandardTestDispatcher(testScheduler))
+		manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1))
+		val session = session(store = loggedInStore(), offlineFiles = offlineFiles)
+		val beforeSignOut = manifest.incompleteRun()
+
+		session.forceLogout().join()
+
+		assertEquals(
+			listOf(OfflineDownloadRun(total = 2, completed = 1), null),
+			listOf(beforeSignOut, manifest.incompleteRun()),
+		)
 	}
 
 	@Test

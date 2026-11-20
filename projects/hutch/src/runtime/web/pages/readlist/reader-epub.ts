@@ -1,3 +1,4 @@
+import { generatedContentOf } from "../../generated-content-of";
 import type { NextFunction, Request, Response } from "express";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { offersEpubDownload, viewerFor } from "@packages/domain/article";
@@ -50,7 +51,7 @@ export function initOwnerArticleEpub(deps: OwnerArticleEpubDeps) {
 		}
 
 		const [summary, rows, snapshot] = await Promise.all([
-			deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId) }),
+			deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId), generatedContent: generatedContentOf(req) }),
 			deps.listArticleHighlights({ userId, url: ArticleResourceUniqueId.parse(article.url).value }),
 			deps.readCanonicalSnapshot(article.url),
 		]);

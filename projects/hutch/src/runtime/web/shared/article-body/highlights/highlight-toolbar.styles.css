@@ -10,6 +10,13 @@
   box-decoration-break: clone;
 }
 
+::highlight(highlight-note-draft) {
+  background-color: light-dark(
+    color-mix(in srgb, var(--color-highlight) 25%, transparent),
+    color-mix(in srgb, var(--color-highlight) 30%, transparent)
+  );
+}
+
 .article-highlight--note-end::after {
   content: "\2060";
   padding-inline-start: 1.5em;

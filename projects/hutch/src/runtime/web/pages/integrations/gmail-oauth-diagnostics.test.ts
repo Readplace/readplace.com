@@ -6,7 +6,7 @@ import { useLoopbackServer } from "@packages/web-test-harness";
 import { z } from "zod";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { GmailDiagnosticEvent } from "../../../observability/gmail-diagnostics";
-import { signState, verifyState } from "../../auth/oauth-state";
+import { signState } from "../../auth/oauth-state";
 import {
 	fingerprintGmailOAuthState,
 	initGmailOAuthTrace,
@@ -124,6 +124,7 @@ describe("initReadGmailOAuthState", () => {
 		["has no signature separator", "forged-state"],
 		["was signed with another secret", signState({ payload: JSON.stringify({ nonce: "n", createdAt: NOW_MS, intent: { kind: "connect" } }), secret: "another-secret" })],
 		["carries a tampered signature", "tampered.signature"],
+		["carries a non-ASCII signature", nonAsciiSignature(issuedState({ ageMs: 0 }))],
 	])("reports a state that %s as an invalid signature without reading its payload", (_label, state) => {
 		expect(toGmailOAuthStateInspection(readStateNow(state))).toEqual({
 			present: true,
@@ -134,14 +135,6 @@ describe("initReadGmailOAuthState", () => {
 			ageMs: undefined,
 			intentKind: undefined,
 		});
-	});
-
-	it("reports a state whose non-ASCII signature makes verification throw as an invalid signature instead of throwing", () => {
-		const state = nonAsciiSignature(issuedState({ ageMs: 0 }));
-		assert.throws(() => verifyState({ signed: state, secret: SECRET }), { name: "RangeError", code: "ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH" });
-
-		expect(readStateNow(state)).toEqual({ kind: "verification-threw", fingerprint: sha256(state) });
-		expect(toGmailOAuthStateInspection(readStateNow(state))).toMatchObject({ present: true, signatureValid: false, payload: undefined });
 	});
 
 	it("tells a signed payload that is not JSON apart from one the schema rejects", () => {
@@ -170,9 +163,6 @@ describe("inspectGmailOAuthCallback", () => {
 		const notJson = signState({ payload: "not-json", secret: SECRET });
 
 		expect(inspectCallback({ query: { error: "access_denied" }, stateCookie: notJson }).decision).toBe("invalid-payload");
-		expect(inspectCallback({ query: { error: "access_denied" }, stateCookie: nonAsciiSignature(issuedState({ ageMs: 0 })) }).decision).toBe(
-			"invalid-signature",
-		);
 	});
 
 	it("reports a cancelled consent as a provider error before any state check", () => {

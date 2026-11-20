@@ -768,7 +768,7 @@ describe("Apple auth routes", () => {
 					`hutch_click=${encodeURIComponent(attributionCookie)}`,
 					`hutch_vid=${TEST_VISITOR_ID}`,
 					`hutch_psid=${TEST_PENDING_SAVE_ID}`,
-					"hutch_exp=homepage-ai-cost%3A2%3Avariant-f",
+					"hutch_exp=homepage-ai-cost%3A3%3Avariant-f",
 				]);
 
 			expect(getResponse.status).toBe(303);

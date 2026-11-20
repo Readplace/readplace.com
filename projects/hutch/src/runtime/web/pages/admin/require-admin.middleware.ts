@@ -28,8 +28,9 @@ export interface RequireAdminDeps {
 }
 
 function constantTimeEquals(a: string, b: string): boolean {
-	if (a.length !== b.length) return false;
-	return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+	const aBytes = Buffer.from(a);
+	const bBytes = Buffer.from(b);
+	return aBytes.length === bBytes.length && timingSafeEqual(aBytes, bBytes);
 }
 
 export async function findAllowlistedAdminEmail(deps: {

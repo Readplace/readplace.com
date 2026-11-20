@@ -6,6 +6,7 @@ import { z } from "zod";
 import { APP_BACK_LINK } from "../runtime/web/shared/native-app-links";
 import { noteGlyphStyle } from "./highlight-note-glyph.browser";
 import { pointInsideText, selectedText } from "./highlight-on-a-phone.browser";
+import { measureNoteEditor } from "./note-editor-placement.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -94,6 +95,15 @@ test.describe("Highlighting a passage inside the Android app's reader", () => {
 		await expect(page.locator(SHOWN_TOOLBAR)).toHaveCount(1, { timeout: SETTLE_MS });
 
 		await page.locator('[data-test-action="add-note"]').tap();
+		await expect(page.locator("#note-highlight-dialog:popover-open")).toHaveCount(1, { timeout: SETTLE_MS });
+		const measured = await page.evaluate(measureNoteEditor, {
+			panel: "#note-highlight-dialog:popover-open",
+			passage: null,
+		});
+		expect(measured.miss).toBe(true);
+		expect(measured.chromeBottom).toBeGreaterThan(0);
+		expect(measured.firstLine.top).toBeGreaterThanOrEqual(measured.chromeBottom);
+		expect(measured.panel.top).toBeGreaterThanOrEqual(measured.chromeBottom);
 		await page.locator("[data-test-highlight-note-input]").fill("Worth coming back to.");
 		await page.locator('[data-test-action="highlight-note-save"]').tap();
 

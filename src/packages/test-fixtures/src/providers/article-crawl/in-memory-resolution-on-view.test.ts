@@ -1,4 +1,4 @@
-import { ANONYMOUS_VIEWER, viewerFor } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, GENERATED_CONTENT_OUTSIDE_A_REQUEST, viewerFor } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryGeneratedSummary } from "../article-summary/in-memory-generated-summary";
 import { initInMemoryArticleCrawl } from "./in-memory-article-crawl";
@@ -31,7 +31,7 @@ describe("initInMemoryClaimResolutionOnView", () => {
 			await mark(crawl);
 			await summary.markSummarySkipped({ url: URL, reason: "awaiting-reader" });
 
-			const result = await claim({ url: URL, axes: "crawl-and-summary", viewer: viewerFor(OWNER) });
+			const result = await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "crawl-and-summary", viewer: viewerFor(OWNER) });
 
 			expect(result).toEqual({ kind: "claimed", crawl: { status: "pending", startedAt: NOW, resolutionOnViewClaimedAt: NOW }, summary: { status: "pending" } });
 			expect(crawl.isMeteredLegsDeferred(URL)).toBe(false);
@@ -42,8 +42,8 @@ describe("initInMemoryClaimResolutionOnView", () => {
 			await crawl.markCrawlFailed({ url: URL, reason: "blocked" });
 
 			const results = await Promise.all([
-				claim({ url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER }),
-				claim({ url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER }),
+				claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER }),
+				claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER }),
 			]);
 
 			expect(results.map((r) => r.kind)).toEqual(["claimed", "not-eligible"]);
@@ -52,23 +52,23 @@ describe("initInMemoryClaimResolutionOnView", () => {
 		it("refuses a second claim within the cool-down after the row failed again", async () => {
 			const { crawl, claim, advance } = setup();
 			await crawl.markCrawlFailed({ url: URL, reason: "blocked" });
-			await claim({ url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
+			await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
 			await crawl.forceMarkCrawlPending({ url: URL });
 			await crawl.markCrawlFailed({ url: URL, reason: "blocked" });
 			advance(24 * HOUR_MS - 60 * 1000);
 
-			expect(await claim({ url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER })).toEqual({ kind: "not-eligible" });
+			expect(await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER })).toEqual({ kind: "not-eligible" });
 		});
 
 		it("claims again once the cool-down has passed", async () => {
 			const { crawl, claim, advance } = setup();
 			await crawl.markCrawlFailed({ url: URL, reason: "blocked" });
-			await claim({ url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
+			await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
 			await crawl.forceMarkCrawlPending({ url: URL });
 			await crawl.markCrawlFailed({ url: URL, reason: "blocked" });
 			advance(24 * HOUR_MS + 1);
 
-			const result = await claim({ url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
+			const result = await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
 
 			expect(result.kind).toBe("claimed");
 			expect(result.kind === "claimed" && result.crawl.resolutionOnViewClaimedAt).toBe("2026-11-06T12:00:00.001Z");
@@ -78,7 +78,7 @@ describe("initInMemoryClaimResolutionOnView", () => {
 			const { crawl, claim } = setup();
 			await crawl.markCrawlReady({ url: URL });
 
-			expect(await claim({ url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER })).toEqual({ kind: "not-eligible" });
+			expect(await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER })).toEqual({ kind: "not-eligible" });
 		});
 	});
 
@@ -93,7 +93,7 @@ describe("initInMemoryClaimResolutionOnView", () => {
 			await crawl.markCrawlReady({ url: URL });
 			await mark(summary);
 
-			const result = await claim({ url: URL, axes: "summary", viewer: viewerFor(OWNER) });
+			const result = await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "summary", viewer: viewerFor(OWNER) });
 
 			expect(result).toEqual({ kind: "claimed", crawl: { status: "ready", resolutionOnViewClaimedAt: NOW }, summary: { status: "pending" } });
 			expect(crawl.isMeteredLegsDeferred(URL)).toBe(false);
@@ -107,7 +107,7 @@ describe("initInMemoryClaimResolutionOnView", () => {
 			await crawl.markCrawlReady({ url: privateUrl });
 			await summary.markSummarySkipped({ url: privateUrl, reason: "ai-unavailable" });
 
-			const result = await claim({ url: privateUrl, axes: "summary", viewer: viewerFor(UserIdSchema.parse("someone-else")) });
+			const result = await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: privateUrl, axes: "summary", viewer: viewerFor(UserIdSchema.parse("someone-else")) });
 
 			expect(result).toEqual({ kind: "claimed", crawl: { status: "ready", resolutionOnViewClaimedAt: NOW }, summary: { status: "skipped" } });
 			expect(summary.summaryStateOf(privateUrl)).toEqual({ status: "pending" });
@@ -117,11 +117,11 @@ describe("initInMemoryClaimResolutionOnView", () => {
 			const { crawl, summary, claim, advance } = setup();
 			await crawl.markCrawlReady({ url: URL });
 			await summary.markSummaryFailed({ url: URL, reason: "deepseek-call-failed" });
-			await claim({ url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER });
+			await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER });
 			await summary.markSummaryFailed({ url: URL, reason: "deepseek-call-failed" });
 			advance(HOUR_MS);
 
-			expect(await claim({ url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER })).toEqual({ kind: "not-eligible" });
+			expect(await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER })).toEqual({ kind: "not-eligible" });
 		});
 
 		it.each([
@@ -132,14 +132,14 @@ describe("initInMemoryClaimResolutionOnView", () => {
 			await crawl.markCrawlReady({ url: URL });
 			await summary.markSummarySkipped({ url: URL, reason });
 
-			expect(await claim({ url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER })).toEqual({ kind: "not-eligible" });
+			expect(await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER })).toEqual({ kind: "not-eligible" });
 		});
 
 		it("answers not-eligible when the crawl is not ready", async () => {
 			const { crawl, claim } = setup();
 			await crawl.markCrawlFailed({ url: URL, reason: "blocked" });
 
-			expect(await claim({ url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER })).toEqual({ kind: "not-eligible" });
+			expect(await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER })).toEqual({ kind: "not-eligible" });
 		});
 	});
 });

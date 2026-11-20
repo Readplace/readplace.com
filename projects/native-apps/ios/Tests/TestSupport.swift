@@ -390,12 +390,13 @@ extension ReadplaceAPI {
 		store: TokenStore,
 		nativeUserAgent: String,
 		sessionConfiguration: URLSessionConfiguration = .ephemeral,
+		readStorefront: @escaping ReadStorefrontCountry = { nil },
 		maxExternalContentBytes: Int = ReadplaceAPI.defaultMaxExternalContentBytes
 	) {
 		self.init(baseURL: baseURL,
 			oauth: OAuthService(endpoints: ServerEndpoints(origin: URL(string: baseURL)!), store: store, nativeUserAgent: nativeUserAgent,
 				sessionConfiguration: sessionConfiguration),
 			nativeUserAgent: nativeUserAgent, sessionConfiguration: sessionConfiguration,
-			maxExternalContentBytes: maxExternalContentBytes)
+			readStorefront: readStorefront, maxExternalContentBytes: maxExternalContentBytes)
 	}
 }

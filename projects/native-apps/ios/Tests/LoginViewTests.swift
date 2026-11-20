@@ -45,7 +45,7 @@ final class LoginViewTests: XCTestCase {
 			session: AppSession(
 				store: TokenStore(defaults: TestSupport.ephemeralDefaults()),
 				nativeUserAgent: TestSupport.nativeUserAgent,
-				sessionConfiguration: TestSupport.stubbedConfiguration()
+				sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }
 			),
 			authErrorText: Binding(get: { captured.errorText }, set: { captured.errorText = $0 }),
 			makeFlow: { _ in

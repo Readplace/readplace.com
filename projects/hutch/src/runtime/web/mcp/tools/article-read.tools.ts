@@ -81,6 +81,7 @@ export function initArticleReadTools(
 			const result = await deps.getArticleSummary({
 				userId: context.userId,
 				id: args.data.id,
+				generatedContent: context.generatedContent,
 			});
 			switch (result.status) {
 				case "not_found":
@@ -126,6 +127,7 @@ export function initArticleReadTools(
 			const result = await deps.getRelatedArticles({
 				userId: context.userId,
 				id: args.data.id,
+				generatedContent: context.generatedContent,
 			});
 			switch (result.status) {
 				case "not_found":

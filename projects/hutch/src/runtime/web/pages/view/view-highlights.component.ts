@@ -45,7 +45,7 @@ function renderTextSurfaces(note: string | undefined): string {
 	return [
 		note === undefined ? "" : renderHighlightPreview({ highlightId: PLACEHOLDER_ID, note }),
 		renderHighlightPopoverPanel({ highlightId: PLACEHOLDER_ID, note }),
-		renderHighlightNoteEditDialog({ highlightId: PLACEHOLDER_ID, note, quote: PLACEHOLDER_ID, target: LOCAL_TARGET }),
+		renderHighlightNoteEditDialog({ highlightId: PLACEHOLDER_ID, note, target: LOCAL_TARGET }),
 	].join("");
 }
 

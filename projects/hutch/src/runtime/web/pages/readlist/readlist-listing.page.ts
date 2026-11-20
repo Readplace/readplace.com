@@ -1,4 +1,5 @@
 
+import { generatedContentOf } from "../../generated-content-of";
 import assert from "node:assert";
 import {
 	DISMISS_COOKIE_NAME,
@@ -130,7 +131,7 @@ export function initReadlistListingRoutes(deps: Pick<
 				: result;
 			const [loadedCrawlByUrl, loadedSummaryByUrl] = await Promise.all([
 				loadCrawls(deps.findArticleCrawlStatuses, filtered.articles, deps.logError),
-				loadSummaries(deps.findGeneratedSummaries, filtered.articles, viewerFor(userId), deps.logError),
+				loadSummaries({ findGeneratedSummaries: deps.findGeneratedSummaries, articles: filtered.articles, viewer: viewerFor(userId), generatedContent: generatedContentOf(req), logError: deps.logError }),
 			]);
 			const { crawlByUrl, summaryByUrl } = filterUrl
 				? { crawlByUrl: loadedCrawlByUrl, summaryByUrl: loadedSummaryByUrl }

@@ -516,17 +516,40 @@ describe("GET /newsletters", () => {
 		expect(states).toEqual([["gmail", "hidden"], ["custom-emails", "hidden"], ["ai-assistant", "hidden"], ["api", "hidden"]]);
 	});
 
-	it("boosts the action form and loads the clipboard bundle so a boosted hop keeps copy working", async () => {
+	it("opens My Custom Emails with a full page load, because the inbox deployable renders its own nav", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await agent.get("/newsletters");
-		const doc = load(response.text);
+		const doc = load((await agent.get("/newsletters")).text);
 
 		const action = doc.querySelector("[data-test-integration-action='custom-emails']");
 		assert(action, "the custom emails action renders");
 		const form = action.closest("form");
-		assert(form, "the action navigates via a form");
+		assert(form, "the custom emails action navigates via a form");
+		expect(form.getAttribute("hx-boost")).toBe("false");
+	});
+
+	it("boosts a Gmail action form and loads the clipboard bundle so a boosted hop keeps copy working", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
+			grant: { ok: true, grant: { refreshToken: "refresh-value", accessToken: "access-value", grantedScope: GMAIL_SETTINGS_SCOPE } },
+		});
+		const harness = useApp({
+			...createDefaultTestAppFixture(TEST_APP_ORIGIN),
+			gmailIntegration: gmail.bundle,
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress: GATEWAY });
+
+		const response = await agent.get("/newsletters");
+		const doc = load(response.text);
+
+		const action = doc.querySelector("[data-test-integration-action='finish-setup']");
+		assert(action, "the finish-setup action renders");
+		const form = action.closest("form");
+		assert(form, "the finish-setup action navigates via a form");
 		expect(form.getAttribute("hx-boost")).toBe("true");
 		expect(form.getAttribute("hx-target")).toBe("main");
 		expect(form.getAttribute("hx-select")).toBe("main");

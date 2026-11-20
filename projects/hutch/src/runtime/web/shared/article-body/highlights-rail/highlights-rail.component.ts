@@ -126,12 +126,7 @@ export function renderHighlightDeleteConfirm(input: {
 	});
 }
 
-function editView(input: {
-	highlight: Highlight;
-	quote: string;
-	scope: HighlightFormScope;
-	noteOpen: boolean;
-}) {
+function editView(input: { highlight: Highlight; scope: HighlightFormScope; noteOpen: boolean }) {
 	const { highlight } = input;
 	const target: HighlightFormTarget = { kind: "server", scope: input.scope };
 	const noteInput = {
@@ -147,7 +142,7 @@ function editView(input: {
 				? t("articleBody.highlightsRail.addNote")
 				: t("articleBody.highlightsRail.editNote"),
 		notePopoverId: highlightNoteEditPopoverId(highlight.highlightId),
-		noteDialogHtml: renderHighlightNoteEditDialog({ ...noteInput, quote: input.quote, target }),
+		noteDialogHtml: renderHighlightNoteEditDialog({ ...noteInput, target }),
 		noteOpen: input.noteOpen,
 		noteFallbackHtml: renderHighlightNoteFallbackForm({ ...noteInput, scope: input.scope, open: input.noteOpen }),
 		noteDeleteHtml:
@@ -182,7 +177,6 @@ function rowView(input: {
 				? undefined
 				: editView({
 						highlight,
-						quote: shown.quote,
 						scope: input.scope,
 						noteOpen: highlight.highlightId === input.openNote,
 					}),

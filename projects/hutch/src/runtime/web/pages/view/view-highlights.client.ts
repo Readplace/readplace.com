@@ -40,7 +40,6 @@ const KEEP_TRIGGER_SELECTOR = "[data-view-highlights-keep-trigger]";
 const LOCAL_ACTION_ATTRIBUTE = "data-highlight-local";
 const LOCAL_ACTIONS = ["note", "delete-note", "delete"] as const;
 const NOTE_TEXT_SELECTOR = "[data-highlight-note-text]";
-const NOTE_QUOTE_SELECTOR = "[data-highlight-note-quote]";
 
 type LocalAction = (typeof LOCAL_ACTIONS)[number];
 
@@ -205,7 +204,6 @@ export function initViewHighlights(deps: ViewHighlightsDeps): void {
 			...cloneFor({ template: confirmTemplates[variant], id: highlight.id }),
 		];
 		fillText({ roots, selector: NOTE_TEXT_SELECTOR, text: highlight.note ?? "" });
-		fillText({ roots, selector: NOTE_QUOTE_SELECTOR, text: highlight.exact });
 		return roots;
 	};
 

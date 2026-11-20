@@ -1,11 +1,18 @@
 import { collectTextChunks, normaliseText } from "@packages/domain/article/highlight";
 import type { HighlightCreatedEvent, HighlightOpenedEvent } from "@packages/web-analytics";
 import { ARTICLE_HIGHLIGHT_CLASS } from "./article-highlight-class";
-import { type HighlightNoteEditors, initHighlightNoteEditors } from "./highlight-note-editor.client";
 import { initHighlightPanels } from "./highlight-popover.client";
-import { type HighlightPreviews, initHighlightPreviews } from "./highlight-preview.client";
-import { COARSE_POINTER_QUERY, initSentenceTap, type SentenceTapWindow } from "./sentence-tap.client";
+import {
+	type HighlightPreviews,
+	initHighlightPreviews,
+} from "./highlight-preview.client";
+import { initNoteEditors, type NoteEditors } from "./note-editor.client";
 import { placeClearOfPassage, TOOLBAR_GAP_PX } from "./place-clear-of-passage";
+import {
+	COARSE_POINTER_QUERY,
+	initSentenceTap,
+	type SentenceTapWindow,
+} from "./sentence-tap.client";
 import { placeNearSelection } from "./toolbar-placement-coarse";
 
 export const HIGHLIGHT_SELECTION_EVENT = "readplace-highlight-selection";
@@ -43,7 +50,12 @@ interface ToolbarViewport {
 interface HighlightToolbarWindow extends SentenceTapWindow {
 	readonly visualViewport: ToolbarViewport;
 	requestAnimationFrame(callback: () => void): unknown;
-	addEventListener(type: "scroll", listener: () => void, options: { passive: boolean }): void;
+	addEventListener(
+		type: "scroll",
+		listener: () => void,
+		options: { passive: boolean },
+	): void;
+	scrollBy(options: { top: number }): void;
 }
 
 interface HighlightToolbarTimers {
@@ -63,6 +75,10 @@ interface HighlightToolbarDeps {
 	isOpen: (popover: Element) => boolean;
 	isFocusVisible: (element: Element) => boolean;
 	sendBeacon: (url: string) => void;
+	isAutoPopoverOpen: () => boolean;
+	paintDraft: (range: Range) => void;
+	clearDraft: () => void;
+	chromeBottom: () => number;
 }
 
 interface SelectedPassage {
@@ -98,7 +114,7 @@ function originOf(event: Event): unknown {
 function startToolbar(input: {
 	deps: HighlightToolbarDeps;
 	previews: HighlightPreviews;
-	editors: HighlightNoteEditors;
+	editors: NoteEditors;
 	selectionOf: () => Selection;
 }): () => void {
 	const { deps, previews, editors, selectionOf } = input;
@@ -172,7 +188,12 @@ function startToolbar(input: {
 		if (selection.anchorNode === null) return;
 		const content = document.querySelector(CONTENT_SELECTOR);
 		const toolbar = toolbarOf();
-		if (selection.isCollapsed || content === null || toolbar === null) {
+		if (
+			editors.isOpen() ||
+			selection.isCollapsed ||
+			content === null ||
+			toolbar === null
+		) {
 			hide();
 			return;
 		}
@@ -191,7 +212,7 @@ function startToolbar(input: {
 		origin: string;
 		formSelector: string;
 		fields: Record<string, string>;
-	}): { form: HTMLFormElement; passage: SelectedPassage } | undefined => {
+	}): HTMLFormElement | undefined => {
 		const content = document.querySelector(CONTENT_SELECTOR);
 		const form = document.querySelector<HTMLFormElement>(input.formSelector);
 		if (content === null || form === null) return undefined;
@@ -209,13 +230,13 @@ function startToolbar(input: {
 			assert(field, `the create form carries its ${name} field`);
 			field.value = value;
 		}
-		return { form, passage };
+		return form;
 	};
 
 	const submit = (input: { range: Range; origin: string; formSelector: string; after: "" | "note" }): void => {
-		const filled = fill({ ...input, fields: { after: input.after } });
-		if (filled === undefined) return;
-		filled.form.requestSubmit();
+		const form = fill({ ...input, fields: { after: input.after } });
+		if (form === undefined) return;
+		form.requestSubmit();
 		selectionOf().removeAllRanges();
 		hide();
 	};
@@ -225,21 +246,22 @@ function startToolbar(input: {
 			submit({ range: input.range, origin: input.origin, formSelector: FORM_SELECTOR, after: "note" });
 			return;
 		}
-		const filled = fill({ ...input, fields: {} });
-		if (filled === undefined) return;
-		const { form, passage } = filled;
+		const form = fill({ ...input, fields: {} });
+		if (form === undefined) return;
 		const note = form.querySelector<HTMLTextAreaElement>(NOTE_INPUT_SELECTOR);
 		const error = form.querySelector(NOTE_ERROR_SELECTOR);
-		const dialog = form.closest("[popover]");
+		const dialog = form.closest<HTMLElement>("[popover]");
 		assert(note, "the note form carries its note field");
 		assert(error, "the note form carries its error line");
 		assert(dialog, "the note form sits in its dialog");
 		if (form.getAttribute("data-highlight-note-refusal") !== PASSAGE_REFUSAL) note.value = "";
 		note.removeAttribute("aria-invalid");
 		error.textContent = "";
-		previews.hide();
-		editors.handOver({ range: input.range, quote: passage.exact });
-		deps.showPopover(dialog);
+		editors.openCreate({
+			panel: dialog,
+			range: input.range,
+			show: () => deps.showPopover(dialog),
+		});
 		hide();
 	};
 
@@ -289,8 +311,11 @@ function startToolbar(input: {
 		const mark = Array.from(document.querySelectorAll(`.${ARTICLE_HIGHLIGHT_CLASS}`))
 			.filter((candidate) => path.includes(candidate))
 			.at(-1);
-		if (mark === undefined) return;
-		opened({ highlightId: mark.getAttribute("data-highlight-id"), origin: "mark" });
+		if (mark === undefined || editors.isOpen()) return;
+		opened({
+			highlightId: mark.getAttribute("data-highlight-id"),
+			origin: "mark",
+		});
 	});
 	document.addEventListener(HIGHLIGHT_SELECTION_EVENT, (event) => {
 		const origin = originOf(event);
@@ -316,6 +341,18 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		return selection;
 	};
 
+	const reposition = (): void => {
+		if (frameRequested) return;
+		frameRequested = true;
+		deps.window.requestAnimationFrame(() => {
+			frameRequested = false;
+			placeToolbar();
+			previews.reposition();
+			panels.reposition();
+			editors.reposition();
+		});
+	};
+
 	const panels = initHighlightPanels({
 		document,
 		window: deps.window,
@@ -325,12 +362,20 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		isOpen: deps.isOpen,
 	});
 
-	const editors = initHighlightNoteEditors({
+	const editors = initNoteEditors({
 		document,
 		window: deps.window,
 		rectsOf: deps.rectsOf,
-		isOpen: deps.isOpen,
-		schedule: reposition,
+		hidePopover: deps.hidePopover,
+		isAutoPopoverOpen: deps.isAutoPopoverOpen,
+		paintDraft: deps.paintDraft,
+		clearDraft: deps.clearDraft,
+		chromeBottom: deps.chromeBottom,
+		hideOtherSurfaces: () => {
+			previews.hide();
+			panels.hide();
+		},
+		requestReposition: reposition,
 	});
 
 	const previews = initHighlightPreviews({
@@ -343,23 +388,11 @@ export function initHighlightToolbar(deps: HighlightToolbarDeps): void {
 		showPopover: deps.showPopover,
 		hidePopover: deps.hidePopover,
 		isFocusVisible: deps.isFocusVisible,
-		panels,
 		editorOpen: editors.isOpen,
+		panels,
 	});
 
 	const placeToolbar = startToolbar({ deps, previews, editors, selectionOf });
-
-	function reposition(): void {
-		if (frameRequested) return;
-		frameRequested = true;
-		deps.window.requestAnimationFrame(() => {
-			frameRequested = false;
-			placeToolbar();
-			previews.reposition();
-			panels.reposition();
-			editors.reposition();
-		});
-	}
 
 	deps.window.visualViewport.addEventListener("scroll", reposition);
 	deps.window.visualViewport.addEventListener("resize", reposition);

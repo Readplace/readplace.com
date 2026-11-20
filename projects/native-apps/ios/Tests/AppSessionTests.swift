@@ -15,7 +15,7 @@ extension AppSessionTests {
 			storing: Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]), at: storedList
 		)
 		let session = AppSession(store: store, nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: configuration, wipeReaderWebStore: {},
+			sessionConfiguration: configuration, readStorefront: { nil }, wipeReaderWebStore: {},
 			purgeShareArtifacts: {}, forgetReaderChoices: {}, forgetOfflineCopies: forgetOfflineCopies)
 		XCTAssertEqual(
 			configuration.urlCache?.cachedResponse(for: URLRequest(url: storedList))?.data,
@@ -92,7 +92,7 @@ extension AppSessionTests {
 		let container = try XCTUnwrap(AppGroupContainer.entitled(appGroupId: TokenStore.resolvedAppGroupId))
 		OfflineDownloadManifest(container: container).record(run: OfflineDownloadRun(total: 2, completed: 1))
 		let session = AppSession(store: TestSupport.loggedInStore(), nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration(), wipeReaderWebStore: {},
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }, wipeReaderWebStore: {},
 			purgeShareArtifacts: {}, forgetReaderChoices: {})
 
 		await session.logout()
@@ -106,7 +106,7 @@ extension AppSessionTests {
 		StubURLProtocol.reset()
 		let store = TestSupport.loggedInStore(access: "old", refresh: "old-r")
 		let session = AppSession(store: store, nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration(), wipeReaderWebStore: {},
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }, wipeReaderWebStore: {},
 			purgeShareArtifacts: {}, forgetReaderChoices: {})
 		let refreshStarted = expectation(description: "refresh started")
 		let originalRequests = expectation(description: "both requests sent the expired bearer")
@@ -159,7 +159,7 @@ extension AppSessionTests {
 		let store = TestSupport.loggedInStore(access: "old", refresh: "old-r")
 		var purges = 0
 		let session = AppSession(store: store, nativeUserAgent: TestSupport.nativeUserAgent,
-			sessionConfiguration: TestSupport.stubbedConfiguration(), wipeReaderWebStore: {},
+			sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil }, wipeReaderWebStore: {},
 			purgeShareArtifacts: { purges += 1 }, forgetReaderChoices: {})
 		let refreshStarted = expectation(description: "old refresh started")
 		let gate = DispatchSemaphore(value: 0)

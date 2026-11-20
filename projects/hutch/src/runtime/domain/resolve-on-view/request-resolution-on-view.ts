@@ -1,4 +1,10 @@
-import { newSaveAttemptId, resolutionOnViewCoolDownCutoff, type ShownSummary, type Viewer } from "@packages/domain/article";
+import {
+	type GeneratedContentAccess,
+	newSaveAttemptId,
+	resolutionOnViewCoolDownCutoff,
+	type ShownSummary,
+	type Viewer,
+} from "@packages/domain/article";
 import type { Logger } from "@packages/logger";
 import type { ArticleCrawl, FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
 import type { ClaimResolutionOnView, ResolutionAxes } from "@packages/provider-contracts/article-resolution-on-view";
@@ -14,6 +20,7 @@ export interface ResolvedOnView {
 export type RequestResolutionOnView = (params: {
 	surface: ResolveOnViewSurface;
 	viewer: Viewer;
+	generatedContent: GeneratedContentAccess;
 	viewerCanCapture: boolean;
 	articles: readonly { url: string; crawl: ArticleCrawl | undefined; summary: ShownSummary | undefined }[];
 }) => Promise<ReadonlyMap<string, ResolvedOnView>>;
@@ -53,7 +60,7 @@ export function initRequestResolutionOnView(deps: {
 		}
 	};
 
-	return async ({ surface, viewer, viewerCanCapture, articles }) => {
+	return async ({ surface, viewer, generatedContent, viewerCanCapture, articles }) => {
 		const coolDownCutoff = resolutionOnViewCoolDownCutoff(deps.now());
 		const needs = articles.map((article) => ({
 			url: article.url,
@@ -62,12 +69,12 @@ export function initRequestResolutionOnView(deps: {
 		const eligible = needs.flatMap(({ url, need }) => axesOf(need).map((axes) => ({ url, axes })));
 		const outcomes = await Promise.all(
 			eligible.map(async ({ url, axes }) => {
-				const claim = await deps.claimResolutionOnView({ url, axes, viewer });
+				const claim = await deps.claimResolutionOnView({ url, axes, viewer, generatedContent });
 				if (claim.kind === "claimed") {
 					await publish({ url, axes, surface, viewer });
 					return { url, claimed: true, state: { crawl: claim.crawl, summary: claim.summary } };
 				}
-				const [crawl, summary] = await Promise.all([deps.findArticleCrawlStatus(url), deps.findGeneratedSummary({ url, viewer })]);
+				const [crawl, summary] = await Promise.all([deps.findArticleCrawlStatus(url), deps.findGeneratedSummary({ url, viewer, generatedContent })]);
 				return { url, claimed: false, state: { crawl, summary } };
 			}),
 		);

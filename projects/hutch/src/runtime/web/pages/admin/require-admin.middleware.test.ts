@@ -128,6 +128,24 @@ describe("initRequireAdmin", () => {
 		expect(recorded.redirectCalledWith).toBeUndefined();
 	});
 
+	it("falls through to session auth when x-service-token has the token's character length but more bytes", async () => {
+		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: { kind: "accepted", token: SERVICE_TOKEN }, secondFactor: { kind: "being-challenged" }, refuse });
+		const { res, recorded } = makeRes();
+		let nextCalls = 0;
+		const next: NextFunction = () => {
+			nextCalls += 1;
+		};
+
+		await middleware(
+			makeReq({ headers: { "x-service-token": "é".repeat(SERVICE_TOKEN.length) } }),
+			res,
+			next,
+		);
+
+		expect(recorded.redirectCalledWith).toEqual([303, "/login"]);
+		expect(nextCalls).toBe(0);
+	});
+
 	it("falls through to session auth when x-service-token header is wrong", async () => {
 		const middleware = initRequireAdmin({ findUserByEmail, adminEmails, serviceToken: { kind: "accepted", token: SERVICE_TOKEN }, secondFactor: { kind: "being-challenged" }, refuse });
 		const { res, recorded } = makeRes();

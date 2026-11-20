@@ -1,13 +1,4 @@
-import { JSDOM } from "jsdom";
-import {
-	type ClearPlacement,
-	type PassageRect,
-	passageRectsOf,
-	pickPassageMode,
-	placeByMode,
-	placeClearOfPassage,
-	TOOLBAR_GAP_PX,
-} from "./place-clear-of-passage";
+import { type ClearPlacement, type PassageRect, placeClearOfPassage, TOOLBAR_GAP_PX } from "./place-clear-of-passage";
 
 const panel = { width: 100, height: 40 };
 const unzoomed = { width: 400, height: 800, offsetLeft: 0, offsetTop: 0 };
@@ -245,66 +236,5 @@ describe("placeClearOfPassage", () => {
 				whenNoneFits: "last-side",
 			}),
 		).toThrow("a selection holding text has client rects");
-	});
-});
-
-describe("pickPassageMode", () => {
-	it("picks above when the panel fits above the passage", () => {
-		expect(pickPassageMode({ rects: [rect({ top: 300, left: 20, width: 100 })], panel, viewport: unzoomed })).toBe("above");
-	});
-
-	it("picks below when only below fits", () => {
-		expect(pickPassageMode({ rects: [rect({ top: 20, left: 20, width: 100 })], panel, viewport: unzoomed })).toBe("below");
-	});
-
-	it("docks when neither side fits", () => {
-		const tall = [rect({ top: 30, left: 20, width: 100, height: 740 })];
-		expect(pickPassageMode({ rects: tall, panel, viewport: unzoomed })).toBe("docked");
-	});
-});
-
-describe("placeByMode", () => {
-	const zoomed = { width: 300, height: 500, offsetLeft: 40, offsetTop: 60 };
-
-	it("places on the mode's side even when that side no longer fits", () => {
-		const rects = [rect({ top: 20, left: 20, width: 100 })];
-		expect(placeByMode({ mode: "above", dock: "gutter", rects, panel, viewport: unzoomed })).toEqual({
-			top: 20 - 10 - 40,
-			left: 20 + 50 - 50,
-		});
-	});
-
-	it("docks at the bottom of the visual viewport against its left gutter", () => {
-		expect(placeByMode({ mode: "docked", dock: "gutter", rects: [], panel, viewport: zoomed })).toEqual({
-			top: 60 + 500 - 16 - 40,
-			left: 40 + 16,
-		});
-	});
-
-	it("docks at the bottom of the visual viewport, centred", () => {
-		expect(placeByMode({ mode: "docked", dock: "centred", rects: [], panel, viewport: zoomed })).toEqual({
-			top: 60 + 500 - 16 - 40,
-			left: 40 + (300 - 100) / 2,
-		});
-	});
-});
-
-describe("passageRectsOf", () => {
-	it("gathers the rects of every mark of the highlight and of no other", () => {
-		const { document } = new JSDOM(
-			'<p><mark class="article-highlight" data-highlight-id="a">one</mark> <mark class="article-highlight" data-highlight-id="b">two</mark> <mark class="article-highlight" data-highlight-id="a">three</mark></p>',
-		).window;
-		const measured: string[] = [];
-		const rects = passageRectsOf({
-			document,
-			id: "a",
-			rectsOf: (range) => {
-				measured.push(range.toString());
-				return [rect({ top: measured.length * 100, left: 0, width: 10 })];
-			},
-		});
-
-		expect(measured).toEqual(["one", "three"]);
-		expect(rects.map((r) => r.top)).toEqual([100, 200]);
 	});
 });

@@ -7,7 +7,7 @@ extension ReadplaceAPITests {
 		let oauth = OAuthService(endpoints: AppConfig.serverEndpoints, store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: TestSupport.stubbedConfiguration())
 		let api = ReadplaceAPI(baseURL: AppConfig.serverBaseURL, oauth: oauth,
-			nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: TestSupport.stubbedConfiguration())
+			nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil })
 		let delayedStarted = expectation(description: "delayed request sent its original credentials")
 		let gate = DispatchSemaphore(value: 0)
 		defer { gate.signal() }
@@ -42,7 +42,7 @@ extension ReadplaceAPITests {
 			ReadplaceAPI(baseURL: AppConfig.serverBaseURL,
 				oauth: OAuthService(endpoints: AppConfig.serverEndpoints, store: store, nativeUserAgent: process,
 					sessionConfiguration: TestSupport.stubbedConfiguration()),
-				nativeUserAgent: process, sessionConfiguration: TestSupport.stubbedConfiguration())
+				nativeUserAgent: process, sessionConfiguration: TestSupport.stubbedConfiguration(), readStorefront: { nil })
 		}
 		let app = api(process: "app")
 		let share = api(process: "share")

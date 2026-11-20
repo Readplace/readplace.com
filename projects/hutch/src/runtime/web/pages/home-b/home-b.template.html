@@ -1,7 +1,7 @@
 <main class="home">
   <section id="paste-a-link" class="home-hero" data-test-section="hero" aria-label="What Readplace is">
     <div class="home-hero__container">
-      {{#if heroEyebrow}}<p class="home-hero__eyebrow" data-test-hero-eyebrow>{{heroEyebrow}}</p>{{/if}}
+      <p class="home-hero__eyebrow" data-test-hero-eyebrow>{{heroEyebrow}}</p>
       <h1 class="home-hero__title" data-test-tagline>{{heroTitle}}</h1>
       <p class="home-hero__subhead">{{heroSubhead}}</p>
       <div class="home-hero__actions">
@@ -106,6 +106,7 @@
     </div>
     <div class="home-section__container home-pricing__container">
       <p class="home-pricing__note">{{pricingNote}}</p>
+      <p class="home-pricing__note"><a class="home-link" href="{{pricingFreePlanLink.href}}" data-test-cta="free-plan">{{pricingFreePlanLink.label}}</a></p>
       <ul class="home-pricing__assurances" data-test-assurances>
         {{#each pricingAssurances}}
         <li class="home-pricing__assurance">{{this}}</li>

@@ -116,6 +116,21 @@ describe("classifyForRemoval", () => {
 		});
 	});
 
+	it("skips a link whose summary the reader opened", () => {
+		assert.deepEqual(classify(link({ lastSummaryOpenedAt: new Date("2026-11-21T00:00:00.000Z") })), {
+			kind: "skipped",
+			reason: "opened",
+		});
+	});
+
+	it("skips a link restored at or after the cutoff as changed", () => {
+		assert.deepEqual(classify(link({ restoredAt: CUTOFF, status: "read" })), { kind: "skipped", reason: "changed" });
+	});
+
+	it("selects a link restored before the cutoff", () => {
+		assert.deepEqual(classify(link({ restoredAt: new Date("2026-11-25T00:00:00.000Z") })), { kind: "selected" });
+	});
+
 	it("skips a link the reader highlighted", () => {
 		assert.deepEqual(classify(link(), { highlighted: new Set(["example.com/post"]) }), { kind: "skipped", reason: "highlighted" });
 	});

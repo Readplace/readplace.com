@@ -96,14 +96,29 @@ describe("GET /privacy", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		const items = Array.from(doc.querySelectorAll(".legal-page__item-text"), (item) => item.textContent);
-		expect(items.some((text) => text?.endsWith("For newsletters, each issue's subject, sender, link addresses and link text are sent to an AI provider to tell articles from ads and menus, and, for a readlist you described, what you wrote and the articles you kept in it or took out of it are sent with them to choose which fit."))).toBe(true);
+		expect(items.some((text) => text?.includes("For newsletters, each issue's subject, sender, link addresses and link text are sent to an AI provider to tell articles from ads and menus, and, for a readlist you described, what you wrote and the articles you kept in it or took out of it are sent with them to choose which fit."))).toBe(true);
+	});
+
+	it("says what Next read and Already read send to an AI provider", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("To suggest what to read next and what you have already read on the same subject, the title, site and description of an article you save and of your earlier saves, read and unread, are sent to an AI provider to choose which relate and say why.");
+	});
+
+	it("says AWS's transcription service may keep uploaded audio and video and store it outside Sydney", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Audio and video files you upload are transcribed by AWS's transcription service, which may keep them and their transcripts to improve its services, and may store that copy in an AWS region outside Sydney.");
 	});
 
 	it("carries the date of its latest change", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 17 November 2026");
+		expect(response.text).toContain("Last updated: 20 November 2026");
 	});
 
 	it("lists a file uploaded before signing up among the data Readplace collects", async () => {
@@ -158,7 +173,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("A file you upload before signing up, with its name and what was read from it, is deleted within 2 days. Until you save it no account holds them, so you can't delete them sooner. Once you save it to your library, the file stays with your saved articles until you remove it; an audio or video file's transcript stays with it, and the transcription service's own copy of that transcript is deleted after 14 days.");
+		expect(response.text).toContain("A file you upload before signing up, with its name and what was read from it, is deleted within 2 days. Until you save it no account holds them, so you can't delete them sooner. Once you save it to your library, the file stays with your saved articles until you remove it; an audio or video file's transcript stays with it, and the transcription service's own copy of that transcript is deleted after 14 days, apart from the copy AWS may keep to improve its services, described under Where your data is stored.");
 	});
 
 	it("says the text read from an uploaded PDF is kept to avoid reading the same file twice, and when it is deleted", async () => {
@@ -227,6 +242,31 @@ describe("GET /privacy", () => {
 
 		expect(response.text).toContain("asks Google to remove the Readplace filter");
 		expect(response.text).toContain("remove it yourself under Forwarding and POP/IMAP");
+	});
+
+	it("says what held mail Readplace stores, and that it outlives a disconnect but not the account", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Mail that Gmail forwards from a sender you have not mapped to a readlist is held: Readplace stores its sender, subject, arrival time, the Readplace address it was sent to and the original message, and does not show it in your inbox. Held mail stays stored after you disconnect Gmail and is deleted when you delete your account.");
+		expect(response.text).toContain("Readplace stores the discovered sender names and email addresses (with, for a sender whose mail is forwarded to Readplace, the subject of that sender's latest message), your chosen forwarding mappings,");
+	});
+
+	it("says account deletion erases held mail with the Gmail data", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const section = doc.getElementById("delete-account");
+		assert(section, "the deletion section must carry the delete-account anchor");
+		expect(section.textContent).toContain("your Gmail connection and its stored data, held mail included,");
+	});
+
+	it("says in the Gmail section what imported and forwarded mail sends to an AI provider", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("handled like forwarded newsletters. That includes the processing described above: an imported or forwarded message's subject, sender, link addresses and link text are sent to an AI provider to tell articles from ads and menus and to choose which fit a readlist you described, and when you choose to save a sender's issues themselves, each issue's text is sent to an AI provider to write its summary.");
 	});
 
 	it("says what the Gmail read and modify permissions are used for", async () => {

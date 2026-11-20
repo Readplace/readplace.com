@@ -286,7 +286,7 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 			label: "Manage",
 			variant: "neutral",
 			fields: [{ name: CUSTOM_EMAILS_ORIGIN_PARAM, value: "newsletters" satisfies CustomEmailsOrigin }],
-			boost: true,
+			boost: false,
 		})],
 	};
 }

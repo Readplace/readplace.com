@@ -1,3 +1,4 @@
+import type { GeneratedContentAccess } from "@packages/domain/article";
 import type {
 	McpToolOutcome,
 	McpUaClient,
@@ -227,10 +228,12 @@ export interface McpServerDeps {
 	getArticleSummary: (params: {
 		userId: AuthenticatedUserId;
 		id: string;
+		generatedContent: GeneratedContentAccess;
 	}) => Promise<ArticleSummaryResult>;
 	getRelatedArticles: (params: {
 		userId: AuthenticatedUserId;
 		id: string;
+		generatedContent: GeneratedContentAccess;
 	}) => Promise<ArticleRelatedResult>;
 	markAsRead: (params: {
 		userId: AuthenticatedUserId;
@@ -296,5 +299,6 @@ export interface McpRequestContext {
 	readonly userId: AuthenticatedUserId;
 	readonly oauthClientId: string;
 	readonly uaClient: McpUaClient;
+	readonly generatedContent: GeneratedContentAccess;
 	readonly recordSaveRefused: () => void;
 }

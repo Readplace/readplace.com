@@ -84,6 +84,27 @@ export {
 	type RemovalSkipReason,
 } from "./newsletter-link";
 export {
+	HELD_LINK_DAYS,
+	SavedLinksJobActionSchema,
+	SavedLinksJobCountsSchema,
+	SavedLinksJobIdSchema,
+	SavedLinksJobStateSchema,
+	decideHold,
+	heldLinkExpiresAt,
+	isHeldLinkLive,
+	type HeldLink,
+	type HoldDecision,
+	type HoldOutcome,
+	type RemovalSenders,
+	type RestoreOutcome,
+	type SavedLinksJob,
+	type SavedLinksJobAction,
+	type SavedLinksJobCountCode,
+	type SavedLinksJobCounts,
+	type SavedLinksJobId,
+	type SavedLinksJobState,
+} from "./saved-links-job";
+export {
 	ARTICLE_SECTION_ID_PREFIX,
 	ARTICLE_HIGHLIGHT_ID_PREFIX,
 	chapterSectionId,
@@ -223,3 +244,11 @@ export {
 	locateQuote,
 	type QuoteLocation,
 } from "./highlight/locate-quote";
+export {
+	GENERATED_CONTENT_OUTSIDE_A_REQUEST,
+	SUMMARY_WITHHELD_REASON,
+	generatedContentAccessFor,
+	parseStorefrontCountryCode,
+	type GeneratedContentAccess,
+	type StorefrontCountryCode,
+} from "./generated-content";

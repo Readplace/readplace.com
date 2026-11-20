@@ -109,7 +109,8 @@ import type {
 } from "@packages/provider-contracts/onboarding-signals";
 import type { InstallableClientOnboarding, OnboardingContext, Platform } from "../../onboarding/onboarding.types";
 import { type EffectiveAccess, hasPaidFeatures } from "@packages/subscription-access";
-import type { ArticleDiscoveryQuery, ReadlistFilter, SavedArticle, ShownSummary, Viewer } from "@packages/domain/article";
+import type { ArticleDiscoveryQuery, GeneratedContentAccess, ReadlistFilter, SavedArticle, ShownSummary, Viewer } from "@packages/domain/article";
+import { generatedContentOf } from "../../generated-content-of";
 import { ownedEnclosuresByUrl, viewerFor } from "@packages/domain/article";
 import type { ResolveOnViewSurface } from "@packages/provider-contracts/events";
 import { overlayResolution } from "../../../domain/resolve-on-view/request-resolution-on-view";
@@ -129,15 +130,17 @@ export function dismissTokenFor(hasClient: boolean, gmailEligible = false): stri
 
 export const SaveArticleReadlistsSchema = z.array(z.string()).optional().catch(undefined);
 
-export async function loadSummaries(
-	findGeneratedSummaries: FindGeneratedSummaries,
-	articles: readonly SavedArticle[],
-	viewer: Viewer,
-	logError: LogError,
-): Promise<Map<string, ShownSummary | undefined>> {
+export async function loadSummaries(params: {
+	findGeneratedSummaries: FindGeneratedSummaries;
+	articles: readonly SavedArticle[];
+	viewer: Viewer;
+	generatedContent: GeneratedContentAccess;
+	logError: LogError;
+}): Promise<Map<string, ShownSummary | undefined>> {
+	const { findGeneratedSummaries, articles, viewer, generatedContent, logError } = params;
 	const urls = articles.map((a) => a.url);
 	try {
-		const byUrl = await findGeneratedSummaries({ urls, viewer });
+		const byUrl = await findGeneratedSummaries({ urls, viewer, generatedContent });
 		return new Map(urls.map((url) => [url, byUrl.get(url)] as const));
 	} catch (error) {
 		// A whole-batch transport failure degrades every card to "no summary chip"
@@ -176,12 +179,14 @@ export const relatedPollUrlFor = (params: {
 export async function loadRelatedArticles(
 	findRelatedArticles: FindRelatedArticles,
 	article: SavedArticle,
+	generatedContent: GeneratedContentAccess,
 	logError: LogError,
 ): Promise<RelatedArticles> {
 	try {
 		return await findRelatedArticles({
 			userId: article.userId,
 			url: article.url,
+			generatedContent,
 		});
 	} catch (error) {
 		logError(
@@ -218,6 +223,7 @@ export async function loadPastReads(
 	findPastReads: FindPastReads,
 	article: SavedArticle,
 	sourceReadlist: ReadlistSlug,
+	generatedContent: GeneratedContentAccess,
 	logError: LogError,
 ): Promise<PastReads> {
 	try {
@@ -225,6 +231,7 @@ export async function loadPastReads(
 			userId: article.userId,
 			url: article.url,
 			sourceReadlist,
+			generatedContent,
 		});
 	} catch (error) {
 		logError(
@@ -675,6 +682,7 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const resolved = await deps.requestResolutionOnView({
 			surface: listed.surface,
 			viewer: viewerFor(listed.userId),
+			generatedContent: generatedContentOf(req),
 			viewerCanCapture: requestCanCapture(req),
 			articles: listed.articles.map((article) => ({
 				url: article.url,
@@ -705,7 +713,13 @@ export function initReadlistShared(deps: ReadlistDependencies) {
 		const urls = input.result.articles.map((article) => article.url);
 		const [loadedSummaryByUrl, loadedCrawlByUrl, effectiveAccess, readlistHoldsArticles, tabHoldsRows, signals, nonEmptyReadlists, savesByUrl, readerProvenances, keepOffer] =
 			await Promise.all([
-				loadSummaries(deps.findGeneratedSummaries, input.result.articles, viewerFor(input.userId), deps.logError),
+				loadSummaries({
+					findGeneratedSummaries: deps.findGeneratedSummaries,
+					articles: input.result.articles,
+					viewer: viewerFor(input.userId),
+					generatedContent: generatedContentOf(req),
+					logError: deps.logError,
+				}),
 				loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
 				effectiveAccessPromise,
 				readlistHoldsAnyArticle({

@@ -4,7 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 } from "@packages/storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ANONYMOUS_VIEWER, viewerFor } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, GENERATED_CONTENT_OUTSIDE_A_REQUEST, viewerFor } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbClaimResolutionOnView } from "./dynamodb-resolution-on-view";
 
@@ -63,7 +63,7 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 		});
 		const claim = initDynamoDbClaimResolutionOnView({ client, tableName: TABLE, now });
 
-		const result = await claim({ url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
+		const result = await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({
 			kind: "claimed",
@@ -96,7 +96,7 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 		});
 		const claim = initDynamoDbClaimResolutionOnView({ client, tableName: TABLE, now });
 
-		const result = await claim({ url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER });
+		const result = await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({
 			kind: "claimed",
@@ -134,8 +134,8 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 		});
 		const claim = initDynamoDbClaimResolutionOnView({ client, tableName: TABLE, now });
 
-		const asStranger = await claim({ url: privateUrl, axes: "summary", viewer: viewerFor(UserIdSchema.parse("someone-else")) });
-		const asOwner = await claim({ url: privateUrl, axes: "summary", viewer: viewerFor(OWNER) });
+		const asStranger = await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: privateUrl, axes: "summary", viewer: viewerFor(UserIdSchema.parse("someone-else")) });
+		const asOwner = await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: privateUrl, axes: "summary", viewer: viewerFor(OWNER) });
 
 		expect(asStranger).toEqual({ kind: "claimed", crawl: { status: "ready" }, summary: { status: "skipped" } });
 		expect(asOwner).toEqual({ kind: "claimed", crawl: { status: "ready" }, summary: { status: "pending" } });
@@ -147,7 +147,7 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 		});
 		const claim = initDynamoDbClaimResolutionOnView({ client, tableName: TABLE, now });
 
-		const result = await claim({ url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
+		const result = await claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
 
 		expect(result).toEqual({ kind: "not-eligible" });
 	});
@@ -158,6 +158,6 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 		});
 		const claim = initDynamoDbClaimResolutionOnView({ client, tableName: TABLE, now });
 
-		await expect(claim({ url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER })).rejects.toThrow("throttled");
+		await expect(claim({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER })).rejects.toThrow("throttled");
 	});
 });

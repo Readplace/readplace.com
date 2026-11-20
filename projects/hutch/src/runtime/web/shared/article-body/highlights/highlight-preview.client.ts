@@ -39,8 +39,8 @@ export interface HighlightPreviewDeps {
 	showPopover: (panel: Element) => void;
 	hidePopover: (panel: Element) => void;
 	isFocusVisible: (element: Element) => boolean;
-	panels: HighlightPanels;
 	editorOpen: () => boolean;
+	panels: HighlightPanels;
 }
 
 interface ShownPreview {
@@ -172,7 +172,8 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 	};
 
 	const show = (id: string): void => {
-		if (shown?.id === id && shown.preview.isConnected) return;
+		if (deps.editorOpen() || (shown?.id === id && shown.preview.isConnected))
+			return;
 		hide();
 		const preview = previewOf(id);
 		assert(preview, "a noted highlight renders its preview");
@@ -182,6 +183,7 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 	};
 
 	const pin = (id: string): void => {
+		if (deps.editorOpen()) return;
 		show(id);
 		cancelPending();
 		cancelGrace();
@@ -258,7 +260,7 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 			id,
 			handle: deps.timers.setTimeout(() => {
 				pending = undefined;
-				if (pinned || articleSelectionOpen() || previewOf(id) === null || deps.editorOpen()) return;
+				if (pinned || articleSelectionOpen() || previewOf(id) === null) return;
 				show(id);
 			}, HOVER_SHOW_MS),
 		};
@@ -310,7 +312,7 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 		keyboardFocused = stop;
 		const id = attributeOf({ element: stop, name: "data-highlight-id" });
 		cancelGrace();
-		if (!pinned && previewOf(id) !== null && !deps.panels.quietsPreview() && !deps.editorOpen()) show(id);
+		if (!pinned && previewOf(id) !== null && !deps.panels.quietsPreview()) show(id);
 	});
 
 	document.addEventListener("focusout", (event) => {

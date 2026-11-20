@@ -23,6 +23,7 @@ function noteForm(
 			pushesHistory: true,
 			autofocus: true,
 			local: undefined,
+			noteEditor: true,
 			...overrides,
 		})}</div>`,
 	).window.document;
@@ -51,6 +52,14 @@ function errorOf(doc: Document): HTMLElement {
 }
 
 describe("renderHighlightNoteForm", () => {
+	it("marks a dialog's form as the note editor the reader script places beside the passage", () => {
+		expect(formOf(noteForm({ noteEditor: true })).hasAttribute("data-highlight-note-editor")).toBe(true);
+	});
+
+	it("leaves an inline form unmarked, so it stays in the page's flow", () => {
+		expect(formOf(noteForm({ noteEditor: false })).hasAttribute("data-highlight-note-editor")).toBe(false);
+	});
+
 	it("posts the note field as a plain form to its action", () => {
 		const doc = noteForm();
 		const form = formOf(doc);
@@ -193,13 +202,6 @@ describe("renderHighlightNoteForm", () => {
 		]);
 	});
 
-	it("is its own form, not a confirmation panel's action row", () => {
-		const form = noteForm().querySelector("form");
-
-		expect(Array.from(form?.classList ?? [])).toEqual(["highlight-note-form"]);
-		expect(noteForm().querySelector("[class*='confirm-popover']")).toBeNull();
-	});
-
 	it("offers Cancel hiding its popover beside Save note", () => {
 		const doc = noteForm();
 		const cancel = doc.querySelector(
@@ -208,12 +210,10 @@ describe("renderHighlightNoteForm", () => {
 		const save = doc.querySelector('[data-test-action="highlight-note-save"]');
 
 		expect(cancel?.classList.contains("btn--neutral")).toBe(true);
-		expect(cancel?.classList.contains("btn--s")).toBe(true);
 		expect(cancel?.getAttribute("popovertarget")).toBe("note-highlight-dialog");
 		expect(cancel?.getAttribute("popovertargetaction")).toBe("hide");
 		expect(save?.getAttribute("type")).toBe("submit");
 		expect(save?.classList.contains("btn--primary")).toBe(true);
-		expect(save?.classList.contains("btn--s")).toBe(true);
 		expect(save?.textContent).toBe("Save note");
 	});
 
@@ -225,7 +225,7 @@ describe("renderHighlightNoteForm", () => {
 
 		expect(
 			Array.from(
-				doc.querySelectorAll(".highlight-note-form__buttons > button"),
+				doc.querySelectorAll(".confirm-popover__buttons > button"),
 				(button) => button.getAttribute("data-test-action"),
 			),
 		).toEqual([
@@ -238,7 +238,7 @@ describe("renderHighlightNoteForm", () => {
 	it("holds only Cancel and Save note without a second action", () => {
 		expect(
 			Array.from(
-				noteForm().querySelectorAll(".highlight-note-form__buttons > button"),
+				noteForm().querySelectorAll(".confirm-popover__buttons > button"),
 				(button) => button.getAttribute("data-test-action"),
 			),
 		).toEqual(["highlight-note-cancel", "highlight-note-save"]);

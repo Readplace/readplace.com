@@ -34,9 +34,9 @@ export function initInMemoryGeneratedSummary(deps: { findItemOwner: FindItemOwne
 } {
 	const states = new Map<string, GeneratedSummary>();
 
-	const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => {
+	const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer, generatedContent }) => {
 		const id = ArticleResourceUniqueId.parse(url);
-		return shownSummary({ url, summary: states.get(id.value), viewer, ownerUserId: await deps.findItemOwner(url) });
+		return shownSummary({ url, summary: states.get(id.value), viewer, ownerUserId: await deps.findItemOwner(url), generatedContent });
 	};
 
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {

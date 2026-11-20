@@ -535,7 +535,7 @@ describe("Google auth routes", () => {
 
 			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-				.set("Cookie", [`hutch_gstate=${encodeURIComponent(state)}`, "hutch_exp=homepage-ai-cost%3A2%3Avariant-f"])
+				.set("Cookie", [`hutch_gstate=${encodeURIComponent(state)}`, "hutch_exp=homepage-ai-cost%3A3%3Avariant-f"])
 				.set("User-Agent", BROWSER_USER_AGENT);
 
 			expect(response.status).toBe(303);
@@ -583,7 +583,7 @@ describe("Google auth routes", () => {
 
 			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-				.set("Cookie", [`hutch_gstate=${encodeURIComponent(state)}`, "hutch_exp=homepage-ai-cost%3A2%3Avariant-e"])
+				.set("Cookie", [`hutch_gstate=${encodeURIComponent(state)}`, "hutch_exp=homepage-ai-cost%3A3%3Avariant-e"])
 				.set("User-Agent", BROWSER_USER_AGENT);
 
 			expect(response.status).toBe(303);

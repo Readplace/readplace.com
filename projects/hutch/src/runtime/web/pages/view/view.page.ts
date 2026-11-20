@@ -1,4 +1,5 @@
 import { type ReaderSectionRequest, requestedReaderSection } from "../../shared/article-body/reader-slot/section-pages";
+import { generatedContentOf } from "../../generated-content-of";
 import assert from "node:assert";
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
@@ -33,13 +34,16 @@ import type {
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import { articleHostFrom, buildViewEndCtaShownEvent, classifyOsFamily, hashIp, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
+import { articleHostFrom, buildSaveRefusedEvent, buildViewEndCtaShownEvent, classifyOsFamily, hashIp, isCountableBrowserRequest, SAVE_REFUSAL_CODES, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
+import { saveClientOf } from "../../shared/save-client";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
 import { CLICK_SURFACES, wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent, withClickSurface, withInternalTracking } from "@packages/web-shell";
 import { CacheableComponent } from "../../conditional-get";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
+import { FIRST_DAYS_STATEMENT, FREE_PLAN_STATEMENT } from "../../price-statement";
 import { DOWNLOAD_GUIDE_POPOVER_ID } from "../../shared/download-guide/download-guide.component";
 
 import { Base } from "../../base.component";
@@ -129,6 +133,7 @@ interface ViewDependencies {
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	salt: string;
 }
 
@@ -193,6 +198,8 @@ function saveAction(input: {
 	};
 }
 
+const { t } = translator(hutchReader, DEFAULT_LOCALE);
+
 const FOUNDER_POST_HOSTS: readonly string[] = ["fagnerbrack.com", "www.fagnerbrack.com"];
 
 function isFounderPost(articleUrl: string): boolean {
@@ -204,7 +211,7 @@ function endCtaSaveAction(articleUrl: string): ViewEndCtaAction {
 	return {
 		kind: "form",
 		key: "save",
-		label: "Save it and start my trial",
+		label: t("view.endCta.saveLabel"),
 		variant: "primary",
 		...splitTrackedHref(
 			withInternalTracking(`/save?${saveParams.toString()}`, {
@@ -367,7 +374,7 @@ function handleViewArticle(
 				return;
 			}
 			const title = existing.metadata.title;
-			const summary = await deps.findGeneratedSummary({ url: articleUrl, viewer: viewerFor(req.userId) });
+			const summary = await deps.findGeneratedSummary({ url: articleUrl, viewer: viewerFor(req.userId), generatedContent: generatedContentOf(req) });
 			const build = await buildArticleEpub({
 				articleUrl,
 				title,
@@ -485,6 +492,12 @@ function handleViewArticle(
 						if (claim.refused.length > 0) {
 							assert(claim.retryAfterSeconds !== undefined, "a refused daily-save claim carries Retry-After");
 							res.set("Retry-After", String(claim.retryAfterSeconds));
+							deps.recordUngatedAnalyticsEvent(
+								buildSaveRefusedEvent(
+									{ now: deps.now, salt: deps.salt },
+									{ req, path: originalPath, status: 429, code: SAVE_REFUSAL_CODES.dailySaveLimit, client: saveClientOf(req) },
+								),
+							);
 							sendComponent(req, res, Base(ViewDailySaveLimitPage(), await deps.buildBannerState(req)));
 							return;
 						}
@@ -529,6 +542,7 @@ function handleViewArticle(
 		const pollUrlBuilder = pollUrlBuilderFor(articleUrl, utmParams, requestedReaderSection(req.query.section));
 		const state = await reader.resolveReaderState({
 			viewer: viewerFor(req.userId),
+			generatedContent: generatedContentOf(req),
 			article: { url: articleUrl, metadata, estimatedReadTime },
 			pollUrlBuilder,
 		});
@@ -550,7 +564,7 @@ function handleViewArticle(
 				? {
 						heading: "Keep this one",
 						signedByFounder: isFounderPost(articleUrl),
-						lines: [PRICE_STATEMENT, SAVES_STAY_STATEMENT],
+						lines: [FREE_PLAN_STATEMENT, FIRST_DAYS_STATEMENT],
 						actions: [endCtaSaveAction(articleUrl), endCtaEpubAction({ articleUrl, guide: epubDownloadGuide })],
 					}
 				: undefined;
@@ -664,6 +678,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
 			viewer: viewerFor(req.userId),
+			generatedContent: generatedContentOf(req),
 			enclosure: ABSENT_ENCLOSURE,
 			articleId: undefined,
 			pollCount,
@@ -708,6 +723,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 		const component = await reader.handleReaderPoll({
 			articleUrl,
 			viewer: viewerFor(req.userId),
+			generatedContent: generatedContentOf(req),
 			enclosure: ABSENT_ENCLOSURE,
 			articleId: undefined,
 			pollCount,

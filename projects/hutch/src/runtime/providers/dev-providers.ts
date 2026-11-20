@@ -742,8 +742,8 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		findRelatedArticles,
 		findPastReads,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
-		findGeneratedSummaries: ({ urls, viewer }: Parameters<FindGeneratedSummaries>[0]) =>
-			batchFromSingular((url: string) => summaryStore.findGeneratedSummary({ url, viewer }))(urls),
+		findGeneratedSummaries: ({ urls, viewer, generatedContent }: Parameters<FindGeneratedSummaries>[0]) =>
+			batchFromSingular((url: string) => summaryStore.findGeneratedSummary({ url, viewer, generatedContent }))(urls),
 		markSummaryPending: summaryStore.markSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(crawlStore.findArticleCrawlStatus),

@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import { JSDOM, VirtualConsole } from "jsdom";
 import { OFFLINE_BANNER_TEXT } from "@packages/web-shell";
@@ -65,7 +66,7 @@ function buildFixture(now: () => Date): TestAppFixture {
 		parser: { parseArticle, crawlArticle },
 		summary: {
 			...base.summary,
-			findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
+			findGeneratedSummary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: "A concise summary.",
 				excerpt: "Lead line.",

@@ -80,6 +80,7 @@ fun ReaderWebView(
 	 * progress) so the sheet can drive its skeleton and progress bar. The reader page
 	 * load is otherwise invisible to the sheet. */
 	onLoadPhaseChange: (ReaderLoadPhase) -> Unit,
+	onReopenFromStoredCopy: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val scope = rememberCoroutineScope()
@@ -126,7 +127,11 @@ fun ReaderWebView(
 					)
 				}
 
-				val load = ReaderLoadReporter(onLoadPhaseChange)
+				val load = ReaderLoadReporter(
+					cacheMode = cacheMode,
+					onLoadPhaseChange = onLoadPhaseChange,
+					onReopenFromStoredCopy = onReopenFromStoredCopy,
+				)
 				webViewClient = ReaderNavigationClient(
 					load = load,
 					onClose = onClose,
@@ -187,7 +192,11 @@ private fun WebView.loadAuthenticated(url: String, cookies: List<Cookie>) {
  * navigation on the same view (an in-page link, a back press through the reader's
  * history) must not re-show the skeleton over a good page.
  */
-private class ReaderLoadReporter(private val onLoadPhaseChange: (ReaderLoadPhase) -> Unit) {
+private class ReaderLoadReporter(
+	private val cacheMode: ReaderCacheMode,
+	private val onLoadPhaseChange: (ReaderLoadPhase) -> Unit,
+	private val onReopenFromStoredCopy: () -> Unit,
+) {
 	private var committed = false
 	private var terminal = false
 
@@ -223,7 +232,10 @@ private class ReaderLoadReporter(private val onLoadPhaseChange: (ReaderLoadPhase
 	fun pageFailed(errorCode: Int?) {
 		if (terminal || !ReaderLoad.isRealFailure(errorCode)) return
 		terminal = true
-		onLoadPhaseChange(ReaderLoadPhase.Failed)
+		when (ReaderLoad.recovery(errorCode = errorCode, cacheMode = cacheMode)) {
+			ReaderFailureRecovery.REOPEN_FROM_STORED_COPY -> onReopenFromStoredCopy()
+			ReaderFailureRecovery.FAIL -> onLoadPhaseChange(ReaderLoadPhase.Failed)
+		}
 	}
 
 	/** Reports an in-flight phase unless the load already settled. */

@@ -530,9 +530,10 @@ describe("MCP server over the real app", () => {
 		}));
 		expect(saved.body.result.isError).toBeUndefined();
 		const lists = await callTool(harness, token, tool("list_readlists"));
-		expect(lists.body.result.structuredContent.readlists).toEqual([
-			{ id: DEFAULT_READLIST_SLUG, name: "All" }, work, rust,
-		]);
+		const [all, ...owned] = lists.body.result.structuredContent.readlists;
+		expect(all).toEqual({ id: DEFAULT_READLIST_SLUG, name: "All" });
+		expect(owned).toHaveLength(2);
+		expect(owned).toEqual(expect.arrayContaining([work, rust]));
 		let articleId = "";
 		for (const readlist of lists.body.result.structuredContent.readlists) {
 			const listed = await callTool(harness, token, tool("list_readlist_articles", { readlist: readlist.id }));

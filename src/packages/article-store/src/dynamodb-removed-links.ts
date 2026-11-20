@@ -1,8 +1,16 @@
+import assert from "node:assert";
 import {
 	ArticleStatusSchema,
+	type HeldLink,
+	type HoldOutcome,
 	type NewsletterLinkCandidate,
 	type NewsletterLinkRow,
+	type RemovalSenders,
 	SaveProvenanceSchema,
+	SavedLinksJobIdSchema,
+	decideHold,
+	heldLinkExpiresAt,
+	isHeldLinkLive,
 	isNewsletterLink,
 	summariseNewsletterLinkRows,
 } from "@packages/domain/article";
@@ -11,17 +19,30 @@ import { type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist
 import type { UserId } from "@packages/domain/user";
 import type {
 	CountNewsletterIssues,
+	FindHeldLink,
+	ForEachHeldLinkPage,
+	HasHeldLinks,
 	HasNewsletterLink,
+	MoveNewsletterLinkToHold,
+	RestoreHeldLink,
 	SummariseNewsletterLinks,
 } from "@packages/provider-contracts/article-store";
 import {
 	type DynamoDBDocumentClient,
+	TransactWriteCommand,
+	TransactionCanceledException,
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
 } from "@packages/storage-client";
 import { z } from "zod";
-import { HIGHLIGHT_KEY_PREFIX, READLIST_DEFINITION_KEY_PREFIX, readlistPartitionValue } from "./user-readlist-partition";
+import {
+	HIGHLIGHT_KEY_PREFIX,
+	READLIST_DEFINITION_KEY_PREFIX,
+	readlistPartitionValue,
+	removedLinkKey,
+	removedLinksPartition,
+} from "./user-readlist-partition";
 
 const PartitionItem = z.looseObject({ url: z.string() });
 
@@ -32,7 +53,33 @@ const NewsletterLinkItem = z.object({
 	provenance: dynamoField(SaveProvenanceSchema),
 	handPickedAt: dynamoField(z.string()),
 	viewedAt: dynamoField(z.string()),
+	lastSummaryOpenedAt: dynamoField(z.string()),
+	restoredAt: dynamoField(z.string()),
 });
+
+const HeldLinkItem = z.object({
+	url: z.string(),
+	removedUrl: z.string(),
+	removedByJobId: SavedLinksJobIdSchema,
+	removedAt: z.string(),
+	expiresAt: z.number(),
+	provenance: z.object({ senderEmail: z.string() }),
+});
+
+const SharedArticleItem = z.object({ purgedAt: dynamoField(z.string()) });
+
+const HELD_LINK_ATTRIBUTES = ["url", "removedUrl", "removedByJobId", "removedAt", "expiresAt", "provenance"];
+
+const HOLD_ATTRIBUTES = ["removedUrl", "removedByJobId", "removedAt", "expiresAt"] as const;
+
+const RETRIED_CANCELLATION_CODES = new Set([
+	"TransactionConflict",
+	"ThrottlingError",
+	"ProvisionedThroughputExceeded",
+	"RequestLimitExceeded",
+]);
+
+const MAX_TRANSACTION_ATTEMPTS = 5;
 
 const HighlightItem = z.object({ highlightOf: z.string() });
 
@@ -40,7 +87,16 @@ const ReadlistViewItem = z.object({ url: z.string(), viewedAt: dynamoField(z.str
 
 const RESERVED_KEY_PREFIX = "readplace:";
 
-const LINK_ATTRIBUTES = ["url", "status", "savedAt", "provenance", "handPickedAt", "viewedAt"];
+const LINK_ATTRIBUTES = [
+	"url",
+	"status",
+	"savedAt",
+	"provenance",
+	"handPickedAt",
+	"viewedAt",
+	"lastSummaryOpenedAt",
+	"restoredAt",
+];
 
 function projectionOf(attributes: readonly string[]) {
 	return {
@@ -57,16 +113,76 @@ function toNewsletterLinkRow(item: z.infer<typeof NewsletterLinkItem>): Newslett
 		...(item.provenance === undefined ? {} : { provenance: item.provenance }),
 		...(item.handPickedAt === undefined ? {} : { handPickedAt: new Date(item.handPickedAt) }),
 		...(item.viewedAt === undefined ? {} : { viewedAt: new Date(item.viewedAt) }),
+		...(item.lastSummaryOpenedAt === undefined ? {} : { lastSummaryOpenedAt: new Date(item.lastSummaryOpenedAt) }),
+		...(item.restoredAt === undefined ? {} : { restoredAt: new Date(item.restoredAt) }),
 	};
+}
+
+function toHeldLink(item: z.infer<typeof HeldLinkItem>): HeldLink {
+	return {
+		heldKey: item.url,
+		storedKey: item.removedUrl,
+		jobId: item.removedByJobId,
+		removedAt: new Date(item.removedAt),
+		expiresAt: new Date(item.expiresAt * 1000),
+		senderEmail: item.provenance.senderEmail,
+	};
+}
+
+function holdOutcomeOf(params: {
+	item: Record<string, unknown> | undefined;
+	userId: UserId;
+	cutoff: Date;
+	senders: RemovalSenders;
+}): HoldOutcome {
+	if (params.item === undefined) return { outcome: "not-selected" };
+	const parsed = NewsletterLinkItem.safeParse(params.item);
+	if (!parsed.success) return { outcome: "skipped", reason: "unreadable" };
+	const decision = decideHold({ ...params, row: toNewsletterLinkRow(parsed.data) });
+	if (decision.kind === "hold") return { outcome: "held" };
+	if (decision.kind === "skipped") return { outcome: "skipped", reason: decision.reason };
+	return { outcome: "not-selected" };
+}
+
+type TransactionResult = { kind: "written" } | { kind: "condition-failed"; failedAt: number };
+
+async function transactWithRetry(params: {
+	client: DynamoDBDocumentClient;
+	transactItems: NonNullable<TransactWriteCommand["input"]["TransactItems"]>;
+}): Promise<TransactionResult> {
+	for (let attempt = 1; ; attempt++) {
+		try {
+			await params.client.send(new TransactWriteCommand({ TransactItems: params.transactItems }));
+			return { kind: "written" };
+		} catch (error) {
+			if (!(error instanceof TransactionCanceledException)) throw error;
+			const reasons = error.CancellationReasons;
+			assert(reasons, "a cancelled transaction names a reason for each item");
+			const codes = reasons.map((reason) => String(reason.Code));
+			const failedAt = codes.indexOf("ConditionalCheckFailed");
+			if (failedAt !== -1 && codes.every((code) => code === "None" || code === "ConditionalCheckFailed")) {
+				return { kind: "condition-failed", failedAt };
+			}
+			if (attempt === MAX_TRANSACTION_ATTEMPTS || !codes.some((code) => RETRIED_CANCELLATION_CODES.has(code))) {
+				throw error;
+			}
+		}
+	}
 }
 
 export function initDynamoDbRemovedLinks(deps: {
 	client: DynamoDBDocumentClient;
 	userArticlesTableName: string;
+	articlesTableName: string;
 }): {
 	hasNewsletterLink: HasNewsletterLink;
 	summariseNewsletterLinks: SummariseNewsletterLinks;
 	countNewsletterIssues: CountNewsletterIssues;
+	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
+	restoreHeldLink: RestoreHeldLink;
+	forEachHeldLinkPage: ForEachHeldLinkPage;
+	hasHeldLinks: HasHeldLinks;
+	findHeldLink: FindHeldLink;
 } {
 	const userArticles = defineDynamoTable({
 		client: deps.client,
@@ -160,5 +276,146 @@ export function initDynamoDbRemovedLinks(deps: {
 		return total;
 	};
 
-	return { hasNewsletterLink, summariseNewsletterLinks, countNewsletterIssues };
+	const sharedArticles = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.articlesTableName,
+		schema: SharedArticleItem,
+	});
+
+	const moveNewsletterLinkToHold: MoveNewsletterLinkToHold = async (params) => {
+		const { userId, jobId, storedKey, cutoff, now } = params;
+		const allKey = { userId, url: storedKey };
+		const current = await userArticles.get(allKey, { consistentRead: true });
+		const decided = holdOutcomeOf({ ...params, item: current });
+		if (decided.outcome !== "held") return decided;
+		assert(current, "a row chosen for the hold was read");
+		const result = await transactWithRetry({
+			client: deps.client,
+			transactItems: [
+				{
+					Put: {
+						TableName: deps.userArticlesTableName,
+						Item: {
+							...current,
+							userId: removedLinksPartition(userId),
+							url: removedLinkKey({ jobId, storedKey }),
+							removedUrl: storedKey,
+							removedByJobId: jobId,
+							removedAt: now.toISOString(),
+							expiresAt: Math.floor(heldLinkExpiresAt(now).getTime() / 1000),
+						},
+					},
+				},
+				{
+					Delete: {
+						TableName: deps.userArticlesTableName,
+						Key: allKey,
+						ConditionExpression: [
+							"savedAt = :readSavedAt",
+							"savedAt <= :cutoff",
+							"#status = :unread",
+							"provenance.kind = :email",
+							"attribute_not_exists(handPickedAt)",
+							"attribute_not_exists(viewedAt)",
+							"attribute_not_exists(lastSummaryOpenedAt)",
+							"(attribute_not_exists(restoredAt) OR restoredAt < :cutoff)",
+							"NOT begins_with(#url, :issueKeyPrefix)",
+						].join(" AND "),
+						ExpressionAttributeNames: { "#status": "status", "#url": "url" },
+						ExpressionAttributeValues: {
+							":readSavedAt": current.savedAt,
+							":cutoff": cutoff.toISOString(),
+							":unread": "unread",
+							":email": "email",
+							":issueKeyPrefix": emailIssueKeyPrefix(userId),
+						},
+					},
+				},
+			],
+		});
+		if (result.kind === "written") return { outcome: "held" };
+		const changed = holdOutcomeOf({ ...params, item: await userArticles.get(allKey, { consistentRead: true }) });
+		return changed.outcome === "held" ? { outcome: "skipped", reason: "changed" } : changed;
+	};
+
+	const restoreHeldLink: RestoreHeldLink = async ({ userId, heldKey, now }) => {
+		const heldRowKey = { userId: removedLinksPartition(userId), url: heldKey };
+		const held = await userArticles.get(heldRowKey, { consistentRead: true });
+		if (held === undefined) return { outcome: "gone" };
+		const { removedUrl } = HeldLinkItem.parse(held);
+		const shared = await sharedArticles.get({ url: removedUrl }, { projection: ["purgedAt"] });
+		if (shared === undefined || shared.purgedAt !== undefined) return { outcome: "unrestorable" };
+		const restored: Record<string, unknown> = { ...held, userId, url: removedUrl, restoredAt: now.toISOString() };
+		for (const attribute of HOLD_ATTRIBUTES) delete restored[attribute];
+		const result = await transactWithRetry({
+			client: deps.client,
+			transactItems: [
+				{
+					Put: {
+						TableName: deps.userArticlesTableName,
+						Item: restored,
+						ConditionExpression: "attribute_not_exists(#url)",
+						ExpressionAttributeNames: { "#url": "url" },
+					},
+				},
+				{
+					Delete: {
+						TableName: deps.userArticlesTableName,
+						Key: heldRowKey,
+						ConditionExpression: "attribute_exists(#url)",
+						ExpressionAttributeNames: { "#url": "url" },
+					},
+				},
+			],
+		});
+		if (result.kind === "written") return { outcome: "restored" };
+		return result.failedAt === 0 ? { outcome: "already-in-all" } : { outcome: "gone" };
+	};
+
+	const holdingPartitionQuery = (userId: UserId) => ({
+		KeyConditionExpression: "userId = :userId",
+		ExpressionAttributeValues: { ":userId": removedLinksPartition(userId) },
+		...projectionOf(HELD_LINK_ATTRIBUTES),
+	});
+
+	const forEachHeldLinkPage: ForEachHeldLinkPage = async ({ userId, now, onPage }) => {
+		await forEachQueryPage(userArticles, holdingPartitionQuery(userId), async (items) => {
+			await onPage(
+				items.map((item) => toHeldLink(HeldLinkItem.parse(item))).filter((link) => isHeldLinkLive({ link, now })),
+			);
+		});
+	};
+
+	const hasHeldLinks: HasHeldLinks = async ({ userId, now }) => {
+		const page = await userArticles.query({ ...holdingPartitionQuery(userId), ScanIndexForward: false, Limit: 1 });
+		return page.items.some((item) => isHeldLinkLive({ link: toHeldLink(HeldLinkItem.parse(item)), now }));
+	};
+
+	const findHeldLink: FindHeldLink = async ({ userId, storedKey, now }) => {
+		const matches: HeldLink[] = [];
+		const query = holdingPartitionQuery(userId);
+		await forEachQueryPage(
+			userArticles,
+			{
+				...query,
+				FilterExpression: "#removedUrl = :storedKey",
+				ExpressionAttributeValues: { ...query.ExpressionAttributeValues, ":storedKey": storedKey },
+			},
+			async (items) => {
+				for (const item of items) matches.push(toHeldLink(HeldLinkItem.parse(item)));
+			},
+		);
+		return matches.find((link) => isHeldLinkLive({ link, now }));
+	};
+
+	return {
+		hasNewsletterLink,
+		summariseNewsletterLinks,
+		countNewsletterIssues,
+		moveNewsletterLinkToHold,
+		restoreHeldLink,
+		forEachHeldLinkPage,
+		hasHeldLinks,
+		findHeldLink,
+	};
 }

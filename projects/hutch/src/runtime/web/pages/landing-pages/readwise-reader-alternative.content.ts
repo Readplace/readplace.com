@@ -1,12 +1,11 @@
 import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	PASTE_A_LINK,
 	PLAN_CHOICES,
 	READER_SHOT,
 	FREE_PLAN_CLOSE,
-	START_TRIAL,
+	CREATE_FREE_ACCOUNT,
 	founderLine,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
@@ -16,7 +15,7 @@ function track(path: string, content: string): string {
 }
 
 export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-15",
+	lastModified: "2026-11-19",
 	title: "Readwise Reader Alternative, With the Gaps Listed | Readplace",
 	description:
 		"Readplace next to Readwise Reader, row by row: what it does for less, and the RSS, YouTube, podcast subscription and listening features it doesn't have.",
@@ -45,8 +44,8 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 			body: "It opens in the Readplace reader with its AI TL;DR on top, so you can compare the two on the same article.",
 		},
 		{
-			heading: "Start the trial when it's worth it",
-			body: `An account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial with no card. Save from the Chrome or Firefox extension, the iPhone share sheet, or an AI assistant.`,
+			heading: "Make a free account when it's worth it",
+			body: `An account is free, with no card and daily limits on new saves. Save from the Chrome or Firefox extension, the iPhone share sheet, or an AI assistant.`,
 		},
 		{
 			heading: "Bring the links across",
@@ -64,7 +63,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	mechanismTitle: "Readplace and Readwise Reader, row by row",
 	mechanismLede: "It's a narrower product, and the narrow part is the point.",
 	mechanismParagraphs: [
-		`Price. ${PRICING_PLANS.yearly.monthlyDisplay}/month billed yearly, or ${PRICING_PLANS.monthly.totalDisplay} month to month, and every plan is the whole product.`,
+		`Price. Free, with daily limits on new saves; the paid plan is ${PRICING_PLANS.yearly.monthlyDisplay}/month billed yearly, or ${PRICING_PLANS.monthly.totalDisplay} month to month.`,
 		`Scanned PDFs. Every page is read from its pixels, and a cleanup pass that changes a number is discarded. <a href="${track("/pdf-ocr", "pdf-ocr")}">How the checks work</a>.`,
 		`Leaving. If you stop paying, the account moves to the free plan rather than being locked, and export needs only a sign-in. <a href="${track("/read-it-later-that-wont-die", "free-plan")}">What happens when a subscription ends</a>.`,
 		`AI assistants. ChatGPT, Claude and Gemini can save to and read from a readlist. <a href="${track("/ai-reading-list", "ai-reading-list")}">How the assistant connection works</a>.`,
@@ -81,9 +80,9 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 					competitor: "$9.99/month billed annually, $12.99 month to month",
 				},
 				{
-					feature: "Free trial",
-					readplace: `${STRIPE_TRIAL_PERIOD_DAYS} days, no card`,
-					competitor: "30 days, no card",
+					feature: "Free use",
+					readplace: "Free plan, with daily limits on new saves",
+					competitor: "30-day trial, no card",
 				},
 				{ feature: "AI summaries", readplace: "TL;DR on every save", competitor: "Ghostreader" },
 				{
@@ -142,7 +141,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	faq: [
 		{
 			question: "Is Readplace cheaper than Readwise Reader?",
-			answer: `Yes. Readplace is ${PLAN_CHOICES}, both the same product. Readwise listed Reader at $9.99/month billed annually or $12.99 month to month on Oct 1, 2026.`,
+			answer: `Yes. Readplace has a free plan with daily limits on new saves, and its paid plan is ${PLAN_CHOICES}. Readwise listed Reader at $9.99/month billed annually or $12.99 month to month on Oct 1, 2026.`,
 		},
 		{
 			question: "Can I move my Reader library across?",
@@ -171,13 +170,13 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs",
 		paragraphs: [
-			`Reading a link you paste here costs nothing. Keeping a library is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
-			`Every plan is the whole product: ${PLAN_CHOICES}.`,
+			`Reading a link you paste here costs nothing. Keeping a library takes an account. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			`Both paid prices buy the same plan: ${PLAN_CHOICES}.`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card at any point in the trial.",
+		note: "Google, Apple, or an email address. No card unless you upgrade.",
 	},
 	closeTitle: "Compare them on an article you saved",
-	closeSecondaryAction: START_TRIAL,
+	closeSecondaryAction: CREATE_FREE_ACCOUNT,
 	closeNote: `Paste a link and read it. No account required. <a href="${withInternalTracking("/blog/readplace-vs-readwise-reader", { source: "lp-readwise-reader-alternative-close", content: "post-readplace-vs-readwise-reader" })}">The longer comparison</a> covers each row in prose.`,
 };

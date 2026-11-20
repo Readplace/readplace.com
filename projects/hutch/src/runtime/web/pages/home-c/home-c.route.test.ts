@@ -24,7 +24,7 @@ describe("GET / arm C", () => {
 			"One place to keep the articles you want to come back to.",
 		);
 		expect(doc.querySelector(".home-hero__subhead")?.textContent).toBe(
-			"Save from your browser or your iPhone. Read when you have time. 14 days free, no card; then $60 a year or $10 a month.",
+			"Save from your browser or your iPhone. Read when you have time. Free within daily limits, with no card; the paid plan is $60 a year or $10 a month.",
 		);
 		expect(doc.querySelector(".home-hero [data-test-saves-stay]")?.textContent).toBe(SAVES_STAY_STATEMENT);
 	});

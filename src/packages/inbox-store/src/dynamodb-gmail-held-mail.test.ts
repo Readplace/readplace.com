@@ -112,6 +112,24 @@ describe("initDynamoDbGmailHeldMail", () => {
 		);
 	});
 
+	it("lists every held message a reader owns across query pages", async () => {
+		const second = { ...ENTRY, receivedAtMessageId: "2026-08-28T00:00:00.000Z#<b@x>" };
+		const pages = [
+			{
+				Items: [{ ...ENTRY, senderReceivedAt: `${SENDER}#${RECEIVED_AT_MESSAGE_ID}` }],
+				LastEvaluatedKey: { userId: USER, receivedAtMessageId: RECEIVED_AT_MESSAGE_ID },
+			},
+			{ Items: [{ ...second, senderReceivedAt: `${SENDER}#${second.receivedAtMessageId}` }] },
+		];
+		const { store, commands } = harness(() => pages.shift());
+
+		const held = await store.listHeldMailByUserId(USER);
+
+		assert.deepEqual(held, [ENTRY, second]);
+		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":uid": USER });
+		assert.equal(commands[0].input.IndexName, undefined);
+	});
+
 	it("deletes every held message a reader owns on account deletion", async () => {
 		const { store, commands } = harness((input) =>
 			(input as CapturedCommand).input.Key === undefined

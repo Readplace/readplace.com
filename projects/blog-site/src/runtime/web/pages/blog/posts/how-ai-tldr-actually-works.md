@@ -5,7 +5,7 @@ excerpt: "One summary per URL, cached globally, so 10 people saving a link cost 
 tldr: "Readplace generates a short TL;DR for each saved article using a small, fast AI model. Summaries are cached globally by URL, so one API call serves anyone who saves the same link. The prompt bans corporate jargon and forces plain language. The summary is a triage tool to help you decide when to read, not a replacement for reading. Readplace skips smart highlights, AI commentary, and daily briefings."
 slug: "how-ai-tldr-actually-works"
 date: "2026-05-06"
-lastModified: "2026-11-04"
+lastModified: "2026-11-19"
 author: "Fayner Brack"
 keywords: "ai summary, read it later, article tl;dr, ai slop, readplace app"
 ---
@@ -48,7 +48,7 @@ The rules it enforces are simple: active voice, short sentences, plain connector
 
 ## How It Works Under the Hood
 
-Summaries come from a small, fast AI model. I chose it for this job because it handles concise factual summarisation well and the economics hold up at scale. The cost sits inside the subscription, so you don't pay per summary. You don't [paste the article into ChatGPT](/blog/stop-copy-pasting-articles-into-chatgpt?utm_source=blog-how-ai-tldr-actually-works&utm_medium=internal&utm_content=post-stop-copy-pasting-articles-into-chatgpt) to get one either.
+Summaries come from a small, fast AI model. I chose it for this job because it handles concise factual summarisation well and the economics hold up at scale. Summaries come with every plan, the free one too, so you don't pay per summary. You don't [paste the article into ChatGPT](/blog/stop-copy-pasting-articles-into-chatgpt?utm_source=blog-how-ai-tldr-actually-works&utm_medium=internal&utm_content=post-stop-copy-pasting-articles-into-chatgpt) to get one either.
 
 The design choice that matters most is **one summary per URL, cached globally**.
 

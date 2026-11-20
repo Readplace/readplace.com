@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { CandidateIdSchema, MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
+import { CandidateIdSchema, MinutesSchema, ReaderArticleHashId, SavedLinksJobIdSchema, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
 import type { Minutes } from "@packages/domain/article";
 import { toEventInstant } from "@packages/domain/event-envelope";
 import { formatEmailLinkOrdinal } from "@packages/domain/inbox";
@@ -3049,4 +3049,120 @@ describe("initInMemoryArticleStore hand-picked marker", () => {
 		expect(store.readHandPickedAt({ userId: USER_A, url: URL })).toEqual(SECOND);
 	});
 
+});
+
+describe("initInMemoryArticleStore held newsletter links", () => {
+	const SAVED = new Date("2026-11-20T00:00:00.000Z");
+	const CUTOFF = new Date("2026-12-01T00:00:00.000Z");
+	const NOW = new Date("2026-12-02T00:00:00.000Z");
+	const JOB = SavedLinksJobIdSchema.parse("2026-12-02T00:00:00.000Z-job");
+	const KEY = ArticleResourceUniqueId.parse(URL).value;
+	const email = { kind: "email", senderEmail: "news@example.com" } as const;
+	const hold = { userId: USER_A, jobId: JOB, storedKey: KEY, cutoff: CUTOFF, senders: { kind: "all" } as const, now: NOW };
+
+	async function storeWithEmailLink() {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams({ savedAt: SAVED, provenance: email, saveTrigger: "automatic" }));
+		return store;
+	}
+
+	it("moves a link to the hold and restores it with every attribute and a restore time", async () => {
+		const store = await storeWithEmailLink();
+		const before = await store.findArticleByUrl(URL, viewerFor(USER_A));
+
+		expect(await store.moveNewsletterLinkToHold(hold)).toEqual({ outcome: "held" });
+		expect(await store.moveNewsletterLinkToHold(hold)).toEqual({ outcome: "not-selected" });
+		const link = await store.findHeldLink({ userId: USER_A, storedKey: KEY, now: NOW });
+		assert(link);
+		expect(link).toMatchObject({ storedKey: KEY, jobId: JOB, removedAt: NOW, senderEmail: "news@example.com" });
+		expect(await store.hasHeldLinks({ userId: USER_A, now: NOW })).toBe(true);
+		expect(await store.hasHeldLinks({ userId: USER_A, now: link.expiresAt })).toBe(false);
+		const pages: unknown[] = [];
+		await store.forEachHeldLinkPage({ userId: USER_A, now: NOW, onPage: async (links) => void pages.push(links) });
+		expect(pages).toEqual([[link]]);
+
+		expect(await store.restoreHeldLink({ userId: USER_A, heldKey: link.heldKey, now: NOW })).toEqual({ outcome: "restored" });
+		expect(await store.findArticleByUrl(URL, viewerFor(USER_A))).toEqual(before);
+		expect(await store.moveNewsletterLinkToHold(hold)).toEqual({ outcome: "skipped", reason: "changed" });
+		expect(await store.restoreHeldLink({ userId: USER_A, heldKey: link.heldKey, now: NOW })).toEqual({ outcome: "gone" });
+	});
+
+	it("skips a read link and leaves a link held when its article is purged or the reader saved it again", async () => {
+		const store = await storeWithEmailLink();
+		const saved = await store.findArticleByUrl(URL, viewerFor(USER_A));
+		assert(saved);
+		await store.updateArticleStatus(saved.id, USER_A, "read");
+		expect(await store.moveNewsletterLinkToHold(hold)).toEqual({ outcome: "skipped", reason: "read" });
+		await store.updateArticleStatus(saved.id, USER_A, "unread");
+		await store.moveNewsletterLinkToHold(hold);
+		const link = await store.findHeldLink({ userId: USER_A, storedKey: KEY, now: NOW });
+		assert(link);
+
+		await store.saveArticle(makeArticleParams({ savedAt: NOW }));
+		expect(await store.restoreHeldLink({ userId: USER_A, heldKey: link.heldKey, now: NOW })).toEqual({ outcome: "already-in-all" });
+		await store.setPurgedAt({ url: URL, at: NOW });
+		expect(await store.restoreHeldLink({ userId: USER_A, heldKey: link.heldKey, now: NOW })).toEqual({ outcome: "unrestorable" });
+	});
+
+	it("lets a failed saved-links job be finished again as completed", async () => {
+		const store = initInMemoryArticleStore();
+		await store.requestSavedLinksJob({ userId: USER_A, jobId: JOB, action: "remove", requestedAt: NOW });
+		const finish = { userId: USER_A, jobId: JOB, counts: { held: 1 }, finishedAt: NOW } as const;
+
+		expect(await store.finishSavedLinksJob({ ...finish, state: "failed" })).toEqual({ outcome: "recorded" });
+		expect(await store.finishSavedLinksJob({ ...finish, state: "completed" })).toEqual({ outcome: "recorded" });
+		expect(await store.findSavedLinksJob({ userId: USER_A })).toMatchObject({ state: "completed" });
+	});
+
+	it("leaves in All a newsletter link from a sender the reader did not choose", async () => {
+		const store = await storeWithEmailLink();
+		const senders = { kind: "chosen", senderEmails: ["other@example.com"] } as const;
+
+		expect(await store.moveNewsletterLinkToHold({ ...hold, senders })).toEqual({ outcome: "not-selected" });
+		expect(await store.findArticleByUrl(URL, viewerFor(USER_A))).toBeDefined();
+	});
+
+	it("lists a held link's URL and leaves nothing behind when the account is deleted", async () => {
+		const store = await storeWithEmailLink();
+		await store.moveNewsletterLinkToHold(hold);
+		await store.requestSavedLinksJob({ userId: USER_A, jobId: JOB, action: "remove", requestedAt: NOW });
+
+		expect(await store.listUserArticleUrls(USER_A)).toEqual([URL]);
+		await store.deleteAllUserArticles(USER_A);
+		expect(await store.listUserArticleUrls(USER_A)).toEqual([]);
+		expect(await store.hasHeldLinks({ userId: USER_A, now: NOW })).toBe(false);
+		expect(await store.findSavedLinksJob({ userId: USER_A })).toBeUndefined();
+	});
+
+	it("runs one saved-links job at a time and refuses writes from a job that no longer holds the row", async () => {
+		const store = initInMemoryArticleStore();
+		const other = SavedLinksJobIdSchema.parse("other-job");
+		const job = { userId: USER_A, jobId: JOB, action: "remove", requestedAt: NOW } as const;
+
+		expect(await store.recordSavedLinksJobProgress({ userId: USER_A, jobId: JOB, counts: {} })).toEqual({ outcome: "stale" });
+		expect(await store.requestSavedLinksJob(job)).toEqual({ outcome: "claimed" });
+		expect(await store.withdrawSavedLinksJob({ userId: USER_A, jobId: other })).toEqual({ outcome: "stale" });
+		expect(await store.recordSavedLinksJobProgress({ userId: USER_A, jobId: JOB, counts: { held: 1 } })).toEqual({
+			outcome: "recorded",
+		});
+		expect(await store.requestSavedLinksJob({ ...job, jobId: other })).toMatchObject({ outcome: "busy", job: { jobId: JOB } });
+		expect(await store.withdrawSavedLinksJob({ userId: USER_A, jobId: JOB })).toEqual({ outcome: "stale" });
+		const finish = { userId: USER_A, state: "completed", counts: { held: 2 }, finishedAt: NOW } as const;
+		expect(await store.finishSavedLinksJob({ ...finish, jobId: other })).toEqual({ outcome: "stale" });
+		expect(await store.finishSavedLinksJob({ ...finish, jobId: JOB })).toEqual({ outcome: "recorded" });
+		expect(await store.finishSavedLinksJob({ ...finish, jobId: JOB, state: "failed", counts: {} })).toEqual({ outcome: "stale" });
+		expect(await store.recordSavedLinksJobProgress({ userId: USER_A, jobId: JOB, counts: {} })).toEqual({ outcome: "stale" });
+		expect(await store.findSavedLinksJob({ userId: USER_A })).toEqual({
+			jobId: JOB,
+			action: "remove",
+			state: "completed",
+			requestedAt: NOW,
+			counts: { held: 2 },
+			finishedAt: NOW,
+		});
+
+		expect(await store.requestSavedLinksJob({ ...job, jobId: other })).toEqual({ outcome: "claimed" });
+		expect(await store.withdrawSavedLinksJob({ userId: USER_A, jobId: other })).toEqual({ outcome: "withdrawn" });
+		expect(await store.findSavedLinksJob({ userId: USER_A })).toBeUndefined();
+	});
 });

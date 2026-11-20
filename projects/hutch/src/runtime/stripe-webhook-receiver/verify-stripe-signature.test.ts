@@ -126,6 +126,19 @@ describe("verifyStripeSignature", () => {
 		assert.equal(result.reason, "signature-mismatch");
 	});
 
+	it("rejects a signature of the expected character length but more bytes instead of throwing", () => {
+		const { raw } = validBody();
+		const now = Math.floor(Date.now() / 1000);
+		const result = verifyStripeSignature({
+			rawBody: raw,
+			signatureHeader: `t=${now},v1=${"é".repeat(64)}`,
+			secret: SECRET,
+			nowSeconds: now,
+		});
+		assert(result.ok === false);
+		assert.equal(result.reason, "signature-mismatch");
+	});
+
 	it("rejects a valid signature wrapping non-JSON body", () => {
 		const raw = Buffer.from("not json");
 		const now = Math.floor(Date.now() / 1000);

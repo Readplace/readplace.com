@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import matter from "gray-matter";
+import { strFromU8, unzipSync } from "fflate";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { CandidateIdSchema } from "@packages/article-state-types";
@@ -556,6 +557,76 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 
 		expect(response.status).toBe(200);
 		expect(response.text.match(/^## Chapter \d$/gm)).toEqual(["## Chapter 1", "## Chapter 2"]);
+	});
+});
+
+describe("Exports for a reader in China mainland (GET /queue/:id/view as Markdown and EPUB)", () => {
+	async function savedWithReadySummary() {
+		const { harness, summary } = buildHarness();
+		const owner = await loggedInOwner(harness);
+		const url = "https://example.com/withheld";
+		await harness.articleStore.saveArticle({
+			userId: owner.userId,
+			url,
+			metadata: { title: "Withheld", siteName: "example.com", excerpt: "Parsed blurb.", wordCount: 3 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+			saveTrigger: "manual",
+		});
+		await harness.articleStore.writeContent({ url, content: "<p>Body copy.</p>" });
+		await harness.articleCrawl.markCrawlReady({ url });
+		summary.markSummaryReady({ url, summary: "First point.\n\nSecond point.", excerpt: "Generated blurb." });
+		return { harness, ...owner, id: ReaderArticleHashId.from(url).value };
+	}
+
+	async function epubText(storefrontCookie: string) {
+		const { agent, id } = await savedWithReadySummary();
+		const response = await agent
+			.get(`/queue/${id}/view?format=epub`)
+			.set("Cookie", `readplace_storefront=${storefrontCookie}`)
+			.responseType("blob");
+		expect(response.status).toBe(200);
+		const files = unzipSync(new Uint8Array(response.body));
+		return Object.values(files).map((file) => strFromU8(file)).join("\n");
+	}
+
+	it("leaves the summary and its frontmatter key out of the Markdown for the China storefront header", async () => {
+		const { harness, token, id } = await savedWithReadySummary();
+
+		const response = await markdownGet(harness, { path: `/queue/${id}/view`, token }).set("x-readplace-storefront", "CHN");
+
+		expect(response.status).toBe(200);
+		const document = matter(response.text);
+		expect(document.data).not.toHaveProperty("readplace_summary");
+		expect(document.data.description).toBe("Parsed blurb.");
+		expect(document.content).not.toContain("Summary (TL;DR)");
+		expect(document.content).not.toContain("First point.");
+		expect(document.content).toContain("Body copy.");
+	});
+
+	it("keeps the summary in the Markdown for another storefront's header", async () => {
+		const { harness, token, id } = await savedWithReadySummary();
+
+		const response = await markdownGet(harness, { path: `/queue/${id}/view`, token }).set("x-readplace-storefront", "AUS");
+
+		expect(matter(response.text).data.readplace_summary).toBe("First point.\n\nSecond point.");
+	});
+
+	it("leaves the summary section out of the EPUB for the China storefront cookie", async () => {
+		const text = await epubText("CHN");
+
+		expect(text).not.toContain("Summary (TL;DR)");
+		expect(text).not.toContain("First point.");
+		expect(text).not.toContain("Generated blurb.");
+		expect(text).toContain("Body copy.");
+	});
+
+	it("keeps the summary section in the EPUB for another storefront's cookie", async () => {
+		const text = await epubText("AUS");
+
+		expect(text).toContain("Summary (TL;DR)");
+		expect(text).toContain("First point.");
 	});
 });
 

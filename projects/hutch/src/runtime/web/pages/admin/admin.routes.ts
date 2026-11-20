@@ -137,12 +137,12 @@ export function initAdminRoutes(
 		now: deps.now,
 		buildBannerState,
 	});
-	router.use("/admin/extend-trial", noStore, withServiceToken, adminExtendTrialRouter);
+	router.use("/admin/extend-trial", noStore, sessionOnly, adminExtendTrialRouter);
 
 	router.use(
 		"/admin/founder-notes",
 		noStore,
-		withServiceToken,
+		sessionOnly,
 		initAdminFounderNotesRoutes({
 			findUserByEmail: deps.findUserByEmail,
 			findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,

@@ -23,7 +23,7 @@ export function initInMemoryClaimResolutionOnView(deps: {
 	findItemOwner: FindItemOwner;
 	now: () => Date;
 }): ClaimResolutionOnView {
-	return async ({ url, axes, viewer }) => {
+	return async ({ url, axes, viewer, generatedContent }) => {
 		const now = deps.now();
 		const crawl = deps.crawl.crawlStateOf(url);
 		if (axes === "crawl-and-summary") {
@@ -44,7 +44,7 @@ export function initInMemoryClaimResolutionOnView(deps: {
 		return {
 			kind: "claimed",
 			crawl: claimedCrawl,
-			summary: shownSummary({ url, summary: deps.summary.summaryStateOf(url), viewer, ownerUserId: await deps.findItemOwner(url) }),
+			summary: shownSummary({ url, summary: deps.summary.summaryStateOf(url), viewer, ownerUserId: await deps.findItemOwner(url), generatedContent }),
 		};
 	};
 }

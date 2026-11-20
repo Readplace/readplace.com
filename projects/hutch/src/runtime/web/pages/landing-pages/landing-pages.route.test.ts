@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { ADVERTISED_CLIENTS, UNADVERTISED_CLIENTS } from "@packages/supported-clients";
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
@@ -36,14 +36,21 @@ const AMOUNTS_BY_SLUG: Record<LandingPageSlug, readonly string[]> = {
 	"readwise-reader-alternative": ["$10", "$12.99", "$5", "$60", "$9.99"],
 	"save-newsletter-links": STATED_AMOUNTS,
 	"obsidian-read-it-later": STATED_AMOUNTS,
+	"free-read-it-later-app": STATED_AMOUNTS,
 };
 
 const useApp = useTestServer();
 
-async function loadPage(slug: LandingPageSlug) {
+function pageLoader() {
 	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-	const response = await request(harness.server).get(`/${slug}`);
-	return { response, doc: new JSDOM(response.text).window.document };
+	return async (slug: LandingPageSlug) => {
+		const response = await request(harness.server).get(`/${slug}`);
+		return { response, doc: new JSDOM(response.text).window.document };
+	};
+}
+
+function loadPage(slug: LandingPageSlug) {
+	return pageLoader()(slug);
 }
 
 describe("landing pages", () => {
@@ -180,17 +187,23 @@ describe("landing pages", () => {
 		expect(limits).toEqual([...LANDING_PAGE_CONTENT[slug].limits]);
 	});
 
-	/** Three of the four destinations eventually ask for a subscription. A reader
-	 * who arrives from a paid ad and only discovers the price at the checkout was
-	 * misled by the page, so every page names it — from the pricing constants, so
-	 * the copy cannot drift away from what the card is charged. */
-	it.each(SLUGS)("names the price and the trial on /%s before the closing CTA", async (slug) => {
+	it.each(SLUGS)("names the free plan, its limits and the upgrade price on /%s before the closing CTA", async (slug) => {
 		const { doc } = await loadPage(slug);
 
 		const offer = doc.querySelector('[data-test-section="lp-offer"]');
 		assert(offer, `${slug} must state its offer`);
-		expect(offer.textContent).toContain(PRICE_STATEMENT);
+		expect(offer.textContent).toContain(FREE_PRICE_STATEMENT);
 		expect(offer.textContent).toContain(SAVES_STAY_STATEMENT);
+	});
+
+	it.each(SLUGS)("leads /%s with the free account, not a trial of a subscription", async (slug) => {
+		const { doc } = await loadPage(slug);
+
+		const text = String(doc.body.textContent).toLowerCase();
+		expect(text).toContain("free");
+		for (const retired of ["free trial", "is a subscription", "whole product"]) {
+			expect(text).not.toContain(retired);
+		}
 	});
 
 	it.each(SLUGS)("quotes only the stated dollar amounts on /%s", async (slug) => {
@@ -232,8 +245,9 @@ describe("landing pages", () => {
 	/** The one testimonial the product has. A page may use it or not; no page may
 	 * invent a second one. */
 	it("quotes only the reader who actually said it", async () => {
+		const loadEachPage = pageLoader();
 		for (const slug of SLUGS) {
-			const { doc } = await loadPage(slug);
+			const { doc } = await loadEachPage(slug);
 			const quotes = Array.from(doc.querySelectorAll("[data-test-lp-quote]")).map(
 				(quote) => quote.textContent,
 			);
@@ -276,8 +290,9 @@ describe("landing pages", () => {
 	 * hand. A reader the page convinced has to be able to act from where they
 	 * are. */
 	it("leaves every page with a way to start an account, whatever device it was opened on", async () => {
+		const loadEachPage = pageLoader();
 		for (const slug of SLUGS) {
-			const { doc } = await loadPage(slug);
+			const { doc } = await loadEachPage(slug);
 			const closeTargets = Array.from(
 				doc.querySelectorAll('[data-test-section="lp-close"] form.lp-action'),
 			).map((form) => form.getAttribute("action"));
@@ -297,10 +312,12 @@ describe("landing pages", () => {
 			"article-to-epub": "/view",
 			"readwise-reader-alternative": "/view",
 			"obsidian-read-it-later": "/install",
+			"free-read-it-later-app": "/signup",
 		};
 
+		const loadEachPage = pageLoader();
 		for (const slug of SLUGS) {
-			const { doc } = await loadPage(slug);
+			const { doc } = await loadEachPage(slug);
 			const hero = doc.querySelector('[data-test-section="lp-hero"] form.lp-action');
 			assert(hero, `${slug} must render a hero action`);
 			expect(hero.getAttribute("action")).toBe(destinations[slug]);
@@ -310,8 +327,9 @@ describe("landing pages", () => {
 	it("gives a paste field only to pages whose primary action opens the reader, and labels it for screen readers", async () => {
 		const fieldsBySlug: Record<string, string[]> = {};
 		const docsBySlug: Record<string, Document> = {};
+		const loadEachPage = pageLoader();
 		for (const slug of SLUGS) {
-			const { doc } = await loadPage(slug);
+			const { doc } = await loadEachPage(slug);
 			docsBySlug[slug] = doc;
 			fieldsBySlug[slug] = Array.from(doc.querySelectorAll("[data-test-lp-input]")).map(
 				(input) => input.getAttribute("data-test-lp-input") ?? "",
@@ -328,6 +346,7 @@ describe("landing pages", () => {
 			"article-to-epub": ["try-epub", "close-try-epub"],
 			"readwise-reader-alternative": ["try-reader", "close-try-reader"],
 			"obsidian-read-it-later": [],
+			"free-read-it-later-app": [],
 		});
 
 		const doc = docsBySlug["pdf-ocr"];
@@ -372,8 +391,9 @@ describe("landing pages", () => {
 	});
 
 	it("keeps a single h1 per page for the document outline", async () => {
+		const loadEachPage = pageLoader();
 		for (const slug of SLUGS) {
-			const { doc } = await loadPage(slug);
+			const { doc } = await loadEachPage(slug);
 			const headings = Array.from(doc.querySelectorAll("main h1")).map((h) => h.textContent);
 			expect(headings).toHaveLength(1);
 		}

@@ -344,18 +344,48 @@ describe("initDynamoDbInboxEmailLink", () => {
 				userId: USER,
 				receivedAtMessageId: RAM,
 				ordinal: ORDINAL,
-				outcome: { status: "failed", failureReason: "unsafe-url" },
+				outcome: { status: "failed", failureReason: "unsafe-url", resolvedUrl: undefined },
 			});
 
 			expect(captured?.input.ConditionExpression).toBe(
 				"attribute_exists(ordinal)",
 			);
 			expect(captured?.input.UpdateExpression).toBe(
-				"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #resolvedUrl, #skipReason",
+				"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl, #skipReason, #resolvedUrl",
 			);
-			expect(
-				captured?.input.ExpressionAttributeValues?.[":failureReason"],
-			).toBe("unsafe-url");
+			expect(captured?.input.ExpressionAttributeValues).toEqual({
+				":status": "failed",
+				":failureReason": "unsafe-url",
+			});
+		});
+
+		it("keeps the destination a failed preview reached after a tracker redirect", async () => {
+			let captured: CapturedCommand | undefined;
+			await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).setLinkOutcome({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				outcome: {
+					status: "failed",
+					failureReason: "blocked",
+					resolvedUrl: "https://www.telegraph.test/news/the-actual-article",
+				},
+			});
+
+			expect(captured?.input.ConditionExpression).toBe(
+				"attribute_exists(ordinal)",
+			);
+			expect(captured?.input.UpdateExpression).toBe(
+				"SET #status = :status, #failureReason = :failureReason, #resolvedUrl = :resolvedUrl REMOVE #title, #excerpt, #siteName, #imageUrl, #skipReason",
+			);
+			expect(captured?.input.ExpressionAttributeValues).toEqual({
+				":status": "failed",
+				":failureReason": "blocked",
+				":resolvedUrl": "https://www.telegraph.test/news/the-actual-article",
+			});
 		});
 	});
 

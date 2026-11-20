@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import {
 	articleDisplayMetadata,
 	MinutesSchema,
@@ -230,13 +231,13 @@ describe("initMcpArticleOperations", () => {
 		const ops = buildOps({
 			findArticleById: async () => article,
 			readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: "<p>Article</p>", viewer, ownerUserId: undefined }),
-			findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "Summary" } }),
+			findGeneratedSummary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "Summary" } }),
 			updateArticleStatusAcrossReadlists: async ({ status }) => ({ ...article, status }),
 			recordEngagementActivity: async (input) => {
 				activity.push(input);
 			},
 		});
-		const input = { userId, id: article.id.value };
+		const input = { userId, id: article.id.value, generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST };
 		await ops.getArticle(input);
 		await ops.listReadlist({ userId });
 		expect(activity).toEqual([]);
@@ -277,19 +278,19 @@ describe("initMcpArticleOperations", () => {
 		for (const summary of undelivered) {
 			await buildOps({
 				findArticleById: async () => article,
-				findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary }),
+				findGeneratedSummary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary }),
 				recordEngagementActivity,
-			}).getArticleSummary({ userId, id: article.id.value });
+			}).getArticleSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: article.id.value });
 		}
 		const mailbox = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
 		const mailboxOps = buildOps({
 			findArticleById: async () => mailbox,
 			readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: "<p>42 unread</p>", viewer, ownerUserId: undefined }),
-			findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "42 unread" } }),
+			findGeneratedSummary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "42 unread" } }),
 			recordEngagementActivity,
 		});
 		await mailboxOps.getArticleContent({ userId, id: mailbox.id.value });
-		await mailboxOps.getArticleSummary({ userId, id: mailbox.id.value });
+		await mailboxOps.getArticleSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: mailbox.id.value });
 		expect(activity).toEqual([]);
 	});
 	it("uses the saved URL for membership while displaying a merged article's destination URL", async () => {
@@ -337,7 +338,7 @@ describe("initMcpArticleOperations", () => {
 			resolveReadlistMembership: async () => new Map([[article.url, [{ id: work, name: "Work" }]]]),
 			updateArticleStatusAcrossReadlists,
 		});
-		const params = { userId, id: article.id.value };
+		const params = { userId, id: article.id.value, generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST };
 		expect(await ops.getArticle(params)).toMatchObject({ id: article.id.value, readlists: [{ id: work, name: "Work" }] });
 		expect(await ops.getArticleContent(params)).toEqual({ status: "pending" });
 		expect(await ops.getArticleSummary(params)).toEqual({ status: "pending" });
@@ -597,7 +598,7 @@ describe("initMcpArticleOperations", () => {
 	describe("getArticleSummary", () => {
 		it("reports not_found when the id does not resolve", async () => {
 			const ops = buildOps({ findArticleById: async () => null });
-			expect(await ops.getArticleSummary({ userId, id: "0".repeat(32) })).toEqual({
+			expect(await ops.getArticleSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: "0".repeat(32) })).toEqual({
 				status: "not_found",
 			});
 		});
@@ -606,10 +607,10 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle();
 			const ops = buildOps({
 				findArticleById: async () => article,
-				findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "TL;DR" } }),
+				findGeneratedSummary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "TL;DR" } }),
 			});
 			expect(
-				await ops.getArticleSummary({ userId, id: article.id.value }),
+				await ops.getArticleSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: article.id.value }),
 			).toEqual({ status: "ready", summary: "TL;DR" });
 		});
 
@@ -617,10 +618,10 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
 			const ops = buildOps({
 				findArticleById: async () => article,
-				findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "42 unread" } }),
+				findGeneratedSummary: async ({ url, viewer }) => shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "42 unread" } }),
 			});
 			expect(
-				await ops.getArticleSummary({ userId, id: article.id.value }),
+				await ops.getArticleSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: article.id.value }),
 			).toEqual({ status: "not_an_article" });
 		});
 
@@ -629,10 +630,10 @@ describe("initMcpArticleOperations", () => {
 			const ops = buildOps({
 				findArticleById: async () => article,
 				findGeneratedSummary: async ({ url, viewer }) =>
-					shownSummary({ url, viewer, ownerUserId: userId, summary: { status: "ready", summary: "PRIVATE-BOOK-SUMMARY" } }),
+					shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: userId, summary: { status: "ready", summary: "PRIVATE-BOOK-SUMMARY" } }),
 			});
 			expect(
-				await ops.getArticleSummary({ userId, id: article.id.value }),
+				await ops.getArticleSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: article.id.value }),
 			).toEqual({ status: "ready", summary: "PRIVATE-BOOK-SUMMARY" });
 		});
 
@@ -641,10 +642,10 @@ describe("initMcpArticleOperations", () => {
 			const ops = buildOps({
 				findArticleById: async () => article,
 				findGeneratedSummary: async ({ url, viewer }) =>
-					shownSummary({ url, viewer, ownerUserId: otherUserId, summary: { status: "ready", summary: "PRIVATE-BOOK-SUMMARY" } }),
+					shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer, ownerUserId: otherUserId, summary: { status: "ready", summary: "PRIVATE-BOOK-SUMMARY" } }),
 			});
 			expect(
-				await ops.getArticleSummary({ userId, id: article.id.value }),
+				await ops.getArticleSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: article.id.value }),
 			).toEqual({ status: "skipped" });
 		});
 	});
@@ -662,13 +663,13 @@ describe("initMcpArticleOperations", () => {
 				findRelatedArticles,
 			});
 
-			expect(await ops.getRelatedArticles({ userId, id: article.id.value })).toEqual({ status: "skipped" });
+			expect(await ops.getRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: article.id.value })).toEqual({ status: "skipped" });
 			expect(findRelatedArticles.mock.calls).toEqual([]);
 		});
 
 		it("reports not_found when the id does not resolve", async () => {
 			const ops = buildOps({ findArticleById: async () => null });
-			expect(await ops.getRelatedArticles({ userId, id: "0".repeat(32) })).toEqual({
+			expect(await ops.getRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: "0".repeat(32) })).toEqual({
 				status: "not_found",
 			});
 		});
@@ -680,7 +681,7 @@ describe("initMcpArticleOperations", () => {
 				findRelatedArticles: async () => ({ status: "pending" }),
 			});
 			expect(
-				await ops.getRelatedArticles({ userId, id: article.id.value }),
+				await ops.getRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: article.id.value }),
 			).toEqual({ status: "pending" });
 		});
 
@@ -691,7 +692,7 @@ describe("initMcpArticleOperations", () => {
 				findRelatedArticles: async () => ({ status: "skipped" }),
 			});
 			expect(
-				await ops.getRelatedArticles({ userId, id: article.id.value }),
+				await ops.getRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: article.id.value }),
 			).toEqual({ status: "skipped" });
 		});
 
@@ -725,7 +726,7 @@ describe("initMcpArticleOperations", () => {
 				}),
 			});
 			expect(
-				await ops.getRelatedArticles({ userId, id: article.id.value }),
+				await ops.getRelatedArticles({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId, id: article.id.value }),
 			).toEqual({
 				status: "ready",
 				articles: [

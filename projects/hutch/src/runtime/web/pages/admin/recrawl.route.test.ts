@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
@@ -741,7 +742,7 @@ describe("Admin recrawl routes", () => {
 			const response = await agent.post(`/admin/recrawl/${ENCODED}`);
 
 			expect(response.status).toBe(303);
-			const summaryAfter = await harness.summary.findGeneratedSummary({ url: ARTICLE_URL, viewer: ANONYMOUS_VIEWER });
+			const summaryAfter = await harness.summary.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: ARTICLE_URL, viewer: ANONYMOUS_VIEWER });
 			expect(summaryAfter).toEqual({
 				status: "ready",
 				summary: "Existing summary",

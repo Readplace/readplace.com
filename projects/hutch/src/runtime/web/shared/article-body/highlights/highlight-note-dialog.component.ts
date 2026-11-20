@@ -1,7 +1,9 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { HighlightId } from "@packages/domain/article";
-import { render, withInternalTracking } from "@packages/web-shell";
+import {
+	render,
+	renderConfirmPopover,
+	withInternalTracking,
+} from "@packages/web-shell";
 import { highlightActionUrl } from "../../../pages/readlist/highlight-surface";
 import {
 	type LinkParams,
@@ -15,11 +17,6 @@ import {
 } from "./highlight-note-form.component";
 
 export const HIGHLIGHT_NOTE_DIALOG_ID = "note-highlight-dialog";
-
-const EDITOR_TEMPLATE = readFileSync(
-	join(__dirname, "highlight-note-editor.template.html"),
-	"utf-8",
-);
 
 const ADD_TITLE = "Add a note";
 
@@ -35,7 +32,7 @@ const LOCAL_DELETE_FORM_TEMPLATE = `<form class="highlight-note__delete-form" id
 </form>`;
 
 const DELETE_TRIGGER_TEMPLATES = {
-	dialog: `<button class="btn btn--destructive btn--s" type="submit" form="{{formId}}" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>`,
+	dialog: `<button class="btn btn--destructive" type="submit" form="{{formId}}" data-test-action="highlight-note-delete">{{t "articleBody.highlightNote.delete"}}</button>`,
 	panel: `<button class="menu__item" type="submit" form="{{formId}}" data-test-action="highlight-panel-note-delete">{{icon "x"}}{{t "articleBody.highlightNote.delete"}}</button>`,
 } as const;
 
@@ -78,18 +75,6 @@ function highlightNoteUrl(input: {
 		source: "highlights-rail",
 		content: input.content,
 	});
-}
-
-function renderHighlightNoteEditor(input: {
-	id: string;
-	key: string;
-	subject: string;
-	highlightId: string;
-	title: string;
-	quote: string;
-	formHtml: string;
-}): string {
-	return render(EDITOR_TEMPLATE, input).trim();
 }
 
 function highlightNoteDeleteFormId(highlightId: HighlightId): string {
@@ -140,6 +125,7 @@ export function renderHighlightNoteCreateForm(input: {
 		answersInPlace: true,
 		pushesHistory: true,
 		local: undefined,
+		noteEditor: true,
 	});
 }
 
@@ -148,14 +134,14 @@ export function renderHighlightNoteDialog(input: {
 	hiddenFields: readonly { name: string; value: string }[];
 	autofocus: boolean;
 }): string {
-	return renderHighlightNoteEditor({
+	return renderConfirmPopover({
 		id: HIGHLIGHT_NOTE_DIALOG_ID,
 		key: "highlight-note",
 		subject: "selection",
-		highlightId: "",
 		title: ADD_TITLE,
-		quote: "",
-		formHtml: renderHighlightNoteCreateForm({
+		body: "",
+		placement: "beside-passage",
+		actionsHtml: renderHighlightNoteCreateForm({
 			action: highlightFormUrl({
 				scope: input.scope,
 				path: "/highlights",
@@ -188,18 +174,17 @@ function editFormTarget(input: { highlightId: HighlightId; target: HighlightForm
 export function renderHighlightNoteEditDialog(input: {
 	highlightId: HighlightId;
 	note?: string;
-	quote: string;
 	target: HighlightFormTarget;
 }): string {
 	const popoverId = highlightNoteEditPopoverId(input.highlightId);
-	return renderHighlightNoteEditor({
+	return renderConfirmPopover({
 		id: popoverId,
 		key: "highlight-note-edit",
 		subject: input.highlightId,
-		highlightId: input.highlightId,
 		title: input.note === undefined ? ADD_TITLE : EDIT_TITLE,
-		quote: input.quote,
-		formHtml: renderHighlightNoteForm({
+		body: "",
+		placement: "beside-passage",
+		actionsHtml: renderHighlightNoteForm({
 			popoverId,
 			key: "highlight-note-edit",
 			inputId: `${popoverId}-input`,
@@ -208,6 +193,7 @@ export function renderHighlightNoteEditDialog(input: {
 			hiddenFields: [],
 			answersInPlace: false,
 			autofocus: true,
+			noteEditor: true,
 			deleteTriggerHtml:
 				input.note === undefined
 					? undefined
@@ -232,20 +218,21 @@ export function renderHighlightNoteFallbackForm(input: {
 		pushesHistory: pushesHistory(input.scope),
 		autofocus: input.open,
 		local: undefined,
+		noteEditor: false,
 	});
 }
 
 export function renderLocalHighlightNoteDialog(input: {
 	hiddenFields: readonly { name: string; value: string }[];
 }): string {
-	return renderHighlightNoteEditor({
+	return renderConfirmPopover({
 		id: HIGHLIGHT_NOTE_DIALOG_ID,
 		key: "highlight-note",
 		subject: "selection",
-		highlightId: "",
 		title: ADD_TITLE,
-		quote: "",
-		formHtml: renderHighlightNoteForm({
+		body: "",
+		placement: "beside-passage",
+		actionsHtml: renderHighlightNoteForm({
 			popoverId: HIGHLIGHT_NOTE_DIALOG_ID,
 			key: "highlight-note",
 			inputId: "note-highlight-input",
@@ -256,6 +243,7 @@ export function renderLocalHighlightNoteDialog(input: {
 			pushesHistory: false,
 			autofocus: true,
 			local: { action: "create" },
+			noteEditor: true,
 		}),
 	});
 }

@@ -101,6 +101,8 @@ import {
 	partitionFor,
 	readlistDefinitionKey,
 	readlistPartitionValue,
+	removedLinksPartition,
+	savedLinksJobKey,
 } from "./user-readlist-partition";
 
 const ArticleContentRow = z.object({
@@ -335,6 +337,24 @@ export function initDynamoDbSavedArticleStore(deps: {
 		tableName: userArticlesTableName,
 		schema: z.object({ userId: z.string(), url: z.string() }),
 	});
+
+	const HeldLinkKeyRow = z.object({ userId: z.string(), url: z.string(), removedUrl: z.string() });
+	const heldLinkRows = defineDynamoTable({ client, tableName: userArticlesTableName, schema: HeldLinkKeyRow });
+
+	const forEachHeldLinkRowPage = (
+		userId: UserId,
+		onPage: (rows: z.infer<typeof HeldLinkKeyRow>[]) => Promise<void>,
+	): Promise<void> =>
+		forEachQueryPage(
+			heldLinkRows,
+			{
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": removedLinksPartition(userId) },
+				ProjectionExpression: "userId, #url, removedUrl",
+				ExpressionAttributeNames: { "#url": "url" },
+			},
+			onPage,
+		);
 
 	const claimWallClockSpan = async (userId: UserId, span: { nowMs: number; endMs: number }): Promise<{ Attributes?: z.infer<typeof SaveCursorRow> }> =>
 		saveCursors.update({
@@ -1336,6 +1356,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 				);
 			},
 		);
+		await userArticles.delete({ Key: { userId, url: savedLinksJobKey(userId) } });
+		await forEachHeldLinkRowPage(userId, async (rows) => {
+			await Promise.all(rows.map((row) => heldLinkRows.delete({ Key: { userId: row.userId, url: row.url } })));
+		});
 	};
 
 	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {
@@ -1347,6 +1371,9 @@ export function initDynamoDbSavedArticleStore(deps: {
 		for (const slug of await listUserReadlistSlugs(userId)) {
 			await forEachPartitionRow(readlistPartitionValue({ userId, readlist: slug }), collect);
 		}
+		await forEachHeldLinkRowPage(userId, async (rows) => {
+			for (const row of rows) seen.add(row.removedUrl);
+		});
 		const normalizedUrls = [...seen];
 		if (normalizedUrls.length === 0) return [];
 		// The user-articles row keys the article by its normalized value, which

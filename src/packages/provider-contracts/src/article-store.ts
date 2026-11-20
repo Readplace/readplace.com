@@ -10,8 +10,16 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type {
+	HeldLink,
+	HoldOutcome,
 	ItemMedia,
 	NewsletterLinkSummary,
+	RemovalSenders,
+	RestoreOutcome,
+	SavedLinksJob,
+	SavedLinksJobAction,
+	SavedLinksJobCounts,
+	SavedLinksJobId,
 	ReaderArticleHashId,
 	StoredArticleBody,
 	Viewer,
@@ -581,3 +589,52 @@ export type HasNewsletterLink = (params: { userId: UserId }) => Promise<boolean>
 export type SummariseNewsletterLinks = (params: { userId: UserId; cutoff: Date }) => Promise<NewsletterLinkSummary>;
 
 export type CountNewsletterIssues = (params: { userId: UserId }) => Promise<number>;
+
+export type MoveNewsletterLinkToHold = (params: {
+	userId: UserId;
+	jobId: SavedLinksJobId;
+	storedKey: string;
+	cutoff: Date;
+	senders: RemovalSenders;
+	now: Date;
+}) => Promise<HoldOutcome>;
+
+export type RestoreHeldLink = (params: { userId: UserId; heldKey: string; now: Date }) => Promise<RestoreOutcome>;
+
+export type ForEachHeldLinkPage = (params: {
+	userId: UserId;
+	now: Date;
+	onPage: (links: HeldLink[]) => Promise<void>;
+}) => Promise<void>;
+
+export type HasHeldLinks = (params: { userId: UserId; now: Date }) => Promise<boolean>;
+
+export type FindHeldLink = (params: { userId: UserId; storedKey: string; now: Date }) => Promise<HeldLink | undefined>;
+
+export type RequestSavedLinksJob = (params: {
+	userId: UserId;
+	jobId: SavedLinksJobId;
+	action: SavedLinksJobAction;
+	requestedAt: Date;
+}) => Promise<{ outcome: "claimed" } | { outcome: "busy"; job: SavedLinksJob }>;
+
+export type RecordSavedLinksJobProgress = (params: {
+	userId: UserId;
+	jobId: SavedLinksJobId;
+	counts: SavedLinksJobCounts;
+}) => Promise<{ outcome: "recorded" } | { outcome: "stale" }>;
+
+export type FinishSavedLinksJob = (params: {
+	userId: UserId;
+	jobId: SavedLinksJobId;
+	state: "completed" | "failed";
+	counts: SavedLinksJobCounts;
+	finishedAt: Date;
+}) => Promise<{ outcome: "recorded" } | { outcome: "stale" }>;
+
+export type FindSavedLinksJob = (params: { userId: UserId }) => Promise<SavedLinksJob | undefined>;
+
+export type WithdrawSavedLinksJob = (params: {
+	userId: UserId;
+	jobId: SavedLinksJobId;
+}) => Promise<{ outcome: "withdrawn" } | { outcome: "stale" }>;

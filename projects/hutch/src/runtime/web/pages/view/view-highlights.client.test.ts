@@ -10,8 +10,8 @@ import { initHighlightToolbar, type ToolbarRect } from "../../shared/article-bod
 import type { LocalHighlightStorage } from "../../shared/article-body/highlights/local-highlights";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
-import { initViewHighlights } from "./view-highlights.client";
 import { ViewPage, type ViewPageInput } from "./view.component";
+import { initViewHighlights } from "./view-highlights.client";
 
 const ARTICLE_URL = "https://example.com/post";
 
@@ -128,6 +128,7 @@ function harness(input: {
 				requestAnimationFrame: () => undefined,
 				matchMedia: () => ({ matches: false }),
 				addEventListener: () => undefined,
+				scrollBy: () => undefined,
 			},
 			timers: { setTimeout: () => undefined, clearTimeout: () => undefined },
 			rectsOf: input.rectsOf ?? (() => []),
@@ -138,6 +139,10 @@ function harness(input: {
 			isOpen: () => false,
 			isFocusVisible: () => false,
 			sendBeacon: (url) => h.beacons.push(url),
+			isAutoPopoverOpen: () => false,
+			paintDraft: () => undefined,
+			clearDraft: () => undefined,
+			chromeBottom: () => 0,
 		});
 	}
 	return h;
@@ -768,7 +773,6 @@ describe("initViewHighlights — the actions on a kept passage", () => {
 		assert.equal(panel.querySelector("[data-highlight-note-text]") !== null, true);
 		assert.equal(byId({ h, id: "manage-highlight-local-1" }).querySelector("[data-highlight-note-text]"), null);
 		const editor = byId({ h, id: "note-highlight-local-2" });
-		assert.equal(part({ root: editor, selector: "[data-highlight-note-quote]" }).textContent, "A second sentence");
 		assert.equal(part<HTMLTextAreaElement>({ root: editor, selector: "textarea" }).value, "Kept <b>note</b>");
 		assert.equal(part<HTMLTextAreaElement>({ root: byId({ h, id: "note-highlight-local-1" }), selector: "textarea" }).value, "");
 		assert.ok(byId({ h, id: "delete-highlight-local-1" }));

@@ -1,7 +1,7 @@
 import { INBOX_ADDRESS_MAX_PER_USER, INBOX_TOKEN_LENGTH } from "@packages/domain/inbox";
 import { withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { READLIST_SHOT, FREE_PLAN_CLOSE, founderLine } from "./landing-pages.copy";
 import type { LandingPageAction, LandingPageContent } from "./landing-pages.types";
 
@@ -12,7 +12,7 @@ const GUIDE: LandingPageAction = {
 };
 
 export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
-	lastModified: "2026-10-10",
+	lastModified: "2026-11-19",
 	title: "Save Newsletter Links to Read Later, One Address Each | Readplace",
 	description:
 		"Give each newsletter its own Readplace address. The article links in every issue land in your readlist with an AI summary, and the ads and unsubscribe links are left behind.",
@@ -31,7 +31,7 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 		href: "/signup?return=/inbox",
 	},
 	secondaryActions: [GUIDE],
-	reassurance: `Starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial. No card.`,
+	reassurance: `Newsletter addresses come with the paid plan. Every new account has it for ${STRIPE_TRIAL_PERIOD_DAYS} days, no card.`,
 	stepsTitle: "How an address works",
 	stepsLede: "Three steps, set up once per newsletter.",
 	steps: [
@@ -71,7 +71,7 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 		"An address only receives what is sent to it. Past issues in your inbox have to be forwarded one at a time.",
 		`Up to ${INBOX_ADDRESS_MAX_PER_USER} live addresses per account.`,
 		"A link the model labels wrongly is not saved automatically. It waits on the Skipped tab of that email, where you can save it by hand.",
-		"Making an address needs an account with an active trial or subscription.",
+		`Making an address needs the paid plan, which every new account has for its first ${STRIPE_TRIAL_PERIOD_DAYS} days.`,
 	],
 	faq: [
 		{
@@ -99,7 +99,7 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Do I need an account?",
-			answer: `Yes. Addresses belong to an account, and making one starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial with no card.`,
+			answer: `Yes. Addresses belong to an account. An account is free, within daily limits, and no card is asked for; newsletter addresses are part of the paid plan, which every new account has for its first ${STRIPE_TRIAL_PERIOD_DAYS} days.`,
 		},
 		{
 			question: "What happens to saved articles if I stop paying?",
@@ -110,10 +110,10 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs",
 		paragraphs: [
-			`Addresses come with the account, and the account is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			`Newsletter addresses are part of the Inbox, which needs the paid plan. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card at any point in the trial.",
+		note: "Google, Apple, or an email address. No card unless you upgrade.",
 	},
 	closeTitle: "Give one newsletter its own address",
 	closeSecondaryAction: GUIDE,

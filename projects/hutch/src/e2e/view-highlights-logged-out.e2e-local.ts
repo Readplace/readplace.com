@@ -3,11 +3,10 @@ import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { devices, type Page } from "@playwright/test";
 import { selectPassage } from "./highlight-a-passage.browser";
-import { controlsMissedByAHit } from "./highlight-note-editor.browser";
 import { pointInsideText, selectedText } from "./highlight-on-a-phone.browser";
 import { backdateFormLoad } from "./import-logged-out.browser";
 import { clickAndWaitForPageReload } from "./page-interactions";
-import { scrollTextAboveCta, toolbarAgainstViewCta } from "./view-highlights-logged-out.browser";
+import { controlsMissedByAHit, scrollTextAboveCta, toolbarAgainstViewCta } from "./view-highlights-logged-out.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -267,7 +266,6 @@ test.describe("Managing a kept highlight where it sits in the text on /view", ()
 		await expect(panel).toHaveCount(0);
 
 		const editor = await openEditor(page, highlightId);
-		await expect(editor.locator("[data-highlight-note-quote]")).toHaveText(KEPT_PASSAGES[1]);
 		await page.keyboard.press("Escape");
 		await expect(editor).toHaveCount(0);
 

@@ -7,6 +7,7 @@ import type {
 	ShownSummary,
 	Viewer,
 	EnclosureRead,
+	GeneratedContentAccess,
 } from "@packages/domain/article";
 import type {
 	ArticleCrawl,
@@ -124,6 +125,7 @@ export interface ResolveReaderStateParams {
 	article: ArticleSnapshot;
 	pollUrlBuilder: PollUrlBuilder;
 	viewer: Viewer;
+	generatedContent: GeneratedContentAccess;
 }
 
 /**
@@ -146,6 +148,7 @@ export interface HandlePollParams {
 	articleUrl: string;
 	readerSection: ReaderSectionInput;
 	viewer: Viewer;
+	generatedContent: GeneratedContentAccess;
 	enclosure: EnclosureRead;
 	articleId: string | undefined;
 	pollCount: number;

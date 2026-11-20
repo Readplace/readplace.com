@@ -35,6 +35,7 @@ export function renderHighlightNoteForm(input: {
 	pushesHistory: boolean;
 	autofocus: boolean;
 	local: HighlightNoteFormLocal | undefined;
+	noteEditor: boolean;
 	deleteTriggerHtml?: string;
 }): string {
 	return render(TEMPLATE, {

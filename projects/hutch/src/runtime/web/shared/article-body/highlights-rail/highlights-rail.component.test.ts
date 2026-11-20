@@ -279,19 +279,6 @@ describe("renderHighlightsRail", () => {
 		);
 	});
 
-	it("quotes the row's current wording in its note editor, labelled and described by that editor's own title and quote", () => {
-		const editor = railOf([
-			{ highlight: first, shown: { state: "moved", edited: true, quote: "First passage, edited" }, marked: true },
-		]).getElementById(`note-highlight-${FIRST_ID}`);
-		const quote = editor?.querySelector("[data-highlight-note-quote]");
-
-		expect(editor?.classList.contains("highlight-note-editor")).toBe(true);
-		expect(editor?.classList.contains("confirm-popover")).toBe(false);
-		expect(editor?.getAttribute("data-highlight-note-editor")).toBe(FIRST_ID);
-		expect(editor?.getAttribute("aria-describedby")).toBe(quote?.id);
-		expect(quote?.textContent).toBe("First passage, edited");
-	});
-
 	it("takes each row's state from the stored row and marks it when the page placed it", () => {
 		const shown = { state: "moved", edited: false, quote: "First passage" } as const;
 		expect(

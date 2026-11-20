@@ -131,10 +131,61 @@ class ReaderLoadProgressTest {
 		)
 	}
 
+	@Test
+	fun `a load that cannot reach the network reopens from the stored copy`() {
+		assertEquals(
+			List(4) { ReaderFailureRecovery.REOPEN_FROM_STORED_COPY },
+			listOf(ERROR_HOST_LOOKUP, ERROR_CONNECT, ERROR_IO, ERROR_TIMEOUT).map {
+				ReaderLoad.recovery(errorCode = it, cacheMode = ReaderCacheMode.PROTOCOL)
+			},
+		)
+	}
+
+	@Test
+	fun `a view already reading the stored copy never reopens`() {
+		assertEquals(
+			List(4) { ReaderFailureRecovery.FAIL },
+			listOf(ERROR_HOST_LOOKUP, ERROR_CONNECT, ERROR_IO, ERROR_TIMEOUT).map {
+				ReaderLoad.recovery(errorCode = it, cacheMode = ReaderCacheMode.STORED_COPY_FIRST)
+			},
+		)
+	}
+
+	@Test
+	fun `an HTTP error status fails`() {
+		assertEquals(
+			ReaderFailureRecovery.FAIL,
+			ReaderLoad.recovery(errorCode = null, cacheMode = ReaderCacheMode.PROTOCOL),
+		)
+	}
+
+	@Test
+	fun `a failure that is not the network fails`() {
+		assertEquals(
+			List(7) { ReaderFailureRecovery.FAIL },
+			listOf(
+				ERROR_FAILED_SSL_HANDSHAKE,
+				ERROR_PROXY_AUTHENTICATION,
+				ERROR_REDIRECT_LOOP,
+				ERROR_BAD_URL,
+				ERROR_TOO_MANY_REQUESTS,
+				ERROR_UNSAFE_RESOURCE,
+				ERROR_UNKNOWN,
+			).map { ReaderLoad.recovery(errorCode = it, cacheMode = ReaderCacheMode.PROTOCOL) },
+		)
+	}
+
 	private companion object {
 		const val ERROR_UNKNOWN = -1
 		const val ERROR_HOST_LOOKUP = -2
+		const val ERROR_PROXY_AUTHENTICATION = -5
 		const val ERROR_CONNECT = -6
+		const val ERROR_IO = -7
 		const val ERROR_TIMEOUT = -8
+		const val ERROR_REDIRECT_LOOP = -9
+		const val ERROR_FAILED_SSL_HANDSHAKE = -11
+		const val ERROR_BAD_URL = -12
+		const val ERROR_TOO_MANY_REQUESTS = -15
+		const val ERROR_UNSAFE_RESOURCE = -16
 	}
 }

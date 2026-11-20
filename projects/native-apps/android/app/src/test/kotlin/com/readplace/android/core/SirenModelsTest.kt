@@ -552,6 +552,14 @@ class SirenModelsTest {
 	}
 
 	@Test
+	fun `a link carries the classes the server gave it`() {
+		val marked = SirenDecoding.link(element("""{ "rel": ["next"], "href": "/queue?page=2", "class": ["offline-prefetch"] }"""))
+		val unmarked = SirenDecoding.link(element("""{ "rel": ["next"], "href": "/queue?page=2" }"""))
+
+		assertEquals(listOf(listOf("offline-prefetch"), null), listOf(marked?.classes, unmarked?.classes))
+	}
+
+	@Test
 	fun `a link that is not an object or carries no rel does not decode`() {
 		assertNull(SirenDecoding.link(element("\"/queue\"")))
 		assertNull(SirenDecoding.link(element("""{ "href": "/queue" }""")))

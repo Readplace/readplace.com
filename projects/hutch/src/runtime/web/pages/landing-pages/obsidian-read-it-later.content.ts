@@ -1,7 +1,6 @@
 import { withInternalTracking } from "@packages/web-shell";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { START_TRIAL } from "./landing-pages.copy";
+import { FIRST_DAYS_STATEMENT, FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { CREATE_FREE_ACCOUNT } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const OBSIDIAN_READ_IT_LATER_CONTENT: LandingPageContent = {
@@ -82,18 +81,18 @@ export const OBSIDIAN_READ_IT_LATER_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Is the plugin free?",
-			answer: `Yes. Readplace has a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial with no card, then a subscription. An account that stops paying moves to the free plan: it keeps every saved article, can keep saving within daily limits, and can still sync its saved articles into Obsidian.`,
+			answer: `Yes. A Readplace account is free and no card is asked for. ${FIRST_DAYS_STATEMENT} A free account keeps every saved article, can keep saving within daily limits, and can still sync its saved articles into Obsidian.`,
 		},
 	],
 	offer: {
 		title: "What it costs",
 		paragraphs: [
-			`The Obsidian plugin is free. Your Readplace account starts with ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
-			"After the trial, the account moves to the free plan and you can keep saving within daily limits. A subscription removes the limits and adds the Inbox, Next read, Past reads, readlist purpose filtering and Gmail. If you stop paying, you can still sync the articles already saved in your account.",
+			`The Obsidian plugin is free, and so is a Readplace account. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			"The plugin syncs every article saved in your account on the free plan too, whether you never upgrade or stop paying.",
 		],
-		note: "Start with Google, Apple or an email address. No card during the trial.",
+		note: "Start with Google, Apple or an email address. No card.",
 	},
 	closeTitle: "Bring your reading into your vault",
-	closeSecondaryAction: START_TRIAL,
+	closeSecondaryAction: CREATE_FREE_ACCOUNT,
 	closeNote: `Install the plugin on your desktop, or create your Readplace account now and connect it later. <a href="${withInternalTracking("/support", { source: "lp-obsidian-read-it-later-close", content: "support" })}">Get help with setup</a>.`,
 };

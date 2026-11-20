@@ -1,9 +1,11 @@
 package com.readplace.android.core
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -11,6 +13,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import kotlin.coroutines.CoroutineContext
 
 class OfflineDownloadManifestTest {
 	@get:Rule
@@ -154,5 +157,127 @@ class OfflineDownloadManifestTest {
 		manifest(root).recordDownloaded(articleId = "a1", contentVersion = "v1")
 
 		assertEquals(DownloadedVersions(emptyMap()), loaded(root))
+	}
+
+	@Test
+	fun `a recorded run is offered by a second store on the same directory`() = runTest {
+		val directory = folder.newFolder()
+
+		manifest(directory).recordRun(OfflineDownloadRun(total = 1296, completed = 312))
+
+		assertEquals(OfflineDownloadRun(total = 1296, completed = 312), manifest(directory).incompleteRun())
+	}
+
+	@Test
+	fun `only a run that stopped short is offered`() = runTest {
+		val directory = folder.newFolder()
+		val manifest = manifest(directory)
+		val nothingRecorded = manifest.incompleteRun()
+		manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1))
+		val stoppedShort = manifest.incompleteRun()
+
+		manifest.recordRun(OfflineDownloadRun(total = 2, completed = 2))
+
+		assertEquals(
+			listOf(null, OfflineDownloadRun(total = 2, completed = 1), null),
+			listOf(nothingRecorded, stoppedShort, manifest.incompleteRun()),
+		)
+		assertFileHolds(directory, """{"versions":{},"run":{"total":2,"completed":2}}""")
+		manifest.forgetRun()
+		assertFileHolds(directory, """{"versions":{},"run":null}""")
+	}
+
+	@Test
+	fun `a corrupt file offers nothing until a run is recorded`() = runTest {
+		val directory = folder.newFolder().also { manifestFile(it).writeText("{") }
+		val manifest = manifest(directory)
+		val corrupt = manifest.incompleteRun()
+
+		manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1))
+
+		assertEquals(listOf(null, OfflineDownloadRun(total = 2, completed = 1)), listOf(corrupt, manifest.incompleteRun()))
+	}
+
+	@Test
+	fun `a run write keeps the versions on disk`() = runTest {
+		val directory = folder.newFolder().also { manifestFile(it).writeText("""{"versions":{"a1":"v3"}}""") }
+		val manifest = manifest(directory)
+
+		manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1))
+		assertFileHolds(directory, """{"versions":{"a1":"v3"},"run":{"total":2,"completed":1}}""")
+		manifest.forgetRun()
+
+		assertFileHolds(directory, """{"versions":{"a1":"v3"},"run":null}""")
+	}
+
+	@Test
+	fun `a file holding only a run offers it`() = runTest {
+		val directory = folder.newFolder().also { manifestFile(it).writeText("""{"run":{"total":5,"completed":1}}""") }
+
+		assertEquals(OfflineDownloadRun(total = 5, completed = 1), manifest(directory).incompleteRun())
+	}
+
+	@Test
+	fun `a deleted directory offers no run`() = runTest {
+		val directory = folder.newFolder()
+		val manifest = manifest(directory)
+		manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1))
+		val beforeSignOut = manifest.incompleteRun()
+
+		directory.deleteRecursively()
+
+		assertEquals(listOf(OfflineDownloadRun(total = 2, completed = 1), null), listOf(beforeSignOut, manifest.incompleteRun()))
+	}
+
+	@Test
+	fun `a run that cannot be written never fails the download`() = runTest {
+		val root = folder.newFile("a-file-where-the-directory-should-be")
+		val manifest = manifest(root)
+
+		val recorded = manifest.recordRun(OfflineDownloadRun(total = 2, completed = 1))
+
+		assertEquals(Unit to null, recorded to manifest.incompleteRun())
+	}
+
+	@Test
+	fun `runs recorded back to back land in the order they were made`() = runTest {
+		val directory = folder.newFolder()
+		val io = HeldDispatcher()
+		val writer = OfflineDownloadManifest(directory, io)
+
+		launch { writer.recordRun(OfflineDownloadRun(total = 3, completed = 1)) }
+		launch { writer.recordRun(OfflineDownloadRun(total = 3, completed = 2)) }
+		runCurrent()
+		while (io.held.isNotEmpty()) {
+			val blocks = io.held.reversed()
+			io.held.clear()
+			blocks.forEach { it.run() }
+			runCurrent()
+		}
+
+		assertEquals(OfflineDownloadRun(total = 3, completed = 2), manifest(directory).incompleteRun())
+	}
+
+	@Test
+	fun `a version write never carries a stale run`() = runTest {
+		val directory = folder.newFolder()
+		val manifest = manifest(directory)
+
+		manifest.recordRun(OfflineDownloadRun(total = 5, completed = 2))
+		manifest.recordDownloaded(articleId = "a1", contentVersion = "v1")
+		manifest.recordRun(OfflineDownloadRun(total = 5, completed = 3))
+		assertFileHolds(directory, """{"versions":{"a1":"v1"},"run":{"total":5,"completed":3}}""")
+		manifest.forgetRun()
+		manifest.recordDownloaded(articleId = "a2", contentVersion = "v2")
+
+		assertFileHolds(directory, """{"versions":{"a1":"v1","a2":"v2"},"run":null}""")
+	}
+
+	private class HeldDispatcher : CoroutineDispatcher() {
+		val held = mutableListOf<Runnable>()
+
+		override fun dispatch(context: CoroutineContext, block: Runnable) {
+			held.add(block)
+		}
 	}
 }

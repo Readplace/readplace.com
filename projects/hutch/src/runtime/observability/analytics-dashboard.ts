@@ -793,7 +793,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// conversion also carries), not `visitor_hash` (a salted IP hash that collapses
 	// people behind shared NAT and is not the id a signup joins on).
 
-	const RETIRED_SPLIT_CAMPAIGNS = ["homepage-split-e3", "homepage-ai-cost-e1"] as const;
+	const RETIRED_SPLIT_CAMPAIGNS = ["homepage-split-e3", "homepage-ai-cost-e1", "homepage-ai-cost-e2"] as const;
 	const homepageExperiments = [HOMEPAGE_EXPOSURE.campaign, ...RETIRED_SPLIT_CAMPAIGNS, campaignTag(HOMEPAGE_SPLIT)]
 		.map((experiment) => `"${experiment}"`).join(", ");
 	const homepageExposureFilter = `(experiment in [${homepageExperiments}] or utm_campaign = "homepage-split-e3")`;

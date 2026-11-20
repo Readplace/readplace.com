@@ -1,4 +1,5 @@
 
+import { generatedContentOf } from "../../generated-content-of";
 import { tagSaveRefusal } from "../../shared/save-refusal";
 import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import assert from "node:assert";
@@ -119,6 +120,7 @@ export function initReaderPanelRoutes(
 		const component = await reader.handleSummaryPoll({
 			articleUrl: article.url,
 			viewer: viewerFor(userId),
+			generatedContent: generatedContentOf(req),
 			enclosure: ownedEnclosure({ viewer: viewerFor(userId), article }),
 			articleId: article.id.value,
 			pollCount,
@@ -159,6 +161,7 @@ export function initReaderPanelRoutes(
 		const component = await reader.handleReaderPoll({
 			articleUrl: article.url,
 			viewer: viewerFor(userId),
+			generatedContent: generatedContentOf(req),
 			enclosure: ownedEnclosure({ viewer: viewerFor(userId), article }),
 			articleId: article.id.value,
 			pollCount,
@@ -206,6 +209,7 @@ export function initReaderPanelRoutes(
 				articles: await loadRelatedArticles(
 					deps.findRelatedArticles,
 					article,
+					generatedContentOf(req),
 					deps.logError,
 				),
 				sourceArticleId: article.id.value,
@@ -327,6 +331,7 @@ export function initReaderPanelRoutes(
 						deps.findPastReads,
 						article,
 						sourceReadlist,
+						generatedContentOf(req),
 						deps.logError,
 					),
 					now: deps.now(),

@@ -228,12 +228,12 @@ export function initMcpArticleOperations(
 			return { status: "ready", content: stored.body };
 		},
 
-		getArticleSummary: async ({ userId, id }) => {
+		getArticleSummary: async ({ userId, id, generatedContent }) => {
 			const owned = await deps.resolveOwnedArticle({ userId, id });
 			if (!owned) return { status: "not_found" };
 			const { article } = owned;
 			if (isNonArticleHost(article.url)) return { status: "not_an_article" };
-			const summary = await deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId) });
+			const summary = await deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId), generatedContent });
 			if (summary?.status === "ready") {
 				await deps.recordEngagementActivity({
 					userId,
@@ -246,7 +246,7 @@ export function initMcpArticleOperations(
 			return toSummaryResult(summary);
 		},
 
-		getRelatedArticles: async ({ userId, id }) => {
+		getRelatedArticles: async ({ userId, id, generatedContent }) => {
 			const owned = await deps.resolveOwnedArticle({ userId, id });
 			if (!owned) return { status: "not_found" };
 			if (owned.readlist !== DEFAULT_READLIST_SLUG) return { status: "skipped" };
@@ -254,6 +254,7 @@ export function initMcpArticleOperations(
 			const related = await deps.findRelatedArticles({
 				userId,
 				url: article.url,
+				generatedContent,
 			});
 			return toRelatedResult(related);
 		},

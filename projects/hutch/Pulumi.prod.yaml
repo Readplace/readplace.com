@@ -51,6 +51,7 @@ config:
   hutch:dynamodbGmailDiscoveryTable: hutch-gmail-discovery-prod
   hutch:dynamodbGmailMonitoringTable: hutch-gmail-monitoring-prod
   hutch:dynamodbGmailSendersTable: hutch-inbox-gmail-senders-prod
+  hutch:dynamodbGmailHeldMailTable: hutch-inbox-gmail-held-mail-prod
   hutch:dynamodbGmailHistoryImportsTable: hutch-gmail-history-imports-prod
   hutch:dynamodbGmailMappingsTable: hutch-gmail-mappings-prod
   hutch:dynamodbInboxEmailIdentitiesTable: hutch-inbox-email-identities-prod

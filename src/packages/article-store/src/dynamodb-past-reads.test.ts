@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { articleDestinationUrl } from "@packages/domain/article";
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST, articleDestinationUrl, generatedContentAccessFor } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {
@@ -581,10 +581,23 @@ describe("initDynamoDbPastReads", () => {
 	});
 
 	describe("findPastReads", () => {
+		it("reports no items to a viewer withheld generated content, without reading the save", async () => {
+			const { sent, store } = build(() => ({ Item: { userId: USER_ID, url: "example.com/target" } }));
+
+			expect(
+				await store.findPastReads({
+					generatedContent: generatedContentAccessFor({ viewerCountry: "CN", storefront: undefined }),
+					userId: USER_ID,
+					url: TARGET_URL,
+				}),
+			).toEqual({ status: "ready", items: [] });
+			expect(sent).toEqual([]);
+		});
+
 		it("reports pending before anything has been computed", async () => {
 			const { store } = build(() => ({ Item: { userId: USER_ID, url: "example.com/target" } }));
 
-			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL })).toEqual({
 				status: "pending",
 			});
 		});
@@ -592,7 +605,7 @@ describe("initDynamoDbPastReads", () => {
 		it("reports pending for a save that has no row", async () => {
 			const { store } = build(() => ({ Item: undefined }));
 
-			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL })).toEqual({
 				status: "pending",
 			});
 		});
@@ -606,7 +619,7 @@ describe("initDynamoDbPastReads", () => {
 				},
 			}));
 
-			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL })).toEqual({
 				status: "budget-limited",
 				until: new Date("2026-09-13T00:00:00.000Z"),
 			});
@@ -623,7 +636,7 @@ describe("initDynamoDbPastReads", () => {
 				},
 			}));
 
-			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL })).toEqual({
 				status: "ready",
 				items: [],
 				budgetBlockedUntil: new Date("2026-09-13T00:00:00.000Z"),
@@ -669,7 +682,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.budgetBlockedUntil).toEqual(new Date("2026-09-13T00:00:00.000Z"));
@@ -693,7 +706,7 @@ describe("initDynamoDbPastReads", () => {
 				return { Responses: { [USER_ARTICLES_TABLE]: [] }, UnprocessedKeys: {} };
 			});
 
-			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL })).toEqual({
 				status: "ready",
 				items: [],
 				budgetBlockedUntil: new Date("2026-09-13T00:00:00.000Z"),
@@ -710,7 +723,7 @@ describe("initDynamoDbPastReads", () => {
 				},
 			}));
 
-			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL })).toEqual({
 				status: "ready",
 				items: [],
 			});
@@ -761,7 +774,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => ({ ...item, id: item.id.value }))).toEqual([
@@ -813,7 +826,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => ({ title: item.title, siteName: item.siteName }))).toEqual([
@@ -880,7 +893,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => ({ id: item.id.value, readAt: item.readAt }))).toEqual([
@@ -929,7 +942,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items).toHaveLength(1);
@@ -952,7 +965,7 @@ describe("initDynamoDbPastReads", () => {
 				return { Responses: { [USER_ARTICLES_TABLE]: [] }, UnprocessedKeys: {} };
 			});
 
-			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL })).toEqual({
 				status: "ready",
 				items: [],
 			});
@@ -1017,7 +1030,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				userId: USER_ID,
 				url: TARGET_URL,
 				sourceReadlist: WORK,
@@ -1078,7 +1091,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 				userId: USER_ID,
 				url: TARGET_URL,
 				sourceReadlist: WORK,
@@ -1114,7 +1127,7 @@ describe("initDynamoDbPastReads", () => {
 				return { Responses: { [ARTICLES_TABLE]: [] }, UnprocessedKeys: {} };
 			});
 
-			expect(await store.findPastReads({ userId: USER_ID, url: TARGET_URL })).toEqual({
+			expect(await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL })).toEqual({
 				status: "ready",
 				items: [],
 			});
@@ -1172,7 +1185,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => item.title)).toEqual(["Kept"]);
@@ -1232,7 +1245,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => item.title)).toEqual(["My book"]);
@@ -1301,7 +1314,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => item.reason)).toEqual(["The open article, read before", "First copy"]);
@@ -1370,7 +1383,7 @@ describe("initDynamoDbPastReads", () => {
 				};
 			});
 
-			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+			const result = await store.findPastReads({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, userId: USER_ID, url: TARGET_URL });
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => item.reason)).toEqual(["Read copy"]);

@@ -38,10 +38,11 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 describe("toInboxLinkCardViewModel", () => {
 	describe("the url a card shows", () => {
 		const TRACKER = "https://link.mail.beehiiv.com/ss/c/u001.token-for-the-post/4ab/h1/sig";
-		const urlShown = (input: { resolvedUrl: string | undefined }) =>
+		const SECOND_TRACKER = "https://link.mail.beehiiv.com/ss/c/u001.second-hop/4ab/h1/sig";
+		const urlShown = (input: { status: "crawled" | "failed"; resolvedUrl: string | undefined }) =>
 			toInboxLinkCardViewModel({
 				paidFeaturesLocked: false,
-				link: link({ url: TRACKER, status: "failed", resolvedUrl: input.resolvedUrl }),
+				link: link({ url: TRACKER, status: input.status, resolvedUrl: input.resolvedUrl }),
 				emailId: EMAIL_ID,
 				pollCount: 1,
 				maxPolls: 300,
@@ -54,13 +55,23 @@ describe("toInboxLinkCardViewModel", () => {
 			}).url;
 
 		it("is the destination a save resolved when the preview crawl left the tracker", () => {
-			expect(urlShown({ resolvedUrl: undefined })).toBe("https://example.com/saved-destination");
+			expect(urlShown({ status: "failed", resolvedUrl: undefined })).toBe("https://example.com/saved-destination");
 		});
 
-		it("is the preview crawl's destination when it has one", () => {
-			expect(urlShown({ resolvedUrl: "https://example.com/crawled-destination" })).toBe(
+		it("is the destination a save resolved over wherever a failed preview stopped", () => {
+			expect(urlShown({ status: "failed", resolvedUrl: SECOND_TRACKER })).toBe(
+				"https://example.com/saved-destination",
+			);
+		});
+
+		it("is the preview crawl's destination when the preview succeeded", () => {
+			expect(urlShown({ status: "crawled", resolvedUrl: "https://example.com/crawled-destination" })).toBe(
 				"https://example.com/crawled-destination",
 			);
+		});
+
+		it("is the destination a save resolved when a succeeded preview stored none", () => {
+			expect(urlShown({ status: "crawled", resolvedUrl: undefined })).toBe("https://example.com/saved-destination");
 		});
 	});
 
@@ -183,6 +194,24 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(crawled.url).toBe("https://destination.test/the-actual-article");
 	});
 
+	it("shows the destination a failed preview reached instead of the newsletter tracking link", () => {
+		const failed = toInboxLinkCardViewModel({
+			paidFeaturesLocked: false,
+			link: link({
+				status: "failed",
+				failureReason: "blocked",
+				url: "https://click.convertkit-mail.test/abc123",
+				resolvedUrl: "https://www.telegraph.test/news/the-actual-article?utm_source=newsletter",
+			}),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savedDestinations: new Map(), savePollContext: { mode: "static" } });
+
+		expect(failed.url).toBe("https://www.telegraph.test/news/the-actual-article");
+		expect(failed.statusState).toBe("failed");
+	});
+
 	it("drops the newsletter's utm tags from a crawled link that never redirected", () => {
 		const crawled = toInboxLinkCardViewModel({
 			paidFeaturesLocked: false,
@@ -235,6 +264,52 @@ describe("toInboxLinkCardViewModel", () => {
 			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savedDestinations: new Map(), savePollContext: { mode: "static" } });
 
 		expect(pending.url).toBe("https://link.mail.example.com/ss/c/token?utm_source=nl");
+	});
+
+	describe("a tracker link that carries its destination", () => {
+		const TRACKER = "https://click.tracker.test/c?id=42&url=https%3A%2F%2Fdestination.test%2Fpost%3Fref%3Dnl%26utm_source%3Dnl";
+		const OPAQUE_TRACKER = "https://click.tracker.test/c/opaque?utm_source=nl";
+
+		function cardUrl(overrides: Partial<InboxEmailLinkEntry>): string {
+			return toInboxLinkCardViewModel({
+				paidFeaturesLocked: false,
+				link: link(overrides),
+				emailId: EMAIL_ID,
+				pollCount: 1,
+				maxPolls: 300,
+				shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savedDestinations: new Map(), savePollContext: { mode: "static" } }).url;
+		}
+
+		it.each(["pending", "failed", "crawled"] as const)("shows the decoded destination, without utm tags, on a %s card", (status) => {
+			expect(cardUrl({ status, url: TRACKER })).toBe("https://destination.test/post?ref=nl");
+		});
+
+		it("shows a pending tracker with nothing to decode byte-exact", () => {
+			expect(cardUrl({ status: "pending", url: OPAQUE_TRACKER })).toBe(OPAQUE_TRACKER);
+		});
+
+		it("shows a failed tracker with nothing to decode without its utm tags", () => {
+			expect(cardUrl({ status: "failed", url: OPAQUE_TRACKER })).toBe("https://click.tracker.test/c/opaque");
+		});
+
+		it("prefers where the crawl landed over the destination the tracker carries", () => {
+			expect(cardUrl({ status: "crawled", url: TRACKER, resolvedUrl: "https://landed.test/post" })).toBe(
+				"https://landed.test/post",
+			);
+		});
+
+		it("still posts the stored tracker link when saved", () => {
+			const vm = toInboxLinkCardViewModel({
+				paidFeaturesLocked: false,
+				link: link({ status: "failed", url: TRACKER }),
+				emailId: EMAIL_ID,
+				pollCount: 1,
+				maxPolls: 300,
+				shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map([[TRACKER, "saved"]]), savedDestinations: new Map(), savePollContext: { mode: "static" } });
+
+			expect(vm.actions[0]?.saveState).toBe("saved");
+			expect(vm.actions[0]?.ariaLabel).toContain("https://destination.test/post?ref=nl");
+		});
 	});
 
 	it("treats a crawled link whose page had no title as a bare row", () => {

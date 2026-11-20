@@ -466,6 +466,7 @@ describe("Gmail OAuth diagnostics", () => {
 
 		it.each([
 			["a tampered signature", "tampered.signature", { signatureValid: false }, "invalid-signature"],
+			["a non-ASCII signature", `${signState({ payload: "{}", secret: STATE_SECRET }).slice(0, -1)}é`, { signatureValid: false }, "invalid-signature"],
 			[
 				"a payload signed before connect intents existed",
 				signState({ payload: JSON.stringify({ nonce: "n", createdAt: Date.now() }), secret: STATE_SECRET }),
@@ -501,12 +502,6 @@ describe("Gmail OAuth diagnostics", () => {
 				signState({ payload: "not-json", secret: STATE_SECRET }),
 				{ present: true, signatureValid: true, payload: "malformed-json" },
 				"invalid-payload",
-			],
-			[
-				"a non-ASCII signature that makes verification throw",
-				`${signState({ payload: "{}", secret: STATE_SECRET }).slice(0, -1)}é`,
-				{ present: true, signatureValid: false },
-				"invalid-signature",
 			],
 		])("keeps the 500 for a state cookie carrying %s and records it as an error at the state check", async (_label, state, cookieState, decision) => {
 			const { fixture, gmail } = fixtureWithGmail();

@@ -1,3 +1,4 @@
+import { GENERATED_CONTENT_OUTSIDE_A_REQUEST } from "@packages/domain/article";
 import { ANONYMOUS_VIEWER, SaveAttemptIdSchema, type ShownSummary, shownSummary } from "@packages/domain/article";
 import type { Logger } from "@packages/logger";
 import { UserIdSchema } from "@packages/domain/user";
@@ -36,7 +37,7 @@ function setup(overrides: { publishFails?: boolean } = {}) {
 	const rowOf = async (url: string) => ({
 		url,
 		crawl: await crawl.findArticleCrawlStatus(url),
-		summary: await summary.findGeneratedSummary({ url, viewer: ANONYMOUS_VIEWER }),
+		summary: await summary.findGeneratedSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url, viewer: ANONYMOUS_VIEWER }),
 	});
 	return { crawl, summary, publisher, logger, publishError, requestResolutionOnView, rowOf };
 }
@@ -49,6 +50,7 @@ describe("initRequestResolutionOnView", () => {
 		await t.summary.markSummarySkipped({ url, reason: "awaiting-reader" });
 
 		const resolved = await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "readlist-html",
 			viewer: ANONYMOUS_VIEWER,
 			viewerCanCapture: false,
@@ -71,6 +73,7 @@ describe("initRequestResolutionOnView", () => {
 		await t.summary.markSummarySkipped({ url, reason: "awaiting-reader" });
 
 		await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "reader",
 			viewer: { kind: "reader", userId },
 			viewerCanCapture: false,
@@ -89,6 +92,7 @@ describe("initRequestResolutionOnView", () => {
 		await t.summary.markSummaryFailed({ url, reason: "boom" });
 
 		const resolved = await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "reader",
 			viewer: ANONYMOUS_VIEWER,
 			viewerCanCapture: true,
@@ -110,6 +114,7 @@ describe("initRequestResolutionOnView", () => {
 		await t.summary.markSummaryReady({ url: settled, summary: "s" });
 
 		const resolved = await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "readlist-siren",
 			viewer: ANONYMOUS_VIEWER,
 			viewerCanCapture: true,
@@ -136,9 +141,10 @@ describe("initRequestResolutionOnView", () => {
 		await t.crawl.markCrawlUnsupported({ url, reason: AWAITING });
 		await t.summary.markSummarySkipped({ url, reason: "awaiting-reader" });
 		const staleRow = await t.rowOf(url);
-		await t.requestResolutionOnView({ surface: "reader", viewer: ANONYMOUS_VIEWER, viewerCanCapture: false, articles: [staleRow] });
+		await t.requestResolutionOnView({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, surface: "reader", viewer: ANONYMOUS_VIEWER, viewerCanCapture: false, articles: [staleRow] });
 
 		const resolved = await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "readlist-html",
 			viewer: ANONYMOUS_VIEWER,
 			viewerCanCapture: false,
@@ -165,6 +171,7 @@ describe("initRequestResolutionOnView", () => {
 		await t.crawl.markCrawlFailed({ url, reason: EDGE_BLOCK });
 
 		const resolved = await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "queue-digest",
 			viewer: ANONYMOUS_VIEWER,
 			viewerCanCapture: false,
@@ -198,6 +205,7 @@ describe("initRequestResolutionOnView", () => {
 		const forceMarkCrawlPending = jest.spyOn(t.crawl, "forceMarkCrawlPending");
 
 		const resolved = await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "readlist-siren",
 			viewer: ANONYMOUS_VIEWER,
 			viewerCanCapture: true,
@@ -226,6 +234,7 @@ describe("initRequestResolutionOnView", () => {
 		t.crawl.stampResolutionOnViewClaim({ url, claimedAt: "2026-11-04T11:59:59.999Z" });
 
 		const resolved = await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "readlist-siren",
 			viewer: ANONYMOUS_VIEWER,
 			viewerCanCapture: true,
@@ -256,6 +265,7 @@ describe("initRequestResolutionOnView", () => {
 		t.crawl.stampResolutionOnViewClaim({ url, claimedAt: ONE_HOUR_AGO });
 
 		const resolved = await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "reader",
 			viewer: ANONYMOUS_VIEWER,
 			viewerCanCapture: true,
@@ -283,6 +293,7 @@ describe("initRequestResolutionOnView", () => {
 		t.crawl.stampResolutionOnViewClaim({ url, claimedAt: ONE_HOUR_AGO });
 
 		const resolved = await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "readlist-siren",
 			viewer: ANONYMOUS_VIEWER,
 			viewerCanCapture: true,
@@ -307,6 +318,7 @@ describe("initRequestResolutionOnView", () => {
 		const url = "https://example.com/legacy";
 
 		const resolved = await t.requestResolutionOnView({
+			generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST,
 			surface: "readlist-html",
 			viewer: ANONYMOUS_VIEWER,
 			viewerCanCapture: false,
@@ -331,7 +343,7 @@ describe("overlayResolution", () => {
 	it("replaces the resolved urls' crawl and summary and keeps every other url as loaded", () => {
 		const pending: ArticleCrawl = { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" };
 		const ready: ArticleCrawl = { status: "ready" };
-		const failedSummary = shownSummary({ url: "https://b.example/", summary: { status: "failed", reason: "boom" }, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined });
+		const failedSummary = shownSummary({ generatedContent: GENERATED_CONTENT_OUTSIDE_A_REQUEST, url: "https://b.example/", summary: { status: "failed", reason: "boom" }, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined });
 		const crawlByUrl = new Map<string, ArticleCrawl | undefined>([
 			["https://a.example/", { status: "unsupported", reason: AWAITING }],
 			["https://b.example/", ready],

@@ -496,6 +496,8 @@ describe("/developers copy", () => {
 			rels: "Links use the IANA rel where one exists, such as self, next and prev. read, root, account and add-links-help are Readplace's own.",
 			"article-self":
 				"Each article entity also carries a self link with no title: the article's own address. Fetch it to get that article alone.",
+			storefront:
+				"A client installed from an app store may send its storefront's three-letter code in an X-Readplace-Storefront header, or in a readplace_storefront cookie from a web view. For China mainland (CHN), responses leave out text a model wrote: summaries, Next read and Already read.",
 			"markdown-layout":
 				"After the frontmatter comes the summary as a callout, > [!summary] Summary (TL;DR) with the summary quoted beneath it, then the article as Markdown. The callout is there only when readplace_summary_status is ready, and the article is empty until readplace_content_status is ready.",
 			highlights:
