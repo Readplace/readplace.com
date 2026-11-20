@@ -21,6 +21,8 @@ import type {
 	CountNewsletterIssues,
 	FindHeldLink,
 	FindOriginalUrls,
+	FindKeysInAll,
+	FindUnrestorableArticles,
 	ForEachHeldLinkPage,
 	ForEachRemovalCandidatePage,
 	HasHeldLinks,
@@ -71,6 +73,9 @@ const HeldLinkItem = z.object({
 });
 
 const SharedArticleItem = z.object({ purgedAt: dynamoField(z.string()) });
+
+const AllKeyItem = z.object({ url: z.string() });
+const PurgedArticleItem = z.object({ url: z.string(), purgedAt: dynamoField(z.string()) });
 
 const OriginalUrlItem = z.object({ url: z.string(), originalUrl: z.string() });
 
@@ -194,6 +199,8 @@ export function initDynamoDbRemovedLinks(deps: {
 	forEachRemovalCandidatePage: ForEachRemovalCandidatePage;
 	listKeysOpenedInReadlists: ListKeysOpenedInReadlists;
 	findOriginalUrls: FindOriginalUrls;
+	findUnrestorableArticles: FindUnrestorableArticles;
+	findKeysInAll: FindKeysInAll;
 } {
 	const userArticles = defineDynamoTable({
 		client: deps.client,
@@ -341,6 +348,29 @@ export function initDynamoDbRemovedLinks(deps: {
 		return new Map(rows.map((row) => [row.url, row.originalUrl]));
 	};
 
+	const findUnrestorableArticles: FindUnrestorableArticles = async ({ storedKeys }) => {
+		const rows = await batchGetFromTable({
+			client: deps.client,
+			tableName: deps.articlesTableName,
+			schema: PurgedArticleItem,
+			keys: storedKeys.map((url) => ({ url })),
+			projection: ["url", "purgedAt"],
+		});
+		const restorable = new Set(rows.filter((row) => row.purgedAt === undefined).map((row) => row.url));
+		return new Set(storedKeys.filter((storedKey) => !restorable.has(storedKey)));
+	};
+
+	const findKeysInAll: FindKeysInAll = async ({ userId, storedKeys }) => {
+		const rows = await batchGetFromTable({
+			client: deps.client,
+			tableName: deps.userArticlesTableName,
+			schema: AllKeyItem,
+			keys: storedKeys.map((url) => ({ userId, url })),
+			projection: ["url"],
+		});
+		return new Set(rows.map((row) => row.url));
+	};
+
 	const moveNewsletterLinkToHold: MoveNewsletterLinkToHold = async (params) => {
 		const { userId, jobId, storedKey, cutoff, now } = params;
 		const allKey = { userId, url: storedKey };
@@ -479,5 +509,7 @@ export function initDynamoDbRemovedLinks(deps: {
 		forEachRemovalCandidatePage,
 		listKeysOpenedInReadlists,
 		findOriginalUrls,
+		findUnrestorableArticles,
+		findKeysInAll,
 	};
 }

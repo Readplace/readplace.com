@@ -184,6 +184,19 @@ AWS documents the redrive at https://docs.aws.amazon.com/AWSSimpleQueueService/l
 
 `subscription-events-dlq` holds seven detail types and a redrive cannot pick between them, so a redrive can deliver a fact about a subscription the reader has since replaced, reactivated or re-opened. Every write that moves a subscription row into a status records the second in `statusEnteredAt`, and a message whose envelope `time` is older does nothing (grep for `messagePredatesStatus` and `markCancelledByEvent`). A `SubscriptionCancelled` also does nothing unless the row still holds the subscription the event names, or none when the event names none: the cancel handler publishes it after reading the row, so a reader who resubscribes in that same second would otherwise be left cancelled while paying. A new write that changes a row's status must set it, or stale messages will act on that status. An absent value means the status predates the field and is not a refusal: do not make it required, because armed schedules and old rows both depend on that. `CheckoutCompleted` carries no user, so it reaches the subscription row through the checkout's pending signup, and does nothing once that signup is claimed. It acts on an older status only when the row is already active with that checkout's subscription, which only a failed earlier attempt at the same checkout leaves behind. Redrive this queue with `aws sqs start-message-move-task`, and no row needs reading first.
 
+### A saved-links job dead letter resumes that job
+
+Remove newsletter links, Restore and the count behind them run as one job per reader on the `user-data-jobs-q` queue, which they share with data export and account deletion. On the 12th receive (about 3 hours at a 900 s visibility) the handler marks the job failed, so the inbox line reads failed, publishes `SavedLinksJobFailed`, and still fails the record into `user-data-jobs-dlq`. The message is the only copy of the work, so keep it: do not purge the queue to quiet `user-data-jobs-dlq-alarm`.
+
+A redrive needs no row read first, because the handler reads the reader's job row itself:
+
+| Job row when the message arrives | What the redrive does |
+|---|---|
+| The same job, failed | Resumes it from the counts already recorded |
+| A newer job, or this one completed | Logs `[saved-links-job] stale job` and acknowledges |
+
+A resumed job cannot do more than the reader asked. A removal moves only links saved at or before the cutoff its command carries and not restored at or after it, so a link saved or restored after the count stays in All. A restore writes a held link back only where All holds no row for its URL, counting the rest as already in All. A held link expires 30 days after its removal, so a restore redriven later brings back only what is still held. Redrive with `aws sqs start-message-move-task`, after the cause is fixed, and once before the message's 14 days end.
+
 ### User-facing copy comes from the translation files
 
 Readplace serves en-US today and will add en-AU and other languages. A literal string in a template, view model, email or Siren title cannot be translated, and one key missing from one locale ships a blank or English string to every reader of that locale. Copy therefore lives in the translations workspace package (`pnpm nx show projects` names it; its README table lists each surface and its purpose), whose types make every supported locale carry every key with the same `{name}` placeholders.

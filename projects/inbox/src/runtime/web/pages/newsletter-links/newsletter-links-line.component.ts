@@ -24,6 +24,11 @@ const COUNT_ACTION = withInternalTracking(NEWSLETTER_LINKS_COUNT_PATH, {
 	content: "remove-newsletter-links",
 });
 
+const RESTORE_ACTION = withInternalTracking(NEWSLETTER_LINKS_COUNT_PATH, {
+	source: "inbox-emails",
+	content: "restore-newsletter-links",
+});
+
 function resultSentences(params: {
 	action: SavedLinksJobBulkAction;
 	counts: SavedLinksJobCounts;
@@ -57,34 +62,50 @@ function resultSentences(params: {
 	];
 }
 
+function offerActions(params: { offer: boolean; restore: boolean }): {
+	countAction: string | undefined;
+	restoreAction: string | undefined;
+} {
+	return {
+		countAction: params.offer ? COUNT_ACTION : undefined,
+		restoreAction: params.restore ? RESTORE_ACTION : undefined,
+	};
+}
+
 function lineView(line: Exclude<NewsletterLinksLine, { kind: "hidden" }>): {
 	sentences: string[];
 	countAction: string | undefined;
+	restoreAction: string | undefined;
 	pollUrl: string | undefined;
 } {
 	switch (line.kind) {
 		case "offer":
 			return {
-				sentences: [t("newsletterLinks.line.offer")],
-				countAction: COUNT_ACTION,
+				sentences: [
+					line.offer
+						? t("newsletterLinks.line.offer")
+						: t("newsletterLinks.line.offerHeld"),
+				],
+				...offerActions(line),
 				pollUrl: undefined,
 			};
 		case "working":
 			return {
 				sentences: [t(`newsletterLinks.line.working.${line.action}`)],
 				countAction: undefined,
+				restoreAction: undefined,
 				pollUrl: INBOX_PATH,
 			};
 		case "result":
 			return {
 				sentences: resultSentences(line),
-				countAction: line.offer ? COUNT_ACTION : undefined,
+				...offerActions(line),
 				pollUrl: undefined,
 			};
 		case "failed":
 			return {
 				sentences: [t(`newsletterLinks.line.failed.${line.action}`)],
-				countAction: line.offer ? COUNT_ACTION : undefined,
+				...offerActions(line),
 				pollUrl: undefined,
 			};
 	}

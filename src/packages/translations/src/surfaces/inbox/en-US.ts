@@ -36,7 +36,9 @@ export const enUS = {
 	newsletterLinks: {
 		line: {
 			offer: "All holds links saved from your newsletters.",
+			offerHeld: "Newsletter links you removed can be restored to All for 30 days.",
 			removeButton: "Remove newsletter links",
+			restoreButton: "Restore removed links",
 			working: {
 				remove: "Removing newsletter links from All…",
 				restore: "Restoring removed links to All…",
@@ -108,6 +110,23 @@ export const enUS = {
 				"Links you saved yourself from an issue or its email page before {date}, and links you saved by hand before a newsletter linked them, are in the total.",
 			submit: "Remove newsletter links",
 			back: "Back to Inbox",
+		},
+		restore: {
+			title: "Restore removed links",
+			counting: "Counting the links you removed…",
+			none: "Count the links you removed to see what can be restored.",
+			failed: "Couldn't count the links you removed.",
+			countButton: "Count removed links",
+			total: {
+				one: "{count} removed link can be restored to All.",
+				other: "{count} removed links can be restored to All.",
+			},
+			sendersLegend: "Newsletters the links came from",
+			unrestorable: {
+				one: "{count} removed link can't be restored, because its article is no longer stored. To keep it, save it again:",
+				other: "{count} removed links can't be restored, because their articles are no longer stored. To keep one, save it again:",
+			},
+			submit: "Restore links",
 		},
 	},
 } as const;

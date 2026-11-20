@@ -158,6 +158,7 @@ export function createInboxTestApp(
 			appOrigin: fixture.shared.appOrigin,
 			edgeSecret: "test-edge-secret",
 			hasNewsletterLink,
+			hasHeldLinks: fixture.articleStore.hasHeldLinks,
 			findSavedLinksJob: fixture.articleStore.findSavedLinksJob,
 			requestSavedLinksJob: fixture.articleStore.requestSavedLinksJob,
 			withdrawSavedLinksJob: fixture.articleStore.withdrawSavedLinksJob,

@@ -97,6 +97,8 @@ export {
 	newsletterLinkCountOf,
 	newsletterLinksLineOf,
 	type CountedNewsletterLinks,
+	type HeldNewsletterLinks,
+	summariseHeldLinks,
 	type NewsletterLinkCount,
 	type NewsletterLinksLine,
 	type SavedLinksJobBulkAction,

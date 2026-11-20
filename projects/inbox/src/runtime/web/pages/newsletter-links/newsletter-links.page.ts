@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { randomUUID } from "node:crypto";
 import {
+	type NewsletterLinkCount,
 	newsletterLinkCountOf,
 	type SavedLinksJobId,
 	SavedLinksJobIdSchema,
@@ -13,14 +14,26 @@ import type {
 	RequestSavedLinksJob,
 	WithdrawSavedLinksJob,
 } from "@packages/provider-contracts/article-store";
-import { sendComponent } from "@packages/web-shell";
+import { type PageBody, sendComponent } from "@packages/web-shell";
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import type { BuildBannerState } from "../../banner-state";
 import { Base } from "../../base.component";
-import { NEWSLETTER_LINKS_REMOVE_PATH } from "./newsletter-links.url";
-import { NewsletterLinksConfirmPage } from "./newsletter-links-confirm.component";
+import {
+	NEWSLETTER_LINKS_REMOVE_PATH,
+	NEWSLETTER_LINKS_RESTORE_PATH,
+} from "./newsletter-links.url";
+import {
+	type NewsletterLinksConfirmState,
+	NewsletterLinksConfirmPage,
+} from "./newsletter-links-confirm.component";
+import { NewsletterLinksRestorePage } from "./newsletter-links-restore.component";
+
+type RunSavedLinksJobSenders = Extract<
+	RunSavedLinksJobDetail["job"],
+	{ action: "restore" }
+>["senders"];
 
 export interface NewsletterLinksDependencies {
 	findSavedLinksJob: FindSavedLinksJob;
@@ -33,7 +46,11 @@ export interface NewsletterLinksDependencies {
 	now: () => Date;
 }
 
-const RemoveBodySchema = z.object({
+const CountBodySchema = z.object({
+	next: z.enum(["restore"]).optional(),
+});
+
+const ChooseSendersBodySchema = z.object({
 	count: SavedLinksJobIdSchema,
 	senders: z.enum(["all", "chosen"]),
 	sender: z
@@ -41,6 +58,41 @@ const RemoveBodySchema = z.object({
 		.optional()
 		.transform((value) => (value === undefined ? [] : [value].flat())),
 });
+
+type CountedState = Extract<NewsletterLinkCount, { kind: "counted" }>;
+
+function chosenSendersOf(params: {
+	body: unknown;
+	state: NewsletterLinkCount;
+	listed: (state: CountedState) => Array<{ senderEmail: string }>;
+}): { cutoff: Date; senders: RunSavedLinksJobSenders } | undefined {
+	const body = ChooseSendersBodySchema.safeParse(params.body);
+	const { state } = params;
+	if (
+		!body.success ||
+		state.kind !== "counted" ||
+		state.jobId !== body.data.count
+	) {
+		return undefined;
+	}
+	const counted = new Set(
+		params.listed(state).map((sender) => sender.senderEmail),
+	);
+	const chosen = body.data.sender;
+	const chosenListed =
+		chosen.length > 0 &&
+		chosen.every((senderEmail) => counted.has(senderEmail));
+	const choiceMatchesTicks =
+		body.data.senders === "chosen" ? chosenListed : chosen.length === 0;
+	if (!choiceMatchesTicks) return undefined;
+	return {
+		cutoff: state.counted.cutoff,
+		senders:
+			body.data.senders === "all"
+				? { kind: "all" }
+				: { kind: "chosen", senderEmails: chosen },
+	};
+}
 
 export function initNewsletterLinksRoutes(
 	deps: NewsletterLinksDependencies,
@@ -81,39 +133,49 @@ export function initNewsletterLinksRoutes(
 			req.userId,
 			"userId required - route must be protected by requireAuth",
 		);
+		const body = CountBodySchema.safeParse(req.body);
 		const outcome = await claimAndPublish({
 			userId: req.userId,
 			job: { action: "count" },
 		});
-		res.redirect(
-			303,
-			outcome === "busy" ? INBOX_PATH : NEWSLETTER_LINKS_REMOVE_PATH,
-		);
-	});
-
-	router.get("/remove", async (req: Request, res: Response) => {
-		assert(
-			req.userId,
-			"userId required - route must be protected by requireAuth",
-		);
-		const state = newsletterLinkCountOf(
-			await deps.findSavedLinksJob({ userId: req.userId }),
-		);
-		if (state.kind === "busy") {
-			if (req.get("HX-Request") === "true") {
-				res.set("HX-Redirect", INBOX_PATH).status(204).send();
-				return;
-			}
+		if (outcome === "busy") {
 			res.redirect(303, INBOX_PATH);
 			return;
 		}
-		const bannerState = await deps.buildBannerState(req);
-		sendComponent(
-			req,
-			res,
-			Base(NewsletterLinksConfirmPage(state), bannerState),
+		res.redirect(
+			303,
+			body.success && body.data.next === "restore"
+				? NEWSLETTER_LINKS_RESTORE_PATH
+				: NEWSLETTER_LINKS_REMOVE_PATH,
 		);
 	});
+
+	function countPage(
+		page: (state: NewsletterLinksConfirmState) => PageBody,
+	): RequestHandler {
+		return async (req: Request, res: Response) => {
+			assert(
+				req.userId,
+				"userId required - route must be protected by requireAuth",
+			);
+			const state = newsletterLinkCountOf(
+				await deps.findSavedLinksJob({ userId: req.userId }),
+			);
+			if (state.kind === "busy") {
+				if (req.get("HX-Request") === "true") {
+					res.set("HX-Redirect", INBOX_PATH).status(204).send();
+					return;
+				}
+				res.redirect(303, INBOX_PATH);
+				return;
+			}
+			const bannerState = await deps.buildBannerState(req);
+			sendComponent(req, res, Base(page(state), bannerState));
+		};
+	}
+
+	router.get("/remove", countPage(NewsletterLinksConfirmPage));
+	router.get("/restore", countPage(NewsletterLinksRestorePage));
 
 	router.post(
 		"/remove",
@@ -125,28 +187,12 @@ export function initNewsletterLinksRoutes(
 				"userId required - route must be protected by requireAuth",
 			);
 			const userId = req.userId;
-			const body = RemoveBodySchema.safeParse(req.body);
-			const state = newsletterLinkCountOf(
-				await deps.findSavedLinksJob({ userId }),
-			);
-			if (
-				!body.success ||
-				state.kind !== "counted" ||
-				state.jobId !== body.data.count
-			) {
-				res.redirect(303, NEWSLETTER_LINKS_REMOVE_PATH);
-				return;
-			}
-			const counted = new Set(
-				state.counted.summary.bySender.map((sender) => sender.senderEmail),
-			);
-			const chosen = body.data.sender;
-			const chosenListed =
-				chosen.length > 0 &&
-				chosen.every((senderEmail) => counted.has(senderEmail));
-			const choiceMatchesTicks =
-				body.data.senders === "chosen" ? chosenListed : chosen.length === 0;
-			if (!choiceMatchesTicks) {
+			const choice = chosenSendersOf({
+				body: req.body,
+				state: newsletterLinkCountOf(await deps.findSavedLinksJob({ userId })),
+				listed: (state) => state.counted.summary.bySender,
+			});
+			if (choice === undefined) {
 				res.redirect(303, NEWSLETTER_LINKS_REMOVE_PATH);
 				return;
 			}
@@ -154,12 +200,36 @@ export function initNewsletterLinksRoutes(
 				userId,
 				job: {
 					action: "remove",
-					cutoff: state.counted.cutoff.toISOString(),
-					senders:
-						body.data.senders === "all"
-							? { kind: "all" }
-							: { kind: "chosen", senderEmails: chosen },
+					cutoff: choice.cutoff.toISOString(),
+					senders: choice.senders,
 				},
+			});
+			res.redirect(303, INBOX_PATH);
+		},
+	);
+
+	router.post(
+		"/restore",
+		deps.requireNotLocked,
+		deps.requirePaidFeatures,
+		async (req: Request, res: Response) => {
+			assert(
+				req.userId,
+				"userId required - route must be protected by requireAuth",
+			);
+			const userId = req.userId;
+			const choice = chosenSendersOf({
+				body: req.body,
+				state: newsletterLinkCountOf(await deps.findSavedLinksJob({ userId })),
+				listed: (state) => state.counted.held.bySender,
+			});
+			if (choice === undefined) {
+				res.redirect(303, NEWSLETTER_LINKS_RESTORE_PATH);
+				return;
+			}
+			await claimAndPublish({
+				userId,
+				job: { action: "restore", senders: choice.senders },
 			});
 			res.redirect(303, INBOX_PATH);
 		},

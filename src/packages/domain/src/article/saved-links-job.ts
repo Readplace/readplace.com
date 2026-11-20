@@ -62,6 +62,12 @@ export interface CountedNewsletterLinks {
 	cutoff: Date;
 	summary: NewsletterLinkSummary;
 	issues: number;
+	held: HeldNewsletterLinks;
+}
+
+export interface HeldNewsletterLinks {
+	bySender: Array<{ senderEmail: string; count: number }>;
+	unrestorable: string[];
 }
 
 export type NewsletterLinkCount =
@@ -85,20 +91,24 @@ export type SavedLinksJobBulkAction = Exclude<SavedLinksJobAction, "count">;
 
 export type NewsletterLinksLine =
 	| { kind: "hidden" }
-	| { kind: "offer" }
+	| { kind: "offer"; offer: boolean; restore: boolean }
 	| { kind: "working"; action: SavedLinksJobBulkAction }
-	| { kind: "result"; action: SavedLinksJobBulkAction; counts: SavedLinksJobCounts; offer: boolean }
-	| { kind: "failed"; action: SavedLinksJobBulkAction; offer: boolean };
+	| { kind: "result"; action: SavedLinksJobBulkAction; counts: SavedLinksJobCounts; offer: boolean; restore: boolean }
+	| { kind: "failed"; action: SavedLinksJobBulkAction; offer: boolean; restore: boolean };
 
 export function newsletterLinksLineOf(params: {
 	job: SavedLinksJob | undefined;
 	hasNewsletterLink: boolean;
+	hasHeldLinks: boolean;
 }): NewsletterLinksLine {
-	const { job, hasNewsletterLink } = params;
-	if (job === undefined || job.action === "count") return hasNewsletterLink ? { kind: "offer" } : { kind: "hidden" };
+	const { job } = params;
+	const offers = { offer: params.hasNewsletterLink, restore: params.hasHeldLinks };
+	if (job === undefined || job.action === "count") {
+		return offers.offer || offers.restore ? { kind: "offer", ...offers } : { kind: "hidden" };
+	}
 	if (job.state === "requested" || job.state === "running") return { kind: "working", action: job.action };
-	if (job.state === "failed") return { kind: "failed", action: job.action, offer: hasNewsletterLink };
-	return { kind: "result", action: job.action, counts: job.counts, offer: hasNewsletterLink };
+	if (job.state === "failed") return { kind: "failed", action: job.action, ...offers };
+	return { kind: "result", action: job.action, counts: job.counts, ...offers };
 }
 
 export type RemovalSenders =
@@ -264,4 +274,35 @@ export function selectHeldLinksToRestore(params: {
 			earliest.set(link.storedKey, link);
 	}
 	return [...earliest.values()];
+}
+
+export function summariseHeldLinks(params: {
+	links: readonly HeldLink[];
+	cutoff: Date;
+	now: Date;
+	unrestorable: ReadonlySet<string>;
+	inAll: ReadonlySet<string>;
+}): HeldNewsletterLinks {
+	const restorable = selectHeldLinksToRestore({
+		links: params.links,
+		requestedAt: params.cutoff,
+		senders: { kind: "all" },
+		now: params.now,
+	});
+	const bySender = new Map<string, number>();
+	const unrestorable: string[] = [];
+	for (const link of restorable) {
+		if (params.unrestorable.has(link.storedKey)) {
+			unrestorable.push(link.storedKey);
+			continue;
+		}
+		if (params.inAll.has(link.storedKey)) continue;
+		bySender.set(link.senderEmail, (bySender.get(link.senderEmail) ?? 0) + 1);
+	}
+	return {
+		bySender: [...bySender]
+			.map(([senderEmail, count]) => ({ senderEmail, count }))
+			.sort((a, b) => b.count - a.count),
+		unrestorable,
+	};
 }

@@ -618,6 +618,10 @@ export type ListKeysOpenedInReadlists = (params: { userId: UserId }) => Promise<
 
 export type FindOriginalUrls = (params: { storedKeys: readonly string[] }) => Promise<Map<string, string>>;
 
+export type FindUnrestorableArticles = (params: { storedKeys: readonly string[] }) => Promise<ReadonlySet<string>>;
+
+export type FindKeysInAll = (params: { userId: UserId; storedKeys: readonly string[] }) => Promise<ReadonlySet<string>>;
+
 export type HasHeldLinks = (params: { userId: UserId; now: Date }) => Promise<boolean>;
 
 export type FindHeldLink = (params: { userId: UserId; storedKey: string; now: Date }) => Promise<HeldLink | undefined>;

@@ -141,6 +141,10 @@ function setup(overrides: {
 			count: initCountSavedLinks({
 				summariseNewsletterLinks: removedLinks.summariseNewsletterLinks,
 				countNewsletterIssues: removedLinks.countNewsletterIssues,
+				forEachHeldLinkPage: store.forEachHeldLinkPage,
+				findUnrestorableArticles: store.findUnrestorableArticles,
+				findKeysInAll: store.findKeysInAll,
+				now,
 				recordCountedNewsletterLinks: (overrides.recordCountedNewsletterLinks ?? ((record) => record))(
 					store.recordCountedNewsletterLinks,
 				),
@@ -402,20 +406,6 @@ describe("saved-links job: remove", () => {
 });
 
 describe("saved-links job: restore", () => {
-	async function hold(store: ReturnType<typeof setup>["store"], params: { url: string; senderEmail?: string; at?: Date }) {
-		await store.saveArticle(emailSave(params));
-		const storedKey = params.url.replace("https://", "");
-		const outcome = await store.moveNewsletterLinkToHold({
-			userId: READER,
-			jobId: SavedLinksJobIdSchema.parse("2026-12-01T00:00:00.000Z#old"),
-			storedKey,
-			cutoff: CUTOFF,
-			senders: { kind: "all" },
-			now: params.at ?? SAVED_AT,
-		});
-		assert.deepEqual(outcome, { outcome: "held" });
-	}
-
 	it("writes back each chosen held link and counts every restore outcome", async () => {
 		const { store, published, run, claim } = setup({
 			restoreHeldLink: (restore) => async (params) =>
@@ -499,6 +489,20 @@ describe("saved-links job: restore", () => {
 	});
 });
 
+async function hold(store: ReturnType<typeof setup>["store"], params: { url: string; senderEmail?: string; at?: Date }) {
+	await store.saveArticle(emailSave(params));
+	const storedKey = params.url.replace("https://", "");
+	const outcome = await store.moveNewsletterLinkToHold({
+		userId: READER,
+		jobId: SavedLinksJobIdSchema.parse("2026-12-01T00:00:00.000Z#old"),
+		storedKey,
+		cutoff: CUTOFF,
+		senders: { kind: "all" },
+		now: params.at ?? SAVED_AT,
+	});
+	assert.deepEqual(outcome, { outcome: "held" });
+}
+
 function countDetail(): RunSavedLinksJobDetail {
 	return { userId: READER, jobId: JOB, requestedAt: CUTOFF.toISOString(), job: { action: "count" } };
 }
@@ -525,6 +529,41 @@ describe("saved-links job: count", () => {
 			published.map((event) => event.detailType),
 			["SavedLinksJobCompleted"],
 		);
+	});
+
+	it("writes the held links Restore would take by newsletter and lists the ones it cannot restore", async () => {
+		const { store, run, claim } = setup();
+		await hold(store, { url: "https://a.com/one" });
+		await hold(store, { url: "https://a.com/two", senderEmail: "news@example.com" });
+		await hold(store, { url: "https://a.com/three", senderEmail: "news@example.com" });
+		await hold(store, { url: "https://a.com/purged" });
+		await store.setPurgedAt({ url: "https://a.com/purged", at: SAVED_AT });
+		await claim("count");
+
+		assert.equal(await run({ detail: countDetail() }), 0);
+
+		assert.deepEqual((await store.findSavedLinksJob({ userId: READER }))?.counted?.held, {
+			bySender: [
+				{ senderEmail: "news@example.com", count: 2 },
+				{ senderEmail: "dan@tldr.tech", count: 1 },
+			],
+			unrestorable: ["a.com/purged"],
+		});
+	});
+
+	it("leaves out a held link the reader has saved to All again, because Restore leaves it where it is", async () => {
+		const { store, run, claim } = setup();
+		await hold(store, { url: "https://a.com/one" });
+		await hold(store, { url: "https://a.com/again" });
+		await store.saveArticle(emailSave({ url: "https://a.com/again" }));
+		await claim("count");
+
+		assert.equal(await run({ detail: countDetail() }), 0);
+
+		assert.deepEqual((await store.findSavedLinksJob({ userId: READER }))?.counted?.held, {
+			bySender: [{ senderEmail: "dan@tldr.tech", count: 1 }],
+			unrestorable: [],
+		});
 	});
 
 	it("stops without finishing when another job replaced the count while it ran", async () => {

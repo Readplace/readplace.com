@@ -177,6 +177,7 @@ const application = express()
 				appOrigin: requireEnv("APP_ORIGIN"),
 				edgeSecret: requireEnv("SSR_EDGE_SECRET"),
 				hasNewsletterLink: removedLinks.hasNewsletterLink,
+				hasHeldLinks: removedLinks.hasHeldLinks,
 				findSavedLinksJob: savedLinksJob.findSavedLinksJob,
 				requestSavedLinksJob: savedLinksJob.requestSavedLinksJob,
 				withdrawSavedLinksJob: savedLinksJob.withdrawSavedLinksJob,

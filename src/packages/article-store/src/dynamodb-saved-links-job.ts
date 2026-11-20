@@ -35,6 +35,10 @@ const CountedItem = z.object({
 		savedBeforeMarker: z.number().int().nonnegative(),
 		earliestEmailSave: dynamoField(z.string()),
 	}),
+	held: z.object({
+		bySender: z.array(z.object({ senderEmail: z.string(), count: z.number().int().nonnegative() })),
+		unrestorable: z.array(z.string()),
+	}),
 });
 
 function toCounted(item: z.infer<typeof CountedItem>): CountedNewsletterLinks {
@@ -43,6 +47,7 @@ function toCounted(item: z.infer<typeof CountedItem>): CountedNewsletterLinks {
 		cutoff: new Date(item.cutoff),
 		issues: item.issues,
 		summary: { ...summary, earliestEmailSave: earliestEmailSave === undefined ? undefined : new Date(earliestEmailSave) },
+		held: item.held,
 	};
 }
 
@@ -52,6 +57,7 @@ function toCountedItem(counted: CountedNewsletterLinks) {
 		cutoff: counted.cutoff.toISOString(),
 		issues: counted.issues,
 		summary: { ...summary, ...(earliestEmailSave === undefined ? {} : { earliestEmailSave: earliestEmailSave.toISOString() }) },
+		held: counted.held,
 	};
 }
 

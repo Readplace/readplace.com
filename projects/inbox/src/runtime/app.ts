@@ -14,7 +14,7 @@ import type {
 	InboxEmailStore,
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
-import type { ContentProvider, HasNewsletterLink } from "@packages/provider-contracts/article-store";
+import type { ContentProvider, HasHeldLinks, HasNewsletterLink } from "@packages/provider-contracts/article-store";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type {
 	FindUserById,
@@ -93,6 +93,7 @@ export function createInboxApp(
 		appOrigin: string;
 		edgeSecret: string;
 		hasNewsletterLink: HasNewsletterLink;
+		hasHeldLinks: HasHeldLinks;
 	} & InboxReadlistFitDependencies &
 		Pick<
 			NewsletterLinksDependencies,
@@ -203,6 +204,7 @@ export function createInboxApp(
 		publishLinkDequeued: deps.publishLinkDequeued,
 		publishFileArticleIntoReadlist: deps.publishFileArticleIntoReadlist,
 		hasNewsletterLink: deps.hasNewsletterLink,
+		hasHeldLinks: deps.hasHeldLinks,
 		findSavedLinksJob: deps.findSavedLinksJob,
 		fitChoiceLog: deps.fitChoiceLog,
 	});

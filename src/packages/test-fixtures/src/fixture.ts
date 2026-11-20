@@ -427,6 +427,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			readOpenedInReadlists: articleStoreMemory.readOpenedInReadlists,
 			moveNewsletterLinkToHold: articleStoreMemory.moveNewsletterLinkToHold,
 			findOriginalUrls: articleStoreMemory.findOriginalUrls,
+			findUnrestorableArticles: articleStoreMemory.findUnrestorableArticles,
+			findKeysInAll: articleStoreMemory.findKeysInAll,
 			restoreHeldLink: articleStoreMemory.restoreHeldLink,
 			forEachHeldLinkPage: articleStoreMemory.forEachHeldLinkPage,
 			hasHeldLinks: articleStoreMemory.hasHeldLinks,

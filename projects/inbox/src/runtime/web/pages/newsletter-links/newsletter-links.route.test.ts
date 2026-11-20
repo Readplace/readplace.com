@@ -37,6 +37,7 @@ const COUNT_JOB_ID = SavedLinksJobIdSchema.parse(
 const COUNT_CUTOFF = new Date("2026-11-20T01:00:00.000Z");
 const REMOVE_PATH = "/inbox/newsletter-links/remove";
 const COUNT_PATH = "/inbox/newsletter-links/count";
+const RESTORE_PATH = "/inbox/newsletter-links/restore";
 
 async function readerId(fixture: Fixture): Promise<UserId> {
 	const user = await fixture.auth.findUserByEmail("test@example.com");
@@ -123,12 +124,14 @@ async function seedJob(
 function counted(
 	overrides: Partial<CountedNewsletterLinks["summary"]> & {
 		issues?: number;
+		held?: CountedNewsletterLinks["held"];
 	} = {},
 ): CountedNewsletterLinks {
-	const { issues, ...summary } = overrides;
+	const { issues, held, ...summary } = overrides;
 	return {
 		cutoff: COUNT_CUTOFF,
 		issues: issues ?? 2,
+		held: held ?? { bySender: [], unrestorable: [] },
 		summary: {
 			selected: 5,
 			bySender: [
@@ -160,6 +163,22 @@ async function seedCounted(
 		counted: value,
 		finish: { state: "completed", counts: {} },
 	});
+}
+
+async function seedHeld(
+	fixture: Fixture,
+	params: { userId: UserId; url: string },
+): Promise<void> {
+	await seedEmailSave(fixture, params);
+	const outcome = await fixture.articleStore.moveNewsletterLinkToHold({
+		userId: params.userId,
+		jobId: SavedLinksJobIdSchema.parse("2026-11-19T00:00:00.000Z-remove"),
+		storedKey: params.url.replace("https://", ""),
+		cutoff: fixture.shared.now(),
+		senders: { kind: "all" },
+		now: fixture.shared.now(),
+	});
+	assert.deepEqual(outcome, { outcome: "held" });
 }
 
 function documentOf(html: string): Document {
@@ -900,6 +919,424 @@ describe("Removing newsletter links", () => {
 
 		const response = await agent
 			.post(REMOVE_PATH)
+			.set("Accept", "text/html")
+			.type("form")
+			.send(removeForm({ count: COUNT_JOB_ID, senders: "all" }));
+
+		expect(response.status).toBe(403);
+		expect(harness.savedLinksJobCommands).toEqual([]);
+	});
+});
+
+describe("Restore on the newsletter links line", () => {
+	it("offers Restore alone while links are held, even when the inbox holds no mail", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedHeld(fixture, {
+			userId: await readerId(fixture),
+			url: "https://a.com/held",
+		});
+
+		const line = lineOf(documentOf((await agent.get("/inbox")).text));
+
+		assert(line, "the offer line must render");
+		expect(line.getAttribute("data-newsletter-links-state")).toBe("offer");
+		expect(sentencesOf(line)).toEqual([
+			"Newsletter links you removed can be restored to All for 30 days.",
+		]);
+		expect(line.querySelector("[data-test-newsletter-links-remove]")).toBeNull();
+		const button = line.querySelector("[data-test-newsletter-links-restore]");
+		const form = button?.closest("form");
+		assert(form, "the offer carries the Restore button");
+		const action = new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(action.pathname).toBe(COUNT_PATH);
+		expect(action.searchParams.get("utm_source")).toBe("inbox-emails");
+		expect(action.searchParams.get("utm_content")).toBe(
+			"restore-newsletter-links",
+		);
+		expect(
+			form.querySelector("input[name=next]")?.getAttribute("value"),
+		).toBe("restore");
+	});
+
+	it("offers Remove and Restore together while a newsletter link is in All and links are held", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await readerId(fixture);
+		await seedEmail(fixture, userId);
+		await seedEmailSave(fixture, { userId, url: "https://a.com/post" });
+		await seedHeld(fixture, { userId, url: "https://a.com/held" });
+
+		const line = lineOf(documentOf((await agent.get("/inbox")).text));
+
+		assert(line, "the offer line must render");
+		expect(sentencesOf(line)).toEqual([
+			"All holds links saved from your newsletters.",
+		]);
+		expect(line.querySelector("[data-test-newsletter-links-remove]")).not.toBeNull();
+		expect(line.querySelector("[data-test-newsletter-links-restore]")).not.toBeNull();
+	});
+
+	it("offers Restore beside a finished removal's result", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await readerId(fixture);
+		await seedHeld(fixture, { userId, url: "https://a.com/held" });
+		await seedJob(fixture, {
+			userId,
+			action: "remove",
+			finish: { state: "completed", counts: { held: 1 } },
+		});
+
+		const line = lineOf(documentOf((await agent.get("/inbox")).text));
+
+		assert(line, "the result line must render");
+		expect(line.getAttribute("data-newsletter-links-state")).toBe("result");
+		expect(line.querySelector("[data-test-newsletter-links-remove]")).toBeNull();
+		expect(line.querySelector("[data-test-newsletter-links-restore]")).not.toBeNull();
+	});
+
+	it("is hidden on a later inbox page while links are held", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await readerId(fixture);
+		await seedEmail(fixture, userId);
+		await seedHeld(fixture, { userId, url: "https://a.com/held" });
+
+		const doc = documentOf(
+			(
+				await agent
+					.get("/inbox")
+					.query({ older: "2026-11-20T00:00:00.000Z#msg-2" })
+			).text,
+		);
+
+		expect(lineOf(doc)).toBeNull();
+	});
+});
+
+describe("Counting removed links to restore", () => {
+	it("claims a count job and sends the reader to the restore page", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.post(COUNT_PATH)
+			.type("form")
+			.send("next=restore");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(RESTORE_PATH);
+		expect(harness.savedLinksJobCommands.map((command) => command.job)).toEqual([
+			{ action: "count" },
+		]);
+	});
+
+	it("sends the reader to the remove page when the next page is not one it knows", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.post(COUNT_PATH)
+			.type("form")
+			.send("next=elsewhere");
+
+		expect(response.headers.location).toBe(REMOVE_PATH);
+	});
+});
+
+describe("Newsletter links restore page", () => {
+	it("offers to count removed links when nothing has been counted", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
+
+		expect(doc.querySelector("h1")?.textContent).toBe("Restore removed links");
+		expect(textsOf(doc, "[data-test-newsletter-links-count-message]")).toEqual([
+			"Count the links you removed to see what can be restored.",
+		]);
+		const button = doc.querySelector("[data-test-newsletter-links-count-button]");
+		expect(button?.textContent).toBe("Count removed links");
+		const form = button?.closest("form");
+		assert(form, "the count button sits in a form");
+		expect(new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN).pathname).toBe(
+			COUNT_PATH,
+		);
+		expect(
+			form.querySelector("input[name=next]")?.getAttribute("value"),
+		).toBe("restore");
+	});
+
+	it("polls the restore page every 3 seconds while the count runs", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedJob(fixture, { userId: await readerId(fixture), action: "count" });
+
+		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
+
+		const section = doc.querySelector("[data-test-newsletter-links-count]");
+		expect(section?.getAttribute("data-newsletter-links-count")).toBe("counting");
+		expect(section?.getAttribute("hx-get")).toBe(RESTORE_PATH);
+		expect(section?.getAttribute("hx-trigger")).toBe("every 3s");
+		const checkAgain = doc.querySelector("[data-test-newsletter-links-check-again]");
+		expect(
+			new URL(checkAgain?.getAttribute("href") ?? "", TEST_APP_ORIGIN).pathname,
+		).toBe(RESTORE_PATH);
+	});
+
+	it("lists the held links by newsletter and the links that cannot be restored by URL", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedCounted(
+			fixture,
+			await readerId(fixture),
+			counted({
+				held: {
+					bySender: [
+						{ senderEmail: "big@example.com", count: 3 },
+						{ senderEmail: "small@example.com", count: 1 },
+					],
+					unrestorable: ["gone.com/one", "gone.com/two"],
+				},
+			}),
+		);
+
+		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
+
+		expect(textsOf(doc, "[data-test-newsletter-links-total]")).toEqual([
+			"4 removed links can be restored to All.",
+		]);
+		const form = doc.querySelector("[data-test-newsletter-links-restore-form]");
+		assert(form, "the restore form must render");
+		expect(
+			new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN).pathname,
+		).toBe(RESTORE_PATH);
+		expect(form.querySelector("input[name=count]")?.getAttribute("value")).toBe(
+			COUNT_JOB_ID,
+		);
+		expect(
+			Array.from(form.querySelectorAll("[data-test-newsletter-links-sender]")).map(
+				(input) => input.getAttribute("value"),
+			),
+		).toEqual(["big@example.com", "small@example.com"]);
+		expect(textsOf(doc, "[data-test-newsletter-links-unrestorable]")).toEqual([
+			"2 removed links can't be restored, because their articles are no longer stored. To keep one, save it again:",
+		]);
+		expect(textsOf(doc, "[data-test-newsletter-links-unrestorable-link]")).toEqual([
+			"gone.com/one",
+			"gone.com/two",
+		]);
+	});
+
+	it("leaves out the form and the unrestorable list when nothing is held", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedCounted(fixture, await readerId(fixture), counted());
+
+		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
+
+		expect(textsOf(doc, "[data-test-newsletter-links-total]")).toEqual([
+			"0 removed links can be restored to All.",
+		]);
+		expect(doc.querySelector("[data-test-newsletter-links-restore-form]")).toBeNull();
+		expect(doc.querySelector("[data-test-newsletter-links-unrestorable]")).toBeNull();
+	});
+
+	it("names one unrestorable link in the singular", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedCounted(
+			fixture,
+			await readerId(fixture),
+			counted({
+				held: {
+					bySender: [{ senderEmail: "big@example.com", count: 1 }],
+					unrestorable: ["gone.com/one"],
+				},
+			}),
+		);
+
+		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
+
+		expect(textsOf(doc, "[data-test-newsletter-links-total]")).toEqual([
+			"1 removed link can be restored to All.",
+		]);
+		expect(textsOf(doc, "[data-test-newsletter-links-unrestorable]")).toEqual([
+			"1 removed link can't be restored, because its article is no longer stored. To keep it, save it again:",
+		]);
+	});
+
+	it("offers to try again when the count failed", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedJob(fixture, {
+			userId: await readerId(fixture),
+			action: "count",
+			finish: { state: "failed", counts: {} },
+		});
+
+		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
+
+		expect(textsOf(doc, "[data-test-newsletter-links-count-message]")).toEqual([
+			"Couldn't count the links you removed.",
+		]);
+		expect(
+			doc.querySelector("[data-test-newsletter-links-count-button]")?.textContent,
+		).toBe("Try again");
+	});
+
+	it("sends the reader back to the inbox while a restore runs", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedJob(fixture, { userId: await readerId(fixture), action: "restore" });
+
+		const response = await agent.get(RESTORE_PATH);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/inbox");
+	});
+});
+
+describe("Restoring removed links", () => {
+	const HELD = counted({
+		held: {
+			bySender: [
+				{ senderEmail: "big@example.com", count: 3 },
+				{ senderEmail: "small@example.com", count: 1 },
+			],
+			unrestorable: [],
+		},
+	});
+
+	it("restores from every newsletter and returns to the inbox", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await readerId(fixture);
+		await seedCounted(fixture, userId, HELD);
+
+		const response = await agent
+			.post(RESTORE_PATH)
+			.type("form")
+			.send(removeForm({ count: COUNT_JOB_ID, senders: "all" }));
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/inbox");
+		expect(harness.savedLinksJobCommands.map((command) => command.job)).toEqual([
+			{ action: "restore", senders: { kind: "all" } },
+		]);
+		expect((await fixture.articleStore.findSavedLinksJob({ userId }))?.action).toBe(
+			"restore",
+		);
+	});
+
+	it("restores only from the ticked newsletters", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedCounted(fixture, await readerId(fixture), HELD);
+
+		await agent
+			.post(RESTORE_PATH)
+			.type("form")
+			.send(
+				removeForm({
+					count: COUNT_JOB_ID,
+					senders: "chosen",
+					sender: ["small@example.com"],
+				}),
+			);
+
+		expect(harness.savedLinksJobCommands.map((command) => command.job)).toEqual([
+			{
+				action: "restore",
+				senders: { kind: "chosen", senderEmails: ["small@example.com"] },
+			},
+		]);
+	});
+
+	it("refuses a newsletter the count did not list as held", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedCounted(fixture, await readerId(fixture), counted());
+
+		const response = await agent
+			.post(RESTORE_PATH)
+			.type("form")
+			.send(
+				removeForm({
+					count: COUNT_JOB_ID,
+					senders: "chosen",
+					sender: ["big@example.com"],
+				}),
+			);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(RESTORE_PATH);
+		expect(harness.savedLinksJobCommands).toEqual([]);
+	});
+
+	it("sends the reader back to the restore page when nothing has been counted", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.post(RESTORE_PATH)
+			.type("form")
+			.send(removeForm({ count: COUNT_JOB_ID, senders: "all" }));
+
+		expect(response.headers.location).toBe(RESTORE_PATH);
+		expect(harness.savedLinksJobCommands).toEqual([]);
+	});
+
+	it("refuses a free account and publishes nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await readerId(fixture);
+		await seedCounted(fixture, userId, HELD);
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_cancelled",
+			customerId: "cus_cancelled",
+		});
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent
+			.post(RESTORE_PATH)
+			.type("form")
+			.send(removeForm({ count: COUNT_JOB_ID, senders: "all" }));
+
+		expect(response.headers.location).toBe("/account/plans");
+		expect(harness.savedLinksJobCommands).toEqual([]);
+	});
+
+	it("refuses a locked account and publishes nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.shared.now = () => new Date(Date.now() + 8 * ONE_DAY_MS);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seedCounted(fixture, await readerId(fixture), HELD);
+
+		const response = await agent
+			.post(RESTORE_PATH)
 			.set("Accept", "text/html")
 			.type("form")
 			.send(removeForm({ count: COUNT_JOB_ID, senders: "all" }));

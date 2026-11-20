@@ -14,6 +14,7 @@ import {
 	newsletterLinkCountOf,
 	newsletterLinksLineOf,
 	type SavedLinksJob,
+	summariseHeldLinks,
 } from "./saved-links-job";
 
 const READER = UserIdSchema.parse("reader-1");
@@ -318,6 +319,7 @@ const COUNTED = {
 		earliestEmailSave: undefined,
 		savedBeforeMarker: 0,
 	},
+	held: { bySender: [], unrestorable: [] },
 };
 
 describe("newsletterLinkCountOf", () => {
@@ -358,42 +360,130 @@ describe("newsletterLinkCountOf", () => {
 });
 
 describe("newsletterLinksLineOf", () => {
-	it("is hidden without a job or a newsletter link", () => {
-		assert.deepEqual(newsletterLinksLineOf({ job: undefined, hasNewsletterLink: false }), { kind: "hidden" });
+	it("is hidden without a job, a newsletter link or a held link", () => {
+		assert.deepEqual(newsletterLinksLineOf({ job: undefined, hasNewsletterLink: false, hasHeldLinks: false }), {
+			kind: "hidden",
+		});
 	});
 
 	it("offers the removal when All holds a newsletter link", () => {
-		assert.deepEqual(newsletterLinksLineOf({ job: undefined, hasNewsletterLink: true }), { kind: "offer" });
+		assert.deepEqual(newsletterLinksLineOf({ job: undefined, hasNewsletterLink: true, hasHeldLinks: false }), {
+			kind: "offer",
+			offer: true,
+			restore: false,
+		});
+	});
+
+	it("offers Restore while links are held, whether or not a newsletter link is left in All", () => {
+		assert.deepEqual(newsletterLinksLineOf({ job: undefined, hasNewsletterLink: false, hasHeldLinks: true }), {
+			kind: "offer",
+			offer: false,
+			restore: true,
+		});
+		assert.deepEqual(newsletterLinksLineOf({ job: undefined, hasNewsletterLink: true, hasHeldLinks: true }), {
+			kind: "offer",
+			offer: true,
+			restore: true,
+		});
 	});
 
 	it("treats a count as no job", () => {
 		const counting = job({ action: "count", state: "running" });
-		assert.deepEqual(newsletterLinksLineOf({ job: counting, hasNewsletterLink: true }), { kind: "offer" });
-		assert.deepEqual(newsletterLinksLineOf({ job: counting, hasNewsletterLink: false }), { kind: "hidden" });
-	});
-
-	it("is working while a removal runs", () => {
-		assert.deepEqual(newsletterLinksLineOf({ job: job({ state: "running" }), hasNewsletterLink: true }), {
-			kind: "working",
-			action: "remove",
+		assert.deepEqual(newsletterLinksLineOf({ job: counting, hasNewsletterLink: true, hasHeldLinks: false }), {
+			kind: "offer",
+			offer: true,
+			restore: false,
+		});
+		assert.deepEqual(newsletterLinksLineOf({ job: counting, hasNewsletterLink: false, hasHeldLinks: false }), {
+			kind: "hidden",
 		});
 	});
 
-	it("gives the result of a finished removal, with the offer when links remain", () => {
+	it("is working while a removal or restore runs, with no Restore offered", () => {
+		assert.deepEqual(newsletterLinksLineOf({ job: job({ state: "running" }), hasNewsletterLink: true, hasHeldLinks: true }), {
+			kind: "working",
+			action: "remove",
+		});
+		assert.deepEqual(
+			newsletterLinksLineOf({ job: job({ action: "restore", state: "requested" }), hasNewsletterLink: false, hasHeldLinks: true }),
+			{ kind: "working", action: "restore" },
+		);
+	});
+
+	it("gives the result of a finished removal, with the offers that still apply", () => {
 		const done = job({ state: "completed", counts: { held: 4, read: 1 } });
-		assert.deepEqual(newsletterLinksLineOf({ job: done, hasNewsletterLink: false }), {
+		assert.deepEqual(newsletterLinksLineOf({ job: done, hasNewsletterLink: false, hasHeldLinks: true }), {
 			kind: "result",
 			action: "remove",
 			counts: { held: 4, read: 1 },
 			offer: false,
+			restore: true,
 		});
 	});
 
 	it("is failed when the removal failed", () => {
-		assert.deepEqual(newsletterLinksLineOf({ job: job({ state: "failed" }), hasNewsletterLink: true }), {
+		assert.deepEqual(newsletterLinksLineOf({ job: job({ state: "failed" }), hasNewsletterLink: true, hasHeldLinks: false }), {
 			kind: "failed",
 			action: "remove",
 			offer: true,
+			restore: false,
+		});
+	});
+});
+
+describe("summariseHeldLinks", () => {
+	const cutoff = new Date("2026-12-10T00:00:00.000Z");
+	const now = new Date("2026-12-11T00:00:00.000Z");
+	function held(overrides: Partial<HeldLink>): HeldLink {
+		const removedAt = overrides.removedAt ?? new Date("2026-12-05T00:00:00.000Z");
+		return {
+			heldKey: "held-1",
+			storedKey: "a.com/1",
+			jobId: SavedLinksJobIdSchema.parse("job-1"),
+			removedAt,
+			expiresAt: heldLinkExpiresAt(removedAt),
+			senderEmail: "dan@tldr.tech",
+			...overrides,
+		};
+	}
+
+	it("counts the links Restore would take by newsletter, most first, and lists the unrestorable ones by URL", () => {
+		const links = [
+			held({ heldKey: "h1", storedKey: "a.com/1" }),
+			held({ heldKey: "h2", storedKey: "a.com/1", removedAt: new Date("2026-12-06T00:00:00.000Z") }),
+			held({ heldKey: "h3", storedKey: "b.com/1", senderEmail: "news@morning.com" }),
+			held({ heldKey: "h4", storedKey: "b.com/2", senderEmail: "news@morning.com" }),
+			held({ heldKey: "h5", storedKey: "gone.com/1" }),
+			held({ heldKey: "h6", storedKey: "later.com/1", removedAt: new Date("2026-12-10T00:00:01.000Z") }),
+		];
+		assert.deepEqual(
+			summariseHeldLinks({ links, cutoff, now, unrestorable: new Set(["gone.com/1"]), inAll: new Set() }),
+			{
+				bySender: [
+					{ senderEmail: "news@morning.com", count: 2 },
+					{ senderEmail: "dan@tldr.tech", count: 1 },
+				],
+				unrestorable: ["gone.com/1"],
+			},
+		);
+	});
+
+	it("leaves out a link that is already back in All, because Restore leaves it where it is", () => {
+		const links = [
+			held({ heldKey: "h1", storedKey: "a.com/1" }),
+			held({ heldKey: "h2", storedKey: "a.com/2" }),
+			held({ heldKey: "h3", storedKey: "b.com/1", senderEmail: "news@morning.com" }),
+		];
+		assert.deepEqual(
+			summariseHeldLinks({ links, cutoff, now, unrestorable: new Set(), inAll: new Set(["a.com/2", "b.com/1"]) }),
+			{ bySender: [{ senderEmail: "dan@tldr.tech", count: 1 }], unrestorable: [] },
+		);
+	});
+
+	it("is empty when nothing is held", () => {
+		assert.deepEqual(summariseHeldLinks({ links: [], cutoff, now, unrestorable: new Set(), inAll: new Set() }), {
+			bySender: [],
+			unrestorable: [],
 		});
 	});
 });

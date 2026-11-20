@@ -244,6 +244,13 @@ describe("GET /privacy", () => {
 		expect(response.text).toContain("remove it yourself under Forwarding and POP/IMAP");
 	});
 
+	it("says removed newsletter links are held for 30 days and then deleted", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Newsletter links you remove from your saved articles are held for 30 days, so you can restore them, and are then deleted.");
+	});
+
 	it("says what held mail Readplace stores, and that it outlives a disconnect but not the account", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");

@@ -437,7 +437,11 @@ export const handler = initHandleByDetailType({
 					count: initCountSavedLinks({
 						summariseNewsletterLinks: removedLinks.summariseNewsletterLinks,
 						countNewsletterIssues: removedLinks.countNewsletterIssues,
+						forEachHeldLinkPage: removedLinks.forEachHeldLinkPage,
+						findUnrestorableArticles: removedLinks.findUnrestorableArticles,
+						findKeysInAll: removedLinks.findKeysInAll,
 						recordCountedNewsletterLinks: savedLinksJob.recordCountedNewsletterLinks,
+						now,
 					}),
 				},
 				publishEvent,

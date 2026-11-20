@@ -40,6 +40,7 @@ import type {
 	ListUserSavesForUrl,
 	RecordReadlistFitOverride,
 	FindSavedLinksJob,
+	HasHeldLinks,
 	HasNewsletterLink,
 } from "@packages/provider-contracts/article-store";
 import type { PublishLinkDequeued } from "@packages/provider-contracts/events";
@@ -133,6 +134,7 @@ interface InboxDependencies extends InboxReadlistFitDependencies {
 	logError: LogError;
 	buildBannerState: BuildBannerState;
 	hasNewsletterLink: HasNewsletterLink;
+	hasHeldLinks: HasHeldLinks;
 	findSavedLinksJob: FindSavedLinksJob;
 	publishSubmitLink: (input: {
 		userId: UserId;
@@ -402,12 +404,13 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				: [];
 		const [bannerState , newsletterLinksLine] = await Promise.all([
 			deps.buildBannerState(req),
-			cursor === undefined && result.emails.length > 0
+			cursor === undefined
 				? Promise.all([
 						deps.findSavedLinksJob({ userId }),
-						deps.hasNewsletterLink({ userId }),
-					]).then(([job, hasNewsletterLink]) =>
-						newsletterLinksLineOf({ job, hasNewsletterLink }),
+						result.emails.length > 0 ? deps.hasNewsletterLink({ userId }) : false,
+						deps.hasHeldLinks({ userId, now: deps.now() }),
+					]).then(([job, hasNewsletterLink, hasHeldLinks]) =>
+						newsletterLinksLineOf({ job, hasNewsletterLink, hasHeldLinks }),
 					)
 				: Promise.resolve({ kind: "hidden" as const }),
 		]);

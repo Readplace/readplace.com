@@ -253,6 +253,7 @@ async function main(): Promise<void> {
 				readOpenedInReadlists: fixture.articleStore.readOpenedInReadlists,
 				listAllUserHighlights: async () => [],
 			}).hasNewsletterLink,
+			hasHeldLinks: fixture.articleStore.hasHeldLinks,
 			findSavedLinksJob: fixture.articleStore.findSavedLinksJob,
 			requestSavedLinksJob: fixture.articleStore.requestSavedLinksJob,
 			withdrawSavedLinksJob: fixture.articleStore.withdrawSavedLinksJob,

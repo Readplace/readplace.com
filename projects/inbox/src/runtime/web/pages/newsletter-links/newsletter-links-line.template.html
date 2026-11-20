@@ -7,4 +7,10 @@
     <button class="btn btn--neutral" type="submit" data-test-newsletter-links-remove>{{t "newsletterLinks.line.removeButton"}}</button>
   </form>
   {{/if}}
+  {{#if restoreAction}}
+  <form class="newsletter-links-line__form" method="POST" action="{{restoreAction}}">
+    <input type="hidden" name="next" value="restore">
+    <button class="btn btn--neutral" type="submit" data-test-newsletter-links-restore>{{t "newsletterLinks.line.restoreButton"}}</button>
+  </form>
+  {{/if}}
 </section>

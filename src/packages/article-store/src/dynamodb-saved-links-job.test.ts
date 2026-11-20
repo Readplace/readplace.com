@@ -149,10 +149,11 @@ describe("counted newsletter links", () => {
 		skipped: { read: 1, opened: 2, highlighted: 0, changed: 0, unreadable: 0 },
 		savedBeforeMarker: 3,
 	};
+	const held = { bySender: [{ senderEmail: "dan@tldr.tech", count: 4 }], unrestorable: ["gone.com/1"] };
 
 	it("records the counted numbers only for the job that holds the row and has not completed", async () => {
 		const { jobs, sent } = createScriptedClient({ UpdateCommand: [written, refused] });
-		const counted = { cutoff, issues: 2, summary: { ...summary, earliestEmailSave: new Date("2026-11-01T00:00:00.000Z") } };
+		const counted = { cutoff, issues: 2, summary: { ...summary, earliestEmailSave: new Date("2026-11-01T00:00:00.000Z") }, held };
 
 		assert.deepEqual(await jobs.recordCountedNewsletterLinks({ userId: READER, jobId: JOB, counted }), { outcome: "recorded" });
 		assert.deepEqual(await jobs.recordCountedNewsletterLinks({ userId: READER, jobId: JOB, counted }), { outcome: "stale" });
@@ -162,6 +163,7 @@ describe("counted newsletter links", () => {
 			cutoff: cutoff.toISOString(),
 			issues: 2,
 			summary: { ...summary, earliestEmailSave: "2026-11-01T00:00:00.000Z" },
+			held,
 		});
 	});
 
@@ -171,12 +173,13 @@ describe("counted newsletter links", () => {
 		await jobs.recordCountedNewsletterLinks({
 			userId: READER,
 			jobId: JOB,
-			counted: { cutoff, issues: 0, summary: { ...summary, earliestEmailSave: undefined } },
+			counted: { cutoff, issues: 0, summary: { ...summary, earliestEmailSave: undefined }, held },
 		});
 		assert.deepEqual(Object(sent[0].input.ExpressionAttributeValues)[":counted"], {
 			cutoff: cutoff.toISOString(),
 			issues: 0,
 			summary,
+			held,
 		});
 	});
 
@@ -188,10 +191,10 @@ describe("counted newsletter links", () => {
 						action: "count",
 						state: "completed",
 						counts: {},
-						counted: { cutoff: cutoff.toISOString(), issues: 2, summary: { ...summary, earliestEmailSave: "2026-11-01T00:00:00.000Z" } },
+						counted: { cutoff: cutoff.toISOString(), issues: 2, summary: { ...summary, earliestEmailSave: "2026-11-01T00:00:00.000Z" }, held },
 					}),
 				),
-				found(jobRow({ action: "count", state: "completed", counts: {}, counted: { cutoff: cutoff.toISOString(), issues: 0, summary } })),
+				found(jobRow({ action: "count", state: "completed", counts: {}, counted: { cutoff: cutoff.toISOString(), issues: 0, summary, held } })),
 			],
 		});
 
@@ -199,11 +202,13 @@ describe("counted newsletter links", () => {
 			cutoff,
 			issues: 2,
 			summary: { ...summary, earliestEmailSave: new Date("2026-11-01T00:00:00.000Z") },
+			held,
 		});
 		assert.deepEqual((await jobs.findSavedLinksJob({ userId: READER }))?.counted, {
 			cutoff,
 			issues: 0,
 			summary: { ...summary, earliestEmailSave: undefined },
+			held,
 		});
 	});
 });

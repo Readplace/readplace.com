@@ -26,6 +26,8 @@ import type {
 	FindHeldLink,
 	FindSavedLinksJob,
 	FindOriginalUrls,
+	FindKeysInAll,
+	FindUnrestorableArticles,
 	FinishSavedLinksJob,
 	ForEachHeldLinkPage,
 	HasHeldLinks,
@@ -245,6 +247,8 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 export function initInMemoryArticleStore(): {
 	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
 	findOriginalUrls: FindOriginalUrls;
+	findUnrestorableArticles: FindUnrestorableArticles;
+	findKeysInAll: FindKeysInAll;
 	restoreHeldLink: RestoreHeldLink;
 	forEachHeldLinkPage: ForEachHeldLinkPage;
 	hasHeldLinks: HasHeldLinks;
@@ -1028,6 +1032,12 @@ export function initInMemoryArticleStore(): {
 
 	const heldLinkMapKey = (params: { userId: UserId; heldKey: string }) => `${params.userId}|${params.heldKey}`;
 
+	const findUnrestorableArticles: FindUnrestorableArticles = async ({ storedKeys }) =>
+		new Set(storedKeys.filter((storedKey) => articles.get(storedKey)?.purgedAt !== undefined || !articles.has(storedKey)));
+
+	const findKeysInAll: FindKeysInAll = async ({ userId, storedKeys }) =>
+		new Set(storedKeys.filter((storedKey) => userArticles.has(userArticleKey(userId, storedKey))));
+
 	const findOriginalUrls: FindOriginalUrls = async ({ storedKeys }) => {
 		const found = new Map<string, string>();
 		for (const storedKey of storedKeys) {
@@ -1763,6 +1773,8 @@ export function initInMemoryArticleStore(): {
 		deleteAllUserArticles,
 		listUserArticleUrls,
 		findOriginalUrls,
+		findUnrestorableArticles,
+		findKeysInAll,
 		moveNewsletterLinkToHold,
 		restoreHeldLink,
 		forEachHeldLinkPage,

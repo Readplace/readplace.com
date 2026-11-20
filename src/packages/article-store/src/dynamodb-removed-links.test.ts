@@ -21,9 +21,15 @@ function createFakeTable(seed: Item[], sharedArticles: Item[] = []) {
 		const { input } = command;
 		sent.push(input);
 		if (input.RequestItems !== undefined) {
-			const keys: Item[] = Object(input.RequestItems).articles.Keys;
+			const [[tableName, request]] = Object.entries(Object(input.RequestItems));
+			const keys: Item[] = Object(request).Keys;
+			const rows = tableName === TABLE ? seed : sharedArticles;
 			return {
-				Responses: { articles: sharedArticles.filter((row) => keys.some((key) => key.url === row.url)) },
+				Responses: {
+					[tableName]: rows.filter((row) =>
+						keys.some((key) => key.url === row.url && (key.userId === undefined || key.userId === row.userId)),
+					),
+				},
 			};
 		}
 		const values = Object(input.ExpressionAttributeValues);
@@ -194,6 +200,35 @@ describe("listKeysOpenedInReadlists", () => {
 		assert.equal(sent[0].KeyConditionExpression, "userId = :userId AND begins_with(#url, :keyPrefix)");
 		assert.deepEqual(sent[0].ExpressionAttributeValues, { ":userId": READER, ":keyPrefix": "readplace:queue-def/" });
 		assert.equal(sent[0].ProjectionExpression, "#url");
+	});
+});
+
+describe("findUnrestorableArticles", () => {
+	it("finds the stored keys whose shared article row is gone or purged", async () => {
+		const { removedLinks, sent } = createFakeTable(
+			[],
+			[{ url: "a.com/1" }, { url: "a.com/2", purgedAt: "2026-12-01T00:00:00.000Z" }],
+		);
+
+		const found = await removedLinks.findUnrestorableArticles({ storedKeys: ["a.com/1", "a.com/2", "a.com/3"] });
+
+		assert.deepEqual([...found].sort(), ["a.com/2", "a.com/3"]);
+		assert.deepEqual(Object(sent[0].RequestItems).articles.ExpressionAttributeNames, { "#url": "url", "#purgedAt": "purgedAt" });
+	});
+});
+
+describe("findKeysInAll", () => {
+	it("finds the stored keys the reader already has in All", async () => {
+		const { removedLinks, sent } = createFakeTable([emailLink("a.com/1"), { ...emailLink("a.com/2"), userId: "reader-2" }]);
+
+		const found = await removedLinks.findKeysInAll({ userId: READER, storedKeys: ["a.com/1", "a.com/2"] });
+
+		assert.deepEqual([...found], ["a.com/1"]);
+		assert.deepEqual(Object(sent[0].RequestItems)[TABLE].Keys, [
+			{ userId: READER, url: "a.com/1" },
+			{ userId: READER, url: "a.com/2" },
+		]);
+		assert.equal(Object(sent[0].RequestItems)[TABLE].ProjectionExpression, "#url");
 	});
 });
 

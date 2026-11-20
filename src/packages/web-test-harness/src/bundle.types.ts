@@ -18,6 +18,8 @@ import type {
 	SavePrivateItem,
 	MoveNewsletterLinkToHold,
 	FindOriginalUrls,
+	FindKeysInAll,
+	FindUnrestorableArticles,
 	RestoreHeldLink,
 	ForEachHeldLinkPage,
 	HasHeldLinks,
@@ -504,6 +506,8 @@ export interface ArticleStoreBundle {
 	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
 	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
 	findOriginalUrls: FindOriginalUrls;
+	findUnrestorableArticles: FindUnrestorableArticles;
+	findKeysInAll: FindKeysInAll;
 	restoreHeldLink: RestoreHeldLink;
 	forEachHeldLinkPage: ForEachHeldLinkPage;
 	hasHeldLinks: HasHeldLinks;

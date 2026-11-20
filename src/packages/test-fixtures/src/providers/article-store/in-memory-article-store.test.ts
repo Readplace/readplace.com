@@ -3179,6 +3179,7 @@ describe("initInMemoryArticleStore held newsletter links", () => {
 				earliestEmailSave: undefined,
 				savedBeforeMarker: 0,
 			},
+			held: { bySender: [], unrestorable: [] },
 		};
 		expect(await store.requestSavedLinksJob({ userId: USER_A, jobId: count, action: "count", requestedAt: NOW })).toEqual({
 			outcome: "claimed",
@@ -3214,6 +3215,32 @@ describe("initInMemoryArticleStore held newsletter links", () => {
 			requestedAt: NOW,
 			counts: { held: 2 },
 		});
+	});
+});
+
+describe("findUnrestorableArticles", () => {
+	it("finds the stored keys whose article is gone or purged", async () => {
+		const store = initInMemoryArticleStore();
+		const params = makeArticleParams();
+		for (const url of ["https://a.com/kept", "https://a.com/purged"]) {
+			await store.saveArticleGlobally({ url, metadata: params.metadata, estimatedReadTime: params.estimatedReadTime, savedAt: new Date("2026-07-17T10:00:00.000Z") });
+		}
+		await store.setPurgedAt({ url: "https://a.com/purged", at: new Date("2026-07-18T10:00:00.000Z") });
+
+		const found = await store.findUnrestorableArticles({ storedKeys: ["a.com/kept", "a.com/purged", "a.com/missing"] });
+
+		expect([...found].sort()).toEqual(["a.com/missing", "a.com/purged"]);
+	});
+});
+
+describe("findKeysInAll", () => {
+	it("finds the stored keys the reader has in All", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams({ url: "https://a.com/saved" }));
+
+		const found = await store.findKeysInAll({ userId: USER_A, storedKeys: ["a.com/saved", "a.com/other"] });
+
+		expect([...found]).toEqual(["a.com/saved"]);
 	});
 });
 

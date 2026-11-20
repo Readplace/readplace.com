@@ -280,6 +280,7 @@ server.post("/e2e/finish-saved-links-job", async (req, res) => {
 			counted: {
 				cutoff: job.requestedAt,
 				issues: 0,
+				held: { bySender: [], unrestorable: [] },
 				summary: {
 					selected: input.selected,
 					bySender: [{ senderEmail: input.senderEmail, count: input.selected }],
