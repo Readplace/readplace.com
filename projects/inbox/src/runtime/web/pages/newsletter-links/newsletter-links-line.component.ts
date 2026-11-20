@@ -9,7 +9,7 @@ import {
 import { INBOX_PATH } from "@packages/domain/inbox";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { inbox } from "@packages/translations/inbox";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { render, renderAlert, withInternalTracking } from "@packages/web-shell";
 import { NEWSLETTER_LINKS_COUNT_PATH } from "./newsletter-links.url";
 
 const { t, tPlural } = translator(inbox, DEFAULT_LOCALE);
@@ -65,17 +65,28 @@ function resultSentences(params: {
 function offerActions(params: { offer: boolean; restore: boolean }): {
 	countAction: string | undefined;
 	restoreAction: string | undefined;
+	hasActions: boolean;
 } {
 	return {
 		countAction: params.offer ? COUNT_ACTION : undefined,
 		restoreAction: params.restore ? RESTORE_ACTION : undefined,
+		hasActions: params.offer || params.restore,
 	};
 }
 
+const NO_ACTIONS = {
+	countAction: undefined,
+	restoreAction: undefined,
+	hasActions: false,
+};
+
 function lineView(line: Exclude<NewsletterLinksLine, { kind: "hidden" }>): {
 	sentences: string[];
+	working: string | undefined;
+	failedAlertHtml: string | undefined;
 	countAction: string | undefined;
 	restoreAction: string | undefined;
+	hasActions: boolean;
 	pollUrl: string | undefined;
 } {
 	switch (line.kind) {
@@ -86,25 +97,38 @@ function lineView(line: Exclude<NewsletterLinksLine, { kind: "hidden" }>): {
 						? t("newsletterLinks.line.offer")
 						: t("newsletterLinks.line.offerHeld"),
 				],
+				working: undefined,
+				failedAlertHtml: undefined,
 				...offerActions(line),
 				pollUrl: undefined,
 			};
 		case "working":
 			return {
-				sentences: [t(`newsletterLinks.line.working.${line.action}`)],
-				countAction: undefined,
-				restoreAction: undefined,
+				sentences: [],
+				working: t(`newsletterLinks.line.working.${line.action}`),
+				failedAlertHtml: undefined,
+				...NO_ACTIONS,
 				pollUrl: INBOX_PATH,
 			};
 		case "result":
 			return {
 				sentences: resultSentences(line),
+				working: undefined,
+				failedAlertHtml: undefined,
 				...offerActions(line),
 				pollUrl: undefined,
 			};
 		case "failed":
 			return {
-				sentences: [t(`newsletterLinks.line.failed.${line.action}`)],
+				sentences: [],
+				working: undefined,
+				failedAlertHtml: renderAlert({
+					key: "newsletter-links-line-failed",
+					content: {
+						variant: "error",
+						message: { text: t(`newsletterLinks.line.failed.${line.action}`) },
+					},
+				}),
 				...offerActions(line),
 				pollUrl: undefined,
 			};

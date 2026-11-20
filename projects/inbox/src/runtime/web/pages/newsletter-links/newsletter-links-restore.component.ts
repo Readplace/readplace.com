@@ -5,7 +5,7 @@ import { INBOX_PATH } from "@packages/domain/inbox";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { inbox } from "@packages/translations/inbox";
 import type { PageBody } from "@packages/web-shell";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { render, renderAlert, withInternalTracking } from "@packages/web-shell";
 import type { NewsletterLinksConfirmState } from "./newsletter-links-confirm.component";
 import { NEWSLETTER_LINKS_STYLES } from "./newsletter-links.styles";
 import {
@@ -77,7 +77,13 @@ function stateView(state: NewsletterLinksConfirmState) {
 		case "failed":
 			return {
 				countForm: COUNT_ACTION,
-				countMessage: t("newsletterLinks.restore.failed"),
+				countAlertHtml: renderAlert({
+					key: "newsletter-links-count-failed",
+					content: {
+						variant: "error",
+						message: { text: t("newsletterLinks.restore.failed") },
+					},
+				}),
 				countLabel: t("newsletterLinks.confirm.tryAgain"),
 			};
 	}

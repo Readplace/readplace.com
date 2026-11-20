@@ -9,7 +9,7 @@ import { INBOX_PATH } from "@packages/domain/inbox";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { inbox } from "@packages/translations/inbox";
 import type { PageBody } from "@packages/web-shell";
-import { render, withInternalTracking } from "@packages/web-shell";
+import { render, renderAlert, withInternalTracking } from "@packages/web-shell";
 import { NEWSLETTER_LINKS_STYLES } from "./newsletter-links.styles";
 import {
 	NEWSLETTER_LINKS_COUNT_PATH,
@@ -45,7 +45,7 @@ const MARKER_DATE = HAND_PICKED_MARKER_SINCE.toLocaleDateString(
 	DEFAULT_LOCALE,
 	{
 		year: "numeric",
-		month: "long",
+		month: "short",
 		day: "numeric",
 		timeZone: "UTC",
 	},
@@ -71,11 +71,13 @@ function countedView(state: Extract<NewsletterLinkCount, { kind: "counted" }>) {
 		}),
 		skipped:
 			skippedTotal > 0
-				? [
-						tPlural("newsletterLinks.confirm.skipped", { count: skippedTotal }),
-						...skippedReasons,
-					]
-				: [],
+				? {
+						heading: tPlural("newsletterLinks.confirm.skipped", {
+							count: skippedTotal,
+						}),
+						reasons: skippedReasons,
+					}
+				: undefined,
 		issues: tPlural("newsletterLinks.confirm.issues", { count: issues }),
 		beforeMarker:
 			summary.savedBeforeMarker > 0
@@ -112,7 +114,13 @@ function stateView(state: NewsletterLinksConfirmState) {
 		case "failed":
 			return {
 				countForm: COUNT_ACTION,
-				countMessage: t("newsletterLinks.confirm.failed"),
+				countAlertHtml: renderAlert({
+					key: "newsletter-links-count-failed",
+					content: {
+						variant: "error",
+						message: { text: t("newsletterLinks.confirm.failed") },
+					},
+				}),
 				countLabel: t("newsletterLinks.confirm.tryAgain"),
 			};
 	}

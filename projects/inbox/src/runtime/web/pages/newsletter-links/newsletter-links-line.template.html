@@ -1,16 +1,27 @@
 <section class="newsletter-links-line" id="newsletter-links-line" aria-live="polite" data-newsletter-links-state="{{state}}" data-test-newsletter-links-line="{{state}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML" hx-select="#newsletter-links-line"{{/if}}>
+  {{#if working}}
+  <p class="newsletter-links-line__text newsletter-links-line__text--working" data-test-newsletter-links-working>
+    {{icon "loader"}}
+    <span data-test-newsletter-links-sentence>{{working}}</span>
+  </p>
+  {{/if}}
   {{#each sentences}}
   <p class="newsletter-links-line__text" data-test-newsletter-links-sentence>{{this}}</p>
   {{/each}}
-  {{#if countAction}}
-  <form class="newsletter-links-line__form" method="POST" action="{{countAction}}">
-    <button class="btn btn--neutral" type="submit" data-test-newsletter-links-remove>{{t "newsletterLinks.line.removeButton"}}</button>
-  </form>
-  {{/if}}
-  {{#if restoreAction}}
-  <form class="newsletter-links-line__form" method="POST" action="{{restoreAction}}">
-    <input type="hidden" name="next" value="restore">
-    <button class="btn btn--neutral" type="submit" data-test-newsletter-links-restore>{{t "newsletterLinks.line.restoreButton"}}</button>
-  </form>
+  {{{failedAlertHtml}}}
+  {{#if hasActions}}
+  <div class="newsletter-links-line__actions">
+    {{#if countAction}}
+    <form class="newsletter-links-line__form" method="POST" action="{{countAction}}">
+      <button class="btn btn--neutral btn--m" type="submit" data-test-newsletter-links-remove>{{t "newsletterLinks.line.removeButton"}}</button>
+    </form>
+    {{/if}}
+    {{#if restoreAction}}
+    <form class="newsletter-links-line__form" method="POST" action="{{restoreAction}}">
+      <input type="hidden" name="next" value="restore">
+      <button class="btn btn--secondary btn--m" type="submit" data-test-newsletter-links-restore>{{t "newsletterLinks.line.restoreButton"}}</button>
+    </form>
+    {{/if}}
+  </div>
   {{/if}}
 </section>

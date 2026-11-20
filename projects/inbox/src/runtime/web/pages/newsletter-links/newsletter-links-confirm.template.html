@@ -1,46 +1,72 @@
-<main class="newsletter-links-confirm" data-test-newsletter-links-confirm>
-  <h1>{{t "newsletterLinks.confirm.title"}}</h1>
-  <section id="newsletter-links-count" aria-live="polite" data-newsletter-links-count="{{state}}" data-test-newsletter-links-count="{{state}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML" hx-select="#newsletter-links-count"{{/if}}>
-    {{#if counting}}
-    <p>{{t "newsletterLinks.confirm.counting"}}</p>
-    <a href="{{checkAgainHref}}" data-test-newsletter-links-check-again>{{t "newsletterLinks.confirm.countingLink"}}</a>
-    {{/if}}
-    {{#if countForm}}
-    <p data-test-newsletter-links-count-message>{{countMessage}}</p>
-    <form method="POST" action="{{countForm}}">
-      <button class="btn btn--neutral" type="submit" data-test-newsletter-links-count-button>{{countLabel}}</button>
-    </form>
-    {{/if}}
-    {{#if counted}}
-    <p data-test-newsletter-links-total>{{counted.total}}</p>
-    {{#each counted.skipped}}
-    <p data-test-newsletter-links-skipped>{{this}}</p>
-    {{/each}}
-    <p data-test-newsletter-links-issues>{{counted.issues}}</p>
-    {{#if counted.beforeMarker}}
-    <p data-test-newsletter-links-before-marker>{{counted.beforeMarker}}</p>
-    {{/if}}
-    <p data-test-newsletter-links-restore-window>{{t "newsletterLinks.confirm.restoreWindow"}}</p>
-    <p data-test-newsletter-links-restore-needs-plan>{{t "newsletterLinks.confirm.restoreNeedsPlan"}}</p>
-    <p>{{t "newsletterLinks.confirm.otherReadlists"}}</p>
-    <p>{{t "newsletterLinks.line.laterEmails"}}</p>
-    {{#if counted.removeAction}}
-    <form method="POST" action="{{counted.removeAction}}" data-test-newsletter-links-remove-form>
-      <input type="hidden" name="count" value="{{counted.jobId}}">
-      <fieldset class="newsletter-links-confirm__senders">
-        <legend>{{t "newsletterLinks.confirm.sendersLegend"}}</legend>
-        <label class="newsletter-links-confirm__sender"><input type="radio" name="senders" value="all" checked> {{t "newsletterLinks.confirm.allSenders"}}</label>
-        <label class="newsletter-links-confirm__sender"><input type="radio" name="senders" value="chosen"> {{t "newsletterLinks.confirm.chosenSenders"}}</label>
-        {{#each counted.senders}}
-        <label class="newsletter-links-confirm__sender"><input type="checkbox" name="sender" value="{{senderEmail}}" data-test-newsletter-links-sender> {{senderEmail}} ({{countLabel}})</label>
-        {{/each}}
-      </fieldset>
-      <div class="newsletter-links-confirm__actions">
-        <button class="btn btn--primary" type="submit" data-test-newsletter-links-submit>{{t "newsletterLinks.confirm.submit"}}</button>
+<main class="newsletter-links-page" data-test-newsletter-links-confirm>
+  <div class="newsletter-links-page__layout">
+    <header class="newsletter-links-page__header">
+      <a class="newsletter-links-page__back" href="{{backHref}}" data-test-newsletter-links-back>{{icon "arrow-left"}} {{t "newsletterLinks.confirm.back"}}</a>
+      <h1 class="newsletter-links-page__title">{{t "newsletterLinks.confirm.title"}}</h1>
+    </header>
+    <section class="newsletter-links-page__count" id="newsletter-links-count" aria-live="polite" data-newsletter-links-count="{{state}}" data-test-newsletter-links-count="{{state}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML" hx-select="#newsletter-links-count"{{/if}}>
+      {{#if counting}}
+      <p class="newsletter-links-page__notice" data-test-newsletter-links-counting>
+        {{icon "loader"}}
+        <span>{{t "newsletterLinks.confirm.counting"}}</span>
+        <a href="{{checkAgainHref}}" data-test-newsletter-links-check-again>{{t "newsletterLinks.confirm.countingLink"}}</a>
+      </p>
+      {{/if}}
+      {{#if countForm}}
+      {{#if countAlertHtml}}
+      {{{countAlertHtml}}}
+      {{else}}
+      <p data-test-newsletter-links-count-message>{{countMessage}}</p>
+      {{/if}}
+      <form method="POST" action="{{countForm}}">
+        <button class="btn btn--neutral" type="submit" data-test-newsletter-links-count-button>{{countLabel}}</button>
+      </form>
+      {{/if}}
+      {{#if counted}}
+      <p class="newsletter-links-page__lede" id="newsletter-links-total" data-test-newsletter-links-total>{{counted.total}}</p>
+      {{#if counted.skipped}}
+      <div class="newsletter-links-page__skipped">
+        <p data-test-newsletter-links-skipped>{{counted.skipped.heading}}</p>
+        <ul class="newsletter-links-page__skipped-reasons">
+          {{#each counted.skipped.reasons}}
+          <li data-test-newsletter-links-skipped-reason>{{this}}</li>
+          {{/each}}
+        </ul>
       </div>
-    </form>
-    {{/if}}
-    {{/if}}
-  </section>
-  <a href="{{backHref}}">{{t "newsletterLinks.confirm.back"}}</a>
+      {{/if}}
+      <div class="newsletter-links-page__details" data-test-newsletter-links-details>
+        <p data-test-newsletter-links-issues>{{counted.issues}}</p>
+        {{#if counted.beforeMarker}}
+        <p data-test-newsletter-links-before-marker>{{counted.beforeMarker}}</p>
+        {{/if}}
+        {{#if counted.removeAction}}
+        <p data-test-newsletter-links-restore-window>{{t "newsletterLinks.confirm.restoreWindow"}}</p>
+        <p data-test-newsletter-links-restore-needs-plan>{{t "newsletterLinks.confirm.restoreNeedsPlan"}}</p>
+        <p>{{t "newsletterLinks.confirm.otherReadlists"}}</p>
+        <p>{{t "newsletterLinks.line.laterEmails"}}</p>
+        {{/if}}
+      </div>
+      {{#if counted.removeAction}}
+      <form method="POST" action="{{counted.removeAction}}" data-test-newsletter-links-remove-form>
+        <input type="hidden" name="count" value="{{counted.jobId}}">
+        <fieldset class="newsletter-links-page__scope" aria-labelledby="newsletter-links-total">
+          <label class="newsletter-links-page__choice"><input class="form-choice" type="radio" name="senders" value="all" checked> <span>{{t "newsletterLinks.confirm.allSenders"}}</span></label>
+          <label class="newsletter-links-page__choice"><input class="form-choice" type="radio" name="senders" value="chosen"> <span>{{t "newsletterLinks.confirm.chosenSenders"}}</span></label>
+          <fieldset class="newsletter-links-page__senders">
+            <legend class="newsletter-links-page__senders-legend">{{t "newsletterLinks.confirm.sendersLegend"}}</legend>
+            <div class="newsletter-links-page__sender-list">
+              {{#each counted.senders}}
+              <label class="newsletter-links-page__choice newsletter-links-page__sender"><input class="form-choice" type="checkbox" name="sender" value="{{senderEmail}}" data-test-newsletter-links-sender> <span class="newsletter-links-page__sender-email">{{senderEmail}}</span> <span class="newsletter-links-page__sender-count">({{countLabel}})</span></label>
+              {{/each}}
+            </div>
+          </fieldset>
+        </fieldset>
+        <div class="newsletter-links-page__actions">
+          <button class="btn btn--primary" type="submit" data-test-newsletter-links-submit>{{t "newsletterLinks.confirm.submit"}}</button>
+        </div>
+      </form>
+      {{/if}}
+      {{/if}}
+    </section>
+  </div>
 </main>

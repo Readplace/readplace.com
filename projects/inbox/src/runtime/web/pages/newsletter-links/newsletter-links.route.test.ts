@@ -38,6 +38,9 @@ const COUNT_CUTOFF = new Date("2026-11-20T01:00:00.000Z");
 const REMOVE_PATH = "/inbox/newsletter-links/remove";
 const COUNT_PATH = "/inbox/newsletter-links/count";
 const RESTORE_PATH = "/inbox/newsletter-links/restore";
+const OTHER_READLISTS = "Copies in your other readlists stay there.";
+const LATER_EMAILS =
+	"Later emails from these newsletters still save their links to All. To stop that, stop forwarding the newsletter, disable its custom email, or for a Gmail newsletter change “What to save”.";
 
 async function readerId(fixture: Fixture): Promise<UserId> {
 	const user = await fixture.auth.findUserByEmail("test@example.com");
@@ -195,8 +198,63 @@ function sentencesOf(element: Element): (string | null)[] {
 	).map((el) => el.textContent);
 }
 
+function failedLineOf(line: Element): {
+	alert: string | null | undefined;
+	alertBeforeActions: boolean;
+	sentences: (string | null)[];
+} {
+	const ordered = Array.from(
+		line.querySelectorAll(
+			'[role="alert"][data-test-alert-variant="error"], .newsletter-links-line__actions',
+		),
+	);
+	return {
+		alert: line.querySelector(
+			'[role="alert"][data-test-alert-variant="error"] [data-test-alert-message]',
+		)?.textContent,
+		alertBeforeActions:
+			ordered.length === 2 && ordered[0]?.getAttribute("role") === "alert",
+		sentences: sentencesOf(line),
+	};
+}
+
 function textsOf(doc: Document, selector: string): (string | null)[] {
 	return Array.from(doc.querySelectorAll(selector)).map((el) => el.textContent);
+}
+
+function choiceClassesOf(form: Element): [string | null, boolean][] {
+	return Array.from(
+		form.querySelectorAll('input[type="radio"], input[type="checkbox"]'),
+	).map((input) => [
+		input.getAttribute("type"),
+		input.classList.contains("form-choice"),
+	]);
+}
+
+function scopeLabelOf(doc: Document, form: Element): string | null | undefined {
+	const scope = form
+		.querySelector('input[name="senders"]')
+		?.closest("fieldset")
+		?.getAttribute("aria-labelledby");
+	assert(scope, "the sender choice must be labelled");
+	return doc.getElementById(scope)?.textContent;
+}
+
+function failedCountOf(doc: Document): {
+	alert: string | null | undefined;
+	button: string | null | undefined;
+	alertBeforeButton: boolean;
+} {
+	const ordered = Array.from(
+		doc.querySelectorAll(
+			'[role="alert"][data-test-alert-variant="error"], [data-test-newsletter-links-count-button]',
+		),
+	);
+	return {
+		alert: ordered[0]?.querySelector("[data-test-alert-message]")?.textContent,
+		button: ordered[1]?.textContent,
+		alertBeforeButton: ordered[0]?.getAttribute("role") === "alert",
+	};
 }
 
 function removeForm(params: {
@@ -319,6 +377,11 @@ describe("Newsletter links line on the inbox", () => {
 		assert(line, "the working line must render");
 		expect(line.getAttribute("data-newsletter-links-state")).toBe("working");
 		expect(sentencesOf(line)).toEqual(["Removing newsletter links from All…"]);
+		expect(
+			line
+				.querySelector("[data-test-newsletter-links-working] svg")
+				?.getAttribute("aria-hidden"),
+		).toBe("true");
 		expect(line.getAttribute("hx-get")).toBe("/inbox");
 		expect(line.getAttribute("hx-trigger")).toBe("every 3s");
 		expect(line.getAttribute("hx-select")).toBe("#newsletter-links-line");
@@ -452,9 +515,12 @@ describe("Newsletter links line on the inbox", () => {
 
 		assert(line, "the failed line must render");
 		expect(line.getAttribute("data-newsletter-links-state")).toBe("failed");
-		expect(sentencesOf(line)).toEqual([
-			"Couldn't finish removing newsletter links. Links already removed can be restored for 30 days.",
-		]);
+		expect(failedLineOf(line)).toEqual({
+			alert:
+				"Couldn't finish removing newsletter links. Links already removed can be restored for 30 days.",
+			alertBeforeActions: true,
+			sentences: [],
+		});
 		expect(
 			line.querySelector("[data-test-newsletter-links-remove]"),
 		).not.toBeNull();
@@ -475,10 +541,14 @@ describe("Newsletter links line on the inbox", () => {
 		const line = lineOf(documentOf((await agent.get("/inbox")).text));
 
 		assert(line, "the failed line must render");
-		expect(sentencesOf(line)).toEqual([
-			"Couldn't finish restoring removed links.",
-		]);
-		expect(line.querySelector("form")).toBeNull();
+		expect(failedLineOf(line)).toEqual({
+			alert: "Couldn't finish restoring removed links.",
+			alertBeforeActions: false,
+			sentences: [],
+		});
+		expect(
+			line.querySelectorAll(".newsletter-links-line__actions"),
+		).toHaveLength(0);
 	});
 });
 
@@ -542,8 +612,16 @@ describe("Newsletter links confirm page", () => {
 		expect(section.getAttribute("hx-get")).toBe(REMOVE_PATH);
 		expect(section.getAttribute("hx-trigger")).toBe("every 3s");
 		expect(section.getAttribute("hx-select")).toBe("#newsletter-links-count");
+		const notice = doc.querySelector("[data-test-newsletter-links-counting]");
+		assert(notice, "the counting notice must render");
+		expect(notice.textContent?.replace(/\s+/g, " ").trim()).toBe(
+			"Counting the newsletter links in All… Check again",
+		);
+		expect(notice.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
+			"true",
+		);
 		const link = new URL(
-			doc
+			notice
 				.querySelector("[data-test-newsletter-links-check-again]")
 				?.getAttribute("href") ?? "",
 			TEST_APP_ORIGIN,
@@ -584,22 +662,29 @@ describe("Newsletter links confirm page", () => {
 		]);
 		expect(textsOf(doc, "[data-test-newsletter-links-skipped]")).toEqual([
 			"3 links will be skipped:",
-			"2 you read",
-			"1 you highlighted",
 		]);
-		expect(textsOf(doc, "[data-test-newsletter-links-issues]")).toEqual([
-			"All holds 2 newsletter issues. Every one stays.",
-		]);
-		expect(
-			doc.querySelector("[data-test-newsletter-links-before-marker]"),
-		).not.toBeNull();
-		expect(textsOf(doc, "[data-test-newsletter-links-restore-window]")).toEqual(
-			["Removed links can be restored for 30 days."],
+		const reasons = Array.from(
+			doc.querySelectorAll("[data-test-newsletter-links-skipped-reason]"),
 		);
 		expect(
-			textsOf(doc, "[data-test-newsletter-links-restore-needs-plan]"),
+			reasons.map((reason) => [
+				reason.tagName,
+				reason.parentElement?.tagName,
+				reason.textContent,
+			]),
 		).toEqual([
+			["LI", "UL", "2 you read"],
+			["LI", "UL", "1 you highlighted"],
+		]);
+		const details = doc.querySelector("[data-test-newsletter-links-details]");
+		assert(details, "the details group must render");
+		expect(Array.from(details.children).map((el) => el.textContent)).toEqual([
+			"All holds 2 newsletter issues. Every one stays.",
+			"Links you saved yourself from an issue or its email page before Nov 18, 2026, and links you saved by hand before a newsletter linked them, are in the total.",
+			"Removed links can be restored for 30 days.",
 			"Restoring them is part of a paid plan: if your plan ends, renew it within those 30 days or the removed links expire.",
+			OTHER_READLISTS,
+			LATER_EMAILS,
 		]);
 		expect(
 			Array.from(
@@ -608,6 +693,15 @@ describe("Newsletter links confirm page", () => {
 		).toEqual(["big@example.com", "small@example.com"]);
 		const form = doc.querySelector("[data-test-newsletter-links-remove-form]");
 		assert(form, "the remove form must render");
+		expect(choiceClassesOf(form)).toEqual([
+			["radio", true],
+			["radio", true],
+			["checkbox", true],
+			["checkbox", true],
+		]);
+		expect(scopeLabelOf(doc, form)).toBe(
+			"5 unread newsletter links in All will be removed.",
+		);
 		expect(
 			form.querySelector('input[name="count"]')?.getAttribute("value"),
 		).toBe(COUNT_JOB_ID);
@@ -631,14 +725,13 @@ describe("Newsletter links confirm page", () => {
 		expect(textsOf(doc, "[data-test-newsletter-links-total]")).toEqual([
 			"0 unread newsletter links in All will be removed.",
 		]);
-		expect(textsOf(doc, "[data-test-newsletter-links-issues]")).toEqual([
+		const details = doc.querySelector("[data-test-newsletter-links-details]");
+		assert(details, "the details group must render");
+		expect(Array.from(details.children).map((el) => el.textContent)).toEqual([
 			"All holds 1 newsletter issue. It stays.",
 		]);
 		expect(
 			doc.querySelector("[data-test-newsletter-links-skipped]"),
-		).toBeNull();
-		expect(
-			doc.querySelector("[data-test-newsletter-links-before-marker]"),
 		).toBeNull();
 		expect(
 			doc.querySelector("[data-test-newsletter-links-remove-form]"),
@@ -657,12 +750,11 @@ describe("Newsletter links confirm page", () => {
 
 		const doc = documentOf((await agent.get(REMOVE_PATH)).text);
 
-		expect(textsOf(doc, "[data-test-newsletter-links-count-message]")).toEqual([
-			"Couldn't count the newsletter links in All.",
-		]);
-		expect(textsOf(doc, "[data-test-newsletter-links-count-button]")).toEqual([
-			"Try again",
-		]);
+		expect(failedCountOf(doc)).toEqual({
+			alert: "Couldn't count the newsletter links in All.",
+			button: "Try again",
+			alertBeforeButton: true,
+		});
 	});
 
 	it("sends the reader back to the inbox while a removal runs", async () => {
@@ -693,6 +785,41 @@ describe("Newsletter links confirm page", () => {
 
 		expect(response.status).toBe(204);
 		expect(response.headers["hx-redirect"]).toBe("/inbox");
+	});
+});
+
+describe("Newsletter links page header", () => {
+	it.each([
+		{ page: "remove", path: REMOVE_PATH, title: "Remove newsletter links" },
+		{ page: "restore", path: RESTORE_PATH, title: "Restore removed links" },
+	])("puts the link back to the inbox above the $page page's title, and nothing after the count", async ({
+		path,
+		title,
+	}) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = documentOf((await agent.get(path)).text);
+
+		const back = doc.querySelector("[data-test-newsletter-links-back]");
+		assert(back, "the back link must render");
+		const header = back.closest("header");
+		assert(header, "the back link sits in the page header");
+		expect(header.firstElementChild).toBe(back);
+		expect(header.lastElementChild?.tagName).toBe("H1");
+		expect(header.lastElementChild?.textContent).toBe(title);
+		expect(back.textContent?.trim()).toBe("Back to Inbox");
+		const href = new URL(back.getAttribute("href") ?? "", TEST_APP_ORIGIN);
+		expect(href.pathname).toBe("/inbox");
+		expect(href.searchParams.get("utm_content")).toBe("back");
+		const section = doc.querySelector("[data-test-newsletter-links-count]");
+		assert(section, "the count section must render");
+		expect(section.previousElementSibling).toBe(header);
+		expect(section.parentElement?.lastElementChild).toBe(section);
+		const page = section.closest("main");
+		assert(page, "the count section sits in the page");
+		expect(page.lastElementChild).toBe(section.parentElement);
+		expect(page.querySelectorAll('a[href*="utm_content=back"]')).toHaveLength(1);
 	});
 });
 
@@ -976,8 +1103,17 @@ describe("Restore on the newsletter links line", () => {
 		expect(sentencesOf(line)).toEqual([
 			"All holds links saved from your newsletters.",
 		]);
-		expect(line.querySelector("[data-test-newsletter-links-remove]")).not.toBeNull();
-		expect(line.querySelector("[data-test-newsletter-links-restore]")).not.toBeNull();
+		const actions = line.querySelectorAll(".newsletter-links-line__actions");
+		expect(actions).toHaveLength(1);
+		expect(
+			Array.from(actions[0]?.querySelectorAll("button") ?? []).map((button) => [
+				button.textContent,
+				button.className,
+			]),
+		).toEqual([
+			["Remove newsletter links", "btn btn--neutral btn--m"],
+			["Restore removed links", "btn btn--secondary btn--m"],
+		]);
 	});
 
 	it("offers Restore beside a finished removal's result", async () => {
@@ -1088,6 +1224,14 @@ describe("Newsletter links restore page", () => {
 		expect(section?.getAttribute("data-newsletter-links-count")).toBe("counting");
 		expect(section?.getAttribute("hx-get")).toBe(RESTORE_PATH);
 		expect(section?.getAttribute("hx-trigger")).toBe("every 3s");
+		const notice = doc.querySelector("[data-test-newsletter-links-counting]");
+		assert(notice, "the counting notice must render");
+		expect(notice.textContent?.replace(/\s+/g, " ").trim()).toBe(
+			"Counting the links you removed… Check again",
+		);
+		expect(notice.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
+			"true",
+		);
 		const checkAgain = doc.querySelector("[data-test-newsletter-links-check-again]");
 		expect(
 			new URL(checkAgain?.getAttribute("href") ?? "", TEST_APP_ORIGIN).pathname,
@@ -1130,12 +1274,36 @@ describe("Newsletter links restore page", () => {
 				(input) => input.getAttribute("value"),
 			),
 		).toEqual(["big@example.com", "small@example.com"]);
-		expect(textsOf(doc, "[data-test-newsletter-links-unrestorable]")).toEqual([
-			"2 removed links can't be restored, because their articles are no longer stored. To keep one, save it again:",
+		expect(choiceClassesOf(form)).toEqual([
+			["radio", true],
+			["radio", true],
+			["checkbox", true],
+			["checkbox", true],
 		]);
-		expect(textsOf(doc, "[data-test-newsletter-links-unrestorable-link]")).toEqual([
-			"gone.com/one",
-			"gone.com/two",
+		expect(scopeLabelOf(doc, form)).toBe(
+			"4 removed links can be restored to All.",
+		);
+		const unrestorable = doc.querySelector(
+			"[data-test-newsletter-links-unrestorable]",
+		);
+		assert(unrestorable, "the unrestorable sentence must render");
+		expect(unrestorable.textContent).toBe(
+			"2 removed links can't be restored, because their articles are no longer stored. To keep one, save it again:",
+		);
+		expect(
+			Array.from(
+				doc.querySelectorAll(
+					"[data-test-newsletter-links-unrestorable], [data-test-newsletter-links-restore-form]",
+				),
+			).map((el) => el.tagName),
+		).toEqual(["P", "FORM"]);
+		expect(
+			Array.from(
+				doc.querySelectorAll("[data-test-newsletter-links-unrestorable-link]"),
+			).map((entry) => [entry.textContent, entry.children.length]),
+		).toEqual([
+			["gone.com/one", 0],
+			["gone.com/two", 0],
 		]);
 	});
 
@@ -1191,12 +1359,11 @@ describe("Newsletter links restore page", () => {
 
 		const doc = documentOf((await agent.get(RESTORE_PATH)).text);
 
-		expect(textsOf(doc, "[data-test-newsletter-links-count-message]")).toEqual([
-			"Couldn't count the links you removed.",
-		]);
-		expect(
-			doc.querySelector("[data-test-newsletter-links-count-button]")?.textContent,
-		).toBe("Try again");
+		expect(failedCountOf(doc)).toEqual({
+			alert: "Couldn't count the links you removed.",
+			button: "Try again",
+			alertBeforeButton: true,
+		});
 	});
 
 	it("sends the reader back to the inbox while a restore runs", async () => {
