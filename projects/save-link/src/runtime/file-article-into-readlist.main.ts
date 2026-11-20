@@ -2,6 +2,7 @@ import {
 	initCanonicalAliasStore,
 	initDynamoDbReadlistDefinitions,
 	initDynamoDbReadlistFitOverrides,
+	initDynamoDbRemovedLinks,
 	initDynamoDbSavedArticleStore,
 	initFindSavedArticleForLink,
 } from "@packages/article-store";
@@ -45,6 +46,12 @@ const { listReadlistFitOverrides } = initDynamoDbReadlistFitOverrides({
 	now,
 });
 
+const { findHeldLink } = initDynamoDbRemovedLinks({
+	client: dynamoClient,
+	userArticlesTableName: userArticlesTable,
+	articlesTableName: articlesTable,
+});
+
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
@@ -56,6 +63,8 @@ export const handler = initFileArticleIntoReadlistCommandHandler({
 		findArticleById: savedArticleStore.findArticleById,
 	}),
 	listReadlistDefinitions,
+	findHeldLink,
+	now,
 	fileRequestedArticleIntoReadlist: initFileRequestedArticleIntoReadlist({
 		listReadlistFitOverrides,
 		resolveCanonicalIdentity,

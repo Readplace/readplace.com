@@ -1,6 +1,8 @@
 import assert from "node:assert";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { SaveProvenanceSchema } from "@packages/domain/article";
 import { EventEnvelope } from "@packages/domain/event-envelope";
+import { emailIssueReceivedAt } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import {
@@ -10,7 +12,11 @@ import {
 } from "@packages/infra-components";
 import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import type { FindSavedArticleForLink, ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
+import type {
+	FindHeldLink,
+	FindSavedArticleForLink,
+	ListReadlistDefinitions,
+} from "@packages/provider-contracts/article-store";
 import type { FileRequestedArticleIntoReadlist } from "@packages/save-article";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 
@@ -35,6 +41,8 @@ export class ArticleNotYetSavedError extends Error {
 export function initFileArticleIntoReadlistCommandHandler(deps: {
 	findSavedArticleForLink: FindSavedArticleForLink;
 	listReadlistDefinitions: ListReadlistDefinitions;
+	findHeldLink: FindHeldLink;
+	now: () => Date;
 	fileRequestedArticleIntoReadlist: FileRequestedArticleIntoReadlist;
 	publishEvent: PublishEvent;
 	logger: Logger;
@@ -76,6 +84,18 @@ export function initFileArticleIntoReadlistCommandHandler(deps: {
 					messageId: record.messageId,
 					reason,
 				});
+			const skipHeldOrWait = async (resolvedUrl: string) => {
+				if (detail.fit.source.kind === "email") {
+					const storedKey = ArticleResourceUniqueId.parse(resolvedUrl).value;
+					const held = await deps.findHeldLink({ userId, storedKey, now: deps.now() });
+					const receivedAt = new Date(emailIssueReceivedAt(detail.fit.source.receivedAtMessageId));
+					if (held !== undefined && held.removedAt.getTime() > receivedAt.getTime()) {
+						skip("held-after-removal");
+						return;
+					}
+				}
+				throw new ArticleNotYetSavedError({ userId, readlist, source: detail.fit.source });
+			};
 
 			const definitions = await deps.listReadlistDefinitions(userId);
 			if (!definitions.some((definition) => definition.slug === readlist)) {
@@ -84,7 +104,8 @@ export function initFileArticleIntoReadlistCommandHandler(deps: {
 			}
 			const found = await deps.findSavedArticleForLink({ userId, url: detail.url });
 			if (found.kind === "not-saved") {
-				throw new ArticleNotYetSavedError({ userId, readlist, source: detail.fit.source });
+				await skipHeldOrWait(found.resolvedUrl);
+				return;
 			}
 			const filing = await deps.fileRequestedArticleIntoReadlist({
 				userId,
@@ -95,7 +116,8 @@ export function initFileArticleIntoReadlistCommandHandler(deps: {
 				requestedAt,
 			});
 			if (filing.kind === "not-in-all") {
-				throw new ArticleNotYetSavedError({ userId, readlist, source: detail.fit.source });
+				await skipHeldOrWait(found.resolvedUrl);
+				return;
 			}
 			if (filing.kind === "skipped") {
 				skip(filing.reason);

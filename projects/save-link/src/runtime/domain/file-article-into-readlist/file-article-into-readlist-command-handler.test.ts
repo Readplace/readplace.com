@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { initFindSavedArticleForLink } from "@packages/article-store";
-import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, SavedLinksJobIdSchema } from "@packages/domain/article";
 import { formatEmailLinkOrdinal } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, readlistPurposeVersion } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
@@ -43,6 +44,7 @@ async function harness(
 		>[0]["fileRequestedArticleIntoReadlist"];
 		racing?: (store: ReturnType<typeof initInMemoryArticleStore>) => Partial<FilingPorts>;
 		publishEvent?: PublishEvent;
+		now?: Date;
 	} = {},
 ) {
 	const store = initInMemoryArticleStore();
@@ -63,6 +65,8 @@ async function harness(
 			findArticleById: store.findArticleById,
 		}),
 		listReadlistDefinitions: store.listReadlistDefinitions,
+		findHeldLink: store.findHeldLink,
+		now: () => opts.now ?? NOW,
 		fileRequestedArticleIntoReadlist:
 			opts.fileRequestedArticleIntoReadlist ??
 			initFileRequestedArticleIntoReadlist({ ...store, resolveCanonicalIdentity, ...opts.racing?.(store) }),
@@ -232,6 +236,109 @@ describe("initFileArticleIntoReadlistCommandHandler", () => {
 		expect(h.errors).toEqual([
 			["[file-article-into-readlist] record failed on receive 1 (messageId m-1)", { error: "boom" }],
 		]);
+	});
+});
+
+describe("initFileArticleIntoReadlistCommandHandler for a link held after a newsletter cleanup", () => {
+	const URL = "https://example.com/post";
+	const HELD_AT = new Date("2026-10-24T00:00:00.000Z");
+	const earlierEmailFiling = () =>
+		command({
+			fit: {
+				verdict: "keep",
+				reason: "Code review practice.",
+				purposeVersion: "0123456789ab",
+				source: { kind: "email", receivedAtMessageId: "2026-10-23T00:00:00.000Z#<m@x>", ordinal: "0003" },
+			},
+		});
+	const holdLink = async (store: ReturnType<typeof initInMemoryArticleStore>) => {
+		const outcome = await store.moveNewsletterLinkToHold({
+			userId: USER,
+			jobId: SavedLinksJobIdSchema.parse("2026-10-24T00:00:00.000Z#a"),
+			storedKey: ArticleResourceUniqueId.parse(URL).value,
+			cutoff: HELD_AT,
+			senders: { kind: "all" },
+			now: HELD_AT,
+		});
+		assert.equal(outcome.outcome, "held");
+	};
+	const saveNewsletterLink = (store: ReturnType<typeof initInMemoryArticleStore>) =>
+		store.saveArticle({
+			userId: USER,
+			url: URL,
+			metadata: { title: "T", siteName: "S", excerpt: "E", wordCount: 1 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "email", senderEmail: "news@example.com" },
+			savedAt: new Date("2026-10-20T00:00:00.000Z"),
+			saveTrigger: "automatic",
+		});
+
+	it("skips an email filing for a held link instead of waiting, naming no URL", async () => {
+		const h = await harness();
+		await saveNewsletterLink(h.store);
+		await holdLink(h.store);
+
+		expect(await h.run(earlierEmailFiling())).toEqual({ batchItemFailures: [] });
+
+		expect(h.published).toEqual([]);
+		expect(h.skipped().map(([, fields]) => fields)).toEqual([
+			{ userId: USER, readlist: WORK, messageId: "m-1", reason: "held-after-removal" },
+		]);
+		expect(await h.workRow(URL)).toBeNull();
+		expect(JSON.stringify(h.infos)).not.toContain("example.com");
+	});
+
+	it("still waits on a reader filing for a held link", async () => {
+		const h = await harness();
+		await saveNewsletterLink(h.store);
+		await holdLink(h.store);
+
+		expect(await h.run(command({ fit: { verdict: "keep", source: { kind: "reader" } } }))).toEqual({
+			batchItemFailures: [{ itemIdentifier: "m-1" }],
+		});
+
+		expect(h.infos[0]?.[0]).toContain("waiting for the article");
+		expect(h.skipped()).toEqual([]);
+	});
+
+	it("waits on an email filing once the link's hold has run out", async () => {
+		const h = await harness({ now: new Date("2026-11-24T00:00:00.000Z") });
+		await saveNewsletterLink(h.store);
+		await holdLink(h.store);
+
+		expect(await h.run(earlierEmailFiling())).toEqual({ batchItemFailures: [{ itemIdentifier: "m-1" }] });
+
+		expect(h.infos[0]?.[0]).toContain("waiting for the article");
+		expect(h.skipped()).toEqual([]);
+	});
+
+	it("waits on a filing for an email received after the link was held", async () => {
+		const h = await harness();
+		await saveNewsletterLink(h.store);
+		await holdLink(h.store);
+
+		expect(await h.run(command())).toEqual({ batchItemFailures: [{ itemIdentifier: "m-1" }] });
+
+		expect(h.infos[0]?.[0]).toContain("waiting for the article");
+		expect(h.skipped()).toEqual([]);
+	});
+
+	it("skips an email filing whose link is held between the read and the transaction", async () => {
+		const h = await harness({
+			racing: (store) => ({
+				findReadlistFiling: async (params) => {
+					await holdLink(store);
+					return store.findReadlistFiling(params);
+				},
+			}),
+		});
+		await saveNewsletterLink(h.store);
+
+		expect(await h.run(earlierEmailFiling())).toEqual({ batchItemFailures: [] });
+
+		expect(h.published).toEqual([]);
+		expect(h.skipped().map(([, fields]) => fields)).toEqual([expect.objectContaining({ reason: "held-after-removal" })]);
+		expect(await h.workRow(URL)).toBeNull();
 	});
 });
 

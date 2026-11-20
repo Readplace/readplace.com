@@ -328,6 +328,8 @@ describe("initSubmitLinkCommandHandler", () => {
 				findArticleById: store.findArticleById,
 			}),
 			listReadlistDefinitions: store.listReadlistDefinitions,
+			findHeldLink: store.findHeldLink,
+			now: fixedNow,
 			fileRequestedArticleIntoReadlist: initFileRequestedArticleIntoReadlist({
 				...store,
 				resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: store.findIdentityRow }),
