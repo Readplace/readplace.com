@@ -1,6 +1,7 @@
 import {
 	displayableReadTime,
 	type DisplayableReadTime,
+	type HeldLink,
 	type SavedArticle,
 } from "@packages/domain/article";
 import type { EngagementState, StarterPack } from "@packages/provider-contracts/engagement-starter";
@@ -40,6 +41,22 @@ export function toExportArticle(article: SavedArticle): ExportArticle {
 	};
 }
 
+export interface ExportRemovedArticle {
+	url: string;
+	senderEmail: string;
+	removedAt: string;
+	expiresAt: string;
+}
+
+export function toExportRemovedArticle(params: { link: HeldLink; originalUrl: string }): ExportRemovedArticle {
+	return {
+		url: params.originalUrl,
+		senderEmail: params.link.senderEmail,
+		removedAt: params.link.removedAt.toISOString(),
+		expiresAt: params.link.expiresAt.toISOString(),
+	};
+}
+
 export interface ExportEnvelope {
 	engagement: EngagementState;
 	starterPack?: StarterPack;
@@ -47,4 +64,5 @@ export interface ExportEnvelope {
 	exportedAt: string;
 	articleCount: number;
 	articles: ExportArticle[];
+	removedArticles: ExportRemovedArticle[];
 }

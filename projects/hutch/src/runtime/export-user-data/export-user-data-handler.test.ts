@@ -7,7 +7,7 @@ import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/arti
 import { initInMemoryHighlights } from "@packages/test-fixtures/providers/highlights";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
-import { type Highlight, HighlightIdSchema, MinutesSchema } from "@packages/domain/article";
+import { type Highlight, HighlightIdSchema, MinutesSchema, SavedLinksJobIdSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { UserDataExportedEvent, UserDataExportSkippedEvent } from "@packages/infra-components";
@@ -25,6 +25,9 @@ const stubAttributes: SQSRecordAttributes = {
 const ExportBodySchema = z.object({
 	articleCount: z.number(),
 	articles: z.array(z.looseObject({ url: z.string(), title: z.string() })),
+	removedArticles: z.array(
+		z.object({ url: z.string(), senderEmail: z.string(), removedAt: z.string(), expiresAt: z.string() }),
+	),
 });
 
 type ExportMessage = {
@@ -117,6 +120,8 @@ async function createHarness(hooks: HarnessHooks = {}): Promise<HandlerHarness> 
 		findArticlesAcrossReadlists: store.findArticlesAcrossReadlists,
 		listAllUserHighlights: highlights.listAllUserHighlights,
 		readCanonicalSnapshot: store.readCanonicalSnapshot,
+		forEachHeldLinkPage: store.forEachHeldLinkPage,
+		findOriginalUrls: store.findOriginalUrls,
 		uploadUserDataExport,
 		deleteUserExports: async (deletedUserId) => {
 			objects.delete(deletedUserId);
@@ -520,7 +525,46 @@ describe("initExportUserDataHandler", () => {
 		const body = ExportBodySchema.parse(harness.uploadCalls[0].parsedBody);
 		expect(body.articleCount).toBe(0);
 		expect(body.articles).toEqual([]);
+		expect(body.removedArticles).toEqual([]);
 		expect(harness.emailCalls[0].html).toContain("0 articles");
+	});
+
+	it("lists each link a newsletter cleanup holds as removed, apart from the saved articles", async () => {
+		const harness = await createHarness();
+		const { userId, store } = harness;
+		const newsletterSave = (url: string) => ({
+			userId,
+			url,
+			metadata: { title: "Issue link", siteName: "tldr.tech", excerpt: "", wordCount: 100 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "email" as const, senderEmail: "dan@tldr.tech" },
+			savedAt: new Date("2026-04-01T00:00:00.000Z"),
+			saveTrigger: "automatic" as const,
+		});
+		await store.saveArticle(newsletterSave("https://tldr.tech/held?utm_source=tldr"));
+		await store.saveArticle(newsletterSave("https://tldr.tech/kept"));
+		await store.moveNewsletterLinkToHold({
+			userId,
+			jobId: SavedLinksJobIdSchema.parse("2026-04-29T00:00:00.000Z#a"),
+			storedKey: ArticleResourceUniqueId.parse("https://tldr.tech/held?utm_source=tldr").value,
+			cutoff: new Date("2026-04-29T00:00:00.000Z"),
+			senders: { kind: "all" },
+			now: new Date("2026-04-29T00:00:00.000Z"),
+		});
+
+		await invokeHandler(harness, { userId, requestedAt: "2026-04-30T11:59:00.000Z" });
+
+		const body = ExportBodySchema.parse(harness.uploadCalls[0].parsedBody);
+		expect(body.articles.map((article) => article.url)).toEqual(["https://tldr.tech/kept"]);
+		expect(body.articleCount).toBe(1);
+		expect(body.removedArticles).toEqual([
+			{
+				url: "https://tldr.tech/held?utm_source=tldr",
+				senderEmail: "dan@tldr.tech",
+				removedAt: "2026-04-29T00:00:00.000Z",
+				expiresAt: "2026-05-29T00:00:00.000Z",
+			},
+		]);
 	});
 
 	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
@@ -585,6 +629,8 @@ describe("initExportUserDataHandler", () => {
 			findArticlesAcrossReadlists,
 			listAllUserHighlights: async () => [],
 			readCanonicalSnapshot: async () => undefined,
+			forEachHeldLinkPage: async () => {},
+			findOriginalUrls: async () => new Map(),
 			uploadUserDataExport: async ({ userId: uid, body }) => {
 				uploadCalls.push({ parsedBody: JSON.parse(body) });
 				return { s3Key: `exports/${uid}/x.json`, downloadUrl: "https://example.com/d" };

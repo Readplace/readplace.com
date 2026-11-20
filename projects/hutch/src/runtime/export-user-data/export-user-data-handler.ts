@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
@@ -12,7 +13,11 @@ import {
 	initSqsRecordHandler,
 	type PublishEvent,
 } from "@packages/infra-components/runtime";
-import type { FindArticlesAcrossReadlists } from "@packages/provider-contracts/article-store";
+import type {
+	FindArticlesAcrossReadlists,
+	FindOriginalUrls,
+	ForEachHeldLinkPage,
+} from "@packages/provider-contracts/article-store";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { EngagementStarterState } from "@packages/provider-contracts/engagement-starter";
 import type { ReadCanonicalSnapshot } from "@packages/provider-contracts/canonical-snapshot";
@@ -27,6 +32,7 @@ import { decideExportDelivery } from "./decide-export-delivery";
 import {
 	type ExportEnvelope,
 	toExportArticle,
+	toExportRemovedArticle,
 } from "../web/pages/export/build-export-record";
 import { groupHighlightsByArticle, toExportHighlights } from "../web/pages/export/build-export-highlight";
 import { EXPORT_DOWNLOAD_TTL_DAYS } from "../web/pages/export/export-ttl";
@@ -42,6 +48,8 @@ export interface ExportUserDataDependencies {
 	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
 	listAllUserHighlights: ListAllUserHighlights;
 	readCanonicalSnapshot: ReadCanonicalSnapshot;
+	forEachHeldLinkPage: ForEachHeldLinkPage;
+	findOriginalUrls: FindOriginalUrls;
 	uploadUserDataExport: UploadUserDataExport;
 	deleteUserExports: DeleteUserExports;
 	findExportRecipient: FindExportRecipient;
@@ -113,6 +121,20 @@ async function processCommand(
 		page++;
 	}
 
+	const removedArticles: ExportEnvelope["removedArticles"] = [];
+	await deps.forEachHeldLinkPage({
+		userId,
+		now: deps.now(),
+		onPage: async (links) => {
+			const originals = await deps.findOriginalUrls({ storedKeys: links.map((link) => link.storedKey) });
+			for (const link of links) {
+				const originalUrl = originals.get(link.storedKey);
+				assert(originalUrl, "a held link's article row carries its original URL");
+				removedArticles.push(toExportRemovedArticle({ link, originalUrl }));
+			}
+		},
+	});
+
 	const exportedAt = deps.now().toISOString();
 	const envelope: ExportEnvelope = {
 		engagement: await deps.engagementState.findEngagement(userId),
@@ -121,6 +143,7 @@ async function processCommand(
 		exportedAt,
 		articleCount: articles.length,
 		articles,
+		removedArticles,
 	};
 	const body = JSON.stringify(envelope, null, 2);
 

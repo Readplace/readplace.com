@@ -396,6 +396,8 @@ export const handler = initHandleByDetailType({
 				findArticlesAcrossReadlists: articleStore.findArticlesAcrossReadlists,
 				listAllUserHighlights: highlights.listAllUserHighlights,
 				readCanonicalSnapshot: initReadCanonicalSnapshot({ client: dynamoClient, tableName: env.DYNAMODB_ARTICLES_TABLE }),
+				forEachHeldLinkPage: removedLinks.forEachHeldLinkPage,
+				findOriginalUrls: removedLinks.findOriginalUrls,
 				uploadUserDataExport,
 				deleteUserExports,
 				findExportRecipient: auth.findExportRecipient,
