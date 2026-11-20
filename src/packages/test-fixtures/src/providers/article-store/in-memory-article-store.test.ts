@@ -3165,4 +3165,38 @@ describe("initInMemoryArticleStore held newsletter links", () => {
 		expect(await store.withdrawSavedLinksJob({ userId: USER_A, jobId: other })).toEqual({ outcome: "withdrawn" });
 		expect(await store.findSavedLinksJob({ userId: USER_A })).toBeUndefined();
 	});
+
+	it("resumes a failed saved-links job that still holds the row", async () => {
+		const store = initInMemoryArticleStore();
+		await store.requestSavedLinksJob({ userId: USER_A, jobId: JOB, action: "remove", requestedAt: NOW });
+		await store.finishSavedLinksJob({ userId: USER_A, jobId: JOB, state: "failed", counts: { held: 1 }, finishedAt: NOW });
+
+		expect(await store.recordSavedLinksJobProgress({ userId: USER_A, jobId: JOB, counts: { held: 2 } })).toEqual({
+			outcome: "recorded",
+		});
+		expect(await store.findSavedLinksJob({ userId: USER_A })).toEqual({
+			jobId: JOB,
+			action: "remove",
+			state: "running",
+			requestedAt: NOW,
+			counts: { held: 2 },
+		});
+	});
+});
+
+describe("findOriginalUrls", () => {
+	it("maps each stored key to its article's original URL and leaves out a key with no article", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticleGlobally({
+			url: "https://Example.com/Post?ref=1",
+			metadata: makeArticleParams().metadata,
+			estimatedReadTime: makeArticleParams().estimatedReadTime,
+			savedAt: new Date("2026-07-17T10:00:00.000Z"),
+		});
+		const storedKey = ArticleResourceUniqueId.parse("https://Example.com/Post?ref=1").value;
+
+		const found = await store.findOriginalUrls({ storedKeys: [storedKey, "missing.com/x"] });
+
+		expect([...found.entries()]).toEqual([[storedKey, "https://Example.com/Post?ref=1"]]);
+	});
 });

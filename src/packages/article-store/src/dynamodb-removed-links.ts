@@ -20,9 +20,12 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	CountNewsletterIssues,
 	FindHeldLink,
+	FindOriginalUrls,
 	ForEachHeldLinkPage,
+	ForEachRemovalCandidatePage,
 	HasHeldLinks,
 	HasNewsletterLink,
+	ListKeysOpenedInReadlists,
 	MoveNewsletterLinkToHold,
 	RestoreHeldLink,
 	SummariseNewsletterLinks,
@@ -31,6 +34,7 @@ import {
 	type DynamoDBDocumentClient,
 	TransactWriteCommand,
 	TransactionCanceledException,
+	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
@@ -67,6 +71,8 @@ const HeldLinkItem = z.object({
 });
 
 const SharedArticleItem = z.object({ purgedAt: dynamoField(z.string()) });
+
+const OriginalUrlItem = z.object({ url: z.string(), originalUrl: z.string() });
 
 const HELD_LINK_ATTRIBUTES = ["url", "removedUrl", "removedByJobId", "removedAt", "expiresAt", "provenance"];
 
@@ -183,6 +189,9 @@ export function initDynamoDbRemovedLinks(deps: {
 	forEachHeldLinkPage: ForEachHeldLinkPage;
 	hasHeldLinks: HasHeldLinks;
 	findHeldLink: FindHeldLink;
+	forEachRemovalCandidatePage: ForEachRemovalCandidatePage;
+	listKeysOpenedInReadlists: ListKeysOpenedInReadlists;
+	findOriginalUrls: FindOriginalUrls;
 } {
 	const userArticles = defineDynamoTable({
 		client: deps.client,
@@ -211,6 +220,34 @@ export function initDynamoDbRemovedLinks(deps: {
 		return false;
 	};
 
+	const isLinkKey = (params: { url: string; issuePrefix: string }) =>
+		!params.url.startsWith(RESERVED_KEY_PREFIX) && !params.url.startsWith(params.issuePrefix);
+
+	const candidateOf = (item: Record<string, unknown>): NewsletterLinkCandidate => {
+		const parsed = NewsletterLinkItem.safeParse(item);
+		return parsed.success ? { kind: "row", row: toNewsletterLinkRow(parsed.data) } : { kind: "unreadable" };
+	};
+
+	const keysOpenedIn = async (params: { userId: UserId; readlists: readonly ReadlistSlug[] }) => {
+		const opened = new Set<string>();
+		for (const readlist of params.readlists) {
+			await forEachQueryPage(
+				userArticles,
+				{
+					KeyConditionExpression: "userId = :userId",
+					ExpressionAttributeValues: { ":userId": readlistPartitionValue({ userId: params.userId, readlist }) },
+					...projectionOf(["url", "viewedAt"]),
+				},
+				async (items) => {
+					for (const item of items) {
+						if (ReadlistViewItem.parse(item).viewedAt !== undefined) opened.add(item.url);
+					}
+				},
+			);
+		}
+		return opened;
+	};
+
 	const summariseNewsletterLinks: SummariseNewsletterLinks = async ({ userId, cutoff }) => {
 		const issuePrefix = emailIssueKeyPrefix(userId);
 		const candidates: NewsletterLinkCandidate[] = [];
@@ -230,29 +267,38 @@ export function initDynamoDbRemovedLinks(deps: {
 						readlists.push(ReadlistSlugSchema.parse(item.url.slice(READLIST_DEFINITION_KEY_PREFIX.length)));
 						continue;
 					}
-					if (item.url.startsWith(RESERVED_KEY_PREFIX) || item.url.startsWith(issuePrefix)) continue;
-					const parsed = NewsletterLinkItem.safeParse(item);
-					candidates.push(parsed.success ? { kind: "row", row: toNewsletterLinkRow(parsed.data) } : { kind: "unreadable" });
+					if (isLinkKey({ url: item.url, issuePrefix })) candidates.push(candidateOf(item));
 				}
 			},
 		);
-		const openedInReadlists = new Set<string>();
-		for (const readlist of readlists) {
-			await forEachQueryPage(
-				userArticles,
-				{
-					KeyConditionExpression: "userId = :userId",
-					ExpressionAttributeValues: { ":userId": readlistPartitionValue({ userId, readlist }) },
-					...projectionOf(["url", "viewedAt"]),
-				},
-				async (items) => {
-					for (const item of items) {
-						if (ReadlistViewItem.parse(item).viewedAt !== undefined) openedInReadlists.add(item.url);
-					}
-				},
-			);
-		}
+		const openedInReadlists = await keysOpenedIn({ userId, readlists });
 		return summariseNewsletterLinkRows({ candidates, userId, highlighted, openedInReadlists, cutoff });
+	};
+
+	const forEachRemovalCandidatePage: ForEachRemovalCandidatePage = async ({ userId, onPage }) => {
+		const issuePrefix = emailIssueKeyPrefix(userId);
+		await forEachQueryPage(userArticles, allPartitionQuery({ userId, attributes: LINK_ATTRIBUTES }), async (items) => {
+			await onPage(items.filter((item) => isLinkKey({ url: item.url, issuePrefix })).map(candidateOf));
+		});
+	};
+
+	const listKeysOpenedInReadlists: ListKeysOpenedInReadlists = async ({ userId }) => {
+		const readlists: ReadlistSlug[] = [];
+		await forEachQueryPage(
+			userArticles,
+			{
+				KeyConditionExpression: "userId = :userId AND begins_with(#url, :keyPrefix)",
+				ExpressionAttributeNames: { "#url": "url" },
+				ExpressionAttributeValues: { ":userId": userId, ":keyPrefix": READLIST_DEFINITION_KEY_PREFIX },
+				ProjectionExpression: "#url",
+			},
+			async (items) => {
+				for (const item of items) {
+					readlists.push(ReadlistSlugSchema.parse(item.url.slice(READLIST_DEFINITION_KEY_PREFIX.length)));
+				}
+			},
+		);
+		return keysOpenedIn({ userId, readlists });
 	};
 
 	const countNewsletterIssues: CountNewsletterIssues = async ({ userId }) => {
@@ -281,6 +327,17 @@ export function initDynamoDbRemovedLinks(deps: {
 		tableName: deps.articlesTableName,
 		schema: SharedArticleItem,
 	});
+
+	const findOriginalUrls: FindOriginalUrls = async ({ storedKeys }) => {
+		const rows = await batchGetFromTable({
+			client: deps.client,
+			tableName: deps.articlesTableName,
+			schema: OriginalUrlItem,
+			keys: storedKeys.map((url) => ({ url })),
+			projection: ["url", "originalUrl"],
+		});
+		return new Map(rows.map((row) => [row.url, row.originalUrl]));
+	};
 
 	const moveNewsletterLinkToHold: MoveNewsletterLinkToHold = async (params) => {
 		const { userId, jobId, storedKey, cutoff, now } = params;
@@ -417,5 +474,8 @@ export function initDynamoDbRemovedLinks(deps: {
 		forEachHeldLinkPage,
 		hasHeldLinks,
 		findHeldLink,
+		forEachRemovalCandidatePage,
+		listKeysOpenedInReadlists,
+		findOriginalUrls,
 	};
 }

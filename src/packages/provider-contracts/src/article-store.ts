@@ -13,6 +13,7 @@ import type {
 	HeldLink,
 	HoldOutcome,
 	ItemMedia,
+	NewsletterLinkCandidate,
 	NewsletterLinkSummary,
 	RemovalSenders,
 	RestoreOutcome,
@@ -606,6 +607,15 @@ export type ForEachHeldLinkPage = (params: {
 	now: Date;
 	onPage: (links: HeldLink[]) => Promise<void>;
 }) => Promise<void>;
+
+export type ForEachRemovalCandidatePage = (params: {
+	userId: UserId;
+	onPage: (candidates: NewsletterLinkCandidate[]) => Promise<void>;
+}) => Promise<void>;
+
+export type ListKeysOpenedInReadlists = (params: { userId: UserId }) => Promise<ReadonlySet<string>>;
+
+export type FindOriginalUrls = (params: { storedKeys: readonly string[] }) => Promise<Map<string, string>>;
 
 export type HasHeldLinks = (params: { userId: UserId; now: Date }) => Promise<boolean>;
 

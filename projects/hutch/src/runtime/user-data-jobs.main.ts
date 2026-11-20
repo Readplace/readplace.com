@@ -12,7 +12,7 @@ import {
 	initEventBridgePublisher,
 	initHandleByDetailType,
 } from "@packages/infra-components/runtime";
-import { DeleteAccountCommand, ExportUserDataCommand } from "@packages/infra-components";
+import { DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand } from "@packages/infra-components";
 import { readEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
@@ -45,6 +45,9 @@ import { initGmailAccessToken } from "./providers/gmail-api/gmail-access-token";
 import { initGmailFilters } from "./providers/gmail-api/gmail-filters";
 import { initRevokeGmailGrant } from "./providers/gmail-api/gmail-revoke";
 import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
+import { initRemoveSavedLinks } from "./saved-links-job/remove-saved-links";
+import { initRestoreSavedLinks } from "./saved-links-job/restore-saved-links";
+import { initSavedLinksJobHandler } from "./saved-links-job/saved-links-job-handler";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
 import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailSender, initDynamoDbGmailHeldMail, initDynamoDbEmailIdentity } from "@packages/inbox-store";
 import {
@@ -53,6 +56,8 @@ import {
 	initDeleteUserArticleLinks,
 	initDynamoDbFindItemOwner,
 	initDynamoDbHighlights,
+	initDynamoDbRemovedLinks,
+	initDynamoDbSavedLinksJob,
 	initPurgeArticleContent,
 	initS3DeleteContentObjects,
 	initS3ListContentKeys,
@@ -88,6 +93,15 @@ const articleStore = initDynamoDbSavedArticleStore({
 	now: () => new Date(),
 });
 const highlights = initDynamoDbHighlights({
+	client: dynamoClient,
+	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
+});
+const removedLinks = initDynamoDbRemovedLinks({
+	client: dynamoClient,
+	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
+	articlesTableName: env.DYNAMODB_ARTICLES_TABLE,
+});
+const savedLinksJob = initDynamoDbSavedLinksJob({
 	client: dynamoClient,
 	userArticlesTableName: env.DYNAMODB_USER_ARTICLES_TABLE,
 });
@@ -387,6 +401,37 @@ export const handler = initHandleByDetailType({
 				findExportRecipient: auth.findExportRecipient,
 				markExportDelivered: auth.markExportDelivered,
 				sendEmail,
+				publishEvent,
+				logger,
+				now,
+			}),
+		],
+		[RunSavedLinksJobCommand.detailType]: [
+			initSavedLinksJobHandler({
+				findSavedLinksJob: savedLinksJob.findSavedLinksJob,
+				recordSavedLinksJobProgress: savedLinksJob.recordSavedLinksJobProgress,
+				finishSavedLinksJob: savedLinksJob.finishSavedLinksJob,
+				runners: {
+					remove: initRemoveSavedLinks({
+						forEachRemovalCandidatePage: removedLinks.forEachRemovalCandidatePage,
+						forEachHeldLinkPage: removedLinks.forEachHeldLinkPage,
+						listKeysOpenedInReadlists: removedLinks.listKeysOpenedInReadlists,
+						listAllUserHighlights: highlights.listAllUserHighlights,
+						moveNewsletterLinkToHold: removedLinks.moveNewsletterLinkToHold,
+						findOriginalUrls: removedLinks.findOriginalUrls,
+						listUserSavesForUrls: articleStore.listUserSavesForUrls,
+						publishEvent,
+						now,
+					}),
+					restore: initRestoreSavedLinks({
+						forEachHeldLinkPage: removedLinks.forEachHeldLinkPage,
+						forEachRemovalCandidatePage: removedLinks.forEachRemovalCandidatePage,
+						restoreHeldLink: removedLinks.restoreHeldLink,
+						findOriginalUrls: removedLinks.findOriginalUrls,
+						publishEvent,
+						now,
+					}),
+				},
 				publishEvent,
 				logger,
 				now,

@@ -82,7 +82,7 @@ describe("requestSavedLinksJob", () => {
 });
 
 describe("saved-links job progress", () => {
-	it("records counts as running only for the job that holds the row", async () => {
+	it("records counts as running only for the job that holds the row and has not completed", async () => {
 		const { jobs, sent } = createScriptedClient({ UpdateCommand: [written, refused] });
 
 		assert.deepEqual(await jobs.recordSavedLinksJobProgress({ userId: READER, jobId: JOB, counts: { held: 3 } }), {
@@ -92,7 +92,9 @@ describe("saved-links job progress", () => {
 			outcome: "stale",
 		});
 		assert.deepEqual(sent[0].input.Key, JOB_KEY);
-		assert.equal(sent[0].input.ConditionExpression, "jobId = :jobId AND #state IN (:requested, :running)");
+		assert.equal(sent[0].input.UpdateExpression, "SET #state = :running, counts = :counts REMOVE finishedAt");
+		assert.equal(sent[0].input.ConditionExpression, "jobId = :jobId AND #state <> :completed");
+		assert.equal(Object(sent[0].input.ExpressionAttributeValues)[":completed"], "completed");
 		assert.deepEqual(Object(sent[0].input.ExpressionAttributeValues)[":counts"], { held: 3 });
 	});
 

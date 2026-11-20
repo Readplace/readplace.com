@@ -15,13 +15,19 @@ const ISSUE_KEY = ArticleResourceUniqueId.parse(
 	emailIssueArticleUrl({ userId: READER, receivedAtMessageId: "2026-06-24T09:00:00.000Z#<m@x>" }),
 ).value;
 
-function createFakeTable(seed: Item[]) {
+function createFakeTable(seed: Item[], sharedArticles: Item[] = []) {
 	const sent: Record<string, unknown>[] = [];
 	const send = async (command: { input: Record<string, unknown> }) => {
 		const { input } = command;
 		sent.push(input);
+		if (input.RequestItems !== undefined) {
+			const keys: Item[] = Object(input.RequestItems).articles.Keys;
+			return {
+				Responses: { articles: sharedArticles.filter((row) => keys.some((key) => key.url === row.url)) },
+			};
+		}
 		const values = Object(input.ExpressionAttributeValues);
-		const prefix = values[":issueKeyPrefix"] === undefined ? "" : String(values[":issueKeyPrefix"]);
+		const prefix = String(values[":issueKeyPrefix"] ?? values[":keyPrefix"] ?? "");
 		const matching = seed
 			.filter((item) => item.userId === values[":userId"] && String(item.url).startsWith(prefix))
 			.sort((a, b) => String(a.url).localeCompare(String(b.url)));
@@ -142,5 +148,74 @@ describe("countNewsletterIssues", () => {
 		assert.equal(sent[0].KeyConditionExpression, "userId = :userId AND begins_with(#url, :issueKeyPrefix)");
 		assert.equal(sent[0].Select, "COUNT");
 		assert.deepEqual(sent[0].ExpressionAttributeValues, { ":userId": READER, ":issueKeyPrefix": "inbox/reader-1/" });
+	});
+});
+
+describe("forEachRemovalCandidatePage", () => {
+	it("hands over each page's links, leaving out issues and store rows, and marks an unreadable row", async () => {
+		const { removedLinks, sent } = createFakeTable([
+			emailLink("a.com/1"),
+			emailLink("a.com/2", { savedAt: 7 }),
+			emailLink(ISSUE_KEY),
+			emailLink("readplace:queue-def/work"),
+			{ userId: READER, url: "readplace:highlight/a.com/1/h1", highlightOf: "a.com/1" },
+			emailLink("a.com/3"),
+		]);
+		const pages: unknown[][] = [];
+
+		await removedLinks.forEachRemovalCandidatePage({
+			userId: READER,
+			onPage: async (candidates) => {
+				pages.push(candidates.map((candidate) => (candidate.kind === "row" ? candidate.row.storedKey : candidate.kind)));
+			},
+		});
+
+		assert.deepEqual(pages, [["a.com/1", "unreadable"], ["a.com/3"], []]);
+		assert.equal(sent[0].ProjectionExpression, "#url, #status, #savedAt, #provenance, #handPickedAt, #viewedAt, #lastSummaryOpenedAt, #restoredAt");
+		assert.equal(sent[0].FilterExpression, undefined);
+	});
+});
+
+describe("listKeysOpenedInReadlists", () => {
+	it("reads the reader's readlists, then the links opened in each", async () => {
+		const { removedLinks, sent } = createFakeTable([
+			emailLink("a.com/1"),
+			emailLink("readplace:queue-def/home"),
+			emailLink("readplace:queue-def/work"),
+			{ userId: `${READER}#queue/work`, url: "a.com/5", viewedAt: "2026-11-21T00:00:00.000Z" },
+			{ userId: `${READER}#queue/work`, url: "a.com/1" },
+			{ userId: `${READER}#queue/home`, url: "a.com/6", viewedAt: "2026-11-21T00:00:00.000Z" },
+		]);
+
+		const opened = await removedLinks.listKeysOpenedInReadlists({ userId: READER });
+
+		assert.deepEqual([...opened].sort(), ["a.com/5", "a.com/6"]);
+		assert.equal(sent[0].KeyConditionExpression, "userId = :userId AND begins_with(#url, :keyPrefix)");
+		assert.deepEqual(sent[0].ExpressionAttributeValues, { ":userId": READER, ":keyPrefix": "readplace:queue-def/" });
+		assert.equal(sent[0].ProjectionExpression, "#url");
+	});
+});
+
+describe("findOriginalUrls", () => {
+	it("reads each stored key's original URL from the articles table", async () => {
+		const { removedLinks, sent } = createFakeTable(
+			[],
+			[
+				{ url: "a.com/1", originalUrl: "https://a.com/1?utm=x" },
+				{ url: "a.com/2", originalUrl: "https://a.com/2" },
+			],
+		);
+
+		const found = await removedLinks.findOriginalUrls({ storedKeys: ["a.com/1", "a.com/3"] });
+
+		assert.deepEqual([...found], [["a.com/1", "https://a.com/1?utm=x"]]);
+		assert.deepEqual(Object(sent[0].RequestItems).articles.Keys, [{ url: "a.com/1" }, { url: "a.com/3" }]);
+	});
+
+	it("reads nothing when there are no keys", async () => {
+		const { removedLinks, sent } = createFakeTable([]);
+
+		assert.equal((await removedLinks.findOriginalUrls({ storedKeys: [] })).size, 0);
+		assert.equal(sent.length, 0);
 	});
 });

@@ -14,6 +14,7 @@ import {
 	CheckoutCompletedEvent,
 	DeleteAccountCommand,
 	ExportUserDataCommand,
+	RunSavedLinksJobCommand,
 	DisconnectGmailCommand,
 	GMAIL_FILTER_REWRITE_FAILED_EVENT,
 	GMAIL_EMAIL_UPDATE_FAILED_EVENT,
@@ -55,6 +56,7 @@ import {
 import { allowanceSeconds, PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
+import { USER_DATA_JOBS_MAX_RECEIVE_COUNT } from "../runtime/saved-links-job/max-receive-count";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, HIGHLIGHTS_REANCHORED_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, DEEPSEEK_COST_METRIC, DEEPSEEK_COST_METRIC_FILTER, deepseekCostMetricFilterPattern, firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern, openAiScanToolsListedPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
@@ -910,6 +912,11 @@ const userDataJobsGmailHistoryDynamodb = new DynamoDBAccess("user-data-jobs-gmai
 	actions: ["dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
 });
 
+const userDataJobsUserArticlesDynamodb = new DynamoDBAccess("user-data-jobs-user-articles-dynamodb", {
+	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:PutItem", "dynamodb:ConditionCheckItem"],
+});
+
 const userDataJobsEmailIdentitiesDynamodb = new DynamoDBAccess("user-data-jobs-email-identities-dynamodb", {
 	tables: [{ arn: inboxTableArn(tableNames.emailIdentities), includeIndexes: true }],
 	actions: ["dynamodb:Query", "dynamodb:DeleteItem"],
@@ -923,7 +930,7 @@ const userDataJobsQueue = new Sqs("user-data-jobs", {
 	// step fails closed on an Apple outage — 12 receives ≈ 3 hours of retries
 	// so a losable deletion only falls to the DLQ (email-alarmed) after riding
 	// out a real outage, not after the default 3 attempts.
-	dlqMaxReceiveCount: 12,
+	dlqMaxReceiveCount: USER_DATA_JOBS_MAX_RECEIVE_COUNT,
 });
 
 const userDataJobsLambda = new Lambda("user-data-jobs", {
@@ -982,6 +989,7 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 		...userDataJobsGmailHistoryDynamodb.policies,
 		...userDataJobsMediaHoldingsDynamodb.policies,
 		...userDataJobsEmailIdentitiesDynamodb.policies,
+		...userDataJobsUserArticlesDynamodb.policies,
 		userDataJobsS3Policy,
 		userDataJobsMediaPendingDeletePolicy,
 		...userExportBucket.readPolicies("user-data-jobs-bucket-read"),
@@ -1000,7 +1008,7 @@ const userDataJobsWithSQS = new SqsBackedLambda("user-data-jobs", {
 });
 
 eventBus.subscribeAll(
-	[DeleteAccountCommand, ExportUserDataCommand],
+	[DeleteAccountCommand, ExportUserDataCommand, RunSavedLinksJobCommand],
 	userDataJobsWithSQS,
 	{ name: "user-data-jobs" },
 );

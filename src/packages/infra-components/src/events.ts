@@ -777,6 +777,54 @@ export const DeleteAccountCommand = defineEvent({
 });
 export type DeleteAccountDetail = z.infer<typeof DeleteAccountCommand.detailSchema>;
 
+const SavedLinksJobSendersSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("all") }),
+	z.object({ kind: z.literal("chosen"), senderEmails: z.array(z.string()) }),
+]);
+
+export const RunSavedLinksJobCommand = defineEvent({
+	name: "run-saved-links-job-command",
+	source: "hutch.api",
+	detailType: "RunSavedLinksJobCommand",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		jobId: z.string().min(1),
+		requestedAt: z.string(),
+		job: z.discriminatedUnion("action", [
+			z.object({ action: z.literal("remove"), cutoff: z.string(), senders: SavedLinksJobSendersSchema }),
+			z.object({ action: z.literal("restore"), senders: SavedLinksJobSendersSchema }),
+		]),
+	}),
+});
+export type RunSavedLinksJobDetail = z.infer<typeof RunSavedLinksJobCommand.detailSchema>;
+
+export const SavedLinksJobCompletedEvent = defineEvent({
+	name: "saved-links-job-completed",
+	source: "hutch.saved-links-job",
+	detailType: "SavedLinksJobCompleted",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		jobId: z.string().min(1),
+		action: z.enum(["remove", "restore"]),
+		counts: z.record(z.string(), z.number().int().nonnegative()),
+		completedAt: z.string(),
+	}),
+});
+export type SavedLinksJobCompletedDetail = z.infer<typeof SavedLinksJobCompletedEvent.detailSchema>;
+
+export const SavedLinksJobFailedEvent = defineEvent({
+	name: "saved-links-job-failed",
+	source: "hutch.saved-links-job",
+	detailType: "SavedLinksJobFailed",
+	detailSchema: z.object({
+		userId: UserIdSchema,
+		jobId: z.string().min(1),
+		action: z.enum(["remove", "restore"]),
+		failedAt: z.string(),
+	}),
+});
+export type SavedLinksJobFailedDetail = z.infer<typeof SavedLinksJobFailedEvent.detailSchema>;
+
 export const UserDataExportedEvent = defineEvent({
 	name: "user-data-exported",
 	source: "hutch.export-user-data",

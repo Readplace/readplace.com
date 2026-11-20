@@ -17,6 +17,7 @@ import type {
 	SetArticleEnclosure,
 	SavePrivateItem,
 	MoveNewsletterLinkToHold,
+	FindOriginalUrls,
 	RestoreHeldLink,
 	ForEachHeldLinkPage,
 	HasHeldLinks,
@@ -500,6 +501,7 @@ export interface ArticleStoreBundle {
 	readNewsletterLinkRows: (userId: UserId) => NewsletterLinkRow[];
 	readOpenedInReadlists: (userId: UserId) => ReadonlySet<string>;
 	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
+	findOriginalUrls: FindOriginalUrls;
 	restoreHeldLink: RestoreHeldLink;
 	forEachHeldLinkPage: ForEachHeldLinkPage;
 	hasHeldLinks: HasHeldLinks;

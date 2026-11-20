@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { HighlightIdSchema, MinutesSchema, SavedLinksJobIdSchema, type Highlight } from "@packages/domain/article";
-import { emailIssueArticleUrl } from "@packages/domain/inbox";
+import { emailIssueArticleUrl, emailIssueKeyPrefix } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { SaveArticleParams } from "./article-store.types";
@@ -110,5 +110,29 @@ describe("initInMemoryRemovedLinks", () => {
 
 		assert.equal(await removedLinks.countNewsletterIssues({ userId: READER }), 1);
 		assert.equal(await removedLinks.countNewsletterIssues({ userId: OTHER }), 0);
+	});
+
+	it("hands every All row but the reader's issues to one removal-candidate page", async () => {
+		const removedLinks = await seededStore();
+		const pages: string[][] = [];
+
+		await removedLinks.forEachRemovalCandidatePage({
+			userId: READER,
+			onPage: async (candidates) => {
+				pages.push(candidates.map((candidate) => (candidate.kind === "row" ? candidate.row.storedKey : "unreadable")));
+			},
+		});
+
+		assert.equal(pages.length, 1);
+		assert.ok(pages[0]?.includes("a.com/chosen"));
+		assert.ok(!pages[0]?.includes("a.com/other"));
+		assert.ok(!pages[0]?.some((storedKey) => storedKey.startsWith(emailIssueKeyPrefix(READER))));
+	});
+
+	it("lists the keys the reader opened inside a readlist", async () => {
+		const removedLinks = await seededStore();
+
+		assert.ok((await removedLinks.listKeysOpenedInReadlists({ userId: READER })).size > 0);
+		assert.equal((await removedLinks.listKeysOpenedInReadlists({ userId: OTHER })).size, 0);
 	});
 });

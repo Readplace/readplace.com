@@ -7,7 +7,9 @@ import { emailIssueKeyPrefix } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type {
 	CountNewsletterIssues,
+	ForEachRemovalCandidatePage,
 	HasNewsletterLink,
+	ListKeysOpenedInReadlists,
 	SummariseNewsletterLinks,
 } from "@packages/provider-contracts/article-store";
 import type { ListAllUserHighlights } from "@packages/provider-contracts/highlights";
@@ -20,6 +22,8 @@ export function initInMemoryRemovedLinks(deps: {
 	hasNewsletterLink: HasNewsletterLink;
 	summariseNewsletterLinks: SummariseNewsletterLinks;
 	countNewsletterIssues: CountNewsletterIssues;
+	forEachRemovalCandidatePage: ForEachRemovalCandidatePage;
+	listKeysOpenedInReadlists: ListKeysOpenedInReadlists;
 } {
 	const hasNewsletterLink: HasNewsletterLink = async ({ userId }) =>
 		deps.readNewsletterLinkRows(userId).some((row) => isNewsletterLink({ row, userId }));
@@ -38,5 +42,22 @@ export function initInMemoryRemovedLinks(deps: {
 	const countNewsletterIssues: CountNewsletterIssues = async ({ userId }) =>
 		deps.readNewsletterLinkRows(userId).filter((row) => row.storedKey.startsWith(emailIssueKeyPrefix(userId))).length;
 
-	return { hasNewsletterLink, summariseNewsletterLinks, countNewsletterIssues };
+	const forEachRemovalCandidatePage: ForEachRemovalCandidatePage = async ({ userId, onPage }) => {
+		await onPage(
+			deps
+				.readNewsletterLinkRows(userId)
+				.filter((row) => !row.storedKey.startsWith(emailIssueKeyPrefix(userId)))
+				.map((row) => ({ kind: "row", row })),
+		);
+	};
+
+	const listKeysOpenedInReadlists: ListKeysOpenedInReadlists = async ({ userId }) => deps.readOpenedInReadlists(userId);
+
+	return {
+		hasNewsletterLink,
+		summariseNewsletterLinks,
+		countNewsletterIssues,
+		forEachRemovalCandidatePage,
+		listKeysOpenedInReadlists,
+	};
 }

@@ -75,10 +75,10 @@ export function initDynamoDbSavedLinksJob(deps: { client: DynamoDBDocumentClient
 		const outcome = await writeIfCondition(() =>
 			jobs.update({
 				Key: keyOf(userId),
-				UpdateExpression: "SET #state = :running, counts = :counts",
-				ConditionExpression: "jobId = :jobId AND #state IN (:requested, :running)",
+				UpdateExpression: "SET #state = :running, counts = :counts REMOVE finishedAt",
+				ConditionExpression: "jobId = :jobId AND #state <> :completed",
 				ExpressionAttributeNames: { "#state": "state" },
-				ExpressionAttributeValues: { ":running": "running", ":requested": "requested", ":counts": counts, ":jobId": jobId },
+				ExpressionAttributeValues: { ":running": "running", ":completed": "completed", ":counts": counts, ":jobId": jobId },
 			}),
 		);
 		return outcome.kind === "written" ? { outcome: "recorded" } : { outcome: "stale" };

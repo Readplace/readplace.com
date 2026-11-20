@@ -25,6 +25,7 @@ import {
 import type {
 	FindHeldLink,
 	FindSavedLinksJob,
+	FindOriginalUrls,
 	FinishSavedLinksJob,
 	ForEachHeldLinkPage,
 	HasHeldLinks,
@@ -242,6 +243,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 
 export function initInMemoryArticleStore(): {
 	moveNewsletterLinkToHold: MoveNewsletterLinkToHold;
+	findOriginalUrls: FindOriginalUrls;
 	restoreHeldLink: RestoreHeldLink;
 	forEachHeldLinkPage: ForEachHeldLinkPage;
 	hasHeldLinks: HasHeldLinks;
@@ -1024,6 +1026,15 @@ export function initInMemoryArticleStore(): {
 
 	const heldLinkMapKey = (params: { userId: UserId; heldKey: string }) => `${params.userId}|${params.heldKey}`;
 
+	const findOriginalUrls: FindOriginalUrls = async ({ storedKeys }) => {
+		const found = new Map<string, string>();
+		for (const storedKey of storedKeys) {
+			const article = articles.get(storedKey);
+			if (article !== undefined) found.set(storedKey, article.originalUrl);
+		}
+		return found;
+	};
+
 	const moveNewsletterLinkToHold: MoveNewsletterLinkToHold = async ({ userId, jobId, storedKey, cutoff, senders, now }) => {
 		const allKey = userArticleKey(userId, storedKey);
 		const row = userArticles.get(allKey);
@@ -1089,8 +1100,9 @@ export function initInMemoryArticleStore(): {
 
 	const recordSavedLinksJobProgress: RecordSavedLinksJobProgress = async ({ userId, jobId, counts }) => {
 		const job = jobHeldBy({ userId, jobId });
-		if (job === undefined || !isOpenJob(job)) return { outcome: "stale" };
-		savedLinksJobs.set(userId, { ...job, state: "running", counts });
+		if (job === undefined || job.state === "completed") return { outcome: "stale" };
+		const { finishedAt: _finishedAt, ...resumed } = job;
+		savedLinksJobs.set(userId, { ...resumed, state: "running", counts });
 		return { outcome: "recorded" };
 	};
 
@@ -1741,6 +1753,7 @@ export function initInMemoryArticleStore(): {
 		stampRelatedPassesRequested,
 		deleteAllUserArticles,
 		listUserArticleUrls,
+		findOriginalUrls,
 		moveNewsletterLinkToHold,
 		restoreHeldLink,
 		forEachHeldLinkPage,

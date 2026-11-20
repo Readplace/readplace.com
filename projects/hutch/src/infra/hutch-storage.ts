@@ -128,6 +128,10 @@ export class HutchStorage extends pulumi.ComponentResource {
 					projectionType: "ALL",
 				},
 			],
+			ttl: {
+				attributeName: "expiresAt",
+				enabled: true,
+			},
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
 		this.usersTable = new aws.dynamodb.Table(`hutch-users`, {

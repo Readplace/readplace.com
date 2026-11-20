@@ -1,0 +1,1 @@
+export const USER_DATA_JOBS_MAX_RECEIVE_COUNT = 12;
