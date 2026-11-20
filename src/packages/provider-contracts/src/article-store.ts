@@ -387,6 +387,7 @@ export interface ReadlistDefinitionData {
 	createdAt: Date;
 	purpose?: string;
 	pinnedAt?: Date;
+	ownSavesSince?: Date;
 }
 
 export type CreateReadlistDefinition = (params: {
@@ -422,6 +423,17 @@ export type SetReadlistDefinitionPurpose = (params: {
 }) => Promise<{ updated: boolean }>;
 
 export type ClearReadlistDefinitionPurpose = (params: {
+	userId: UserId;
+	slug: ReadlistSlug;
+}) => Promise<{ cleared: boolean }>;
+
+export type SetReadlistOwnSaves = (params: {
+	userId: UserId;
+	slug: ReadlistSlug;
+	since: Date;
+}) => Promise<{ outcome: "set" | "readlist-gone" | "starter-readlist" | "held-by-another" }>;
+
+export type ClearReadlistOwnSaves = (params: {
 	userId: UserId;
 	slug: ReadlistSlug;
 }) => Promise<{ cleared: boolean }>;
@@ -502,11 +514,13 @@ export type FileIntoLiveReadlist = (params: {
 	readlist: ReadlistSlug;
 	url: string;
 	savedAt: Date;
-	provenance: SaveProvenance;
+	provenance: SaveProvenance | undefined;
 	suggestionAttribution?: SuggestionAttribution;
 	requestedAt: Date;
 	landsAs: ReadlistFilingLandsAs;
 }) => Promise<{ outcome: FileIntoLiveReadlistOutcome }>;
+
+export type FileOwnSaveIntoReadlist = FileIntoLiveReadlist;
 
 export type MarkReadlistArticleViewed = (params: {
 	userId: UserId;

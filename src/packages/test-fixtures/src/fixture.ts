@@ -475,6 +475,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			deleteReadlistArticle: articleStoreMemory.deleteReadlistArticle,
 			purgeReadlistArticle: articleStoreMemory.purgeReadlistArticle,
 			fileIntoLiveReadlist: articleStoreMemory.fileIntoLiveReadlist,
+			fileOwnSaveIntoReadlist: articleStoreMemory.fileOwnSaveIntoReadlist,
 			findReadlistFiling: articleStoreMemory.findReadlistFiling,
 			findReadlistRemoval: articleStoreMemory.findReadlistRemoval,
 			markReadlistArticleViewed: articleStoreMemory.markReadlistArticleViewed,
@@ -495,6 +496,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			unpinReadlistDefinition: articleStoreMemory.unpinReadlistDefinition,
 			setReadlistDefinitionPurpose: articleStoreMemory.setReadlistDefinitionPurpose,
 			clearReadlistDefinitionPurpose: articleStoreMemory.clearReadlistDefinitionPurpose,
+			setReadlistOwnSaves: articleStoreMemory.setReadlistOwnSaves,
+			clearReadlistOwnSaves: articleStoreMemory.clearReadlistOwnSaves,
 			getSummaryToggleState: articleStoreMemory.getSummaryToggleState,
 			readArticleContent: async ({ url, viewer }) =>
 				storedArticleBody({
