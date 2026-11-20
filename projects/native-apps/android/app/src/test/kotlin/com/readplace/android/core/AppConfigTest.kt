@@ -9,7 +9,7 @@ import org.junit.Test
 class AppConfigTest {
 	private val baseUrlByFlavor = mapOf(
 		"production" to "https://readplace.com",
-		"staging" to "https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com",
+		"staging" to "https://readplace-staging.com",
 		"local" to "http://localhost:3000",
 	)
 

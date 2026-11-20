@@ -49,11 +49,7 @@ android {
 		}
 		create("staging") {
 			dimension = "server"
-			buildConfigField(
-				"String",
-				"SERVER_BASE_URL",
-				"\"https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com\"",
-			)
+			buildConfigField("String", "SERVER_BASE_URL", "\"https://readplace-staging.com\"")
 			buildConfigField("String", "SERVER_ENVIRONMENT", "\"staging\"")
 		}
 		// A hutch dev server on the Mac, reached through `adb reverse tcp:3000 tcp:3000`
