@@ -42,3 +42,13 @@
     display: none;
   }
 }
+
+@media (scripting: none) {
+  .highlight-note__trigger {
+    display: none;
+  }
+
+  .highlight-note__fallback {
+    display: block;
+  }
+}

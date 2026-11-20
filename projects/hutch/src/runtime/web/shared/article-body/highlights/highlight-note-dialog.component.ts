@@ -115,6 +115,7 @@ export function renderHighlightNoteCreateForm(input: {
 		answersInPlace: true,
 		pushesHistory: true,
 		local: false,
+		noteEditor: true,
 	});
 }
 
@@ -129,6 +130,7 @@ export function renderHighlightNoteDialog(input: {
 		subject: "selection",
 		title: ADD_TITLE,
 		body: "",
+		placement: "beside-passage",
 		actionsHtml: renderHighlightNoteCreateForm({
 			action: highlightFormUrl({
 				scope: input.scope,
@@ -155,6 +157,7 @@ export function renderHighlightNoteEditDialog(input: {
 		subject: input.highlightId,
 		title: input.note === undefined ? ADD_TITLE : EDIT_TITLE,
 		body: "",
+		placement: "beside-passage",
 		actionsHtml: renderHighlightNoteForm({
 			popoverId,
 			key: "highlight-note-edit",
@@ -166,6 +169,7 @@ export function renderHighlightNoteEditDialog(input: {
 			pushesHistory: pushesHistory(input.scope),
 			autofocus: true,
 			local: false,
+			noteEditor: true,
 			deleteTriggerHtml:
 				input.note === undefined
 					? undefined
@@ -190,6 +194,7 @@ export function renderHighlightNoteFallbackForm(input: {
 		pushesHistory: pushesHistory(input.scope),
 		autofocus: input.open,
 		local: false,
+		noteEditor: false,
 	});
 }
 
@@ -202,6 +207,7 @@ export function renderLocalHighlightNoteDialog(input: {
 		subject: "selection",
 		title: ADD_TITLE,
 		body: "",
+		placement: "beside-passage",
 		actionsHtml: renderHighlightNoteForm({
 			popoverId: HIGHLIGHT_NOTE_DIALOG_ID,
 			key: "highlight-note",
@@ -213,6 +219,7 @@ export function renderLocalHighlightNoteDialog(input: {
 			pushesHistory: false,
 			autofocus: true,
 			local: true,
+			noteEditor: true,
 		}),
 	});
 }

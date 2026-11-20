@@ -83,6 +83,7 @@ function harness(): Harness {
 				matches: query === "(pointer: coarse)" && h.coarse,
 			}),
 			addEventListener: () => undefined,
+			scrollBy: () => undefined,
 		},
 		timers: {
 			setTimeout: (callback, delayMs) => {
@@ -102,6 +103,10 @@ function harness(): Harness {
 		isOpen: () => false,
 		isFocusVisible: () => false,
 		sendBeacon: () => undefined,
+		isAutoPopoverOpen: () => false,
+		paintDraft: () => undefined,
+		clearDraft: () => undefined,
+		chromeBottom: () => 0,
 	});
 	const marked = elementOf(h, ".article-body__content em");
 	const mark = doc.createElement("mark");

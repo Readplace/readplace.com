@@ -321,6 +321,7 @@ describe("Highlight notes on create (POST /queue/:id/highlights)", () => {
 		expect(refused.form.getAttribute("action")).toContain(
 			"utm_content=save-note",
 		);
+		expect(refused.form.hasAttribute("data-highlight-note-editor")).toBe(true);
 		expect(noteEvents(harness)).toHaveLength(0);
 	});
 
@@ -1090,5 +1091,40 @@ describe("Note previews beside the marks", () => {
 		assert(afterClear, "the reader renders main");
 		expect(previewIdsOf(afterClear)).toEqual([]);
 		expect(afterClear.querySelectorAll(`mark[data-highlight-id="${id}"]`).length).toBeGreaterThan(0);
+	});
+});
+
+describe("Note editors beside the passage", () => {
+	it("renders both note editors as manual panels beside the passage, and leaves the inline form and every other confirm as they were", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, "https://example.com/note-beside-passage");
+		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Kept" });
+
+		const page = doc((await agent.get(viewPath(articleId))).text);
+
+		const editorIds = ["note-highlight-dialog", `note-highlight-${id}`];
+		for (const panelId of editorIds) {
+			const panel = page.getElementById(panelId);
+			assert(panel, `the reader must render #${panelId}`);
+			expect({
+				popover: panel.getAttribute("popover"),
+				besidePassage: panel.classList.contains("confirm-popover--beside-passage"),
+				marked: panel.querySelector("form")?.hasAttribute("data-highlight-note-editor"),
+			}).toEqual({ popover: "manual", besidePassage: true, marked: true });
+		}
+		const inline = page.querySelector("details.highlight-note__fallback form");
+		assert(inline, "the rail must render its inline note form");
+		expect(inline.hasAttribute("data-highlight-note-editor")).toBe(false);
+		const others = Array.from(
+			page.querySelectorAll<HTMLElement>(".confirm-popover"),
+		).filter((panel) => !editorIds.includes(panel.id));
+		expect(others.map((panel) => panel.id)).toContain(`delete-highlight-${id}`);
+		for (const panel of others) {
+			expect({
+				id: panel.id,
+				popover: panel.getAttribute("popover"),
+				besidePassage: panel.classList.contains("confirm-popover--beside-passage"),
+			}).toEqual({ id: panel.id, popover: "auto", besidePassage: false });
+		}
 	});
 });

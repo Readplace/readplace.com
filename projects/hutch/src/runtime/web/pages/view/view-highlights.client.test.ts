@@ -9,8 +9,8 @@ import { initHighlightToolbar } from "../../shared/article-body/highlights/highl
 import type { LocalHighlightStorage } from "../../shared/article-body/highlights/local-highlights";
 import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
-import { initViewHighlights } from "./view-highlights.client";
 import { ViewPage, type ViewPageInput } from "./view.component";
+import { initViewHighlights } from "./view-highlights.client";
 
 const ARTICLE_URL = "https://example.com/post";
 
@@ -125,6 +125,7 @@ function harness(input: {
 				requestAnimationFrame: () => undefined,
 				matchMedia: () => ({ matches: false }),
 				addEventListener: () => undefined,
+				scrollBy: () => undefined,
 			},
 			timers: { setTimeout: () => undefined, clearTimeout: () => undefined },
 			rectsOf: () => [],
@@ -135,6 +136,10 @@ function harness(input: {
 			isOpen: () => false,
 			isFocusVisible: () => false,
 			sendBeacon: (url) => h.beacons.push(url),
+			isAutoPopoverOpen: () => false,
+			paintDraft: () => undefined,
+			clearDraft: () => undefined,
+			chromeBottom: () => 0,
 		});
 	}
 	return h;

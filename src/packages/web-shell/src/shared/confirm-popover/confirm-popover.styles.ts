@@ -66,6 +66,35 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 	background: ${SCRIM_DARK}; /* 3 */
 }
 
+.confirm-popover--beside-passage {
+	inset: auto 0 16px 0;
+	margin: 0 auto;
+	max-height: 50dvh;
+	box-shadow: var(--shadow-menu);
+}
+
+.confirm-popover--beside-passage::backdrop {
+	background: transparent;
+	backdrop-filter: none;
+}
+
+@media (prefers-color-scheme: dark) {
+	body:not(.${LIGHT_ONLY_BODY_CLASS}) .confirm-popover--beside-passage::backdrop {
+		background: transparent;
+		backdrop-filter: none;
+	}
+}
+
+body.${DARK_ONLY_BODY_CLASS} .confirm-popover--beside-passage::backdrop {
+	background: transparent;
+	backdrop-filter: none;
+}
+
+:root:has(.confirm-popover--beside-passage:popover-open) {
+	padding-bottom: var(--confirm-popover-sheet-space, 50dvh);
+	scroll-padding-bottom: var(--confirm-popover-sheet-space, 50dvh);
+}
+
 .confirm-popover--illustrated {
 	text-align: center;
 }

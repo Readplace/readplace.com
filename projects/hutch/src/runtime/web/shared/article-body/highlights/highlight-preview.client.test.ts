@@ -79,6 +79,7 @@ interface Harness {
 	rects: PassageRect[];
 	viewport: { width: number; height: number; offsetLeft: number; offsetTop: number };
 	hover: boolean;
+	editorOpen: boolean;
 	focusVisible: boolean;
 	popoverSupported: boolean;
 	shown: string[];
@@ -110,6 +111,7 @@ function harness(input: { content?: string; highlights: readonly HighlightSpec[]
 		rects: [{ top: 300, bottom: 320, left: 400, width: 200 }],
 		viewport: { width: 1000, height: 800, offsetLeft: 0, offsetTop: 0 },
 		hover: true,
+		editorOpen: false,
 		focusVisible: true,
 		popoverSupported: input.popover ?? true,
 		shown: [],
@@ -142,6 +144,7 @@ function harness(input: { content?: string; highlights: readonly HighlightSpec[]
 		showPopover: (panel) => h.shown.push(panel.getAttribute("data-highlight-preview") ?? ""),
 		hidePopover: (panel) => h.hidden.push(panel.getAttribute("data-highlight-preview") ?? ""),
 		isFocusVisible: () => h.focusVisible,
+		editorOpen: () => h.editorOpen,
 		panels: initHighlightPanels({
 			document: doc,
 			window: { visualViewport: { ...h.viewport, addEventListener: () => undefined } },
@@ -327,6 +330,40 @@ describe("initHighlightPreviews", () => {
 			previewOf(h, NOTED);
 			expect(segmentsOf(h, NOTED)).toHaveLength(1);
 			expect(tabStopIds(h)).toEqual([]);
+		});
+	});
+
+	describe("while a note editor is open", () => {
+		it("shows no preview for a hover past the delay", () => {
+			const h = harness({ highlights: NOTED_AND_PLAIN });
+			h.editorOpen = true;
+
+			hoverOver(h, firstSegment(h, NOTED));
+			h.runTimer(HOVER_SHOW_MS);
+
+			expect(h.shown).toEqual([]);
+		});
+
+		it("shows no preview for a keyboard focus on a noted mark", () => {
+			const h = harness({ highlights: NOTED_AND_PLAIN });
+			h.editorOpen = true;
+
+			focusIn(h, firstSegment(h, NOTED));
+
+			expect(h.shown).toEqual([]);
+		});
+
+		it("pins no preview for a click on a noted mark", () => {
+			const h = harness({ highlights: NOTED_AND_PLAIN });
+			h.editorOpen = true;
+			const mark = firstSegment(h, NOTED);
+
+			click(h, mark);
+
+			expect({ shown: h.shown, pinned: pinned(h, NOTED) }).toEqual({
+				shown: [],
+				pinned: false,
+			});
 		});
 	});
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { DARK_ONLY_BODY_CLASS, LIGHT_ONLY_BODY_CLASS } from "../../base.styles";
 import {
 	CONFIRM_POPOVER_STYLES,
 	renderConfirmPopover,
@@ -41,6 +42,42 @@ describe("renderConfirmPopover", () => {
 		expect(panel.getAttribute("popover")).toBe("auto");
 		expect(panel.getAttribute("id")).toBe("thing-confirm-42");
 		expect(panel.getAttribute("role")).toBe("dialog");
+	});
+
+	it("keeps a confirm that names no placement centred and light-dismissed", () => {
+		const panel = renderPanel({ close: {} }).querySelector(".confirm-popover");
+
+		assert(panel, "panel must be rendered");
+		expect(panel.getAttribute("popover")).toBe("auto");
+		expect(panel.className).toBe("confirm-popover");
+	});
+
+	it("renders a beside-passage panel as a manual popover, so a click in the article leaves it open", () => {
+		const doc = renderPanel({ placement: "beside-passage", close: {} });
+		const panel = doc.querySelector(".confirm-popover");
+
+		assert(panel, "panel must be rendered");
+		expect(panel.getAttribute("popover")).toBe("manual");
+		expect(panel.className).toBe("confirm-popover confirm-popover--beside-passage");
+		expect(panel.getAttribute("role")).toBe("dialog");
+		expect(panel.getAttribute("tabindex")).toBe("-1");
+		expect(panel.getAttribute("aria-labelledby")).toBe("thing-confirm-42-title");
+		const dismiss = doc.querySelector("[data-test-action='thing-dismiss']");
+		assert(dismiss, "the dismiss control must be rendered");
+		expect(dismiss.getAttribute("popovertarget")).toBe("thing-confirm-42");
+		expect(dismiss.getAttribute("popovertargetaction")).toBe("hide");
+	});
+
+	it("ships the beside-passage panel's styles with the shell: no scrim in any colour scheme, its own shadow, and bottom space while open", () => {
+		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover--beside-passage {");
+		expect(CONFIRM_POPOVER_STYLES).toContain("box-shadow: var(--shadow-menu);");
+		expect(CONFIRM_POPOVER_STYLES).toContain(".confirm-popover--beside-passage::backdrop {");
+		expect(CONFIRM_POPOVER_STYLES).toContain(
+			`body:not(.${LIGHT_ONLY_BODY_CLASS}) .confirm-popover--beside-passage::backdrop {`,
+		);
+		expect(CONFIRM_POPOVER_STYLES).toContain(`body.${DARK_ONLY_BODY_CLASS} .confirm-popover--beside-passage::backdrop {`);
+		expect(CONFIRM_POPOVER_STYLES).toContain(":root:has(.confirm-popover--beside-passage:popover-open) {");
+		expect(CONFIRM_POPOVER_STYLES).toContain("var(--confirm-popover-sheet-space, 50dvh)");
 	});
 
 	it("labels the panel by its own title so a screen reader announces the decision", () => {

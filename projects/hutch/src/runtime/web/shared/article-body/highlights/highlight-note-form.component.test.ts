@@ -23,6 +23,7 @@ function noteForm(
 			pushesHistory: true,
 			autofocus: true,
 			local: false,
+			noteEditor: true,
 			...overrides,
 		})}</div>`,
 	).window.document;
@@ -51,6 +52,14 @@ function errorOf(doc: Document): HTMLElement {
 }
 
 describe("renderHighlightNoteForm", () => {
+	it("marks a dialog's form as the note editor the reader script places beside the passage", () => {
+		expect(formOf(noteForm({ noteEditor: true })).hasAttribute("data-highlight-note-editor")).toBe(true);
+	});
+
+	it("leaves an inline form unmarked, so it stays in the page's flow", () => {
+		expect(formOf(noteForm({ noteEditor: false })).hasAttribute("data-highlight-note-editor")).toBe(false);
+	});
+
 	it("posts the note field as a plain form to its action", () => {
 		const doc = noteForm();
 		const form = formOf(doc);

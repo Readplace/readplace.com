@@ -246,6 +246,27 @@ describe.each(["ios", "android"])("Highlights in the %s app reader (GET /queue/:
 		expect(deleteNoteForm?.getAttribute("hx-push-url")).toBe("false");
 	});
 
+	it("renders both note editors as manual panels beside the passage in the app reader", async () => {
+		const harness = useApp(parsedFixture());
+		const { agent, articleId } = await saveArticle(harness, `https://example.com/app-${platform}-note-beside`);
+		const id = await createHighlight(agent, { articleId, exact: "readability parser", note: "Kept" });
+
+		const page = doc((await agent.get(`/queue/${articleId}/view?platform=${platform}`)).text);
+
+		for (const panelId of ["note-highlight-dialog", `note-highlight-${id}`]) {
+			const panel = page.getElementById(panelId);
+			assert(panel, `the reader must render #${panelId}`);
+			expect({
+				popover: panel.getAttribute("popover"),
+				besidePassage: panel.classList.contains("confirm-popover--beside-passage"),
+				marked: panel.querySelector("form")?.hasAttribute("data-highlight-note-editor"),
+			}).toEqual({ popover: "manual", besidePassage: true, marked: true });
+		}
+		const inline = page.querySelector("details.highlight-note__fallback form");
+		assert(inline, "the rail must render its inline note form");
+		expect(inline.hasAttribute("data-highlight-note-editor")).toBe(false);
+	});
+
 	it("shows a locked account its marks and rail with no toolbar or highlight forms", async () => {
 		const { fixture: lockable, lock } = lockedFixture();
 		const harness = useApp(lockable);
@@ -552,7 +573,10 @@ describe("Highlight refusals and notes in the iOS app reader", () => {
 			});
 
 		expect(response.status).toBe(422);
-		const action = doc(response.text).querySelector("form")?.getAttribute("action");
+		const form = doc(response.text).querySelector("form");
+		assert(form, "the refusal must answer with the note form");
+		expect(form.hasAttribute("data-highlight-note-editor")).toBe(true);
+		const action = form.getAttribute("action");
 		expect(action).toContain("platform=ios");
 		expect(action).toContain("utm_content=save-note");
 	});

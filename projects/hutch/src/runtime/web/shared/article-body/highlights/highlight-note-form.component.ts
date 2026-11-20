@@ -33,6 +33,7 @@ export function renderHighlightNoteForm(input: {
 	pushesHistory: boolean;
 	autofocus: boolean;
 	local: boolean;
+	noteEditor: boolean;
 	deleteTriggerHtml?: string;
 }): string {
 	return render(TEMPLATE, {

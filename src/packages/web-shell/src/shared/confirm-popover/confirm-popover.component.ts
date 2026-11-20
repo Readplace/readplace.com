@@ -25,6 +25,7 @@ export interface ConfirmPopover {
 	/** One .confirm-popover__actions element; forms with only buttons also use .confirm-popover__buttons, with dismiss before commit. */
 	actionsHtml: string;
 	oob?: boolean;
+	placement?: "beside-passage";
 }
 
 function describedFields(popover: ConfirmPopover) {
@@ -32,6 +33,7 @@ function describedFields(popover: ConfirmPopover) {
 	const subheadings = popover.subheading === undefined ? [] : [popover.subheading];
 	const hasItems = popover.bodyItems !== undefined;
 	return {
+		besidePassage: popover.placement === "beside-passage",
 		closeControls: popover.close === undefined ? [] : [{ beaconUrl: popover.close.beaconUrl }],
 		subheadings,
 		describedBy: [

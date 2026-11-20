@@ -38,6 +38,7 @@ export interface HighlightPreviewDeps {
 	showPopover: (panel: Element) => void;
 	hidePopover: (panel: Element) => void;
 	isFocusVisible: (element: Element) => boolean;
+	editorOpen: () => boolean;
 	panels: HighlightPanels;
 }
 
@@ -170,7 +171,8 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 	};
 
 	const show = (id: string): void => {
-		if (shown?.id === id && shown.preview.isConnected) return;
+		if (deps.editorOpen() || (shown?.id === id && shown.preview.isConnected))
+			return;
 		hide();
 		const preview = previewOf(id);
 		assert(preview, "a noted highlight renders its preview");
@@ -180,6 +182,7 @@ export function initHighlightPreviews(deps: HighlightPreviewDeps): HighlightPrev
 	};
 
 	const pin = (id: string): void => {
+		if (deps.editorOpen()) return;
 		show(id);
 		cancelPending();
 		cancelGrace();

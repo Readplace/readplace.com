@@ -14,6 +14,8 @@ import {
 	toolbarNearSelection,
 	windowScrollY,
 } from "./highlight-on-a-phone.browser";
+import { selectPassage } from "./highlight-a-passage.browser";
+import { documentScrollHeight, measureNoteEditor } from "./note-editor-placement.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -45,6 +47,9 @@ const FIRST_OF_PAIR = "The first of two adjacent paragraphs starts a thought.";
 const SECOND_OF_PAIR = "The second of the pair finishes the same thought.";
 const FILLER_SENTENCE =
 	"Every filler paragraph repeats one sentence so the highlights rail sits well below the first screen of the phone.";
+const LONG_SENTENCE =
+	"A long passage on a phone keeps going for far more lines than one screen can hold, so the note editor has to sit as a sheet at the bottom while the reader scrolls the rest of the passage into view above it. ";
+const LONG_PASSAGE = `The long passage starts here. ${LONG_SENTENCE.repeat(9).trim()}`;
 const ARTICLE = [
 	`<p>${OPENING_SENTENCE} ${TAPPED_SENTENCE}</p>`,
 	`<p>Before reading on, <a href="#${FRAGMENT}">jump to the later notes</a> and come back.</p>`,
@@ -52,6 +57,7 @@ const ARTICLE = [
 	`<p>${SECOND_OF_PAIR}</p>`,
 	...Array.from({ length: 14 }, () => `<p>${FILLER_SENTENCE}</p>`),
 	`<p id="${FRAGMENT}">The later notes close the article.</p>`,
+	`<p>${LONG_PASSAGE}</p>`,
 ].join("");
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
@@ -199,6 +205,7 @@ test.describe("Highlighting a passage on a phone", () => {
 		await page.locator(ADD_NOTE_BUTTON).tap();
 		const dialog = page.locator(OPEN_NOTE_DIALOG);
 		await expect(dialog).toHaveCount(1, { timeout: SETTLE_MS });
+		expect((await page.evaluate(measureNoteEditor, { panel: OPEN_NOTE_DIALOG, passage: null })).miss).toBe(true);
 		await dialog.locator(NOTE_INPUT).fill(TAPPED_NOTE);
 		await dialog.locator('[data-test-action="highlight-note-save"]').tap();
 		await expect(page.locator(MARK)).toHaveText(TAPPED_SENTENCE, { timeout: SETTLE_MS });
@@ -224,5 +231,54 @@ test.describe("Highlighting a passage on a phone", () => {
 		await tapText(page, FIRST_OF_PAIR);
 		await expect(page.locator(SHOWN_PANEL)).toHaveCount(0, { timeout: SETTLE_MS });
 		expect(await page.evaluate(selectionIsCollapsed)).toBe(true);
+	});
+
+	test("on a 400px-tall screen the editor stays on screen, clear of the passage and its first line", async ({ page }, testInfo) => {
+		await openHighlightableReader(page, `short-${testInfo.workerIndex}-${Date.now()}`);
+		await page.setViewportSize({ width: PIXEL_7.viewport.width, height: 400 });
+		await page.locator(CONTENT).getByText(TAPPED_SENTENCE).evaluate((paragraph) => {
+			paragraph.scrollIntoView({ block: "start", behavior: "instant" });
+		});
+		await page.evaluate(selectPassage, { root: CONTENT, exact: TAPPED_SENTENCE });
+		await expect(page.locator(SHOWN_TOOLBAR)).toHaveCount(1, { timeout: SETTLE_MS });
+		await page.locator(ADD_NOTE_BUTTON).tap();
+		await expect(page.locator(OPEN_NOTE_DIALOG)).toHaveCount(1, { timeout: SETTLE_MS });
+
+		const measured = await page.evaluate(measureNoteEditor, { panel: OPEN_NOTE_DIALOG, passage: null });
+		expect(measured.panel.top).toBeGreaterThanOrEqual(measured.visibleTop);
+		expect(measured.panel.bottom).toBeLessThanOrEqual(measured.visibleBottom);
+		expect(measured.firstLine.top).toBeGreaterThanOrEqual(measured.visibleTop);
+		expect(measured.firstLine.bottom).toBeLessThanOrEqual(measured.visibleBottom);
+		expect(measured.miss).toBe(true);
+	});
+
+	test("a passage taller than the screen shows its first line above the sheet, and the page grows so its last line can scroll above it", async ({
+		page,
+	}, testInfo) => {
+		await openHighlightableReader(page, `long-${testInfo.workerIndex}-${Date.now()}`);
+		await page.locator(CONTENT).getByText(LONG_PASSAGE).evaluate((paragraph) => {
+			paragraph.scrollIntoView({ block: "start", behavior: "instant" });
+		});
+		const heightBefore = await page.evaluate(documentScrollHeight);
+		await page.evaluate(selectPassage, { root: CONTENT, exact: LONG_PASSAGE });
+		await expect(page.locator(SHOWN_TOOLBAR)).toHaveCount(1, { timeout: SETTLE_MS });
+		await page.locator(ADD_NOTE_BUTTON).tap();
+		await expect(page.locator(OPEN_NOTE_DIALOG)).toHaveCount(1, { timeout: SETTLE_MS });
+
+		const opened = await page.evaluate(measureNoteEditor, { panel: OPEN_NOTE_DIALOG, passage: null });
+		expect(opened.passage.bottom - opened.passage.top).toBeGreaterThan(opened.visibleBottom - opened.visibleTop);
+		expect(Math.abs(opened.panel.bottom - (opened.visibleBottom - 16))).toBeLessThanOrEqual(1);
+		expect(opened.firstLine.top).toBeGreaterThanOrEqual(opened.visibleTop);
+		expect(opened.firstLine.bottom).toBeLessThanOrEqual(opened.panel.top);
+		const sheetHeight = opened.panel.bottom - opened.panel.top;
+		expect(Math.abs((await page.evaluate(documentScrollHeight)) - heightBefore - (sheetHeight + 16))).toBeLessThanOrEqual(2);
+
+		await page.evaluate(scrollWindowBy, { y: opened.lastLine.bottom - opened.panel.top + 8 });
+		await expect
+			.poll(async () => {
+				const scrolled = await page.evaluate(measureNoteEditor, { panel: OPEN_NOTE_DIALOG, passage: null });
+				return scrolled.lastLine.bottom <= scrolled.panel.top;
+			})
+			.toBe(true);
 	});
 });

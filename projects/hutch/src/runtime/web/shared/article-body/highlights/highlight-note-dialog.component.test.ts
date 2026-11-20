@@ -10,6 +10,7 @@ import {
 	renderHighlightNoteDialog,
 	renderHighlightNoteEditDialog,
 	renderHighlightNoteFallbackForm,
+	renderLocalHighlightNoteDialog,
 } from "./highlight-note-dialog.component";
 
 const HIGHLIGHT_ID = HighlightIdSchema.parse(
@@ -410,5 +411,62 @@ describe("Delete note", () => {
 				),
 			),
 		).toEqual(["highlight-note-fallback-save"]);
+	});
+});
+
+describe("note editors beside the passage", () => {
+	function editorOf(html: string): { popover: string | null; besidePassage: boolean; marked: boolean } {
+		const doc = parse(html);
+		const popover = popoverOf(doc);
+		const form = popover.querySelector("form");
+		assert(form, "the dialog must render its note form");
+		return {
+			popover: popover.getAttribute("popover"),
+			besidePassage: popover.classList.contains("confirm-popover--beside-passage"),
+			marked: form.hasAttribute("data-highlight-note-editor"),
+		};
+	}
+
+	const besidePassage = { popover: "manual", besidePassage: true, marked: true };
+
+	it("opens the toolbar's Add a note as a manual panel beside the passage", () => {
+		expect(
+			editorOf(renderHighlightNoteDialog({ scope: WEB_SCOPE, hiddenFields: [], autofocus: true })),
+		).toEqual(besidePassage);
+	});
+
+	it("opens a highlight's note editor as a manual panel beside the passage", () => {
+		expect(
+			editorOf(renderHighlightNoteEditDialog({ highlightId: HIGHLIGHT_ID, note: "kept", scope: WEB_SCOPE })),
+		).toEqual(besidePassage);
+	});
+
+	it("opens the logged-out reader's Add a note as a manual panel beside the passage", () => {
+		expect(editorOf(renderLocalHighlightNoteDialog({ hiddenFields: [] }))).toEqual(besidePassage);
+	});
+
+	it("keeps the editor marker on a refused create form, which replaces the one inside the panel", () => {
+		const form = parse(
+			renderHighlightNoteCreateForm({
+				action: "/queue/abc/highlights",
+				hiddenFields: [],
+				value: "typed note",
+				error: "Select a shorter passage",
+				refusal: "passage",
+				autofocus: true,
+			}),
+		).querySelector("form");
+
+		assert(form, "the refused form must be rendered");
+		expect(form.hasAttribute("data-highlight-note-editor")).toBe(true);
+	});
+
+	it("leaves the rail's inline form unmarked", () => {
+		const form = parse(
+			renderHighlightNoteFallbackForm({ highlightId: HIGHLIGHT_ID, note: "kept", scope: WEB_SCOPE, open: false }),
+		).querySelector("form");
+
+		assert(form, "the inline form must be rendered");
+		expect(form.hasAttribute("data-highlight-note-editor")).toBe(false);
 	});
 });

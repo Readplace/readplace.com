@@ -35,6 +35,7 @@ export interface HighlightPanels {
 	quietsPreview(): boolean;
 	reposition(): void;
 	restoreFocus(): void;
+	hide(): void;
 }
 
 type PanelMode = "above" | "below" | "docked";
@@ -232,6 +233,12 @@ export function initHighlightPanels(deps: HighlightPanelDeps): HighlightPanels {
 		reposition: () => {
 			forgetClosed();
 			if (shown !== undefined) place(shown);
+		},
+		hide: () => {
+			forgetClosed();
+			if (shown === undefined) return;
+			deps.hidePopover(shown.panel);
+			shown = undefined;
 		},
 		restoreFocus: () => {
 			const ids = remembered;

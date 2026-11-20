@@ -11,6 +11,7 @@ import { requireEnv } from "@packages/require-env";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { selectPassage } from "./highlight-a-passage.browser";
+import { measureNoteEditor } from "./note-editor-placement.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -86,6 +87,8 @@ async function dialogOpen(page: Page): Promise<void> {
 	await expect(page.locator(TOOLBAR)).toBeHidden();
 	await page.mouse.move(5, 5);
 	await waitForBrandFonts(page, ["Inter"]);
+	const placed = await page.evaluate(measureNoteEditor, { panel: `${PANEL}:popover-open`, passage: null });
+	assert.ok(placed.miss, "the note editor leaves the passage visible");
 }
 
 async function titleThenNoteThenBothChoices(page: Page): Promise<void> {
@@ -129,8 +132,8 @@ function checkpoint(name: string): VisualCheckpoint {
 		name,
 		settled: dialogOpen,
 		geometry: titleThenNoteThenBothChoices,
-		target: PANEL,
-		capture: "element",
+		target: `${CONTENT} p`,
+		capture: "page-from-top",
 		pinnedText: [],
 	};
 }
