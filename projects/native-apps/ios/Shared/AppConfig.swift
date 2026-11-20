@@ -11,10 +11,7 @@ enum ServerEnvironment {
 	var baseURL: String {
 		switch self {
 		case .production: return "https://readplace.com"
-		// Staging has no custom domain; this is the staging stack's API Gateway
-		// endpoint (pulumi stack output appOrigin --stack staging). Keep in sync
-		// with the server's OAuth client registration if the gateway is replaced.
-		case .staging: return "https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com"
+		case .staging: return "https://readplace-staging.com"
 		case .local: return "http://127.0.0.1:3000"
 		}
 	}

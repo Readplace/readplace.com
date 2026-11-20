@@ -13,10 +13,7 @@ final class AppConfigTests: XCTestCase {
 	}
 
 	func testStagingBaseURL() {
-		XCTAssertEqual(
-			ServerEnvironment.staging.baseURL,
-			"https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com"
-		)
+		XCTAssertEqual(ServerEnvironment.staging.baseURL, "https://readplace-staging.com")
 	}
 
 	func testLocalBaseURL() {
