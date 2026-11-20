@@ -489,7 +489,7 @@ jobs:
 
   # Run the iOS unit/integration test bundle on a macOS runner. Gates the
   # TestFlight publish below, so a red test blocks the build. Mirrors the publish
-  # job's toolchain (macos-15 + latest-stable Xcode + xcodegen). Gated by
+  # job's toolchain. Gated by
   # detect-ios, which — unlike detect-projects — runs on PRs too, so iOS
   # regressions are caught pre-merge like every other test suite. Fires whenever
   # Android change detection, mirroring detect-ios: a cheap path diff so
@@ -588,7 +588,7 @@ jobs:
     # untrusted PR code must never touch the self-hosted M5 (RCE + secret exposure).
     # Own pushes and same-repo PRs use the M5, which keeps Xcode, xcodegen and
     # DerivedData between runs — no cold install each time.
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && fromJSON('["self-hosted", "macOS"]') || 'macos-15' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && fromJSON('["self-hosted", "macOS"]') || 'xcode-27' }}
     defaults:
       run:
         working-directory: projects/native-apps/ios

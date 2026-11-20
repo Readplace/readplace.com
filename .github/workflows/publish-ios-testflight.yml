@@ -15,9 +15,7 @@ concurrency:
 
 jobs:
   testflight:
-    # macOS with Xcode 26 — App Store Connect rejects uploads built with an SDK
-    # older than iOS 26. Bump the runner/Xcode if uploads fail the SDK gate.
-    runs-on: macos-15
+    runs-on: xcode-27
     environment: prod
     permissions:
       contents: write
@@ -48,7 +46,7 @@ jobs:
             echo "::notice::iOS TestFlight secrets not configured — skipping publish."
           fi
 
-      - name: Select the newest stable Xcode (needs the iOS 26 SDK to upload)
+      - name: Select the newest stable Xcode
         if: steps.preflight.outputs.configured == 'true'
         uses: maxim-lobanov/setup-xcode@v1
         with:

@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 
 # Locate the real Xcode (not the nix DEVELOPER_DIR), preferring the NEWEST one
 # installed: App Store Connect requires building with the current iOS SDK
-# (Xcode 26+) to upload, so once that is installed — even side by side — the
+# to upload, so once that is installed — even side by side — the
 # build uses it automatically with no path juggling.
 XCODE_DEV_DIR=""; newest_ver=""
 for app in /Applications/Xcode.app /Applications/Xcode-*.app; do
