@@ -10,6 +10,7 @@
                 {{#if edited}}<p class="highlights-rail__chip" data-test-highlight-edited>{{edited}}</p>{{/if}}
                 {{#if note}}<p class="highlight-note" data-test-highlight-note>{{note}}</p>{{/if}}
                 {{#if orphaned}}<p class="highlights-rail__chip" data-test-highlight-orphan>{{t "articleBody.highlightsRail.notFound"}}</p>{{/if}}
+                {{#with highlightedOn}}<p class="highlights-rail__highlighted-on" data-test-highlight-highlighted-on>{{t "articleBody.highlightsRail.highlightedOn"}} <time datetime="{{iso}}" data-local-time="{{mode}}">{{label}}</time></p>{{/with}}
                 <div class="highlights-rail__actions">
                   {{#if jumpHref}}<a class="btn btn--neutral btn--s highlights-rail__jump" href="{{jumpHref}}" data-highlight-jump="{{highlightId}}" data-test-action="highlight-jump">{{t "articleBody.highlightsRail.jump"}}</a>{{/if}}
                   {{#with edit}}<form method="POST" action="{{deleteUrl}}" class="highlights-rail__delete-form highlights-rail__delete-form--fallback" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"{{#unless pushesHistory}} hx-push-url="false"{{/unless}} hx-disabled-elt="find button">

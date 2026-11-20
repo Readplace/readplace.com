@@ -39,6 +39,7 @@ function aRow(params: { userId: string; highlightOf: string; highlightId: Highli
 		end: 19,
 		anchoredContentHash: "hash-1",
 		anchoredCandidateId: "candidate-1",
+		createdOnCandidateId: "candidate-1",
 		anchorState: "anchored",
 		orderKey: 10,
 		createdAt: "2026-11-01T10:00:00.000Z",
@@ -203,6 +204,7 @@ describe("initDynamoDbHighlightAnchors", () => {
 		});
 
 		expect(table.items.get(rowKey(seeded))?.anchoredCandidateId).toBeUndefined();
+		expect(table.items.get(rowKey(seeded))?.createdOnCandidateId).toBe("candidate-1");
 		expect(table.items.get(rowKey(seeded))?.anchorRevision).toBe(1);
 	});
 

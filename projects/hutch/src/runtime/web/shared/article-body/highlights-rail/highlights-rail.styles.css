@@ -35,6 +35,16 @@
   line-clamp: 4;
 }
 
+.highlights-rail__highlighted-on {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.highlights-rail__highlighted-on time {
+  white-space: nowrap;
+}
+
 .highlights-rail__chip {
   align-self: flex-start;
   margin: 0;

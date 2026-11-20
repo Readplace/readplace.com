@@ -9,7 +9,7 @@ import {
 } from "@packages/domain/article";
 import { DEFAULT_LOCALE, translator } from "@packages/translations";
 import { hutchReader } from "@packages/translations/hutch-reader";
-import { render, renderConfirmPopover } from "@packages/web-shell";
+import { render, renderConfirmPopover, toAbsoluteDate } from "@packages/web-shell";
 import {
 	type HighlightFormScope,
 	type HighlightFormTarget,
@@ -168,6 +168,10 @@ function rowView(input: {
 			? t("articleBody.highlightsRail.edited", { quote: highlight.exact })
 			: undefined,
 		orphaned: shown.state === "orphaned",
+		highlightedOn:
+			shown.state === "orphaned" && highlight.createdOnCandidateId !== undefined
+				? toAbsoluteDate({ iso: highlight.createdAt.toISOString() })
+				: undefined,
 		jumpHref: marked
 			? `#${ARTICLE_HIGHLIGHT_ID_PREFIX}${highlight.highlightId}`
 			: "",

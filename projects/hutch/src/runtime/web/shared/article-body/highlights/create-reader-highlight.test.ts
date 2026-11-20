@@ -82,6 +82,7 @@ describe("initCreateReaderHighlight", () => {
 		assert.equal(row.highlightOf, url);
 		assert.equal(row.anchoredContentHash, contentHash);
 		assert.equal(Object.hasOwn(row, "anchoredCandidateId"), false);
+		assert.equal(Object.hasOwn(row, "createdOnCandidateId"), false);
 		assert.equal(row.anchorState, "anchored");
 		assert.equal(row.orderKey, row.start);
 		assert.equal(row.anchorRevision, 0);
@@ -89,7 +90,7 @@ describe("initCreateReaderHighlight", () => {
 		assert.deepEqual(row.updatedAt, NOW);
 	});
 
-	it("records the canonical candidate the highlight was anchored on", async () => {
+	it("records the canonical candidate the highlight was anchored on and created on", async () => {
 		const { store, createReaderHighlight } = setup();
 		const candidateId = CandidateIdSchema.parse("candidate-1");
 
@@ -105,6 +106,7 @@ describe("initCreateReaderHighlight", () => {
 		assert.equal(outcome.status, "created");
 		const [row] = await store.listArticleHighlights({ userId, url });
 		assert.equal(row.anchoredCandidateId, candidateId);
+		assert.equal(row.createdOnCandidateId, candidateId);
 	});
 
 	it("answers passage-changed when exact is not at [start, end)", async () => {

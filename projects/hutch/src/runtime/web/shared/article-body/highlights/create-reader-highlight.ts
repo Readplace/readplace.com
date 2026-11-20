@@ -92,7 +92,7 @@ export function initCreateReaderHighlight(deps: {
 				highlightId: HighlightIdSchema.parse(deps.newHighlightId()),
 				highlightOf: url,
 				anchoredContentHash: contentHash,
-				...(candidateId === undefined ? {} : { anchoredCandidateId: candidateId }),
+				...(candidateId === undefined ? {} : { anchoredCandidateId: candidateId, createdOnCandidateId: candidateId }),
 				anchorState: "anchored",
 				orderKey: described.start,
 				createdAt: now,

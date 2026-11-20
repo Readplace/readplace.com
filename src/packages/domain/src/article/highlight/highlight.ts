@@ -20,6 +20,7 @@ export interface Highlight extends TextQuoteSelector {
 	end: number;
 	anchoredContentHash: string;
 	anchoredCandidateId?: CandidateId;
+	createdOnCandidateId?: CandidateId;
 	basisCandidateId?: CandidateId;
 	basisQuote?: string;
 	anchorState: AnchorState;

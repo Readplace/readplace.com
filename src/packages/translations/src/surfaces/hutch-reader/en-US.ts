@@ -18,6 +18,7 @@ export const enUS = {
 		highlightsRail: {
 			title: "Highlights",
 			notFound: "Not found in this version",
+			highlightedOn: "Highlighted",
 			edited: "Edited in this version. You highlighted: “{quote}”",
 			jump: "Jump",
 			addNote: "Add note",

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { CandidateIdSchema } from "@packages/article-state-types";
 import type { Highlight } from "@packages/domain/article";
 import { HighlightIdSchema } from "@packages/domain/article";
 import { JSDOM } from "jsdom";
@@ -234,6 +235,48 @@ describe("renderHighlightsRail", () => {
 			"Not found in this version",
 		);
 		expect(row.querySelector('[data-test-action="highlight-jump"]')).toBeNull();
+	});
+
+	it("dates an orphan that records the version it was created on by when it was highlighted", () => {
+		const createdOnAVersion: Highlight = {
+			...first,
+			createdOnCandidateId: CandidateIdSchema.parse("candidate-origin"),
+			createdAt: new Date("2026-05-10T09:30:00.000Z"),
+		};
+		const row = rowOf(railOf([aRow(createdOnAVersion, "orphaned")]), FIRST_ID);
+
+		const highlightedOn = row.querySelector("[data-test-highlight-highlighted-on]");
+		assert(highlightedOn, "the orphan must say when it was highlighted");
+		expect(highlightedOn.textContent).toBe("Highlighted May 10, 2026");
+		const time = highlightedOn.querySelector("time");
+		assert(time, "the date must be a localisable <time>");
+		expect(time.getAttribute("datetime")).toBe("2026-05-10T09:30:00.000Z");
+		expect(time.getAttribute("data-local-time")).toBe("date");
+	});
+
+	it("dates neither an orphan with no recorded version nor a placed row that has one", () => {
+		const createdOnAVersion: Highlight = {
+			...first,
+			createdOnCandidateId: CandidateIdSchema.parse("candidate-origin"),
+		};
+		const doc = railOf([
+			aRow(createdOnAVersion, "anchored"),
+			aRow({ ...second, orderKey: 20 }, "orphaned"),
+		]);
+
+		const childrenOf = (id: string) =>
+			[...rowOf(doc, id).children].map((child) => child.className);
+		expect(childrenOf(FIRST_ID)).toEqual([
+			"highlights-rail__excerpt",
+			"highlights-rail__actions",
+			"highlight-note__fallback",
+		]);
+		expect(childrenOf(SECOND_ID)).toEqual([
+			"highlights-rail__excerpt",
+			"highlights-rail__chip",
+			"highlights-rail__actions",
+			"highlight-note__fallback",
+		]);
 	});
 
 	it("shows a pending row's excerpt with neither Jump nor chip", () => {
