@@ -278,6 +278,7 @@ export function initInMemoryAuth(opts: {
 		const user = liveUserRow(users.get(normalizedEmail));
 
 		if (!user) {
+			await _verifyPassword(password, undefined);
 			return { ok: false, reason: "invalid-credentials" };
 		}
 

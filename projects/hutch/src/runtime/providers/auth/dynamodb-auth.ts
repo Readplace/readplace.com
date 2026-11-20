@@ -367,7 +367,10 @@ export function initDynamoDbAuth(deps: {
 	const verifyCredentials: VerifyCredentials = async ({ email, password }) => {
 		const normalizedEmail = normalizeEmail(email);
 		const row = liveUserRow(await users.get({ email: normalizedEmail }));
-		if (!row) return { ok: false, reason: "invalid-credentials" };
+		if (!row) {
+			await verifyPassword(password, undefined);
+			return { ok: false, reason: "invalid-credentials" };
+		}
 
 		const valid = await verifyPassword(password, row.passwordHash);
 		if (!valid) return { ok: false, reason: "invalid-credentials" };

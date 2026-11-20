@@ -403,6 +403,42 @@ describe("initInMemoryAuth", () => {
 			expect(result).toEqual({ ok: false, reason: "invalid-credentials" });
 		});
 
+		it("runs the password check for a nonexistent email, so it takes as long as a wrong password", async () => {
+			const checks: { password: string; stored: string | undefined }[] = [];
+			const auth = initInMemoryAuth({
+				hashPassword,
+				verifyPassword: async (password, stored) => {
+					checks.push({ password, stored });
+					return false;
+				},
+				now: () => new Date(),
+			});
+
+			await auth.verifyCredentials({ email: "noone@example.com", password: "password123" });
+
+			expect(checks).toEqual([{ password: "password123", stored: undefined }]);
+		});
+
+		it("runs the password check against no stored hash for a deleted account", async () => {
+			const checks: { password: string; stored: string | undefined }[] = [];
+			const auth = initInMemoryAuth({
+				hashPassword,
+				verifyPassword: async (password, stored) => {
+					checks.push({ password, stored });
+					return true;
+				},
+				now: () => new Date(),
+			});
+			const created = await auth.createUser({ email: "gone@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+			await auth.markAccountDeleted({ userId: created.userId, at: "2026-08-31T00:00:00.000Z" });
+
+			const result = await auth.verifyCredentials({ email: "gone@example.com", password: "password123" });
+
+			expect(result).toEqual({ ok: false, reason: "invalid-credentials" });
+			expect(checks).toEqual([{ password: "password123", stored: undefined }]);
+		});
+
 		it("should not match plus alias against base email", async () => {
 			const auth = makeAuth();
 			await auth.createUser({ email: "user@example.com", password: "password123" });
