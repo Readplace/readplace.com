@@ -52,7 +52,7 @@
     "linkedom": "0.18.12",
     "parse-srcset": "1.0.2",
     "posthtml": "0.16.7",
-    "puppeteer-core": "25.11.0",
+    "puppeteer-core": "25.14.0",
     "tldts": "6.1.86",
     "tokenizers": "0.23.2",
     "zod": "4.6.7"
@@ -61,12 +61,12 @@
     "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
     "@pulumi/aws": "7.32.0",
-    "@pulumi/pulumi": "3.244.0",
+    "@pulumi/pulumi": "3.277.0",
     "@types/aws-lambda": "8.10.161",
     "@types/jest": "30.0.0",
     "c8": "11.0.0",
-    "concurrently": "10.0.0",
-    "jest": "30.4.2",
+    "concurrently": "10.0.7",
+    "jest": "30.5.2",
     "typescript": "6.0.3"
   }
 }

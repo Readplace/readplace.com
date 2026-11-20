@@ -24,10 +24,10 @@
     "@types/node": "22.19.19",
     "editorconfig-checker": "6.1.1",
     "husky": "9.1.7",
-    "jest": "30.4.2",
+    "jest": "30.5.2",
     "knip": "6.14.2",
     "minimatch": "10.2.5",
-    "nx": "22.7.5",
+    "nx": "22.7.12",
     "typescript": "6.0.3"
   },
   "packageManager": "pnpm@10.28.0",
@@ -36,7 +36,24 @@
   },
   "pnpm": {
     "overrides": {
-      "sanitize-html>htmlparser2": "10.1.0"
+      "sanitize-html>htmlparser2": "10.1.0",
+      "@babel/helper-compilation-targets>browserslist": "^4.28.7",
+      "@grpc/proto-loader>protobufjs": "^7.6.1",
+      "@pulumi/pulumi>@grpc/grpc-js": "^1.14.5",
+      "@devicefarmer/adbkit>node-forge": "^1.4.1",
+      "ajv@8>fast-uri": "^3.1.7",
+      "cheerio>undici": "^7.30.1",
+      "flat-cache>flatted": "^3.4.2",
+      "knip>smol-toml": "^1.7.1",
+      "livereload>ws": "^8.21.0",
+      "minimatch@3>brace-expansion": "^1.1.20",
+      "minimatch@9>brace-expansion": "^2.1.6",
+      "minimatch@10>brace-expansion": "^5.0.11",
+      "nx>axios": "^1.20.0",
+      "nx>brace-expansion": "^5.0.11",
+      "nx>follow-redirects": "^1.16.2",
+      "nx>smol-toml": "^1.7.1",
+      "selenium-webdriver>tmp": "^0.2.7"
     },
     "supportedArchitectures": {
       "os": ["current", "linux"],

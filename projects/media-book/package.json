@@ -23,20 +23,20 @@
     "@packages/media-contracts": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/tier-source": "workspace:*",
-    "fflate": "0.8.2",
+    "fflate": "0.8.3",
     "linkedom": "0.18.12",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
-    "@pulumi/pulumi": "3.244.0",
+    "@pulumi/pulumi": "3.277.0",
     "@types/aws-lambda": "8.10.161",
     "@types/jest": "30.0.0",
     "@types/node": "22.19.19",
     "c8": "11.0.0",
-    "concurrently": "10.0.0",
-    "jest": "30.4.2",
+    "concurrently": "10.0.7",
+    "jest": "30.5.2",
     "typescript": "6.0.3"
   }
 }
