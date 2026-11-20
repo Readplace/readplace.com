@@ -1,6 +1,5 @@
 import { PRICING_PLANS } from "@packages/web-shell";
 
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { HOME_CONTENT } from "../home/home.content";
 import type { HomeHero } from "../home/home-view.component";
 
@@ -33,7 +32,7 @@ const HOME_C_CAPABILITY_ITEMS: readonly HomeCapability[] = [
 const HOME_C_HERO: HomeHero = {
 	...HOME_CONTENT.hero,
 	title: "One place to keep the articles you want to come back to.",
-	subhead: `Save from your browser or your iPhone. Read when you have time. ${STRIPE_TRIAL_PERIOD_DAYS} days free, no card; then ${PRICING_PLANS.yearly.periodDisplay} or ${PRICING_PLANS.monthly.periodDisplay}.`,
+	subhead: `Save from your browser or your iPhone. Read when you have time. Free within daily limits, with no card; the paid plan is ${PRICING_PLANS.yearly.periodDisplay} or ${PRICING_PLANS.monthly.periodDisplay}.`,
 };
 
 export const HOME_C_CONTENT = {

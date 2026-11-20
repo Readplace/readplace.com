@@ -9,7 +9,8 @@ export type LandingPageSlug =
 	| "save-newsletter-links"
 	| "article-to-epub"
 	| "readwise-reader-alternative"
-	| "obsidian-read-it-later";
+	| "obsidian-read-it-later"
+	| "free-read-it-later-app";
 
 export interface LandingPageActionInput {
 	readonly name: string;

@@ -2,7 +2,7 @@
 title: "Best Read-It-Later Apps: 7 Compared, Pros and Cons"
 description: "7 read-it-later apps compared on AI, offline reading, platforms and price: Readwise Reader, Instapaper, Raindrop.io, Karakeep, Wallabag, Matter, Readplace."
 excerpt: "After Pocket and Omnivore shut down, 7 alternatives get compared on price, AI and offline reading."
-tldr: "Pocket and Omnivore both shut down, so here are the real alternatives. For most readers I would start with Readplace: AI TL;DR summaries included on every plan ([current plans](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing)), funded entirely by subscriptions (no ads, no investors, no data selling), and a 14-day free trial that needs no credit card. If the trial ends without subscribing, nothing is charged, and the account just moves to the free plan: everything you saved stays, and you can keep saving within daily limits. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading."
+tldr: "Pocket and Omnivore both shut down, so here are the real alternatives. For most readers I would start with Readplace: AI TL;DR summaries included on every plan ([current plans](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing)), funded entirely by subscriptions (no ads, no investors, no data selling), and a free plan that needs no credit card: everything you saved stays, and new saves have daily limits. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading."
 slug: "best-read-it-later-apps-2026"
 date: "2026-05-06"
 lastModified: "2026-11-19"
@@ -26,7 +26,7 @@ These 5 axes leave things out. They say nothing about reading-view typography, p
 
 | App | Price | AI Features | Open Source | Offline Reading | Platforms |
 |-----|-------|-------------|-------------|-----------------|-----------|
-| **Readplace** | [Plans on the home page](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing), 14-day free trial, no card | TL;DR summaries | Source-available | No | Web, iPhone, Mac, Android, Chrome, Firefox |
+| **Readplace** | Free plan with daily limits, [paid plans on the home page](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing) | TL;DR summaries | Source-available | No | Web, iPhone, Mac, Android, Chrome, Firefox |
 | **Readwise Reader** | $119.88/yr | Ghostreader AI | No | Yes | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Instapaper** | Free / $59.99/yr | Summaries | No | Yes | Web, iOS, macOS, Android, Kindle/Kobo |
 | **Raindrop.io** | Free / $28/yr | AI Suggestions + Stella | Clients only | Pro only | Web, iOS, Android, Chrome, Firefox, Safari |
@@ -58,14 +58,14 @@ The code is source-available, so you can read every line that touches your data.
 
 The part that matters most after watching Pocket and Omnivore die: the subscription is the entire funding source. No ads, no investors, no data selling. There is no parent company whose shifting priorities can wind it down.
 
-**A 14-day free trial, no credit card required.** [Current plans are on the home page](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing). If the trial ends and you have not subscribed, nothing is charged. The account moves to the free plan, everything you saved stays readable, and you can keep saving within daily limits.
+**A free plan, no credit card required.** [Current plans are on the home page](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing). If you don't upgrade, nothing is charged. The account stays on the free plan, everything you saved stays readable, and you can keep saving within daily limits.
 
 ### Strengths
 
-- AI TL;DR summaries are included in the base price. There is no upsell tier to reach them.
+- AI TL;DR summaries are included on every plan, the free one too. There is no upsell tier to reach them.
 - Hosted in Australia under the Australian Privacy Act, with no third-party tracking scripts and no third-party analytics in the app.
 - Source-available, so you can audit the code that handles your data.
-- The trial takes no card and has no billing cliff: 14 days with the full product, and a lapsed trial simply moves to the free plan.
+- No card and no billing cliff: 14 days with the full product, then the free plan, with daily limits on new saves.
 
 ### Limitations
 
@@ -76,9 +76,9 @@ The part that matters most after watching Pocket and Omnivore die: the subscript
 
 <div class="blog-cta">
 <p class="blog-cta__title">Try Readplace on your own reading</p>
-<p class="blog-cta__text">Save a week's worth of articles and see how the reader view and the TL;DRs hold up. If it does not fit, let the trial lapse. Nothing is charged and the account moves to the free plan.</p>
-<a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=inline-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. <a href="/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing">See the plans</a> if you stay.</p>
+<p class="blog-cta__text">Save a week's worth of articles and see how the reader view and the TL;DRs hold up. If the paid plan is not worth it to you, do nothing. Nothing is charged and the account stays on the free plan, with daily limits on new saves.</p>
+<a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=inline-cta">Create a free account</a>
+<p class="blog-cta__note">No credit card required. <a href="/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing">See the paid plan</a> for what it adds.</p>
 </div>
 
 ## Readwise Reader
@@ -211,7 +211,7 @@ The pick depends on how you use saved articles. Here is how the axes resolve int
 - **If you want the longest-running open source option:** Wallabag.
 - **If you want reading to be social:** Matter.
 
-If none of the narrower profiles fits, my suggestion is the one I am biased about: start the Readplace trial, bring your Pocket export with you, and let 2 weeks of your actual reading decide. If Readplace does not earn its price, nothing is charged and the account moves to the free plan.
+If none of the narrower profiles fits, my suggestion is the one I am biased about: make a free Readplace account, bring your Pocket export with you, and let 2 weeks of your actual reading decide. If the paid plan does not earn its price, nothing is charged and the account stays on the free plan, within its daily limits.
 
 ## Frequently Asked Questions
 
@@ -241,6 +241,7 @@ Yes, inherently. I built Readplace, so I have a stake in how it lands. I wrote t
 - [Moving from Pocket](/pocket-alternative?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pocket-alternative): what a Pocket export brings across before you make an account.
 - [Reading from an AI assistant](/ai-reading-list?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=ai-reading-list): saving to a readlist from ChatGPT, Claude or Gemini.
 - [When a subscription ends](/read-it-later-that-wont-die?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=read-it-later-that-wont-die): what stays readable if you stop paying.
+- [Free read-it-later app](/free-read-it-later-app): what the free plan includes.
 - [Reading a PDF on a phone](/pdf-reflow?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pdf-reflow): a pasted PDF as text that fits the screen.
 - [Turning an article into an EPUB](/article-to-epub?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=article-to-epub): a file for a Kobo or Kindle, with no account.
 - [Saving newsletter links](/save-newsletter-links?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=save-newsletter-links): an address per newsletter, and only the articles are kept.
@@ -249,6 +250,6 @@ Yes, inherently. I built Readplace, so I have a stake in how it lands. I wrote t
 <div class="blog-cta">
 <p class="blog-cta__title">See whether Readplace fits your reading</p>
 <p class="blog-cta__text">You have read my case and you know my bias. Fourteen days with the full product, on the articles you actually save, answers the question better than this page can.</p>
-<a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=end-cta">Start your 14-day free trial</a>
-<p class="blog-cta__note">No credit card required. <a href="/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing">See the plans</a> if you stay. If you don't, nothing is charged and your account moves to the free plan.</p>
+<a class="btn btn--primary blog-cta__button" href="/signup?utm_source=blog-best-apps-2026&utm_medium=internal&utm_content=end-cta">Create a free account</a>
+<p class="blog-cta__note">No credit card required. <a href="/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing">See the paid plan</a> for what it adds. If you don't upgrade, nothing is charged and your account stays on the free plan, with daily limits on new saves.</p>
 </div>

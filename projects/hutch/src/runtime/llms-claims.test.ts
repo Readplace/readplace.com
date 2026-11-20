@@ -6,7 +6,7 @@ import { OCR_PAGE_QUOTA_RULE } from "@packages/domain/ocr-page-allowance";
 import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { BOOK, VIDEO } from "@packages/media-contracts";
 import { LANDING_PAGE_CONTENT } from "./web/pages/landing-pages";
-import { PRICE_STATEMENT } from "./web/price-statement";
+import { FREE_PRICE_STATEMENT } from "./web/price-statement";
 
 const FILES = {
 	"llms.txt": readFileSync(join(__dirname, "llms.txt"), "utf-8"),
@@ -20,7 +20,7 @@ const AMOUNTS_BY_FILE: Record<keyof typeof FILES, readonly string[]> = {
 
 describe("llms files", () => {
 	it.each(FILE_NAMES)("%s states the price and quotes only its known dollar amounts", (name) => {
-		expect(FILES[name]).toContain(PRICE_STATEMENT);
+		expect(FILES[name]).toContain(FREE_PRICE_STATEMENT);
 		expect([...new Set(FILES[name].match(/\$\d+(?:\.\d+)?/g))].sort()).toEqual(AMOUNTS_BY_FILE[name]);
 	});
 

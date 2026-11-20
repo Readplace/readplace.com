@@ -94,7 +94,7 @@ The team went to ElevenLabs to work on text-to-speech rather than reading tools,
 
 **Is there a free Omnivore alternative?**
 
-Readplace has paid plans and a free plan with daily limits, with its current plans on the [home page](/?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pricing#pricing). The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $119.88/year. [Free read-it-later apps](/blog/free-read-it-later-apps-2026?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-free-read-it-later-apps-2026) breaks down what each free option costs in money and time.
+Readplace has a free plan with daily limits and a paid plan, with its current plans on the [home page](/?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=pricing#pricing). The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $119.88/year. [Free read-it-later apps](/blog/free-read-it-later-apps-2026?utm_source=blog-omnivore-alternative&utm_medium=internal&utm_content=post-free-read-it-later-apps-2026) breaks down what each free option costs in money and time.
 
 **Can I import my Omnivore data into Readplace?**
 

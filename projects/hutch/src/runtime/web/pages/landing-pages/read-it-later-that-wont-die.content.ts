@@ -1,7 +1,6 @@
 import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
-import { founderLine, PLAN_CHOICES, FREE_PLAN_CLOSE } from "./landing-pages.copy";
+import { FIRST_DAYS_STATEMENT, FREE_PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { CREATE_FREE_ACCOUNT, founderLine, PLAN_CHOICES, FREE_PLAN_CLOSE } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 function track(path: string, content: string): string {
@@ -23,11 +22,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	lede: `Pocket shut down. Omnivore shut down. I cannot promise Readplace outlives them, so instead the cancelled state is written into the code: you keep everything you saved, and you can keep saving. It costs ${RENEWAL_PRICES.replace(/\.$/, "")}, and that subscription is the whole business — no ad path, no data resale, no investor whose timeline outlives yours.`,
 	ogImageAlt:
 		"Readplace — a read-it-later app whose cancelled accounts move to a free plan instead of going dark.",
-	primaryAction: {
-		key: "signup",
-		label: `Start your ${STRIPE_TRIAL_PERIOD_DAYS}-day free trial`,
-		href: "/signup",
-	},
+	primaryAction: CREATE_FREE_ACCOUNT,
 	secondaryActions: [],
 	reassurance:
 		"No credit card. Google, Apple, or an email address — about twenty seconds. Export keeps working whether or not you are paying.",
@@ -95,21 +90,21 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Do I need a credit card to start?",
-			answer: `No. ${STRIPE_TRIAL_PERIOD_DAYS} days with the full product and no card. If you never subscribe, nothing is charged and the account moves to the free plan.`,
+			answer: `No. An account is free, within daily limits on new saves, and no card is asked for. ${FIRST_DAYS_STATEMENT} If you never upgrade, nothing is charged.`,
 		},
 		{
-			question: "What does it cost after the trial?",
-			answer: `${PLAN_CHOICES}. There is one product behind both — every plan is the whole of it, and there is no tier above them to upgrade to.`,
+			question: "What does it cost?",
+			answer: `Nothing on the free plan, which limits new saves per day. The paid plan is ${PLAN_CHOICES}; both prices buy the same plan, and there is no tier above it.`,
 		},
 	],
 	offer: {
 		title: `${PRICING_PLANS.yearly.periodDisplay}, and that's the whole business.`,
 		paragraphs: [
-			`Pick how often you pay — ${PLAN_CHOICES} — and both buy the same whole product. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it. <a href="${track("/blog/best-read-it-later-apps-2026", "post-best-read-it-later-apps-2026")}">The comparison of 7 read-it-later apps</a> reads each app's price as a funding model, and <a href="${track("/blog/free-read-it-later-apps-2026", "post-free-read-it-later-apps-2026")}">the guide to free ones</a> asks who pays the bill when you don't.`,
-			`${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			`Pick how often you pay — ${PLAN_CHOICES} — and both buy the same paid plan. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it. <a href="${track("/blog/best-read-it-later-apps-2026", "post-best-read-it-later-apps-2026")}">The comparison of 7 read-it-later apps</a> reads each app's price as a funding model, and <a href="${track("/blog/free-read-it-later-apps-2026", "post-free-read-it-later-apps-2026")}">the guide to free ones</a> asks who pays the bill when you don't.`,
+			`${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card at any point in the trial.",
+		note: "Google, Apple, or an email address. No card unless you upgrade.",
 	},
 	closeTitle: "Somewhere your reading survives a cancelled card",
 	closeNote:

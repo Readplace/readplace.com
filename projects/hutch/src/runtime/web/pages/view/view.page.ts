@@ -41,7 +41,9 @@ import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
 import { CLICK_SURFACES, wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent, withClickSurface, withInternalTracking } from "@packages/web-shell";
 import { CacheableComponent } from "../../conditional-get";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { DEFAULT_LOCALE, translator } from "@packages/translations";
+import { hutchReader } from "@packages/translations/hutch-reader";
+import { FIRST_DAYS_STATEMENT, FREE_PLAN_STATEMENT } from "../../price-statement";
 import { DOWNLOAD_GUIDE_POPOVER_ID } from "../../shared/download-guide/download-guide.component";
 
 import { Base } from "../../base.component";
@@ -196,6 +198,8 @@ function saveAction(input: {
 	};
 }
 
+const { t } = translator(hutchReader, DEFAULT_LOCALE);
+
 const FOUNDER_POST_HOSTS: readonly string[] = ["fagnerbrack.com", "www.fagnerbrack.com"];
 
 function isFounderPost(articleUrl: string): boolean {
@@ -207,7 +211,7 @@ function endCtaSaveAction(articleUrl: string): ViewEndCtaAction {
 	return {
 		kind: "form",
 		key: "save",
-		label: "Save it and start my trial",
+		label: t("view.endCta.saveLabel"),
 		variant: "primary",
 		...splitTrackedHref(
 			withInternalTracking(`/save?${saveParams.toString()}`, {
@@ -560,7 +564,7 @@ function handleViewArticle(
 				? {
 						heading: "Keep this one",
 						signedByFounder: isFounderPost(articleUrl),
-						lines: [PRICE_STATEMENT, SAVES_STAY_STATEMENT],
+						lines: [FREE_PLAN_STATEMENT, FIRST_DAYS_STATEMENT],
 						actions: [endCtaSaveAction(articleUrl), endCtaEpubAction({ articleUrl, guide: epubDownloadGuide })],
 					}
 				: undefined;

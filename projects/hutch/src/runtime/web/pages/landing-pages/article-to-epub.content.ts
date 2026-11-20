@@ -1,10 +1,10 @@
 import { withInternalTracking } from "@packages/web-shell";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	PASTE_A_LINK,
 	READER_SHOT,
 	FREE_PLAN_CLOSE,
-	START_TRIAL,
+	CREATE_FREE_ACCOUNT,
 	founderLine,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
@@ -14,7 +14,7 @@ function track(path: string, content: string): string {
 }
 
 export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-05",
+	lastModified: "2026-11-19",
 	title: "Webpage to EPUB: Turn Any Article Into an E-Book File | Readplace",
 	description:
 		"Paste a link and download the article as an EPUB, with its images and an AI summary on the first page. Copy it to a Kobo or email it to a Kindle. No account needed.",
@@ -110,12 +110,12 @@ export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs to keep a library",
 		paragraphs: [
-			`Downloading an EPUB from a link you paste here costs nothing. Saving articles to a readlist is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			`Downloading an EPUB from a link you paste here costs nothing. Saving articles to a readlist takes an account. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card at any point in the trial.",
+		note: "Google, Apple, or an email address. No card unless you upgrade.",
 	},
 	closeTitle: "Try it on an article you meant to read",
-	closeSecondaryAction: START_TRIAL,
+	closeSecondaryAction: CREATE_FREE_ACCOUNT,
 	closeNote: "Paste a link, then press Download EPUB above the article. No account required.",
 };

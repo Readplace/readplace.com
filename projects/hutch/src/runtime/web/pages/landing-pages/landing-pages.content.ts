@@ -7,6 +7,7 @@ import { SAVE_NEWSLETTER_LINKS_CONTENT } from "./save-newsletter-links.content";
 import { ARTICLE_TO_EPUB_CONTENT } from "./article-to-epub.content";
 import { READWISE_READER_ALTERNATIVE_CONTENT } from "./readwise-reader-alternative.content";
 import { OBSIDIAN_READ_IT_LATER_CONTENT } from "./obsidian-read-it-later.content";
+import { FREE_READ_IT_LATER_APP_CONTENT } from "./free-read-it-later-app.content";
 import type { LandingPageContent, LandingPageSlug } from "./landing-pages.types";
 
 /**
@@ -25,4 +26,5 @@ export const LANDING_PAGE_CONTENT: Record<LandingPageSlug, LandingPageContent> =
 	"article-to-epub": ARTICLE_TO_EPUB_CONTENT,
 	"readwise-reader-alternative": READWISE_READER_ALTERNATIVE_CONTENT,
 	"obsidian-read-it-later": OBSIDIAN_READ_IT_LATER_CONTENT,
+	"free-read-it-later-app": FREE_READ_IT_LATER_APP_CONTENT,
 };

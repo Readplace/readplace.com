@@ -3072,6 +3072,21 @@ describe("Keep this one block on the public reader", () => {
 		});
 	});
 
+	it("offers the free account, then the paid plan's first days, under the heading", async () => {
+		const harness = buildReaderHarness();
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+		const lines = Array.from(
+			endCtaOf(new JSDOM(response.text).window.document).querySelectorAll(".view__end-cta-line"),
+			(line) => line.textContent?.trim(),
+		);
+		expect(lines).toEqual([
+			"Free to use, with no card: save new links within daily limits and read everything you save.",
+			"Every new account gets the paid plan for its first 14 days.",
+		]);
+	});
+
 	it("points the Save form at /save with the reader_view_end surface and the block's internal click tracking", async () => {
 		const harness = buildReaderHarness();
 
@@ -3079,6 +3094,7 @@ describe("Keep this one block on the public reader", () => {
 
 		const save = endCtaOf(new JSDOM(response.text).window.document).querySelector('[data-test-view-end-cta-action="save"]');
 		assert(save, "the Save action must render");
+		expect(save.textContent?.trim()).toBe("Save it to my free account");
 		expect(save.closest("form")?.getAttribute("action")).toBe("/save");
 		expect(hiddenInputsOf(save)).toEqual([
 			["url", ARTICLE_URL],

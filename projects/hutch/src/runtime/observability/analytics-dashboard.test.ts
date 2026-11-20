@@ -343,7 +343,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			.map((widget) => String(widget.properties.query));
 		expect(homepageQueries.length).toBe(2);
 		for (const query of homepageQueries) {
-			expect(query).toContain(`experiment in ["${HOMEPAGE_EXPOSURE.campaign}", "homepage-split-e3", "homepage-ai-cost-e1", "${campaignTag(HOMEPAGE_SPLIT)}"]`);
+			expect(query).toContain(`experiment in ["${HOMEPAGE_EXPOSURE.campaign}", "homepage-split-e3", "homepage-ai-cost-e1", "homepage-ai-cost-e2", "${campaignTag(HOMEPAGE_SPLIT)}"]`);
 			expect(query).toContain('utm_campaign = "homepage-split-e3"');
 		}
 	});

@@ -1,14 +1,13 @@
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { withInternalTracking } from "@packages/web-shell";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { FREE_PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	OCR_LANGUAGES_ANSWER,
 	OCR_TESTED_LANGUAGES,
 	PASTE_A_LINK,
 	READER_SHOT,
 	FREE_PLAN_CLOSE,
-	START_TRIAL,
+	CREATE_FREE_ACCOUNT,
 	founderLine,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
@@ -18,7 +17,7 @@ function track(path: string, content: string): string {
 }
 
 export const PDF_REFLOW_CONTENT: LandingPageContent = {
-	lastModified: "2026-10-01",
+	lastModified: "2026-11-19",
 	title: "Reflow a PDF Online to Read on Your Phone | Readplace",
 	description:
 		"Paste a PDF link and read it as text that fits your screen, with no pinching or sideways scrolling. Scanned pages are read too. No account needed.",
@@ -83,7 +82,7 @@ export const PDF_REFLOW_CONTENT: LandingPageContent = {
 	faq: [
 		{
 			question: "Is it free?",
-			answer: `Reading a PDF you paste here is free and needs no account. Saving PDFs to a readlist is a subscription that starts with a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial and no card.`,
+			answer: "Reading a PDF you paste here is free and needs no account. Saving PDFs to a readlist takes a free account, with no card; on the free plan, pages read by OCR have a daily limit.",
 		},
 		{
 			question: "Does it work on scanned PDFs?",
@@ -108,12 +107,12 @@ export const PDF_REFLOW_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs to keep them",
 		paragraphs: [
-			`Reading a PDF you paste here costs nothing. Keeping a library of them is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			`Reading a PDF you paste here costs nothing. Keeping a library of them takes an account. ${FREE_PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			FREE_PLAN_CLOSE,
 		],
-		note: "Google, Apple, or an email address. No card at any point in the trial.",
+		note: "Google, Apple, or an email address. No card unless you upgrade.",
 	},
 	closeTitle: "Try it on a PDF you'd rather not pinch and zoom",
-	closeSecondaryAction: START_TRIAL,
+	closeSecondaryAction: CREATE_FREE_ACCOUNT,
 	closeNote: "Paste a PDF link and read the result. No account required.",
 };

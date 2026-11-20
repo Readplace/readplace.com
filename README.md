@@ -1,6 +1,6 @@
 # Readplace
 
-A read-it-later app. Save articles, read them later. Built from a personal reading system refined over 10 years.
+A free read-it-later app. Save articles, read them later. Built from a personal reading system refined over 10 years.
 
 → [readplace.com](https://readplace.com)
 

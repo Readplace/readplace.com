@@ -5,7 +5,7 @@ excerpt: "Self-hosting Karakeep, Readeck or wallabag leaves updates, backups and
 tldr: "Karakeep is free, open-source, and self-hosted with Docker. You get full data control and AI auto-tagging via Ollama, but you handle updates, backups, and uptime. Readeck and wallabag are 2 more open-source, self-hosted options, compared with Karakeep in their own table. Readplace is a paid hosted service with AI summaries included and no setup. You trade self-hosted control for convenience. Pick Karakeep if you already run a homelab. Pick Readplace if you would rather not maintain infrastructure for your reading list."
 slug: "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later"
 date: "2026-05-06"
-lastModified: "2026-11-11"
+lastModified: "2026-11-19"
 author: "Fayner Brack"
 keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alternative, readeck, wallabag"
 ---
@@ -61,7 +61,7 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 
 | | Karakeep | Readplace |
 |---|---|---|
-| **Price** | Free | [Current plans](/?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=pricing#pricing) |
+| **Price** | Free | Free plan with daily limits, [paid plans](/?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=pricing#pricing) |
 | **Hosting** | Self-hosted (Docker) | Managed |
 | **Source code** | Open source | Source-available |
 | **AI features** | Auto-tagging, plus summaries on request or opt-in (Ollama / OpenAI) | TL;DR summaries (included) |
@@ -110,7 +110,7 @@ Readplace sits apart from all 3 as a hosted-only service, and it writes an AI su
 - You are comfortable with a hosted service that is source-available and exports a list of what you saved.
 - You want a focused, opinionated reading experience over a configurable one.
 - You want someone else handling backups, updates, and uptime.
-- Paying for a subscription is worth more to you than the hours you would spend maintaining it.
+- A hosted account, free or paid, is worth more to you than the hours you would spend maintaining a server.
 
 ## The honest take
 
